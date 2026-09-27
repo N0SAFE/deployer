@@ -5,11 +5,46 @@
 # compose services for global-db / redis / drizzle-gateway / traefik —
 # the API SUPERVISES them itself. MANAGED_*_ENABLED are false/absent →
 # supervisors own the lifecycle. SETUP_AUTO=true lets Phase 0 auto-provision.
+#
+# SETUP IS STILL PRESENT, and it has to be: it is the process that founds or
+# joins the swarm and brings up WireGuard BEFORE the API can be scheduled onto
+# the cluster. That is a different job from managing the platform's services, so
+# this profile needing setup is not a contradiction of "no compose-managed
+# services" — compose manages no SERVICES here, but setup is the entry point.
 # =====================================================================
 
 name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-supervised
 
 services:
+  setup-dev:
+    extends:
+      file: ./common/setup/docker-compose.config.dev.yml
+      service: setup
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-setup-dev
+    environment:
+      # Dev: the API is a compose service, so setup DRIVES it rather than
+      # creating a swarm service for it. Same code path as the plain dev
+      # profile; what differs in this profile is who converges the platform's
+      # services (the API, not compose).
+      SETUP_MODE: "dev"
+      SETUP_API_URL: http://api-dev:${API_PORT:-3005}
+      SETUP_API_PORT: ${API_PORT:-3005}
+      DEPLOYER_PREFIX: ${DEPLOYER_PREFIX:-}
+      MANAGED_WIREGUARD_IP: ${MANAGED_WIREGUARD_IP:-}
+      APP_URL: ${APP_URL:-http://web-dev:3000}
+    # NO `ports:` — internal only, reached through Traefik.
+    volumes:
+      - api_local_db_data_dev:/app/data
+    networks:
+      app_network_dev:
+        aliases:
+          - setup-dev
+          - setup
+      deployer_platform:
+        aliases:
+          - setup-dev
+          - setup
+
   api-dev:
     extends:
       file: ./common/api/docker-compose.config.dev.yml

@@ -225,13 +225,23 @@ export class TraefikSupervisorService extends BaseDockerSupervisorService<
 
 		const tlsEnabled = this.env.get("DEPLOYER_TRAEFIK_TLS_ENABLED") === true;
 
-		// The docker provider must read SWARM services (workloads are services,
-		// not containers) alongside the file provider that carries the
-		// platform's own generated routes.
+		// Traefik v3 SPLIT the docker provider in two, and passing the v2 option
+		// PREVENTS TRAEFIK FROM STARTING:
+		//
+		//   Docker provider — containers only, NO swarm support
+		//   Swarm provider  — swarm services only
+		//
+		// The v2 `--providers.docker.swarmMode=true` is not merely deprecated: the
+		// v3 migration guide states that leaving it in place "would prevent Traefik
+		// to start" ("Install Configuration Changes → SwarmMode"). So the workloads
+		// below are published through the SWARM provider, and the DOCKER provider
+		// stays enabled for plain containers — a platform node can legitimately have
+		// both, e.g. a host-run dev sidecar beside swarm-scheduled services.
 		const command = [
 			"--providers.docker=true",
-			"--providers.docker.swarmMode=true",
 			"--providers.docker.exposedbydefault=false",
+			"--providers.swarm=true",
+			"--providers.swarm.exposedbydefault=false",
 			"--providers.file.directory=/config",
 			"--providers.file.watch=true",
 			"--entrypoints.web.address=:80",

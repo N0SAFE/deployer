@@ -2,12 +2,16 @@
  * Swarm route verifier — verify-only mode for Traefik's Swarm provider
  * (SW-023, docs/swarm-orchestration/05 §5).
  *
- * With `providers.docker.swarmMode=true`, Traefik converges routes from
- * service labels itself — the platform must NOT hand-write dynamic config
- * for swarm-managed services. This helper probes Traefik's API
- * (`/api/http/routers`) and confirms a router exists whose rule matches the
- * host rule, with retries. It is pure (injectable `probe`), so unit tests
- * never need a live Traefik.
+ * With `providers.swarm=true`, Traefik converges routes from service labels
+ * itself — the platform must NOT hand-write dynamic config for swarm-managed
+ * services. This helper probes Traefik's API (`/api/http/routers`) and confirms
+ * a router exists whose rule matches the host rule, with retries. It is pure
+ * (injectable `probe`), so unit tests never need a live Traefik.
+ *
+ * NOTE the provider name: Traefik v3 SPLIT the docker provider into a containers
+ * provider and a SWARM provider, and removed the v2 `docker.swarmMode` option —
+ * keeping it prevents Traefik from starting. The behaviour described here is
+ * unchanged; only the option that enables it was renamed.
  */
 
 export interface SwarmRouteVerificationResult {

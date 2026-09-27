@@ -211,7 +211,7 @@ describe("TraefikSupervisorService (swarm-global ingress)", () => {
 		expect(dockerService.updateSwarmService).toHaveBeenCalledTimes(1);
 	});
 
-	it("enables the swarm docker provider and the file provider", async () => {
+	it("enables the SWARM provider and the file provider, and never the v2 flag", async () => {
 		const configDir = await makeConfigDir();
 		const { supervisor, createSwarmService } = makeSupervisor({ TRAEFIK_CONFIG_BASE_PATH: configDir });
 		stubProbe(supervisor);
@@ -219,11 +219,18 @@ describe("TraefikSupervisorService (swarm-global ingress)", () => {
 		await supervisor.ensureDesiredState();
 
 		const cmd = createSwarmService.mock.calls[0]?.[0]?.TaskTemplate.ContainerSpec.Command ?? [];
-		// Workloads are SWARM SERVICES — without swarmMode the provider never
-		// reads their labels and every route 404s.
-		expect(cmd).toContain("--providers.docker.swarmMode=true");
+		// Workloads are SWARM SERVICES, so the SWARM provider is what reads their
+		// labels — without it every route 404s.
+		expect(cmd).toContain("--providers.swarm=true");
 		expect(cmd).toContain("--providers.file.directory=/config");
 		expect(cmd).toContain("--providers.file.watch=true");
+
+		// AND the v2 flag must be ABSENT. Traefik v3 split the docker provider in
+		// two and removed `swarmMode`; the migration guide states that leaving it
+		// in place "would prevent Traefik to start". Asserting the absence keeps a
+		// future edit from reintroducing an option that makes the ingress
+		// supervisor unable to converge at all.
+		expect(cmd).not.toContain("--providers.docker.swarmMode=true");
 	});
 
 	it("mounts the docker socket and the config volume read-only", async () => {

@@ -1,0 +1,45 @@
+# =====================================================================
+# Setup PROD variant — INCLUDE-ONLY. Extends the setup base; carries the
+# prod build and the healthcheck that the prod compose gates on.
+#
+# WHAT IS DIFFERENT FROM dev
+# `SETUP_MODE=prod` changes one thing and one thing only: instead of waiting for
+# a compose-managed API, setup CREATES the API as a swarm service from
+# `DEPLOYER_API_IMAGE`. Everything downstream — the readiness gate, the ingress
+# retarget, the exit — is identical, which is the point: the local path is a
+# faithful rehearsal of a real deployment.
+#
+# NO `ports:` — reached through Traefik only (see the base config). Especially
+# true here: this container holds the docker socket so it can found a swarm.
+# =====================================================================
+services:
+  setup:
+    build:
+      context: ../../../..
+      dockerfile: ./docker/builder/api/Dockerfile.api.prod
+      tags:
+        - "${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-setup-prod:latest"
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: info
+      SETUP_MODE: "prod"
+      # The tag setup schedules. Produced by the `build-api` service in
+      # docker-compose.prod.yml, or pulled from a registry in a real deploy —
+      # setup does not care which, it receives the reference and schedules it.
+      DEPLOYER_API_IMAGE: ${DEPLOYER_API_IMAGE:-deployer-api:local}
+      DEPLOYER_API_REPLICAS: ${API_REPLICAS:-1}
+      # The API's INTERNAL port. Read rather than hardcoded because dev publishes
+      # 3005 and prod 3001, so a constant would be right in one and produce an
+      # unreachable ingress backend in the other.
+      SETUP_API_PORT: ${API_PORT:-3001}
+    healthcheck:
+      # The GATE. Terminus returns 503 until the handover completed (cluster,
+      # API green, both ingress files rewritten), so `service_healthy` here means
+      # "the platform is ready" and compose needs no body parsing.
+      test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3016/setup/health || exit 1
+      # Long: a prod boot founds a swarm, schedules the API task, waits for
+      # migrations and admin bootstrap on a cold database, then hands over.
+      start_period: 60s
+      interval: 15s
+      timeout: 10s
+      retries: 60
