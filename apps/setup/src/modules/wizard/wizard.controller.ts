@@ -13,6 +13,7 @@ import { Subject } from "rxjs";
 
 import SetupView from "@/views/pages/setup";
 import { SetupGateService } from "./setup-gate.service";
+import { WizardStateService } from "./wizard-state.service";
 import { WizardStreamService } from "./wizard-stream.service";
 import { WizardUpstreamService } from "./wizard-upstream.service";
 
@@ -54,6 +55,7 @@ export class WizardController {
     private readonly upstream: WizardUpstreamService,
     private readonly stream: WizardStreamService,
     private readonly gate: SetupGateService,
+    private readonly state: WizardStateService,
   ) {}
 
   // ─── The wizard page ──────────────────────────────────────────────────────
@@ -132,7 +134,23 @@ export class WizardController {
       return;
     }
 
-    // ── THE GATE ────────────────────────────────────────────────────────────
+    // ── LOCALLY ANSWERABLE PATHS ARE ANSWERED HERE ──────────────────────────
+    // The gate opens when the wizard's details are collected, and the API starts
+    // BEHIND it — so `GET /setup/state` cannot be proxied: it is the wizard's
+    // FIRST call, and it would always land on a process that does not exist yet.
+    //
+    // These are pure reads of the shared `node_config` row (setup already has
+    // the repository), so answering them locally removes a guaranteed race
+    // without duplicating any provisioning logic. See `WizardStateService` for
+    // the full split and why it is drawn where it is.
+    if (req.method === "GET" && (path === "state" || path === "node-status")) {
+      res.status(200).json(
+        path === "state" ? this.state.getState() : this.state.getNodeStatus(),
+      );
+      return;
+    }
+
+    // ── THE GATE ──────────────────────────────────────────────────────────────
     // `POST /setup/trigger` is the operator saying "these are my choices, go".
     // That is the moment the API may start, so the gate opens HERE — before the
     // call is forwarded, because the forward is what needs the API to exist.

@@ -7,7 +7,7 @@ import { NodesModule } from "@repo/nest-nodes";
 import { SetupHealthModule } from "@/modules/health/setup-health.module";
 import { SetupGateService } from "./setup-gate.service";
 import { WizardController } from "./wizard.controller";
-import { WizardOrpcModule } from "./wizard-orpc.module";
+import { WizardStateService } from "./wizard-state.service";
 import { WizardStreamService } from "./wizard-stream.service";
 import { WizardUpstreamService } from "./wizard-upstream.service";
 
@@ -33,7 +33,6 @@ import { WizardUpstreamService } from "./wizard-upstream.service";
     // registration is passed in rather than imported ambiently, exactly as
     // `SetupClusterModule` does — the app owns the file path.
     NodesModule.forRoot({ localDatabase: localDatabaseRegistration() }),
-    WizardOrpcModule.forRoot(),
     RenderModule.forRoot({
       project: "setup",
       viewsDir: "src/views",
@@ -45,7 +44,7 @@ import { WizardUpstreamService } from "./wizard-upstream.service";
     }),
   ],
   controllers: [WizardController],
-  providers: [SetupGateService, WizardUpstreamService, WizardStreamService],
-  exports: [SetupGateService, WizardUpstreamService, WizardStreamService],
+  providers: [SetupGateService, WizardStateService, WizardUpstreamService, WizardStreamService],
+  exports: [SetupGateService, WizardStateService, WizardUpstreamService, WizardStreamService],
 })
 export class WizardModule {}

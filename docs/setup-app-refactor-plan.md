@@ -1,6 +1,8 @@
 # Setup App Refactor — Plan
 
-Status: **proposed** (no code changed yet)
+Status: **implemented** — all phases complete (§14). This document is the design record plus the
+running record of what the implementation changed about the design.
+
 Owner: platform
 Scope: `apps/*`, `packages/*`, `docker/*`
 
@@ -125,7 +127,7 @@ cannot poll `/health/detailed` to decide "the platform is green".
 | File | API | Managed services | Notes |
 |---|---|---|---|
 | `docker-compose.dev.yml` | `api-dev`, publishes drizzle-studio port | compose owns redis/traefik/db | `MANAGED_*=true` |
-| `docker-compose.dev-supervised.yml` | `api-dev`, **no published ports** | API supervises everything | `MANAGED_*=false`, `SETUP_AUTO=true` |
+| `docker-compose.dev-supervised.yml` | `api-dev`, **no published ports** | API supervises everything | `MANAGED_*=false`, API gated on `setup-dev` |
 | `docker-compose.prod.yml` | `api-prod`, publishes `API_PORT` | API supervises everything | single container, `entrypoint.prod.ts` |
 | `docker-stack.deploy.yml` | `api` replicas 3 | swarm services | **stale** — still has `--providers.docker.swarmMode=true`, removed as broken in Traefik v3 |
 
@@ -146,7 +148,8 @@ That produces, across the codebase:
 - a gateway that swaps its fallback target at runtime,
 - supervisors with `pending` states and convergence gates,
 - DB-touching modules with guards and deferred pools,
-- `SETUP_AUTO` branching in the orchestrator,
+- `SETUP_AUTO` branching in the orchestrator (the flag is **deleted** — it gated the pre-setup
+  boot mode, which no longer exists),
 - an SSR surface served from a sub-app that is later unregistered.
 
 All of it exists to serve a phase that, after this refactor, belongs to a different app.
@@ -225,27 +228,76 @@ The single most important table in this plan. "Where does this run?"
 | Concern | Setup app | Full API | Shared package |
 |---|---|---|---|
 | Wizard UI (React, SSR, Vite) | **yes** | — | `@repo/ui` (components) |
-| Wizard session state | **yes** | — | — |
-| Stream SSE to the client | **yes** (pipes) | produces | — |
+| **Wizard state (`/setup/state`, `/setup/node-status`)** | **yes** (reads `node_config`) | — | `@repo/nest-nodes` |
+| **Pre-flight probes (`probe/database`, `probe/mesh`)** | **yes** (pure network) | — | `@repo/nest-reachability` |
+| Stream SSE to the client | **yes** (forwards) | produces | — |
 | Swarm `init` / `join` | **yes** | — | `@repo/nest-swarm` |
-| WireGuard overlay | **yes** | — | `@repo/nest-mesh` |
+| WireGuard overlay | — (compose sidecar) | supervises | — |
 | Create the API swarm service | **yes** (prod) | — | `@repo/nest-docker` |
-| Traefik config generation | **yes** (bootstrap subset) | yes (full) | `@repo/nest-platform-ingress` |
-| Retarget `dynamic-api.yml` (handover) | **yes** | — | `@repo/nest-platform-ingress` |
+| Retarget `dynamic-api.yml` (handover) | **yes** | — | — |
+| **Provisioning (`/setup/trigger`, `/setup/stream`)** | — | **yes** | — |
 | Global Postgres provisioning | — | **yes** | `@repo/nest-docker` |
 | Migrations / seed / admin user | — | **yes** | — |
 | Mesh registration | — | **yes** | `@repo/nest-mesh` |
-| Supervised services (traefik, redis, managed-web) | bootstraps per-node ingress + redis | converges the full set | `@repo/nest-supervisors` |
+| Supervised services (traefik, redis, managed-web) | — | **yes** | `@repo/nest-supervisor-core` |
 | Readiness reporting | consumes | **produces** | — |
 
-**Rationale for the split.** Swarm bootstrap and WireGuard *must* run before the API can be
-scheduled on the cluster — that is the whole point. Database provisioning, migrations, seeding and
-admin creation *must* run inside the API, because they need the full Drizzle schema, the auth
-stack, and the entity contracts; duplicating that in a "minimal" app would be a second
+### 4.1 The split rule, and the bug it prevents
+
+> **Setup answers everything it can know on its own. Only what needs the provisioning
+> engine goes to the API.**
+
+The rule exists because of a race the architecture GUARANTEES: the API starts *behind* the gate,
+and the wizard's **first** action is to read `/setup/state` to decide which step to show. Proxying
+that read to the API means the operator's first page load asks a question only a process that has
+not started yet could answer.
+
+That was a real defect. The first version of this app proxied **every** `/setup/*` path, including
+`GET /setup/state`, so the wizard's first render received a `503` on a fresh install — from a
+correct gate. The ordering was working; the mistake was routing a LOCAL question through the API.
+
+| Endpoint | Answerable before the gate? | Owner | Why |
+|---|---|---|---|
+| `GET /setup/state` | **yes** | setup | a read of `node_config`, which setup already writes |
+| `GET /setup/node-status` | **yes** | setup | the same row |
+| `POST /setup/probe/database` | **yes** | setup | opens its own `pg` pool and runs `SELECT 1`; no schema needed |
+| `POST /setup/probe/mesh` | **yes** | setup | a network probe of a peer's `/mesh/ping` |
+| `POST /setup/trigger` | **no** | API | it IS what starts provisioning |
+| `GET /setup/stream` | **no** | API | it reports work the API is doing |
+| `POST /setup/post-setup/hints/*` | **no** | API | writes the authenticated app's state |
+
+**Why the duplicated read is not a second implementation.** `WizardStateService.getState()`
+mirrors `InitializationService.getSetupState()`, and the overlap is bounded: both derive the same
+three outcomes from the same row using the same predicate (`configuredAt && databaseUrl`).
+`node_config` remains the single source of truth, and the duplication is a *read* of it — not a
+second definition of it. What must never be duplicated is the provisioning flow, and it is not:
+`/setup/trigger` still runs `LocalInitializationService` in the API, the only process with the
+Drizzle schema, migrations and auth.
+
+The alternative — teaching setup to connect to Postgres so it could probe `hasUsers` itself —
+would mean shipping the pg client, the schema and the auth stack into the pre-auth app. That is
+strictly worse than one shared predicate.
+
+**Rationale for the rest of the split.** Swarm bootstrap must run before the API can be scheduled
+on the cluster — that is the whole point. Provisioning must run inside the API, because it needs
+the full Drizzle schema, migrations and auth; duplicating it in a "minimal" app would be a second
 implementation of the same thing (exactly what the repo forbids). So the setup app **orchestrates**
 and the API **executes**.
 
-The user-visible consequence: the stream is *produced* by the API and *piped* by the setup app.
+The user-visible consequence: the stream is *produced* by the API and *forwarded* by the setup app.
+
+### 4.2 What setup deliberately does NOT do
+
+The plan's §5.2 audit rejected three extractions, and this section states the same discipline for
+setup's own code. Things that look like missing primitives but are correct:
+
+| Not in setup | Where it lives | Why |
+|---|---|---|
+| `ORPCModule` + an oRPC router | the API | Setup serves **two** JSON reads and a static page; everything else is a byte-for-byte forward. Registering a router with no procedures would load a module whose only effect is to route nothing. The view layer *does* use oRPC — as a typed CLIENT (`@/views/lib/orpc.ts`), which is where the contract value actually is. |
+| `AppLifecycleService` (`@repo/nest-lifecycle`) | the API | Its vocabulary is "one process booting: config → DB probe → mesh → serving". Setup's phase machine answers a different question — "may the API start yet?" — and folding them together would put the API's bootstrap vocabulary inside setup's public readiness contract, which compose parses. |
+| `ReadinessStateService` (event-driven aggregation) | the API | Setup's health is a **local phase read** with one input. The API needs event-driven aggregation because it has *multiple* dependencies (database, swarm, 5+ supervisors, mesh) whose probes are expensive and cannot run on the request path. Setup has no such fan-out: its indicator reads `state$.value`, a cache read with no I/O. |
+| `@repo/nest-events` | the API | Provisioning events are produced by the API; setup forwards the SSE frames verbatim, which is cheaper and cannot drift. |
+| Supervisors | the API | Setup does not converge platform services — it does not exist when most of them are scheduled. |
 
 ---
 
@@ -383,11 +435,24 @@ consumer subscribes:
 |---|---|---|
 | `modules/health/setup-phase.service.ts` | `BehaviorSubject`, `Observable`, `Subject`, `distinctUntilChanged`, `filter`, `map` | the phase state machine. `BehaviorSubject` for STATE (a late reader gets the current value instead of blocking), a plain `Subject` for EDGES (replaying an edge would re-fire edge-triggered work) |
 | `modules/cluster/services/cluster-orchestrator.service.ts` | `Subject`, `concatMap`, `catchError`, `shareReplay`, `tap`, `timer`, `from`, `of` | the cluster pipeline. `concatMap` serialises attempts so a retry cannot race the engine; `shareReplay` gives one execution shared by `/setup/state` and the wizard |
-| `modules/wizard/wizard-stream.service.ts` | `Observable`, `Subject`, `share`, `takeUntil`, `from` | the SSE pipe. `takeUntil(clientGone)` is the single teardown path for both the response and the upstream reader |
+| `modules/wizard/wizard-stream.service.ts` | `Observable`, `Subject`, `share`, `takeUntil`, `from` | the SSE forward. `takeUntil(clientGone)` is the single teardown path for both the response and the upstream reader |
 | `modules/wizard/wizard.controller.ts` | `Subject` | signals client disconnect into that `takeUntil` |
+| `modules/handover/services/handover-orchestrator.service.ts` | `Subject`, `concatMap`, `catchError`, `shareReplay`, `takeUntil` | the handover pipeline, triggered by the gate **edge** (`onEnter("launching")`). `concatMap` serialises retries so two handovers cannot race on the same two ingress files |
+| `modules/health/setup-readiness.indicator.ts` | *(none)* | reads `phases.current()` — a **cache read**, so the compose gate performs no I/O. Same property §8.6 asks of the API |
 
 The compose gate (`GET /setup/health`) reads the phase synchronously through Terminus, so the
 probe is a cache read rather than a query — the same property §8.6 asks of the API.
+
+**The one place setup polls, and why it must.** `ApiReadinessWatcherService` uses
+`timer(0, pollIntervalMs)` against the API's `/health/ready`. That is not an oversight: the
+question is about a **different process**, and HTTP is the only channel between them. The API's
+readiness is assembled from *its* Postgres pool, *its* swarm state and *its* supervisor snapshots —
+none of which setup can observe locally (it has no Postgres client and supervises nothing). The
+alternative is shipping the schema and auth stack into the pre-auth app so it could form its own
+opinion, which is exactly the duplication §8.7 forbids.
+
+`switchMap` cancels an in-flight probe when the next tick fires, so a slow API cannot accumulate
+overlapping requests — the failure mode of `setInterval` with an async body.
 
 ### 5.5 Setup's own services — what replaces the rejected packages
 
@@ -1077,27 +1142,33 @@ simpler, and it cannot deadlock.
 
 ---
 
-## 10. Stream piping
+## 10. Stream forwarding
 
 ### 10.1 Rule
 
-> The client always talks to the **setup app**. The setup app is a *pipe*, never a second producer.
+> The client always talks to the **setup app**. Setup **answers what it knows** and **forwards**
+> what only the API can answer — it is never a second producer.
 
 ```
-client  ──GET /setup/stream──▶  setup app  ──GET /setup/stream──▶  full api
-        ◀──SSE frames──────────            ◀──SSE frames──────────
+client ──GET /setup/stream──▶ setup ──GET /setup/stream──▶ api
+       ◀───SSE frames────────        ◀───SSE frames────────
 ```
+
+Note the asymmetry, and that it is deliberate: the two **state** reads never leave setup (§4.1),
+because they are `node_config` reads and the API does not exist yet when the wizard first asks.
+Only the provisioning surface (trigger + stream) is forwarded.
 
 ### 10.2 Implementation
 
-- Setup app exposes `GET /setup/stream` (same path the client already calls — **no client change**).
-- It opens an upstream SSE connection to the API's `/setup/stream`, forwarding:
-  - the raw event frames (they are already the wire format the client expects),
+- Setup exposes the same `/setup/*` paths the client already calls — **no client change**.
+- `state` and `node-status` (GET) are answered locally by `WizardStateService`.
+- Everything else is forwarded to the API, which returns the status code unchanged: a `503`
+  means "the API is not up yet", which the wizard renders as progress rather than a failure.
+- For the stream it forwards:
+  - the raw event frames (already the wire format the client expects),
   - `Last-Event-ID` on reconnect so the API's replay still works for late subscribers,
   - a cancellation that tears the upstream down when the client disconnects.
 - Same `Content-Type: text/event-stream`, same `Cache-Control: no-cache`, no buffering.
-- Because the setup app is only a pipe, **it never needs the setup's business logic** — only the
-  upstream URL (from `node_config` / the API service DNS name).
 
 ### 10.3 What the API keeps
 
