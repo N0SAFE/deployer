@@ -134,7 +134,22 @@ function composeWithLayout(
 // Build layouts array from server-provided __LAYOUTS__ data
 // This ensures controller-level layouts (e.g., @Layout(RecipesLayout)) are
 // included during hydration on hard refresh, not just the auto-discovered root layout
-const layoutsData = window.__LAYOUTS__ || [];
+//
+// The server ALWAYS injects this (`buildInlineScripts` in @nestjs-ssr/react
+// writes `window.__LAYOUTS__ = ...` on every render path), so there is no
+// "missing data" case to fall back from — and inferring a default here was
+// actively wrong.
+//
+// WHY: a route opts OUT of layouts with `@SsrRender(View, { layout: null })`
+// (see `setup-done.controller.ts` in apps/api), which makes the server's
+// `resolveLayoutChain` return `[]` so the page renders bare. The old fallback
+// treated that `[]` as "no data" and wrapped the tree in `RootLayout`, so the
+// client rendered a header the server never emitted:
+//
+//   Hydration failed because the server rendered HTML didn't match the client
+//
+// The server's array is the whole truth; this loop only maps names to components.
+const layoutsData = window.__LAYOUTS__ ?? [];
 const layouts: Array<{ layout: React.ComponentType<any>; props?: any }> = [];
 
 for (const { name: layoutName, props: layoutProps } of layoutsData) {
@@ -152,10 +167,18 @@ for (const { name: layoutName, props: layoutProps } of layoutsData) {
   }
 }
 
-// Fallback: if no __LAYOUTS__ data, use auto-discovered RootLayout
-if (layouts.length === 0 && RootLayout) {
-  layouts.push({ layout: RootLayout, props: {} });
-}
+// NOTE: there is deliberately NO fallback to `RootLayout` here. The server
+// ALWAYS injects `window.__LAYOUTS__` (`buildInlineScripts` in
+// `@nestjs-ssr/react` writes it on every render path), so there is no
+// "missing data" case — and inferring a default was actively wrong.
+//
+// A route opts OUT of layouts with `@SsrRender(View, { layout: null })` (see
+// `setup-done.controller.ts` in apps/api), which makes the server's
+// `resolveLayoutChain` return `[]` so the page renders bare. The old fallback
+// read that `[]` as "no data" and wrapped the tree in `RootLayout`, so the
+// client rendered a header the server never emitted:
+//
+//   Hydration failed because the server rendered HTML didn't match the client
 
 // Compose the component with its layout (if any)
 const composedElement = composeWithLayout(
