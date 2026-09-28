@@ -29,6 +29,14 @@ export type { ReadinessResult } from "@/core/readiness/readiness.port";
 export class ReadinessService implements IReadinessProbe {
   private readonly logger = new Logger(ReadinessService.name);
 
+  /**
+   * The last verdict reported, so a CHANGE is logged and a repetition is not.
+   *
+   * `null` until the first probe, so the very first answer is always logged —
+   * otherwise a platform that starts ready would never say so.
+   */
+  private lastVerdict: boolean | null = null;
+
   constructor(
     private readonly health: HealthCheckService,
     private readonly indicators: ReadinessIndicators,
@@ -49,8 +57,8 @@ export class ReadinessService implements IReadinessProbe {
         () => this.indicators.services(),
         () => this.indicators.mesh(),
       ]);
-      return { statusCode: 200, body: { status: "ok", info: result.info, checkedAt } };
-    } catch (error: unknown) {
+      this.reportVerdict(true, result.info);
+      return { statusCode: 200, body: { status: "ok", info: result.info, checkedAt } };    } catch (error: unknown) {
       // Terminus signals "down" by throwing ServiceUnavailableException whose
       // response IS the health payload (info + error). Anything else is a bug
       // in an indicator, so it is logged and reported as a down database-less
@@ -58,6 +66,7 @@ export class ReadinessService implements IReadinessProbe {
       const response = (error as { getResponse?: () => unknown }).getResponse?.();
       if (response !== undefined && typeof response === "object" && response !== null) {
         const payload = response as { info?: Record<string, unknown>; error?: Record<string, unknown> };
+        this.reportVerdict(false, payload.error ?? {});
         return {
           statusCode: 503,
           body: { status: "error", info: payload.info ?? {}, error: payload.error ?? {}, checkedAt },
@@ -77,4 +86,62 @@ export class ReadinessService implements IReadinessProbe {
       };
     }
   }
+
+  /**
+   * Log the readiness verdict ONCE per change.
+   *
+   * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────
+   * Terminus's own logger is disabled for this module (`TerminusModule.forRoot({
+   * logger: false })`), because it logs at ERROR on every failed check — and
+   * `/health/ready` is polled by compose every 15s for the entire onboarding, so
+   * a not-yet-ready platform produced an ERROR every 15 seconds describing
+   * correct behaviour.
+   *
+   * Disabling it without a replacement would have been worse than the noise: a
+   * platform that never turned green would silently never say anything. This is
+   * the replacement, and it is strictly more informative — it reports the
+   * TRANSITION, which is the event an operator actually cares about, instead of
+   * the poll.
+   */
+  private reportVerdict(ready: boolean, detail: unknown): void {
+    if (this.lastVerdict === ready) return;
+    this.lastVerdict = ready;
+
+    if (ready) {
+      this.logger.log("✅ Readiness green — the platform can serve traffic");
+    } else {
+      this.logger.warn(
+        `⏳ Readiness not green yet — ${describeFailing(detail)}`,
+      );
+    }
+  }
+}
+
+/**
+ * Name the components that are not up, so a single line is actionable.
+ *
+ * Terminus's payload keys each indicator by name, which is the only reason the
+ * one-line summary below can be specific without duplicating the indicator list.
+ *
+ * Takes `unknown` and narrows, rather than accepting a `Record`: Terminus types
+ * `info` as an intersection of per-indicator generics, which is not assignable
+ * to an index-signature type — and asserting it would be a lie about a shape the
+ * library is free to change.
+ */
+function describeFailing(detail: unknown): string {
+  if (typeof detail !== "object" || detail === null) {
+    return "no indicators reported";
+  }
+
+  const failing = Object.entries(detail)
+    .filter(([, value]) => {
+      const status = (value as { status?: unknown } | null)?.status;
+      return status !== undefined && status !== "up";
+    })
+    .map(([name, value]) => {
+      const reason = (value as { reason?: unknown } | null)?.reason;
+      return typeof reason === "string" ? `${name} (${reason})` : name;
+    });
+
+  return failing.length > 0 ? failing.join(", ") : "no indicators reported";
 }

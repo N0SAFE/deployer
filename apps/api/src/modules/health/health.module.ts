@@ -22,7 +22,17 @@ import { SwarmCoreModule } from "@/core/modules/swarm/swarm.module";
   imports: [
     DatabaseModule,
     ConfigurationCoreModule,
-    TerminusModule,
+    // `logger: false` because a not-yet-ready platform is a DESIGNED state, not
+    // a failure. `HealthCheckService.check()` logs at ERROR and then throws,
+    // before the controller can present the result — and `/health/ready` is
+    // polled by compose every 15s for the whole of onboarding, so the built-in
+    // log emitted an ERROR every 15 seconds describing correct behaviour and
+    // buried the real failures.
+    //
+    // The genuine signal is not lost: `ReadinessStateService` publishes a
+    // transition whenever the aggregated state CHANGES, so the platform going
+    // green (or going degraded) is still logged — once per event, not per probe.
+    TerminusModule.forRoot({ logger: false }),
     MeshCoreModule,
     SwarmCoreModule,
   ],

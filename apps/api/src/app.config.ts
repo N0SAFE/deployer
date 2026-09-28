@@ -4,7 +4,7 @@ import { ExpressAdapter } from "@nestjs/platform-express";
 import express from "express";
 
 import { buildAllowedOrigins, resolveCorsDecision, CORS_ALLOWED_HEADERS } from "./core/utils/cors.utils";
-import { createViteAssetsMiddleware } from "./core/gateway-assets/vite-assets.middleware";
+import { createViteAssetsMiddleware } from "@repo/vite-assets";
 import { AppModule } from "./app.module";
 
 /**
@@ -123,7 +123,11 @@ export function createCorsMiddleware(): express.RequestHandler {
 export function createGateway(): express.Express {
   const gateway = express();
   gateway.use(createCorsMiddleware());
-  gateway.use(createViteAssetsMiddleware());
+  // 5173 is THIS app's Vite dev server. The port is passed rather than defaulted
+  // because the setup app runs a second Vite instance on 5174, and a wrong port
+  // here fails as a page whose every asset 404s — naming it makes that a
+  // one-line read instead of a debugging session.
+  gateway.use(createViteAssetsMiddleware({ port: 5173 }));
   return gateway;
 }
 

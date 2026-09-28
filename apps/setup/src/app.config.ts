@@ -1,5 +1,8 @@
 import { NestFactory } from "@nestjs/core";
 import type { NestApplicationOptions } from "@nestjs/common";
+import { ExpressAdapter } from "@nestjs/platform-express";
+import express from "express";
+import { createViteAssetsMiddleware } from "@repo/vite-assets";
 
 import { SetupAppModule } from "./app.module";
 import { setupEnvSchema } from "./config/env/env.schema";
@@ -55,7 +58,18 @@ export function setupAppOptions(): NestApplicationOptions {
  * `main.ts` uses. This returns exactly what `main.ts` listens on.
  */
 export async function createSetupApp() {
-  const app = await NestFactory.create(SetupAppModule, setupAppOptions());
+  // The Express instance is built here so the SSR wizard's client bundle can be
+  // proxied BEFORE Nest's router. The assets are not app routes — they must not
+  // reach the controller layer, and they must not be refused by anything that
+  // wraps it (the wizard is pre-auth, but its own bundle is static output).
+  //
+  // 5174 is THIS app's Vite dev server; the API's is 5173. Without this the
+  // wizard renders but every asset 404s, because the SSR template emits
+  // `/vite/@vite/client` and nothing is listening for it.
+  const server = express();
+  server.use(createViteAssetsMiddleware({ port: 5174 }));
+
+  const app = await NestFactory.create(SetupAppModule, new ExpressAdapter(server), setupAppOptions());
   app.enableShutdownHooks();
   return app;
 }
