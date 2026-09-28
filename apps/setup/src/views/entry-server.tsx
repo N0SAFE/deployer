@@ -1,7 +1,8 @@
 import React from 'react';
 import { renderToString, renderToPipeableStream } from 'react-dom/server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { PageContextProvider } from '@nestjs-ssr/react/client';
+import { PageContextProvider, NavigationProvider } from '@nestjs-ssr/react/client';
+import ThemeProvider from '@repo/ui/components/theme-provider';
 
 /** Fresh React Query client per SSR render (no cross-request cache). */
 function createSsrQueryClient(): QueryClient {
@@ -76,6 +77,50 @@ function composeWithLayouts(
 }
 
 /**
+ * The provider stack every server render must use.
+ *
+ * WHY THIS EXISTS AS ONE COMPONENT: `entry-client.tsx` hydrates the tree it
+ * renders, so the server and the client MUST produce the same element tree. If
+ * a provider is added on one side only, the trees differ and React reports
+ * "Hydration failed because the server rendered HTML didn't match the client".
+ *
+ * The dangerous case is `ThemeProvider` (next-themes): it renders an inline
+ * `<script>` that sets the `dark` class before paint. Omitting it here meant the
+ * server emitted no such script while the client expected one — which is exactly
+ * how the wizard shipped a hydration mismatch. `NavigationProvider` follows the
+ * same rule for the same reason.
+ *
+ * The order is IDENTICAL to `entry-client.tsx`. Keep the two in lockstep: this
+ * component is the only place that should ever change.
+ */
+function ProviderStack({
+  client,
+  context,
+  children,
+}: {
+  client: QueryClient;
+  context: any;
+  children: React.ReactNode;
+}): React.ReactElement {
+  return (
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+    >
+      <QueryClientProvider client={client}>
+        <NavigationProvider>
+          <PageContextProvider context={context}>
+            {children}
+          </PageContextProvider>
+        </NavigationProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
+  );
+}
+
+/**
  * String-based SSR (mode: 'string')
  * Simple, synchronous rendering
  */
@@ -93,11 +138,9 @@ export function renderComponent(
 
   // Wrap with PageContextProvider to make context available via hooks
   const wrappedElement = (
-    <QueryClientProvider client={createSsrQueryClient()}>
-      <PageContextProvider context={context}>
-        {composedElement}
-      </PageContextProvider>
-    </QueryClientProvider>
+    <ProviderStack client={createSsrQueryClient()} context={context}>
+      {composedElement}
+    </ProviderStack>
   );
 
   return renderToString(wrappedElement);
@@ -124,11 +167,9 @@ export function renderSegment(
 
   // Wrap with PageContextProvider to make context available via hooks
   const element = (
-    <QueryClientProvider client={createSsrQueryClient()}>
-      <PageContextProvider context={context}>
-        {composedElement}
-      </PageContextProvider>
-    </QueryClientProvider>
+    <ProviderStack client={createSsrQueryClient()} context={context}>
+      {composedElement}
+    </ProviderStack>
   );
 
   return renderToString(element);
@@ -159,11 +200,9 @@ export function renderComponentStream(
 
   // Wrap with PageContextProvider to make context available via hooks
   const wrappedElement = (
-    <QueryClientProvider client={createSsrQueryClient()}>
-      <PageContextProvider context={context}>
-        {composedElement}
-      </PageContextProvider>
-    </QueryClientProvider>
+    <ProviderStack client={createSsrQueryClient()} context={context}>
+      {composedElement}
+    </ProviderStack>
   );
 
   return renderToPipeableStream(wrappedElement, callbacks);

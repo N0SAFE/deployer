@@ -47,19 +47,23 @@ const ROOT_ASSET_PREFIXES = ["/src/", "/node_modules/", "/@fs/", "/@vite", "/@re
  */
 const NO_CONTENT_PATHS = ["/favicon.ico"];
 
-/** Default port must match `server.port` in vite.config.ts. */
-const DEFAULT_VITE_DEV_SERVER_URL = "http://127.0.0.1:5173";
+/** Default port, matching `server.port` in the API's vite.config.ts. */
+const DEFAULT_VITE_DEV_SERVER_PORT = 5173;
 
 /**
- * Origin of the standalone Vite dev server that builds the SSR client bundle.
+ * Origin of the standalone Vite dev server that builds an app's client bundle.
  *
- * Single definition for every consumer: the 503 bypass in each catch-all
- * reads this rather than repeating the literal, so the port can only be
- * changed in one place (and `VITE_DEV_SERVER_URL` overrides it for a
- * non-default dev setup).
+ * `port` is REQUIRED — each SSR app runs its own Vite instance, and they differ
+ * (the API on 5173, setup on 5174, because both processes are up at once during
+ * onboarding). A default here would silently point one app at the other's dev
+ * server, which fails as a page whose every asset 404s rather than as anything
+ * that names the mistake.
+ *
+ * `VITE_DEV_SERVER_URL` still overrides the whole origin, for a non-default dev
+ * setup (a remote Vite server, or a test double).
  */
-export function resolveViteDevServerUrl(): string {
-	return process.env.VITE_DEV_SERVER_URL ?? DEFAULT_VITE_DEV_SERVER_URL;
+export function resolveViteDevServerUrl(port: number = DEFAULT_VITE_DEV_SERVER_PORT): string {
+	return process.env.VITE_DEV_SERVER_URL ?? `http://127.0.0.1:${String(port)}`;
 }
 
 export function isViteAssetRequest(path: string): boolean {

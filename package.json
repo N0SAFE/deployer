@@ -74,6 +74,7 @@
             },
             "styling": {
                 "tailwindcss": "^4",
+                "@tailwindcss/vite": "^4",
                 "tailwind-merge": "^3.5.0",
                 "@tailwindcss/postcss": "^4",
                 "tailwind-variants": "^3.1.1",

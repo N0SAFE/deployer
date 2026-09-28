@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { resolve } from 'path';
 
 /**
@@ -59,7 +60,17 @@ export default defineConfig(({ isSsrBuild }) => ({
     },
     hasWarned: false,
   },
-  plugins: [react({})],
+  plugins: [
+    // Tailwind v4 is compiled by the BUNDLER, not by PostCSS — the integration
+    // the framework documents for Vite, and the same model apps/web uses
+    // (Turbopack compiles Tailwind natively there; see apps/web/next.config.ts).
+    //
+    // Without this plugin Vite only INLINES `@import "tailwindcss"`: the theme
+    // tokens arrive, but not one utility class is generated, so every
+    // `className` in the API-served views renders as unstyled markup.
+    tailwindcss(),
+    react({}),
+  ],
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
