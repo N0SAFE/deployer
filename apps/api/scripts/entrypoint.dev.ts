@@ -452,23 +452,16 @@ function startProcesses(): void {
     },
   })
 
-  // Vite dev server for the SSR views' client bundle.
+  // NO SEPARATE VITE SPAWN HERE. `start:dev` already runs `dev:vite` itself
+  // (`concurrently --names vite,nest`), so spawning it a second time started TWO
+  // dev servers against the same port and one died with:
   //
-  // The SSR library starts Vite in `middlewareMode` (no TCP listener) and then
-  // proxies asset requests to `localhost:5173` over TCP — a port nothing ever
-  // bound, so those requests hung as 504s and the setup page rendered without
-  // its JavaScript. Running the dev server HERE, on that same port, makes the
-  // proxy (and the gateway's `/vite` forwarding) resolve to a real listener.
-  // Every dev asset is served under `base: '/vite/'`, so the whole asset
-  // surface is a single forwardable/whitelistable path.
-  console.log('⚡ Starting Vite dev server (SSR client bundle, base /vite/)...')
-  const viteProcess = spawn('bun', ['run', 'dev:vite'], {
-    stdio: 'inherit',
-    shell: true,
-    env: {
-      ...process.env,
-    },
-  })
+  //   error when starting dev server:
+  //   Error: Port 5173 is already in use
+  //
+  // The duplication came from a period when `start:dev` did NOT include Vite;
+  // the script was updated and this was not. `start:dev` is now the single owner
+  // of the Vite process, which also keeps the port in one place (vite.config.ts).
 
   // Start Drizzle Studio only if setup database URL is available
   // In dev mode with auto-provisioned Postgres, the DB doesn't exist at startup
@@ -494,7 +487,6 @@ function startProcesses(): void {
     if (shutdownPromise) return shutdownPromise
     console.log(`${reason}, shutting down...`)
     apiProcess.kill(signal)
-    viteProcess.kill(signal)
     if (studioProcess) studioProcess.kill(signal)
     shutdownPromise = leaveSwarmIfWeInitiated().finally(() => {
       process.exit(0)
@@ -503,7 +495,6 @@ function startProcesses(): void {
   }
 
   apiProcess.on('exit', () => void shutdown('Process exited'))
-  viteProcess.on('exit', () => void shutdown('Vite process exited'))
   if (studioProcess) studioProcess.on('exit', () => void shutdown('Process exited'))
 
   process.on('SIGINT', () => void shutdown('Received SIGINT', 'SIGINT'))

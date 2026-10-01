@@ -42,7 +42,7 @@
     "db:local:generate": "drizzle-kit generate --config=drizzle.config.local.ts",
     "db:local:push": "drizzle-kit push --config=drizzle.config.local.ts",
     "db:local:studio": "drizzle-kit studio --config=drizzle.config.local.ts",
-    "auth:generate": "bun x auth@latest generate --config src/auth.ts --output src/config/drizzle/global/schema/auth.ts --yes && bun run db:generate",
+    "auth:generate": "bun x auth@latest generate --config src/auth.ts --output ../../packages/nest/schema/src/global/auth.ts --yes && bun run db:generate",
     "build:client": "vite build --ssrManifest && cp src/views/index.html dist/api/client/index.html",
     "build:server": "vite build --ssr src/views/entry-server.tsx",
     "dev:vite": "vite",

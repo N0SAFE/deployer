@@ -245,7 +245,25 @@ export class ClusterSwarmEventsService
     // ─── State refresh ───────────────────────────────────────────────────
 
     private async refreshAllState(): Promise<void> {
-        try {
+        try {            // ── A NON-SWARM NODE HAS NOTHING TO REFRESH ─────────────────────────
+            // The plain `dev` profile is entirely compose-managed and never joins
+            // or founds a swarm — by design. Calling the swarm fleet APIs there
+            // does not return an empty list, it THROWS:
+            //
+            //   This node is not a swarm manager. Use "docker swarm init" …
+            //
+            // and because this runs on every Docker event (debounced 500ms) it
+            // produced a continuous ERROR stream that buried real failures and
+            // made a working compose stack look broken.
+            //
+            // The node inventory is kept in the LOCAL database, so it is still
+            // refreshed — that is the only cluster state a non-swarm node can
+            // legitimately have.
+            if (!(await this.isSwarmActive())) {
+                this.nodesSubject.next(this.readNodes());
+                return;
+            }
+
             const [snapshot, services, tasks] = await Promise.allSettled([
                 this.swarmClusterService.getLocalClusterSnapshot(),
                 this.swarmFleetService.listServices(),
@@ -265,20 +283,7 @@ export class ClusterSwarmEventsService
             }
 
             // Refresh nodes from inventory (fast, no engine call)
-            const rows = this.inventoryRepository.list();
-            const parsed = rows.map((row) =>
-                clusterNodeInventoryRowSchema.parse({
-                    nodeId: row.nodeId,
-                    hostname: row.hostname,
-                    swarmRole: row.swarmRole,
-                    platformRole: row.platformRole,
-                    isMaster: row.isLeader,
-                    isIngress: row.isIngress,
-                    state: row.state,
-                    lastSeenAt: row.lastSeenAt,
-                }),
-            );
-            this.nodesSubject.next(parsed);
+            this.nodesSubject.next(this.readNodes());
 
             // Derive master from snapshot
             if (snapshot.status === "fulfilled" && snapshot.value.master) {
@@ -296,5 +301,44 @@ export class ClusterSwarmEventsService
                 `Cluster state refresh failed: ${error instanceof Error ? error.message : String(error)}`,
             );
         }
+    }
+
+    /**
+     * Whether the local engine is an ACTIVE swarm member.
+     *
+     * Cheap `GET /info` probe, never throws — the same contract as
+     * `BaseDockerSupervisorService.isSwarmActive()`. A node that is not a member
+     * (plain compose `dev`) has no swarm state to read, and asking for it fails
+     * with `This node is not a swarm manager` rather than returning empty.
+     */
+    private async isSwarmActive(): Promise<boolean> {
+        try {
+            const info = await this.dockerService.getSwarmInfo();
+            return info.LocalNodeState === "active";
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Decode the node inventory into contract rows.
+     *
+     * The inventory lives in the LOCAL database, so this is valid on a non-swarm
+     * node too — it is the one piece of cluster state a compose-managed dev stack
+     * legitimately has.
+     */
+    private readNodes(): ClusterNodeInventoryRow[] {
+        return this.inventoryRepository.list().map((row) =>
+            clusterNodeInventoryRowSchema.parse({
+                nodeId: row.nodeId,
+                hostname: row.hostname,
+                swarmRole: row.swarmRole,
+                platformRole: row.platformRole,
+                isMaster: row.isLeader,
+                isIngress: row.isIngress,
+                state: row.state,
+                lastSeenAt: row.lastSeenAt,
+            }),
+        );
     }
 }

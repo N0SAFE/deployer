@@ -91,6 +91,7 @@ describe('UserController', () => {
     banned: false,
     banReason: null,
     banExpires: null,
+    twoFactorEnabled: false,
   } satisfies Awaited<ReturnType<typeof service.getUsers>>['data'][number]
 
   beforeEach(async () => {

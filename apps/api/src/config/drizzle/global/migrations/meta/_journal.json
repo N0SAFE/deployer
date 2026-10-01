@@ -239,6 +239,13 @@
       "when": 1788898493306,
       "tag": "0033_graceful_electro",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1790782762729,
+      "tag": "0034_sad_cardiac",
+      "breakpoints": true
     }
   ]
 }

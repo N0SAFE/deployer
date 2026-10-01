@@ -88,6 +88,16 @@ export abstract class BaseDockerSupervisorService<
 	}
 
 	/**
+	 * Whether the DEPLOYMENT owns this service right now (compose / operator).
+	 *
+	 * Base: false. Subclasses that read `MANAGED_<SERVICE>_ENABLED` override this
+	 * — `splitManagedEnv(env).<service>.enabled` is the single source of truth.
+	 */
+	protected isDeploymentManaged(): boolean {
+		return false;
+	}
+
+	/**
 	 * Defer every docker supervisor until its resource can actually exist.
 	 *
 	 * On a node that is not yet a swarm manager, a swarm converge cannot
@@ -96,11 +106,19 @@ export abstract class BaseDockerSupervisorService<
 	 * not exist yet". The cluster is created BY SETUP, so before setup the
 	 * honest answer is `pending`: deferred, not failed.
 	 *
-	 * `managed` resources (compose/operator-owned) are exempt — they exist
-	 * independently of the local engine's state, so a managed supervisor
-	 * converges normally and only links its network.
+	 * ── COMPOSE-MANAGED RESOURCES ARE EXEMPT, AND THAT EXEMPTION IS AUTOMATIC ───
+	 * A `managed` resource (compose/operator-owned) exists independently of the
+	 * local engine's swarm state: on the plain `dev` profile NOTHING fronts a
+	 * swarm by design, so deferring those supervisors would leave a fully working
+	 * compose stack reporting `pending` forever and never wiring its overlays.
+	 *
+	 * This used to be DOCUMENTED as an exemption while the code deferred
+	 * everything — `isSwarmOnly()` defaulted to `true` and no compose-managed
+	 * supervisor overrode it, so the exemption never applied. Checking the
+	 * deployment-owned flag first is what makes it real.
 	 */
 	protected override async convergenceBlocker(): Promise<string | null> {
+		if (this.isDeploymentManaged()) return null;
 		if (!this.isSwarmOnly()) return null;
 		if (await this.isSwarmActive()) return null;
 		return "deferred until an active swarm exists — the cluster entry mode (create vs join) is decided during setup";

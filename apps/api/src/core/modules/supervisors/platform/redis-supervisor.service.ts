@@ -108,8 +108,18 @@ export class RedisSupervisorService extends BaseDockerSupervisorService<
 		const resolved = resolveSupervisorRuntime({
 			managed: this.isComposeManaged(),
 			rawRuntime: process.env.SUPERVISOR_RUNTIME,
-			// Swarm activity is a soft signal: reconcile's swarm calls are the
-			// authoritative check (a node that isn't active reports unavailable).
+			// A CONSTANT `true` here was the bug: it told the resolver the engine is
+			// an active swarm member, so a compose-managed dev stack (no swarm at
+			// all) resolved to `swarm-replicated` instead of taking the `managed`
+			// branch, and every reconcile threw `This node is not a swarm manager`.
+			//
+			// `true` is still the correct value — but only because `managed` short-
+			// circuits it. `resolveSupervisorRuntime` returns `managed` before this
+			// flag is consulted, so a compose stack never reaches the swarm branch,
+			// and a node that owns redis itself is expected to have a swarm (setup
+			// founds one before the API runs). When that is not the case the
+			// reconcile reports `unavailable` with a reason that names the cluster,
+			// which is more useful than a silent downgrade.
 			swarmActive: true,
 			scope: "mesh-wide",
 		});
@@ -121,6 +131,11 @@ export class RedisSupervisorService extends BaseDockerSupervisorService<
 	/** Current runtime, defaulting to swarm-replicated for a healthy supervised node. */
 	protected effectiveRuntime(): RedisRuntime {
 		return this.resolveRuntime().runtime;
+	}
+
+	/** True when the deployment (compose/operator) owns this redis. */
+	protected override isDeploymentManaged(): boolean {
+		return this.isComposeManaged();
 	}
 
 	/** Swarm service name (same DNS name as the container era). */

@@ -352,6 +352,34 @@ export abstract class BaseSupervisorService<
 
 	/** Full health snapshot; probe failures degrade gracefully instead of throwing. */
 	async getHealth(): Promise<SupervisorHealthSnapshot<TSchema>> {
+		// ── A DEFERRED SUPERVISOR IS NOT PROBED ────────────────────────────────
+		// `pending` means convergence was deliberately NOT attempted because a
+		// precondition is unmet (no active swarm yet). Probing anyway is wrong on
+		// both counts: the resource legitimately does not exist, so the probe can
+		// only report a negative — and on a swarm-backed supervisor it does not
+		// report it, it THROWS:
+		//
+		//   Failed to inspect Swarm service deployer-managed-web:
+		//   This node is not a swarm manager
+		//
+		// Repeating that on every health poll filled the API log with ERRORs
+		// describing a correct state (compose-managed dev has no swarm by design),
+		// and buried the failures that mattered.
+		if (this.state === "pending") {
+			return {
+				supervisorId: this.supervisorId,
+				description: this.description,
+				healthy: false,
+				state: this.state,
+				detail: this.detail,
+				checkedAt: new Date().toISOString(),
+				warnings: [],
+				payload: this.payloadSchema.parse(
+					this.buildDegradedPayload(this.detail ?? "deferred"),
+				),
+			};
+		}
+
 		let probeResult: SupervisorProbeResult<TSchema>;
 		try {
 			const raw = await this.probe();
