@@ -516,6 +516,9 @@ export class LocalInitializationService {
         const prefix = this.env.get("DEPLOYER_PREFIX");
         const name = managedPostgresServiceName(prefix);
         const identity = resolvePostgresIdentity(this.env);
+        // The SAME network the platform's containers live on, so the alias
+        // below is resolvable by the API and by every service it schedules.
+        const network = platformNetworkName(prefix);
 
         log("▸ No swarm on this deployment (compose owns every service) — provisioning Postgres as a container");
         log(`  container = ${name}`);
@@ -553,6 +556,21 @@ export class LocalInitializationService {
                 RestartPolicy: { Name: "unless-stopped" },
             },
             ExposedPorts: { [`${String(MANAGED_POSTGRES_PORT)}/tcp`]: {} },
+            // ── THE ALIAS IS WHAT MAKES IT REACHABLE ─────────────────────────
+            // Without an explicit endpoint the container joins the DEFAULT
+            // bridge network, where `global-db` does not resolve at all — the
+            // DSN written to `node_config` then fails with
+            // `getaddrinfo ENOTFOUND global-db`, from the API and from every
+            // service scheduled later. Declaring the network AND the aliases at
+            // CREATE time is what puts it on the platform network under the
+            // same two names the compose stack and the supervisor use.
+            NetworkingConfig: {
+                EndpointsConfig: {
+                    [network]: {
+                        Aliases: [name, MANAGED_POSTGRES_ALIAS],
+                    },
+                },
+            },
         });
 
         log(`▸ Starting container ${container.id.slice(0, 12)} …`);
@@ -560,6 +578,16 @@ export class LocalInitializationService {
 
         const { username, password, databaseName } = identity;
         const url = `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${MANAGED_POSTGRES_ALIAS}:${String(MANAGED_POSTGRES_PORT)}/${databaseName}`;
+
+        // ── STARTED IS NOT THE SAME AS LISTENING ─────────────────────────────
+        // `container.start()` returns when the process is spawned, which is
+        // seconds before Postgres finishes its first-boot initdb and binds
+        // 5432. The very next step connects, so without this wait the FIRST
+        // install of a cold database fails with ECONNREFUSED while Postgres is
+        // still coming up — the database is fine, we simply asked too early.
+        log("▸ Waiting for Postgres to accept connections …");
+        await this.waitForPostgres(url, log);
+
         log(`✅ Database ready at postgresql://${username}:***@${MANAGED_POSTGRES_ALIAS}:${String(MANAGED_POSTGRES_PORT)}/${databaseName}`);
         return url;
     }

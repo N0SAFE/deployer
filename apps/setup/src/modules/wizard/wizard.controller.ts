@@ -1,51 +1,57 @@
-import {
-  All,
-  Controller,
-  Get,
-  Logger,
-  Param,
-  Req,
-  Res,
-} from "@nestjs/common";
-import type { Request, Response } from "express";
-import { Render as SsrRender } from "@nestjs-ssr/react";
-import { Subject } from "rxjs";
+import { Controller, Logger } from "@nestjs/common";
+import { Implement } from "@orpc/nest";
+import { implement, ORPCError } from "@orpc/server";
+import { setupAppContract } from "@repo/api-contracts";
+import type {
+  SetupProbeDbResult,
+  SetupProbeMeshResult,
+  SetupRemoteAuthResult,
+} from "@repo/contracts-entities";
 
-import SetupView from "@/views/pages/setup";
 import { SetupGateService } from "./setup-gate.service";
 import { WizardStateService } from "./wizard-state.service";
 import { WizardStreamService } from "./wizard-stream.service";
 import { WizardUpstreamService } from "./wizard-upstream.service";
-
-/** Paths the wizard contract exposes, proxied 1:1 to the full API. */
-const API_PATHS = [
-  "state",
-  "node-status",
-  "probe/database",
-  "probe/mesh",
-  "remote/auth",
-  "trigger",
-  "post-setup/hints",
-  "post-setup/hints/dismiss",
-] as const;
+import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
 
 /**
- * The wizard's HTTP surface, served BY THE SETUP APP.
+ * The forwarded bodies, named by the entity schemas rather than re-declared.
  *
- * WHY THE WIZARD LIVES HERE AND NOT IN THE API
- * Setup is the one phase where no product surface can be assumed to exist: the
- * web app is activated THROUGH onboarding, and the API is not the ingress
- * target yet. The setup app is the only process answering on
- * `setup.<host>` during this phase, so it is the only one that can serve the
- * page — and, because the browser's connection terminates HERE, the ingress
- * handover at the end cannot interrupt a wizard the operator is watching
- * (plan §9.3).
+ * The API answers these procedures with exactly these shapes, so typing the
+ * forward by the contract's own entity types keeps the two ends from drifting:
+ * a field the API adds is visible here, and one it removes is a compile error.
+ */
+type ProbeDbBody = SetupProbeDbResult;
+type ProbeMeshBody = SetupProbeMeshResult;
+type RemoteAuthBody = SetupRemoteAuthResult;
+
+/**
+ * The setup app's wizard surface, as an oRPC contract router.
  *
- * WHY THE HANDLERS ARE A THIN PROXY
- * Provisioning needs the Drizzle schema, migrations and the auth stack, so the
- * API remains the only EXECUTOR. This controller forwards each contract path
- * verbatim — including the SSE stream, which it pipes rather than re-produces
- * (plan §10.1) — so the wizard contract keeps exactly one implementation.
+ * ── WHY oRPC AND NOT A WILDCARD PROXY ───────────────────────────────────────
+ * The previous version forwarded `setup/*path` by string matching. Three
+ * problems, all of which this removes:
+ *
+ *   1. UNTYPED — a path the contract gained would silently 404. Every procedure
+ *      here is a named method, so a missing implementation is a compile error.
+ *   2. THE GATE WAS HIDDEN — opening it was a side effect inside a string
+ *      comparison. It is now the body of `triggerInitialize`, where it is
+ *      visible and testable.
+ *   3. IT BROKE ON EXPRESS 5 — a wildcard param is an ARRAY there, so
+ *      `API_PATHS.includes(["trigger"])` was always false and EVERY proxied call
+ *      returned "Unknown setup path". That is the bug this replaces.
+ *
+ * ── WHY THE CONTRACT IS THE APP'S OWN (`setupAppContract`) ──────────────────
+ * It describes what THIS process serves, which is not the same set as the API's
+ * `/setup`: `getState` is answered from the shared `node_config` row (the API
+ * does not exist yet), and the stream reports work the API cannot report on
+ * because it is the thing being started. See the contract's own note.
+ *
+ * ── WHY THE STREAM IS SUBSCRIBED, NOT PIPED AS BYTES ────────────────────────
+ * The stream carries BOTH producers' events: setup's orchestration steps
+ * (`initialize_swarm`, `start_api`, `await_api_boot`) and then the API's
+ * provisioning events, forwarded verbatim. A byte-pipe could only carry the
+ * second, and the wizard needs one continuous timeline.
  */
 @Controller()
 export class WizardController {
@@ -56,157 +62,161 @@ export class WizardController {
     private readonly stream: WizardStreamService,
     private readonly gate: SetupGateService,
     private readonly state: WizardStateService,
+    private readonly orchestration: OrchestrationStreamService,
   ) {}
 
-  // ─── The wizard page ──────────────────────────────────────────────────────
+  // ─── State (answered LOCALLY — the API does not exist yet) ──────────────
 
-  /**
-   * `GET /` — the onboarding page.
-   *
-   * `layout: null`: the wizard is a full-page, focused experience with no
-   * console chrome, matching what the web app used to render.
-   *
-   * `needsSetup` is always `true` here: this app only exists while setup is
-   * pending, so the "already done" branch the API needed is unreachable. The
-   * page keeps its own guard so the component stays usable from either host.
-   */
-  @Get()
-  @SsrRender(SetupView, { layout: null })
-  setupPage(): { needsSetup: boolean } {
-    return { needsSetup: true };
+  @Implement(setupAppContract.getState)
+  getState() {
+    return implement(setupAppContract.getState).handler(() => this.state.getState());
   }
 
-  // ─── The SSE stream (piped, never re-produced) ─────────────────────────────
-
-  /**
-   * `GET /setup/stream` — pipes the API's provisioning events to the client.
-   *
-   * Declared BEFORE the generic proxy so it wins the route match: it is the one
-   * path that needs special handling (streaming, `Last-Event-ID`, teardown on
-   * disconnect) rather than a straight forward.
-   *
-   * WHY `@Res()` AND NOT A RETURNED Observable: Nest's SSE helper consumes an
-   * Observable and writes its own framing. The upstream frames are ALREADY
-   * framed for the client, so re-framing them would corrupt multi-line payloads
-   * — the raw response is the only correct sink.
-   */
-  @Get("setup/stream")
-  async pipeStream(@Req() req: Request, @Res() res: Response): Promise<void> {
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache, no-transform");
-    res.setHeader("Connection", "keep-alive");
-    // Disable proxy buffering: a buffering intermediary would hold the frames
-    // and make the progress view appear frozen until the stream ended.
-    res.setHeader("X-Accel-Buffering", "no");
-    res.flushHeaders();
-
-    // The client disconnecting must cancel the UPSTREAM subscription too — see
-    // `pipeTo`, which is where the teardown is wired.
-    const clientGone = new Subject<void>();
-    req.on("close", () => {
-      clientGone.next();
-      clientGone.complete();
-    });
-
-    const lastEventId = req.header("last-event-id");
-    await this.stream.pipeTo(res, clientGone, lastEventId);
+  @Implement(setupAppContract.getNodeStatus)
+  getNodeStatus() {
+    return implement(setupAppContract.getNodeStatus).handler(() => this.state.getNodeStatus());
   }
 
-  // ─── Contract proxy ───────────────────────────────────────────────────────
+  // ─── Probes (forwarded — they need the API) ─────────────────────────────
+
+  @Implement(setupAppContract.probeDatabase)
+  probeDatabase() {
+    return implement(setupAppContract.probeDatabase).handler(async ({ input }) => ({
+      status: 201 as const,
+      headers: {},
+      body: await this.forwardJson<ProbeDbBody>("/setup/probe/database", "POST", input),
+    }));
+  }
+
+  @Implement(setupAppContract.probeMesh)
+  probeMesh() {
+    return implement(setupAppContract.probeMesh).handler(async ({ input }) => ({
+      status: 201 as const,
+      headers: {},
+      body: await this.forwardJson<ProbeMeshBody>("/setup/probe/mesh", "POST", input),
+    }));
+  }
+
+  @Implement(setupAppContract.remoteAuth)
+  remoteAuth() {
+    return implement(setupAppContract.remoteAuth).handler(async ({ input }) => ({
+      status: 201 as const,
+      headers: {},
+      body: await this.forwardJson<RemoteAuthBody>("/setup/remote/auth", "POST", input),
+    }));
+  }
+
+  // ─── Trigger (OPENS THE GATE, then forwards) ────────────────────────────
 
   /**
-   * Forward a wizard contract call to the API and relay its response.
+   * `POST /setup/trigger` — the operator saying "these are my choices, go".
    *
-   * The status code is carried through UNCHANGED, because the wizard reads it:
-   * a 503 here means "the API is not up yet", which the UI renders as progress
-   * rather than as a failure. Collapsing everything to 200 would erase that.
+   * The gate opens HERE, before forwarding, because the forward is what needs
+   * the API to exist. Opening it afterwards would deadlock: the API would have
+   * to be up to receive the trigger that starts it.
+   *
+   * ── WHY THE RESPONSE IS AN ENVELOPE ────────────────────────────────────
+   * The contract declares this output with `b.body(...)`, which puts it in
+   * DETAILED output mode — oRPC then validates what the handler returns against
+   * `{ status, headers, body }`, not against the bare body. Returning the
+   * forwarded JSON directly failed validation with `Output validation failed`,
+   * which is what the wizard surfaced when the operator clicked through.
    */
-  @All("setup/*path")
-  async proxy(
-    @Param("path") path: string,
-    @Req() req: Request,
-    @Res() res: Response,
-  ): Promise<void> {
-    if (!(API_PATHS as readonly string[]).includes(path)) {
-      // An unknown path is a 404, not a blind forward: proxying arbitrary paths
-      // would turn this app into an open relay to the API.
-      res.status(404).json({ message: `Unknown setup path: ${path}` });
-      return;
-    }
+  @Implement(setupAppContract.triggerInitialize)
+  triggerInitialize() {
+    return implement(setupAppContract.triggerInitialize).handler(async ({ input }) => ({
+      status: 201 as const,
+      headers: {},
+      body: await (async () => {
+        await this.gate.open(input);
+        return await this.forwardJson<{ accepted: boolean }>("/setup/trigger", "POST", input);
+      })(),
+    }));
+  }
 
-    // ── LOCALLY ANSWERABLE PATHS ARE ANSWERED HERE ──────────────────────────
-    // The gate opens when the wizard's details are collected, and the API starts
-    // BEHIND it — so `GET /setup/state` cannot be proxied: it is the wizard's
-    // FIRST call, and it would always land on a process that does not exist yet.
-    //
-    // These are pure reads of the shared `node_config` row (setup already has
-    // the repository), so answering them locally removes a guaranteed race
-    // without duplicating any provisioning logic. See `WizardStateService` for
-    // the full split and why it is drawn where it is.
-    if (req.method === "GET" && (path === "state" || path === "node-status")) {
-      res.status(200).json(
-        path === "state" ? this.state.getState() : this.state.getNodeStatus(),
-      );
-      return;
-    }
+  // ─── The orchestration stream ───────────────────────────────────────────
 
-    // ── THE GATE ──────────────────────────────────────────────────────────────
-    // `POST /setup/trigger` is the operator saying "these are my choices, go".
-    // That is the moment the API may start, so the gate opens HERE — before the
-    // call is forwarded, because the forward is what needs the API to exist.
-    //
-    // Opening it AFTER forwarding would deadlock: the API would have to be up
-    // to receive the trigger that starts it.
-    if (path === "trigger" && req.method === "POST") {
-      await this.gate.open(req.body);
-    }
+  /**
+   * The setup progress stream: setup's own steps, then the API's forwarded.
+   *
+   * Emitted in order:
+   *   1. `step_detail` for each step THIS profile performs
+   *   2. `snapshot` marking them pending (so the wizard renders all of them)
+   *   3. live `log` + `snapshot` events as setup does the work
+   *   4. the API's frames, forwarded verbatim once it is up
+   *
+   * Steps 1–3 are why this is not a byte-pipe: the API cannot report on being
+   * started, so setup reports that part itself using the SAME event schema.
+   */
+  @Implement(setupAppContract.getInitializeStream)
+  getInitializeStream() {
+    return implement(setupAppContract.getInitializeStream).handler(() =>
+      this.stream.orchestratedStream(this.orchestration),
+    );
+  }
 
+  // ─── Post-setup hints (forwarded) ───────────────────────────────────────
+
+  @Implement(setupAppContract.listPostSetupHints)
+  listPostSetupHints() {
+    return implement(setupAppContract.listPostSetupHints).handler(() =>
+      this.forwardJson("/setup/post-setup/hints", "GET", undefined),
+    );
+  }
+
+  @Implement(setupAppContract.dismissPostSetupHint)
+  dismissPostSetupHint() {
+    return implement(setupAppContract.dismissPostSetupHint).handler(async ({ input }) => ({
+      status: 201 as const,
+      headers: {},
+      body: await this.forwardJson<{ ok: boolean }>("/setup/post-setup/hints/dismiss", "POST", input),
+    }));
+  }
+
+  // ─── Forwarding helper ──────────────────────────────────────────────────
+
+  /**
+   * Forward a call to the API and return its JSON body.
+   *
+   * A transport failure becomes `SERVICE_UNAVAILABLE`, not a 500, because during
+   * onboarding "the API is not up yet" is an EXPECTED state (it starts behind
+   * the gate) — and the wizard renders that code as progress rather than as a
+   * fault. That distinction only exists because the code is typed in the
+   * contract.
+   */
+  private async forwardJson<T>(path: string, method: string, body: unknown): Promise<T> {
     const init: RequestInit = {
-      method: req.method,
-      headers: this.forwardHeaders(req),
-      body: this.forwardBody(req),
+      method,
+      headers: { "content-type": "application/json" },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     };
 
-    const upstream = await this.upstream.forward(`/setup/${path}`, init);
-    const body = await upstream.text();
-
-    res.status(upstream.status);
-    // Carry the upstream content type; default to JSON for a bodyless response.
-    res.type(upstream.headers.get("content-type") ?? "application/json");
-    res.send(body);
-  }
-
-  /**
-   * Copy only the headers that describe the PAYLOAD and CREDENTIALS.
-   *
-   * A blanket spread would forward `host`, `connection` and `content-length`
-   * from the original request, and `content-length` would then describe a body
-   * we may have re-serialized — a desync the upstream would reject or, worse,
-   * read as truncated.
-   */
-  private forwardHeaders(req: Request): Record<string, string> {
-    const headers: Record<string, string> = {};
-    for (const name of ["content-type", "accept", "cookie", "authorization"]) {
-      const value = req.header(name);
-      if (value !== undefined) headers[name] = value;
+    let response: Response;
+    try {
+      response = await this.upstream.forward(path, init);
+    } catch (error: unknown) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Upstream ${path} unreachable: ${reason}`);
+      throw new ORPCError("SERVICE_UNAVAILABLE", {
+        message: `The platform API is not reachable yet (${path})`,
+        data: { message: reason },
+      });
     }
-    return headers;
-  }
 
-  /**
-   * Forward the request body as a string, so the upstream parses it exactly as
-   * it would have if the client had called it directly.
-   *
-   * Express's JSON parser has already consumed the stream, so the parsed object
-   * is re-serialized rather than re-piped. GET/DELETE carry no body.
-   */
-  private forwardBody(req: Request): string | undefined {
-    if (req.method === "GET" || req.method === "HEAD" || req.method === "DELETE") {
-      return undefined;
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      this.logger.warn(
+        `Upstream ${path} answered ${String(response.status)}: ${text.slice(0, 200)}`,
+      );
+      // A reachable API refusing the request is a real contract error, so it is
+      // surfaced rather than retried — resending an identical payload cannot fix
+      // a 4xx.
+      throw new ORPCError("BAD_GATEWAY", {
+        message: `The platform API rejected ${path} (HTTP ${String(response.status)})`,
+        data: { message: text.slice(0, 300) },
+      });
     }
-    const body: unknown = req.body;
-    if (body === undefined || body === null) return undefined;
-    if (typeof body === "string") return body;
-    return JSON.stringify(body);
+
+    return (await response.json()) as T;
   }
 }

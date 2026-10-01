@@ -1,13 +1,20 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { multiSession, openAPI } from "better-auth/plugins";
+import type { BetterAuthOptions } from "better-auth";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import {
     masterTokenPlugin,
     loginAsPlugin,
     pushNotificationsPlugin,
     useAdmin,
-    useInvite
+    useAgentAuth,
+    useApiKey,
+    useDeviceAuthorization,
+    useInvite,
+    useLastLoginMethod,
+    usePasskey,
+    useTwoFactor,
 } from "./plugins";
 
  
@@ -62,9 +69,48 @@ export const betterAuthFactory = <TSchema extends Record<string, unknown> = Reco
     // the Secure flag: https-only.)
     const cookieDomain: string | undefined = AUTH_BASE_DOMAIN ? AUTH_BASE_DOMAIN : undefined;
 
+    // ── THE DEPLOYMENT IS REACHED ON SEVERAL HOSTS, NOT ONE ─────────────────
+    // `baseURL` as a STRING pins Better Auth to a single origin and makes every
+    // other one an invalid origin. That is wrong for this platform, which serves
+    // the SAME auth surface on several hosts of the same domain:
+    //
+    //   api.<domain>    the API (and the web app's server-side calls)
+    //   web.<domain>    the dashboard
+    //   setup.<domain>  the ONBOARDING WIZARD — it calls sign-in on its OWN
+    //                   origin so the session cookie is written for the host the
+    //                   operator is already on
+    //   doc.<domain>    the documentation app
+    //
+    // With the string form, the wizard's sign-in failed with `Invalid origin`.
+    // `AUTH_BASE_DOMAIN` already names that shared parent, so the wildcard is
+    // derived from it rather than from a hand-maintained list of hosts — one
+    // source of truth for "which hosts belong to this deployment".
+    //
+    // `advanced.trustedProxyHeaders` stays off on purpose: the API is reached
+    // directly (or through an ingress that preserves Host), and trusting
+    // forwarded headers would let a client name its own origin.
+    const fallbackUrl = BASE_URL ?? process.env.NEXT_PUBLIC_API_URL;
+    // `AUTH_BASE_DOMAIN` is the leading-dot parent (`.deployer.localhost`), and
+    // the host pattern keeps the dot: `*.deployer.localhost` matches
+    // `setup.deployer.localhost` while REJECTING the bare `deployer.localhost`,
+    // which is not a host this platform serves. Dropping the dot would make `*`
+    // match the empty label and admit it.
+    const wildcardBaseDomain = AUTH_BASE_DOMAIN
+        ? (AUTH_BASE_DOMAIN.startsWith(".") ? `*${AUTH_BASE_DOMAIN}` : `*.${AUTH_BASE_DOMAIN}`)
+        : null;
+    const dynamicBaseUrl: Extract<NonNullable<BetterAuthOptions["baseURL"]>, object> | null =
+        wildcardBaseDomain === null
+            ? null
+            : {
+                  allowedHosts: [wildcardBaseDomain],
+                  protocol: isHttps ? "https" : "http",
+                  ...(fallbackUrl ? { fallback: fallbackUrl } : {}),
+              };
+    const baseURL = dynamicBaseUrl ?? fallbackUrl;
+
     const config = {
         secret: BETTER_AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET,
-        baseURL: BASE_URL ?? process.env.NEXT_PUBLIC_API_URL,
+        baseURL,
         trustedOrigins: origins.length > 0 ? origins : undefined,
         advanced: {
             // In production with HTTPS, use secure cookies
@@ -133,6 +179,13 @@ export const betterAuthFactory = <TSchema extends Record<string, unknown> = Reco
         },
         plugins: [
             useAdmin(),
+            // API keys replace the hand-rolled ApiKeyService (which issued keys
+            // nothing could verify) AND the browser-exposed DEV_AUTH_KEY path:
+            // `enableSessionForAPIKeys` turns a key into a real session, so the
+            // CLI, scripts, CI and the devtools "act as user" flow all get
+            // scoped, expiring, revocable credentials instead of one static
+            // platform-wide secret.
+            useApiKey(),
             // One browser, several identities. Better Auth keeps a signed
             // `{prefix}.session_token_multi-<token>` cookie per signed-in account, and
             // `set-active` only swaps which of them is the primary session cookie —
@@ -153,7 +206,22 @@ export const betterAuthFactory = <TSchema extends Record<string, unknown> = Reco
             useInvite({
                 inviteDurationDays: 7,
             }),
-            pushNotificationsPlugin()
+            pushNotificationsPlugin(),
+            // WebAuthn/passkeys. Doubles as the proof-of-physical-presence
+            // factor that Agent Auth requires for mutating capabilities, so an
+            // AI agent cannot deploy without a real user gesture.
+            usePasskey({ rpName: "Deployer" }),
+            // TOTP + backup codes. `issuer` is required: it is what an
+            // authenticator app displays to distinguish this platform's codes
+            // from any other.
+            useTwoFactor({ issuer: "Deployer" }),
+            // RFC 8628. Lets the CLI authenticate through a browser approval
+            // instead of holding a privileged static credential, and provides
+            // the approval page Agent Auth reuses for capability grants.
+            useDeviceAuthorization(),
+            // Records the method used to sign in, so the sign-in page can hint
+            // which one the user used last.
+            useLastLoginMethod(),
         ],
     };
 

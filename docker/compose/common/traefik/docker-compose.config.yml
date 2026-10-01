@@ -9,6 +9,13 @@ services:
     image: ${MANAGED_TRAEFIK_IMAGE:-traefik:v3.6}
     restart: unless-stopped
     command:
+      # INFO, not the default WARN: with no level set Traefik is silent, so a
+      # dynamic config it refuses (or a provider it cannot reach) looks
+      # identical to a config it never saw — the ingress simply 404s with
+      # nothing to read. INFO prints the loaded routers/services and any
+      # provider error, which is the difference between "the config is wrong"
+      # and "the config was never loaded".
+      - --log.level=INFO
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
       - --providers.file.directory=/config

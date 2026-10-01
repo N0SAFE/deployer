@@ -35,6 +35,7 @@ import { MeshInitializationService } from '../../../mesh/initialization/services
 import { ReachabilityService } from '../../../reachability/services/reachability.service';
 import { EnvService } from "@/config/env/env.module";
 import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
+import { AppLifecycleService } from "@repo/nest-lifecycle";
 
 // ─── Mock implementations ─────────────────────────────────────────────────────
 
@@ -79,6 +80,7 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
   let mockReachability: Record<string, MockInstance>;
   let mockLocalInit: { initialize: MockInstance };
   let mockRemoteInit: { initialize: MockInstance };
+  let mockLifecycle: Record<string, MockInstance>;
 
   // Shared test data
   const TEST_NODE_ID = 'test-node-0000-0000-000000000001';
@@ -108,6 +110,16 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
       checkMeshUrlReachability: vi.fn(),
     };
 
+    // Setup completion advances the lifecycle (phase + database + mesh), which
+    // is exactly what the readiness indicators read. Stubbed so the flow can be
+    // driven without a Nest lifecycle, and asserted below so a regression that
+    // stops advancing it fails here rather than on a live install.
+    mockLifecycle = {
+      markReady: vi.fn(),
+      markDatabaseProbe: vi.fn(),
+      markMeshConnected: vi.fn(),
+    };
+
     module = await Test.createTestingModule({
       providers: [
         InitializationService,
@@ -118,6 +130,7 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
         { provide: RemoteInitializationService, useValue: mockRemoteInit },
         { provide: MeshInitializationService, useValue: mockMeshInit },
         { provide: ReachabilityService, useValue: mockReachability },
+        { provide: AppLifecycleService, useValue: mockLifecycle },
       ],
     }).compile();
 
@@ -620,6 +633,33 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
       const result2 = await service.waitForSetup();
       expect(result2.nodeId).toBe(TEST_NODE_ID);
       expect(result2.databaseUrl).toBe(TEST_DB_URL);
+    });
+
+    it('completing setup ADVANCES THE LIFECYCLE (the readiness gate)', async () => {
+      // Regression guard for a first install: `BootstrapOrchestratorService
+      // .onApplicationBootstrap` runs BEFORE the wizard finishes, sees
+      // `setupState !== "setup_done"` and returns early — nothing re-ran it, so
+      // the phase stayed `initialized` and the `swarm` + `database` readiness
+      // indicators reported `down` forever. `/health/ready` therefore never
+      // returned 200, setup's handover timed out after 300s, and the platform
+      // never converged. Advancing the lifecycle here is what fixes that.
+      mockNodeConfigRepo._seed({
+        nodeId: TEST_NODE_ID,
+        strategy: 'local',
+        databaseUrl: TEST_DB_URL,
+        configuredAt: '2024-01-01T00:00:00.000Z',
+        setupState: 'setup_done',
+        deployerVersion: '1.0.0',
+        meshUrlsSnapshot: [],
+        updatedAt: '2024-01-01T00:00:00.000Z',
+      });
+
+      service.checkConfigAndEmit();
+      await service.waitForSetup();
+
+      expect(mockLifecycle.markDatabaseProbe).toHaveBeenCalledWith(TEST_DB_URL, true);
+      expect(mockLifecycle.markMeshConnected).toHaveBeenCalledWith(true);
+      expect(mockLifecycle.markReady).toHaveBeenCalled();
     });
   });
 });

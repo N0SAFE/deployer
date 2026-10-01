@@ -10,6 +10,7 @@ import { CoreDockerModule } from "../docker/docker.module";
 import { CoreReachabilityModule } from "../reachability/core-reachability.module";
 import { MeshVersionService } from "../mesh/version/mesh-version.service";
 import { SwarmCoreModule } from "@/core/modules/swarm/swarm.module";
+import { AppLifecycleModule } from "@repo/nest-lifecycle";
 import { EnvModule, EnvService } from "@/config/env/env.module";
 
 /**
@@ -30,6 +31,10 @@ import { EnvModule, EnvService } from "@/config/env/env.module";
     // Previously this import closed a cycle via MeshCoreModule → SetupModule.
     imports: [MeshInitializationModule, LocalDatabaseModule, CoreDockerModule, CoreReachabilityModule, SwarmCoreModule, NodeStateModule,
 		EnvModule,
+		// `InitializationService` advances the lifecycle when setup completes —
+		// see `emitCompleted`. The lifecycle is what readiness READS, so the
+		// module that reports completion must be able to set it.
+		AppLifecycleModule,
 	],
     providers: [
         LocalInitializationService,

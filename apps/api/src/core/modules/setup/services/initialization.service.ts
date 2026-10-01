@@ -16,6 +16,7 @@ import type { EmitEvent } from '../utils/setup-runner.utils'
 import { runStep } from '../utils/setup-runner.utils'
 import { ReachabilityService } from '../../reachability/services/reachability.service'
 import { MeshInitializationService } from '../../mesh/initialization/services/mesh-initialization.service'
+import { AppLifecycleService } from "@repo/nest-lifecycle"
 
 
 export interface SetupCompletionStatus {
@@ -55,6 +56,14 @@ export class InitializationService implements OnModuleInit {
         private readonly setupEventService: SetupEventService,
         private readonly meshInitializationService: MeshInitializationService,
         private readonly reachabilityService: ReachabilityService,
+        /**
+         * Advanced to READY when setup completes — see `emitCompleted`.
+         *
+         * Injected rather than signalled through an event: the lifecycle is what
+         * readiness READS, so setting it at the moment the platform actually
+         * becomes usable keeps the fact and the report in one place.
+         */
+        private readonly lifecycle: AppLifecycleService,
     ) {}
 
     // ─── Lifecycle ────────────────────────────────────────────────────────────
@@ -410,6 +419,33 @@ export class InitializationService implements OnModuleInit {
         this.logger.log(
             `🚀 Setup complete — strategy=${status.strategy} nodeId=${status.nodeId}`
         )
+
+        // ── ADVANCE THE LIFECYCLE: THIS IS WHAT LETS READINESS GO GREEN ────────
+        // `BootstrapOrchestratorService.onApplicationBootstrap` runs BEFORE the
+        // wizard finishes, so on a FIRST install it sees
+        // `setupState !== "setup_done"`, logs "the boot pipeline will run on the
+        // next start" and returns early. Nothing re-ran it, so the phase stayed
+        // `initialized` forever and TWO readiness indicators failed permanently:
+        //
+        //   swarm    (setup is not complete — lifecycle phase is initialized)
+        //   database (no database configured yet)
+        //
+        // `/health/ready` therefore never returned 200, setup's handover timed
+        // out after 300s, and the platform never converged on a first install —
+        // which is exactly why a RESTART appeared to fix it (the second boot
+        // finds `setup_done` and runs the full pipeline).
+        //
+        // Publishing both facts here also covers the RESTART path, where setup
+        // is already complete and `emitCompleted` is what runs first.
+        this.lifecycle.markDatabaseProbe(status.databaseUrl ?? "", status.databaseUrl !== null)
+        // The mesh is SETTLED once onboarding is done, even with no peers: a
+        // single-node cluster is legitimately "connected" (see the `mesh`
+        // indicator). This is the writer that was lost when the old
+        // orchestrator was deleted — without it `meshConnected` stayed null and
+        // the indicator reported `down` forever.
+        this.lifecycle.markMeshConnected(true)
+        this.lifecycle.markReady()
+
         this.completedSubject.next(status)
         this.completedSubject.complete()
     }

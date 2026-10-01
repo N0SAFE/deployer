@@ -54,13 +54,28 @@ function mapStatus(s: SetupStreamStepState["status"]): TaskStatus {
  *
  * The new event model (snapshot + log) carries the full step state
  * in `snapshot` events. We treat the latest snapshot as the source of
- * truth: each snapshot replaces the entire task list with the API's
- * authoritative state, then incremental `log` events are appended on
- * top so the UI streams in real-time between snapshots.
+ * truth for the steps it MENTIONS: a snapshot updates those steps and
+ * leaves every other step untouched. Incremental `log` events are
+ * appended on top so the UI streams in real-time between snapshots.
  *
- * Templates are used as a fallback ONLY for steps the API hasn't
- * emitted yet — i.e. the first render before any snapshot arrived.
- * As soon as a snapshot lands, the API's data wins.
+ * ── WHY A SNAPSHOT MERGES RATHER THAN REPLACES ──────────────────────────────
+ * Two processes produce this one timeline. The SETUP app reports the steps it
+ * drives (`start_api`, `await_api_boot`, and `initialize_swarm` on the
+ * swarm-driven profiles); the API reports its own provisioning steps
+ * (`provision_database`, `run_migrations`, …). Each snapshot carries ONLY the
+ * steps its own producer knows about, so replacing the list wholesale on every
+ * snapshot made the API's first snapshot ERASE the setup app's steps — the
+ * operator watched the first half of the pipeline vanish exactly when the
+ * second half started.
+ *
+ * Merging is what makes the two producers composable: a snapshot is "here is
+ * the authoritative state of MY steps", not "here is the whole world". The
+ * steps are identified by `id`, so a step the API reports simply does not
+ * collide with one setup reported.
+ *
+ * Templates are used as a fallback ONLY for steps neither producer has
+ * emitted yet — i.e. the first render before any snapshot arrived. As soon as
+ * a snapshot lands, the producer's data wins.
  */
 export function buildTasksFromEvents(
   events: SetupStreamEvent[],
@@ -70,12 +85,17 @@ export function buildTasksFromEvents(
   const orderedIds: string[] = []
 
   const upsertFromApi = (state: SetupStreamStepState): void => {
+    // Labels and descriptions come from the producer on every snapshot, but a
+    // step that already exists KEEPS its accumulated logs: a snapshot from the
+    // API carries logs for the API's steps only, and blanking the setup app's
+    // step would drop lines the operator already saw.
+    const existing = tasksById.get(state.id)
     const task: ProgressTask = {
       id: state.id,
       label: state.title,
       description: state.description ?? state.title,
       status: mapStatus(state.status),
-      logs: [...state.logs],
+      logs: state.logs.length > 0 ? [...state.logs] : (existing?.logs ?? []),
       durationMs: state.durationMs,
       error: state.error,
     }
@@ -102,9 +122,8 @@ export function buildTasksFromEvents(
   for (const event of events) {
     switch (event.type) {
       case "snapshot": {
-        // Snapshot is the source of truth — replace the whole list.
-        tasksById.clear()
-        orderedIds.length = 0
+        // Snapshot is authoritative FOR THE STEPS IT CARRIES. Steps another
+        // producer owns are left as they are — see the note above.
         for (const step of event.steps) {
           upsertFromApi(step)
         }
