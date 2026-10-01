@@ -71,6 +71,27 @@ export interface SwarmParticipationDefaults {
 	readonly joinToken?: string | null;
 	readonly joinAddrs?: readonly string[];
 	readonly overlayIp?: string | null;
+	/**
+	 * Whether this deployment runs a swarm AT ALL.
+	 *
+	 * `false` means every platform service is owned by the deployment (compose
+	 * or an operator): there is no supervisor to schedule anything, so no
+	 * cluster is needed, and founding one would mutate the operator's Docker
+	 * engine for nothing.
+	 *
+	 * The plain `dev` profile is exactly this — all `MANAGED_*_ENABLED=true`.
+	 * Without the flag, its `SwarmParticipationService.converge()` ran
+	 * `docker swarm init` on boot (because `node_config` already said
+	 * `setup_done` from a previous run) and left a swarm manager running on the
+	 * developer's machine:
+	 *
+	 *   SwarmBootstrapService: Swarm converged (boot) — state=active,
+	 *     role=manager … master=sn6acv3hofym
+	 *
+	 * Absent/`true` keeps the previous behaviour, so a swarm-based deployment
+	 * needs no change.
+	 */
+	readonly swarmManaged?: boolean;
 }
 
 /**

@@ -6,6 +6,7 @@ import { createViteAssetsMiddleware } from "@repo/vite-assets";
 
 import { SetupAppModule } from "./app.module";
 import { setupEnvSchema } from "./config/env/env.schema";
+import { createSetupAuthProxy } from "./middleware/setup-auth-proxy";
 
 /**
  * The ONE place the setup app's Nest configuration is decided.
@@ -67,7 +68,19 @@ export async function createSetupApp() {
   // wizard renders but every asset 404s, because the SSR template emits
   // `/vite/@vite/client` and nothing is listening for it.
   const server = express();
+  server.use(express.json());
   server.use(createViteAssetsMiddleware({ port: 5174 }));
+
+  // `/api/auth/*` is served by the API but reached through THIS host: the
+  // wizard's sign-in step calls it with a relative path (see `views/lib/auth.ts`),
+  // so it lands on whichever origin served the page. Without this the operator's
+  // final step failed with `Cannot POST /api/auth/sign-in/email` — and, because
+  // the sign-in precedes the trigger, the run then reported the API as
+  // unreachable, which described the symptom rather than the cause.
+  //
+  // Mounted BEFORE the Nest router for the same reason as the asset proxy: it is
+  // not an app route, and the API does not exist yet when the first call arrives.
+  server.use(createSetupAuthProxy(setupEnv.SETUP_API_URL ?? "http://api-dev:3005"));
 
   const app = await NestFactory.create(SetupAppModule, new ExpressAdapter(server), setupAppOptions());
   app.enableShutdownHooks();

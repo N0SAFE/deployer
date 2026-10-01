@@ -107,7 +107,25 @@ export class ReadinessIndicators {
       return indicator.down({ reason: "no platform supervisors are registered yet" });
     }
 
-    const failing = health
+    // ── DEFERRED IS NOT FAILING ────────────────────────────────────────────────
+    // A supervisor in `pending` was deliberately NOT converged: its precondition
+    // is unmet (no swarm yet, or the deployment owns the service). Nothing is
+    // wrong, so counting it as unhealthy is what kept plain `dev` from ever
+    // reporting ready:
+    //
+    //   4 of 4 supervised services are not healthy
+    //   → /health/ready stays 503 → the container is unhealthy → compose tears
+    //     the API down after `depends_on`, on a stack that is working fine.
+    //
+    // They are reported as `degraded` (HTTP 200 with a detail) instead: the
+    // platform is usable, so compose must not gate on it, and the operator still
+    // sees exactly which services are waiting and why.
+    const active = health.filter((snapshot) => snapshot.state !== "pending");
+    const deferred = health
+      .filter((snapshot) => snapshot.state === "pending")
+      .map((snapshot) => ({ supervisor: snapshot.supervisorId, state: snapshot.state, detail: snapshot.detail }));
+
+    const failing = active
       .filter((snapshot) => !snapshot.healthy)
       .map((snapshot) => ({ supervisor: snapshot.supervisorId, state: snapshot.state, detail: snapshot.detail }));
 
@@ -115,6 +133,14 @@ export class ReadinessIndicators {
       return indicator.down({
         reason: `${String(failing.length)} of ${String(health.length)} supervised services are not healthy`,
         failing,
+      });
+    }
+
+    // Every active supervisor is healthy, but some are waiting on a precondition.
+    if (deferred.length > 0) {
+      return indicator.up({
+        deferred,
+        reason: `${String(deferred.length)} of ${String(health.length)} supervised services are deferred (waiting on a precondition, not failing)`,
       });
     }
 

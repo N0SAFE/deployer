@@ -141,6 +141,22 @@ export class SwarmParticipationService {
      */
     async converge(): Promise<ClusterSnapshot> {
         const cfg = this.effectiveConfig();
+
+        // ── A DEPLOYMENT THAT OWNS EVERY SERVICE NEEDS NO CLUSTER ──────────────
+        // Founding one is not merely useless, it is an irreversible change to the
+        // operator's Docker engine that then outlives the process (a swarm manager
+        // keeps running until explicitly left). See `swarmManaged` for the full
+        // rationale; the plain `dev` profile is the case that proved it.
+        //
+        // No-op rather than an error: "this deployment has no swarm" is a valid
+        // configuration, not a failure.
+        if (this.defaults.swarmManaged === false) {
+            this.logger.log(
+                "Swarm convergence skipped — the deployment owns every platform service (no swarm in this profile)",
+            );
+            return await this.clusterService.getLocalClusterSnapshot();
+        }
+
         const info = await this.dockerService.getSwarmInfo();
 
         if (info.LocalNodeState === "active") {

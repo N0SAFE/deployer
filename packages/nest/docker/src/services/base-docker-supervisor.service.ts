@@ -432,9 +432,31 @@ export abstract class BaseDockerSupervisorService<
 	 * overlay exists AND attach the API container to it. The API container is
 	 * the bridge head between compose-managed (bridge) and swarm (overlay)
 	 * networks, so compose services can reach/be reached from swarm networks.
-	 * Returns the overlay name.
+	 * Returns the overlay name, or `null` when there is no swarm to bridge.
+	 *
+	 * ── WHY IT CAN DECLINE ──────────────────────────────────────────────────────
+	 * An overlay network is a SWARM construct: creating one on an engine that is
+	 * not a swarm member fails with
+	 *
+	 *   Failed to create overlay network deployer-platform-overlay:
+	 *   (HTTP code 403) This node is not a swarm manager
+	 *
+	 * and on the plain `dev` profile there is no swarm BY DESIGN — every service
+	 * is compose-managed, so there is nothing to bridge TO either. Attempting it
+	 * anyway reported a healthy compose stack as DEGRADED:
+	 *
+	 *   [RedisSupervisorService] Convergence failed: Failed to create overlay
+	 *   network deployer-platform-overlay … not a swarm manager
+	 *
+	 * A managed service needs no overlay when no swarm exists, so this returns
+	 * `null` and the caller reports the compose network it actually uses.
 	 */
-	protected async wireExternalToSwarm(baseNetworkName: string, hostContainerName: string): Promise<string> {
+	protected async wireExternalToSwarm(
+		baseNetworkName: string,
+		hostContainerName: string,
+	): Promise<string | null> {
+		if (!(await this.isSwarmActive())) return null;
+
 		const overlay = await this.ensureSwarmNetwork(baseNetworkName);
 		// Attach the API container to the overlay too — it bridges the
 		// compose-managed (bridge) and swarm (overlay) networks. Uses the

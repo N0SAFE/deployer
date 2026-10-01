@@ -230,7 +230,11 @@ export class RedisSupervisorService extends BaseDockerSupervisorService<
 				PlatformNetwork.name(this.env.get("DEPLOYER_PREFIX") ?? ""),
 				this.serviceName(),
 			);
-			this.logger.log(`Redis managed (compose/operator) — wired external to swarm overlay ${overlay}`);
+			this.logger.log(
+				overlay === null
+					? "Redis managed (compose/operator) — no swarm to bridge, compose network only"
+					: `Redis managed (compose/operator) — wired external to swarm overlay ${overlay}`,
+			);
 			return;
 		}
 

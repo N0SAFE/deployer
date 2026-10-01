@@ -32,8 +32,28 @@
 
 import { Module } from "@nestjs/common";
 import { SwarmModule } from "@repo/nest-swarm";
+import { splitManagedEnv } from "@repo/env";
 import { NodeStateModule } from "@/core/modules/node-state/node-state.module";
 import { EnvModule, EnvService } from "@/config/env/env.module";
+
+/**
+ * Whether the DEPLOYMENT owns every platform service (compose / operator).
+ *
+ * True for the plain `dev` profile, where all of `MANAGED_*_ENABLED` are `true`:
+ * no supervisor registers, nothing is scheduled onto a cluster, and founding one
+ * would mutate the developer's Docker engine for no purpose.
+ *
+ * Read from the SAME `splitManagedEnv` source the supervisors use, so this can
+ * never disagree with them about who owns what.
+ */
+function isFullyDeploymentManaged(env: EnvService): boolean {
+    const managed = splitManagedEnv(env);
+    return (
+        managed.traefik.enabled === true &&
+        managed.redis.enabled === true &&
+        managed.localDb.enabled === true
+    );
+}
 
 @Module({
     // NodeStateModule supplies NodeConfigRepository + ClusterNodeRepository
@@ -83,6 +103,20 @@ import { EnvModule, EnvService } from "@/config/env/env.module";
                 // advertise `127.0.0.1`, the exact failure `AdvertiseAddr` prevents.
                 participation: {
                     overlayIp: env.get("MANAGED_WIREGUARD_IP") ?? null,
+                    // ── DOES THIS DEPLOYMENT RUN A SWARM AT ALL? ───────────────
+                    // The plain `dev` profile is entirely compose-managed: every
+                    // `MANAGED_*_ENABLED` is `true`, so every supervisor skips
+                    // registration and nothing is ever scheduled onto a cluster.
+                    // Without this flag the boot path still ran
+                    // `docker swarm init`, because `node_config` already said
+                    // `setup_done` from a previous run — leaving a swarm manager
+                    // running on the developer's machine for the rest of the
+                    // session and making "does dev use swarm?" ambiguous.
+                    //
+                    // Derived from the SAME `splitManagedEnv` source the
+                    // supervisors use, so this can never disagree with them about
+                    // who owns what.
+                    swarmManaged: !isFullyDeploymentManaged(env),
                 },
             }),
         }),

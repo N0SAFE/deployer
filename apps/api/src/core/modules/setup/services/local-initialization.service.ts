@@ -25,6 +25,7 @@ import {
     managedPostgresServiceName,
 } from "@repo/nest-docker/containers/postgres/postgres-service.provisioner";
 import { EnvService } from "@/config/env/env.module";
+import { splitManagedEnv } from "@repo/env";
 import { SwarmBootstrapService } from "@repo/nest-swarm";
 import { SwarmClusterService } from "@repo/nest-swarm";
 import { SupervisorOrchestratorService } from "@repo/nest-supervisor-core/supervisor-orchestrator.service";
@@ -70,6 +71,25 @@ export class LocalInitializationService {
 
     /** The env var set by globalSetup (e2e) pointing at a shared Postgres. */
     private static readonly SHARED_PG_ENV = "E2E_SHARED_POSTGRES_CONNECTION_URI";
+
+    /**
+     * Whether the DEPLOYMENT owns every platform service (compose / operator).
+     *
+     * True for the plain `dev` profile, where all of `MANAGED_*_ENABLED` are
+     * `true`: the supervisors all skip registration, compose runs redis, Traefik
+     * and the local DB, and NOTHING is ever scheduled onto a swarm.
+     *
+     * Read from the SAME `splitManagedEnv` source the supervisors use, so this
+     * cannot disagree with them about who owns what.
+     */
+    private deploymentOwnsAllServices(): boolean {
+        const managed = splitManagedEnv(this.env);
+        return (
+            managed.traefik.enabled === true &&
+            managed.redis.enabled === true &&
+            managed.localDb.enabled === true
+        );
+    }
 
     constructor(
         private readonly postgresProvisioner: PostgresServiceProvisioner,
@@ -140,7 +160,7 @@ export class LocalInitializationService {
         const databaseProvisioning =
             explicitUrl || providedUrl ? "external" : "local";
 
-        // ── Swarm FIRST ────────────────────────────────────────────────────────
+        // ── Swarm FIRST (unless the deployment owns everything) ────────────────
         // Locally-managed Postgres is a SWARM SERVICE, so the engine must be a
         // cluster BEFORE the database step runs. Founding it here (not in
         // `finalize`) is what removes the former deadlock: provisioning called
@@ -149,7 +169,26 @@ export class LocalInitializationService {
         // Skipped for an externally-provided URL: that node consumes someone
         // else's database and joins a fleet (which converges from the fleet's
         // grant), so it must not invent a cluster of its own.
-        if (databaseProvisioning === "local") {
+        //
+        // ── ALSO SKIPPED WHEN THE DEPLOYMENT OWNS EVERY SERVICE ────────────────
+        // The plain `dev` profile is ENTIRELY compose-managed: every
+        // `MANAGED_*_ENABLED` is `true`, so every supervisor skips registration
+        // and nothing is ever scheduled onto a swarm. Founding one there is not
+        // merely useless — it mutates the developer's Docker engine:
+        //
+        //   SwarmParticipationService: creating a new cluster (policy=auto)
+        //   SwarmBootstrapService: Swarm converged (setup) — state=active,
+        //     role=manager, … master=sn6acv3hofym
+        //
+        // which then runs a swarm manager on the host for the rest of the
+        // session and makes "does dev use swarm?" ambiguous everywhere.
+        //
+        // The operator's explicit swarm choice is still PERSISTED below, so a
+        // later profile that does need a cluster converges from the same
+        // decision — only the engine mutation is skipped.
+        const deploymentOwnsEverything = this.deploymentOwnsAllServices();
+
+        if (databaseProvisioning === "local" && !deploymentOwnsEverything) {
             await runStep(tracker, emit, "initialize_swarm", "Create the Swarm cluster", async (stepLog) => {
                 stepLog("▸ Initializing Docker Swarm…");
                 stepLog(`  mode    = ${swarmChoice?.mode ?? "create"}`);
@@ -231,7 +270,7 @@ export class LocalInitializationService {
             stepLog("  volume = deployer_postgres_data");
             stepLog("  port   = 5432 (host-assigned)");
             stepLog("▸ Pulling image (cached if present)…");
-            return await this.provisionDockerDatabase(stepLog);
+            return await this.provisionDockerDatabase(stepLog, deploymentOwnsEverything);
         });
         const readyLine = `✅ Database ready at ${redactUrl(databaseUrl)}`;
         tracker.log("provision_database", readyLine);
@@ -381,6 +420,7 @@ export class LocalInitializationService {
 
     private async provisionDockerDatabase(
         log: (message: string) => void,
+        deploymentOwnsEverything: boolean,
     ): Promise<string> {
         // If a shared Postgres URI is available (e.g., from e2e globalSetup),
         // create a database namespace inside it instead of a new service.
@@ -389,6 +429,16 @@ export class LocalInitializationService {
         if (sharedUri) {
             log("detected E2E_SHARED_POSTGRES_CONNECTION_URI — using namespace mode");
             return await this.provisionDatabaseNamespace(sharedUri, log);
+        }
+
+        // ── NO SWARM: use a plain container ────────────────────────────────────
+        // On a fully compose-managed profile (plain `dev`) there is no swarm and
+        // there never will be, so the swarm-service path below cannot run — it
+        // would fail on `createSwarmService` with `not a swarm manager`.
+        // Provisioning the SAME Postgres as a plain container keeps dev working
+        // without inventing a cluster.
+        if (deploymentOwnsEverything) {
+            return await this.provisionContainerDatabase(log);
         }
 
         // The global database is a SWARM SERVICE — the same object the
@@ -448,6 +498,66 @@ export class LocalInitializationService {
         // (this API included, once it is attached to the overlay) resolves it.
         // The DSN is assembled from the SAME identity the service was created
         // with, so the credentials can never disagree with the cluster.
+        const { username, password, databaseName } = identity;
+        const url = `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${MANAGED_POSTGRES_ALIAS}:${String(MANAGED_POSTGRES_PORT)}/${databaseName}`;
+        log(`✅ Database ready at postgresql://${username}:***@${MANAGED_POSTGRES_ALIAS}:${String(MANAGED_POSTGRES_PORT)}/${databaseName}`);
+        return url;
+    }
+
+    /**
+     * Provision the global Postgres as a PLAIN CONTAINER, for a profile with no
+     * swarm (compose owns every service).
+     *
+     * Reaches the database by the SAME alias the compose stack uses
+     * (`global-db`) so consumers cannot tell which incarnation provisioned it —
+     * the DSN written to `node_config` is identical either way.
+     */
+    private async provisionContainerDatabase(log: (message: string) => void): Promise<string> {
+        const prefix = this.env.get("DEPLOYER_PREFIX");
+        const name = managedPostgresServiceName(prefix);
+        const identity = resolvePostgresIdentity(this.env);
+
+        log("▸ No swarm on this deployment (compose owns every service) — provisioning Postgres as a container");
+        log(`  container = ${name}`);
+        log(`  image     = ${identity.image}`);
+        log(`  volume    = ${MANAGED_POSTGRES_VOLUME_NAME}`);
+        log(`  user      = ${identity.username}`);
+        log(`  db        = ${identity.databaseName}`);
+
+        const client = this.dockerService.getDockerClient();
+
+        // Volume first: recreating the container must reuse the existing data,
+        // so the volume is never removed here (only created when absent).
+        await client
+            .createVolume({ Name: MANAGED_POSTGRES_VOLUME_NAME })
+            .catch(() => undefined);
+
+        // Remove any leftover container by that name: `createContainer` fails on
+        // a name collision, and an interrupted earlier run can leave one behind.
+        await client
+            .getContainer(name)
+            .remove({ force: true })
+            .catch(() => undefined);
+
+        const container = await this.dockerService.createContainer({
+            name,
+            Image: identity.image,
+            Env: [
+                `POSTGRES_USER=${identity.username}`,
+                `POSTGRES_PASSWORD=${identity.password}`,
+                `POSTGRES_DB=${identity.databaseName}`,
+            ],
+            HostConfig: {
+                PortBindings: { [`${String(MANAGED_POSTGRES_PORT)}/tcp`]: [{ HostPort: "0" }] },
+                Binds: [`${MANAGED_POSTGRES_VOLUME_NAME}:/var/lib/postgresql/data`],
+                RestartPolicy: { Name: "unless-stopped" },
+            },
+            ExposedPorts: { [`${String(MANAGED_POSTGRES_PORT)}/tcp`]: {} },
+        });
+
+        log(`▸ Starting container ${container.id.slice(0, 12)} …`);
+        await container.start();
+
         const { username, password, databaseName } = identity;
         const url = `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${MANAGED_POSTGRES_ALIAS}:${String(MANAGED_POSTGRES_PORT)}/${databaseName}`;
         log(`✅ Database ready at postgresql://${username}:***@${MANAGED_POSTGRES_ALIAS}:${String(MANAGED_POSTGRES_PORT)}/${databaseName}`);
