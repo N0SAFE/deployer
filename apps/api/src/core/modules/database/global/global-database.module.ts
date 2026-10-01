@@ -25,7 +25,7 @@
  */
 
 import { Global, Logger, Module } from '@nestjs/common'
-import { Pool } from 'pg'
+import { Client, Pool } from 'pg'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import * as globalSchema from '@repo/nest-schema/global'
 import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from "@repo/nest-database-core/database-connection"
@@ -41,23 +41,51 @@ import { resolveManagedGlobalDbUrl, splitManagedEnv } from "@repo/env"
 const logger = new Logger('GlobalDatabaseModule')
 
 /**
- * Create a configured Pool instance with explicit production-ready settings.
- * Called ONCE — the resulting pool is shared across all providers.
+ * A `pg.Pool` whose connection string is resolved WHEN A CONNECTION IS MADE.
  *
- * max: 50 — higher than 20 to absorb bursts without queue timeouts. The pool
- *   still shares Postgres connections responsibly; each sub-app creates its
- *   own pool (gateway, mesh-init, main-app) so total load is multiplied.
- * min: 2 — keeps baseline connections warm.
- * connectionTimeoutMillis: 10_000 — longer than 5s to give Postgres more time
- *   during transient load spikes before rejecting the query.
- * idleTimeoutMillis: 60_000 — longer idle grace so warm connections survive
- *   brief quiet periods (e.g. between scan progress events).
- * allowExitOnIdle: false — prevents the pool from unref()ing its pulse timer,
- *   which caused subtle event-loop exit races.
+ * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────
+ * The API is started by compose BEFORE onboarding provisions anything, so
+ * `node_config` has no URL at factory time. Building the pool from that empty
+ * value is not a neutral placeholder: `pg` treats an empty `connectionString`
+ * as ABSENT and falls back to the PG* environment / the `localhost:5432`
+ * default, so every query then fails for the whole life of the process with
+ *
+ *   connect ECONNREFUSED 127.0.0.1:5432
+ *
+ * — which is what silently broke every global-database read and write after a
+ * SUCCESSFUL onboarding: event-log persistence, mesh cluster sync, the outbound
+ * dispatcher, and `/setup/done`. Readiness still said `database: up` because its
+ * indicator is driven by the lifecycle probe, not by this pool, so the failure
+ * stayed invisible until a page was rendered.
+ *
+ * ── WHY A `Client` SUBCLASS ─────────────────────────────────────────────────
+ * There is no lazy hook on the connection string itself: `ConnectionParameters`
+ * calls `parse(config.connectionString)` EAGERLY, and `pg-pool` copies the
+ * options with `Object.assign({}, options)`, which INVOKES an accessor and
+ * freezes its value. Both were measured, not assumed:
+ *
+ *   getter retained on pool.options: true
+ *   value at construction        : postgresql://…@first-host:5432/firstdb
+ *   after url change -> host     : first-host     <- frozen, not re-read
+ *
+ * `pg-pool` builds every connection through `new this.Client(this.options)`, and
+ * `PoolConfig.Client` is a SUPPORTED option, so supplying a constructor that
+ * resolves the URL itself is the seam that stays within the API. It runs once per
+ * NEW client, so a connection opened AFTER the wizard persisted the URL uses it;
+ * connections already open are reused as normal.
+ *
+ * Extending `Client` (rather than reimplementing) keeps `connection`,
+ * `isConnected()` and the idle/release lifecycle `pg-pool` drives intact.
  */
-function createPool(databaseUrl: string): Pool {
+function resolveUrlPool(resolve: () => string): Pool {
+    class ResolvedClient extends Client {
+        constructor() {
+            super({ connectionString: resolve() })
+        }
+    }
+
     return new Pool({
-        connectionString: databaseUrl,
+        Client: ResolvedClient,
         max: 50,
         min: 2,
         connectionTimeoutMillis: 10_000,
@@ -70,35 +98,42 @@ function createPool(databaseUrl: string): Pool {
  * Build the shared pool once. Precedence:
  *
  * 1. COMPOSE-MANAGED DB (`MANAGED_GLOBAL_DB_ENABLED=true`): the URL is
- *    deterministic from `MANAGED_GLOBAL_DB_*` env — build the pool from env
- *    at factory time. This avoids the "stale placeholder pool" trap where
- *    the module-initialized pool (empty URL on a pristine boot) would never
- *    see the URL that SetupDevService persists to SQLite later.
+ *    deterministic from `MANAGED_GLOBAL_DB_*` env.
  * 2. Otherwise read the URL from SQLite node_config (managed/local or
  *    operator-configured URL persisted by an earlier boot).
+ *
+ * Both are read through the SAME resolver, on every connect, so the pool follows
+ * the platform through onboarding instead of freezing whatever was true at boot.
  */
 function buildSharedPool(nodeConfig: NodeConfigRepository, env: EnvService): Pool {
-    const managed = splitManagedEnv(env).globalDb;
-    if (managed.enabled === true) {
-        const url = resolveManagedGlobalDbUrl(managed);
-        logger.log(`📦 Compose-managed global DB (MANAGED_GLOBAL_DB_ENABLED=true) — creating shared pool from env`)
-        const pool = createPool(url)
-        pool.on('error', (err) => {
-            logger.error(`🚨 Pool error: ${err.message}`)
-        })
-        return pool
+    let announced = false
+
+    const resolveUrl = (): string => {
+        const managed = splitManagedEnv(env).globalDb
+        const url =
+            managed.enabled === true
+                ? resolveManagedGlobalDbUrl(managed)
+                : (nodeConfig.find()?.databaseUrl?.trim() ?? '')
+
+        if (!announced) {
+            announced = true
+            if (url.length === 0) {
+                logger.warn(
+                    '⚠️  No database URL yet — the pool will connect once onboarding provisions one.',
+                )
+            } else {
+                logger.log(
+                    managed.enabled === true
+                        ? '📦 Compose-managed global DB (MANAGED_GLOBAL_DB_ENABLED=true) — pool URL from env'
+                        : '📦 Creating shared database pool (single instance)',
+                )
+            }
+        }
+
+        return url
     }
 
-    const config = nodeConfig.find()
-    const url = config?.databaseUrl?.trim()
-    if (!url) {
-        logger.warn('⚠️  No database URL in node_config yet — creating placeholder pool.')
-        logger.warn('   The orchestrator will resolve the URL during startup.')
-        logger.warn('   If setup is incomplete, the setup wizard will be launched.')
-        return createPool('')
-    }
-    logger.log('📦 Creating shared database pool (single instance)')
-    const pool = createPool(url)
+    const pool = resolveUrlPool(resolveUrl)
 
     pool.on('error', (err) => {
         logger.error(`🚨 Pool error: ${err.message}`)

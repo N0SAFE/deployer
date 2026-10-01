@@ -42,7 +42,22 @@ export const coreEventLogs = pgTable(
         emittedAt: timestamp("emitted_at")
             .$defaultFn(() => new Date())
             .notNull(),
+        // ── WHY THERE IS ALSO A SQL DEFAULT ─────────────────────────────────
+        // `$defaultFn` is APPLICATION-side only: Drizzle never emits a SQL
+        // `DEFAULT`, so the column is `NOT NULL` with `column_default = null`
+        // in Postgres. Any insert that omits it — a raw statement, a migration
+        // backfill, or a caller building the row without it — fails with
+        //
+        //   null value in column "created_at" violates not-null constraint
+        //
+        // which is what left `core_event_logs` unwritable and made the event
+        // service queue thousands of audit events ("Event log persistence
+        // still unavailable (N queued)") on an otherwise healthy database.
+        //
+        // `defaultNow()` emits a real `DEFAULT now()`, so the column is
+        // self-sufficient regardless of which path writes the row.
         createdAt: timestamp("created_at")
+            .defaultNow()
             .$defaultFn(() => new Date())
             .notNull(),
     },
