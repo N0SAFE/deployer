@@ -163,7 +163,24 @@ export class PostgresServiceProvisioner {
                 retries: 12,
                 startPeriodMs: 5_000,
             },
-            updateConfig: { parallelism: 1, delayMs: 0, order: "start-first", failureAction: "rollback" },
+            // ── `stop-first`, BECAUSE THE PORT IS PUBLISHED IN HOST MODE ────────
+            // `start-first` starts the replacement BEFORE stopping the old task,
+            // which is right for a stateless service behind a load balancer. It
+            // is IMPOSSIBLE here: the port below is published in `host` mode, so
+            // only one task on the node can hold it, and the replacement can
+            // never start. The engine reports exactly that, and the service sits
+            // at 0/1 forever:
+            //
+            //   "no suitable node (host-mode port already in use on 1 node)"
+            //
+            // Measured: after any `docker service update --force`, the new task
+            // stayed `Pending` while the old one kept running, so the database
+            // became unreachable and the API could not boot.
+            //
+            // `stop-first` gives the port up before the new task claims it. The
+            // brief gap is unavoidable for a host-bound port, and the API's
+            // startup guard already waits for the database to come back.
+            updateConfig: { parallelism: 1, delayMs: 0, order: "stop-first", failureAction: "rollback" },
             // Postgres must be allowed to checkpoint on shutdown: stopping it
             // early (SIGKILL) corrupts the data directory, which then fails to
             // start with "could not locate a valid checkpoint record".
