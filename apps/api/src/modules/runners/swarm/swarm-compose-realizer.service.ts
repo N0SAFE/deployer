@@ -575,6 +575,9 @@ export class SwarmComposeRealizerService {
                     ...(port.publishedPort !== undefined ? { publishedPort: port.publishedPort } : {}),
                     protocol: port.protocol,
                 })),
+                // USER WORKLOADS keep the default VIP endpoint: they may be scaled
+                // to many replicas, so the load-balanced name is what consumers want.
+                endpointMode: "vip",
                 stopGracePeriodSeconds: 30,
             };
             return { serviceName: service.name, spec };

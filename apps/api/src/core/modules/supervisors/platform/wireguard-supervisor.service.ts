@@ -240,6 +240,9 @@ export class WireGuardSupervisorService extends BaseDockerSupervisorService<
 					publishMode: "host",
 				},
 			],
+			// Peers dial the node's real address; internal consumers address the
+			// sidecar by name. A VIP would only ever forward to this same task.
+			endpointMode: "dnsrr",
 		};
 	}
 

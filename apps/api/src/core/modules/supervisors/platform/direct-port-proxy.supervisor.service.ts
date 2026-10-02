@@ -395,6 +395,9 @@ export class DirectPortProxySupervisorService
 			updateConfig: { parallelism: 1, delayMs: 0, order: "start-first", failureAction: "rollback" },
 			stopGracePeriodSeconds: 10,
 			endpointPorts,
+			// NODE-LOCAL (global mode): consumers reach it on the HOST port, never
+			// through the overlay's DNS name, so no VIP should be allocated at all.
+			endpointMode: "dnsrr",
 		};
 	}
 

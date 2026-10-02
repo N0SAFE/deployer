@@ -146,6 +146,23 @@ export const swarmServiceSpecInputSchema = z.object({
   rollbackConfig: swarmUpdateConfigSchema.optional(),
   endpointPorts: swarmEndpointPortsSchema,
   /**
+   * How the service's DNS NAME resolves inside the overlay.
+   *   - "vip"   (default) → the embedded DNS answers with a VIRTUAL IP that the
+   *               node's IPVS load-balances across the tasks. Right for a
+   *               multi-replica service reached by many consumers.
+   *   - "dnsrr"           → DNS answers with the TASK IPs directly, so traffic
+   *               never traverses the load balancer.
+   *
+   * `dnsrr` is what SINGLE-REPLICA infrastructure wants (the global database,
+   * Redis): a VIP for one task adds a load-balancer hop that can only ever
+   * forward to that same task, so it is pure risk — and when the node's IPVS
+   * rules are missing or stale the VIP accepts nothing at all and every
+   * consumer gets `ECONNREFUSED` while the task is perfectly healthy on its
+   * own address. That failure mode is indistinguishable from a dead database
+   * and is exactly what `dnsrr` removes.
+   */
+  endpointMode: z.enum(["vip", "dnsrr"]).default("vip"),
+  /**
    * Seconds the engine waits after SIGTERM before SIGKILL when stopping a
    * task. STATEFUL services (Postgres, Redis) must set enough of it to shut
    * down cleanly — a SIGKILL mid-write corrupts the data directory

@@ -34,6 +34,7 @@ const baseInput: SwarmServiceSpecInput = {
     },
     updateConfig: { parallelism: 1, delayMs: 0, order: "start-first", failureAction: "rollback" },
     endpointPorts: [{ targetPort: 3000, publishedPort: 8080, protocol: "tcp" }],
+    endpointMode: "vip",
     stopGracePeriodSeconds: 30,
 };
 
@@ -100,6 +101,23 @@ describe("toDockerServiceSpec", () => {
         expect(spec.EndpointSpec?.Ports).toEqual([
             { TargetPort: 3000, PublishedPort: 8080, Protocol: "tcp" },
         ]);
+    });
+
+    /**
+     * REGRESSION GUARD: a single-replica service (the global database, Redis)
+     * must not be reachable through a VIP. When the node's IPVS rules are missing
+     * or stale the VIP accepts nothing and every consumer gets `ECONNREFUSED`
+     * while the task is perfectly healthy on its own address — a failure mode
+     * indistinguishable from a dead database.
+     */
+    it("maps endpointMode onto EndpointSpec.Mode, dnsrr for single-task services", () => {
+        expect(toDockerServiceSpec(baseInput).EndpointSpec?.Mode).toBe("vip");
+        expect(toDockerServiceSpec({ ...baseInput, endpointMode: "dnsrr" }).EndpointSpec?.Mode).toBe("dnsrr");
+    });
+
+    it("still emits EndpointSpec for a service with no published ports", () => {
+        const spec = toDockerServiceSpec({ ...baseInput, endpointPorts: [], endpointMode: "dnsrr" });
+        expect(spec.EndpointSpec).toEqual({ Mode: "dnsrr" });
     });
 
     it("maps volume mounts and omits empty placements", () => {

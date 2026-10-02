@@ -198,6 +198,10 @@ class DatabaseInstanceSupervisor extends BaseDockerSupervisorService<
 			// A database must checkpoint on shutdown — SIGKILL corrupts it.
 			stopGracePeriodSeconds: 60,
 			endpointPorts: [],
+			// One task per instance, addressed by its network alias (`db-<instance>`):
+			// a VIP would only ever forward to that same task, so the load-balancer
+			// hop is pure risk. See the schema note.
+			endpointMode: "dnsrr",
 		};
 	}
 

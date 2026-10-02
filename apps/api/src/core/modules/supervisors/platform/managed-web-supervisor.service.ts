@@ -127,6 +127,8 @@ export class ManagedWebSupervisorService extends BaseDockerSupervisorService<
 			updateConfig: { parallelism: 1, delayMs: 0, order: "start-first", failureAction: "rollback" },
 			stopGracePeriodSeconds: 10,
 			endpointPorts: [],
+			// One task addressed by DNS name: `dnsrr` keeps consumers off the VIP.
+			endpointMode: "dnsrr",
 		};
 	}
 

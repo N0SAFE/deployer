@@ -181,6 +181,12 @@ export class PostgresServiceProvisioner {
             // brief gap is unavoidable for a host-bound port, and the API's
             // startup guard already waits for the database to come back.
             updateConfig: { parallelism: 1, delayMs: 0, order: "stop-first", failureAction: "rollback" },
+            // One task, addressed by DNS name (`global-db`): a VIP would only ever
+            // forward to that same task, so the load-balancer hop is pure risk —
+            // when the node's IPVS rules are missing or stale the VIP accepts
+            // nothing and every consumer sees `ECONNREFUSED` while the database is
+            // perfectly healthy on its own address. See the schema note.
+            endpointMode: "dnsrr",
             // Postgres must be allowed to checkpoint on shutdown: stopping it
             // early (SIGKILL) corrupts the data directory, which then fails to
             // start with "could not locate a valid checkpoint record".

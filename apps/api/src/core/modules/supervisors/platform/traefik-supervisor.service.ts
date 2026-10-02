@@ -314,9 +314,31 @@ export class TraefikSupervisorService extends BaseDockerSupervisorService<
 			resourcesReservations: {},
 			networks: [],
 			healthcheck: null,
-			updateConfig: { parallelism: 1, delayMs: 0, order: "start-first", failureAction: "rollback" },
+			// ── `stop-first` WHEN THE ENTRY PORT IS PUBLISHED IN HOST MODE ──────
+			// `endpointPorts` publishes the entry port with `publishMode: "host"`
+			// (see the block above), and a host-mode port can be held by exactly
+			// ONE task on a node. `start-first` starts the replacement BEFORE
+			// stopping the old task, so the new one can never bind:
+			//
+			//   "no suitable node (host-mode port already in use on 1 node)"
+			//
+			// leaving the ingress at 0/0 and the platform unreachable.
+			//
+			// The ORDER therefore has to follow the PUBLISH MODE, not a blanket
+			// preference: ingress-published services (the API) keep `start-first`
+			// for zero-downtime rollouts, while a host-bound one must give the
+			// port up first.
+			updateConfig: {
+				parallelism: 1,
+				delayMs: 0,
+				order: endpointPorts.some((p) => p.publishMode === "host") ? "stop-first" : "start-first",
+				failureAction: "rollback",
+			},
 			stopGracePeriodSeconds: 10,
 			endpointPorts,
+			// The ingress is reached on the HOST entry port (or by container name for
+			// the setup handover) — never through a swarm VIP on the overlay.
+			endpointMode: "dnsrr",
 		};
 	}
 

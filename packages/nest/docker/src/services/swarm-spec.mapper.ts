@@ -98,9 +98,13 @@ export function toDockerServiceSpec(input: SwarmServiceSpecInput): Docker.Servic
                 : { Replicated: { Replicas: input.replicas } },
         UpdateConfig: toUpdateConfig(input.updateConfig),
         ...(input.rollbackConfig ? { RollbackConfig: toUpdateConfig(input.rollbackConfig) } : {}),
-        ...(input.endpointPorts.length > 0
-            ? {
-                  EndpointSpec: {
+        // The endpoint spec is ALWAYS emitted: `Mode` (vip vs dnsrr) is a
+        // property of the endpoint, not of the published ports, so a service
+        // with no published ports still needs it to opt out of the VIP.
+        EndpointSpec: {
+            Mode: input.endpointMode,
+            ...(input.endpointPorts.length > 0
+                ? {
                       Ports: input.endpointPorts.map((port) => ({
                           TargetPort: port.targetPort,
                           ...(port.publishedPort !== undefined
@@ -109,9 +113,9 @@ export function toDockerServiceSpec(input: SwarmServiceSpecInput): Docker.Servic
                           Protocol: port.protocol,
                           ...(port.publishMode !== undefined ? { PublishMode: port.publishMode } : {}),
                       })),
-                  },
-              }
-            : {}),
+                  }
+                : {}),
+        },
     };
 }
 

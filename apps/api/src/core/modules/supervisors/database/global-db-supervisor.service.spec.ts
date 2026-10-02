@@ -56,6 +56,7 @@ function makeMocks(provisioning: "local" | "external" | null = "local") {
 			healthcheck: null,
 			updateConfig: { parallelism: 1, delayMs: 0, order: "start-first" as const, failureAction: "rollback" as const },
 			endpointPorts: [],
+			endpointMode: "dnsrr" as const,
 			stopGracePeriodSeconds: 60,
 		})),
 		attachOverlay: vi.fn((spec: unknown) => spec),

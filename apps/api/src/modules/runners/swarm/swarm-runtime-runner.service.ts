@@ -181,6 +181,9 @@ export class SwarmRuntimeRunnerService implements DeploymentRuntimeRunner {
             },
             endpointPorts: [],
             capabilitiesAdd: [],
+            // USER WORKLOADS keep the default VIP endpoint: they may be scaled to
+            // many replicas, so the load-balanced name is what consumers want.
+            endpointMode: "vip",
             // Give workloads a window to shut down on their own terms.
             stopGracePeriodSeconds: 30,
         };

@@ -176,6 +176,9 @@ export class RedisSupervisorService extends BaseDockerSupervisorService<
 			healthcheck: null,
 			updateConfig: { parallelism: 1, delayMs: 0, order: "start-first", failureAction: "rollback" },
 			endpointPorts: [],
+			// One task, addressed by DNS name: a VIP would only ever forward to that
+			// same task, so the load-balancer hop is pure risk. See the schema note.
+			endpointMode: "dnsrr",
 		};
 	}
 
