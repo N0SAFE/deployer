@@ -100,6 +100,43 @@ function resolveContainerId(activity: DockerRuntimeActivityEntity): string | und
   return candidate && candidate.trim().length > 0 ? candidate : undefined
 }
 
+/**
+ * The reason an operator needs when a swarm workload will not come up.
+ *
+ * Swarm events themselves carry NO state — the engine emits `service.update`
+ * with nothing else — so the failure text is read from live task state and
+ * attached by the server's swarm enricher. It is surfaced FIRST because it is
+ * the only actionable line on the row:
+ *
+ *   "no suitable node (host-mode port already in use on 1 node)"
+ *   "network sandbox join failed: … error creating vxlan interface: file exists"
+ */
+function resolveSwarmTaskErrors(activity: DockerRuntimeActivityEntity): string[] {
+  return activity.swarmTasks
+    .map((task) => task.error)
+    .filter((error): error is string => typeof error === 'string' && error.trim().length > 0)
+}
+
+/** "2 of 3 tasks running" — the scale context a swarm event never carries. */
+function resolveSwarmSummary(activity: DockerRuntimeActivityEntity): string | null {
+  const service = activity.swarmService
+  if (!service) {
+    return null
+  }
+  return `${String(service.runningTasks)} of ${String(service.desiredTasks)} tasks running`
+}
+/**
+ * Orchestrator-owned sources.
+ *
+ * `task` is included even though engine 29.8.1 emits no task events: the server
+ * SYNTHESIZES task-shaped activities from live state, and a future engine may
+ * emit them natively. Excluding it here would hide them the day that happens.
+ */
+const SWARM_ACTIVITY_SOURCES = new Set(['service', 'node', 'task'])
+
+function isSwarmActivity(activity: DockerRuntimeActivityEntity): boolean {
+  return SWARM_ACTIVITY_SOURCES.has(activity.source)
+}
 const ACTIVITY_STREAM_INPUT = {}
 
 export default function DashboardDockerActivityPage() {
@@ -107,6 +144,10 @@ export default function DashboardDockerActivityPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | ActivityStatus>('all')
   const [categoryFilter, setCategoryFilter] = useState<'all' | ActivityCategory>('all')
   const [severityFilter, setSeverityFilter] = useState<'all' | ActivitySeverity>('all')
+  // Swarm-scoped view. "Swarm" means every orchestrator source (service, node,
+  // task) — not just one — because a service failure and the task failure that
+  // explains it arrive as different sources.
+  const [swarmOnly, setSwarmOnly] = useState(false)
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null)
   const [liveActivitiesByKey, setLiveActivitiesByKey] = useState<Record<string, DockerRuntimeActivityEntity>>({})
 
@@ -218,6 +259,10 @@ export default function DashboardDockerActivityPage() {
     const normalized = activitySearchTerm.trim().toLowerCase()
 
     return mergedActivities.filter((activity) => {
+      if (swarmOnly && !isSwarmActivity(activity)) {
+        return false
+      }
+
       if (statusFilter !== 'all' && activity.status !== statusFilter) {
         return false
       }
@@ -245,9 +290,13 @@ export default function DashboardDockerActivityPage() {
         || (activity.stage?.toLowerCase().includes(normalized) ?? false)
         || (activity.scanner?.toLowerCase().includes(normalized) ?? false)
         || (activity.message?.toLowerCase().includes(normalized) ?? false)
+        // Searching for a failure reason is the whole point on a swarm node, so
+        // task errors and the service summary are searchable too.
+        || resolveSwarmTaskErrors(activity).some((error) => error.toLowerCase().includes(normalized))
+        || (activity.swarmService?.serviceName.toLowerCase().includes(normalized) ?? false)
       )
     })
-  }, [activitySearchTerm, categoryFilter, mergedActivities, severityFilter, statusFilter])
+  }, [activitySearchTerm, categoryFilter, mergedActivities, severityFilter, statusFilter, swarmOnly])
 
   const queuedActivities = useMemo(
     () => filteredActivities.filter((activity) => activity.status === 'queued'),
@@ -391,6 +440,14 @@ export default function DashboardDockerActivityPage() {
                 <SelectItem value="error">Error</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              variant={swarmOnly ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setSwarmOnly((previous) => !previous)}
+              aria-pressed={swarmOnly}
+            >
+              Swarm only
+            </Button>
           </div>
 
           <Table>
@@ -409,6 +466,8 @@ export default function DashboardDockerActivityPage() {
               ) : filteredActivities.map((activity) => {
                   const containerId = resolveContainerId(activity)
                   const actionLabel = `${activity.source}.${activity.action}`
+                  const taskErrors = resolveSwarmTaskErrors(activity)
+                  const swarmSummary = resolveSwarmSummary(activity)
 
                   return (
                     <TableRow
@@ -438,6 +497,9 @@ export default function DashboardDockerActivityPage() {
                             ) : null}
                           </div>
                           <p className="text-[11px] text-muted-foreground">{resolveResourceName(activity)}</p>
+                          {swarmSummary ? (
+                            <p className="text-[11px] text-muted-foreground">{swarmSummary}</p>
+                          ) : null}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -450,9 +512,18 @@ export default function DashboardDockerActivityPage() {
                         <Badge variant={toCategoryBadgeVariant(activity.category)}>{activity.category}</Badge>
                       </TableCell>
                       <TableCell className="max-w-100">
-                        <p className="truncate text-xs text-muted-foreground">
-                          {activity.message ?? activity.stage ?? activity.scanner ?? '—'}
-                        </p>
+                        {/* The task failure reason leads, because it is the only
+                            actionable text on the row — the event action alone
+                            (`service.update`) says nothing about what broke. */}
+                        {taskErrors.length > 0 ? (
+                          <p className="truncate text-xs font-medium text-destructive" title={taskErrors[0]}>
+                            {taskErrors[0]}
+                          </p>
+                        ) : (
+                          <p className="truncate text-xs text-muted-foreground">
+                            {activity.message ?? activity.stage ?? activity.scanner ?? '—'}
+                          </p>
+                        )}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{formatDate(activity.occurredAt)}</TableCell>
                     </TableRow>
@@ -486,7 +557,40 @@ export default function DashboardDockerActivityPage() {
                 <p><span className="text-muted-foreground">Progress:</span> {typeof selectedActivity.progress === 'number' ? `${String(selectedActivity.progress)}%` : '—'}</p>
                 <p><span className="text-muted-foreground">Stage:</span> {selectedActivity.stage ?? '—'}</p>
                 <p><span className="text-muted-foreground">Scanner:</span> {selectedActivity.scanner ?? '—'}</p>
+                {selectedActivity.swarmService ? (
+                  <>
+                    <p><span className="text-muted-foreground">Service:</span> {selectedActivity.swarmService.serviceName}</p>
+                    <p><span className="text-muted-foreground">Mode:</span> {selectedActivity.swarmService.mode}</p>
+                    <p><span className="text-muted-foreground">Tasks:</span> {resolveSwarmSummary(selectedActivity) ?? '—'}</p>
+                    <p className="md:col-span-2"><span className="text-muted-foreground">Image:</span> {selectedActivity.swarmService.image}</p>
+                  </>
+                ) : null}
               </div>
+              {/* Per-task breakdown. Rendered only for swarm activities, and only
+                  when the read actually returned tasks — an empty list means the
+                  engine reported none, not that everything is fine. */}
+              {selectedActivity.swarmTasks.length > 0 ? (
+                <div className="mt-3 space-y-1">
+                  <p className="text-xs font-medium">Swarm tasks</p>
+                  {selectedActivity.swarmTasks.map((task) => (
+                    <div
+                      key={task.taskId}
+                      className="flex flex-wrap items-center gap-2 rounded border border-border/60 bg-background px-2 py-1.5 text-xs"
+                    >
+                      <Badge variant="outline">slot {task.slot ?? '—'}</Badge>
+                      <span className="text-muted-foreground">{task.state}</span>
+                      {task.error ? (
+                        <span className="font-medium text-destructive">{task.error}</span>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {selectedActivity.swarmService?.updateMessage ? (
+                <p className="mt-3 rounded border border-destructive/40 bg-destructive/5 px-2 py-1.5 text-xs text-destructive">
+                  {selectedActivity.swarmService.updateMessage}
+                </p>
+              ) : null}
               {selectedActivity.message ? (
                 <p className="mt-3 rounded border border-border/60 bg-background px-2 py-1.5 text-xs">
                   {selectedActivity.message}

@@ -970,6 +970,7 @@ export class DockerRuntimeStreamOrchestratorService {
             "daemon",
             "service",
             "node",
+            "task",
             "secret",
             "config",
             "builder",

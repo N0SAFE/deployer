@@ -327,6 +327,7 @@ const EXCEPTIONAL_ACTIONS_BY_SCOPE: Record<DockerRuntimeScope, readonly string[]
   daemon: ['start', 'stop', 'restart', 'reload', 'update'],
   service: ['create', 'update', 'remove', 'delete'],
   node: ['create', 'update', 'remove', 'delete'],
+  task: ['create', 'update', 'remove', 'delete'],
   secret: ['create', 'update', 'remove', 'delete'],
   config: ['create', 'update', 'remove', 'delete'],
   builder: ['create', 'update', 'destroy', 'delete'],
@@ -878,7 +879,10 @@ export function useDockerRuntimeEventSubscription<
 export function useDockerRuntimeSnapshot(options?: { enabled?: boolean }) {
   return useQuery(
     dockerEndpoints.runtime.snapshot.queryOptions({
-      input: undefined,
+      // Omit `include` — the contract returns every entity kind by default.
+      // The query object exists because the contract declares a query schema
+      // (required for the OpenAPI generator to accept the GET).
+      input: { query: {} },
       enabled: options?.enabled ?? true,
       refetchInterval: false,
     }),

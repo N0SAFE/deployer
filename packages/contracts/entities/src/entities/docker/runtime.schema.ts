@@ -33,6 +33,7 @@ export const dockerRuntimeEventSourceSchema = z.enum([
   'daemon',
   'service',
   'node',
+  'task',
   'secret',
   'config',
   'builder',
@@ -48,6 +49,23 @@ export type DockerServiceRuntimeAction = z.infer<typeof dockerServiceRuntimeActi
 
 export const dockerNodeRuntimeActionSchema = z.enum(['create', 'update', 'remove'])
 export type DockerNodeRuntimeAction = z.infer<typeof dockerNodeRuntimeActionSchema>
+
+/**
+ * Swarm TASK actions.
+ *
+ * A task is a single scheduling attempt of a service's replicas, so these fire
+ * from the orchestrator rather than from a container: `create` when the task is
+ * allocated, `update` on every state transition (pending → assigned → running →
+ * failed/complete), `remove` when it is reaped.
+ *
+ * NOTE: engine 29.8.1 emits NO `task` events (verified against the raw
+ * `/events` socket with a crash-looping and a Pending service). The source is
+ * modelled anyway so task-shaped activities have a real type to be built from —
+ * the swarm activity enricher SYNTHESIZES them from live task state, which is
+ * the only way the failure text is reachable.
+ */
+export const dockerTaskRuntimeActionSchema = z.enum(['create', 'update', 'remove'])
+export type DockerTaskRuntimeAction = z.infer<typeof dockerTaskRuntimeActionSchema>
 
 export const dockerSecretRuntimeActionSchema = z.enum(['create', 'update', 'remove'])
 export type DockerSecretRuntimeAction = z.infer<typeof dockerSecretRuntimeActionSchema>
@@ -66,6 +84,7 @@ export const dockerRuntimeKnownActionSchema = z.union([
   dockerDaemonRuntimeActionSchema,
   dockerServiceRuntimeActionSchema,
   dockerNodeRuntimeActionSchema,
+  dockerTaskRuntimeActionSchema,
   dockerSecretRuntimeActionSchema,
   dockerConfigRuntimeActionSchema,
   dockerBuilderRuntimeActionSchema,
@@ -102,6 +121,32 @@ export const dockerNodeRuntimeEventPayloadSchema = z.object({
   nodeName: z.string().nullable(),
 })
 export type DockerNodeRuntimeEventPayload = z.infer<typeof dockerNodeRuntimeEventPayloadSchema>
+
+/**
+ * Swarm task payload — the SCHEDULING view of a workload.
+ *
+ * This is where swarm failures actually live. A service event says only
+ * "something changed about this service"; the task carries the outcome:
+ *
+ *   state:        pending | assigned | accepted | running | failed | complete
+ *   desiredState: what the orchestrator wants (running/shutdown)
+ *   error:        the operator-facing reason, e.g.
+ *                 "no suitable node (host-mode port already in use on 1 node)"
+ *                 "network sandbox join failed: … error creating vxlan interface: file exists"
+ *
+ * `serviceName` is denormalized so an activity can render without a join.
+ */
+export const dockerTaskRuntimeEventPayloadSchema = z.object({
+  taskId: z.string().nullable(),
+  serviceId: z.string().nullable(),
+  serviceName: z.string().nullable(),
+  slot: z.number().int().nullable(),
+  nodeId: z.string().nullable(),
+  state: z.string().nullable(),
+  desiredState: z.string().nullable(),
+  error: z.string().nullable(),
+})
+export type DockerTaskRuntimeEventPayload = z.infer<typeof dockerTaskRuntimeEventPayloadSchema>
 
 export const dockerSecretRuntimeEventPayloadSchema = z.object({
   secretId: z.string().nullable(),
@@ -148,6 +193,13 @@ export const dockerNodeRuntimeEventSchema = dockerRuntimeEventCommonSchema.exten
 })
 export type DockerNodeRuntimeEvent = z.infer<typeof dockerNodeRuntimeEventSchema>
 
+export const dockerTaskRuntimeEventSchema = dockerRuntimeEventCommonSchema.extend({
+  source: z.literal('task'),
+  action: dockerTaskRuntimeActionSchema,
+  payload: dockerTaskRuntimeEventPayloadSchema,
+})
+export type DockerTaskRuntimeEvent = z.infer<typeof dockerTaskRuntimeEventSchema>
+
 export const dockerSecretRuntimeEventSchema = dockerRuntimeEventCommonSchema.extend({
   source: z.literal('secret'),
   action: dockerSecretRuntimeActionSchema,
@@ -184,6 +236,7 @@ export const dockerKnownRuntimeEventSchema = z.discriminatedUnion('source', [
   dockerDaemonRuntimeEventSchema,
   dockerServiceRuntimeEventSchema,
   dockerNodeRuntimeEventSchema,
+  dockerTaskRuntimeEventSchema,
   dockerSecretRuntimeEventSchema,
   dockerConfigRuntimeEventSchema,
   dockerBuilderRuntimeEventSchema,
@@ -198,6 +251,7 @@ export const dockerRuntimeEventSchema = z.discriminatedUnion('source', [
   dockerDaemonRuntimeEventSchema,
   dockerServiceRuntimeEventSchema,
   dockerNodeRuntimeEventSchema,
+  dockerTaskRuntimeEventSchema,
   dockerSecretRuntimeEventSchema,
   dockerConfigRuntimeEventSchema,
   dockerBuilderRuntimeEventSchema,
@@ -315,6 +369,42 @@ export type DockerRuntimeActivityCategory = z.infer<typeof dockerRuntimeActivity
 export const dockerRuntimeActivitySeveritySchema = z.enum(['info', 'warning', 'error'])
 export type DockerRuntimeActivitySeverity = z.infer<typeof dockerRuntimeActivitySeveritySchema>
 
+/**
+ * Swarm task state attached to an activity.
+ *
+ * WHY THIS IS A FIRST-CLASS FIELD AND NOT BURIED IN `payload`
+ * Docker's swarm events carry NO state — a real one is just
+ * `{"Type":"service","Action":"create","Actor":{"ID":"…"}}`. And the failure
+ * reason an operator actually needs lives on the TASK, which the engine does not
+ * emit as an event at all (verified: zero task events on engine 29.8.1 with a
+ * crash-looping and a Pending service present).
+ *
+ * So the activity is enriched from a live read, and these are the columns that
+ * read produces. `error` is the important one — it is literally what surfaced
+ * "no suitable node (host-mode port already in use on 1 node)" for the ingress
+ * conflict, and which is invisible in the raw event stream.
+ */
+export const dockerRuntimeActivitySwarmTaskSchema = z.object({
+  taskId: z.string(),
+  slot: z.number().int().nullable().default(null),
+  state: z.string().default(''),
+  desiredState: z.string().default(''),
+  error: z.string().nullable().default(null),
+})
+export type DockerRuntimeActivitySwarmTask = z.infer<typeof dockerRuntimeActivitySwarmTaskSchema>
+
+/** Service-level swarm state, when the activity is about a service. */
+export const dockerRuntimeActivitySwarmServiceSchema = z.object({
+  serviceId: z.string(),
+  serviceName: z.string().default(''),
+  image: z.string().default(''),
+  mode: z.string().default(''),
+  desiredTasks: z.number().int().nonnegative().default(0),
+  runningTasks: z.number().int().nonnegative().default(0),
+  updateMessage: z.string().nullable().default(null),
+})
+export type DockerRuntimeActivitySwarmService = z.infer<typeof dockerRuntimeActivitySwarmServiceSchema>
+
 export const dockerRuntimeActivityEntitySchema = z.object({
   id: z.string().min(1),
   eventId: z.string().nullable(),
@@ -337,6 +427,13 @@ export const dockerRuntimeActivityEntitySchema = z.object({
   occurredAt: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  /**
+   * Live swarm tasks at the moment of the read — empty for non-swarm sources.
+   * Populated by the enricher because the engine emits no task events.
+   */
+  swarmTasks: z.array(dockerRuntimeActivitySwarmTaskSchema).default([]),
+  /** Live service state, when the activity concerns a swarm service. */
+  swarmService: dockerRuntimeActivitySwarmServiceSchema.nullable().default(null),
 })
 export type DockerRuntimeActivityEntity = z.infer<typeof dockerRuntimeActivityEntitySchema>
 

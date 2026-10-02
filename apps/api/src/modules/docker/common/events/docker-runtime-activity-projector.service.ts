@@ -7,6 +7,7 @@ import type {
   DockerRuntimeActivitySeverity,
   DockerRuntimeActivityCategory,
 } from "@repo/contracts-entities"
+import type { SwarmActivityEnrichment } from "./swarm-activity-enricher.service"
 
 /**
  * Pure projection of a `DockerRuntimeEvent` into a
@@ -24,7 +25,15 @@ import type {
 
 @Injectable()
 export class DockerRuntimeActivityProjectorService {
-  project(event: DockerRuntimeEvent): DockerRuntimeActivityEntity {
+  /**
+   * Project an event, optionally carrying live swarm state.
+   *
+   * `enrichment` is what makes a swarm activity USEFUL. Without it a swarm event
+   * can only render as `service.create` — the engine sends no state and never
+   * sends task events at all, so the failure reason has to arrive from the live
+   * read (see `SwarmActivityEnricherService`).
+   */
+  project(event: DockerRuntimeEvent, enrichment?: SwarmActivityEnrichment): DockerRuntimeActivityEntity {
     const now = new Date()
     const occurredAt = this.toTimestampDate(event.timestamp) ?? now
     const normalizedActorId = this.toNullableNonEmptyString(event.actorId)
@@ -40,14 +49,29 @@ export class DockerRuntimeActivityProjectorService {
       ? `image-scan-queue:${normalizedActorId ?? "unknown"}`
       : null
 
-    const status = this.inferStatus(event.action, event.actorAttributes.scanState)
-    const severity = this.inferSeverity(event.action)
+    const swarmTasks = enrichment?.tasks ?? []
+    const swarmService = enrichment?.service ?? null
+    // A failed task outranks the event's own action for EVERY derived column:
+    // the action is `update`/`create` regardless, while the task carries the
+    // outcome. This is what turns an opaque `service.update` into
+    // "2 of 3 tasks failed — no suitable node (host-mode port already in use)".
+    const failedTask = swarmTasks.find((task) => task.error !== null) ?? null
+    const hasFailedTask = failedTask !== null
+
+    const status = hasFailedTask
+      ? "error"
+      : this.inferStatus(event.action, event.actorAttributes.scanState)
+    const severity = hasFailedTask ? "error" : this.inferSeverity(event.action)
     const progress = this.toProgress(event.actorAttributes.scanProgress)
     const scanner = this.toNullableNonEmptyString(event.actorAttributes.scanScanner)
     const stage = this.toNullableNonEmptyString(event.actorAttributes.scanStage)
       ?? this.toNullableNonEmptyString(event.actorAttributes.scanState)
+    // Priority: an explicit scan message, then the swarm failure reason, then the
+    // generic derived message. The task error is the one an operator can ACT on.
     const message = this.toNullableNonEmptyString(event.actorAttributes.scanMessage)
       ?? this.toNullableNonEmptyString(event.actorAttributes.scanError)
+      ?? failedTask?.error
+      ?? swarmService?.updateMessage
       ?? this.resolveMessage(event)
 
     const eventFingerprint = this.createFingerprint(event)
@@ -76,6 +100,24 @@ export class DockerRuntimeActivityProjectorService {
       occurredAt: occurredAt.toISOString(),
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
+      swarmTasks: swarmTasks.map((task) => ({
+        taskId: task.taskId,
+        slot: task.slot,
+        state: task.state,
+        desiredState: task.desiredState,
+        error: task.error,
+      })),
+      swarmService: swarmService === null
+        ? null
+        : {
+            serviceId: swarmService.serviceId,
+            serviceName: swarmService.serviceName,
+            image: swarmService.image,
+            mode: swarmService.mode,
+            desiredTasks: swarmService.desiredTasks,
+            runningTasks: swarmService.runningTasks,
+            updateMessage: swarmService.updateMessage,
+          },
     } satisfies DockerRuntimeActivityEntity
   }
 

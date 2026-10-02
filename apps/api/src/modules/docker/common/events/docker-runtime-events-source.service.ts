@@ -27,6 +27,7 @@ import {
   dockerNodeRuntimeEventSchema,
   dockerSecretRuntimeEventSchema,
   dockerServiceRuntimeEventSchema,
+  dockerTaskRuntimeEventSchema,
   dockerUnknownRuntimeEventSchema,
   dockerVolumeRuntimeEventSchema,
   type DockerRuntimeEvent,
@@ -379,6 +380,29 @@ export class DockerRuntimeEventsSourceService extends AbstractDomainEventStreamS
         });
         return parsed.success ? parsed.data : this.buildUnknownEvent(common, action);
       }
+      case "task": {
+        // A task event carries no error text of its own — the daemon emits only
+        // the actor id. The state/error columns therefore come from the raw
+        // attributes when present and stay null otherwise; the SWARM ACTIVITY
+        // ENRICHER is what fills them in from live task state, because that is
+        // the only place the failure reason exists.
+        const parsed = dockerTaskRuntimeEventSchema.safeParse({
+          ...common,
+          source,
+          action,
+          payload: {
+            taskId: common.actorId,
+            serviceId: actorAttributes["com.docker.swarm.service.id"] ?? null,
+            serviceName: actorAttributes["com.docker.swarm.service.name"] ?? null,
+            slot: this.toNullableInt(actorAttributes.slot),
+            nodeId: common.nodeId ?? actorAttributes["com.docker.swarm.node.id"] ?? null,
+            state: actorAttributes.state ?? null,
+            desiredState: actorAttributes.desiredState ?? null,
+            error: actorAttributes.error ?? null,
+          },
+        });
+        return parsed.success ? parsed.data : this.buildUnknownEvent(common, action);
+      }
       case "secret": {
         const parsed = dockerSecretRuntimeEventSchema.safeParse({
           ...common,
@@ -448,6 +472,7 @@ export class DockerRuntimeEventsSourceService extends AbstractDomainEventStreamS
       case "daemon":
       case "service":
       case "node":
+      case "task":
       case "secret":
       case "config":
       case "builder":
@@ -650,6 +675,7 @@ export class DockerRuntimeEventsSourceService extends AbstractDomainEventStreamS
       "daemon",
       "service",
       "node",
+      "task",
       "secret",
       "config",
       "builder",

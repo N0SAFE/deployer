@@ -1596,6 +1596,12 @@ export class DockerRepository {
       occurredAt: row.occurredAt.toISOString(),
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
+      // Persisted rows predate the swarm enrichment (and the columns do not
+      // exist in the table yet), so a rehydrated activity carries no live swarm
+      // state. The LIVE stream is where enrichment applies — history is what it
+      // was recorded as.
+      swarmTasks: [],
+      swarmService: null,
     } satisfies DockerRuntimeActivityEntity));
 
     const filtered = mapped.filter((item) => {
@@ -1679,6 +1685,8 @@ export class DockerRepository {
       occurredAt: row.occurredAt.toISOString(),
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
+      swarmTasks: [],
+      swarmService: null,
     } satisfies DockerRuntimeActivityEntity);
   }
 

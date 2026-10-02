@@ -25,6 +25,7 @@ import { PageHeader, PageLoadingState, PageErrorState, StatStrip, StatStripItem,
 import { MeshPulse } from '@/components/dashboard/MeshPulse'
 import { FleetWorkloadsPanel } from './_components/fleet-workloads-panel'
 import { SwarmConfigPanel } from './_components/swarm-config-panel'
+import { SwarmEventFeedPanel } from './_components/swarm-event-feed-panel'
 import { useClusterMaster, useClusterNodes, useClusterSnapshot, useUpdateClusterNode } from '@/domains/cluster/hooks'
 
 interface ClusterNodeRow {
@@ -262,6 +263,10 @@ export default function DashboardClusterPage() {
 
       {/* Live fleet workloads — swarm services + tasks */}
       <FleetWorkloadsPanel />
+
+      {/* Live orchestrator events — the SEQUENCE, which the state tables above
+          cannot show, with task failure reasons attached server-side. */}
+      <SwarmEventFeedPanel />
 
       {/* Swarm participation — how this node joins / its master policy */}
       <SwarmConfigPanel />
