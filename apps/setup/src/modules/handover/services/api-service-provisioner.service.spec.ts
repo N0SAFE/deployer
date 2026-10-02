@@ -27,6 +27,9 @@ function makeProvisioner(
   const service = {
     createSwarmService: vi.fn().mockResolvedValue({}),
     inspectSwarmService: vi.fn(),
+    // The provisioner creates the platform OVERLAY before attaching the service
+    // to it, because a service name only resolves on a swarm-scoped network.
+    ensureOverlayNetwork: vi.fn().mockResolvedValue(undefined),
     ...docker,
   };
   const provisioner = new ApiServiceProvisioner(
@@ -140,12 +143,13 @@ describe("ApiServiceProvisioner", () => {
       );
     });
 
-    it("prefixes the service and volume names so tenants stay distinguishable", async () => {
+    it("prefixes the SERVICE name so tenants stay distinguishable", async () => {
       const { provisioner, docker } = makeProvisioner(
         {
           SETUP_MODE: "prod",
           DEPLOYER_API_IMAGE: "deployer-api:local",
           DEPLOYER_PREFIX: "acme",
+          NODE_LOCAL_DB_VOLUME: "proj_api_local_db_data_acme",
         },
         { inspectSwarmService: notFound() },
       );
@@ -159,9 +163,46 @@ describe("ApiServiceProvisioner", () => {
       expect(backend.serviceName).toBe("deployer-api-acme");
 
       const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
-        TaskTemplate: { ContainerSpec: { Mounts: Array<{ Source: string }> } };
+        TaskTemplate: { ContainerSpec: { Mounts: Array<{ Source: string; Target: string }> } };
       };
-      expect(spec.TaskTemplate.ContainerSpec.Mounts[0]?.Source).toBe("api_local_db_data_acme");
+
+      // ── THE VOLUME NAME COMES FROM THE ENVIRONMENT ────────────────────────
+      // Compose prefixes volumes with its project name, which this process
+      // cannot guess. Reconstructing it from DEPLOYER_PREFIX produced a name
+      // that matched NOTHING the setup container had written, so the task
+      // mounted an empty volume and the API booted with no node state:
+      //
+      //   Failed query: select "node_id", "server_url" … (db not ready)
+      const mounts = spec.TaskTemplate.ContainerSpec.Mounts;
+      expect(mounts.map((m) => m.Source)).toContain("proj_api_local_db_data_acme");
+    });
+
+    it("mounts the engine socket, without which no supervisor can converge", async () => {
+      const { provisioner, docker } = makeProvisioner(
+        {
+          SETUP_MODE: "prod",
+          DEPLOYER_API_IMAGE: "deployer-api:local",
+          NODE_LOCAL_DB_VOLUME: "proj_api_local_db_data_prod",
+        },
+        { inspectSwarmService: notFound() },
+      );
+
+      await provisioner.ensureApi();
+
+      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
+        TaskTemplate: { ContainerSpec: { Mounts: Array<{ Type: string; Source: string; Target: string }> } };
+      };
+
+      // A swarm task inherits NOTHING from the node it runs on, so the socket
+      // must be mounted explicitly. Without it every supervisor call fails with
+      // `connect ENOENT /var/run/docker.sock` and the platform never converges.
+      expect(spec.TaskTemplate.ContainerSpec.Mounts).toContainEqual(
+        expect.objectContaining({
+          Type: "bind",
+          Source: "/var/run/docker.sock",
+          Target: "/var/run/docker.sock",
+        }),
+      );
     });
   });
 

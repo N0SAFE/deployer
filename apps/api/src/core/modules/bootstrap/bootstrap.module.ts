@@ -4,6 +4,7 @@ import { EnvModule } from "@/config/env/env.module"
 import { GlobalDatabaseModule } from '../database/global/global-database.module'
 import { DatabaseModule } from '../database/database.module'
 import { SupervisorsPlatformModule } from '../supervisors/platform/platform-supervisors.module'
+import { SupervisorsModule } from '@repo/nest-supervisor-core/supervisors.module'
 
 /**
  * BootstrapModule — the global boot coordinator.
@@ -37,6 +38,12 @@ import { SupervisorsPlatformModule } from '../supervisors/platform/platform-supe
     DatabaseModule,
     // Provides `SwarmAppWiringSupervisorService` (swarm overlay wiring).
     SupervisorsPlatformModule,
+    // Provides `SupervisorOrchestratorService`, which the boot pipeline uses to
+    // CONVERGE THE GLOBAL POSTGRES SUPERVISOR before waiting for the database.
+    // On a swarm-managed profile that supervisor is what creates the Postgres
+    // service, so waiting without converging first waits for something nothing
+    // has made.
+    SupervisorsModule.forRoot(),
   ],
   providers: [BootstrapOrchestratorService],
   exports: [BootstrapOrchestratorService],

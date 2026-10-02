@@ -255,6 +255,27 @@ export class TraefikSupervisorService extends BaseDockerSupervisorService<
 				: []),
 		];
 
+		// ── THESE ARE `args`, NOT `command` ─────────────────────────────────
+		// `toDockerServiceSpec` maps `command` → Docker's `Command`, which
+		// REPLACES the image's ENTRYPOINT. The Traefik image has
+		//
+		//   Entrypoint: ["/entrypoint.sh"]
+		//   Cmd:        ["traefik"]
+		//
+		// so putting the flags in `command` discarded `/entrypoint.sh` and asked
+		// the engine to exec `--providers.docker=true` directly. Every task died
+		// at container init:
+		//
+		//   exec: "--providers.docker=true": executable file not found
+		//
+		// leaving the ingress at 0/0, readiness reporting
+		// `platform-ingress-traefik: degraded — ingress task not up`, and the
+		// handover failing after its 300s budget.
+		//
+		// `args` maps to Docker's `Args`, which is APPENDED to the image's CMD —
+		// exactly what compose's `command:` does for the working compose-managed
+		// ingress, so both incarnations of the ingress now start the same way.
+
 		const endpointPorts: SwarmEndpointPort[] = [];
 		if (port !== undefined) {
 			endpointPorts.push({ protocol: "tcp", publishedPort: port, targetPort: 80, publishMode: "host" });
@@ -269,8 +290,10 @@ export class TraefikSupervisorService extends BaseDockerSupervisorService<
 			mode: "global",
 			replicas: 1,
 			env: [],
-			command,
-			args: [],
+			// NOT `command`: that would replace the image's ENTRYPOINT and the task
+			// would die at container init (see the note above).
+			command: [],
+			args: command,
 			labels: {
 				[PLATFORM_ROLE_LABEL]: PLATFORM_INGRESS_ROLE,
 				"deployer.platform.api-hostname": this.hostnameService.apiHostname(),

@@ -36,7 +36,12 @@ interface CapturedSpec {
 	Labels?: Record<string, string>;
 	TaskTemplate: {
 		ContainerSpec: {
+			/**
+			 * `Command` replaces the image ENTRYPOINT; `Args` appends to its CMD.
+			 * The Traefik flags belong in `Args` — see the assertions below.
+			 */
 			Command?: string[];
+			Args?: string[];
 			Mounts?: Array<{ Source?: string; Target?: string; ReadOnly?: boolean }>;
 		};
 		Networks?: Array<{ Target: string; Aliases?: string[] }>;
@@ -218,19 +223,28 @@ describe("TraefikSupervisorService (swarm-global ingress)", () => {
 
 		await supervisor.ensureDesiredState();
 
-		const cmd = createSwarmService.mock.calls[0]?.[0]?.TaskTemplate.ContainerSpec.Command ?? [];
+		// ── `Args`, NOT `Command` ────────────────────────────────────────────────
+		// `Command` REPLACES the image's ENTRYPOINT. The Traefik image declares
+		// `Entrypoint: ["/entrypoint.sh"]` + `Cmd: ["traefik"]`, so putting the
+		// flags in `Command` made the engine exec `--providers.docker=true`
+		// directly and every task died at container init:
+		//
+		//   exec: "--providers.docker=true": executable file not found
+		//
+		// leaving the ingress at 0/0 and readiness permanently degraded.
+		const args = createSwarmService.mock.calls[0]?.[0]?.TaskTemplate.ContainerSpec.Args ?? [];
 		// Workloads are SWARM SERVICES, so the SWARM provider is what reads their
 		// labels — without it every route 404s.
-		expect(cmd).toContain("--providers.swarm=true");
-		expect(cmd).toContain("--providers.file.directory=/config");
-		expect(cmd).toContain("--providers.file.watch=true");
+		expect(args).toContain("--providers.swarm=true");
+		expect(args).toContain("--providers.file.directory=/config");
+		expect(args).toContain("--providers.file.watch=true");
 
 		// AND the v2 flag must be ABSENT. Traefik v3 split the docker provider in
 		// two and removed `swarmMode`; the migration guide states that leaving it
 		// in place "would prevent Traefik to start". Asserting the absence keeps a
 		// future edit from reintroducing an option that makes the ingress
 		// supervisor unable to converge at all.
-		expect(cmd).not.toContain("--providers.docker.swarmMode=true");
+		expect(args).not.toContain("--providers.docker.swarmMode=true");
 	});
 
 	it("mounts the docker socket and the config volume read-only", async () => {
@@ -297,7 +311,7 @@ describe("TraefikSupervisorService (swarm-global ingress)", () => {
 		await supervisor.ensureDesiredState();
 
 		const spec = createSwarmService.mock.calls[0]?.[0];
-		expect(spec?.TaskTemplate.ContainerSpec.Command).toContain("--entrypoints.websecure.address=:443");
+		expect(spec?.TaskTemplate.ContainerSpec.Args).toContain("--entrypoints.websecure.address=:443");
 		expect(spec?.EndpointSpec?.Ports).toEqual([
 			{ TargetPort: 80, PublishedPort: 80, Protocol: "tcp", PublishMode: "host" },
 			{ TargetPort: 443, PublishedPort: 443, Protocol: "tcp", PublishMode: "host" },

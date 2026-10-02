@@ -59,6 +59,7 @@ import {
 import { DatabaseStartupGuard } from "@/core/modules/database/services/database-startup-guard.service";
 import type { GlobalDatabase } from "@/core/modules/database/global/global-database.service";
 import { SwarmAppWiringSupervisorService } from "@/core/modules/supervisors/platform/swarm-app-wiring.supervisor.service";
+import { SupervisorOrchestratorService } from "@repo/nest-supervisor-core/supervisor-orchestrator.service";
 import { ensureDefaultAdmin } from "@/core/admin-bootstrap/default-admin.bootstrap";
 import { adminBootstrapDecisionFromProcessEnv } from "@/core/admin-bootstrap/admin-bootstrap-policy";
 
@@ -83,6 +84,15 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
         private readonly lifecycle: AppLifecycleService,
         private readonly startupGuard: DatabaseStartupGuard,
         private readonly appWiring: SwarmAppWiringSupervisorService,
+        /**
+         * Converges the GLOBAL POSTGRES supervisor during boot.
+         *
+         * The database is a swarm service this API's own supervisor creates, so
+         * waiting for it without first asking that supervisor to converge waits
+         * for something nothing has made — see the step-2 note in
+         * `onApplicationBootstrap`.
+         */
+        private readonly orchestrator: SupervisorOrchestratorService,
     ) {}
 
     async onApplicationBootstrap(): Promise<void> {
@@ -146,7 +156,45 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
                 );
             }
 
-            // 2. Verify reachability. Throws when the database is unreachable in
+            // 2. CREATE THE DATABASE IF THIS NODE OWNS IT, BEFORE WAITING FOR IT.
+            //
+            //    ── WHY THIS STEP EXISTS, AND WHAT IT FIXES ─────────────────────
+            //    The global Postgres is a SWARM SERVICE that this API's own
+            //    supervisor creates. Nothing else makes it: on a swarm-managed
+            //    profile (`dev-supervised`, `prod`) compose starts no database,
+            //    and setup only schedules THIS API.
+            //
+            //    So waiting for the database before anything has created it waits
+            //    forever. On a fresh install the boot died with
+            //
+            //      ❌ DATABASE CONNECTION FAILED
+            //         URL: postgresql://***:***@global-db:5432/deployer
+            //         Error: Hostname not resolved — check DNS.
+            //
+            //    because `global-db` is the ALIAS of a service that had not been
+            //    created yet. The supervisor was registered and healthy; it simply
+            //    never got a converge pass before the guard gave up.
+            //
+            //    Converging it here is what breaks the cycle: the supervisor
+            //    creates the service (idempotent), and the guard below then waits
+            //    for the task it just scheduled to accept connections.
+            //
+            //    NON-FATAL, like the wiring above: on a profile where the
+            //    deployment owns the database (plain `dev`, or an external URL)
+            //    there is no supervisor to converge, and the guard is the correct
+            //    authority on whether the database is usable.
+            try {
+                const databaseState = await this.orchestrator.convergeNow("global-db-postgres");
+                if (databaseState !== null) {
+                    this.logger.log(`Global Postgres supervisor converged (state=${databaseState})`);
+                }
+            } catch (error: unknown) {
+                this.logger.warn(
+                    `Global Postgres convergence skipped: ${error instanceof Error ? error.message : String(error)}`,
+                );
+            }
+
+            // 3. Verify reachability. Throws when the database is unreachable in
             //    a mode where it is mandatory (SETUP_AUTO) — this is the one
             //    place a missing database SHOULD stop the boot, and the guard
             //    owns that policy rather than this service guessing at it.
@@ -156,14 +204,14 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
             //    check would fail at random on a boot that is merely early.
             await this.startupGuard.ensureDatabaseAvailable(this.pool);
 
-            // 3. Migrations. Idempotent — drizzle tracks applied files in
+            // 4. Migrations. Idempotent — drizzle tracks applied files in
             //    `__drizzle_migrations` and skips them, so this is safe on every
             //    boot. Non-fatal on failure: a stale schema degrades the affected
             //    queries, whereas refusing to boot on a transient connection
             //    error would take the platform down over a recoverable hiccup.
             await this.runGlobalMigrations(databaseUrl);
 
-            // 4. The default admin. Policy-gated (compose/explicit modes ensure it
+            // 5. The default admin. Policy-gated (compose/explicit modes ensure it
             //    on every boot; managed/manual let the wizard seed it). FAILS the
             //    boot when the policy requires an admin and one cannot be created,
             //    because a node that must be usable but has no credentials is an

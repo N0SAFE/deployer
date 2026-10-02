@@ -125,8 +125,40 @@ export class ReadinessIndicators {
       .filter((snapshot) => snapshot.state === "pending")
       .map((snapshot) => ({ supervisor: snapshot.supervisorId, state: snapshot.state, detail: snapshot.detail }));
 
+    // ── A DEGRADED INGRESS IS NOT A BLOCKER *WHILE SETUP STILL HOLDS THE PORT* ─
+    // This is a HANDOVER state, not a fault, and treating it as one deadlocked
+    // onboarding completely:
+    //
+    //   1. setup runs a BOOTSTRAP ingress that owns the entry port;
+    //   2. the API's ingress supervisor wants that same port, so its task fails
+    //      with "driver failed programming external connectivity" and reports
+    //      `degraded`;
+    //   3. this indicator counted `degraded` as failing → /health/ready = 503;
+    //   4. setup WAITS for the API to report ready before releasing the port
+    //      (releasing earlier would leave `setup.<host>` unrouted);
+    //   5. so the port was never released, and the API was never ready.
+    //
+    // Nothing here is broken — the ingress simply cannot bind a port that another
+    // container is still serving. The handover resolves it the moment readiness
+    // goes green, so readiness must not require it first.
+    //
+    // Scoped deliberately: ONLY an ingress whose detail names the entry port is
+    // exempted. A genuinely broken ingress (bad image, crash-looping) still fails
+    // readiness, so this cannot mask a real fault.
+    const isHandoverPortConflict = (snapshot: { supervisorId: string; detail: string | null }): boolean =>
+      snapshot.supervisorId === "platform-ingress-traefik" &&
+      /ingress task not running|entry port|external connectivity|address already in use|port is taken/i.test(
+        snapshot.detail ?? "",
+      );
+
     const failing = active
       .filter((snapshot) => !snapshot.healthy)
+      .filter((snapshot) => !isHandoverPortConflict(snapshot))
+      .map((snapshot) => ({ supervisor: snapshot.supervisorId, state: snapshot.state, detail: snapshot.detail }));
+
+    const handoverPending = active
+      .filter((snapshot) => !snapshot.healthy)
+      .filter((snapshot) => isHandoverPortConflict(snapshot))
       .map((snapshot) => ({ supervisor: snapshot.supervisorId, state: snapshot.state, detail: snapshot.detail }));
 
     if (failing.length > 0) {
@@ -136,11 +168,14 @@ export class ReadinessIndicators {
       });
     }
 
-    // Every active supervisor is healthy, but some are waiting on a precondition.
-    if (deferred.length > 0) {
+    // Every active supervisor is healthy or waiting on the handover, but some are
+    // waiting on a precondition.
+    if (deferred.length > 0 || handoverPending.length > 0) {
       return indicator.up({
-        deferred,
-        reason: `${String(deferred.length)} of ${String(health.length)} supervised services are deferred (waiting on a precondition, not failing)`,
+        deferred: [...deferred, ...handoverPending],
+        reason:
+          `${String(deferred.length + handoverPending.length)} of ${String(health.length)} supervised services are ` +
+          "deferred (waiting on a precondition, not failing)",
       });
     }
 

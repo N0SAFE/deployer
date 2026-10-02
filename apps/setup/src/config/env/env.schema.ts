@@ -1,4 +1,5 @@
 import z from "zod/v4";
+import { booleanEnv } from "@repo/env";
 
 /**
  * The setup app's OWN environment contract.
@@ -46,6 +47,96 @@ export const setupEnvSchema = z.object({
    */
   TRAEFIK_CONFIG_BASE_PATH: z.string().default("/app/traefik-configs"),
 
+  // ─── Traefik (the ingress this app SUPERVISES before the API exists) ──────
+  //
+  // ── WHY SETUP RUNS TRAEFIK AT ALL ─────────────────────────────────────────
+  // This app publishes NO ports and is reachable ONLY through the ingress. The
+  // API is the process that normally supervises Traefik, but the API cannot
+  // start until setup's gate opens — and the gate cannot open until an operator
+  // loads the wizard. Without a bootstrap ingress that is a deadlock:
+  //
+  //   setup serves the wizard on 3016, reachable only via Traefik
+  //     → no Traefik exists (compose manages none in dev-supervised/prod)
+  //     → nobody can load the wizard
+  //     → /setup/health never turns 200
+  //     → the API never starts
+  //     → and the API is what supervises Traefik.  ✗
+  //
+  // So the ingress has TWO incarnations (plan §9), one per side of the gate:
+  //
+  //   State A — BOOTSTRAP (here): a plain container, no swarm involved. It
+  //             exists so setup is reachable at all, and it needs no cluster.
+  //   State B — SWARM: the API's `TraefikSupervisorService` promotes it to a
+  //             GLOBAL swarm service once the cluster and the API exist.
+  //
+  // Both use the SAME container name (`deployer-traefik`), the SAME entry port
+  // and the SAME config volume, so the promotion changes how it RUNS without
+  // changing what Traefik IS — no hostname ever changes owner.
+
+  /**
+   * Whether the DEPLOYMENT already owns the ingress (compose / operator).
+   *
+   * ── WHY THIS GATE IS ESSENTIAL, NOT A CONVENIENCE ──────────────────────────
+   * The entry port is a HOST port and only one process can hold it. In the plain
+   * `dev` profile compose runs its own Traefik (published on :80,
+   * `MANAGED_TRAEFIK_ENABLED=true`), so starting a bootstrap ingress here would
+   * fail to bind — or worse, silently contend for the port and leave whichever
+   * started second dead.
+   *
+   * So the rule is the SAME one the API's supervisor applies: if the deployment
+   * owns the ingress, this app only ROUTES through it (which it already does by
+   * writing `dynamic-setup.yml` into the shared config volume) and never runs
+   * one.
+   *
+   * `true`  → plain `dev`: compose runs Traefik; this app starts none.
+   * `false` → `dev-supervised` / `prod`: nothing runs Traefik; this app does,
+   *           and hands the port to the swarm incarnation at the gate.
+   *
+   * SAME variable name and default as the API's schema reads, so both apps agree
+   * on who owns the ingress by construction rather than by convention.
+   */
+  MANAGED_TRAEFIK_ENABLED: booleanEnv().default(false),
+
+  /**
+   * Image for the bootstrap ingress.
+   *
+   * SAME variable the API's `TraefikSupervisorService` runs
+   * (`DEPLOYER_TRAEFIK_IMAGE`), because the bootstrap container is PROMOTED into
+   * that swarm service rather than replaced by it — so both incarnations must
+   * agree on the image or the promotion would silently change the ingress.
+   *
+   * >= v3.6 is required for the swarm side: Traefik <= 3.5 hardcodes Docker
+   * Engine API 1.24, which Engine >= 25 rejects, so its docker provider never
+   * reads a single container label and label-based routing silently stops
+   * working. There is no flag or env workaround.
+   */
+  DEPLOYER_TRAEFIK_IMAGE: z.string().min(1).default("traefik:v3.6.10"),
+
+  /**
+   * Host port the ingress publishes. Default 80.
+   *
+   * SAME variable the API's supervisor resolves, so the bootstrap and the
+   * promoted swarm service bind the SAME port. A mismatch is not cosmetic
+   * drift: the promoted service would fail to bind and Traefik would go
+   * DEGRADED on a port nobody asked for.
+   *
+   * The persisted platform setting `ingress.entry_port` overrides this once the
+   * API owns the ingress — which is why setup RELEASES this port at handover
+   * instead of holding it.
+   */
+  DEPLOYER_TRAEFIK_HTTP_PORT: z.coerce.number().int().min(1).max(65535).default(80),
+
+  /**
+   * Named volume holding the generated dynamic config.
+   *
+   * Mounted read-only at `/config` inside the ingress, which is the directory
+   * its FILE provider watches. This is the same volume compose mounts at
+   * `/app/traefik-configs` in this container — that shared mount is the entire
+   * contract between the two processes, and it is why `IngressHandoverService`
+   * can publish a route without ever talking to Traefik.
+   */
+  TRAEFIK_CONFIG_VOLUME: z.string().min(1).default("deployer-traefik-config"),
+
   /**
    * A Postgres the compose profile manages and hands to the platform.
    *
@@ -59,11 +150,54 @@ export const setupEnvSchema = z.object({
   /** The image tag setup schedules on the swarm in prod mode. */
   DEPLOYER_API_IMAGE: z.string().optional(),
 
+  /**
+   * The images for the services the API CONVERGES once it is running.
+   *
+   * ── WHY SETUP OWNS THESE ─────────────────────────────────────────────────
+   * Setup is what SCHEDULES the API, so it is the only process that can tell
+   * that API which tags to run. Compose produced them (`build-web`, `build-doc`),
+   * and the API cannot discover them: it boots inside a container with no access
+   * to the compose project, and its own schema declares no default for them.
+   *
+   * Left unset, the API falls back to the literal defaults in its own services,
+   * which do NOT match what the dev producers tag —
+   *
+   *   producer: deployer-web:dev    API fallback: deployer-web:latest
+   *
+   * — so the swarm service would be created from a tag that was never built and
+   * the dashboard would never converge. Passing the tags through is what makes
+   * "the image compose built" and "the image the platform runs" the same thing.
+   */
+  MANAGED_WEB_APP_IMAGE: z.string().optional(),
+  DEPLOYER_REDIS_IMAGE: z.string().optional(),
+  DEPLOYER_DIRECT_PROXY_IMAGE: z.string().optional(),
+
   /** How many API replicas to schedule. */
   DEPLOYER_API_REPLICAS: z.coerce.number().int().positive().default(1),
 
   /** Tenant prefix for hostname and network naming. */
   DEPLOYER_PREFIX: z.string().default(""),
+
+  /**
+   * The volume holding the shared SQLite node state, mounted into the API task.
+   *
+   * ── WHY THIS IS AN ENV VAR AND NOT A CONSTANT ───────────────────────────
+   * Setup SCHEDULES the API, and the task must mount the SAME volume setup
+   * itself writes — that is what carries `node_config` (the swarm decision and
+   * the database URL) across to the API.
+   *
+   * Compose names its volumes with the PROJECT prefix
+   * (`${COMPOSE_PROJECT_NAME}_api_local_db_data_<profile>`), which a constant
+   * cannot know. A hardcoded name therefore mounts a DIFFERENT — and empty —
+   * volume than the one setup writes, and the API boots with no node state:
+   *
+   *   Failed query: select "node_id", "server_url" … (db not ready)
+   *
+   * The default matches the prod compose file, so a deployment that does not set
+   * it keeps working; each profile passes its own name, exactly as
+   * `TRAEFIK_CONFIG_VOLUME` already does for the ingress config.
+   */
+  NODE_LOCAL_DB_VOLUME: z.string().min(1).default("api_local_db_data_prod"),
 
   /**
    * The local SQLite file holding node state (`node_config`, `cluster_node`).

@@ -1,5 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { DockerService } from "@repo/nest-docker/services/docker.service";
+import { platformOverlayForPrefix } from "@repo/nest-docker/services/docker-supervisor-runtime";
+import { toDockerServiceSpec } from "@repo/nest-docker/services/swarm-spec.mapper";
 
 import { EnvService } from "@/config/env/env.module";
 import { DEFAULT_API_INTERNAL_PORT, type ApiBackend } from "../handover.types";
@@ -111,50 +113,130 @@ export class ApiServiceProvisioner {
     const replicas = this.env.get("DEPLOYER_API_REPLICAS");
     const port = this.apiPort();
 
-    this.logger.log(`Creating API swarm service "${name}" from image ${image} (${String(replicas)} replica(s))`);
+    // ── THE OVERLAY MUST EXIST BEFORE THE SERVICE JOINS IT ──────────────────
+    // `Networks: [{ Target: <overlay> }]` below attaches the service to an
+    // ATTACHABLE overlay. Creating a service against a network that does not
+    // exist yet fails, and creating it against the compose BRIDGE instead (which
+    // is what the previous hardcoded name did) produces a service whose DNS name
+    // is unroutable — `getaddrinfo ENOTFOUND deployer-api` on every forward.
+    //
+    // Idempotent, and the same call the API's own supervisors make, so the
+    // network is created once with identical parameters regardless of which
+    // process gets there first.
+    const overlay = this.platformNetworkName();
+    await this.docker.ensureOverlayNetwork({
+      name: overlay,
+      driver: "overlay",
+      attachable: true,
+      ingress: false,
+      enableIpv6: false,
+      labels: { "deployer.managed": "true", "deployer.platform": "true" },
+    });
 
-    await this.docker.createSwarmService({
-      Name: name,
-      // Replicated rather than global: the API is a stateless HTTP server behind
-      // Traefik, so the operator chooses the count. GLOBAL would schedule one
-      // task per node, which on a large fleet is not what "API_REPLICAS" means.
-      Mode: { Replicated: { Replicas: replicas } },
-      TaskTemplate: {
-        ContainerSpec: {
-          Image: image,
-          Env: this.serviceEnvironment(port),
+    // ── SETUP MUST JOIN THE OVERLAY TOO, OR IT CANNOT REACH THE API ─────────
+    // Scheduling the service is not enough: a swarm service's name resolves ONLY
+    // on a swarm-scoped network, so a setup container sitting on the compose
+    // BRIDGE cannot resolve it even while the service runs happily:
+    //
+    //   Upstream http://deployer-api:3005/setup/stream unreachable:
+    //   getaddrinfo ENOTFOUND deployer-api
+    //
+    // which stalls the handover in `provisioning` forever — the API is up, the
+    // ingress routes to it, and the one process that must hand over cannot talk
+    // to it.
+    //
+    // Connecting SELF rather than declaring the network in compose, because the
+    // overlay does not exist until this code creates it: compose would need it
+    // present before starting the very container that makes it.
+    await this.connectSelfToOverlay(overlay);
+
+    this.logger.log(`Creating API swarm service "${name}" from image ${image} (${String(replicas)} replica(s)) on ${overlay}`);
+
+    // ── THE CANONICAL SPEC SHAPE, MAPPED BY THE SHARED MAPPER ───────────────
+    // `toDockerServiceSpec` is the ONLY place in the codebase that builds a
+    // dockerode service spec (its own module note says so), and it exists
+    // because the two shapes are NOT interchangeable: `Networks` belongs on the
+    // TASK TEMPLATE, and the platform's own contract uses lowercase keys.
+    //
+    // Hand-building a spec with raw dockerode keys silently produced a service
+    // with an EMPTY `Spec.Networks` — docker accepted it, dropped the field, and
+    // attached the task to the default `ingress` network instead. The service
+    // then ran happily on the wrong network and its name resolved NOWHERE:
+    //
+    //   Spec.Networks      : (empty)
+    //   Endpoint.VirtualIPs: 4d7mwep40le5  <- that is `ingress`
+    //
+    // which is why every forward failed with `getaddrinfo ENOTFOUND
+    // deployer-api` while `docker service ls` showed 1/1.
+    await this.docker.createSwarmService(
+      toDockerServiceSpec({
+        name,
+        image,
+        // Replicated rather than global: the API is a stateless HTTP server
+        // behind Traefik, so the operator chooses the count. GLOBAL would
+        // schedule one task per node, which is not what "API_REPLICAS" means.
+        mode: "replicated",
+        replicas,
+        env: this.serviceEnvironment(port),
+        command: [],
+        args: [],
+        labels: {
+          "deployer.platform.role": "api",
+        },
+        containerLabels: {},
+        mounts: [
           // The SAME volume the setup container mounts. `node_config` holds the
           // swarm participation decision and the database URL setup already
-          // wrote, and the API is the READER of that single writer's output
-          // (plan §12.3) — so losing this mount would mean the API boots with no
-          // idea a cluster exists.
-          Mounts: [
-            {
-              Type: "volume",
-              Source: this.localDbVolumeName(),
-              Target: "/app/data",
-            },
-          ],
-        },
-        // Restart on failure, with backoff: a swarm task that fails during
-        // boot (Postgres not yet reachable) must retry rather than wait for an
+          // wrote, and the API is the READER of that single writer's output —
+          // so losing this mount would mean the API boots with no idea a
+          // cluster exists.
+          {
+            type: "volume",
+            source: this.localDbVolumeName(),
+            target: "/app/data",
+            readOnly: false,
+          },
+          // ── THE ENGINE SOCKET, WHICH THE API CANNOT WORK WITHOUT ────────
+          // The API SUPERVISES the platform: it creates the managed Postgres,
+          // redis, the ingress and the web app as swarm services, and it reads
+          // swarm state to do it. Without the socket every one of those calls
+          // fails with
+          //
+          //   Failed to read Swarm info: connect ENOENT /var/run/docker.sock
+          //
+          // — a continuous error stream, no supervisors converging, and the
+          // platform never becomes ready. A swarm task does NOT inherit the
+          // socket from the node it runs on (nor from the compose container
+          // that created the service), so it must be mounted explicitly.
+          {
+            type: "bind",
+            source: "/var/run/docker.sock",
+            target: "/var/run/docker.sock",
+            readOnly: false,
+          },
+        ],
+        // ── THE OVERLAY, WITH THE SERVICE NAME AS AN ALIAS ──────────────────
+        // This is what makes `deployer-api` resolvable. Without it the task
+        // lands on `ingress` and nothing can dial it by name.
+        networks: [{ target: overlay, aliases: [name] }],
+        // Restart on failure, with backoff: a swarm task that fails during boot
+        // (Postgres not yet reachable) must retry rather than wait for an
         // operator. Unlimited attempts would mask a permanently broken image,
         // so the count is bounded.
-        RestartPolicy: {
-          Condition: "on-failure",
-          Delay: 10_000_000_000,
-          MaxAttempts: 10,
-        },
-      },
-      // vip, not dnsrr: Traefik dials one stable service address and the swarm
-      // balances across replicas. `dnsrr` would return every task IP and push
-      // balancing to Traefik, which then needs the task list to stay current.
-      EndpointSpec: { Mode: "vip", Ports: [{ Protocol: "tcp", TargetPort: port, PublishedPort: port }] },
-      // The service joins the platform overlay so Traefik resolves it by name.
-      // `deployer_platform` is the network every platform service shares; the
-      // alias is what the ingress backend URL uses.
-      Networks: [{ Target: this.platformNetworkName(), Aliases: [name] }],
-    });
+        healthcheck: null,
+        updateConfig: { parallelism: 1, delayMs: 0, order: "start-first", failureAction: "rollback" },
+        stopGracePeriodSeconds: 10,
+        // vip, not dnsrr: Traefik dials one stable service address and the swarm
+        // balances across replicas. `dnsrr` would return every task IP and push
+        // balancing to Traefik, which then needs the task list to stay current.
+        endpointPorts: [{ protocol: "tcp", targetPort: port, publishedPort: port }],
+        placementPreferences: [],
+        placementConstraints: [],
+        resourcesLimits: {},
+        resourcesReservations: {},
+        capabilitiesAdd: [],
+      }),
+    );
 
     this.logger.log(`API swarm service "${name}" created`);
     return this.backendFor(name, image, "newly created swarm service");
@@ -200,22 +282,183 @@ export class ApiServiceProvisioner {
    * `NODE_LOCAL_DB_PATH` is the exception that must be explicit: it points at
    * the mounted volume, and the API's own default would resolve inside the
    * container filesystem — a silently empty database rather than an error.
+   *
+   * ── WHY THE IMAGE TAGS ARE PASSED THROUGH ────────────────────────────────
+   * Setup is the process that SCHEDULES this API, so it is the only one that can
+   * tell it which images to converge for the rest of the platform. The API
+   * cannot discover them: it boots inside a container with no access to the
+   * compose project that built them, and its own services fall back to literal
+   * defaults that do NOT match what the dev producers tag:
+   *
+   *   producer: deployer-web:dev     API fallback: deployer-web:latest
+   *
+   * so the managed-web swarm service would be created from a tag that was never
+   * built, and the dashboard would never converge. Only NON-EMPTY values are
+   * forwarded, so an unset variable keeps the API's own default rather than
+   * overwriting it with an empty string (which would be worse: a service spec
+   * with `Image: ""` fails at create time with no hint as to why).
    */
   private serviceEnvironment(port: number): string[] {
     const env = [`NODE_LOCAL_DB_PATH=/app/data/local.db`, `API_PORT=${String(port)}`];
+
     const prefix = this.env.get("DEPLOYER_PREFIX");
     if (prefix !== "") env.push(`DEPLOYER_PREFIX=${prefix}`);
+
+    // ── THE API'S OWN CONTRACT, WHICH A SCHEDULED TASK CANNOT INHERIT ───────
+    // These are REQUIRED by the API's env schema (it refuses to boot without
+    // them) and in plain `dev` compose supplies them. A swarm task inherits
+    // NOTHING from the compose project, so setup — the process that creates the
+    // task — has to pass them or the API crash-loops:
+    //
+    //   ❌ Environment validation failed:
+    //      Invalid input: expected string, received undefined → NEXT_PUBLIC_API_URL
+    //      Invalid input: expected string, received undefined → NEXT_PUBLIC_APP_URL
+    //
+    // They are PUBLIC ORIGINS, not secrets: the API needs its own external URL
+    // to build callback links, and the web origin for CORS and trusted origins.
+    // Both are derived from the platform hostname rather than hardcoded, so a
+    // prefixed deployment gets the right hosts.
+    const apiOrigin = this.publicOrigin("api", prefix);
+    const webOrigin = this.publicOrigin("web", prefix);
+    env.push(`NEXT_PUBLIC_API_URL=${apiOrigin}`);
+    env.push(`NEXT_PUBLIC_APP_URL=${webOrigin}`);
+    // `APP_URL` is the WEB APP's address as seen from inside the platform
+    // network. The managed web app is a swarm service here, so it answers at
+    // its service name on the shared network — the same name the supervisor
+    // gives it.
+    env.push(`APP_URL=${this.managedWebServiceUrl()}`);
+
+    // The tags the API's supervisors build their service specs from.
+    const imageVars = [
+      "MANAGED_WEB_APP_IMAGE",
+      "DEPLOYER_TRAEFIK_IMAGE",
+      "DEPLOYER_REDIS_IMAGE",
+      "DEPLOYER_DIRECT_PROXY_IMAGE",
+    ] as const;
+    for (const name of imageVars) {
+      const value = this.env.get(name);
+      if (value !== undefined && value.length > 0) env.push(`${name}=${value}`);
+    }
+
     return env;
   }
 
-  /** Volume holding the shared SQLite file. Mirrors compose's naming. */
-  private localDbVolumeName(): string {
-    const prefix = this.env.get("DEPLOYER_PREFIX");
-    return prefix === "" ? "api_local_db_data_prod" : `api_local_db_data_${prefix}`;
+  /**
+   * The public origin for a platform hostname.
+   *
+   * Mirrors the hostname scheme the ingress and the API's own
+   * `HostnameService` use: `api.deployer.localhost` on a default install, and
+   * `<host>.<prefix>deployer.localhost` on a prefixed one. Derived rather than
+   * hardcoded so a prefixed deployment does not silently advertise the default
+   * host, which would break callbacks and CORS.
+   */
+  private publicOrigin(host: "api" | "web", prefix: string): string {
+    return prefix === ""
+      ? `http://${host}.deployer.localhost`
+      : `http://${host}.${prefix}deployer.localhost`;
   }
 
-  /** The overlay every platform service joins. */
+  /**
+   * The managed web app's address INSIDE the platform network.
+   *
+   * The swarm service name, which is also its DNS name on the overlay — the
+   * same value `ManagedWebSupervisorService` names its service
+   * (`MANAGED_WEB_CONTAINER_BASE_NAME`, per-prefix `-<prefix>` appended), so the
+   * two cannot drift. The web app listens on its own port, not the API's.
+   */
+  private managedWebServiceUrl(): string {
+    const prefix = this.env.get("DEPLOYER_PREFIX");
+    const name = prefix === "" ? "deployer-managed-web" : `deployer-managed-web-${prefix}`;
+    return `http://${name}:3000`;
+  }
+
+  /**
+   * Volume holding the shared SQLite file.
+   *
+   * Read from the environment because compose names volumes with its project
+   * prefix, which this process cannot guess. The default mirrors the prod compose
+   * file, so an install that does not set it is unchanged.
+   */
+  private localDbVolumeName(): string {
+    return this.env.get("NODE_LOCAL_DB_VOLUME");
+  }
+
+  /**
+   * The network the API service joins — the platform OVERLAY, not the bridge.
+   *
+   * ── WHY THE OVERLAY AND NOT `deployer-platform` ──────────────────────────
+   * A swarm service's name resolves ONLY on a swarm-scoped network. Attaching it
+   * to the compose BRIDGE (`deployer-platform`) creates the service but leaves
+   * its DNS name unroutable, so every forward from setup failed with
+   *
+   *   Upstream http://deployer-api:3005/setup/stream unreachable:
+   *   getaddrinfo ENOTFOUND deployer-api
+   *
+   * — the trigger was never delivered, the API never provisioned, and the
+   * handover stalled until it timed out.
+   *
+   * The overlay is the swarm-scoped counterpart of that bridge, and the same
+   * network the API's own supervisors wire compose-managed containers into, so
+   * setup and the scheduled API share ONE DNS namespace.
+   *
+   * Derived from the shared helpers rather than hardcoded: `platformNetworkName`
+   * is the single source of truth for the base name, and
+   * `platformOverlayForPrefix` applies the `-overlay` suffix and the tenant
+   * prefix exactly as the API's runtime does — so the two cannot drift.
+   */
   private platformNetworkName(): string {
-    return "deployer_platform";
+    return platformOverlayForPrefix(this.env.get("DEPLOYER_PREFIX"));
+  }
+
+  /**
+   * Attach THIS container to the platform overlay.
+   *
+   * ── WHY SETUP MUST JOIN THE NETWORK IT JUST CREATED ─────────────────────
+   * Scheduling the API is not enough to be able to CALL it: a swarm service's
+   * name resolves only on a swarm-scoped network. A setup container on the
+   * compose bridge alone therefore cannot resolve `deployer-api` even while the
+   * service runs and the ingress routes to it — the one process that must hand
+   * over is the one that cannot reach it.
+   *
+   * ── WHY HERE AND NOT IN COMPOSE ─────────────────────────────────────────
+   * The overlay does not exist until this code creates it, so declaring it in
+   * compose would require the network to be present before starting the very
+   * container that makes it. Connecting self at runtime inverts that ordering
+   * correctly.
+   *
+   * Mirrors `TraefikSupervisorService.connectSelfToOverlay` — the same
+   * bridge-head join the API performs, so setup and the API end up on the
+   * overlay by the same route. `HOSTNAME` is the container's own ID, which is
+   * what the connect API expects; the guard keeps this a no-op outside Docker
+   * (where HOSTNAME is a hostname, not an ID).
+   */
+  private async connectSelfToOverlay(overlay: string): Promise<void> {
+    const selfId = process.env.HOSTNAME;
+    if (selfId === undefined || !/^[0-9a-f]{12,64}$/.test(selfId)) {
+      this.logger.warn(
+        `Cannot attach setup to ${overlay}: HOSTNAME is not a container ID (running outside Docker?)`,
+      );
+      return;
+    }
+
+    // Not fatal on failure: the join is what lets setup TALK to the API, and
+    // refusing to schedule the service over a reachability problem would turn a
+    // recoverable misconfiguration into a total onboarding failure. A retry
+    // re-attempts it, and "already connected" is the normal outcome then.
+    await this.docker
+      .getDockerClient()
+      .getNetwork(overlay)
+      .connect({ Container: selfId })
+      .then(() => {
+        this.logger.log(`Connected setup (${selfId.slice(0, 12)}) to the platform overlay ${overlay}`);
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        if (/already exists|already connected/i.test(message)) {
+          this.logger.log(`Setup is already attached to ${overlay}`);
+          return;
+        }
+        this.logger.warn(`Could not attach setup to ${overlay}: ${message}`);
+      });
   }
 }

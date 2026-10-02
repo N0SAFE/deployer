@@ -24,22 +24,65 @@ export class WizardUpstreamService {
   /**
    * Base URL of the full API.
    *
-   * `SETUP_MODE=dev` → `SETUP_API_URL` (compose manages the API, so its address
-   * is known and stable). `SETUP_MODE=prod` → the API is created by setup as a
-   * swarm service, and its DNS name is stable within the overlay, so the same
-   * value is used; a missing value there is a configuration error, not a
-   * runtime condition to paper over.
+   * ── WHY THIS DEPENDS ON THE MODE ─────────────────────────────────────────
+   * `dev`   compose runs the API at a fixed name, so `SETUP_API_URL` is both the
+   *         address AND the way to reach it.
+   * `prod`  setup CREATES the API as a swarm service. `SETUP_API_URL` is then
+   *         only the PORT and path it answers on — its hostname is the SERVICE
+   *         name, which is what resolves on the overlay.
+   *
+   * Using `SETUP_API_URL` verbatim in prod meant every forward went to the
+   * compose-only name:
+   *
+   *   Upstream http://api-dev:3005/setup/trigger unreachable:
+   *   getaddrinfo ENOTFOUND api-dev
+   *
+   * Nothing runs `api-dev` in that profile (compose starts no API there), so the
+   * trigger was never delivered, the API never provisioned, and the handover
+   * stalled in `provisioning` until it timed out.
    */
   baseUrl(): string {
-    const url = this.env.get("SETUP_API_URL");
-    if (url === undefined || url.length === 0) {
+    const configured = this.env.get("SETUP_API_URL");
+    if (configured === undefined || configured.length === 0) {
       throw new ServiceUnavailableException(
         "SETUP_API_URL is not configured — the setup app cannot reach the full API",
       );
     }
+
     // Normalize: a trailing slash would produce `//setup/state` (a different
     // path on most routers, and a 404 on ours).
-    return url.replace(/\/+$/, "");
+    const normalized = configured.replace(/\/+$/, "");
+
+    if (this.env.get("SETUP_MODE") !== "prod") {
+      return normalized;
+    }
+
+    // ── PROD: THE SERVICE NAME IS THE ADDRESS ─────────────────────────────
+    // Keep the configured PORT (it genuinely differs between profiles) and
+    // replace only the host with the swarm service name — the same name the
+    // handover points the ingress at, so the two cannot disagree about where the
+    // API is.
+    try {
+      const parsed = new URL(normalized);
+      return `${parsed.protocol}//${this.apiServiceName()}:${parsed.port}`;
+    } catch {
+      // A malformed SETUP_API_URL must not silently become a different host.
+      throw new ServiceUnavailableException(
+        `SETUP_API_URL is not a valid URL: ${configured}`,
+      );
+    }
+  }
+
+  /**
+   * The API's swarm service name on the overlay.
+   *
+   * Mirrors `ApiServiceProvisioner.serviceName()` — the process that CREATES the
+   * service and the process that DIALS it must agree, so both derive it the same
+   * way (base name, per-prefix `-<prefix>` appended).
+   */
+  private apiServiceName(): string {
+    const prefix = this.env.get("DEPLOYER_PREFIX");
+    return prefix === "" ? "deployer-api" : `deployer-api-${prefix}`;
   }
 
   /** Absolute URL for an API path. */
