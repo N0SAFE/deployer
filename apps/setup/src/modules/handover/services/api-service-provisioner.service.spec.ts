@@ -125,6 +125,44 @@ describe("ApiServiceProvisioner", () => {
       await expect(provisioner.ensureApi()).rejects.toThrow(/DEPLOYER_API_IMAGE/);
     });
 
+    /**
+     * REGRESSION GUARD: a swarm task inherits NOTHING from the compose project,
+     * so every variable the scheduled app REQUIRES has to be passed explicitly.
+     * Omitting one is invisible until the task crash-loops, and the supervisor
+     * only reports "service has no running task":
+     *
+     *   ❌ Environment validation failed:
+     *      Invalid input: expected string, received undefined → at AUTH_SECRET
+     *
+     * `AUTH_SECRET`/`BETTER_AUTH_SECRET` matter most: the API SIGNS the session
+     * cookie and the web app's middleware DECRYPTS it, so a mismatch silently
+     * signs the operator out on alternate hosts.
+     */
+    it("passes the scheduled app the env it cannot inherit from compose", async () => {
+      const { provisioner, docker } = makeProvisioner(
+        {
+          SETUP_MODE: "prod",
+          DEPLOYER_API_IMAGE: "deployer-api:local",
+          AUTH_SECRET: "a-real-shared-secret",
+        },
+        { inspectSwarmService: notFound() },
+      );
+
+      await provisioner.ensureApi();
+
+      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
+        TaskTemplate: { ContainerSpec: { Env: string[] } };
+      };
+      const env = spec.TaskTemplate.ContainerSpec.Env;
+
+      expect(env).toContain("AUTH_SECRET=a-real-shared-secret");
+      // Must MATCH: the web schema rejects them when they differ.
+      expect(env).toContain("BETTER_AUTH_SECRET=a-real-shared-secret");
+      expect(env.some((e) => e.startsWith("NEXT_PUBLIC_API_URL="))).toBe(true);
+      expect(env.some((e) => e.startsWith("NEXT_PUBLIC_APP_URL="))).toBe(true);
+      expect(env.some((e) => e.startsWith("APP_URL="))).toBe(true);
+    });
+
     it("mounts the shared local-db volume, so the API reads the decision setup wrote", async () => {
       const { provisioner, docker } = makeProvisioner(
         { SETUP_MODE: "prod", DEPLOYER_API_IMAGE: "deployer-api:local" },

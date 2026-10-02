@@ -30,6 +30,23 @@ import { toDockerServiceSpec } from "./swarm-spec.mapper";
 /** Dockerode API errors carry an HTTP-style statusCode (404 = not found). */
 type DockerodeError = Error & { statusCode?: number };
 
+/** How many times a version-conflicted swarm update is re-read and retried. */
+const SWARM_UPDATE_MAX_ATTEMPTS = 5;
+
+/**
+ * True when the engine rejected a swarm update because the version index it
+ * carried was already superseded by a concurrent update (`update out of
+ * sequence`). That is a LOST RACE, not a real failure: re-inspecting the service
+ * and retrying with the fresh index is the correct response.
+ *
+ * Exported for its regression test: the detection is what makes the retry
+ * possible, and a looser match would silently retry genuine failures.
+ */
+export function isSwarmVersionConflict(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return /update out of sequence/i.test(message);
+}
+
 /** Declarative description of the container a supervisor wants running. */
 export interface DockerSupervisorContainerSpec {
 	name: string;
@@ -395,23 +412,42 @@ export abstract class BaseDockerSupervisorService<
 	 * Idempotently converge one platform SWARM service to the given spec.
 	 * Creates when missing, updates (by latest version index) when present.
 	 * Used by swarm-backed supervisors for their desired state.
+	 *
+	 * ── WHY THE UPDATE RETRIES ──────────────────────────────────────────────────
+	 * A swarm update must carry the version index it was based on, and the engine
+	 * REJECTS an update whose index is stale:
+	 *
+	 *   rpc error: code = Unknown desc = update out of sequence
+	 *
+	 * Two reconciles that inspect the SAME index collide — a startup convergence
+	 * and an interval tick, or two supervisors sharing a service. Treating that
+	 * as fatal was a silent, permanent failure: the exception propagated, the
+	 * service kept its OLD spec, and every later fix (a new env, a changed
+	 * command) was discarded while the supervisor still reported success. So the
+	 * version is re-read and the update retried; only a non-conflict error is
+	 * allowed to propagate.
 	 */
 	protected async reconcileSwarmService(spec: SwarmServiceSpecInput): Promise<void> {
 		const dockerSpec = toDockerServiceSpec(spec);
-		try {
-			const existing = await this.dockerService.inspectSwarmService(spec.name);
-			await this.dockerService.updateSwarmService(
-				spec.name,
-				existing.Version.Index,
-				dockerSpec,
-				false,
-			);
-		} catch (error: unknown) {
-			if (error instanceof NotFoundException) {
-				await this.dockerService.createSwarmService(dockerSpec);
+		for (let attempt = 1; ; attempt += 1) {
+			try {
+				const existing = await this.dockerService.inspectSwarmService(spec.name);
+				await this.dockerService.updateSwarmService(
+					spec.name,
+					existing.Version.Index,
+					dockerSpec,
+					false,
+				);
 				return;
+			} catch (error: unknown) {
+				if (error instanceof NotFoundException) {
+					await this.dockerService.createSwarmService(dockerSpec);
+					return;
+				}
+				if (attempt >= SWARM_UPDATE_MAX_ATTEMPTS || !isSwarmVersionConflict(error)) {
+					throw error;
+				}
 			}
-			throw error;
 		}
 	}
 

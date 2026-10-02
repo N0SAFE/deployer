@@ -49,7 +49,7 @@ interface CapturedSpec {
 	EndpointSpec?: { Ports?: Array<{ TargetPort?: number; PublishedPort?: number; PublishMode?: string }> };
 }
 
-function makeDockerService() {
+function makeDockerService(bootstrapLabels: Record<string, string> | null = null) {
 	/** Services by name — the engine's source of truth in this fixture. */
 	const services = new Map<string, ServiceState>();
 	/** Tasks by service name — one task per node for a global service. */
@@ -86,6 +86,17 @@ function makeDockerService() {
 				}),
 			})),
 			createVolume: vi.fn(async () => ({ name: "created" })),
+			/** Setup's BOOTSTRAP ingress is a plain CONTAINER named in the group —
+			 *  `bootstrapLabels === null` models "no such container" (the port has
+			 *  been released, or setup never ran one). */
+			getContainer: vi.fn((name: string) => ({
+				inspect: vi.fn(async () => {
+					if (bootstrapLabels === null) {
+						throw Object.assign(new Error(`No such container: ${name}`), { statusCode: 404 });
+					}
+					return { Id: "bootstrap", Config: { Labels: bootstrapLabels } };
+				}),
+			})),
 		}),
 		getSwarmInfo: vi.fn(async () => ({ NodeID: "n1", LocalNodeState: "active", ControlAvailable: true })),
 		inspectSwarmService,
@@ -133,8 +144,12 @@ async function makeConfigDir(): Promise<string> {
 	return await mkdtemp(join(base, "platform-traefik-"));
 }
 
-function makeSupervisor(envOverrides: Partial<Record<string, unknown>> = {}, entryPort: number | null = null) {
-	const mocks = makeDockerService();
+function makeSupervisor(
+	envOverrides: Partial<Record<string, unknown>> = {},
+	entryPort: number | null = null,
+	bootstrapLabels: Record<string, string> | null = null,
+) {
+	const mocks = makeDockerService(bootstrapLabels);
 	const env = makeEnv(envOverrides);
 	const hostnameService = new EnvHostnameService(makeEnv(envOverrides));
 	const settings = {
@@ -178,6 +193,71 @@ describe("TraefikSupervisorService (swarm-global ingress)", () => {
 
 	afterEach(() => {
 		vi.useRealTimers();
+	});
+
+	/**
+	 * The State A → State B handover, which is the ONE reason this supervisor may
+	 * legitimately refuse to converge.
+	 *
+	 * Creating the swarm service while setup's bootstrap container still holds the
+	 * entry port did far more damage than a degraded ingress: every failed task
+	 * join corrupted `deployer-platform-overlay`'s NetworkDB, killing the veths of
+	 * EVERY container on the overlay — so the API lost Postgres and setup lost the
+	 * API, AFTER a wizard that reported all seven steps successful.
+	 */
+	describe("bootstrap-ingress handover", () => {
+		it("defers (pending) instead of creating a service that cannot bind the port", async () => {
+			const { supervisor, createSwarmService } = makeSupervisor(
+				{},
+				null,
+				{ "deployer.bootstrap": "true" },
+			);
+
+			const state = await supervisor.ensureDesiredState();
+
+			expect(state).toBe("pending");
+			// Nothing was created — the crash-loop this prevents is the whole point.
+			expect(createSwarmService.mock.calls).toHaveLength(0);
+			expect(supervisor.getStateSnapshot().detail).toContain("bootstrap ingress owns the entry port");
+		});
+
+		it("converges normally once the handover released the container", async () => {
+			// No bootstrap container: setup removed it when it released the port.
+			const configDir = await makeConfigDir();
+			const { supervisor, createSwarmService } = makeSupervisor({ TRAEFIK_CONFIG_BASE_PATH: configDir });
+			stubProbe(supervisor);
+
+			const state = await supervisor.ensureDesiredState();
+
+			expect(state).toBe("converged");
+			expect(createSwarmService.mock.calls).toHaveLength(1);
+		});
+
+		it("polices the retry timer on destroy so a deferred supervisor cannot leak", async () => {
+			const { supervisor } = makeSupervisor({}, null, { "deployer.bootstrap": "true" });
+			await supervisor.ensureDesiredState();
+
+			// The retry it scheduled must not keep the process alive.
+			expect(() => supervisor.onModuleDestroy()).not.toThrow();
+			expect(vi.getTimerCount()).toBe(0);
+		});
+
+		it("treats a container WITHOUT the bootstrap label as ours (not a handover)", async () => {
+			// Same name, different owner: the name is shared by design, so only the
+			// label distinguishes setup's incarnation from this supervisor's.
+			const configDir = await makeConfigDir();
+			const { supervisor, createSwarmService } = makeSupervisor(
+				{ TRAEFIK_CONFIG_BASE_PATH: configDir },
+				null,
+				{ "deployer.platform.role": "ingress" },
+			);
+			stubProbe(supervisor);
+
+			const state = await supervisor.ensureDesiredState();
+
+			expect(state).toBe("converged");
+			expect(createSwarmService.mock.calls).toHaveLength(1);
+		});
 	});
 
 	it("exposes a stable identity for registry + health reporting", () => {

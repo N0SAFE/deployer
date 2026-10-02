@@ -197,8 +197,19 @@ export class WizardController {
     } catch (error: unknown) {
       const reason = error instanceof Error ? error.message : String(error);
       this.logger.warn(`Upstream ${path} unreachable: ${reason}`);
+      // `upstream.forward` already reports the FULL address it dialled
+      // ("…deployer-api:3005/setup/trigger"). Re-stating the path here instead
+      // threw that away and produced a message with an EMPTY host — a symptom
+      // that pointed at routing rather than at the address actually used:
+      //
+      //   Error  The platform API is not reachable yet (/setup/trigger)
+      //
+      // So the upstream's own message is propagated verbatim and only padded
+      // with our resolved address when it carries none.
       throw new ORPCError("SERVICE_UNAVAILABLE", {
-        message: `The platform API is not reachable yet (${path})`,
+        message: reason.includes(" is not reachable yet")
+          ? reason
+          : `The platform API is not reachable yet (${this.upstream.urlFor(path)})`,
         data: { message: reason },
       });
     }

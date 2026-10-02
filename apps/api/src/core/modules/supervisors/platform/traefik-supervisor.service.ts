@@ -10,7 +10,7 @@
  * fix its own infrastructure.
  */
 
-import { Injectable } from "@nestjs/common";
+import { Injectable, type OnModuleDestroy } from "@nestjs/common";
 import http from "node:http";
 import { stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -32,6 +32,7 @@ import { DockerService } from "@repo/nest-docker/services/docker.service";
 import {
 	baseSupervisorPayloadSchema,
 	type SupervisorProbeResult,
+	type SupervisorState,
 } from "@repo/nest-supervisor-core/base-supervisor.service";
 import {
 	baseSupervisorProcessInfoSchema,
@@ -130,21 +131,43 @@ export class EntryPortConflictError extends Error {
 }
 
 @Injectable()
-export class TraefikSupervisorService extends BaseDockerSupervisorService<
-	typeof traefikSupervisorPayloadSchema,
-	typeof traefikProcessInfoSchema
-> {
+export class TraefikSupervisorService
+	extends BaseDockerSupervisorService<
+		typeof traefikSupervisorPayloadSchema,
+		typeof traefikProcessInfoSchema
+	>
+	implements OnModuleDestroy
+{
 	static readonly identifier = PLATFORM_INGRESS_SUPERVISOR_ID;
 	readonly description = "Platform Traefik ingress routing api.<prefix>deployer.localhost";
 
 	/** Container label recording the desired entry port (recreate-on-change). */
 	static readonly ENTRY_PORT_LABEL = "deployer.ingress.entry-port";
 
+	/**
+	 * Label SETUP stamps on its BOOTSTRAP ingress (State A — a plain container).
+	 *
+	 * This is the ONLY reliable way to tell "the ingress running right now is the
+	 * one setup runs" from "the ingress running right now is ours": both
+	 * incarnations share the container/service name `deployer-traefik` on
+	 * purpose (see `BootstrapIngressService` — the promotion must not move a
+	 * name or a port), so the name proves nothing.
+	 */
+	private static readonly BOOTSTRAP_LABELS: Record<string, string> = {
+		"deployer.bootstrap": "true",
+	};
+
+	/** How often to re-check whether setup released the entry port. */
+	private static readonly HANDOVER_POLL_MS = 3_000;
+
 	readonly payloadSchema = traefikSupervisorPayloadSchema;
 	readonly processInfoSchema = traefikProcessInfoSchema;
 
 	private static readonly PROBE_TIMEOUT_MS = 3_000;
 	private static readonly SETTLE_WINDOW_MS = 3_000;
+
+	/** Deferred-convergence poll timer (see `scheduleHandoverRetry`). */
+	private handoverRetryTimer: ReturnType<typeof setTimeout> | null = null;
 
 	constructor(
 		dockerService: DockerService,
@@ -174,6 +197,110 @@ export class TraefikSupervisorService extends BaseDockerSupervisorService<
 	/** True when the deployment owns the Traefik ingress (compose/operator). */
 	isExternallyManaged(): boolean {
 		return splitManagedEnv(this.env).traefik.enabled === true;
+	}
+
+	/**
+	 * Refuse to converge while SETUP still owns the entry port.
+	 *
+	 * ── THE FAILURE THIS PREVENTS (observed, not theoretical) ────────────────
+	 * The ingress runs in two incarnations (see `BootstrapIngressService`): a
+	 * plain container setup runs BEFORE the gate opens (State A), and this
+	 * supervisor's GLOBAL swarm service AFTER the handover (State B). Both bind
+	 * the SAME host port by design.
+	 *
+	 * Because a swarm CREATE succeeds even when the port is taken — the bind
+	 * happens later, when the task is scheduled — this supervisor used to create
+	 * the service anyway, and every task then died in a ~5s loop:
+	 *
+	 *   fatal task error: starting container failed: failed to set up container
+	 *   networking: endpoint join on GW Network failed: Bind for 0.0.0.0:80
+	 *   failed: port is already allocated
+	 *
+	 * Each failed JOIN damaged `deployer-platform-overlay`'s NetworkDB, tearing
+	 * down the sandbox veths of EVERY container on it:
+	 *
+	 *   deleteServiceInfoFromCluster NetworkDB DeleteEntry failed ... cannot
+	 *   delete entry overlay_peer_table ... already being deleted
+	 *
+	 * The result was far worse than a degraded ingress: the overlay dataplane
+	 * went dead, so the API could no longer reach Postgres (`ECONNREFUSED
+	 * 10.0.1.8:5432`) and setup could not reach the API — the operator saw
+	 * "The platform API is not reachable yet" AFTER a fully successful wizard.
+	 *
+	 * Deferring is what the base class is for: `pending` means the precondition
+	 * is unmet, which is exactly true here. Setup releases the port during the
+	 * handover, and `scheduleHandoverRetry()` converges the moment it does — so
+	 * this is a "not yet", never a "never".
+	 */
+	protected override async convergenceBlocker(): Promise<string | null> {
+		const inherited = await super.convergenceBlocker();
+		if (inherited !== null) return inherited;
+
+		// A deployment-owned ingress is not ours to create at all.
+		if (this.isExternallyManaged()) return null;
+
+		if (await this.bootstrapIngressOwnsEntryPort()) {
+			this.scheduleHandoverRetry();
+			return "setup's bootstrap ingress owns the entry port — deferred until the handover releases it";
+		}
+
+		this.cancelHandoverRetry();
+		return null;
+	}
+
+	/**
+	 * True when setup's bootstrap ingress container is currently running.
+	 *
+	 * Matched on setup's OWN label rather than on the name, because both
+	 * incarnations are named `deployer-traefik` — the name can only tell us a
+	 * container exists, not WHOSE it is. Setup is the only writer of
+	 * `deployer.bootstrap=true`, and it stamps the label at creation, so its
+	 * presence is proof that the port has not been released yet.
+	 */
+	private async bootstrapIngressOwnsEntryPort(): Promise<boolean> {
+		const name = this.swarmServiceName();
+		try {
+			const container = await this.client.getContainer(name).inspect();
+			const labels: Record<string, string> = container.Config.Labels;
+			return Object.entries(TraefikSupervisorService.BOOTSTRAP_LABELS).every(
+				([key, value]) => labels[key] === value,
+			);
+		} catch {
+			// Absent (404) or an engine hiccup: not a handover, so let the normal
+			// convergence path run and report whatever it finds.
+			return false;
+		}
+	}
+
+	/**
+	 * Re-converge shortly after a deferred handover.
+	 *
+	 * Needed because NOTHING else wakes this supervisor up: it has no cadence of
+	 * its own (`TraefikConfigRefresher` fires on boot and operator actions), and
+	 * setup's release of the port is not a docker event this process listens for.
+	 * Without this poll the ingress would stay `pending` until an unrelated
+	 * operator action re-converged it — i.e. the platform would come up with no
+	 * ingress at all after a successful handover.
+	 *
+	 * Chained timeouts rather than `setInterval`, so a slow convergence can never
+	 * stack passes (the same pattern as `SwarmAppWiringSupervisorService`).
+	 */
+	private scheduleHandoverRetry(): void {
+		if (this.handoverRetryTimer !== null) return;
+		this.handoverRetryTimer = setTimeout(() => {
+			this.handoverRetryTimer = null;
+			void this.ensureDesiredState();
+		}, TraefikSupervisorService.HANDOVER_POLL_MS);
+	}
+
+	private cancelHandoverRetry(): void {
+		if (this.handoverRetryTimer === null) return;
+		clearTimeout(this.handoverRetryTimer);
+		this.handoverRetryTimer = null;
+	}
+
+	onModuleDestroy(): void {
+		this.cancelHandoverRetry();
 	}
 
 	/**

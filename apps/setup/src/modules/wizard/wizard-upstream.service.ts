@@ -1,6 +1,7 @@
 import { Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
 
 import { EnvService } from "@/config/env/env.module";
+import { resolveApiBaseUrl, apiServiceName } from "@/config/api-address";
 
 /**
  * Resolves where the full API answers, and forwards requests to it.
@@ -42,47 +43,28 @@ export class WizardUpstreamService {
    * stalled in `provisioning` until it timed out.
    */
   baseUrl(): string {
-    const configured = this.env.get("SETUP_API_URL");
-    if (configured === undefined || configured.length === 0) {
+    const resolved = resolveApiBaseUrl({
+      SETUP_MODE: this.env.get("SETUP_MODE"),
+      SETUP_API_URL: this.env.get("SETUP_API_URL"),
+      DEPLOYER_PREFIX: this.env.get("DEPLOYER_PREFIX"),
+    });
+    if (resolved === null) {
       throw new ServiceUnavailableException(
         "SETUP_API_URL is not configured — the setup app cannot reach the full API",
       );
     }
-
-    // Normalize: a trailing slash would produce `//setup/state` (a different
-    // path on most routers, and a 404 on ours).
-    const normalized = configured.replace(/\/+$/, "");
-
-    if (this.env.get("SETUP_MODE") !== "prod") {
-      return normalized;
-    }
-
-    // ── PROD: THE SERVICE NAME IS THE ADDRESS ─────────────────────────────
-    // Keep the configured PORT (it genuinely differs between profiles) and
-    // replace only the host with the swarm service name — the same name the
-    // handover points the ingress at, so the two cannot disagree about where the
-    // API is.
-    try {
-      const parsed = new URL(normalized);
-      return `${parsed.protocol}//${this.apiServiceName()}:${parsed.port}`;
-    } catch {
-      // A malformed SETUP_API_URL must not silently become a different host.
-      throw new ServiceUnavailableException(
-        `SETUP_API_URL is not a valid URL: ${configured}`,
-      );
-    }
+    return resolved;
   }
 
   /**
    * The API's swarm service name on the overlay.
    *
-   * Mirrors `ApiServiceProvisioner.serviceName()` — the process that CREATES the
-   * service and the process that DIALS it must agree, so both derive it the same
-   * way (base name, per-prefix `-<prefix>` appended).
+   * Kept as a thin delegation so the ONE derivation stays in `api-address.ts`,
+   * which the auth proxy also uses — a second copy here is how the two callers
+   * drifted apart in the first place.
    */
   private apiServiceName(): string {
-    const prefix = this.env.get("DEPLOYER_PREFIX");
-    return prefix === "" ? "deployer-api" : `deployer-api-${prefix}`;
+    return apiServiceName(this.env.get("DEPLOYER_PREFIX"));
   }
 
   /** Absolute URL for an API path. */

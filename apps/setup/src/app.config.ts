@@ -6,6 +6,7 @@ import { createViteAssetsMiddleware } from "@repo/vite-assets";
 
 import { SetupAppModule } from "./app.module";
 import { setupEnvSchema } from "./config/env/env.schema";
+import { resolveApiBaseUrl } from "./config/api-address";
 import { createSetupAuthProxy } from "./middleware/setup-auth-proxy";
 
 /**
@@ -80,7 +81,17 @@ export async function createSetupApp() {
   //
   // Mounted BEFORE the Nest router for the same reason as the asset proxy: it is
   // not an app route, and the API does not exist yet when the first call arrives.
-  server.use(createSetupAuthProxy(setupEnv.SETUP_API_URL ?? "http://api-dev:3005"));
+  //
+  // The address goes through `resolveApiBaseUrl` — the SAME resolver the wizard's
+  // forwards use. Passing the raw `SETUP_API_URL` here is what made the sign-in
+  // step target `api-dev:3005` (a compose-only name that nothing owns under
+  // `SETUP_MODE=prod`) while every other forward correctly used the swarm
+  // service name. It is `undefined` only when nothing is configured, in which
+  // case there is no API to proxy to and the middleware stands down.
+  const apiBaseUrl = resolveApiBaseUrl(setupEnv);
+  if (apiBaseUrl !== null) {
+    server.use(createSetupAuthProxy(apiBaseUrl));
+  }
 
   const app = await NestFactory.create(SetupAppModule, new ExpressAdapter(server), setupAppOptions());
   app.enableShutdownHooks();
