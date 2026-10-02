@@ -111,6 +111,19 @@ services:
       NODE_LOCAL_DB_VOLUME: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_local_db_data_dev
       MANAGED_WIREGUARD_IP: ${MANAGED_WIREGUARD_IP:-}
       APP_URL: ${APP_URL:-http://web-dev:3000}
+      # ── THE PLATFORM'S SHARED AUTH SECRET, WHICH A TASK CANNOT INHERIT ──────
+      # Setup FORWARDS this into every service it schedules. A swarm task inherits
+      # nothing from this compose project, so the web app — whose env schema
+      # REQUIRES it (`min(1)`, unlike the API's optional one) — crash-looped with
+      # no running task and nothing in the supervisor's report to explain why:
+      #
+      #   ✖ Invalid input: expected string, received undefined → at AUTH_SECRET
+      #
+      # The SAME value must reach the API (it signs the session cookie) and the
+      # web app (its middleware decrypts it), which is why this is forwarded
+      # rather than defaulted independently in each task. Default mirrors the
+      # compose convention (`${AUTH_SECRET:-fallback-auth-secret}`).
+      AUTH_SECRET: ${AUTH_SECRET:-fallback-auth-secret}
     # NO `ports:` — internal only, reached through Traefik.
     volumes: !override
       - api_local_db_data_dev:/app/data

@@ -127,6 +127,28 @@ export const setupEnvSchema = z.object({
   DEPLOYER_TRAEFIK_HTTP_PORT: z.coerce.number().int().min(1).max(65535).default(80),
 
   /**
+   * The platform's SHARED auth secret, forwarded into the services setup
+   * schedules.
+   *
+   * A swarm task inherits NOTHING from the compose project, so this value has
+   * to be passed explicitly or the WEB app crash-loops on boot:
+   *
+   *   ✖ Invalid input: expected string, received undefined → at AUTH_SECRET
+   *   ✖ ... → at BETTER_AUTH_SECRET
+   *
+   * It is REQUIRED rather than optional-open because the two apps must agree:
+   * the API signs the session cookie and the web app's middleware DECRYPTS it,
+   * so different values silently produce "logged in on one host, signed out on
+   * the other". `BETTER_AUTH_SECRET` is derived from it (see
+   * `platformAuthEnv`), matching the compose convention
+   * (`BETTER_AUTH_SECRET: ${AUTH_SECRET:-...}`), which keeps one source.
+   *
+   * The default matches compose's own fallback literal so a deployment that
+   * never set `AUTH_SECRET` behaves exactly as it did under compose.
+   */
+  AUTH_SECRET: z.string().min(1).default("fallback-auth-secret"),
+
+  /**
    * Named volume holding the generated dynamic config.
    *
    * Mounted read-only at `/config` inside the ingress, which is the directory

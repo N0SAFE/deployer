@@ -168,19 +168,45 @@ export class ManagedWebSupervisorService extends BaseDockerSupervisorService<
 	}
 
 	/**
-	 * The env the console needs to boot: the platform API origin plus a valid
-	 * APP-INSTANCE token. The token is rotated on every convergence — the
-	 * previous one may have been revoked while the service was down, and a
-	 * service update replaces the task anyway.
+	 * The env the console needs to boot.
+	 *
+	 * A swarm task inherits NOTHING from the compose project, so everything the
+	 * web app's env schema REQUIRES has to be passed explicitly. The schema
+	 * (`webEnvSchema`) refuses to start without all of these, and the failure is
+	 * a crash-loop with no running task — the supervisor reports "service has no
+	 * running task" and the operator sees no hint of the missing variable:
+	 *
+	 *   ✖ Invalid input: expected string, received undefined → at API_URL
+	 *   ✖ ... → at AUTH_SECRET / BETTER_AUTH_SECRET / NEXT_PUBLIC_APP_URL
+	 *
+	 * `AUTH_SECRET` and `BETTER_AUTH_SECRET` must be EQUAL — the schema refines
+	 * on it, and the platform signs sessions with the same value on both sides
+	 * so a token minted by the API is accepted by the web app.
 	 */
 	private async managedWebEnv(): Promise<string[]> {
 		const minted = await this.appInstances.create({
 			label: `managed-web-${this.env.get("DEPLOYER_PREFIX") || "default"}`,
 			kind: "managed",
 		});
+		const apiOrigin = this.hostnameService.apiOrigin();
+		const webOrigin = this.hostnameService.webOrigin();
+		// ONE secret for both keys: the web schema rejects them when they differ.
+		// The fallback mirrors compose's own literal (`${AUTH_SECRET:-...}`) so a
+		// deployment that never set `AUTH_SECRET` behaves as it did under compose;
+		// production already refuses to boot without a real one
+		// (`schema-codecs.ts`), so this cannot silently weaken prod.
+		const authSecret = this.env.get("AUTH_SECRET") ?? "fallback-auth-secret";
 		return [
-			`NEXT_PUBLIC_API_URL=${this.hostnameService.apiOrigin()}`,
-			`WEB_INSTANCE_TOKEN=${minted.appToken}`,
+			`API_URL=${apiOrigin}`,
+			`NEXT_PUBLIC_API_URL=${apiOrigin}`,
+			`NEXT_PUBLIC_APP_URL=${webOrigin}`,
+			`AUTH_SECRET=${authSecret}`,
+			`BETTER_AUTH_SECRET=${authSecret}`,
+			// The name the web app READS (see `getAppInstanceToken`). Passing it as
+			// `WEB_INSTANCE_TOKEN` silently did nothing: the app looked for
+			// `APP_INSTANCE_TOKEN`, found neither a persisted token nor credentials,
+			// and failed its boot-time app-instance registration.
+			`APP_INSTANCE_TOKEN=${minted.appToken}`,
 		];
 	}
 

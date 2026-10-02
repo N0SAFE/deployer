@@ -229,6 +229,7 @@ export class ApiServiceProvisioner {
         // vip, not dnsrr: Traefik dials one stable service address and the swarm
         // balances across replicas. `dnsrr` would return every task IP and push
         // balancing to Traefik, which then needs the task list to stay current.
+        endpointMode: "vip",
         endpointPorts: [{ protocol: "tcp", targetPort: port, publishedPort: port }],
         placementPreferences: [],
         placementConstraints: [],
@@ -327,6 +328,18 @@ export class ApiServiceProvisioner {
     // its service name on the shared network — the same name the supervisor
     // gives it.
     env.push(`APP_URL=${this.managedWebServiceUrl()}`);
+
+    // ── THE SHARED AUTH SECRET, WHICH BOTH APPS MUST AGREE ON ────────────────
+    // The API signs the session cookie and the WEB app's middleware decrypts it,
+    // so the two must use the same value or a session is valid on one host and
+    // invalid on the other. Compose guaranteed that with
+    // `BETTER_AUTH_SECRET: ${AUTH_SECRET:-...}`; a swarm task inherits nothing,
+    // so it is forwarded here. `BETTER_AUTH_SECRET` is derived from
+    // `AUTH_SECRET` rather than read separately — one source of truth, and the
+    // web schema REFUSES to boot when they differ.
+    const authSecret = this.env.get("AUTH_SECRET");
+    env.push(`AUTH_SECRET=${authSecret}`);
+    env.push(`BETTER_AUTH_SECRET=${authSecret}`);
 
     // The tags the API's supervisors build their service specs from.
     const imageVars = [
