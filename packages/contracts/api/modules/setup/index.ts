@@ -120,14 +120,21 @@ export const setupContract = oc.meta(openapi({ tags: ["Setup"], prefix: "/setup"
 
     /**
      * Start the initialization process in the background.
-     * Returns immediately with `{ accepted: true }`.
+     *
+     * `accepted` is always true on success: the choices were taken and the gate
+     * opened. `delivered` reports whether the API had ALSO received them
+     * synchronously — it is false whenever the API is not up yet, which is the
+     * NORMAL case in `prod`/`dev-supervised` (the API is a swarm service this
+     * very trigger causes setup to schedule). The handover delivers the retained
+     * payload once the API answers, so `delivered: false` is not an error.
+     *
      * Live progress can be consumed via `getInitializeStream`.
      */
     triggerInitialize: setupInitializeOps
         .create()
         .path("/trigger")
         .input((b) => b.body(setupInitializeInputSchema))
-        .output((b) => b.body(z.object({ accepted: z.boolean() })))
+        .output((b) => b.body(z.object({ accepted: z.boolean(), delivered: z.boolean() })))
         .errors((e) => setupDomainErrorContracts(e))
         .build(),
 
@@ -168,3 +175,8 @@ export const setupContract = oc.meta(openapi({ tags: ["Setup"], prefix: "/setup"
         .errors((e) => setupDomainErrorContracts(e))
         .build(),
 });
+
+// The SETUP APP's wizard surface. Separate from `setupContract` because it
+// describes a different process: setup answers some reads locally (the API does
+// not exist yet) and orchestrates work the API cannot report on. See the file.
+export * from "./app.contract";

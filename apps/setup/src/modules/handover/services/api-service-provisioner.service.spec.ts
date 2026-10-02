@@ -23,6 +23,7 @@ import type { DockerService } from "@repo/nest-docker/services/docker.service";
 function makeProvisioner(
   envOverrides: Record<string, string>,
   docker: Partial<DockerService> = {},
+  managedWeb: boolean | null = null,
 ): { provisioner: ApiServiceProvisioner; docker: Partial<DockerService> } {
   const service = {
     createSwarmService: vi.fn().mockResolvedValue({}),
@@ -32,9 +33,13 @@ function makeProvisioner(
     ensureOverlayNetwork: vi.fn().mockResolvedValue(undefined),
     ...docker,
   };
+  // The wizard's dashboard choice, which the provisioner forwards as the API's
+  // `MANAGED_WEB_APP_ENABLED` seed. `null` models "the operator was never asked".
+  const gate = { managedWebEnabled: vi.fn(() => managedWeb) };
   const provisioner = new ApiServiceProvisioner(
     makeEnvService(envOverrides),
     service as unknown as DockerService,
+    gate as unknown as ConstructorParameters<typeof ApiServiceProvisioner>[2],
   );
   return { provisioner, docker: service };
 }
@@ -161,6 +166,106 @@ describe("ApiServiceProvisioner", () => {
       expect(env.some((e) => e.startsWith("NEXT_PUBLIC_API_URL="))).toBe(true);
       expect(env.some((e) => e.startsWith("NEXT_PUBLIC_APP_URL="))).toBe(true);
       expect(env.some((e) => e.startsWith("APP_URL="))).toBe(true);
+    });
+
+    /**
+     * Without `AUTH_BASE_DOMAIN` the API has no wildcard, so `trustedOrigins`
+     * holds only the explicit app URLs — and the WIZARD's own host is rejected,
+     * which is what surfaced as `Invalid origin` on the final click.
+     */
+    it("forwards the shared auth domain so the wizard's own origin is trusted", async () => {
+      const { provisioner, docker } = makeProvisioner(
+        { SETUP_MODE: "prod", DEPLOYER_API_IMAGE: "deployer-api:local" },
+        { inspectSwarmService: notFound() },
+      );
+
+      await provisioner.ensureApi();
+
+      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
+        TaskTemplate: { ContainerSpec: { Env: string[] } };
+      };
+      const env = spec.TaskTemplate.ContainerSpec.Env;
+
+      // The LEADING DOT is load-bearing: it produces `*.deployer.localhost`,
+      // which matches `setup.deployer.localhost` while rejecting the bare
+      // `deployer.localhost`.
+      expect(env).toContain("AUTH_BASE_DOMAIN=.deployer.localhost");
+      // And the setup origin is named explicitly as a belt-and-braces measure.
+      expect(env).toContain("TRUSTED_ORIGINS=http://setup.deployer.localhost");
+    });
+
+    it("derives the auth domain from the prefix so a prefixed install is not broken", async () => {
+      const { provisioner, docker } = makeProvisioner(
+        {
+          SETUP_MODE: "prod",
+          DEPLOYER_API_IMAGE: "deployer-api:local",
+          DEPLOYER_PREFIX: "acme",
+          NODE_LOCAL_DB_VOLUME: "proj_api_local_db_data_acme",
+        },
+        { inspectSwarmService: notFound() },
+      );
+
+      await provisioner.ensureApi();
+
+      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
+        TaskTemplate: { ContainerSpec: { Env: string[] } };
+      };
+      const env = spec.TaskTemplate.ContainerSpec.Env;
+
+      expect(env).toContain("AUTH_BASE_DOMAIN=.acme.deployer.localhost");
+      expect(env).toContain("TRUSTED_ORIGINS=http://setup.acme.deployer.localhost");
+    });
+
+    /**
+     * The wizard's dashboard answer must reach the API, or the operator's choice
+     * is silently discarded on a fresh instance (the API would boot on its own
+     * env default instead).
+     */
+    it("forwards the wizard's dashboard choice as the API's seed", async () => {
+      const { provisioner, docker } = makeProvisioner(
+        { SETUP_MODE: "prod", DEPLOYER_API_IMAGE: "deployer-api:local" },
+        { inspectSwarmService: notFound() },
+        true,
+      );
+
+      await provisioner.ensureApi();
+
+      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
+        TaskTemplate: { ContainerSpec: { Env: string[] } };
+      };
+      expect(spec.TaskTemplate.ContainerSpec.Env).toContain("MANAGED_WEB_APP_ENABLED=true");
+    });
+
+    it("forwards an explicit API-only choice as false", async () => {
+      const { provisioner, docker } = makeProvisioner(
+        { SETUP_MODE: "prod", DEPLOYER_API_IMAGE: "deployer-api:local" },
+        { inspectSwarmService: notFound() },
+        false,
+      );
+
+      await provisioner.ensureApi();
+
+      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
+        TaskTemplate: { ContainerSpec: { Env: string[] } };
+      };
+      expect(spec.TaskTemplate.ContainerSpec.Env).toContain("MANAGED_WEB_APP_ENABLED=false");
+    });
+
+    it("omits the dashboard flag when the operator was never asked", async () => {
+      const { provisioner, docker } = makeProvisioner(
+        { SETUP_MODE: "prod", DEPLOYER_API_IMAGE: "deployer-api:local" },
+        { inspectSwarmService: notFound() },
+        null,
+      );
+
+      await provisioner.ensureApi();
+
+      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
+        TaskTemplate: { ContainerSpec: { Env: string[] } };
+      };
+      // An unasked choice must NOT become `false` — that would silently disable
+      // the dashboard instead of leaving the deployment's own default in place.
+      expect(spec.TaskTemplate.ContainerSpec.Env.some((e) => e.startsWith("MANAGED_WEB_APP_ENABLED="))).toBe(false);
     });
 
     it("mounts the shared local-db volume, so the API reads the decision setup wrote", async () => {

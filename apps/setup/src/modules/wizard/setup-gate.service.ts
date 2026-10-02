@@ -4,6 +4,7 @@ import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 import { EnvService } from "@/config/env/env.module";
 import { SetupPhaseService } from "@/modules/health/setup-phase.service";
 import { ClusterOrchestratorService } from "@/modules/cluster/services/cluster-orchestrator.service";
+import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
 import type { ClusterEntryMode } from "@/modules/cluster/cluster.types";
 
 /**
@@ -53,6 +54,7 @@ export class SetupGateService implements OnApplicationBootstrap {
     private readonly nodeConfig: NodeConfigRepository,
     private readonly env: EnvService,
     private readonly cluster: ClusterOrchestratorService,
+    private readonly orchestration: OrchestrationStreamService,
   ) {}
 
   /**
@@ -75,6 +77,28 @@ export class SetupGateService implements OnApplicationBootstrap {
   /** The payload the handover must deliver, or `null` when a restart skipped it. */
   triggerPayload(): unknown {
     return this.pendingTrigger;
+  }
+
+  /**
+   * The operator's dashboard choice, or null when they made none.
+   *
+   * Read by `ApiServiceProvisioner` to seed `MANAGED_WEB_APP_ENABLED` on the API
+   * task it schedules. `null` is a REAL answer and is deliberately distinct from
+   * `false`: it means the wizard never asked (an older client, or a restart
+   * where the payload is no longer retained), in which case the deployment's own
+   * env default must stand rather than being overridden by an invented "false".
+   *
+   * Read from the RETAINED payload rather than from `node_config` because this
+   * is a deployment-shape decision the API stores in its own `app_config` — the
+   * node row is about cluster participation and database provisioning.
+   */
+  managedWebEnabled(): boolean | null {
+    const payload = this.pendingTrigger;
+    if (typeof payload !== "object" || payload === null) return null;
+    const selection = (payload as { managedWeb?: unknown }).managedWeb;
+    if (selection === "managed") return true;
+    if (selection === "api-only") return false;
+    return null;
   }
 
   /**
@@ -166,16 +190,68 @@ export class SetupGateService implements OnApplicationBootstrap {
     // persisted row and the idempotency of migrate/seed.
     this.pendingTrigger = completed ? null : input;
 
-    // ── STEP 2: THE SWARM ──────────────────────────────────────────────────
-    // Started here, not at boot. The cluster pipeline publishes `launching` when
-    // the engine reports active, which is what opens the gate — so the API cannot
-    // be scheduled onto a swarm that does not exist yet.
+    // ── STEP 2: THE SWARM — OR NOT, DEPENDING ON THE PROFILE ────────────────
+    //
+    // ── WHY `dev` DOES NOT TOUCH THE ENGINE AT ALL ───────────────────────────
+    // Plain compose `dev` runs NO swarm: compose owns the API as an ordinary
+    // container, and the platform's services are compose services. Founding a
+    // cluster there would be an unrequested, irreversible side effect on the
+    // operator's Docker engine (a node cannot un-init without destroying Raft
+    // state), for a profile that never uses it.
+    //
+    // So the gate opens DIRECTLY in dev. That is the whole difference between
+    // the profiles: `dev` is compose end to end, and `prod` / `dev-supervised`
+    // go through the swarm because that is what schedules the API.
+    //
+    // ── WHY `prod` CONVERGES FIRST ───────────────────────────────────────────
+    // The API's supervisors schedule their services onto the cluster, and a
+    // swarm GLOBAL service cannot be created on an engine that is not a swarm.
+    // So the swarm must exist before the gate opens — and the CLUSTER PIPELINE
+    // publishes `launching` when the engine reports active, which is why this
+    // branch does not publish it itself.
+    if (!this.startsCluster()) {
+      this.orchestration.snapshot([
+        { id: "start_api", status: "in_progress" },
+        { id: "await_api_boot", status: "pending" },
+      ]);
+      this.orchestration.log(
+        "start_api",
+        "Waiting for the compose-managed API container to come up",
+      );
+
+      this.phases.record(
+        "launching",
+        "Details collected — compose may start the platform API",
+      );
+
+      this.logger.log(
+        "🚀 Setup trigger accepted — the gate is open; compose starts the API",
+      );
+      return;
+    }
+
     this.phases.record("clustering", "Founding the cluster…");
     this.cluster.start(this.entryModeFrom(input));
 
     this.logger.log(
       "🚀 Setup trigger accepted — converging the swarm; the gate opens when it is active",
     );
+  }
+
+  /**
+   * Whether THIS profile starts a cluster.
+   *
+   * `SETUP_MODE=prod` means setup owns the API and schedules it onto the swarm,
+   * so the swarm is setup's job. In `dev` the API is a compose service and the
+   * engine is never touched — see the note in `open()`.
+   *
+   * Read from the MODE rather than a separate flag on purpose: there is one
+   * decision ("who starts the API") and the swarm follows from it. A second flag
+   * could disagree with the first, and then the profile would neither converge a
+   * cluster nor have one to schedule onto.
+   */
+  private startsCluster(): boolean {
+    return this.env.get("SETUP_MODE") === "prod";
   }
 
   /**

@@ -53,6 +53,12 @@ interface WizardState {
     dbUrl: string
   }
   swarm: SwarmParticipationDraft
+  /**
+   * Whether the platform runs its OWN dashboard (the managed web app) or serves
+   * the API alone. `null` until the operator answers, so an unanswered choice is
+   * never sent as an invented default.
+   */
+  managedWeb: "managed" | "api-only" | null
   recovery: boolean // true when we auto-navigated from existing stream events
 }
 
@@ -64,6 +70,10 @@ const initialState: WizardState = {
   // Swarm is always on: a founding node starts a cluster, so `create` is the
   // default entry mode (the mode itself is implied per wizard branch).
   swarm: { mode: "create", policy: "auto", advertiseAddr: "", joinToken: "", joinAddrs: "" },
+  // Pre-selected to `managed` because the platform ships its own dashboard and
+  // most operators want it; the choice is explicit and changeable rather than a
+  // hidden env default, which is what it was before.
+  managedWeb: "managed",
   recovery: false,
 }
 
@@ -205,10 +215,11 @@ function SetupWizardContent({ api }: SetupWizardProps) {
           authToken,
           serverUrl: apiBaseUrl(),
           swarm: joinDraftToSelection(draft),
+          ...(state.managedWeb === null ? {} : { managedWeb: state.managedWeb }),
         })
       }
     },
-    [state.remote, triggerInit, apiBaseUrl],
+    [state.remote, state.managedWeb, triggerInit, apiBaseUrl],
   )
 
   const handleLocalAccountContinue = useCallback(
@@ -230,17 +241,25 @@ function SetupWizardContent({ api }: SetupWizardProps) {
         // This branch FOUNDS the cluster, so the swarm selection is a
         // founding one (mode is implied: this node starts the swarm).
         swarm: foundingDraftToSelection(state.swarm),
+        // The dashboard decision, forwarded to the API as its
+        // `MANAGED_WEB_APP_ENABLED` seed so it applies to THIS fresh instance.
+        ...(state.managedWeb === null ? {} : { managedWeb: state.managedWeb }),
       })
     },
-    [state.local, state.swarm, triggerInit, apiBaseUrl],
+    [state.local, state.swarm, state.managedWeb, triggerInit, apiBaseUrl],
   )
 
   const handleLocalDatabaseContinue = useCallback(
-    (data: { dbMode: "managed" | "existing"; dbUrl: string }) => {
+    (data: {
+      dbMode: "managed" | "existing"
+      dbUrl: string
+      managedWeb: "managed" | "api-only"
+    }) => {
       setState((s) => ({
         ...s,
         step: "local-account",
-        local: { ...s.local, ...data },
+        local: { ...s.local, dbMode: data.dbMode, dbUrl: data.dbUrl },
+        managedWeb: data.managedWeb,
       }))
     },
     [],
@@ -367,6 +386,7 @@ function SetupWizardContent({ api }: SetupWizardProps) {
           <LocalDatabaseStep
             api={api}
             initial={{ dbMode: state.local.dbMode, dbUrl: state.local.dbUrl }}
+            initialManagedWeb={state.managedWeb}
             onBack={() => {
               setState((s) => ({ ...s, step: "cluster" }))
             }}

@@ -24,6 +24,13 @@ export const setupStepIdSchema = z.enum([
     // Founds the cluster BEFORE provisioning: the locally-managed global
     // Postgres is a swarm service, so the engine must already be a cluster.
     "initialize_swarm",
+    // ── The two steps the SETUP APP drives, not the API ─────────────────────
+    // The API's stream cannot report these: it is the process being started.
+    // Setup emits them on the SAME stream and in the same event shape, so the
+    // wizard renders one continuous timeline. See
+    // `SetupOrchestrationStreamService` in apps/setup.
+    "start_api",
+    "await_api_boot",
     "provision_database",
     "ensure_empty",
     "run_migrations",
@@ -71,6 +78,32 @@ export type SetupStateSnapshot = z.infer<typeof setupStateSnapshotSchema>;
 
 // ─── Initialize input ─────────────────────────────────────────────────────────
 
+/**
+ * Deployment shape the operator picks during onboarding.
+ *
+ * ── WHY THIS IS A WIZARD CHOICE AND NOT AN ENV VAR ──────────────────────────
+ * It decides whether the platform runs its OWN dashboard (the managed web app,
+ * a swarm service the API spawns and supervises) or serves the API alone and
+ * leaves the frontend to whoever is deploying. That is a deployment-level
+ * decision the person running onboarding is the only one who can make, and it
+ * was previously reachable only by editing `MANAGED_WEB_APP_ENABLED` and
+ * restarting — i.e. decided before the operator ever saw the wizard.
+ *
+ * `api-only` is a legitimate target (headless/API-first installs), not a
+ * degraded mode, so neither value is a default-by-omission: the wizard asks.
+ *
+ * Persisted to `app_config` (`managed_web_app.enabled`), which WINS over the
+ * env seed on every later read — so this choice is durable and changeable from
+ * the platform console afterwards.
+ */
+export const setupManagedWebSelectionSchema = z.enum(["managed", "api-only"]);
+export type SetupManagedWebSelection = z.infer<typeof setupManagedWebSelectionSchema>;
+
+/** True when the platform should spawn and supervise its own dashboard. */
+export function managedWebEnabledFromSelection(selection: SetupManagedWebSelection): boolean {
+    return selection === "managed";
+}
+
 export const setupInitializeLocalInputSchema = z.object({
     strategy: z.literal("local"),
     name: z.string().min(1),
@@ -86,6 +119,12 @@ export const setupInitializeLocalInputSchema = z.object({
      * engine converges from — there is no env fallback.
      */
     swarm: swarmFoundingSelectionSchema.optional(),
+    /**
+     * Whether the platform runs its own dashboard. Optional so a caller that
+     * predates the choice (and every existing test) stays valid; absent means
+     * "leave the deployment-managed default alone".
+     */
+    managedWeb: setupManagedWebSelectionSchema.optional(),
 });
 export type SetupInitializeLocalInput = z.infer<typeof setupInitializeLocalInputSchema>;
 
@@ -99,6 +138,12 @@ export const setupInitializeRemoteInputSchema = z.object({
      * implied by joining (always "join"); the node never founds its own swarm.
      */
     swarm: swarmJoinSelectionSchema.optional(),
+    /**
+     * Whether THIS node runs a dashboard. A remote node joins an existing
+     * cluster, so the answer is usually `api-only` — the frontend already runs
+     * on the founding node — but it is a real choice, not an assumption.
+     */
+    managedWeb: setupManagedWebSelectionSchema.optional(),
 });
 export type SetupInitializeRemoteInput = z.infer<typeof setupInitializeRemoteInputSchema>;
 

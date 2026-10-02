@@ -4,6 +4,7 @@ import { platformOverlayForPrefix } from "@repo/nest-docker/services/docker-supe
 import { toDockerServiceSpec } from "@repo/nest-docker/services/swarm-spec.mapper";
 
 import { EnvService } from "@/config/env/env.module";
+import { SetupGateService } from "@/modules/wizard/setup-gate.service";
 import { DEFAULT_API_INTERNAL_PORT, type ApiBackend } from "../handover.types";
 
 /**
@@ -40,6 +41,7 @@ export class ApiServiceProvisioner {
   constructor(
     private readonly env: EnvService,
     private readonly docker: DockerService,
+    private readonly gate: SetupGateService,
   ) {}
 
   /**
@@ -341,6 +343,29 @@ export class ApiServiceProvisioner {
     env.push(`AUTH_SECRET=${authSecret}`);
     env.push(`BETTER_AUTH_SECRET=${authSecret}`);
 
+    // ── THE SHARED PARENT DOMAIN, WITHOUT WHICH THE WIZARD'S OWN SIGN-IN FAILS ─
+    // Better Auth validates the `Origin` header of every auth call. With a plain
+    // string `baseURL` (or only a couple of explicit origins) every OTHER host of
+    // the deployment is an invalid origin — including `setup.<domain>`, the host
+    // the wizard runs on. That surfaced as an `Invalid origin` error on the
+    // final "continue to dashboard" click.
+    //
+    // The API derives a wildcard from `AUTH_BASE_DOMAIN`
+    // (`*.deployer.localhost`), which is what makes every subdomain — api, web,
+    // doc AND setup — a valid origin from ONE source of truth. A swarm task
+    // inherits nothing from compose, so it has to be forwarded here or the API
+    // boots with no wildcard at all. Confirmed missing on a live task:
+    //
+    //   APP_URL=http://deployer-managed-web:3000
+    //   NEXT_PUBLIC_APP_URL=http://web.deployer.localhost
+    //   (no AUTH_BASE_DOMAIN)  →  setup.deployer.localhost not trusted
+    const baseDomain = this.authBaseDomain(prefix);
+    env.push(`AUTH_BASE_DOMAIN=${baseDomain}`);
+    // Belt and braces: the wildcard covers it, but naming the setup origin
+    // explicitly means the wizard's sign-in works even if a deployment sets its
+    // own narrower `AUTH_BASE_DOMAIN` that does not include the setup label.
+    env.push(`TRUSTED_ORIGINS=${this.publicOrigin("setup", prefix)}`);
+
     // The tags the API's supervisors build their service specs from.
     const imageVars = [
       "MANAGED_WEB_APP_IMAGE",
@@ -351,6 +376,21 @@ export class ApiServiceProvisioner {
     for (const name of imageVars) {
       const value = this.env.get(name);
       if (value !== undefined && value.length > 0) env.push(`${name}=${value}`);
+    }
+
+    // ── THE DASHBOARD DECISION THE OPERATOR MADE IN THE WIZARD ──────────────
+    // `MANAGED_WEB_APP_ENABLED` is the API's SEED for `managed_web_app.enabled`
+    // in `app_config` (the DB value wins on every later read). Forwarding the
+    // wizard's choice here is what makes "enable the managed web app" take
+    // effect on a FRESH instance: without it the API boots on its env default,
+    // and the operator's answer would be silently discarded.
+    //
+    // Only forwarded when the operator actually answered, so an unset choice
+    // keeps the deployment's own default rather than overriding it with a
+    // value nobody picked.
+    const managedWeb = this.gate.managedWebEnabled();
+    if (managedWeb !== null) {
+      env.push(`MANAGED_WEB_APP_ENABLED=${managedWeb ? "true" : "false"}`);
     }
 
     return env;
@@ -365,10 +405,31 @@ export class ApiServiceProvisioner {
    * hardcoded so a prefixed deployment does not silently advertise the default
    * host, which would break callbacks and CORS.
    */
-  private publicOrigin(host: "api" | "web", prefix: string): string {
+  private publicOrigin(host: "api" | "web" | "setup", prefix: string): string {
+    // The prefix is a MIDDLE SEGMENT: `api.acme.deployer.localhost`. The dot
+    // before it is required — `api.${prefix}deployer.localhost` produced
+    // `api.acmedeployer.localhost`, a host that resolves to nothing, and the
+    // API was handed that as `NEXT_PUBLIC_API_URL`.
     return prefix === ""
       ? `http://${host}.deployer.localhost`
-      : `http://${host}.${prefix}deployer.localhost`;
+      : `http://${host}.${prefix}.deployer.localhost`;
+  }
+
+  /**
+   * The leading-dot parent domain shared by every platform host.
+   *
+   * `.deployer.localhost`, or `.acme.deployer.localhost` on a prefixed install.
+   * The LEADING DOT is load-bearing: the API turns this into the wildcard
+   * `*.deployer.localhost`, which matches `setup.deployer.localhost` while
+   * REJECTING the bare `deployer.localhost` (a host this platform does not
+   * serve). Dropping it would let `*` match the empty label and admit it.
+   *
+   * Derived from `DEPLOYER_PREFIX` rather than read from the environment so it
+   * cannot disagree with the `api`/`web`/`setup` origins derived by
+   * `publicOrigin` — one scheme, one place.
+   */
+  private authBaseDomain(prefix: string): string {
+    return prefix === "" ? ".deployer.localhost" : `.${prefix}.deployer.localhost`;
   }
 
   /**

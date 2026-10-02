@@ -238,15 +238,22 @@ export class InitializationService implements OnModuleInit {
 
     /**
      * Start the initialization process in the background.
-     * Returns `{ accepted: true }` immediately. Live progress can be consumed
-     * via `getInitializeStream()`.
+     *
+     * Returns immediately. Live progress can be consumed via
+     * `getInitializeStream()`.
      *
      * If an initialization is already running, returns `{ accepted: false }`.
+     *
+     * `delivered` is always true here: this is the API's OWN service, so the
+     * trigger is by definition already in the process that provisions. It exists
+     * to keep the response shape identical to the SETUP app's proxy, where the
+     * trigger can be accepted while the API is not yet reachable (the handover
+     * delivers it later) — one contract, two implementers.
      */
-    triggerInitialize(input: SetupInitializeInput): { accepted: boolean } {
+    triggerInitialize(input: SetupInitializeInput): { accepted: boolean; delivered: boolean } {
         if (this.initializationPromise) {
             this.logger.warn('triggerInitialize called but initialization already in progress')
-            return { accepted: false }
+            return { accepted: false, delivered: true }
         }
 
         this.logger.log(`🚀 Starting initialization (strategy=${input.strategy})`)
@@ -269,7 +276,7 @@ export class InitializationService implements OnModuleInit {
                 this.initializationPromise = null
             })
 
-        return { accepted: true }
+        return { accepted: true, delivered: true }
     }
 
     /**

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useForm, useStore } from "@tanstack/react-form"
-import { ArrowLeft, ArrowRight, Database, Sparkles, Lock, Server, HardDrive } from "lucide-react"
+import { ArrowLeft, ArrowRight, Database, Sparkles, Lock, Server, HardDrive, Check } from "lucide-react"
 import { Button } from "@repo/ui/components/shadcn/button"
 import { Input } from "@repo/ui/components/shadcn/input"
 import { Label } from "@repo/ui/components/shadcn/label"
@@ -14,15 +14,25 @@ import type { SetupWizardApi } from "@repo/ui/components/setup/types"
 type Props = {
   api: SetupWizardApi
   initial: { dbMode: "managed" | "existing"; dbUrl: string }
+  /** The operator's dashboard choice, carried through this step. */
+  initialManagedWeb: "managed" | "api-only" | null
   onBack: () => void
-  onContinue: (data: { dbMode: "managed" | "existing"; dbUrl: string }) => void
+  onContinue: (data: {
+    dbMode: "managed" | "existing"
+    dbUrl: string
+    managedWeb: "managed" | "api-only"
+  }) => void
 }
 
-export function LocalDatabaseStep({ api, initial, onBack, onContinue }: Props) {
+export function LocalDatabaseStep({ api, initial, initialManagedWeb, onBack, onContinue }: Props) {
   const { useProbeDatabase, getErrorMessage } = api
   const [useExisting, setUseExisting] = useState(initial.dbMode === "existing")
   const [state, setState] = useState<ConnectionState>("idle")
   const [detail, setDetail] = useState<string | undefined>()
+  // Defaults to the platform's own dashboard: it ships with the platform and
+  // most operators want it. Pre-selecting it (rather than defaulting the VALUE
+  // server-side) keeps the decision visible and explicit.
+  const [managedWeb, setManagedWeb] = useState<"managed" | "api-only">(initialManagedWeb ?? "managed")
   const probeDb = useProbeDatabase()
   const probeDbRef = useRef(probeDb)
   probeDbRef.current = probeDb
@@ -205,6 +215,40 @@ export function LocalDatabaseStep({ api, initial, onBack, onContinue }: Props) {
         </div>
       </div>
 
+      {/*
+        Deployment shape. This decision used to be invisible during onboarding:
+        it lived in `MANAGED_WEB_APP_ENABLED` and was therefore made BEFORE the
+        operator ever saw the wizard, with no way to express it from the UI. It
+        is a real choice — a headless/API-first install is a legitimate target,
+        not a degraded mode — so it is asked here, alongside the database, and
+        forwarded to the API as its seed value.
+      */}
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-5">
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-semibold leading-tight">Dashboard</span>
+          <span className="text-xs text-muted-foreground leading-relaxed">
+            Whether this instance runs its own web dashboard, supervised by the platform, or serves
+            the API alone. You can change this later from the platform console.
+          </span>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <DashboardOption
+            icon={Sparkles}
+            title="Include the dashboard"
+            description="The platform spawns and supervises its own web app on this node."
+            selected={managedWeb === "managed"}
+            onClick={() => setManagedWeb("managed")}
+          />
+          <DashboardOption
+            icon={Server}
+            title="API only"
+            description="No dashboard on this node. Point your own frontend at the API."
+            selected={managedWeb === "api-only"}
+            onClick={() => setManagedWeb("api-only")}
+          />
+        </div>
+      </div>
+
       <div className="flex items-center gap-3">
         <Button type="button" variant="ghost" onClick={onBack} className="gap-2">
           <ArrowLeft className="h-4 w-4" />
@@ -214,7 +258,7 @@ export function LocalDatabaseStep({ api, initial, onBack, onContinue }: Props) {
           type="button"
           className="flex-1 gap-2"
           disabled={!canContinue || probeDb.isPending}
-          onClick={() => onContinue({ dbMode, dbUrl })}
+          onClick={() => onContinue({ dbMode, dbUrl, managedWeb })}
         >
           Continue
           <ArrowRight className="h-4 w-4" />
@@ -230,5 +274,55 @@ function FeatureLine({ icon: Icon, label }: { icon: typeof Database; label: stri
       <Icon className="h-3.5 w-3.5 shrink-0 text-primary/70" aria-hidden="true" />
       <span>{label}</span>
     </li>
+  )
+}
+
+/**
+ * One deployment-shape option.
+ *
+ * A `button` with `aria-pressed` rather than a radio: the two options are a
+ * single-choice pair rendered as cards, and `aria-pressed` states the selection
+ * without needing the group/radio landmark plumbing.
+ */
+function DashboardOption({
+  icon: Icon,
+  title,
+  description,
+  selected,
+  onClick,
+}: {
+  icon: typeof Database
+  title: string
+  description: string
+  selected: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      className={cn(
+        "flex items-start gap-3 rounded-lg border p-3.5 text-left transition-colors",
+        "hover:border-primary/40 hover:bg-muted/40",
+        selected ? "border-primary bg-primary/4" : "border-border bg-background/40",
+      )}
+    >
+      <div
+        className={cn(
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors",
+          selected ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
+        )}
+      >
+        <Icon className="h-4 w-4" aria-hidden="true" />
+      </div>
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <span className="flex items-center gap-1.5 text-sm font-medium leading-tight">
+          {title}
+          {selected ? <Check className="h-3.5 w-3.5 text-primary" aria-hidden="true" /> : null}
+        </span>
+        <span className="text-xs text-muted-foreground leading-relaxed">{description}</span>
+      </div>
+    </button>
   )
 }

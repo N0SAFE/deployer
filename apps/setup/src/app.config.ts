@@ -120,5 +120,5 @@ export function setupPublicUrl(): string {
   const prefix = setupEnv.DEPLOYER_PREFIX;
   return prefix === ""
     ? "setup.deployer.localhost"
-    : `setup.${prefix}deployer.localhost`;
+    : `setup.${prefix}.deployer.localhost`;
 }

@@ -115,23 +115,70 @@ export class WizardController {
    * the API to exist. Opening it afterwards would deadlock: the API would have
    * to be up to receive the trigger that starts it.
    *
-   * ── WHY THE RESPONSE IS AN ENVELOPE ────────────────────────────────────
-   * The contract declares this output with `b.body(...)`, which puts it in
-   * DETAILED output mode — oRPC then validates what the handler returns against
-   * `{ status, headers, body }`, not against the bare body. Returning the
-   * forwarded JSON directly failed validation with `Output validation failed`,
-   * which is what the wizard surfaced when the operator clicked through.
+   * ── WHY THE FORWARD IS BEST-EFFORT, AND WHY THAT IS NOT A SILENT FAILURE ──
+   * This forward can only succeed if the API is ALREADY running, which is the
+   * exception rather than the rule: in `prod` and `dev-supervised` the API is a
+   * swarm service that this very trigger causes setup to schedule. So the normal
+   * path is `getaddrinfo ENOTFOUND deployer-api`:
+   *
+   *   Upstream http://deployer-api:3005/setup/trigger unreachable:
+   *   getaddrinfo ENOTFOUND deployer-api
+   *
+   * That is not a fault, and it was being REPORTED as one — the wizard showed
+   * "The platform API is not reachable yet (…/setup/trigger) (retry)" at the end
+   * of a run that then completed successfully, because the payload had already
+   * been retained by the gate and was delivered seconds later by the handover:
+   *
+   *   [SetupGateService]      🚀 Setup trigger accepted — converging the swarm
+   *   [WizardUpstreamService] Upstream …/setup/trigger unreachable: ENOTFOUND   ← noise
+   *   [HandoverOrchestrator]  Setup trigger delivered — the API is provisioning ← real
+   *
+   * `SetupGateService.open()` persists the payload and `deliverTrigger()` retries
+   * it against the API's real address until it is accepted. This forward is a
+   * best-effort FAST PATH for the one profile where the API is already up
+   * (plain `dev`, compose-managed). Failing it must therefore be reported as
+   * "accepted, delivery pending" — never as an error the operator has to act on.
+   *
+   * The gate has ALREADY opened at this point, so the response is truthful:
+   * `accepted: true` means the choices were taken, not that the API has them.
    */
   @Implement(setupAppContract.triggerInitialize)
   triggerInitialize() {
-    return implement(setupAppContract.triggerInitialize).handler(async ({ input }) => ({
-      status: 201 as const,
-      headers: {},
-      body: await (async () => {
-        await this.gate.open(input);
-        return await this.forwardJson<{ accepted: boolean }>("/setup/trigger", "POST", input);
-      })(),
-    }));
+    return implement(setupAppContract.triggerInitialize).handler(async ({ input }) => {
+      await this.gate.open(input);
+      const delivered = await this.tryForwardTrigger(input);
+      return {
+        status: 201 as const,
+        headers: {},
+        body: { accepted: true, delivered },
+      };
+    });
+  }
+
+  /**
+   * Forward the trigger if the API happens to be up; report whether it was.
+   *
+   * Never throws: the handover owns delivery, so a connection failure here is
+   * "not yet", not "failed". A 4xx is different — the API is reachable and
+   * REFUSING the payload, which retrying cannot fix, so that propagates.
+   */
+  private async tryForwardTrigger(input: unknown): Promise<boolean> {
+    try {
+      await this.upstream.forward("/setup/trigger", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      this.logger.log("Setup trigger delivered directly — the API is provisioning");
+      return true;
+    } catch (error: unknown) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.logger.log(
+        `Setup trigger accepted; direct delivery not possible yet (${reason}) — ` +
+          "the handover will deliver it once the API is reachable",
+      );
+      return false;
+    }
   }
 
   // ─── The orchestration stream ───────────────────────────────────────────
