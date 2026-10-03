@@ -14,7 +14,7 @@
  *      accessor (waits for self-registration) and `getSupervisorById`.
  */
 
-import { Inject, Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
+import { Inject, Injectable, Logger, type OnApplicationBootstrap, type OnModuleDestroy } from "@nestjs/common";
 import z from "zod/v4";
 import { filter } from "rxjs/operators";
 import type { Subscription } from "rxjs";
@@ -35,7 +35,35 @@ export type AnySupervisor = BaseSupervisorService<z.ZodType, z.ZodType>;
 const DEFAULT_REGISTRATION_WAIT_MS = 10_000;
 
 @Injectable()
-export class SupervisorOrchestratorService implements OnApplicationBootstrap {
+export class SupervisorOrchestratorService implements OnApplicationBootstrap, OnModuleDestroy {
+	/**
+	 * How often to re-attempt supervisors that are DEGRADED.
+	 *
+	 * ── WHY THIS EXISTS (observed, not theoretical) ─────────────────────────────
+	 * `ensureAll()` runs ONCE at bootstrap. That is wrong for this platform for a
+	 * structural reason: the API starts BEFORE setup has provisioned the database
+	 * — the API existing early is what lets setup hand over to it. So every
+	 * supervisor that touches the DB races the schema and can lose:
+	 *
+	 *   [ManagedWebSupervisorService] Convergence failed:
+	 *     insert into "app_config" ... on conflict ("key") do update ...
+	 *   [SupervisorOrchestrator] ⚠️ "platform-managed-web" DEGRADED after boot
+	 *
+	 * ...at 09:02:22, against a schema that finished migrating at 09:02:27. Five
+	 * seconds. Nothing ever retried it, so the supervisor stayed degraded forever,
+	 * `/health/ready` stayed RED, and setup — which waits for readiness before
+	 * releasing the entry port — never handed over. The operator saw three
+	 * services instead of five, and an ingress that never became swarm-managed.
+	 *
+	 * The retry is what makes that five-second race survivable instead of fatal.
+	 *
+	 * Only DEGRADED supervisors are retried: `pending` already has its own
+	 * recovery path (its blocker is re-evaluated on every call) and `converged`
+	 * needs nothing. A supervisor that is genuinely broken simply stays degraded
+	 * and keeps reporting itself in health — the cadence never masks a real fault.
+	 */
+	private static readonly DEGRADED_RETRY_INTERVAL_MS = 15_000;
+
 	/**
 	 * Event bus driving the registration wait of `getSupervisor`. Supervisors
 	 * emit `registered` from their own onModuleInit — the async accessor
@@ -46,6 +74,10 @@ export class SupervisorOrchestratorService implements OnApplicationBootstrap {
 
 	private readonly logger = new Logger(SupervisorOrchestratorService.name);
 	private readonly supervisors: Map<string, AnySupervisor>;
+
+	/** Chained-timer handle for the degraded retry cadence. */
+	private retryTimer: ReturnType<typeof setTimeout> | null = null;
+	private disposed = false;
 
 	/**
 	 * Nest DI (`SupervisorsModule`) passes the PROCESS-WIDE registry so every
@@ -241,6 +273,69 @@ export class SupervisorOrchestratorService implements OnApplicationBootstrap {
 			// NOTE: a degraded supervisor NEVER stops the application. It is
 			// surfaced through health snapshots + `health-snapshot` events so
 			// the web app can warn the operator and guide remediation.
+			this.scheduleDegradedRetry();
 		});
+	}
+
+	onModuleDestroy(): void {
+		this.disposed = true;
+		if (this.retryTimer !== null) {
+			clearTimeout(this.retryTimer);
+			this.retryTimer = null;
+		}
+	}
+
+	/**
+	 * Keep re-attempting degraded supervisors until none are left.
+	 *
+	 * Chained timeouts rather than `setInterval`, so a slow convergence can never
+	 * stack passes — the same pattern the swarm app-wiring supervisor uses. Stops
+	 * scheduling once nothing is degraded, and restarts whenever a NEW degradation
+	 * appears, so a later failure is retried too rather than only boot-time ones.
+	 */
+	private scheduleDegradedRetry(): void {
+		if (this.disposed || this.retryTimer !== null) return;
+
+		this.retryTimer = setTimeout(() => {
+			this.retryTimer = null;
+			void this.retryDegraded()
+				.catch((error: unknown) => {
+					this.logger.warn(
+						`Degraded-supervisor retry failed: ${error instanceof Error ? error.message : String(error)}`,
+					);
+				})
+				.finally(() => {
+					this.scheduleDegradedRetry();
+				});
+		}, SupervisorOrchestratorService.DEGRADED_RETRY_INTERVAL_MS);
+	}
+
+	/**
+	 * One retry pass over the degraded supervisors. Returns the ids that recovered.
+	 *
+	 * Fault-isolated per supervisor: one that fails again must not stop the others
+	 * from being retried in the same pass.
+	 */
+	private async retryDegraded(): Promise<string[]> {
+		const degraded = this.degraded();
+		if (degraded.length === 0) return [];
+
+		const recovered: string[] = [];
+		await Promise.all(
+			degraded.map(async (supervisor) => {
+				try {
+					const state = await supervisor.ensureDesiredState();
+					if (state === "converged") {
+						recovered.push(supervisor.supervisorId);
+						this.logger.log(`✅ Supervisor "${supervisor.supervisorId}" recovered on retry`);
+					}
+				} catch (error: unknown) {
+					this.logger.warn(
+						`Retry for "${supervisor.supervisorId}" threw: ${error instanceof Error ? error.message : String(error)}`,
+					);
+				}
+			}),
+		);
+		return recovered;
 	}
 }

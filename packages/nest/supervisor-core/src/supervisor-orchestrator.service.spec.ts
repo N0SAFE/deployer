@@ -239,3 +239,92 @@ describe("SupervisorOrchestratorService", () => {
 		});
 	});
 });
+/**
+ * A DEGRADED supervisor used to be permanent: `ensureAll()` ran once at
+ * bootstrap and nothing retried. That is fatal here for a structural reason —
+ * the API starts before setup provisions the database, so a DB-touching
+ * supervisor can lose the race by seconds and then stay degraded forever:
+ *
+ *   [ManagedWebSupervisor] Convergence failed: insert into "app_config" ...
+ *   (09:02:22, against a schema that finished migrating at 09:02:27)
+ *
+ * The consequence was not cosmetic: `/health/ready` stayed red, and setup waits
+ * for readiness before releasing the entry port — so the handover never ran and
+ * traefik was never promoted to a swarm service.
+ */
+describe("SupervisorOrchestratorService degraded retry", () => {
+	it("recovers a supervisor whose failure was transient", async () => {
+		vi.useFakeTimers();
+		try {
+			const orchestrator = new SupervisorOrchestratorService();
+			const failing = new FakeSupervisor("transient", new Error("relation does not exist"));
+			(orchestrator as unknown as { supervisors: Map<string, FakeSupervisor> }).supervisors.set(
+				"transient",
+				failing,
+			);
+
+			// Boot: fails, so it goes DEGRADED.
+			await failing.ensureDesiredState();
+			expect(failing.getStateSnapshot().state).toBe("degraded");
+			expect(failing.reconcileCalls).toBe(1);
+
+			// The precondition now exists (schema migrated) — the retry must
+			// succeed where boot failed.
+			(failing as unknown as { reconcileError?: Error }).reconcileError = undefined;
+			await (orchestrator as unknown as { retryDegraded(): Promise<string[]> }).retryDegraded();
+
+			expect(failing.getStateSnapshot().state).toBe("converged");
+			expect(failing.reconcileCalls).toBe(2);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("does NOT retry a converged supervisor", async () => {
+		const orchestrator = new SupervisorOrchestratorService();
+		const healthy = new FakeSupervisor("fine");
+		(orchestrator as unknown as { supervisors: Map<string, FakeSupervisor> }).supervisors.set("fine", healthy);
+
+		await healthy.ensureDesiredState();
+		expect(healthy.reconcileCalls).toBe(1);
+
+		const recovered = await (orchestrator as unknown as { retryDegraded(): Promise<string[]> }).retryDegraded();
+
+		// Nothing degraded means nothing to retry — the cadence is not a poll.
+		expect(recovered).toEqual([]);
+		expect(healthy.reconcileCalls).toBe(1);
+	});
+
+	it("keeps a genuinely broken supervisor degraded instead of masking it", async () => {
+		const orchestrator = new SupervisorOrchestratorService();
+		const broken = new FakeSupervisor("broken", new Error("engine refused"));
+		(orchestrator as unknown as { supervisors: Map<string, FakeSupervisor> }).supervisors.set("broken", broken);
+
+		await broken.ensureDesiredState();
+		const recovered = await (orchestrator as unknown as { retryDegraded(): Promise<string[]> }).retryDegraded();
+
+		// Still degraded, and NOT reported as recovered — a real fault must keep
+		// surfacing through health.
+		expect(recovered).toEqual([]);
+		expect(broken.getStateSnapshot().state).toBe("degraded");
+	});
+
+	it("isolates one failing retry from the others in the same pass", async () => {
+		const orchestrator = new SupervisorOrchestratorService();
+		const broken = new FakeSupervisor("broken", new Error("still broken"));
+		const fixable = new FakeSupervisor("fixable", new Error("transient"));
+		const registry = (orchestrator as unknown as { supervisors: Map<string, FakeSupervisor> }).supervisors;
+		registry.set("broken", broken);
+		registry.set("fixable", fixable);
+
+		await broken.ensureDesiredState();
+		await fixable.ensureDesiredState();
+		(fixable as unknown as { reconcileError?: Error }).reconcileError = undefined;
+
+		const recovered = await (orchestrator as unknown as { retryDegraded(): Promise<string[]> }).retryDegraded();
+
+		expect(recovered).toEqual(["fixable"]);
+		expect(fixable.getStateSnapshot().state).toBe("converged");
+		expect(broken.getStateSnapshot().state).toBe("degraded");
+	});
+});

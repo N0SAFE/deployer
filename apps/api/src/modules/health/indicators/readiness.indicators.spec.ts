@@ -200,3 +200,69 @@ describe("ReadinessIndicators — mesh", () => {
     });
   });
 });
+
+/**
+ * The API boots BEFORE setup provisions the database — the API existing early is
+ * what lets setup hand over to it. So a DB-touching supervisor can lose that race
+ * by seconds, and counting it as a readiness failure deadlocked onboarding:
+ * setup waits for `/health/ready` before releasing the entry port, readiness was
+ * red because of the race, so the port was never released and traefik was never
+ * promoted to a swarm service. The operator saw 3 services instead of 5.
+ */
+describe("services — the provisioning race is not a fault", () => {
+  it("reports UP when a supervisor failed only because the schema was not ready", () => {
+    const result = makeIndicators({
+      supervisors: [
+        supervisor("platform-managed-web", false, {
+          detail: 'Failed query: insert into "app_config" ("key", "value", ...) on conflict ("key") do update set "value" = $4',
+        }),
+      ],
+    }).services();
+
+    // UP, not down: nothing is broken, the supervisor simply ran before the
+    // schema existed. It is listed as awaiting provisioning instead.
+    expect(result.services).toMatchObject({ status: "up" });
+    expect(result.services).toMatchObject({
+      deferred: [{ supervisor: "platform-managed-web" }],
+    });
+  });
+
+  it("also exempts a missing relation, which is the same race", () => {
+    const result = makeIndicators({
+      supervisors: [
+        supervisor("platform-managed-web", false, {
+          detail: 'relation "app_config" does not exist',
+        }),
+      ],
+    }).services();
+
+    expect(result.services).toMatchObject({ status: "up" });
+  });
+
+  it("STILL fails when the database is genuinely unreachable", () => {
+    // A connection refusal must not be swallowed by the race exemption —
+    // otherwise a real outage would report the platform as ready.
+    const result = makeIndicators({
+      supervisors: [
+        supervisor("platform-redis", false, {
+          detail: "connect ECONNREFUSED 10.0.1.8:6379",
+        }),
+      ],
+    }).services();
+
+    expect(result.services).toMatchObject({ status: "down" });
+    expect(downReason(result.services)).toContain("not healthy");
+  });
+
+  it("STILL fails for an unrelated degradation with no DB error", () => {
+    const result = makeIndicators({
+      supervisors: [
+        supervisor("platform-managed-web", false, {
+          detail: "service missing while flag enabled",
+        }),
+      ],
+    }).services();
+
+    expect(result.services).toMatchObject({ status: "down" });
+  });
+});

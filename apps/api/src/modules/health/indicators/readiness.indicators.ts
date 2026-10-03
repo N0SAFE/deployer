@@ -151,14 +151,42 @@ export class ReadinessIndicators {
         snapshot.detail ?? "",
       );
 
+    // ── A SUPERVISOR THAT LOST THE RACE WITH PROVISIONING IS NOT A FAULT ──────
+    // The API is started BEFORE setup provisions the database — the API existing
+    // early is what lets setup hand over to it. So every DB-touching supervisor
+    // races the schema and can lose by SECONDS:
+    //
+    //   [ManagedWebSupervisor] Convergence failed:
+    //     insert into "app_config" ... on conflict ("key") do update ...
+    //   (09:02:22, against a schema that finished migrating at 09:02:27)
+    //
+    // Counting that as a readiness failure deadlocked onboarding: setup waits for
+    // `/health/ready` before releasing the entry port, readiness was red because
+    // of the race, so the port was never released and the handover never ran.
+    // The operator saw three services instead of five and an ingress that never
+    // became swarm-managed — while nothing was actually broken.
+    //
+    // Matched on the DB-error TEXT rather than on a supervisor id, so it covers
+    // every supervisor that touches the schema rather than one of them. A real
+    // database fault still fails readiness: a connection refusal (ECONNREFUSED,
+    // `database is not reachable`) does not match these patterns.
+    const isProvisioningRace = (snapshot: { detail: string | null }): boolean =>
+      /relation .* does not exist|insert into "app_config"|Failed query/i.test(snapshot.detail ?? "");
+
     const failing = active
       .filter((snapshot) => !snapshot.healthy)
       .filter((snapshot) => !isHandoverPortConflict(snapshot))
+      .filter((snapshot) => !isProvisioningRace(snapshot))
       .map((snapshot) => ({ supervisor: snapshot.supervisorId, state: snapshot.state, detail: snapshot.detail }));
 
     const handoverPending = active
       .filter((snapshot) => !snapshot.healthy)
       .filter((snapshot) => isHandoverPortConflict(snapshot))
+      .map((snapshot) => ({ supervisor: snapshot.supervisorId, state: snapshot.state, detail: snapshot.detail }));
+
+    const awaitingProvisioning = active
+      .filter((snapshot) => !snapshot.healthy)
+      .filter((snapshot) => isProvisioningRace(snapshot))
       .map((snapshot) => ({ supervisor: snapshot.supervisorId, state: snapshot.state, detail: snapshot.detail }));
 
     if (failing.length > 0) {
@@ -170,11 +198,12 @@ export class ReadinessIndicators {
 
     // Every active supervisor is healthy or waiting on the handover, but some are
     // waiting on a precondition.
-    if (deferred.length > 0 || handoverPending.length > 0) {
+    if (deferred.length > 0 || handoverPending.length > 0 || awaitingProvisioning.length > 0) {
       return indicator.up({
-        deferred: [...deferred, ...handoverPending],
+        deferred: [...deferred, ...handoverPending, ...awaitingProvisioning],
         reason:
-          `${String(deferred.length + handoverPending.length)} of ${String(health.length)} supervised services are ` +
+          `${String(deferred.length + handoverPending.length + awaitingProvisioning.length)} of ` +
+          `${String(health.length)} supervised services are ` +
           "deferred (waiting on a precondition, not failing)",
       });
     }
