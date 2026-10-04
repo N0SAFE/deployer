@@ -1,66 +1,90 @@
 import { authClient } from '../../auth'
-import { parseCookie } from 'next/dist/compiled/@edge-runtime/cookies'
 import { StandardLinkOptions, StandardLinkPlugin } from '@orpc/client/standard'
+import type { ClientContext } from '@orpc/client'
 import { hasMasterTokenPlugin } from '@repo/auth/client'
 
 /**
- * Master Token Plugin for ORPC Client
- * 
- * This plugin adds Authorization headers for development authentication using the master token.
- * It handles both client-side (browser) and server-side (SSR) scenarios.
- * 
- * In development mode, when the master token is enabled:
- * - Client-side: Checks if MasterTokenManager.state is active and adds Bearer token
- * - Server-side: Checks for 'master-token-enabled' cookie and adds Bearer token
- * 
+ * Devtools auth plugin for the ORPC client.
+ *
+ * Attaches a Bearer header when the devtools "Dev Auth" toggle is on, so the
+ * dashboard can act as an impersonated user without a full sign-in.
+ *
+ * The token is a **scoped API key** minted through the session the developer
+ * already has (`authClient.apiKey.create`), cached in `sessionStorage`.
+ *
+ * It is deliberately NOT `NEXT_PUBLIC_DEV_AUTH_KEY` any more. That variable held
+ * the API's master token — a platform-wide super-admin credential — and being
+ * `NEXT_PUBLIC_*` it was inlined into the client bundle at build time, so it
+ * shipped to every browser that loaded the app. A minted key is scoped,
+ * expiring, revocable, and never exposes a server secret.
+ *
  * @template TContext - The base context type
  */
-export class MasterTokenPlugin<T extends never> implements StandardLinkPlugin<T> {
-  init(link: StandardLinkOptions<T>): void {
-    link.clientInterceptors ??= []
+export class MasterTokenPlugin<T extends ClientContext> implements StandardLinkPlugin<T> {
+  /** Unique plugin name — oRPC v2 requires it for ordering identification. */
+  public readonly name = 'master-token'
 
-    link.clientInterceptors.push(async (options) => {
-      // Only run in development mode
+  init(link: StandardLinkOptions<T>): StandardLinkOptions<T> {
+    const transportInterceptors = link.transportInterceptors ?? []
+
+    return {
+      ...link,
+      transportInterceptors: [
+        ...transportInterceptors,
+        async (options) => {
+      // Only in development — matches the server plugin's own gating.
       if (process.env.NODE_ENV !== 'development') {
-        return options.next(options)
+        return options.next?.(options)
       }
 
-      // Only proceed if authClient has master token plugin
+      // ── SERVER-SIDE RENDERS NEVER CARRY A DEVTOOLS KEY ────────────────────────
+      // The key lives in `sessionStorage`, which does not exist on the server, so
+      // there is nothing to attach — but the READ itself is the problem: it lives
+      // in a `'use client'` module, and importing/calling it during a server render
+      // throws a client-boundary error that has nothing to do with auth:
+      //
+      //   Error fetching API health: Attempted to call readDevtoolsApiKey() from
+      //   the server but readDevtoolsApiKey is on the client. It's not possible to
+      //   invoke a client function from the server…
+      //
+      // That surfaced through the web app's OWN health route, which calls this
+      // client server-side and reported `api: unavailable` with HTTP 503 on a
+      // fully healthy stack — making the indicator useless.
+      //
+      // The guard is on `window` rather than only inside the reader because the
+      // throw comes from the BUNDLER/loader boundary, before the reader's own
+      // `typeof window` check can run.
+      if (typeof window === 'undefined') {
+        return options.next?.(options)
+      }
+
+      // Only proceed if the auth client carries the devtools plugin.
       if (!hasMasterTokenPlugin(authClient)) {
-        return options.next(options)
+        return options.next?.(options)
       }
 
-      const headers = options.request.headers
-
-      if (typeof window !== 'undefined') {
-        // Client-side: Check if master token is enabled
-        const authClientModule = await import('../../auth').then((m) => m.authClient)
-        
-        if (hasMasterTokenPlugin(authClientModule) && authClientModule.MasterTokenManager.state) {
-          const devAuthKey = process.env.NEXT_PUBLIC_DEV_AUTH_KEY
-
-          if (devAuthKey) {
-            headers.Authorization = `Bearer ${devAuthKey}`
-          }
-        }
-      } else {
-        // Server-side: Check for master-token-enabled cookie
-        const cookieHeader = Array.isArray(headers.cookie)
-          ? headers.cookie.join('; ')
-          : headers.cookie ?? ''
-        
-        const cookies = parseCookie(cookieHeader)
-        
-        if (cookies.get('master-token-enabled')) {
-          const devAuthKey = process.env.NEXT_PUBLIC_DEV_AUTH_KEY
-
-          if (devAuthKey) {
-            headers.Authorization = `Bearer ${devAuthKey}`
-          }
-        }
+      // Single source of truth for the token, shared with the devtools panel.
+      // Returns null unless the toggle is on AND a key has been minted, so a
+      // disabled or un-minted devtools session leaves requests untouched.
+      //
+      // Imported LAZILY so a server render never evaluates the `'use client'`
+      // module graph this lives in.
+      const { readDevtoolsApiKey } = await import('@/components/devtools/use-devtools-api-key')
+      const token = readDevtoolsApiKey()
+      if (!token) {
+        return options.next?.(options)
       }
 
-      return options.next(options)
-    })
+      // `request.headers` is a plain object on the ORPC link (see
+      // cookie-headers-plugin.ts), not a `Headers` instance — assign directly.
+      options.request.headers = {
+        ...options.request.headers,
+        Authorization: `Bearer ${token}`,
+      }
+
+      return options.next?.(options)
+        },
+      ],
+    }
   }
 }

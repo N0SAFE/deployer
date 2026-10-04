@@ -201,7 +201,7 @@ export class ManagedWebSupervisorService extends BaseDockerSupervisorService<
 		// (`schema-codecs.ts`), so this cannot silently weaken prod.
 		const authSecret = this.env.get("AUTH_SECRET") ?? "fallback-auth-secret";
 		return [
-			`API_URL=${apiOrigin}`,
+			`API_URL=${this.apiInternalUrl()}`,
 			`NEXT_PUBLIC_API_URL=${apiOrigin}`,
 			`NEXT_PUBLIC_APP_URL=${webOrigin}`,
 			`AUTH_SECRET=${authSecret}`,
@@ -212,6 +212,36 @@ export class ManagedWebSupervisorService extends BaseDockerSupervisorService<
 			// and failed its boot-time app-instance registration.
 			`APP_INSTANCE_TOKEN=${minted.appToken}`,
 		];
+	}
+
+	/**
+	 * The API's PRIVATE address, for the web app's server-side calls.
+	 *
+	 * ── WHY THIS IS NOT THE PUBLIC ORIGIN ───────────────────────────────────
+	 * The two API variables are not interchangeable, and the web app already
+	 * distinguishes them (`apps/web/src/lib/api-url.ts`):
+	 *
+	 *   NEXT_PUBLIC_API_URL  BROWSER  the public endpoint the operator reaches
+	 *   API_URL              SERVER   the private Docker-network endpoint
+	 *
+	 * `API_URL` was being set to the public origin, so every SERVER-side call from
+	 * the web app failed. The public hostname does not resolve inside a container
+	 * at all — measured on the managed web task:
+	 *
+	 *   getent hosts api.deployer.localhost   -> (nothing)
+	 *   getent hosts deployer-api             -> 10.0.1.4
+	 *
+	 * The visible symptom was the web app's own health route reporting
+	 * `api: unavailable / Unable to connect` and answering 503 on a stack where the
+	 * API was perfectly reachable on the overlay. It was NOT limited to health:
+	 * any server-rendered page or route handler that talks to the API was broken.
+	 */
+	private apiInternalUrl(): string {
+		const prefix = this.env.get("DEPLOYER_PREFIX");
+		const name = prefix === "" ? "deployer-api" : `deployer-api-${prefix}`;
+		// Traefik fronts this in-network too, but dialling the API directly skips a
+		// hop the web app does not need — the service name is the address.
+		return `http://${name}:${String(this.env.get("API_PORT"))}`;
 	}
 
 	protected async probe(): Promise<SupervisorProbeResult<typeof managedWebSupervisorPayloadSchema>> {
@@ -288,6 +318,27 @@ export class ManagedWebSupervisorService extends BaseDockerSupervisorService<
 
 	/** How long to wait for the ingress to answer the web hostname. */
 	private static readonly REACHABILITY_TIMEOUT_MS = 3_000;
+
+	/**
+	 * The web app's own health route.
+	 *
+	 * ── WHY THE HEALTH ROUTE AND NOT `/` ─────────────────────────────────────
+	 * `/` proves the ROUTER matched; it does not prove the app WORKS. A Next.js
+	 * app answers plenty of 2xx/3xx while its server-side data layer is broken, and
+	 * the dashboard's first paint depends on exactly that layer. The health route
+	 * is the app's own verdict on itself, and it already returns a status code the
+	 * platform can trust:
+	 *
+	 *   200  the web render is up AND its API dependency is reachable
+	 *   503  the web is up but it cannot reach the API
+	 *
+	 * So probing it means the supervisor's "healthy" is the WEB's own answer about
+	 * the full serving path, rather than this supervisor's inference from a status
+	 * code that any static asset would also produce.
+	 *
+	 * Kept in sync with the route by a test: `apps/web/src/app/api/server/health`.
+	 */
+	private static readonly HEALTH_PATH = "/api/server/health";
 
 	/**
 	 * The last routing observation, so `collectWarnings` can report it.
@@ -419,7 +470,7 @@ export class ManagedWebSupervisorService extends BaseDockerSupervisorService<
 				{
 					hostname: ingress,
 					port,
-					path: "/",
+					path: ManagedWebSupervisorService.HEALTH_PATH,
 					method: "GET",
 					headers: { host: hostname },
 				},
@@ -444,14 +495,24 @@ export class ManagedWebSupervisorService extends BaseDockerSupervisorService<
 						return;
 					}
 
-					// A 5xx means the route EXISTS and its backend is broken. No amount of
-					// waiting fixes that, so it is the one non-routing outcome that fails
-					// readiness outright.
+					// A 5xx means the route EXISTS and the app answered — but answered
+					// that it is not serving. For the health route that is a real verdict
+					// (`503` = "my API dependency is unreachable"), and it is STILL not
+					// fatal here, for the same reason a missing route is not: the web app
+					// reaches the API over the overlay, and during onboarding that path is
+					// being assembled — the API is provisioning, the route may be seconds
+					// old. Failing readiness on it would deadlock the handover that fixes
+					// it (setup waits for ready before releasing the entry port).
+					//
+					// So it is reported as a warning too. The ENFORCEMENT lives in setup's
+					// handover, which waits for the dashboard before declaring success —
+					// after the port release, so it cannot deadlock. Here the job is to
+					// OBSERVE and report, not to gate.
 					if (status >= 500) {
 						finish({
 							reachable: false,
-							reason: `${hostname} is routed but its backend answered ${String(status)}`,
-							fatal: true,
+							reason: `the web health route answered ${String(status)} — the app is up but not serving (it reports its own API dependency as unreachable)`,
+							fatal: false,
 						});
 						return;
 					}

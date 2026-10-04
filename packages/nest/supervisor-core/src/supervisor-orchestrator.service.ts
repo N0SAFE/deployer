@@ -65,6 +65,14 @@ export class SupervisorOrchestratorService implements OnApplicationBootstrap, On
 	private static readonly DEGRADED_RETRY_INTERVAL_MS = 15_000;
 
 	/**
+	 * Cadence of the full reconcile sweep — see `scheduleReconcileSweep`.
+	 *
+	 * Slower than the degraded retry because it re-runs EVERY supervisor, including
+	 * the ones already reporting `converged`.
+	 */
+	private static readonly RECONCILE_SWEEP_INTERVAL_MS = 60_000;
+
+	/**
 	 * Event bus driving the registration wait of `getSupervisor`. Supervisors
 	 * emit `registered` from their own onModuleInit — the async accessor
 	 * re-checks the registry on every such event until its timeout.
@@ -77,7 +85,8 @@ export class SupervisorOrchestratorService implements OnApplicationBootstrap, On
 
 	/** Chained-timer handle for the degraded retry cadence. */
 	private retryTimer: ReturnType<typeof setTimeout> | null = null;
-	private disposed = false;
+	/** Full reconcile sweep timer — see `scheduleReconcileSweep`. */
+	private sweepTimer: ReturnType<typeof setTimeout> | null = null;	private disposed = false;
 
 	/**
 	 * Nest DI (`SupervisorsModule`) passes the PROCESS-WIDE registry so every
@@ -274,6 +283,7 @@ export class SupervisorOrchestratorService implements OnApplicationBootstrap, On
 			// surfaced through health snapshots + `health-snapshot` events so
 			// the web app can warn the operator and guide remediation.
 			this.scheduleDegradedRetry();
+			this.scheduleReconcileSweep();
 		});
 	}
 
@@ -283,6 +293,51 @@ export class SupervisorOrchestratorService implements OnApplicationBootstrap, On
 			clearTimeout(this.retryTimer);
 			this.retryTimer = null;
 		}
+		if (this.sweepTimer !== null) {
+			clearTimeout(this.sweepTimer);
+			this.sweepTimer = null;
+		}
+	}
+
+	/**
+	 * Re-run EVERY supervisor on a slow cadence, so drift is corrected.
+	 *
+	 * ── WHY `converged` IS NOT THE SAME AS "NOTHING TO DO" ────────────────────
+	 * The degraded-retry loop above only re-attempts supervisors that REPORTED a
+	 * failure. That leaves a real gap: a supervisor whose resource disappears
+	 * WITHOUT it being notified keeps reporting `converged` forever, because its
+	 * last convergence genuinely succeeded — the world changed afterwards.
+	 *
+	 * Observed directly while verifying this platform:
+	 *
+	 *   docker service rm deployer-managed-web      # out-of-band removal
+	 *   ... supervisor state stayed `converged`, the service was NEVER recreated
+	 *   ... zero retry log lines, because nothing was `degraded`
+	 *
+	 * The same applies to anything that deletes a supervised resource behind the
+	 * platform's back, and to a node that loses one to an engine restart. The
+	 * supervisor cannot be expected to detect that on its own — `reconcile()` is
+	 * documented as idempotent precisely so it CAN be re-run.
+	 *
+	 * Chained timeouts, so a slow sweep cannot stack passes. The cadence is
+	 * deliberately slow (a minute): this is drift correction, not liveness, and
+	 * `reconcile()` on an already-correct resource is a cheap no-op.
+	 */
+	private scheduleReconcileSweep(): void {
+		if (this.disposed || this.sweepTimer !== null) return;
+
+		this.sweepTimer = setTimeout(() => {
+			this.sweepTimer = null;
+			void this.ensureAll()
+				.catch((error: unknown) => {
+					this.logger.warn(
+						`Reconcile sweep failed: ${error instanceof Error ? error.message : String(error)}`,
+					);
+				})
+				.finally(() => {
+					this.scheduleReconcileSweep();
+				});
+		}, SupervisorOrchestratorService.RECONCILE_SWEEP_INTERVAL_MS);
 	}
 
 	/**
