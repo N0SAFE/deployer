@@ -48,8 +48,8 @@ function makeSupervisor(overrides: Record<string, unknown> = {}) {
 	} as unknown as PlatformConfigService;
 
 	const appInstances = {
-		create: vi.fn(async () => ({ appToken: "a-minted-token" })),
-	} as unknown as AppInstanceService;
+		create: vi.fn(async () => ({ instanceId: "inst-1", appToken: "a-minted-token" })),
+	};
 
 	const docker = {
 		getDockerClient: () => ({}),
@@ -60,7 +60,7 @@ function makeSupervisor(overrides: Record<string, unknown> = {}) {
 		hostnameService,
 		env,
 		platformConfig,
-		appInstances,
+		appInstances as unknown as AppInstanceService,
 	);
 
 	// `managedWebEnv` is the unit under test; reach it without booting the
@@ -69,7 +69,7 @@ function makeSupervisor(overrides: Record<string, unknown> = {}) {
 		supervisor as unknown as { managedWebEnv(): Promise<string[]> }
 	).managedWebEnv.bind(supervisor);
 
-	return { env2, hostnameService };
+	return { env2, hostnameService, appInstances };
 }
 
 describe("ManagedWebSupervisorService.managedWebEnv", () => {
@@ -110,5 +110,26 @@ describe("ManagedWebSupervisorService.managedWebEnv", () => {
 		// The web schema refuses to boot when these differ.
 		expect(env).toContain("AUTH_SECRET=a-shared-secret");
 		expect(env).toContain("BETTER_AUTH_SECRET=a-shared-secret");
+	});
+
+	/**
+	 * `reconcile()` must be IDEMPOTENT, and the platform now relies on it: a full
+	 * sweep re-runs every supervisor on a cadence so out-of-band deletions are
+	 * corrected. Minting a token inside it broke that contract in a way that looked
+	 * like a platform bug rather than a table entry — each fresh token changed the
+	 * service spec, so the scheduler rolled the dashboard task every sweep:
+	 *
+	 *   [AppInstanceService] Created managed app instance … (19:41:09, 19:41:11, 19:42:09…)
+	 *   … deployer-managed-web 4/1
+	 */
+	it("mints the instance token ONCE, so a re-convergence is a no-op", async () => {
+		const { env2, appInstances } = makeSupervisor();
+
+		const first = await env2();
+		const second = await env2();
+
+		expect(appInstances.create).toHaveBeenCalledTimes(1);
+		// Identical specs — which is what makes the sweep safe to re-run.
+		expect(second).toEqual(first);
 	});
 });

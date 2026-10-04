@@ -19,7 +19,10 @@ import { Injectable } from "@nestjs/common";
 import { request as httpRequest } from "node:http";
 
 import { HostnameService } from "../../platform-ingress/services/hostname.service";
-import { AppInstanceService } from "../../platform-ingress/services/app-instance.service";
+import {
+	AppInstanceService,
+	type MintedToken,
+} from "../../platform-ingress/services/app-instance.service";
 import { PlatformConfigService } from "../../platform-ingress/services/platform-config.service";
 import {
 	MANAGED_WEB_CONTAINER_BASE_NAME,
@@ -188,10 +191,7 @@ export class ManagedWebSupervisorService extends BaseDockerSupervisorService<
 	 * so a token minted by the API is accepted by the web app.
 	 */
 	private async managedWebEnv(): Promise<string[]> {
-		const minted = await this.appInstances.create({
-			label: `managed-web-${this.env.get("DEPLOYER_PREFIX") || "default"}`,
-			kind: "managed",
-		});
+		const minted = await this.currentInstanceToken();
 		const apiOrigin = this.hostnameService.apiOrigin();
 		const webOrigin = this.hostnameService.webOrigin();
 		// ONE secret for both keys: the web schema rejects them when they differ.
@@ -212,6 +212,43 @@ export class ManagedWebSupervisorService extends BaseDockerSupervisorService<
 			// and failed its boot-time app-instance registration.
 			`APP_INSTANCE_TOKEN=${minted.appToken}`,
 		];
+	}
+
+	/**
+	 * The app-instance token for this node's managed web, minted ONCE per process.
+	 *
+	 * ── WHY THIS IS CACHED AND NOT MINTED PER CONVERGENCE ────────────────────
+	 * `AppInstanceService.create()` mints a NEW token every call: it inserts a row
+	 * and returns the raw token exactly once (only its hash is persisted, so the
+	 * plaintext is unrecoverable by design).
+	 *
+	 * `reconcile()` must be IDEMPOTENT — that is its contract, and the platform now
+	 * relies on it: a full reconcile sweep re-runs every supervisor on a 60s cadence
+	 * so out-of-band deletions are corrected. Minting inside `reconcile()` broke
+	 * that contract, and the symptom was a restart loop rather than a table entry:
+	 *
+	 *   [AppInstanceService] Created managed app instance … (19:41:09)
+	 *   [AppInstanceService] Created managed app instance … (19:41:11)
+	 *   [AppInstanceService] Created managed app instance … (19:42:09)
+	 *   … deployer-managed-web 4/1   ← a new task per sweep, forever
+	 *
+	 * Each fresh token changes the service spec, so the scheduler rolled the task —
+	 * a dashboard that restarts every minute, plus an unbounded pile of orphaned
+	 * instance rows.
+	 *
+	 * Caching the mint for the process lifetime makes convergence idempotent: the
+	 * same token produces the same spec, so a sweep on an already-correct service
+	 * is a genuine no-op. A restart mints once, which is correct — the previous
+	 * container is gone, and the old instance is left to the staleness sweeper.
+	 */
+	private instanceToken: Promise<MintedToken> | null = null;
+
+	private async currentInstanceToken(): Promise<MintedToken> {
+		this.instanceToken ??= this.appInstances.create({
+			label: `managed-web-${this.env.get("DEPLOYER_PREFIX") || "default"}`,
+			kind: "managed",
+		});
+		return await this.instanceToken;
 	}
 
 	/**
