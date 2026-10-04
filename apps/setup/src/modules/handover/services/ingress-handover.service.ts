@@ -88,7 +88,19 @@ export class IngressHandoverService implements OnApplicationBootstrap {
     return this.prefixedHost("setup");
   }
 
-  private prefixedHost(service: "api" | "setup"): string {
+  /**
+   * `web.<prefix>deployer.localhost` — the dashboard's public surface.
+   *
+   * Needed by the handover to verify the dashboard is actually ROUTED before
+   * declaring setup finished: the managed web container can be running while the
+   * ingress has no rule for this host, which is a browser-visible 404 on the
+   * operator's first click.
+   */
+  webHostname(): string {
+    return this.prefixedHost("web");
+  }
+
+  private prefixedHost(service: "api" | "setup" | "web"): string {
     const prefix = this.env.get("DEPLOYER_PREFIX");
     const base = "deployer.localhost";
     return prefix === "" ? `${service}.${base}` : `${service}.${prefix}.${base}`;

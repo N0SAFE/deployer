@@ -18,6 +18,7 @@ const setupKeys = {
 	all: ["setup"] as const,
 	state: () => [...setupKeys.all, "state"] as const,
 	nodeStatus: () => [...setupKeys.all, "nodeStatus"] as const,
+	destination: () => [...setupKeys.all, "destination"] as const,
 };
 
 /** Current setup state (drives step selection + recovery adoption). */
@@ -118,5 +119,25 @@ export function useInitializeStream(options?: { enabled?: boolean }): {
 		}),
 		staleTime: Infinity,
 		gcTime: 0,
+	});
+}
+
+/**
+ * Where a completed setup sends the operator, as decided by the SERVER.
+ *
+ * Fetched rather than derived from `window.location` because the answer depends
+ * on a flag only the API can read (is a dashboard running?). Deriving it client-
+ * side sent operators to a `web.<host>` with no router on an "API only" install.
+ *
+ * Disabled until the stream reports completion, so a fresh wizard does not ask
+ * before there is anything to ask about.
+ */
+export function usePostSetupDestination(options?: { enabled?: boolean }) {
+	return useQuery({
+		queryKey: setupKeys.destination(),
+		queryFn: () => setupEndpoints.getPostSetupDestination.call({}),
+		enabled: options?.enabled ?? true,
+		staleTime: Infinity,
+		gcTime: 60_000,
 	});
 }

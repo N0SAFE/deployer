@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { HandoverOrchestratorService } from "./handover-orchestrator.service";
 import { SetupPhaseService } from "@/modules/health/setup-phase.service";
+import type { BootstrapIngressService } from "@/modules/ingress/services/bootstrap-ingress.service";
 import type { SetupGateService } from "@/modules/wizard/setup-gate.service";
+import type { WizardStreamService } from "@/modules/wizard/wizard-stream.service";
+import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
+import { makeEnvService } from "@/test-support/env";
 import type { ApiReadinessWatcherService } from "./api-readiness-watcher.service";
 import type { ApiServiceProvisioner } from "./api-service-provisioner.service";
 import type { IngressHandoverService } from "./ingress-handover.service";
@@ -29,11 +33,20 @@ describe("HandoverOrchestratorService", () => {
       ready?: boolean;
       provisionThrows?: Error;
       ingressThrows?: Error;
+      /** `false` models the swarm ingress never claiming the entry port. */
+      portReleased?: boolean;
       /** `null` models a RESTART, where there is nothing to deliver. */
       trigger?: unknown;
+      /**
+       * Whether the operator asked for a dashboard. Drives the web-readiness
+       * wait: `false` (the default here) keeps these specs focused on the API
+       * handover, since the wait would otherwise poll a real ingress.
+       */
+      managedWeb?: boolean;
     } = {},
   ): HandoverOrchestratorService {
     const isReady = options.ready ?? true;
+    const portReleased = options.portReleased ?? true;
 
     const provisioner = {
       ensureApi: () => {
@@ -68,24 +81,58 @@ describe("HandoverOrchestratorService", () => {
         effects.push(`pointSetupAtDonePage:${url}`);
         return Promise.resolve();
       },
+      // The dashboard's public hostname — used by the new "wait until the web is
+      // ROUTED" step. Present on the real service; the stub must answer so the
+      // step's gate (`managedWebEnabled`) is the only thing deciding.
+      webHostname: () => "web.deployer.localhost",
     } as unknown as IngressHandoverService;
 
     // The gate is stubbed: its own spec covers persistence and the gate decision.
-    // Here it only has to REPORT whether it holds a payload to deliver, which is
-    // what decides whether the trigger step runs at all.
+    // Here it only has to REPORT whether it holds a payload to deliver (which
+    // decides whether the trigger step runs) and whether the operator asked for
+    // a dashboard (which decides whether the web-readiness wait runs).
     const gate = {
       triggerPayload: () => (options.trigger === undefined ? { strategy: "local" } : options.trigger),
+      managedWebEnabled: () => options.managedWeb === true,
     } as unknown as SetupGateService;
+
+    // The bootstrap ingress is stubbed because it drives the docker engine. What
+    // matters here is WHERE its release lands in the sequence — after the API is
+    // green, because the entry port is a host port and the swarm incarnation of
+    // the ingress can only bind it once the container has let go.
+    const bootstrapIngress = {
+      releaseEntryPort: () => {
+        effects.push("releaseEntryPort");
+        return Promise.resolve(portReleased);
+      },
+    } as unknown as BootstrapIngressService;
 
     // The gate edge is subscribed in `onApplicationBootstrap`, which is not
     // called here — these tests drive the pipeline through `attempt()`, the same
     // entry point the subscription uses.
+    const envService = makeEnvService({ SETUP_MODE: "dev" });
+
+    // The API stream is stubbed: attaching it is a long-running subscription
+    // against a process that does not exist in a unit test. What matters here is
+    // that it is ATTACHED at the right point in the sequence (after the API
+    // answers, before the trigger), which `effects` records.
+    const stream = {
+      attachWhenReachable: () => {
+        effects.push("attachStream");
+        return Promise.resolve();
+      },
+    } as unknown as WizardStreamService;
+
     const orchestrator = new HandoverOrchestratorService(
       provisioner,
       readiness,
       ingress,
       phases,
       gate,
+      bootstrapIngress,
+      new OrchestrationStreamService(envService),
+      stream,
+      envService,
     );
 
     // Never touch the network: the trigger transport is the one outbound call
@@ -112,17 +159,34 @@ describe("HandoverOrchestratorService", () => {
   });
 
   describe("successful handover", () => {
-    it("resolves the API, delivers the choices, points the route, waits, then rewrites the setup route", async () => {
+    it("resolves the API, attaches its stream, delivers the choices, points the route, waits, then rewrites the setup route", async () => {
       const result = await run(makeOrchestrator());
 
       expect(result.ok).toBe(true);
       expect(effects).toEqual([
         "ensureApi",
         "pointApiAt:http://api-dev:3005",
+        // The API's own output is streamed BEFORE the trigger, so the operator
+        // sees provisioning from its FIRST event. Attaching after the trigger
+        // would miss the beginning of the run — which is the part that shows the
+        // platform coming up.
+        "attachStream",
         "trigger:http://api-dev:3005/setup/trigger",
         "waitUntilReady",
+        "releaseEntryPort",
         "pointSetupAtDonePage:http://api-dev:3005",
       ]);
+    });
+
+    it("attaches the API's stream BEFORE delivering the trigger", async () => {
+      await run(makeOrchestrator());
+
+      // Ordering, not presence: the stream must be live when provisioning
+      // starts, otherwise the first events are lost and the progress view opens
+      // mid-run with no explanation of how it got there.
+      expect(effects.indexOf("attachStream")).toBeLessThan(
+        effects.indexOf("trigger:http://api-dev:3005/setup/trigger"),
+      );
     });
 
     it("delivers the operator's choices BEFORE polling for readiness", async () => {
@@ -170,6 +234,39 @@ describe("HandoverOrchestratorService", () => {
       expect(result.ok).toBe(true);
       expect(effects.some((e) => e.startsWith("trigger:"))).toBe(false);
       expect(effects).toContain("waitUntilReady");
+    });
+
+    it("releases the entry port AFTER the API is green, never before", async () => {
+      await run(makeOrchestrator());
+
+      // The entry port is a HOST port held by the bootstrap ingress container,
+      // and the swarm incarnation can only bind it once that container lets go.
+      // Releasing BEFORE the API is green would open a window where neither
+      // ingress serves — and would do it while the operator may still be
+      // watching the wizard.
+      expect(effects.indexOf("waitUntilReady")).toBeLessThan(effects.indexOf("releaseEntryPort"));
+    });
+
+    it("rewrites the setup route AFTER releasing the port, so the hostname never 404s", async () => {
+      await run(makeOrchestrator());
+
+      // Between the release and the swarm task binding, `setup.<host>` must still
+      // answer. Rewriting the route first keeps it pointing at a live backend for
+      // the whole window (plan §9.2: a URL changes owner, it never disappears).
+      expect(effects.indexOf("releaseEntryPort")).toBeLessThan(
+        effects.indexOf("pointSetupAtDonePage:http://api-dev:3005"),
+      );
+    });
+
+    it("fails the handover when the swarm ingress never claims the port", async () => {
+      const result = await run(makeOrchestrator({ portReleased: false }));
+
+      // The service restores the bootstrap container in this case, so the
+      // platform stays reachable. Reporting success here would tell the operator
+      // the platform converged while its ingress is about to stop existing.
+      expect(result.ok).toBe(false);
+      expect(result.ok === false && result.reason).toContain("entry port");
+      expect(effects).not.toContain("pointSetupAtDonePage:http://api-dev:3005");
     });
   });
 

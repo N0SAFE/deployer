@@ -14,6 +14,7 @@ import {
     setupRemoteAuthResultSchema,
     nodeConfigStatusSchema,
     listHintsResultSchema,
+    setupPostSetupDestinationSchema,
     dismissHintInputSchema,
 } from "@repo/contracts-entities";
 import {
@@ -66,6 +67,7 @@ const setupAppProbeDbOps = standard.zod(setupProbeDbResultSchema, "setupAppProbe
 const setupAppProbeMeshOps = standard.zod(setupProbeMeshResultSchema, "setupAppProbeMesh");
 const setupAppRemoteAuthOps = standard.zod(setupRemoteAuthResultSchema, "setupAppRemoteAuth");
 const setupAppHintsOps = standard.zod(listHintsResultSchema, "setupAppHints");
+const setupAppDestinationOps = standard.zod(setupPostSetupDestinationSchema, "setupAppDestination");
 
 /**
  * The trigger and its stream share one builder, exactly as the API's own
@@ -238,6 +240,24 @@ export const setupAppContract = oc
             .path("/post-setup/hints/dismiss")
             .input((b) => b.body(dismissHintInputSchema))
             .output((b) => b.body(z.object({ ok: z.boolean() })))
+            .errors((e) => setupAppErrorContracts(e))
+            .build(),
+
+        // ─── Where the operator goes next (forwarded) ──────────────────────
+
+        /**
+         * The destination for the final "continue to dashboard" click.
+         *
+         * FORWARDED, not computed here: this app cannot know whether a dashboard
+         * exists — that is a DB flag the API owns. Answering it locally is what
+         * sent operators to a `web.<host>` with no router on an "API only"
+         * install, so the app asks the API and relays the answer verbatim.
+         */
+        getPostSetupDestination: setupAppDestinationOps
+            .list()
+            .path("/post-setup/destination")
+            .input((b) => b.body(z.object({}).optional()))
+            .output((b) => b.body(setupPostSetupDestinationSchema))
             .errors((e) => setupAppErrorContracts(e))
             .build(),
     });

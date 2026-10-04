@@ -15,6 +15,7 @@ import {
     nodeConfigStatusSchema,
     listHintsResultSchema,
     dismissHintInputSchema,
+    setupPostSetupDestinationSchema,
 } from "@repo/contracts-entities";
 import {
     standard,
@@ -30,6 +31,7 @@ const setupProbeMeshOps = standard.zod(setupProbeMeshResultSchema, "setupProbeMe
 const setupRemoteAuthOps = standard.zod(setupRemoteAuthResultSchema, "setupRemoteAuth");
 const setupInitializeOps = standard.zod(setupInitializeLocalResultSchema, "setupInitialize");
 const setupListHintsOps = standard.zod(listHintsResultSchema, "setupListHints");
+const setupDestinationOps = standard.zod(setupPostSetupDestinationSchema, "setupPostSetupDestination");
 
 /**
  * Canonical setup-domain error set.
@@ -172,6 +174,32 @@ export const setupContract = oc.meta(openapi({ tags: ["Setup"], prefix: "/setup"
         .path("/post-setup/hints/dismiss")
         .input((b) => b.body(dismissHintInputSchema))
         .output((b) => b.body(z.object({ ok: z.boolean() })))
+        .errors((e) => setupDomainErrorContracts(e))
+        .build(),
+
+    // ─── Where the operator goes next ──────────────────────────────────────
+
+    /**
+     * The destination for the wizard's final "continue to dashboard" click.
+     *
+     * ── WHY THE SERVER DECIDES, NOT THE BROWSER ────────────────────────────
+     * The client used to derive this from `window.location`, which meant it
+     * could only ever guess at deployment shape from its own hostname. That is
+     * wrong the moment the shape is a CHOICE: with no dashboard selected there
+     * is no web surface to send anyone to, and the honest destination is the
+     * API's own console page (which offers to enable one). The process that
+     * KNOWS whether a dashboard exists is the API — it owns the flag — so it
+     * answers, and the wizard simply follows.
+     *
+     * `kind` is explicit rather than inferred from the URL so the client can
+     * word the button truthfully ("Open the dashboard" vs "Finish") without
+     * probing anything.
+     */
+    getPostSetupDestination: setupDestinationOps
+        .list()
+        .path("/post-setup/destination")
+        .input((b) => b.body(z.object({}).optional()))
+        .output((b) => b.body(setupPostSetupDestinationSchema))
         .errors((e) => setupDomainErrorContracts(e))
         .build(),
 });

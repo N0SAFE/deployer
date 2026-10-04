@@ -160,16 +160,23 @@ function getHeading(context: ProgressStepContext): string {
  * land them on the WEB app URL rather than the API console.
  */
 function ContinueButton({ api, context }: { api: SetupWizardApi; context: ProgressStepContext }) {
-  const { signInWithEmail, getErrorMessage, postSetupRedirectUrl } = api
+  const { signInWithEmail, getErrorMessage, postSetupRedirectUrl, usePostSetupDestination } = api
   const [loggingIn, setLoggingIn] = useState(false)
   const [loginError, setLoginError] = useState<string | null>(null)
+
+  // ASKED OF THE SERVER. The client cannot know whether a dashboard exists —
+  // that is a flag the API owns — and deriving it from `window.location` is what
+  // sent operators to a `web.<host>` with no router on an "API only" install.
+  // `postSetupRedirectUrl()` remains the fallback: it is same-origin by
+  // construction, so the operator can always leave this screen.
+  const destinationQuery = usePostSetupDestination({ enabled: true })
+  const destination = destinationQuery.data?.url ?? postSetupRedirectUrl()
+  // Worded truthfully: there is no dashboard to open on an API-only install.
+  const isDashboard = destinationQuery.data?.kind === "dashboard"
 
   const handleContinue = useCallback(async () => {
     // Set localStorage flag so the dashboard hint queue shows on first load.
     markSetupComplete()
-
-    // Answer both flow types with the same destination: the targeted web app.
-    const destination = postSetupRedirectUrl()
 
     if (context.mode === "remote") {
       window.location.assign(destination)
@@ -177,7 +184,7 @@ function ContinueButton({ api, context }: { api: SetupWizardApi; context: Progre
     }
 
     if (!context.email || !context.password) {
-      // No credentials to sign in with — send them to the web app to sign in.
+      // No credentials to sign in with — send them on to sign in.
       window.location.assign(destination)
       return
     }
@@ -193,7 +200,7 @@ function ContinueButton({ api, context }: { api: SetupWizardApi; context: Progre
       setLoginError(msg)
       setLoggingIn(false)
     }
-  }, [context.email, context.password, context.mode])
+  }, [context.email, context.password, context.mode, destination])
 
   return (
     <div className="flex flex-col gap-2">
@@ -209,10 +216,20 @@ function ContinueButton({ api, context }: { api: SetupWizardApi; context: Progre
             <Loader2 className="h-4 w-4 animate-spin" />
             Signing in…
           </>
-        ) : (
+        ) : isDashboard ? (
           "Continue to dashboard"
+        ) : (
+          "Finish setup"
         )}
       </Button>
+      {/* Explain the destination when it is not the dashboard, so the button is
+          not a surprise: the operator chose API-only, and the API's own console
+          is where a dashboard can be enabled later. */}
+      {!isDashboard && destinationQuery.data ? (
+        <p className="text-xs text-center text-muted-foreground">
+          No dashboard is running — you will land on the API console, where you can enable one.
+        </p>
+      ) : null}
       {loginError && (
         <p className="text-xs text-destructive text-center">{loginError}</p>
       )}

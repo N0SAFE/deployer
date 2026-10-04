@@ -1,6 +1,6 @@
 "use client";
 
-import type { SetupInitializeInput, SetupStreamEvent } from "@repo/contracts-entities";
+import type { SetupInitializeInput, SetupPostSetupDestination, SetupStreamEvent } from "@repo/contracts-entities";
 
 /**
  * The wizard's DATA seam.
@@ -111,6 +111,25 @@ export interface SetupWizardApi {
 	 * Where the "Continue to dashboard" button lands the operator. The wizard
 	 * is served by the API, but the dashboard lives in the web app, so this is
 	 * supplied by the host rather than guessed inside the shared component.
+	 */
+	/**
+	 * Where a completed setup sends the operator.
+	 *
+	 * ASKED OF THE SERVER, not derived from `window.location`. The client cannot
+	 * know whether a dashboard exists — that is a flag the API owns — and
+	 * guessing from its own hostname is what sent operators to a `web.<host>`
+	 * with no router (a 404 on the last click of a successful "API only" setup).
+	 *
+	 * Returns the resolved destination so the button can be worded truthfully
+	 * ("Open the dashboard" vs "Finish") without probing anything.
+	 */
+	usePostSetupDestination: (options?: { enabled?: boolean }) => {
+		data?: SetupPostSetupDestination | undefined;
+	};
+
+	/**
+	 * Fallback destination used while the answer is loading or if it failed.
+	 * Same-origin by construction, so it is always answerable.
 	 */
 	postSetupRedirectUrl: () => string;
 }

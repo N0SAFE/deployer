@@ -1,4 +1,5 @@
 import { Injectable, Logger, type OnApplicationBootstrap, type OnModuleDestroy } from "@nestjs/common";
+import { request as httpRequest } from "node:http";
 import {
   Observable,
   Subject,
@@ -14,7 +15,11 @@ import {
 } from "rxjs";
 
 import { SetupPhaseService } from "@/modules/health/setup-phase.service";
+import { BootstrapIngressService } from "@/modules/ingress/services/bootstrap-ingress.service";
 import { SetupGateService } from "@/modules/wizard/setup-gate.service";
+import { WizardStreamService } from "@/modules/wizard/wizard-stream.service";
+import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
+import { EnvService } from "@/config/env/env.module";
 import type { HandoverResult } from "../handover.types";
 import { ApiServiceProvisioner } from "./api-service-provisioner.service";
 import { ApiReadinessWatcherService } from "./api-readiness-watcher.service";
@@ -44,10 +49,14 @@ import { IngressHandoverService } from "./ingress-handover.service";
  *      earlier points `api.<host>` at a process that is not serving.
  *   4. `dynamic-api.yml` is retargeted BEFORE anything else, so the hostname is
  *      continuously answerable — it changes BACKEND, never existence.
- *   5. `dynamic-setup.yml` is rewritten BEFORE this app exits, so
+ *   5. The entry port is RELEASED only after the API is green, so the swarm
+ *      incarnation of the ingress can bind it. Holding it would make that
+ *      promotion fail with "address already in use" — see
+ *      `BootstrapIngressService.releaseEntryPort`.
+ *   6. `dynamic-setup.yml` is rewritten BEFORE this app exits, so
  *      `setup.<host>` degrades to the done page rather than a Traefik 404 for an
  *      operator who bookmarked the wizard.
- *   6. `ready` is published last, because it is the signal this app is about to
+ *   7. `ready` is published last, because it is the signal this app is about to
  *      stop — reporting it early would claim a platform that is not converged.
  *
  * ── WHAT HAPPENS WHEN IT FAILS ──────────────────────────────────────────────
@@ -89,6 +98,10 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
     private readonly ingress: IngressHandoverService,
     private readonly phase: SetupPhaseService,
     private readonly gate: SetupGateService,
+    private readonly bootstrapIngress: BootstrapIngressService,
+    private readonly orchestration: OrchestrationStreamService,
+    private readonly stream: WizardStreamService,
+    private readonly env: EnvService,
   ) {
     this.results$ = this.attempts$.pipe(
       // Serialised: see the class note. A retry clicked mid-handover QUEUES.
@@ -200,7 +213,24 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
       //    must happen before any probe: there is nothing to poll until then.
       //    Reached only once the gate is open, i.e. after the operator's choices
       //    are in `node_config`, which is what the API reads on boot.
+      this.orchestration.snapshot([
+        { id: "start_api", status: "in_progress" },
+        { id: "await_api_boot", status: "pending" },
+      ]);
+      this.orchestration.log(
+        "start_api",
+        this.provisionerMode() === "prod"
+          ? "Scheduling the API onto the cluster…"
+          : "Waiting for the compose-managed API container…",
+      );
+
       const backend = await this.provisioner.ensureApi();
+
+      this.orchestration.log("start_api", `API resolved at ${backend.url} (${backend.detail})`);
+      this.orchestration.snapshot([
+        { id: "start_api", status: "completed" },
+        { id: "await_api_boot", status: "in_progress" },
+      ]);
 
       // 2. Point `api.<host>` at it IMMEDIATELY (invariant 2). Doing this before
       //    the API is ready is deliberate: the route then returns the API's own
@@ -209,18 +239,30 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
       //    misconfiguration rather than "not provisioned yet".
       await this.ingress.pointApiAt(backend.url);
 
-      // 3. Deliver the operator's choices, then WAIT for the API to report ready.
+      // 3. WAIT FOR THE API TO ANSWER, then attach its stream.
       //
-      //    ORDER MATTERS AND IS EASY TO GET WRONG: the trigger is what tells the
-      //    API to provision, so polling for readiness BEFORE delivering it waits
-      //    for work nobody has asked for. The API boots, finds a `databaseUrl`
-      //    in `node_config`, connects, and only provisions the schema when
-      //    `POST /setup/trigger` arrives.
+      //    ── WHY THE TRIGGER COMES AFTER, NOT BEFORE ─────────────────────────
+      //    The API boots, finds a `databaseUrl` in `node_config`, connects, and
+      //    only provisions the schema when `POST /setup/trigger` arrives. But the
+      //    trigger cannot be DELIVERED to a process that is not listening yet,
+      //    and the stream cannot be attached either.
       //
-      //    Still `provisioning`: the API is building the platform, and nothing
-      //    has been handed over yet.
+      //    So the order is: wait until the API answers → attach its stream (so
+      //    the operator sees the API's own boot output) → deliver the trigger →
+      //    wait for `ready`. Attaching the stream BEFORE the trigger is what
+      //    makes the provisioning progress visible from its first event; doing it
+      //    after would miss the beginning of the run.
+      this.orchestration.log("await_api_boot", "Waiting for the API to start answering…");
+      await this.attachStreamWhenReachable();
+
+      // 4. Deliver the operator's choices, which is what makes the API provision.
       this.phase.record("provisioning", "Handing setup over to the platform API…");
+      this.orchestration.log("await_api_boot", "Delivering the setup trigger to the API…");
       await this.deliverTrigger(backend.url);
+
+      this.orchestration.snapshot([
+        { id: "await_api_boot", status: "completed" },
+      ]);
 
       this.phase.record("provisioning", `Waiting for the API at ${backend.url} to report ready…`);
       const probe = await firstValueFrom(
@@ -234,13 +276,57 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
         };
       }
 
-      // 4. NOW the swap — and only now, which is what `handover` asserts.
+      // 5. NOW the swap — and only now, which is what `handover` asserts.
       this.phase.record("handover", "The API is ready — retargeting the setup hostname…", {
         apiUp: true,
         apiReady: true,
       });
 
-      // 5. `setup.<host>` now serves the API's done page (invariant 3).
+      // 5. RELEASE THE ENTRY PORT, so the swarm incarnation of the ingress can
+      //    bind it. The port is a HOST port and only one process can hold it, so
+      //    the bootstrap container must let go before the API's supervisor can
+      //    promote Traefik to a GLOBAL swarm service — otherwise that promotion
+      //    fails with "address already in use".
+      //
+      //    SAFE HERE, and the position is load-bearing: the API is already green
+      //    (step 3 polled `/health/ready`), so `api.<host>` cannot be pointed at
+      //    a process that is not serving; and the wizard's SSE stream terminates
+      //    at THIS app rather than through the entry port, so no live browser
+      //    connection traverses the port being handed over.
+      //
+      //    The service restores the container if the swarm ingress does not
+      //    claim the port in time, so a slow task start leaves the platform
+      //    reachable and the handover retryable instead of stranding it.
+      const released = await this.bootstrapIngress.releaseEntryPort();
+      if (!released) {
+        return {
+          ok: false,
+          reason:
+            "the swarm ingress did not claim the entry port — the bootstrap container was restored so the platform stays reachable; retry once the cluster has a running ingress task",
+        };
+      }
+
+      // 6. IF THE OPERATOR ASKED FOR A DASHBOARD, WAIT UNTIL IT ANSWERS.
+      //
+      //    The managed web app is a swarm service the API spawns, and its ROUTE
+      //    is published by the API's config refresher — neither of which is
+      //    finished just because the API reports ready. Without this wait setup
+      //    declared success while `web.<host>` had no router yet, so the
+      //    operator's first click landed on a Traefik 404:
+      //
+      //      web.deployer.localhost  -> 404 Not Found   (no router published)
+      //      api.deployer.localhost  -> 200 OK
+      //
+      //    Only when a dashboard was REQUESTED: an API-only install has no web
+      //    surface, and waiting for one would stall onboarding forever on a
+      //    configuration the operator deliberately chose.
+      this.orchestration.log("await_api_boot", "Waiting for the dashboard to become reachable…");
+      const webReady = await this.waitForWebApp();
+      if (!webReady.ok) {
+        return { ok: false, reason: webReady.reason };
+      }
+
+      // 7. `setup.<host>` now serves the API's done page (invariant 3).
       await this.ingress.pointSetupAtDonePage(backend.url);
 
       return { ok: true, apiBackend: backend.url };
@@ -248,6 +334,137 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
       const reason = error instanceof Error ? error.message : String(error);
       this.logger.error(`Handover failed: ${reason}`);
       return { ok: false, reason };
+    }
+  }
+
+  /**
+   * Wait until the dashboard is routed, when the operator asked for one.
+   *
+   * ── WHY THIS IS A HANDOVER STEP AND NOT A READINESS INDICATOR ────────────
+   * The API's own readiness deliberately EXEMPTS a not-yet-routed web (see
+   * `readiness.indicators.ts`): the handover is what publishes the route, so
+   * requiring it first would deadlock. That exemption is correct for the API's
+   * `/health/ready` — but it leaves NOBODY checking the thing the operator is
+   * about to click. This step is that check, and it runs on the one side that
+   * can afford to wait: setup, after the API is green and the entry port is
+   * released.
+   *
+   * Probes the INGRESS by its service name with the browser's `Host` header,
+   * because `web.<host>` does not resolve inside the setup container — the same
+   * reason the API's own probe works this way.
+   *
+   * A timeout is reported as a FAILURE rather than ignored: the whole point is
+   * not to hand the operator a URL that does not answer. Setup stays up and the
+   * handover stays retryable.
+   */
+  private async waitForWebApp(): Promise<{ ok: boolean; reason: string }> {
+    if (!this.gate.managedWebEnabled()) {
+      this.logger.log("No dashboard requested — skipping the web readiness wait");
+      return { ok: true, reason: "no dashboard requested" };
+    }
+
+    const hostname = this.ingress.webHostname();
+    const ingress = this.env.get("DEPLOYER_PREFIX") === ""
+      ? "deployer-traefik"
+      : `deployer-traefik-${this.env.get("DEPLOYER_PREFIX")}`;
+
+    const deadline = Date.now() + this.timeoutMs();
+    let lastReason = "the dashboard never answered";
+
+    while (Date.now() < deadline) {
+      const attempt = await this.probeWebRoute(ingress, hostname);
+      if (attempt.ok) {
+        this.logger.log(`Dashboard reachable — ${hostname} is routed`);
+        return { ok: true, reason: attempt.reason };
+      }
+      lastReason = attempt.reason;
+      await new Promise((resolve) => setTimeout(resolve, this.pollIntervalMs()));
+    }
+
+    return {
+      ok: false,
+      reason: `the dashboard was requested but ${hostname} is not answering yet (${lastReason})`,
+    };
+  }
+
+  /** One dashboard reachability probe, against the ingress on the overlay. */
+  private async probeWebRoute(
+    ingress: string,
+    hostname: string,
+  ): Promise<{ ok: boolean; reason: string }> {
+    return await new Promise<{ ok: boolean; reason: string }>((resolve) => {
+      let settled = false;
+      const finish = (result: { ok: boolean; reason: string }): void => {
+        if (settled) return;
+        settled = true;
+        resolve(result);
+      };
+
+      const request = httpRequest(
+        { hostname: ingress, port: 80, path: "/", method: "GET", headers: { host: hostname } },
+        (response) => {
+          const status = response.statusCode ?? 0;
+          const contentType = String(response.headers["content-type"] ?? "");
+          response.resume();
+          // Traefik answers its OWN 404s as plain text; the web app's are HTML.
+          // That distinction is what separates "no router yet" from a routed
+          // response the app happens to dislike.
+          if (status === 404 && contentType.includes("text/plain")) {
+            finish({ ok: false, reason: "the ingress has no router for the dashboard yet" });
+            return;
+          }
+          if (status >= 500) {
+            finish({ ok: false, reason: `the dashboard backend answered ${String(status)}` });
+            return;
+          }
+          finish({ ok: true, reason: `routed (${String(status)})` });
+        },
+      );
+
+      request.setTimeout(5_000, () => {
+        request.destroy();
+        finish({ ok: false, reason: "the ingress did not answer within 5000ms" });
+      });
+      request.on("error", (error: Error) => {
+        finish({ ok: false, reason: `the ingress is not reachable (${error.message})` });
+      });
+      request.end();
+    });
+  }
+
+  /**
+   * Which mode the API is started in, for the operator-facing message.
+   *
+   * Read here rather than from the provisioner so the log line is emitted BEFORE
+   * the (potentially slow) service creation — the operator should see "scheduling
+   * the API" while it happens, not after.
+   */
+  private provisionerMode(): string {
+    return this.env.get("SETUP_MODE");
+  }
+
+  /**
+   * Attach the API's own stream once it answers, so provisioning is visible.
+   *
+   * Delegated to `WizardStreamService`, which owns the retry loop and the frame
+   * decoding: the stream terminates at THAT service for the browser, and
+   * attaching here would be a second reader of the same upstream.
+   *
+   * A failure here is NOT fatal to the handover: the operator still gets the
+   * trigger and the ingress swap, and the readiness poll below is the real
+   * gate. Losing the API's log output degrades the progress view, it does not
+   * block onboarding.
+   */
+  private async attachStreamWhenReachable(): Promise<void> {
+    try {
+      await this.stream.attachWhenReachable(this.orchestration, undefined, this.timeoutMs());
+    } catch (error: unknown) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Could not attach the API stream: ${reason}`);
+      this.orchestration.log(
+        "await_api_boot",
+        `Could not stream the API's output (${reason}) — continuing`,
+      );
     }
   }
 

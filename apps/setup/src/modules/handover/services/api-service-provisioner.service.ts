@@ -198,6 +198,28 @@ export class ApiServiceProvisioner {
             target: "/app/data",
             readOnly: false,
           },
+          // ── THE INGRESS CONFIG VOLUME, WHICH THE API PUBLISHES INTO ──────
+          // The API GENERATES the platform's Traefik routes (`dynamic-api.yml`,
+          // `dynamic-web.yml`, `dynamic-domain.yml`) and Traefik READS them from
+          // this volume's file provider. It is the handoff between the two, and
+          // without it the API writes into its own container filesystem where
+          // nothing reads it:
+          //
+          //   API    /app/traefik-configs -> dynamic-web.yml   (private copy)
+          //   Traefik /config             -> (nothing new)     -> 404
+          //
+          // which is exactly what happened: the managed web service was healthy
+          // and 1/1 while `web.deployer.localhost` returned Traefik's own 404,
+          // because the web router was never visible to the ingress. The setup
+          // container already mounts this volume for its own handover, so the
+          // name is passed in (`TRAEFIK_CONFIG_VOLUME`) rather than guessed —
+          // compose prefixes volume names with the project name.
+          {
+            type: "volume",
+            source: this.traefikConfigVolumeName(),
+            target: "/app/traefik-configs",
+            readOnly: false,
+          },
           // ── THE ENGINE SOCKET, WHICH THE API CANNOT WORK WITHOUT ────────
           // The API SUPERVISES the platform: it creates the managed Postgres,
           // redis, the ingress and the web app as swarm services, and it reads
@@ -455,6 +477,26 @@ export class ApiServiceProvisioner {
    */
   private localDbVolumeName(): string {
     return this.env.get("NODE_LOCAL_DB_VOLUME");
+  }
+
+  /**
+   * Volume the ingress reads its dynamic routes from.
+   *
+   * The API GENERATES those routes and Traefik READS them, so this volume is the
+   * only channel between the two — the API must mount it or it publishes into
+   * its own container filesystem and the ingress never sees a router.
+   *
+   * Read from the environment (`TRAEFIK_CONFIG_VOLUME`) rather than derived for
+   * the same reason as the local-db volume: compose prefixes volume names with
+   * the project name, which this process cannot guess. The fallback matches the
+   * name the API's own `traefikConfigVolume()` resolves, so an install that does
+   * not set the variable still agrees with it.
+   */
+  private traefikConfigVolumeName(): string {
+    const configured = this.env.get("TRAEFIK_CONFIG_VOLUME");
+    if (configured !== undefined && configured.trim().length > 0) return configured.trim();
+    const prefix = this.env.get("DEPLOYER_PREFIX");
+    return prefix === "" ? "deployer-traefik-config" : `deployer-traefik-config-${prefix}`;
   }
 
   /**

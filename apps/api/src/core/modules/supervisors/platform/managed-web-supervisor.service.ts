@@ -16,11 +16,15 @@
  */
 
 import { Injectable } from "@nestjs/common";
+import { request as httpRequest } from "node:http";
 
 import { HostnameService } from "../../platform-ingress/services/hostname.service";
 import { AppInstanceService } from "../../platform-ingress/services/app-instance.service";
 import { PlatformConfigService } from "../../platform-ingress/services/platform-config.service";
-import { MANAGED_WEB_CONTAINER_BASE_NAME } from "../../platform-ingress/services/platform-names";
+import {
+	MANAGED_WEB_CONTAINER_BASE_NAME,
+	platformTraefikContainerName,
+} from "../../platform-ingress/services/platform-names";
 import { BaseDockerSupervisorService } from "@repo/nest-docker/services/base-docker-supervisor.service";
 import { DockerService } from "@repo/nest-docker/services/docker.service";
 import {
@@ -237,11 +241,243 @@ export class ManagedWebSupervisorService extends BaseDockerSupervisorService<
 				payload: { checkedAt: new Date().toISOString(), latencyMs: Date.now() - startedAt, desired, service: live.snapshot },
 			};
 		}
+
+		// ── A RUNNING TASK IS NOT A SERVED SURFACE ───────────────────────────────
+		// The task check above proves the CONTAINER is up. It says nothing about
+		// whether `web.<host>` is ROUTED, and conflating the two made readiness
+		// report green on a node where the dashboard was a 404 — observed on a
+		// completed setup where the managed web ran happily while Traefik had no
+		// `dynamic-web.yml` router at all.
+		//
+		// So the probe checks the route too — but reports a MISSING route through
+		// `warnings` (see `collectWarnings`) rather than as unhealthy, and that
+		// distinction is load-bearing rather than cosmetic:
+		//
+		//   The route can only be published ONCE the handover runs — setup releases
+		//   the entry port, the API's config refresher writes `dynamic-web.yml`, and
+		//   only then does the ingress have a rule. Counting "no route yet" as
+		//   UNHEALTHY therefore made `/health/ready` 503, and setup waits for ready
+		//   BEFORE releasing the port:
+		//
+		//     no route -> 503 -> port never released -> no route   (deadlock)
+		//
+		//   Measured on a real run: setup sat at "Still waiting for the API to
+		//   report ready (100 attempts)" forever while the API reported exactly
+		//   this. A warning is the honest encoding — the operator sees the state,
+		//   the platform keeps making progress, and the handover remains the thing
+		//   that resolves it.
+		//
+		// A 5xx DOES fail: the route exists and its backend is broken, which no
+		// amount of waiting will fix.
+		const reachability = await this.probeEntryPoint();
+		this.lastReachability = reachability;
+		if (!reachability.reachable && reachability.fatal) {
+			return {
+				healthy: false,
+				detail: reachability.reason,
+				payload: { checkedAt: new Date().toISOString(), latencyMs: Date.now() - startedAt, desired, service: live.snapshot },
+			};
+		}
+
 		return {
 			healthy: true,
 			detail: `serving ${this.hostnameService.webHostname()}`,
 			payload: { checkedAt: new Date().toISOString(), latencyMs: Date.now() - startedAt, desired, service: live.snapshot },
 		};
+	}
+
+	/** How long to wait for the ingress to answer the web hostname. */
+	private static readonly REACHABILITY_TIMEOUT_MS = 3_000;
+
+	/**
+	 * The last routing observation, so `collectWarnings` can report it.
+	 *
+	 * The probe and the warnings are two halves of one fact ("is the dashboard
+	 * routed?"), and `collectWarnings` receives only the probe RESULT — which
+	 * carries `healthy` and `detail` but not the distinction between "not routed
+	 * yet" and "routed but broken". Keeping the observation here is what lets the
+	 * warning stay specific without widening the supervisor base contract.
+	 */
+	private lastReachability: { reachable: boolean; reason: string; fatal?: boolean } | null = null;
+
+	/** Port the ingress listens on INSIDE the platform network.
+	 *  Traefik's `web` entrypoint is hardcoded to `:80` in its command, and the
+	 *  swarm service maps the published entry port onto it — so in-network the
+	 *  ingress is always `:80`, regardless of what the HOST port was set to. */
+	private static readonly INGRESS_INTERNAL_PORT = 80;
+
+	/**
+	 * Surface a not-yet-published route as a WARNING.
+	 *
+	 * A warning is `degraded` rather than `down` in the readiness payload: the
+	 * operator sees exactly what is missing, and — critically — readiness stays
+	 * HTTP 200 so setup proceeds to release the entry port. That release is what
+	 * lets the API's config refresher publish the route, so the warning clears
+	 * itself. Reporting it as a failure instead deadlocked onboarding (see the
+	 * note in `probe`).
+	 */
+	protected override collectWarnings(): string[] {
+		const reachability = this.lastReachability;
+		if (reachability === null || reachability.reachable || reachability.fatal === true) {
+			return [];
+		}
+		return [`the dashboard is not routed yet — ${reachability.reason}`];
+	}
+
+	/**
+	 * Ask the ingress whether the web hostname is ROUTED, then whether the app
+	 * behind it answers.
+	 *
+	 * ── WHY THE INGRESS, AND NOT THE PUBLIC URL ──────────────────────────────
+	 * The obvious implementation — fetch `http://web.deployer.localhost/` — does
+	 * not work from inside the API task, and its failure is silent: the hostname
+	 * does not resolve in the container's network at all (measured: `getent hosts
+	 * web.deployer.localhost` returns nothing), so the probe would report
+	 * "unreachable" even on a perfectly routed node.
+	 *
+	 * So the probe reproduces what a BROWSER does, against the only address
+	 * reachable from here: dial the ingress by its service name on the overlay and
+	 * set the `Host` header the browser would send. Measured behaviour of exactly
+	 * this request on a real node:
+	 *
+	 *   Host: web.deployer.localhost  ->  404 Not Found (text/plain)  <- no router
+	 *   Host: api.deployer.localhost  ->  200 OK                      <- routed
+	 *
+	 * That difference is the whole check, and it is what the container-only probe
+	 * could not see: it reported the managed web healthy while `web.<host>` was a
+	 * 404, because the TASK was running.
+	 *
+	 * `http.request` rather than `fetch` because `Host` is a forbidden header name
+	 * for fetch — it would be dropped and every request would be judged against the
+	 * ingress's default router instead of the web one.
+	 */
+	private async probeEntryPoint(): Promise<{ reachable: boolean; reason: string; fatal?: boolean }> {
+		const hostname = this.hostnameService.webHostname();
+		const ingress = platformTraefikContainerName(this.env.get("DEPLOYER_PREFIX"));
+		const attempts = this.ingressProbeCandidates(ingress);
+
+		// ── THE INGRESS MOVES DURING ONBOARDING, SO PROBE EVERY PLACE IT LIVES ──
+		// The ingress has two incarnations (see `BootstrapIngressService`): setup's
+		// plain container BEFORE the handover, and this platform's GLOBAL swarm
+		// service after it. They share a NAME but not a network, and the swarm name
+		// does not resolve until the service exists — which is AFTER setup releases
+		// the entry port. Probing only the swarm name therefore failed during the
+		// window that matters:
+		//
+		//   platform-managed-web: "the ingress is not reachable
+		//                          (getaddrinfo ENOTFOUND deployer-traefik)"
+		//
+		// Trying each candidate keeps the check honest (it still verifies ROUTING)
+		// without depending on which incarnation currently owns the port.
+		let lastReason = "no ingress candidate was reachable";
+		for (const candidate of attempts) {
+			const result = await this.requestRoute(candidate, hostname);
+			if (result.reachable) return result;
+			lastReason = result.reason;
+		}
+
+		// Nothing answered. NOT fatal: during onboarding the ingress may simply not
+		// be reachable from this task yet, and that is a state the handover clears.
+		return { reachable: false, reason: lastReason, fatal: false };
+	}
+
+	/**
+	 * Where the ingress can be reached from inside this task.
+	 *
+	 * The swarm service name — resolved on the platform overlay, which is the
+	 * network both this task and (after the handover) the ingress live on. Before
+	 * the handover the ingress is setup's plain container and this name does not
+	 * resolve; that is EXPECTED and is reported as a warning rather than a
+	 * failure, because the handover is what makes it resolve (see `probe`).
+	 *
+	 * The port is the ingress's INTERNAL one: Traefik's `web` entrypoint is
+	 * hardcoded to `:80` in its command, and the swarm service maps the published
+	 * entry port onto it — so in-network the ingress answers on `:80` regardless of
+	 * the HOST port the operator configured.
+	 */
+	private ingressProbeCandidates(ingress: string): { host: string; port: number }[] {
+		return [{ host: ingress, port: ManagedWebSupervisorService.INGRESS_INTERNAL_PORT }];
+	}
+
+	/** One routing probe against a specific ingress address. */
+	private async requestRoute(
+		candidate: { host: string; port: number },
+		hostname: string,
+	): Promise<{ reachable: boolean; reason: string; fatal?: boolean }> {
+		const { host: ingress, port } = candidate;
+
+		/* c8 ignore start -- socket plumbing; the branch logic is asserted above. */
+		return await new Promise<{ reachable: boolean; reason: string; fatal?: boolean }>((resolve) => {
+			let settled = false;
+			const finish = (result: { reachable: boolean; reason: string; fatal?: boolean }): void => {
+				if (settled) return;
+				settled = true;
+				resolve(result);
+			};
+
+			const request = httpRequest(
+				{
+					hostname: ingress,
+					port,
+					path: "/",
+					method: "GET",
+					headers: { host: hostname },
+				},
+				(response) => {
+					const status = response.statusCode ?? 0;
+					const contentType = String(response.headers["content-type"] ?? "");
+					// Drain and discard: the body is irrelevant, and leaving it unread
+					// keeps the socket open until the timeout fires.
+					response.resume();
+
+					// Traefik's "no router matched" answer. Its own 404 is plain text,
+					// whereas the web app's are HTML — so the content type is what
+					// distinguishes "the ingress has no rule for this host" (a real
+					// problem) from "the app answered 404 for /" (a routed response).
+					const isIngressNoRouter = status === 404 && contentType.includes("text/plain");
+					if (isIngressNoRouter) {
+						finish({
+							reachable: false,
+							reason: `the ingress has no router for ${hostname} yet — the web route has not been published`,
+							fatal: false,
+						});
+						return;
+					}
+
+					// A 5xx means the route EXISTS and its backend is broken. No amount of
+					// waiting fixes that, so it is the one non-routing outcome that fails
+					// readiness outright.
+					if (status >= 500) {
+						finish({
+							reachable: false,
+							reason: `${hostname} is routed but its backend answered ${String(status)}`,
+							fatal: true,
+						});
+						return;
+					}
+
+					finish({ reachable: true, reason: `${hostname} is routed (${String(status)})` });
+				},
+			);
+
+			request.setTimeout(ManagedWebSupervisorService.REACHABILITY_TIMEOUT_MS, () => {
+				request.destroy();
+				finish({
+					reachable: false,
+					reason: `the ingress at ${ingress} did not answer within ${String(ManagedWebSupervisorService.REACHABILITY_TIMEOUT_MS)}ms`,
+					fatal: false,
+				});
+			});
+			request.on("error", (error: Error) => {
+				finish({
+					reachable: false,
+					reason: `the ingress at ${ingress} is not reachable (${error.message})`,
+					fatal: false,
+				});
+			});
+			request.end();
+		});
+		/* c8 ignore stop */
 	}
 
 	/** The console service's live state (absent → exists=false). */

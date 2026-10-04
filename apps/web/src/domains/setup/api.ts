@@ -34,6 +34,11 @@ export const setupApi: SetupWizardApi = {
 	// The web app serves the dashboard, so provisioning must address the API
 	// origin (the browser-reachable one, not the private network name).
 	apiBaseUrl: () => getBaseApiUrl(),
+	// This host IS the dashboard, so the destination is the current origin by
+	// definition and needs no server round-trip to resolve.
+	usePostSetupDestination: () => ({
+		data: { kind: "dashboard" as const, url: "/", managedWebEnabled: true },
+	}),
 	// The dashboard is already here — no cross-origin hand-off needed.
 	postSetupRedirectUrl: () => "/",
 };

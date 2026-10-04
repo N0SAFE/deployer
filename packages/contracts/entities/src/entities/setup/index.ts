@@ -374,6 +374,49 @@ export const listHintsResultSchema = z.object({
 });
 export type ListHintsResult = z.infer<typeof listHintsResultSchema>;
 
+// ─── Where the operator goes after setup ──────────────────────────────────────
+
+/**
+ * The destination for the wizard's final "continue to dashboard" click.
+ *
+ * ── WHY THIS IS A TYPED ANSWER AND NOT A URL THE CLIENT DERIVES ─────────────
+ * The wizard used to compute this from `window.location` — it could only guess
+ * deployment shape from its own hostname. That is wrong the moment the shape is
+ * a CHOICE: when the operator picked "API only" there is no dashboard to send
+ * them to, and inventing `web.<host>` would land them on a 404. Only the API
+ * knows whether a dashboard exists, because it owns the flag.
+ *
+ * `kind` is explicit so the button can be worded truthfully ("Open the
+ * dashboard" vs "Finish") without the client probing anything, and so a future
+ * destination (a hostname-not-yet-DNS-resolvable setup, an external URL) does
+ * not need the client to re-derive meaning from the string.
+ */
+export const setupPostSetupDestinationKindSchema = z.enum([
+    /** The platform's own dashboard — the managed web app is enabled and reachable. */
+    "dashboard",
+    /**
+     * The API's own console page (`/manage/web-app`), which offers to enable a
+     * dashboard. This is the honest destination when none is running: the API
+     * serves it itself, so it cannot 404 the way a web hostname would.
+     */
+    "api-console",
+]);
+export type SetupPostSetupDestinationKind = z.infer<typeof setupPostSetupDestinationKindSchema>;
+
+export const setupPostSetupDestinationSchema = z.object({
+    kind: setupPostSetupDestinationKindSchema,
+    /**
+     * Absolute URL to navigate to. Absolute rather than a path because the
+     * destination can be a DIFFERENT ORIGIN from the wizard (which runs on
+     * `setup.<host>` while the dashboard lives on `web.<host>`), and the client
+     * should not have to reconstruct the origin it was told about.
+     */
+    url: z.url(),
+    /** Whether the managed web app is enabled — what `kind` was derived from. */
+    managedWebEnabled: z.boolean(),
+});
+export type SetupPostSetupDestination = z.infer<typeof setupPostSetupDestinationSchema>;
+
 // ─── Node config status ───────────────────────────────────────────────────────
 
 export const nodeConfigStatusSchema = z.object({

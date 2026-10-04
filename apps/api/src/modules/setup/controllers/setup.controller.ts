@@ -9,6 +9,7 @@ import { AllowAnonymous } from "@/core/modules/auth/decorators/decorators";
 import { Pool } from "pg";
 import { InitializationService } from "@/core/modules/setup/services/initialization.service";
 import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
+import { PostSetupDestinationService } from "../services/post-setup-destination.service";
 import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 
 /**
@@ -30,6 +31,7 @@ export class SetupController {
         private readonly initializationService: InitializationService,
         private readonly reachabilityService: ReachabilityService,
         private readonly nodeConfigRepository: NodeConfigRepository,
+        private readonly postSetupDestination: PostSetupDestinationService,
     ) {}
 
     // ─── State ────────────────────────────────────────────────────────────────
@@ -357,6 +359,25 @@ export class SetupController {
                 });
                 return { status: 201 as const, headers: {}, body: { ok: true } };
             });
+    }
+
+    // ─── Where the operator goes next ───────────────────────────────────────
+
+    /**
+     * The destination for the wizard's final "continue to dashboard" click.
+     *
+     * Answered by the API because it owns the one fact the client cannot see:
+     * whether a dashboard is actually running. With the managed web app enabled
+     * the destination is its hostname; without it, this API's own console page —
+     * which is answerable and offers to enable one. The client no longer derives
+     * this from its own hostname, which could only ever guess and produced a 404
+     * on the last click of a successful "API only" setup.
+     */
+    @Implement(setupContract.getPostSetupDestination)
+    getPostSetupDestination() {
+        return implement(setupContract.getPostSetupDestination)
+            .use(publicAccess())
+            .handler(async () => this.postSetupDestination.resolve());
     }
 }
 

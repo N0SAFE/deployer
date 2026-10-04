@@ -19,6 +19,7 @@ export const setupEndpoints = {
 	getInitializeStream: orpc.setup.getInitializeStream,
 	listPostSetupHints: orpc.setup.listPostSetupHints,
 	dismissPostSetupHint: orpc.setup.dismissPostSetupHint,
+	getPostSetupDestination: orpc.setup.getPostSetupDestination,
 } as const;
 
 export type SetupEndpoints = typeof setupEndpoints;

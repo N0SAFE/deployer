@@ -5,6 +5,7 @@ import { ORPCError } from "@orpc/server";
 import { SetupController } from "./setup.controller";
 import { InitializationService } from "@/core/modules/setup/services/initialization.service";
 import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
+import { PostSetupDestinationService } from "../services/post-setup-destination.service";
 import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 
 function createImplementMock() {
@@ -85,6 +86,20 @@ describe("SetupController", () => {
                 {
                     provide: NodeConfigRepository,
                     useValue: { find: vi.fn(), upsert: vi.fn() },
+                },
+                {
+                    // The controller's new dependency: it resolves where the
+                    // wizard's final click lands. Stubbed here because this spec
+                    // is about the controller's FORWARDING behaviour, and the
+                    // resolver has its own concerns (the managed-web flag).
+                    provide: PostSetupDestinationService,
+                    useValue: {
+                        resolve: vi.fn(async () => ({
+                            kind: "dashboard" as const,
+                            url: "http://web.deployer.localhost",
+                            managedWebEnabled: true,
+                        })),
+                    },
                 },
             ],
         }).compile();

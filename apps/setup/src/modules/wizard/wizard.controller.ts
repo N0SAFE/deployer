@@ -3,6 +3,7 @@ import { Implement } from "@orpc/nest";
 import { implement, ORPCError } from "@orpc/server";
 import { setupAppContract } from "@repo/api-contracts";
 import type {
+  SetupPostSetupDestination,
   SetupProbeDbResult,
   SetupProbeMeshResult,
   SetupRemoteAuthResult,
@@ -218,6 +219,41 @@ export class WizardController {
       headers: {},
       body: await this.forwardJson<{ ok: boolean }>("/setup/post-setup/hints/dismiss", "POST", input),
     }));
+  }
+
+  // ─── Where the operator goes next (forwarded) ───────────────────────────
+
+  /**
+   * Relay the API's answer for the final "continue to dashboard" click.
+   *
+   * FORWARDED rather than computed locally. This app knows its OWN hostname but
+   * nothing about whether a dashboard exists — that is a flag the API owns — and
+   * guessing from the hostname is exactly what produced a 404 on the last click
+   * of an "API only" setup.
+   *
+   * A failed forward falls back to THIS app's own origin instead of throwing:
+   * the operator has just completed setup and must be able to leave, and the
+   * wizard's done page is on this origin and therefore always answerable.
+   */
+  @Implement(setupAppContract.getPostSetupDestination)
+  getPostSetupDestination() {
+    return implement(setupAppContract.getPostSetupDestination).handler(async () => {
+      try {
+        return await this.forwardJson<SetupPostSetupDestination>(
+          "/setup/post-setup/destination",
+          "GET",
+          undefined,
+        );
+      } catch (error: unknown) {
+        const reason = error instanceof Error ? error.message : String(error);
+        this.logger.warn(`Post-setup destination unavailable (${reason}) — staying on the setup surface`);
+        return {
+          kind: "api-console" as const,
+          url: this.upstream.baseUrl() + "/setup/done",
+          managedWebEnabled: false,
+        };
+      }
+    });
   }
 
   // ─── Forwarding helper ──────────────────────────────────────────────────

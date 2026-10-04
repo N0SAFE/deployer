@@ -15,15 +15,48 @@
  * supervisor health.
  */
 
-import { Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
+import { Injectable, Logger, type OnApplicationBootstrap, type OnModuleDestroy } from "@nestjs/common";
 
 import { TraefikPlatformConfigService } from "./traefik-platform-config.service";
 import { SupervisorOrchestratorService } from "@repo/nest-supervisor-core/supervisor-orchestrator.service";
 import { TraefikSupervisorService } from "../../supervisors/platform/traefik-supervisor.service";
 
 @Injectable()
-export class TraefikConfigRefresher implements OnApplicationBootstrap {
+export class TraefikConfigRefresher implements OnApplicationBootstrap, OnModuleDestroy {
 	private readonly logger = new Logger(TraefikConfigRefresher.name);
+
+	/**
+	 * Backoff for a config write that failed because the DB is not ready yet.
+	 *
+	 * ── WHY A RETRY IS MANDATORY, NOT POLITE ─────────────────────────────────
+	 * The API boots BEFORE setup provisions the database — that is the designed
+	 * order, since provisioning is what the wizard's trigger causes and the API
+	 * has to be up to receive it. So the boot-time write ALWAYS loses this race on
+	 * a fresh install and fails with:
+	 *
+	 *   [TraefikConfigRefresher] Publishing platform ingress routes at boot
+	 *   [TraefikConfigRefresher] Traefik config write failed: Failed query: insert
+	 *     into "app_config" ...
+	 *
+	 * and nothing ever retried it. The consequence was that `dynamic-web.yml` was
+	 * NEVER written on a fresh install — real, observed state on a completed
+	 * setup:
+	 *
+	 *   $ ls /config
+	 *   dynamic-api.yml  dynamic-setup.yml      <- no dynamic-web.yml
+	 *
+	 * so `web.<host>` had no router at all and the dashboard 404'd on an ingress
+	 * with nothing in its log to explain why. The managed web app was running
+	 * perfectly and simply unreachable.
+	 *
+	 * Retrying is what makes the boot-time attempt meaningful: the write is
+	 * idempotent, so re-running it once the schema exists publishes the missing
+	 * family with no other coordination.
+	 */
+	private static readonly RETRY_INTERVAL_MS = 3_000;
+
+	private retryTimer: ReturnType<typeof setTimeout> | null = null;
+	private disposed = false;
 
 	constructor(
 		private readonly configService: TraefikPlatformConfigService,
@@ -60,10 +93,19 @@ export class TraefikConfigRefresher implements OnApplicationBootstrap {
 	refresh(): void {
 		const traefikId = TraefikSupervisorService.getIdentifier();
 		void (async () => {
+			let wrote = false;
 			try {
 				await this.configService.writePlatformConfigs();
+				wrote = true;
 			} catch (error) {
-				this.logger.warn(`Traefik config write failed: ${error instanceof Error ? error.message : String(error)}`);
+				const reason = error instanceof Error ? error.message : String(error);
+				// Expected on a fresh install: the schema does not exist yet. Kept at
+				// `log` (not `warn`) so a normal boot does not look like a fault, and
+				// the retry below is what actually resolves it.
+				this.logger.log(
+					`Platform config not writable yet (${reason}) — retrying until the global database is ready`,
+				);
+				this.scheduleRetry();
 			}
 			try {
 				const state = await this.orchestrator.convergeNow(traefikId);
@@ -73,6 +115,35 @@ export class TraefikConfigRefresher implements OnApplicationBootstrap {
 			} catch (error) {
 				this.logger.warn(`Traefik re-converge failed: ${error instanceof Error ? error.message : String(error)}`);
 			}
+			if (wrote) this.cancelRetry();
 		})();
+	}
+
+	/**
+	 * Retry the write until it lands.
+	 *
+	 * Chained timers rather than `setInterval`, so a slow write cannot stack
+	 * passes — the same pattern the other cadences in this platform use. Bounded
+	 * only by the process lifetime: the schema either appears (setup succeeded) or
+	 * the node never becomes usable, in which case a permanently-missing web route
+	 * is the least of it, and the log line says exactly what is missing.
+	 */
+	private scheduleRetry(): void {
+		if (this.disposed || this.retryTimer !== null) return;
+		this.retryTimer = setTimeout(() => {
+			this.retryTimer = null;
+			this.refresh();
+		}, TraefikConfigRefresher.RETRY_INTERVAL_MS);
+	}
+
+	private cancelRetry(): void {
+		if (this.retryTimer === null) return;
+		clearTimeout(this.retryTimer);
+		this.retryTimer = null;
+	}
+
+	onModuleDestroy(): void {
+		this.disposed = true;
+		this.cancelRetry();
 	}
 }

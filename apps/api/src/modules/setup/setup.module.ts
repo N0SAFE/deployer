@@ -1,7 +1,9 @@
 import { Module } from "@nestjs/common";
 import { CoreInitializationModule } from "@/core/modules/setup/initialization.module";
 import { CoreReachabilityModule } from "@/core/modules/reachability/core-reachability.module";
+import { EnvModule } from "@/config/env/env.module";
 import { SetupController } from "./controllers/setup.controller";
+import { PostSetupDestinationService } from "./services/post-setup-destination.service";
 
 /**
  * Public Setup Module
@@ -23,8 +25,19 @@ import { SetupController } from "./controllers/setup.controller";
  * and ORPCModule ever load.
  */
 @Module({
-    imports: [CoreInitializationModule, CoreReachabilityModule],
+    // `EnvModule` IS IMPORTED EXPLICITLY: `PostSetupDestinationService` injects
+    // `EnvService`, and `EnvModule` is NOT global — relying on it being
+    // registered elsewhere threw `UnknownDependenciesException` at boot:
+    //
+    //   Nest can't resolve dependencies of the PostSetupDestinationService (?,
+    //   HostnameService, PlatformConfigService) — the argument EnvService at
+    //   index [0] is available in the SetupModule module?
+    //
+    // (`HostnameService`/`PlatformConfigService` resolved fine because
+    // `CorePlatformIngressModule` IS `@Global()`.)
+    imports: [CoreInitializationModule, CoreReachabilityModule, EnvModule],
     controllers: [SetupController],
-    exports: [CoreInitializationModule],
+    providers: [PostSetupDestinationService],
+    exports: [CoreInitializationModule, PostSetupDestinationService],
 })
 export class SetupModule {}
