@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { Observable, from, map, takeUntil, Subject, share, concat, type Subscription } from "rxjs";
+import { Observable, from, interval, map, merge, takeUntil, Subject, share, concat, type Subscription } from "rxjs";
 import type { SetupStreamEvent } from "@repo/contracts-entities";
 
 import { WizardUpstreamService } from "./wizard-upstream.service";
@@ -224,12 +224,40 @@ export class WizardStreamService {
       current ??
       orchestration.snapshot(stepIds.map((id) => ({ id, status: "pending" as const })));
 
-    // The plan, then the re-sync, then only the events that follow it.
-    return concat(
-      from([...details, initial]),
-      orchestration.liveAfter(checkpoint),
+    // ── THE HEARTBEAT IS MERGED HERE, NOT PUSHED THROUGH THE STREAM ───────────
+    // `orchestration.emitted` is a bounded `ReplaySubject`, and `emittedCount`
+    // is the checkpoint `liveAfter()` skips to. Routing pings through either
+    // would be actively harmful: a ping every few seconds would EVICT real
+    // events from the replay buffer, and would shift the checkpoint that the
+    // re-sync depends on. A heartbeat carries no state, so it belongs beside
+    // the stream rather than inside it.
+    //
+    // WHY A HEARTBEAT AT ALL: this pipeline WAITS on slow work and emits nothing
+    // while it does — Docker scheduling a swarm service (14.1s observed), the
+    // ingress taking the entry port and loading its router table (up to 90s).
+    // SSE has no heartbeat of its own, so during those windows a client cannot
+    // distinguish a quiet socket from a DEAD one, and is forced to choose
+    // between a long timeout (a real drop goes unnoticed for minutes) and a
+    // short one (healthy runs get aborted mid-step). A periodic ping removes the
+    // ambiguity, so a short client timeout becomes correct.
+    //
+    // Merged into the LIVE TAIL rather than the prefix: the re-sync
+    // (`details` + `initial`) is written as one atomic batch, and interleaving a
+    // ping there would be pointless — it exists to prove liveness DURING waits.
+    return merge(
+      concat(from([...details, initial]), orchestration.liveAfter(checkpoint)),
+      interval(WizardStreamService.HEARTBEAT_INTERVAL_MS).pipe(
+        map(() => ({
+          type: "heartbeat" as const,
+          seq: 0,
+          ts: new Date().toISOString(),
+        })),
+      ),
     );
   }
+
+  /** How often to prove the socket is alive while the pipeline is quiet. */
+  private static readonly HEARTBEAT_INTERVAL_MS = 3_000;
 
   /**
    * Attach the API's own stream once it answers, forwarding frames verbatim.

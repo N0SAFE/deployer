@@ -126,16 +126,21 @@ export type StreamedObservableOptionsConfig<
    */
   isComplete?: (emitted: readonly TStreamValue[]) => boolean;
   /**
-   * How long the stream may go SILENT before the connection is treated as dead.
+   * How long the stream may go SILENT before it is treated as dead.
    *
-   * An SSE connection has no natural end, so a HALF-OPEN one (the peer vanished
-   * without closing — what an ingress swap produces) would otherwise sit
-   * `pending` forever and the `retry` policy would never fire, because nothing
-   * rejected. Aborting on silence turns that into a normal failure the caller's
-   * `retry` already handles.
+   * ── WHAT MAKES A SHORT WINDOW SAFE ──────────────────────────────────────
+   * SSE has no heartbeat of its own, so "no bytes arrived" cannot distinguish a
+   * dead connection from a step that is legitimately WAITING on something slow.
+   * That ambiguity is why this option exists rather than a hard-coded value.
    *
-   * Tune per stream: a pipeline that emits continuously wants a short window,
-   * while one that can legitimately go quiet for minutes wants a long one.
+   * It is meant to be used WITH a server heartbeat: producers that can go quiet
+   * should emit a periodic liveness event, which resets this clock without
+   * carrying any state. Then a short window detects a real drop in seconds,
+   * instead of being padded out to the longest possible wait.
+   *
+   * Seeding it below a legitimate quiet period — on a stream with no heartbeat —
+   * aborts healthy runs mid-step, and a reconnect during work that must not be
+   * interrupted is worse than the hang it was meant to prevent.
    */
   inactivityTimeoutMs?: number;
 } & Omit<UseQueryOptions<TStreamValue[], TError>, "queryKey" | "queryFn">;
@@ -303,23 +308,17 @@ async function collectObservableValues<TValue>(
   /**
    * How long the stream may go SILENT before it is treated as dead.
    *
-   * ── WHY A WATCHDOG, AND WHY IT BELONGS HERE ──────────────────────────────
-   * An SSE connection has no natural end, so a connection that is HALF-OPEN (the
-   * peer went away without closing — exactly what an ingress swap produces) sits
-   * `pending` in the network tab forever. The client's `retry` never fires,
-   * because nothing rejected: the request simply never finished.
+   * ── A BACKSTOP, NOT A LIVENESS CHECK ────────────────────────────────────
+   * SSE has no heartbeat, so silence means "nothing to say" as often as it means
+   * "connection gone". This must therefore sit ABOVE the longest quiet period the
+   * caller's own pipeline produces while healthy — otherwise it aborts working
+   * runs, and a reconnect mid-step is worse than the hang it prevents.
    *
-   * Observed as "pending requests are too long, one attempt per minute" — the
-   * operator watches a frozen timeline while the browser waits on a socket that
-   * will never produce another byte.
-   *
-   * Aborting on silence turns that into an ordinary failure, which the caller's
-   * `retry` policy already knows how to handle. The window is generous because
-   * the check is `no output at all`, not `no output worth rendering`: a healthy
-   * pipeline emits snapshots continuously, so silence this long means a dead
-   * connection rather than a slow producer.
+   * Its real job: an SSE connection has no natural end, so without a watchdog a
+   * half-open socket sits `pending` forever and the caller's `retry` never fires,
+   * because nothing rejected. See the option's note for how to size it.
    */
-  inactivityTimeoutMs = 20_000,
+  inactivityTimeoutMs = 120_000,
 ): Promise<TValue[]> {
   return await new Promise<TValue[]>((resolve, reject) => {
     // ── ACCUMULATE ACROSS ATTEMPTS, DON'T RESTART ───────────────────────────

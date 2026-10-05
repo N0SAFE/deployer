@@ -146,13 +146,18 @@ const STREAM_MAX_RETRIES = 30;
 /**
  * How long the stream may go SILENT before the connection is treated as dead.
  *
- * Short on purpose. An SSE connection has no natural end, so a HALF-OPEN one
- * (the peer disappeared without closing — what an ingress swap produces) stays
- * `pending` forever unless something aborts it, and the operator waits on a
- * frozen timeline. Setup's pipeline emits snapshots constantly while it works,
- * so seconds of total silence means a dead socket rather than a slow producer.
+ * Short, and it is now SAFE to be short: the server emits a heartbeat every 3s
+ * (see `heartbeat` in the setup event contract), so a healthy stream always
+ * delivers bytes well inside this window even while a step WAITS on something
+ * slow.
+ *
+ * That heartbeat is what makes the two requirements compatible. Without it the
+ * pipeline legitimately went quiet for tens of seconds (14.1s observed while
+ * Postgres was scheduled; up to 90s for the ingress swap), so a short window
+ * aborted healthy runs and a long one left a genuinely dropped connection
+ * unnoticed for minutes. With a ping, only a DEAD socket is silent this long.
  */
-const STREAM_INACTIVITY_TIMEOUT_MS = 8_000;
+const STREAM_INACTIVITY_TIMEOUT_MS = 10_000;
 
 /**
  * Whether the setup stream has reached a TERMINAL event.

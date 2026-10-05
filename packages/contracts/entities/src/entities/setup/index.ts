@@ -165,8 +165,20 @@ export const setupProgressEventTypeSchema = z.enum([
     "step_detail",
     "snapshot",
     "log",
-    "completed",
-    "error",
+    // ── LIVENESS, NOT PROGRESS ───────────────────────────────────────────────
+    // Sent on a timer while a step is WAITING on something slow (scheduling a
+    // swarm service, waiting for an ingress to load its router table). The
+    // client needs it because the GUI cannot otherwise tell a quiet socket from
+    // a dead one: this pipeline legitimately goes silent for tens of seconds
+    // (14.1s observed while Postgres was scheduled; up to 90s for the ingress
+    // swap), and SSE itself provides no heartbeat.
+    //
+    // With this, a SHORT client timeout becomes correct — silence really does
+    // mean the connection is gone — which is what lets a dropped connection be
+    // detected and retried in seconds rather than minutes.
+    //
+    // Carries no state: consumers MUST ignore it beyond resetting liveness.
+    "heartbeat",
 ]);
 export type SetupProgressEventType = z.infer<typeof setupProgressEventTypeSchema>;
 
@@ -265,10 +277,24 @@ export type SetupStreamSnapshotEvent = z.infer<typeof setupStreamSnapshotEventSc
  * monotonic `seq` for re-ordering / dedup. Any consumer can be brought
  * up to date by reading the latest `snapshot`.
  */
+/**
+ * A liveness ping. Carries NO state — see `setupProgressEventTypeSchema`.
+ *
+ * It exists so a waiting pipeline can prove the socket is still alive, which is
+ * what makes a short client-side inactivity timeout safe to use.
+ */
+export const setupStreamHeartbeatEventSchema = z.object({
+    type: z.literal("heartbeat"),
+    seq:  z.number().int().nonnegative(),
+    ts:   z.string().datetime(),
+});
+export type SetupStreamHeartbeatEvent = z.infer<typeof setupStreamHeartbeatEventSchema>;
+
 export const setupStreamEventSchema = z.discriminatedUnion("type", [
     setupStreamStepDetailEventSchema,
     setupStreamSnapshotEventSchema,
     setupStreamLogEventSchema,
+    setupStreamHeartbeatEventSchema,
     z.object({
         type:   z.literal("completed"),
         result: z.object({

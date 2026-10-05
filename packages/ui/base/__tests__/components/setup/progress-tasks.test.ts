@@ -44,6 +44,21 @@ function snapshot(steps: Array<{ id: string; status: string }>): SetupStreamEven
 	} as unknown as SetupStreamEvent
 }
 
+/**
+ * A `heartbeat` event: pure liveness, no state.
+ *
+ * The server emits one every few seconds while a step WAITS on something slow,
+ * so the client can keep a short inactivity timeout and still tell a quiet
+ * socket apart from a dead one.
+ */
+function heartbeat(): SetupStreamEvent {
+	return {
+		type: "heartbeat",
+		seq: 0,
+		ts: "2026-01-01T00:00:00Z",
+	} as unknown as SetupStreamEvent
+}
+
 describe("buildTasksFromEvents — render order", () => {
 	/**
 	 * THE ORDER THE OPERATOR READS MUST BE THE EXECUTION ORDER.
@@ -167,6 +182,47 @@ describe("buildTasksFromEvents — retiring setup-owned steps", () => {
 
 		// A failure is a real outcome, not an unfinished step to be retired.
 		expect(tasks.find((task) => task.id === "promote_ingress")?.status).toBe("error")
+	})
+})
+
+describe("buildTasksFromEvents — heartbeats", () => {
+	/**
+	 * A heartbeat proves the socket is ALIVE; it is not a step.
+	 *
+	 * The server sends one every few seconds while a step waits on something slow
+	 * (Docker scheduling a service, an ingress loading its router table), so that
+	 * a SHORT client timeout can safely distinguish a quiet socket from a dead
+	 * one. Rendering it would invent a step that does not exist and shift the
+	 * pipeline the operator is reading.
+	 */
+	it("ignores heartbeats when building the step list", () => {
+		const withHeartbeats: SetupStreamEvent[] = [
+			stepDetail("provision_database"),
+			snapshot([{ id: "provision_database", status: "in_progress" }]),
+			heartbeat(),
+			heartbeat(),
+			snapshot([{ id: "provision_database", status: "completed" }]),
+			heartbeat(),
+		]
+
+		const tasks = buildTasksFromEvents(withHeartbeats)
+
+		expect(tasks.map((task) => task.id)).toEqual(["provision_database"])
+		expect(tasks[0]?.status).toBe("done")
+	})
+
+	it("does not let a heartbeat look like a terminal event", () => {
+		// A heartbeat arriving after the work finished must not change the gate,
+		// and one arriving alone must not open it — only a real terminal does.
+		const onlyHeartbeat = buildTasksFromEvents([heartbeat()])
+		expect(isPipelineComplete(onlyHeartbeat)).toBe(false)
+
+		const finished = buildTasksFromEvents([
+			stepDetail("promote_ingress"),
+			snapshot([{ id: "promote_ingress", status: "completed" }]),
+			heartbeat(),
+		])
+		expect(isPipelineComplete(finished)).toBe(true)
 	})
 })
 

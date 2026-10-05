@@ -1,7 +1,7 @@
 import { AppError } from "@repo/errors";
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common'
 import { Pool } from 'pg'
-import { ReplaySubject, firstValueFrom, Observable } from 'rxjs'
+import { ReplaySubject, firstValueFrom, interval, map, merge, Observable } from 'rxjs'
 import type {
     SetupInitializeInput,
     SetupStreamEvent,
@@ -284,10 +284,39 @@ export class InitializationService implements OnModuleInit {
      * Returns an Observable backed by the core event service's progress channel.
      * Safe to call before `triggerInitialize()` — the event service buffers events
      * and replays them to late subscribers.
+     *
+     * ── WHY A HEARTBEAT IS MERGED IN ──────────────────────────────────────────
+     * Provisioning WAITS on slow work and emits nothing while it does: a swarm
+     * service being scheduled, migrations running, a database accepting its first
+     * connection. SSE carries no heartbeat of its own, so during those windows
+     * the socket delivers no bytes at all — indistinguishable from a DEAD
+     * connection.
+     *
+     * That ambiguity forced the client to choose between two bad options: a long
+     * timeout (a dropped connection takes minutes to notice) or a short one
+     * (healthy runs get aborted mid-step). A periodic ping removes the ambiguity,
+     * so a SHORT client timeout becomes correct and a real drop is retried in
+     * seconds.
+     *
+     * `merge` rather than appending to the event service's own buffer: a
+     * heartbeat carries no state, and recording one every few seconds would evict
+     * real events from the replay buffer that a reconnecting client depends on.
      */
     getInitializeStream(): Observable<SetupStreamEvent> {
-        return this.setupEventService.observeProgress$()
+        return merge(
+            this.setupEventService.observeProgress$(),
+            interval(InitializationService.HEARTBEAT_INTERVAL_MS).pipe(
+                map(() => ({
+                    type: "heartbeat" as const,
+                    seq: 0,
+                    ts: new Date().toISOString(),
+                })),
+            ),
+        )
     }
+
+    /** How often to prove the socket is alive while provisioning is quiet. */
+    private static readonly HEARTBEAT_INTERVAL_MS = 3_000;
 
     /**
      * Internal — runs the initialization process, driving a fresh

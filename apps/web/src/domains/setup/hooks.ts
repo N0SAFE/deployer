@@ -165,9 +165,10 @@ export function useInitializeStream(options?: { enabled?: boolean }) {
       // The step list is PRESERVED across reconnects, so the operator keeps the
       // progress they already had instead of an empty view.
       isComplete: isSetupStreamFinished,
-      // Short window, so a half-open socket is abandoned in seconds instead of
-      // leaving a `pending` request the operator watches indefinitely.
-      inactivityTimeoutMs: 8_000,
+      // Short, and now SAFE to be short: the server sends a heartbeat every 3s,
+      // so a healthy stream always delivers bytes inside this window even while
+      // a step waits on something slow. Only a DEAD socket is silent this long.
+      inactivityTimeoutMs: 10_000,
     }),
     staleTime: Infinity,
     gcTime: 0, // don't persist stream data across navigations

@@ -266,7 +266,13 @@ export function buildTasksFromEvents(
       }
       case "completed":
       case "error":
-        // Terminal events — no per-step state to mutate
+      case "heartbeat":
+        // Terminal events — no per-step state to mutate.
+        //
+        // `heartbeat` is grouped here for a different reason: it carries NO
+        // state. Its only job is to prove the socket is alive so a client
+        // timeout can stay short (see the event contract). Rendering it would
+        // invent a step that does not exist.
         break
     }
   }
