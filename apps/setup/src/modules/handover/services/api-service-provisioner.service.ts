@@ -38,6 +38,19 @@ import { DEFAULT_API_INTERNAL_PORT, type ApiBackend } from "../handover.types";
 export class ApiServiceProvisioner {
   private readonly logger = new Logger(ApiServiceProvisioner.name);
 
+  /**
+   * How long to keep retrying the connect of THIS container to the overlay.
+   *
+   * The engine's own join budget is ~20s and it is spent building the network
+   * sandbox on a freshly created overlay, so one attempt can legitimately time
+   * out while the next succeeds. Sized to ride out that settling window without
+   * holding the handover open on a genuinely dead network.
+   */
+  private static readonly ATTACH_TIMEOUT_MS = 60_000;
+
+  /** Spacing between overlay-attach attempts. */
+  private static readonly ATTACH_POLL_MS = 3_000;
+
   constructor(
     private readonly env: EnvService,
     private readonly docker: DockerService,
@@ -97,6 +110,23 @@ export class ApiServiceProvisioner {
    * IDEMPOTENT: an existing service is left alone rather than recreated. Setup
    * must be safely re-runnable, and recreating would restart a healthy API —
    * turning a harmless retry of a later step into an outage.
+   *
+   * ── IDEMPOTENT ABOUT THE SERVICE, NOT ABOUT THE NETWORK ────────────────────
+   * "Leave the service alone" must not extend to the network setup itself
+   * depends on. The overlay and this container's attachment are prepared BEFORE
+   * the branch, because both are required to CALL an API that already exists:
+   *
+   *   [ApiServiceProvisioner] API swarm service "deployer-api" already exists
+   *   — reusing it
+   *   ... no attach line, and then 300s of:
+   *   [WizardUpstreamService] Upstream http://deployer-api:3005/health/ready
+   *   unreachable: getaddrinfo ETIMEOUT deployer-api
+   *
+   * Skipping the attach on the reuse path is what produced that: the service was
+   * healthy the whole time, and the one process that had to hand over was not on
+   * the network that makes its name resolve. Every run after a successful
+   * `create` took this path, so the failure only ever appeared on a RE-RUN —
+   * which is exactly when an operator retries.
    */
   private async createSwarmService(): Promise<ApiBackend> {
     const name = this.serviceName();
@@ -104,12 +134,6 @@ export class ApiServiceProvisioner {
 
     if (image === undefined || image.length === 0) {
       throw new Error("SETUP_MODE=prod requires DEPLOYER_API_IMAGE (the tag setup schedules)");
-    }
-
-    const existing = await this.findExistingService(name);
-    if (existing) {
-      this.logger.log(`API swarm service "${name}" already exists — reusing it`);
-      return this.backendFor(name, image, "existing swarm service");
     }
 
     const replicas = this.env.get("DEPLOYER_API_REPLICAS");
@@ -150,7 +174,16 @@ export class ApiServiceProvisioner {
     // Connecting SELF rather than declaring the network in compose, because the
     // overlay does not exist until this code creates it: compose would need it
     // present before starting the very container that makes it.
+    //
+    // THIS RUNS ON BOTH PATHS. See the method note: on the reuse path the
+    // service already exists, so the attach is the ONLY thing that makes the
+    // handover able to reach it.
     await this.connectSelfToOverlay(overlay);
+
+    if (await this.findExistingService(name)) {
+      this.logger.log(`API swarm service "${name}" already exists — reusing it`);
+      return this.backendFor(name, image, "existing swarm service");
+    }
 
     this.logger.log(`Creating API swarm service "${name}" from image ${image} (${String(replicas)} replica(s)) on ${overlay}`);
 
@@ -547,6 +580,18 @@ export class ApiServiceProvisioner {
    * overlay by the same route. `HOSTNAME` is the container's own ID, which is
    * what the connect API expects; the guard keeps this a no-op outside Docker
    * (where HOSTNAME is a hostname, not an ID).
+   *
+   * ── WHY THE ATTACH IS RETRIED ────────────────────────────────────────────
+   * A freshly created overlay refuses an endpoint join while the engine is still
+   * building its bridge + VXLAN inside the network sandbox:
+   *
+   *   attaching to network failed ... context deadline exceeded
+   *
+   * Observed on a real run, where the SAME attach succeeded seconds later — the
+   * deadline is the engine's own 20s budget being consumed by the setup work,
+   * not a permanent refusal. Giving up on the first attempt turned a transient
+   * settling window into a total handover failure, so the connect is retried
+   * until it either succeeds or the budget below is spent.
    */
   private async connectSelfToOverlay(overlay: string): Promise<void> {
     const selfId = process.env.HOSTNAME;
@@ -557,24 +602,38 @@ export class ApiServiceProvisioner {
       return;
     }
 
-    // Not fatal on failure: the join is what lets setup TALK to the API, and
-    // refusing to schedule the service over a reachability problem would turn a
-    // recoverable misconfiguration into a total onboarding failure. A retry
-    // re-attempts it, and "already connected" is the normal outcome then.
-    await this.docker
-      .getDockerClient()
-      .getNetwork(overlay)
-      .connect({ Container: selfId })
-      .then(() => {
+    const deadline = Date.now() + ApiServiceProvisioner.ATTACH_TIMEOUT_MS;
+    let lastMessage = "the engine refused the join without an error message";
+
+    while (Date.now() < deadline) {
+      try {
+        await this.docker.getDockerClient().getNetwork(overlay).connect({ Container: selfId });
         this.logger.log(`Connected setup (${selfId.slice(0, 12)}) to the platform overlay ${overlay}`);
-      })
-      .catch((error: unknown) => {
+        return;
+      } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         if (/already exists|already connected/i.test(message)) {
           this.logger.log(`Setup is already attached to ${overlay}`);
           return;
         }
-        this.logger.warn(`Could not attach setup to ${overlay}: ${message}`);
-      });
+        lastMessage = message;
+        this.logger.log(
+          `Overlay ${overlay} not ready for this container yet — retrying (engine said: ${message})`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, ApiServiceProvisioner.ATTACH_POLL_MS));
+      }
+    }
+
+    // ── EXHAUSTED, WHICH IS FATAL ───────────────────────────────────────────
+    // Setup being off the overlay is not a local problem: a swarm service's name
+    // resolves only on a swarm-scoped network, so every `deployer-api` lookup
+    // fails and the readiness pipeline polls a name that cannot answer until its
+    // 300s budget expires. The operator then sees a TIMEOUT that names neither
+    // the overlay nor the cause. Throwing surfaces the engine's own words in
+    // seconds, at the step that actually failed.
+    throw new Error(
+      `Cannot reach the platform overlay ${overlay} — this container could not be attached within ` +
+        `${String(ApiServiceProvisioner.ATTACH_TIMEOUT_MS / 1000)}s. Engine said: ${lastMessage}`,
+    );
   }
 }
