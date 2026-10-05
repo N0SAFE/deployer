@@ -23,16 +23,40 @@
  * setup has created the cluster.
  */
 
-import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
+import { Inject, Injectable, Logger, type OnModuleInit } from "@nestjs/common";
+import { SWARM_BOOT_CONVERGENCE } from "../swarm-config";
 import { SwarmParticipationService } from "./swarm-participation.service";
 
 @Injectable()
 export class SwarmBootstrapService implements OnModuleInit {
     private readonly logger = new Logger(SwarmBootstrapService.name);
 
-    constructor(private readonly participation: SwarmParticipationService) {}
+    constructor(
+        private readonly participation: SwarmParticipationService,
+        /**
+         * Whether THIS app may converge the engine during boot.
+         *
+         * Supplied by the app (`SwarmModuleOptions.convergeOnBoot`) because the
+         * answer depends on who owns the cluster decision: the API must
+         * re-converge on restart so its supervisors have a swarm to schedule
+         * onto, whereas setup FOUNDS the cluster as part of an operator-driven
+         * flow — converging at its boot would touch the engine on every restart
+         * before anything was triggered, and then converge a second time from
+         * the trigger itself.
+         */
+        @Inject(SWARM_BOOT_CONVERGENCE) private readonly convergeOnBoot: boolean,
+    ) {}
 
     async onModuleInit(): Promise<void> {
+        if (!this.convergeOnBoot) {
+            // The app converges explicitly, when its own flow reaches that step.
+            // See `convergeOnBoot` for which app that is and why.
+            this.logger.log(
+                "Swarm boot convergence is disabled for this app — the cluster is converged by its own flow, not at startup",
+            );
+            return;
+        }
+
         if (!this.participation.setupDone()) {
             // Pre-setup: never initialize swarm. The WIZARD decides how this
             // node enters the cluster (create vs join) and its role policy;

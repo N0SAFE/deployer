@@ -112,6 +112,23 @@ export const SWARM_JOIN_CONFIG = "SWARM_JOIN_CONFIG" as const;
 export const SWARM_PARTICIPATION_DEFAULTS = "SWARM_PARTICIPATION_DEFAULTS" as const;
 
 /**
+ * Whether `SwarmBootstrapService` may converge the engine during BOOT.
+ *
+ * The app supplies it because the answer is a property of the APP, not of the
+ * cluster: an app that owns the cluster (the API, whose supervisors must have a
+ * swarm before they schedule anything) wants the boot convergence, while an app
+ * that FOUNDS the cluster as part of an operator-driven flow (setup) does not —
+ * converging at its boot would touch the engine on every restart, before the
+ * operator has triggered anything, and then converge a second time from the
+ * trigger itself.
+ *
+ * `SwarmBootstrapService.converge()` stays available either way, so an app that
+ * disables the boot pass still converges explicitly when its flow reaches that
+ * step.
+ */
+export const SWARM_BOOT_CONVERGENCE = "SWARM_BOOT_CONVERGENCE" as const;
+
+/**
  * Tokens for the two OPTIONAL leadership hooks.
  *
  * Optional means "the app may supply a source/sink", not "inject undefined":

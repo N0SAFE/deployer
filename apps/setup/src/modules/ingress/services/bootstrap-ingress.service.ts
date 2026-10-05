@@ -1,4 +1,4 @@
-import { Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException, type OnApplicationBootstrap } from "@nestjs/common";
 import { Socket } from "node:net";
 import { DockerService } from "@repo/nest-docker/services/docker.service";
 import { platformNetworkName } from "@repo/nest-docker/services/docker-supervisor-runtime";
@@ -69,6 +69,17 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
 
   /** Where the file provider reads generated routes inside the container. */
   private static readonly CONFIG_MOUNT = "/config";
+
+  /**
+   * How long to wait for the swarm ingress to take over the entry port.
+   *
+   * Generous because this covers a full SERVICE SCHEDULING round trip: the
+   * scheduler must place the task, pull/verify the image, create the container
+   * and start it. Thirty seconds was enough on a warm node and not on a restart
+   * (measured), and a timeout here has a costly failure mode — it restores the
+   * bootstrap container, which then fights the swarm task for the port forever.
+   */
+  private static readonly PROMOTION_TIMEOUT_MS = 90_000;
 
   /** How long to wait for the ingress to answer before reporting failure. */
   private static readonly READY_TIMEOUT_MS = 20_000;
@@ -231,43 +242,144 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
     this.logger.log(`Releasing the entry port — stopping ${name} so the swarm ingress can bind it`);
     await this.remove();
 
-    const promoted = await this.waitForPortTaken();
-    if (!promoted) {
-      // ── A FAILED RESTORE CAN ITSELF PROVE THE HANDOVER WORKED ───────────────
-      // The wait above is a POLL with a budget, so a swarm task that binds the
-      // port at 31s is indistinguishable from one that never binds it. Restoring
-      // the bootstrap container is the tie-break — and its failure is the answer:
-      // if the port is already allocated, SOMETHING holds it, and the only other
-      // claimant is the swarm ingress. Observed on a real run, where setup
-      // reported a failed handover while the platform was fully up:
-      //
-      //   [BootstrapIngressService] The swarm ingress did not claim the entry port...
-      //   [HandoverOrchestratorService] Handover failed: (HTTP code 500) ...
-      //     Bind for 0.0.0.0:80 failed: port is already allocated
-      //
-      // So the error is READ rather than propagated: "port is already allocated"
-      // means the promotion succeeded and the bootstrap container must stay down.
-      // Any OTHER failure is a genuine problem and still propagates.
-      try {
-        this.logger.warn(
-          "The swarm ingress did not claim the entry port in time — restoring the bootstrap container " +
-            "so the platform stays reachable, then retrying on the next handover",
+    if (await this.waitForSwarmIngressRunning()) return true;
+
+    // The swarm service genuinely never ran. Restore the bootstrap container so
+    // the platform stays reachable, then let the next handover retry.
+    //
+    // The restore is the TIE-BREAK, and its failure is the answer: if the port
+    // is already allocated, SOMETHING holds it, and the only other claimant is
+    // the swarm ingress — so the promotion did succeed after all. Observed on a
+    // real run, where setup reported a failed handover while the platform was
+    // fully up:
+    //
+    //   [BootstrapIngressService] The swarm ingress did not claim the entry port...
+    //   [HandoverOrchestratorService] Handover failed: (HTTP code 500) ...
+    //     Bind for 0.0.0.0:80 failed: port is already allocated
+    //
+    // So the error is READ rather than propagated: "port is already allocated"
+    // means the promotion succeeded and the bootstrap container must stay down.
+    // Any OTHER failure is a genuine problem and still propagates.
+    this.logger.warn(
+      "The swarm ingress did not claim the entry port in time — restoring the bootstrap container " +
+        "so the platform stays reachable, then retrying on the next handover",
+    );
+    try {
+      await this.create();
+      return false;
+    } catch (error: unknown) {
+      if (this.isPortTakenError(error)) {
+        this.logger.log(
+          "Bootstrap ingress could not be restored because the entry port is taken — " +
+            "the swarm ingress owns it, so the handover succeeded",
         );
-        await this.create();
-        return false;
-      } catch (error: unknown) {
-        if (this.isPortTakenError(error)) {
-          this.logger.log(
-            "Bootstrap ingress could not be restored because the entry port is taken — " +
-              "the swarm ingress owns it, so the handover succeeded",
-          );
-          return true;
-        }
-        throw error;
+        return true;
       }
+      throw error;
+    }
+  }
+
+  /**
+   * Wait until the SWARM ingress service has a running task on this node.
+   *
+   * ── WHY THIS REPLACES A PORT POLL ────────────────────────────────────────
+   * The release used to wait for the host port to ACCEPT a connection. That ask
+   * the wrong question: on a restart the port is taken by the bootstrap container
+   * itself right up until `remove()` finishes, and afterwards by whichever
+   * process wins the race to bind. Determining "did the promotion work?" from
+   * port ownership meant the answer depended on WHO bound first:
+   *
+   *   remove()  ->  swarm task starts, tries to bind :80
+   *                  -> fails while the port is still transitioning
+   *                  -> task exits, scheduler retries
+   *   waitForPortTaken() polls, sees nothing, times out
+   *   -> the bootstrap container is RESTORED
+   *   -> now BOTH are trying to own :80, and the swarm task crash-loops forever
+   *      with "Bind for 0.0.0.0:80 failed: port is already allocated"
+   *
+   * Observed exactly that, on a restart: `deployer-traefik` service at 0/0 with a
+   * task failing every 5s, while a plain `deployer-traefik` container held the
+   * port — neither able to win, so onboarding never completed.
+   *
+   * Asking the SERVICE whether it has a running task removes the race entirely:
+   * the port is only ever contended for the window between `remove()` and the
+   * task reaching `running`, and success no longer depends on a 30s budget being
+   * enough for the scheduler.
+   *
+   * Returns false (so the caller restores the container) only when the service
+   * genuinely has no running task within the budget — a real failure worth
+   * surfacing, not a lost race.
+   */
+  private async waitForSwarmIngressRunning(): Promise<boolean> {
+    const deadline = Date.now() + BootstrapIngressService.PROMOTION_TIMEOUT_MS;
+    let lastDetail = "the swarm ingress service was never observed";
+
+    while (Date.now() < deadline) {
+      const state = await this.swarmIngressState();
+      if (state.running) return true;
+      lastDetail = state.detail;
+      await new Promise((resolve) => setTimeout(resolve, BootstrapIngressService.READY_POLL_MS));
     }
 
-    return true;
+    // Fall back to the port probe: a task can be `running` yet not yet bound, and
+    // (rarer) the engine can report a stale task state. The port is the ground
+    // truth about reachability, so it gets the final say.
+    if (await this.portAnswers(1_000)) {
+      this.logger.log("Swarm ingress answers on the entry port — promotion complete");
+      return true;
+    }
+
+    this.logger.warn(`Swarm ingress not promoted: ${lastDetail}`);
+    return false;
+  }
+
+  /** Whether the swarm ingress service has a task running on this node. */
+  private async swarmIngressState(): Promise<{ running: boolean; detail: string }> {
+    const serviceName = this.swarmServiceName();
+
+    // The service is created by the API's supervisor AFTER the gate opens, and
+    // this poll runs during the handover — so "not created yet" is the NORMAL
+    // first answer, not a fault. Checking it explicitly keeps that out of the
+    // task listing, which logs an ERROR for a 404 and would make every handover
+    // look like it failed.
+    try {
+      await this.docker.inspectSwarmService(serviceName);
+    } catch (error: unknown) {
+      if (error instanceof NotFoundException) {
+        return { running: false, detail: `${serviceName} has not been created yet` };
+      }
+      const detail = error instanceof Error ? error.message : String(error);
+      return { running: false, detail: `${serviceName} could not be inspected (${detail})` };
+    }
+
+    try {
+      const tasks = await this.docker.listSwarmServiceTasks(serviceName);
+      if (tasks.length === 0) {
+        return { running: false, detail: `${serviceName} has no tasks scheduled` };
+      }
+      const running = tasks.filter((task) => task.Status.State === "running").length;
+      if (running > 0) return { running: true, detail: `${serviceName} has ${String(running)} running task(s)` };
+
+      // Surface the FIRST task error verbatim: the port-conflict text is what
+      // makes this diagnosable, and it is the whole reason the promotion can
+      // fail while the service "exists".
+      const failing = tasks.find((task) => task.Status.Err !== undefined && task.Status.Err !== "");
+      return {
+        running: false,
+        detail: failing === undefined
+          ? `${serviceName} tasks are not running yet (${tasks.map((task) => task.Status.State).join(", ")})`
+          : `${serviceName} task failed: ${failing.Status.Err}`,
+      };
+    } catch (error: unknown) {
+      const detail = error instanceof Error ? error.message : String(error);
+      return { running: false, detail: `${serviceName} could not be inspected (${detail})` };
+    }
+  }
+
+  /** `deployer-traefik`, per prefix — the same name the API's supervisor uses. */
+  private swarmServiceName(): string {
+    const prefix = this.env.get("DEPLOYER_PREFIX");
+    return prefix === "" ? BootstrapIngressService.CONTAINER_NAME : `${BootstrapIngressService.CONTAINER_NAME}-${prefix}`;
   }
 
   /**
@@ -446,11 +558,9 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
    * published separately). Requiring a 200 would conflate "ingress up" with
    * "route configured", and the two are deliberately separate here.
    */
-  private async waitForPortTaken(): Promise<boolean> {
-    return await this.portAnswers(30_000);
-  }
-
-  /** Assert the ingress answers within the boot budget, or throw. */
+  /**
+   * Assert the ingress answers within the boot budget, or throw.
+   */
   private async verifyReachable(): Promise<void> {
     const reachable = await this.portAnswers(BootstrapIngressService.READY_TIMEOUT_MS);
     if (!reachable) {

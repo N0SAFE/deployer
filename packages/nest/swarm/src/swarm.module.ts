@@ -13,6 +13,7 @@ import {
 	SWARM_JOIN_CONFIG,
 	SWARM_METRICS_PROVIDER,
 	SWARM_PARTICIPATION_DEFAULTS,
+	SWARM_BOOT_CONVERGENCE,
 	SWARM_LEADERSHIP_EVENT_SINK,
 	type SwarmElectionConfig,
 	type SwarmJoinConfig,
@@ -42,6 +43,16 @@ export interface SwarmModuleOptions {
 	join: SwarmJoinConfig;
 	/** First-run participation defaults, consulted only until setup persists a choice. */
 	participation?: SwarmParticipationDefaults;
+	/**
+	 * Whether the engine may be converged during BOOT. Defaults to `true`.
+	 *
+	 * `false` is for an app that founds the cluster inside an OPERATOR-DRIVEN
+	 * flow (setup): its own boot must not touch the engine, because the swarm is
+	 * created when the operator triggers setup, not when the process starts. The
+	 * boot pass would otherwise run on every restart against a node that is
+	 * already `setup_done` — and then converge AGAIN from the trigger.
+	 */
+	convergeOnBoot?: boolean;
 	/** Optional metrics source for the master election. */
 	metricsProvider?: ClusterMetricsProvider;
 	/** Optional sink for leadership-change events. */
@@ -163,6 +174,11 @@ export class SwarmModule {
 				inject: [optionsToken],
 			},
 			{
+				provide: SWARM_BOOT_CONVERGENCE,
+				useFactory: (options: SwarmModuleOptions) => options.convergeOnBoot ?? true,
+				inject: [optionsToken],
+			},
+			{
 				provide: SWARM_METRICS_PROVIDER,
 				useFactory: (options: SwarmModuleOptions) => options.metricsProvider ?? null,
 				inject: [optionsToken],
@@ -181,6 +197,7 @@ export class SwarmModule {
 			{ provide: SWARM_ELECTION_CONFIG, useValue: options.election },
 			{ provide: SWARM_JOIN_CONFIG, useValue: options.join },
 			{ provide: SWARM_PARTICIPATION_DEFAULTS, useValue: options.participation ?? {} },
+			{ provide: SWARM_BOOT_CONVERGENCE, useValue: options.convergeOnBoot ?? true },
 			{ provide: SWARM_METRICS_PROVIDER, useValue: options.metricsProvider ?? null },
 			{ provide: SWARM_LEADERSHIP_EVENT_SINK, useValue: options.eventSink ?? null },
 		];

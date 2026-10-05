@@ -6,6 +6,7 @@ import { SwarmModule } from "@repo/nest-swarm";
 import { localDatabaseRegistration } from "@/config/database/local-database.module";
 import { EnvModule, EnvService } from "@/config/env/env.module";
 import { SetupHealthModule } from "@/modules/health/setup-health.module";
+import { SetupProgressModule } from "@/modules/progress/progress.module";
 import { ClusterOrchestratorService } from "./services/cluster-orchestrator.service";
 import { SwarmBootstrapService } from "./services/swarm-bootstrap.service";
 
@@ -58,6 +59,10 @@ import { SwarmBootstrapService } from "./services/swarm-bootstrap.service";
     // participation decision that the API READS.
     NodesModule.forRoot({ localDatabase: localDatabaseRegistration() }),
     SetupHealthModule,
+    // The swarm phase REPORTS on the operator's timeline, so it needs the
+    // progress module. It is a leaf dependency (it imports only `EnvModule`),
+    // which is what keeps `cluster/` from having to know about the wizard.
+    SetupProgressModule,
     SwarmModule.forRootAsync({
       imports: [EnvModule],
       inject: [EnvService],
@@ -94,6 +99,20 @@ import { SwarmBootstrapService } from "./services/swarm-bootstrap.service";
         participation: {
           overlayIp: env.get("MANAGED_WIREGUARD_IP") ?? null,
         },
+        // ── THE ENGINE IS CONVERGED BY THE SETUP FLOW, NOT AT BOOT ────────────
+        // Whoever starts an app also decides whether it may touch the engine on
+        // startup, and for THIS app the answer is no. `setup` FOUNDS the cluster
+        // as part of the flow the operator triggers: converging in
+        // `onModuleInit` meant every restart ran `docker swarm init` before
+        // anything was asked for — and then converged a SECOND time from the
+        // trigger, which is the "swarm is initialised when the setup app starts"
+        // behaviour this flag removes.
+        //
+        // The trigger path is unaffected: `ClusterOrchestratorService` calls
+        // `SwarmBootstrapService.bootstrap(...)` directly, so the swarm is still
+        // founded while the wizard runs — which is when it must be, because the
+        // API is scheduled onto that swarm immediately afterwards.
+        convergeOnBoot: false,
         join: {
           // Setup founds the cluster, so the advertised address is resolved from
           // what this node actually answers on. `SwarmBootstrapService` uses the

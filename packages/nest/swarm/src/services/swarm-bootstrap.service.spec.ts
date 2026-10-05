@@ -1,6 +1,7 @@
 import { Test, type TestingModule } from "@nestjs/testing";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { ClusterSnapshot } from "@repo/contracts-entities";
+import { SWARM_BOOT_CONVERGENCE } from "../swarm-config";
 import { SwarmBootstrapService } from "./swarm-bootstrap.service";
 import { SwarmParticipationService } from "./swarm-participation.service";
 
@@ -46,7 +47,8 @@ describe("SwarmBootstrapService", () => {
         effectiveConfig: ReturnType<typeof vi.fn>;
     };
 
-    beforeEach(async () => {
+    /** Build the service with an explicit boot-convergence policy. */
+    async function makeService(convergeOnBoot: boolean): Promise<SwarmBootstrapService> {
         participation = {
             converge: vi.fn(),
             setupDone: vi.fn(),
@@ -57,10 +59,30 @@ describe("SwarmBootstrapService", () => {
             providers: [
                 SwarmBootstrapService,
                 { provide: SwarmParticipationService, useValue: participation },
+                { provide: SWARM_BOOT_CONVERGENCE, useValue: convergeOnBoot },
             ],
         }).compile();
 
-        service = moduleRef.get(SwarmBootstrapService);
+        return moduleRef.get(SwarmBootstrapService);
+    }
+
+    beforeEach(async () => {
+        service = await makeService(true);
+    });
+
+    /**
+     * An app that founds the cluster inside an OPERATOR-DRIVEN flow (setup) must
+     * not touch the engine at startup: doing so founded a swarm on every restart
+     * before anything was triggered, and then converged a SECOND time from the
+     * trigger the operator's action produced.
+     */
+    it("does not touch the engine at boot when the app converges from its own flow", async () => {
+        const deferred = await makeService(false);
+        participation.setupDone.mockReturnValue(true);
+
+        await deferred.onModuleInit();
+
+        expect(participation.converge).not.toHaveBeenCalled();
     });
 
     it("DEFERS convergence before setup — the wizard decides create vs join", async () => {
