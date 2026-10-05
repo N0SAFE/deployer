@@ -26,20 +26,33 @@ export class SetupEventService extends BasePooledEventService<SetupEventContract
     }
 
     /**
-     * Observe the initialization progress stream live — no replay of past events.
+     * Observe the initialization progress stream, WITH replay of recent events.
      *
-     * Unlike the inherited `subscribe$()` which replays buffered events AND
-     * subscribes to the live Subject (causing double delivery to the first
-     * subscriber), this method skips all buffered/persisted replay and only
-     * delivers events emitted after subscription time.
+     * ── WHY REPLAY IS REQUIRED, NOT A CONVENIENCE ───────────────────────────────
+     * This stream is re-subscribed for reasons the CLIENT does not control, and
+     * the reconnect is not a fresh start: the ingress is replaced during the
+     * handover, which tears the connection down, and the client reconnects to
+     * the SAME URL once the new ingress answers.
      *
-     * The caller MUST have already started the initialization via
-     * `triggerInitialize()` or ensure the stream is opened before
-     * initialization begins.
+     * With no replay that reconnect yielded NOTHING — every event had already
+     * been sent before the swap, so the operator's timeline sat frozen with no
+     * further updates and no indication why. Observed as "the stream reconnects
+     * but no event comes from this endpoint".
+     *
+     * Replaying the buffer lets the API re-sync whatever the client missed. It is
+     * BOUNDED (`durableReplayLimit`) rather than unbounded, because the only
+     * consumer is a reconnect that is seconds behind, and the setup run is a
+     * finite pipeline — the steps are snapshots, so the tail carries the current
+     * state of every step anyway.
+     *
+     * `includePersisted: false` is kept: these events are ephemeral progress for
+     * one run, and reading them from durable storage on every subscribe would
+     * make a reconnect depend on the database being up — exactly the window in
+     * which it might not be.
      */
     observeProgress$(): Observable<SetupStreamEvent> {
         return this.subscribe$('progress', {}, {
-            replayLimit: 0,
+            replayLimit: this.durableReplayLimit,
             includePersisted: false,
         })
     }

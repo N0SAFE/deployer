@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react"
 import { Activity, CheckCircle2, Loader2, XCircle } from "lucide-react"
 import type { SetupStreamEvent } from "@repo/contracts-entities"
 import { Button } from "@repo/ui/components/shadcn/button"
-import { ProgressTasks, buildTasksFromEvents } from "@repo/ui/components/setup/progress-tasks"
+import { ProgressTasks, buildTasksFromEvents, isPipelineComplete } from "@repo/ui/components/setup/progress-tasks"
 import { markSetupComplete } from "@repo/ui/components/setup/setup-storage"
 import type { SetupWizardApi } from "@repo/ui/components/setup/types"
 
@@ -43,13 +43,23 @@ interface Props {
 export function ProgressStep({ api, events, context, onComplete, onError }: Props) {
   const tasks = useMemo(() => buildTasksFromEvents(events), [events])
 
-  // Derive terminal state from the latest event so the parent doesn't
-  // have to maintain its own copy. The wizard listens via onComplete
-  // and decides whether to navigate, show a CTA, or stay put.
-  const last = events[events.length - 1]
-  const completedEvent = last?.type === "completed" ? last : undefined
-  const errorEvent = last?.type === "error" ? last : undefined
+  // ── SEARCHED, NOT READ FROM THE LAST EVENT ───────────────────────────────
+  // Two producers append to this one timeline, and the LATER one can append
+  // AFTER the terminal event: the API's `completed` reports provisioning, and
+  // the ingress swap then reports `promote_ingress` on top of it. Reading
+  // `events.at(-1)` therefore stopped finding the terminal once the swap
+  // started — the heading reverted to "Live setup output" and the Continue
+  // button vanished mid-render, which is exactly what the operator saw.
+  //
+  // Searching the whole timeline keeps a terminal state STICKY: once setup is
+  // done it stays done, whatever else is reported afterwards.
+  const completedEvent = events.find((event) => event.type === "completed")
+  const errorEvent = events.find((event) => event.type === "error")
   const isTerminal = Boolean(completedEvent) || Boolean(errorEvent)
+
+  // The pipeline is over only when every announced step has finished — the
+  // terminal event alone arrives BEFORE the ingress swap. See `ContinueButton`.
+  const pipelineComplete = isPipelineComplete(tasks)
 
   if (completedEvent && onComplete) {
     onComplete(completedEvent.result)
@@ -119,7 +129,17 @@ export function ProgressStep({ api, events, context, onComplete, onError }: Prop
           </div>
           <ProgressTasks tasks={tasks} />
 
-          {completedEvent ? (
+          {/**
+           * THE BUTTON APPEARS ONLY ONCE THE PIPELINE IS DONE.
+           *
+           * Rendering it earlier as a DISABLED spinner was the wrong shape: the
+           * step list ABOVE already says the ingress is switching, so a second
+           * loading affordance duplicated that message and then disappeared when
+           * the button unmounted — reading as a glitch rather than as progress.
+           * Nothing is clickable until there is somewhere safe to go, and the
+           * steps are the thing reporting that.
+           */}
+          {completedEvent && pipelineComplete ? (
             <ContinueButton api={api} context={context} />
           ) : null}
           {errorEvent ? (

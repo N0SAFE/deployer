@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { ReplaySubject, type Observable } from "rxjs";
+import { ReplaySubject, skip, type Observable } from "rxjs";
 import type { SetupStreamEvent, SetupStepId } from "@repo/contracts-entities";
 
 import { EnvService } from "@/config/env/env.module";
@@ -60,6 +60,56 @@ export class OrchestrationStreamService {
    */
   private readonly logs = new Map<SetupStepId, string[]>();
 
+  /**
+   * The step definitions, ONCE — replayed verbatim to every late subscriber.
+   *
+   * ── WHY THIS IS CACHED RATHER THAN REBUILT ──────────────────────────────────
+   * The stream is served per HTTP request, and a reconnecting client makes a NEW
+   * request. Rebuilding the definitions each time re-EMITTED them into the
+   * replay buffer, so every reconnect appended another full set — and the client
+   * rebuilt its step list from duplicates rather than from the state it already
+   * had.
+   */
+  private announced: SetupStreamEvent[] | null = null;
+
+  /**
+   * The LATEST known state of every step, from either producer.
+   *
+   * ── WHY STATE IS KEPT, NOT JUST EVENTS ──────────────────────────────────────
+   * A reconnecting client needs to RE-SYNC, and the cheapest correct answer is
+   * one snapshot of the current state rather than the whole event history: the
+   * history would re-run every step visually, while a snapshot lands in place.
+   *
+   * Populated from setup's own `snapshot()` calls AND from the API's forwarded
+   * snapshots, so it always reflects whichever process last spoke about a step.
+   */
+  private readonly latestStatus = new Map<
+    SetupStepId,
+    { title: string; status: StepStatus | "skipped"; error?: string }
+  >();
+
+  /**
+   * How many events have been emitted so far.
+   *
+   * ── WHY A SUBSCRIBER NEEDS THIS ────────────────────────────────────────────
+   * A (re)connecting client is re-synced from `currentSnapshot()` — full status
+   * AND full logs for every step. Replaying the buffer on top of that would
+   * re-apply the HISTORY, including the original all-`pending` snapshot, which
+   * walks every finished step back to idle on screen.
+   *
+   * So the live tail is `skip(this count)`: everything already folded into the
+   * sync snapshot is left out, and only events emitted AFTER it are delivered.
+   * Nothing is lost either — the snapshot carries the aggregate state, so a
+   * client that missed events while disconnected still has the current truth.
+   */
+  private emittedCount = 0;
+
+  /** Single emission point, so `emittedCount` can never drift from the buffer. */
+  private push(event: SetupStreamEvent): void {
+    this.emittedCount += 1;
+    this.emitted.next(event);
+  }
+
   constructor(private readonly env: EnvService) {}
 
   /**
@@ -90,12 +140,16 @@ export class OrchestrationStreamService {
    * grows with no visible end.
    */
   stepDetails(): SetupStreamEvent[] {
+    // Idempotent: a reconnect re-requests the stream, and re-announcing would
+    // append a second full set of definitions to the replay buffer.
+    if (this.announced !== null) return this.announced;
+
     const ids: OrchestrationStepId[] = [];
 
     if (this.orchestratesCluster()) ids.push("initialize_swarm");
     ids.push("start_api", "await_api_boot", "promote_ingress");
 
-    return ids.map((stepId) => {
+    this.announced = ids.map((stepId) => {
       const event: SetupStreamEvent = {
         type: "step_detail",
         stepId,
@@ -103,9 +157,43 @@ export class OrchestrationStreamService {
         description: this.descriptionFor(stepId),
         ...this.stamp(),
       };
-      this.emitted.next(event);
+      this.push(event);
       return event;
     });
+
+    return this.announced;
+  }
+
+  /**
+   * The CURRENT state of every known step, as one snapshot.
+   *
+   * ── THIS IS WHAT MAKES A RECONNECT FEEL INSTANT ─────────────────────────────
+   * Sent to a (re)connecting client BEFORE the live stream. It carries the state
+   * each step actually has right now, so a client that already drew the earlier
+   * steps sees them stay put — rather than the whole pipeline resetting to
+   * `pending` and re-running visually, which is what an all-pending snapshot did.
+   *
+   * Returned WITHOUT emitting, because it is per-subscriber: the live stream
+   * already replays past events, and emitting here would duplicate it for
+   * everyone currently connected.
+   *
+   * Empty when nothing has been reported yet, in which case the client's step
+   * list comes from the `step_detail` events alone.
+   */
+  currentSnapshot(): SetupStreamEvent | null {
+    if (this.latestStatus.size === 0) return null;
+
+    return {
+      type: "snapshot",
+      ...this.stamp(),
+      steps: [...this.latestStatus.entries()].map(([id, state]) => ({
+        id,
+        title: state.title,
+        status: state.status,
+        logs: this.logs.get(id) ?? [],
+        ...(state.error === undefined ? {} : { error: state.error }),
+      })),
+    };
   }
 
   /**
@@ -131,7 +219,17 @@ export class OrchestrationStreamService {
       })),
     };
 
-    this.emitted.next(event);
+    // Remembered so a later reconnect re-syncs from STATE rather than
+    // replaying the history — see `currentSnapshot`.
+    for (const step of event.steps) {
+      this.latestStatus.set(step.id, {
+        title: step.title,
+        status: step.status,
+        ...(step.error === undefined ? {} : { error: step.error }),
+      });
+    }
+
+    this.push(event);
     return event;
   }
 
@@ -157,13 +255,25 @@ export class OrchestrationStreamService {
       ...this.stamp(),
     };
 
-    this.emitted.next(event);
+    this.push(event);
     return event;
   }
 
-  /** The events emitted so far, for a late subscriber (page reload). */
-  replay(): Observable<SetupStreamEvent> {
-    return this.emitted.asObservable();
+  /**
+   * The events emitted AFTER `afterCount` — the live tail, no history.
+   *
+   * Paired with `currentSnapshot()` this forms one atomic re-sync: the caller
+   * reads the count, then sends the snapshot, then subscribes here — so the
+   * subscriber sees every event exactly once and never re-applies one it has
+   * already folded into its state.
+   */
+  liveAfter(afterCount: number): Observable<SetupStreamEvent> {
+    return this.emitted.pipe(skip(afterCount));
+  }
+
+  /** How many events have been emitted — the cutoff `liveAfter` takes. */
+  emittedSoFar(): number {
+    return this.emittedCount;
   }
 
   /**
@@ -188,12 +298,24 @@ export class OrchestrationStreamService {
       this.logs.set(event.stepId, buffer);
     }
 
-    this.emitted.next({ ...event, ...this.stamp() });
+    // Track the API's step states too, so a reconnect re-syncs from the SAME
+    // source of truth regardless of which producer owns the step.
+    if (event.type === "snapshot") {
+      for (const step of event.steps) {
+        this.latestStatus.set(step.id, {
+          title: step.title,
+          status: step.status,
+          ...(step.error === undefined ? {} : { error: step.error }),
+        });
+      }
+    }
+
+    this.push({ ...event, ...this.stamp() });
   }
 
   /** Report a terminal failure on the stream. */
   fail(message: string): void {
-    this.emitted.next({ type: "error", message, ...this.stamp() });
+    this.push({ type: "error", message, ...this.stamp() });
   }
 
   private descriptionFor(stepId: OrchestrationStepId): string {

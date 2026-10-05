@@ -256,6 +256,33 @@ function toObservable<TValue>(source: unknown): RxObservable<TValue> {
   });
 }
 
+/**
+ * A stable identity for one stream event, used to recognise a REPLAY.
+ *
+ * ── WHY IDENTITY IS NEEDED AT ALL ───────────────────────────────────────────
+ * A reconnect re-sends events the client already has (that is the point — it is
+ * how a client re-syncs). Applying them again is what caused the flash: the
+ * setup pipeline's early frames include an all-`pending` snapshot, so replaying
+ * them walked every already-finished step back to idle before re-running it.
+ *
+ * ── WHY `(kind, stepId, seq)` IS SAFE ───────────────────────────────────────
+ * `seq` is monotonic WITHIN a producer, and the two producers of the setup
+ * timeline own DISJOINT steps — setup reports the swarm/API/ingress steps, the
+ * API reports provisioning. So the pair never collides across them, and a
+ * genuinely new event always gets a value the client has not seen.
+ *
+ * A retry produces higher sequence numbers (the counter belongs to the service,
+ * not to the run), so it is NOT mistaken for a replay.
+ */
+function eventIdentity(event: unknown): string | null {
+  if (!isObjectLike(event)) return null;
+  const record = event as { type?: unknown; stepId?: unknown; seq?: unknown };
+  if (typeof record.seq !== "number") return null;
+  const kind = typeof record.type === "string" ? record.type : "?";
+  const stepId = typeof record.stepId === "string" ? record.stepId : "";
+  return `${kind}:${stepId}:${String(record.seq)}`;
+}
+
 async function collectObservableValues<TValue>(
   context: QueryFunctionContext,
   source$: RxObservable<TValue>,
@@ -275,6 +302,14 @@ async function collectObservableValues<TValue>(
     const existing = context.client.getQueryData<TValue[]>(context.queryKey);
     const values: TValue[] = Array.isArray(existing) ? [...existing] : [];
 
+    // Every identity already applied, so a REPLAYED event is recognised and
+    // skipped rather than re-applied. See `eventIdentity`.
+    const seen = new Set<string>();
+    for (const value of values) {
+      const identity = eventIdentity(value);
+      if (identity !== null) seen.add(identity);
+    }
+
     const rejectWith = (reason: unknown) => {
       reject(reason instanceof Error ? reason : new Error("Unknown stream error"));
     };
@@ -292,6 +327,17 @@ async function collectObservableValues<TValue>(
 
     const subscription = source$.subscribe({
       next(value) {
+        // ── THE LINE THAT MAKES A RECONNECT FEEL INSTANT ────────────────────
+        // Dropping replayed events is what keeps a reconnect from re-running the
+        // pipeline on screen: the client keeps the steps it already drew, and
+        // only the events it genuinely MISSED are appended. No reset, no flash,
+        // and no duplicated log lines.
+        const identity = eventIdentity(value);
+        if (identity !== null) {
+          if (seen.has(identity)) return;
+          seen.add(identity);
+        }
+
         values.push(value);
         context.client.setQueryData(context.queryKey, [...values]);
       },
