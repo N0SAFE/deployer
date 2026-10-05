@@ -144,14 +144,27 @@ const STREAM_RETRY_INTERVAL_MS = 1_500;
 const STREAM_MAX_RETRIES = 30;
 
 /**
+ * How long the stream may go SILENT before the connection is treated as dead.
+ *
+ * Short on purpose. An SSE connection has no natural end, so a HALF-OPEN one
+ * (the peer disappeared without closing — what an ingress swap produces) stays
+ * `pending` forever unless something aborts it, and the operator waits on a
+ * frozen timeline. Setup's pipeline emits snapshots constantly while it works,
+ * so seconds of total silence means a dead socket rather than a slow producer.
+ */
+const STREAM_INACTIVITY_TIMEOUT_MS = 8_000;
+
+/**
  * Whether the setup stream has reached a TERMINAL event.
  *
- * `completed` and `error` are the two ends the producer emits; anything else
- * means the stream was cut and must be reconnected.
+ * SEARCHED, not read from the last event. The two producers append to one
+ * timeline and the later one can append AFTER the terminal: setup reports the
+ * ingress swap, and the API's `completed` can arrive before the client has
+ * folded every replayed frame. Reading `at(-1)` would then miss the completion
+ * and retry forever.
  */
 function isSetupStreamFinished(events: readonly SetupStreamEvent[]): boolean {
-	const last = events.at(-1);
-	return last?.type === "completed" || last?.type === "error";
+	return events.some((event) => event.type === "completed" || event.type === "error");
 }
 
 export function useInitializeStream(options?: { enabled?: boolean }): {
@@ -166,6 +179,9 @@ export function useInitializeStream(options?: { enabled?: boolean }): {
 			// See the hook note: this is what turns a cut connection into a
 			// RETRYABLE failure rather than a silent success.
 			isComplete: isSetupStreamFinished,
+			// Short window, so a half-open socket is abandoned in seconds instead of
+			// leaving a `pending` request the operator watches indefinitely.
+			inactivityTimeoutMs: STREAM_INACTIVITY_TIMEOUT_MS,
 		}),
 		staleTime: Infinity,
 		gcTime: 0,

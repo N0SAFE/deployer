@@ -100,11 +100,73 @@ describe("buildTasksFromEvents — render order", () => {
 		const tasks = buildTasksFromEvents(events)
 
 		// `finalize` renders first (it executes first) even though the snapshot
-		// named `promote_ingress` first.
+		// named `promote_ingress` first — and `promote_ingress` is already DONE,
+		// because the API announcing its own step proves the handover finished.
+		// See the retirement test below.
 		expect(tasks.map((task) => [task.id, task.status])).toEqual([
 			["finalize", "done"],
-			["promote_ingress", "running"],
+			["promote_ingress", "done"],
 		])
+	})
+})
+
+describe("buildTasksFromEvents — retiring setup-owned steps", () => {
+	/**
+	 * THE STUCK STEP THE OPERATOR SAW.
+	 *
+	 * Setup reports `promote_ingress` and then EXITS. A reconnect lands on the
+	 * API, whose stream starts at `provision_database` and knows nothing about
+	 * that step — so it kept its last status forever:
+	 *
+	 *   "Releasing the entry port so the cluster's ingress can bind it"  ← stuck
+	 *
+	 * and `isPipelineComplete` stayed false, hiding the Continue button even
+	 * though the API reported the run complete underneath.
+	 */
+	it("marks a setup step done once the API starts reporting", () => {
+		const events: SetupStreamEvent[] = [
+			stepDetail("promote_ingress"),
+			// The drop happens HERE: the step is left mid-flight.
+			snapshot([{ id: "promote_ingress", status: "in_progress" }]),
+			// The API takes over the same URL after the handover.
+			stepDetail("provision_database"),
+			snapshot([{ id: "provision_database", status: "completed" }]),
+		]
+
+		const tasks = buildTasksFromEvents(events)
+		const ingress = tasks.find((task) => task.id === "promote_ingress")
+
+		// The API answering on this URL IS the proof: it only serves here after
+		// the handover repointed the hostname, which is the last act of the swap.
+		expect(ingress?.status).toBe("done")
+		expect(isPipelineComplete(tasks)).toBe(true)
+	})
+
+	it("leaves a setup step running while the API has not reported yet", () => {
+		const events: SetupStreamEvent[] = [
+			stepDetail("promote_ingress"),
+			snapshot([{ id: "promote_ingress", status: "in_progress" }]),
+		]
+
+		const tasks = buildTasksFromEvents(events)
+
+		// Nothing has taken over, so the step is genuinely still working and the
+		// gate must stay closed rather than guessing that it finished.
+		expect(tasks.find((task) => task.id === "promote_ingress")?.status).toBe("running")
+		expect(isPipelineComplete(tasks)).toBe(false)
+	})
+
+	it("does not resurrect a failed setup step", () => {
+		const events: SetupStreamEvent[] = [
+			stepDetail("promote_ingress"),
+			snapshot([{ id: "promote_ingress", status: "failed" }]),
+			stepDetail("provision_database"),
+		]
+
+		const tasks = buildTasksFromEvents(events)
+
+		// A failure is a real outcome, not an unfinished step to be retired.
+		expect(tasks.find((task) => task.id === "promote_ingress")?.status).toBe("error")
 	})
 })
 

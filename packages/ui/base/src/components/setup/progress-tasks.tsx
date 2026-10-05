@@ -18,6 +18,51 @@ export type ProgressTask = {
 }
 
 /**
+ * Steps the SETUP app owns, which the API's stream cannot report on.
+ *
+ * ── WHY THIS LIST EXISTS, AND WHY IT MUST BE RETIRED ────────────────────────
+ * Setup reports the steps it performs, then EXITS. The API's stream takes over
+ * the same URL afterwards and knows nothing about them — its own pipeline starts
+ * at `provision_database`.
+ *
+ * So on a reconnect (the ingress swap tears the connection down, and the client
+ * lands on the API) a setup-owned step keeps whatever status it last had. When
+ * the drop happens mid-step that status is `in_progress`, and nothing will ever
+ * change it:
+ *
+ *   "Releasing the entry port so the cluster's ingress can bind it"  ← stuck
+ *
+ * Observed exactly that, with the API's stream reporting the run COMPLETE
+ * underneath while the ingress step still spun.
+ */
+const SETUP_OWNED_STEP_IDS: readonly string[] = [
+  "initialize_swarm",
+  "start_api",
+  "await_api_boot",
+  "promote_ingress",
+]
+
+/**
+ * Whether the API's stream has taken over the timeline.
+ *
+ * Any node the API owns is proof that setup handed over: the API only answers on
+ * this URL AFTER the handover repoints it, which happens at the very end of
+ * `promote_ingress` — after the port was released and the swarm ingress proved it
+ * was routing. So the API speaking is itself the evidence that the ingress swap
+ * SUCCEEDED.
+ */
+function apiTookOver(events: SetupStreamEvent[]): boolean {
+  return events.some((event) => {
+    if (event.type === "step_detail") return !SETUP_OWNED_STEP_IDS.includes(event.stepId)
+    if (event.type === "log") return !SETUP_OWNED_STEP_IDS.includes(event.stepId)
+    if (event.type === "snapshot") {
+      return event.steps.some((step) => !SETUP_OWNED_STEP_IDS.includes(step.id))
+    }
+    return false
+  })
+}
+
+/**
  * Optional pre-populated step descriptor list. When provided, the task
  * display shows every step from the very first render (as `pending`).
  * As soon as the API emits a `snapshot` event for a step, the API's
@@ -223,6 +268,23 @@ export function buildTasksFromEvents(
       case "error":
         // Terminal events — no per-step state to mutate
         break
+    }
+  }
+
+  // ── RETIRE SETUP-OWNED STEPS ONCE THE API HAS TAKEN OVER ──────────────────
+  // Setup exits after handing over, so its steps can never be updated again —
+  // and a step left `in_progress` at the moment of the drop spins forever, which
+  // also keeps `isPipelineComplete` false and the Continue button hidden.
+  //
+  // Any step that is still unfinished when the API starts reporting is therefore
+  // DONE: the API only answers on this URL after the handover repointed it, and
+  // that repoint is the last act of `promote_ingress`. See `apiTookOver`.
+  if (apiTookOver(events)) {
+    for (const id of SETUP_OWNED_STEP_IDS) {
+      const task = tasksById.get(id)
+      if (task !== undefined && task.status !== "done" && task.status !== "error") {
+        tasksById.set(id, { ...task, status: "done" })
+      }
     }
   }
 

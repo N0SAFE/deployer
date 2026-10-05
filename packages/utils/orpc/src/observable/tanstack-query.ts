@@ -125,6 +125,19 @@ export type StreamedObservableOptionsConfig<
    * stream that closes when its subject exits).
    */
   isComplete?: (emitted: readonly TStreamValue[]) => boolean;
+  /**
+   * How long the stream may go SILENT before the connection is treated as dead.
+   *
+   * An SSE connection has no natural end, so a HALF-OPEN one (the peer vanished
+   * without closing — what an ingress swap produces) would otherwise sit
+   * `pending` forever and the `retry` policy would never fire, because nothing
+   * rejected. Aborting on silence turns that into a normal failure the caller's
+   * `retry` already handles.
+   *
+   * Tune per stream: a pipeline that emits continuously wants a short window,
+   * while one that can legitimately go quiet for minutes wants a long one.
+   */
+  inactivityTimeoutMs?: number;
 } & Omit<UseQueryOptions<TStreamValue[], TError>, "queryKey" | "queryFn">;
 
 type LiveObservableQueryOptionsResult<TStreamValue, TError> = Omit<
@@ -287,6 +300,26 @@ async function collectObservableValues<TValue>(
   context: QueryFunctionContext,
   source$: RxObservable<TValue>,
   isComplete?: (emitted: readonly TValue[]) => boolean,
+  /**
+   * How long the stream may go SILENT before it is treated as dead.
+   *
+   * ── WHY A WATCHDOG, AND WHY IT BELONGS HERE ──────────────────────────────
+   * An SSE connection has no natural end, so a connection that is HALF-OPEN (the
+   * peer went away without closing — exactly what an ingress swap produces) sits
+   * `pending` in the network tab forever. The client's `retry` never fires,
+   * because nothing rejected: the request simply never finished.
+   *
+   * Observed as "pending requests are too long, one attempt per minute" — the
+   * operator watches a frozen timeline while the browser waits on a socket that
+   * will never produce another byte.
+   *
+   * Aborting on silence turns that into an ordinary failure, which the caller's
+   * `retry` policy already knows how to handle. The window is generous because
+   * the check is `no output at all`, not `no output worth rendering`: a healthy
+   * pipeline emits snapshots continuously, so silence this long means a dead
+   * connection rather than a slow producer.
+   */
+  inactivityTimeoutMs = 20_000,
 ): Promise<TValue[]> {
   return await new Promise<TValue[]>((resolve, reject) => {
     // ── ACCUMULATE ACROSS ATTEMPTS, DON'T RESTART ───────────────────────────
@@ -311,6 +344,7 @@ async function collectObservableValues<TValue>(
     }
 
     const rejectWith = (reason: unknown) => {
+      clearTimeout(watchdog);
       reject(reason instanceof Error ? reason : new Error("Unknown stream error"));
     };
 
@@ -325,8 +359,32 @@ async function collectObservableValues<TValue>(
       context.client.setQueryData(context.queryKey, []);
     }
 
+    /**
+     * Re-armed on every event, so it measures SILENCE rather than total age.
+     *
+     * Declared before the subscription because `next` closes over it, and
+     * `rejectWith` clears it — a rejected attempt must not leave a timer behind
+     * that would fire against a later subscription.
+     */
+    let watchdog: ReturnType<typeof setTimeout>;
+    const armWatchdog = () => {
+      clearTimeout(watchdog);
+      watchdog = setTimeout(() => {
+        subscription.unsubscribe();
+        context.signal.removeEventListener("abort", onAbort);
+        rejectWith(
+          new Error(
+            `Stream produced no events for ${String(inactivityTimeoutMs)}ms — treating the connection as dead`,
+          ),
+        );
+      }, inactivityTimeoutMs);
+    };
+
     const subscription = source$.subscribe({
       next(value) {
+        // Every event proves the connection is alive, so the clock restarts.
+        armWatchdog();
+
         // ── THE LINE THAT MAKES A RECONNECT FEEL INSTANT ────────────────────
         // Dropping replayed events is what keeps a reconnect from re-running the
         // pipeline on screen: the client keeps the steps it already drew, and
@@ -349,6 +407,7 @@ async function collectObservableValues<TValue>(
       complete() {
         context.signal.removeEventListener("abort", onAbort);
         subscription.unsubscribe();
+        clearTimeout(watchdog);
 
         // A CLEAN END IS NOT ALWAYS COMPLETION. See `isComplete` on the options:
         // rejecting here is what lets the caller's `retry` re-run `queryFn` and
@@ -364,6 +423,10 @@ async function collectObservableValues<TValue>(
         resolve(values);
       },
     });
+
+    // Armed immediately, so a connection that never delivers a first event is
+    // also caught — otherwise the watchdog would only start after a first byte.
+    armWatchdog();
 
     if (context.signal.aborted) {
       onAbort();
@@ -613,7 +676,7 @@ function enhanceObservableQueryUtils<TOrpc extends object>(orpc: TOrpc): Observa
             return <TError = Error>(
               options: StreamedObservableOptionsConfig<unknown, unknown, TError, unknown>,
             ): StreamedObservableQueryOptionsResult<unknown, TError> => {
-              const { input, queryKey, queryFnOptions, context, isComplete, ...rest } = options;
+              const { input, queryKey, queryFnOptions, context, isComplete, inactivityTimeoutMs, ...rest } = options;
               const baseOptions = resolveBaseProcedureOptions(target, "experimental_streamedOptions", {
                 input,
                 queryKey,
@@ -637,7 +700,7 @@ function enhanceObservableQueryUtils<TOrpc extends object>(orpc: TOrpc): Observa
                     ? applyPipeTransform(source$, queryFnOptions)
                     : source$;
 
-                  return await collectObservableValues(queryContext, transformed$, isComplete);
+                  return await collectObservableValues(queryContext, transformed$, isComplete, inactivityTimeoutMs);
                 },
               };
             };

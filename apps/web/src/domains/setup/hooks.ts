@@ -165,6 +165,9 @@ export function useInitializeStream(options?: { enabled?: boolean }) {
       // The step list is PRESERVED across reconnects, so the operator keeps the
       // progress they already had instead of an empty view.
       isComplete: isSetupStreamFinished,
+      // Short window, so a half-open socket is abandoned in seconds instead of
+      // leaving a `pending` request the operator watches indefinitely.
+      inactivityTimeoutMs: 8_000,
     }),
     staleTime: Infinity,
     gcTime: 0, // don't persist stream data across navigations
@@ -176,12 +179,12 @@ export function useInitializeStream(options?: { enabled?: boolean }) {
 /**
  * Whether the setup stream has reached a TERMINAL event.
  *
- * `completed` and `error` are the two ends the producer emits; anything else
- * means the stream was cut and must be reconnected.
+ * SEARCHED, not read from the last event: the two producers append to one
+ * timeline and the later one can append AFTER the terminal, so `at(-1)` would
+ * miss the completion and retry forever.
  */
 function isSetupStreamFinished(events: readonly SetupStreamEvent[]): boolean {
-  const last = events.at(-1);
-  return last?.type === "completed" || last?.type === "error";
+  return events.some((event) => event.type === "completed" || event.type === "error");
 }
 
 /**
