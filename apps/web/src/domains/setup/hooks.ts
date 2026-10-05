@@ -150,10 +150,38 @@ export function useInitializeStream(options?: { enabled?: boolean }) {
       input: undefined,
       enabled: options?.enabled ?? false,
       refetchInterval: false,
+      // ── A CUT CONNECTION MUST REJECT, NOT SILENTLY SUCCEED ─────────────────
+      // The handover REPLACES the ingress (setup's bootstrap Traefik releases the
+      // entry port, the swarm-managed one binds it), which tears this SSE down.
+      // That ends with a CLEAN `complete()`, so without this the query was marked
+      // successful, nothing retried, and no request appeared in the network tab.
+      //
+      // Declaring "the stream is only finished at a terminal event" is what makes
+      // the collector reject an incomplete stream — so the `retry` below fires and
+      // `queryFn` issues a genuinely new request against whatever now serves this
+      // origin. Reconnecting the SAME origin is correct: the handover's last act
+      // points this hostname at the API, so the address is unchanged.
+      //
+      // The step list is PRESERVED across reconnects, so the operator keeps the
+      // progress they already had instead of an empty view.
+      isComplete: isSetupStreamFinished,
     }),
     staleTime: Infinity,
     gcTime: 0, // don't persist stream data across navigations
+    retry: (failureCount) => failureCount < 30,
+    retryDelay: (attempt: number) => Math.min(1_500 * (attempt + 1), 5_000),
   });
+}
+
+/**
+ * Whether the setup stream has reached a TERMINAL event.
+ *
+ * `completed` and `error` are the two ends the producer emits; anything else
+ * means the stream was cut and must be reconnected.
+ */
+function isSetupStreamFinished(events: readonly SetupStreamEvent[]): boolean {
+  const last = events.at(-1);
+  return last?.type === "completed" || last?.type === "error";
 }
 
 /**

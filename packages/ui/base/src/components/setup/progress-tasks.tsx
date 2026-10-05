@@ -31,6 +31,58 @@ export type TaskTemplate = {
 }
 
 /**
+ * The order steps are RENDERED in, independent of who announced them first.
+ *
+ * ── WHY A FIXED ORDER IS NEEDED ──────────────────────────────────────────────
+ * Two processes write this one timeline, and each announces its steps when IT
+ * starts. The setup app announces its own set (including `promote_ingress`) at
+ * boot, so `promote_ingress` was INSERTED before the API's provisioning steps
+ * ever appeared — and since the list was ordered by insertion, the ingress swap
+ * rendered in the MIDDLE of the pipeline while it is actually the LAST thing
+ * that happens.
+ *
+ * The operator then watched a "completed" step with the API's steps still
+ * pending below it, which reads as the ingress having switched before the
+ * platform was provisioned. The order below is the TRUE execution order, so the
+ * list matches what is happening rather than the order producers happened to
+ * speak.
+ *
+ * Anything not listed sorts AFTER the known steps, preserving relative order
+ * among unknowns — so a future step is visible rather than dropped, and does
+ * not displace the ones whose position is already known.
+ */
+const CANONICAL_STEP_ORDER: readonly string[] = [
+  // Wizard-collected, before any work starts.
+  'choose_strategy',
+  'reachability_check',
+  'configure_account',
+  'remote_auth',
+  'version_check',
+  // Engine first: the swarm-managed Postgres is a swarm SERVICE.
+  'initialize_swarm',
+  // Then the API, which provisions the platform…
+  'start_api',
+  'await_api_boot',
+  'provision_database',
+  'ensure_empty',
+  'run_migrations',
+  'seed_initial_data',
+  'mesh_handshake',
+  'register_node',
+  'finalize',
+  // …and only THEN the ingress swap, because it hands over the entry port the
+  // wizard itself is still being served through. It is last by definition: the
+  // operator's next action is what it makes possible.
+  'promote_ingress',
+]
+
+/** Rank a step id for sorting; unknown ids go last, keeping their own order. */
+function stepRank(id: string): number {
+  const index = CANONICAL_STEP_ORDER.indexOf(id)
+  return index === -1 ? CANONICAL_STEP_ORDER.length : index
+}
+
+/**
  * Maps a SetupStreamStepState.status to the UI's TaskStatus.
  */
 function mapStatus(s: SetupStreamStepState["status"]): TaskStatus {
@@ -174,9 +226,37 @@ export function buildTasksFromEvents(
     }
   }
 
+  // Sorted into the CANONICAL order rather than the announcement order: two
+  // producers append to this list independently, so insertion order reflects
+  // which process spoke first, not which step happens first. See
+  // `CANONICAL_STEP_ORDER`.
   return orderedIds
     .map((id) => tasksById.get(id))
     .filter((t): t is ProgressTask => Boolean(t))
+    .sort((a, b) => stepRank(a.id) - stepRank(b.id))
+}
+
+/**
+ * Whether the pipeline has finished EVERY step it announced.
+ *
+ * ── WHY THE COMPLETED EVENT ALONE IS NOT ENOUGH ──────────────────────────────
+ * The API emits `completed` when PROVISIONING succeeds, which is before the
+ * ingress has been switched to its swarm incarnation. The operator could press
+ * Continue during that window and land on
+ *
+ *   Failed to fetch   (or Bad Gateway)
+ *
+ * because the bootstrap ingress had just released the entry port and the swarm
+ * task had not published its routers yet. The step list already carries that
+ * work as `promote_ingress`, so the honest gate is "every announced step is
+ * done" rather than "the terminal event arrived".
+ *
+ * A step still `pending` counts as unfinished: it has been ANNOUNCED
+ * (`step_detail` created its placeholder) but the producer has not reported it,
+ * so the pipeline is not over.
+ */
+export function isPipelineComplete(tasks: ProgressTask[]): boolean {
+  return tasks.length > 0 && tasks.every((task) => task.status === "done")
 }
 
 export function ProgressTasks({ tasks }: { tasks: ProgressTask[] }) {

@@ -282,7 +282,34 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
         apiReady: true,
       });
 
-      // 5. RELEASE THE ENTRY PORT, so the swarm incarnation of the ingress can
+      // 5. PROMOTE THE INGRESS — release the port, then prove the NEW ingress
+      //    answers before claiming setup is done.
+      //
+      //    ── WHY THIS IS ITS OWN STEP ON THE WIZARD'S TIMELINE ─────────────
+      //    The operator is about to press "Continue to dashboard" while looking
+      //    at a page served through an ingress that is being REPLACED. Every
+      //    probe that already passed (`/health/ready`, the dashboard route) went
+      //    through the OLD bootstrap container. So the moment between "port
+      //    released" and "swarm ingress serving" is a window where the only
+      //    surface the operator can see fails:
+      //
+      //      Failed to fetch / Bad Gateway — Traefik is transitioning
+      //
+      //    and a reload in that same window leaves them on a dead URL. Reporting
+      //    it as a step means the wizard shows the transition happening instead
+      //    of stamping success across it, which is also what lets the Continue
+      //    button stay disabled until the swap is genuinely complete.
+      this.orchestration.snapshot([
+        { id: "start_api", status: "completed" },
+        { id: "await_api_boot", status: "completed" },
+        { id: "promote_ingress", status: "in_progress" },
+      ]);
+      this.orchestration.log(
+        "promote_ingress",
+        "Releasing the entry port so the cluster's ingress can bind it",
+      );
+
+      // 5a. RELEASE THE ENTRY PORT, so the swarm incarnation of the ingress can
       //    bind it. The port is a HOST port and only one process can hold it, so
       //    the bootstrap container must let go before the API's supervisor can
       //    promote Traefik to a GLOBAL swarm service — otherwise that promotion
@@ -306,6 +333,29 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
         };
       }
 
+      // 5b. PROVE THE NEW INGRESS SERVES, through the port it just took over.
+      //
+      //    A running task is not the same as a working entry point: the swarm
+      //    Traefik has to load the config volume and publish its routers before
+      //    it answers, and until then a request through `:80` gets a connection
+      //    error or an empty router table. That is precisely the window the
+      //    operator would hit by pressing Continue, so it is checked HERE rather
+      //    than discovered by them.
+      //
+      //    This runs from INSIDE setup, which is off the entry port, so it keeps
+      //    working while the ingress is being replaced — the reason this check is
+      //    possible at all.
+      this.orchestration.log("promote_ingress", "Waiting for the cluster ingress to route the API…");
+      const serving = await this.bootstrapIngress.waitForEntryPointToServe(this.ingress.apiHostname());
+      if (!serving) {
+        return {
+          ok: false,
+          reason:
+            "the swarm ingress took the entry port but is not routing the API yet — the platform is up, so retry the handover to finish the switch",
+        };
+      }
+      this.orchestration.log("promote_ingress", "The cluster ingress is routing the API on the entry port");
+
       // 6. IF THE OPERATOR ASKED FOR A DASHBOARD, WAIT UNTIL IT ANSWERS.
       //
       //    The managed web app is a swarm service the API spawns, and its ROUTE
@@ -328,6 +378,15 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
 
       // 7. `setup.<host>` now serves the API's done page (invariant 3).
       await this.ingress.pointSetupAtDonePage(backend.url);
+
+      // The ingress swap is COMPLETE: the new incarnation owns the port and has
+      // answered through it. Reported last so the wizard only marks the step done
+      // once the operator's next click can actually succeed.
+      this.orchestration.snapshot([
+        { id: "start_api", status: "completed" },
+        { id: "await_api_boot", status: "completed" },
+        { id: "promote_ingress", status: "completed" },
+      ]);
 
       return { ok: true, apiBackend: backend.url };
     } catch (error: unknown) {

@@ -106,7 +106,54 @@ export function useTriggerInitialize() {
  *
  * The observable endpoint replays past events for late subscribers, so a reload
  * mid-provision still shows the full progress rather than an empty view.
+ *
+ * ── WHY THE STREAM DROPS, AND WHY RETRYING THE SAME URL IS RIGHT ────────────
+ * The ingress is REPLACED during the handover: setup's bootstrap Traefik
+ * releases the entry port and the swarm-managed one binds it. The browser's SSE
+ * connection is open across that swap, so it is torn down — and without a
+ * reconnect the operator's timeline stops mid-pipeline.
+ *
+ * The SAME origin is the correct target rather than a convenient one: the page's
+ * origin is `setup.<host>`, and the handover's last act points that hostname at
+ * the API. So the URL that answers before the swap answers after it — the
+ * router's backend changes, the address does not. No endpoint discovery needed.
+ *
+ * ── `isComplete`, NOT JUST `retry` ──────────────────────────────────────────
+ * A torn-down SSE ends with a CLEAN `complete()`, which is indistinguishable
+ * from "the work finished" unless something says otherwise. With only a `retry`
+ * configured, the query was marked successful, nothing retried, and the network
+ * tab showed no request — because none was made. The operator saw the steps
+ * blank out with no explanation.
+ *
+ * `isComplete` is what tells the collector that a clean end WITHOUT a terminal
+ * event is a failure, so it rejects, TanStack's `retry` fires, and `queryFn`
+ * runs again — issuing a genuinely new request against whatever now serves this
+ * origin.
+ *
+ * The step list is PRESERVED across those reconnects (the collector accumulates
+ * onto the cached values), so the operator keeps seeing the progress they
+ * already had instead of an empty "Starting setup…" view.
  */
+const STREAM_RETRY_INTERVAL_MS = 1_500;
+/**
+ * Bounded so a genuinely dead stream eventually reports rather than retrying
+ * forever. Long enough to cover the ingress swap on a warm node, which is a port
+ * release plus a service scheduling round trip — setup itself waits up to 90s
+ * for that, so the client must not give up first.
+ */
+const STREAM_MAX_RETRIES = 30;
+
+/**
+ * Whether the setup stream has reached a TERMINAL event.
+ *
+ * `completed` and `error` are the two ends the producer emits; anything else
+ * means the stream was cut and must be reconnected.
+ */
+function isSetupStreamFinished(events: readonly SetupStreamEvent[]): boolean {
+	const last = events.at(-1);
+	return last?.type === "completed" || last?.type === "error";
+}
+
 export function useInitializeStream(options?: { enabled?: boolean }): {
 	data?: SetupStreamEvent[] | undefined;
 	error: unknown;
@@ -116,9 +163,15 @@ export function useInitializeStream(options?: { enabled?: boolean }): {
 			input: undefined,
 			enabled: options?.enabled ?? false,
 			refetchInterval: false,
+			// See the hook note: this is what turns a cut connection into a
+			// RETRYABLE failure rather than a silent success.
+			isComplete: isSetupStreamFinished,
 		}),
 		staleTime: Infinity,
 		gcTime: 0,
+		// Now reachable, because `isComplete` rejects an incomplete stream.
+		retry: (failureCount) => failureCount < STREAM_MAX_RETRIES,
+		retryDelay: (attempt) => Math.min(STREAM_RETRY_INTERVAL_MS * (attempt + 1), 5_000),
 	});
 }
 

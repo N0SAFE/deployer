@@ -12,6 +12,7 @@ order: 6
 - Core mesh contracts: `packages/contracts/api/common/mesh.ts` + `packages/contracts/api/modules/mesh/index.ts`
 - API implementation: `apps/api`
 - Web ORPC entrypoint: `apps/web/src/lib/orpc`
+- **v2 migration + transport plugins: `.docs/features/ORPC-V2-MIGRATION.md` → [ORPC v2 Migration & Plugins](/docs/dev/orpc-v2-migration)**
 
 ## Lifecycle
 
@@ -71,13 +72,13 @@ Treat contracts as the source of truth for API shapes. If contract changes, API 
 
 Contracts that return an `observable` (live or streamed) can be consumed through
 `experimental_liveObservableOptions` / `experimental_streamedObservableOptions` on
-`@repo/orpc-utils`. Both expose a `queryFnOptions.pipe` hook so callers can shape
+`@repo/orpc-utils`. Both expose a `queryFnOptions` hook so callers can shape
 the source RxJS observable produced by the procedure.
 
-The `pipe` function **receives the source observable directly** and must return
-the observable that will actually be subscribed to. When `pipe` is omitted the
-source observable is used as-is, which is the right default for status
-indicators and small streams.
+The `queryFnOptions` function **receives the source observable directly** and
+must return the observable that will actually be subscribed to. When it is
+omitted the source observable is used as-is, which is the right default for
+status indicators and small streams.
 
 ```ts
 import { useQuery } from '@tanstack/react-query'
@@ -93,9 +94,7 @@ const containerRuntimeStream = useQuery(
         filter: { source: { operator: 'eq', value: 'container' } },
       },
     },
-    queryFnOptions: {
-      pipe: (obs) => obs.pipe(debounceTime(200)),
-    },
+    queryFnOptions: (obs) => obs.pipe(debounceTime(200)),
   }),
 )
 
@@ -103,9 +102,7 @@ const containerRuntimeStream = useQuery(
 const delayedStream = useQuery(
   orpc.docker.containers.streams.logs.experimental_streamedObservableOptions({
     input: { query: { containerId: '…' } },
-    queryFnOptions: {
-      pipe: (obs) => timer(200).pipe(switchMap(() => obs)),
-    },
+    queryFnOptions: (obs) => timer(200).pipe(switchMap(() => obs)),
   }),
 )
 ```

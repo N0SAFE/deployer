@@ -22,6 +22,48 @@ export const PLATFORM_WEB_ROUTER_NAME = "platform-web";
 export const PLATFORM_WEB_SERVICE_NAME = "platform-web-svc";
 export const PLATFORM_WEB_CONSOLE_ROUTER_NAME = "platform-web-console";
 export const PLATFORM_WEB_CONSOLE_SERVICE_NAME = "platform-web-console-svc";
+export const PLATFORM_SETUP_ROUTER_NAME = "platform-setup";
+export const PLATFORM_SETUP_SERVICE_NAME = "platform-setup-svc";
+
+/**
+ * The router that sends a RELOAD of the wizard's URL to the dashboard.
+ *
+ * Separate from `PLATFORM_SETUP_ROUTER_NAME` because the two match different
+ * things and must be allowed to disagree: this one owns "everything except the
+ * done page", the other owns the done page itself.
+ */
+export const PLATFORM_SETUP_REDIRECT_ROUTER_NAME = "platform-setup-redirect";
+
+/** The redirect middleware that router references. */
+export const PLATFORM_SETUP_REDIRECT_MIDDLEWARE_NAME = "platform-setup-redirect";
+
+/**
+ * The path the handover points this hostname at, and the ONE path exempt from
+ * the redirect.
+ *
+ * Must match what setup's final step writes and what `SetupDoneController`
+ * declares. A drift here would bounce the done page operators are meant to see.
+ */
+const DONE_PATH = "/setup/done";
+
+/**
+ * Priority of the onboarding router.
+ *
+ * Higher than the console rule (2000) and the web family, because
+ * `setup.<host>` is a DEDICATED hostname: nothing else may claim it, and the
+ * router must win even if a future rule grows to overlap it. Setup used the
+ * same value when it owned the file, so the takeover is priority-stable.
+ */
+const PLATFORM_SETUP_PRIORITY = 3000;
+
+/**
+ * Beats `PLATFORM_SETUP_PRIORITY`, so the redirect wins on the paths it claims.
+ *
+ * Both routers match `Host(<setup host>)`, and Traefik picks by priority before
+ * rule length — so without this the plain router would serve the root path and
+ * the redirect would never fire.
+ */
+const PLATFORM_SETUP_REDIRECT_PRIORITY = PLATFORM_SETUP_PRIORITY + 100;
 
 /**
  * The single console URL of the managed web app. Traefik routes this path on
@@ -53,6 +95,78 @@ export class PlatformRouteConfigService {
 			)
 			.addService(PLATFORM_API_SERVICE_NAME, (service) =>
 				service.loadBalancer((lb) => lb.server(apiBackendUrl)),
+			);
+
+		return TraefikConfigBuilder.toYAMLString(builder.build());
+	}
+
+	/**
+	 * Onboarding route: Host(<setup hostname>) → the API's own landing page.
+	 *
+	 * ── WHY THE API OWNS THIS AFTER SETUP EXITS ─────────────────────────────
+	 * `setup.<host>` is the URL in the operator's address bar when onboarding
+	 * finishes. The setup app is the ONLY process that can serve it during
+	 * onboarding — and the one process guaranteed to disappear at the end of it.
+	 * Its exit leaves `dynamic-setup.yml` still naming `http://setup:3016`, a
+	 * backend that no longer exists, so:
+	 *
+	 *   reload / bookmark / shared link  →  Bad Gateway (502)
+	 *
+	 * and nothing ever corrects it, because the file's writer has exited.
+	 *
+	 * Publishing the route HERE makes the hostname outlive its first owner: the
+	 * API is already the process that survives setup, already writes the ingress
+	 * config, and already serves the destination (`/setup/done`). `priority` is
+	 * kept identical to setup's so the takeover is invisible to routing.
+	 */
+	buildSetupYaml(setupBackendUrl: string, setupHostname: string): string {
+		const builder = new TraefikConfigBuilder();
+
+		builder
+			// ── THE ROOT OF THE SETUP HOST REDIRECTS, THE DONE PAGE DOES NOT ──────
+			// `setup.<host>/` is the WIZARD's URL — the one in the operator's
+			// address bar while onboarding ran, and therefore the one a RELOAD or a
+			// bookmark reopens. Onboarding is over by the time this config is
+			// written, so serving the done page there again makes a reload look
+			// like the wizard restarted; the operator's intent is plainly "take me
+			// to my platform".
+			//
+			// The longer path is excluded so the handover's OWN target still
+			// renders: setup's final act points this hostname at `/setup/done`, and
+			// a blanket redirect would bounce that page to the dashboard, losing
+			// the "setup complete" acknowledgement the operator just earned.
+			.addMiddleware(PLATFORM_SETUP_REDIRECT_MIDDLEWARE_NAME, (middleware) =>
+				middleware.redirectRegex(
+					// Matches the host root with no path (or a trailing slash only).
+					`^https?://[^/]+/?$`,
+					// Same-origin relative path: the console is served by the API on
+					// every platform hostname, so no hostname has to be reconstructed
+					// here and the redirect cannot point at a different site.
+					PLATFORM_WEB_CONSOLE_PATH,
+					true,
+				),
+			)
+			.addRouter(PLATFORM_SETUP_REDIRECT_ROUTER_NAME, (router) =>
+				router
+					.rule(
+						new RuleBuilder()
+							.host(setupHostname)
+							.and((rb) => rb.custom(`!PathPrefix(\`${DONE_PATH}\`)`)),
+					)
+					.middlewares(PLATFORM_SETUP_REDIRECT_MIDDLEWARE_NAME)
+					.service(PLATFORM_SETUP_SERVICE_NAME)
+					.entryPoints("web")
+					.priority(PLATFORM_SETUP_REDIRECT_PRIORITY),
+			)
+			.addRouter(PLATFORM_SETUP_ROUTER_NAME, (router) =>
+				router
+					.rule(new RuleBuilder().host(setupHostname))
+					.service(PLATFORM_SETUP_SERVICE_NAME)
+					.entryPoints("web")
+					.priority(PLATFORM_SETUP_PRIORITY),
+			)
+			.addService(PLATFORM_SETUP_SERVICE_NAME, (service) =>
+				service.loadBalancer((lb) => lb.server(setupBackendUrl)),
 			);
 
 		return TraefikConfigBuilder.toYAMLString(builder.build());

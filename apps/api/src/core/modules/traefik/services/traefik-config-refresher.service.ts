@@ -58,13 +58,16 @@ export class TraefikConfigRefresher implements OnApplicationBootstrap, OnModuleD
 	private retryTimer: ReturnType<typeof setTimeout> | null = null;
 	private disposed = false;
 
+	/** Watch timer for the post-handover re-publish (see `retryUntilHandoverCompletes`). */
+	private handoverTimer: ReturnType<typeof setTimeout> | null = null;
+
 	constructor(
 		private readonly configService: TraefikPlatformConfigService,
 		private readonly orchestrator: SupervisorOrchestratorService,
 	) {}
 
 	/**
-	 * Write the platform routes ONCE at boot.
+	 * Write the platform routes ONCE at boot, then AGAIN once the handover ends.
 	 *
 	 * ── WHY THIS IS NEEDED ──────────────────────────────────────────────────
 	 * `refresh()` was only ever called from OPERATOR ACTIONS (the web-app
@@ -83,10 +86,87 @@ export class TraefikConfigRefresher implements OnApplicationBootstrap, OnModuleD
 	 * Boot is the right moment: by the time this runs the platform has a
 	 * hostname policy to publish, and the write is idempotent, so a restart
 	 * simply re-publishes the same files.
+	 *
+	 * ── AND WHY BOOT ALONE IS NOT ENOUGH: SETUP WRITES LAST ─────────────────
+	 * Setup publishes `dynamic-setup.yml` as its FINAL act — after this API has
+	 * already booted — so on every onboarding its version supersedes ours:
+	 *
+	 *   API boot   12:50:52   writes the API's platform-setup route
+	 *   handover   12:51:18   setup overwrites it with its own
+	 *
+	 * Setup's version has no redirect and names setup's own backend, so
+	 * `setup.<host>` kept serving the wizard's router instead of the API's
+	 * landing page with its redirect to the console. The observed symptom was a
+	 * reload after onboarding landing on a stale target rather than the
+	 * dashboard.
+	 *
+	 * So the boot write is followed by a SECOND one, gated on the handover
+	 * having actually finished. `retryUntilHandoverCompletes()` is what observes
+	 * that, using the same bounded-retry shape as the DB race above.
 	 */
 	onApplicationBootstrap(): void {
 		this.logger.log("Publishing platform ingress routes at boot");
 		this.refresh();
+		this.retryUntilHandoverCompletes();
+	}
+
+	/**
+	 * Re-publish the platform routes once setup has released the entry port.
+	 *
+	 * ── THE SIGNAL, AND WHY IT IS THE RIGHT ONE ─────────────────────────────
+	 * Setup's bootstrap ingress holds the entry port until the handover, and it
+	 * is the ONLY thing that writes `dynamic-setup.yml` last. `bootstrapIngress`
+	 * on the supervisor payload reports whether that container still exists, so
+	 * observing it flip to false means setup has finished — including its final
+	 * write. Re-publishing then is what makes the API's version win.
+	 *
+	 * Polling rather than eventing because the transition is not a docker event
+	 * the platform subscribes to, and the cost is one cheap supervisor read per
+	 * interval until it flips. Bounded by the process lifetime: on a node whose
+	 * onboarding already finished, the very first read is already false.
+	 *
+	 * Best-effort throughout: a failed read or write must never affect boot, and
+	 * the next operator action re-publishes anyway.
+	 */
+	private retryUntilHandoverCompletes(): void {
+		if (this.disposed || this.handoverTimer !== null) return;
+		this.handoverTimer = setTimeout(() => {
+			this.handoverTimer = null;
+			void (async () => {
+				try {
+					const state = await this.orchestrator.convergeNow(TraefikSupervisorService.getIdentifier());
+					// ── ONLY `converged` PROVES THE HANDOVER IS OVER ────────────
+					// The supervisor's state space is `idle | converging | converged |
+					// degraded | pending | null`, and each of the others means
+					// something DIFFERENT for this decision:
+					//
+					//   `pending`    — deferred on the entry port, i.e. setup still
+					//                  owns it. This IS the not-yet case.
+					//   `converging` — a pass is in flight; the outcome is unknown.
+					//   `idle` / null — the supervisor has not run yet.
+					//   `degraded`   — it ran and FAILED, so the ingress is not ours
+					//                  to describe; re-publishing now would publish
+					//                  routes for a process that is not serving.
+					//
+					// Treating anything but `pending` as done (the first attempt at
+					// this) would fire the re-publish while setup was still mid-flight
+					// and let setup's final write win again — the very race being
+					// closed. So the condition is positive: converge, THEN re-publish.
+					if (state !== "converged") {
+						this.retryUntilHandoverCompletes();
+						return;
+					}
+					await this.configService.writePlatformConfigs();
+					this.logger.log(
+						"Platform routes re-published after the handover — setup's route is superseded",
+					);
+				} catch (error: unknown) {
+					const reason = error instanceof Error ? error.message : String(error);
+					this.logger.warn(`Could not re-publish the platform routes after the handover: ${reason}`);
+					this.retryUntilHandoverCompletes();
+				}
+			})();
+		}, TraefikConfigRefresher.RETRY_INTERVAL_MS);
 	}
 
 	/** Rewrite the instance config, then re-converge the process. Never throws. */
@@ -145,5 +225,9 @@ export class TraefikConfigRefresher implements OnApplicationBootstrap, OnModuleD
 	onModuleDestroy(): void {
 		this.disposed = true;
 		this.cancelRetry();
+		if (this.handoverTimer !== null) {
+			clearTimeout(this.handoverTimer);
+			this.handoverTimer = null;
+		}
 	}
 }

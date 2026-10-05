@@ -35,6 +35,15 @@ describe("HandoverOrchestratorService", () => {
       ingressThrows?: Error;
       /** `false` models the swarm ingress never claiming the entry port. */
       portReleased?: boolean;
+      /**
+       * `false` models the swarm ingress binding the port but not ROUTING yet.
+       *
+       * The two are distinct on purpose: a task that owns the port while its
+       * router table is still empty is the exact window that produced a red
+       * "Failed to fetch" for the operator, so the pipeline must fail here
+       * rather than report success.
+       */
+      serving?: boolean;
       /** `null` models a RESTART, where there is nothing to deliver. */
       trigger?: unknown;
       /**
@@ -47,6 +56,7 @@ describe("HandoverOrchestratorService", () => {
   ): HandoverOrchestratorService {
     const isReady = options.ready ?? true;
     const portReleased = options.portReleased ?? true;
+    const serving = options.serving ?? true;
 
     const provisioner = {
       ensureApi: () => {
@@ -85,6 +95,9 @@ describe("HandoverOrchestratorService", () => {
       // ROUTED" step. Present on the real service; the stub must answer so the
       // step's gate (`managedWebEnabled`) is the only thing deciding.
       webHostname: () => "web.deployer.localhost",
+      // The API's public hostname — the subject of the promote-ingress probe.
+      // Present on the real service for the same reason as `webHostname`.
+      apiHostname: () => "api.deployer.localhost",
     } as unknown as IngressHandoverService;
 
     // The gate is stubbed: its own spec covers persistence and the gate decision.
@@ -104,6 +117,14 @@ describe("HandoverOrchestratorService", () => {
       releaseEntryPort: () => {
         effects.push("releaseEntryPort");
         return Promise.resolve(portReleased);
+      },
+      // The promotion's SECOND half: the swarm ingress must ROUTE, not merely
+      // bind. Stubbed for the same reason as the release — it drives the engine
+      // — but distinct, because a port that is released while the new ingress is
+      // not routing yet is exactly the window that produced "Failed to fetch".
+      waitForEntryPointToServe: (hostname: string) => {
+        effects.push(`waitForEntryPointToServe:${hostname}`);
+        return Promise.resolve(serving);
       },
     } as unknown as BootstrapIngressService;
 
@@ -174,6 +195,10 @@ describe("HandoverOrchestratorService", () => {
         "trigger:http://api-dev:3005/setup/trigger",
         "waitUntilReady",
         "releaseEntryPort",
+        // The port is handed over, then PROVEN: a task can hold the port while
+        // its router table is still empty, and that window is what the operator
+        // saw as a red "Failed to fetch" on the last step.
+        "waitForEntryPointToServe:api.deployer.localhost",
         "pointSetupAtDonePage:http://api-dev:3005",
       ]);
     });
@@ -267,6 +292,37 @@ describe("HandoverOrchestratorService", () => {
       expect(result.ok).toBe(false);
       expect(result.ok === false && result.reason).toContain("entry port");
       expect(effects).not.toContain("pointSetupAtDonePage:http://api-dev:3005");
+    });
+
+    /**
+     * THE WINDOW THE OPERATOR ACTUALLY HIT.
+     *
+     * The swarm task can own the entry port while its router table is still
+     * empty, so a request through it gets Traefik's own plain-text 404 instead
+     * of the API. The wizard had already announced success by then, so the
+     * operator pressed Continue, followed a target through that ingress, and
+     * read a red "Failed to fetch" as a failed install.
+     *
+     * A held port is therefore NOT a finished handover, and the pipeline must
+     * refuse to report one.
+     */
+    it("fails when the ingress holds the port but is not routing the API yet", async () => {
+      const result = await run(makeOrchestrator({ serving: false }));
+
+      expect(result.ok).toBe(false);
+      expect(result.ok === false && result.reason).toContain("routing the API");
+      // The setup hostname is NOT repointed: the platform is mid-switch, so
+      // leaving the route where it is keeps the retry meaningful.
+      expect(effects).not.toContain("pointSetupAtDonePage:http://api-dev:3005");
+    });
+
+    it("probes the API hostname, not merely the port", async () => {
+      await run(makeOrchestrator());
+
+      // The probe's SUBJECT is the assertion: a port-only check passes on an
+      // empty router table, which is exactly the state that fooled the previous
+      // implementation into reporting success.
+      expect(effects).toContain("waitForEntryPointToServe:api.deployer.localhost");
     });
   });
 

@@ -6,7 +6,7 @@ import {
 } from "@orpc/tanstack-query";
 import type { QueryFunctionContext, QueryKey, UseQueryOptions } from "@tanstack/react-query";
 import { Observable as RxjsObservable } from "rxjs";
-import type { MonoTypeOperatorFunction, Observable as RxObservable } from "rxjs";
+import type { Observable as RxObservable } from "rxjs";
 import { reconstructObservableFromEventIterator } from "@repo/orpc-utils/observable/event-iterator";
 import { isObjectLike } from "@repo/type-guards"
 
@@ -74,27 +74,18 @@ type AliasKeyMethod<
  * @example
  *   // Debounce bursts before triggering a queryFn update
  *   useQuery(orpc.docker.runtime.stream.experimental_liveObservableOptions({
- *     queryFnOptions: { pipe: (obs) => obs.pipe(debounceTime(200)) },
+ *     queryFnOptions: (obs) => obs.pipe(debounceTime(200)),
  *   }))
  *
  * @example
  *   // Wait 200ms before subscribing to the source stream
  *   useQuery(orpc.docker.container.stream.experimental_streamedObservableOptions({
- *     queryFnOptions: { pipe: (obs) => timer(200).pipe(switchMap(() => obs)) },
+ *     queryFnOptions: (obs) => timer(200).pipe(switchMap(() => obs)),
  *   }))
  */
 export type ObservablePipeTransform<TValue> = (
   source$: RxObservable<TValue>,
 ) => RxObservable<TValue>;
-
-/**
- * @deprecated Prefer `ObservablePipeTransform` which receives the source
- * observable directly. This helper is kept for backward compatibility and
- * mirrors the RxJS `pipe` operator surface.
- */
-export type ObservableQueryFnOptions<TValue> = {
-  pipe?: ObservablePipeTransform<TValue>;
-};
 
 export type LiveObservableOptionsConfig<
   TInput,
@@ -104,7 +95,7 @@ export type LiveObservableOptionsConfig<
 > = InputOption<TInput> &
   ContextOption<TContext> & {
   queryKey?: QueryKey;
-  queryFnOptions?: ObservableQueryFnOptions<TStreamValue>;
+  queryFnOptions?: ObservablePipeTransform<TStreamValue>;
 } & Omit<UseQueryOptions<TStreamValue, TError>, "queryKey" | "queryFn">;
 
 export type StreamedObservableOptionsConfig<
@@ -115,7 +106,25 @@ export type StreamedObservableOptionsConfig<
 > = InputOption<TInput> &
   ContextOption<TContext> & {
   queryKey?: QueryKey;
-  queryFnOptions?: ObservableQueryFnOptions<TStreamValue>;
+  queryFnOptions?: ObservablePipeTransform<TStreamValue>;
+  /**
+   * Whether the values seen so far mean the stream's work is genuinely OVER.
+   *
+   * ── WHY A CALLER MUST SOMETIMES SAY ──────────────────────────────────────
+   * A stream that is CUT (an ingress swap tears the connection down, say) ends
+   * with a clean `complete()`, which is indistinguishable from "finished" from
+   * the outside. Without this predicate the collector treats that as success,
+   * TanStack records a successful query, and NOTHING retries — the operator sees
+   * the view blank out and no request in the network tab, because none is made.
+   *
+   * Supplying it inverts that: an incomplete stream REJECTS, so the query's own
+   * `retry` configuration fires and `queryFn` runs again — which is the only
+   * place a new HTTP request can be issued.
+   *
+   * Omit it for streams where ending IS the completion (a finite list, a log
+   * stream that closes when its subject exits).
+   */
+  isComplete?: (emitted: readonly TStreamValue[]) => boolean;
 } & Omit<UseQueryOptions<TStreamValue[], TError>, "queryKey" | "queryFn">;
 
 type LiveObservableQueryOptionsResult<TStreamValue, TError> = Omit<
@@ -250,9 +259,21 @@ function toObservable<TValue>(source: unknown): RxObservable<TValue> {
 async function collectObservableValues<TValue>(
   context: QueryFunctionContext,
   source$: RxObservable<TValue>,
+  isComplete?: (emitted: readonly TValue[]) => boolean,
 ): Promise<TValue[]> {
   return await new Promise<TValue[]>((resolve, reject) => {
-    const values: TValue[] = [];
+    // ── ACCUMULATE ACROSS ATTEMPTS, DON'T RESTART ───────────────────────────
+    // A reconnecting stream is a NEW stream, and on the server side it may even
+    // be a DIFFERENT producer: the setup progress stream is served by the setup
+    // app, and after the handover that same URL is owned by the API. The API
+    // replays ITS OWN events, which do not include the steps setup emitted.
+    //
+    // So a retry that started from an empty list would REPLACE the operator's
+    // steps with whatever the new producer happens to know — the "all steps are
+    // gone, only the loading text" state. Seeding from what is already cached
+    // means the timeline only ever GROWS, whichever process is answering.
+    const existing = context.client.getQueryData<TValue[]>(context.queryKey);
+    const values: TValue[] = Array.isArray(existing) ? [...existing] : [];
 
     const rejectWith = (reason: unknown) => {
       reject(reason instanceof Error ? reason : new Error("Unknown stream error"));
@@ -263,7 +284,11 @@ async function collectObservableValues<TValue>(
       rejectWith(context.signal.reason);
     };
 
-    context.client.setQueryData(context.queryKey, []);
+    // Seed only when there is nothing yet: the intent is "do not show values
+    // from a PREVIOUS, unrelated stream", never "wipe the current timeline".
+    if (!Array.isArray(existing)) {
+      context.client.setQueryData(context.queryKey, []);
+    }
 
     const subscription = source$.subscribe({
       next(value) {
@@ -278,6 +303,18 @@ async function collectObservableValues<TValue>(
       complete() {
         context.signal.removeEventListener("abort", onAbort);
         subscription.unsubscribe();
+
+        // A CLEAN END IS NOT ALWAYS COMPLETION. See `isComplete` on the options:
+        // rejecting here is what lets the caller's `retry` re-run `queryFn` and
+        // issue a genuinely new request — the only layer that can.
+        //
+        // The predicate is asked about the WHOLE accumulated list, so a
+        // reconnect that already saw the terminal event does not loop.
+        if (isComplete !== undefined && !isComplete(values)) {
+          rejectWith(new Error("Stream ended before the work completed"));
+          return;
+        }
+
         resolve(values);
       },
     });
@@ -514,8 +551,8 @@ function enhanceObservableQueryUtils<TOrpc extends object>(orpc: TOrpc): Observa
                 queryFn: async (queryContext) => {
                   const result = await callProcedure(target, input, queryContext.signal, context);
                   const source$ = toObservable<unknown>(result);
-                  const transformed$ = queryFnOptions?.pipe
-                    ? applyPipeTransform(source$, queryFnOptions.pipe)
+                  const transformed$ = queryFnOptions
+                    ? applyPipeTransform(source$, queryFnOptions)
                     : source$;
 
                   return await consumeObservableLatestValue(queryContext, transformed$);
@@ -530,7 +567,7 @@ function enhanceObservableQueryUtils<TOrpc extends object>(orpc: TOrpc): Observa
             return <TError = Error>(
               options: StreamedObservableOptionsConfig<unknown, unknown, TError, unknown>,
             ): StreamedObservableQueryOptionsResult<unknown, TError> => {
-              const { input, queryKey, queryFnOptions, context, ...rest } = options;
+              const { input, queryKey, queryFnOptions, context, isComplete, ...rest } = options;
               const baseOptions = resolveBaseProcedureOptions(target, "experimental_streamedOptions", {
                 input,
                 queryKey,
@@ -550,11 +587,11 @@ function enhanceObservableQueryUtils<TOrpc extends object>(orpc: TOrpc): Observa
                 queryFn: async (queryContext: QueryFunctionContext) => {
                   const result = await callProcedure(target, input, queryContext.signal, context);
                   const source$ = toObservable<unknown>(result);
-                  const transformed$ = queryFnOptions?.pipe
-                    ? applyPipeTransform(source$, queryFnOptions.pipe)
+                  const transformed$ = queryFnOptions
+                    ? applyPipeTransform(source$, queryFnOptions)
                     : source$;
 
-                  return await collectObservableValues(queryContext, transformed$);
+                  return await collectObservableValues(queryContext, transformed$, isComplete);
                 },
               };
             };

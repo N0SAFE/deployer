@@ -89,9 +89,46 @@ export class TraefikPlatformConfigService {
 		await Promise.all([
 			this.writeApiConfig(dir),
 			this.writeWebConfig(dir),
+			this.writeSetupConfig(dir),
 			this.writeDomainConfig(dir, domainRoutes),
 			this.writeServiceConfigs(dir, claimedHosts),
 		]);
+	}
+
+	// ─── Onboarding route ────────────────────────────────────────────────────
+
+	/**
+	 * Keep `setup.<host>` answering after the wizard's process is gone.
+	 *
+	 * ── THE BUG THIS CLOSES ─────────────────────────────────────────────────
+	 * The setup app writes `dynamic-setup.yml` while it runs and, at its very
+	 * last step, repoints it at this API's `/setup/done`. That step is in the
+	 * HANDOVER pipeline, so it only runs when the WHOLE handover reaches it —
+	 * and when an earlier step fails (a dashboard that is not yet routed, say),
+	 * the file keeps naming `http://setup:3016`. Setup then exits, that backend
+	 * ceases to exist, and the operator's address bar returns 502 on reload with
+	 * no process left to correct it:
+	 *
+	 *   $ curl -H 'Host: setup.deployer.localhost' http://localhost/
+	 *   502
+	 *   $ cat /config/dynamic-setup.yml
+	 *     - url: "http://setup:3016"   <- nobody is listening
+	 *
+	 * Writing it here makes the hostname's liveness independent of the wizard's
+	 * success: this runs on every boot and every refresh, and the API is the
+	 * process that survives. The path matches what setup's own final step writes
+	 * (`/setup/done`), so whichever side wrote last, the destination is the same
+	 * page — an operator reloading lands on "setup complete" either way.
+	 */
+	private async writeSetupConfig(dir: string): Promise<void> {
+		const apiPort = String(this.env.get("API_PORT"));
+		const backend = `http://${await resolveSelfContainerName(this.dockerService.getDockerClient(), this.env)}:${apiPort}`;
+		const file = PlatformPaths.setupConfigFile(dir);
+		await writeFile(
+			file,
+			this.routeConfig.buildSetupYaml(backend, this.hostnameService.setupHostname()),
+			"utf8",
+		);
 	}
 
 	// ─── Platform api route ──────────────────────────────────────────────────

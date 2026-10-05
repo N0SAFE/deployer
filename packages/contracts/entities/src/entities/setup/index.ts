@@ -31,6 +31,12 @@ export const setupStepIdSchema = z.enum([
     // `SetupOrchestrationStreamService` in apps/setup.
     "start_api",
     "await_api_boot",
+    // Hands the entry port to the SWARM ingress and waits until that incarnation
+    // is the one answering. It is a step of its own because the operator must not
+    // be told setup is finished while the ingress they are about to browse through
+    // is still being replaced — the window shows up as a red "failed to fetch" on
+    // the last screen, and as a 502 on any immediate reload.
+    "promote_ingress",
     "provision_database",
     "ensure_empty",
     "run_migrations",

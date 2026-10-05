@@ -74,4 +74,81 @@ describe("TraefikConfigRefresher (core-module config update trigger)", () => {
 			vi.useRealTimers();
 		}
 	});
+
+	/**
+	 * SETUP WRITES `dynamic-setup.yml` LAST, SO THE BOOT WRITE ALONE LOSES.
+	 *
+	 * Observed on a completed onboarding:
+	 *
+	 *   API boot   12:50:52   writes the API's platform-setup route
+	 *   handover   12:51:18   setup overwrites it with its own
+	 *
+	 * Setup's version has no redirect and names setup's own backend, so a reload
+	 * after onboarding served the wizard's router instead of the API's landing
+	 * page. The boot write is therefore followed by a second one, gated on the
+	 * handover having finished.
+	 */
+	it("re-publishes the routes once the handover releases the ingress", async () => {
+		vi.useFakeTimers();
+		try {
+			const writes: number[] = [];
+			const writePlatformConfigs = vi.fn(async () => {
+				writes.push(Date.now());
+			});
+			// `pending` is the pre-handover state: the supervisor defers while
+			// setup's bootstrap ingress owns the entry port. `converged` means the
+			// ingress is ours, so setup has finished and its final write has landed.
+			// Keyed on a flag rather than call order, so the assertion does not
+			// depend on how the boot refresh and the watch interleave.
+			let handoverDone = false;
+			// Typed via the parameter list rather than `as const`: a `const`
+			// assertion cannot apply to a ternary expression (TS1355).
+			const convergeNow = vi.fn<(id: string) => Promise<"converged" | "pending">>(
+				async () => (handoverDone ? "converged" : "pending"),
+			);
+			const refresher = new TraefikConfigRefresher(
+				{ writePlatformConfigs } as unknown as TraefikPlatformConfigService,
+				{ convergeNow } as unknown as SupervisorOrchestratorService,
+			);
+
+			refresher.onApplicationBootstrap();
+			// Boot write happens while setup still owns the port.
+			await vi.advanceTimersByTimeAsync(3_000);
+			expect(writePlatformConfigs).toHaveBeenCalledTimes(1);
+
+			// The handover completes.
+			handoverDone = true;
+			await vi.advanceTimersByTimeAsync(60_000);
+
+			// A SECOND write landed — the one that supersedes setup's final write.
+			// Without it setup's version stays on disk and the route keeps pointing
+			// at a backend that no longer exists.
+			expect(writePlatformConfigs).toHaveBeenCalledTimes(2);
+			expect(writes[1]).toBeGreaterThan(writes[0] ?? 0);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("stops watching once the handover re-publish has landed", async () => {
+		vi.useFakeTimers();
+		try {
+			const writePlatformConfigs = vi.fn(async () => undefined);
+			const convergeNow = vi.fn(async () => "converged" as const);
+			const refresher = new TraefikConfigRefresher(
+				{ writePlatformConfigs } as unknown as TraefikPlatformConfigService,
+				{ convergeNow } as unknown as SupervisorOrchestratorService,
+			);
+
+			refresher.onApplicationBootstrap();
+			// Long enough for many watch intervals to elapse.
+			await vi.advanceTimersByTimeAsync(120_000);
+
+			// Exactly one boot write plus one post-handover write — the watch STOPS
+			// once it has done its job, rather than re-writing on every pass.
+			expect(writePlatformConfigs).toHaveBeenCalledTimes(2);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 });

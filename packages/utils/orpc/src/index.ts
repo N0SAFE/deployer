@@ -67,7 +67,6 @@ export {
     createObservableQueryUtils,
     type ObservableQueryMode,
     type ObservablePipeTransform,
-    type ObservableQueryFnOptions,
     type StreamedObservableOptionsConfig,
     type LiveObservableOptionsConfig,
     type ObservableProcedureQueryUtils,

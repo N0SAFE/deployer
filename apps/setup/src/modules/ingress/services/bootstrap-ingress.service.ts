@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException, type OnApplicationBootstrap } from "@nestjs/common";
+import { request as httpRequest } from "node:http";
 import { Socket } from "node:net";
 import { DockerService } from "@repo/nest-docker/services/docker.service";
 import { platformNetworkName } from "@repo/nest-docker/services/docker-supervisor-runtime";
@@ -84,6 +85,16 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
   /** How long to wait for the ingress to answer before reporting failure. */
   private static readonly READY_TIMEOUT_MS = 20_000;
   private static readonly READY_POLL_MS = 500;
+
+  /**
+   * How long to wait for the PROMOTED ingress to answer on the entry port.
+   *
+   * Separate from `READY_TIMEOUT_MS`, which bounds a container start. This one
+   * bounds a config-volume load plus router publication on a freshly scheduled
+   * swarm task, so it is deliberately longer — and it only ever runs after the
+   * promotion already succeeded, which is why a generous budget costs nothing.
+   */
+  private static readonly SERVE_TIMEOUT_MS = 60_000;
 
   constructor(
     private readonly docker: DockerService,
@@ -277,6 +288,119 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
       }
       throw error;
     }
+  }
+
+  /**
+   * Wait until the ENTRY POINT itself answers — i.e. the promoted ingress serves
+   * through the host port it just took over.
+   *
+   * ── WHY THIS IS SEPARATE FROM THE PROMOTION WAIT ────────────────────────
+   * `waitForSwarmIngressRunning()` establishes that a TASK is running. That is
+   * necessary but not sufficient for the operator: the task still has to load the
+   * config volume and publish its routers before `:80` returns anything, and a
+   * request in that window fails at the connection level. This is the check that
+   * covers the gap — and it is the one that matters, because it tests exactly
+   * what the operator's browser will do next.
+   *
+   * Returns false when nothing answers within the budget, which the caller turns
+   * into a retryable failure rather than a success it cannot back up.
+   */
+  /**
+   * Wait until the PROMOTED ingress actually ROUTES, not merely binds.
+   *
+   * ── WHY A TCP CONNECT IS NOT ENOUGH ──────────────────────────────────────
+   * The swarm Traefik publishes its entrypoint within a second of starting, long
+   * before it has loaded the config volume and built its router table. A socket
+   * connect succeeds through that entire window, so a port-only check reports
+   * "serving" while every request still gets Traefik's own
+   *
+   *   404 page not found
+   *
+   * — which is what the operator saw as a red "Failed to fetch" on the last
+   * wizard step: the stream had already reported success, the browser followed
+   * the Continue target, and the router table was not there yet.
+   *
+   * So the verdict is the ROUTED RESPONSE. `api.<host>` is the right subject
+   * because its router is the one that must be live for the handover to be
+   * meaningful, and it is already published by the time this runs.
+   *
+   * Returns false when no routed answer arrives within the budget, which the
+   * caller turns into a RETRYABLE failure rather than a success it cannot back up.
+   */
+  async waitForEntryPointToServe(hostname: string): Promise<boolean> {
+    const deadline = Date.now() + BootstrapIngressService.SERVE_TIMEOUT_MS;
+    let lastReason = "the entry port never accepted a connection";
+
+    while (Date.now() < deadline) {
+      const attempt = await this.probeRoutedThroughEntryPort(hostname);
+      if (attempt.ok) {
+        this.logger.log(`Cluster ingress is routing ${hostname} (${attempt.reason})`);
+        return true;
+      }
+      lastReason = attempt.reason;
+      await new Promise((resolve) => setTimeout(resolve, BootstrapIngressService.READY_POLL_MS));
+    }
+
+    this.logger.warn(
+      `The cluster ingress did not route ${hostname} within ` +
+        `${String(BootstrapIngressService.SERVE_TIMEOUT_MS / 1000)}s of the handover — ${lastReason}`,
+    );
+    return false;
+  }
+
+  /**
+   * One HTTP request for `hostname` through the entry port.
+   *
+   * Sends the Host header explicitly because the entry port is reached by IP
+   * (`host.docker.internal`) from inside this container — without it Traefik
+   * would have no router to match and every probe would look like a failure.
+   */
+  private async probeRoutedThroughEntryPort(hostname: string): Promise<{ ok: boolean; reason: string }> {
+    return await new Promise<{ ok: boolean; reason: string }>((resolve) => {
+      let settled = false;
+      const finish = (result: { ok: boolean; reason: string }): void => {
+        if (settled) return;
+        settled = true;
+        resolve(result);
+      };
+
+      const request = httpRequest(
+        {
+          host: this.hostGateway(),
+          port: this.entryPort(),
+          path: "/health/ready",
+          method: "GET",
+          headers: { host: hostname },
+        },
+        (response) => {
+          const status = response.statusCode ?? 0;
+          const contentType = String(response.headers["content-type"] ?? "");
+          response.resume();
+
+          // Traefik's own "no router" answer is a PLAIN-TEXT 404. That is the
+          // specific thing being waited out, so it must not be mistaken for a
+          // routed response just because it is not a 5xx.
+          if (status === 404 && contentType.includes("text/plain")) {
+            finish({ ok: false, reason: "the ingress has no router for the API yet" });
+            return;
+          }
+          if (status >= 500) {
+            finish({ ok: false, reason: `the API backend answered ${String(status)}` });
+            return;
+          }
+          finish({ ok: true, reason: `HTTP ${String(status)}` });
+        },
+      );
+
+      request.setTimeout(5_000, () => {
+        request.destroy();
+        finish({ ok: false, reason: "the ingress did not answer within 5000ms" });
+      });
+      request.on("error", (error: Error) => {
+        finish({ ok: false, reason: `not reachable yet (${error.message})` });
+      });
+      request.end();
+    });
   }
 
   /**

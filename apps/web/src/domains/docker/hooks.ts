@@ -735,9 +735,9 @@ interface UseDockerRuntimeRefetchOnStreamOptions {
  * This refetches another query (container list, image list, ...) in response
  * to docker runtime activity.
  *
- * Internally it leverages the new `queryFnOptions.pipe` parameter from
- * `@repo/orpc-utils` so that consumers can pass `pipe(obs) => obs.pipe(...)`
- * directly to the underlying stream. Default behavior (no pipe) is to
+ * Internally it leverages the `queryFnOptions` transform from
+ * `@repo/orpc-utils` so that consumers can pass `(obs) => obs.pipe(...)`
+ * directly to the underlying stream. Default behavior (no transform) is to
  * forward every event unchanged.
  */
 export function useRealtimeMetrics(

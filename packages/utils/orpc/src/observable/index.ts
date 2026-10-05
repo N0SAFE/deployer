@@ -3,4 +3,4 @@ export type { Observable, ObservableObserver, ObservableSubscription, Observable
 export { createDirectObservable, createEventIteratorFrame, isEventIteratorFrame, serializeEventIteratorFrame, deserializeEventIteratorFrame, deconstructObservableToEventIterator, reconstructObservableFromEventIterator } from "@repo/orpc-utils/observable/event-iterator";
 export type { EventIteratorProtocolVersion, EventIteratorFrameKind, EventIteratorFrame, DirectObserver, DirectSubscription, DirectObservable, EventSerializer, EventDeserializer } from "@repo/orpc-utils/observable/event-iterator";
 export { createObservableQueryUtils } from "@repo/orpc-utils/observable/tanstack-query";
-export type { ObservableQueryMode, ObservablePipeTransform, ObservableQueryFnOptions, StreamedObservableOptionsConfig, LiveObservableOptionsConfig, ObservableProcedureQueryUtils, ObservableQueryUtils } from "@repo/orpc-utils/observable/tanstack-query";
+export type { ObservableQueryMode, ObservablePipeTransform, StreamedObservableOptionsConfig, LiveObservableOptionsConfig, ObservableProcedureQueryUtils, ObservableQueryUtils } from "@repo/orpc-utils/observable/tanstack-query";
