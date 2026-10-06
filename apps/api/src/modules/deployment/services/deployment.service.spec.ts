@@ -8,6 +8,7 @@ import { DeploymentEventService } from '../events/deployment-event.service';
 import { CodeProviderRegistryService } from "@/modules/providers/code/shared/code-provider-registry.service";
 import { DomainRoutingService } from '@/core/modules/domain/services/domain-routing.service';
 import { TraefikConfigRefresher } from '@/core/modules/traefik/services/traefik-config-refresher.service';
+import type { EnvService } from '@/config/env/env.module';
 import { RuntimeConfigurationAccessorService } from '@/core/modules/configuration/services/runtime-configuration-accessor.service';
 import {
     runtimeConfigurationContextSchema,
@@ -478,7 +479,10 @@ describe('DeploymentService', () => {
                             new RailpackRuntimeRunnerService(dockerRuntimeRunnerService),
                             new SwarmRuntimeRunnerService(mockDockerService, {
                                 getSwarmState: vi.fn().mockResolvedValue({ active: false }),
-                            } as unknown as SwarmClusterService),
+                            } as unknown as SwarmClusterService,
+                            // `DEPLOYER_PREFIX` is the only key read; "" is the
+                            // unprefixed default install.
+                            { get: vi.fn(() => "") } as unknown as EnvService),
                         ),
                     inject: [DockerRuntimeRunnerService],
                 },

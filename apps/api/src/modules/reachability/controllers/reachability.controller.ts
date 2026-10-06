@@ -344,7 +344,21 @@ export class ReachabilityController {
         // public traffic enters Traefik, which routes this hostname to the
         // API (dynamic-domain.yml). Without this rule Cloudflare answers
         // error 1033 even with the CNAME present.
-        const tunnelHostname = tunnel.hostname ?? result.hostname;
+        //
+        // ── ONE WILDCARD RULE, NOT ONE RULE PER APP ─────────────────────────
+        // When a wildcard is configured, the tunnel gets a SINGLE rule covering
+        // every app and preview (`*.example.com` → Traefik). That is the whole
+        // point: onboarding a deployment then never touches Cloudflare, because
+        // Traefik decides which service a Host header belongs to. The
+        // alternative — a rule per hostname — makes Cloudflare a participant in
+        // every deployment, so a failure there becomes a failed deploy.
+        //
+        // Without a wildcard this falls back to the single configured hostname,
+        // which is still correct; it just means each new app needs its own rule.
+        const wildcard = process.env.DEPLOYER_TUNNEL_WILDCARD?.trim();
+        const tunnelHostname = wildcard !== undefined && wildcard !== ""
+            ? wildcard
+            : (tunnel.hostname ?? result.hostname);
         if (tunnelHostname) {
             const service =
                 process.env.CLOUDFLARE_TUNNEL_SERVICE_URL?.trim() ||

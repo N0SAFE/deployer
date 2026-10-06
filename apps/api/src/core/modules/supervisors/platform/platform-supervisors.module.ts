@@ -24,6 +24,7 @@ import { DirectPortProxySupervisorService } from "./direct-port-proxy.supervisor
 import { RedisSupervisorService } from "./redis-supervisor.service";
 import { WireGuardSupervisorService } from "./wireguard-supervisor.service";
 import { SwarmAppWiringSupervisorService } from "./swarm-app-wiring.supervisor.service";
+import { CloudflaredSupervisorService } from "./cloudflared-supervisor.service";
 import { EnvModule, EnvService } from "@/config/env/env.module";
 
 @Global()
@@ -38,6 +39,7 @@ import { EnvModule, EnvService } from "@/config/env/env.module";
 		RedisSupervisorService,
 		WireGuardSupervisorService,
 		SwarmAppWiringSupervisorService,
+		CloudflaredSupervisorService,
 	],
 	exports: [
 		TraefikSupervisorService,
@@ -46,6 +48,7 @@ import { EnvModule, EnvService } from "@/config/env/env.module";
 		RedisSupervisorService,
 		WireGuardSupervisorService,
 		SwarmAppWiringSupervisorService,
+		CloudflaredSupervisorService,
 	],
 })
 export class SupervisorsPlatformModule {}

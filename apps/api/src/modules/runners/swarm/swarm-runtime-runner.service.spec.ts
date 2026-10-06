@@ -113,6 +113,11 @@ describe("SwarmRuntimeRunnerService", () => {
         service = new SwarmRuntimeRunnerService(
             dockerService as never,
             clusterService as never,
+            // The runner resolves the PLATFORM OVERLAY name through `EnvService`
+            // (it attaches every workload to that overlay so the ingress can
+            // reach it). Only `DEPLOYER_PREFIX` is read, and "" is the default
+            // unprefixed install.
+            { get: vi.fn(() => "") } as never,
         );
     });
 

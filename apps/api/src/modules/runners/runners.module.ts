@@ -11,6 +11,7 @@ import { ConfigurationCoreModule } from "@/core/modules/configuration/configurat
 import { CoreDockerModule } from "@/core/modules/docker/docker.module";
 import { SwarmCoreModule } from "@/core/modules/swarm/swarm.module";
 import { TraefikCoreModule } from "@/core/modules/traefik/traefik.module";
+import { EnvModule } from "@/config/env/env.module";
 import { BuildpackRuntimeRunnerService } from "./buildpack/buildpack-runtime-runner.service";
 import { DockerComposeRuntimeRunnerService } from "./docker-compose/docker-compose-runtime-runner.service";
 import { DockerRuntimeRunnerService } from "./docker/docker-runtime-runner.service";
@@ -22,7 +23,13 @@ import { SwarmComposeRealizerService } from "./swarm/swarm-compose-realizer.serv
 import { SwarmRuntimeRunnerService } from "./swarm/swarm-runtime-runner.service";
 
 @Module({
-    imports: [CoreDockerModule, TraefikCoreModule, ConfigurationCoreModule, SwarmCoreModule],
+    // `EnvModule` is imported EXPLICITLY: `SwarmRuntimeRunnerService` injects
+    // `EnvService` to resolve the PLATFORM OVERLAY name it attaches every
+    // workload to — the attachment that makes a deployment reachable through
+    // the ingress. `EnvModule` is not global, so a missing import here is a
+    // runtime DI failure rather than a compile error (caught by
+    // `app.graph.spec.ts`, which compiles this module graph).
+    imports: [CoreDockerModule, TraefikCoreModule, ConfigurationCoreModule, SwarmCoreModule, EnvModule],
     providers: [
         DockerRuntimeRunnerService,
         DockerfileRuntimeRunnerService,

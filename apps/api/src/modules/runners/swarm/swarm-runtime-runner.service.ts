@@ -26,6 +26,8 @@ import { SwarmClusterService } from "@repo/nest-swarm";
 import { verifySwarmRouteAgainstTraefik } from "@/core/modules/traefik/services/swarm-route-verifier";
 import { parsePlacementPolicyLabel, toSwarmPlacement } from "@repo/nest-swarm";
 import { DockerService } from "@repo/nest-docker/services/docker.service";
+import { platformOverlayForPrefix } from "@repo/nest-docker/services/docker-supervisor-runtime";
+import { EnvService } from "@/config/env/env.module";
 import {
     type DeploymentRuntimeRunner,
     type DeploymentRuntimeRunnerType,
@@ -57,6 +59,7 @@ export class SwarmRuntimeRunnerService implements DeploymentRuntimeRunner {
     constructor(
         private readonly dockerService: DockerService,
         private readonly clusterService: SwarmClusterService,
+        private readonly env: EnvService,
     ) {}
 
     /**
@@ -123,10 +126,24 @@ export class SwarmRuntimeRunnerService implements DeploymentRuntimeRunner {
 
         const networks: SwarmServiceSpecInput["networks"] = [];
         if (networkMode && networkMode !== "host" && networkMode !== "none") {
-            // Alias the service name on every network it joins: a swarm service
-            // without aliases only answers to its own name, which breaks the
-            // alias-based URLs this platform persists.
-            networks.push({ target: networkMode, aliases: [serviceName] });
+            // ── `bridge` IS NOT A JOINABLE SWARM NETWORK ─────────────────────────
+            // A swarm task cannot attach to the engine's default `bridge`: that
+            // network is NODE-LOCAL, so a task scheduled on another node would
+            // fail to join it outright. The service-config default really is the
+            // literal string `"bridge"` (see `service-config-defaults`), so
+            // forwarding it blindly made every default-configured deployment
+            // depend on landing on the same node as... nothing, since no other
+            // task is on it either.
+            //
+            // Skipped rather than rejected: the platform overlay below is what
+            // makes the service reachable, and failing a deploy over a default
+            // the operator never chose would be worse than ignoring it.
+            if (networkMode !== "bridge") {
+                // Alias the service name on every network it joins: a swarm service
+                // without aliases only answers to its own name, which breaks the
+                // alias-based URLs this platform persists.
+                networks.push({ target: networkMode, aliases: [serviceName] });
+            }
         }
         if (deployment.projectId) {
             const overlayName = `deployer-${deployment.projectId}`;
@@ -144,6 +161,34 @@ export class SwarmRuntimeRunnerService implements DeploymentRuntimeRunner {
             if (!networks.some((attachment) => attachment.target === overlayName)) {
                 networks.push({ target: overlayName, aliases: [serviceName] });
             }
+        }
+
+        // ── THE PLATFORM OVERLAY: HOW TRAEFIK REACHES THIS SERVICE ───────────
+        // WITHOUT THIS THE DEPLOYMENT IS UNREACHABLE. The platform routes a
+        // deployed hostname to `http://<containerName>:<port>` — a NAME, which
+        // resolves only on a network the ingress is also attached to. Traefik
+        // sits on `deployer-platform-overlay`, while the project overlay above is
+        // a DIFFERENT network, and nothing joined the two: the route existed, the
+        // service ran, and every request through the ingress answered 502 because
+        // the backend name resolved nowhere Traefik could see.
+        //
+        // So the service is attached to BOTH: its project overlay (sibling
+        // services reach it there) and the platform overlay (the ingress reaches
+        // it there). That is what makes a workload publishable at all.
+        const platformOverlay = platformOverlayForPrefix(this.env.get("DEPLOYER_PREFIX"));
+        await this.dockerService.ensureOverlayNetwork({
+            name: platformOverlay,
+            driver: "overlay",
+            attachable: true,
+            ingress: false,
+            labels: { "deployer.managed": "true", "deployer.platform": "true" },
+            enableIpv6: false,
+        });
+        if (!networks.some((attachment) => attachment.target === platformOverlay)) {
+            // Aliased by service name for the same reason as every other
+            // attachment: the route's backend is the NAME, and Traefik resolves it
+            // on this network.
+            networks.push({ target: platformOverlay, aliases: [serviceName] });
         }
 
         const specInput: SwarmServiceSpecInput = {

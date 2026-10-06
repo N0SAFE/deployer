@@ -118,6 +118,33 @@ export type TraefikProcessInfo = z.output<typeof traefikProcessInfoSchema>;
 /** Mount point of the shared config volume inside the Traefik container. */
 export const TRAEFIK_CONFIG_MOUNT = "/config";
 
+/**
+ * Name of the ACME certificate resolver declared in the ingress's static args.
+ *
+ * Exported because the ROUTES must reference the SAME name: a router that asks
+ * for a resolver which does not exist gets Traefik's self-signed default
+ * certificate instead of a real one, and that failure is silent — the route
+ * works, it is just untrusted. Keeping the name in one place is what stops the
+ * two from drifting.
+ */
+export const TRAEFIK_ACME_RESOLVER = "letsencrypt";
+
+/** Where the ACME account + issued certificates are persisted. */
+export const TRAEFIK_ACME_STORAGE_MOUNT = "/acme";
+export const TRAEFIK_ACME_STORAGE_PATH = `${TRAEFIK_ACME_STORAGE_MOUNT}/acme.json`;
+
+/**
+ * Named volume holding the ACME state, mounted per node.
+ *
+ * `local` driver, like the config volume, and that is sufficient here for a
+ * different reason than the config volume's: ACME state is a CACHE, not a
+ * source of truth. Two nodes each obtaining their own certificate for the same
+ * hostname is wasteful but correct, whereas a missing one triggers a fresh
+ * order on every restart — which Let's Encrypt rate-limits. So the volume
+ * exists to avoid re-ordering, and a node that loses it simply re-orders once.
+ */
+export const TRAEFIK_ACME_VOLUME = "deployer-traefik-acme";
+
 /** Sentinel thrown when the ENTRY PORT is already bound — the backoff will NOT
  *  retry it (deterministic config conflict). The supervisor goes DEGRADED and
  *  the web must pick a free entry port instead. */
@@ -245,6 +272,7 @@ export class TraefikSupervisorService
 		}
 
 		this.cancelHandoverRetry();
+
 		return null;
 	}
 
@@ -351,7 +379,6 @@ export class TraefikSupervisorService
 						: this.env.get("DEPLOYER_TRAEFIK_HTTP_PORT");
 
 		const tlsEnabled = this.env.get("DEPLOYER_TRAEFIK_TLS_ENABLED") === true;
-
 		// Traefik v3 SPLIT the docker provider in two, and passing the v2 option
 		// PREVENTS TRAEFIK FROM STARTING:
 		//
@@ -378,6 +405,28 @@ export class TraefikSupervisorService
 						"--entrypoints.web.http.redirections.entrypoint.to=websecure",
 						"--entrypoints.web.http.redirections.entrypoint.scheme=https",
 						"--entrypoints.web.http.redirections.entrypoint.permanent=true",
+						// ── A REAL CERTIFICATE RESOLVER, NOT JUST A 443 SOCKET ───────
+						// Enabling TLS used to add the entrypoint and the redirect and
+						// stop there, so every HTTPS request was answered with Traefik's
+						// built-in SELF-SIGNED certificate. Browsers warn, and an edge
+						// that fronts this on a real domain (Cloudflare tunnel, or DNS
+						// pointed at the node) cannot complete a valid connection.
+						//
+						// The resolver is what actually obtains a certificate. It is
+						// declared HERE rather than in a static file because these args
+						// ARE this ingress's static configuration — there is no
+						// `traefik.yml` in the container, so a resolver defined anywhere
+						// else would never be read.
+						//
+						// HTTP-01 is the challenge type because it needs only port 80,
+						// which every mode already publishes (the tunnel connects
+						// outbound but Cloudflare still reaches the origin over the
+						// tunnel for the challenge). Storage is mounted below and MUST
+						// persist: Traefik re-requests a certificate on every start if
+						// `acme.json` is missing, and Let's Encrypt rate-limits that.
+						`--certificatesresolvers.${TRAEFIK_ACME_RESOLVER}.acme.email=${this.env.get("DEPLOYER_TRAEFIK_ACME_EMAIL")}`,
+						`--certificatesresolvers.${TRAEFIK_ACME_RESOLVER}.acme.storage=${TRAEFIK_ACME_STORAGE_PATH}`,
+						`--certificatesresolvers.${TRAEFIK_ACME_RESOLVER}.acme.httpchallenge.entrypoint=web`,
 					]
 				: []),
 		];
@@ -433,6 +482,17 @@ export class TraefikSupervisorService
 			mounts: [
 				{ type: "bind", source: socketPath, target: "/var/run/docker.sock", readOnly: true },
 				{ type: "volume", source: this.traefikConfigVolume(), target: TRAEFIK_CONFIG_MOUNT, readOnly: true },
+				// ── ACME STATE MUST PERSIST, AND ONLY WITH TLS ON ──────────────
+				// `acme.json` holds the Let's Encrypt account key and every issued
+				// certificate. Traefik RE-ORDERS on every start when it is missing,
+				// and Let's Encrypt rate-limits failed/duplicate orders, so a
+				// forgotten volume turns a restart loop into a lockout.
+				//
+				// Mounted only when TLS is on: without a resolver nothing writes
+				// there, and an unused volume on every node is noise.
+				...(tlsEnabled
+					? [{ type: "volume" as const, source: TRAEFIK_ACME_VOLUME, target: TRAEFIK_ACME_STORAGE_MOUNT, readOnly: false }]
+					: []),
 			],
 			placementPreferences: [],
 			// Node-local ingress only makes sense where routing is desired.
@@ -483,6 +543,13 @@ export class TraefikSupervisorService
 		const spec = this.buildSwarmSpec(desiredPort);
 		try {
 			await this.ensureVolume(this.traefikConfigVolume());
+			// The ACME volume must exist BEFORE the service references it, or the
+			// task fails to start on a node that never created it — the same
+			// "volume does not exist" class as the config volume. Only when TLS is
+			// on, matching the conditional mount.
+			if (this.env.get("DEPLOYER_TRAEFIK_TLS_ENABLED")) {
+				await this.ensureVolume(TRAEFIK_ACME_VOLUME);
+			}
 			const overlay = await this.ensureSwarmNetwork(PlatformNetwork.name(this.env.get("DEPLOYER_PREFIX")));
 			this.attachOverlay(spec, overlay, [spec.name]);
 			await this.reconcileSwarmService(spec);

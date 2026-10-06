@@ -79,7 +79,26 @@ const emptyableString = (minLength = 1) =>
 		zod.string().min(minLength).optional(),
 	);
 
-const booleanEnv = (options: BooleanEnvOptions = {}) => {
+export { emptyableString };
+
+/**
+ * A boolean env flag, tolerant of the many spellings a deployment produces.
+ *
+ * ── IDEMPOTENT BY DESIGN: THIS IS WHY IT MUST BE REUSED, NOT REINVENTED ───────
+ * `EnvService` validates TWICE on purpose — once through ConfigModule's
+ * `validate` hook, then again by re-reading each key through the schema (see
+ * `@repo/nest-env`). So a flag parser is fed its OWN OUTPUT on the second pass.
+ *
+ * A `z.enum(["true","false"]).transform(...)` is NOT idempotent: the first pass
+ * yields the boolean `false`, which the second pass rejects — `Invalid enum
+ * value, expected 'true' | 'false' | ..., received false` — and the app dies at
+ * boot with a bare `[ZodError]`. Accepting `boolean` as an input (below) is what
+ * makes a re-parse a no-op.
+ *
+ * EXPORTED for the same reason: an app that writes its own boolean parser will
+ * reproduce that bug.
+ */
+export const booleanEnv = (options: BooleanEnvOptions = {}) => {
     const trueTokens = normalizeBooleanTokenList([
         ...flattenBooleanTokens(DEFAULT_BOOLEAN_ENV_OPTIONS.true),
         ...flattenBooleanTokens(options.true),
@@ -243,6 +262,65 @@ export const apiEnvSchema = zod
         // the generated (non-DB) main config when TLS is enabled. Persisted
         // platform TLS settings (local DB) override this per-domain.
         DEPLOYER_TRAEFIK_ACME_EMAIL: zod.string().optional().default("admin@example.com"),
+
+        // ─── EDGE / INGRESS MODE ──────────────────────────────────────────
+        //
+        // How traffic reaches this platform from the internet. Traefik is the
+        // Swarm edge in EVERY mode — only the hop in front of it changes, so
+        // routing rules and app hostnames are identical either way.
+        //
+        //   `tunnel` — a Cloudflare Tunnel connector runs as a supervised swarm
+        //              service and dials OUT to Cloudflare, so the node needs NO
+        //              inbound port and no public IP. The tunnel's ingress rule
+        //              is a WILDCARD (`*.base-domain`) pointing at Traefik, so
+        //              onboarding a new app never requires a Cloudflare change.
+        //
+        //   `direct` — nothing in front. DNS resolves the app hostname to this
+        //              node's public IP and Traefik answers on :80/:443 itself.
+        //              Requires a public IP and inbound ports open.
+        //
+        // Default `direct` because it needs no third-party account: a fresh
+        // install works with DNS alone, and an operator opts INTO the tunnel by
+        // configuring a tunnel-capable DNS provider.
+        DEPLOYER_EDGE_MODE: zod.enum(["tunnel", "direct"]).default("direct"),
+        //
+        // Connector replicas. Cloudflare allows UP TO 25 connectors on ONE
+        // tunnel and load-balances across them, so high availability comes from
+        // replicas rather than from extra tunnels — which keeps the Cloudflare
+        // side fixed no matter how many nodes the fleet grows to.
+        //
+        // 1 is the honest default for a single-node install (a second replica
+        // could not be scheduled anywhere else anyway). Raise it on a fleet: a
+        // swarm `replicated` service spreads replicas across nodes, so with
+        // `maxReplicasPerNode = 1` each node gets at most one connector and the
+        // loss of a node does not take the edge with it.
+        DEPLOYER_CLOUDFLARED_REPLICAS: zod.coerce.number().int().min(1).max(25).default(1),
+        // Keeps a node failure from taking every connector at once.
+        DEPLOYER_CLOUDFLARED_MAX_PER_NODE: zod.coerce.number().int().min(1).max(4).default(1),
+        // Image for the connector. Pinned like every other platform image so an
+        // unattended `latest` cannot change the edge under a running platform.
+        DEPLOYER_CLOUDFLARED_IMAGE: zod.string().min(1).default("cloudflare/cloudflared:2025.10.0"),
+        //
+        // The tunnel the connector serves. BOTH pieces are needed and they are
+        // not interchangeable:
+        //   - the TOKEN authorises this connector against the tunnel, and is
+        //     minted per tunnel (it is the credential; treated as a secret),
+        //   - the optional HOSTNAME is only used when generating ingress rules
+        //     locally, and is left empty in the normal flow because the API
+        //     writes those rules remotely through the Cloudflare API instead.
+        DEPLOYER_TUNNEL_TOKEN: zod.string().optional(),
+        DEPLOYER_TUNNEL_ID: zod.string().optional(),
+        //
+        // The SINGLE hostname the tunnel's catch-all forwards to. Everything the
+        // platform serves — the console, every user app, every preview — arrives
+        // through this one target, which is what keeps the tunnel configuration
+        // independent of how many apps exist.
+        DEPLOYER_TUNNEL_ROUTE_TARGET: zod.string().min(1).default("http://deployer-traefik:80"),
+        //
+        // The wildcard the tunnel ingress rules are written against, e.g.
+        // `*.example.com`. One rule covers every app and preview, so adding a
+        // deployment never touches Cloudflare.
+        DEPLOYER_TUNNEL_WILDCARD: zod.string().optional(),
 
         // ─── Platform Redis (API-supervised, D-5) ─────────────────────────
         // Redis is supervised BY THE API (RedisSupervisorService) like
