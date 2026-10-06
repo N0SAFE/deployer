@@ -368,15 +368,14 @@ export class TraefikSupervisorService
 	protected buildSwarmSpec(hostPort: number | null | undefined = undefined): SwarmServiceSpecInput {
 		const prefix = this.env.get("DEPLOYER_PREFIX");
 		const socketPath = this.env.get("DOCKER_HOST")?.replace("unix://", "") ?? "/var/run/docker.sock";
-		const isProduction = this.env.get("NODE_ENV") === "production";
 		const port =
 			hostPort === null
 				? undefined
 				: hostPort !== undefined
 					? hostPort
-					: isProduction
-						? undefined
-						: this.env.get("DEPLOYER_TRAEFIK_HTTP_PORT");
+					: this.publishesEntryPort()
+						? this.env.get("DEPLOYER_TRAEFIK_HTTP_PORT")
+						: undefined;
 
 		const tlsEnabled = this.env.get("DEPLOYER_TRAEFIK_TLS_ENABLED") === true;
 		// Traefik v3 SPLIT the docker provider in two, and passing the v2 option
@@ -607,7 +606,7 @@ export class TraefikSupervisorService
 			"Platform ingress convergence",
 			async () => {
 				const entry = await this.settings.getPlatformEntry();
-				const desiredPort = this.isProduction() ? null : entry.port;
+				const desiredPort = this.publishesEntryPort() ? entry.port : null;
 				// Config files (dynamic-*.yml) are handled by the TRAEFIK CORE
 				// module (TraefikPlatformConfigService) — the file-provider
 				// watcher reloads them; this supervisor only ensures the PROCESS.
@@ -635,9 +634,30 @@ export class TraefikSupervisorService
 		return error instanceof EntryPortConflictError;
 	}
 
-	/** True when the process runs in production mode (no host port publishing). */
-	private isProduction(): boolean {
-		return this.env.get("NODE_ENV") === "production";
+	/**
+	 * Whether the ingress publishes its entry port on the host.
+	 *
+	 * ── WHY THIS IS NO LONGER A PRODUCTION CHECK ────────────────────────────────
+	 * This used to be `NODE_ENV !== "production"`, which meant production ran the
+	 * ingress HEADLESS — no host port at all. That is correct for exactly one
+	 * situation and wrong for the other:
+	 *
+	 *   `tunnel`  — the connector dials OUT to Cloudflare, so no inbound port is
+	 *               needed, and not publishing one is the whole security benefit
+	 *               of the mode. Headless is right.
+	 *
+	 *   `direct`  — DNS resolves the app hostname to this node and the client
+	 *               connects to :80/:443 ON THIS NODE. Publishing nothing makes
+	 *               every such request fail at the TCP layer, so a production
+	 *               `direct` install was unreachable by construction.
+	 *
+	 * The question was never "is this production" — it is "does anything dial IN".
+	 * That is a property of the EDGE MODE, so the mode decides, in every
+	 * environment. A dev box running `tunnel` now correctly stays headless too,
+	 * which the old check got wrong in the opposite direction.
+	 */
+	private publishesEntryPort(): boolean {
+		return this.env.get("DEPLOYER_EDGE_MODE") === "direct";
 	}
 
 	/** Heuristic for Docker port-binding failures (host port already in use). */
@@ -827,7 +847,8 @@ export class TraefikSupervisorService
 	 */
 	protected async buildProcessInfo(): Promise<Record<string, unknown>> {
 		const entry = await this.settings.getPlatformEntry();
-		const desiredPort = this.isProduction() ? null : entry.port;
+		// Same resolution as `reconcile`, so what this reports is what converged.
+		const desiredPort = this.publishesEntryPort() ? entry.port : null;
 		const spec = this.buildSwarmSpec(desiredPort);
 		const published = spec.endpointPorts.length > 0;
 		return {

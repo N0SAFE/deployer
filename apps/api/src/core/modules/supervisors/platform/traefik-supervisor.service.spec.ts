@@ -129,6 +129,7 @@ function makeEnv(overrides: Partial<Record<string, unknown>> = {}): EnvService {
 		DEPLOYER_PREFIX: "",
 		DEPLOYER_TRAEFIK_IMAGE: "traefik:v3.3",
 		DEPLOYER_TRAEFIK_HTTP_PORT: 80,
+		DEPLOYER_EDGE_MODE: "direct",
 		DOCKER_HOST: undefined,
 		NODE_ENV: "development",
 		API_PORT: 3005,
@@ -398,10 +399,10 @@ describe("TraefikSupervisorService (swarm-global ingress)", () => {
 		]);
 	});
 
-	it("publishes no host port in production (headless behind the operator's proxy)", async () => {
+	it("publishes no host port in tunnel mode (the connector dials out)", async () => {
 		const configDir = await makeConfigDir();
 		const { supervisor, createSwarmService } = makeSupervisor({
-			NODE_ENV: "production",
+			DEPLOYER_EDGE_MODE: "tunnel",
 			TRAEFIK_CONFIG_BASE_PATH: configDir,
 		});
 		stubProbe(supervisor);
@@ -409,6 +410,25 @@ describe("TraefikSupervisorService (swarm-global ingress)", () => {
 		await supervisor.ensureDesiredState();
 
 		expect(createSwarmService.mock.calls[0]?.[0]?.EndpointSpec?.Ports ?? []).toEqual([]);
+	});
+
+	it("still publishes in PRODUCTION when the edge mode is direct", async () => {
+		const configDir = await makeConfigDir();
+		const { supervisor, createSwarmService } = makeSupervisor({
+			NODE_ENV: "production",
+			DEPLOYER_EDGE_MODE: "direct",
+			TRAEFIK_CONFIG_BASE_PATH: configDir,
+		});
+		stubProbe(supervisor);
+
+		await supervisor.ensureDesiredState();
+
+		// The edge mode, not NODE_ENV, decides: in `direct` the operator points
+		// DNS at the node IP, so the port MUST be bound or the whole stack is
+		// unreachable by construction.
+		expect(createSwarmService.mock.calls[0]?.[0]?.EndpointSpec?.Ports).toEqual([
+			{ TargetPort: 80, PublishedPort: 80, Protocol: "tcp", PublishMode: "host" },
+		]);
 	});
 
 	it("marks Traefik DEGRADED when the entry port is unavailable (no silent fallback)", async () => {

@@ -83,6 +83,19 @@ Traefik is the Swarm edge in every mode; only the hop in front changes.
 `direct` is the default: a fresh install works with DNS alone, and the operator
 opts into a tunnel.
 
+#### The entry port follows the edge mode, not NODE_ENV
+
+| `DEPLOYER_EDGE_MODE` | Entry port | Why |
+|---|---|---|
+| `direct` | published (`host` mode, 80/443) | DNS points at the node IP; nothing is bound, nothing is reachable |
+| `tunnel` | **none** | the connector dials out; an inbound port is pure attack surface |
+
+This used to key off `NODE_ENV`: production ran headless "behind the operator's
+proxy". That silently made `direct` impossible in production — the caller was
+supposed to point DNS at a port the stack refused to bind. The decision now
+belongs to the mode the operator actually chose, and `direct` + `production` is
+covered by a regression test.
+
 ### TLS that actually works
 
 Enabling TLS used to add the `:443` entrypoint and stop — every HTTPS request was
@@ -107,6 +120,7 @@ file re-orders on every restart, which Let's Encrypt rate-limits).
 |---|---|
 | Type-check | api, web, setup, env — 0 errors |
 | Supervisors + runners | 96/96 |
+| Traefik supervisor (edge-mode ports) | 22/22 |
 | Setup | 121/121 |
 | UI | 74/74 |
 | env | 83/83 |
