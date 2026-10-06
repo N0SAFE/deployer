@@ -60,6 +60,7 @@ import {
 	type DockerSupervisorRuntime,
 } from "@repo/nest-docker/services/docker-supervisor-runtime";
 import type { SwarmServiceSpecInput } from "@repo/contracts-entities";
+import { PlatformIngressSettingsService, type EdgeMode } from "../../platform-ingress/services/platform-ingress-settings.service";
 import { PLATFORM_ROLE_LABEL, PlatformNetwork } from "./traefik-supervisor.service";
 
 /** Ownership marker — cleanup/inspection tooling keys off this label. */
@@ -124,19 +125,77 @@ export class CloudflaredSupervisorService extends BaseDockerSupervisorService<
 	constructor(
 		dockerService: DockerService,
 		private readonly env: EnvService,
+		private readonly edgeSettings: PlatformIngressSettingsService,
 	) {
 		super(dockerService);
 	}
 
 	/**
+	 * The stack's persisted tunnel, resolved lazily because the settings store is
+	 * asynchronous while `probe()`/`buildSwarmSpec()` are not.
+	 *
+	 * Cached after the first successful read: this is read on every probe and the
+	 * value only changes when the API itself writes it (see `invalidateEdgeCache`).
+	 */
+	private cachedToken: string | null | undefined = undefined;
+
+	/** Drop the cached tunnel so the next probe re-reads the store. */
+	invalidateEdgeCache(): void {
+		this.cachedToken = undefined;
+	}
+
+	/**
+	 * Prime the cache at boot. The supervisors probe synchronously, so the store
+	 * must be read once before the first probe — otherwise a persisted tunnel
+	 * would look unconfigured until some later write happened to invalidate it.
+	 */
+	override async onModuleInit(): Promise<void> {
+		await this.loadEdgeTunnel();
+		const { runtime, reason } = this.resolveRuntime();
+		this.logger.log(`Cloudflared supervisor registering — runtime=${runtime} (${reason})`);
+		super.onModuleInit();
+	}
+
+	/**
+	 * The edge mode in effect: the persisted operator choice, else the install
+	 * default. Defaulted to `direct` so a probe arriving before the first read
+	 * behaves like the env default rather than inventing a tunnel.
+	 */
+	private edgeMode: EdgeMode = "direct";
+
+	/**
+	 * Read the persisted mode + tunnel into the cache.
+	 *
+	 * Environment wins for the TOKEN (a compose/operator install supplies it
+	 * there and has no settings row), but the MODE always comes from the store so
+	 * the UI can switch it — `DEPLOYER_EDGE_MODE` is only the seed value.
+	 */
+	async loadEdgeTunnel(): Promise<void> {
+		this.edgeMode = await this.edgeSettings.getEdgeMode();
+		const envToken = this.env.get("DEPLOYER_TUNNEL_TOKEN");
+		if (envToken !== undefined && envToken.trim() !== "") {
+			this.cachedToken = envToken.trim();
+			return;
+		}
+		const stored = await this.edgeSettings.getEdgeTunnel();
+		this.cachedToken = stored.token;
+	}
+
+	/**
 	 * The run token that authorises a connector against the tunnel.
 	 *
-	 * Absent means this platform has no tunnel edge: either the deployment runs
-	 * its own (`managed`), or the edge is `direct` and Cloudflare is not involved.
+	 * Resolved from the ENVIRONMENT first (a compose/operator install supplies it
+	 * there) and otherwise from the persisted stack settings the web UI writes.
+	 *
+	 * This is what makes `tunnel` mode reachable end to end: the API provisions
+	 * the tunnel through the provider and stores its token, and this supervisor —
+	 * which runs before Postgres and cannot call the provider — simply reads it.
+	 *
+	 * Absent from both means this platform has no tunnel edge: either the
+	 * deployment runs its own (`managed`), or the edge is `direct`.
 	 */
 	private token(): string | null {
-		const token = this.env.get("DEPLOYER_TUNNEL_TOKEN");
-		return token === undefined || token.trim() === "" ? null : token.trim();
+		return this.cachedToken ?? null;
 	}
 
 	/**
@@ -149,7 +208,7 @@ export class CloudflaredSupervisorService extends BaseDockerSupervisorService<
 	 * internet — so the honest state is `managed`, meaning "not ours to create".
 	 */
 	private isDeploymentOwned(): boolean {
-		if (this.env.get("DEPLOYER_EDGE_MODE") !== "tunnel") return true;
+		if (this.edgeMode !== "tunnel") return true;
 		return this.token() === null;
 	}
 
@@ -254,15 +313,14 @@ export class CloudflaredSupervisorService extends BaseDockerSupervisorService<
 		};
 	}
 
-	/** Register only when the platform owns the edge; `managed` links nothing. */
-	override onModuleInit(): void {
-		const { runtime, reason } = this.resolveRuntime();
-		this.logger.log(`Cloudflared supervisor registering — runtime=${runtime} (${reason})`);
-		super.onModuleInit();
-	}
-
 	/** One idempotent convergence pass. */
 	protected async reconcile(): Promise<void> {
+		// Re-read the persisted tunnel on every sweep. The web UI writes it and
+		// this supervisor has no other way to learn about the change: creating the
+		// connector from one request and starting it from the next sweep keeps the
+		// two sides decoupled (no cross-module cache invalidation to get wrong).
+		await this.loadEdgeTunnel();
+
 		const runtime = this.effectiveRuntime();
 
 		if (runtime === "managed") {
@@ -272,7 +330,7 @@ export class CloudflaredSupervisorService extends BaseDockerSupervisorService<
 				this.serviceName(),
 			);
 			this.logger.log(
-				this.env.get("DEPLOYER_EDGE_MODE") === "tunnel"
+				this.edgeMode === "tunnel"
 					? "Edge mode is `tunnel` but no tunnel token is configured — no connector to run"
 					: "Edge mode is `direct` — no tunnel connector to run (DNS points straight at Traefik)",
 			);
@@ -359,7 +417,7 @@ export class CloudflaredSupervisorService extends BaseDockerSupervisorService<
 				},
 			},
 			edge: {
-				mode: this.env.get("DEPLOYER_EDGE_MODE"),
+				mode: this.edgeMode,
 				replicas: 0,
 				routeTarget: this.routeTarget(),
 				wildcard: this.wildcard(),
@@ -398,7 +456,7 @@ export class CloudflaredSupervisorService extends BaseDockerSupervisorService<
 			return {
 				healthy: true,
 				detail:
-					this.env.get("DEPLOYER_EDGE_MODE") === "tunnel"
+					this.edgeMode === "tunnel"
 						? "Edge is deployment-owned — the platform runs no connector."
 						: "Edge mode is `direct` — traffic reaches Traefik by DNS, with no tunnel.",
 				payload: {

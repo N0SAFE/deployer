@@ -90,7 +90,10 @@ export default function AdminDomainsPage() {
   const { data: domainGateData } = useCheckDomainGate()
   // LIVE public access point (SSE): keeps the node's reachability on screen.
   const accessPoint = usePublicAccessPointLive()
-  const nodeNetwork = nodeNetworkData as { publicAddress: string | null; tunnel: { enabled: boolean; providerId: string | null } } | undefined
+  // The node's OWN address. The tunnel is no longer part of this shape — it
+  // belongs to the stack (see `useStackEdge`), because one tunnel serves every
+  // node rather than one per node.
+  const nodeNetwork = nodeNetworkData as { publicAddress: string | null } | undefined
   const domainGate = domainGateData as { allowed: boolean; reason: string | null } | undefined
   // Expected IP for reachability checks: prefer the LIVE access point address
   // (IP kind), else the configured node address, else auto-detected.
@@ -321,15 +324,16 @@ export default function AdminDomainsPage() {
         </Button>
       </div>
 
-      {/* Domain gate banner — global IP / tunnel prerequisite */}
+      {/* Domain gate banner — the stack needs a reachable edge first */}
       {domainGate?.allowed === false && (
         <Alert variant="destructive">
           <Siren className="size-4" />
           <AlertTitle>Cannot create domains yet</AlertTitle>
           <AlertDescription>
-            {domainGate.reason ?? 'No public IP or hostname configured and tunnel mode is off.'}{' '}
+            {domainGate.reason ?? 'No public address configured for this node and no stack tunnel is provisioned.'}{' '}
             Set a globally reachable public IP in <span className="font-medium">System → Node Network &amp; Reachability</span>,
-            or enable Cloudflare Tunnel mode on the Cloudflare provider page.
+            or switch the stack edge to tunnel mode in{' '}
+            <span className="font-medium">Edge &amp; Ingress</span>.
           </AlertDescription>
         </Alert>
       )}

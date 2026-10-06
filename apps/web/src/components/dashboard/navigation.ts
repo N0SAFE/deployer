@@ -23,6 +23,7 @@ import {
 import {
   AuthDashboard,
   AuthDashboardAdminDomains,
+  AuthDashboardAdminEdge,
   AuthDashboardAdminProviders,
   AuthDashboardAdminProvidersCode,
   AuthDashboardAdminProvidersCodeDockerHub,
@@ -203,6 +204,15 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Globe,
         hint: 'Custom domains & TLS',
         keywords: 'domains dns verify tls certificates hostnames',
+      },
+      {
+        // Sits beside Domains for the same reason: the edge is HOW those
+        // domains reach the stack. Same /admin namespace accident.
+        title: 'Edge & Ingress',
+        url: AuthDashboardAdminEdge(),
+        icon: Network,
+        hint: 'Direct DNS or tunnel',
+        keywords: 'edge ingress traefik tunnel cloudflare direct dns port entry',
       },
     ],
   },

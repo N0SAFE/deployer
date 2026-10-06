@@ -1,0 +1,1 @@
+ALTER TABLE "core_event_logs" ALTER COLUMN "created_at" SET DEFAULT now();

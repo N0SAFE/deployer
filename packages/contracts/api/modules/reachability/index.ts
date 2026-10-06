@@ -10,11 +10,16 @@ export {
     listNodeNetworkConfigsContract,
     getTunnelHealthContract,
     checkDomainGateContract,
+    getStackEdgeContract,
+    setStackEdgeModeContract,
+    clearStackEdgeTunnelContract,
     reachabilityCheckResultSchema,
     reachabilityConfigSchema,
     domainReachabilityResultSchema,
     nodeNetworkConfigSchema,
-    nodeTunnelConfigSchema,
     nodeTunnelHealthSchema,
+    stackEdgeSchema,
+    stackTunnelSchema,
+    stackEdgeModeSchema,
 } from "./contracts";
 export type { ReachabilityContract } from "./contracts";

@@ -13,4 +13,21 @@ export const reachabilityInvalidations: InvalidationConfig<ReachabilityEndpoints
     keys.getPublicIp({ input: {} }),
     keys.getPublicAccessPoint({ input: {} }),
   ],
+  // Switching the edge mode changes whether the ingress publishes a port AND
+  // whether a tunnel connector runs, so the edge, its health, and the derived
+  // access point all become stale at once.
+  setStackEdgeMode: ({ keys }) => [
+    keys.getStackEdge({ input: {} }),
+    keys.getTunnelHealth({ input: {} }),
+    keys.checkDomainGate({ input: {} }),
+    keys.getPublicAccessPoint({ input: {} }),
+    keys.getNodeNetworkConfig({ input: { nodeId: undefined } }),
+  ],
+  // Deleting the tunnel drops the edge back to `direct` reachability.
+  clearStackEdgeTunnel: ({ keys }) => [
+    keys.getStackEdge({ input: {} }),
+    keys.getTunnelHealth({ input: {} }),
+    keys.checkDomainGate({ input: {} }),
+    keys.getPublicAccessPoint({ input: {} }),
+  ],
 }

@@ -60,6 +60,50 @@ export function useCheckDomainGate() {
   )
 }
 
+// ─── Stack edge (mode + the ONE tunnel every node shares) ──────────────────
+
+/**
+ * The stack's edge: its mode, its tunnel, and whether the ingress publishes an
+ * entry port under that mode.
+ */
+export function useStackEdge() {
+  return useQuery(
+    reachabilityEndpoints.getStackEdge.queryOptions({ input: {} }),
+  )
+}
+
+/**
+ * Switch the stack edge mode.
+ *
+ * Switching to `tunnel` also provisions the tunnel server-side (creating it on
+ * `providerId` and storing its run token), which is why `providerId` and
+ * `wildcard` are required for that direction — a mode claiming `tunnel` with no
+ * usable tunnel would report an edge that cannot exist.
+ */
+export function useSetStackEdgeMode() {
+  return useMutation(
+    reachabilityEndpoints.setStackEdgeMode.mutationOptions({
+      onSuccess: enhancedReachability.setStackEdgeMode.withInvalidationOnSuccess(),
+    }),
+  )
+}
+
+/** Delete the stack's tunnel on its provider and forget it locally. */
+export function useClearStackEdgeTunnel() {
+  return useMutation(
+    reachabilityEndpoints.clearStackEdgeTunnel.mutationOptions({
+      onSuccess: enhancedReachability.clearStackEdgeTunnel.withInvalidationOnSuccess(),
+    }),
+  )
+}
+
+/** Live health of the stack's tunnel (connection count, status). */
+export function useTunnelHealth() {
+  return useQuery(
+    reachabilityEndpoints.getTunnelHealth.queryOptions({ input: {} }),
+  )
+}
+
 /**
  * First-class public access point: request ⇒ server re-checks availability,
  * emits onto the global event relay, returns the fresh discriminated-union state.

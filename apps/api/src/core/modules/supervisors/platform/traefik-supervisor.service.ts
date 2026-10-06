@@ -19,7 +19,7 @@ import z from "zod/v4";
 
 import { HostnameService } from "../../platform-ingress/services/hostname.service";
 import { PlatformPaths } from "../../platform-ingress/services/platform-paths";
-import { PlatformIngressSettingsService } from "../../platform-ingress/services/platform-ingress-settings.service";
+import { PlatformIngressSettingsService, type EdgeMode } from "../../platform-ingress/services/platform-ingress-settings.service";
 import { platformTraefikContainerName } from "../../platform-ingress/services/platform-names";
 import { BaseDockerSupervisorService } from "@repo/nest-docker/services/base-docker-supervisor.service";
 import {
@@ -218,7 +218,23 @@ export class TraefikSupervisorService
 			this.logger.log("Externally-managed Traefik detected (MANAGED_TRAEFIK_ENABLED=true) — supervisor skipped (not registered)");
 			return;
 		}
+		await this.loadEdgeMode();
 		super.onModuleInit();
+	}
+
+	/**
+	 * The edge mode in effect, cached because `buildSwarmSpec()` is synchronous
+	 * while the settings store is not.
+	 *
+	 * Seeded to `direct` so a probe arriving before the first read publishes the
+	 * entry port — the safe direction to be wrong in: an unbound port makes the
+	 * stack unreachable, while a bound one is merely unnecessary under `tunnel`.
+	 */
+	private edgeMode: EdgeMode = "direct";
+
+	/** Re-read the persisted edge mode (called at boot and on every sweep). */
+	async loadEdgeMode(): Promise<void> {
+		this.edgeMode = await this.settings.getEdgeMode();
 	}
 
 	/** True when the deployment owns the Traefik ingress (compose/operator). */
@@ -583,6 +599,11 @@ export class TraefikSupervisorService
 	 *    - Production headless (no host port, behind the user's own proxy) is
 	 *      the only case with no host binding. */
 	protected async reconcile(): Promise<void> {
+		// Re-read the mode: the UI can switch it at runtime, and this supervisor
+		// has no other way to learn about that (see the cloudflared supervisor,
+		// which re-reads for the same reason).
+		await this.loadEdgeMode();
+
 		const runtime = await this.effectiveRuntime();
 
 		if (runtime === "managed") {
@@ -657,7 +678,7 @@ export class TraefikSupervisorService
 	 * which the old check got wrong in the opposite direction.
 	 */
 	private publishesEntryPort(): boolean {
-		return this.env.get("DEPLOYER_EDGE_MODE") === "direct";
+		return this.edgeMode === "direct";
 	}
 
 	/** Heuristic for Docker port-binding failures (host port already in use). */

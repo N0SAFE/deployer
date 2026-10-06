@@ -166,24 +166,18 @@ export class PlatformRoutesSource {
 		// Every public entry point of the node terminates at the platform
 		// TRAEFIK: a domain (Host → API) or a public IP (Host(<ip>) → API)
 		// both resolve here — Traefik is the single gateway, and deployments
-		// route by their own Host rules. The tunnel hostname (if set) also
-		// enters Traefik and routes to the API.
+		// route by their own Host rules. The STACK's tunnel wildcard also enters
+		// Traefik, which routes it by matching the Host against these routes.
+		//
+		// The per-node tunnel hostname is gone: the tunnel belongs to the stack
+		// (a single wildcard rule covers every app), so there is no per-node
+		// hostname to publish here.
 		const publicHost = hostnameOf(config.publicAddress ?? "");
 		if (publicHost !== null) {
 			routes.push({
 				name: routeNameFromHost(publicHost),
 				hosts: [publicHost],
 				source: "global-hostname",
-				target: { kind: "api" },
-			});
-		}
-
-		const tunnelHost = hostnameOf(config.tunnelHostname ?? "");
-		if (tunnelHost !== null) {
-			routes.push({
-				name: routeNameFromHost(tunnelHost),
-				hosts: [tunnelHost],
-				source: "tunnel",
 				target: { kind: "api" },
 			});
 		}

@@ -17,6 +17,7 @@ import { BadRequestException, ConflictException, Injectable, Logger, NotFoundExc
 import { Cloudflare } from "cloudflare";
 import z from "zod/v4";
 import { DnsProvidersRepository } from "../../shared/repositories/dns-providers.repository";
+import { PlatformIngressSettingsService } from "@/core/modules/platform-ingress/services/platform-ingress-settings.service";
 import { toCloudflareErrorMessage } from "./cloudflare.helpers";
 
 import { AppError } from "@repo/errors";
@@ -55,7 +56,10 @@ export class CloudflareAppService {
     /** In-memory TTL cache of the last live state check (never authoritative). */
     private readonly stateCache = new Map<string, { at: number; state: DnsProviderRuntimeState }>();
 
-    constructor(private readonly dnsProvidersRepository: DnsProvidersRepository) {}
+    constructor(
+        private readonly dnsProvidersRepository: DnsProvidersRepository,
+        private readonly edgeSettings: PlatformIngressSettingsService,
+    ) {}
 
     // ─── Row access ──────────────────────────────────────────────────────────
 
@@ -154,11 +158,13 @@ export class CloudflareAppService {
     }
 
     async deleteApp(providerId: string): Promise<boolean> {
-        // Guard: an app backing a node tunnel cannot be deleted while in use.
-        const ref = await this.dnsProvidersRepository.findTunnelOwnerNode(providerId);
-        if (ref) {
+        // Guard: the app backing the STACK's tunnel cannot be deleted while in
+        // use — deleting it would leave the connector holding a token whose
+        // account is gone, and the edge would fail with no obvious cause.
+        const edge = await this.edgeSettings.getEdgeTunnel();
+        if (edge.providerId === providerId) {
             throw new ConflictException(
-                `Cannot delete: this provider is the tunnel owner of node ${ref.nodeId}. Remove the tunnel binding in System → Node Network first.`,
+                `Cannot delete: this provider backs the stack's edge tunnel${edge.tunnelId === null ? "" : ` (${edge.tunnelId})`}. Clear the tunnel in Edge & Ingress first.`,
             );
         }
         await this.dnsProvidersRepository.deleteById(providerId);

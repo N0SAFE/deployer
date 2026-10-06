@@ -27,12 +27,15 @@ function fakeDb(groups: ReadonlyArray<ReadonlyArray<Record<string, unknown>>>): 
 }
 
 describe("PlatformRoutesSource", () => {
-	it("publishes global hostname + tunnel rules that target the API", async () => {
+	it("publishes the node's global hostname as a rule that targets the API", async () => {
 		const db = fakeDb([
 			[
 				{
 					publicAddress: "deployer.sebille.net",
 					addressKind: "hostname",
+					// A per-node tunnel hostname is NO LONGER read: the tunnel
+					// belongs to the stack and routes through one wildcard rule
+					// (see Edge & Ingress), so a node publishes only its address.
 					tunnelHostname: "tunnel.sebille.net",
 				},
 			],
@@ -43,18 +46,12 @@ describe("PlatformRoutesSource", () => {
 
 		const routes = await source.listSupervisedRoutes();
 
-		expect(routes).toHaveLength(2);
+		expect(routes).toHaveLength(1);
 		const global = routes[0];
 		expect(global).toMatchObject({
 			name: "deploy-deployer-sebille-net",
 			hosts: ["deployer.sebille.net"],
 			source: "global-hostname",
-			target: { kind: "api" },
-		});
-		const tunnel = routes[1];
-		expect(tunnel).toMatchObject({
-			hosts: ["tunnel.sebille.net"],
-			source: "tunnel",
 			target: { kind: "api" },
 		});
 	});

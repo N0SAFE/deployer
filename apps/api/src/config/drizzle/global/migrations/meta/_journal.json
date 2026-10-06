@@ -246,6 +246,20 @@
       "when": 1790782762729,
       "tag": "0034_sad_cardiac",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1791281237762,
+      "tag": "0035_sparkling_vivisector",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791284769243,
+      "tag": "0036_gifted_reptil",
+      "breakpoints": true
     }
   ]
 }

@@ -65,14 +65,4 @@ export class DnsProvidersRepository {
             .delete(globalSchema.dnsProviders)
             .where(eq(globalSchema.dnsProviders.id, providerId));
     }
-
-    /** Find the node that owns a tunnel backed by this provider (if any). */
-    async findTunnelOwnerNode(providerId: string) {
-        const refs = await this.db
-            .select({ nodeId: globalSchema.nodeNetworkConfig.nodeId })
-            .from(globalSchema.nodeNetworkConfig)
-            .where(eq(globalSchema.nodeNetworkConfig.tunnelProviderId, providerId))
-            .limit(1);
-        return refs[0] ?? null;
-    }
 }

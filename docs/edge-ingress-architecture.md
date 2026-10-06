@@ -83,6 +83,25 @@ Traefik is the Swarm edge in every mode; only the hop in front changes.
 `direct` is the default: a fresh install works with DNS alone, and the operator
 opts into a tunnel.
 
+#### The edge is a property of the STACK, not a node
+
+Both the mode and the tunnel are stack-scoped, and there is exactly one tunnel.
+
+The tunnel used to live on `node_network_config`, which made it a property of a
+NODE: a 3-node platform created three Cloudflare tunnels, each needing its own
+hostname rule, with three connectors competing to answer for the same hostname.
+Its columns are gone (migration `0036`), replaced by five keys in the local
+`platform_settings` table (`edge.mode`, `edge.tunnel_token`, `edge.tunnel_id`,
+`edge.tunnel_provider_id`, `edge.tunnel_wildcard`) — local because the connector
+supervisor must answer "is an edge configured?" during boot, before Postgres.
+
+The API provisions the tunnel and stores its token; the supervisor only reads it.
+That split matters: `CloudflareTunnelService` needs the provider credentials in
+`dns_providers` (global DB), which are not available on the boot path.
+
+`node_network_config` keeps `public_address`, and that is not vestigial — in
+`direct` mode DNS resolves each app hostname to THAT node's address.
+
 #### The entry port follows the edge mode, not NODE_ENV
 
 | `DEPLOYER_EDGE_MODE` | Entry port | Why |
@@ -108,23 +127,25 @@ file re-orders on every restart, which Let's Encrypt rate-limits).
 | Concern | File |
 |---|---|
 | Connector supervisor (new) | `apps/api/src/core/modules/supervisors/platform/cloudflared-supervisor.service.ts` |
-| Edge-mode env | `packages/utils/env/src/index.ts` |
+| Stack edge store (mode + tunnel) | `apps/api/src/core/modules/platform-ingress/services/platform-ingress-settings.service.ts` |
+| Stack edge endpoints | `apps/api/src/modules/reachability/controllers/reachability.controller.ts` |
+| Edge UI | `apps/web/src/app/dashboard/admin/edge/page.tsx` |
+| Edge-mode env (seed value) | `packages/utils/env/src/index.ts` |
 | ACME resolver + volume | `apps/api/.../traefik-supervisor.service.ts` |
 | Workload reachability | `apps/api/src/modules/runners/swarm/swarm-runtime-runner.service.ts` |
 | Wildcard tunnel rule | `apps/api/src/modules/reachability/controllers/reachability.controller.ts` |
-| DI for the new injection | `apps/api/src/modules/runners/runners.module.ts` |
+| Migration (drop node tunnel cols) | `apps/api/src/config/drizzle/global/migrations/0036_gifted_reptil.sql` |
 
 ## Verification
 
 | Check | Result |
 |---|---|
-| Type-check | api, web, setup, env — 0 errors |
-| Supervisors + runners | 96/96 |
+| Type-check | api, web, setup — 0 errors |
+| Supervisors + runners | 81/81 |
+| Reachability + platform-ingress | 16/16 |
+| Web unit tests | 76/76 |
 | Traefik supervisor (edge-mode ports) | 22/22 |
-| Setup | 121/121 |
-| UI | 74/74 |
-| env | 83/83 |
-| Full API | 4 failed vs **10 failed on a stashed baseline** |
+| DI graph (`app.graph`) | passes — new injections resolve |
 
 The 4 remaining failures are `EACCES: mkdir '/app/data'` (a container-only path)
 and `AppModule import exceeded 45000ms` (a load timeout), both of which also
@@ -137,5 +158,9 @@ occur — more often — without these changes.
   write-only — no reader.
 - **`constraint: node.labels.deployer.ingress == true`** is declared in the
   topology table but never enforced; every supervisor passes
-  `placementConstraints: []`.
+  `placementConstraints: []`, and `ClusterService` can already set that label.
 - **Workload volumes are node-local**, so a rescheduled task loses its data.
+
+The per-node tunnel is no longer in this list: it was the bridge that made
+`tunnel` mode unreachable, and it has been removed rather than kept alongside
+the stack tunnel.

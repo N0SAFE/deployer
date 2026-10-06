@@ -13,6 +13,9 @@ export const reachabilityEndpoints = {
   checkDomainGate: orpc.reachability.checkDomainGate,
   getPublicAccessPoint: orpc.reachability.getPublicAccessPoint,
   watchPublicAccessPoint: orpc.reachability.watchPublicAccessPoint,
+  getStackEdge: orpc.reachability.getStackEdge,
+  setStackEdgeMode: orpc.reachability.setStackEdgeMode,
+  clearStackEdgeTunnel: orpc.reachability.clearStackEdgeTunnel,
 } as const
 
 export const reachabilityEndpointOperations = {
@@ -23,7 +26,11 @@ export const reachabilityEndpointOperations = {
   checkDomainGate: reachabilityEndpoints.checkDomainGate,
   getPublicIp: reachabilityEndpoints.getPublicIp,
   getPublicAccessPoint: reachabilityEndpoints.getPublicAccessPoint,
+  getStackEdge: reachabilityEndpoints.getStackEdge,
+  getTunnelHealth: reachabilityEndpoints.getTunnelHealth,
   updateNodeNetworkConfig: reachabilityEndpoints.updateNodeNetworkConfig,
+  setStackEdgeMode: reachabilityEndpoints.setStackEdgeMode,
+  clearStackEdgeTunnel: reachabilityEndpoints.clearStackEdgeTunnel,
 }
 
 export type ReachabilityEndpoints = typeof reachabilityEndpoints

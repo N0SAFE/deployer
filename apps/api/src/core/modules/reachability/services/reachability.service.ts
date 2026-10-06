@@ -4,25 +4,28 @@ import dns from 'node:dns/promises'
 import { isIP } from 'node:net'
 import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository"
 import { NodeNetworkConfigRepository } from "../repositories/node-network-config.repository"
-
-/**
- * Tunnel binding of a node network config. `tunnelId` is the Cloudflare
- * tunnel created automatically when the node enables tunnel mode.
- */
-export interface TunnelConfig {
-  enabled: boolean
-  providerId: string | null
-  tunnelId: string | null
-  hostname: string | null
-}
+import { PlatformIngressSettingsService } from "@/core/modules/platform-ingress/services/platform-ingress-settings.service"
 
 /** Full per-node network config persisted in the global `node_network_config`. */
 export interface NodeNetworkConfigData {
   nodeId: string
   publicAddress: string | null
   addressKind: 'ip' | 'hostname' | null
-  tunnel: TunnelConfig
   updatedAt: string
+}
+
+/**
+ * The node's reachable address, as the domain gate sees it.
+ *
+ * The tunnel is no longer part of this answer: it belongs to the stack
+ * (`PlatformIngressSettingsService`), so the gate consults it directly rather
+ * than through a per-node row.
+ */
+export interface NodeAddressGate {
+  allowed: boolean
+  reason: string | null
+  publicAddress: string | null
+  addressKind: 'ip' | 'hostname' | null
 }
 
 @Injectable()
@@ -32,6 +35,7 @@ export class ReachabilityService {
   constructor(
     private readonly nodeNetworkConfigRepository: NodeNetworkConfigRepository,
     private readonly nodeConfigRepository: NodeConfigRepository,
+    private readonly edgeSettings: PlatformIngressSettingsService,
   ) {}
 
   /**
@@ -60,12 +64,10 @@ export class ReachabilityService {
   async getNodeNetworkConfig(nodeId?: string): Promise<NodeNetworkConfigData> {
     const target = nodeId?.trim() ? nodeId : this.getCurrentNodeId()
     const row = await this.getConfigRow(target)
-    const tunnel = this.parseTunnel(row?.tunnelEnabled, row?.tunnelProviderId, row?.tunnelId, row?.tunnelHostname)
     return {
       nodeId: target,
       publicAddress: row?.publicAddress?.trim() ? row.publicAddress.trim() : null,
       addressKind: this.deriveAddressKind(row?.publicAddress ?? null),
-      tunnel,
       updatedAt: row?.updatedAt?.toISOString() ?? new Date(0).toISOString(),
     }
   }
@@ -77,23 +79,8 @@ export class ReachabilityService {
       nodeId: row.nodeId,
       publicAddress: row.publicAddress?.trim() ? row.publicAddress.trim() : null,
       addressKind: this.deriveAddressKind(row.publicAddress ?? null),
-      tunnel: this.parseTunnel(row.tunnelEnabled, row.tunnelProviderId, row.tunnelId, row.tunnelHostname),
       updatedAt: row.updatedAt.toISOString(),
     }))
-  }
-
-  private parseTunnel(
-    enabled: boolean | null | undefined,
-    providerId: string | null | undefined,
-    tunnelId: string | null | undefined,
-    hostname: string | null | undefined,
-  ): TunnelConfig {
-    return {
-      enabled: enabled ?? false,
-      providerId: providerId ?? null,
-      tunnelId: tunnelId ?? null,
-      hostname: hostname ?? null,
-    }
   }
 
   private deriveAddressKind(value: string | null): 'ip' | 'hostname' | null {
@@ -104,8 +91,7 @@ export class ReachabilityService {
   }
 
   /**
-   * The node's manual public address (IP/hostname), or null when the node is
-   * reached through a tunnel instead. Kept for legacy consumers.
+   * The node's manual public address (IP/hostname), or null when none is set.
    */
   async getConfiguredPublicIp(nodeId?: string): Promise<string | null> {
     try {
@@ -113,18 +99,6 @@ export class ReachabilityService {
       return config.publicAddress
     } catch {
       return null
-    }
-  }
-
-  /**
-   * The node's tunnel binding. Kept for legacy consumers.
-   */
-  async getTunnelConfig(nodeId?: string): Promise<TunnelConfig> {
-    try {
-      const config = await this.getNodeNetworkConfig(nodeId)
-      return config.tunnel
-    } catch {
-      return { enabled: false, providerId: null, tunnelId: null, hostname: null }
     }
   }
 
@@ -137,13 +111,19 @@ export class ReachabilityService {
    * Returns null when neither is set.
    */
   async getNodePublicUrl(nodeId?: string): Promise<string | null> {
-    const config = await this.getNodeNetworkConfig(nodeId)
-    const tunnelHostname = config.tunnel.enabled && config.tunnel.hostname ? config.tunnel.hostname.trim() : ''
-    if (tunnelHostname) {
-      // Preserve any path the tunnel hostname carries.
-      const base = tunnelHostname.replace(/^https?:\/\//i, '')
-      return /^https?:\/\//i.test(tunnelHostname) ? tunnelHostname : `https://${base}`
+    // The STACK tunnel's wildcard, when the edge is actually in tunnel mode and
+    // provisioned. Read from the shared edge settings, not a per-node row.
+    const mode = await this.edgeSettings.getEdgeMode()
+    const tunnel = await this.edgeSettings.getEdgeTunnel()
+    if (mode === 'tunnel' && tunnel.token !== null && tunnel.wildcard !== null) {
+      // A wildcard (`*.example.com`) is not itself a URL: the platform's own
+      // hostname is what a client can open, and the wildcard only guarantees
+      // that every app hostname under it routes.
+      const base = tunnel.wildcard.replace(/^\*\./, '')
+      return `https://${base}`
     }
+
+    const config = await this.getNodeNetworkConfig(nodeId)
     const address = config.publicAddress?.trim() ?? ''
     if (!address) return null
     // Preserve the full origin + path the user configured (e.g.
@@ -177,8 +157,12 @@ export class ReachabilityService {
    */
   async resolveAccessPointState(): Promise<import("./public-access-point.state").PublicAccessPointState> {
     const config = await this.getNodeNetworkConfig()
-    const tunnelEnabled = config.tunnel.enabled
-    const tunnelHostname = tunnelEnabled && config.tunnel.hostname ? config.tunnel.hostname.trim() : ''
+    const mode = await this.edgeSettings.getEdgeMode()
+    const tunnel = await this.edgeSettings.getEdgeTunnel()
+    // The stack tunnel counts as configured only when the edge is IN tunnel mode
+    // and a token exists — a stored-but-unused tunnel must not claim the edge.
+    const tunnelEnabled = mode === 'tunnel' && tunnel.token !== null
+    const tunnelHostname = tunnelEnabled && tunnel.wildcard ? tunnel.wildcard.replace(/^\*\./, '') : ''
     const address = tunnelHostname || (config.publicAddress?.trim() ?? '')
     const publicUrl = await this.getNodePublicUrl()
 
@@ -207,7 +191,7 @@ export class ReachabilityService {
       kind,
       address,
       publicUrl,
-      providerId: tunnelEnabled ? config.tunnel.providerId : null,
+      providerId: tunnelEnabled ? tunnel.providerId : null,
       tunnelEnabled,
       reachable: verification.valid,
       lastCheckedAt: new Date().toISOString(),
@@ -223,13 +207,12 @@ export class ReachabilityService {
    * points to this node (see verifyPublicAddress) — it is rejected otherwise.
    * Clearing the address is always allowed.
    *
-   * Tunnel provisioning (creating the Cloudflare tunnel) happens one layer up
-   * in the product controller — this service persists intent + result.
+   * Tunnel provisioning is NOT here: the tunnel belongs to the STACK, and is
+   * provisioned by the reachability controller's stack-edge handlers.
    */
   async updateNodeNetworkConfig(input: {
     nodeId?: string
     publicAddress?: string | null
-    tunnel?: { enabled: boolean; providerId?: string; hostname?: string; tunnelId?: string | null }
   }): Promise<NodeNetworkConfigData> {
     const target = input.nodeId?.trim() ? input.nodeId : this.getCurrentNodeId()
     const current = await this.getNodeNetworkConfig(target)
@@ -249,75 +232,38 @@ export class ReachabilityService {
       publicAddress = value ? value : null
     }
 
-    let tunnel = current.tunnel
-    if (input.tunnel !== undefined) {
-      const t = input.tunnel
-      if (t.enabled) {
-        tunnel = {
-          enabled: true,
-          providerId: t.providerId !== undefined ? t.providerId : current.tunnel.providerId,
-          hostname: t.hostname !== undefined ? t.hostname : current.tunnel.hostname,
-          tunnelId: t.tunnelId !== undefined ? t.tunnelId : current.tunnel.tunnelId,
-        }
-        // The tunnel takes over the node's public address.
-        publicAddress = null
-      } else {
-        tunnel = { enabled: false, providerId: null, tunnelId: null, hostname: null }
-      }
-    }
-
     await this.nodeNetworkConfigRepository.upsert({
       nodeId: target,
       publicAddress,
       addressKind: this.deriveAddressKind(publicAddress),
-      tunnelEnabled: tunnel.enabled,
-      tunnelProviderId: tunnel.enabled ? tunnel.providerId : null,
-      tunnelId: tunnel.enabled ? tunnel.tunnelId : null,
-      tunnelHostname: tunnel.enabled ? tunnel.hostname : null,
     })
     return this.getNodeNetworkConfig(target)
   }
 
   /**
-   * Clear any node's tunnel binding that references a given Cloudflare tunnel
-   * (e.g. when the tunnel is deleted from the DNS-provider page). Keeps
-   * node_network_config consistent — no dead tunnel ids after an external
-   * deletion. Returns the number of nodes whose binding was cleared.
+   * Resolve the hostname the STACK tunnel routes (its wildcard), when set.
+   *
+   * Used by the provider page so deleting a tunnel can also remove the CNAME
+   * record that pointed to it.
    */
-  async clearTunnelBinding(providerId: string, tunnelId: string): Promise<number> {
-    const rows = await this.nodeNetworkConfigRepository.list()
-    let cleared = 0
-    for (const row of rows) {
-      if (row.tunnelEnabled && row.tunnelProviderId === providerId && row.tunnelId === tunnelId) {
-        await this.nodeNetworkConfigRepository.upsert({
-          nodeId: row.nodeId,
-          publicAddress: row.publicAddress,
-          addressKind: this.deriveAddressKind(row.publicAddress),
-          tunnelEnabled: false,
-          tunnelProviderId: null,
-          tunnelId: null,
-          tunnelHostname: null,
-        })
-        cleared += 1
-        this.logger.log(`Cleared tunnel binding ${tunnelId} on node ${row.nodeId} (tunnel deleted externally)`)
-      }
-    }
-    return cleared
+  async getTunnelHostname(providerId: string, tunnelId: string): Promise<string | null> {
+    const tunnel = await this.edgeSettings.getEdgeTunnel()
+    if (tunnel.providerId !== providerId || tunnel.tunnelId !== tunnelId) return null
+    return tunnel.wildcard?.trim() ? tunnel.wildcard.trim() : null
   }
 
   /**
-   * Resolve the hostname a tunnel is bound to (the first node config that
-   * references it). Used by the provider page so deleting a tunnel can also
-   * remove the CNAME record that pointed to it.
+   * Forget the stack tunnel when it is deleted externally (from the provider
+   * page), so no dead tunnel id is left claiming the edge. Returns 1 when a
+   * binding was cleared, 0 otherwise — same shape the per-node version had, so
+   * the provider page's reporting does not change.
    */
-  async getTunnelHostname(providerId: string, tunnelId: string): Promise<string | null> {
-    const rows = await this.nodeNetworkConfigRepository.list()
-    for (const row of rows) {
-      if (row.tunnelEnabled && row.tunnelProviderId === providerId && row.tunnelId === tunnelId) {
-        if (row.tunnelHostname?.trim()) return row.tunnelHostname.trim()
-      }
-    }
-    return null
+  async clearTunnelBinding(providerId: string, tunnelId: string): Promise<number> {
+    const tunnel = await this.edgeSettings.getEdgeTunnel()
+    if (tunnel.providerId !== providerId || tunnel.tunnelId !== tunnelId) return 0
+    await this.edgeSettings.clearEdgeTunnel()
+    this.logger.log(`Cleared stack tunnel binding ${tunnelId} (tunnel deleted externally)`)
+    return 1
   }
 
   /**
@@ -367,34 +313,44 @@ export class ReachabilityService {
   }
 
   /**
-   * Domain creation gate: domains can only be created when the node has a
-   * configured public address OR is reached through a provisioned,
-   * provider-backed tunnel. The bare `enabled` flag no longer grants access.
+   * Domain creation gate: domains can only be created when this node has a
+   * configured public address OR the STACK edge is a provisioned,
+   * provider-backed tunnel.
    */
-  async checkDomainGate(): Promise<{ allowed: boolean; reason: string | null; publicAddress: string | null; addressKind: 'ip' | 'hostname' | null; tunnel: TunnelConfig }> {
+  async checkDomainGate(): Promise<NodeAddressGate> {
     const config = await this.getNodeNetworkConfig()
-    if (config.tunnel.enabled && config.tunnel.providerId && config.tunnel.tunnelId) {
-      const providerActive = await this.isTunnelProviderActive(config.tunnel.providerId)
+    const mode = await this.edgeSettings.getEdgeMode()
+    const tunnel = await this.edgeSettings.getEdgeTunnel()
+
+    if (mode === 'tunnel') {
+      if (tunnel.token === null || tunnel.tunnelId === null || tunnel.providerId === null) {
+        return {
+          allowed: false,
+          reason: 'Edge mode is `tunnel` but no tunnel is provisioned. Set one on the edge settings page.',
+          publicAddress: config.publicAddress,
+          addressKind: config.addressKind,
+        }
+      }
+      const providerActive = await this.isTunnelProviderActive(tunnel.providerId)
       if (providerActive) {
-        return { allowed: true, reason: null, publicAddress: config.publicAddress, addressKind: config.addressKind, tunnel: config.tunnel }
+        return { allowed: true, reason: null, publicAddress: config.publicAddress, addressKind: config.addressKind }
       }
       return {
         allowed: false,
-        reason: 'Tunnel is enabled but the linked DNS provider is missing or inactive. Configure the provider on the Cloudflare apps page.',
+        reason: 'The stack tunnel is provisioned but the linked DNS provider is missing or inactive. Configure the provider on the Cloudflare apps page.',
         publicAddress: config.publicAddress,
         addressKind: config.addressKind,
-        tunnel: config.tunnel,
       }
     }
+
     if (config.publicAddress) {
-      return { allowed: true, reason: null, publicAddress: config.publicAddress, addressKind: config.addressKind, tunnel: config.tunnel }
+      return { allowed: true, reason: null, publicAddress: config.publicAddress, addressKind: config.addressKind }
     }
     return {
       allowed: false,
-      reason: 'No public address configured and no provisioned tunnel. Set a globally reachable address (IP or hostname) in System settings, or enable the Cloudflare Tunnel with a configured provider app.',
+      reason: 'No public address configured for this node. Set a globally reachable address (IP or hostname), or switch the edge to tunnel mode with a provisioned tunnel.',
       publicAddress: config.publicAddress,
       addressKind: config.addressKind,
-      tunnel: config.tunnel,
     }
   }
 

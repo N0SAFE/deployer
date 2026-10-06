@@ -162,6 +162,9 @@ function makeSupervisor(
 		getEntryPort: vi.fn(async () => entryPort ?? 80),
 		setEntryPort: vi.fn(),
 		clearEntryPort: vi.fn(),
+		// The entry-port decision now follows the EDGE MODE (persisted, else the
+		// env seed) rather than NODE_ENV — `direct` must bind the port.
+		getEdgeMode: vi.fn(async () => (envOverrides.DEPLOYER_EDGE_MODE as string | undefined) ?? "direct"),
 	} as unknown as PlatformIngressSettingsService & {
 		getPlatformEntry: ReturnType<typeof vi.fn>;
 	};

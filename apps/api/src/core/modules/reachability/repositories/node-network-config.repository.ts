@@ -42,19 +42,11 @@ export class NodeNetworkConfigRepository {
         nodeId: string;
         publicAddress: string | null;
         addressKind: "ip" | "hostname" | null;
-        tunnelEnabled: boolean;
-        tunnelProviderId: string | null;
-        tunnelId: string | null;
-        tunnelHostname: string | null;
     }): Promise<void> {
         const values = {
             nodeId: input.nodeId,
             publicAddress: input.publicAddress,
             addressKind: input.addressKind,
-            tunnelEnabled: input.tunnelEnabled,
-            tunnelProviderId: input.tunnelProviderId,
-            tunnelId: input.tunnelId,
-            tunnelHostname: input.tunnelHostname,
             updatedAt: new Date(),
         };
         await this.db
