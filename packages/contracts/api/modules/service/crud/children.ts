@@ -30,13 +30,29 @@ export const serviceChildrenContract = serviceOps
  * The full descendant subtree of a service as a nested tree. Each node is a
  * full service object with an optional `children` array (recursive — zod v4
  * native `get` accessor, no `z.lazy()`) plus its resolved `effectiveConfig`.
+ *
+ * The recursion is expressed with named interfaces: declaration emit cannot
+ * name an anonymous self-reference (it collapses to `ZodObject<any>`), so a
+ * consumer would otherwise lose the tree type entirely.
  */
-const serviceSubtreeNodeSchema = serviceObjectShape.extend({
+const serviceSubtreeNodeBaseSchema = serviceObjectShape.extend({
   effectiveConfig: serviceEffectiveConfigSchema,
-  get children() {
-    return z.array(serviceSubtreeNodeSchema).optional();
-  },
 });
+
+export interface ServiceSubtreeNode extends z.infer<typeof serviceSubtreeNodeBaseSchema> {
+  children?: ServiceSubtreeNode[];
+}
+
+export interface ServiceSubtreeNodeInput extends z.input<typeof serviceSubtreeNodeBaseSchema> {
+  children?: ServiceSubtreeNodeInput[];
+}
+
+const serviceSubtreeNodeSchema: z.ZodType<ServiceSubtreeNode, ServiceSubtreeNodeInput> =
+  serviceSubtreeNodeBaseSchema.extend({
+    get children() {
+      return z.array(serviceSubtreeNodeSchema).optional();
+    },
+  });
 
 export const serviceSubtreeContract = serviceOps
   .read()

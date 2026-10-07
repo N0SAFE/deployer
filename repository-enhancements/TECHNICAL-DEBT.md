@@ -10,7 +10,7 @@
 **Status:** 45/54 tests failing  
 **Root Cause:** Zod 4 import issue - `z.object` is undefined in vitest environment
 
-**Affected File:** `packages/utils/orpc/src/hooks/__tests__/generate-hooks.test.ts`
+**Affected File:** `packages/transport/orpc/src/hooks/__tests__/generate-hooks.test.ts`
 
 **Error Pattern:**
 ```

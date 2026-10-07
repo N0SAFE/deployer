@@ -14,7 +14,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-COMPOSE_DIR="$ROOT/docker/compose"
+COMPOSE_DIR="$ROOT/infra/docker/compose"
 PROJ="${COMPOSE_PROJECT_NAME:-deployer-gate}"
 export COMPOSE_PROJECT_NAME="$PROJ"
 
@@ -47,7 +47,7 @@ echo "════════════════════════�
 # The managed web image must exist locally for the supervisor to run it.
 docker image inspect deployer-web:latest >/dev/null 2>&1 || {
   echo "building deployer-web:latest (once)…"
-  (cd "$ROOT" && docker build -q -f docker/builder/web/Dockerfile.web.runtime.prod -t deployer-web:latest .)
+  (cd "$ROOT" && docker build -q -f infra/infra/docker/builder/web/Dockerfile.web.runtime.prod -t deployer-web:latest .)
 }
 
 SETUP_AUTO=true docker compose --env-file "$ROOT/.env" \

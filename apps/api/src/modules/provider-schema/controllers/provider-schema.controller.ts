@@ -1,7 +1,7 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { appContract } from "@repo/api-contracts";
+import { providerSchemaContract } from "@repo/api-contracts";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { ProviderSchemaService } from "../services/provider-schema.service";
 
@@ -9,9 +9,9 @@ import { ProviderSchemaService } from "../services/provider-schema.service";
 export class ProviderSchemaController {
     constructor(private readonly providerSchemaService: ProviderSchemaService) {}
 
-    @Implement(appContract.providerSchema.getAllProviders)
+    @Implement(providerSchemaContract.getAllProviders)
     getAllProviders() {
-        return implement(appContract.providerSchema.getAllProviders)
+        return implement(providerSchemaContract.getAllProviders)
             .use(requireAuth())
             .handler(() => {
                 const providers = this.providerSchemaService.getAllProviders();
@@ -22,16 +22,16 @@ export class ProviderSchemaController {
             });
     }
 
-    @Implement(appContract.providerSchema.getProviderSchema)
+    @Implement(providerSchemaContract.getProviderSchema)
     getProviderSchema() {
-        return implement(appContract.providerSchema.getProviderSchema)
+        return implement(providerSchemaContract.getProviderSchema)
             .use(requireAuth())
             .handler(({ input }) => this.providerSchemaService.getProviderSchema(input.params.id));
     }
 
-    @Implement(appContract.providerSchema.getCompatibleBuilders)
+    @Implement(providerSchemaContract.getCompatibleBuilders)
     getCompatibleBuilders() {
-        return implement(appContract.providerSchema.getCompatibleBuilders)
+        return implement(providerSchemaContract.getCompatibleBuilders)
             .use(requireAuth())
             .handler(({ input }) => {
                 const builders = this.providerSchemaService.getCompatibleBuilders(input.params.providerId);
@@ -42,9 +42,9 @@ export class ProviderSchemaController {
             });
     }
 
-    @Implement(appContract.providerSchema.getAllBuilders)
+    @Implement(providerSchemaContract.getAllBuilders)
     getAllBuilders() {
-        return implement(appContract.providerSchema.getAllBuilders)
+        return implement(providerSchemaContract.getAllBuilders)
             .use(requireAuth())
             .handler(() => {
                 const builders = this.providerSchemaService.getAllBuilders();
@@ -55,16 +55,16 @@ export class ProviderSchemaController {
             });
     }
 
-    @Implement(appContract.providerSchema.getBuilderSchema)
+    @Implement(providerSchemaContract.getBuilderSchema)
     getBuilderSchema() {
-        return implement(appContract.providerSchema.getBuilderSchema)
+        return implement(providerSchemaContract.getBuilderSchema)
             .use(requireAuth())
             .handler(({ input }) => this.providerSchemaService.getBuilderSchema(input.params.id));
     }
 
-    @Implement(appContract.providerSchema.getCompatibleProviders)
+    @Implement(providerSchemaContract.getCompatibleProviders)
     getCompatibleProviders() {
-        return implement(appContract.providerSchema.getCompatibleProviders)
+        return implement(providerSchemaContract.getCompatibleProviders)
             .use(requireAuth())
             .handler(({ input }) => {
                 const providers = this.providerSchemaService.getCompatibleProviders(input.params.builderId);
@@ -75,18 +75,18 @@ export class ProviderSchemaController {
             });
     }
 
-    @Implement(appContract.providerSchema.validateProviderConfig)
+    @Implement(providerSchemaContract.validateProviderConfig)
     validateProviderConfig() {
-        return implement(appContract.providerSchema.validateProviderConfig)
+        return implement(providerSchemaContract.validateProviderConfig)
             .use(requireAuth())
             .handler(({ input }) =>
                 this.providerSchemaService.validateProviderConfig(input.params.providerId, input.body.config),
             );
     }
 
-    @Implement(appContract.providerSchema.validateBuilderConfig)
+    @Implement(providerSchemaContract.validateBuilderConfig)
     validateBuilderConfig() {
-        return implement(appContract.providerSchema.validateBuilderConfig)
+        return implement(providerSchemaContract.validateBuilderConfig)
             .use(requireAuth())
             .handler(({ input }) =>
                 this.providerSchemaService.validateBuilderConfig(input.params.builderId, input.body.config),

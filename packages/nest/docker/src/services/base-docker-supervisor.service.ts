@@ -58,8 +58,16 @@ export interface DockerSupervisorContainerSpec {
 	networkName?: string;
 	/** Host bind mounts, e.g. "/var/run/docker.sock:/var/run/docker.sock:ro". */
 	binds?: string[];
-	/** Host port bindings, e.g. { "80/tcp": [{ HostPort: "80" }] }. */
-	portBindings?: Record<string, { HostPort: string }[]>;
+	/**
+	 * Host port bindings, e.g. { "80/tcp": [{ HostPort: "80" }] }.
+	 *
+	 * `HostIp` is optional and load-bearing: it is the ONLY way to bind a port on
+	 * a SINGLE address. Swarm's port spec has no equivalent field, so a
+	 * loopback-only or overlay-only binding cannot be expressed as a swarm
+	 * service publish — it has to come through this container path. Omit it to
+	 * bind every interface (Docker's default).
+	 */
+	portBindings?: Record<string, { HostIp?: string; HostPort: string }[]>;
 	/** Extra /etc/hosts entries, e.g. ["host.docker.internal:host-gateway"]. */
 	extraHosts?: string[];
 	restartPolicy?: "no" | "always" | "unless-stopped" | "on-failure";

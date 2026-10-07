@@ -63,13 +63,13 @@ description: "Core engineering principles: mindset, DRY/KISS/YAGNI/SSOT/SoC, typ
 |------------------|--------------------|------------|
 | Zod entity schema | `packages/contracts/entities/` | Re-import, never re-declare |
 | Zod input/output schema for a contract | `packages/contracts/api/modules/<domain>/` | Re-import in the contract, never re-declare in handler |
-| ORPC error definition | `packages/utils/orpc` (`error()` builder) | Re-import, never redefine inline |
+| ORPC error definition | `packages/transport/orpc` (`error()` builder) | Re-import, never redefine inline |
 | ORPC mesh error contracts | `meshDomainErrorContracts(error)` from `@repo/utils-orpc` | Always spread into contract `.errors(...)` |
 | Shadcn component | `packages/ui/base/` | `ui-add { components: [...] }` to add, then re-import via `@repo/ui` |
 | Custom hook | `apps/web/src/hooks/` (app-specific) or `packages/utils/` (shared) | Re-import |
 | Service / Repository | `apps/api/src/modules/<domain>/services/`, `repositories/` | Re-import via NestJS module exports |
 | Logger | `AppLogger` from `@repo/utils-logger` | Re-import, never use `console.log` |
-| Auth helper | `packages/utils/auth/` (Better Auth factories) | Re-import |
+| Auth helper | `packages/auth/` (Better Auth factories) | Re-import |
 | Env var access | `apps/api/src/config/`, `apps/web/src/lib/config.ts` | Re-import the parsed config, never `process.env.X` scattered |
 | Route | `apps/web/src/routes/index.ts` (auto-generated) | Use the typed `<Route>.Link` and `<Route>.fetch` |
 | Magic number / string | `packages/types/` or `_constants.ts` in the feature | Extract to a named constant |

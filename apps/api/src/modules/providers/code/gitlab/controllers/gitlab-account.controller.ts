@@ -8,7 +8,7 @@
 import { Controller, Logger } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { appContract } from "@repo/api-contracts";
+import { providersContract } from "@repo/api-contracts";
 import { standardErrorOptions } from "@repo/orpc-utils";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { GitlabAppsRepository } from "../repositories/gitlab-apps.repository";
@@ -23,9 +23,9 @@ export class GitlabAppsController {
 
     constructor(private readonly gitlabAppsRepository: GitlabAppsRepository) {}
 
-    @Implement(appContract.providers.code.gitlab.list)
+    @Implement(providersContract.code.gitlab.list)
     list() {
-        return implement(appContract.providers.code.gitlab.list)
+        return implement(providersContract.code.gitlab.list)
             .use(requireAuth())
             .handler(async () => {
                 const rows = await this.gitlabAppsRepository.list();
@@ -44,9 +44,9 @@ export class GitlabAppsController {
             });
     }
 
-    @Implement(appContract.providers.code.gitlab.create)
+    @Implement(providersContract.code.gitlab.create)
     create() {
-        return implement(appContract.providers.code.gitlab.create)
+        return implement(providersContract.code.gitlab.create)
             .use(requireAuth())
             .handler(async ({ input, errors }) => {
                 const urlCheck = URL_SCHEMA.safeParse(input.url);
@@ -87,9 +87,9 @@ export class GitlabAppsController {
             });
     }
 
-    @Implement(appContract.providers.code.gitlab.delete)
+    @Implement(providersContract.code.gitlab.delete)
     delete() {
-        return implement(appContract.providers.code.gitlab.delete)
+        return implement(providersContract.code.gitlab.delete)
             .use(requireAuth())
             .handler(async ({ input, errors }) => {
                 const id = input.params.id;

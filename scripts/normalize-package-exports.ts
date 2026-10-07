@@ -3,15 +3,19 @@
  * Normalize every package's `exports` to the `@repo/ui` shape, idempotently.
  *
  * Target shape:
- *   ".":    { types: ["./src/index.ts", "./src/index.tsx"],
+ *   ".":    { types: "./dist/types/index.d.ts",
  *             import: "./dist/esm/index.mjs", require: "./dist/cjs/index.js" }
- *   "./*":  { types: ["./src/*.ts", "./src/*.tsx"],
+ *   "./*":  { types: "./dist/types/*.d.ts",
  *             import: "./dist/esm/*.mjs", require: "./dist/cjs/*.js" }
  *
- * `types` points at **source**, so a consumer type-checks without any package
- * build. That is only sound because package-internal imports use the package's
- * own name (`@repo/<pkg>/x`) rather than `@/x`: `paths` aliases are resolved
- * from the consumer's tsconfig, while `exports` subpaths are per-package.
+ * `types` points at the declarations `pkg-build` emits to `dist/types/`, so a
+ * consumer type-checks declarations instead of re-compiling package sources.
+ * That is what keeps a type-check from dragging every package's implementation
+ * (and its inferred types) into the consumer's program.
+ *
+ * The script also maintains the manifest scripts that drive the declarations
+ * task: every package whose `build` runs `pkg-build` gets
+ * `"build:types": "<build> --types"`.
  *
  * Named subpaths are preserved but flattened to `{ types, import, require }`.
  * An earlier pass double-applied and produced `types: { types: ... }`; this
@@ -31,6 +35,12 @@ const DRY = process.argv.includes('--dry');
  * Their exports are authored deliberately and must not be rewritten.
  */
 const ROOT_ENTRY_PACKAGES = new Set(['packages/contracts/api']);
+
+/**
+ * The builder itself. Its entry is a CLI (`bin`), not a library export, so the
+ * `exports` normalization below does not apply. Its manifests are authored.
+ */
+const TOOL_PACKAGES = new Set(['tooling/bin-pkg-build']);
 
 function stripJsonComments(input: string): string {
     let out = '';
@@ -123,6 +133,13 @@ function runtimeConditions(srcPath: string, layout: Layout): Record<string, unkn
     };
 }
 
+/** `./src/a/b.ts` -> `./dist/types/a/b.d.ts`. */
+function typesPath(srcPath: string): string | null {
+    const m = /^\.\/src\/(.+)\.(ts|tsx)$/.exec(srcPath);
+    if (!m) return null;
+    return `./dist/types/${m[1]}.d.ts`;
+}
+
 /** `./src/a/b.ts` -> the two runtime targets (flat layout). */
 function distPaths(srcPath: string): { import: string; require: string } | null {
     const m = /^\.\/src\/(.+)\.(ts|tsx)$/.exec(srcPath);
@@ -138,7 +155,12 @@ function distPaths(srcPath: string): { import: string; require: string } | null 
  * a bare string, a flat object, or a nested `types` object.
  */
 function sourcePathOf(value: unknown): string | null {
-    if (typeof value === 'string') return /\.tsx?$/.test(value) ? value : null;
+    if (typeof value === 'string') {
+        // Emitted declarations (`.d.ts`) match `\.tsx?$` too; they are not
+        // source paths and must not be fed back through `runtimeConditions`.
+        if (/\.d\.[mc]?ts$/.test(value)) return null;
+        return /\.tsx?$/.test(value) ? value : null;
+    }
     if (Array.isArray(value)) {
         for (const entry of value) {
             const found = sourcePathOf(entry);
@@ -162,18 +184,52 @@ const report: string[] = [];
 for (const rel of new Glob('packages/**/package.json').scanSync({ cwd: root })) {
     if (rel.includes('node_modules')) continue;
     const dir = path.dirname(rel);
-    // Tooling configs are loaded by eslint/prettier/vitest directly.
-    if (dir.startsWith('packages/configs/')) continue;
-    // Packages whose sources live at the package root define their own shape
-    // (`@repo/api-contracts` has a root `index.ts` plus a `src/`).
-    if (ROOT_ENTRY_PACKAGES.has(dir)) continue;
-    // Packages whose sources live at the package root define their own shape.
-    if (!fs.existsSync(path.join(root, dir, 'src'))) continue;
-
     const manifestPath = path.join(root, rel);
     const manifest = JSON.parse(
         stripJsonComments(fs.readFileSync(manifestPath, 'utf8')),
     ) as Record<string, unknown>;
+
+    const before = JSON.stringify(manifest);
+
+    // Every package built through pkg-build gets a declarations task and an
+    // explicit workspace dependency on the builder. The latter is what lets
+    // turbo order `@repo/pkg-build#build` before any consumer task — consumers
+    // execute the built CLI (`dist/cjs/main.js`), because bun resolves tsconfig
+    // from the CWD and running the CLI source under a consumer's tsconfig
+    // silently drops its decorators.
+    const scripts = (manifest.scripts ?? {}) as Record<string, string>;
+    const usesPkgBuild = Object.values(scripts).some(
+        (script) => typeof script === 'string' && script.includes('pkg-build/'),
+    );
+    if (usesPkgBuild) {
+        if (typeof scripts.build === 'string' && scripts.build.includes('pkg-build/')) {
+            scripts['build:types'] = `${scripts.build} --types`;
+        }
+        manifest.scripts = scripts;
+        const devDependencies = (manifest.devDependencies ?? {}) as Record<string, string>;
+        if (devDependencies['@repo/pkg-build'] === undefined) {
+            devDependencies['@repo/pkg-build'] = '*';
+            manifest.devDependencies = devDependencies;
+        }
+    }
+
+    // Tooling configs are loaded by eslint/prettier/vitest directly; their
+    // exports are authored, not generated. Root-entry packages and the builder
+    // itself likewise. Their manifests are still written when the declarations
+    // script above was added.
+    const authoredExports =
+        dir.startsWith('packages/configs/') ||
+        ROOT_ENTRY_PACKAGES.has(dir) ||
+        TOOL_PACKAGES.has(dir) ||
+        !fs.existsSync(path.join(root, dir, 'src'));
+    if (authoredExports) {
+        if (JSON.stringify(manifest) !== before) {
+            if (!DRY) fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 4)}\n`);
+            changed += 1;
+            report.push(`  · ${String(manifest.name ?? dir)} (scripts)`);
+        }
+        continue;
+    }
 
     const layout = detectLayout(dir);
     const existing = (manifest.exports ?? {}) as Record<string, unknown>;
@@ -203,7 +259,7 @@ for (const rel of new Glob('packages/**/package.json').scanSync({ cwd: root })) 
                 }
                 const branchDist = runtimeConditions(branchSrc, layout);
                 conditions[condition] = branchDist
-                    ? { types: branchSrc, ...branchDist }
+                    ? { types: typesPath(branchSrc) ?? branchSrc, ...branchDist }
                     : branchSrc;
             }
             named[key] = conditions;
@@ -219,12 +275,11 @@ for (const rel of new Glob('packages/**/package.json').scanSync({ cwd: root })) 
         }
         const dist = runtimeConditions(srcPath, layout);
         named[key] = dist
-            ? { types: srcPath, ...dist }
+            ? { types: typesPath(srcPath) ?? srcPath, ...dist }
             : srcPath;
     }
 
-    const before = JSON.stringify(manifest);
-    manifest.types = './src/index.ts';
+    manifest.types = './dist/types/index.d.ts';
     if (layout.kind === 'flat') {
         manifest.main = './dist/cjs/index.js';
         manifest.module = './dist/esm/index.mjs';
@@ -258,9 +313,9 @@ for (const rel of new Glob('packages/**/package.json').scanSync({ cwd: root })) 
     };
 
     manifest.exports = {
-        '.': { types: ['./src/index.ts', './src/index.tsx'], ...rootConditions },
+        '.': { types: './dist/types/index.d.ts', ...rootConditions },
         './*': {
-            types: ['./src/*.ts', './src/*.tsx'],
+            types: './dist/types/*.d.ts',
             ...(withWildcard(globConditions) as Record<string, unknown>),
         },
         ...named,

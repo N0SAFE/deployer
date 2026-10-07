@@ -73,15 +73,17 @@ Cloudflare, because Traefik decides which service a `Host` header belongs to.
 
 ### Pluggable edge
 
-Traefik is the Swarm edge in every mode; only the hop in front changes.
+Traefik is the Swarm edge in every provider; only the hop in front changes.
 
-| Mode | Path | Requires |
+| Provider | Path | Requires |
 |---|---|---|
+| `local` **(default)** | loopback → Traefik | nothing |
+| `wireguard` | mesh peer → overlay address → Traefik | overlay IP + peers |
 | `tunnel` | cloudflared → Traefik | tunnel provider + token |
 | `direct` | DNS → node IP → Traefik :80/:443 | public IP, inbound ports |
 
-`direct` is the default: a fresh install works with DNS alone, and the operator
-opts into a tunnel.
+`local` is the default: a port listens on loopback only, so a fresh install is
+reachable from nowhere until the operator opts into something wider.
 
 #### The edge is a property of the STACK, not a node
 
@@ -102,20 +104,80 @@ That split matters: `CloudflareTunnelService` needs the provider credentials in
 `node_network_config` keeps `public_address`, and that is not vestigial — in
 `direct` mode DNS resolves each app hostname to THAT node's address.
 
-#### The entry port follows the edge mode, not NODE_ENV
+#### The ingress provider decides what is bound, not NODE_ENV
 
-| `DEPLOYER_EDGE_MODE` | Entry port | Why |
+Four providers, ordered least → most exposed. The canonical list (with what each
+one requires, as data) lives in
+`packages/contracts/entities/src/entities/ingress/provider.schema.ts`; the
+binding each one produces is resolved by
+`apps/api/src/core/modules/platform-ingress/services/ingress-binding.ts`.
+
+| `DEPLOYER_EDGE_MODE` | What is bound | Requires |
 |---|---|---|
-| `direct` | published (`host` mode, 80/443) | DNS points at the node IP; nothing is bound, nothing is reachable |
-| `tunnel` | **none** | the connector dials out; an inbound port is pure attack surface |
+| `local` **(default)** | `127.0.0.1:80` — loopback only | nothing |
+| `wireguard` | this node's mesh overlay address, `:80` | an overlay IP + peers |
+| `tunnel` | **nothing** | Cloudflare account + tunnel-capable DNS provider |
+| `direct` | `:80/:443` on **every** interface | public IP + open inbound ports |
+
+**The default was inverted.** It used to be `direct`, which publishes `:80/:443`
+on every node — so a machine was on the public internet before the operator had
+made any decision at all. `local` is now the default: a port listens, but only on
+loopback, so a fresh install is reachable from nowhere until someone opts in.
+`direct` is fully supported and is now opted INTO.
+
+`local` and `wireguard` both **bind a port** but are **not publicly reachable** —
+which is the distinction the old two-value model (`direct` | `tunnel`) could not
+express. Anything user-facing reasons about `edge.exposure`, derived server-side,
+rather than comparing the provider to a literal.
+
+**Swarm cannot express a single-address bind.** Its port spec is
+`{ TargetPort, PublishedPort, Protocol, PublishMode }` — there is no host-IP
+field, so a swarm publish always binds `0.0.0.0`. `local` and `wireguard`
+therefore cannot be a swarm publish; they are realized by
+`LocalIngressForwarderService`, a plain container whose `HostConfig.PortBindings`
+DOES carry `HostIp`. The swarm ingress stays headless in those providers (it
+still routes for the whole cluster) and the forwarder is the address-scoped door
+in front of it. It removes itself when the provider stops being address-scoped,
+so a mode change never leaves a stale listener behind.
 
 This used to key off `NODE_ENV`: production ran headless "behind the operator's
 proxy". That silently made `direct` impossible in production — the caller was
 supposed to point DNS at a port the stack refused to bind. The decision now
-belongs to the mode the operator actually chose, and `direct` + `production` is
-covered by a regression test.
+belongs to the provider the operator actually chose.
 
-### TLS that actually works
+#### `wireguard` — what works, and what does not yet
+
+`wireguard` resolves to "bind the node's overlay address". That resolution is
+implemented and tested, but there is a NAMESPACE problem worth stating plainly
+rather than implying it is finished:
+
+The overlay IP (`MANAGED_WIREGUARD_IP`, e.g. `10.0.0.7`) belongs to the WireGuard
+**sidecar container's** network namespace, not the host's. The forwarder asks
+Docker to bind that address, and Docker binds on the HOST — where the address
+does not exist. So on a node where the mesh lives entirely inside the sidecar,
+the bind fails.
+
+Reaching a working `wireguard` ingress needs one of:
+
+1. **Host-network sidecar** (`NetworkMode: "host"` on the WireGuard service), so
+   the overlay address IS a host address and the forwarder's bind lands. This is
+   the smallest change but needs the swarm spec to express a network mode it
+   currently cannot.
+2. **Sidecar publishes the ingress port** on the overlay address itself (the
+   sidecar already binds host UDP `51820`, so it can bind TCP too), turning the
+   sidecar into the address-scoped door and removing the forwarder from this
+   path entirely.
+3. **Route through the overlay from a mesh peer** — the peer proxies to
+   `deployer-traefik` by name, and no host bind is needed on the server at all.
+
+Until one of those lands, `wireguard` is a fully modelled, fully validated
+provider that cannot complete its bind on a sidecar-isolated node. The honest
+failure is deliberate: `resolveIngressBinding` returns
+`overlay-address-missing` when no address is configured, and the supervisor logs
+that it bound nothing rather than falling back to `0.0.0.0` — the fallback that
+would have turned "private mesh only" into "public".
+
+#### TLS that actually works
 
 Enabling TLS used to add the `:443` entrypoint and stop — every HTTPS request was
 answered with Traefik's **self-signed** certificate. Now a real ACME resolver is
@@ -126,11 +188,14 @@ file re-orders on every restart, which Let's Encrypt rate-limits).
 
 | Concern | File |
 |---|---|
-| Connector supervisor (new) | `apps/api/src/core/modules/supervisors/platform/cloudflared-supervisor.service.ts` |
-| Stack edge store (mode + tunnel) | `apps/api/src/core/modules/platform-ingress/services/platform-ingress-settings.service.ts` |
+| Provider vocabulary + traits | `packages/contracts/entities/src/entities/ingress/provider.schema.ts` |
+| Binding resolution (pure, tested) | `apps/api/src/core/modules/platform-ingress/services/ingress-binding.ts` |
+| Address-scoped lane (`local` / `wireguard`) | `apps/api/src/core/modules/platform-ingress/services/local-ingress-forwarder.service.ts` |
+| Connector supervisor | `apps/api/src/core/modules/supervisors/platform/cloudflared-supervisor.service.ts` |
+| Stack edge store (provider + tunnel) | `apps/api/src/core/modules/platform-ingress/services/platform-ingress-settings.service.ts` |
 | Stack edge endpoints | `apps/api/src/modules/reachability/controllers/reachability.controller.ts` |
 | Edge UI | `apps/web/src/app/dashboard/admin/edge/page.tsx` |
-| Edge-mode env (seed value) | `packages/utils/env/src/index.ts` |
+| Edge-mode env (seed value) | `packages/config/env/src/index.ts` |
 | ACME resolver + volume | `apps/api/.../traefik-supervisor.service.ts` |
 | Workload reachability | `apps/api/src/modules/runners/swarm/swarm-runtime-runner.service.ts` |
 | Wildcard tunnel rule | `apps/api/src/modules/reachability/controllers/reachability.controller.ts` |

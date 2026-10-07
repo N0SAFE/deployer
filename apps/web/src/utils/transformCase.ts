@@ -1,4 +1,4 @@
-import { SnakeCaseSeq } from '@repo/types/utils'
+import { SnakeCaseSeq } from './type-utils'
 
 import snakeCase from 'lodash.snakecase'
 

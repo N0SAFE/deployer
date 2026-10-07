@@ -134,10 +134,10 @@ cannot poll `/health/detailed` to decide "the platform is green".
 ### Image & build
 
 - API dev image is tagged `nextjs-nestjs-api-dev:latest` (`common/api/docker-compose.config.dev.yml`).
-- Prod image comes from `docker/builder/api/Dockerfile.api.prod`, `CMD ["bun","--bun","--cwd=apps/api","run","prod"]`
+- Prod image comes from `infra/docker/builder/api/Dockerfile.api.prod`, `CMD ["bun","--bun","--cwd=apps/api","run","prod"]`
   → `apps/api/scripts/entrypoint.prod.ts`, which spawns `start:prod` and then builds+starts the web app.
 - **In-container builds are not possible in dev**: the build context is not mounted
-  (`build context "docker/scanner-runner/" not found from cwd "/app/apps/api"` in the logs).
+  (`build context "infra/docker/scanner-runner/" not found from cwd "/app/apps/api"` in the logs).
   So the setup app must **reference an existing image**, never build one.
 
 ### Why the current API is "weird"
@@ -492,7 +492,7 @@ forbids, and the duplicate would be free to drift from the API's.
 
 **The same check rejects "cluster + WireGuard in setup".** WireGuard is not something either app
 implements: it is a **compose-provided sidecar container**
-(`docker/compose/common/wireguard/docker-compose.config.yml`, `linuxserver/wireguard`), and the API
+(`infra/docker/compose/common/wireguard/docker-compose.config.yml`, `linuxserver/wireguard`), and the API
 side only *supervises* it (`WireGuardSupervisorService`, skipped when
 `MANAGED_WIREGUARD_ENABLED=true`). Setup therefore has nothing to run: the overlay exists because
 compose created it, and enrolment is a call the API executes.
@@ -1369,7 +1369,7 @@ it without any registry.
 1. **The image already exists** in the local-prod path (built by `build-api`) and in real prod
    (pulled from the registry). Building again would be wasted work and a second source of truth.
 2. **An in-container build is not possible in dev** — the build context is not mounted; the logs
-   already show `build context "docker/scanner-runner/" not found from cwd "/app/apps/api"`.
+   already show `build context "infra/docker/scanner-runner/" not found from cwd "/app/apps/api"`.
 3. **A health-gated startup must not contain a build.** A multi-minute `turbo prune` + `bun ci`
    inside `start_period` makes the setup healthcheck meaningless.
 
@@ -1385,7 +1385,7 @@ Two concurrent writers would corrupt the participation state.
 
 ### 12.4 Setup image
 
-Recommendation: **its own Dockerfile** (`docker/builder/setup/Dockerfile.setup.prod`) rather than
+Recommendation: **its own Dockerfile** (`infra/docker/builder/setup/Dockerfile.setup.prod`) rather than
 reusing the API image with a different command. Rationale: the API runtime image contains the whole
 product surface; the setup image needs only the wizard. Keeping them separate means the pre-auth
 service ships strictly less code. If you prefer one image to build, that is a one-line compose
@@ -1575,7 +1575,7 @@ These were open in an earlier draft and are now decided:
 ### Still open
 
 1. **Setup image: separate Dockerfile or same image, different CMD?**
-   Recommended: separate (`docker/builder/setup/Dockerfile.setup.prod`) so the pre-auth service
+   Recommended: separate (`infra/docker/builder/setup/Dockerfile.setup.prod`) so the pre-auth service
    ships less code. This is the only remaining structural question.
 
 2. **`SETUP_MODE=prod` and WireGuard ordering.** WireGuard must be up before the API task is
@@ -1677,7 +1677,7 @@ DELETE (obsolete — no replacement)
   apps/api/src/core/router/                      the route graph
   apps/api/src/core/gateway/                     the sub-app catch-all
   apps/api/src/sub-apps/mesh-initializer/        becomes a normal module init step
-  docker/compose/docker-stack.deploy.yml         duplicated + stale provider flags
+  infra/docker/compose/docker-stack.deploy.yml         duplicated + stale provider flags
 
 KEEP in apps/api
   src/modules/**            product features (health, platform, cluster, project, ...)

@@ -3,6 +3,8 @@ import { Module } from "@nestjs/common";
 import { EnvModule } from "@/config/env/env.module";
 import { SetupClusterModule } from "@/modules/cluster/cluster.module";
 import { SetupHealthModule } from "@/modules/health/setup-health.module";
+import { SetupIngressModule } from "@/modules/ingress/setup-ingress.module";
+import { SetupProgressModule } from "@/modules/progress/progress.module";
 import { WizardModule } from "@/modules/wizard/wizard.module";
 import { ApiReadinessWatcherService } from "./services/api-readiness-watcher.service";
 import { ApiServiceProvisioner } from "./services/api-service-provisioner.service";
@@ -49,9 +51,21 @@ import { SetupExitService } from "./services/setup-exit.service";
  * It is `@Global()`, registered by `SetupClusterModule` with this app's engine
  * configuration. Importing it again would register a second wiring of the same
  * client.
+ *
+ * ── WHY `SetupIngressModule` IS IMPORTED ───────────────────────────────────
+ * The handover RELEASES the entry port so the swarm incarnation of the ingress
+ * can bind it (`BootstrapIngressService.releaseEntryPort`). That service owns the
+ * ingress process, so it is imported rather than reimplemented here — one owner,
+ * one place where the port changes hands.
  */
 @Module({
-  imports: [EnvModule, SetupHealthModule, WizardModule],
+  imports: [
+    EnvModule,
+    SetupHealthModule,
+    SetupIngressModule,
+    SetupProgressModule,
+    WizardModule,
+  ],
   providers: [
     IngressHandoverService,
     ApiServiceProvisioner,

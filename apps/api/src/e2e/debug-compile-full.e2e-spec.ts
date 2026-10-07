@@ -54,10 +54,21 @@ describe('debug appmodule compile', () => {
 
     await moduleRef.close()
 
+    // Restore what this test found — but never to "unset".
+    //
+    // `vitest.setup.ts` fills these keys with `??`, so it only supplies a value
+    // while the key is UNSET. DELETE-ing a key here therefore does not restore
+    // the setup file's value; it hands the next file in this worker the SCHEMA
+    // DEFAULT instead. For `NODE_LOCAL_DB_PATH` that default is
+    // `/app/data/local.db` — the path INSIDE the container — so the local-SQLite
+    // factory then died with `EACCES: permission denied, mkdir '/app/data'` in
+    // whatever file happened to run next.
+    //
+    // That is why the failure moved between runs and never reproduced in
+    // isolation: it was never about the file that failed, only about which file
+    // ran after this one.
     for (const [key, value] of previous.entries()) {
-      if (value === undefined) {
-        delete process.env[key]
-      } else {
+      if (value !== undefined) {
         process.env[key] = value
       }
     }

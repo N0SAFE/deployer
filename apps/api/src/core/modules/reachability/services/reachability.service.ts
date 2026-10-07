@@ -313,20 +313,40 @@ export class ReachabilityService {
   }
 
   /**
-   * Domain creation gate: domains can only be created when this node has a
-   * configured public address OR the STACK edge is a provisioned,
-   * provider-backed tunnel.
+   * Domain creation gate: domains can only be created when the stack edge can
+   * actually resolve them to something.
+   *
+   * THE ANSWER DEPENDS ON THE PROVIDER, not only on the node address:
+   *
+   *   `local`     — domains resolve on THIS machine through the loopback
+   *                 listener, so no public address is required at all. Gating
+   *                 here would block a fresh install from creating its first
+   *                 domain for no reason.
+   *   `wireguard` — domains resolve for enrolled mesh peers; no public address
+   *                 required either.
+   *   `tunnel`    — needs a provisioned, provider-backed tunnel.
+   *   `direct`    — needs a public address on this node (that is what DNS points
+   *                 at).
    */
   async checkDomainGate(): Promise<NodeAddressGate> {
     const config = await this.getNodeNetworkConfig()
     const mode = await this.edgeSettings.getEdgeMode()
     const tunnel = await this.edgeSettings.getEdgeTunnel()
 
+    // `local` and `wireguard` serve names on an address they own themselves
+    // (loopback / the mesh overlay), so nothing about this node's PUBLIC
+    // address is needed for a domain to work. Requiring one would make a
+    // fresh install unable to create a domain until it went public — the
+    // inversion this change removes.
+    if (mode === 'local' || mode === 'wireguard') {
+      return { allowed: true, reason: null, publicAddress: config.publicAddress, addressKind: config.addressKind }
+    }
+
     if (mode === 'tunnel') {
       if (tunnel.token === null || tunnel.tunnelId === null || tunnel.providerId === null) {
         return {
           allowed: false,
-          reason: 'Edge mode is `tunnel` but no tunnel is provisioned. Set one on the edge settings page.',
+          reason: 'Edge provider is `tunnel` but no tunnel is provisioned. Set one on the edge settings page.',
           publicAddress: config.publicAddress,
           addressKind: config.addressKind,
         }

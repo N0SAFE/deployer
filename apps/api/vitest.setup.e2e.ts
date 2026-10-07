@@ -77,7 +77,18 @@ process.env.API_PORT = process.env.API_PORT ?? "3001";
 process.env.NEXT_PUBLIC_APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 process.env.DEFAULT_ADMIN_EMAIL = process.env.DEFAULT_ADMIN_EMAIL ?? "admin@test.com";
 process.env.DEFAULT_ADMIN_PASSWORD = process.env.DEFAULT_ADMIN_PASSWORD ?? "testpassword";
-process.env.NODE_LOCAL_DB_PATH = process.env.NODE_LOCAL_DB_PATH ?? "/tmp/deployer-api-e2e-local.db";
+// FORCED, not `??`-guarded.
+//
+// The schema default for this key is `/app/data/local.db` — the path INSIDE the
+// container. Anything that parses the env schema before this line runs (the
+// setup file imports the shared-runtime helpers, which reach `@/app.module`)
+// writes that container path into `process.env`. A `??` guard then PRESERVES it,
+// because the key is no longer unset, and the local-SQLite factory dies with
+// `EACCES: permission denied, mkdir '/app/data'` on any machine that is not the
+// container.
+//
+// A test runner is never the container, so the override has to win.
+process.env.NODE_LOCAL_DB_PATH = "/tmp/deployer-api-e2e-local.db";
 
 // Disable vulnerability auto-scan during e2e tests by default.
 // The DockerImageAutoScanListenerService spawns trivy/grype/dive containers for every image

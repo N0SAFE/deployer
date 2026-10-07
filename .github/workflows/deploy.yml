@@ -127,7 +127,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/builder/deployer/Dockerfile.prod
+          file: ./infra/docker/builder/deployer/Dockerfile.prod
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           cache-from: type=gha
@@ -154,7 +154,7 @@ jobs:
           echo "docker pull ${{ steps.meta.outputs.base }}:latest" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "# Recreate the container with the new image:" >> $GITHUB_STEP_SUMMARY
-          echo "docker compose -f docker/compose/deployer/docker-compose.deployer.yml up -d" >> $GITHUB_STEP_SUMMARY
+          echo "docker compose -f infra/infra/docker/compose/deployer/docker-compose.deployer.yml up -d" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
   # ── Job 3: Create GitHub Release (only for version tags) ──────────────────

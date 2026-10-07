@@ -162,15 +162,15 @@ apps/web/src/utils/useSafeQueryStatesFromZod/useRouteBuilder.ts
 
 **Files to DELETE** (4 files - barrel exports):
 ```bash
-packages/utils/declarative-routing/src/hooks/index.ts
-packages/utils/declarative-routing/src/page-wrappers/index.ts
-packages/utils/declarative-routing/src/page-wrappers/types.ts
-packages/utils/orpc/src/utils/index.ts
+packages/routing/declarative/src/hooks/index.ts
+packages/routing/declarative/src/page-wrappers/index.ts
+packages/routing/declarative/src/page-wrappers/types.ts
+packages/transport/orpc/src/utils/index.ts
 ```
 
 **Files to KEEP** (2 files - prettier configs):
-- `packages/configs/prettier/src/base.ts`
-- `packages/configs/prettier/src/tailwind.ts`
+- `tooling/prettier/src/base.ts`
+- `tooling/prettier/src/tailwind.ts`
 
 **Reason**: **USER DECISION: DELETE unused barrel exports, KEEP prettier config files**
 
@@ -288,7 +288,7 @@ apps/web/src/domains/shared/types.ts
 
 ```bash
 # Keep this file
-packages/utils/auth/src/client/use-session.ts
+packages/auth/src/client/use-session.ts
 ```
 **Reason**: Part of Better Auth client SDK wrapper. Likely exported from package but not internally imported. External consumers use it.
 
@@ -298,7 +298,7 @@ packages/utils/auth/src/client/use-session.ts
 
 ```bash
 # Keep this file
-packages/utils/auth/src/permissions/plugins/system/plugin-asserter.ts
+packages/auth/src/permissions/plugins/system/plugin-asserter.ts
 ```
 **Reason**: Plugin system component. Dynamically loaded or used via plugin registration system.
 
@@ -308,7 +308,7 @@ packages/utils/auth/src/permissions/plugins/system/plugin-asserter.ts
 
 ```bash
 # Keep this file
-packages/utils/auth/src/client/plugins/masterToken/hooks/useMasterToken.ts
+packages/auth/src/client/plugins/masterToken/hooks/useMasterToken.ts
 ```
 **Reason**: Part of Better Auth master token plugin. Exported from package for external use.
 
@@ -318,9 +318,9 @@ packages/utils/auth/src/client/plugins/masterToken/hooks/useMasterToken.ts
 
 ```bash
 # Keep these files (2 files)
-packages/utils/declarative-routing/src/hooks/index.ts
-packages/utils/declarative-routing/src/page-wrappers/index.ts
-packages/utils/declarative-routing/src/page-wrappers/types.ts
+packages/routing/declarative/src/hooks/index.ts
+packages/routing/declarative/src/page-wrappers/index.ts
+packages/routing/declarative/src/page-wrappers/types.ts
 ```
 **Reason**: Package export index files. Even if not internally imported, they're part of the package's public API.
 
@@ -463,7 +463,7 @@ eslint-config-next      # Shared config handles this
 @eslint/eslintrc        # Not needed with flat config (except in types package)
 ```
 
-**ESLint Plugins** - Remove from apps/packages, ensure they're in `packages/configs/eslint`:
+**ESLint Plugins** - Remove from apps/packages, ensure they're in `tooling/eslint`:
 ```bash
 # Remove from individual apps/packages:
 @typescript-eslint/eslint-plugin
@@ -475,7 +475,7 @@ eslint-config-nestjs
 eslint-config-prettier
 ```
 
-**Reason**: **USER DECISION: Remove from individual apps, plugins should be used in shared config packages/configs/eslint**
+**Reason**: **USER DECISION: Remove from individual apps, plugins should be used in shared config tooling/eslint**
 
 ### 5.3 Testing Libraries - Remove Unused
 
@@ -594,9 +594,9 @@ bun remove esbuild-wasm react-use yaml
 cd packages/contracts/api && bun remove @orpc/shared
 cd packages/ui/base && bun remove @hookform/resolvers @radix-ui/react-alert-dialog
 cd packages/ui/base && bun remove @radix-ui/react-icons framer-motion tailwindcss-animate tw-animate-css zod
-cd packages/utils/auth && bun remove @simplewebauthn/server
-cd packages/utils/logger && bun remove pino-pretty
-cd packages/utils/orpc && bun remove @orpc/client @orpc/tanstack-query
+cd packages/auth && bun remove @simplewebauthn/server
+cd packages/infrastructure/logger && bun remove pino-pretty
+cd packages/transport/orpc && bun remove @orpc/client @orpc/tanstack-query
 ```
 
 ### Phase 3: Clean Legacy Library Files
@@ -647,11 +647,11 @@ bun remove prettier-plugin-tailwindcss tailwind-variants
 bun remove wait-on wait-port
 
 # Clean package devDeps
-cd packages/bin/declarative-routing && bun remove @repo/config-vitest @types/diff
-cd packages/configs/eslint && bun remove @eslint/compat @typescript-eslint/eslint-plugin
-cd packages/configs/eslint && bun remove @vercel/style-guide babel-plugin-macros chokidar
-cd packages/configs/eslint && bun remove eslint-config-nestjs eslint-config-prettier
-cd packages/configs/eslint && bun remove eslint-plugin-next eslint-plugin-only-warn eslint-plugin-react-refresh
+cd tooling/bin-declarative-routing && bun remove @repo/config-vitest @types/diff
+cd tooling/eslint && bun remove @eslint/compat @typescript-eslint/eslint-plugin
+cd tooling/eslint && bun remove @vercel/style-guide babel-plugin-macros chokidar
+cd tooling/eslint && bun remove eslint-config-nestjs eslint-config-prettier
+cd tooling/eslint && bun remove eslint-plugin-next eslint-plugin-only-warn eslint-plugin-react-refresh
 ```
 
 ### Phase 5: API Index Files (Verify First)
@@ -676,9 +676,9 @@ rm apps/api/src/modules/user/index.ts
 
 ```bash
 # Delete unused barrel exports
-rm packages/configs/prettier/src/base.ts
-rm packages/configs/prettier/src/tailwind.ts
-rm packages/utils/orpc/src/utils/index.ts
+rm tooling/prettier/src/base.ts
+rm tooling/prettier/src/tailwind.ts
+rm packages/transport/orpc/src/utils/index.ts
 
 # Keep declarative-routing exports as they're public API
 ```
@@ -900,7 +900,7 @@ export default {
       project: ['**/*.{ts,tsx,mdx}'],
     },
     
-    'packages/utils/declarative-routing': {
+    'packages/routing/declarative': {
       entry: [
         'src/index.ts',
         'src/cli.ts',
@@ -1027,8 +1027,8 @@ rm apps/web/src/routes/deprecated/useRouteBuilder.ts
 # KEEP: apps/web/src/routes/example/RouteUsageExample.tsx
 
 # Package barrel exports (4 files)
-rm packages/configs/prettier/src/base.ts
-rm packages/configs/prettier/src/tailwind.ts
+rm tooling/prettier/src/base.ts
+rm tooling/prettier/src/tailwind.ts
 # KEEP prettier/src/index.ts - main entry
 # KEEP prettier/package.json
 
@@ -1094,7 +1094,7 @@ bun remove framer-motion
 bun remove tailwindcss-animate
 bun remove tw-animate-css
 
-cd packages/utils/auth
+cd packages/auth
 bun remove @simplewebauthn/server
 ```
 
@@ -1144,7 +1144,7 @@ bun remove -D eslint-plugin-react-refresh
 bun remove -D @typescript-eslint/eslint-plugin  # From multiple packages
 bun remove -D eslint-config-prettier  # From multiple packages
 
-# Ensure these stay in packages/configs/eslint (shared config)
+# Ensure these stay in tooling/eslint (shared config)
 ```
 
 #### Testing Libraries (if verified unused)
@@ -1292,11 +1292,11 @@ bun install
 - `apps/api/src/core/modules/auth/plugin-utils/index.ts`
 - `apps/api/src/core/modules/auth/utils/index.ts`
 - `apps/web/src/lib/orpc/links/index.ts`
-- `packages/configs/prettier/src/base.ts`
-- `packages/configs/prettier/src/tailwind.ts`
-- `packages/utils/declarative-routing/src/hooks/index.ts`
-- `packages/utils/declarative-routing/src/page-wrappers/index.ts`
-- `packages/utils/orpc/src/utils/index.ts`
+- `tooling/prettier/src/base.ts`
+- `tooling/prettier/src/tailwind.ts`
+- `packages/routing/declarative/src/hooks/index.ts`
+- `packages/routing/declarative/src/page-wrappers/index.ts`
+- `packages/transport/orpc/src/utils/index.ts`
 
 ### B. Complete Unused Systems
 - Events Module: `apps/api/src/core/modules/events/*` (4 files)
@@ -1338,7 +1338,7 @@ This Knip analysis has been completed with user decisions on all 157 items:
 ### 🎯 Key Architectural Decisions
 
 1. **Config Packages**: Keep at package level AND root (if root uses them)
-2. **ESLint Plugins**: Consolidate to shared config only (packages/configs/eslint)
+2. **ESLint Plugins**: Consolidate to shared config only (tooling/eslint)
 3. **Legacy Tools**: Remove ts-node, tsx, ts-loader (using Bun)
 4. **Testing Libraries**: Remove @testing-library/* (using Vitest native)
 5. **Wait/Env Tools**: Remove wait-on, wait-port, dotenv* (Docker/Next.js handle)

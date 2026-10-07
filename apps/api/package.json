@@ -18,7 +18,7 @@
     "start:debug": "bun --bun --inspect-wait --watch src/main",
     "start:prod": "bun --bun dist/main",
     "clean": "rimraf dist",
-    "lint": "eslint . --fix --cache --concurrency=auto",
+    "lint": "eslint . --fix --cache",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:unit": "vitest run --project unit",

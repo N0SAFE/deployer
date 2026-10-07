@@ -1,0 +1,137 @@
+# =====================================================================
+# PROD profile — production build, EVERYTHING API-managed (final build).
+#
+# SETUP BOOTS FIRST, THEN CREATES THE API ON THE SWARM.
+# `setup` is the entry point in production: it founds or joins the cluster and
+# schedules the API as a swarm service from `DEPLOYER_API_IMAGE`. The API is NOT
+# a compose service here — a compose-managed container would not be part of the
+# cluster setup just built, so it would have no placement, no restart policy
+# across nodes, and no `service ls` visibility.
+#
+# `build-api` exists so `docker compose up --build` produces that image tag
+# locally; setup consumes the TAG, not the build. In a real deployment the tag
+# points at a registry instead and nothing else changes.
+# =====================================================================
+
+name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}
+
+services:
+  # ── 1. Build-only: produces the API image, then exits ─────────────────────
+  #
+  # A compose service rather than a build step on `setup`, because a health-gated
+  # startup must not CONTAIN a multi-minute build: it would make the healthcheck's
+  # start_period meaningless, and it would put two responsibilities (produce an
+  # image, then run onboarding) in one container.
+  build-api:
+    build:
+      context: ../../..
+      dockerfile: ./infra/docker/builder/api/Dockerfile.api.prod
+    image: ${DEPLOYER_API_IMAGE:-deployer-api:local}
+    # Runs once, ensures the tag exists, exits. `restart: "no"` is required —
+    # the default restart policy would loop it forever.
+    command: ["echo", "api image built: ${DEPLOYER_API_IMAGE:-deployer-api:local}"]
+    restart: "no"
+
+  # ── 2. Setup: founds the cluster, schedules the API, hands over, exits ────
+  setup-prod:
+    extends:
+      file: ./common/setup/docker-compose.config.prod.yml
+      service: setup
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-setup-prod
+    depends_on:
+      # Only the IMAGE is a prerequisite. Setup itself founds the swarm, so it
+      # cannot wait for anything cluster-related — that is the work.
+      build-api:
+        condition: service_completed_successfully
+    volumes:
+      # The swarms it creates live on the host engine, so it drives the socket.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # The SAME SQLite file the API reads: setup writes the swarm participation
+      # decision and the database URL, and the API is their reader.
+      - api_local_db_data_prod:/app/data
+    environment:
+      # ── THE SHARED NODE-STATE VOLUME, NAMED EXACTLY AS COMPOSE CREATED IT ──
+      # Setup schedules the API and mounts this volume into that task, so it must
+      # name the SAME volume this container writes. Compose prefixes volumes with
+      # the project name, which setup cannot guess — so the resolved name is
+      # passed in rather than reconstructed. Without it the task mounts an empty
+      # volume and the API boots with no node state.
+      NODE_LOCAL_DB_VOLUME: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_local_db_data_prod
+    networks:
+      deployer_platform:
+        aliases:
+          - setup-prod
+          - setup
+      app_network_prod:
+        aliases:
+          - setup-prod
+          - setup
+
+  # ── IMAGE PRODUCERS, not runtime services ─────────────────────────────────
+  #
+  # This profile is swarm-managed: SETUP is the only long-running service. Web
+  # and doc exist here for exactly one reason — to make their IMAGES exist, so the
+  # cluster has something to schedule. They therefore carry no runtime command:
+  # each starts, prints the tag it produced, and exits.
+  #
+  # The build and env come from the `common/*/config.prod.yml` variants, which
+  # carry the `NEXT_PUBLIC_*` values baked into the client bundle. Only the
+  # SERVICE SHAPE is overridden here.
+  #
+  # `restart: "no"` is required, not cosmetic: the default restart policy would
+  # loop them forever. `depends_on` is deliberately absent — an image build does
+  # not depend on the platform being converged, so gating it on setup's health
+  # would put a multi-minute human step in front of a build.
+  web-prod:
+    extends:
+      file: ./common/web/docker-compose.config.prod.yml
+      service: web
+    image: ${DEPLOYER_WEB_IMAGE:-deployer-web:local}
+    command: ["echo", "web image built: ${DEPLOYER_WEB_IMAGE:-deployer-web:local}"]
+    restart: "no"
+    networks:
+      app_network_prod: {}
+
+  doc-prod:
+    extends:
+      file: ./common/doc/docker-compose.config.prod.yml
+      service: doc
+    image: ${DEPLOYER_DOC_IMAGE:-deployer-doc:local}
+    command: ["echo", "doc image built: ${DEPLOYER_DOC_IMAGE:-deployer-doc:local}"]
+    restart: "no"
+    networks:
+      app_network_prod: {}
+
+networks:
+  deployer_platform:
+    name: deployer-platform
+    driver: bridge
+  app_network_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_app_network_prod
+    driver: bridge
+
+volumes:
+  api_local_db_data_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_local_db_data_prod
+  api_db_data_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_db_data_prod
+  redis_data_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-redis-data
+  bun_cache_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_bun_cache_prod
+  turbo_cache_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_turbo_cache_prod
+  # Turbopack filesystem cache — one volume per app, so web and doc never
+  # share a cache directory (their graph roots differ: web/ vs doc/).
+  web_next_cache_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_web_next_cache_prod
+  doc_next_cache_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_doc_next_cache_prod
+  api_uploads_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_prod
+  web_instance_token_prod:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_web_instance_token_prod
+  deployer-traefik-config:
+    name: ${TRAEFIK_CONFIG_VOLUME:-deployer-traefik-config}
+  deployer-port-proxy-config:
+    name: ${DIRECT_PROXY_CONFIG_VOLUME:-deployer-port-proxy-config}

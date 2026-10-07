@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "Default",
+  "compilerOptions": {
+    "types": ["node"],
+    "target": "ES2017",
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "incremental": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "forceConsistentCasingInFileNames": true,
+    "inlineSources": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "preserveWatchOutput": true
+  },
+  "exclude": [
+    "../../../../**/node_modules",
+    "../../../../**/.next",
+    "../../../../**/.turbo",
+    "../../../../**/dist",
+    "../../../../**/out",
+    "../../../../**/build",
+    "../../../../**/coverage",
+    "../../../../**/.swc",
+    "../../../../**/.source",
+    "../../../../**/.tmp",
+    "../../../../**/test-results",
+    "../../../../**/graphify-out",
+    "../../../../**/.eslintcache",
+    "../../../../**/*.tsbuildinfo"
+  ]
+}

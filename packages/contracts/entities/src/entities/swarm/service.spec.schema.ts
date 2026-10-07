@@ -16,6 +16,24 @@ export const swarmPlacementPreferenceSchema = z.object({
 })
 export type SwarmPlacementPreference = z.infer<typeof swarmPlacementPreferenceSchema>
 
+/**
+ * How many tasks of ONE service may land on the SAME node.
+ *
+ * Maps to Swarm's `Placement.MaxReplicas`. It is the only way to express
+ * "spread these replicas so they cannot fail together" as a hard limit: a
+ * spread PREFERENCE (`placementPreferences`) only biases the scheduler, so with
+ * two replicas and two nodes it can still place both on one node.
+ *
+ * That gap was live in this codebase: the Cloudflare connector supervisor
+ * documented `maxReplicasPerNode = 1` as the guarantee that kept two connectors
+ * from being "lost together", while the spec it built had
+ * `placementPreferences: []` and no such field could be expressed at all — a
+ * comment describing a guarantee the schema could not make. This field is what
+ * makes the claim true.
+ */
+export const swarmPlacementMaxReplicasPerNodeSchema = z.number().int().positive().optional()
+export type SwarmPlacementMaxReplicasPerNode = z.infer<typeof swarmPlacementMaxReplicasPerNodeSchema>
+
 // ─── Resources ──────────────────────────────────────────────────────────────
 
 export const swarmResourcesShapeSchema = z.object({
@@ -135,6 +153,16 @@ export const swarmServiceSpecInputSchema = z.object({
   mounts: z.array(swarmMountSchema).default([]),
   placementPreferences: z.array(swarmPlacementPreferenceSchema).default([]),
   placementConstraints: z.array(z.string()).default([]),
+  /**
+   * Hard cap on tasks of THIS service per node (`Placement.MaxReplicas`).
+   *
+   * Unset means the engine's default (no cap). Set it to 1 for any service
+   * whose replicas must not share a node — an edge connector is the motivating
+   * case: two connectors on one node are both lost when that node goes, which
+   * defeats the point of running two. A spread preference alone does NOT
+   * guarantee that; see `swarmPlacementMaxReplicasPerNodeSchema`.
+   */
+  placementMaxReplicasPerNode: swarmPlacementMaxReplicasPerNodeSchema,
   resourcesLimits: swarmResourcesShapeSchema.default({}),
   resourcesReservations: swarmResourcesShapeSchema.default({}),
   /** Overlay networks the task attaches to (created via `ensureOverlayNetwork`). */

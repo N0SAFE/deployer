@@ -7,7 +7,7 @@
 import { Controller, Logger } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { appContract } from "@repo/api-contracts";
+import { providersContract } from "@repo/api-contracts";
 import type { RunnerDetectionHints } from "@repo/api-contracts";
 import { standardErrorOptions } from "@repo/orpc-utils";
 import z from "zod/v4";
@@ -61,9 +61,9 @@ export class GitHubAppsController {
         return this.githubAppsRepository.findById(id);
     }
 
-    @Implement(appContract.providers.code.github.list)
+    @Implement(providersContract.code.github.list)
     list() {
-        return implement(appContract.providers.code.github.list)
+        return implement(providersContract.code.github.list)
             .use(requireAuth())
             .handler(async () => {
                 const rows = await this.githubAppsRepository.list();
@@ -83,9 +83,9 @@ export class GitHubAppsController {
             });
     }
 
-    @Implement(appContract.providers.code.github.create)
+    @Implement(providersContract.code.github.create)
     create() {
-        return implement(appContract.providers.code.github.create)
+        return implement(providersContract.code.github.create)
             .use(requireAuth())
             .handler(async ({ input, errors }) => {
                 const row = await this.githubAppsRepository.create({
@@ -117,9 +117,9 @@ export class GitHubAppsController {
             });
     }
 
-    @Implement(appContract.providers.code.github.update)
+    @Implement(providersContract.code.github.update)
     update() {
-        return implement(appContract.providers.code.github.update)
+        return implement(providersContract.code.github.update)
             .use(requireAuth())
             .handler(async ({ input, errors }) => {
                 const body = input.body;
@@ -150,9 +150,9 @@ export class GitHubAppsController {
             });
     }
 
-    @Implement(appContract.providers.code.github.delete)
+    @Implement(providersContract.code.github.delete)
     delete() {
-        return implement(appContract.providers.code.github.delete)
+        return implement(providersContract.code.github.delete)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 await this.githubAppsRepository.deleteById(input.params.id);
@@ -162,9 +162,9 @@ export class GitHubAppsController {
 
     // ─── Self-check ─────────────────────────────────────────────────────────
 
-    @Implement(appContract.providers.code.github.selfCheck)
+    @Implement(providersContract.code.github.selfCheck)
     selfCheck() {
-        return implement(appContract.providers.code.github.selfCheck)
+        return implement(providersContract.code.github.selfCheck)
             .use(requireAuth())
             .handler(async () => {
                 // The public access point comes from the CORE service (global
@@ -191,9 +191,9 @@ export class GitHubAppsController {
 
     // ─── Manifest (create a GitHub App from GitHub's manifest flow) ─────────
 
-    @Implement(appContract.providers.code.github.manifestInit)
+    @Implement(providersContract.code.github.manifestInit)
     manifestInit() {
-        return implement(appContract.providers.code.github.manifestInit)
+        return implement(providersContract.code.github.manifestInit)
             .use(requireAuth())
             .handler(async ({ input, errors }) => {
                 // The GitHub App manifest flow registers a callback URL on this
@@ -274,9 +274,9 @@ export class GitHubAppsController {
             });
     }
 
-    @Implement(appContract.providers.code.github.manifestCallback)
+    @Implement(providersContract.code.github.manifestCallback)
     manifestCallback() {
-        return implement(appContract.providers.code.github.manifestCallback)
+        return implement(providersContract.code.github.manifestCallback)
             .use(requireAuth())
             .handler(async ({ input, errors }) => {
                 const result = await this.gitHubService.createFromManifestCode(input.code);
@@ -311,9 +311,9 @@ export class GitHubAppsController {
 
     // ─── Installation callback (user installed the app, picked repos) ─────
 
-    @Implement(appContract.providers.code.github.installCallback)
+    @Implement(providersContract.code.github.installCallback)
     installCallback() {
-        return implement(appContract.providers.code.github.installCallback)
+        return implement(providersContract.code.github.installCallback)
             .use(requireAuth())
             .handler(async ({ input, errors }) => {
                 // Guard: the installation id must be numeric (GitHub returns a number).
@@ -337,9 +337,9 @@ export class GitHubAppsController {
 
     // ─── Create from PAT ────────────────────────────────────────────────────
 
-    @Implement(appContract.providers.code.github.createFromPat)
+    @Implement(providersContract.code.github.createFromPat)
     createFromPat() {
-        return implement(appContract.providers.code.github.createFromPat)
+        return implement(providersContract.code.github.createFromPat)
             .use(requireAuth())
             .handler(async ({ input, errors }) => {
                 const row = await this.githubAppsRepository.create({
@@ -371,9 +371,9 @@ export class GitHubAppsController {
 
     // ─── OAuth (server-side flow for an existing app) ───────────────────────
 
-    @Implement(appContract.providers.code.github.oauthInit)
+    @Implement(providersContract.code.github.oauthInit)
     oauthInit() {
-        return implement(appContract.providers.code.github.oauthInit)
+        return implement(providersContract.code.github.oauthInit)
             .use(requireAuth())
             .handler(async ({ input, errors }) => {
                 const app = await this.githubAppsRepository.findClientIdById(input.params.appId);
@@ -409,9 +409,9 @@ export class GitHubAppsController {
             });
     }
 
-    @Implement(appContract.providers.code.github.oauthCallback)
+    @Implement(providersContract.code.github.oauthCallback)
     oauthCallback() {
-        return implement(appContract.providers.code.github.oauthCallback)
+        return implement(providersContract.code.github.oauthCallback)
             .use(requireAuth())
             .handler(async ({ input, errors }) => {
                 const app = await this.githubAppsRepository.findClientCredentialsById(input.appId);
@@ -438,9 +438,9 @@ export class GitHubAppsController {
 
     // ─── Repo listing (scoped to a specific provider app when given) ─────
 
-    @Implement(appContract.providers.code.github.listRepos)
+    @Implement(providersContract.code.github.listRepos)
     listRepos() {
-        return implement(appContract.providers.code.github.listRepos)
+        return implement(providersContract.code.github.listRepos)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 const providerAppId = input.query?.providerAppId;
@@ -502,9 +502,9 @@ export class GitHubAppsController {
 
     // ─── Branch listing for a repo (uses the app's installation) ──────────
 
-    @Implement(appContract.providers.code.github.listBranches)
+    @Implement(providersContract.code.github.listBranches)
     listBranches() {
-        return implement(appContract.providers.code.github.listBranches)
+        return implement(providersContract.code.github.listBranches)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 const providerAppId = input.query?.providerAppId;
@@ -547,9 +547,9 @@ export class GitHubAppsController {
 
     // ─── Runner detection (heuristic based on repo files) ───────────────────
 
-    @Implement(appContract.providers.code.github.detectRunner)
+    @Implement(providersContract.code.github.detectRunner)
     detectRunner() {
-        return implement(appContract.providers.code.github.detectRunner)
+        return implement(providersContract.code.github.detectRunner)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 const providerAppId = input.query?.providerAppId;

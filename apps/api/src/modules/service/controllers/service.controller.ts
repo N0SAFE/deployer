@@ -1,7 +1,7 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { appContract } from "@repo/api-contracts";
+import { serviceContract, servicePreviewTopologyContract } from "@repo/api-contracts";
 import { ServiceService } from "../services/service.service";
 import { ServiceNetworkService } from "../services/service-network.service";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
@@ -13,27 +13,27 @@ export class ServiceController {
         private readonly serviceNetworkService: ServiceNetworkService,
     ) {}
 
-    @Implement(appContract.service.crud.list)
+    @Implement(serviceContract.crud.list)
     list() {
-        return implement(appContract.service.crud.list)
+        return implement(serviceContract.crud.list)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.serviceService.listServices(input.query);
             });
     }
 
-    @Implement(appContract.service.crud.findById)
+    @Implement(serviceContract.crud.findById)
     findById() {
-        return implement(appContract.service.crud.findById)
+        return implement(serviceContract.crud.findById)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.serviceService.getServiceById(input.params.id);
             });
     }
 
-    @Implement(appContract.service.crud.create)
+    @Implement(serviceContract.crud.create)
     create() {
-        return implement(appContract.service.crud.create)
+        return implement(serviceContract.crud.create)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 const service = await this.serviceService.createService(input, context.auth.user.id);
@@ -41,9 +41,9 @@ export class ServiceController {
             });
     }
 
-    @Implement(appContract.service.crud.update)
+    @Implement(serviceContract.crud.update)
     update() {
-        return implement(appContract.service.crud.update)
+        return implement(serviceContract.crud.update)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 const { id, ...data } = input;
@@ -51,9 +51,9 @@ export class ServiceController {
             });
     }
 
-    @Implement(appContract.service.crud.delete)
+    @Implement(serviceContract.crud.delete)
     delete() {
-        return implement(appContract.service.crud.delete)
+        return implement(serviceContract.crud.delete)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 await this.serviceService.deleteService(input.params.id, context.auth.user.id);
@@ -61,45 +61,45 @@ export class ServiceController {
             });
     }
 
-    @Implement(appContract.service.crud.children)
+    @Implement(serviceContract.crud.children)
     children() {
-        return implement(appContract.service.crud.children)
+        return implement(serviceContract.crud.children)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 return this.serviceService.listChildren(input.params.id, context.auth.user.id);
             });
     }
 
-    @Implement(appContract.service.crud.subtree)
+    @Implement(serviceContract.crud.subtree)
     subtree() {
-        return implement(appContract.service.crud.subtree)
+        return implement(serviceContract.crud.subtree)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 return this.serviceService.getSubtree(input.params.id, context.auth.user.id);
             });
     }
 
-    @Implement(appContract.service.lifecycle.toggleActive)
+    @Implement(serviceContract.lifecycle.toggleActive)
     toggleActive() {
-        return implement(appContract.service.lifecycle.toggleActive)
+        return implement(serviceContract.lifecycle.toggleActive)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 return this.serviceService.toggleActive(input.params.id, input.body.isActive, context.auth.user.id);
             });
     }
 
-    @Implement(appContract.service.dependencies.list)
+    @Implement(serviceContract.dependencies.list)
     getDependencies() {
-        return implement(appContract.service.dependencies.list)
+        return implement(serviceContract.dependencies.list)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.serviceService.getDependencies(input.params.id);
             });
     }
 
-    @Implement(appContract.service.dependencies.add)
+    @Implement(serviceContract.dependencies.add)
     addDependency() {
-        return implement(appContract.service.dependencies.add)
+        return implement(serviceContract.dependencies.add)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 return this.serviceService.addDependency(
@@ -111,9 +111,9 @@ export class ServiceController {
             });
     }
 
-    @Implement(appContract.service.dependencies.remove)
+    @Implement(serviceContract.dependencies.remove)
     removeDependency() {
-        return implement(appContract.service.dependencies.remove)
+        return implement(serviceContract.dependencies.remove)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 await this.serviceService.removeDependency(input.params.id, input.params.dependencyId, context.auth.user.id);
@@ -121,20 +121,20 @@ export class ServiceController {
             });
     }
 
-    @Implement(appContract.service.streams.query)
+    @Implement(serviceContract.streams.query)
     streamQuery() {
         const serviceService = this.serviceService;
 
-        return implement(appContract.service.streams.query)
+        return implement(serviceContract.streams.query)
             .use(requireAuth())
             .handler(({ input }) => {
                 return serviceService.streamQueryEvents(input.query);
             });
     }
 
-    @Implement(appContract.servicePreviewTopology.resolve)
+    @Implement(servicePreviewTopologyContract.resolve)
     previewTopologyResolve() {
-        return implement(appContract.servicePreviewTopology.resolve)
+        return implement(servicePreviewTopologyContract.resolve)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 return this.serviceService.resolvePreviewTopology(
@@ -145,18 +145,18 @@ export class ServiceController {
             });
     }
 
-    @Implement(appContract.service.network.get)
+    @Implement(serviceContract.network.get)
     networkGet() {
-        return implement(appContract.service.network.get)
+        return implement(serviceContract.network.get)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.serviceNetworkService.getNetwork(input.params.id);
             });
     }
 
-    @Implement(appContract.service.network.update)
+    @Implement(serviceContract.network.update)
     networkUpdate() {
-        return implement(appContract.service.network.update)
+        return implement(serviceContract.network.update)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 // Optional update body — coalesce to {}.
@@ -164,9 +164,9 @@ export class ServiceController {
             });
     }
 
-    @Implement(appContract.service.network.provisionRecord)
+    @Implement(serviceContract.network.provisionRecord)
     networkProvisionRecord() {
-        return implement(appContract.service.network.provisionRecord)
+        return implement(serviceContract.network.provisionRecord)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.serviceNetworkService.provisionDnsRecord(input.params.id, input.body);

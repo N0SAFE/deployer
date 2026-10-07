@@ -1,0 +1,237 @@
+{
+    "name": "@repo/auth",
+    "version": "1.0.0",
+    "description": "Shared authentication configuration for Better Auth",
+    "main": "./dist/production/cjs/index.js",
+    "types": "./dist/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/types/index.d.ts",
+            "development": {
+                "import": "./dist/development/esm/index.mjs",
+                "require": "./dist/development/cjs/index.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/index.mjs",
+                "require": "./dist/production/cjs/index.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/index.mjs",
+                "require": "./dist/production/cjs/index.js"
+            }
+        },
+        "./*": {
+            "types": "./dist/types/*.d.ts",
+            "development": {
+                "import": "./dist/development/esm/*.mjs",
+                "require": "./dist/development/cjs/*.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/*.mjs",
+                "require": "./dist/production/cjs/*.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/*.mjs",
+                "require": "./dist/production/cjs/*.js"
+            }
+        },
+        "./server": {
+            "types": "./dist/types/server/index.d.ts",
+            "development": {
+                "import": "./dist/development/esm/server/index.mjs",
+                "require": "./dist/development/cjs/server/index.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/server/index.mjs",
+                "require": "./dist/production/cjs/server/index.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/server/index.mjs",
+                "require": "./dist/production/cjs/server/index.js"
+            }
+        },
+        "./client": {
+            "types": "./dist/types/client/index.d.ts",
+            "development": {
+                "import": "./dist/development/esm/client/index.mjs",
+                "require": "./dist/development/cjs/client/index.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/client/index.mjs",
+                "require": "./dist/production/cjs/client/index.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/client/index.mjs",
+                "require": "./dist/production/cjs/client/index.js"
+            }
+        },
+        "./permissions": {
+            "types": "./dist/types/permissions/index.d.ts",
+            "development": {
+                "import": "./dist/development/esm/permissions/index.mjs",
+                "require": "./dist/development/cjs/permissions/index.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/permissions/index.mjs",
+                "require": "./dist/production/cjs/permissions/index.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/permissions/index.mjs",
+                "require": "./dist/production/cjs/permissions/index.js"
+            }
+        },
+        "./permissions/plugins": {
+            "types": "./dist/types/permissions/plugins/index.d.ts",
+            "development": {
+                "import": "./dist/development/esm/permissions/plugins/index.mjs",
+                "require": "./dist/development/cjs/permissions/plugins/index.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/permissions/plugins/index.mjs",
+                "require": "./dist/production/cjs/permissions/plugins/index.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/permissions/plugins/index.mjs",
+                "require": "./dist/production/cjs/permissions/plugins/index.js"
+            }
+        },
+        "./react": {
+            "types": "./dist/types/react/index.d.ts",
+            "development": {
+                "import": "./dist/development/esm/react/index.mjs",
+                "require": "./dist/development/cjs/react/index.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/react/index.mjs",
+                "require": "./dist/production/cjs/react/index.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/react/index.mjs",
+                "require": "./dist/production/cjs/react/index.js"
+            }
+        },
+        "./react/session": {
+            "react-server": {
+                "types": "./dist/types/react/session/server.d.ts",
+                "development": {
+                    "import": "./dist/development/esm/react/session/server.mjs",
+                    "require": "./dist/development/cjs/react/session/server.js"
+                },
+                "production": {
+                    "import": "./dist/production/esm/react/session/server.mjs",
+                    "require": "./dist/production/cjs/react/session/server.js"
+                },
+                "default": {
+                    "import": "./dist/production/esm/react/session/server.mjs",
+                    "require": "./dist/production/cjs/react/session/server.js"
+                }
+            },
+            "default": {
+                "types": "./dist/types/react/session/client.d.ts",
+                "development": {
+                    "import": "./dist/development/esm/react/session/client.mjs",
+                    "require": "./dist/development/cjs/react/session/client.js"
+                },
+                "production": {
+                    "import": "./dist/production/esm/react/session/client.mjs",
+                    "require": "./dist/production/cjs/react/session/client.js"
+                },
+                "default": {
+                    "import": "./dist/production/esm/react/session/client.mjs",
+                    "require": "./dist/production/cjs/react/session/client.js"
+                }
+            }
+        },
+        "./react/session/client": {
+            "types": "./dist/types/react/session/client.d.ts",
+            "development": {
+                "import": "./dist/development/esm/react/session/client.mjs",
+                "require": "./dist/development/cjs/react/session/client.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/react/session/client.mjs",
+                "require": "./dist/production/cjs/react/session/client.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/react/session/client.mjs",
+                "require": "./dist/production/cjs/react/session/client.js"
+            }
+        },
+        "./react/session/server": {
+            "types": "./dist/types/react/session/server.d.ts",
+            "development": {
+                "import": "./dist/development/esm/react/session/server.mjs",
+                "require": "./dist/development/cjs/react/session/server.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/react/session/server.mjs",
+                "require": "./dist/production/cjs/react/session/server.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/react/session/server.mjs",
+                "require": "./dist/production/cjs/react/session/server.js"
+            }
+        },
+        "./mesh": {
+            "types": "./dist/types/mesh/index.d.ts",
+            "development": {
+                "import": "./dist/development/esm/mesh/index.mjs",
+                "require": "./dist/development/cjs/mesh/index.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/mesh/index.mjs",
+                "require": "./dist/production/cjs/mesh/index.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/mesh/index.mjs",
+                "require": "./dist/production/cjs/mesh/index.js"
+            }
+        }
+    },
+    "scripts": {
+        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "format": "bun run prettify",
+        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
+        "lint": "eslint . --fix --cache",
+        "type-check": "tsc --noEmit",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage",
+        "build": "bun --bun ../../tooling/bin-pkg-build/dist/cjs/main.js",
+        "dev": "bun --bun ../../tooling/bin-pkg-build/dist/cjs/main.js --watch",
+        "clean": "rimraf dist",
+        "build:types": "bun --bun ../../tooling/bin-pkg-build/dist/cjs/main.js --types"
+    },
+    "dependencies": {
+        "@better-auth/agent-auth": "catalog:auth",
+        "@better-auth/api-key": "catalog:auth",
+        "@better-auth/core": "catalog:auth",
+        "@better-auth/passkey": "catalog:auth",
+        "@repo/type-guards": "*",
+        "@simplewebauthn/server": "^13.2.2",
+        "better-auth": "catalog:auth",
+        "better-call": "catalog:auth",
+        "cookie": "^1.1.1",
+        "react": "catalog:react",
+        "sonner": "catalog:ui",
+        "zod": "catalog:utils"
+    },
+    "devDependencies": {
+        "@types/node": "catalog:build",
+        "eslint": "catalog:linting",
+        "@repo/config-eslint": "*",
+        "@repo/config-prettier": "*",
+        "@repo/config-typescript": "*",
+        "@types/react": "catalog:react",
+        "vitest": "catalog:testing",
+        "@vitest/coverage-v8": "catalog:testing",
+        "server-only": "catalog:utils",
+        "typescript": "catalog:build",
+        "@repo/pkg-build": "*"
+    },
+    "peerDependencies": {
+        "drizzle-orm": "catalog:database",
+        "@tanstack/react-query": "catalog:tanstack"
+    },
+    "module": "./dist/production/esm/index.mjs"
+}

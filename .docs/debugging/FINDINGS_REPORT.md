@@ -176,9 +176,9 @@ Each hypothesis is explicitly CONFIRMED (✅) or ELIMINATED (❌) with evidence.
 - Full madge analysis completed (see §3)
 - 21 circular dependencies found, **all** concentrated in:
   - `packages/contracts/entities/` — Docker entity relation schemas (18 cycles)
-  - `packages/utils/auth/` — auth type references (1 cycle)
-  - `packages/utils/orpc/` — builder/proxy pattern (2 cycles)
-  - `packages/utils/logger/` — self-reference (1 cycle)
+  - `packages/auth/` — auth type references (1 cycle)
+  - `packages/transport/orpc/` — builder/proxy pattern (2 cycles)
+  - `packages/infrastructure/logger/` — self-reference (1 cycle)
 - **NONE** involve `apps/web/` or any file that webpack watches for compilation
 - The `packages/contracts/entities/` cycles are **intentional** — zod schema relations for Docker entities (containers→images→networks→stacks→registries/volumes) form a bidirectional schema graph
 - These are type-level circular references, not runtime import loops
@@ -205,9 +205,9 @@ npx madge --circular --extensions ts,tsx apps/web/src/ packages/
 | # | Cycle | Location | Relevance to Compilation Loop |
 |---|-------|----------|-------------------------------|
 | 1 | `logger/src/index → context-filter-logger` | packages/utils/ | ❌ Internal utility |
-| 2 | `auth/permissions/system/builder → schemas` | packages/utils/auth/ | ❌ Build-time permission types |
-| 3 | `auth/types → server/auth → plugins → masterTokenAuth` | packages/utils/auth/ | ❌ Runtime plugin registration |
-| 4-5 | `orpc/builder/core/route-builder → output/proxy → builder` | packages/utils/orpc/ | ❌ Builder pattern (intentional) |
+| 2 | `auth/permissions/system/builder → schemas` | packages/auth/ | ❌ Build-time permission types |
+| 3 | `auth/types → server/auth → plugins → masterTokenAuth` | packages/auth/ | ❌ Runtime plugin registration |
+| 4-5 | `orpc/builder/core/route-builder → output/proxy → builder` | packages/transport/orpc/ | ❌ Builder pattern (intentional) |
 | 6-21 | `contracts/entities/docker/*/index → *relations` | packages/contracts/entities/ | ❌ Zod schema relations (intentional bidirectional refs) |
 
 ### Conclusion for Compilation Loop

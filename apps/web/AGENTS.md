@@ -31,6 +31,10 @@ Routing:
 Testing and checks:
 - Type-check: `bun run web -- type-check`
 - Test: `bun run web -- test`
+- **Build:** `bun run local:build` (root) or `bun run local:build` (this app) — a bare
+  `bun run build` fails with `API_URL is not defined` by design; the variable comes
+  from CI/compose or from the `local:build` mock wrapper, never from `.env`.
+  See `.docs/guides/WEB-BUILD-FAILURES.md` before debugging a build failure.
 
 ## Boundaries
 

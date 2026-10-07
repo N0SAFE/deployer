@@ -13,11 +13,7 @@
 import { Controller, Logger } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import {
-    appContract,
-    isPullRequestWebhook,
-    isInstallationWebhook,
-} from "@repo/api-contracts";
+import { isPullRequestWebhook, isInstallationWebhook, providersContract } from "@repo/api-contracts";
 import type {
     PullRequestEvent,
     InstallationEvent,
@@ -41,9 +37,9 @@ export class GithubWebhooksController {
         private readonly githubAppsRepository: GithubAppsRepository,
     ) {}
 
-    @Implement(appContract.providers.code.github.webhook)
+    @Implement(providersContract.code.github.webhook)
     receive() {
-        return implement(appContract.providers.code.github.webhook)
+        return implement(providersContract.code.github.webhook)
             .use(githubWebhookAuth({
                 idempotencyService: this.idempotencyService,
                 githubAppsRepository: this.githubAppsRepository,

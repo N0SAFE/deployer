@@ -131,6 +131,61 @@ Result:
   2. DB tooling scripts resolve new schema/migration paths.
   3. No runtime behavior change unless explicitly documented in this file.
 
+## Status audit (2026-10-07) — what is actually done
+
+Recorded because the plan above is easy to misread as a completion list. Verified
+by grepping every read path, not by trusting the plan's ordering.
+
+**Slice 2 is done** (the DB module split): `GlobalDatabaseService` +
+`LocalDatabaseService` exist in `core/modules/database/services/`, the legacy
+shims are gone, and `DatabaseModule` provides both connections.
+
+**Items 8–9 (mesh topology → DB config, trim mesh env) are PARTIALLY done:**
+
+- Mesh tuning IS owned by a DB-backed service —
+  `SystemMeshConfigService` reads/writes `node_mesh_config` in local SQLite and
+  seeds its own documented defaults (`DEFAULT_SYNC_INTERVAL_MS`, etc.).
+- The env keys that used to shadow it are now **deleted** from `apiEnvSchema`:
+  `MESH_SYNC_INTERVAL_MS`, `MESH_PING_SAMPLES`, `MESH_PING_TIMEOUT_MS`,
+  `MESH_PEER_MIN`, `MESH_PEER_IMPROVEMENT_THRESHOLD`,
+  `MESH_PEER_MAX_REPLACEMENTS`, `MESH_PEER_LATENCY_BUDGET_MS`,
+  `MESH_CONTROL_ENVELOPE_TRUST_REQUIRED`, `MESH_TRUST_STRICT_AUTO_ROLLBACK`.
+  None had a reader — they were a second, silent place to set a value that had
+  no effect. Also deleted for the same reason: `BACKUP_PATH`, `STORAGE_PATH`,
+  `SWARM_MAX_TERM_SKEW`, `SWARM_TAKEOVER_MIN_UPTIME_MS`.
+- **NOT done — these mesh keys are still read and still env:**
+  `MESH_STRICT_REPLAY_GUARD` and `MESH_PEER_MAX` (read via `process.env.X` in
+  `mesh-internal-request.service.ts` / `mesh-cluster-sync.service.ts`), plus
+  `MESH_TRUST_STRICT_MIN_ACK_RATIO` / `MESH_TRUST_STRICT_MAX_ACK_AGE_SECONDS`
+  (read via **computed** `process.env[name]` indexing inside
+  `mesh-trust-strict-mode.service.ts`, which is why a naive grep calls them
+  dead — they are not). Moving these is the remaining work for item 9.
+
+**Item 4 (cluster-scoped policy in global Postgres) is NOT done.** The stores
+exist (`app_config` for `managed_web_app.*`, `github_oauth`), but no cluster-wide
+mesh policy has been moved into it.
+
+### Read paths that MUST be checked before deleting any env key
+
+Two independent audits of this file both produced false "dead key" lists. The
+misses came from read paths a `env.get("KEY")` grep cannot see:
+
+1. `env.get("KEY")` / `this.env.get("KEY")` — the obvious one.
+2. `process.env.KEY` — direct process reads.
+3. `process.env[name]` — **computed** indexing. Grep for the literal key finds
+   only the string constant, so the key looks unused unless the surrounding
+   function is read.
+4. `splitManagedEnv()` — reads 39 `MANAGED_*` keys through a **dynamic flat map**
+   (`MANAGED_SERVICE_FLAT_KEYS`), so no key name appears at the call site. Every
+   `MANAGED_*` key is live by construction.
+5. `validateApiEnvPath(value, "KEY")` — schema-path validation; the key is an
+   argument, not a property access.
+
+`MESH_TRUST_STRICT_MIN_ACK_RATIO` and `MANAGED_DATABASE_URL` were each wrongly
+classified as dead by one of these paths. Verify against source only — build
+artifacts under `dist/` and `.next/` contain every generated key name and will
+make a dead key look referenced dozens of times.
+
 ## Follow-up checkpoints
 
 After slice 1:

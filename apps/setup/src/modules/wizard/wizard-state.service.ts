@@ -1,6 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
-import type { SetupStateSnapshot } from "@repo/contracts-entities";
+import type { SetupStateSnapshot, SetupBootstrapStrategy } from "@repo/contracts-entities";
 
 /**
  * The wizard's PRE-GATE state, answered locally.
@@ -99,7 +99,7 @@ export class WizardStateService {
   getNodeStatus(): {
     isConfigured: boolean;
     nodeId: string | null;
-    strategy: string | null;
+    strategy: SetupBootstrapStrategy | null;
     meshUrlsSnapshot: string[];
     configuredAt: Date | null;
   } {
@@ -109,7 +109,11 @@ export class WizardStateService {
     return {
       isConfigured: configured,
       nodeId: config?.nodeId ?? null,
-      strategy: config?.strategy ?? null,
+      // Narrowed to the contract's literal union: the persisted column is a
+      // plain string, but the contract enumerates the only two strategies that
+      // exist, so an unrecognized value is surfaced as `null` rather than
+      // smuggled through as a string the client cannot switch on.
+      strategy: config?.strategy === "local" || config?.strategy === "remote" ? config.strategy : null,
       meshUrlsSnapshot: config?.meshUrlsSnapshot ?? [],
       configuredAt:
         configured && config?.configuredAt !== null && config?.configuredAt !== undefined

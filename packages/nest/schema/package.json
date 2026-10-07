@@ -3,264 +3,195 @@
     "version": "1.0.0",
     "description": "Drizzle table definitions for the local (SQLite) and global (Postgres) databases, plus the custom column codecs the app configures at boot.",
     "main": "./dist/cjs/index.js",
-    "types": "./src/index.ts",
+    "types": "./dist/types/index.d.ts",
     "exports": {
         ".": {
-            "types": [
-                "./src/index.ts"
-            ],
+            "types": "./dist/types/index.d.ts",
             "import": "./dist/esm/index.mjs",
             "require": "./dist/cjs/index.js"
         },
+        "./*": {
+            "types": "./dist/types/*.d.ts",
+            "import": "./dist/esm/*.mjs",
+            "require": "./dist/cjs/*.js"
+        },
         "./codecs/codec-registry": {
-            "types": [
-                "./src/codecs/codec-registry.ts"
-            ],
+            "types": "./dist/types/codecs/codec-registry.d.ts",
             "import": "./dist/esm/codecs/codec-registry.mjs",
             "require": "./dist/cjs/codecs/codec-registry.js"
         },
         "./local": {
-            "types": [
-                "./src/local/index.ts"
-            ],
+            "types": "./dist/types/local/index.d.ts",
             "import": "./dist/esm/local/index.mjs",
             "require": "./dist/cjs/local/index.js"
         },
         "./local/cluster-master-history": {
-            "types": [
-                "./src/local/cluster-master-history.ts"
-            ],
+            "types": "./dist/types/local/cluster-master-history.d.ts",
             "import": "./dist/esm/local/cluster-master-history.mjs",
             "require": "./dist/cjs/local/cluster-master-history.js"
         },
         "./local/cluster-node": {
-            "types": [
-                "./src/local/cluster-node.ts"
-            ],
+            "types": "./dist/types/local/cluster-node.d.ts",
             "import": "./dist/esm/local/cluster-node.mjs",
             "require": "./dist/cjs/local/cluster-node.js"
         },
         "./local/cluster-nodes": {
-            "types": [
-                "./src/local/cluster-nodes.ts"
-            ],
+            "types": "./dist/types/local/cluster-nodes.d.ts",
             "import": "./dist/esm/local/cluster-nodes.mjs",
             "require": "./dist/cjs/local/cluster-nodes.js"
         },
         "./local/node-config": {
-            "types": [
-                "./src/local/node-config.ts"
-            ],
+            "types": "./dist/types/local/node-config.d.ts",
             "import": "./dist/esm/local/node-config.mjs",
             "require": "./dist/cjs/local/node-config.js"
         },
         "./local/node-mesh-config": {
-            "types": [
-                "./src/local/node-mesh-config.ts"
-            ],
+            "types": "./dist/types/local/node-mesh-config.d.ts",
             "import": "./dist/esm/local/node-mesh-config.mjs",
             "require": "./dist/cjs/local/node-mesh-config.js"
         },
         "./local/platform-settings": {
-            "types": [
-                "./src/local/platform-settings.ts"
-            ],
+            "types": "./dist/types/local/platform-settings.d.ts",
             "import": "./dist/esm/local/platform-settings.mjs",
             "require": "./dist/cjs/local/platform-settings.js"
         },
         "./global": {
-            "types": [
-                "./src/global/index.ts"
-            ],
+            "types": "./dist/types/global/index.d.ts",
             "import": "./dist/esm/global/index.mjs",
             "require": "./dist/cjs/global/index.js"
         },
         "./global/analytics": {
-            "types": [
-                "./src/global/analytics.ts"
-            ],
+            "types": "./dist/types/global/analytics.d.ts",
             "import": "./dist/esm/global/analytics.mjs",
             "require": "./dist/cjs/global/analytics.js"
         },
         "./global/app-config": {
-            "types": [
-                "./src/global/app-config.ts"
-            ],
+            "types": "./dist/types/global/app-config.d.ts",
             "import": "./dist/esm/global/app-config.mjs",
             "require": "./dist/cjs/global/app-config.js"
         },
         "./global/auth": {
-            "types": [
-                "./src/global/auth.ts"
-            ],
+            "types": "./dist/types/global/auth.d.ts",
             "import": "./dist/esm/global/auth.mjs",
             "require": "./dist/cjs/global/auth.js"
         },
         "./global/cluster-migration-state": {
-            "types": [
-                "./src/global/cluster-migration-state.ts"
-            ],
+            "types": "./dist/types/global/cluster-migration-state.d.ts",
             "import": "./dist/esm/global/cluster-migration-state.mjs",
             "require": "./dist/cjs/global/cluster-migration-state.js"
         },
         "./global/cluster": {
-            "types": [
-                "./src/global/cluster.ts"
-            ],
+            "types": "./dist/types/global/cluster.d.ts",
             "import": "./dist/esm/global/cluster.mjs",
             "require": "./dist/cjs/global/cluster.js"
         },
         "./global/deployment.schemas": {
-            "types": [
-                "./src/global/deployment.schemas.ts"
-            ],
+            "types": "./dist/types/global/deployment.schemas.d.ts",
             "import": "./dist/esm/global/deployment.schemas.mjs",
             "require": "./dist/cjs/global/deployment.schemas.js"
         },
         "./global/deployment": {
-            "types": [
-                "./src/global/deployment.ts"
-            ],
+            "types": "./dist/types/global/deployment.d.ts",
             "import": "./dist/esm/global/deployment.mjs",
             "require": "./dist/cjs/global/deployment.js"
         },
         "./global/dns-providers": {
-            "types": [
-                "./src/global/dns-providers.ts"
-            ],
+            "types": "./dist/types/global/dns-providers.d.ts",
             "import": "./dist/esm/global/dns-providers.mjs",
             "require": "./dist/cjs/global/dns-providers.js"
         },
         "./global/docker-runtime-activity": {
-            "types": [
-                "./src/global/docker-runtime-activity.ts"
-            ],
+            "types": "./dist/types/global/docker-runtime-activity.d.ts",
             "import": "./dist/esm/global/docker-runtime-activity.mjs",
             "require": "./dist/cjs/global/docker-runtime-activity.js"
         },
         "./global/docker-security-scan": {
-            "types": [
-                "./src/global/docker-security-scan.ts"
-            ],
+            "types": "./dist/types/global/docker-security-scan.d.ts",
             "import": "./dist/esm/global/docker-security-scan.mjs",
             "require": "./dist/cjs/global/docker-security-scan.js"
         },
         "./global/domain": {
-            "types": [
-                "./src/global/domain.ts"
-            ],
+            "types": "./dist/types/global/domain.d.ts",
             "import": "./dist/esm/global/domain.mjs",
             "require": "./dist/cjs/global/domain.js"
         },
         "./global/environment": {
-            "types": [
-                "./src/global/environment.ts"
-            ],
+            "types": "./dist/types/global/environment.d.ts",
             "import": "./dist/esm/global/environment.mjs",
             "require": "./dist/cjs/global/environment.js"
         },
         "./global/events": {
-            "types": [
-                "./src/global/events.ts"
-            ],
+            "types": "./dist/types/global/events.d.ts",
             "import": "./dist/esm/global/events.mjs",
             "require": "./dist/cjs/global/events.js"
         },
         "./global/github-provider": {
-            "types": [
-                "./src/global/github-provider.ts"
-            ],
+            "types": "./dist/types/global/github-provider.d.ts",
             "import": "./dist/esm/global/github-provider.mjs",
             "require": "./dist/cjs/global/github-provider.js"
         },
         "./global/gitlab-provider": {
-            "types": [
-                "./src/global/gitlab-provider.ts"
-            ],
+            "types": "./dist/types/global/gitlab-provider.d.ts",
             "import": "./dist/esm/global/gitlab-provider.mjs",
             "require": "./dist/cjs/global/gitlab-provider.js"
         },
         "./global/health": {
-            "types": [
-                "./src/global/health.ts"
-            ],
+            "types": "./dist/types/global/health.d.ts",
             "import": "./dist/esm/global/health.mjs",
             "require": "./dist/cjs/global/health.js"
         },
         "./global/image-project-membership": {
-            "types": [
-                "./src/global/image-project-membership.ts"
-            ],
+            "types": "./dist/types/global/image-project-membership.d.ts",
             "import": "./dist/esm/global/image-project-membership.mjs",
             "require": "./dist/cjs/global/image-project-membership.js"
         },
         "./global/node-network-config": {
-            "types": [
-                "./src/global/node-network-config.ts"
-            ],
+            "types": "./dist/types/global/node-network-config.d.ts",
             "import": "./dist/esm/global/node-network-config.mjs",
             "require": "./dist/cjs/global/node-network-config.js"
         },
         "./global/permissions": {
-            "types": [
-                "./src/global/permissions.ts"
-            ],
+            "types": "./dist/types/global/permissions.d.ts",
             "import": "./dist/esm/global/permissions.mjs",
             "require": "./dist/cjs/global/permissions.js"
         },
         "./global/project-scan-config": {
-            "types": [
-                "./src/global/project-scan-config.ts"
-            ],
+            "types": "./dist/types/global/project-scan-config.d.ts",
             "import": "./dist/esm/global/project-scan-config.mjs",
             "require": "./dist/cjs/global/project-scan-config.js"
         },
         "./global/runtime": {
-            "types": [
-                "./src/global/runtime.ts"
-            ],
+            "types": "./dist/types/global/runtime.d.ts",
             "import": "./dist/esm/global/runtime.mjs",
             "require": "./dist/cjs/global/runtime.js"
         },
         "./global/schema-version": {
-            "types": [
-                "./src/global/schema-version.ts"
-            ],
+            "types": "./dist/types/global/schema-version.d.ts",
             "import": "./dist/esm/global/schema-version.mjs",
             "require": "./dist/cjs/global/schema-version.js"
         },
         "./global/seed-version": {
-            "types": [
-                "./src/global/seed-version.ts"
-            ],
+            "types": "./dist/types/global/seed-version.d.ts",
             "import": "./dist/esm/global/seed-version.mjs",
             "require": "./dist/cjs/global/seed-version.js"
         },
         "./global/utils/zod-enum": {
-            "types": [
-                "./src/global/utils/zod-enum.ts"
-            ],
+            "types": "./dist/types/global/utils/zod-enum.d.ts",
             "import": "./dist/esm/global/utils/zod-enum.mjs",
             "require": "./dist/cjs/global/utils/zod-enum.js"
         },
         "./global/platform/app-instance": {
-            "types": [
-                "./src/global/platform/app-instance.ts"
-            ],
+            "types": "./dist/types/global/platform/app-instance.d.ts",
             "import": "./dist/esm/global/platform/app-instance.mjs",
             "require": "./dist/cjs/global/platform/app-instance.js"
         },
         "./global/traefik": {
-            "types": [
-                "./src/global/traefik/index.ts"
-            ],
+            "types": "./dist/types/global/traefik/index.d.ts",
             "import": "./dist/esm/global/traefik/index.mjs",
             "require": "./dist/cjs/global/traefik/index.js"
         },
         "./migrations": {
-            "types": [
-                "./src/migrations.ts"
-            ],
+            "types": "./dist/types/migrations.d.ts",
             "import": "./dist/esm/migrations.mjs",
             "require": "./dist/cjs/migrations.js"
         }
@@ -278,13 +209,14 @@
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "lint": "eslint . --fix --cache --concurrency=auto",
+        "lint": "eslint . --fix --cache",
         "type-check": "tsc --noEmit",
         "test": "vitest run",
         "test:watch": "vitest",
-        "build": "bun --bun ../../bin/pkg-build/index.ts",
-        "dev": "bun --bun ../../bin/pkg-build/index.ts --watch",
-        "clean": "rimraf dist"
+        "build": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js",
+        "dev": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js --watch",
+        "clean": "rimraf dist",
+        "build:types": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js --types"
     },
     "dependencies": {
         "@nestjs/common": "catalog:api:nest",

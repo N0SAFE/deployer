@@ -1,7 +1,7 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { appContract } from "@repo/api-contracts";
+import { deploymentContract } from "@repo/api-contracts";
 import type { PlatformRole } from "@repo/auth";
 import { DeploymentService } from "../services/deployment.service";
 import { authMiddleware, requireAuth, requireMesh, requirePlatformRole } from "@/core/modules/auth/orpc/middlewares";
@@ -34,27 +34,27 @@ export class DeploymentController {
     }
 
 
-    @Implement(appContract.deployment.list)
+    @Implement(deploymentContract.list)
     list() {
-        return implement(appContract.deployment.list)
+        return implement(deploymentContract.list)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.deploymentService.listDeployments(input.query);
             });
     }
 
-    @Implement(appContract.deployment.listServicePreviews)
+    @Implement(deploymentContract.listServicePreviews)
     listServicePreviews() {
-        return implement(appContract.deployment.listServicePreviews)
+        return implement(deploymentContract.listServicePreviews)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.deploymentService.listServicePreviews(input.params.serviceId);
             });
     }
 
-    @Implement(appContract.deployment.promoteServicePreview)
+    @Implement(deploymentContract.promoteServicePreview)
     promoteServicePreview() {
-        return implement(appContract.deployment.promoteServicePreview)
+        return implement(deploymentContract.promoteServicePreview)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 const userId = (context.auth as { user?: { id?: string } }).user?.id ?? "";
@@ -68,18 +68,18 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.findById)
+    @Implement(deploymentContract.findById)
     findById() {
-        return implement(appContract.deployment.findById)
+        return implement(deploymentContract.findById)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.deploymentService.getDeploymentById(input.params.id);
             });
     }
 
-    @Implement(appContract.deployment.trigger)
+    @Implement(deploymentContract.trigger)
     trigger() {
-        return implement(appContract.deployment.trigger)
+        return implement(deploymentContract.trigger)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 const userId = context.auth.user.id;
@@ -97,9 +97,9 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.uploadBundle)
+    @Implement(deploymentContract.uploadBundle)
     uploadBundle() {
-        return implement(appContract.deployment.uploadBundle)
+        return implement(deploymentContract.uploadBundle)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 const uploaded = await this.deploymentService.uploadBundle({
@@ -111,9 +111,9 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.cancel)
+    @Implement(deploymentContract.cancel)
     cancel() {
-        return implement(appContract.deployment.cancel)
+        return implement(deploymentContract.cancel)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 const actorPlatformRole = this.resolvePlatformRole(context);
@@ -132,9 +132,9 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.rollback)
+    @Implement(deploymentContract.rollback)
     rollback() {
-        return implement(appContract.deployment.rollback)
+        return implement(deploymentContract.rollback)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 const actorPlatformRole = this.resolvePlatformRole(context);
@@ -152,9 +152,9 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.getLogs)
+    @Implement(deploymentContract.getLogs)
     getLogs() {
-        return implement(appContract.deployment.getLogs)
+        return implement(deploymentContract.getLogs)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.deploymentService.getDeploymentLogs(
@@ -173,9 +173,9 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.retry)
+    @Implement(deploymentContract.retry)
     retry() {
-        return implement(appContract.deployment.retry)
+        return implement(deploymentContract.retry)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 const userId = context.auth.user.id;
@@ -192,18 +192,18 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.getRollbackHistory)
+    @Implement(deploymentContract.getRollbackHistory)
     getRollbackHistory() {
-        return implement(appContract.deployment.getRollbackHistory)
+        return implement(deploymentContract.getRollbackHistory)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.deploymentService.getRollbackHistory(input.params.id);
             });
     }
 
-    @Implement(appContract.deployment.stream)
+    @Implement(deploymentContract.stream)
     stream() {
-        return implement(appContract.deployment.stream)
+        return implement(deploymentContract.stream)
             .use(requireAuth())
             .handler(({ input, context }) => {
                 return this.deploymentStreamOrchestratorService.openDeploymentStream({
@@ -215,11 +215,11 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.streamInternal)
+    @Implement(deploymentContract.streamInternal)
     streamInternal() {
         const deploymentService = this.deploymentService;
 
-        return implement(appContract.deployment.streamInternal)
+        return implement(deploymentContract.streamInternal)
             .use(requireMesh())
             .use(requireAuth())
             .handler(({ input }) => {
@@ -231,11 +231,11 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.streamService)
+    @Implement(deploymentContract.streamService)
     streamService() {
         const deploymentService = this.deploymentService;
 
-        return implement(appContract.deployment.streamService)
+        return implement(deploymentContract.streamService)
             .use(requireAuth())
             .handler(({ input }) => {
                 return deploymentService.streamServiceEvents({
@@ -246,11 +246,11 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.streamQuery)
+    @Implement(deploymentContract.streamQuery)
     streamQuery() {
         const deploymentService = this.deploymentService;
 
-        return implement(appContract.deployment.streamQuery)
+        return implement(deploymentContract.streamQuery)
             .use(requireAuth())
             .handler(({ input }) => {
                 return deploymentService.streamQueryEvents({
@@ -267,54 +267,54 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.streamsList)
+    @Implement(deploymentContract.streamsList)
     streamsList() {
-        return implement(appContract.deployment.streamsList)
+        return implement(deploymentContract.streamsList)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.deploymentService.listStreamDefinitions(input.query);
             });
     }
 
-    @Implement(appContract.deployment.streamFindById)
+    @Implement(deploymentContract.streamFindById)
     streamFindById() {
-        return implement(appContract.deployment.streamFindById)
+        return implement(deploymentContract.streamFindById)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.deploymentService.getStreamDefinitionById(input.params.id);
             });
     }
 
-    @Implement(appContract.deployment.getTemplateProvenance)
+    @Implement(deploymentContract.getTemplateProvenance)
     getTemplateProvenance() {
-        return implement(appContract.deployment.getTemplateProvenance)
+        return implement(deploymentContract.getTemplateProvenance)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.getTemplateProvenance(input.params.id);
             });
     }
 
-    @Implement(appContract.deployment.upsertTemplateProvenance)
+    @Implement(deploymentContract.upsertTemplateProvenance)
     upsertTemplateProvenance() {
-        return implement(appContract.deployment.upsertTemplateProvenance)
+        return implement(deploymentContract.upsertTemplateProvenance)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.upsertTemplateProvenance(input.params.id, input.body);
             });
     }
 
-    @Implement(appContract.deployment.getTemplateProvenanceByRun)
+    @Implement(deploymentContract.getTemplateProvenanceByRun)
     getTemplateProvenanceByRun() {
-        return implement(appContract.deployment.getTemplateProvenanceByRun)
+        return implement(deploymentContract.getTemplateProvenanceByRun)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.getTemplateProvenanceByRun(input.params.runId);
             });
     }
 
-    @Implement(appContract.deployment.createCompiledPlanSnapshot)
+    @Implement(deploymentContract.createCompiledPlanSnapshot)
     createCompiledPlanSnapshot() {
-        return implement(appContract.deployment.createCompiledPlanSnapshot)
+        return implement(deploymentContract.createCompiledPlanSnapshot)
             .use(authMiddleware())
             .use(requireAuth())
             .handler(({ input }) => {
@@ -322,63 +322,63 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.listCompiledPlanSnapshots)
+    @Implement(deploymentContract.listCompiledPlanSnapshots)
     listCompiledPlanSnapshots() {
-        return implement(appContract.deployment.listCompiledPlanSnapshots)
+        return implement(deploymentContract.listCompiledPlanSnapshots)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.listCompiledPlanSnapshots(input.params.id);
             });
     }
 
-    @Implement(appContract.deployment.getCompiledPlanSnapshot)
+    @Implement(deploymentContract.getCompiledPlanSnapshot)
     getCompiledPlanSnapshot() {
-        return implement(appContract.deployment.getCompiledPlanSnapshot)
+        return implement(deploymentContract.getCompiledPlanSnapshot)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.getCompiledPlanSnapshot(input.params.snapshotId);
             });
     }
 
-    @Implement(appContract.deployment.getCompiledPlanSnapshotByRun)
+    @Implement(deploymentContract.getCompiledPlanSnapshotByRun)
     getCompiledPlanSnapshotByRun() {
-        return implement(appContract.deployment.getCompiledPlanSnapshotByRun)
+        return implement(deploymentContract.getCompiledPlanSnapshotByRun)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.getCompiledPlanSnapshotByRun(input.params.runId);
             });
     }
 
-    @Implement(appContract.deployment.compilePlan)
+    @Implement(deploymentContract.compilePlan)
     compilePlan() {
-        return implement(appContract.deployment.compilePlan)
+        return implement(deploymentContract.compilePlan)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.compilePlan(input);
             });
     }
 
-    @Implement(appContract.deployment.compilePlanPreview)
+    @Implement(deploymentContract.compilePlanPreview)
     compilePlanPreview() {
-        return implement(appContract.deployment.compilePlanPreview)
+        return implement(deploymentContract.compilePlanPreview)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.compilePlan(input);
             });
     }
 
-    @Implement(appContract.deployment.compileRollbackEdges)
+    @Implement(deploymentContract.compileRollbackEdges)
     compileRollbackEdges() {
-        return implement(appContract.deployment.compileRollbackEdges)
+        return implement(deploymentContract.compileRollbackEdges)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.compileRollbackEdges(input);
             });
     }
 
-    @Implement(appContract.deployment.queueEnqueueJob)
+    @Implement(deploymentContract.queueEnqueueJob)
     queueEnqueueJob() {
-        return implement(appContract.deployment.queueEnqueueJob)
+        return implement(deploymentContract.queueEnqueueJob)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
@@ -386,9 +386,9 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.queueClaimJobs)
+    @Implement(deploymentContract.queueClaimJobs)
     queueClaimJobs() {
-        return implement(appContract.deployment.queueClaimJobs)
+        return implement(deploymentContract.queueClaimJobs)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
@@ -396,9 +396,9 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.queueHeartbeatJob)
+    @Implement(deploymentContract.queueHeartbeatJob)
     queueHeartbeatJob() {
-        return implement(appContract.deployment.queueHeartbeatJob)
+        return implement(deploymentContract.queueHeartbeatJob)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
@@ -406,9 +406,9 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.queueCompleteJob)
+    @Implement(deploymentContract.queueCompleteJob)
     queueCompleteJob() {
-        return implement(appContract.deployment.queueCompleteJob)
+        return implement(deploymentContract.queueCompleteJob)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
@@ -416,9 +416,9 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.queueFailJob)
+    @Implement(deploymentContract.queueFailJob)
     queueFailJob() {
-        return implement(appContract.deployment.queueFailJob)
+        return implement(deploymentContract.queueFailJob)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
@@ -426,45 +426,45 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.queueFindJobById)
+    @Implement(deploymentContract.queueFindJobById)
     queueFindJobById() {
-        return implement(appContract.deployment.queueFindJobById)
+        return implement(deploymentContract.queueFindJobById)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.findQueueJobById(input.params.jobId);
             });
     }
 
-    @Implement(appContract.deployment.queueListJobs)
+    @Implement(deploymentContract.queueListJobs)
     queueListJobs() {
-        return implement(appContract.deployment.queueListJobs)
+        return implement(deploymentContract.queueListJobs)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.listQueueJobs(input.query);
             });
     }
 
-    @Implement(appContract.deployment.queueListDeadLetterJobs)
+    @Implement(deploymentContract.queueListDeadLetterJobs)
     queueListDeadLetterJobs() {
-        return implement(appContract.deployment.queueListDeadLetterJobs)
+        return implement(deploymentContract.queueListDeadLetterJobs)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.listDeadLetterJobs(input.query);
             });
     }
 
-    @Implement(appContract.deployment.queueFindDeadLetterJobById)
+    @Implement(deploymentContract.queueFindDeadLetterJobById)
     queueFindDeadLetterJobById() {
-        return implement(appContract.deployment.queueFindDeadLetterJobById)
+        return implement(deploymentContract.queueFindDeadLetterJobById)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.findDeadLetterJobById(input.params.deadLetterJobId);
             });
     }
 
-    @Implement(appContract.deployment.queueReplayDeadLetterJob)
+    @Implement(deploymentContract.queueReplayDeadLetterJob)
     queueReplayDeadLetterJob() {
-        return implement(appContract.deployment.queueReplayDeadLetterJob)
+        return implement(deploymentContract.queueReplayDeadLetterJob)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
@@ -472,27 +472,27 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.listRetryPolicies)
+    @Implement(deploymentContract.listRetryPolicies)
     listRetryPolicies() {
-        return implement(appContract.deployment.listRetryPolicies)
+        return implement(deploymentContract.listRetryPolicies)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.listRetryPolicies(input.query);
             });
     }
 
-    @Implement(appContract.deployment.resolveRetryPolicy)
+    @Implement(deploymentContract.resolveRetryPolicy)
     resolveRetryPolicy() {
-        return implement(appContract.deployment.resolveRetryPolicy)
+        return implement(deploymentContract.resolveRetryPolicy)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.resolveRetryPolicy(input);
             });
     }
 
-    @Implement(appContract.deployment.cancelExecution)
+    @Implement(deploymentContract.cancelExecution)
     cancelExecution() {
-        return implement(appContract.deployment.cancelExecution)
+        return implement(deploymentContract.cancelExecution)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
@@ -500,9 +500,9 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.resumeExecution)
+    @Implement(deploymentContract.resumeExecution)
     resumeExecution() {
-        return implement(appContract.deployment.resumeExecution)
+        return implement(deploymentContract.resumeExecution)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
@@ -510,27 +510,27 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.getExecutionCheckpoint)
+    @Implement(deploymentContract.getExecutionCheckpoint)
     getExecutionCheckpoint() {
-        return implement(appContract.deployment.getExecutionCheckpoint)
+        return implement(deploymentContract.getExecutionCheckpoint)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.getExecutionCheckpoint(input.params.id);
             });
     }
 
-    @Implement(appContract.deployment.getExecutionCheckpointByRun)
+    @Implement(deploymentContract.getExecutionCheckpointByRun)
     getExecutionCheckpointByRun() {
-        return implement(appContract.deployment.getExecutionCheckpointByRun)
+        return implement(deploymentContract.getExecutionCheckpointByRun)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.getExecutionCheckpointByRun(input.params.runId);
             });
     }
 
-    @Implement(appContract.deployment.emitNodeLifecycleEvent)
+    @Implement(deploymentContract.emitNodeLifecycleEvent)
     emitNodeLifecycleEvent() {
-        return implement(appContract.deployment.emitNodeLifecycleEvent)
+        return implement(deploymentContract.emitNodeLifecycleEvent)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
@@ -538,18 +538,18 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.listNodeLifecycleEvents)
+    @Implement(deploymentContract.listNodeLifecycleEvents)
     listNodeLifecycleEvents() {
-        return implement(appContract.deployment.listNodeLifecycleEvents)
+        return implement(deploymentContract.listNodeLifecycleEvents)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.listNodeLifecycleEvents(input.params.runId, input.query);
             });
     }
 
-    @Implement(appContract.deployment.streamNodeLifecycleEvents)
+    @Implement(deploymentContract.streamNodeLifecycleEvents)
     streamNodeLifecycleEvents() {
-        return implement(appContract.deployment.streamNodeLifecycleEvents)
+        return implement(deploymentContract.streamNodeLifecycleEvents)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.streamNodeLifecycleEvents({
@@ -561,27 +561,27 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.listPhaseTransitions)
+    @Implement(deploymentContract.listPhaseTransitions)
     listPhaseTransitions() {
-        return implement(appContract.deployment.listPhaseTransitions)
+        return implement(deploymentContract.listPhaseTransitions)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.listPhaseTransitions(input.query ?? {});
             });
     }
 
-    @Implement(appContract.deployment.validatePhaseTransition)
+    @Implement(deploymentContract.validatePhaseTransition)
     validatePhaseTransition() {
-        return implement(appContract.deployment.validatePhaseTransition)
+        return implement(deploymentContract.validatePhaseTransition)
             .use(requireAuth())
             .handler(({ input }) => {
                 return this.deploymentService.validatePhaseTransition(input);
             });
     }
 
-    @Implement(appContract.deployment.applyPhaseTransition)
+    @Implement(deploymentContract.applyPhaseTransition)
     applyPhaseTransition() {
-        return implement(appContract.deployment.applyPhaseTransition)
+        return implement(deploymentContract.applyPhaseTransition)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(async ({ input }) => {
@@ -589,9 +589,9 @@ export class DeploymentController {
             });
     }
 
-    @Implement(appContract.deployment.delete)
+    @Implement(deploymentContract.delete)
     delete() {
-        return implement(appContract.deployment.delete)
+        return implement(deploymentContract.delete)
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 const actorPlatformRole = this.resolvePlatformRole(context);

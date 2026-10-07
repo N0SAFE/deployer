@@ -1094,7 +1094,7 @@ Two options:
 
 10. **Atomic changes.** When deleting `shared-context/`, update ALL imports in the same commit. No "we'll fix imports later."
 
-11. **Type-check before commit.** `bun --bun run api -- type-check` must pass. Pre-existing errors in `packages/utils/auth/` and `packages/contracts/api/` are known and can be ignored.
+11. **Type-check before commit.** `bun --bun run api -- type-check` must pass. Pre-existing errors in `packages/auth/` and `packages/contracts/api/` are known and can be ignored.
 
 ### 12.3 NestJS Rules
 

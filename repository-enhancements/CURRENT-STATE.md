@@ -58,7 +58,7 @@ All 19 packages pass type-checking (33.1s total):
 
 **Key Files:**
 - `apps/api/src/auth.ts` - Main auth configuration
-- `packages/utils/auth/` - Shared auth utilities
+- `packages/auth/` - Shared auth utilities
 - `apps/web/src/lib/auth/` - Client-side auth
 
 ### Permission System ✅
@@ -121,8 +121,8 @@ RouteBuilder.buildSafe() // For mutations with error handling
 ```
 
 **Key Files:**
-- `packages/utils/orpc/src/builder/route-builder.ts` (1423 lines)
-- `packages/utils/orpc/src/standard/standard-operations.ts` (1697 lines)
+- `packages/transport/orpc/src/builder/route-builder.ts` (1423 lines)
+- `packages/transport/orpc/src/standard/standard-operations.ts` (1697 lines)
 
 **Features:**
 - Type-safe contract creation
@@ -139,7 +139,7 @@ RouteBuilder.buildSafe() // For mutations with error handling
 - Automatic cache invalidation
 
 **Key File:**
-- `packages/utils/orpc/src/hooks/generate-hooks.ts` (999 lines)
+- `packages/transport/orpc/src/hooks/generate-hooks.ts` (999 lines)
 
 **Generated Hook Types:**
 - `useList()`, `useGet()`, `useById()` - Queries

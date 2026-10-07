@@ -5,7 +5,7 @@ import { spawn } from 'child_process'
 /**
  * Run generate and build commands sequentially
  * - Generate: bun generate (creates routes and OpenAPI docs)
- * - Build: node next build --turbopack (builds the Next.js app with Node.js for worker_threads support)
+ * - Build: next build --turbopack, under the Bun runtime (see build() below)
  */
 async function runCommand(
   command: string,
@@ -52,10 +52,18 @@ async function build(): Promise<void> {
     // First, generate routes and OpenAPI docs (skip next-sitemap, it needs the build manifest)
     await runCommand('bun', ['--bun', 'openapi'], 'Generate routes and OpenAPI docs')
 
-    // Then, build the Next.js app with Node.js (for worker_threads support)
+    // Then, build the Next.js app.
+    //
+    // This MUST run under Bun, not Node. Every `@repo/*` package emits CJS
+    // bundles produced by `bun build` (they open with a `// @bun @bun-cjs`
+    // marker and an IIFE wrapper that only Bun completes). Under Node,
+    // `require('@repo/env')` resolves to an empty object — so `next.config.ts`
+    // reads `envSchema.shape` off `undefined` and the build dies with
+    // `TypeError: Cannot read properties of undefined (reading 'shape')`.
+    // `bun --bun` forces the Bun runtime for this process.
     await runCommand(
-      'node',
-      ['--no-warnings', './node_modules/.bin/next', 'build', '--turbopack'],
+      'bun',
+      ['--bun', 'run', 'next', 'build', '--turbopack'],
       'Build Next.js application',
     )
 

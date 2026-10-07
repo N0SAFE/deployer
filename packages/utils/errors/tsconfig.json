@@ -1,14 +1,14 @@
 {
-  "$schema": "https://json.schemastore.org/tsconfig",
-  "extends": "../../configs/typescript/config/base.json",
-  "include": [
-    "src/**/*"
-  ],
-  "compilerOptions": {
-    "paths": {
-      "@repo/errors/*": [
-        "./src/*"
-      ]
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "extends": "../../../tooling/typescript/config/base.json",
+    "include": [
+        "src/**/*"
+    ],
+    "compilerOptions": {
+        "paths": {
+            "@repo/errors/*": [
+                "./src/*"
+            ]
+        }
     }
-  }
 }

@@ -37,7 +37,7 @@ All services read from the same `.env` at the Compose project root. Docker Compo
 ```
 deployer/v3/
 ├── .env                          ← single source of truth for ports
-├── docker/compose/
+├── infra/infra/docker/compose/
 │   ├── api/docker-compose.api.dev.yml
 │   ├── web/docker-compose.web.dev.yml
 │   ├── traefik/docker-compose.traefik.dev.yml   (when added)
@@ -51,7 +51,7 @@ deployer/v3/
 API_PORT=3005
 WEB_PORT=3000
 
-# docker/compose/api/docker-compose.api.dev.yml
+# infra/infra/docker/compose/api/docker-compose.api.dev.yml
 services:
   api-dev:
     ports:
@@ -60,7 +60,7 @@ services:
       - API_PORT=${API_PORT:-3005}
       - API_URL=http://api-dev:${API_PORT:-3005}   # ← uses API_PORT here too
 
-# docker/compose/web/docker-compose.web.dev.yml
+# infra/infra/docker/compose/web/docker-compose.web.dev.yml
 services:
   web-dev:
     ports:
@@ -111,7 +111,7 @@ Variables like `MESH_API_PORT_1` through `MESH_API_PORT_6` allow overriding indi
 Traefik must know the LB port and API port to route traffic correctly. These are passed via environment variables or a mounted config file generated at startup.
 
 ```yaml
-# docker/compose/traefik/docker-compose.traefik.dev.yml  (planned)
+# infra/infra/docker/compose/traefik/docker-compose.traefik.dev.yml  (planned)
 services:
   traefik:
     ports:

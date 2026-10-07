@@ -39,8 +39,8 @@ description: "Process: documentation protocol, git workflow, change order & vali
 | Doc app | `apps/doc/AGENTS.md` | Any `apps/doc/**` change |
 | UI lib | `packages/ui/base/AGENTS.md` | Any `packages/ui/**` change |
 | Contracts | `packages/contracts/api/AGENTS.md` | Any contract change |
-| Utils auth | `packages/utils/auth/AGENTS.md` | Any auth-related change |
-| Docker builder | `docker/builder/AGENTS.md` | Any Dockerfile change |
+| Utils auth | `packages/auth/AGENTS.md` | Any auth-related change |
+| Docker builder | `infra/infra/docker/builder/AGENTS.md` | Any Dockerfile change |
 
 **Rule**: If a local `AGENTS.md` contradicts root, **the local one wins** for that scope.
 

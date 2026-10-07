@@ -1,0 +1,101 @@
+# syntax=docker/dockerfile:1-labs
+# Development Dockerfile for one-shot API CLI jobs (migrate/seed/reset)
+# Multi-stage build optimized for cache reuse and fast startup:
+# base -> pruner-json -> pruner-full -> installer -> runner
+#
+# The pruner is split in two stages: pruner-json handles only manifests
+# (super-stable cache) and pruner-full bind-mounts sources to produce out/full/.
+
+FROM oven/bun:1.4.2-alpine AS base
+
+RUN apk add --no-cache curl wget bash git python3 make g++ tar libc6-compat
+COPY --from=node:22-alpine /usr/local /usr/local
+RUN ln -sf /usr/local/bin/node /usr/bin/node && \
+    ln -sf /usr/local/bin/npm /usr/bin/npm && \
+    ln -sf /usr/local/bin/npx /usr/bin/npx
+
+RUN --mount=type=cache,target=/root/.bun,sharing=locked bun install -g turbo@^2 @nestjs/cli node-gyp
+WORKDIR /app
+
+# Stage 2a: pruner-json — manifests only (very stable cache)
+FROM base AS pruner-json
+WORKDIR /app
+COPY turbo.json package.json ./
+COPY bun.lock* ./
+COPY --parents **/package.json ./
+RUN --mount=type=cache,target=/root/.bun,sharing=locked \
+    bun x turbo prune api --docker
+
+# Stage 2b: pruner-full — bind-mount sources, re-run turbo prune
+FROM base AS pruner-full
+WORKDIR /app
+COPY --from=pruner-json /app/out/json/ ./
+RUN --mount=type=bind,target=/src \
+    --mount=type=cache,target=/root/.bun,sharing=locked \
+    cp /src/turbo.json . && \
+    cp /src/bun.lock* . 2>/dev/null || true ; \
+    tar -C /src -cf - apps packages tooling 2>/dev/null | tar -xf - 2>/dev/null || true ; \
+    bun x turbo prune api --docker
+
+FROM base AS installer
+WORKDIR /app
+# The pruned manifests (out/json/). They arrive with prune's OWN rewritten
+# bun.lock, which is replaced immediately below — see why there.
+COPY --from=pruner-json /app/out/json/ .
+
+# ── ORIGINAL LOCKFILE, NOT THE PRUNED ONE ─────────────────────────────────
+# `turbo prune` rewrites bun.lock and HOISTS packages that were nested, losing
+# their resolutions. Measured on `api`: it hoists `log-symbols@4.1.0` to a bare
+# entry but drops the `is-unicode-supported@^0.1.0` it needs, so that resolves
+# to the ESM-only 2.1.0 while `log-symbols` is CJS. The build then dies with:
+#
+#   TypeError: isUnicodeSupported is not a function.
+#   (In 'isUnicodeSupported()', 'isUnicodeSupported' is an instance of Module)
+#
+# The ORIGINAL lockfile keeps the correct tree and `bun ci` accepts it against
+# the pruned manifests (verified). turborepo#10783 / #11074 class of corruption.
+# NOT a `|| bun install` fallback: `bun ci` SUCCEEDS on the corrupt file, so the
+# fallback never fires and the wrong tree installs silently.
+COPY --from=pruner-full /app/bun.lock ./bun.lock
+
+RUN --mount=type=cache,target=/root/.bun,sharing=locked \
+    --mount=type=cache,target=/root/.cache,sharing=locked \
+    bun ci
+
+# Stage 4: Runner - one-shot migration/seed/reset CLI
+FROM base AS runner
+WORKDIR /app
+ENV NODE_ENV=development
+
+# Pruned source from pruner-full (out/full/) — contains the pruned bun.lock
+# at the root, consistent with the pruned package.json.
+COPY --from=pruner-full /app/out/full/ .
+# Copy the pruned bun.lock (from out/json/) so turbo can parse workspace
+# info. out/full/ doesn't include a bun.lock at the root.
+COPY --from=pruner-full /app/bun.lock ./bun.lock
+
+# Copy node_modules from installer — single-tar pattern
+# (one tar -cf and one tar -xf, no find/subshell loops, excludes *.map/.cache/.turbo)
+#
+# IMPORTANT: `cd /mnt/installer` MUST happen BEFORE the globs are expanded.
+# The globs `apps/*/node_modules` etc. are expanded by the shell relative to
+# the current working directory. If they run from /app (the runner's dir), they
+# only match node_modules dirs that already exist in the pruned source — and
+# apps/<app>/node_modules is NOT part of the source, so it would be silently
+# skipped and never copied, breaking module resolution at runtime.
+RUN --mount=type=bind,from=installer,source=/app,target=/mnt/installer \
+    cd /mnt/installer && \
+    PATHS="node_modules"; \
+    for d in apps/*/node_modules packages/*/node_modules packages/*/*/node_modules tooling/*/node_modules tooling/*/*/node_modules; do \
+        [ -d "$d" ] && PATHS="$PATHS $d"; \
+    done; \
+    # `done;` and NOT `done &&`: the loop's exit status is the status of the
+    # LAST command in it, so an unmatched final glob (e.g. no nested tooling
+    # workspace installed) would return non-zero and the `&&` would skip the
+    # tar below entirely — failing the build for a MISSING optional glob.
+    \
+    tar -cf - --exclude='*.map' --exclude='.cache' --exclude='.turbo' $PATHS | \
+    tar -xf - -C /app --owner=root --group=root
+
+# One-shot migration command (container exits after completion)
+CMD ["sh", "-c", "cd apps/api && bun x dotenv -e .env -- bun run db:migrate"]

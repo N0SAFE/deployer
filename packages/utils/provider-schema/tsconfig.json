@@ -1,22 +1,22 @@
 {
-  "extends": "../../configs/typescript/config/react-library.json",
-  "compilerOptions": {
-    "outDir": "dist",
-    "declaration": true,
-    "declarationMap": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "moduleResolution": "bundler",
-    "types": [
-      "vitest/globals"
-    ],
-    "paths": {
-      "@repo/provider-schema/*": [
-        "./src/*"
-      ]
-    }
-  },
-  "include": [
-    "src/**/*"
-  ]
+    "extends": "../../../tooling/typescript/config/react-library.json",
+    "compilerOptions": {
+        "outDir": "dist",
+        "declaration": true,
+        "declarationMap": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "moduleResolution": "bundler",
+        "types": [
+            "vitest/globals"
+        ],
+        "paths": {
+            "@repo/provider-schema/*": [
+                "./src/*"
+            ]
+        }
+    },
+    "include": [
+        "src/**/*"
+    ]
 }

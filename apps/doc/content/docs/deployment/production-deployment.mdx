@@ -10,7 +10,7 @@ order: 20
 
 This repository still contains compose-based production and prod-like files for local and transitional workflows.
 
-Primary compose sets live under `docker/compose/`:
+Primary compose sets live under `infra/infra/docker/compose/`:
 
 - Full stack: `docker-compose.prod.yml`
 - Prod-like local workflow: `docker-compose.prod-like.yml`
@@ -81,7 +81,7 @@ Upgrading the image is the only fix. Verified against this engine:
 
 Both ingress images therefore default to ≥ 3.6: `DEPLOYER_TRAEFIK_IMAGE` (the
 API-supervised ingress) and `MANAGED_TRAEFIK_IMAGE` (operator-managed ingress),
-set in `packages/utils/env/src/index.ts` and the compose files. Pin them
+set in `packages/config/env/src/index.ts` and the compose files. Pin them
 explicitly if you supply your own ingress image.
 
 ## Recommended release sequence

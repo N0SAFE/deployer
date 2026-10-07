@@ -107,8 +107,8 @@ flowchart LR
 - 3 auth layers identified (1 active, 2 dead)
 - API internal auth: 38 files, 8 specs ✅ KEEP
 - `packages/nest/auth/`: 39 files, 0 importers 💀 DELETE
-- `packages/utils/auth/permissions/builder/`: 16 files 💀 DELETE
-- `packages/utils/auth/permissions/engine/`: 12 files ✅ KEEP
+- `packages/auth/permissions/builder/`: 16 files 💀 DELETE
+- `packages/auth/permissions/engine/`: 12 files ✅ KEEP
 - Web components: 3 active + 2 duplicate dead
 - Web lib: 3 active + 3 dead
 - **Total 60 files to delete across 4 areas**

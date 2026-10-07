@@ -474,7 +474,7 @@ bun run api -- type-check
 
 ```bash
 bun run test:e2e:api:docker
-# → docker compose -f ./docker/compose/api/docker-compose.api.e2e.yml up --build --abort-on-container-exit
+# → docker compose -f ./infra/docker/compose/api/docker-compose.api.e2e.yml up --build --abort-on-container-exit
 ```
 
 This provisions a container with Docker socket access (for Testcontainers) and runs `bun run test:e2e` inside it.

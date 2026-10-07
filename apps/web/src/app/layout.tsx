@@ -1,16 +1,15 @@
 // import { Monitoring } from 'react-scan/monitoring/next'
 import '@repo/ui/styles/globals.css'
-import 'leaflet/dist/leaflet.css'
-import 'leaflet-draw/dist/leaflet.draw.css'
-import 'leaflet.fullscreen/dist/Control.FullScreen.css'
-import 'leaflet.markercluster/dist/MarkerCluster.css'
-import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
+// No map CSS here: the mapcn map component imports
+// `maplibre-gl/dist/maplibre-gl.css` itself, so every consumer of `<Map>` loads
+// exactly the styles it needs. The leaflet stylesheets that used to live here
+// belonged to the leaflet-based map this replaced.
 // Configure server auth for declarative routing SessionPage wrappers
 // This must be imported before any SessionPage is used
 import '@/routes/configure-auth'
 import type { Metadata } from 'next'
-import { Inter, Geist, Space_Grotesk, JetBrains_Mono } from 'next/font/google'
-import { Suspense, type JSX } from 'react'
+import { Geist, Space_Grotesk, JetBrains_Mono } from 'next/font/google'
+import { type JSX } from 'react'
 import { cn } from '@repo/ui/lib/utils'
 import ThemeProvider from '@repo/ui/components/theme-provider'
 import ReactQueryProviders from '@/utils/providers/ReactQueryProviders'
@@ -20,7 +19,8 @@ import Script from 'next/script'
 import { validateEnvSafe } from '#/env'
 import { Toaster } from '@repo/ui/components/shadcn/sonner'
 import { PostSetupHints } from '@/components/setup/post-setup-hints'
-import { NuqsAdapter } from 'nuqs/adapters/next/app'
+import { NuqsAdapter } from '@/utils/providers/NuqsProvider'
+import { TanStackDevTools } from '@/components/devtools/TanStackDevTools'
 
 // Font stack — the fleet console's typographic identity:
 //   - Geist (--font-sans): neutral UI body at high density.
@@ -114,17 +114,25 @@ export default function RootLayout({
                         disableTransitionOnChange
                     >
                         <NextTopLoader />
-                        {/* NuqsAdapter is the documented root-layout integration
-                            (nuqs.dev/docs/adapters). It works during SSR/prerender:
-                            its internal NavigationSpy is already wrapped in Suspense
-                            by the adapter itself. Consumers of nuqs state that need
-                            URL data on dynamic routes must have a Suspense boundary
-                            above them — handled per-route, not here. */}
+                        {/* NuqsAdapter here is this app's own adapter
+                            (`@/utils/providers/NuqsProvider`), not
+                            `nuqs/adapters/next/app`. The stock adapter reads
+                            `usePathname()` while rendering its provider, which
+                            sits above every route boundary and made Next.js
+                            report `CLIENT_HOOK_DYNAMIC` on each dynamic-param
+                            route during prerender. The custom adapter drops
+                            that one read; everything else (SSR query state,
+                            shallow vs non-shallow updates, back/forward) is
+                            unchanged. See the adapter file for the full
+                            rationale. */}
                         <NuqsAdapter>
                             <ReactQueryProviders>
                                 {children}
                                 <Toaster richColors closeButton position="top-right" />
                                 <PostSetupHints />
+                                {/* DevTools — self-gated to development (returns null in
+                                    production unless showInProduction is passed). */}
+                                <TanStackDevTools />
                             </ReactQueryProviders>
                         </NuqsAdapter>
                     </ThemeProvider>

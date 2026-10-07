@@ -4,7 +4,7 @@ import { existsSync } from 'fs'
 import { join } from 'path'
 import { spawnSync } from 'child_process'
 
-const LOCAL_CLI_PKG_DIR = join(process.cwd(), '../../packages/bin/declarative-routing')
+const LOCAL_CLI_PKG_DIR = join(process.cwd(), '../../tooling/bin-declarative-routing')
 const LOCAL_CLI_DIST_ENTRY = join(LOCAL_CLI_PKG_DIR, 'dist/index.js')
 
 function run(): void {

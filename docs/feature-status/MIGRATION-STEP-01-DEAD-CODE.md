@@ -226,21 +226,21 @@ rm -rf packages/nest/auth
 # Remove from root package.json workspace if listed
 ```
 
-### 1.3.2 `packages/utils/auth/src/permissions/system/builder/` — 🟢 SAFE DELETE
+### 1.3.2 `packages/auth/src/permissions/system/builder/` — 🟢 SAFE DELETE
 
 **Files (15):**
-- `packages/utils/auth/src/permissions/system/builder/builder.ts`
-- `packages/utils/auth/src/permissions/system/builder/schemas.ts`
-- `packages/utils/auth/src/permissions/system/builder/base-config.ts`
-- `packages/utils/auth/src/permissions/system/builder/roles/*` (3 files)
-- `packages/utils/auth/src/permissions/system/builder/statements/*` (4 files)
+- `packages/auth/src/permissions/system/builder/builder.ts`
+- `packages/auth/src/permissions/system/builder/schemas.ts`
+- `packages/auth/src/permissions/system/builder/base-config.ts`
+- `packages/auth/src/permissions/system/builder/roles/*` (3 files)
+- `packages/auth/src/permissions/system/builder/statements/*` (4 files)
 - Plus index files
 
 **Verification (confirmed):** Zero external importers. Only self-references within builder directory. Superseded by `permissions/engine/`.
 
 **Steps:**
 ```bash
-rm -rf packages/utils/auth/src/permissions/system
+rm -rf packages/auth/src/permissions/system
 ```
 
 ### 1.3.3 `packages/poc/core-sync-system/` — 🟢 SAFE DELETE
@@ -256,11 +256,11 @@ rm -rf packages/poc/core-sync-system
 rmdir packages/poc  # if empty
 ```
 
-### 1.3.4 `packages/utils/orpc/src/query/` — 🟡 CHECK FIRST
+### 1.3.4 `packages/transport/orpc/src/query/` — 🟡 CHECK FIRST
 
 These were flagged as unused by Knip but may be planned for future use. Check:
 ```bash
-grep -rn "filtering\|pagination\|query-builder\|search\|sorting" packages/utils/orpc/src/ --include="*.ts" | grep "export\|import"
+grep -rn "filtering\|pagination\|query-builder\|search\|sorting" packages/transport/orpc/src/ --include="*.ts" | grep "export\|import"
 ```
 
 **Decision:** If zero exports are imported externally, they're safe to delete. If they're internal utilities used by the orpc package itself, KEEP.

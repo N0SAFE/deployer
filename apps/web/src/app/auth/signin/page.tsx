@@ -19,14 +19,30 @@ import { useForm } from '@tanstack/react-form'
 import React, { Suspense } from 'react'
 import redirect from '@/actions/redirect'
 import { AlertCircle, Spinner } from '@repo/ui/components/atomics/atoms/Icon'
+import { Badge } from '@repo/ui/components/shadcn/badge'
 import { loginSchema } from './schema'
-import { AuthSignin, AuthSignup } from '@/routes'
-import { Shield } from 'lucide-react'
+import { AuthSignup } from '@/routes'
+import { Fingerprint, Shield } from 'lucide-react'
 import { authClient } from '@/lib/auth'
 import { PageTimingLogger } from '@/lib/timing'
 import { useSetupState } from '@/domains/setup/hooks'
 import { setupDestinationUrl } from '@/lib/setup-url'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
+
+/**
+ * Read one query parameter without a suspending hook.
+ *
+ * `useSearchParams()` suspends during a client prerender, which is what pushed
+ * this page's content out of its static shell. `window.location.search` holds
+ * the same value once mounted, and is read lazily — inside an effect or an event
+ * handler — so no render-time URL-data read remains on the page.
+ *
+ * Returns `undefined` during SSR, and the real value after the first effect.
+ */
+function readUrlSearchParam(key: string): string | undefined {
+    if (typeof window === 'undefined') return undefined
+    return new URLSearchParams(window.location.search).get(key) ?? undefined
+}
 
 /**
  * Resolve the post-sign-in destination at SUBMIT time.
@@ -37,9 +53,11 @@ import { useRouter, useSearchParams } from 'next/navigation'
  * Same fallback chain as before: redirectTo ?? callbackUrl ?? '/'.
  */
 function getPostSignInTarget(): string {
-    if (typeof window === 'undefined') return '/'
-    const params = new URLSearchParams(window.location.search)
-    return params.get('redirectTo') ?? params.get('callbackUrl') ?? '/'
+    return (
+        readUrlSearchParam('redirectTo') ??
+        readUrlSearchParam('callbackUrl') ??
+        '/'
+    )
 }
 
 /**
@@ -53,7 +71,6 @@ function getPostSignInTarget(): string {
  */
 function SetupGate() {
     const router = useRouter()
-    const searchParams = useSearchParams()
     const { data: setupStatus } = useSetupState()
 
     React.useEffect(() => {
@@ -64,12 +81,12 @@ function SetupGate() {
             router.replace(
                 setupDestinationUrl({
                     redirectTo:
-                        searchParams.get('redirectTo') ??
-                        searchParams.get('callbackUrl'),
+                        readUrlSearchParam('redirectTo') ??
+                        readUrlSearchParam('callbackUrl'),
                 })
             )
         }
-    }, [setupStatus, router, searchParams])
+    }, [setupStatus, router])
 
     if (!setupStatus?.needsSetup) return null
 
@@ -83,19 +100,51 @@ function SetupGate() {
 }
 
 /**
- * SignUpLink — deferred leaf forwarding ?redirectTo/?callbackUrl to sign-up.
+ * The raw query string, read safely during SSR and hydration.
  *
- * The link href depends on searchParams (URL data) which suspends during
- * prerendering. Isolated behind its own boundary; the fallback mirrors the
- * link's size so layout doesn't shift when it resolves.
+ * `useSyncExternalStore` is the React-sanctioned way to read a browser-only
+ * value: `getServerSnapshot` returns `''` for the server render and for
+ * hydration, then React re-renders with the live `location.search`. That avoids
+ * both a hydration mismatch and the setState-inside-an-effect pattern (which the
+ * React Compiler lint rule rejects).
+ *
+ * No subscription is needed — the URL only changes on navigation, which
+ * remounts this subtree.
+ */
+/** Stable no-op: the URL only changes on navigation, which remounts this subtree. */
+function subscribeToNothing(): () => void {
+    return noop
+}
+
+function noop(): void {
+    // Intentionally empty — there is nothing to unsubscribe from.
+}
+
+function useUrlSearchString(): string {
+    return React.useSyncExternalStore(
+        subscribeToNothing,
+        () => window.location.search,
+        () => '',
+    )
+}
+
+/**
+ * SignUpLink — forwards ?redirectTo/?callbackUrl to the sign-up link.
+ *
+ * Reads the query string via `useUrlSearchString()` rather than
+ * `useSearchParams()`, which would suspend the page during prerendering and
+ * empty its static shell. The link is a convenience affordance, so resolving it
+ * after hydration is preferable to withholding the whole form.
  */
 function SignUpLink() {
-    const searchParams = useSearchParams()
+    const search = useUrlSearchString()
+    const params = React.useMemo(() => new URLSearchParams(search), [search])
+
     return (
         <AuthSignup.Link
             search={{
-                redirectTo: searchParams.get('redirectTo') ?? undefined,
-                callbackUrl: searchParams.get('callbackUrl') ?? undefined,
+                redirectTo: params.get('redirectTo') ?? undefined,
+                callbackUrl: params.get('callbackUrl') ?? undefined,
             }}
             className="text-primary hover:underline"
         >
@@ -104,20 +153,122 @@ function SignUpLink() {
     )
 }
 
-function SignUpLinkFallback() {
+/**
+ * "Last used" badge, driven by the Last Login Method plugin.
+ *
+ * Reads from the plugin's client helper, which stores the method in a cookie —
+ * so this is a cheap synchronous read with no request. Rendered as a leaf so it
+ * can be dropped next to any sign-in option without threading state.
+ */
+function LastUsedBadge({ method }: { method: string }) {
+    const [isLast, setIsLast] = React.useState(false)
+
+    // Read after mount only: the helper touches `document.cookie`, so reading
+    // during render would diverge between server and client HTML.
+    React.useEffect(() => {
+        try {
+            setIsLast(authClient.isLastUsedLoginMethod(method))
+        } catch {
+            // The helper is absent when the plugin is not registered; a missing
+            // hint is not worth surfacing.
+            setIsLast(false)
+        }
+    }, [method])
+
+    if (!isLast) return null
+
     return (
-        <span className="text-muted-foreground animate-pulse">Create one here</span>
+        <Badge variant="secondary" className="ml-2 text-[10px] font-normal">
+            last used
+        </Badge>
+    )
+}
+
+/**
+ * Passkey sign-in.
+ *
+ * Uses `autoFill` so the browser can satisfy the request from a credential the
+ * user already picked in the autofill UI; when it cannot, the explicit
+ * `signIn.passkey()` call opens the platform prompt.
+ *
+ * Only renders when the passkey client plugin is registered, so a deployment
+ * without it does not show a button that cannot work.
+ */
+function PasskeySignInButton() {
+    const hasPasskeyPlugin =
+        typeof (authClient as { passkey?: unknown }).passkey !== 'undefined'
+    const [busy, setBusy] = React.useState(false)
+    const [error, setError] = React.useState<string | null>(null)
+
+    if (!hasPasskeyPlugin) return null
+
+    const handleClick = async () => {
+        setBusy(true)
+        setError(null)
+        try {
+            const result = await authClient.signIn.passkey({ autoFill: false })
+
+            if (result?.error) {
+                // A cancelled prompt is the common case and needs no alarm —
+                // the browser already told the user what happened.
+                const message = result.error.message ?? 'Passkey sign-in failed'
+                if (!/cancel|abort|not allowed/i.test(message)) {
+                    setError(message)
+                }
+                return
+            }
+
+            // Full reload, not a client-side push: the session cookie changed,
+            // so every cached user-scoped value is stale.
+            window.location.href = getPostSignInTarget()
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Passkey sign-in failed'
+            if (!/cancel|abort|not allowed/i.test(message)) {
+                setError(message)
+            }
+        } finally {
+            setBusy(false)
+        }
+    }
+
+    return (
+        <div className="space-y-2">
+            <Button
+                type="button"
+                variant="outline"
+                className="h-12 w-full text-base"
+                disabled={busy}
+                onClick={() => void handleClick()}
+            >
+                {busy ? <Spinner /> : <Fingerprint className="h-4 w-4" />}
+                <span className="ml-2">Sign in with a passkey</span>
+                <LastUsedBadge method="passkey" />
+            </Button>
+            {error && (
+                <p role="alert" className="text-destructive text-sm font-medium">
+                    {error}
+                </p>
+            )}
+        </div>
     )
 }
 
 /**
  * Sign In page.
  *
- * The whole form renders in the static shell — no render-time URL-data reads
- * above it. The two pieces that need search params (setup gate, sign-up link)
- * are isolated in small Suspense-wrapped leaves below the form.
+ * Exported as a PLAIN component rather than `AuthSignin.Route(...)`.
+ *
+ * `Route` wraps the page in `createPage`, which does `await props.searchParams`
+ * before rendering. On a route with no dynamic segments that await is pure
+ * overhead, and with Cache Components it is a request-time read: the whole page
+ * ends up inside a single Suspense hole, so `signin.html` shipped as an empty
+ * shell (no form, no heading) and hydration had to fill in everything.
+ *
+ * Returning the component directly keeps the form in the static shell. The two
+ * places that genuinely need the query string (setup gate, sign-up link) read
+ * it without a suspending hook — see `readUrlSearchParam` above.
  */
-export default AuthSignin.Route(function SignInPage({ searchParams }) {
+export default function SignInPage() {
     // ─── Hooks (must always be called in the same order — no early return before) ───
     const [authError, setAuthError] = React.useState<string | null>(null)
 
@@ -267,10 +418,16 @@ export default AuthSignin.Route(function SignInPage({ searchParams }) {
                                         >
                                             {isSubmitting && <Spinner />}
                                             Sign In with Email
+                                            <LastUsedBadge method="email" />
                                         </Button>
                                     )}
                                 </form.Subscribe>
                             </div>
+
+                            {/* Passkey sign-in. Rendered as an alternative rather than
+                                the default: a user without an enrolled passkey would
+                                otherwise meet a button that only shows a browser error. */}
+                            <PasskeySignInButton />
 
                             <div className="relative">
                                 <div className="absolute inset-0 flex items-center">
@@ -303,9 +460,7 @@ export default AuthSignin.Route(function SignInPage({ searchParams }) {
                 <div className="text-muted-foreground text-center text-sm">
                     <p>
                         Don&apos;t have an account?{' '}
-                        <Suspense fallback={<SignUpLinkFallback />}>
-                            <SignUpLink />
-                        </Suspense>
+                        <SignUpLink />
                     </p>
                 </div>
 
@@ -315,4 +470,3 @@ export default AuthSignin.Route(function SignInPage({ searchParams }) {
         </div>
     )
 }
-)

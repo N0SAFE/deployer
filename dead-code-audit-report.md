@@ -126,7 +126,7 @@ Nearly all of `packages/nest/auth/src/` is flagged unused:
 
 **Hypothesis:** The API re-implemented auth internally in `apps/api/src/core/modules/auth/`, making the shared `packages/nest/auth/` package orphaned.
 
-### 1.8 Packages — `packages/utils/auth/src/permissions/` (15+ files)
+### 1.8 Packages — `packages/auth/src/permissions/` (15+ files)
 
 The entire `permissions/system/builder/` directory is unused:
 - `roles/*`, `statements/*`, `schemas.ts`, `base-config.ts`
@@ -138,14 +138,14 @@ The entire `permissions/system/builder/` directory is unused:
 
 | File | Issue |
 |---|---|
-| `packages/utils/orpc/src/observable/*` (2 files) | Unused |
-| `packages/utils/orpc/src/operations/base/index.ts` | Unused barrel |
-| `packages/utils/orpc/src/operations/zod/usage/entity.ts`, `standard.ts` | Unused |
-| `packages/utils/orpc/src/query/*` (4 files: filtering, pagination, query-builder, search, sorting) | All unused |
-| `packages/utils/orpc/src/standard/base/*` (2 files) | Unused |
-| `packages/utils/orpc/src/standard/zod/utils/*` | Unused barrel |
-| `packages/utils/orpc/src/utils/*` (2 files) | Unused barrels |
-| `packages/utils/orpc/src/hooks/index.ts` | Has unresolved import `../shared/route-method-meta` |
+| `packages/transport/orpc/src/observable/*` (2 files) | Unused |
+| `packages/transport/orpc/src/operations/base/index.ts` | Unused barrel |
+| `packages/transport/orpc/src/operations/zod/usage/entity.ts`, `standard.ts` | Unused |
+| `packages/transport/orpc/src/query/*` (4 files: filtering, pagination, query-builder, search, sorting) | All unused |
+| `packages/transport/orpc/src/standard/base/*` (2 files) | Unused |
+| `packages/transport/orpc/src/standard/zod/utils/*` | Unused barrel |
+| `packages/transport/orpc/src/utils/*` (2 files) | Unused barrels |
+| `packages/transport/orpc/src/hooks/index.ts` | Has unresolved import `../shared/route-method-meta` |
 
 ### 1.10 `reference/` Directory
 
@@ -153,7 +153,7 @@ The entire `reference/in-progress-setup-form/` (20+ files) is unused — it's a 
 
 ### 1.11 Config Packages — Prettier
 
-`packages/configs/prettier/src/base.ts` and `tailwind.ts` are unused — the root `prettier.config.ts` is present instead.
+`tooling/prettier/src/base.ts` and `tailwind.ts` are unused — the root `prettier.config.ts` is present instead.
 
 ### 1.12 Root Level
 
@@ -188,14 +188,14 @@ The entire `reference/in-progress-setup-form/` (20+ files) is unused — it's a 
 | `packages/nest/auth/src/auth.module.ts:196` | String-based forRoot | Object-based signature |
 | `packages/nest/auth/src/decorators/decorators.ts:26` | Old decorator | `AllowAnonymous()` |
 | `packages/nest/auth/src/decorators/decorators.ts:31` | Old decorator | `OptionalAuth()` |
-| `packages/utils/orpc/src/hooks/core/operation-detection.ts:65` | `detectOperationType` | with procedure object |
-| `packages/utils/orpc/src/builder/core/route-builder.ts:266` | `DetailedBrand` | `DetailedInputBrand` |
-| `packages/utils/orpc/src/builder/core/route-builder.ts:271` | `Detailed` | `DetailedInput` |
-| `packages/utils/orpc/src/builder/core/route-builder.ts:281` | Old type | `IsDetailedInput` |
-| `packages/utils/orpc/src/builder/core/route-builder.ts:286` | Old type | `RemoveDetailedInputBrand` |
-| `packages/utils/orpc/src/query/sorting.ts:25` | Symbol access | Direct symbol access |
-| `packages/utils/orpc/src/observable/tanstack-query.ts:91` | Old type | `ObservablePipeTransform` |
-| `packages/utils/auth/src/client/plugins/index.ts:191` | `useInviteClient` | newer version |
+| `packages/transport/orpc/src/hooks/core/operation-detection.ts:65` | `detectOperationType` | with procedure object |
+| `packages/transport/orpc/src/builder/core/route-builder.ts:266` | `DetailedBrand` | `DetailedInputBrand` |
+| `packages/transport/orpc/src/builder/core/route-builder.ts:271` | `Detailed` | `DetailedInput` |
+| `packages/transport/orpc/src/builder/core/route-builder.ts:281` | Old type | `IsDetailedInput` |
+| `packages/transport/orpc/src/builder/core/route-builder.ts:286` | Old type | `RemoveDetailedInputBrand` |
+| `packages/transport/orpc/src/query/sorting.ts:25` | Symbol access | Direct symbol access |
+| `packages/transport/orpc/src/observable/tanstack-query.ts:91` | Old type | `ObservablePipeTransform` |
+| `packages/auth/src/client/plugins/index.ts:191` | `useInviteClient` | newer version |
 | `packages/utils/type-guards/src/index.ts:80` | `isRecord` | `isRecord` — arrays are not records |
 
 ---
@@ -230,7 +230,7 @@ Heaviest concentrations:
 
 ### 3.3 Unresolved Import
 
-`packages/utils/orpc/src/hooks/index.ts:54:8` — `../shared/route-method-meta` — unresolved import path.
+`packages/transport/orpc/src/hooks/index.ts:54:8` — `../shared/route-method-meta` — unresolved import path.
 
 ---
 
@@ -251,8 +251,8 @@ Heaviest concentrations:
 | `apps/api/src/core/modules/auth/orpc/middlewares.ts:33` | Replace with proper DI (Phase 2) |
 | `apps/api/src/core/modules/domain/services/domain-verification.service.ts:2` | Install @nestjs/schedule |
 | `apps/api/src/core/modules/domain/services/domain-verification.service.ts:241` | Uncomment @Cron decorator |
-| `packages/utils/auth/src/permissions/engine/permission-engine.ts:226` | FK-chain subquery (Phase B.2) |
-| `packages/utils/auth/src/permissions/engine/permission-engine.ts:368` | FK-chain subquery (Phase B.2) |
+| `packages/auth/src/permissions/engine/permission-engine.ts:226` | FK-chain subquery (Phase B.2) |
+| `packages/auth/src/permissions/engine/permission-engine.ts:368` | FK-chain subquery (Phase B.2) |
 
 ### 4.2 `console.log` Bypassing Logger (40+ occurrences)
 
@@ -306,7 +306,7 @@ Knip `--production` flagged **150 unused dependencies** across all packages. Key
 ### 5.1 `@repo/type-guards` Listed but Not Used
 
 Present in **13 package.json files** as a dependency but not directly imported in several:
-- `packages/configs/vitest/`, `packages/contracts/api/`, `packages/contracts/common/`, `packages/contracts/entities/`, `packages/types/`, `packages/utils/config-schema/`, `packages/utils/env/`, `packages/utils/logger/`, `packages/utils/provider-schema/`, `packages/bin/declarative-routing/`, `packages/bin/runthenkill/`, etc.
+- `tooling/vitest/`, `packages/contracts/api/`, `packages/contracts/common/`, `packages/contracts/entities/`, `packages/types/`, `packages/utils/config-schema/`, `packages/config/env/`, `packages/infrastructure/logger/`, `packages/utils/provider-schema/`, `tooling/bin-declarative-routing/`, `tooling/bin-runthenkill/`, etc.
 
 **However**, it IS used in apps/web and apps/api (confirmed by grep). So these are likely false positives in `--production` mode — but the presence in every package.json is a dependency hygiene issue.
 
@@ -386,7 +386,7 @@ Knip found **16 duplicate export names** across schemas, including:
 
 | Duplicate Pattern | File |
 |---|---|
-| `defaultConfig|default` | `packages/configs/vitest/src/base.ts`, `nextjs.ts`, `node.ts`, `react.ts` |
+| `defaultConfig|default` | `tooling/vitest/src/base.ts`, `nextjs.ts`, `node.ts`, `react.ts` |
 | Various project schema duplications | `project-environment.schema.ts` |
 | Mesh control envelope duplications | `mesh/control.schema.ts` |
 | Mesh trust schema duplications | `mesh/trust.schema.ts` |
@@ -420,7 +420,7 @@ Knip found **16 duplicate export names** across schemas, including:
 
 9. **Fix `as any` escapes** — 35+ occurrences, especially in the data-table component (6x) and Docker dashboard sidebar.
 
-10. **Migrate ORPC query utilities** — The `packages/utils/orpc/src/query/` directory has filtering, pagination, query-builder, search, and sorting modules — all unused. Either use them or remove them.
+10. **Migrate ORPC query utilities** — The `packages/transport/orpc/src/query/` directory has filtering, pagination, query-builder, search, and sorting modules — all unused. Either use them or remove them.
 
 11. **Remove `apps/test/`** — Jest-based test app not integrated with the rest of the monorepo. If needed, migrate to Vitest and integrate.
 
@@ -447,7 +447,7 @@ Knip found **16 duplicate export names** across schemas, including:
 20. **Consolidate auth implementations** — There are THREE auth layers:
     - `packages/nest/auth/` (shared NestJS module — 20+ unused files)
     - `apps/api/src/core/modules/auth/` (API's internal auth)
-    - `packages/utils/auth/` (auth utilities)
+    - `packages/auth/` (auth utilities)
     - These should be consolidated into ONE source of truth.
 
 21. **Clean unused type-guards deps** — `@repo/type-guards` is in 13 package.json files. Several packages list it but don't use it. Audit and remove where unnecessary.

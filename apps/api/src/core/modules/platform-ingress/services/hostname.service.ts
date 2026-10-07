@@ -18,6 +18,15 @@ export abstract class HostnameService {
 	abstract apiHostname(): string;
 	/** Hostname of the managed web app as routed by the platform Traefik. */
 	abstract webHostname(): string;
+	/**
+	 * Hostname the onboarding wizard is served on.
+	 *
+	 * Setup owns this hostname only while it RUNS. Once it exits, the same
+	 * hostname must keep answering — an operator who reloads, bookmarks, or
+	 * shares that URL must not land on a dead backend. The API is what survives
+	 * setup, so it takes the route over and serves its own page here.
+	 */
+	abstract setupHostname(): string;
 	/** Full origin for the API, scheme configurable for non-loopback deployments. */
 	abstract apiOrigin(scheme?: "http" | "https"): string;
 	/** Full origin for the managed web app. */
@@ -30,7 +39,7 @@ export class EnvHostnameService extends HostnameService {
 		super();
 	}
 
-	private prefixedHost(service: "api" | "web"): string {
+	private prefixedHost(service: "api" | "web" | "setup"): string {
 		const prefix = this.env.get("DEPLOYER_PREFIX");
 		return prefix === "" ? `${service}.${DEPLOYER_BASE_HOST}` : `${service}.${prefix}.${DEPLOYER_BASE_HOST}`;
 	}
@@ -41,6 +50,10 @@ export class EnvHostnameService extends HostnameService {
 
 	webHostname(): string {
 		return this.prefixedHost("web");
+	}
+
+	setupHostname(): string {
+		return this.prefixedHost("setup");
 	}
 
 	private origin(hostname: string, scheme?: "http" | "https"): string {

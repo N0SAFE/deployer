@@ -60,6 +60,13 @@ import { Session } from "better-auth";
 import { PushNotificationSettings } from "@/components/push-notifications/PushNotificationSettings";
 import { usePushStats } from "@/domains/push/hooks";
 import { AccountsSection } from "./_components/accounts-section";
+import {
+  AgentConnectionsCard,
+  ApiKeysCard,
+  ConnectedAccountsCard,
+  PasskeysCard,
+  SecurityPostureCard,
+} from "@/components/account/security-cards";
 
 const ProfilePage: React.FC = () => {
   const { data: session } = useSession();
@@ -266,7 +273,7 @@ const ProfilePage: React.FC = () => {
 
         {/* Tabbed Interface */}
         <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-6">
             <TabsTrigger value="profile" className="flex items-center gap-2">
               <UserCircle className="h-4 w-4" />
               Profile
@@ -278,6 +285,14 @@ const ProfilePage: React.FC = () => {
             <TabsTrigger value="accounts" className="flex items-center gap-2">
               <ArrowLeftRight className="h-4 w-4" />
               Accounts
+            </TabsTrigger>
+            <TabsTrigger value="security" className="flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              Security
+            </TabsTrigger>
+            <TabsTrigger value="connections" className="flex items-center gap-2">
+              <Link2 className="h-4 w-4" />
+              Connections
             </TabsTrigger>
             <TabsTrigger value="notifications" className="flex items-center gap-2">
               <Bell className="h-4 w-4" />
@@ -644,6 +659,29 @@ const ProfilePage: React.FC = () => {
           {/* Accounts Tab */}
           <TabsContent value="accounts" className="space-y-6">
             <AccountsSection />
+          </TabsContent>
+
+          {/* Security Tab */}
+          <TabsContent value="security" className="space-y-6">
+            {/* What can get into this account, and how it is protected. These
+                are the plugin-owned surfaces: passkeys (WebAuthn), two-factor
+                status, and the API keys issued for machines. */}
+            <SecurityPostureCard
+              enabled={Boolean(
+                (session.user as { twoFactorEnabled?: boolean } | undefined)
+                  ?.twoFactorEnabled,
+              )}
+            />
+            <PasskeysCard />
+            <ApiKeysCard />
+          </TabsContent>
+
+          {/* Connections Tab */}
+          <TabsContent value="connections" className="space-y-6">
+            {/* What this account is wired to: external identity providers, and
+                the AI agents authorised to act as the user. */}
+            <ConnectedAccountsCard />
+            <AgentConnectionsCard />
           </TabsContent>
 
           {/* Notifications Tab */}

@@ -15,15 +15,62 @@ import { EmptyState, PageHeader } from '@/components/dashboard'
 import { useStackEdge, useSetStackEdgeMode, useClearStackEdgeTunnel, useTunnelHealth } from '@/domains/reachability/hooks'
 import { useDNSProviders } from '@/domains/dns-providers/hooks'
 import { getErrorMessage, isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE } from '@/lib/orpc/typed-errors'
+import {
+  DEFAULT_INGRESS_PROVIDER,
+  INGRESS_PROVIDERS,
+  type IngressProvider,
+} from '@repo/contracts-entities/entities/ingress/index'
 
 /**
- * Edge & Ingress — how the internet reaches this stack.
+ * Presentation copy per provider.
  *
- * The mode is a STACK-level decision, not a per-node one, and that is the whole
- * point: `direct` points DNS at each node (so the ingress must BIND its port),
- * while `tunnel` runs outbound connectors (so it must NOT). One tunnel serves
- * every node — Cloudflare balances across up to 25 connectors — which keeps the
- * Cloudflare side fixed as the fleet grows.
+ * Ordered to match `INGRESS_PROVIDERS` (least → most exposed) so the list the
+ * operator sees can never disagree with the canonical ordering about which
+ * choice is the riskier one. The `requires` line is drawn from the same traits
+ * the API uses, spelled out for a human.
+ */
+const PROVIDER_COPY: Record<IngressProvider, { label: string; blurb: string; requires: string }> = {
+  local: {
+    label: 'This machine only',
+    blurb:
+      'The ingress listens on 127.0.0.1. Nothing is reachable from another machine, and no provider account or DNS is involved.',
+    requires: 'Nothing. This is what a fresh install gets.',
+  },
+  wireguard: {
+    label: 'Private mesh',
+    blurb:
+      'The ingress listens on this node’s WireGuard overlay address, so only enrolled mesh peers can reach it. No public address is involved.',
+    requires: 'A mesh overlay address and at least one enrolled peer.',
+  },
+  tunnel: {
+    label: 'Cloudflare Tunnel',
+    blurb:
+      'Connectors dial out to Cloudflare and hold the connection, so the node accepts no inbound connection at all. One tunnel serves the whole stack.',
+    requires: 'A Cloudflare account plus a tunnel-capable DNS provider here.',
+  },
+  direct: {
+    label: 'Direct DNS (public)',
+    blurb:
+      'DNS points at this node and the ingress binds :80/:443 on every interface. No third party sits in front.',
+    requires: 'A public IP and inbound ports 80/443 open on the firewall.',
+  },
+}
+
+/**
+ * Edge & Ingress — how a client reaches this stack's ingress.
+ *
+ * The provider is a STACK-level decision, not a per-node one. Four providers are
+ * PEERS, ordered from least to most exposed, and the page says plainly what each
+ * one binds rather than making the operator infer it:
+ *
+ *   local     — loopback only. Reachable from this machine; nothing else.
+ *   wireguard — the mesh overlay address. Reachable by enrolled peers.
+ *   tunnel    — outbound connector. The node accepts no inbound connection.
+ *   direct    — :80/:443 on every interface. The only public one.
+ *
+ * Exposure comes from the SERVER (`edge.exposure`), not from comparing the mode
+ * to a literal here: the two answers drifted once already, and "binds a port but
+ * only on loopback" is not something a client should have to re-derive.
  */
 export default function AdminEdgePage() {
   const { data: edge, isLoading, error, refetch } = useStackEdge()
@@ -42,13 +89,14 @@ export default function AdminEdgePage() {
     [providersData],
   )
 
-  const mode = edge?.mode ?? 'direct'
+  const mode: IngressProvider = edge?.mode ?? DEFAULT_INGRESS_PROVIDER
   const tunnel = edge?.tunnel
   const provisioned = tunnel?.provisioned === true
   const isTunnelMode = mode === 'tunnel'
+  const exposure = edge?.exposure
 
   const onSwitchMode = useCallback(
-    async (next: 'direct' | 'tunnel') => {
+    async (next: IngressProvider) => {
       if (next === mode) return
       try {
         await setMode.mutateAsync({
@@ -62,7 +110,7 @@ export default function AdminEdgePage() {
               }
             : {}),
         })
-        toast.success(next === 'tunnel' ? 'Edge switched to Cloudflare Tunnel' : 'Edge switched to direct DNS')
+        toast.success(`${PROVIDER_COPY[next].label} enabled`)
         refetch()
       } catch (err) {
         toast.error(isDefinedORPCError(err) ? getErrorMessage(err) : UNKNOWN_ORPC_ERROR_MESSAGE)
@@ -104,46 +152,64 @@ export default function AdminEdgePage() {
           <CardTitle className="flex items-center gap-2 text-base">
             {isTunnelMode ? <Radio className="size-4" /> : <Globe className="size-4" />}
             Current edge
-            <Badge variant={isTunnelMode ? 'default' : 'secondary'}>
-              {isLoading ? '…' : isTunnelMode ? 'Cloudflare Tunnel' : 'Direct DNS'}
+            <Badge variant={exposure?.externallyReachable ? 'default' : 'secondary'}>
+              {isLoading ? '…' : PROVIDER_COPY[mode].label}
             </Badge>
           </CardTitle>
-          <CardDescription>
-            {isTunnelMode
-              ? 'A supervised connector dials out to Cloudflare, so the ingress publishes no host port at all.'
-              : 'DNS points at each node and the ingress publishes :80/:443 on it, so nothing sits between a client and Traefik.'}
-          </CardDescription>
+          <CardDescription>{PROVIDER_COPY[mode].blurb}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-lg border p-3">
-              <div className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Entry port</div>
+              <div className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Reachable from</div>
               <div className="mt-1 flex items-center gap-2 text-sm">
                 {isLoading ? (
                   <Skeleton className="h-5 w-24" />
-                ) : edge?.publishesEntryPort ? (
-                  <Badge variant="secondary">Published (:80/:443)</Badge>
+                ) : exposure?.externallyReachable ? (
+                  <Badge variant="default">Other machines</Badge>
                 ) : (
-                  <Badge variant="outline">Not published</Badge>
+                  <Badge variant="secondary">This machine only</Badge>
                 )}
-                <span className="text-muted-foreground">
-                  {edge?.publishesEntryPort ? 'reachable by DNS' : 'outbound only'}
-                </span>
               </div>
             </div>
             <div className="rounded-lg border p-3">
-              <div className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Tunnel</div>
+              <div className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Host ports</div>
               <div className="mt-1 flex items-center gap-2 text-sm">
                 {isLoading ? (
-                  <Skeleton className="h-5 w-32" />
-                ) : provisioned ? (
-                  <Badge variant="secondary" className="font-mono text-xs">{tunnel?.tunnelId}</Badge>
+                  <Skeleton className="h-5 w-24" />
+                ) : exposure?.bindsNonLoopbackPort ? (
+                  <Badge variant="destructive">Open on every interface</Badge>
+                ) : edge?.publishesEntryPort ? (
+                  <Badge variant="outline">Loopback only</Badge>
                 ) : (
-                  <span className="text-muted-foreground">None provisioned</span>
+                  <Badge variant="outline">None bound</Badge>
+                )}
+              </div>
+            </div>
+            <div className="rounded-lg border p-3">
+              <div className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Inbound firewall</div>
+              <div className="mt-1 flex items-center gap-2 text-sm">
+                {isLoading ? (
+                  <Skeleton className="h-5 w-24" />
+                ) : exposure?.requiresOpenInboundPorts ? (
+                  <Badge variant="destructive">80/443 must be open</Badge>
+                ) : (
+                  <Badge variant="secondary">Nothing to open</Badge>
                 )}
               </div>
             </div>
           </div>
+
+          {/* The loopback lane works in EVERY provider, so it is always worth
+              showing — on a fresh install it IS the console URL. */}
+          {edge?.localUrl && (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+              <span className="text-muted-foreground">On this machine:</span>
+              <a href={edge.localUrl} className="font-mono underline underline-offset-4">
+                {edge.localUrl}
+              </a>
+            </div>
+          )}
 
           {provisioned && (
             <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
@@ -188,30 +254,32 @@ export default function AdminEdgePage() {
         <CardContent className="space-y-4">
           <RadioGroup
             value={mode}
-            onValueChange={(v) => void onSwitchMode(v === 'tunnel' ? 'tunnel' : 'direct')}
+            onValueChange={(v) => void onSwitchMode(v as IngressProvider)}
             disabled={setMode.isPending || isLoading}
             className="gap-3"
           >
-            <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-4 has-checked:border-primary">
-              <RadioGroupItem value="direct" id="edge-direct" className="mt-1" />
-              <div className="space-y-1">
-                <div className="text-sm font-medium">Direct DNS</div>
-                <p className="text-muted-foreground text-sm">
-                  No third party. Each node&apos;s address resolves the app hostname, and the ingress publishes
-                  :80/:443 on it. Needs a public IP and inbound ports open.
-                </p>
-              </div>
-            </label>
-            <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-4 has-checked:border-primary">
-              <RadioGroupItem value="tunnel" id="edge-tunnel" className="mt-1" />
-              <div className="space-y-1">
-                <div className="text-sm font-medium">Cloudflare Tunnel</div>
-                <p className="text-muted-foreground text-sm">
-                  One tunnel for the whole stack, served by supervised connectors that dial out. No inbound port and
-                  no public IP required; availability comes from connector replicas.
-                </p>
-              </div>
-            </label>
+            {INGRESS_PROVIDERS.map((provider) => (
+              <label
+                key={provider}
+                className="flex cursor-pointer items-start gap-3 rounded-lg border p-4 has-checked:border-primary"
+              >
+                <RadioGroupItem value={provider} id={`edge-${provider}`} className="mt-1" />
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    {PROVIDER_COPY[provider].label}
+                    {/* The ONLY provider that opens a port to the internet. Marked
+                        because it is the one choice with a real security cost, and
+                        opting into it should never be accidental. */}
+                    {provider === 'direct' && <Badge variant="destructive">Opens ports</Badge>}
+                    {provider === DEFAULT_INGRESS_PROVIDER && <Badge variant="secondary">Default</Badge>}
+                  </div>
+                  <p className="text-muted-foreground text-sm">{PROVIDER_COPY[provider].blurb}</p>
+                  <p className="text-muted-foreground text-xs">
+                    <span className="font-medium">Requires:</span> {PROVIDER_COPY[provider].requires}
+                  </p>
+                </div>
+              </label>
+            ))}
           </RadioGroup>
 
           {/* Provisioning inputs — only needed when switching TO tunnel without one. */}

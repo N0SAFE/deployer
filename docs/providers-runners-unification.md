@@ -274,7 +274,7 @@ removed (each verified: zero consumers, type-check clean, API boots healthy):
 | `legacyResult` convergence source + untyped `result` reads for convergence | `modules/deployment/services/deployment-execution-workflow.service.ts` | `runtimeRunnerOptions` (typed union) is the only source; untyped `getResultNumber` fallback removed |
 | `resolveDomainUrl(healthSummary: unknown)` healthSummary fallback | same file | Domain mappings (`routeSync`) are the only URL source; `RouteSyncResult` typed |
 | Legacy loose-row `sourceConfig` coercion | `modules/deployment/repositories/deployment.repository.ts` | DB column is union-shaped; only SSOT `deploymentTriggerSourceSchema.safeParse` |
-| `MESH_NODE_SERVER_URL` env-var legacy fallback | `system-mesh-config.service.ts`, `runners/adapters/deployment-load-balancer-sync.adapter.ts`, `packages/utils/env` | `APP_URL` is canonical; env var + mock + schema removed |
+| `MESH_NODE_SERVER_URL` env-var legacy fallback | `system-mesh-config.service.ts`, `runners/adapters/deployment-load-balancer-sync.adapter.ts`, `packages/config/env` | `APP_URL` is canonical; env var + mock + schema removed |
 
 ### API — mesh deprecated APIs removed
 | Removed | File |
@@ -285,11 +285,11 @@ removed (each verified: zero consumers, type-check clean, API boots healthy):
 ### Packages — legacy shims removed
 | Removed | File |
 |---|---|
-| 9 dead legacy types (`HttpMethod`, `EntitySchema`, `InferSchemaType`, `PaginationOptions`, `SortingOptions`, `FilteringOptions`, `StandardOperation`, `BatchOptions`, `EventIteratorOptions`) | `packages/utils/orpc/src/types/types.ts` (kept `UnionTuple` — used) |
-| `_attachLegacyAccessors()` (dead — no `.input.entitySchema` consumers) | `packages/utils/orpc/src/builder/core/route-builder.ts` |
+| 9 dead legacy types (`HttpMethod`, `EntitySchema`, `InferSchemaType`, `PaginationOptions`, `SortingOptions`, `FilteringOptions`, `StandardOperation`, `BatchOptions`, `EventIteratorOptions`) | `packages/transport/orpc/src/types/types.ts` (kept `UnionTuple` — used) |
+| `_attachLegacyAccessors()` (dead — no `.input.entitySchema` consumers) | `packages/transport/orpc/src/builder/core/route-builder.ts` |
 | Duplicate deprecated `detectOperationTypeByName` | `orpc/src/hooks/core/operation-detection.ts`, `orpc/src/hooks/generate-hooks.ts` |
-| `useSessionBridge` legacy session fallback (option + 2 fallback branches + plumbing) | `packages/utils/auth/src/client/use-session.ts`, `react/session/{client,server,shared}.ts` (web already dropped it) |
-| `inviteClient` deprecated alias | `packages/utils/auth/src/client/plugins/index.ts` |
+| `useSessionBridge` legacy session fallback (option + 2 fallback branches + plumbing) | `packages/auth/src/client/use-session.ts`, `react/session/{client,server,shared}.ts` (web already dropped it) |
+| `inviteClient` deprecated alias | `packages/auth/src/client/plugins/index.ts` |
 | `getMany` legacy Record-mode overload | `permissions/system/builder/roles/roles-config.ts` (kept collection mode) |
 | `useSafeQueryStatesFromZod` / `QueryStateFromZodOptions` legacy aliases + migrated 9 web consumers | `use-safe-query-param-states-from-zod/src/index.ts` + 9 web files |
 

@@ -83,7 +83,7 @@ export function isViteAssetRequest(path: string): boolean {
  * Query strings are preserved: Vite uses them for HMR and dependency versioning.
  */
 export function toViteBasePath(path: string): string {
-	const [pathname = "", query] = path.split("?", 2) as [string, string | undefined];
+	const [pathname, query] = path.split("?", 2) as [string, string | undefined];
 	if (pathname === VITE_ASSETS_PREFIX || pathname.startsWith(`${VITE_ASSETS_PREFIX}/`)) return path;
 	if (NO_CONTENT_PATHS.includes(pathname)) return path;
 	const rewritten = `${VITE_ASSETS_PREFIX}${pathname}`;

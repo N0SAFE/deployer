@@ -68,6 +68,18 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
    */
   static readonly CONTAINER_NAME = "deployer-traefik";
 
+  /**
+   * The PROMOTED ingress, addressed on the platform overlay.
+   *
+   * The swarm service keeps the bootstrap container's name, so this is the same
+   * `deployer-traefik` string — but it is reached as a NETWORK NAME rather than
+   * a container name, which is what makes it a valid probe target from setup
+   * once setup has joined the overlay. Port 80 is Traefik's `web` entrypoint
+   * INSIDE the container, independent of the host port it may publish.
+   */
+  private static readonly SWARM_SERVICE_NAME = "deployer-traefik";
+  private static readonly SWARM_SERVICE_PORT = 80;
+
   /** Where the file provider reads generated routes inside the container. */
   private static readonly CONFIG_MOUNT = "/config";
 
@@ -349,13 +361,62 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
   }
 
   /**
-   * One HTTP request for `hostname` through the entry port.
+   * One HTTP request for `hostname` through the promoted ingress.
    *
-   * Sends the Host header explicitly because the entry port is reached by IP
-   * (`host.docker.internal`) from inside this container — without it Traefik
-   * would have no router to match and every probe would look like a failure.
+   * ── WHY THERE ARE TWO CANDIDATES, OVERLAY FIRST ─────────────────────────
+   * The question is "is the SWARM ingress routing?", and there are two ways to
+   * reach it from here. Only one of them works for every provider:
+   *
+   *   OVERLAY (`deployer-traefik:80`) — the service name on the platform
+   *     network. This reaches the ingress whatever it binds on the HOST, so it
+   *     is provider-independent, and it is also the path real traffic takes
+   *     once a connector or the mesh fronts it.
+   *
+   *   ENTRY PORT via `host.docker.internal` — the host-published port. This is
+   *     the operator's actual path, but it only answers when the ingress binds
+   *     an interface reachable from the host gateway. Under the `local`
+   *     provider the host port is bound on 127.0.0.1 ONLY (deliberately — that
+   *     is what keeps a fresh install off the network), so a probe from inside
+   *     a container gets `ECONNREFUSED 172.17.0.1:80` while the ingress is
+   *     perfectly healthy. Treating that as "not serving" failed the handover
+   *     and left the platform reported broken when it was up.
+   *
+   * So the overlay is tried first and the entry port is the fallback. The Host
+   * header is always sent explicitly because the overlay is reached by service
+   * name and the entry port by IP — without it Traefik would have no router to
+   * match and every probe would look like a failure.
    */
   private async probeRoutedThroughEntryPort(hostname: string): Promise<{ ok: boolean; reason: string }> {
+    // Candidate 1: the swarm service on the overlay (provider-independent).
+    const viaOverlay = await this.probeIngress(
+      BootstrapIngressService.SWARM_SERVICE_NAME,
+      BootstrapIngressService.SWARM_SERVICE_PORT,
+      hostname,
+    );
+    if (viaOverlay.ok) return viaOverlay;
+
+    // Candidate 2: the host-published entry port (the operator's path).
+    const viaEntryPort = await this.probeIngress(this.hostGateway(), this.entryPort(), hostname);
+    if (viaEntryPort.ok) return viaEntryPort;
+
+    // Report the ENTRY-PORT reason: it is the one the operator's browser will
+    // hit, so it is the honest description of why the platform is unreachable
+    // if BOTH failed.
+    return viaEntryPort;
+  }
+
+  /**
+   * One routed request against a specific `host:port`.
+   *
+   * Traefik's own "no router" answer is a PLAIN-TEXT 404. That is the specific
+   * thing being waited out, so it must not be mistaken for a routed response
+   * just because it is not a 5xx.
+   */
+  private async probeIngress(
+    host: string,
+    port: number,
+    hostname: string,
+  ): Promise<{ ok: boolean; reason: string }> {
     return await new Promise<{ ok: boolean; reason: string }>((resolve) => {
       let settled = false;
       const finish = (result: { ok: boolean; reason: string }): void => {
@@ -366,8 +427,8 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
 
       const request = httpRequest(
         {
-          host: this.hostGateway(),
-          port: this.entryPort(),
+          host,
+          port,
           path: "/health/ready",
           method: "GET",
           headers: { host: hostname },
@@ -377,9 +438,6 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
           const contentType = String(response.headers["content-type"] ?? "");
           response.resume();
 
-          // Traefik's own "no router" answer is a PLAIN-TEXT 404. That is the
-          // specific thing being waited out, so it must not be mistaken for a
-          // routed response just because it is not a 5xx.
           if (status === 404 && contentType.includes("text/plain")) {
             finish({ ok: false, reason: "the ingress has no router for the API yet" });
             return;
@@ -388,16 +446,16 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
             finish({ ok: false, reason: `the API backend answered ${String(status)}` });
             return;
           }
-          finish({ ok: true, reason: `HTTP ${String(status)}` });
+          finish({ ok: true, reason: `HTTP ${String(status)} via ${host}:${String(port)}` });
         },
       );
 
       request.setTimeout(5_000, () => {
         request.destroy();
-        finish({ ok: false, reason: "the ingress did not answer within 5000ms" });
+        finish({ ok: false, reason: `the ingress did not answer within 5000ms (${host}:${String(port)})` });
       });
       request.on("error", (error: Error) => {
-        finish({ ok: false, reason: `not reachable yet (${error.message})` });
+        finish({ ok: false, reason: `not reachable yet (${error.message} via ${host}:${String(port)})` });
       });
       request.end();
     });

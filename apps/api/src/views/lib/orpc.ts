@@ -12,7 +12,7 @@
 import { createORPCClient } from "@orpc/client";
 import { OpenAPILink } from "@orpc/openapi/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
-import { appContract, type AppContract } from "@repo/api-contracts";
+import { appContract, type AppContract } from "@/core/orpc/app-contract";
 import { createObservableQueryUtils, type ObservableQueryUtils, ObservableLinkPlugin } from "@repo/orpc-utils";
 import type { ContractRouterClient } from "@orpc/contract";
 

@@ -6,21 +6,27 @@
     "types": "./index.ts",
     "exports": {
         ".": {
+            "types": "./dist/types/index.d.ts",
             "import": "./index.ts",
-            "types": "./index.ts"
+            "default": "./index.ts"
         },
-        "./*": "./*.ts"
+        "./*": {
+            "types": "./dist/types/*.d.ts",
+            "import": "./*.ts",
+            "default": "./*.ts"
+        }
     },
     "scripts": {
         "clean": "rm -rf dist",
-        "build": "bun --bun ../../bin/pkg-build/index.ts",
+        "build": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js",
         "compile": "bun x cross-env COMPILE_MODE=true bun run build",
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "dev": "bun --bun ../../bin/pkg-build/index.ts --watch",
-        "lint": "bunx eslint . --cache --concurrency=auto",
-        "type-check": "tsc --noEmit"
+        "dev": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js --watch",
+        "lint": "bunx eslint . --cache",
+        "type-check": "tsc --noEmit",
+        "build:types": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js --types"
     },
     "dependencies": {
         "@octokit/webhooks-types": "catalog:utils",
@@ -47,7 +53,8 @@
         "@repo/config-prettier": "*",
         "eslint": "catalog:linting",
         "@repo/config-typescript": "*",
-        "typescript": "catalog:build"
+        "typescript": "catalog:build",
+        "@repo/pkg-build": "*"
     },
     "pkgBuild": {
         "root": ".",

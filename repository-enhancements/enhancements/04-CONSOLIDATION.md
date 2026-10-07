@@ -9,7 +9,7 @@
 ### Current State
 Two implementations exist:
 1. `apps/web/src/components/shared/RequirePermission.tsx`
-2. `packages/utils/auth/src/components/RequirePermission.tsx`
+2. `packages/auth/src/components/RequirePermission.tsx`
 
 ### Solution: Single Source of Truth
 
@@ -18,14 +18,14 @@ Two implementations exist:
 ```bash
 # Compare files
 diff apps/web/src/components/shared/RequirePermission.tsx \
-     packages/utils/auth/src/components/RequirePermission.tsx
+     packages/auth/src/components/RequirePermission.tsx
 ```
 
 **Step 2: Merge into package**
 
 Keep the version in `@repo/auth-utils` as the canonical implementation since it's a shared utility.
 
-**Location:** `packages/utils/auth/src/components/RequirePermission.tsx`
+**Location:** `packages/auth/src/components/RequirePermission.tsx`
 
 ```typescript
 import { useMemo, type ReactNode } from 'react'
@@ -135,14 +135,14 @@ rm apps/web/src/hooks/useUsers.ts
 
 ### Current State
 Multiple permission-related exports scattered:
-- `packages/utils/auth/src/permissions/index.ts`
-- `packages/utils/auth/src/permissions/platform-permissions.ts`
-- `packages/utils/auth/src/permissions/organization-permissions.ts`
-- `packages/utils/auth/src/types.ts`
+- `packages/auth/src/permissions/index.ts`
+- `packages/auth/src/permissions/platform-permissions.ts`
+- `packages/auth/src/permissions/organization-permissions.ts`
+- `packages/auth/src/types.ts`
 
 ### Solution: Clean Export Structure
 
-**Update:** `packages/utils/auth/src/index.ts`
+**Update:** `packages/auth/src/index.ts`
 
 ```typescript
 // Permission system - single entry point
@@ -188,7 +188,7 @@ Each package has separate vitest config with similar settings
 
 ### Solution: Extend Base Config
 
-**Base config:** `packages/configs/vitest/base.ts`
+**Base config:** `tooling/vitest/base.ts`
 
 ```typescript
 import { defineConfig } from 'vitest/config'
@@ -244,11 +244,11 @@ export default mergeConfig(reactConfig, {
 Route utilities scattered:
 - `apps/web/src/lib/api-url.ts`
 - `apps/web/src/lib/routes/`
-- `packages/utils/declarative-routing/`
+- `packages/routing/declarative/`
 
 ### Solution: Unified Route System
 
-**Keep in package:** `packages/utils/declarative-routing/`
+**Keep in package:** `packages/routing/declarative/`
 
 **Update web app imports:**
 
@@ -290,13 +290,13 @@ bunx knip --include exports
 ## 7. Consolidate Environment Utilities
 
 ### Current State
-- `packages/utils/env/src/index.ts` - Package version
+- `packages/config/env/src/index.ts` - Package version
 - `apps/web/env.ts` - App-specific version
 - `apps/api/src/config/` - NestJS config
 
 ### Solution: Shared Base with App Extensions
 
-**Package:** `packages/utils/env/src/index.ts`
+**Package:** `packages/config/env/src/index.ts`
 
 ```typescript
 import { z } from 'zod'

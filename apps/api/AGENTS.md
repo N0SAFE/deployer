@@ -49,7 +49,7 @@ WireGuard sidecar, DB service primitive, failover proxy, managed web) are
 (`MANAGED_<SERVICE>_ENABLED=true` — compose/operator owns the process and the
 supervisor only wires networks). The `MANAGED_<SERVICE>_ENABLED` env flags +
 `MANAGED_<SERVICE>_<KEY>` reach-config live in the shared `@repo/env` schema
-(`packages/utils/env/src/index.ts`); `splitManagedEnv` splits the flat vars
+(`packages/config/env/src/index.ts`); `splitManagedEnv` splits the flat vars
 into the nested `managed[service].key` / `.enabled` shape.
 
 **There is no plain-container runtime.** Each supervisor declares a `scope` and
@@ -170,7 +170,7 @@ Rules when touching supervisors (`src/core/modules/supervisors/`):
 - The compose-managed service declarations + the MANAGED_*_ENABLED env wiring
   live in the ORCHESTRATOR per profile (`docker-compose.dev.yml` = compose-
   managed; `dev-supervised` / `prod` = API-owned). Shared networks + volumes
-  are centralized there too. Custom stacks live in `docker/compose/case/`.
+  are centralized there too. Custom stacks live in `infra/infra/docker/compose/case/`.
 - Full model: `apps/doc/content/docs/deployment/api-centric-deployment-architecture.mdx`
   → "Compose-managed platform services" + "WireGuard: private mesh overlay" +
   "Database service primitive".

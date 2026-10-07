@@ -66,13 +66,20 @@ export function toDockerServiceSpec(input: SwarmServiceSpecInput): Docker.Servic
             ? { StopGracePeriod: input.stopGracePeriodSeconds * 1_000_000_000 }
             : {}),
         ...(resources.Limits !== undefined || resources.Reservations !== undefined ? { Resources: resources } : {}),
-        ...(input.placementPreferences.length > 0 || input.placementConstraints.length > 0
+        ...(input.placementPreferences.length > 0 ||
+        input.placementConstraints.length > 0 ||
+        input.placementMaxReplicasPerNode !== undefined
             ? {
                   Placement: {
                       ...(input.placementPreferences.length > 0
                           ? { Preferences: input.placementPreferences.map((p) => ({ Spread: { SpreadDescriptor: p.spreadDescriptor } })) }
                           : {}),
                       ...(input.placementConstraints.length > 0 ? { Constraints: input.placementConstraints } : {}),
+                      // `MaxReplicas` is a HARD cap on tasks per node, unlike the
+                      // spread preferences above, which only bias the scheduler.
+                      ...(input.placementMaxReplicasPerNode !== undefined
+                          ? { MaxReplicas: input.placementMaxReplicasPerNode }
+                          : {}),
                   },
               }
             : {}),

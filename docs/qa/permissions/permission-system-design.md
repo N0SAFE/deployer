@@ -271,7 +271,7 @@ project (root)
 ```
 
 ```ts
-// Defined in packages/utils/auth/src/permissions/engine/resource-graph.ts
+// Defined in packages/auth/src/permissions/engine/resource-graph.ts
 export const RESOURCE_GRAPH = {
     project: {
         parent: null,
@@ -522,7 +522,7 @@ The Directus filter is compiled to Drizzle conditions:
 | `{ _or: [...] }` | `or(...)` |
 | `{ _and: [...] }` | `and(...)` |
 
-This compiler lives in `packages/utils/auth/src/permissions/engine/filter-compiler.ts`.
+This compiler lives in `packages/auth/src/permissions/engine/filter-compiler.ts`.
 
 ---
 
@@ -564,7 +564,7 @@ This keeps access management fully in the role/rule system with no shortcuts tha
 
 ## Implementation: where code lives
 
-### `packages/utils/auth/src/permissions/engine/`
+### `packages/auth/src/permissions/engine/`
 
 New directory in the permissions package:
 
@@ -579,7 +579,7 @@ engine/
   index.ts                   ← barrel export
 ```
 
-### `packages/utils/auth/src/permissions/config.ts`
+### `packages/auth/src/permissions/config.ts`
 
 Changes:
 - **Remove** `projectBuilder` entirely (and all project role exports)
@@ -587,7 +587,7 @@ Changes:
 - **Add** built-in role templates as `BUILTIN_ROLE_TEMPLATES`
 - **Keep** `platformBuilder` and `organizationBuilder` exactly as-is (org builder still handles org-level resources)
 
-### `packages/utils/auth/src/server/plugins/index.ts`
+### `packages/auth/src/server/plugins/index.ts`
 
 Change `useOrganization()`:
 ```ts
@@ -758,9 +758,9 @@ export const roleChangeAudit = pgTable("role_change_audit", {
 
 | Concern | Path |
 |---|---|
-| Permission config | `packages/utils/auth/src/permissions/config.ts` |
-| Permission engine (NEW) | `packages/utils/auth/src/permissions/engine/` |
-| Server plugin wrappers | `packages/utils/auth/src/server/plugins/index.ts` |
+| Permission config | `packages/auth/src/permissions/config.ts` |
+| Permission engine (NEW) | `packages/auth/src/permissions/engine/` |
+| Server plugin wrappers | `packages/auth/src/server/plugins/index.ts` |
 | Auth schema | `apps/api/src/config/drizzle/schema/auth.ts` |
 | Project schema | `apps/api/src/config/drizzle/schema/deployment.ts` |
 | NestJS permission module (NEW) | `apps/api/src/core/modules/permissions/` |

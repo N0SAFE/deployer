@@ -50,7 +50,7 @@ console.log(organization.role)  // 'owner'
 Keep current architecture and add unified `usePermissions()` hook for convenient access:
 
 ```typescript
-// packages/utils/auth/src/permissions/index.ts
+// packages/auth/src/permissions/index.ts
 
 // Clear separation of concerns
 export const platformPermissions = {
@@ -140,7 +140,7 @@ const { mutate } = useMutation('user.update')
 Use runtime hook factory approach - hooks are created at runtime from contracts:
 
 ```typescript
-// packages/utils/orpc/src/hook-factory.ts
+// packages/transport/orpc/src/hook-factory.ts
 import { createORPCHooks } from '@orpc/react-query'
 import type { ContractRouter } from '@repo/api-contracts'
 
@@ -210,7 +210,7 @@ export default defineConfig({
 **Step 2: Package-specific fix**
 
 ```typescript
-// packages/utils/orpc/vitest.config.ts
+// packages/transport/orpc/vitest.config.ts
 import { defineConfig, mergeConfig } from 'vitest/config'
 import baseConfig from '@repo/config-vitest'
 
@@ -221,7 +221,7 @@ export default mergeConfig(baseConfig, {
   },
 })
 
-// packages/utils/orpc/vitest.setup.ts
+// packages/transport/orpc/vitest.setup.ts
 import * as z from 'zod'
 
 // Ensure Zod is properly initialized
@@ -366,8 +366,8 @@ mkdir -p packages/{core,auth,data,tooling}
 # 2. Move packages (update package.json names)
 mv packages/types packages/core/types
 mv packages/contracts/api packages/core/contracts
-mv packages/utils/auth packages/auth/client
-mv packages/utils/orpc packages/data/orpc
+mv packages/auth packages/auth/client
+mv packages/transport/orpc packages/data/orpc
 
 # 3. Update all imports across workspace
 # 4. Update turbo.json dependencies
@@ -722,7 +722,7 @@ export function getCacheConfig(domain: string, resource: string) {
 ### Improvement: Structured Logging
 
 ```typescript
-// packages/utils/logger/src/index.ts
+// packages/infrastructure/logger/src/index.ts
 type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
 interface LogContext {

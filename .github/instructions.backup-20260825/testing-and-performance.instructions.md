@@ -16,7 +16,7 @@ description: "Testing strategy, SSE/high-frequency stream performance rules, dee
 | Layer | Pattern | Example |
 |-------|---------|---------|
 | App (`apps/api`, `apps/web`) | `*.spec.ts` colocated with source | `apps/api/src/core/utils/context-filter-logger.spec.ts` |
-| Shared package (`packages/*`) | `__tests__/*.test.ts` colocated with source module | `packages/utils/orpc/src/builder/__tests__/error-builder.test.ts` |
+| Shared package (`packages/*`) | `__tests__/*.test.ts` colocated with source module | `packages/transport/orpc/src/builder/__tests__/error-builder.test.ts` |
 | E2E | `*.e2e.spec.ts` with shared Postgres testcontainer setup | `apps/api/vitest.shared-postgres.e2e.ts` |
 
 **Both patterns are intentional.** Do not force one over the other.

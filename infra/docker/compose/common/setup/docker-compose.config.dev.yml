@@ -1,0 +1,136 @@
+# =====================================================================
+# Setup DEV variant — INCLUDE-ONLY. Extends the setup base; carries the
+# dev build, the watch block, and the dev healthcheck (the compose gate).
+#
+# THE HEALTHCHECK IS THE GATE, and it means "the API may start":
+# `/setup/health` returns 503 until the wizard's details are persisted, and 200
+# from then on. So `depends_on: { condition: service_healthy }` on `api-dev` is
+# exactly "the operator finished onboarding" — no body parsing anywhere, and no
+# cycle (setup never waits for the API).
+# =====================================================================
+services:
+  setup:
+    extends:
+      file: ./docker-compose.config.yml
+      service: setup
+    build:
+      context: ../../../../..
+      # The SHARED dev Dockerfile, parameterised by `APP=setup`. The image is
+      # built from a PRUNED workspace (`turbo prune setup`), and the prune target
+      # is what makes this image distinct from the API's: reusing the API's image
+      # would install the API's dependency closure and setup would die on its
+      # first import with
+      #   Cannot find package 'reflect-metadata' from '/app/apps/setup/src/main.ts'
+      # Setup reuses the API's TOOLCHAIN, not its PRUNE.
+      dockerfile: ./infra/docker/builder/app/Dockerfile.app.dev
+      tags:
+        - "${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-setup-dev:latest"
+      args:
+        - APP=setup
+        - APP_DEPS_MODE=${APP_DEPS_MODE:-volume}
+        - BUILDKIT_INLINE_CACHE=1
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: debug
+      # Read by the shared entrypoint; `APP_NAME` is derived from the image's
+      # WORKDIR (`/app/apps/setup`).
+      APP_DIR: /app
+      DEP_OUTPUT_ROOT: /dep-output
+      WAIT_FOR_DEPS: ${WAIT_FOR_DEPS:-1}
+      # Dev: compose owns the API, so setup resolves the address compose fills
+      # in. It is stable and known, which is why prod is the mode that creates
+      # one instead.
+      SETUP_MODE: ${SETUP_MODE:-dev}
+      SETUP_API_URL: ${SETUP_API_URL:-http://api-dev:${API_PORT:-3005}}
+      CHOKIDAR_USEPOLLING: "true"
+    # ── NO `command:` OVERRIDE ────────────────────────────────────────────────
+    # The image's CMD (infra/docker/builder/setup/Dockerfile.setup.dev) owns how this
+    # app starts: `turbo watch dev --filter=setup`, with the workspace packages
+    # already built into the image so the app's imports resolve on the first try.
+    #
+    # A compose `command:` is a full REPLACEMENT, not a patch. An earlier version
+    # of this file set one to a plain `turbo run dev --filter=setup...`, which
+    # silently discarded the image's ordering and made setup die on
+    #   Cannot find module '@repo/ui/components/setup/setup-wizard'
+    #   from '/app/apps/setup/src/views/pages/setup.tsx'
+    # If the startup sequence ever needs to change, change the Dockerfile CMD.
+    #
+    # The `.env` loading the override existed for now happens inside the CMD,
+    # which is also where it belongs: it is part of starting the app.
+    # NO `ports:` — reached through Traefik only (see the base config).
+    #
+    # Present ONLY in compose-managed dev, where the `dependency-builder`
+    # container owns the internal packages. The swarm-managed profiles reset this
+    # list (`volumes: !reset []`) and build with `APP_DEPS_MODE=baked`, because a
+    # scheduled swarm service cannot be handed a compose volume.
+    volumes:
+      # The shared internal-package output, written by `dependency-builder`.
+      # READ-ONLY: a stray build here cannot corrupt the tree for other apps.
+      - dep_output_dev:/dep-output:ro
+    healthcheck:
+      # THE GATE. Terminus emits a real status code, so `wget --spider` is a
+      # correct probe: 503 while the wizard is still collecting, 200 once the
+      # details are persisted and the API may start.
+      #
+      # It does NOT wait for the API — the API is what this gate enables, so
+      # waiting for it would be a cycle. See `SetupGateService`.
+      test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3016/setup/health || exit 1
+      # Short: the gate opens when the OPERATOR finishes the wizard, so this
+      # start_period only covers this container's own boot.
+      start_period: 15s
+      # Generous on purpose: the gate stays closed for as long as the operator
+      # takes to fill in the form, which is unbounded. Too few retries would
+      # mark the container unhealthy on a slow human, filling the logs with
+      # false alarms. `depends_on: service_healthy` waits for the transition
+      # regardless, so this only affects how noisy the wait is.
+      interval: 10s
+      timeout: 5s
+      retries: 300
+    develop:
+      watch:
+        # Rebuild when dependency or config files change.
+        - action: rebuild
+          path: ../../../../..
+          target: /app
+          include:
+            - package.json
+            - bun.lock*
+            - turbo.json
+            - apps/setup/package.json
+            - apps/setup/tsconfig.json
+            - apps/setup/nest-cli.json
+            - apps/setup/vite.config.ts
+            - infra/docker/builder/app/Dockerfile.app.dev
+            - infra/docker/builder/app/entrypoint-app.sh
+            - infra/docker/compose/common/setup/**
+            - packages/**/package.json
+        # Sync source code, excluding build artifacts and the usual noise.
+        - action: sync
+          initial_sync: true
+          path: ../../../../..
+          target: /app
+          ignore:
+            - node_modules/
+            - "**/node_modules/"
+            - bun.lock*
+            - package-lock.json
+            - yarn.lock
+            - pnpm-lock.yaml
+            - "**/dist/"
+            - "**/build/"
+            - "**/.next/"
+            - "**/.turbo/"
+            - "**/.cache/"
+            - "**/.vite/"
+            - "**/*.log"
+            - .git/
+            - .gitignore
+            - docker/
+            - Dockerfile*
+            - docker-compose*.yml
+            - .dockerignore
+            - "**/.vscode/"
+            - "**/.idea/"
+            - "**/*.swp"
+            - "**/coverage/"
+            - "**/.DS_Store"

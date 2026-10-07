@@ -1,0 +1,631 @@
+---
+title: Better Auth Plugin Evaluation
+description: Complete audit of every Better Auth plugin against this platform's actual needs, with a ranked adoption roadmap and concrete implementation designs.
+order: 10
+---
+
+<DocMeta source="Better Auth v1.7.5 documentation (https://better-auth.com/docs/plugins) audited against the v3 codebase" scope="canonical" />
+
+<DocCallout title="Scope" tone="info">
+This page evaluates **every** plugin Better Auth ships (v1.7.5 — the version pinned in the root catalog) against what this platform actually is: a self-hosted deployment control plane with a fleet/cluster model, a hand-rolled permission engine, project collaborators, runners, and a CLI. Each plugin gets a verdict, a reason, and — for the adopted ones — a concrete design.
+</DocCallout>
+
+## 1. What this platform is (the evaluation baseline)
+
+A plugin is only "interesting" relative to a product. This section pins the product facts the rest of the page reasons about. Every claim cites the file that proves it.
+
+### 1.1 Product identity
+
+- **Self-hosted PaaS.** Deploy and operate applications on user-owned infrastructure, with a Vercel/Render-like workflow. (`docs/PLATFORM_SOURCE_OF_TRUTH.md` §1)
+- **Fleet/cluster model.** Nodes enroll via `cluster_join_grants`, carry capabilities (edge/relay/partition-owner/observer), CPU/RAM allocations, and health. (`packages/nest/schema/src/global/cluster.ts`)
+- **Multi-tenant by design.** The source of truth states "an organization contains multiple projects" and requires Owner/Admin/Developer/Viewer baseline roles plus fine-grained grants. (`docs/PLATFORM_SOURCE_OF_TRUTH.md` §2, §3)
+- **Machine surfaces exist.** A NestJS CLI (`apps/api/src/cli.ts`) authenticates with a master token or seeded admin credentials (`apps/api/src/cli/services/cli-auth.service.ts`). A Traefik config builder, runners, and a mesh control plane all need programmatic access.
+
+### 1.2 The tenancy gap (the single most important finding)
+
+The stated model and the implemented model disagree.
+
+| Layer | Says | Evidence |
+|---|---|---|
+| Product source of truth | "An organization contains multiple projects" | `docs/PLATFORM_SOURCE_OF_TRUTH.md:22` |
+| Validated permission design | 2-layer model — **Platform** + **Organization**, with dynamic org roles and resource rules | `docs/qa/permissions/permission-design.md` (status: "✅ Design validated — ready for implementation") |
+| Database schema | **No organization table.** `projects.ownerId → user.id` is the only ownership edge. | `packages/nest/schema/src/global/deployment.ts:34-76` |
+| Schema comment | "The mesh is the single tenant — **there is no organization layer**" | `packages/nest/schema/src/global/permissions.ts:14` |
+| Permission config | Only `platformBuilder` (platform roles) and `projectBuilder` (project roles) are built | `packages/auth/src/permissions/config.ts:44-330` |
+
+**Consequence.** Today, "who can access what" is answered by `project_collaborators` — a per-project join table with four roles (`owner`/`maintainer`/`deployer`/`viewer`, from `PROJECT_ROLES`) plus an optional JSON permission blob.
+
+Two things follow, and they shape this document's recommendations:
+
+1. **Inviting a user to 10 projects means 10 separate operations.** There is no single grant that covers a tenant.
+2. **The validated org-centric design is not implemented and is not in scope.** The `organization()` plugin is deliberately excluded (§2.2). The gap is recorded here so it is not mistaken for something a plugin recommendation secretly solves.
+
+### 1.3 The permission engine is already built and is better than the plugin's
+
+`packages/auth/src/permissions/engine/` contains a working, tested `PermissionEngine` with:
+
+| Capability | Where | Better Auth equivalent |
+|---|---|---|
+| Directus-style JSON filters (`_eq`, `_in`, `_icontains`, `_and`, `_or`, …) | `engine/filter-compiler.ts` | ❌ none |
+| Dynamic filter variables (`$currentUser`, `$currentOrg`, `$accessibleProjects`) | `engine/filter-compiler.ts:183` | ❌ none |
+| Cascade resolution through a resource graph (`project → service → deployment`) | `engine/resource-graph.ts` | ❌ none |
+| Deny rules with priority | `engine/types.ts` | ❌ none |
+| SQL WHERE-clause generation for row-level access | `engine/permission-engine.ts` | ❌ none |
+| `allow`/`deny` effects | `engine/rule-validator.ts` | Partial (`ac` is allow-only) |
+
+**This is the key architectural fact of the whole evaluation.** Better Auth's `admin()` access control is a flat capability map: `{ project: ["read", "update"] }`. It answers *"can this role do X?"*. The `PermissionEngine` answers *"can this user do X to **this specific row**?"* — a strictly stronger question, and the one a deployment platform needs (a user must read *their* projects, not all projects).
+
+So the correct integration shape is **not** "replace the engine with Better Auth's `ac`". It is **"let Better Auth own identity, sessions, memberships and invitations; let `PermissionEngine` own row-level authorization."** The validated design doc already says exactly this (`permission-system-design.md`: "Section 1 → evaluated by Better Auth `ac.check()`; Section 2 → evaluated by PermissionEngine"). Every recommendation below preserves that split.
+
+<DocCallout title="The engine is built, but not yet enforcing" tone="warning">
+The engine, its resource graph, filter compiler and rule validator all exist and are unit-tested. But `PermissionService` — the NestJS wrapper at `apps/api/src/modules/permission/services/permission.service.ts` — has **zero injection sites**. A repo-wide grep for `PermissionService` returns only its own module, its own spec, and documentation. `PermissionModule` is registered in `app.module.ts` and initializes at boot, but nothing consumes it.
+
+So today, row-level authorization is *specified, designed, implemented and tested* — and not yet called from any request path. That matters for the recommendation below: adopting Better Auth plugins does not require waiting on this wiring, and wiring the engine is a separate, orthogonal task.
+</DocCallout>
+
+Orphaned code is a recurring pattern in this codebase, and it cuts both ways for this evaluation: `ApiKeyService` (§1.5, Gap A) and `PermissionService` are both complete-and-unused, while `packages/auth/AGENTS.md:16` advertises a `useOrganization` export that **does not exist in source** (it appears only in `REFACTORING-REPORT.md` prose and the AGENTS.md itself). Treat the auth package's documentation as aspirational until a grep confirms the symbol.
+
+### 1.4 What is already installed
+
+From `packages/auth/src/server/auth.ts` and `server/plugins/index.ts`:
+
+| Plugin | Kind | Purpose in this app |
+|---|---|---|
+| `admin()` (via `useAdmin()`) | official | Platform roles, ban, impersonation, user CRUD |
+| `multiSession()` | official | Several identities in one browser — dev/testing convenience |
+| `openAPI()` | official | Scalar reference at `/api/auth/reference` |
+| `masterTokenPlugin()` | **custom** | `DEV_AUTH_KEY` bearer → impersonates the default admin |
+| `loginAsPlugin()` | **custom** | Switch identity without re-authenticating |
+| `invitePlugin()` | **custom** | Platform invites (`platform_invite` table) |
+| `pushNotificationsPlugin()` | **custom** | Schema-only: `user_vapid_keys`, `push_subscription` |
+
+Also relevant: `session.cookieCache` is enabled with a 5-minute max age, `crossSubDomainCookies` shares the session between `api.*` and `web.*`, and GitHub is the only configured social provider (with `repo` scope).
+
+### 1.5 Three concrete gaps this evaluation found
+
+These are not plugin recommendations — they are defects the plugin audit surfaced. They matter because two of them change *which* plugin is the right answer.
+
+**Gap A — the API key system is write-only.**
+
+`ApiKeyService` (`apps/api/src/modules/project/services/api-key.service.ts`) issues keys: it generates `dk_<64 hex>`, stores a SHA-256 hash, supports scopes, expiry, revoke and rotate. `ApiKeyRepository.findByHash()` exists and even filters on `isActive = true` — the exact shape an authentication lookup needs.
+
+But it is never used for authentication. Its **only** caller is `api-key.service.ts:66`, inside `createApiKey()`, checking for a hash collision. And `ApiKeyService` itself has **zero consumers** — a repo-wide grep finds it only in its own file, its own spec, and `project.module.ts` (which registers and exports it). There is no `x-api-key` header handling anywhere in `apps/api/src`; the only `X-API-Key` matches are Traefik middleware *tests*.
+
+So: a user can create an API key, and that key authenticates nothing. The `api_keys` table is a dead end. This is corroborated by the platform audit, which lists `api_keys` among "three database tables have no entity schema" (`docs/enhancement-overview-platform-100.md` §39).
+
+**Gap B — project collaborator invitations are not invitations.**
+
+`ProjectService.inviteCollaborator()` (`apps/api/src/modules/project/services/project.service.ts:160`) requires the target user to **already have an account** — it throws `NotFoundException("No user found with email")` otherwise. It then inserts a `project_collaborators` row with `acceptedAt: null`. There is no token, no expiry, no email, no accept endpoint. The UI's "Resend invitation" button simply re-runs the same insert.
+
+Meanwhile the *platform-level* invite plugin does implement tokens, expiry and role validation — so the codebase contains both a real invite system and a fake one.
+
+**Gap C — no email infrastructure exists at all.**
+
+A repo-wide search for `nodemailer`, `resend`, `postmark`, `mailgun`, `sendgrid`, `smtp` returns nothing outside skill templates and audit prose. `docs/enhancement-overview-platform-100.md` §9 states it directly: "Notification channels do not exist beyond Web Push."
+
+This is the gating constraint for a whole family of plugins (magic link, email OTP, email 2FA, organization invitation emails). **None of them can be adopted before a mail transport exists.** Any roadmap that ignores this is fiction.
+
+---
+
+## 2. The complete plugin catalog (all 50+, verdicts included)
+
+Better Auth's own index lists 50+ plugins across seven categories. The table below covers all of them. "Fit" is judged against the baseline in §1.
+
+Legend — **Adopt now** · **Adopt with prerequisite** · **Consider later** · **Skip**
+
+### 2.1 Authentication
+
+| Plugin | What it does | Fit | Verdict |
+|---|---|---|---|
+| **Two-Factor Authentication** (`2fa`) | TOTP + email OTP, backup codes, trusted devices | **Strong.** This is an infrastructure control plane. A stolen password currently gives full access to every server, deployment and secret on the mesh. `session` already stores `ipAddress`/`userAgent`, so the audit surface exists. | **Adopt now** (TOTP + backup codes; email OTP blocked on Gap C) |
+| **Passkey** (`@better-auth/passkey`) | WebAuthn/FIDO2, phishing-resistant | **Strong for operators.** Phishing resistance is the correct answer for accounts that can `docker exec` into production hosts. Self-hosted admins are technically capable of enrolling a passkey. | **Adopt now** (opt-in, alongside password) |
+| **Magic Link** (`magicLink`) | Passwordless email link | Weak *today*. Requires email (Gap C) and duplicates the existing invite flow. Low value for a tool admins log into daily. | **Skip** until email exists *and* someone asks |
+| **Email OTP** (`emailOTP`) | Email one-time codes | Same as magic link, but it is a **prerequisite** for email-based 2FA. | **Adopt with prerequisite** (email transport) — as 2FA's second factor, not as a primary login |
+| **Phone Number** (`phoneNumber`) | SMS OTP auth | **Weak.** SMS adds a paid third-party dependency (Twilio et al.) for a self-hosted product whose users already run servers. No demand signal in the codebase. | **Skip** |
+| **Anonymous** (`anonymous`) | Guest sessions, upgrade later | **Weak.** This platform's entry cost is server setup. An anonymous session has nothing to operate on. | **Skip** |
+| **Username** (`username`) | Username + `displayUsername` login | **Marginal.** Email is the natural identifier for an invite-driven admin tool. Adds a uniqueness constraint and a second login path for little gain. | **Consider later** |
+| **One Tap** (`oneTap`) | Google One Tap sign-in | **Weak.** Implies consumer Google accounts. This is an enterprise/self-hosted surface where GitHub is the relevant identity provider. | **Skip** |
+| **Sign In With Ethereum** (`siwe`) | Wallet-based auth | **Skip.** No product surface touches wallets or on-chain identity. | **Skip** |
+| **Generic OAuth** (`genericOAuth`) | Any OAuth 2.0 / OIDC provider | **Strong.** Turns a hardcoded GitHub provider into a configurable list. Directly enables GitLab (whose schema table `gitlab_apps` already exists at `packages/nest/schema/src/global/gitlab-provider.ts:11`), plus self-hosted Gitea/Forgejo — the natural code hosts for self-hosted users. | **Adopt now** |
+| **Multi Session** (`multiSession`) | Concurrent sessions per user | Already installed and justified in-line. Keep. | **Already adopted** |
+| **Last Login Method** (`lastLoginMethod`) | Tracks last auth method, shows "Last used" badge | **Nice-to-have.** Once 2FA + passkey + GitHub exist, the sign-in page has four paths and users need a hint. | **Adopt with prerequisite** (after passkey/2FA land) |
+
+### 2.2 Authorization & Management
+
+| Plugin | What it does | Fit | Verdict |
+|---|---|---|---|
+| **Admin** (`admin`) | User CRUD, roles, ban, impersonation | Already installed via `useAdmin()`. | **Already adopted** |
+| **Organization** (`organization`) | Org / member / team / invitation / dynamic roles | **Keep removed — see below.** | **Skip (deliberate)** |
+| **SSO** (`@better-auth/sso`) | OIDC, OAuth2, SAML 2.0 | **Strong, phase 2.** A self-hosted platform deployed inside companies will be asked to authenticate against the company IdP. The plugin works standalone — it does not require the organization plugin, though it is usually paired with one. | **Consider later** (first enterprise request) |
+| **SCIM** (`@better-auth/scim`) | Inbound directory user/group provisioning | **Weak.** SCIM provisions users and *groups* into an org. With no org layer, only half the model is usable. | **Skip** |
+
+<DocCallout title="Organization is skipped by decision, not by oversight" tone="warning">
+This plugin is deliberately out of scope. The mesh is the single tenant: `packages/nest/schema/src/global/permissions.ts` states "there is no organization layer", and the schema answers ownership through `projects.ownerId → user.id` plus `project_collaborators`. The validated design at `docs/qa/permissions/permission-system-design.md` proposes the org layer but is not implemented, and this audit does not re-open that decision.
+
+Two consequences to keep in mind while reading the rest of this page:
+
+1. **Plugins that assume an organization layer are unavailable.** Organization-owned API keys, org-scoped invitations, SCIM groups, and org-attached subscriptions all lose their parent concept.
+2. **The tenancy gap is real and stays open.** Inviting one user to ten projects remains ten operations. That is a product decision, not a plugin gap — it is recorded here so nobody assumes the org work happened.
+</DocCallout>
+
+
+### 2.3 API & Tokens
+
+| Plugin | What it does | Fit | Verdict |
+|---|---|---|---|
+| **Agent Auth** (`@better-auth/agent-auth`) | Agent identity, discovery, capability-based authorization for AI agents | **Adopted — see §4.5.** This app already publishes an OpenAPI spec at `/openapi.json` and runs an MCP server, which is exactly what the plugin's OpenAPI adapter consumes. It converts the existing contract surface into a reviewable, grant-gated capability set without writing capabilities by hand. | **Adopted** (wrapped by `useAgentAuth`, pinned `0.6.2`) |
+| **API Key** (`@better-auth/api-key`) | Key generation, rate limiting, remaining/refill, metadata, org-owned keys, secondary storage | **Directly closes Gap A.** The hand-rolled system issues keys nothing can verify. This plugin issues keys *and* wires verification into `getSession()`, so `Authorization: Bearer <key>` becomes a real session — no custom middleware, no second auth path. | **Adopt now — priority #2** |
+| **JWT** (`jwt`) | `/token` endpoint + JWKS for external verifiers | **Prerequisite for MCP and OAuth Provider.** Enables stateless verification by nodes/runners without a DB round-trip. Standalone value is moderate. | **Adopt with prerequisite** (required by MCP; also enables node-side token verification) |
+| **Bearer** (`bearer`) | Accept a session token in `Authorization: Bearer` | **Redundant if API Key is adopted.** Its token *is* a session token — long-lived, not scoped, not revocable per-consumer. The API Key plugin is the safer primitive. | **Skip** (superseded by API Key) |
+| **One-Time Token** (`oneTimeToken`) | Single-use tokens, cross-domain auth | **Marginal.** Useful for handing a session between `api.*` and `web.*` or into a terminal. `crossSubDomainCookies` already solves the subdomain case. | **Consider later** (if a handoff flow appears) |
+| **OAuth Proxy** (`oAuthProxy`) | Proxy OAuth through production for preview/dev | **Strong and unusually well-targeted.** This app *generates preview environments for its users* (`preview_environments` table, `github_preview_deployments`). If the platform ever offers "log in with GitHub" on preview URLs, the per-preview callback URL problem is exactly what this solves. | **Consider later** (when preview auth is a product feature) |
+
+### 2.4 OAuth & OIDC Providers
+
+| Plugin | What it does | Fit | Verdict |
+|---|---|---|---|
+| **OAuth 2.1 Provider** (`@better-auth/oauth-provider`) | Turn the auth server into an authorization server: auth code + PKCE, client credentials, device code, introspection, revocation, OIDC | **Strong — this is the strategic one.** It replaces every bespoke machine credential in the codebase with one standard: `client_credentials` for node-to-node and runner traffic, `authorization_code` for third-party integrations, `device_code` for the CLI. Consolidates `cluster_join_grants`, the mesh HMAC token, and the master token onto one revocable, scoped, auditable surface. | **Adopt with prerequisite** (JWT plugin; after API Key + Device Authorization) |
+| **MCP** (`@better-auth/mcp`) | MCP OAuth provider + RFC 9728 resource metadata | **Strong if MCP ships.** The repo contains an MCP server (`packages/mcp-repo-manager`) — the product direction toward agent-driven operation is already visible. Requires `jwt()` + `@better-auth/cimd`. | **Consider later** (when the platform exposes MCP to end users) |
+| **Device Authorization** (`deviceAuthorization`) | RFC 8628 device grant | **Adopt, but not as a master-token replacement.** The CLI's master token and the web devtools toggle are two different mechanisms with different threat models. Device authorization replaces the *CLI's* credential handling; it cannot replace the devtools toggle. See §4.4. | **Adopt now — priority #3** (CLI only) |
+
+### 2.5 Payments & Billing
+
+All six billing plugins — **Stripe**, **Polar**, **Autumn**, **Creem**, **Dodo Payments**, **Commet** — share one verdict.
+
+| Plugin | Fit | Verdict |
+|---|---|---|
+| Stripe / Polar / Autumn / Creem / Dodo / Commet | The product source of truth says the platform "must support both OSS self-hosted distribution and optional managed/cloud operation" (`PLATFORM_SOURCE_OF_TRUTH.md` §5). So billing is *eventually* relevant. But today there is no pricing page, no plan model, no entitlement checks, no tenant layer to attach a subscription to, and no cloud deployment. Adding a billing plugin now would be a payment integration wired to nothing. | **Skip now.** When managed cloud becomes real, the order is: decide tenancy first (subscriptions attach to *something* — a user, or the org layer §2.2 removes), then exactly **one** provider. Prefer **Stripe** (`@better-auth/stripe`, highest maturity) or **Polar** (open-source-aligned, which suits an OSS-first product). |
+
+<DocCallout title="Anti-recommendation" tone="warning">
+Do not add a billing plugin as a placeholder. Six payment integrations with no plan model produce six dead tables. The `api_keys` situation (§1.5, Gap A) is the cautionary example already present in this repo: a complete service, correctly written, with zero consumers.
+</DocCallout>
+
+### 2.6 Security & Utilities
+
+| Plugin | What it does | Fit | Verdict |
+|---|---|---|---|
+| **Captcha** (`captcha`) | reCAPTCHA / Turnstile / hCaptcha / CaptchaFox / Vercel BotID on auth endpoints | **Weak for the default case, relevant for cloud.** A self-hosted single-operator install behind a private network has nothing to protect. A publicly reachable sign-up page on a managed instance does. Note the app already depends on Cloudflare (DNS provider + tunnel services), so **Turnstile** is the natural choice. | **Consider later** (cloud/public sign-up only) |
+| **Have I Been Pwned** (`haveIBeenPwned`) | Rejects breached passwords, k-anonymity (5 SHA-1 chars) | **Cheap and correct.** One plugin line, no schema, no config, no user-visible cost, and it removes the most common weak-credential class from an admin surface. The `enabled` option lets it stay off in dev. | **Adopt now — highest value-per-line on this page** |
+| **i18n** (`@better-auth/i18n`) | Translates Better Auth error messages by locale | **Marginal.** The product is English-only today; the docs app has no locale routing. Revisit only with a real i18n effort. | **Consider later** |
+| **Open API** (`openAPI`) | Scalar reference for all auth endpoints | Already installed. | **Already adopted** |
+| **Test Utils** (`testUtils`) | Factories, session helpers, OTP capture for tests | **Strong.** This repo is test-heavy (co-located `*.spec.ts`, shared-Postgres e2e via testcontainers) and repeatedly hand-builds users and sessions. The docs' own guidance — keep it in a **separate test-only auth instance**, never the production config. | **Adopt now** (test-only instance) |
+
+### 2.7 Analytics & Tracking
+
+| Plugin | What it does | Fit | Verdict |
+|---|---|---|---|
+| **Dub** (`@dub/better-auth`) | Lead tracking from Dub links + Dub OAuth linking | **Skip.** Requires a third-party SaaS and tracks marketing sign-ups. This is an infrastructure tool whose users arrive via invite or setup wizard. | **Skip** |
+
+### 2.8 Community plugins
+
+Better Auth maintains a community plugin list. Verdict applies to the whole category: **Skip by default.**
+
+Every official plugin in this document was judged partly on the fact that it is versioned with the framework (`1.7.5`), typed against the same core, and covered by the docs you are reading. Community plugins are explicitly not verified by the Better Auth team. For an auth surface guarding production infrastructure, that trade is not worth taking unless a community plugin covers a need that has **no** official answer and is small enough to audit line-by-line.
+
+---
+
+## 3. Ranked roadmap
+
+Ordering is by **value ÷ risk**, with prerequisites respected. The first three are the ones that matter.
+
+| # | Plugin | Why now | Prerequisite | Rough surface |
+|---|---|---|---|---|
+| **1** | **API Key** | Fixes a system that currently issues unusable keys; turns `api_keys` into a real machine-auth surface | None (or a small migration if the existing table is kept) | Medium |
+| **2** | **Have I Been Pwned** | One line, no schema, real security gain | None | Trivial |
+| **3** | **Device Authorization** | Gives the CLI a real login flow; removes master-token dependence from scripts and CI | A `/device` approval page — **built** | **Adopted** |
+| **4** | **Generic OAuth** | Configurable providers; unlocks GitLab/Gitea | None | Small |
+| **5** | **Agent Auth** | Turns the existing OpenAPI surface into grant-gated, auditable agent capabilities | API Key adopted; `/openapi.json` generates; discovery + approval page — **both built** | **Adopted** |
+| **6** | **Two-Factor Authentication** | Infrastructure control plane deserves a second factor | `issuer` must be set (TOTP account label) | **Adopted** |
+| **7** | **Passkey** | Phishing resistance for operators; also Agent Auth's WebAuthn factor | HTTPS in production (WebAuthn requirement) | **Adopted** |
+| **8** | **JWT** → **OAuth Provider** | One standard credential for nodes, runners, CLI and integrations | JWT first; after #1 and #3 | Large |
+| **9** | **Test Utils** | Removes hand-built fixtures from tests | A separate test-only auth instance | Small |
+| **10** | **Last Login Method** | Sign-in UX once several methods exist | — | **Adopted** |
+| **11** | **SSO** | Enterprise self-hosted installs | None (works standalone) | Medium |
+| **12** | **MCP** | Agent-driven operation over the MCP protocol | JWT + CIMD; complements #5 | Large |
+| — | **Email OTP** | Second factor via email | **Email transport must be built first** (Gap C) | Blocked |
+| — | **Captcha** | Public sign-up hardening | Only if a public cloud tier ships | Blocked |
+| — | **Stripe / Polar** | Managed cloud billing | No tenant layer to attach a subscription to | Blocked |
+| — | **Organization** | — | **Deliberately removed** (§2.2) | Out of scope |
+
+---
+
+## 4. Implementation designs
+
+Concrete designs for the plugins that justify one. They follow the repo's existing pattern: **wrap the official plugin in a `use*()` helper** inside `packages/auth/src/server/plugins/`, exactly as `useAdmin()` and `useInvite()` already do.
+
+### 4.1 API Key — closing the write-only gap
+
+**Goal.** Make issued keys actually authenticate something.
+
+**The problem with the status quo.** `ApiKeyService.createApiKey()` produces `dk_<64 hex>` and stores SHA-256. Nothing verifies it. Rebuilding verification by hand means writing middleware, session synthesis, scope enforcement, rate limiting, and expiry handling — all of which the official plugin already ships, plus org-owned keys, metadata, remaining/refill quotas, and secondary-storage lookup for hot paths.
+
+**Design.** Adopt `@better-auth/api-key` and delete the hand-rolled service.
+
+```ts
+// packages/auth/src/server/plugins/index.ts
+export function useApiKey() {
+  return apiKey({
+    enableSessionForAPIKeys: true,   // a key becomes a real session — no custom middleware
+    rateLimit: { enabled: true, timeWindow: 60 * 60 * 1000, maxRequests: 1000 },
+    enableMetadata: true,            // attach projectId/scope context to the key
+    // `references: 'organization'` once §4.1 lands, so keys are tenant-owned
+  });
+}
+```
+
+`enableSessionForAPIKeys: true` is the decisive option: it means the ORPC auth middleware (`apps/api/src/core/modules/auth/orpc/middlewares.ts`) needs **no change**. A request carrying a valid key already produces a session through `getSession()`, so every existing guard, decorator and permission check works unmodified.
+
+**Migration.** The existing `api_keys` table has `keyHash` (SHA-256, unique), `keyPreview`, `scopes`, `expiresAt`, `isActive`, `projectId`. The plugin's table has a different shape. Since the existing keys authenticate nothing, **no user can be relying on them** — so the correct move is to drop `api_keys`, let the plugin create its own table, and delete `ApiKeyService` + `ApiKeyRepository` + their specs. Keeping both tables would be exactly the bridge the repo forbids.
+
+**Result.** Keys become scoped, rate-limited, revocable, expiring, session-producing credentials — and the CLI, CI pipelines, and third-party integrations all gain a real auth path.
+
+### 4.3 Device Authorization — a real CLI login
+
+**Goal.** Remove the CLI's dependence on a master token and seeded admin credentials.
+
+**Why it fits.** `apps/api/src/cli/services/cli-auth.service.ts` implements a three-strategy fallback: master token → default admin credentials → temp seed user. Every one of those is a privileged credential being handled by a command-line tool. RFC 8628 is the standard fix, and it is what `gh`, `docker login`, and `wrangler` all do.
+
+**Design.**
+
+```ts
+// auth config
+deviceAuthorization({
+  verificationUri: '/device',        // the page the user visits to approve
+  expiresIn: '30m',
+  userCodeLength: 8,
+})
+```
+
+Flow:
+
+1. CLI calls the device-authorization endpoint, receives a `device_code` and a short `user_code`.
+2. CLI prints: `Open https://<host>/device and enter ABCD-1234`.
+3. User approves in the already-authenticated web session.
+4. CLI polls, receives a real session token, stores it in its config file.
+
+**Prerequisite.** A `/device` page in `apps/web/src/app/` that calls the approval endpoint. This is a small, self-contained page and the only new UI the plugin requires.
+
+**Sequencing.** Do this **before** the full OAuth Provider (§3, #8). Device authorization is a fraction of the surface area and delivers most of the CLI benefit immediately. If the OAuth Provider is adopted later, the device flow composes with it (`device_code` is one of its supported grants) rather than being replaced.
+
+#### 4.3.1 Can device authorization replace the devtools master-token toggle?
+
+**No — and the reason matters, because the two look like the same thing.**
+
+They are not. They serve different actors with different threat models:
+
+| | Devtools master token | Device authorization |
+|---|---|---|
+| **Actor** | The developer's own browser, already in dev | A separate process: CLI, a script, CI |
+| **Who is admitted** | The developer, as `DEFAULT_ADMIN_EMAIL` | Whoever completes the browser approval |
+| **Mechanism** | `Authorization: Bearer <DEV_AUTH_KEY>` on every request | One-time `user_code` → real Better Auth session |
+| **Lifetime** | As long as the cookie flag is set (1 day) | Session lifetime, revocable |
+| **The thing being solved** | Fast identity switching while building the UI | Not putting a static secret in a config file |
+
+Device authorization removes a *static secret from a machine*. The devtools toggle removes an *authentication round-trip from a human*. Replacing the toggle with a device flow would mean the developer re-runs a browser approval every time they want to switch the impersonated user — slower, and the code it replaces is already dev-only.
+
+**However**, the investigation into this question surfaced findings that change the picture. The devtools master-token path is in a worse state than its name suggests:
+
+**Finding 1 — the devtools component no longer exists.** The toggle, the `MasterTokenProvider` wrapper, the user-switcher and the CLI panel all lived in `apps/web/src/components/devtools/TanStackDevTools.tsx` (1434 lines). That file was deleted in commit `b3c2ef0b` ("chore(deadCode): Remove verified-dead modules, orphaned apps, and unused web files") after being flagged as `Unused` in `dead-code-audit-report.md:89`. There is no replacement — `apps/web/src/components/devtools/` does not exist, and nothing in `apps/web/src` imports `@tanstack/react-devtools` or `@tanstack/react-query-devtools` despite both being declared in `apps/web/package.json`.
+
+**Finding 2 — the supports are orphaned.** `MasterTokenProvider` and `useMasterToken` are exported from `packages/auth/src/client/plugins/index.ts:31`, but **no component renders the provider**. A repo-wide search finds `useMasterToken` referenced in exactly one other place — `masterToken/hooks/useMasterToken.ts`, where it reads `MasterTokenContext` and throws `'useMasterToken must be used inside MasterTokenProvider'` when absent. That is a self-referential pair, not a consumer. `dead-code-audit-report.md` records the same file as knip-reported dead.
+
+The only live consumers of the master-token mechanism are two plumbing layers that were reachable only through the deleted panel:
+
+- `apps/web/src/lib/orpc/plugins/masterTokenClient.ts` — the ORPC link plugin, still wired into `apps/web/src/lib/orpc/index.ts:22`
+- `apps/web/src/middlewares/WithAuth.ts:38-43` — the middleware that bypasses session checks when the `master-token-enabled` cookie is set
+
+So today the master-token *plumbing* is live and the *UI that sets the cookie* is gone. A developer can no longer enable it from the app — the cookie would have to be set by hand.
+
+**Finding 3 — the dev credential is a checked-in literal, inlined into the browser.**
+
+This one needs precision, because the mechanism is *correct by design for dev* while the specific value is not.
+
+`masterTokenClient.ts:40,55` and `masterToken/state.ts:34` read `process.env.NEXT_PUBLIC_DEV_AUTH_KEY`. Any `NEXT_PUBLIC_*` variable in Next.js is **inlined at build time into the client bundle**. And `DEV_AUTH_KEY` is the same secret the API accepts as a full master token: `masterTokenAuth.ts` treats `Bearer <devAuthKey>` (or the `dev-auth-key` cookie) as authenticating `DEFAULT_ADMIN_EMAIL` — the platform super-admin, with reach across every project, deployment, container and secret on the mesh.
+
+The value is not a random per-install secret. It is a literal in the committed environment template:
+
+- `.env.example:164` and `.env:36` — `DEV_AUTH_KEY=dev-secret-key-change-me`
+- `.env.example:145` / `.env:34` — `DEFAULT_ADMIN_EMAIL=admin@admin.com`
+- `masterTokenAuth.ts:121` — `enabled` defaults to `true`
+- `auth.ts` resolves `enabled: ENABLE_MASTER_TOKEN ?? (!!DEV_AUTH_KEY && !!DEFAULT_ADMIN_EMAIL)`
+
+So on every quickstart install, both conditions are satisfied by committed defaults, the master token is **enabled with a publicly known key**, and `infra/infra/docker/compose/common/web/docker-compose.config.dev.yml:51` forwards that same value into the browser as `NEXT_PUBLIC_DEV_AUTH_KEY`.
+
+**What is not true** — and worth stating so the fix is proportionate: production is correctly locked down. `infra/infra/docker/compose/docker-compose.prod.yml:22` sets `DEV_AUTH_KEY: ""`, `.env.prod:49` leaves it empty, and `NEXT_PUBLIC_DEV_AUTH_KEY` is set **only** in the dev compose file. With those empty, `auth.ts`'s `!!DEV_AUTH_KEY && ...` resolves false and the plugin disables itself. The exposure is a development-side default, not a production leak.
+
+**The residual hazard is one line.** `infra/infra/docker/compose/common/web/docker-compose.config.prod.yml:38` carries `DEV_AUTH_KEY: ${DEV_AUTH_KEY:-dev-fallback-key}`. If that variable is unset at prod build time, the web container silently receives the literal `dev-fallback-key`. The API would reject it (its own `DEV_AUTH_KEY` is empty, so the plugin is off), so this is not an exploit path today — but a fallback default on a credential variable is the kind of thing that becomes one after the next refactor. It should have no default.
+
+**Recommendation (implemented).**
+
+The devtools master-token toggle was rebuilt on a bearer token that is **not** `DEV_AUTH_KEY`:
+
+1. `@better-auth/api-key` is adopted (§4.1), with a `devtools`-purpose key configuration.
+2. The devtools panel mints a short-lived, user-scoped key via `authClient.apiKey.create` and keeps it in `sessionStorage` — never `DEV_AUTH_KEY`. See `apps/web/src/components/devtools/use-devtools-api-key.ts`.
+3. `NEXT_PUBLIC_DEV_AUTH_KEY` is **gone**: removed from `apps/web/src` code, from `.env` / `.env.example` / `.env.template`, and from the dev compose passthrough. The master credential is no longer reachable from the browser at all.
+4. `MasterTokenPlugin` (`apps/web/src/lib/orpc/plugins/masterTokenClient.ts`) now reads the minted key through a single shared helper (`readDevtoolsApiKey()`), so the panel and the ORPC link cannot drift on storage format or expiry.
+5. The dead `getMasterTokenKey()` (which always returned `null`) was deleted, and `masterToken/state.ts` no longer writes a `dev-auth-key` cookie — it only tracks the toggle flag. The server no longer needs to read that cookie because the token travels in the `Authorization` header.
+
+The server-side `masterTokenPlugin` is retained for now: it is what makes the CLI's master-token strategy work, and that strategy is only retired once Device Authorization (§4.3) lands. Retiring it is the last step, and it is tracked rather than done speculatively.
+
+<DocCallout title="Sequencing note" tone="warning">
+Do not delete the master-token plumbing before the replacement key path works end to end. `WithAuth.ts` currently uses the cookie to bypass the session check entirely — removing it without a working substitute locks developers out of the dashboard in dev.
+</DocCallout>
+
+### 4.4 Two-Factor Authentication
+
+**Goal.** A second factor on accounts that control production infrastructure.
+
+**Design.**
+
+```ts
+twoFactor({
+  issuer: 'Deployer',                 // TOTP issuer — must be set, not defaulted
+  backupCodeOptions: { amount: 10, length: 10 },
+  // otpOptions: { ... }              // email OTP path — blocked on Gap C
+})
+```
+
+**Enforcement, not just availability.** Enabling the plugin lets users *opt in*. For an infrastructure control plane the correct posture is to require 2FA for privileged platform roles. The natural enforcement point already exists: the ORPC auth middleware and the `RoleGuard`/`RequireRole` decorators documented in `apps/doc/content/docs/dev/auth-access-control.mdx`. A check that rejects sessions with `twoFactorEnabled: false` for `superAdmin`/`admin` roles belongs in that middleware — one place, every route.
+
+**Schema.** Adds `two_factor` and `two_factor_backup_code` tables to the auth schema; regenerate with `auth-generate`.
+
+**Note on email OTP.** The plugin's email-based second factor requires a `sendOTP` callback — which requires the mail transport that does not exist (§1.5, Gap C). Ship TOTP + backup codes first; add the email path when a transport lands.
+
+### 4.5 Agent Auth — grant-gated capabilities for AI agents
+
+**Goal.** Let an AI agent operate this platform — list projects, trigger a deployment, read logs — under a scoped, user-approved, auditable grant, instead of a static API key with full account power.
+
+**Status: adopted.** `@better-auth/agent-auth` is installed and wrapped by `useAgentAuth()` in `packages/auth/src/server/plugins/agentAuth.ts`. The wrapper is the plugin's isolation boundary: it is pinned exactly (`0.6.2`, not `^`) and centralizes every policy decision — read-only defaults, WebAuthn-gated mutations — in one file.
+
+**Why this app is an unusually good fit.** The plugin's highest-leverage feature is its **OpenAPI adapter**, which derives the entire capability set from an existing spec: one capability per `operationId`, input/output schemas from the parameters and response bodies, plus a proxy `onExecute` handler. This repo already has that spec:
+
+- `apps/api/src/openapi.ts` exports `generateSpec()`, which runs ORPC's `OpenAPIGenerator` over `appContract`.
+- `apps/api/src/core/orchestrator/orchestrator.service.ts:675-682` serves it at **`/openapi.json`**, with Scalar at `/reference`.
+
+So the capability surface does not need to be hand-written. It is a projection of the contracts that already exist.
+
+#### Step 0 — `/openapi.json` generation (fixed)
+
+The generator used to **throw**, which made the orchestrator's `/openapi.json` return 500 and took `/reference` (Scalar) down with it:
+
+```
+[OpenAPIGenerator] Error occurred while generating OpenAPI for procedure at path: docker.runtime.snapshot
+When method is "GET", input schema must satisfy: object | any | unknown
+```
+
+The cause was in `packages/contracts/api/modules/docker/runtime/snapshot.ts`. It used `.list()` (a `GET`) and declared **no `.input()`**, so the contract's input schema was `ZodUndefined` — which the generator rejects for a GET.
+
+The subtlety that made this hard to fix: passing an **empty** query schema does not work either. The detailed-input builder omits empty parts (`omitEmptyParts` + `isEmpty` in `packages/transport/orpc/src/builder/input/builder.ts`), so an empty query collapses the whole envelope down to the void schema and the fix silently disappears. The contract now declares a **non-empty** query schema — the same shape the working sibling `docker.runtime.stream` contract uses:
+
+```ts
+export const dockerRuntimeSnapshotQuerySchema = z.object({
+    include: z.array(z.enum(["containers", "images", "networks", "volumes", "registries", "stacks"])).optional(),
+});
+```
+
+**Guard test added**: `apps/api/src/openapi.spec.ts` asserts the spec generates, that every path declares a method, that every operation declares responses, and specifically that `docker.runtime.snapshot` stays reachable. Verified to fail 4/4 when the fix is reverted.
+
+The spec now generates cleanly: **289 paths / 345 operations**.
+
+#### Step 1 — install and configure
+
+The wrapper (`useAgentAuth`) performs the configuration below; the code is in `packages/auth/src/server/plugins/agentAuth.ts`. The shape it produces:
+
+```ts
+// packages/auth/src/server/plugins/agentAuth.ts
+import { agentAuth, type AgentAuthOptions } from "@better-auth/agent-auth";
+import { createFromOpenAPI } from "@better-auth/agent-auth/openapi";
+
+// OpenAPISpec is declared but not re-exported by the package, so derive it.
+export type AgentAuthOpenAPISpec = Parameters<typeof createFromOpenAPI>[0];
+
+export function useAgentAuth(options: UseAgentAuthOptions) {
+  return agentAuth({
+    ...createFromOpenAPI(options.spec, {
+      baseUrl: options.baseUrl,
+      // Reads are granted on enrollment; everything else needs an explicit grant.
+      defaultHostCapabilities: ["GET", "HEAD"],
+      // A session suffices to READ; any mutation requires WebAuthn.
+      approvalStrength: {
+        GET: "session", HEAD: "session",
+        POST: "webauthn", PUT: "webauthn", PATCH: "webauthn", DELETE: "webauthn",
+      },
+      resolveHeaders: options.resolveHeaders,
+    }),
+    modes: ["delegated", "autonomous"],
+    approvalMethods: ["device_authorization"],
+    deviceAuthorizationPage: "/device/capabilities",
+    onEvent: options.onEvent,
+  });
+}
+```
+
+`approvalStrength` is the option that makes this safe here: it maps HTTP methods to the verification required. `GET` needs a normal session; `POST`/`PUT`/`DELETE` require WebAuthn — which pairs directly with the Passkey plugin (§3, #7). An agent can *read* the fleet after a session approval, but cannot *deploy* without a hardware-backed user gesture.
+
+`resolveHeaders` is typed to take only `{ userId }` rather than the plugin's full context, so the wrapper physically cannot hand out a platform-wide token: the callback only ever sees the resolved user.
+
+#### Step 2 — expose discovery
+
+Agent Auth publishes its configuration at `/.well-known/agent-configuration`, which must be served from the app root. **Implemented** at `apps/web/src/app/.well-known/agent-configuration/route.ts`.
+
+The well-known path is origin-scoped, so it is served by the web app, not the API: an agent given `https://deploy.example.com` must find it there. That route proxies to the API's `/api/auth/agent-configuration` through `getAuthUrl()` — the web app has no server-side Better Auth instance (it reads sessions from the shared cookie via `lib/auth/cookie-session.ts` and otherwise talks to the API over HTTP), so constructing a second auth instance here would risk configuration drift. A 404 from the API is translated to 404 ("not configured on this deployment") rather than 500; anything else becomes 502.
+
+#### Step 3 — the approval page
+
+The plugin does not render approval UI. `deviceAuthorizationPage: "/device/capabilities"` points at a page this repo must build. **Implemented** at `apps/web/src/app/device/page.tsx`.
+
+The one page serves both flows, because both are the same protocol:
+
+- **CLI login** — the CLI prints a user code and polls; this page turns the code into a session.
+- **Agent capability approval** — an agent requests capabilities; this page grants or denies them.
+
+Two properties matter for safety:
+
+- **The code pre-fills from the URL** (`?user_code=ABCD-1234`) so a CLI can print a clickable link and the user never retypes it.
+- **The acting identity is shown above the form.** A user code is short and human-typed, so displaying *which account* the approval would act as is what lets a person notice the wrong session before granting access.
+
+It calls the plugin's own `/device/approve` and `/device/deny` endpoints, so an unknown or expired code is rejected server-side rather than by client-side guessing.
+
+#### Step 4 — the audit trail is the point
+
+`onEvent` fires on agent creation, revocation, host enrollment, capability requests, approvals and executions. Given that this repo's own audit found "audit emission is not wired" (`docs/enhancement-overview-platform-100.md` §91 — `dispatchAudit`, the `audit` capability, and `cluster_master_history` all exist with no emission path), Agent Auth's event hook is a ready-made, complete audit source for the agent surface. Wire it to the structured logger and to `cluster_master_history` rather than inventing a parallel audit table.
+
+#### Step 5 — scope the capability surface
+
+`createFromOpenAPI` derives **every** `operationId` in the spec. That spec covers the whole platform — docker, deployments, providers, cluster, system. Exposing all of it to agents by default is wrong even with grants in place. Two controls:
+
+- **`resolveCapabilities`** — filter which capabilities a given caller can even *see*. Use it to publish a curated read-mostly set.
+- **`fromOpenAPI(spec)` + `createOpenAPIHandler(spec, opts)`** — the adapter's lower-level exports, if the derived set needs hand-curation rather than filtering.
+
+Start with a read-only set (list projects, list deployments, read logs, inspect cluster health) and add mutations only where a concrete workflow needs one.
+
+<DocCallout title="Version risk" tone="warning">
+`@better-auth/agent-auth` is at **0.6.2** while every other plugin in this document tracks `1.7.5`, and its own documentation carries a stability warning: "an implementation of a standard on heavy development. It's not yet stable and may change." Pin the version exactly, keep the plugin isolated behind `useAgentAuth()` so a breaking change is one file, and treat the capability list as experimental until it reaches 1.x. Its peer range (`better-auth >=1.4.0`) is satisfied by the installed 1.7.5.
+</DocCallout>
+
+**Result.** An agent discovers the platform, requests a scoped grant, a human approves it in the browser, and every subsequent action is a short-lived signed JWT bound to one capability — with reads on session approval and mutations gated behind WebAuthn, and every event written to the audit trail.
+
+---
+
+## 4.6 Where each plugin's data is visible (user-facing surfaces)
+
+A plugin that works but shows nothing is indistinguishable from a plugin that does not work. This section records where each adopted plugin's data surfaces, so a plugin is never considered adopted without somewhere to see it.
+
+The rule applied throughout: **no plugin's transport leaks into a page.** Every surface reads through `apps/web/src/domains/account/hooks.ts`, which normalises six different access patterns:
+
+| Plugin | How its data is read | Why |
+|---|---|---|
+| passkey | `/passkey/list-user-passkeys` via `$fetch` | No client method — the plugin exposes it only as a reactive atom created by `$store.atoms()`, a function that fires its own unstoppable fetch |
+| two-factor | `authClient.twoFactor.*` + `twoFactorEnabled` on the user | Enrolment state is an additional user field |
+| api-key | `authClient.apiKey.list({ query })` → `{ apiKeys }` | Standard client method with query params |
+| multi-session | `authClient.multiSession.listDeviceSessions()` | Accounts retained *in this browser* |
+| core session | `authClient.listSessions()` | Devices holding a session for this *user* — a different question |
+| device-authorization | `/device/approve`, `/device/deny` via `$fetch` | Approval endpoints, no typed client surface |
+| agent-auth | `/agent/list`, `/host/list` via `$fetch` | Declares `$InferServerPlugin`, so it contributes no typed method namespace |
+| account linking | `authClient.listAccounts()` | Core endpoint (providers linked to this account) |
+
+### User pages
+
+**Profile** (`apps/web/src/app/dashboard/profile/page.tsx`) — the account's security surface. Composes `SecurityPostureCard` (2FA at a glance), `PasskeysCard`, `ActiveSessionsCard`, `ApiKeysCard`, `ConnectedAccountsCard`.
+
+**Account** (`apps/web/src/app/auth/me/page.tsx`) — grew from four tabs to six:
+
+| Tab | Contents |
+|---|---|
+| Profile | existing personal-info + account-details cards |
+| Sessions | existing device list (`listSessions` / `revokeSession`) |
+| Accounts | existing multi-session section (accounts in this browser) |
+| **Security** | `SecurityPostureCard`, `PasskeysCard`, `ApiKeysCard` |
+| **Connections** | `ConnectedAccountsCard`, `AgentConnectionsCard` |
+| Notifications | existing push settings |
+
+The two new tabs exist because they answer questions the old four could not: *what can get into this account* (Security) and *what is this account wired to* (Connections).
+
+**Sign-in** (`apps/web/src/app/auth/signin/page.tsx`) — gained passkey sign-in and "last used" hints:
+
+- **Passkey sign-in** with `autoFill: false`, so the explicit platform prompt opens rather than relying on an autofill entry the user may not have. It renders only when the passkey client plugin is registered, so a deployment without it does not show a button that cannot work.
+- **"Last used" badges** on both the email submit and the passkey button, driven by `authClient.isLastUsedLoginMethod(method)`. Read after mount, never during render: the helper touches `document.cookie`, and reading it in render would diverge between server and client HTML.
+- A **cancelled WebAuthn prompt is not an error.** The browser already told the user what happened, so suppressing it avoids a red message for a deliberate action.
+
+**Device approval** (`apps/web/src/app/device/page.tsx`) — the page the Device Authorization plugin requires and does not render. It serves both the CLI flow and Agent Auth's capability approval, and pre-fills the code from `?user_code=` so a CLI can print a clickable link. The acting identity is shown above the form, because a user code is short and human-typed — seeing which account the approval would act as is what lets a person notice the wrong session before granting.
+
+**Agent discovery** (`apps/web/src/app/.well-known/agent-configuration/route.ts`) — the fixed discovery path for the Agent Auth protocol. Proxies to the API's own auth handler rather than constructing a second auth instance in the web app, so the document cannot drift from the API's configuration. A 404 is translated to "not configured on this deployment" rather than a 500.
+
+### DevTools
+
+Four new panels, all in `apps/web/src/components/devtools/plugins/`:
+
+| Panel | Data |
+|---|---|
+| 🤖 **Agent Auth** | Agents (mode/status/expiry, with revoke), Hosts (enrolled machines and their **default capabilities** — the standing grant), Session (capability grants for the current request) |
+| 🔑 **API Keys** | Keys with status, expiry, last use, usage/remaining quota, revoke |
+| 🛡️ **Security** | Passkeys (with the WebAuthn-required warning) and TOTP enable/disable with one-time backup-code display |
+| 🔗 **Connections** | Devices with revoke, linked providers, AI agents and hosts |
+
+The Connections panel is deliberately read-mostly — revoking a device is the one mutation, because that is the action you want the moment you notice a device you do not recognise.
+
+### Three design decisions worth keeping
+
+**Empty states carry the consequence, not just the absence.** A passkey list does not say "none" — it says that agent write requests will fail with `WEBAUTHN_NOT_ENROLLED` until one is enrolled, because the link between the two is not discoverable from either screen alone.
+
+**A missing plugin is reported as configuration, not as failure.** `AgentConnectionsCard` renders "Agent access is not enabled on this deployment" when the endpoint 404s, rather than an error the user cannot act on. The distinction between "not configured" and "broken" is the user's to know.
+
+**The raw API key is shown exactly once** — immediately after creation, with a copy button — because the API never returns it again. Rendering the list afterwards shows only the `start` preview.
+
+---
+
+## 5. What to skip, and why
+
+Recorded explicitly so the decision is not silently revisited.
+
+| Plugin | Why skipped |
+|---|---|
+| **Phone Number** | Adds a paid SMS dependency for a self-hosted product. No demand signal. |
+| **Anonymous** | The entry cost is running a server; a guest session has nothing to act on. |
+| **SIWE** | No wallet or on-chain surface in the product. |
+| **One Tap** | Consumer-Google framing; GitHub is the relevant identity provider here. |
+| **Username** | Email is the natural identifier for an invite-driven admin tool. |
+| **Dub** | Third-party marketing SaaS; users arrive via invite, not campaigns. |
+| **Bearer** | Superseded by API Key — its token is an unscoped, unrevocable session token. |
+| **SCIM** | Provisions into an org layer; with Organization removed there is nothing to provision groups into. |
+| **Organization** | **Removed by decision.** The mesh is the single tenant (§2.2). |
+| **All six billing plugins** | No plan model, no tenant layer, no cloud deployment. Adding one now creates a second write-only subsystem. |
+| **Community plugins** | Not verified by Better Auth; this is an auth surface guarding production infrastructure. |
+
+---
+
+## 6. Cross-cutting concerns
+
+### 6.1 The email transport is a hard prerequisite
+
+Four plugins in the "adopt" set cannot be completed without it, and it is a *product* gap rather than an auth one:
+
+- Email OTP (as 2FA's second factor)
+- Magic Link
+- Any future alerting
+
+`docs/enhancement-overview-platform-100.md` §9 already flags this. The auth work should not be scheduled as though email exists.
+
+### 6.2 Do not let Better Auth's `ac` replace `PermissionEngine`
+
+Repeated because it is the easiest mistake to make. `admin()` takes an `ac` option, and it is tempting to move all authorization into it. But `ac` answers "can role R do action A?" while `PermissionEngine` answers "can user U do action A to **row R**?" — via JSON filters, cascade resolution, dynamic variables, and SQL WHERE generation. Only the second question is adequate for a multi-tenant deployment platform. `admin()`'s `ac` must therefore cover **platform-level resources only** and hand off to the engine for everything project-scoped. Since the Organization plugin is removed (§2.2), `platformAc` is the only `ac` in play — which makes this boundary easier to hold, not harder.
+
+### 6.3 The devtools master-token path is resolved
+
+§4.3.1 established that the devtools toggle was half-deleted (its UI had been removed as dead code) and that `NEXT_PUBLIC_DEV_AUTH_KEY` put the platform's master credential into the browser bundle. Both are now resolved: the panel is restored and mints a scoped API key instead, and `NEXT_PUBLIC_DEV_AUTH_KEY` has been deleted from code, env files and compose.
+
+### 6.4 `/openapi.json` generation is fixed and guarded
+
+`generateSpec()` used to throw on `docker.runtime.snapshot`, so the orchestrator's `/openapi.json` returned 500 and `/reference` was unusable — untested, which is why it went unnoticed. The contract now declares a non-empty query schema (an empty one collapses to the void schema and the fix vanishes), and `apps/api/src/openapi.spec.ts` guards it: the test fails 4/4 when the fix is reverted. The spec generates 289 paths / 345 operations, which is what the Agent Auth adapter consumes.
+
+### 6.5 Every plugin needs a migration and an `auth-generate` run
+
+Any plugin that declares a `schema` block changes the auth tables. This repo generates those into `packages/nest/schema/src/global/auth.ts`. After changing `packages/auth/src/server/auth.ts`, run the `auth-generate` MCP tool (locally, not in Docker), then `api-db generate` for the migration. Skipping this produces a runtime failure that type-checking will not catch.
+
+### 6.6 Client plugins have a documented type-inference trap
+
+`packages/auth/src/client/auth-client.ts` explains it at length: `DEFAULT_PLUGINS` must stay a concrete tuple, and server plugin types must be carried through the type-only `$InferAuth` marker. That file also records that including *all* server plugins there caused the invite and server plugin endpoint types to overwrite the client plugin methods (TS2769) — only the admin plugin is carried. Adding `apiKeyClient()` and `agentAuthClient()` must follow that same pattern. **Note the ordering constraint:** plugins whose server types are carried must be added one at a time, re-running the web type-check after each, because the TS2769 failure is silent in the sense that it drops RPC methods rather than erroring at the call site.
+
+---
+
+## 7. Summary
+
+**The plugins that matter:**
+
+1. **API Key** — the platform already ships a complete API key *issuer* that nothing can verify. This plugin makes issued keys authenticate, with scopes, rate limits, expiry and revocation, without touching the ORPC middleware. It is also the correct replacement for the browser-exposed `DEV_AUTH_KEY` (§4.3.1).
+2. **Device Authorization** — replaces the CLI's privileged-credential fallback chain with the standard browser-approval flow. The shared `/device` approval page is built (§4.5 step 3), so the CLI and Agent Auth both have their approval UI.
+3. **Agent Auth** — projects the existing ORPC contract surface into grant-gated agent capabilities via the OpenAPI adapter, with WebAuthn-gated mutations and a built-in audit hook. Its discovery document and approval page are implemented; `/openapi.json` now generates (289 paths / 345 operations).
+
+**Also adopted:** Passkey (also Agent Auth's WebAuthn factor), Two-Factor (TOTP + backup codes), Last Login Method.
+
+**Every adopted plugin has a surface** (§4.6). Passkeys, sessions, API keys, connected accounts, agents and hosts are visible on the Profile page, the Account page's Security and Connections tabs, and four DevTools panels. The two DevTools additions that did not previously exist anywhere: agent **Hosts** (showing the default capabilities a new agent inherits — the standing grant) and **Connections** (devices, providers and agents in one view).
+
+**The three highest value-per-line:** Have I Been Pwned (one line, no schema), Generic OAuth (unlocks GitLab/Gitea from a hardcoded GitHub provider), Test Utils (test-only instance, removes hand-built fixtures).
+
+**The strategic one:** OAuth 2.1 Provider. It consolidates `cluster_join_grants`, the mesh HMAC token, the master token and the API keys onto a single revocable, scoped, auditable standard. Adopt after the top three.
+
+**The remaining blocker:** no email transport. It blocks Email OTP, Magic Link, and any future alerting — and it is a product gap, not an auth one.
+
+**Deliberately removed:** Organization. The mesh is the single tenant; the tenancy gap stays open by decision.
+
+**The discipline to keep:** Better Auth owns identity, sessions and invitations. `PermissionEngine` owns row-level authorization. Do not merge the two.

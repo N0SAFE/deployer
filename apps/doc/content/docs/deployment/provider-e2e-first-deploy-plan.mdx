@@ -53,7 +53,7 @@ GitHub→Dockerfile path exists (clone → `buildImage` → `DockerfileRuntimeRu
 _Sources: T6 mission (90%), ingress scout._
 
 ### Web (W)
-24 errors (confirmed by running `bun --bun run type-check`): 21 TS2339 `.body`-drift + 1 TS7006 fallout, all in `apps/web/src/app/dashboard/admin/system/page.tsx` (mechanical strip); 2 TS7053 in `packages/configs/eslint/src/base.ts` (configs map typed `{}`). Provider/deploy pages: **zero errors**. Dashboard: 6 REAL cards (organizations, invites, role-prop, live SSE badge, recent deployments, org/invitation lists) + 2 SKELETON (Your role hardcoded `member`, quick actions static; `isAdmin` unused; `organizationId` shown raw).
+24 errors (confirmed by running `bun --bun run type-check`): 21 TS2339 `.body`-drift + 1 TS7006 fallout, all in `apps/web/src/app/dashboard/admin/system/page.tsx` (mechanical strip); 2 TS7053 in `tooling/eslint/src/base.ts` (configs map typed `{}`). Provider/deploy pages: **zero errors**. Dashboard: 6 REAL cards (organizations, invites, role-prop, live SSE badge, recent deployments, org/invitation lists) + 2 SKELETON (Your role hardcoded `member`, quick actions static; `isAdmin` unused; `organizationId` shown raw).
 
 ### Auth / security (A)
 - **Critical**: webhook guard skips signature verification when `getWebhookSecret()` returns null (missing config **or any DB error** — empty catch) → forged webhooks possible; single global secret (per-app `webhookSecret` columns unused); idempotency in-memory Map (10k cap, lost on restart); HMAC over re-serialized JSON not raw bytes (false-401 risk).
@@ -74,7 +74,7 @@ _Sources: T6 mission (90%), ingress scout._
 | W | Goal | Key changes | Decision-gated | Tests |
 |---|---|---|---|---|
 | **W1 — Docs first** | Architect docs reflect the corrected model; plan is canonical | Update `api-centric-deployment-architecture.mdx` (ownership: core module = config, supervisor = process; route families + single-publish rule), `onboarding-and-lifecycle.mdx` (failover/URL-heal verified), NEW `provider-e2e-first-deploy-plan.mdx` (this page), NEW runbook drafts (github first deploy, dns/cloudflare guide), queue/retry + reachability pages. Numbered page list: this plan W1 output. | no | doc build |
-| **W2 — Web type errors** | 24 → 0 | `apps/web/src/app/dashboard/admin/system/page.tsx`: strip `.body.` at the ~21 mutation-result sites (+type `branch`); `packages/configs/eslint/src/base.ts`: type `configs` map (add `recommended-ci` key) | no | `web -- type-check` = 0 |
+| **W2 — Web type errors** | 24 → 0 | `apps/web/src/app/dashboard/admin/system/page.tsx`: strip `.body.` at the ~21 mutation-result sites (+type `branch`); `tooling/eslint/src/base.ts`: type `configs` map (add `recommended-ci` key) | no | `web -- type-check` = 0 |
 | **W3 — Deployment fixtures (B1)** | `deployment.service.spec` 21→0 | `deployment.service.spec.ts`: 25 inputs → `source: {sourceType, …}` (github: repositoryUrl/branch…; upload: hoist uploadId/uploadPath to source-level; custom: customData); keep `mockDeployment`/`manualDeployment` flat; optional `previewEnabled:true` in resolver mock + add ONE gitlab fixture | no | spec green |
 | **W4 — Ingress single-publish** | one Host = one router | `traefik-platform-config.service.ts`: compute domain-file hosts FIRST; `writeServiceConfigs` skips rows whose host is claimed (dedupe across writers); unit: parse both files, assert no duplicate `Host(` | no | super/ingress 357+ green |
 | **W5 — TLS ingress** | websecure + certs | Supervisor command: `--entrypoints.websecure.address=:443`, `--certificatesresolvers.letsresolve.acme.email=<ops>`, `--certificatesresolvers.letsresolve.acme.storage=/config/acme.json`, `httpchallenge.entrypoint=web`; acme storage on shared volume; builder emits `.tls({certResolver:"letsresolve"})` gated by config `sslEnabled`; HTTP→HTTPS redirect middleware | GAP-3 (authority: LE vs self-signed), GAP-5 no | curl https verify |
@@ -113,7 +113,7 @@ _Sources: T6 mission (90%), ingress scout._
 | 24 web errors | W | `bun --bun run type-check` (coordinator): 21 TS2339+TS7006 in admin/system/page.tsx; 2 TS7053 eslint |
 | Webhook guard downgrade | A | `github-webhook-auth.middleware.ts:108-111`; `github-apps.repository.ts:175-189` |
 | Retry no-op | R | `deployment.service.ts:897` |
-| Redis absent | R | grep docker/compose — zero redis/6379 |
+| Redis absent | R | grep infra/infra/docker/compose — zero redis/6379 |
 
 ## Unresolved gaps & decisions
 
@@ -155,8 +155,8 @@ Removed in this change set:
 | Area | What |
 |---|---|
 | App | `apps/load-balancer/` deleted |
-| Builder | `docker/builder/load-balancer/` (dev+prod Dockerfiles) deleted |
-| Compose | `docker/compose/load-balancer/` (dev/prod/prod-like) deleted; includes removed from `docker-compose.{dev,prod,prod-like}.yml`; `lb-dev`/`lb-prod` deps removed from override files |
+| Builder | `infra/infra/docker/builder/load-balancer/` (dev+prod Dockerfiles) deleted |
+| Compose | `infra/infra/docker/compose/load-balancer/` (dev/prod/prod-like) deleted; includes removed from `docker-compose.{dev,prod,prod-like}.yml`; `lb-dev`/`lb-prod` deps removed from override files |
 | API | `DeploymentLoadBalancerSyncAdapter` deleted; runner ctor/sync/result field removed; `RuntimeConvergenceConfig`/`RuntimeExecutionResult` LB field removed; convergence resolution LB key removed; workflow LB log/merge removed |
 | Contracts | `runtime-runner-options.schema.ts` `loadBalancerSyncMaxAttempts` removed |
 | Env | `loadBalancerEnvSchema`, `LoadBalancerEnv`, `LOAD_BALANCER_URL`, all `LB_*` keys removed from `@repo/utils-env` (index + mock) |
@@ -317,7 +317,7 @@ working production deployment*, not by cosmetic order.
 | Providers (code+dns) write-side | DONE (W6/W7/W8) | repo-config writer + webhook bridge, CF gaps closed, 664/664 mission tests |
 | Ingress (single-publish, TLS, first-boot) | DONE (W4/W5/D-4) | 332/332 traefik/supervisors/ingress |
 | Queue — **jobs NEVER executed** | 🔴 **CRITICAL** | `DeploymentBullQueueService` `@InjectQueue("deployment")` but **no `BullModule.forRoot`** anywhere → `queue.add()` fails; `deployment.service.ts:1326-1333` **empty `.catch(() => {})` swallows it** → in-process queue fills, Bull `@Process` processor (the ONLY `claimQueueJobs` consumer) never receives jobs → **a triggered/retried deploy stays queued forever** |
-| Redis | 🔴 absent | `grep redis docker/compose` = 0 |
+| Redis | 🔴 absent | `grep redis infra/infra/docker/compose` = 0 |
 | Legacy spec type-errors | 🔴 186 | all `.spec`/`__tests__`/e2e (broken imports to deleted files + stale APIs): ~36 unit + ~150 e2e harness |
 | E2E suites | 🔴 env+harness broken | runner-manager + setup/mesh/module workflows (compile-broken) |
 | Webhook hardening (W9-tail) | 🟡 | single global secret; in-memory idempotency (10k cap); redaction case-sensitive; rate-limit only on registerAppInstance |
@@ -436,7 +436,7 @@ clean AND the full unit project passes (`vitest --project unit`:
 **127/127 files, 1435/1435 tests** — including the P2-1 mission scope).
 
 #### ROOT-CAUSE fix: filter `_and`/`_or` type was wrong
-`packages/utils/orpc/src/operations/zod/utils/filtering.ts` — `FilteringSchemaOutput`
+`packages/transport/orpc/src/operations/zod/utils/filtering.ts` — `FilteringSchemaOutput`
 declared `_and?: Partial<Record<keyof TFields | "_and" | "_or", unknown>>` while the
 docs + runtime (`createFilteringSchema` → `z.array(recursiveFilterSchema)`) and every
 web caller (`mergeRuntimeFilters`, `buildScopeFilter`) send **arrays of nodes**.

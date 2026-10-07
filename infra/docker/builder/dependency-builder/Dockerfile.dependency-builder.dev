@@ -1,0 +1,92 @@
+# syntax=docker/dockerfile:1-labs
+#
+# dependency-builder — the only process that builds internal workspace packages
+# in the `dev-dependency-builder` profile.
+#
+# ── Why this image carries the FULL workspace, not a pruned one ──────────────
+#
+# Every other dev image prunes to one application: `turbo prune api` gives the API
+# exactly what the API needs, and nothing else belongs in that container.
+#
+# This image is the operator, not a consumer. It computes the union of the
+# enabled applications' dependencies AT RUNTIME, from the manifests on disk, then
+# builds that union through a single Turbo graph. It therefore needs every
+# workspace present — pruning to any one application would remove exactly the
+# manifests the union is computed from.
+#
+# The applications' own prune volumes are NOT mounted here: which applications
+# are enabled is passed on the command line by compose, which is the one place
+# that knows.
+#
+# Sources are synced in by `develop.watch` rather than bind-mounted; see the
+# compose service for why a bind mount cannot work.
+
+ARG BUN_VERSION=1.4.2
+
+FROM oven/bun:${BUN_VERSION}-alpine AS base
+
+RUN apk add --no-cache curl wget bash git python3 make g++ gcc musl-dev tar libc6-compat jq
+
+# Node is kept available: Turbo's CLI wrapper is a Node script, and the tool
+# spawns it through Bun because the native `@turbo/<platform>` binary is not
+# hoisted under Bun's isolated linker.
+COPY --from=node:22-alpine /usr/local /usr/local
+
+RUN ln -sf /usr/local/bin/node /usr/bin/node && \
+    ln -sf /usr/local/bin/npm /usr/bin/npm && \
+    ln -sf /usr/local/bin/npx /usr/bin/npx
+
+# No global `turbo`: the tool runs the repository's OWN Turbo from node_modules,
+# so the version it uses is the version the repository pins. A global install
+# would silently drift from it.
+RUN --mount=type=cache,target=/root/.bun,sharing=locked bun install -g node-gyp
+
+WORKDIR /app
+
+# ── The workspace ────────────────────────────────────────────────────────────
+#
+# Manifests AND sources: `turbo run build` reads both, and the union planner
+# walks the manifests to discover the graph.
+#
+# `dist/` is excluded by .dockerignore, so this COPY never drags in stale build
+# output from the host.
+#
+# `apps/` IS needed here, but only for the MANIFESTS: the union planner walks
+# each application's `package.json` to compute its dependency closure, so without
+# the app trees it cannot answer "what does `web` need".
+#
+# Shipping them does put the applications in Turbo's build graph, because Turbo
+# discovers workspaces from the root manifest's globs. That is handled at runtime,
+# by `TurboRunner.excludeApplicationsFromGraph`, which strips `apps/**` from the
+# workspace list of THIS container's copy before any Turbo process starts — see
+# the note there for why a `--filter=!` cannot do the same job.
+COPY package.json bun.lock* turbo.json ./
+COPY apps ./apps
+COPY packages ./packages
+COPY tools ./tools
+
+RUN --mount=type=cache,target=/root/.bun,sharing=locked \
+    --mount=type=cache,target=/root/.cache,sharing=locked \
+    bun install --frozen-lockfile
+
+# The tool's own dependencies, built once into the image. Without this the first
+# start would have to build `@repo/logger` and `@repo/type-guards` before it
+# could import them, and the failure would look like a crash rather than a slow
+# first boot.
+RUN --mount=type=cache,target=/app/.turbo,sharing=locked,id=turbo-dep-builder-dev \
+    --mount=type=cache,target=/root/.bun,sharing=locked \
+    bun x turbo run build --filter=@repo/dependency-builder... --filter=!@repo/dependency-builder
+
+# ── Start the builder ────────────────────────────────────────────────────────
+#
+# Run from the tool's own package directory: Bun resolves `tsconfig.json` from
+# `$cwd`, and the decorator flags nest-commander needs are read from there. From
+# anywhere else the command decorators throw
+# `undefined is not an object (evaluating 'descriptor.value')`.
+#
+# `--root /app` is where the tool finds the workspace. `-a` names an enabled
+# application and is repeatable; compose supplies the list, so enabling or
+# disabling an application is a compose edit and never an image rebuild.
+WORKDIR /app/tools/dependency-builder
+
+CMD ["bun", "--bun", "src/main.ts", "build", "--root", "/app"]

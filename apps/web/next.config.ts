@@ -118,7 +118,7 @@ const nextConfig: NextConfig = {
     //
     // The cache only pays off if the directory survives the container:
     // compose mounts a named volume over `.next/dev` (dev) and
-    // `.next/cache` (prod). See docker/compose/common/web/.
+    // `.next/cache` (prod). See infra/infra/docker/compose/common/web/.
     turbopackFileSystemCacheForDev: true,
     turbopackFileSystemCacheForBuild: true,
   },
@@ -169,13 +169,13 @@ const nextConfig: NextConfig = {
   // call sites in the app, so no per-destination adoption was needed before
   // flipping this on. See .agents/skills/next-partial-prefetching-adoption.
   partialPrefetching: true,
-  reactCompiler: false,
+  reactCompiler: true,
   // Monorepo: tell Turbopack the workspace root so it can resolve `next` from
   // the hoisted `node_modules` at the repo root. Without this, Next.js 16+ with
   // Turbopack errors with "could not find next/package.json" in Docker
   // (project dir: /app/apps/web/src/app, but `next` is hoisted at /app/node_modules).
   turbopack: {
-    root: path.join(__dirname, "../.."),
+    root: path.join(__dirname, "../.."),  
     // Workaround for Turbopack bug #93144: @xyflow/react has
     // `sideEffects: ["*.css"]` which causes Turbopack to auto-include the
     // package's CSS files. These go through the webpack-loader fallback

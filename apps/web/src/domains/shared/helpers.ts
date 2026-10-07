@@ -33,7 +33,23 @@
  * ```
  */
 
-import { createProcedureUtils } from "@orpc/tanstack-query";
+import { createRouterUtils, type ProcedureUtils } from "@orpc/tanstack-query";
+
+/**
+ * Public surface of a single auto-generated procedure utility.
+ *
+ * oRPC v2 wraps the class in an internal `Public<T> = Pick<T, keyof T>` helper
+ * (not exported) to strip `protected`/`private` members. Reproduced here so the
+ * helpers can name their return type.
+ */
+type ProcedureUtilsPublic<
+  TInput,
+  TOutput,
+  TError,
+> = Pick<
+  ProcedureUtils<Record<never, never>, TInput, TOutput, TError>,
+  keyof ProcedureUtils<Record<never, never>, TInput, TOutput, TError>
+>;
 import type { Client } from "@orpc/client";
 import type { useQueryClient } from "@tanstack/react-query";
 import type { MutationOptions, QueryKey, DataTag } from "@tanstack/react-query";
@@ -474,14 +490,7 @@ export function custom<
     TError
   >,
 ): EndpointWithCache<
-  ReturnType<
-    typeof createProcedureUtils<
-      object,
-      z.infer<TInputSchema>,
-      TMappedOutput,
-      TError
-    >
-  >
+  ProcedureUtilsPublic<z.infer<TInputSchema>, TMappedOutput, TError>
 >;
 
 /**
@@ -513,14 +522,7 @@ export function custom<THandler extends (input: unknown) => unknown>(config: {
   refetchOnMount?: boolean;
   refetchOnReconnect?: boolean;
 }): EndpointWithCache<
-  ReturnType<
-    typeof createProcedureUtils<
-      object,
-      InferInput<THandler>,
-      InferOutput<THandler>,
-      Error
-    >
-  >
+  ProcedureUtilsPublic<InferInput<THandler>, InferOutput<THandler>, Error>
 >;
 
 /**
@@ -546,9 +548,7 @@ export function custom<
     TError
   >,
 ): EndpointWithCache<
-  ReturnType<
-    typeof createProcedureUtils<object, TInput, TMappedOutput, TError>
-  >
+  ProcedureUtilsPublic<TInput, TMappedOutput, TError>
 >;
 
 /**
@@ -573,9 +573,7 @@ export function custom<
         TMappedOutput,
         TError
       >,
-): ReturnType<
-  typeof createProcedureUtils<object, TInput, TMappedOutput, TError>
-> {
+): ProcedureUtilsPublic<TInput, TMappedOutput, TError> {
   // Type guard to check if config has Zod schema
   const hasSchema = (
     cfg: typeof config,
@@ -680,16 +678,9 @@ export function custom<
     };
 
     // If keys is a function, we need to wrap the utils to compute keys at call time
-    const utils = createProcedureUtils(
+    const utils = createRouterUtils(
       client,
-      options as unknown as Parameters<
-        typeof createProcedureUtils<
-          Record<never, never>,
-          TInput,
-          TMappedOutput,
-          TError
-        >
-      >[1],
+      options as unknown as Parameters<typeof createRouterUtils>[1],
     );
 
     // If keys is dynamic, wrap the queryKey method
@@ -707,7 +698,7 @@ export function custom<
     return utils;
   }
 
-  const utils = createProcedureUtils(client, {
+  const utils = createRouterUtils(client, {
     path: basePath,
   });
 
@@ -761,14 +752,7 @@ export function customTyped<
   refetchOnWindowFocus?: boolean;
   refetchOnMount?: boolean;
   refetchOnReconnect?: boolean;
-}): ReturnType<
-  typeof createProcedureUtils<
-    object,
-    InferInput<THandler>,
-    InferOutput<THandler>,
-    Error
-  >
-> {
+}): ProcedureUtilsPublic<InferInput<THandler>, InferOutput<THandler>, Error> {
   // Directly call custom - overload 2 will match since we have THandler and input?: never
   return custom(config);
 }
@@ -1039,7 +1023,7 @@ export function defineInvalidations<
           if (isInvalidationRef(item)) {
             capturedRefs.set(refVisitKey(item.name, item.input), item);
           } else {
-            directKeys.push(item as QueryKey);
+            directKeys.push(item);
           }
         }
 
@@ -1276,7 +1260,7 @@ function refVisitKey(name: string, input?: unknown): string {
  * The optional `input` carries the per-call input payload so that the same endpoint
  * invoked with different inputs is treated as a distinct graph node.
  */
-export type InvalidationRef = {
+export interface InvalidationRef {
   readonly __tag: "invalidation-ref";
   readonly name: string;
   readonly input?: unknown;
@@ -1329,7 +1313,7 @@ function buildInvalidationProxy<TRecord extends Record<string, unknown>>(
  */
 function buildKeysProxy(): Record<string, (...args: unknown[]) => QueryKey> {
   return new Proxy<Record<string, (...args: unknown[]) => QueryKey>>(
-    {} as Record<string, (...args: unknown[]) => QueryKey>,
+    {},
     {
       get: () => () => ["__dry_run__"],
     },
@@ -1341,7 +1325,7 @@ function buildKeysProxy(): Record<string, (...args: unknown[]) => QueryKey> {
  */
 function buildTruthyInputProxy(): Record<string, unknown> {
   return new Proxy<Record<string, unknown>>(
-    {} as Record<string, unknown>,
+    {},
     {
       get: () => true,
       has: () => true,

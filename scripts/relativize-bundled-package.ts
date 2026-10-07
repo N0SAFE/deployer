@@ -20,7 +20,7 @@ const root = path.resolve(import.meta.dir, '..');
 const DRY = process.argv.includes('--dry');
 
 /** Packages that are bundled apps/CLIs rather than subpath-consumed libraries. */
-const BUNDLED_PACKAGES = ['packages/bin/declarative-routing'];
+const BUNDLED_PACKAGES = ['tooling/bin-declarative-routing'];
 
 const EXTENSIONS = ['', '.ts', '.tsx', '/index.ts', '/index.tsx'];
 

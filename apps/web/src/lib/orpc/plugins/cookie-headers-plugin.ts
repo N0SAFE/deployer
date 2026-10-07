@@ -23,10 +23,17 @@ export class CookieHeadersPlugin<TContext extends {
   cookie?: string | string[]
   headers?: Record<string, string | string[] | undefined>
 }> implements StandardLinkPlugin<TContext> {
-  init(link: StandardLinkOptions<TContext>): void {
-    link.clientInterceptors ??= []
+  /** Unique plugin name — oRPC v2 requires it for ordering identification. */
+  public readonly name = 'cookie-headers'
 
-    link.clientInterceptors.push(async (options) => {
+  init(link: StandardLinkOptions<TContext>): StandardLinkOptions<TContext> {
+    const transportInterceptors = link.transportInterceptors ?? []
+
+    return {
+      ...link,
+      transportInterceptors: [
+        ...transportInterceptors,
+        async (options) => {
       // Merge context headers into request headers
       options.request.headers = {
         ...options.request.headers,
@@ -66,6 +73,8 @@ export class CookieHeadersPlugin<TContext extends {
       }
 
       return options.next(options)
-    })
+        },
+      ],
+    }
   }
 }

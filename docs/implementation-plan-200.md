@@ -103,7 +103,7 @@ Derived from `.github/instructions/core-rules.instructions.md`, which applies to
 | **WS5** | Observability | 11 | `apps/api/src/modules/{analytics,health,push,system}`, `packages/contracts` |
 | **WS6** | Deployment & release | 14 | `apps/api/src/modules/deployment/**`, `apps/web/src/app/dashboard/{deployments,projects}` |
 | **WS7** | Mesh, fleet, platform | 12 | `apps/api/src/core/modules/{mesh,swarm,traefik}`, `modules/{fleet,cluster,reachability}` |
-| **WS8** | Security & access | 12 | `packages/utils/auth/**`, `apps/api/src/modules/{permission,user}`, `apps/web/src/app/dashboard/admin` |
+| **WS8** | Security & access | 12 | `packages/auth/**`, `apps/api/src/modules/{permission,user}`, `apps/web/src/app/dashboard/admin` |
 | **WS9** | Web UX, density, navigation | 32 | `apps/web/src/**` |
 | **WS10** | Onboarding & reach | 8 | `apps/api/src/{core/modules/setup,sub-apps}`, `apps/web/src/{app/setup,components/setup}` |
 | | **Total** | **149** | |
@@ -469,7 +469,7 @@ stated exit condition. No phase begins until the previous gate is green.
 | P0-2 | Fix route-cache key | P26 | `ci.yml:60,179,281,385` | `page.info.ts` → `route.info.ts` | S |
 | P0-3 | Use mandated Bun runtime in CI | P27 | `ci.yml:98,175,277,381` | `bun run` → `bun --bun run` | S |
 | P0-4 | Fix release-note output reference | P28 | `deploy.yml:172` | Read from the build job's output, not a step in another job | S |
-| P0-5 | Fix deploy compose path | P29 | `deploy.yml:150` | → `docker/compose/deployer/docker-compose.deployer.yml` | S |
+| P0-5 | Fix deploy compose path | P29 | `deploy.yml:150` | → `infra/docker/compose/deployer/docker-compose.deployer.yml` | S |
 | P0-6 | Remove phantom package build | P30 | `copilot-setup-steps.yml:161` | Delete the step (or drop `\|\| true` so it fails loudly) | S |
 | P0-7 | Fix e2e harness | M30 (W50 half) | `apps/web/vitest.setup.ts:70`, e2e project config | e2e project must not load the jsdom setup; 32 e2e specs currently misconfigured | M |
 | P0-8 | Add e2e job to CI | M30 (P32 half) | `ci.yml` | New job running `bun --bun run test:e2e` | S |
@@ -544,11 +544,11 @@ Three root causes worth recording:
 | Package | Errors |
 |---|---|
 | `packages/ui/base` | 134 |
-| `packages/utils/orpc` | 16 |
-| `packages/utils/auth` | 9 |
-| `packages/contracts/api`, `apps/doc`, `packages/utils/errors`, `packages/utils/declarative-routing`, `apps/web`, `apps/api`, `packages/nest/*`, `packages/types`, `packages/utils/{logger,type-guards}` | ✅ 0 |
+| `packages/transport/orpc` | 16 |
+| `packages/auth` | 9 |
+| `packages/contracts/api`, `apps/doc`, `packages/utils/errors`, `packages/routing/declarative`, `apps/web`, `apps/api`, `packages/nest/*`, `packages/types`, `packages/utils/{logger,type-guards}` | ✅ 0 |
 
-**The one exemption in the codebase, and why it is justified.** `packages/utils/orpc` models "no
+**The one exemption in the codebase, and why it is justified.** `packages/transport/orpc` models "no
 params / query / body / headers" as `Record<never, never>` — the canonical empty-record type, which
 satisfies `Record<string, AnySchema>` while contributing no keys. `no-generated-empty-object-type`
 flags it because it resolves to `{}`. That rule exposes **no option at all** (`schema: []`, verified in
@@ -622,9 +622,9 @@ repeated.
 | Package | Errors |
 |---|---|
 | `packages/ui/base` | 204 |
-| `packages/utils/orpc` | 53 |
-| `packages/utils/auth` | 9 |
-| `packages/contracts/api`, `apps/doc`, `packages/utils/errors`, `packages/utils/declarative-routing`, `apps/web`, `apps/api`, `packages/nest/*`, `packages/types`, `packages/utils/{logger,type-guards}` | ✅ 0 |
+| `packages/transport/orpc` | 53 |
+| `packages/auth` | 9 |
+| `packages/contracts/api`, `apps/doc`, `packages/utils/errors`, `packages/routing/declarative`, `apps/web`, `apps/api`, `packages/nest/*`, `packages/types`, `packages/utils/{logger,type-guards}` | ✅ 0 |
 
 **Non-null assertions replaced with real guards.** `calendar-date-picker.tsx` had 9
 `date.from!` / `date.to!` / `range.from!` / `range.to!` assertions (21 → 11 errors). `DateRange.from` and
@@ -640,9 +640,9 @@ a single `onDateSelect` call with a computed `to`.
 | Package | Errors |
 |---|---|
 | `packages/ui/base` | 214 |
-| `packages/utils/orpc` | 53 |
-| `packages/utils/auth` | 9 |
-| `packages/contracts/api`, `apps/doc`, `packages/utils/errors`, `packages/utils/declarative-routing`, `apps/web`, `apps/api`, `packages/nest/*`, `packages/types`, `packages/utils/{logger,type-guards}` | ✅ 0 |
+| `packages/transport/orpc` | 53 |
+| `packages/auth` | 9 |
+| `packages/contracts/api`, `apps/doc`, `packages/utils/errors`, `packages/routing/declarative`, `apps/web`, `apps/api`, `packages/nest/*`, `packages/types`, `packages/utils/{logger,type-guards}` | ✅ 0 |
 
 **What unblocked `data-table.tsx` (123 → 108).** Every earlier `--fix` attempt on it broke
 type-check, because `||` → `??` changed the type *inferred* inside
@@ -665,16 +665,16 @@ reworking `orpc`'s builder types.
 | Package | Errors |
 |---|---|
 | `packages/ui/base` | 245 |
-| `packages/utils/orpc` | 53 |
-| `packages/utils/auth` | 9 |
+| `packages/transport/orpc` | 53 |
+| `packages/auth` | 9 |
 | `packages/contracts/api` | ✅ 0 |
 | `apps/doc` | ✅ 0 |
 | `packages/utils/errors` | ✅ 0 |
-| `packages/utils/declarative-routing` | ✅ 0 |
+| `packages/routing/declarative` | ✅ 0 |
 | `apps/web`, `apps/api`, `packages/nest/*`, `packages/types`, `packages/utils/{logger,type-guards}` | ✅ 0 |
 
 **Latest fix removed a dead API surface.** `useAdminClient()` and `useAdmin()` in
-`packages/utils/auth/src/{client,server}/plugins/index.ts` declared
+`packages/auth/src/{client,server}/plugins/index.ts` declared
 `options: Omit<Parameters<typeof adminClient>[0], "ac" | "roles"> = {}`. That `Omit` reduces to `{}`,
 so the parameter could never accept anything — and **every call site passes no arguments**. Removed the
 parameter rather than silencing the rule; the functions now have an honest signature.
@@ -775,7 +775,7 @@ broke type-check and was reverted; the current tree is the verified-good one.**
 
 **Config fix that unblocked a whole rule class.** The ESLint config package is consumed as a **build
 artifact** (`exports` → `./dist/*.js`), so editing `src/` does nothing until `bun --bun run build` runs
-in `packages/configs/eslint`. That is why my first `no-unused-vars` change appeared inert. The added
+in `tooling/eslint`. That is why my first `no-unused-vars` change appeared inert. The added
 `argsIgnorePattern`/`varsIgnorePattern: "^_"` reflects a convention the codebase already follows — the
 alternative was a per-line `eslint-disable`, and the config already disables
 `no-unnecessary-type-parameters` for the same class of intentional placeholder.
@@ -786,7 +786,7 @@ cli-declarative-routing, auth.
 
 **The last four errors, and why each was what it was**
 
-- `packages/utils/auth` **TS2883** — `betterAuthFactory`'s inferred type referenced `SchemaCheck` from a
+- `packages/auth` **TS2883** — `betterAuthFactory`'s inferred type referenced `SchemaCheck` from a
   private `@better-auth/core` module. Root cause was **vestigial `declaration`/`declarationMap` in
   `tsconfig.json`**: `main`, `types` and all 11 `exports` entries point at `src/*.ts`, there is no
   `dist`, and there is no build script — declaration emit is never produced, so the flags only generated
@@ -855,7 +855,7 @@ because testcontainers resolves to `StoppedTestContainer`; a `release` callback 
 4. `const poolToClose: Pool | null = runtimePool` — did not help: TS narrows the *source*, so the
    copy is still `null`.
 
-**One error is new, and it is mine to own:** `packages/utils/auth/src/server/auth.ts:14` TS2883
+**One error is new, and it is mine to own:** `packages/auth/src/server/auth.ts:14` TS2883
 ("inferred type cannot be named without reference to `SchemaCheck`") appeared **after** my
 `bun install`, which changed `bun.lock` by 17 lines. It was not in the pre-install baseline.
 Reverting the install would clear it but re-break `apps/doc` (6 errors), so the install stays.
@@ -894,7 +894,7 @@ excluding shadcn would not help. Dominant rules repo-wide: `no-unused-vars` 92,
 2. Annotating `betterAuthFactory` with `ReturnType<typeof betterAuth>` for TS2883 — took auth
    errors 1 → 32, because better-auth's plugin-added `.auth` is not on that return type.
 
-**One error is new, and it is mine to own:** `packages/utils/auth/src/server/auth.ts:14` TS2883
+**One error is new, and it is mine to own:** `packages/auth/src/server/auth.ts:14` TS2883
 ("inferred type cannot be named without reference to `SchemaCheck`") appeared **after** my
 `bun install`, which changed `bun.lock` by 17 lines. It was not present in the pre-install baseline.
 Correct fix unknown; both attempts above failed. Reverting the install would restore it to zero at the

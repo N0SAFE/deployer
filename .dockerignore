@@ -38,10 +38,13 @@ ts-output.txt
 test.txt
 
 # Environment files
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# The BARE `.env` too: it holds real secrets (AUTH_SECRET, DB credentials) and
+# the build context is the repository root, so any `COPY . .` would bake it into
+# an image layer. Only the `.local`/`.development.local` variants were ignored
+# before, which left the actual `.env` readable inside every built image.
+.env
+.env.*
+!.env.example
 
 # IDE files
 .vscode

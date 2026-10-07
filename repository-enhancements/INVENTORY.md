@@ -238,11 +238,11 @@ packages/ui/base/src/components/
 
 ### packages/utils
 
-#### packages/utils/auth
+#### packages/auth
 
 **Structure:**
 ```
-packages/utils/auth/src/
+packages/auth/src/
 ├── client/           # Client-side auth
 ├── permissions/      # Permission system
 │   ├── access-control.ts
@@ -293,11 +293,11 @@ Organization (17):
 
 ---
 
-#### packages/utils/orpc
+#### packages/transport/orpc
 
 **Structure:**
 ```
-packages/utils/orpc/src/
+packages/transport/orpc/src/
 ├── builder/
 │   ├── index.ts
 │   ├── mount-method.ts
@@ -317,7 +317,7 @@ packages/utils/orpc/src/
 
 ---
 
-#### packages/utils/env
+#### packages/config/env
 
 **Environment Utilities:**
 - Type-safe environment variable handling
@@ -326,7 +326,7 @@ packages/utils/orpc/src/
 
 ---
 
-#### packages/utils/declarative-routing
+#### packages/routing/declarative
 
 **Routing Utilities:**
 - Type-safe route generation

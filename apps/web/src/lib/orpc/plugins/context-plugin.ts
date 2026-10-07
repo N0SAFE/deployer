@@ -11,11 +11,16 @@ export class ContextPlugin<
   },
 > implements StandardLinkPlugin<T>
 {
-  // Order controls plugin loading order (higher = loads earlier)
-  order = 100;
+  /** Unique plugin name — oRPC v2 requires it for ordering identification. */
+  public readonly name = "context";
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-empty-function
-  init(link: StandardLinkOptions<T>): void {}
+  // This plugin intentionally contributes no interceptors — it exists so the
+  // link's context type carries `cache` / `next` (see PluginsContext in
+  // ../index.ts). oRPC v2 passes options through `init`, so return them
+  // unchanged rather than mutating in place.
+  init(link: StandardLinkOptions<T>): StandardLinkOptions<T> {
+    return link;
+  }
 }
 
 const contextPluginDefault = {

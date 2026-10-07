@@ -1,9 +1,22 @@
 import { getErrorMessage } from "@/lib/orpc/typed-errors";
 import { NextResponse } from 'next/server'
+import { connection } from 'next/server'
 import { orpc } from '@/lib/orpc'
 import { unstable_rethrow } from 'next/navigation'
 
 export async function GET() {
+    // The handler probes the API over the network and reports whether it is
+    // reachable right now. With `cacheComponents` enabled, Next.js would
+    // otherwise try to PRERENDER this route at build time — where there is no
+    // API to talk to — so the fetch hangs until the 60s build-worker timeout
+    // and the route fails three times, aborting the build.
+    //
+    // `connection()` opts the route out of prerendering: execution resumes only
+    // for a real request, so the reachability check always runs against the live
+    // API. It is the Cache Components replacement for `dynamic = 'force-dynamic'`
+    // (the export is now rejected outright).
+    await connection()
+
     try {
         const webHealth = {
             status: 'ok',

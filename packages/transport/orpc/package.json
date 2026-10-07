@@ -1,0 +1,78 @@
+{
+    "name": "@repo/orpc-utils",
+    "version": "1.0.0",
+    "description": "ORPC builder utilities for standardized contract creation",
+    "main": "./dist/cjs/index.js",
+    "types": "./dist/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/types/index.d.ts",
+            "import": "./dist/esm/index.mjs",
+            "require": "./dist/cjs/index.js"
+        },
+        "./*": {
+            "types": "./dist/types/*.d.ts",
+            "import": "./dist/esm/*.mjs",
+            "require": "./dist/cjs/*.js"
+        },
+        "./builder": {
+            "types": "./dist/types/builder/index.d.ts",
+            "import": "./dist/esm/builder/index.mjs",
+            "require": "./dist/cjs/builder/index.js"
+        },
+        "./standard": {
+            "types": "./dist/types/operations/index.d.ts",
+            "import": "./dist/esm/operations/index.mjs",
+            "require": "./dist/cjs/operations/index.js"
+        },
+        "./query": {
+            "types": "./dist/types/query/index.d.ts",
+            "import": "./dist/esm/query/index.mjs",
+            "require": "./dist/cjs/query/index.js"
+        },
+        "./hooks": {
+            "types": "./dist/types/hooks/index.d.ts",
+            "import": "./dist/esm/hooks/index.mjs",
+            "require": "./dist/cjs/hooks/index.js"
+        }
+    },
+    "scripts": {
+        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "format": "bun run prettify",
+        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
+        "lint": "eslint . --fix --cache",
+        "type-check": "tsc --noEmit",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage",
+        "build": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js",
+        "dev": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js --watch",
+        "clean": "rimraf dist",
+        "build:types": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js --types"
+    },
+    "dependencies": {
+        "@orpc/client": "catalog:orpc",
+        "@orpc/contract": "catalog:orpc",
+        "@orpc/openapi": "catalog:orpc",
+        "@orpc/shared": "catalog:orpc",
+        "@orpc/tanstack-query": "catalog:orpc",
+        "@repo/type-guards": "*",
+        "@standard-schema/spec": "^1.1.0",
+        "@tanstack/react-query": "catalog:tanstack",
+        "rxjs": "catalog:api:nest",
+        "zod": "catalog:utils"
+    },
+    "devDependencies": {
+        "@types/react": "catalog:react",
+        "react": "catalog:react",
+        "eslint": "catalog:linting",
+        "@repo/config-eslint": "*",
+        "@repo/config-prettier": "*",
+        "@repo/config-typescript": "*",
+        "vitest": "catalog:testing",
+        "@vitest/coverage-v8": "catalog:testing",
+        "typescript": "catalog:build",
+        "@repo/pkg-build": "*"
+    },
+    "module": "./dist/esm/index.mjs"
+}

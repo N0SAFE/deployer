@@ -235,11 +235,11 @@ Mechanics:
 **Compose architecture — `common/` base configs + `extends`.**
 Every service's REAL config (build, env defaults, `develop.watch` for dev,
 healthchecks, volumes) lives once in a **base config** under
-`docker/compose/common/`, organized per service with **variant files** where
+`infra/infra/docker/compose/common/`, organized per service with **variant files** where
 dev/prod differ:
 
 ```text
-docker/compose/
+infra/infra/docker/compose/
 ├── common/
 │   ├── api/
 │   │   ├── docker-compose.config.yml        # shared (env, sockets, volumes)
@@ -927,7 +927,7 @@ No changes to user/org/auth tables. Better Auth remains the user identity system
 
 Per the no-bridges rule, the old model does not coexist with the new one:
 
-- `web/docker-compose.web.prod.yml` removed from the production orchestrator include list. The file survives **only** as the standalone BYO template (renamed accordingly, e.g. `docker/compose/web/docker-compose.web.byo.yml`) — one artifact, one purpose, no duplicate prod path.
+- `web/docker-compose.web.prod.yml` removed from the production orchestrator include list. The file survives **only** as the standalone BYO template (renamed accordingly, e.g. `infra/infra/docker/compose/web/docker-compose.web.byo.yml`) — one artifact, one purpose, no duplicate prod path.
 - `depends_on: api-prod` web-side coupling: gone with the file above.
 - Static CORS allowlist enforcement for cross-origin API traffic (`TRUSTED_ORIGINS` gating in `main.ts` / `cors.utils`): replaced by the token middleware. Localhost dev convenience may remain as an explicit dev-only branch, not a production path.
 - `APP_URL`/`NEXT_PUBLIC_*` URL duplication across compose files: replaced by the single hostname-grammar helper.

@@ -1,7 +1,7 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { appContract } from "@repo/api-contracts";
+import { dockerContract } from "@repo/api-contracts";
 import { standardErrorOptions } from "@repo/orpc-utils";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { MeshInternalRequestService } from "@/core/modules/mesh/services/mesh-internal-request.service";
@@ -25,9 +25,9 @@ export class DockerController {
     private readonly meshInternalRequestService: MeshInternalRequestService,
   ) {}
 
-  @Implement(appContract.docker.containers.list)
+  @Implement(dockerContract.containers.list)
   listContainers() {
-    return implement(appContract.docker.containers.list)
+    return implement(dockerContract.containers.list)
       .use(requireAuth())
       .handler(async ({ input, context }) =>
         this.dockerContainersOrchestratorService.listContainers(input.query, {
@@ -35,9 +35,9 @@ export class DockerController {
         }));
   }
 
-  @Implement(appContract.docker.containers.grouped)
+  @Implement(dockerContract.containers.grouped)
   listContainersGrouped() {
-    return implement(appContract.docker.containers.grouped)
+    return implement(dockerContract.containers.grouped)
       .use(requireAuth())
       .handler(async ({ input, context }) =>
         this.dockerContainersOrchestratorService.listContainersGrouped(input.query, {
@@ -45,25 +45,25 @@ export class DockerController {
         }));
   }
 
-  @Implement(appContract.docker.containers.linked)
+  @Implement(dockerContract.containers.linked)
   listContainersLinked() {
-    return implement(appContract.docker.containers.linked)
+    return implement(dockerContract.containers.linked)
       .use(requireAuth())
       .handler(async ({ input, context }) =>
         this.dockerContainersOrchestratorService.listContainersLinked(input.query, context.auth.user.role ?? null),
       );
   }
 
-  @Implement(appContract.docker.containers.inspect)
+  @Implement(dockerContract.containers.inspect)
   inspectContainer() {
-    return implement(appContract.docker.containers.inspect)
+    return implement(dockerContract.containers.inspect)
       .use(requireAuth())
       .handler(async ({ input }) => this.dockerContainersOrchestratorService.inspectContainer(input.query));
   }
 
-  @Implement(appContract.docker.containers.actions.run)
+  @Implement(dockerContract.containers.actions.run)
   runContainerAction() {
-    return implement(appContract.docker.containers.actions.run)
+    return implement(dockerContract.containers.actions.run)
       .use(requireAuth())
       .handler(async ({ input }) => {
         const ack = await this.dockerContainersOrchestratorService.runContainerAction(input);
@@ -77,30 +77,30 @@ export class DockerController {
       });
   }
 
-  @Implement(appContract.docker.images.inspect)
+  @Implement(dockerContract.images.inspect)
   inspectImage() {
-    return implement(appContract.docker.images.inspect)
+    return implement(dockerContract.images.inspect)
       .use(requireAuth())
       .handler(async ({ input }) => this.dockerImagesOrchestratorService.inspectImage(input.query));
   }
 
-  @Implement(appContract.docker.containers.streams.inspect)
+  @Implement(dockerContract.containers.streams.inspect)
   streamInspectContainer() {
-    return implement(appContract.docker.containers.streams.inspect)
+    return implement(dockerContract.containers.streams.inspect)
       .use(requireAuth())
       .handler(({ input }) => this.dockerRuntimeOrchestratorService.streamContainerInspect(input.query));
   }
 
-  @Implement(appContract.docker.containers.streams.logs)
+  @Implement(dockerContract.containers.streams.logs)
   streamContainerLogs() {
-    return implement(appContract.docker.containers.streams.logs)
+    return implement(dockerContract.containers.streams.logs)
       .use(requireAuth())
       .handler(({ input }) => this.dockerContainersOrchestratorService.streamContainerLogs(input.query));
   }
 
-  @Implement(appContract.docker.containers.logs.list)
+  @Implement(dockerContract.containers.logs.list)
   listContainerLogs() {
-    return implement(appContract.docker.containers.logs.list)
+    return implement(dockerContract.containers.logs.list)
       .use(requireAuth())
       .handler(async ({ input }) => {
         const snapshot = await this.dockerContainersOrchestratorService.listContainerLogs(input.query);
@@ -111,9 +111,9 @@ export class DockerController {
       });
   }
 
-  @Implement(appContract.docker.containers.processes.list)
+  @Implement(dockerContract.containers.processes.list)
   listContainerProcesses() {
-    return implement(appContract.docker.containers.processes.list)
+    return implement(dockerContract.containers.processes.list)
       .use(requireAuth())
       .handler(async ({ input }) => {
         const snapshot = await this.dockerContainersOrchestratorService.listContainerProcesses(input.query);
@@ -124,9 +124,9 @@ export class DockerController {
       });
   }
 
-  @Implement(appContract.docker.containers.streams.processes)
+  @Implement(dockerContract.containers.streams.processes)
   streamContainerProcesses() {
-    return implement(appContract.docker.containers.streams.processes)
+    return implement(dockerContract.containers.streams.processes)
       .use(requireAuth())
       .handler(({ input }) =>
         this.dockerContainersOrchestratorService.streamContainerProcesses(input.query).pipe(
@@ -137,16 +137,16 @@ export class DockerController {
         ));
   }
 
-  @Implement(appContract.docker.containers.streams.processLogs)
+  @Implement(dockerContract.containers.streams.processLogs)
   streamContainerProcessLogs() {
-    return implement(appContract.docker.containers.streams.processLogs)
+    return implement(dockerContract.containers.streams.processLogs)
       .use(requireAuth())
       .handler(({ input }) => this.dockerContainersOrchestratorService.streamContainerProcessLogs(input.query));
   }
 
-  @Implement(appContract.docker.containers.filesystem.list)
+  @Implement(dockerContract.containers.filesystem.list)
   listContainerFiles() {
-    return implement(appContract.docker.containers.filesystem.list)
+    return implement(dockerContract.containers.filesystem.list)
       .use(requireAuth())
       .handler(async ({ input }) => {
         const listing = await this.dockerContainersOrchestratorService.listContainerFiles(input.query);
@@ -157,9 +157,9 @@ export class DockerController {
       });
   }
 
-  @Implement(appContract.docker.containers.filesystem.read)
+  @Implement(dockerContract.containers.filesystem.read)
   readContainerFile() {
-    return implement(appContract.docker.containers.filesystem.read)
+    return implement(dockerContract.containers.filesystem.read)
       .use(requireAuth())
       .handler(async ({ input }) => {
         const file = await this.dockerContainersOrchestratorService.readContainerFile(input.query);
@@ -170,9 +170,9 @@ export class DockerController {
       });
   }
 
-  @Implement(appContract.docker.containers.filesystem.write)
+  @Implement(dockerContract.containers.filesystem.write)
   writeContainerFile() {
-    return implement(appContract.docker.containers.filesystem.write)
+    return implement(dockerContract.containers.filesystem.write)
       .use(requireAuth())
       .handler(async ({ input }) => {
         const ack = await this.dockerContainersOrchestratorService.writeContainerFile(input);
@@ -186,9 +186,9 @@ export class DockerController {
       });
   }
 
-  @Implement(appContract.docker.containers.filesystem.deletePath)
+  @Implement(dockerContract.containers.filesystem.deletePath)
   deleteContainerPath() {
-    return implement(appContract.docker.containers.filesystem.deletePath)
+    return implement(dockerContract.containers.filesystem.deletePath)
       .use(requireAuth())
       .handler(async ({ input }) => {
         const ack = await this.dockerContainersOrchestratorService.deleteContainerPath(input);
@@ -202,9 +202,9 @@ export class DockerController {
       });
   }
 
-  @Implement(appContract.docker.containers.filesystem.renamePath)
+  @Implement(dockerContract.containers.filesystem.renamePath)
   renameContainerPath() {
-    return implement(appContract.docker.containers.filesystem.renamePath)
+    return implement(dockerContract.containers.filesystem.renamePath)
       .use(requireAuth())
       .handler(async ({ input }) => {
         const ack = await this.dockerContainersOrchestratorService.renameContainerPath(input);
@@ -218,9 +218,9 @@ export class DockerController {
       });
   }
 
-  @Implement(appContract.docker.containers.filesystem.createDirectory)
+  @Implement(dockerContract.containers.filesystem.createDirectory)
   createContainerDirectory() {
-    return implement(appContract.docker.containers.filesystem.createDirectory)
+    return implement(dockerContract.containers.filesystem.createDirectory)
       .use(requireAuth())
       .handler(async ({ input }) => {
         const ack = await this.dockerContainersOrchestratorService.createContainerDirectory(input);
@@ -234,9 +234,9 @@ export class DockerController {
       });
   }
 
-  @Implement(appContract.docker.containers.terminal.open)
+  @Implement(dockerContract.containers.terminal.open)
   openContainerTerminalSession() {
-    return implement(appContract.docker.containers.terminal.open)
+    return implement(dockerContract.containers.terminal.open)
       .use(requireAuth())
       .handler(async ({ input }) => {
         const session = await this.dockerContainersOrchestratorService.openContainerTerminalSession(input);
@@ -250,16 +250,16 @@ export class DockerController {
       });
   }
 
-  @Implement(appContract.docker.containers.terminal.stream)
+  @Implement(dockerContract.containers.terminal.stream)
   streamContainerTerminalSession() {
-    return implement(appContract.docker.containers.terminal.stream)
+    return implement(dockerContract.containers.terminal.stream)
       .use(requireAuth())
       .handler(({ input }) => this.dockerContainersOrchestratorService.streamContainerTerminalSession(input.query));
   }
 
-  @Implement(appContract.docker.containers.terminal.sendInput)
+  @Implement(dockerContract.containers.terminal.sendInput)
   sendContainerTerminalInput() {
-    return implement(appContract.docker.containers.terminal.sendInput)
+    return implement(dockerContract.containers.terminal.sendInput)
       .use(requireAuth())
       .handler(async ({ input }) => {
         const ack = await this.dockerContainersOrchestratorService.sendContainerTerminalInput(input);
@@ -273,9 +273,9 @@ export class DockerController {
       });
   }
 
-  @Implement(appContract.docker.containers.terminal.close)
+  @Implement(dockerContract.containers.terminal.close)
   closeContainerTerminalSession() {
-    return implement(appContract.docker.containers.terminal.close)
+    return implement(dockerContract.containers.terminal.close)
       .use(requireAuth())
       .handler(async ({ input }) => {
         const ack = await this.dockerContainersOrchestratorService.closeContainerTerminalSession(input);
@@ -289,72 +289,72 @@ export class DockerController {
       });
   }
 
-  @Implement(appContract.docker.images.streams.inspect)
+  @Implement(dockerContract.images.streams.inspect)
   streamInspectImage() {
-    return implement(appContract.docker.images.streams.inspect)
+    return implement(dockerContract.images.streams.inspect)
       .use(requireAuth())
       .handler(({ input }) => this.dockerImagesOrchestratorService.streamImageInspect(input.query));
   }
 
-  @Implement(appContract.docker.images.security.scanning.stream)
+  @Implement(dockerContract.images.security.scanning.stream)
   streamImageSecurityScan() {
-    return implement(appContract.docker.images.security.scanning.stream)
+    return implement(dockerContract.images.security.scanning.stream)
       .use(requireAuth())
       .handler(({ input }) => this.dockerImagesOrchestratorService.streamImageSecurityScan(input.query));
   }
 
-  @Implement(appContract.docker.images.list)
+  @Implement(dockerContract.images.list)
   listImages() {
-    return implement(appContract.docker.images.list)
+    return implement(dockerContract.images.list)
       .use(requireAuth())
       .handler(async ({ input }) => this.dockerImagesOrchestratorService.listImages(input.query));
   }
 
-  @Implement(appContract.docker.networks.list)
+  @Implement(dockerContract.networks.list)
   listNetworks() {
-    return implement(appContract.docker.networks.list)
+    return implement(dockerContract.networks.list)
       .use(requireAuth())
       .handler(async ({ input }) => this.dockerNetworksOrchestratorService.listNetworks(input.query));
   }
 
-  @Implement(appContract.docker.volumes.list)
+  @Implement(dockerContract.volumes.list)
   listVolumes() {
-    return implement(appContract.docker.volumes.list)
+    return implement(dockerContract.volumes.list)
       .use(requireAuth())
       .handler(async ({ input }) => this.dockerVolumesOrchestratorService.listVolumes(input.query));
   }
 
-  @Implement(appContract.docker.runtime.snapshot)
+  @Implement(dockerContract.runtime.snapshot)
   runtimeSnapshot() {
-    return implement(appContract.docker.runtime.snapshot)
+    return implement(dockerContract.runtime.snapshot)
       .use(requireAuth())
       .handler(() => this.dockerRuntimeOrchestratorService.getRuntimeSnapshot());
   }
 
-  @Implement(appContract.docker.runtime.stream)
+  @Implement(dockerContract.runtime.stream)
   stream() {
-    return implement(appContract.docker.runtime.stream)
+    return implement(dockerContract.runtime.stream)
       .use(requireAuth())
       .handler(({ input }) => this.dockerRuntimeOrchestratorService.stream(input.query ?? {}));
   }
 
-  @Implement(appContract.docker.runtime.activity.list)
+  @Implement(dockerContract.runtime.activity.list)
   runtimeActivityList() {
-    return implement(appContract.docker.runtime.activity.list)
+    return implement(dockerContract.runtime.activity.list)
       .use(requireAuth())
       .handler(({ input }) => this.dockerRuntimeOrchestratorService.listRuntimeActivities(input.query));
   }
 
-  @Implement(appContract.docker.runtime.activity.detail)
+  @Implement(dockerContract.runtime.activity.detail)
   runtimeActivityDetail() {
-    return implement(appContract.docker.runtime.activity.detail)
+    return implement(dockerContract.runtime.activity.detail)
       .use(requireAuth())
       .handler(({ input }) => this.dockerRuntimeOrchestratorService.getRuntimeActivityById(input.query));
   }
 
-  @Implement(appContract.docker.runtime.activityStream)
+  @Implement(dockerContract.runtime.activityStream)
   runtimeActivityStream() {
-    return implement(appContract.docker.runtime.activityStream)
+    return implement(dockerContract.runtime.activityStream)
       .use(requireAuth())
       .handler(({ input }) => this.dockerRuntimeOrchestratorService.streamRuntimeActivities(input.query ?? {}));
   }
@@ -363,9 +363,9 @@ export class DockerController {
   // docker.entity — unified live in-memory store for all entity kinds
   // ---------------------------------------------------------------------------
 
-  @Implement(appContract.docker.entity.list)
+  @Implement(dockerContract.entity.list)
   entityList() {
-    return implement(appContract.docker.entity.list)
+    return implement(dockerContract.entity.list)
       .use(requireAuth())
       .handler(async ({ input, errors }) => {
         switch (input.kind) {
@@ -385,9 +385,9 @@ export class DockerController {
       })
   }
 
-  @Implement(appContract.docker.entity.inspect)
+  @Implement(dockerContract.entity.inspect)
   entityInspect() {
-    return implement(appContract.docker.entity.inspect)
+    return implement(dockerContract.entity.inspect)
       .use(requireAuth())
       .handler(async ({ input, errors }) => {
         switch (input.kind) {
@@ -407,9 +407,9 @@ export class DockerController {
       })
   }
 
-  @Implement(appContract.docker.entity.stream)
+  @Implement(dockerContract.entity.stream)
   entityStream() {
-    return implement(appContract.docker.entity.stream)
+    return implement(dockerContract.entity.stream)
       .use(requireAuth())
       .handler(({ input }) => this.dockerEntityOrchestratorService.streamEntities(input.query ?? {}));
   }

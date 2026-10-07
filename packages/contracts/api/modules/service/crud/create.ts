@@ -12,7 +12,7 @@ import {
  * may themselves have children — full nesting. Uses zod v4's native recursive
  * `get` accessor (no `z.lazy()`).
  */
-export const serviceCreateInputSchema = serviceObjectSchema
+const serviceCreateInputBaseSchema = serviceObjectSchema
   .omit({ id: true, isActive: true, createdAt: true, updatedAt: true })
   .partial({
     description: true,
@@ -38,12 +38,39 @@ export const serviceCreateInputSchema = serviceObjectSchema
     parentId: z.uuid().nullable().optional(),
     parentPath: z.string().nullable().optional(),
     depth: z.number().int().nonnegative().optional(),
-    get children() {
-      return z.array(serviceCreateInputSchema).optional();
-    },
   });
 
-export type ServiceCreateInput = z.infer<typeof serviceCreateInputSchema>;
+type ServiceCreateInputBase = z.infer<typeof serviceCreateInputBaseSchema>;
+type ServiceCreateInputBaseInput = z.input<typeof serviceCreateInputBaseSchema>;
+
+/**
+ * Input for creating a service, including nested sub-services.
+ *
+ * Declared as recursive interfaces (instead of a plain `z.infer` of the
+ * schema) because TypeScript's declaration emitter cannot name an anonymous
+ * recursive type: it replaces the self-reference with `any` (emitted as
+ * `ZodObject<elided, ...>`), which collapses `children` to
+ * `Record<string, unknown>[]` for every consumer that type-checks against the
+ * emitted declarations. Annotating the schema with those interfaces keeps the
+ * recursion exact — see the zod "recursive types" guidance.
+ */
+export interface ServiceCreateInput extends ServiceCreateInputBase {
+  children?: ServiceCreateInput[];
+}
+
+/** Input shape of {@link ServiceCreateInput} (pre-validation, before defaults). */
+export interface ServiceCreateInputInput extends ServiceCreateInputBaseInput {
+  children?: ServiceCreateInputInput[];
+}
+
+export const serviceCreateInputSchema: z.ZodType<
+  ServiceCreateInput,
+  ServiceCreateInputInput
+> = serviceCreateInputBaseSchema.extend({
+  get children() {
+    return z.array(serviceCreateInputSchema).optional();
+  },
+});
 
 // Output schema: serviceObjectShape (strips superRefine) with nullable configs.
 // On creation, providerConfig/builderConfig are null — the superRefine on

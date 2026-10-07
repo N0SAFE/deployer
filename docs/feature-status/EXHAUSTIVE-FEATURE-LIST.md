@@ -361,7 +361,7 @@
 | 20.2 | apps/observable-poc | 💀 | `/apps/observable-poc/` | Standalone Next.js, no pipeline |
 | 20.3 | packages/poc/core-sync-system | 💀 | `/packages/poc/` | No consumers |
 | 20.4 | packages/nest/auth (shared) | 💀 | `/packages/nest/auth/` | 20+ files — API has its own auth |
-| 20.5 | packages/utils/auth/permissions/builder | 💀 | `/packages/utils/auth/src/permissions/system/builder/` | Superseded by permissions engine |
+| 20.5 | packages/auth/permissions/builder | 💀 | `/packages/utils/auth/src/permissions/system/builder/` | Superseded by permissions engine |
 | 20.6 | Core: State Machine | 💀 | `core/modules/state-machine/` | 4 files, superseded |
 | 20.7 | Core: SubApp Orchestrator | 💀 | `core/modules/sub-app-orchestrator/` | 2 files, superseded |
 | 20.8 | Core: SubApp Runner | 💀 | `core/modules/sub-app-runner/` | 3 files, superseded |

@@ -6,12 +6,13 @@
         "build": "next build --turbopack",
         "compile": "next build --experimental-build-mode=compile --turbopack --debug-prerender",
         "dev": "next dev -p 3020",
-        "start": "next start -p 3020",
+        "start": "bun --bun serve.ts",
+        "serve": "bun --bun serve.ts",
         "postinstall": "fumadocs-mdx",
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "lint": "eslint --cache --concurrency=auto",
+        "lint": "eslint --cache",
         "type-check": "tsc --noEmit"
     },
     "dependencies": {

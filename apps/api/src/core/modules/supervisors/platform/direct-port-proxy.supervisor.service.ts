@@ -156,6 +156,21 @@ const BIND_ERROR_HINTS = [
 	"failed to bind host port",
 	"bind: address",
 	"bind: An attempt was made to access a socket in a way forbidden",
+	// ── SWARM PORT OWNERSHIP ────────────────────────────────────────────────
+	// The engine refuses a service whose published port another SERVICE already
+	// holds, and it does not phrase that as a bind failure:
+	//
+	//   port '3005' is already in use by service 'deployer-api' (387sgc8chj46…)
+	//   as an ingress port
+	//
+	// Without this hint the error did not match, `parseBindErrorHostPort`
+	// returned null, and the take-over loop RE-THREW instead of dropping the
+	// port — so the proxy retried the same impossible bind forever and the logs
+	// filled with "Direct-port proxy convergence failed". The port can never be
+	// taken (the API owns it by design), so the self-healing path is the correct
+	// one: drop it and converge with what remains.
+	"already in use by service",
+	"is already in use by service",
 ];
 
 @Injectable()
@@ -605,12 +620,40 @@ export class DirectPortProxySupervisorService
 			if (port >= 1 && port <= 65_535) return port;
 		}
 
-		return (
-			candidates.find((port) =>
-				// "…:PORT", "….PORT" or "port PORT", never part of a longer number.
-				new RegExp(`(?::|\\.|port\\s+)${String(port)}(?![0-9])`).test(message),
-			) ?? null
+		// Swarm's OWN phrasing quotes the port: `port '3005' is already in use`.
+		// Anchored on the word `port` so a quoted number elsewhere in the message
+		// (a service id, a version) cannot be mistaken for it.
+		const quoted = /\bport\s+'?(\d{1,5})'?\b/.exec(message);
+		if (quoted !== null) {
+			const port = Number(quoted[1]);
+			// An out-of-range port is NOT the conflict we are healing — the message
+			// is naming something else, so stop rather than fall through to a guess.
+			return port >= 1 && port <= 65_535 ? port : null;
+		}
+
+		const named = candidates.find((port) =>
+			// "…:PORT", "….PORT" or "port PORT", never part of a longer number.
+			new RegExp(`(?::|\\.|port\\s+)${String(port)}(?![0-9])`).test(message),
 		);
+		if (named !== undefined) return named;
+
+		// ── THE LAST RESORT, AND IT IS NARROW ON PURPOSE ───────────────────────
+		// Some engine phrasings carry NO port at all — `"port is already
+		// allocated"` is the common one, and it arrives exactly when the conflict
+		// is real. Returning null there re-throws and retries the same impossible
+		// bind forever, which is the loop this parser exists to prevent.
+		//
+		// It applies ONLY when the message contains NO DIGITS AT ALL and there is
+		// exactly ONE candidate. Both conditions matter:
+		//
+		//   - a message that NAMES a port is handled above, so `"…on 30055"` can
+		//     never be read as candidate 3005 (the digit check is what enforces it
+		//     — `30055` does not match the boundary-guarded regex for `3005`, but
+		//     it IS a digit, so the fallback must not fire either);
+		//   - with several candidates, guessing would drop the WRONG port, so the
+		//     error propagates to a human instead of being silently "healed".
+		const namesNoPort = !/\d/.test(message);
+		return namesNoPort && candidates.length === 1 ? (candidates[0] ?? null) : null;
 	}
 
 	// ─── Health ─────────────────────────────────────────────────────────────

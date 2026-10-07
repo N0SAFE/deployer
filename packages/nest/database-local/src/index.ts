@@ -17,10 +17,19 @@
  *   LocalDatabaseModule.forRoot({ databasePath, migrationsDir })
  *   LocalDatabaseModule.forRootAsync({ inject: [EnvService], useFactory })
  *
- * The APP supplies both values: where its file lives, and where its migration
- * files live. The package reads no environment variable and derives no path —
- * it cannot guess either one, and an earlier version that tried produced a
- * silent failure (see `LocalDatabaseModuleOptions.migrationsDir`).
+ * The APP supplies the database path. It also supplies the migrations directory
+ * unless the local schema is owned some other way — passing none is a supported
+ * configuration (migrations are skipped, with a warning) rather than a mistake.
+ *
+ * The package reads no environment variable and derives no path — it cannot
+ * guess either one, and an earlier version that tried produced a silent failure
+ * (see `LocalDatabaseModuleOptions.migrationsDir`).
+ *
+ * WHEN IT APPLIES THE MIGRATIONS
+ * At `onModuleInit`, not while the connection is built: opening a handle and
+ * shaping its schema are separate concerns, and only a lifecycle hook can
+ * decline to migrate. That puts it after the DI graph is resolvable and before
+ * every consumer's own init hook.
  *
  * WHAT IT IS NOT
  * No table definitions (those are in `@repo/nest-schema/local`), no repositories

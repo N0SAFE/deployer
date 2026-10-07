@@ -29,12 +29,12 @@ Both are expected and intentionally different.
 | --- | --- |
 | `@repo/api-contracts` | `packages/contracts/api` |
 | `@repo/contracts-entities` | `packages/contracts/entities` |
-| `@repo/auth` | `packages/utils/auth` |
-| `@repo/orpc-utils` | `packages/utils/orpc` |
+| `@repo/auth` | `packages/auth` |
+| `@repo/orpc-utils` | `packages/transport/orpc` |
 | `@repo/errors` | `packages/utils/errors` |
-| `@repo/logger` | `packages/utils/logger` |
-| `@repo/declarative-routing` | `packages/utils/declarative-routing` |
-| `@repo/env` | `packages/utils/env` |
+| `@repo/logger` | `packages/infrastructure/logger` |
+| `@repo/declarative-routing` | `packages/routing/declarative` |
+| `@repo/env` | `packages/config/env` |
 | `@repo/ui` | `packages/ui/base` |
 | `@repo/nest-env` | `packages/nest/env` |
 | `@repo/nest-schema` | `packages/nest/schema` |
@@ -85,6 +85,37 @@ be convenient.
 - Internal dependencies use workspace references (commonly `"*"`).
 - Turborepo computes the task graph and rebuilds impacted dependents.
 - Cross-package changes should always be validated from repository root.
+
+## Package build & type pipeline
+
+Every package is consumed as built output, never as raw TypeScript. One builder,
+`tooling/bin-pkg-build`, drives both halves:
+
+- **JS**: bun bundles each source file to `dist/esm/**` (ESM) and `dist/cjs/**`
+  (CJS); JSX packages additionally emit `development` + `production` variants.
+- **Types**: tsc (native TypeScript 7) emits declarations to `dist/types/**`,
+  mirroring the source tree, with declaration maps back to `src/`.
+
+`exports` points `types` at `dist/types/**` and `import`/`require` at the built
+JS. That is what keeps a consumer's type-check to declarations instead of
+re-compiling every package implementation. Turbo drives it:
+
+| Task | What it does |
+| --- | --- |
+| `build` | JS + declarations (dependency order via `^build`) |
+| `build:types` | declarations only (`dist/types/**`), ordered by `^build:types` |
+| `watch:types` | root script: `turbo watch build:types` |
+| `type-check` / `lint` | wait for dependencies' `build:types` |
+
+Two declaration-emit rules follow from the above, both documented in
+`tooling/bin-pkg-build/AGENTS.md`:
+
+- Recursive Zod schemas must use named recursive interfaces (`z.ZodType<…>`);
+  anonymous self-references are emitted as `any`.
+- Values whose inferred type exceeds TypeScript's serialization limit (TS7056)
+  must be split or explicitly annotated. `@repo/api-contracts` exports each
+  module contract and lets each app compose the full router locally
+  (`apps/api/src/core/orpc/app-contract.ts`).
 
 ## Change workflow for shared packages
 

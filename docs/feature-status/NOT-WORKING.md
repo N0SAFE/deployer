@@ -177,13 +177,13 @@ All 26 mock imports across 15 files removed. Key pages migrated:
 | `plugin-utils/*` (6 files) | 💀 DEAD |
 | `utils/*` (2 files) | 💀 DEAD |
 
-**Why Dead:** The API (`apps/api`) re-implemented auth internally in `core/modules/auth/`. The shared `@repo/auth` (at `packages/utils/auth/`) IS still used — but the NestJS-specific wrapper (`packages/nest/auth/`) is orphaned.
+**Why Dead:** The API (`apps/api`) re-implemented auth internally in `core/modules/auth/`. The shared `@repo/auth` (at `packages/auth/`) IS still used — but the NestJS-specific wrapper (`packages/nest/auth/`) is orphaned.
 
-### 4.2 packages/utils/auth/src/permissions/ (💀 DEAD — 15+ files)
+### 4.2 packages/auth/src/permissions/ (💀 DEAD — 15+ files)
 
-**Location:** `packages/utils/auth/src/permissions/system/builder/`
+**Location:** `packages/auth/src/permissions/system/builder/`
 **Files:** Roles config, statements config, schemas, base-config — ALL unused
-**Why Dead:** Superseded by the new permissions engine at `packages/utils/auth/src/permissions/engine/`
+**Why Dead:** Superseded by the new permissions engine at `packages/auth/src/permissions/engine/`
 **Action:** Safe to remove the `system/builder/` subtree
 
 ### 4.3 packages/poc/core-sync-system/ (💀 DEAD)
@@ -192,9 +192,9 @@ All 26 mock imports across 15 files removed. Key pages migrated:
 **Status:** No consumers, not imported anywhere
 **Action:** Archive or delete
 
-### 4.4 packages/configs/prettier/ (⚠️ PARTIAL)
+### 4.4 tooling/prettier/ (⚠️ PARTIAL)
 
-**Files:** `packages/configs/prettier/src/base.ts`, `tailwind.ts`
+**Files:** `tooling/prettier/src/base.ts`, `tailwind.ts`
 **Knip Status:** Unused — root `prettier.config.ts` is used instead
 **Action:** Either wire them or remove
 
@@ -327,7 +327,7 @@ All files matching `apps/web/src/domains/*/mock-hooks.ts` are unused:
 
 ### 8.3 FK-Chain Subquery for Permissions (TODO)
 
-**File:** `packages/utils/auth/src/permissions/engine/permission-engine.ts:226,368`
+**File:** `packages/auth/src/permissions/engine/permission-engine.ts:226,368`
 **Status:** Phase B.2 — currently conservatively allows all rows for cross-FK scenarios
 
 ### 8.4 ORPC Middleware DI (TODO)

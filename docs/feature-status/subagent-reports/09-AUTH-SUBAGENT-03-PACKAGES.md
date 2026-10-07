@@ -6,7 +6,7 @@
 - Superseded by internal auth module
 - **Verdict: DELETE** (entire packages/nest/auth/ directory)
 
-## packages/utils/auth (ACTIVE — 74+ source files)
+## packages/auth (ACTIVE — 74+ source files)
 ### Structure:
 - `client/` — Auth client (master token plugin, invite client, use-session)
 - `permissions/` — Full permission system
@@ -44,7 +44,7 @@
 
 ## Todo List (Packages Layer Only)
 1. [S] Delete packages/nest/auth/ (39 source + 8 spec files) — verify no package.json references
-2. [S] Audit packages/utils/auth/package.json deps — verify @simplewebauthn, cookie, sonner are actually used
+2. [S] Audit packages/auth/package.json deps — verify @simplewebauthn, cookie, sonner are actually used
 3. [S] Verify permissions engine exports reach consumers via @repo/auth/permissions
 4. [S] Verify user contracts match user module implementation
 5. [S] Update docs to mark nest/auth as deleted, internal auth as canonical

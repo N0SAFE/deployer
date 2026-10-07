@@ -536,7 +536,7 @@ export class GitHubService {
   /**
    * Recursively list ALL file paths in a repository via the git trees API
    * (`GET /repos/{owner}/{repo}/git/trees/{branch}?recursive=1`). Returns
-   * paths like `docker/compose/docker-compose.prod.yml`. Falls back to
+   * paths like `infra/infra/docker/compose/docker-compose.prod.yml`. Falls back to
    * walking the root listing when the tree API fails (e.g. empty repos).
    * Used by runner detection to find compose files anywhere in the repo.
    */

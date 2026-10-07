@@ -63,13 +63,13 @@ description: "Core engineering principles, workflow/process, code-review catalog
 |------------------|--------------------|------------|
 | Zod entity schema | `packages/contracts/entities/` | Re-import, never re-declare |
 | Zod input/output schema for a contract | `packages/contracts/api/modules/<domain>/` | Re-import in the contract, never re-declare in handler |
-| ORPC error definition | `packages/utils/orpc` (`error()` builder) | Re-import, never redefine inline |
+| ORPC error definition | `packages/transport/orpc` (`error()` builder) | Re-import, never redefine inline |
 | ORPC mesh error contracts | `meshDomainErrorContracts(error)` from `@repo/utils-orpc` | Always spread into contract `.errors(...)` |
 | Shadcn component | `packages/ui/base/` | `ui-add { components: [...] }` to add, then re-import via `@repo/ui` |
 | Custom hook | `apps/web/src/hooks/` (app-specific) or `packages/utils/` (shared) | Re-import |
 | Service / Repository | `apps/api/src/modules/<domain>/services/`, `repositories/` | Re-import via NestJS module exports |
 | Logger | `AppLogger` from `@repo/utils-logger` | Re-import, never use `console.log` |
-| Auth helper | `packages/utils/auth/` (Better Auth factories) | Re-import |
+| Auth helper | `packages/auth/` (Better Auth factories) | Re-import |
 | Env var access | `apps/api/src/config/`, `apps/web/src/lib/config.ts` | Re-import the parsed config, never `process.env.X` scattered |
 | Route | `apps/web/src/routes/index.ts` (auto-generated) | Use the typed `<Route>.Link` and `<Route>.fetch` |
 | Magic number / string | `packages/types/` or `_constants.ts` in the feature | Extract to a named constant |
@@ -612,8 +612,8 @@ If you're replacing `oldThing` with `newThing`:
 | Doc app | `apps/doc/AGENTS.md` | Any `apps/doc/**` change |
 | UI lib | `packages/ui/base/AGENTS.md` | Any `packages/ui/**` change |
 | Contracts | `packages/contracts/api/AGENTS.md` | Any contract change |
-| Utils auth | `packages/utils/auth/AGENTS.md` | Any auth-related change |
-| Docker builder | `docker/builder/AGENTS.md` | Any Dockerfile change |
+| Utils auth | `packages/auth/AGENTS.md` | Any auth-related change |
+| Docker builder | `infra/infra/docker/builder/AGENTS.md` | Any Dockerfile change |
 
 **Rule**: If a local `AGENTS.md` contradicts root, **the local one wins** for that scope.
 
@@ -1362,9 +1362,9 @@ Every package and app has path aliases. **Use them, never use `../../../`**:
 | `packages/ui` | `@repo/ui` |
 | `packages/contracts/entities` | `@repo/contracts-entities` |
 | `packages/contracts/api` | `@repo/contracts-api` |
-| `packages/utils/orpc` | `@repo/utils-orpc` |
-| `packages/utils/logger` | `@repo/utils-logger` |
-| `packages/utils/auth` | `@repo/utils-auth` |
+| `packages/transport/orpc` | `@repo/utils-orpc` |
+| `packages/infrastructure/logger` | `@repo/utils-logger` |
+| `packages/auth` | `@repo/utils-auth` |
 | `packages/utils/use-safe-query-param-states-from-zod` | `@repo/use-safe-query-param-states-from-zod` |
 | `packages/nest` | `@repo/nest` |
 | `packages/types` | `@repo/types` |
@@ -1611,7 +1611,7 @@ bun --bun run test:e2e
 | Layer | Pattern | Example |
 |-------|---------|---------|
 | App (`apps/api`, `apps/web`) | `*.spec.ts` colocated with source | `apps/api/src/core/utils/context-filter-logger.spec.ts` |
-| Shared package (`packages/*`) | `__tests__/*.test.ts` colocated with source module | `packages/utils/orpc/src/builder/__tests__/error-builder.test.ts` |
+| Shared package (`packages/*`) | `__tests__/*.test.ts` colocated with source module | `packages/transport/orpc/src/builder/__tests__/error-builder.test.ts` |
 | E2E | `*.e2e.spec.ts` with shared Postgres testcontainer setup | `apps/api/vitest.shared-postgres.e2e.ts` |
 
 **Both patterns are intentional.** Do not force one over the other.

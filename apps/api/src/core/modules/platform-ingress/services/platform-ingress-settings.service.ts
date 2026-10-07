@@ -29,6 +29,11 @@ import { eq } from "drizzle-orm";
 import z from "zod/v4";
 
 import { LocalDatabaseService } from "@repo/nest-database-local/local-database.service";
+import {
+	DEFAULT_INGRESS_PROVIDER,
+	ingressProviderSchema,
+	type IngressProvider,
+} from "@repo/contracts-entities/entities/ingress/index";
 import { EnvService } from "@/config/env/env.module";
 import { platformSettings } from "@repo/nest-schema/local";
 
@@ -47,19 +52,29 @@ export const EDGE_TUNNEL_PROVIDER_ID_KEY = "edge.tunnel_provider_id";
 export const EDGE_TUNNEL_WILDCARD_KEY = "edge.tunnel_wildcard";
 
 /**
- * Local settings key for the edge mode.
+ * Local settings key for the ingress provider.
  *
- * Persisted because the MODE is an operator decision the UI switches at
- * runtime, while `DEPLOYER_EDGE_MODE` is only the install-time default. Storing
- * it here keeps the two supervisors that must agree on it (Traefik publishes the
- * entry port, the connector dials out) reading ONE value instead of each
- * interpreting env on its own.
+ * Persisted because the PROVIDER is an operator decision the UI switches at
+ * runtime. It is the ONLY store: there is no `DEPLOYER_EDGE_MODE` env var, so
+ * this row (or the code default when absent) is always the answer. Storing it
+ * locally keeps every supervisor that must agree on it (Traefik decides what to
+ * bind, the connector decides whether to dial out, the mesh publishes whether it
+ * can carry ingress) reading ONE value instead of each interpreting env on its
+ * own.
  */
 export const EDGE_MODE_KEY = "edge.mode";
 
-/** How the internet reaches the stack's ingress. */
-export const edgeModeSchema = z.enum(["direct", "tunnel"]);
-export type EdgeMode = z.output<typeof edgeModeSchema>;
+/**
+ * How the internet reaches the stack's ingress.
+ *
+ * Re-exported from the canonical entity so this service, the contracts and the
+ * UI cannot hold different ideas of the provider set. The previous local enum
+ * here had only two values (`direct` | `tunnel`) and no notion of a
+ * loopback-only install, which is why a fresh machine ended up publishing
+ * :80/:443 before anyone chose anything.
+ */
+export const edgeModeSchema = ingressProviderSchema;
+export type EdgeMode = IngressProvider;
 
 /**
  * The stack's single tunnel, as persisted.
@@ -126,19 +141,34 @@ export class PlatformIngressSettingsService {
 	}
 
 	/**
-	 * The effective edge mode: the persisted operator choice, else the env default.
+	 * The effective ingress provider.
 	 *
-	 * An unparseable stored value falls back to env rather than throwing — a bad
-	 * row must not take the ingress down, and env is a valid answer for it.
+	 * ── THE LOCAL DB IS THE ONLY SOURCE ──────────────────────────────────────
+	 * There is deliberately NO env fallback here. `DEPLOYER_EDGE_MODE` used to
+	 * seed this, which made the value writable from two places: the operator
+	 * changed it in the UI (writing `edge.mode`), and the next boot re-read an
+	 * env var that still said something else. Whichever won depended on whether
+	 * the row existed, so the same install could report different providers
+	 * across restarts — the ambiguity this removes.
+	 *
+	 * The provider is an operator decision with a safe default, and the default
+	 * lives in `DEFAULT_INGRESS_PROVIDER`. A fresh install has no row and gets
+	 * `local`; the moment anyone chooses, the row exists and is authoritative.
+	 *
+	 * A row that is PRESENT but unparseable is treated as corruption, not as
+	 * "unset": falling back to the default there would silently widen a
+	 * loopback install to whatever the default is, so the warning is loud and
+	 * the value is still the safe one.
 	 */
 	async getEdgeMode(): Promise<EdgeMode> {
 		const stored = await this.readSetting(EDGE_MODE_KEY);
+		if (stored === null) return DEFAULT_INGRESS_PROVIDER;
 		const parsed = edgeModeSchema.safeParse(stored);
 		if (parsed.success) return parsed.data;
-		if (stored !== null) {
-			this.logger.warn(`Invalid stored edge.mode "${stored}" — falling back to DEPLOYER_EDGE_MODE`);
-		}
-		return this.env.get("DEPLOYER_EDGE_MODE");
+		this.logger.warn(
+			`Invalid stored edge.mode "${stored}" — falling back to the safe default '${DEFAULT_INGRESS_PROVIDER}'`,
+		);
+		return DEFAULT_INGRESS_PROVIDER;
 	}
 
 	/** Persist the operator's edge-mode choice. */

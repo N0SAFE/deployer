@@ -161,7 +161,7 @@ list into a priority order.
 
 | ID | Item | Size | Evidence / why it matters |
 |---|---|---|---|
-| P-1 | 273 `as unknown as` across ~90 files | L | *(verified)* 273 outside spec/test; the plan's figure of "22" is **wrong by 12×**. Concentrated in `packages/utils/orpc/src/builder/**` and `permissions/system/builder/**` where casts are often legitimate — **do not blind-sweep**; set a rule (no new casts; only fix ones in files you already touch). |
+| P-1 | 273 `as unknown as` across ~90 files | L | *(verified)* 273 outside spec/test; the plan's figure of "22" is **wrong by 12×**. Concentrated in `packages/transport/orpc/src/builder/**` and `permissions/system/builder/**` where casts are often legitimate — **do not blind-sweep**; set a rule (no new casts; only fix ones in files you already touch). |
 | P-2 | `events` contract unreachable | S | *(verified)* `eventSyncContract` is fully implemented but referenced by nothing outside its own `index.ts` and absent from `appContract`. |
 | P-3 | `template` contract unimplemented | M | *(verified)* registered as `appContract.template` with 16 operations; zero controllers/services. |
 | P-4 | `api_keys` / `analytics_reports` / `analytics_report_configs` have no entity schemas | M | *(verified)* tables exist and are used; no schema. Only add schemas where a contract must return the shape — otherwise document the absence. |

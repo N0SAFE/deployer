@@ -22,7 +22,7 @@ const WATCH_DIRS = [
   "../../packages/contracts/api/modules", // API contracts
   "../../packages/contracts/api/common", // API contract commons
   "../../packages/contracts/api/scripts", // contracts build scripts
-  "../../packages/utils/orpc", // ORPC utilities
+  "../../packages/transport/orpc", // ORPC utilities
   "scripts", // entrypoint etc.
 ];
 

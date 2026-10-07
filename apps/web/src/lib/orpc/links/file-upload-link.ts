@@ -8,8 +8,8 @@
  * Uses Web Workers to handle uploads in background thread with streaming response support.
  */
 
-import { OpenAPILink } from "@orpc/openapi-client/fetch";
-import type { ContractRouter, Meta } from "@orpc/contract";
+import { OpenAPILink } from "@orpc/openapi/fetch";
+import type { AnyContractRouter } from "@orpc/contract";
 import type { ClientContext, NestedClient, Client } from "@orpc/client";
 import { createContextFilterDebugLogger } from "@/lib/logging/context-filter-debug";
 
@@ -245,20 +245,9 @@ function createUploadWorker(): Worker {
       xhr.open('POST', endpoint, true);
       xhr.responseType = 'arraybuffer';
       
-      // Build FormData
-      const formData = new FormData();
-      for (const [key, value] of Object.entries(input)) {
-        // Check for File/Blob by duck-typing (constructor not available in worker)
-        if (value && typeof value === 'object' && (value.constructor.name === 'File' || value.constructor.name === 'Blob')) {
-          formData.append(key, value);
-        } else if (typeof value === 'object' && value !== null) {
-          formData.append(key, JSON.stringify(value));
-        } else if (value !== undefined && value !== null) {
-          formData.append(key, String(value));
-        }
-      }
-      
-      // Set credentials
+      // input arrives as an already-built FormData (oRPC v2 hands the codec's
+      // multipart body straight to the transport), so it is sent as-is. FormData
+      // is structured-cloneable, which is why it survives postMessage.
       xhr.withCredentials = true;
       
       // Send request
@@ -267,7 +256,7 @@ function createUploadWorker(): Worker {
         uploadId
       });
       
-      xhr.send(formData);
+      xhr.send(input);
     }
     
     function cancelUpload(uploadId) {
@@ -293,11 +282,27 @@ function getUploadWorker(): Worker {
 }
 
 /**
+ * Narrow a FormData entry to a file-like value.
+ *
+ * Takes `unknown` on purpose: the declared `FormDataEntryValue` differs by lib
+ * configuration (some resolve it to `string` only), and narrowing from a
+ * non-`unknown` union can collapse the parameter to `never`.
+ */
+function isFileLike(value: unknown): value is { name: string; size: number } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'name' in value &&
+    'size' in value
+  );
+}
+
+/**
  * Upload using Web Worker with XMLHttpRequest for progress tracking
  * Returns a Response with streaming body created from MessageChannel
  */
 function uploadWithWorker(
-  input: object,
+  input: FormData,
   endpoint: string,
   onProgress?: (event: { loaded: number; total: number; percentage: number }) => void
 ): Promise<Response> {
@@ -305,11 +310,13 @@ function uploadWithWorker(
     const worker = getUploadWorker();
     const uploadId = `upload_${String(Date.now())}_${Math.random().toString(36).substring(2, 11)}`;
     
-    // Extract file info for tracking
+    // Extract file info for tracking. FormData is iterable, so this reads the
+    // multipart entries directly (v2 hands the already-built FormData over
+    // instead of the raw input object).
     let fileName = 'unknown';
     let fileSize = 0;
-    for (const value of Object.values(input)) {
-      if (value instanceof File) {
+    for (const value of input.values()) {
+      if (isFileLike(value)) {
         fileName = value.name;
         fileSize = value.size;
         break;
@@ -492,41 +499,48 @@ export type WithFileUploadsClient<T extends NestedClient<ClientContext>> =
  */
 export class FileUploadOpenAPILink<TContext extends ClientContext> extends OpenAPILink<TContext> {
   constructor(
-    contract: ContractRouter<Meta>,
+    contract: AnyContractRouter,
     options: ConstructorParameters<typeof OpenAPILink<TContext>>[1]
   ) {
     // Store original fetch function
-    const originalFetch = options.fetch;
+    const originalFetch = options?.fetch;
 
-    // Create wrapped fetch function
-    const wrappedFetch: typeof originalFetch = async (request, init, linkOptions, path, input) => {
-      // Check if this is a multipart/form-data request (file upload)
-      // Note: init is { redirect?: RequestRedirect }, not full RequestInit
-      // Content-Type detection needs to be done via Request object or options
-      const requestUrl = typeof request === 'string' ? request : request.url;
-      
-      // Check if input contains File objects (indicates file upload)
-      const isFileUpload = containsFile(input);
+    // Create wrapped fetch function.
+    //
+    // oRPC v2 dropped the `input` argument from the fetch transport signature
+    // (`(url, init, options, path)`), so file uploads can no longer be detected
+    // by walking the validated input. `init.body` is the reliable signal
+    // instead: the standard-server codec hands FormData straight to fetch for
+    // multipart requests (it clears content-type and returns the FormData
+    // object as-is), while JSON payloads arrive as a stream.
+    const wrappedFetch: typeof originalFetch = async (
+      url: string,
+      init: RequestInit,
+      linkOptions: Parameters<NonNullable<typeof originalFetch>>[2],
+      path: Parameters<NonNullable<typeof originalFetch>>[3],
+    ) => {
+      const requestUrl = url;
 
-      // Get onProgress callback from context
-      const onProgress = linkOptions.context.onProgress as ((event: { loaded: number; total: number; percentage: number }) => void) | undefined;
+      // Only a multipart request carrying a declared progress callback can be
+      // uploaded through the XHR worker; everything else takes plain fetch.
+      const isFormData =
+        typeof FormData !== "undefined" && init.body instanceof FormData;
+      const onProgress = (
+        linkOptions.context as {
+          onProgress?: (event: {
+            loaded: number;
+            total: number;
+            percentage: number;
+          }) => void;
+        }
+      ).onProgress;
 
-      // Only use XMLHttpRequest if:
-      // 1. It's a file upload (multipart/form-data)
-      // 2. We have an onProgress callback
-      // 3. We're in the browser (not SSR)
-      if (isFileUpload && onProgress && typeof window !== 'undefined') {
+      if (isFormData && onProgress && typeof window !== "undefined") {
         fileUploadDebug("Intercepted file upload, using XMLHttpRequest for progress");
 
         try {
-          // `input` is typed as `unknown` by the ORPC link signature.
-          // Narrow with a type guard so `uploadWithWorker` receives a
-          // real `object` — no `as Record<string, unknown>` cast.
-          if (typeof input !== "object" || input === null) {
-            throw new Error("[FileUploadLink] file upload input is not an object")
-          }
-          const response = await uploadWithWorker(input, requestUrl, onProgress);
-            
+          const response = await uploadWithWorker(init.body as FormData, requestUrl, onProgress);
+
           // Return the streamed Response directly
           return response;
         } catch (error) {
@@ -537,11 +551,11 @@ export class FileUploadOpenAPILink<TContext extends ClientContext> extends OpenA
 
       // Use regular fetch for non-file uploads or if XHR failed
       if (originalFetch) {
-        return originalFetch(request, init, linkOptions, path, input);
+        return originalFetch(url, init, linkOptions, path);
       }
 
       // Fallback to standard fetch (shouldn't happen with OpenAPILink)
-      return fetch(request, init);
+      return fetch(url, init);
     };
 
     // Call parent constructor with wrapped fetch

@@ -154,8 +154,8 @@ card with no indication that content is coming. `S`
 ## D. Performance (24–28)
 
 **24. ⚑ Audit the remaining server-side `setQueryData` session hydration.** Four server call sites stamp
-the session into the query cache — `packages/utils/auth/src/react/session/SessionHydration.tsx:99`,
-`packages/utils/declarative-routing/src/layout-wrappers/server.tsx:209,339`, and
+the session into the query cache — `packages/auth/src/react/session/SessionHydration.tsx:99`,
+`packages/routing/declarative/src/layout-wrappers/server.tsx:209,339`, and
 `page-wrappers/server.tsx:413`. TanStack's `setQueryData` sets `dataUpdatedAt: Date.now()` internally,
 which is non-deterministic during prerender. One site is already guarded:
 `utils/providers/SessionHydrationProvider.tsx:69-73` documents the mechanism and skips hydration entirely
@@ -235,7 +235,7 @@ and calls no API — a control that reports intent and performs nothing. `L`
 
 **39. Audit log UI.** The backend already records it (`cluster_master_history`, `core_event_logs`,
 `PreviewLifecycleEventService`, `migration_applied`) and the permission model declares an `audit`
-capability (`packages/utils/auth/src/permissions/config.ts:59`). No page reads any of it;
+capability (`packages/auth/src/permissions/config.ts:59`). No page reads any of it;
 `complete-feature-inventory.mdx:468` marks it 🔴 Planned. Highest-value missing read surface. `L`
 
 **40. Webhook delivery log.** Promised in the readiness plan. A failing webhook is currently invisible —

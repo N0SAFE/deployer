@@ -1,0 +1,34 @@
+# =====================================================================
+# Doc PROD variant — INCLUDE-ONLY (real base: prod build).
+# =====================================================================
+services:
+  doc:
+    restart: unless-stopped
+    build:
+      context: ../../../../..
+      dockerfile: ./infra/docker/builder/doc/Dockerfile.doc.runtime.prod
+      args:
+        - NODE_ENV=production
+        - BUILDKIT_INLINE_CACHE=1
+    ports:
+      - "${NEXT_PUBLIC_DOC_PORT:-3020}:3020"
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_DOC_URL: ${NEXT_PUBLIC_DOC_URL:-http://localhost:${NEXT_PUBLIC_DOC_PORT:-3020}}
+      NEXT_PUBLIC_DOC_PORT: ${NEXT_PUBLIC_DOC_PORT:-3020}
+    volumes:
+      - bun_cache_prod:/root/.bun/install/cache
+      - turbo_cache_prod:/root/.cache/turbo
+      # Turbopack filesystem cache (turbopackFileSystemCacheForBuild).
+      #
+      # This image builds the app at container start (`doc#start` dependsOn
+      # `build`), so a fresh container would otherwise recompile everything.
+      # `next build` cleans `.next` but deliberately preserves
+      # `cache|dev|lock|trace` — so the build cache survives the rebuild and
+      # the next container starts warm.
+      #
+      # Ownership: the runner is `USER nextjs` (uid 1001). The image
+      # pre-creates this directory owned by nextjs, and Docker seeds a fresh
+      # named volume with the image's ownership — so the volume is writable
+      # without running the build as root.
+      - doc_next_cache_prod:/app/apps/doc/.next/cache

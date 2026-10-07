@@ -1,0 +1,326 @@
+# syntax=docker/dockerfile:1-labs
+#
+# ONE dev image for every application in the `dev-dependency-builder` profile,
+# parameterised by `APP`.
+#
+# ── Why one file ─────────────────────────────────────────────────────────────
+#
+# The four applications need the same five stages; only the prune target differs.
+# Four copies meant four places to fix a bug, and — worse — TWO different `base`
+# stages (api/setup installed Node and @nestjs/cli, web/doc did not), which is two
+# sets of layers where one suffices.
+#
+# ── Where the sharing stops, and why it stops there ──────────────────────────
+#
+# An instruction's cache key includes the build ARGs in scope at that point. So
+# `ARG APP` is declared as LATE as possible: everything above it is byte-identical
+# for all four applications and BuildKit serves it from cache.
+#
+#   shared across applications:
+#     the base (apk, Node, global tools), the root manifests, every package.json
+#     in the repository, the installer's manifest COPY, and the entrypoint
+#
+#   per-application:
+#     the prune, the pruned install, node_modules, and the runner's source COPY
+#
+# Declaring `ARG APP` at the top of the file would make every layer above
+# per-application and this file would share nothing — which is exactly what the
+# four-copy version already did, so it would be a rewrite with no gain.
+#
+# ── Placement rule for a shared step ─────────────────────────────────────────
+#
+# A step that is IDENTICAL for every application must sit ABOVE the first
+# per-application step, or it is not shared. This applies even to instructions
+# that do not mention `APP`: BuildKit's cache key for a COPY includes the layer it
+# is applied to, so a build-context COPY placed after a per-application COPY is
+# itself per-application.
+#
+# Measured: the entrypoint COPY was NOT cached for the second application when it
+# sat at the end of the runner stage; moved above the pruned source, it is.
+#
+# ── Merged where the steps had no cacheable boundary ─────────────────────────
+#
+# Adjacent instructions that are always invalidated together were merged, because
+# each one is a stored layer:
+#   * node/npm/npx symlinks + the global install → one RUN
+#   * three ENV lines → one ENV
+#   * turbo.json + package.json + bun.lock* → one COPY
+#   * pruned source + pruned lockfile → one COPY (pruner-full places the lockfile
+#     inside `out/full/` so the runner needs a single COPY for both)
+#
+# Redundant `WORKDIR /app` lines were removed from the stages: they are all
+# `FROM base` and inherit it, and a redundant WORKDIR is still a layer.
+#
+# Net effect on the runner stage: 6 steps → 4.
+#
+# ── This image PRUNES but does not BUILD ─────────────────────────────────────
+#
+# Internal packages are built by the `dependency-builder` container and published
+# to the shared `dep-output` volume. At start, `entrypoint-app.sh` points each
+# pruned package's `dist/` at that volume and waits for the builder's first build.
+#
+# Build:
+#   docker build -f docker/builder/app/Dockerfile.app.dev --build-arg APP=api .
+
+ARG APP
+ARG BUN_VERSION=1.4.2
+
+# ===================================
+# Stage 1: Base — shared by every application
+# ===================================
+FROM oven/bun:${BUN_VERSION}-alpine AS base
+
+# The UNION of what the four applications need, so there is one list and one set
+# of layers instead of two:
+#   * `wget` (api/setup healthchecks), `git`, `pkg-config`-less `make`/`g++`
+#   * `gcc` and `musl-dev` for native addons
+#   * `jq` for the shared-output entrypoint, which reads each package's NAME out
+#     of its manifest to build the volume path
+RUN apk add --no-cache \
+        bash curl wget git tar jq \
+        python3 make g++ gcc musl-dev libc6-compat
+
+# Node 22. The NestJS applications need a real `node` for `nest start`, and
+# Turbo's CLI wrapper is a Node script. Installing it in the shared base rather
+# than in a per-application stage is what keeps this layer shared: BuildKit
+# stores these ~120MB once for all four images, where a conditional install would
+# store them per application.
+COPY --from=node:22-alpine /usr/local /usr/local
+
+# Merged with the global install below: two adjacent RUNs with no cacheable
+# boundary between them were two layers for one unit of work.
+#
+# `@nestjs/cli` is used only by api/setup. A conditional install would make this
+# layer per-application and cost more than the unused CLI does, since BuildKit
+# stores it once for all four.
+RUN --mount=type=cache,target=/root/.bun,sharing=locked \
+    ln -sf /usr/local/bin/node /usr/bin/node && \
+    ln -sf /usr/local/bin/npm /usr/bin/npm && \
+    ln -sf /usr/local/bin/npx /usr/bin/npx && \
+    bun install -g turbo@^2 @nestjs/cli node-gyp
+
+# Every stage below is `FROM base`, so they all inherit this working directory.
+# None of them re-declares it: a redundant WORKDIR is still a layer.
+WORKDIR /app
+
+# ===================================
+# Stage 2a: Pruner JSON — manifests only
+# Input  : turbo.json + root package.json + bun.lock + **/package.json
+# Output : out/json/  (pruned package.json structure)
+# ===================================
+FROM base AS pruner-json
+
+# ── Shared: byte-identical for every application ─────────────────────────────
+# Root manifests in ONE instruction. They all live at the repository root and
+# they change together, so separate COPYs were two extra layers with no cache
+# benefit — a manifest edit invalidates this layer regardless.
+#
+# `bun.lock*` matches the lockfile whatever it is named; this repository has
+# `bun.lock`.
+COPY turbo.json package.json bun.lock* ./
+
+# All package.json files across the monorepo (preserves directory structure)
+COPY --parents **/package.json ./
+
+# fumadocs-mdx's postinstall reads this file, and the installer stage sees only
+# `out/json/`. Copied unconditionally — Docker has no conditional COPY — to a
+# scratch path, and placed into the pruned tree below where the app check can
+# decide.
+#
+# A plain COPY (not a bind mount) on purpose: the file's CONTENT is then in the
+# cache key, so editing it can never leave a stale layer behind. The cost is that
+# this one line makes pruner-json depend on a doc file for every application,
+# which is acceptable for a file that changes almost never.
+COPY apps/doc/source.config.ts /tmp/doc-source.config.ts
+
+# ── Per-application: everything below here ──────────────────────────────────
+# Declared last, so every layer above stays shared.
+ARG APP
+
+RUN --mount=type=cache,target=/root/.bun,sharing=locked \
+    if [ -z "$APP" ]; then echo "APP build-arg is required" >&2; exit 1; fi && \
+    bun x turbo prune "$APP" --docker && \
+    if [ "$APP" = "doc" ]; then \
+        mkdir -p /app/out/json/apps/doc && \
+        cp /tmp/doc-source.config.ts /app/out/json/apps/doc/source.config.ts ; \
+    fi
+
+# ===================================
+# Stage 2b: Pruner Full — sources via bind mount
+# Input  : out/json/ from pruner-json + bind-mounted build context (sources)
+# Output : out/full/  (pruned source files)
+# Cache  : the bind mount is not in the cache key
+# ===================================
+FROM base AS pruner-full
+
+# Take the pruned package.json structure (cache key: pruner-json output)
+COPY --from=pruner-json /app/out/json/ ./
+
+ARG APP
+
+# Bind-mount the build context to access source files at build time.
+# The bind mount does NOT participate in cache key calculation, so source changes
+# in unrelated apps don't invalidate this stage.
+# We copy the source files into the current directory so turbo prune can find
+# them — turbo prune reads from the CWD, not from the bind-mount path.
+# (turbo prune then filters to only the workspaces needed for the target app.)
+#
+# `tooling` IS INCLUDED, and that is not optional: the workspace globs reach it
+# (`tooling/**`), so `@repo/pkg-build` and the shared config packages live there.
+# Copying only `apps packages` left turbo unable to resolve them, and the baked
+# build then died with:
+#
+#   @repo/pkg-build:build: error: Module not found "src/main.ts"
+#
+# because the pruned tree contained the package's manifest but not its source.
+RUN --mount=type=bind,target=/src \
+    --mount=type=cache,target=/root/.bun,sharing=locked \
+    cp /src/turbo.json . && \
+    cp /src/bun.lock* . 2>/dev/null || true ; \
+    tar -C /src -cf - apps packages tooling 2>/dev/null | tar -xf - 2>/dev/null || true ; \
+    bun x turbo prune "$APP" --docker && \
+    cp /app/bun.lock /app/out/full/bun.lock
+
+# `out/full/` has no lockfile of its own (verified for every application), so the
+# ORIGINAL one is placed there. That is what lets the runner fetch the source AND
+# its lockfile with ONE COPY instead of two — and it must be the original, not
+# the pruned one, for the reason documented at the installer stage below.
+#
+# (The prune above writes `out/` fresh, so the pruned `out/json/bun.lock` is
+# written too; it is deliberately NOT what reaches the installer.)
+
+# ===================================
+# Stage 3: Installer — the pruned dependency subset only
+# ===================================
+FROM base AS installer
+
+# Copy ONLY the pruned manifests (not every workspace).
+# out/json/ ALSO carries a pruned bun.lock, consistent with those manifests.
+COPY --from=pruner-json /app/out/json/ .
+
+# ── USE THE ORIGINAL LOCKFILE, NOT THE PRUNED ONE ───────────────────────────
+# `turbo prune` rewrites bun.lock and HOISTS packages that were nested, losing
+# their nested resolutions. Measured on `api`: it hoists `log-symbols@4.1.0` to
+# a bare entry but drops the `is-unicode-supported@^0.1.0` it depends on, so
+# that package resolves to the ESM-only 2.1.0 while `log-symbols` is CJS. The
+# build then dies deep in a dependency with:
+#
+#   TypeError: isUnicodeSupported is not a function.
+#   (In 'isUnicodeSupported()', 'isUnicodeSupported' is an instance of Module)
+#
+# The ORIGINAL lockfile keeps the correct tree, and `bun ci` accepts it against
+# the pruned manifests (verified: installs clean, and the CJS `require` resolves
+# `is-unicode-supported@0.1.0`). This is the turborepo#10783 / #11074 class of
+# prune-lockfile corruption; using the source lockfile sidesteps it entirely.
+# NOT a `|| bun install` fallback — `bun ci` SUCCEEDS on the corrupted file, so
+# a fallback never triggers and the wrong tree is installed silently.
+COPY --from=pruner-full /app/bun.lock ./bun.lock
+
+RUN --mount=type=cache,target=/root/.bun,sharing=locked \
+    --mount=type=cache,target=/root/.cache,sharing=locked \
+    bun ci
+
+# ===================================
+# Stage 4: Runner — development runtime
+# ===================================
+FROM base AS runner
+
+# Create npm symlink to avoid "npm not found" warnings during builds
+RUN ln -sf $(which bun) /usr/local/bin/npm
+
+# One ENV instruction instead of three: they are set together and nothing can be
+# cached between them.
+#   NEXT_TELEMETRY_DISABLED is meaningless to the NestJS/Vite applications and
+#   only silences telemetry, so one value serves all four.
+ENV NODE_ENV=development \
+    LOG_LEVEL=debug \
+    NEXT_TELEMETRY_DISABLED=1
+
+# The shared-output entrypoint: links each package's `dist/` at the volume the
+# dependency-builder writes, waits for its first build, then starts the dev
+# server.
+#
+# Placed BEFORE the per-application layers, and that placement is the point.
+# BuildKit's cache key for a COPY includes the layer it is applied to, so a
+# build-context COPY that follows a per-application instruction is itself
+# per-application — measured: this step was NOT cached for the second
+# application when it sat at the end of the stage. Above them, it is shared.
+COPY --chmod=755 infra/docker/builder/app/entrypoint-app.sh /usr/local/bin/entrypoint-app
+
+# Pruned source WITH its pruned lockfile, in one COPY: pruner-full placed the
+# lockfile inside `out/full/` for exactly this reason. This and the RUN below are
+# the only two per-application layers in the stage.
+COPY --from=pruner-full /app/out/full/ .
+
+# Copy node_modules from the installer — single-tar pattern, no find/subshell
+# loops.
+#
+# IMPORTANT: `cd /mnt/installer` MUST happen BEFORE the globs are expanded. The
+# globs are expanded by the shell relative to the current working directory; from
+# /app they would only match node_modules that already exist in the pruned source,
+# and `apps/<app>/node_modules` is NOT part of the source, so it would be silently
+# skipped and never copied — breaking module resolution at runtime.
+RUN --mount=type=bind,from=installer,source=/app,target=/mnt/installer \
+    cd /mnt/installer && \
+    PATHS="node_modules"; \
+    for d in apps/*/node_modules packages/*/node_modules packages/*/*/node_modules tooling/*/node_modules tooling/*/*/node_modules; do \
+        [ -d "$d" ] && PATHS="$PATHS $d"; \
+    done; true; \
+    tar -cf - --exclude='*.map' --exclude='.cache' --exclude='.turbo' $PATHS | \
+    tar -xf - -C /app --owner=root --group=root
+
+# ── Where this application's internal packages come from ────────────────────
+#
+# The two DECLARED dependency modes, because the platforms genuinely differ:
+#
+#   volume  compose-managed dev. A `dependency-builder` container owns the
+#           packages, publishes them to the shared `dep-output` volume once, and
+#           every application reads them. Nothing is built here, so four
+#           applications do not each build the same shared packages.
+#
+#   baked   swarm-managed (`dev-supervised`, `prod`). The application runs as a
+#           swarm SERVICE, and a service is the unit of deployment: it cannot be
+#           handed a compose volume of prebuilt packages. The packages are built
+#           into the image instead, which is what makes the image self-contained.
+#
+# `ARG` is declared HERE, not at the top of the file, for the same reason `APP`
+# is: an instruction's cache key includes the build args in scope, so hoisting it
+# would make every shared layer above per-mode.
+ARG APP_DEPS_MODE=volume
+ENV APP_DEPS_MODE=${APP_DEPS_MODE}
+
+# ── `ARG APP` MUST BE RE-DECLARED IN EVERY STAGE THAT READS IT ───────────────
+# An ARG declared in one stage is NOT in scope in the next: `FROM` starts a fresh
+# scope, and only `ENV` values survive. The declarations above are in
+# `pruner-json` and `pruner-full`, so `APP` was EMPTY here — and an empty value
+# does not fail loudly, it produces a silently wrong command:
+#
+#   bun x turbo run build --filter="..." --filter="!"
+#   x selector not used: selector "..." must have a reference, directory, or name pattern
+#
+# so the baked build died for the WEB app only (the API's image happened to be
+# cached from an earlier state). Declaring it here is what makes the `--filter`
+# below resolve to `web...` rather than `...`.
+ARG APP
+
+# `PKG_BUILD_KEEP_DIST` is deliberately NOT set: in baked mode there is no
+# published volume to detach from, so the packages' own destructive clean is the
+# correct behaviour.
+RUN if [ "$APP_DEPS_MODE" = "baked" ]; then \
+        echo "baking internal packages for ${APP} into the image" && \
+        bun x turbo run build --filter="${APP}..." --filter="!${APP}" ; \
+    else \
+        echo "volume mode: internal packages are read from dep-output" ; \
+    fi
+
+# The application's own directory. This is what lets the entrypoint identify the
+# application from its working directory in BOTH modes, so neither compose nor a
+# swarm service spec needs to pass the name.
+WORKDIR /app/apps/${APP}
+
+ENTRYPOINT ["/usr/local/bin/entrypoint-app"]
+
+# One command for every application: all four `dev` scripts are `bun run dev`
+# (api's adds its own `dotenv`), and the entrypoint has already changed into the
+# application's directory. No per-app `command:` is needed in compose.
+CMD ["bun", "run", "dev"]

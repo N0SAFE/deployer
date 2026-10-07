@@ -173,15 +173,36 @@ export class ReadinessIndicators {
     const isProvisioningRace = (snapshot: { detail: string | null }): boolean =>
       /relation .* does not exist|insert into "app_config"|Failed query/i.test(snapshot.detail ?? "");
 
+    // ── A WEB APP WITH NO ROUTER YET IS A HANDOVER STATE, NOT A FAULT ────────
+    // The managed web's probe now checks that `web.<host>` is actually ROUTED,
+    // not merely that its task runs. On a fresh install the route does not exist
+    // until `dynamic-web.yml` is published, and that publication races setup's
+    // handover — so requiring it first would reintroduce the deadlock this
+    // indicator already had to fix for the entry port:
+    //
+    //   1. the web service is running and the app answers 200 on the overlay;
+    //   2. the ingress has no router for `web.<host>` yet;
+    //   3. counting that as failing -> /health/ready is 503;
+    //   4. setup waits for readiness before releasing the entry port;
+    //   5. so the handover never runs, and the route is never published.
+    //
+    // Nothing is broken — one state has to precede the other. Scoped to the
+    // ingress's own "no router" text so a genuinely unreachable or 5xx-ing
+    // web app still fails readiness.
+    const isRouteNotPublished = (snapshot: { supervisorId: string; detail: string | null }): boolean =>
+      snapshot.supervisorId === "platform-managed-web" &&
+      /has no router for|web route has not been published/i.test(snapshot.detail ?? "");
+
     const failing = active
       .filter((snapshot) => !snapshot.healthy)
       .filter((snapshot) => !isHandoverPortConflict(snapshot))
       .filter((snapshot) => !isProvisioningRace(snapshot))
+      .filter((snapshot) => !isRouteNotPublished(snapshot))
       .map((snapshot) => ({ supervisor: snapshot.supervisorId, state: snapshot.state, detail: snapshot.detail }));
 
     const handoverPending = active
       .filter((snapshot) => !snapshot.healthy)
-      .filter((snapshot) => isHandoverPortConflict(snapshot))
+      .filter((snapshot) => isHandoverPortConflict(snapshot) || isRouteNotPublished(snapshot))
       .map((snapshot) => ({ supervisor: snapshot.supervisorId, state: snapshot.state, detail: snapshot.detail }));
 
     const awaitingProvisioning = active

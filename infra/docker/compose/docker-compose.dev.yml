@@ -1,0 +1,284 @@
+# =====================================================================
+# DEV profile (compose-managed) — `bun run dev`.
+#
+# Every service EXTENDS its base config in common/ (the REAL base — build,
+# env, develop.watch, healthchecks live there). This file only wires the
+# project: network attach, depends_on, MANAGED_*_ENABLED flags and the
+# shared networks + volumes. All shared resources are declared ONCE here.
+#
+# ── ONE builder for all internal packages ────────────────────────────────
+#
+# `dependency-builder` builds the union of the enabled applications' internal
+# packages ONCE and publishes it to the `dep_output_dev` volume, which every
+# application mounts read-only. Without it each application image would build its
+# own copy of every shared package: four builds of `@repo/ui`, four copies that
+# can drift, and four times the work on every cold start.
+#
+# The applications deploy fine without this profile — they fall back to building
+# their packages into their own image (`APP_DEPS_MODE=baked`), which is what the
+# swarm-managed profiles use. See `infra/docker/builder/app/Dockerfile.app.dev`.
+# =====================================================================
+
+name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}
+
+services:
+  # ── The one process that builds internal packages ────────────────────
+  dependency-builder:
+    extends:
+      file: ./common/dependency-builder/docker-compose.config.dev.yml
+      service: dependency-builder
+    networks:
+      - app_network_dev
+
+  # ── Apps (extend common) ──────────────────────────────────────────
+  api-dev:
+    extends:
+      file: ./common/api/docker-compose.config.dev.yml
+      service: api
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-dev
+    ports:
+      - "${DRIZZLE_STUDIO_PORT:-4983}:4983"
+    depends_on:
+      # ── THE GATE ──────────────────────────────────────────────────────────
+      # The API is a CONVERGED-PLATFORM process: migrations, seed, admin and
+      # supervisor convergence all assume a database URL exists. So it starts
+      # only once setup has collected the onboarding details — the API then
+      # reads them from the shared `node_config` row and provisions itself.
+      #
+      # ONE DIRECTION. `setup` never depends on the API, so this is not the
+      # circular wiring the earlier design had to work around (it started the
+      # API early in a degraded mode to break the cycle).
+      setup-dev:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      # The internal packages this container imports must exist BEFORE it
+      # starts. `service_healthy` is the builder's stamp, written only after a
+      # successful first build — so the app never races a half-written volume.
+      dependency-builder:
+        condition: service_healthy
+    environment:
+      # ── Compose-managed services ──
+      # Every supervised platform service is owned by compose in dev EXCEPT
+      # the global Postgres: that one is scheduled by the API as a swarm
+      # service (GlobalDbSupervisorService -> deployer-postgres, replicated,
+      # alias global-db), so dev runs the same code path as every other fleet
+      # size. MANAGED_GLOBAL_DB_ENABLED must stay false, otherwise the global
+      # DB supervisor skips registration and dev stays on a container while
+      # prod runs a service.
+      MANAGED_GLOBAL_DB_ENABLED: "false"
+      MANAGED_REDIS_ENABLED: "true"
+      MANAGED_REDIS_HOST: redis
+      MANAGED_REDIS_PORT: "6379"
+      MANAGED_LOCAL_DB_ENABLED: "true"
+      MANAGED_LOCAL_DB_PATH: /app/data/local.db
+      MANAGED_TRAEFIK_ENABLED: "true"
+      MANAGED_TRAEFIK_HOST: traefik
+      MANAGED_TRAEFIK_HTTP_PORT: ${DEPLOYER_TRAEFIK_HTTP_PORT:-80}
+      MANAGED_DATABASE_ENABLED: "true"
+      MANAGED_DATABASE_HOST: database
+      MANAGED_DATABASE_PORT: "5432"
+      MANAGED_DATABASE_USER: deployer
+      MANAGED_DATABASE_PASSWORD: deployer
+      MANAGED_DATABASE_NAME: deployer
+      MANAGED_WIREGUARD_ENABLED: "true"
+    networks:
+      app_network_dev:
+        aliases:
+          - api-dev
+          - api
+      deployer_platform:
+        aliases:
+          - api-dev
+          - api
+      shared: {}
+
+  # ── Setup (one-way onboarding app) ────────────────────────────────
+  #
+  # THE GATE. `api-dev` gates on this service's health, and `web-dev` gates on
+  # the API's health — so the chain is setup → api → web, one direction, no
+  # cycle. `/setup/health` returns 200 once the wizard has collected the details
+  # (or a previous run already did); it deliberately does NOT wait for the API,
+  # because the API's existence is what this gate enables.
+  setup-dev:
+    extends:
+      file: ./common/setup/docker-compose.config.dev.yml
+      service: setup
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-setup-dev
+    depends_on:
+      # Only the ENGINE is a prerequisite: setup drives the API's start, so
+      # compose must be up. It does NOT wait for redis/traefik/database — compose
+      # owns those here, and waiting would be the same cycle as above in a
+      # different form.
+      redis:
+        condition: service_started
+      # Setup imports `@repo/*` packages at boot like every other app.
+      dependency-builder:
+        condition: service_healthy
+    # NO `ports:` — internal only, reached through Traefik (plan §11.0).
+    environment:
+      # ── THIS PROFILE RUNS NO SWARM ────────────────────────────────────────
+      # `SETUP_MODE=dev` means COMPOSE owns the API, and setup's gate opens the
+      # moment the wizard is submitted without touching the Docker engine. The
+      # engine is never founded, joined, or read — a cluster is an irreversible
+      # change to the operator's machine, and this profile has no use for one.
+      #
+      # The swarm-driven profiles are `dev-supervised` and `prod`, which set
+      # `SETUP_MODE=prod`: there compose owns nothing, so setup founds the
+      # cluster, schedules the API onto it, and streams both steps to the wizard.
+      SETUP_MODE: ${SETUP_MODE:-dev}
+      # The API's address for the DRIVE phase. Compose owns the API in dev, so
+      # this is a stable name; prod is the mode that creates the service instead.
+      SETUP_API_URL: http://api-dev:${API_PORT:-3005}
+      # The API's INTERNAL port, which differs from dev to prod (3005 vs 3001),
+      # so it is passed rather than assumed.
+      SETUP_API_PORT: ${API_PORT:-3005}
+      # COMPOSE OWNS THE INGRESS in this profile (`traefik:` below publishes
+      # :80), so setup must NOT start one of its own — the entry port is
+      # exclusively bound. Setup still ROUTES through it by writing
+      # `dynamic-setup.yml` into the shared config volume.
+      MANAGED_TRAEFIK_ENABLED: "true"
+      DEPLOYER_PREFIX: ${DEPLOYER_PREFIX:-}
+      # WireGuard is a compose-provided sidecar, and the overlay must exist
+      # before the API is scheduled onto the cluster.
+      MANAGED_WIREGUARD_IP: ${MANAGED_WIREGUARD_IP:-}
+      APP_URL: ${APP_URL:-http://web-dev:3000}
+    volumes:
+      # The SAME SQLite file the API reads: setup WRITES the swarm participation
+      # decision and the API READS it, so they must be the same file.
+      - api_local_db_data_dev:/app/data
+    networks:
+      app_network_dev:
+        # `setup` is the alias Traefik addresses (dynamic-setup.yml points its
+        # backend at `http://setup:3016`).
+        aliases:
+          - setup-dev
+          - setup
+      deployer_platform:
+        aliases:
+          - setup-dev
+          - setup
+      shared: {}
+
+  web-dev:
+    extends:
+      file: ./common/web/docker-compose.config.dev.yml
+      service: web
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-web-dev
+    depends_on:
+      api-dev:
+        condition: service_healthy
+      dependency-builder:
+        condition: service_healthy
+    networks:
+      app_network_dev: {}
+      deployer_platform: {}
+      shared: {}
+
+  doc-dev:
+    extends:
+      file: ./common/doc/docker-compose.config.dev.yml
+      service: doc
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-doc-dev
+    depends_on:
+      dependency-builder:
+        condition: service_healthy
+    networks:
+      app_network_dev: {}
+
+  # ── Platform services (extend common bases) ───────────────────────
+  redis:
+    extends:
+      file: ./common/redis/docker-compose.config.yml
+      service: redis
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-redis
+    networks:
+      - deployer_platform
+      - shared
+
+  traefik:
+    extends:
+      file: ./common/traefik/docker-compose.config.yml
+      service: traefik
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-traefik
+    networks:
+      - deployer_platform
+
+  drizzle-gateway:
+    extends:
+      file: ./common/drizzle-gateway/docker-compose.config.yml
+      service: drizzle-gateway
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-drizzle-gateway
+    environment:
+      DATABASE_URL_Deployer: postgresql://${MANAGED_GLOBAL_DB_USER:-deployer}:${MANAGED_GLOBAL_DB_PASSWORD:-deployer}@global-db:5432/${MANAGED_GLOBAL_DB_NAME:-deployer}
+    # The global database is a swarm service the API schedules; the gateway
+    # reaches it by its overlay alias (global-db) once it is up.
+    networks:
+      shared: {}
+
+# ---------------------------------------------------------------------
+# SHARED NETWORKS — declared ONCE here.
+# ---------------------------------------------------------------------
+networks:
+  shared:
+    name: shared
+    driver: bridge
+  deployer_platform:
+    name: deployer-platform
+    driver: bridge
+  app_network_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_app_network_dev
+    driver: bridge
+
+# ---------------------------------------------------------------------
+# SHARED VOLUMES — declared ONCE here.
+# ---------------------------------------------------------------------
+volumes:
+  api_local_db_data_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_local_db_data_dev
+  api_db_data_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_db_data_dev
+  redis_data_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-redis-data
+  drizzle-gateway:
+    name: drizzle-gateway
+  database_data:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-database-data
+  bun_cache_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_bun_cache_dev
+  turbo_cache_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_turbo_cache_dev
+  # Turbopack filesystem cache — one volume per app, so web and doc never
+  # share a cache directory (their graph roots differ: web/ vs doc/).
+  web_next_cache_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_web_next_cache_dev
+  doc_next_cache_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_doc_next_cache_dev
+  api_uploads_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_dev
+  web_instance_token_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_web_instance_token_dev
+  # ── The shared internal-package output ─────────────────────────────────
+  # Written by `dependency-builder`, read-only everywhere else. Survives a
+  # stack restart, so a second `up` starts without waiting for a rebuild.
+  #
+  # SEPARATE from `turbo_cache_dev`: that is Turbo's task cache, this holds the
+  # artifacts the applications actually import.
+  dep_output_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_dep_output_dev
+  deployer-traefik-config:
+    name: ${TRAEFIK_CONFIG_VOLUME:-deployer-traefik-config}
+  deployer-port-proxy-config:
+    name: ${DIRECT_PROXY_CONFIG_VOLUME:-deployer-port-proxy-config}
+  wireguard-state-mesh-1:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-1
+  wireguard-state-mesh-2:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-2
+  wireguard-state-mesh-3:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-3
+  wireguard-state-mesh-4:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-4
+  wireguard-state-mesh-5:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-5
+  wireguard-state-mesh-6:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-6

@@ -41,7 +41,7 @@ export function useUserList(options?: UseUserListOptions) {
 
 **Implementation:**
 ```typescript
-// packages/utils/orpc/src/hooks/generate-docs.ts
+// packages/transport/orpc/src/hooks/generate-docs.ts
 export function generateHookDocs(
   procedureName: string,
   operationType: 'query' | 'mutation',
@@ -339,7 +339,7 @@ const isDev = process.env.NODE_ENV === 'development'
 Create `@repo/logger` package using **Pino** for NestJS compatibility.
 Provides structured logging across web and API with the same interface.
 
-**Create:** `packages/utils/logger/src/index.ts`
+**Create:** `packages/infrastructure/logger/src/index.ts`
 
 ```typescript
 type LogLevel = 'debug' | 'info' | 'warn' | 'error'
@@ -439,7 +439,7 @@ Current dev scripts are sufficient. No additional scripts needed.
     "dev:fresh": "rm -rf node_modules && bun install && bun run dev",
     "check:all": "bun run lint && bun run type-check && bun run test",
     "check:quick": "bun run type-check",
-    "gen:hooks": "bun run --cwd packages/utils/orpc generate",
+    "gen:hooks": "bun run --cwd packages/transport/orpc generate",
     "gen:routes": "bun run --cwd apps/web dr:build",
     "db:reset": "bun run --cwd apps/api db:push && bun run --cwd apps/api db:seed",
     "deps:check": "bunx depcheck",

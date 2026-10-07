@@ -501,12 +501,12 @@ print_info "Building Docker images (this may take a while)..."
 cd "$PROJECT_DIR"
 
 # Run docker-compose as the actual user (with sudo privileges for docker)
-if su - "$ACTUAL_USER" -c "cd $PROJECT_DIR && docker-compose -f docker/compose/deployer/docker-compose.deployer.yml --env-file .env.prod up -d --build"; then
+if su - "$ACTUAL_USER" -c "cd $PROJECT_DIR && docker-compose -f infra/docker/compose/deployer/docker-compose.deployer.yml --env-file .env.prod up -d --build"; then
     print_success "Docker container started successfully"
     print_info "PostgreSQL is accessible via Docker bridge gateway (already configured)"
 else
     print_error "Failed to start Docker container"
-    print_info "Check logs with: docker-compose -f docker/compose/deployer/docker-compose.deployer.yml logs"
+    print_info "Check logs with: docker-compose -f infra/docker/compose/deployer/docker-compose.deployer.yml logs"
     exit 1
 fi
 
@@ -516,7 +516,7 @@ sleep 10
 
 # Check container status
 print_header "📊 Container Status"
-su - "$ACTUAL_USER" -c "cd $PROJECT_DIR && docker-compose -f docker/compose/deployer/docker-compose.deployer.yml ps"
+su - "$ACTUAL_USER" -c "cd $PROJECT_DIR && docker-compose -f infra/docker/compose/deployer/docker-compose.deployer.yml ps"
 
 # Configure firewall (if UFW is available)
 print_header "🔥 Configuring Firewall"
@@ -560,10 +560,10 @@ echo "  🔌 API: https://api-the-gossip-club.sebille.net"
 echo ""
 print_info "Useful Commands:"
 echo ""
-echo "  📊 View logs: docker-compose -f docker/compose/deployer/docker-compose.deployer.yml logs -f"
-echo "  🔄 Restart services: docker-compose -f docker/compose/deployer/docker-compose.deployer.yml restart"
-echo "  🛑 Stop services: docker-compose -f docker/compose/deployer/docker-compose.deployer.yml down"
-echo "  📈 Container status: docker-compose -f docker/compose/deployer/docker-compose.deployer.yml ps"
+echo "  📊 View logs: docker-compose -f infra/docker/compose/deployer/docker-compose.deployer.yml logs -f"
+echo "  🔄 Restart services: docker-compose -f infra/docker/compose/deployer/docker-compose.deployer.yml restart"
+echo "  🛑 Stop services: docker-compose -f infra/docker/compose/deployer/docker-compose.deployer.yml down"
+echo "  📈 Container status: docker-compose -f infra/docker/compose/deployer/docker-compose.deployer.yml ps"
 echo "  🔒 SSL status: sudo certbot certificates"
 echo ""
 print_warning "Next Steps:"

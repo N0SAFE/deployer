@@ -20,6 +20,14 @@ import z from "zod/v4";
 import { HostnameService } from "../../platform-ingress/services/hostname.service";
 import { PlatformPaths } from "../../platform-ingress/services/platform-paths";
 import { PlatformIngressSettingsService, type EdgeMode } from "../../platform-ingress/services/platform-ingress-settings.service";
+import {
+	describeIngressBinding,
+	resolveIngressBinding,
+	type IngressBinding,
+	type IngressBindingResult,
+} from "../../platform-ingress/services/ingress-binding";
+import { DEFAULT_INGRESS_PROVIDER } from "@repo/contracts-entities/entities/ingress/index";
+import { LocalIngressForwarderService } from "../../platform-ingress/services/local-ingress-forwarder.service";
 import { platformTraefikContainerName } from "../../platform-ingress/services/platform-names";
 import { BaseDockerSupervisorService } from "@repo/nest-docker/services/base-docker-supervisor.service";
 import {
@@ -201,6 +209,7 @@ export class TraefikSupervisorService
 		private readonly hostnameService: HostnameService,
 		private readonly env: EnvService,
 		private readonly settings: PlatformIngressSettingsService,
+		private readonly forwarder: LocalIngressForwarderService,
 	) {
 		super(dockerService);
 	}
@@ -223,14 +232,20 @@ export class TraefikSupervisorService
 	}
 
 	/**
-	 * The edge mode in effect, cached because `buildSwarmSpec()` is synchronous
-	 * while the settings store is not.
+	 * The ingress provider in effect, cached because `buildSwarmSpec()` is
+	 * synchronous while the settings store is not.
 	 *
-	 * Seeded to `direct` so a probe arriving before the first read publishes the
-	 * entry port — the safe direction to be wrong in: an unbound port makes the
-	 * stack unreachable, while a bound one is merely unnecessary under `tunnel`.
+	 * Seeded from `DEFAULT_INGRESS_PROVIDER`, NOT from a literal. It used to be
+	 * hardcoded `"direct"`, justified as "the safe direction to be wrong in: an
+	 * unbound port makes the stack unreachable". That reasoning belonged to the
+	 * OLD two-value model where the only alternative was `tunnel` (binds
+	 * nothing). Under the current model the alternative is `local`, which DOES
+	 * bind a port — on loopback — so seeding to `direct` gains no reachability
+	 * and loses the guarantee: a probe landing before the first store read would
+	 * publish :80/:443 on EVERY interface of an install whose operator never
+	 * chose that, which is precisely what `local` exists to prevent.
 	 */
-	private edgeMode: EdgeMode = "direct";
+	private edgeMode: EdgeMode = DEFAULT_INGRESS_PROVIDER;
 
 	/** Re-read the persisted edge mode (called at boot and on every sweep). */
 	async loadEdgeMode(): Promise<void> {
@@ -384,6 +399,10 @@ export class TraefikSupervisorService
 	protected buildSwarmSpec(hostPort: number | null | undefined = undefined): SwarmServiceSpecInput {
 		const prefix = this.env.get("DEPLOYER_PREFIX");
 		const socketPath = this.env.get("DOCKER_HOST")?.replace("unix://", "") ?? "/var/run/docker.sock";
+		// The provider decides whether a port is published AT ALL; an explicit
+		// `hostPort` (the setup handover) overrides it, because that handover
+		// happens before any provider is chosen.
+		const binding = this.currentBinding();
 		const port =
 			hostPort === null
 				? undefined
@@ -392,6 +411,11 @@ export class TraefikSupervisorService
 					: this.publishesEntryPort()
 						? this.env.get("DEPLOYER_TRAEFIK_HTTP_PORT")
 						: undefined;
+		// NO LOGGING HERE. This is a SPEC BUILDER: `probe()` calls it on every
+		// health snapshot, so logging the binding here emitted the same line on
+		// every poll — measured at 306 lines in ~100s, which buried every other
+		// message in the container's log. The line is emitted by `reconcile()`
+		// instead, where it fires once per convergence.
 
 		const tlsEnabled = this.env.get("DEPLOYER_TRAEFIK_TLS_ENABLED") === true;
 		// Traefik v3 SPLIT the docker provider in two, and passing the v2 option
@@ -468,11 +492,18 @@ export class TraefikSupervisorService
 		// ingress, so both incarnations of the ingress now start the same way.
 
 		const endpointPorts: SwarmEndpointPort[] = [];
+		// BOTH ports are gated on the provider, not on their own settings.
+		// `tlsEnabled` used to add 443 unconditionally, which meant a `local` (or
+		// `tunnel`) install with TLS on published 443 on EVERY interface through
+		// the swarm service — exposing the machine on HTTPS while the operator
+		// believed the install was loopback-only. Only `direct` publishes here at
+		// all; every other provider binds through the address-scoped forwarder
+		// (or nothing), because Swarm's port spec cannot express a bind address.
 		if (port !== undefined) {
 			endpointPorts.push({ protocol: "tcp", publishedPort: port, targetPort: 80, publishMode: "host" });
-		}
-		if (tlsEnabled) {
-			endpointPorts.push({ protocol: "tcp", publishedPort: 443, targetPort: 443, publishMode: "host" });
+			if (tlsEnabled) {
+				endpointPorts.push({ protocol: "tcp", publishedPort: 443, targetPort: 443, publishMode: "host" });
+			}
 		}
 
 		return {
@@ -627,15 +658,52 @@ export class TraefikSupervisorService
 			"Platform ingress convergence",
 			async () => {
 				const entry = await this.settings.getPlatformEntry();
+				// Logged ONCE per convergence, not per spec build (see buildSwarmSpec).
+				// Derived from the binding rather than the provider name: a line that
+				// says "loopback only" while the port list says otherwise is worse than
+				// no line at all.
+				const resolved = this.currentBinding();
+				if (resolved.ok) {
+					this.logger.log(`Ingress binding — ${describeIngressBinding(resolved.binding, this.edgeMode)}`);
+				}
+				// `null` means HEADLESS: the swarm service publishes nothing. That is
+				// now the answer for `local`, `wireguard` AND `tunnel` — only `direct`
+				// publishes through Swarm, because Swarm cannot bind a single address
+				// (see the forwarder). A fresh install therefore binds no HOST port on
+				// the swarm service, while `local` still gets a loopback listener.
 				const desiredPort = this.publishesEntryPort() ? entry.port : null;
 				// Config files (dynamic-*.yml) are handled by the TRAEFIK CORE
 				// module (TraefikPlatformConfigService) — the file-provider
 				// watcher reloads them; this supervisor only ensures the PROCESS.
 				await this.reconcileSwarm(desiredPort);
 				await this.verifySwarmConvergence(this.buildSwarmSpec(desiredPort));
+				// The address-scoped lane. Swarm publishes nothing for `local` /
+				// `wireguard`, so without this the ingress would be bound to no
+				// address at all and a fresh install would have NO reachable console —
+				// exactly the failure mode the forwarder exists to close.
+				await this.forwarder.converge(this.currentBindingOrNull());
 			},
 			{ maxAttempts: 5 },
 		);
+	}
+
+	/**
+	 * The current binding, or null when it could not be resolved.
+	 *
+	 * A `wireguard` provider on a node with no overlay address is unresolvable.
+	 * Returning null (rather than binding every interface) makes the caller
+	 * REMOVE any stale listener, so the honest state — nothing bound — is what
+	 * remains, and the provider's own probe reports why.
+	 */
+	private currentBindingOrNull(): IngressBinding | null {
+		const result = this.currentBinding();
+		if (!result.ok) {
+			this.logger.warn(
+				`Ingress provider '${this.edgeMode}' cannot bind on this node (${result.reason}) — nothing is bound`,
+			);
+			return null;
+		}
+		return result.binding;
 	}
 
 	/** Confirm the ingress service exists and has a running task on this node. */
@@ -656,29 +724,39 @@ export class TraefikSupervisorService
 	}
 
 	/**
-	 * Whether the ingress publishes its entry port on the host.
+	 * What the ingress must bind under the CURRENT provider.
 	 *
-	 * ── WHY THIS IS NO LONGER A PRODUCTION CHECK ────────────────────────────────
-	 * This used to be `NODE_ENV !== "production"`, which meant production ran the
-	 * ingress HEADLESS — no host port at all. That is correct for exactly one
-	 * situation and wrong for the other:
+	 * Delegated to the resolver so this supervisor never decides exposure on its
+	 * own. It used to hold the entire policy in one boolean
+	 * (`this.edgeMode === "direct"`), which could only express "bind :80 on every
+	 * interface" or "bind nothing" — so `local` (loopback only) and `wireguard`
+	 * (overlay address only) had nowhere to live, and the platform defaulted to
+	 * the one provider that publishes publicly.
 	 *
-	 *   `tunnel`  — the connector dials OUT to Cloudflare, so no inbound port is
-	 *               needed, and not publishing one is the whole security benefit
-	 *               of the mode. Headless is right.
+	 * The overlay address is read here rather than inside the resolver because it
+	 * is an ENV fact about this node, not a property of the provider.
+	 */
+	private currentBinding(): IngressBindingResult {
+		return resolveIngressBinding({
+			provider: this.edgeMode,
+			entryPort: this.env.get("DEPLOYER_TRAEFIK_HTTP_PORT"),
+			tlsEnabled: this.env.get("DEPLOYER_TRAEFIK_TLS_ENABLED") === true,
+			overlayAddress: splitManagedEnv(this.env).wireguard.ip ?? null,
+		});
+	}
+
+	/**
+	 * Whether the ingress publishes its entry port ON THE HOST through Swarm.
 	 *
-	 *   `direct`  — DNS resolves the app hostname to this node and the client
-	 *               connects to :80/:443 ON THIS NODE. Publishing nothing makes
-	 *               every such request fail at the TCP layer, so a production
-	 *               `direct` install was unreachable by construction.
-	 *
-	 * The question was never "is this production" — it is "does anything dial IN".
-	 * That is a property of the EDGE MODE, so the mode decides, in every
-	 * environment. A dev box running `tunnel` now correctly stays headless too,
-	 * which the old check got wrong in the opposite direction.
+	 * True only for `direct`: Swarm's port spec has no host-IP field, so it can
+	 * only ever bind every interface. `local` and `wireguard` DO bind a port, but
+	 * on a single address, which Swarm cannot express — they must not be published
+	 * here or they would be exposed on all interfaces, which is precisely what
+	 * those providers exist to prevent.
 	 */
 	private publishesEntryPort(): boolean {
-		return this.edgeMode === "direct";
+		const binding = this.currentBinding();
+		return binding.ok && binding.binding.viaSwarmHostMode;
 	}
 
 	/** Heuristic for Docker port-binding failures (host port already in use). */
@@ -871,7 +949,13 @@ export class TraefikSupervisorService
 		// Same resolution as `reconcile`, so what this reports is what converged.
 		const desiredPort = this.publishesEntryPort() ? entry.port : null;
 		const spec = this.buildSwarmSpec(desiredPort);
-		const published = spec.endpointPorts.length > 0;
+		// The reachable entry URL comes from the BINDING, not from whether the
+		// swarm service published a port. Those differ under `local`: the service
+		// publishes nothing (Swarm cannot bind loopback) while the forwarder DOES
+		// serve `http://localhost:<port>`. Reporting null there would tell the
+		// operator the ingress is unreachable on an install that is working.
+		const binding = this.currentBinding();
+		const entryUrl = this.reachableEntryUrl(binding, entry.port);
 		return {
 			process: await this.describeSwarmProcess(spec),
 			entry: {
@@ -880,7 +964,7 @@ export class TraefikSupervisorService
 				source: entry.sourcedFrom,
 			},
 			urls: {
-				entryUrl: published ? `http://localhost:${String(entry.port)}` : null,
+				entryUrl,
 				apiUrl: this.hostnameService.apiOrigin(),
 				webUrl: this.hostnameService.webOrigin(),
 			},
@@ -889,6 +973,22 @@ export class TraefikSupervisorService
 				dynamicApiFile: PlatformPaths.apiConfigFile(this.platformConfigDir()),
 			},
 		};
+	}
+
+	/**
+	 * The URL a client on THIS machine can open, or null when nothing is bound.
+	 *
+	 * Every provider that binds a host port is reachable from this machine —
+	 * including `local` (loopback) and `wireguard` (the overlay address is this
+	 * machine's own). Only `tunnel` (binds nothing) and an unresolvable provider
+	 * have no local entry URL.
+	 */
+	private reachableEntryUrl(binding: IngressBindingResult, port: number): string | null {
+		if (!binding.ok) return null;
+		if (binding.binding.ports.length === 0) return null;
+		// The forwarder serves the same hostnames on the bound address, so the
+		// loopback origin is the honest answer for a local client.
+		return this.hostnameService.webOrigin();
 	}
 
 	/** True when this process runs inside a Docker container. */

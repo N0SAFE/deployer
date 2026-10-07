@@ -1,7 +1,7 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { appContract } from "@repo/api-contracts";
+import { domainContract } from "@repo/api-contracts";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { DomainServiceService } from "../services/domain-service.service";
 
@@ -9,9 +9,9 @@ import { DomainServiceService } from "../services/domain-service.service";
 export class ServiceDomainController {
     constructor(private readonly domainServiceService: DomainServiceService) {}
 
-    @Implement(appContract.domain.checkSubdomainAvailability)
+    @Implement(domainContract.checkSubdomainAvailability)
     checkSubdomainAvailability() {
-        return implement(appContract.domain.checkSubdomainAvailability)
+        return implement(domainContract.checkSubdomainAvailability)
             .use(requireAuth())
             .handler(({ input }) =>
                 // Compact input (body-only) — `input` IS the payload.
@@ -19,16 +19,16 @@ export class ServiceDomainController {
             );
     }
 
-    @Implement(appContract.domain.listServiceDomains)
+    @Implement(domainContract.listServiceDomains)
     listServiceDomains() {
-        return implement(appContract.domain.listServiceDomains)
+        return implement(domainContract.listServiceDomains)
             .use(requireAuth())
             .handler(({ input }) => this.domainServiceService.listServiceDomains(input.params));
     }
 
-    @Implement(appContract.domain.addServiceDomain)
+    @Implement(domainContract.addServiceDomain)
     addServiceDomain() {
-        return implement(appContract.domain.addServiceDomain)
+        return implement(domainContract.addServiceDomain)
             .use(requireAuth())
             .handler(({ input, context }) =>
                 this.domainServiceService.addServiceDomain(
@@ -38,9 +38,9 @@ export class ServiceDomainController {
             );
     }
 
-    @Implement(appContract.domain.updateServiceDomain)
+    @Implement(domainContract.updateServiceDomain)
     updateServiceDomain() {
-        return implement(appContract.domain.updateServiceDomain)
+        return implement(domainContract.updateServiceDomain)
             .use(requireAuth())
             .handler(({ input, context }) =>
                 this.domainServiceService.updateServiceDomain(
@@ -50,9 +50,9 @@ export class ServiceDomainController {
             );
     }
 
-    @Implement(appContract.domain.setPrimaryServiceDomain)
+    @Implement(domainContract.setPrimaryServiceDomain)
     setPrimaryServiceDomain() {
-        return implement(appContract.domain.setPrimaryServiceDomain)
+        return implement(domainContract.setPrimaryServiceDomain)
             .use(requireAuth())
             .handler(({ input, context }) =>
                 this.domainServiceService.setPrimaryServiceDomain({
@@ -62,9 +62,9 @@ export class ServiceDomainController {
             );
     }
 
-    @Implement(appContract.domain.removeServiceDomain)
+    @Implement(domainContract.removeServiceDomain)
     removeServiceDomain() {
-        return implement(appContract.domain.removeServiceDomain)
+        return implement(domainContract.removeServiceDomain)
             .use(requireAuth())
             .handler(({ input, context }) =>
                 this.domainServiceService.removeServiceDomain({

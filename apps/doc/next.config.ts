@@ -28,7 +28,7 @@ const config: NextConfig = {
     //
     // The cache only pays off if the directory survives the container:
     // compose mounts a named volume over `.next/dev` (dev) and
-    // `.next/cache` (prod). See docker/compose/common/doc/.
+    // `.next/cache` (prod). See infra/infra/docker/compose/common/doc/.
     turbopackFileSystemCacheForDev: true,
     turbopackFileSystemCacheForBuild: true,
   },
@@ -50,7 +50,17 @@ const config: NextConfig = {
   turbopack: {
     root: path.join(__dirname, '../..'),
   },
-  output: 'export'
+  // Static export for S3/CloudFront.
+  //
+  // `trailingSlash: true` is what makes the export S3-servable: it emits
+  // `docs/intro/getting-started/index.html` instead of
+  // `docs/intro/getting-started.html`, so a plain object store resolves
+  // `/docs/intro/getting-started/` via its normal directory-index lookup.
+  // Without it the export produces `foo.html` files, which S3 cannot serve for
+  // `/foo` — that needs a routing layer (CloudFront Function) rewriting every
+  // extensionless path.
+  output: 'export',
+  trailingSlash: true,
 }
 
 export default withMDX(config)

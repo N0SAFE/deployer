@@ -5,6 +5,7 @@ import { mkdtemp } from "node:fs/promises";
 import { PlatformNetwork, TraefikSupervisorService, type EntrypointProbe } from "./traefik-supervisor.service";
 import { EnvHostnameService } from "../../platform-ingress/services/hostname.service";
 import type { PlatformIngressSettingsService } from "../../platform-ingress/services/platform-ingress-settings.service";
+import type { LocalIngressForwarderService } from "../../platform-ingress/services/local-ingress-forwarder.service";
 import type { DockerService } from "@repo/nest-docker/services/docker.service";
 import type { EnvService } from "@/config/env/env.module";
 
@@ -129,7 +130,10 @@ function makeEnv(overrides: Partial<Record<string, unknown>> = {}): EnvService {
 		DEPLOYER_PREFIX: "",
 		DEPLOYER_TRAEFIK_IMAGE: "traefik:v3.3",
 		DEPLOYER_TRAEFIK_HTTP_PORT: 80,
-		DEPLOYER_EDGE_MODE: "direct",
+		// The INSTALL DEFAULT: `local` binds loopback only (through the forwarder),
+		// so the swarm service publishes nothing. Tests that need a published port
+		// pass `DEPLOYER_EDGE_MODE: "direct"` explicitly.
+		DEPLOYER_EDGE_MODE: "local",
 		DOCKER_HOST: undefined,
 		NODE_ENV: "development",
 		API_PORT: 3005,
@@ -162,14 +166,18 @@ function makeSupervisor(
 		getEntryPort: vi.fn(async () => entryPort ?? 80),
 		setEntryPort: vi.fn(),
 		clearEntryPort: vi.fn(),
-		// The entry-port decision now follows the EDGE MODE (persisted, else the
-		// env seed) rather than NODE_ENV — `direct` must bind the port.
-		getEdgeMode: vi.fn(async () => (envOverrides.DEPLOYER_EDGE_MODE as string | undefined) ?? "direct"),
+		// The entry-port decision now follows the INGRESS PROVIDER (persisted,
+		// else the env seed) rather than NODE_ENV. Default here is the install
+		// default, `local` — the provider that binds LOOPBACK only.
+		getEdgeMode: vi.fn(async () => (envOverrides.DEPLOYER_EDGE_MODE as string | undefined) ?? "local"),
 	} as unknown as PlatformIngressSettingsService & {
 		getPlatformEntry: ReturnType<typeof vi.fn>;
 	};
-	const supervisor = new TraefikSupervisorService(mocks.dockerService, hostnameService, env, settings);
-	return { supervisor, settings, env, ...mocks };
+	// The address-scoped lane (`local` / `wireguard`): Swarm cannot bind a single
+	// address, so those providers are realized as a container instead.
+	const forwarder = { converge: vi.fn(async () => undefined), remove: vi.fn(async () => undefined) } as unknown as LocalIngressForwarderService;
+	const supervisor = new TraefikSupervisorService(mocks.dockerService, hostnameService, env, settings, forwarder);
+	return { supervisor, settings, env, forwarder, ...mocks };
 }
 
 /** Bypass the private HTTP entrypoint probe — liveness is covered by the task state. */
@@ -372,9 +380,12 @@ describe("TraefikSupervisorService (swarm-global ingress)", () => {
 		expect(createSwarmService.mock.calls[0]?.[0]?.Name).toBe("deployer-traefik-acme");
 	});
 
-	it("publishes the entry port in HOST mode (a global service cannot use ingress)", async () => {
+	it("publishes the entry port in HOST mode under `direct` (a global service cannot use ingress)", async () => {
 		const configDir = await makeConfigDir();
-		const { supervisor, createSwarmService } = makeSupervisor({ TRAEFIK_CONFIG_BASE_PATH: configDir });
+		const { supervisor, createSwarmService } = makeSupervisor({
+			DEPLOYER_EDGE_MODE: "direct",
+			TRAEFIK_CONFIG_BASE_PATH: configDir,
+		});
 		stubProbe(supervisor);
 
 		await supervisor.ensureDesiredState();
@@ -384,9 +395,45 @@ describe("TraefikSupervisorService (swarm-global ingress)", () => {
 		]);
 	});
 
+	it("publishes NOTHING under the default `local` provider — Swarm cannot bind loopback", async () => {
+		const configDir = await makeConfigDir();
+		// No DEPLOYER_EDGE_MODE override: this is the fresh-install default.
+		const { supervisor, createSwarmService } = makeSupervisor({ TRAEFIK_CONFIG_BASE_PATH: configDir });
+		stubProbe(supervisor);
+
+		await supervisor.ensureDesiredState();
+
+		// The whole point of the inverted default: a fresh install publishes no
+		// host port on the swarm service, so nothing is reachable off-box. The
+		// loopback listener is the FORWARDER's job, not the service's — Swarm's
+		// port spec has no host-IP field, so it could only bind 0.0.0.0.
+		expect(createSwarmService.mock.calls[0]?.[0]?.EndpointSpec?.Ports ?? []).toEqual([]);
+	});
+
+	it("hands the loopback binding to the forwarder, not the swarm service", async () => {
+		const configDir = await makeConfigDir();
+		const { supervisor, forwarder } = makeSupervisor({ TRAEFIK_CONFIG_BASE_PATH: configDir });
+		stubProbe(supervisor);
+
+		await supervisor.ensureDesiredState();
+
+		// `local` = bind 127.0.0.1 only, which is exactly the scope the forwarder
+		// realizes. If this ever stops being called, a fresh install has NO
+		// reachable console at all.
+		expect(forwarder.converge).toHaveBeenCalled();
+		const binding = (forwarder.converge as unknown as { mock: { calls: unknown[][] } }).mock.calls[0]?.[0] as
+			| { scope: string; bindAddress: string | null }
+			| null;
+		expect(binding?.scope).toBe("loopback");
+		expect(binding?.bindAddress).toBe("127.0.0.1");
+	});
+
 	it("adds the websecure entrypoint + HTTP→HTTPS redirect when TLS is enabled", async () => {
 		const configDir = await makeConfigDir();
 		const { supervisor, createSwarmService } = makeSupervisor({
+			// `direct` so the ports ARE published by the swarm service; under
+			// `local` they go through the forwarder instead.
+			DEPLOYER_EDGE_MODE: "direct",
 			DEPLOYER_TRAEFIK_TLS_ENABLED: true,
 			TRAEFIK_CONFIG_BASE_PATH: configDir,
 		});
@@ -400,6 +447,28 @@ describe("TraefikSupervisorService (swarm-global ingress)", () => {
 			{ TargetPort: 80, PublishedPort: 80, Protocol: "tcp", PublishMode: "host" },
 			{ TargetPort: 443, PublishedPort: 443, Protocol: "tcp", PublishMode: "host" },
 		]);
+	});
+
+	it("keeps a loopback install off every interface even when TLS is enabled", async () => {
+		const configDir = await makeConfigDir();
+		const { supervisor, createSwarmService, forwarder } = makeSupervisor({
+			// Default provider (`local`) WITH TLS: the ports must still not be
+			// published on the swarm service, or enabling HTTPS would silently
+			// expose the machine on :80/:443 — the exact regression this guards.
+			DEPLOYER_TRAEFIK_TLS_ENABLED: true,
+			TRAEFIK_CONFIG_BASE_PATH: configDir,
+		});
+		stubProbe(supervisor);
+
+		await supervisor.ensureDesiredState();
+
+		expect(createSwarmService.mock.calls[0]?.[0]?.EndpointSpec?.Ports ?? []).toEqual([]);
+		// Both ports are handed to the loopback lane instead.
+		const binding = (forwarder.converge as unknown as { mock: { calls: unknown[][] } }).mock.calls[0]?.[0] as
+			| { scope: string; ports: number[] }
+			| null;
+		expect(binding?.scope).toBe("loopback");
+		expect(binding?.ports).toEqual([80, 443]);
 	});
 
 	it("publishes no host port in tunnel mode (the connector dials out)", async () => {
@@ -473,7 +542,11 @@ describe("TraefikSupervisorService (swarm-global ingress)", () => {
 		expect(swarmProcess?.live.exists).toBe(true);
 		expect(swarmProcess?.live.runningTasks).toBe(1);
 		expect(info.entry).toEqual({ port: 80, isDefault80: true, source: "default" });
-		expect(info.urls.entryUrl).toBe("http://localhost:80");
+		// The reachable URL follows the BINDING, not the swarm publish: under the
+		// default `local` provider the service publishes nothing while the
+		// forwarder serves the hostnames on loopback, so the install IS reachable
+		// from this machine and reporting null would be wrong.
+		expect(info.urls.entryUrl).toBe("http://web.deployer.localhost");
 		expect(info.urls.apiUrl).toBe("http://api.deployer.localhost");
 		expect(info.config.dynamicApiFile).toContain("dynamic-api.yml");
 	});
@@ -488,7 +561,7 @@ describe("TraefikSupervisorService (swarm-global ingress)", () => {
 
 		expect(info.entry).toEqual({ port: 8080, isDefault80: false, source: "local-db" });
 		expect(info.process.kind).toBe("swarm");
-		expect(info.urls.entryUrl).toBe("http://localhost:8080");
+		expect(info.urls.entryUrl).toBe("http://web.deployer.localhost");
 	});
 
 	it("reports unhealthy when the ingress task is not running on this node", async () => {

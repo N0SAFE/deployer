@@ -31,10 +31,10 @@
 | `apps/api/scripts/build.ts:135` | build script |
 | `scripts/init.ts:5` (repo ROOT) | `prompts` lacks TS declarations |
 | `packages/ui/base/src/components/data-table/utils/export-utils.ts:192` | minified import fallback |
-| `packages/bin/declarative-routing/assets/qwikcity/hooks.ts:44` | vendored asset |
-| `packages/bin/declarative-routing/assets/react-router/makeRoute.tsx:353,356` | vendored asset |
+| `tooling/bin-declarative-routing/assets/qwikcity/hooks.ts:44` | vendored asset |
+| `tooling/bin-declarative-routing/assets/react-router/makeRoute.tsx:353,356` | vendored asset |
 
-**`@ts-expect-error` — ≥4 production:** `apps/api/scripts/build.ts:8`, `packages/utils/auth/src/permissions/system/builder/builder.ts:186`, `packages/utils/auth/src/server/plugins/invite.ts:148`, `packages/utils/orpc/src/types/type-helpers.ts:220`.
+**`@ts-expect-error` — ≥4 production:** `apps/api/scripts/build.ts:8`, `packages/auth/src/permissions/system/builder/builder.ts:186`, `packages/auth/src/server/plugins/invite.ts:148`, `packages/transport/orpc/src/types/type-helpers.ts:220`.
 
 **`as unknown as` — 133 hits / 45 files (~30 production):** hotspots `core/modules/mesh/services/base-mesh.service.ts:524,529,580,621,631,659,707`, `core/modules/auth/services/auth-core.service.ts:256,257,503,506,535,538,627`, `modules/docker/repositories/facade/docker.repository.ts:2133,2143,2149,3943`, `config/env/env.service.ts:68`, `core/gateway/gateway.module.ts:112`.
 
@@ -70,7 +70,7 @@ Exactly **3** `.errors(` call sites, ALL mesh: `modules/mesh/index.ts:357,379`, 
 
 ## 4. SC4 — Wildcard Exports + Catalog Drift [LOOP-FACT]
 
-**String-form `"./*"`:** contracts/api:12, contracts/common:10, contracts/entities:10, configs/typescript:7. **Object-form:** types:5, ui/base:19. **Catalog drift:** `apps/web/package.json:108` `"zod": "^4.3.6"` (catalog `^4.0.0`), `packages/configs/eslint/package.json:70` `"tailwindcss": "^4.1.16"` (catalog `^4`). Depth caveat: only 2 instances verified — full sweep unactioned.
+**String-form `"./*"`:** contracts/api:12, contracts/common:10, contracts/entities:10, configs/typescript:7. **Object-form:** types:5, ui/base:19. **Catalog drift:** `apps/web/package.json:108` `"zod": "^4.3.6"` (catalog `^4.0.0`), `tooling/eslint/package.json:70` `"tailwindcss": "^4.1.16"` (catalog `^4`). Depth caveat: only 2 instances verified — full sweep unactioned.
 
 ## 5. SC7/SC8 — Hygiene [LOOP-FACT]
 

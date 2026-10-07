@@ -23,8 +23,13 @@
  *   nothing while multiplying the connections Cloudflare has to track.
  *
  * A `replicated` service is spread across nodes by the scheduler, so a small
- * replica count already survives a node failure — and `maxReplicasPerNode = 1`
- * keeps two connectors from landing on the same node and being lost together.
+ * replica count already survives a node failure — but "spread" is only a
+ * PREFERENCE, and a preference does not guarantee anything. With two replicas
+ * and two nodes the scheduler may still place both on one node, and that node's
+ * loss then takes the whole edge with it. The guarantee needs a hard cap
+ * (`placementMaxReplicasPerNode: 1` → Swarm's `Placement.MaxReplicas`), which
+ * is why the spec sets BOTH: the preference asks the scheduler to spread, the
+ * cap makes it impossible not to.
  * One tunnel serving many connectors is the documented Cloudflare model (up to
  * 25 connectors per tunnel), which is what keeps the Cloudflare side FIXED as
  * the fleet grows: adding a node does not add a tunnel.
@@ -61,6 +66,7 @@ import {
 } from "@repo/nest-docker/services/docker-supervisor-runtime";
 import type { SwarmServiceSpecInput } from "@repo/contracts-entities";
 import { PlatformIngressSettingsService, type EdgeMode } from "../../platform-ingress/services/platform-ingress-settings.service";
+import { DEFAULT_INGRESS_PROVIDER } from "@repo/contracts-entities/entities/ingress/index";
 import { PLATFORM_ROLE_LABEL, PlatformNetwork } from "./traefik-supervisor.service";
 
 /** Ownership marker — cleanup/inspection tooling keys off this label. */
@@ -158,10 +164,16 @@ export class CloudflaredSupervisorService extends BaseDockerSupervisorService<
 
 	/**
 	 * The edge mode in effect: the persisted operator choice, else the install
-	 * default. Defaulted to `direct` so a probe arriving before the first read
-	 * behaves like the env default rather than inventing a tunnel.
+	 * default.
+	 *
+	 * Seeded from `DEFAULT_INGRESS_PROVIDER` rather than a literal, and that
+	 * distinction is the whole point: this used to hardcode `"direct"`, which
+	 * disagreed with the canonical default (`local`). A probe arriving before the
+	 * first store read then reported a PUBLIC provider on a loopback-only install
+	 * — and two supervisors disagreeing about the mode is exactly the ambiguity
+	 * the canonical vocabulary exists to remove.
 	 */
-	private edgeMode: EdgeMode = "direct";
+	private edgeMode: EdgeMode = DEFAULT_INGRESS_PROVIDER;
 
 	/**
 	 * Read the persisted mode + tunnel into the cache.
@@ -294,7 +306,15 @@ export class CloudflaredSupervisorService extends BaseDockerSupervisorService<
 			},
 			containerLabels: {},
 			mounts: [],
-			placementPreferences: [],
+			// ── CONNECTOR HA NEEDS BOTH OF THESE ────────────────────────────
+			// The spread preference asks the scheduler to distribute replicas
+			// across nodes; `placementMaxReplicasPerNode` (Swarm's
+			// `Placement.MaxReplicas`) makes it a hard cap. A preference alone
+			// is satisfied even when both replicas land on ONE node, so relying
+			// on it would leave the edge one node failure from gone while
+			// looking redundant — the exact failure the header describes.
+			placementPreferences: [{ spreadDescriptor: "node.id" }],
+			placementMaxReplicasPerNode: 1,
 			placementConstraints: [],
 			resourcesLimits: {},
 			resourcesReservations: {},
@@ -332,7 +352,7 @@ export class CloudflaredSupervisorService extends BaseDockerSupervisorService<
 			this.logger.log(
 				this.edgeMode === "tunnel"
 					? "Edge mode is `tunnel` but no tunnel token is configured — no connector to run"
-					: "Edge mode is `direct` — no tunnel connector to run (DNS points straight at Traefik)",
+					: `Edge mode is \`${this.edgeMode}\` — no tunnel connector to run (a connector is only used by \`tunnel\`)`,
 			);
 			return;
 		}
@@ -458,7 +478,7 @@ export class CloudflaredSupervisorService extends BaseDockerSupervisorService<
 				detail:
 					this.edgeMode === "tunnel"
 						? "Edge is deployment-owned — the platform runs no connector."
-						: "Edge mode is `direct` — traffic reaches Traefik by DNS, with no tunnel.",
+					: `Edge mode is \`${this.edgeMode}\` — traffic reaches Traefik directly, with no tunnel.`,
 				payload: {
 					...base,
 					latencyMs: Date.now() - startedAt,

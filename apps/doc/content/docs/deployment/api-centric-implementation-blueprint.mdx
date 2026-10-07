@@ -44,7 +44,7 @@ The rewrite reuses machinery that already exists. Implementation must extend the
 | User-project Traefik domain | `apps/api/src/core/modules/traefik/` (config-builder, validation, sync services) | **Different concern** (see boundaries below). Potential later reuse of validation/middleware-library; not a dependency for Phase 1 |
 | Contract aggregation | `packages/contracts/api/index.ts` (`oc.router`) | New `platform` contract group registered here |
 | Contract modules convention | `packages/contracts/api/modules/<domain>/` | Home of the new app-instance contracts |
-| Env schema (Zod, single SSOT) | `packages/utils/env/src/index.ts` | All new env vars declared here (`API_PORT`, `TRUSTED_ORIGINS`, `SETUP_AUTO` already live there) |
+| Env schema (Zod, single SSOT) | `packages/config/env/src/index.ts` | All new env vars declared here (`API_PORT`, `TRUSTED_ORIGINS`, `SETUP_AUTO` already live there) |
 | Global platform config tables | `apps/api/src/config/drizzle/global/schema/app-config.ts` | Candidate store for the managed-web flag (verify key/value shape in Phase 0) |
 | Drizzle schema + migrations flow | `apps/api/src/db/drizzle/schema/`, generate → review → migrate | New `app_instances` table follows this exact flow |
 | Better Auth wiring + trustedOrigins | `apps/api/src/core/modules/auth/auth.module.ts`, `apps/api/src/auth.ts` | User-auth layer untouched; trustedOrigins cross-origin role removed |
@@ -113,12 +113,12 @@ Adding a new docker-backed supervisor is now three steps: extend `BaseDockerSupe
 
 ## Workstream A — Env schema and hostname grammar
 
-### Env additions (`packages/utils/env/src/index.ts`)
+### Env additions (`packages/config/env/src/index.ts`)
 
 Declared once, next to `API_PORT` / `TRUSTED_ORIGINS`, following the existing Zod patterns:
 
 ```ts
-// packages/utils/env/src/index.ts — additions (sketch)
+// packages/config/env/src/index.ts — additions (sketch)
 DEPLOYER_PREFIX: zod.string().trim().regex(/^[a-z0-9-]*$/, "lowercase alphanumerics and dashes only").default(""),
 MANAGED_WEB_APP_EXTERNAL: zod.coerce.boolean().default(false),
 MANAGED_WEB_APP_ENABLED: zod.coerce.boolean().default(true),   // seed value, DB wins after first boot
@@ -344,7 +344,7 @@ Plain Express handler chain in `management.controller.ts` — server-rendered st
 Details landed with this workstream:
 
 - Both compose-managed webs carry app-instance identity passthroughs (`DEPLOYER_INSTANCE_LABEL/EMAIL/PASSWORD`, `APP_INSTANCE_TOKEN_PATH=/app/.deployer/...`) and persist their token in a dedicated volume — they register against the API at boot like any BYO instance.
-- Prod operators build the managed-web image once (`docker build -f docker/builder/web/Dockerfile.web.runtime.prod -t deployer-web:latest .`) or point `MANAGED_WEB_APP_IMAGE` at a registry tag.
+- Prod operators build the managed-web image once (`docker build -f infra/infra/docker/builder/web/Dockerfile.web.runtime.prod -t deployer-web:latest .`) or point `MANAGED_WEB_APP_IMAGE` at a registry tag.
 - Pre-existing prod-stack parse failure fixed while landing this: doc/lb port vars now default (`3020` / `8080`).
 - All three orchestrators + BYO template validate via `docker compose config`.
 

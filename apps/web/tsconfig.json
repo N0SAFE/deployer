@@ -42,10 +42,10 @@
         "*.config.mjs",
         "vitest.setup.unit.ts",
         "vitest.setup.e2e.ts",
-        // This app consumes @repo/ui *source* (no build step), so ambient
-        // declarations that live beside that source are only visible to a
-        // program whose `include` reaches them. `include` above is scoped to
-        // this app's own `src/`, so the module declarations must be listed —
+        // `@repo/ui` now ships declarations (`dist/types`), but its ambient
+        // `declare module` files are inputs that are never imported, so no
+        // program sees them automatically. `include` above is scoped to this
+        // app's own `src/`, so the module declarations must be listed —
         // otherwise `exceljs/dist/exceljs.min.js` has no declaration in this
         // program and type-check fails with TS7016.
         "../../packages/ui/base/src/types/*.d.ts"

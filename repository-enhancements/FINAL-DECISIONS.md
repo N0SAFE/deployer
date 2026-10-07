@@ -62,7 +62,7 @@ import { z } from 'zod/v4'
 - Combine features from both implementations:
   - `apps/web/src/components/permissions/RequirePermission.tsx` (227 lines)
   - `apps/web/src/components/auth/RequirePermission.tsx` (174 lines)
-- Create unified component in `packages/utils/auth/src/components/RequirePermission.tsx`
+- Create unified component in `packages/auth/src/components/RequirePermission.tsx`
 - Export from package, delete duplicates from web app
 
 ---
@@ -70,7 +70,7 @@ import { z } from 'zod/v4'
 ### 4. Logging Solution
 **Decision:** Pino logger package
 
-Create `packages/utils/logger/` with:
+Create `packages/infrastructure/logger/` with:
 - **Pino** as the logging library
 - **pino-pretty** for dev environment
 - **nestjs-pino** integration for NestJS
@@ -78,7 +78,7 @@ Create `packages/utils/logger/` with:
 
 Structure:
 ```
-packages/utils/logger/
+packages/infrastructure/logger/
 ├── src/
 │   ├── index.ts        # Main export
 │   ├── pino.ts         # Pino instance configuration
@@ -93,7 +93,7 @@ packages/utils/logger/
 **Decision:** Two invitation types via Better Auth
 
 1. **App-level invitations** (invite to create account)
-   - Implemented as Better Auth plugin in `packages/utils/auth`
+   - Implemented as Better Auth plugin in `packages/auth`
    - Self-contained, exportable plugin
    - No separate ORPC endpoints
 
@@ -203,21 +203,21 @@ packages/
 ├── ui/
 │   └── components/      # From packages/ui/base
 ├── auth/
-│   └── utils/           # From packages/utils/auth
+│   └── utils/           # From packages/auth
 ├── data/
-│   ├── orpc/            # From packages/utils/orpc
+│   ├── orpc/            # From packages/transport/orpc
 │   └── query/           # TanStack Query utilities
 ├── tooling/
-│   ├── eslint/          # From packages/configs/eslint
-│   ├── prettier/        # From packages/configs/prettier
-│   ├── typescript/      # From packages/configs/typescript
-│   ├── vitest/          # From packages/configs/vitest
-│   └── tailwind/        # From packages/configs/tailwind
+│   ├── eslint/          # From tooling/eslint
+│   ├── prettier/        # From tooling/prettier
+│   ├── typescript/      # From tooling/typescript
+│   ├── vitest/          # From tooling/vitest
+│   └── tailwind/        # From tooling/tailwind
 
 tools/
 ├── bin/
-│   ├── declarative-routing/  # From packages/bin/declarative-routing
-│   └── runthenkill/          # From packages/bin/runthenkill
+│   ├── declarative-routing/  # From tooling/bin-declarative-routing
+│   └── runthenkill/          # From tooling/bin-runthenkill
 ```
 
 ---
@@ -268,8 +268,8 @@ No new convenience scripts needed. Current setup is sufficient.
 ### 16. Tools Location
 **Decision:** Move bins to /tools
 
-- Move `packages/bin/declarative-routing` → `tools/bin/declarative-routing`
-- Move `packages/bin/runthenkill` → `tools/bin/runthenkill`
+- Move `tooling/bin-declarative-routing` → `tools/bin/declarative-routing`
+- Move `tooling/bin-runthenkill` → `tools/bin/runthenkill`
 - Future codegen tools go to `tools/codegen/`
 
 ---

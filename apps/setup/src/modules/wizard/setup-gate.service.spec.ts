@@ -4,6 +4,7 @@ import { SetupGateService } from "./setup-gate.service";
 import { SetupPhaseService } from "@/modules/health/setup-phase.service";
 import type { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 import type { ClusterOrchestratorService } from "@/modules/cluster/services/cluster-orchestrator.service";
+import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
 import { makeEnvService } from "@/test-support/env";
 
 /**
@@ -41,19 +42,30 @@ describe("SetupGateService", () => {
     meshUrlsSnapshot: [],
   } as const;
 
-  /** A gate whose repository starts empty (a fresh install). */
-  function makeGate(env: Record<string, string> = {}) {
+  /**
+   * A gate whose repository starts empty (a fresh install).
+   *
+   * `env` defaults to `SETUP_MODE=prod` so the swarm assertions below describe
+   * the profile that actually converges an engine. Plain `dev` is asserted
+   * separately — it is the one profile that must NOT touch the engine.
+   */
+  function makeGate(env: Record<string, string> = { SETUP_MODE: "prod" }) {
     const phases = new SetupPhaseService();
     const repo = makeRepository(null);
     // The cluster is stubbed: the gate's job is to ASK for convergence, and the
     // engine's own spec covers whether that succeeds. What this spec pins down is
     // the ORDER — that the swarm is started before the gate can open.
     const cluster = { start: vi.fn() };
+    const envService = makeEnvService(env);
+    // Real, not stubbed: it validates the step ids against the contract's enum,
+    // so a typo here is a failing test rather than a blank progress view.
+    const orchestration = new OrchestrationStreamService(envService);
     const gate = new SetupGateService(
       phases,
       repo as unknown as NodeConfigRepository,
-      makeEnvService(env),
+      envService,
       cluster as unknown as ClusterOrchestratorService,
+      orchestration,
     );
     return { gate, phases, repo, cluster };
   }
@@ -63,11 +75,13 @@ describe("SetupGateService", () => {
     const phases = new SetupPhaseService();
     const repo = makeRepository({ ...defaults, ...row });
     const cluster = { start: vi.fn() };
+    const envService = makeEnvService({ SETUP_MODE: "prod" });
     const gate = new SetupGateService(
       phases,
       repo as unknown as NodeConfigRepository,
-      makeEnvService(),
+      envService,
       cluster as unknown as ClusterOrchestratorService,
+      new OrchestrationStreamService(envService),
     );
     return { gate, phases, repo, cluster };
   }
@@ -85,6 +99,22 @@ describe("SetupGateService", () => {
       expect(cluster.start).toHaveBeenCalledTimes(1);
       expect(phases.isReady(), "the gate stays closed until the swarm is active").toBe(false);
       expect(phases.current().phase).toBe("clustering");
+    });
+
+    it("OPENS DIRECTLY in dev and never touches the engine", async () => {
+      const { gate, phases, cluster } = makeGate({ SETUP_MODE: "dev" });
+
+      await gate.open(undefined);
+
+      // Plain compose dev runs NO swarm: compose owns the API as an ordinary
+      // container. Founding a cluster there would be an unrequested and
+      // irreversible side effect (a node cannot un-init without destroying Raft
+      // state) on an engine that profile never uses.
+      expect(cluster.start, "dev must not converge a cluster").not.toHaveBeenCalled();
+      // And the gate opens HERE, because there is no swarm step to wait for —
+      // compose starts the API as soon as this app reports healthy.
+      expect(phases.isReady()).toBe(true);
+      expect(phases.current().phase).toBe("launching");
     });
 
     it("asks for a FOUNDING node when the wizard supplied no join target", async () => {
@@ -251,11 +281,13 @@ describe("SetupGateService", () => {
       const phases = new SetupPhaseService();
       const repo = makeRepository(null);
       const cluster = { start: vi.fn() };
+      const envService = makeEnvService({ SETUP_MODE: "prod" });
       const gate = new SetupGateService(
         phases,
         repo as unknown as NodeConfigRepository,
-        makeEnvService(),
+        envService,
         cluster as unknown as ClusterOrchestratorService,
+        new OrchestrationStreamService(envService),
       );
 
       gate.onApplicationBootstrap();

@@ -17,14 +17,14 @@ const shared = createNextJsConfig({
             // name to a directory lets both the barrel and every subpath resolve
             // to source. Mapping to `${pkg}/src/index.ts` would leave subpaths to
             // fall through to `dist/`, which tests must not load.
-            '@repo/env': path.resolve(__dirname, '../../packages/utils/env/src'),
-            '@repo/logger': path.resolve(__dirname, '../../packages/utils/logger/src'),
+            '@repo/env': path.resolve(__dirname, '../../packages/config/env/src'),
+            '@repo/logger': path.resolve(__dirname, '../../packages/infrastructure/logger/src'),
             '@repo/type-guards': path.resolve(__dirname, '../../packages/utils/type-guards/src'),
             '@repo/api-contracts': path.resolve(__dirname, '../../packages/contracts/api'),
-            '@repo/auth': path.resolve(__dirname, '../../packages/utils/auth/src'),
+            '@repo/auth': path.resolve(__dirname, '../../packages/auth/src'),
             '@repo/contracts-entities': path.resolve(__dirname, '../../packages/contracts/entities/src'),
             '@repo/contracts-common': path.resolve(__dirname, '../../packages/contracts/common/src'),
-            '@repo/orpc-utils': path.resolve(__dirname, '../../packages/utils/orpc/src'),
+            '@repo/orpc-utils': path.resolve(__dirname, '../../packages/transport/orpc/src'),
             '@repo/provider-schema': path.resolve(__dirname, '../../packages/utils/provider-schema/src'),
             '@repo/errors': path.resolve(__dirname, '../../packages/utils/errors/src'),
             '@repo/nest-events': path.resolve(__dirname, '../../packages/nest/events/src'),

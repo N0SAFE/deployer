@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "main": "./dist/production/cjs/index.js",
     "module": "./dist/production/esm/index.mjs",
-    "types": "./src/index.ts",
+    "types": "./dist/types/index.d.ts",
     "sideEffects": [
         "**/*.css"
     ],
@@ -30,10 +30,7 @@
     },
     "exports": {
         ".": {
-            "types": [
-                "./src/index.ts",
-                "./src/index.tsx"
-            ],
+            "types": "./dist/types/index.d.ts",
             "development": {
                 "import": "./dist/development/esm/index.mjs",
                 "require": "./dist/development/cjs/index.js"
@@ -48,10 +45,7 @@
             }
         },
         "./*": {
-            "types": [
-                "./src/*.ts",
-                "./src/*.tsx"
-            ],
+            "types": "./dist/types/*.d.ts",
             "development": {
                 "import": "./dist/development/esm/*.mjs",
                 "require": "./dist/development/cjs/*.js"
@@ -69,19 +63,20 @@
     },
     "license": "MIT",
     "scripts": {
-        "build": "bun --bun ../../bin/pkg-build/index.ts",
+        "build": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js",
         "compile": "bun x cross-env COMPILE_MODE=true bun run build",
         "clean": "rimraf dist",
-        "dev": "bun --bun ../../bin/pkg-build/index.ts --watch",
+        "dev": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js --watch",
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "lint": "eslint \"**/*.ts*\" --cache --concurrency=auto",
+        "lint": "eslint \"**/*.ts*\" --cache",
         "type-check": "tsc --noEmit",
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
-        "ui:add": "bun x --bun shadcn@latest add --"
+        "ui:add": "bun x --bun shadcn@latest add --",
+        "build:types": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js --types"
     },
     "peerDependencies": {
         "react": "catalog:react",
@@ -106,7 +101,6 @@
         "@repo/config-prettier": "*",
         "@repo/config-tailwind": "*",
         "@repo/config-typescript": "*",
-        "@repo/types": "*",
         "@repo/config-vitest": "*",
         "@tailwindcss/postcss": "catalog:styling",
         "@testing-library/jest-dom": "catalog:testing",
@@ -129,7 +123,8 @@
         "tailwindcss": "catalog:styling",
         "tsup": "^8.5.0",
         "vitest": "catalog:testing",
-        "typescript": "catalog:build"
+        "typescript": "catalog:build",
+        "@repo/pkg-build": "*"
     },
     "dependencies": {
         "@hookform/resolvers": "catalog:utils",

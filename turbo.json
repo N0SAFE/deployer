@@ -4,6 +4,10 @@
   "remoteCache": {
     "enabled": true
   },
+  "futureFlags": {
+    "watchUsingTaskInputs": true
+  },
+  "concurrency": "40",
   "globalDependencies": [
     "**/.env.*local",
     "**/.env",
@@ -79,7 +83,6 @@
     "NODE_LOCAL_DB_PATH",
     "PHASE",
     "PLATFORM_LIBC",
-    "SETUP_AUTO",
     "TRUSTED_ORIGINS",
     "TURBO_TEAM",
     "TURBO_TOKEN",
@@ -88,16 +91,9 @@
   "tasks": {
     "dev": {
       "cache": false,
-      "persistent": true
-    },
-    "build": {
+      "persistent": true,
       "dependsOn": [
         "^build"
-      ],
-      "outputs": [
-        "dist/**",
-        ".next/**",
-        "!.next/cache/**"
       ],
       "inputs": [
         "src/**",
@@ -106,9 +102,42 @@
         "package.json"
       ]
     },
+    "build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**",
+        ".next/**",
+        "!.next/cache/**",
+        "public/sitemap.xml",
+        "public/sitemap-0.xml",
+        "public/robots.txt"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "src/**",
+        "public/**",
+        "!public/sitemap.xml",
+        "!public/sitemap-0.xml",
+        "!public/robots.txt",
+        "*.config.*",
+        "package.json"
+      ]
+    },
+    "build:types": {
+      "dependsOn": [
+        "^build:types",
+        "@repo/pkg-build#build"
+      ],
+      "outputs": [
+        "dist/types/**"
+      ]
+    },
     "compile": {
       "dependsOn": [
-        "^compile"
+        "^compile",
+        "^build:types"
       ],
       "outputs": [
         "dist/**",
@@ -116,8 +145,12 @@
         "!.next/cache/**"
       ],
       "inputs": [
+        "$TURBO_DEFAULT$",
         "src/**",
         "public/**",
+        "!public/sitemap.xml",
+        "!public/sitemap-0.xml",
+        "!public/robots.txt",
         "*.config.*",
         "package.json"
       ]
@@ -224,6 +257,7 @@
     },
     "lint": {
       "dependsOn": [
+        "^build:types",
         "@repo/config-eslint#build",
         "doc#compile"
       ],
@@ -248,6 +282,24 @@
     "clean": {
       "cache": false
     },
+    "doc#build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "out/**"
+      ],
+      "inputs": [
+        "src/**",
+        "content/**",
+        "public/**",
+        "source.config.ts",
+        "next.config.ts",
+        "package.json"
+      ]
+    },
     "doc#type-check": {
       "dependsOn": [
         "doc#compile"
@@ -260,6 +312,9 @@
       ]
     },
     "type-check": {
+      "dependsOn": [
+        "^build:types"
+      ],
       "inputs": [
         "**/*.ts",
         "**/*.tsx",

@@ -4,21 +4,15 @@
     "description": "Express middleware that proxies the SSR client bundle from a Vite dev server. Dev-only, fail-closed, one whitelisted prefix.",
     "main": "./dist/cjs/index.js",
     "module": "./dist/esm/index.mjs",
-    "types": "./src/index.ts",
+    "types": "./dist/types/index.d.ts",
     "exports": {
         ".": {
-            "types": [
-                "./src/index.ts",
-                "./src/index.tsx"
-            ],
+            "types": "./dist/types/index.d.ts",
             "import": "./dist/esm/index.mjs",
             "require": "./dist/cjs/index.js"
         },
         "./*": {
-            "types": [
-                "./src/*.ts",
-                "./src/*.tsx"
-            ],
+            "types": "./dist/types/*.d.ts",
             "import": "./dist/esm/*.mjs",
             "require": "./dist/cjs/*.js"
         }
@@ -27,11 +21,12 @@
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "lint": "eslint . --fix --cache --concurrency=auto",
+        "lint": "eslint . --fix --cache",
         "type-check": "tsc --noEmit",
-        "build": "bun --bun ../../bin/pkg-build/index.ts",
-        "dev": "bun --bun ../../bin/pkg-build/index.ts --watch",
-        "clean": "rimraf dist"
+        "build": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js",
+        "dev": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js --watch",
+        "clean": "rimraf dist",
+        "build:types": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js --types"
     },
     "dependencies": {
         "@repo/logger": "*"
@@ -46,6 +41,7 @@
         "eslint": "catalog:linting",
         "express": "catalog:api:nest",
         "rimraf": "catalog:build",
-        "typescript": "catalog:build"
+        "typescript": "catalog:build",
+        "@repo/pkg-build": "*"
     }
 }

@@ -1,7 +1,7 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { appContract } from "@repo/api-contracts";
+import { domainContract } from "@repo/api-contracts";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { DomainProjectService } from "../services/domain-project.service";
 
@@ -9,25 +9,25 @@ import { DomainProjectService } from "../services/domain-project.service";
 export class ProjectDomainController {
     constructor(private readonly domainProjectService: DomainProjectService) {}
 
-    @Implement(appContract.domain.listProjectDomains)
+    @Implement(domainContract.listProjectDomains)
     listProjectDomains() {
-        return implement(appContract.domain.listProjectDomains)
+        return implement(domainContract.listProjectDomains)
             .use(requireAuth())
             .handler(({ input }) => this.domainProjectService.listProjectDomains(input.params));
     }
 
-    @Implement(appContract.domain.getAvailableDomains)
+    @Implement(domainContract.getAvailableDomains)
     getAvailableDomains() {
-        return implement(appContract.domain.getAvailableDomains)
+        return implement(domainContract.getAvailableDomains)
             .use(requireAuth())
             .handler(({ input }) =>
                 this.domainProjectService.getAvailableDomains(input.params),
             );
     }
 
-    @Implement(appContract.domain.getAvailableDomainsForService)
+    @Implement(domainContract.getAvailableDomainsForService)
     getAvailableDomainsForService() {
-        return implement(appContract.domain.getAvailableDomainsForService)
+        return implement(domainContract.getAvailableDomainsForService)
             .use(requireAuth())
             .handler(({ input }) =>
                 this.domainProjectService.getAvailableDomainsForService({
@@ -37,27 +37,27 @@ export class ProjectDomainController {
             );
     }
 
-    @Implement(appContract.domain.addProjectDomain)
+    @Implement(domainContract.addProjectDomain)
     addProjectDomain() {
-        return implement(appContract.domain.addProjectDomain)
+        return implement(domainContract.addProjectDomain)
             .use(requireAuth())
             .handler(({ input, context }) =>
                 this.domainProjectService.addProjectDomain({ ...input.params, ...input.body }, context.auth.user.id),
             );
     }
 
-    @Implement(appContract.domain.updateProjectDomain)
+    @Implement(domainContract.updateProjectDomain)
     updateProjectDomain() {
-        return implement(appContract.domain.updateProjectDomain)
+        return implement(domainContract.updateProjectDomain)
             .use(requireAuth())
             .handler(({ input, context }) =>
                 this.domainProjectService.updateProjectDomain({ ...input.params, ...input.body }, context.auth.user.id),
             );
     }
 
-    @Implement(appContract.domain.removeProjectDomain)
+    @Implement(domainContract.removeProjectDomain)
     removeProjectDomain() {
-        return implement(appContract.domain.removeProjectDomain)
+        return implement(domainContract.removeProjectDomain)
             .use(requireAuth())
             .handler(({ input, context }) =>
                 this.domainProjectService.removeProjectDomain({
@@ -67,9 +67,9 @@ export class ProjectDomainController {
             );
     }
 
-    @Implement(appContract.domain.verifyProjectDomain)
+    @Implement(domainContract.verifyProjectDomain)
     verifyProjectDomain() {
-        return implement(appContract.domain.verifyProjectDomain)
+        return implement(domainContract.verifyProjectDomain)
             .use(requireAuth())
             .handler(({ input }) =>
                 this.domainProjectService.verifyProjectDomain(input.params),

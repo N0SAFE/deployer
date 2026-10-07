@@ -1,4 +1,9 @@
 import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
+import {
+    ingressProviderSchema,
+    ingressProviderTraits,
+    isExternallyReachable,
+} from "@repo/contracts-entities/entities/ingress/index";
 import z from "zod/v4";
 
 // ─── Schemas ──────────────────────────────────────────────────────────────
@@ -96,15 +101,41 @@ const nodeNetworkGateSchema = z.object({
 
 });
 
-// ─── Stack edge (mode + the ONE tunnel the whole stack shares) ─────────────
+// ─── Stack edge (provider + the ONE tunnel the whole stack shares) ─────────
 
 /**
- * How the internet reaches the stack's ingress.
+ * How a client reaches the stack's ingress.
  *
- *   `direct` — DNS points at each node; Traefik PUBLISHES :80/:443.
- *   `tunnel` — a supervised connector dials out; Traefik publishes nothing.
+ * Re-exported from the canonical entity rather than re-declared: the API, the
+ * supervisors and the web app must agree on the four providers and on what each
+ * one requires, and a second definition here is a second chance to drift.
+ *
+ *   `local`     — Traefik binds loopback only; reachable from this machine.
+ *   `wireguard` — Traefik binds its overlay address; reachable by mesh peers.
+ *   `tunnel`    — a connector dials out; the node accepts no inbound traffic.
+ *   `direct`    — DNS points at the node; Traefik binds :80/:443 publicly.
  */
-export const stackEdgeModeSchema = z.enum(["direct", "tunnel"]);
+export const stackEdgeModeSchema = ingressProviderSchema;
+
+/**
+ * How exposed the stack currently is, as plain answers rather than as a mode
+ * name the client has to interpret.
+ *
+ * Derived server-side from `mode`, so the UI never re-implements the rules and
+ * cannot disagree with the supervisor about what is bound. `bindsNonLoopbackPort`
+ * is deliberately separate from "publishes a port": `local` publishes a port but
+ * only on loopback, which is not exposure.
+ */
+export const stackEdgeExposureSchema = z.object({
+    /** True only for the providers reachable from another machine. */
+    externallyReachable: z.boolean(),
+    /** True when the ingress binds a NON-loopback host port. */
+    bindsNonLoopbackPort: z.boolean(),
+    /** True when the machine needs a globally routable address. */
+    requiresPublicIp: z.boolean(),
+    /** True when inbound ports must be open on the public interface. */
+    requiresOpenInboundPorts: z.boolean(),
+});
 
 /**
  * The stack's single tunnel.
@@ -126,15 +157,27 @@ export const stackTunnelSchema = z.object({
 });
 
 export const stackEdgeSchema = z.object({
-    /** Effective mode (persisted operator choice, else the install default). */
+    /** Effective provider (persisted operator choice, else the install default). */
     mode: stackEdgeModeSchema,
     /** The stack's tunnel. All-null fields mean none is provisioned yet. */
     tunnel: stackTunnelSchema,
     /**
-     * Whether the ingress publishes a host port under the CURRENT mode. Derived
-     * from `mode` so a client never has to re-implement the rule.
+     * Whether the ingress publishes a host port under the CURRENT provider.
+     *
+     * Kept for the supervisor's port logic, but NOT the exposure test: `local`
+     * binds a port too. Use `exposure` for anything user-facing.
      */
     publishesEntryPort: z.boolean(),
+    /** How exposed this stack is right now, derived from `mode`. */
+    exposure: stackEdgeExposureSchema,
+    /**
+     * The URL a client on this machine opens to reach the console.
+     *
+     * Always present, in every provider — it is the loopback lane, which works
+     * whether or not anything else is configured. This is what a fresh install
+     * shows the operator.
+     */
+    localUrl: z.string(),
     /** Cluster-wide public hostname every app shares, when known. */
     publicHostname: z.string().nullable(),
 });

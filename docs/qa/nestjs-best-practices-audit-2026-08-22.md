@@ -1,7 +1,7 @@
 # NestJS Best-Practices Audit & Refactor — 2026-08-22 (recheck 2026-08-24)
 
 Full audit of `apps/api` and the NestJS-related packages (`packages/nest/events`,
-`packages/nest/lifecycle`, `packages/utils/errors`, `packages/utils/logger`)
+`packages/nest/lifecycle`, `packages/utils/errors`, `packages/infrastructure/logger`)
 against the `nestjs-best-practices` skill (40 rules, 10 categories).
 
 **Adaptation rule applied throughout:** rules that assume a different stack were
@@ -13,7 +13,7 @@ limiting instead of `@nestjs/throttler` (`security-rate-limiting`).
 > **2026-08-24 recheck:** all violation sweeps re-run after inter-session edits.
 > Zero regressions found. Current state: **0 type errors in `apps/api/src`
 > production code** (202 total — remainder in specs/e2e and the 7 pre-existing
-> `packages/utils/auth` variance errors), **1191 tests passing**. Verified:
+> `packages/auth` variance errors), **1191 tests passing**. Verified:
 > repository layering (0 controllers/services hold a DB handle), 0 production
 > bare throws, 0 property injection, 0 circular deps (`forwardRef`), 0 empty
 > catch blocks, 0 timers without cleanup, console usage only in doc comments,
@@ -108,7 +108,7 @@ Remaining failures are pre-existing WIP spec gaps (old input shapes, missing tes
 4. **Zod import hygiene (test-runtime crash fix)** — `import { z } from "zod"`
    / `"zod/v4"` named imports resolve to `undefined` under Vitest ESM interop;
    default import works everywhere. Converted all source files on the API path
-   (`apps/api/src`, `packages/contracts/api`, `packages/utils/orpc`,
+   (`apps/api/src`, `packages/contracts/api`, `packages/transport/orpc`,
    `packages/nest/*`) to canonical `import z from "zod/v4"`. This unblocked
    ~340 previously-failing/skipped tests.
 

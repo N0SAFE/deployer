@@ -515,7 +515,7 @@ export class ScannerContainerManagerService implements OnModuleDestroy {
 
     if (!context) {
       this.logger.warn(
-        `Scanner-runner build context "docker/scanner-runner/" not found from cwd "${process.cwd()}" — ` +
+        `Scanner-runner build context "infra/docker/scanner-runner/" not found from cwd "${process.cwd()}" — ` +
         `skipping build (one attempt per process). In docker dev, ensure the compose file mounts ` +
         `the repo's docker/ directory into /app/docker. Manual fallback: bun --bun run docker:build:scanner-runner`,
       );
@@ -539,7 +539,7 @@ export class ScannerContainerManagerService implements OnModuleDestroy {
   }
 
   /**
-   * Locate the `docker/scanner-runner/` build context without relying on the
+   * Locate the `infra/docker/scanner-runner/` build context without relying on the
    * process cwd being the repo root (in containers cwd is `/app`; locally it
    * is often `apps/api`). Checks an env override first, then walks up from
    * cwd. Returns the absolute directory containing the Dockerfile, or null.

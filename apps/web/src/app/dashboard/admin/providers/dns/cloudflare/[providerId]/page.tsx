@@ -48,8 +48,7 @@ import {
   useCloudflareCreateRecord,
   useCloudflareDeleteRecord,
 } from '@/domains/dns-providers/hooks'
-import { useListNodeNetworkConfigs } from '@/domains/reachability/hooks'
-import { useFleetServers } from '@/domains/fleet/hooks'
+import { useListNodeNetworkConfigs, useStackEdge } from '@/domains/reachability/hooks'
 import { useMeshSseState } from '@/domains/mesh/hooks'
 
 const PAGE_SIZE = 25
@@ -108,8 +107,7 @@ function CloudflareAppDetailInner() {
 
   const { data: providersData } = useDNSProviders()
   const app = providersData?.providers.find((p: { id: string }) => p.id === providerId)
-  const { data: fleetData } = useFleetServers()
-  const { data: nodeConfigsData } = useListNodeNetworkConfigs()
+  const { data: edge } = useStackEdge()
   const { state: meshState } = useMeshSseState()
   const currentNodeId = meshState?.localNode?.nodeId ?? ''
 
@@ -253,26 +251,20 @@ function CloudflareAppDetailInner() {
     }
   }
 
-  // Which node uses each tunnel (System → Node Network binding).
-  const nodeBindings = useMemo(() => {
-    const bindings = new Map<string, { nodeId: string; displayName: string }>()
-    const nodeNames = new Map<string, string>()
-    for (const server of (fleetData?.items ?? []) as Array<{ nodeId: string; displayName: string | null }>) {
-      if (server.nodeId) nodeNames.set(server.nodeId, server.displayName ?? server.nodeId)
-    }
-    for (const config of (nodeConfigsData?.configs ?? []) as Array<{
-      nodeId: string
-      tunnel: { providerId: string | null; tunnelId: string | null }
-    }>) {
-      if (config.tunnel.providerId === providerId && config.tunnel.tunnelId) {
-        bindings.set(config.tunnel.tunnelId, {
-          nodeId: config.nodeId,
-          displayName: nodeNames.get(config.nodeId) ?? config.nodeId,
-        })
-      }
-    }
-    return bindings
-  }, [providerId, fleetData, nodeConfigsData])
+  /**
+   * The STACK's edge tunnel, when it is backed by THIS app.
+   *
+   * One tunnel serves the whole stack, so "which node uses it" is no longer a
+   * question — the answer is "all of them". This replaces the old per-node
+   * binding map, which could only ever name one node and made a second tunnel
+   * look correct on the next one.
+   */
+  const stackTunnelId = useMemo(
+    () => (edge?.tunnel.providerId === providerId ? edge.tunnel.tunnelId : null),
+    [edge, providerId],
+  )
+
+  const isStackTunnel = (tunnelId: string): boolean => stackTunnelId === tunnelId
 
   const handleCreateTunnel = async () => {
     if (!selectedZone) {
@@ -310,7 +302,7 @@ function CloudflareAppDetailInner() {
   }
 
   // The tunnel pending deletion (for the confirm dialog warning).
-  const deletingTunnelBinding = deleteId ? nodeBindings.get(deleteId) ?? null : null
+  const deletingTunnelBinding = deleteId !== null && isStackTunnel(deleteId)
 
   const handleGetToken = async (tunnel: TunnelRow) => {
     try {
@@ -495,7 +487,7 @@ function CloudflareAppDetailInner() {
             <>
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
-                  Tunnels hosted by this app. Tunnels bound to a node in System → Node Network are tagged below.
+                  Tunnels hosted by this app. The stack&apos;s edge tunnel is tagged below.
                 </p>
                 <Button size="sm" onClick={() => setCreateOpen(true)}><Plus className="mr-2 size-4" />Create tunnel</Button>
               </div>
@@ -505,7 +497,7 @@ function CloudflareAppDetailInner() {
                   <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
                     <Network className="size-10 text-muted-foreground" />
                     <p className="font-medium">No tunnel yet</p>
-                    <p className="text-sm text-muted-foreground">Create a tunnel to route a node through Cloudflare.</p>
+                    <p className="text-sm text-muted-foreground">Create a tunnel to route the stack through Cloudflare — or let Edge &amp; Ingress provision one.</p>
                   </CardContent>
                 </Card>
               ) : tunnelsError ? (
@@ -517,13 +509,8 @@ function CloudflareAppDetailInner() {
               ) : (
                 <div className="grid gap-4 lg:grid-cols-2">
                   {tunnels.map((tunnel) => {
-                    const binding = nodeBindings.get(tunnel.id)
+                    const isGlobal = isStackTunnel(tunnel.id)
                     const activeConnections = tunnel.connections.filter((c) => !c.isPendingReconnect).length
-                    // The deployer platform's own tunnel = the one bound to the
-                    // CURRENT node's network config (this web/api instance). Only
-                    // that tunnel is the "global" tunnel; other unbound tunnels
-                    // are plain account tunnels and must NOT be highlighted.
-                    const isGlobal = binding?.nodeId === currentNodeId
                     return (
                       <Card
                         key={tunnel.id}
@@ -545,19 +532,10 @@ function CloudflareAppDetailInner() {
                           <CardDescription className="font-mono text-xs">{tunnel.id}</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-3">
-                          {/* Node binding tag — the tunnel used in System → Node Network */}
-                          {binding && (
-                            <div className="flex items-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-2 text-xs">
-                              <Tag className="size-3.5 text-primary" />
-                              <span>
-                                Used by node <strong>{binding.displayName}</strong> in System → Node Network
-                              </span>
-                            </div>
-                          )}
                           {isGlobal && (
                             <p className="flex items-center gap-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-xs text-primary">
                               <Star className="size-3.5" />
-                              This is the deployer platform&apos;s tunnel — it routes the current node&apos;s public access.
+                              This is the stack&apos;s edge tunnel — every node&apos;s connectors share it, so adding a node never adds a tunnel.
                             </p>
                           )}
                           <div className="space-y-1.5 text-sm">
@@ -766,15 +744,17 @@ function CloudflareAppDetailInner() {
           {deletingTunnelBinding ? (
             <Alert variant="destructive">
               <Siren className="size-4" />
-              <AlertTitle>This tunnel routes node {deletingTunnelBinding.displayName}</AlertTitle>
+              <AlertTitle>This is the stack&apos;s edge tunnel</AlertTitle>
               <AlertDescription>
-                Deleting it will break the node&apos;s Cloudflare access. Disable the tunnel in System → Node Network instead —
-                that path removes the tunnel and its DNS record together.
+                Deleting it removes the whole stack&apos;s Cloudflare access — every node's connectors
+                lose their route at once. Use Edge &amp; Ingress → Delete tunnel instead, which also
+                forgets it locally and clears the CNAME together.
               </AlertDescription>
             </Alert>
           ) : (
             <p className="text-sm text-muted-foreground">
-              The tunnel and its Cloudflare record are removed. Unbound tunnels hold no node configuration.
+              The tunnel and its Cloudflare record are removed. A tunnel not in use by the stack holds
+              no configuration here.
             </p>
           )}
           <DialogFooter>

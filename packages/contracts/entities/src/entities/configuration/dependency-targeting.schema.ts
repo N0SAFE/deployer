@@ -122,10 +122,39 @@ const dependencyTargetFilterBuilderSchema = z.object({
   minShouldMatch: z.number().int().positive().optional(),
 })
 
-const dependencyTargetFilterNodeSchema: z.ZodType = z.union([
-  dependencyTargetFilterConditionSchema,
-  dependencyTargetFilterBuilderSchema,
-])
+export type DependencyTargetFilterCondition = z.infer<typeof dependencyTargetFilterConditionSchema>
+export type DependencyTargetFilterConditionInput = z.input<typeof dependencyTargetFilterConditionSchema>
+
+export interface DependencyTargetFilterBuilder {
+  mode: 'builder'
+  all: DependencyTargetFilterNode[]
+  any: DependencyTargetFilterNode[]
+  not: DependencyTargetFilterNode[]
+  minShouldMatch?: number
+}
+
+export interface DependencyTargetFilterBuilderInput {
+  mode: 'builder'
+  all?: DependencyTargetFilterNodeInput[]
+  any?: DependencyTargetFilterNodeInput[]
+  not?: DependencyTargetFilterNodeInput[]
+  minShouldMatch?: number
+}
+
+export type DependencyTargetFilterNode = DependencyTargetFilterCondition | DependencyTargetFilterBuilder
+export type DependencyTargetFilterNodeInput = DependencyTargetFilterConditionInput | DependencyTargetFilterBuilderInput
+
+/**
+ * Recursive filter tree (a condition, or a boolean group of conditions).
+ *
+ * Annotated with named recursive types: a bare `z.ZodType` annotation would
+ * erase `ServiceDependencyTargetFilter` to `unknown` for every consumer, and
+ * declaration emit cannot name the anonymous self-reference otherwise.
+ */
+const dependencyTargetFilterNodeSchema: z.ZodType<
+  DependencyTargetFilterNode,
+  DependencyTargetFilterNodeInput
+> = z.union([dependencyTargetFilterConditionSchema, dependencyTargetFilterBuilderSchema])
 
 export const serviceDependencyTargetFilterSchema = dependencyTargetFilterNodeSchema
 export type ServiceDependencyTargetFilter = z.infer<typeof serviceDependencyTargetFilterSchema>

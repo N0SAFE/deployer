@@ -41,7 +41,7 @@ export interface LocalDatabaseModuleOptions {
      * skipping" and booted with an UNMIGRATED schema. Taking it as an option is
      * what makes the failure impossible instead of silent.
      */
-    migrationsDir: string;
+    migrationsDir?: string;
 }
 
 export interface LocalDatabaseModuleAsyncOptions {
@@ -74,40 +74,30 @@ const LOCAL_DATABASE_OPTIONS = "LOCAL_DATABASE_OPTIONS" as const;
  * Skipping already-applied" log spam per boot). The first context migrates;
  * all others reuse the same connection state.
  */
-const migratedDbPaths = new Set<string>();
+const migratedConnections = new WeakSet<BunSqliteDatabase>();
 
 function ensureLocalSchemaMigrated(
     sqlite: BunSqliteDatabase,
     dbPath: string,
-    migrationsDir: string,
+    migrationsDir: string | undefined,
 ): void {
-    if (migratedDbPaths.has(dbPath)) {
+    // Keyed on the CONNECTION, not the path. A path is not a unique identity:
+    // `:memory:` is per-connection, so keying on it made the first migrated
+    // in-memory database suppress migrations for every later one - a second
+    // context then booted against an unmigrated schema. A WeakSet also cannot
+    // retain entries for connections that are already gone.
+    if (migratedConnections.has(sqlite)) {
         return;
     }
     try {
         runSqliteMigrations(sqlite, migrationsDir);
-        migratedDbPaths.add(dbPath);
+        migratedConnections.add(sqlite);
     } catch (error) {
         logger.error(`Local SQLite migrations failed for ${dbPath}`, error as Error);
         throw error;
     }
 }
 
-/**
- * Migration state table — tracks which migrations have been applied.
- *
- * Previously the runner re-executed ALL migration files on every boot and
- * treated "already exists" / "duplicate column" errors as benign, logging
- * them and marking the migration as applied anyway. That conflated
- * "migration already applied" with "SQL statement failed", which can leave
- * the schema partially updated while the migration is recorded as done.
- *
- * Now:
- *  - applied migrations are skipped entirely (no re-execution),
- *  - each migration runs inside a transaction,
- *  - a migration is recorded ONLY after every statement succeeds,
- *  - any statement error aborts the migration and is NOT recorded.
- */
 const MIGRATION_STATE_TABLE = "local_migrations";
 
 function ensureMigrationStateTable(sqlite: BunSqliteDatabase): void {
@@ -182,7 +172,17 @@ function backfillAppliedMigrationsIfSchemaExists(
     return true;
 }
 
-function runSqliteMigrations(sqlite: BunSqliteDatabase, migrationsDir: string): void {
+function runSqliteMigrations(
+    sqlite: BunSqliteDatabase,
+    migrationsDir: string | undefined,
+): void {
+    // No directory is a SUPPORTED choice (the app owns its schema), not an
+    // error - but it must be loud: without this line a schema that was never
+    // migrated is indistinguishable from one that migrated cleanly.
+    if (!migrationsDir) {
+        logger.warn("local schema migrations are SKIPPED: no migrationsDir was provided");
+        return;
+    }
     logger.log(`Checking local migrations at: ${migrationsDir}`);
     if (!fs.existsSync(migrationsDir)) {
         logger.warn(`Local migrations directory not found at ${migrationsDir}, skipping`);

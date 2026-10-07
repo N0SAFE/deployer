@@ -14,7 +14,6 @@
  */
 import { StandardLinkOptions, StandardLinkPlugin } from "@orpc/client/standard";
 import type { ClientContext } from "@orpc/client";
-
 export type AppInstanceTokenProvider = () => Promise<string>;
 
 const globalRegistry = globalThis as typeof globalThis & {
@@ -32,27 +31,36 @@ export function registerAppInstanceTokenProvider(
 }
 
 export class AppInstancePlugin<T extends ClientContext> implements StandardLinkPlugin<T> {
-	init(link: StandardLinkOptions<T>): void {
-		link.clientInterceptors ??= [];
+	/** Unique plugin name — oRPC v2 requires it for ordering identification. */
+	public readonly name = "app-instance";
 
-		link.clientInterceptors.push(async (options) => {
-			if (typeof window !== "undefined") {
-				return options.next(options);
-			}
-			const provider = globalRegistry.__deployerAppInstanceTokenProvider;
-			if (!provider) {
-				// Server started without instrumentation registration (should not
-				// happen) — pass through rather than break the call.
-				return options.next(options);
-			}
-			try {
-				const token = await provider();
-				options.request.headers["x-app-instance-token"] = token;
-			} catch {
-				// Identity bootstrap failure must not break public/health calls —
-				// protected surfaces will surface the missing header as 401.
-			}
-			return options.next(options);
-		});
+	init(link: StandardLinkOptions<T>): StandardLinkOptions<T> {
+		const transportInterceptors = link.transportInterceptors ?? [];
+
+		return {
+			...link,
+			transportInterceptors: [
+				...transportInterceptors,
+				async (options) => {
+					if (typeof window !== "undefined") {
+						return options.next(options);
+					}
+					const provider = globalRegistry.__deployerAppInstanceTokenProvider;
+					if (!provider) {
+						// Server started without instrumentation registration (should not
+						// happen) — pass through rather than break the call.
+						return options.next(options);
+					}
+					try {
+						const token = await provider();
+						options.request.headers["x-app-instance-token"] = token;
+					} catch {
+						// Identity bootstrap failure must not break public/health calls —
+						// protected surfaces will surface the missing header as 401.
+					}
+					return options.next(options);
+				},
+			],
+		};
 	}
 }

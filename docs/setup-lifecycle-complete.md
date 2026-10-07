@@ -2,7 +2,7 @@
 
 > **Status:** Canonical reference (keep in sync with code changes)
 > **Scope:** `apps/api/src/main.ts`, `core/orchestrator`, `core/setup-dev`, `core/modules/setup`,
-> `sub-apps/setup-wizard`, `sub-apps/mesh-initializer`, `apps/web` (setup gate), `docker/compose`, CLI
+> `sub-apps/setup-wizard`, `sub-apps/mesh-initializer`, `apps/web` (setup gate), `infra/docker/compose`, CLI
 > **Last verified:** 2026-09-07 (commit `3872255d`)
 
 This document describes **every** way the platform can come up — fresh install, restart,
@@ -145,7 +145,7 @@ row at all; "empty DB" means Postgres reachable but `information_schema.tables` 
 ### 4.1 Case A — Composition-managed dev stack, first boot (the common "dev" case)
 
 Trigger: `docker compose -f docker-compose.yml up` (includes
-`docker/compose/docker-compose.dev.yml`), `MANAGED_GLOBAL_DB_ENABLED=true`,
+`infra/docker/compose/docker-compose.dev.yml`), `MANAGED_GLOBAL_DB_ENABLED=true`,
 `SETUP_AUTO` defaulting to the `.env` value.
 
 1. `global-db` + `redis` start first (`depends_on: service_healthy`).

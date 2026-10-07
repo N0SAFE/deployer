@@ -98,14 +98,16 @@ export class LocalDbSupervisorService extends BaseSupervisorService<
 
 	/**
 	 * The local SQLite database is file-backed and fully initialized at module
-	 * boot (LocalDatabaseModule runs migrations). Desired state is always "the
-	 * file exists" — nothing ever needs creating on demand, so convergence is
-	 * a no-op that only verifies the handle is usable.
+	 * boot (LocalDatabaseModule migrates it from `onModuleInit`). Desired state is
+	 * always "the file exists" — nothing ever needs creating on demand, so
+	 * convergence is a no-op that only verifies the handle is usable.
 	 */
 	protected async reconcile(): Promise<void> {
-		// LocalDatabaseConnection factory already opened + migrated the file at
-		// module init. A failed open would have thrown there, so converge=true
-		// unless the handle is somehow unusable (SELECT 1 below proves it).
+		// The connection factory opened the file and the package's
+		// `LocalDatabaseMigrationService.onModuleInit` migrated it — both during
+		// module init, before this supervisor runs. A failed open would have
+		// thrown there, so converge=true unless the handle is somehow unusable
+		// (SELECT 1 below proves it).
 		await this.db.run("SELECT 1");
 	}
 

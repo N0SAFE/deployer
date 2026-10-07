@@ -1,0 +1,15 @@
+{
+    "extends": "@repo/config-typescript/nestjs",
+    "compilerOptions": {
+        "emitDecoratorMetadata": true,
+        "experimentalDecorators": true,
+        "rootDir": ".",
+        "outDir": "./dist",
+        "types": ["node", "bun", "vitest/globals"],
+        "paths": {
+            "@/*": ["./src/*"]
+        }
+    },
+    "include": ["src/**/*.ts"],
+    "exclude": ["node_modules", "dist"]
+}

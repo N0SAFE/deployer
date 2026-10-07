@@ -78,7 +78,7 @@ All findings have been reviewed, cross-referenced, and codified into the copilot
 |-------|----------|-----|
 | `zod` hardcoded in web | `apps/web/package.json: "^4.3.6"` | Use `catalog:utils` |
 | `@tanstack/react-query` hardcoded | `packages/ui/base/package.json: "^5.99.0"` | Use `catalog:tanstack` |
-| `@orpc/contract` not using catalog | `packages/utils/orpc/package.json: "^1.14.6"` | Use `catalog:orpc` |
+| `@orpc/contract` not using catalog | `packages/transport/orpc/package.json: "^1.14.6"` | Use `catalog:orpc` |
 | Tooling in peerDependencies | `packages/types/package.json` | Move `concurrently`/`rimraf` to devDeps |
 
 ### 6. Web App Quality

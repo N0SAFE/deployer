@@ -1,0 +1,54 @@
+{
+    "name": "@repo/config-prettier",
+    "version": "1.0.0",
+    "type": "module",
+    "exports": {
+        "./base": {
+            "types": "./dist/types/base.d.ts",
+            "import": "./dist/esm/base.mjs",
+            "require": "./dist/cjs/base.js"
+        },
+        "./tailwind": {
+            "types": "./dist/types/tailwind.d.ts",
+            "import": "./dist/esm/tailwind.mjs",
+            "require": "./dist/cjs/tailwind.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "build": "bun --bun ../bin-pkg-build/dist/cjs/main.js",
+        "compile": "bun --bun ../bin-pkg-build/dist/cjs/main.js",
+        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "format": "bun run prettify",
+        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
+        "clean": "rimraf dist",
+        "type-check": "tsc --noEmit",
+        "dev": "bun --bun ../bin-pkg-build/dist/cjs/main.js --watch",
+        "build:types": "bun --bun ../bin-pkg-build/dist/cjs/main.js --types"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "description": "",
+    "devDependencies": {
+        "@types/node": "catalog:build",
+        "@repo/config-vitest": "*",
+        "prettier": "catalog:linting",
+        "prettier-plugin-tailwindcss": "catalog:linting",
+        "vitest": "catalog:testing",
+        "typescript": "catalog:build",
+        "chokidar": "catalog:build",
+        "rimraf": "catalog:build",
+        "@repo/pkg-build": "*"
+    },
+    "dependencies": {},
+    "pkgBuild": {
+        "root": "src",
+        "formats": [
+            "esm",
+            "cjs"
+        ]
+    }
+}

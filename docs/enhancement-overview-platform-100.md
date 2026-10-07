@@ -41,7 +41,7 @@ literal (`swarm-compose-realizer.service.ts:502 "compose_stack"`), and a web for
 no timeline, no stack-level rollback. Rollback is deployment-level only. `[unfinished]` `L`
 
 **5. ⚑ Managed databases are not a platform feature.** Zero contracts, zero entities, zero tables.
-Every `managedDatabase|managed_database` hit is an env var (`packages/utils/env/src/index.ts:387-398`).
+Every `managedDatabase|managed_database` hit is an env var (`packages/config/env/src/index.ts:387-398`).
 The only supervisors present manage the platform's **own** databases
 (`core/modules/supervisors/database/global-db-supervisor.service.ts:174 isManagedDatabase()`), not
 user-provisioned ones. `[unfinished]` `L`
@@ -177,8 +177,8 @@ imports. CI and local development do not use the same runtime contract. `[correc
 outputs are empty, so the release note substitutes a blank value. `[correctness-gap]` `S`
 
 **29. ⚑ The deploy workflow references a compose path that does not exist.** `deploy.yml:150` uses
-`docker/compose/docker-compose.deployer.yml`; the real file is
-`docker/compose/deployer/docker-compose.deployer.yml` (one of 20 compose files). `[correctness-gap]` `S`
+`infra/docker/compose/docker-compose.deployer.yml`; the real file is
+`infra/docker/compose/deployer/docker-compose.deployer.yml` (one of 20 compose files). `[correctness-gap]` `S`
 
 **30. ⚑ A setup step builds a package that was deleted, and hides the failure.**
 `copilot-setup-steps.yml:161` builds `packages/mcp-repo-manager`, which does not exist, guarded by
@@ -477,7 +477,7 @@ up (item 53). `[correctness-gap]` `M`
 
 **91. Audit emission is not wired (S133, S119, S038).** The platform has `cluster_master_history`, a
 `dispatchAudit` hook in `runtime-configuration.schema.ts`, and an `audit` capability declared in
-`packages/utils/auth/src/permissions/config.ts:59` — yet grepping `packages/contracts/api/modules/` for
+`packages/auth/src/permissions/config.ts:59` — yet grepping `packages/contracts/api/modules/` for
 `audit` returns **zero** matches. No audit contract, and therefore no audit UI is possible. `[unfinished]` `L`
 
 **92. Authorization is declared but not enforced at boundaries.** `permission` is a dead module (§36), and

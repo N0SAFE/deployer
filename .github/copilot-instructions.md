@@ -50,12 +50,12 @@ before commit. Details in the files above.
                          │
 ┌────────────────────────▼────────────────────────────────────┐
 │  Shared Utilities                                            │
-│  packages/utils/orpc/        — ORPC builder helpers         │
-│  packages/utils/logger/       — Pino + ContextFilterLogger   │
-│  packages/utils/auth/         — Better Auth factories       │
-│  packages/configs/eslint/     — Shared ESLint configs       │
-│  packages/configs/typescript/ — Shared TS configs          │
-│  packages/configs/vitest/     — Shared Vitest configs       │
+│  packages/transport/orpc/        — ORPC builder helpers         │
+│  packages/infrastructure/logger/       — Pino + ContextFilterLogger   │
+│  packages/auth/         — Better Auth factories       │
+│  tooling/eslint/     — Shared ESLint configs       │
+│  tooling/typescript/ — Shared TS configs          │
+│  tooling/vitest/     — Shared Vitest configs       │
 └─────────────────────────────────────────────────────────────┘
 ```
 

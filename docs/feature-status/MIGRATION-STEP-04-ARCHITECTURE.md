@@ -186,7 +186,7 @@ This is a JSDoc example — already in the DELETE list from Phase 1. If deleted,
 **Current problem:** Three auth implementations exist:
 1. `packages/nest/auth/` — Shared NestJS module (20+ DEAD files)
 2. `apps/api/src/core/modules/auth/` — API's internal auth (ACTIVE)
-3. `packages/utils/auth/` — Auth utilities (ACTIVE, different purpose)
+3. `packages/auth/` — Auth utilities (ACTIVE, different purpose)
 
 ### Migration Steps
 
@@ -200,9 +200,9 @@ If `apps/api/src/core/modules/auth/` contains patterns useful for other apps (li
 diff -r apps/api/src/core/modules/auth/ apps/load-balancer/src/core/modules/auth/
 ```
 
-If so, extract to `packages/utils/auth/`:
-- Auth guards/middleware base classes → move to `packages/utils/auth/src/nest/`
-- Permission engine (already in `packages/utils/auth/`) → verify it's complete
+If so, extract to `packages/auth/`:
+- Auth guards/middleware base classes → move to `packages/auth/src/nest/`
+- Permission engine (already in `packages/auth/`) → verify it's complete
 
 **Step 3: Clean up dual decorator definitions**
 

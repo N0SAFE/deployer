@@ -16,11 +16,11 @@
 
 **Solution**: Use `zod/v4` explicit import
 
-- [x] Update `packages/utils/orpc/src/hooks/__tests__/generate-hooks.test.ts` to use `import { z } from 'zod/v4'`
-- [x] Update `packages/utils/orpc/vitest.config.ts` if needed
- - [x] Search all files: `grep -r "from 'zod'" packages/utils/orpc/`
- - [x] Update any other files in `packages/utils/orpc/` importing Zod (4 files patched)
- - [x] Run tests: `cd packages/utils/orpc && bun run test`
+- [x] Update `packages/transport/orpc/src/hooks/__tests__/generate-hooks.test.ts` to use `import { z } from 'zod/v4'`
+- [x] Update `packages/transport/orpc/vitest.config.ts` if needed
+ - [x] Search all files: `grep -r "from 'zod'" packages/transport/orpc/`
+ - [x] Update any other files in `packages/transport/orpc/` importing Zod (4 files patched)
+ - [x] Run tests: `cd packages/transport/orpc && bun run test`
  - [x] Verify: all ORPC package tests passing (345/345 tests ✅)
 
 ### 1.2 Remove Deprecated useUsers.ts ✅ COMPLETE
@@ -41,7 +41,7 @@
 - ✅ Web app type-check successful
 
 **Key Changes Made**:
-- Updated `packages/utils/orpc/src/hooks/generate-hooks.ts`:
+- Updated `packages/transport/orpc/src/hooks/generate-hooks.ts`:
   - Added `baseKey` option to `RouterHooksOptions` type
   - Added `queryKeys` property to `RouterHooks` return type with typed query key factories
   - Generate query keys for each query procedure: `queryKeys.{procedureName}(input)`
@@ -61,9 +61,9 @@
 **Solution**: Merge into `@repo/auth-utils` package
 
 **COMPLETED**:
-- ✅ Created factory-based permission hooks in `packages/utils/auth/src/react/usePermissions.ts`
-- ✅ Created factory-based permission components in `packages/utils/auth/src/react/RequirePermission.tsx`
-- ✅ Exported types from `packages/utils/auth/src/react/index.ts`
+- ✅ Created factory-based permission hooks in `packages/auth/src/react/usePermissions.ts`
+- ✅ Created factory-based permission components in `packages/auth/src/react/RequirePermission.tsx`
+- ✅ Exported types from `packages/auth/src/react/index.ts`
 - ✅ Created `apps/web/src/lib/permissions.ts` to instantiate factories with app-specific dependencies
 - ✅ Created session adapter to convert Better Auth session to expected format
 - ✅ Updated `RequirePlatformRole.tsx` and `RequireRole.tsx` to use new imports
@@ -122,12 +122,12 @@
 - Org invitations = invite EXISTING users to org (built-in plugin)
 
 **COMPLETED**:
-- ✅ Platform invitations (custom plugin) fully implemented in `packages/utils/auth/src/server/plugins/invite.ts`
+- ✅ Platform invitations (custom plugin) fully implemented in `packages/auth/src/server/plugins/invite.ts`
   - `create` - Create platform invitation with email and role
   - `list` - List platform invitations with status filter (pending/used/expired)
   - `check` - Check invitation token validity
   - `validate` - Validate invitation and create user account
-- ✅ Organization invitations (built-in Better Auth org plugin) configured in `packages/utils/auth/src/server/plugins/index.ts`
+- ✅ Organization invitations (built-in Better Auth org plugin) configured in `packages/auth/src/server/plugins/index.ts`
   - `acceptInvitation` - Join organization
   - `rejectInvitation` - Decline organization invitation
   - `cancelInvitation` - Revoke sent organization invitation
@@ -179,7 +179,7 @@
 **Why**: Pino is NestJS-compatible, same interface for web and API, structured JSON logging
 
 **COMPLETED**:
-- ✅ Created `packages/utils/logger/` structure
+- ✅ Created `packages/infrastructure/logger/` structure
   - package.json with pino v9.14.0 + pino-pretty v13.0.0
   - tsconfig.json with esModuleInterop
   - src/index.ts with full implementation
@@ -302,7 +302,7 @@
 ### 2.9 Hook Documentation Generator
 > 📍 Context: [02-DX-IMPROVEMENTS.md#L7-L30](enhancements/02-DX-IMPROVEMENTS.md#L7-L30)
 
-- [ ] Create `packages/utils/orpc/src/hooks/generate-docs.ts`
+- [ ] Create `packages/transport/orpc/src/hooks/generate-docs.ts`
 - [ ] Generate JSDoc from Zod schemas for hooks
 - [ ] Include `@param`, `@returns`, `@example` in generated docs
 - [ ] Integrate with hook generator
@@ -525,13 +525,13 @@ if (platform.can('admin:users:read')) { /* ... */ }
 if (organization.can('org:members:invite')) { /* ... */ }
 ```
 
-- [ ] Create `packages/utils/auth/src/hooks/usePermissions.ts`
+- [ ] Create `packages/auth/src/hooks/usePermissions.ts`
 - [ ] Implement interface:
   - [ ] `platform.can(action)` - check platform permission
   - [ ] `platform.role` - get current platform role
   - [ ] `organization.can(action)` - check org permission
   - [ ] `organization.role` - get current org role
-- [ ] Export from `packages/utils/auth/src/index.ts`
+- [ ] Export from `packages/auth/src/index.ts`
 - [ ] Update components to use new hook
 
 ### 4.2 Runtime Hook Factory
@@ -546,7 +546,7 @@ if (organization.can('org:members:invite')) { /* ... */ }
 | Bundle size | Larger | Smaller |
 | Sync with contract | Manual | Automatic |
 
-- [ ] Create `packages/utils/orpc/src/hook-factory.ts`
+- [ ] Create `packages/transport/orpc/src/hook-factory.ts`
 - [ ] Implement `createTypedHooks<T>(client)` function:
   - [ ] `useQuery(key, input, options)` with default staleTime
   - [ ] `useMutation(key, options)` with default error handling
@@ -616,14 +616,14 @@ tools/              # CLI tools (separate from packages)
   - [ ] `packages/types` → `packages/core/types`
   - [ ] `packages/contracts/api` → `packages/core/contracts`
   - [ ] Core utils extraction → `packages/core/utils`
-  - [ ] `packages/utils/auth` → `packages/auth/client`
-  - [ ] `packages/utils/orpc` → `packages/data/orpc`
+  - [ ] `packages/auth` → `packages/auth/client`
+  - [ ] `packages/transport/orpc` → `packages/data/orpc`
   - [ ] `packages/ui/base` → `packages/ui/components`
-  - [ ] `packages/configs/eslint` → `packages/tooling/eslint`
-  - [ ] `packages/configs/prettier` → `packages/tooling/prettier`
-  - [ ] `packages/configs/typescript` → `packages/tooling/typescript`
-  - [ ] `packages/configs/vitest` → `packages/tooling/vitest`
-  - [ ] `packages/configs/tailwind` → `packages/tooling/tailwind`
+  - [ ] `tooling/eslint` → `packages/tooling/eslint`
+  - [ ] `tooling/prettier` → `packages/tooling/prettier`
+  - [ ] `tooling/typescript` → `packages/tooling/typescript`
+  - [ ] `tooling/vitest` → `packages/tooling/vitest`
+  - [ ] `tooling/tailwind` → `packages/tooling/tailwind`
 - [ ] Create `tools/` directory for CLI tools:
   - [ ] Move `packages/bin/` → `tools/bin/`
 - [ ] Update all `package.json` names with new scope
@@ -637,7 +637,7 @@ tools/              # CLI tools (separate from packages)
 > 📍 Context: [05-ARCHITECTURE.md#L144-L180](enhancements/05-ARCHITECTURE.md#L144-L180)
 
 - [ ] Update root `vitest.config.mts` for Zod v4 alias
-- [ ] Create/update `packages/utils/orpc/vitest.setup.ts` with Zod validation
+- [ ] Create/update `packages/transport/orpc/vitest.setup.ts` with Zod validation
 - [ ] Add integration tests in `apps/api/__tests__/integration/`
 - [ ] Verify all 54 ORPC tests pass
 
@@ -689,7 +689,7 @@ tools/              # CLI tools (separate from packages)
 ### 5.3 Consolidate Permission Exports
 > 📍 Context: [04-CONSOLIDATION.md#L118-L164](enhancements/04-CONSOLIDATION.md#L118-L164)
 
-- [ ] Update `packages/utils/auth/src/index.ts` with clean export structure:
+- [ ] Update `packages/auth/src/index.ts` with clean export structure:
   ```typescript
   // Permission system - single entry point
   export {
@@ -710,7 +710,7 @@ tools/              # CLI tools (separate from packages)
 ### 5.4 Merge Duplicate Test Configurations
 > 📍 Context: [04-CONSOLIDATION.md#L230-L260](enhancements/04-CONSOLIDATION.md#L230-L260)
 
-- [ ] Ensure `packages/configs/vitest/base.ts` exports `baseConfig` and `reactConfig`
+- [ ] Ensure `tooling/vitest/base.ts` exports `baseConfig` and `reactConfig`
 - [ ] Update each package's `vitest.config.ts` to extend base:
   ```typescript
   import { mergeConfig } from 'vitest/config'
@@ -722,7 +722,7 @@ tools/              # CLI tools (separate from packages)
 ### 5.5 Consolidate Environment Utilities
 > 📍 Context: [04-CONSOLIDATION.md#L294-L350](enhancements/04-CONSOLIDATION.md#L294-L350)
 
-- [ ] Update `packages/utils/env/src/index.ts` with base schemas
+- [ ] Update `packages/config/env/src/index.ts` with base schemas
 - [ ] Create `webEnvSchema` and `apiEnvSchema` extending base
 - [ ] Create `validateEnv<T>()` helper
 - [ ] Update `apps/web/env.ts` to use shared schema
@@ -855,8 +855,8 @@ find . -name "*.ts" -o -name "*.tsx" | xargs wc -l | sort -n | head -50
 
 | Item | Current Location | Notes |
 |------|------------------|-------|
-| ORPC hooks | `packages/utils/orpc/src/hooks/` | Test failures here |
-| Auth utils | `packages/utils/auth/src/` | RequirePermission target |
+| ORPC hooks | `packages/transport/orpc/src/hooks/` | Test failures here |
+| Auth utils | `packages/auth/src/` | RequirePermission target |
 | UI components | `packages/ui/base/src/components/` | New components go here |
 | API contracts | `packages/contracts/api/src/` | Add invitation contract |
 | Web hooks | `apps/web/src/hooks/` | useUsers.ts to remove |

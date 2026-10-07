@@ -97,7 +97,7 @@ flowchart LR
 | sub-apps/setup-wizard/ (6 files) + setup-sub-app.module | 7 files | [W1-M2] | 20 min |
 | sub-apps/auth/ (empty dir) | 0 files | — | 2 min |
 | packages/nest/auth/ | **39 files** 🏆 | [09-AUTH] | 45 min |
-| packages/utils/auth/.../builder/ | 16 files | [09-AUTH] | 20 min |
+| packages/auth/.../builder/ | 16 files | [09-AUTH] | 20 min |
 | packages/poc/core-sync-system/ | 3 files | — | 5 min |
 | reference/ directory | 25 files | — | 10 min |
 | apps/test/ | 5 files | — | 10 min |
@@ -278,7 +278,7 @@ Reports: [API](subagent-reports/09-AUTH-SUBAGENT-01-API.md) | [Web](subagent-rep
 | A9 | Delete duplicate `components/permissions/RequirePlatformRole.tsx` | S | Web |
 | A10 | Investigate/delete `RequireOrganizationRole.tsx` + fix `as any` | M | Web |
 | A11 | Delete `packages/nest/auth/` (39 files) | M | Packages |
-| A12 | Audit `packages/utils/auth/package.json` deps | S | Packages |
+| A12 | Audit `packages/auth/package.json` deps | S | Packages |
 
 ---
 

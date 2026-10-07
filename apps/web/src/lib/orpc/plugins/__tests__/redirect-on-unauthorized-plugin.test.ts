@@ -1,4 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import type {
+    StandardLinkInterceptor,
+    StandardLinkInterceptorOptions,
+} from '@orpc/client/standard'
+
+/** The only context flag the plugin reads. */
+type PluginContext = { noRedirectOnUnauthorized?: boolean }
 
 // --- Mocks (all `mock*`-prefixed so vi.mock factories can reference them) ---
 
@@ -44,10 +51,14 @@ vi.mock('@/routes/index', () => ({
 
 // --- Test helpers ---
 
-type InterceptorOptions = {
-    next: (options: unknown) => Promise<unknown>
-    context: { noRedirectOnUnauthorized?: boolean }
+type InterceptorOptions = Omit<
+    StandardLinkInterceptorOptions<PluginContext>,
+    'next'
+> & {
+    next: () => Promise<unknown>
 }
+
+type Interceptor = StandardLinkInterceptor<PluginContext>
 
 function unauthorizedError(status = 401): Error & { status: number } {
     const error = new Error('Unauthorized') as Error & { status: number }
@@ -55,17 +66,20 @@ function unauthorizedError(status = 401): Error & { status: number } {
     return error
 }
 
-async function getInterceptor(): Promise<(options: InterceptorOptions) => Promise<unknown>> {
+async function getInterceptor(): Promise<Interceptor> {
     const { RedirectOnUnauthorizedPlugin } = await import(
         '../redirect-on-unauthorized-plugin'
     )
     const plugin = new RedirectOnUnauthorizedPlugin()
-    const link = {
-        interceptors: [] as Array<(options: InterceptorOptions) => Promise<unknown>>,
-    }
-    // @ts-expect-error test-only: minimal stand-in for StandardLinkOptions
-    plugin.init(link)
-    const interceptor = link.interceptors[0]
+    // oRPC v2 changed `init` from mutating the passed options to RETURNING new
+    // options (non-mutating):
+    //   v1: plugin.init(link); link.interceptors[0]
+    //   v2: const next = plugin.init(link); next.interceptors[0]
+    // Reading the argument instead of the return value yields `undefined` and
+    // fails with "expected the interceptor to be registered".
+    const link = { interceptors: [] as Interceptor[] }
+    const { interceptors } = plugin.init(link)
+    const interceptor = interceptors?.[0]
     if (!interceptor) throw new Error('expected the interceptor to be registered')
     return interceptor
 }
@@ -73,6 +87,10 @@ async function getInterceptor(): Promise<(options: InterceptorOptions) => Promis
 const makeOptions = (
     overrides: Partial<InterceptorOptions> = {},
 ): InterceptorOptions => ({
+    // `StandardLinkInterceptorOptions` requires the call path and input; the
+    // plugin under test only reads `context` and `next`.
+    path: [],
+    input: undefined,
     next: async () => {
         throw unauthorizedError()
     },

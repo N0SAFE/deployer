@@ -1,0 +1,128 @@
+# =====================================================================
+# dependency-builder DEV config — INCLUDE-ONLY.
+#
+# One container builds every internal workspace package the enabled
+# applications need, once, through a single Turbo graph, and keeps them
+# built while the stack runs. The applications consume the artifacts
+# through the shared `dep-output` volume instead of building their own.
+#
+# ── Why this REPLACES the per-app `turbo run build` step ─────────────────
+#
+# Every other dev image used to build its own copy of its packages'
+# `dist/` inside the image, so N applications meant N builds of a shared
+# package and N copies that could drift. Here the build happens once and is
+# published to one volume that every application reads.
+# =====================================================================
+services:
+  dependency-builder:
+    build:
+      context: ../../../../..
+      dockerfile: ./infra/docker/builder/dependency-builder/Dockerfile.dependency-builder.dev
+      tags:
+        - "${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-dependency-builder-dev:latest"
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-dependency-builder-dev
+    # The tool resolves `tsconfig.json` from `$cwd`, and the decorator flags
+    # nest-commander needs are read from there.
+    working_dir: /app/tools/dependency-builder
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: debug
+      # The applications to compute the union for. This is the ENABLEMENT LIST:
+      # dropping `-a web` removes web's packages from the union, so they are
+      # never built and never published.
+      #
+      # Kept as a variable rather than inline flags so enabling or disabling an
+      # application is one edit in `.env` instead of an image rebuild.
+      DEP_BUILDER_APPS: ${DEP_BUILDER_APPS:--a api -a web -a setup -a doc}
+      # Keeps the package builds from dereferencing the `dist/` symlink that
+      # publishes artifacts to this volume. See the note in the image.
+      PKG_BUILD_KEEP_DIST: "1"
+    # `$$` escapes compose interpolation so the SHELL expands the list, which is
+    # what lets it be empty or reordered without a compose syntax error.
+    command:
+      - sh
+      - -c
+      - >-
+        bun --bun src/main.ts build --root /app $${DEP_BUILDER_APPS}
+    volumes:
+      # The shared output. This container is its only writer; the applications
+      # mount it read-only.
+      - dep_output_dev:/dep-output
+    develop:
+      watch:
+        # ── Sources ──────────────────────────────────────────────────────────
+        # One rule for the whole repository, not a list of packages. Adding a
+        # package therefore needs no edit here.
+        #
+        # A SYNC, not a bind mount: inotify does not deliver events across a
+        # bind mount for writes made on the host side, so Turbo's watcher would
+        # never see the edit and never rebuild. A synced file is a real
+        # in-container write. (Measured in tmp/watch-lab; see FINDINGS.md #5.)
+        #
+        # `initial_sync` populates the container from the host on startup.
+        - action: sync
+          initial_sync: true
+          path: ../../../../..
+          target: /app
+          ignore:
+            - node_modules/
+            - "**/node_modules/"
+            - bun.lock*
+            - package-lock.json
+            - yarn.lock
+            - pnpm-lock.yaml
+            - "**/dist/"
+            - "**/build/"
+            - "**/.next/"
+            - "**/out/"
+            - "**/.output/"
+            - "**/.turbo/"
+            - "**/.cache/"
+            - "**/.vite/"
+            - "**/*.log"
+            - .git/
+            - .gitignore
+            - docker/
+            - Dockerfile*
+            - docker-compose*.yml
+            - .dockerignore
+            - "**/.vscode/"
+            - "**/.idea/"
+            - "**/*.swp"
+            - "**/*.swo"
+            - "**/coverage/"
+            - "**/.nyc_output/"
+            - "**/.DS_Store"
+            - "**/Thumbs.db"
+        # ── Recreate when a build input changes ─────────────────────────────
+        # A lockfile or manifest change means the installed dependency tree is
+        # stale, which a file sync cannot fix — the container has to be
+        # recreated so the image's install runs again.
+        - action: rebuild
+          path: ../../../../..
+          include:
+            - package.json
+            - bun.lock*
+            - turbo.json
+            - tooling/dependency-builder/package.json
+            - tooling/dependency-builder/tsconfig.json
+            - infra/docker/builder/dependency-builder/Dockerfile.dependency-builder.dev
+            - infra/docker/compose/common/dependency-builder/**
+    healthcheck:
+      # The stamp is written only after a successful initial build, so a
+      # healthy builder means "the shared volume holds real artifacts" — which
+      # is what lets the applications start without racing it.
+      #
+      # The path is absolute and does not depend on this container's working
+      # directory.
+      test: ["CMD-SHELL", "test -f /dep-output/.initial-build-complete"]
+      interval: 2s
+      timeout: 3s
+      retries: 3
+      # Generous: the first build walks the whole union on a cold cache.
+      # Not `service_healthy` gating on the applications, so that value is the
+      # only thing standing between a cold start and a false failure.
+      start_period: 600s
+    restart: unless-stopped

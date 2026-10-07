@@ -36,14 +36,18 @@ export class RedirectOnUnauthorizedPlugin<
         noRedirectOnUnauthorized?: boolean
     },
 > implements StandardLinkPlugin<T> {
-    // Order controls plugin loading order (higher = loads earlier)
-    order = 100
+    /** Unique plugin name — oRPC v2 requires it for ordering identification. */
+    public readonly name = 'redirect-on-unauthorized'
 
-    init(link: StandardLinkOptions<T>): void {
+    init(link: StandardLinkOptions<T>): StandardLinkOptions<T> {
         // Add error interceptor to handle 401 responses
-        link.interceptors = link.interceptors ?? []
+        const interceptors = link.interceptors ?? []
 
-        link.interceptors.push(async (interceptorOptions) => {
+        return {
+            ...link,
+            interceptors: [
+                ...interceptors,
+                async (interceptorOptions) => {
             try {
                 return await interceptorOptions.next(interceptorOptions)
             } catch (error) {
@@ -73,11 +77,6 @@ export class RedirectOnUnauthorizedPlugin<
                     pluginLogger.debug(
                         'ORPC Unauthorized - redirecting to login'
                     )
-                    
-                    console.log('ORPC Unauthorized - redirecting to login', {
-                        error,
-                        context: interceptorOptions.context,
-                    })
 
                     // Client-side: build redirectTo from the real browser URL so
                     // the sign-in page can send the user back after login
@@ -106,7 +105,9 @@ export class RedirectOnUnauthorizedPlugin<
                 // Re-throw the error if not handled
                 throw error
             }
-        })
+                },
+            ],
+        }
     }
 }
 

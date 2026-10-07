@@ -13,6 +13,7 @@ import {
 import type { ClusterBootstrapResult, ClusterEntryMode } from "../cluster.types";
 import { SwarmBootstrapService } from "./swarm-bootstrap.service";
 import { SetupPhaseService } from "@/modules/health/setup-phase.service";
+import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
 
 /**
  * Drives the cluster phase as an RxJS pipeline.
@@ -53,12 +54,22 @@ export class ClusterOrchestratorService {
   constructor(
     private readonly bootstrap: SwarmBootstrapService,
     private readonly phase: SetupPhaseService,
+    private readonly orchestration: OrchestrationStreamService,
   ) {
     this.results$ = this.attempts$.pipe(
       // Announce BEFORE the work: the wizard needs a phase the moment the
       // attempt starts, not after the engine answers.
       tap(() => {
         this.phase.record("clustering", "Founding or joining the cluster…");
+        // The SAME moment, on the wizard's timeline: the orchestration step is
+        // how the operator sees the swarm being started. The phase drives the
+        // compose gate and `/setup/state`; the step drives the progress view.
+        this.orchestration.snapshot([
+          { id: "initialize_swarm", status: "in_progress" },
+          { id: "start_api", status: "pending" },
+          { id: "await_api_boot", status: "pending" },
+        ]);
+        this.orchestration.log("initialize_swarm", "Founding or joining the swarm…");
       }),
       // `concatMap` serialises: see the class note.
       concatMap((mode) =>
@@ -85,12 +96,28 @@ export class ClusterOrchestratorService {
           // at BOOT) would now be wrong: by the time this runs the wizard has
           // already finished collecting, and the operator is watching a
           // progress screen, not a form.
+          this.orchestration.log(
+            "initialize_swarm",
+            `Cluster active (${result.swarmRole}, ${String(result.nodeCount)} node(s))`,
+          );
+          this.orchestration.snapshot([
+            { id: "initialize_swarm", status: "completed" },
+            { id: "start_api", status: "in_progress" },
+            { id: "await_api_boot", status: "pending" },
+          ]);
+
           this.phase.record(
             "launching",
             `Cluster active (${result.swarmRole}, ${String(result.nodeCount)} node(s)) — the platform API may start`,
           );
         } else {
           // Sticky failure: the operator must see it until they retry.
+          this.orchestration.log("initialize_swarm", `Failed: ${result.reason}`);
+          this.orchestration.snapshot([
+            { id: "initialize_swarm", status: "failed", error: result.reason },
+            { id: "start_api", status: "pending" },
+            { id: "await_api_boot", status: "pending" },
+          ]);
           this.phase.fail(`Cluster bootstrap failed: ${result.reason}`);
         }
       }),

@@ -30,6 +30,11 @@ import { CloudflareTunnelService } from "@/modules/providers/dns/cloudflare/serv
 import { TraefikConfigRefresher } from "@/core/modules/traefik/services/traefik-config-refresher.service";
 import { platformTraefikContainerName } from "@/core/modules/platform-ingress/services/platform-names";
 import { PlatformIngressSettingsService } from "@/core/modules/platform-ingress/services/platform-ingress-settings.service";
+import { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
+import {
+    ingressProviderTraits,
+    isExternallyReachable,
+} from "@repo/contracts-entities/entities/ingress/index";
 import { Observable } from "rxjs";
 
 /**
@@ -70,6 +75,7 @@ export class ReachabilityController {
         private readonly tunnelService: CloudflareTunnelService,
         private readonly ingressRefresher: TraefikConfigRefresher,
         private readonly edgeSettings: PlatformIngressSettingsService,
+        private readonly hostnames: HostnameService,
     ) {}
 
     @Implement(reachabilityContract.check)
@@ -357,10 +363,16 @@ export class ReachabilityController {
     /**
      * The stack edge as the contract sees it. The token is NEVER included — it
      * is a credential, and nothing outside the connector supervisor needs it.
+     *
+     * `exposure` is derived here rather than left to the client: the UI must not
+     * re-implement "is this provider public?" from the mode name, because the
+     * two answers drifted once already (the old two-value model could not say
+     * "binds a port, but only on loopback").
      */
     private async toStackEdgeView() {
         const mode = await this.edgeSettings.getEdgeMode();
         const tunnel = await this.edgeSettings.getEdgeTunnel();
+        const traits = ingressProviderTraits(mode);
         return {
             mode,
             tunnel: {
@@ -369,10 +381,22 @@ export class ReachabilityController {
                 wildcard: tunnel.wildcard,
                 provisioned: tunnel.token !== null && tunnel.tunnelId !== null,
             },
-            // Derived from the MODE so a client never re-implements the rule:
-            // `direct` needs a bound port (DNS points at it), `tunnel` must not
-            // have one (the connector dials out).
-            publishesEntryPort: mode === "direct",
+            // True whenever the ingress binds a host port — INCLUDING `local`,
+            // which binds loopback. Kept for the supervisor's port logic; the
+            // exposure block below is what a client should reason about.
+            publishesEntryPort: mode !== "tunnel",
+            exposure: {
+                externallyReachable: isExternallyReachable(mode),
+                bindsNonLoopbackPort: traits.bindsNonLoopbackPort,
+                requiresPublicIp: traits.requiresPublicIp,
+                requiresOpenInboundPorts: traits.requiresOpenInboundPorts,
+            },
+            // Always available, in every provider: the loopback lane works
+            // whether or not anything else is configured. On a fresh `local`
+            // install this IS the console URL. `*.deployer.localhost` resolves
+            // to 127.0.0.1 in the browser, which is exactly the address `local`
+            // binds, so no port is needed in the origin.
+            localUrl: this.hostnames.webOrigin(),
             publicHostname: tunnel.wildcard ?? null,
         };
     }

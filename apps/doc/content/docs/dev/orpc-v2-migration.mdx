@@ -1,0 +1,93 @@
+---
+title: ORPC v2 Migration & Plugins
+description: oRPC v2 upgrade — the breaking changes that mattered, and the request/response compression plugins (plus why batching is deliberately disabled).
+order: 7
+---
+
+<DocMeta source=".docs/features/ORPC-V2-MIGRATION.md" scope="canonical" />
+
+## Version
+
+This project runs **oRPC v2** (`2.0.0-beta.40`). v2 ships under the npm `beta`
+dist-tag — a plain `latest` install still resolves to v1 — so every `@orpc/*`
+dependency is pinned in the root `catalogs.orpc` block.
+
+## Package map
+
+| v1 | v2 |
+| --- | --- |
+| `@orpc/openapi-client` | merged into `@orpc/openapi` (`@orpc/openapi/fetch`) |
+| `@orpc/nest` re-exporting builders/errors | `implement`, `ORPCError`, `onError` now from `@orpc/server` |
+| — | `@orpc/node` added (Node-only plugins) |
+
+## Breaking changes that mattered
+
+- **Routing moved to metadata.** `~orpc.route` is gone; routing lives in `meta['~openapi']` via `.meta(openapi({ method, path }))`. `HTTPMethod` / `HTTPPath` / `Route` were removed from `@orpc/contract` and are re-declared in `packages/transport/orpc/src/types/types.ts`.
+- **Schemas became arrays.** `inputSchema` → `inputSchemas[0]`, `outputSchema` → `outputSchemas[0]`, because `.input()` / `.output()` now stack instead of replacing. Read them via `getProcedureInputSchema()` / `getProcedureOutputSchema()`.
+- **`getProcedureRoute()`** reads `meta['~openapi']` as `OpenAPIMeta`. Prefer it over indexing `meta` directly, which widens to `unknown`.
+- **Plugin `init` returns options.** It no longer mutates in place; plugins need a unique `name` and use `before` / `after` name arrays rather than a numeric `order`.
+- **`url` split into `origin` + `url`.** `origin` is the base URL; `url` is a path-only prefix typed as `/${string}`.
+- **Wire format changed.** A v1 client cannot talk to a v2 server in either direction — server and clients must move together.
+
+<DocCallout title="Silent breakages to watch for" tone="warning">
+Three v2 renames still compile but change behaviour, so the compiler cannot catch them.
+
+- Link `clientInterceptors` → `transportInterceptors` (the handler-side `clientInterceptors` still exists).
+- `sendResponseInterceptors` was **removed** from the handler config. It is not on `ORPCModuleConfig`, and excess-property checking does not fire on that literal — so nothing flagged it. The equivalent is `interceptors`. Left unmigrated, every Nest `HttpException` and mesh domain error degraded to a generic 500.
+- `rootInterceptors` → `routingInterceptors`.
+</DocCallout>
+
+## Transport plugins
+
+### Compression — enabled
+
+Symmetric `gzip` with the default 1 KB threshold, so small payloads are never
+inflated:
+
+- **API** (`apps/api/src/app.module.ts`): `RequestCompressionHandlerPlugin` + `ResponseCompressionHandlerPlugin`.
+- **Web** (`apps/web/src/lib/orpc/index.ts`): `RequestCompressionLinkPlugin` only.
+
+There is deliberately **no client-side response plugin**: the fetch adapter
+already negotiates `Accept-Encoding` and decompresses transparently, so
+`ResponseCompressionLinkPlugin` on the client would double-decompress.
+
+Brotli is not available — oRPC's compression plugins expose only `gzip`,
+`deflate` and `deflate-raw`, despite `CompressionStream` supporting `br`.
+
+### Batching — deliberately disabled
+
+`BatchHandlerPlugin` / `BatchLinkPlugin` were wired up, then removed after testing
+found a correctness hazard.
+
+`@orpc/nest` builds **one `StandardHandler` per controller method**, whose
+`resolveProcedure` is hardcoded to that single procedure. A batch sub-request
+re-enters via `next({ request })` and is re-resolved through that same
+single-procedure resolver.
+
+<DocCallout title="Measured, not assumed" tone="warning">
+A two-procedure harness sent a batch targeting procedures `A` and `B` to the
+handler for `A` and produced `DECODE_CALLS={"A":2,"B":0}` — `B` never ran and `A`
+executed twice. Batching would silently run the wrong procedure for every
+cross-procedure batch, so it is disabled on both sides.
+</DocCallout>
+
+Batching is also largely redundant here: Traefik terminates HTTP/2/3, which
+already multiplexes requests over one connection. Any future attempt must first
+give `@orpc/nest` a router-scoped handler instead of a per-procedure one.
+
+## Verified behaviour
+
+A byte-counting probe against the real `OpenAPIHandler`:
+
+| | `content-encoding` | bytes |
+| --- | --- | --- |
+| without plugin | `null` | 27,010 |
+| with plugin | `gzip` | 75 |
+
+Gzip magic bytes (`1f 8b`) confirmed, and the same handler without the plugin
+returned the full 27,010 bytes.
+
+## Related docs
+
+- [ORPC Type-Safe API](/docs/dev/orpc)
+- [ORPC Auth Patterns](/docs/dev/orpc-auth-patterns)

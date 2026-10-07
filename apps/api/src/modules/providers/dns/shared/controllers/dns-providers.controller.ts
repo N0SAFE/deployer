@@ -11,7 +11,7 @@
 import { Controller, Logger } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { appContract } from "@repo/api-contracts";
+import { providersContract } from "@repo/api-contracts";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { CloudflareAppService } from "@/modules/providers/dns/cloudflare/services/cloudflare-app.service";
 
@@ -23,9 +23,9 @@ export class DnsProvidersController {
 
     // ─── Provider app CRUD ──────────────────────────────────────────────────
 
-    @Implement(appContract.providers.dns.list)
+    @Implement(providersContract.dns.list)
     list() {
-        return implement(appContract.providers.dns.list)
+        return implement(providersContract.dns.list)
             .use(requireAuth())
             .handler(async () => {
                 const providers = await this.appService.listApps();
@@ -33,9 +33,9 @@ export class DnsProvidersController {
             });
     }
 
-    @Implement(appContract.providers.dns.create)
+    @Implement(providersContract.dns.create)
     create() {
-        return implement(appContract.providers.dns.create)
+        return implement(providersContract.dns.create)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.appService.createApp({
@@ -48,18 +48,18 @@ export class DnsProvidersController {
             });
     }
 
-    @Implement(appContract.providers.dns.update)
+    @Implement(providersContract.dns.update)
     update() {
-        return implement(appContract.providers.dns.update)
+        return implement(providersContract.dns.update)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.appService.updateApp(input.params.id, input.body ?? {});
             });
     }
 
-    @Implement(appContract.providers.dns.delete)
+    @Implement(providersContract.dns.delete)
     delete() {
-        return implement(appContract.providers.dns.delete)
+        return implement(providersContract.dns.delete)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 const success = await this.appService.deleteApp(input.params.id);
@@ -67,9 +67,9 @@ export class DnsProvidersController {
             });
     }
 
-    @Implement(appContract.providers.dns.checkState)
+    @Implement(providersContract.dns.checkState)
     checkState() {
-        return implement(appContract.providers.dns.checkState)
+        return implement(providersContract.dns.checkState)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.appService.getLiveState(input.params.id, true);

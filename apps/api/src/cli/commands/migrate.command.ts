@@ -31,15 +31,15 @@ export class MigrateCommand extends CommandRunner {
 
     async run(): Promise<void> {
         // ── Phase 1: Local (SQLite) verification ─────────────────────────────
-        // SQLite tables are created by LocalModule's factory via
-        // runSqliteMigrations() during module initialization. Here we just
-        // verify the result for observability.
+        // SQLite tables are created by `LocalDatabaseMigrationService` in
+        // `@repo/nest-database-local`, which runs from its `onModuleInit` — BEFORE
+        // this command executes. Here we just verify the result for observability.
         this.logger.log(`🚀 Verifying local (SQLite) database...`);
         try {
             const localTableCount = this.localDatabaseService.db
                 .all("SELECT name FROM sqlite_master WHERE type='table'")
                 .length;
-            this.logger.log(`✅ SQLite database: ${localTableCount} tables present (migrated by LocalModule)`);
+            this.logger.log(`✅ SQLite database: ${localTableCount} tables present (migrated at module init)`);
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             this.logger.error(`❌ Local SQLite check failed: ${message}`);

@@ -6,7 +6,7 @@ import { join } from 'path'
 import { validateWebEnvSafe, webEnvIsValid } from '@repo/env'
 import zod from 'zod/v4'
 
-const DECLARATIVE_ROUTING_PKG_DIR = join(process.cwd(), '../../packages/bin/declarative-routing')
+const DECLARATIVE_ROUTING_PKG_DIR = join(process.cwd(), '../../tooling/bin-declarative-routing')
 const DECLARATIVE_ROUTING_DIST = join(DECLARATIVE_ROUTING_PKG_DIR, 'dist/index.js')
 
 /**

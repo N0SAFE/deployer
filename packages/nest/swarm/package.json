@@ -4,89 +4,70 @@
     "description": "Swarm cluster primitives: init/join, participation policy, master election, fleet read-models. Drives the Docker engine API; reads no environment and ships no platform defaults.",
     "main": "./dist/cjs/index.js",
     "module": "./dist/esm/index.mjs",
-    "types": "./src/index.ts",
+    "types": "./dist/types/index.d.ts",
     "exports": {
         ".": {
-            "types": [
-                "./src/index.ts"
-            ],
+            "types": "./dist/types/index.d.ts",
             "import": "./dist/esm/index.mjs",
             "require": "./dist/cjs/index.js"
         },
+        "./*": {
+            "types": "./dist/types/*.d.ts",
+            "import": "./dist/esm/*.mjs",
+            "require": "./dist/cjs/*.js"
+        },
         "./swarm-config": {
-            "types": [
-                "./src/swarm-config.ts"
-            ],
+            "types": "./dist/types/swarm-config.d.ts",
             "import": "./dist/esm/swarm-config.mjs",
             "require": "./dist/cjs/swarm-config.js"
         },
         "./services/swarm-cluster.service": {
-            "types": [
-                "./src/services/swarm-cluster.service.ts"
-            ],
+            "types": "./dist/types/services/swarm-cluster.service.d.ts",
             "import": "./dist/esm/services/swarm-cluster.service.mjs",
             "require": "./dist/cjs/services/swarm-cluster.service.js"
         },
         "./services/swarm-participation.service": {
-            "types": [
-                "./src/services/swarm-participation.service.ts"
-            ],
+            "types": "./dist/types/services/swarm-participation.service.d.ts",
             "import": "./dist/esm/services/swarm-participation.service.mjs",
             "require": "./dist/cjs/services/swarm-participation.service.js"
         },
         "./services/swarm-bootstrap.service": {
-            "types": [
-                "./src/services/swarm-bootstrap.service.ts"
-            ],
+            "types": "./dist/types/services/swarm-bootstrap.service.d.ts",
             "import": "./dist/esm/services/swarm-bootstrap.service.mjs",
             "require": "./dist/cjs/services/swarm-bootstrap.service.js"
         },
         "./services/swarm-join-grant.service": {
-            "types": [
-                "./src/services/swarm-join-grant.service.ts"
-            ],
+            "types": "./dist/types/services/swarm-join-grant.service.d.ts",
             "import": "./dist/esm/services/swarm-join-grant.service.mjs",
             "require": "./dist/cjs/services/swarm-join-grant.service.js"
         },
         "./services/swarm-fleet.service": {
-            "types": [
-                "./src/services/swarm-fleet.service.ts"
-            ],
+            "types": "./dist/types/services/swarm-fleet.service.d.ts",
             "import": "./dist/esm/services/swarm-fleet.service.mjs",
             "require": "./dist/cjs/services/swarm-fleet.service.js"
         },
         "./services/node-placement.service": {
-            "types": [
-                "./src/services/node-placement.service.ts"
-            ],
+            "types": "./dist/types/services/node-placement.service.d.ts",
             "import": "./dist/esm/services/node-placement.service.mjs",
             "require": "./dist/cjs/services/node-placement.service.js"
         },
         "./election/swarm-leadership.service": {
-            "types": [
-                "./src/election/swarm-leadership.service.ts"
-            ],
+            "types": "./dist/types/election/swarm-leadership.service.d.ts",
             "import": "./dist/esm/election/swarm-leadership.service.mjs",
             "require": "./dist/cjs/election/swarm-leadership.service.js"
         },
         "./election/master-scorer": {
-            "types": [
-                "./src/election/master-scorer.ts"
-            ],
+            "types": "./dist/types/election/master-scorer.d.ts",
             "import": "./dist/esm/election/master-scorer.mjs",
             "require": "./dist/cjs/election/master-scorer.js"
         },
         "./election/quorum-planner": {
-            "types": [
-                "./src/election/quorum-planner.ts"
-            ],
+            "types": "./dist/types/election/quorum-planner.d.ts",
             "import": "./dist/esm/election/quorum-planner.mjs",
             "require": "./dist/cjs/election/quorum-planner.js"
         },
         "./swarm.module": {
-            "types": [
-                "./src/swarm.module.ts"
-            ],
+            "types": "./dist/types/swarm.module.d.ts",
             "import": "./dist/esm/swarm.module.mjs",
             "require": "./dist/cjs/swarm.module.js"
         }
@@ -95,13 +76,14 @@
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "lint": "eslint . --fix --cache --concurrency=auto",
+        "lint": "eslint . --fix --cache",
         "type-check": "tsc --noEmit",
         "test": "vitest run",
         "test:watch": "vitest",
-        "build": "bun --bun ../../bin/pkg-build/index.ts",
-        "dev": "bun --bun ../../bin/pkg-build/index.ts --watch",
-        "clean": "rimraf dist"
+        "build": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js",
+        "dev": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js --watch",
+        "clean": "rimraf dist",
+        "build:types": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js --types"
     },
     "dependencies": {
         "@nestjs/common": "catalog:api:nest",

@@ -42,7 +42,7 @@ export function useProjectDetail() {
     queries: localServices.map((service: any) => {
       const serviceId = String(service.id ?? '')
       return serviceEndpoints.dependencies.list.queryOptions({
-        input: { params: { id: serviceId }, id: serviceId },
+        input: { params: { id: serviceId } },
         enabled: UUID_RE.test(serviceId),
       })
     }),

@@ -580,7 +580,7 @@ last-used). (3) Middleware: bearer-token auth parallel to session `requireAuth`.
 **Contract deltas (proposed).** `apiTokenCreate` (scopes enum; `plaintextOnce` returned ONCE),
 `apiTokenList`, `apiTokenRevoke`. Ids uuid-branded; scopes match G11 matrix.
 
-**Depends-on:** G11 audit feed, `packages/utils/auth` factories. **Effort:** S-M. **AC:**
+**Depends-on:** G11 audit feed, `packages/auth` factories. **Effort:** S-M. **AC:**
 create→use→revoke e2e; only hash stored (DB grep); scope enforcement denied-path tested;
 copy-once works; rotation guidance in docs.
 
@@ -1254,9 +1254,9 @@ metadata` lives in `page.tsx`, per g4). Migration/test/legit refs untouched.
   - `apps/web/src/components/setup/steps/complete-step.tsx` (zero references).
   - `apps/web/src/domains/gitlab/index.ts` (barrel with no consumers; hooks.ts
     stays, imported at `@/domains/gitlab/hooks`).
-  - Kept `packages/configs/prettier/src/{base,tailwind}.ts` and root
+  - Kept `tooling/prettier/src/{base,tailwind}.ts` and root
     `prettier.config.ts` — knip config-file false positives (prettier.config.ts
-    imports `./packages/configs/prettier/src/base` and is itself established
+    imports `./tooling/prettier/src/base` and is itself established
     tooling). tmp/ seed scripts left in place (one-off user scripts).
 - **Not taken (deferred, logged)**: W-P6 knip-in-CI gate — knip is not clean
   (37 dynamic-wiring false positives + 153 config hints); a CI gate would fail
@@ -1341,7 +1341,7 @@ metadata` lives in `page.tsx`, per g4). Migration/test/legit refs untouched.
 - Web type-check: **0 errors** (pre-existing setup/page.tsx errors excluded).
 - Analytics unit: **29 tests** green (2 files).
 - Traefik module unit suite: **255 tests** green (10 files).
-- Env package (`packages/utils/env`): 82/83 green — 1 pre-existing failure
+- Env package (`packages/config/env`): 82/83 green — 1 pre-existing failure
   unrelated (`validateApiEnvPath('','SETUP_DATABASE_URL')` expects throw,
   schema is `zod.string().optional()` — stale assertion).
 

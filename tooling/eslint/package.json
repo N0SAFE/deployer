@@ -1,0 +1,88 @@
+{
+    "name": "@repo/config-eslint",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "files": [
+        "src",
+        "dist"
+    ],
+    "exports": {
+        ".": {
+            "types": "./dist/types/index.d.ts",
+            "import": "./dist/index.js"
+        },
+        "./library": {
+            "types": "./dist/types/library.d.ts",
+            "import": "./dist/library.js"
+        },
+        "./nextjs": {
+            "types": "./dist/types/nextjs.d.ts",
+            "import": "./dist/nextjs.js"
+        },
+        "./nestjs": {
+            "types": "./dist/types/nestjs.d.ts",
+            "import": "./dist/nestjs.js"
+        },
+        "./react": {
+            "types": "./dist/types/react.d.ts",
+            "import": "./dist/react.js"
+        },
+        "./test": {
+            "types": "./dist/types/test.d.ts",
+            "import": "./src/test.ts"
+        },
+        "./mdx": {
+            "types": "./dist/types/mdx.d.ts",
+            "import": "./src/mdx.ts"
+        }
+    },
+    "scripts": {
+        "build": "bun --bun build.ts",
+        "build:types": "bun --bun ../bin-pkg-build/dist/cjs/main.js --types",
+        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "format": "bun run prettify",
+        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
+        "type-check": "tsc --noEmit",
+        "dev": "bun --bun ../bin-pkg-build/dist/cjs/main.js --watch",
+        "clean": "rimraf dist"
+    },
+    "devDependencies": {
+        "@darraghor/eslint-plugin-nestjs-typed": "^7.1.22",
+        "@eslint/compat": "^2.0.1",
+        "@eslint/js": "catalog:linting",
+        "@repo/config-eslint-plugins-progress": "*",
+        "@repo/config-prettier": "*",
+        "@repo/config-vitest": "*",
+        "@shadcn/lint": "catalog:linting",
+        "@tanstack/eslint-plugin-query": "catalog:tanstack",
+        "@types/node": "catalog:build",
+        "@typescript-eslint/eslint-plugin": "^8.67.0",
+        "@typescript-eslint/parser": "^8.67.0",
+        "@vercel/style-guide": "^6.0.0",
+        "babel-plugin-macros": "^3.1.0",
+        "chokidar": "catalog:build",
+        "eslint": "catalog:linting",
+        "eslint-config-nestjs": "^0.8.0",
+        "eslint-config-next": "catalog:next",
+        "eslint-config-prettier": "^10.1.8",
+        "eslint-config-turbo": "^2.10.11",
+        "eslint-module-utils": "^2.14.0",
+        "eslint-plugin-mdx": "^3.6.2",
+        "eslint-plugin-next": "^0.0.0",
+        "eslint-plugin-only-warn": "^1.1.0",
+        "eslint-plugin-react": "^7.34.2",
+        "eslint-plugin-react-hooks": "^7.0.1",
+        "eslint-plugin-react-refresh": "^0.5.4",
+        "globals": "^17.0.0",
+        "tailwindcss": "catalog:styling",
+        "typescript": "^6",
+        "typescript-eslint": "^8.61.1",
+        "vitest": "catalog:testing",
+        "rimraf": "catalog:build",
+        "@repo/pkg-build": "*"
+    },
+    "main": "./dist/index.js",
+    "types": "./dist/types/index.d.ts",
+    "dependencies": {}
+}

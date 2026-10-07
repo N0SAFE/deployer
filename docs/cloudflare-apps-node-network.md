@@ -114,7 +114,7 @@ CNAME present **but no connector running** (or no ingress), Cloudflare answers
 The app never runs `cloudflared` itself — a connector must be running with the
 tunnel's run token. Self-hosted ops deployments get a ready-made sidecar:
 
-`docker/compose/deployer/docker-compose.deployer.yml` → `cloudflared` service:
+`infra/docker/compose/deployer/docker-compose.deployer.yml` → `cloudflared` service:
 
 ```yaml
 cloudflared:

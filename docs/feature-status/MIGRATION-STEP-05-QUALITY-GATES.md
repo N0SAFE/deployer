@@ -59,7 +59,7 @@ Replace the hardcoded auth context extraction with proper DI-injected service.
 
 ### 5.1.5 Implement FK-Chain Subquery
 
-**File:** `packages/utils/auth/src/permissions/engine/permission-engine.ts`
+**File:** `packages/auth/src/permissions/engine/permission-engine.ts`
 
 Phase B.2: replace the conservative "allow all rows" fallback with actual FK-chain subqueries.
 
@@ -226,7 +226,7 @@ done
 `@repo/type-guards` is in 13 package.json files but many packages don't use it. Verify and remove where unused:
 
 ```bash
-for pkg in packages/configs/vitest packages/contracts/api packages/contracts/common packages/contracts/entities packages/types packages/utils/config-schema packages/utils/env packages/utils/logger packages/utils/provider-schema; do
+for pkg in tooling/vitest packages/contracts/api packages/contracts/common packages/contracts/entities packages/types packages/utils/config-schema packages/config/env packages/infrastructure/logger packages/utils/provider-schema; do
   echo "=== $pkg ==="
   # Check if any source file imports it
   grep -rn "@repo/type-guards" "$pkg/src/" 2>/dev/null | head -3

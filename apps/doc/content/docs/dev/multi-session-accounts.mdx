@@ -25,8 +25,8 @@ Signing into the **same** account again replaces its existing entry rather than 
 
 | Layer  | File                                            | What it registers                           |
 | ------ | ----------------------------------------------- | ------------------------------------------- |
-| Server | `packages/utils/auth/src/server/auth.ts`        | `multiSession()` in the plugin array        |
-| Client | `packages/utils/auth/src/client/auth-client.ts` | `multiSessionClient()` in `DEFAULT_PLUGINS` |
+| Server | `packages/auth/src/server/auth.ts`        | `multiSession()` in the plugin array        |
+| Client | `packages/auth/src/client/auth-client.ts` | `multiSessionClient()` in `DEFAULT_PLUGINS` |
 
 Both are needed: the server plugin owns the cookies and the endpoints, the client plugin exposes the typed RPC methods.
 
@@ -69,7 +69,7 @@ Better Auth's `multiSession` after-hook on `/sign-out` expires **every** `_multi
 
 `apps/web/src/app/auth/me/_components/accounts-section.test.tsx` mocks `@/lib/auth` and asserts the load → list → switch/reload → revoke/refetch sequence, the failure + retry path, and the single-account empty state.
 
-`packages/utils/auth/src/server/auth.spec.ts` asserts the factory registers `multiSession` exactly once.
+`packages/auth/src/server/auth.spec.ts` asserts the factory registers `multiSession` exactly once.
 
 ## Related docs
 

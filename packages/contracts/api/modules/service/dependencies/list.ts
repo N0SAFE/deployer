@@ -28,12 +28,31 @@ const dependencyEdgeSchema = z.object({
  * This lets the UI render "main service deps" and drill into each
  * sub-service's deps in one request, so a sub-service can be a dependency
  * (edge) while its children's deps are visible under it.
+ *
+ * The recursion is expressed with named interfaces: declaration emit cannot
+ * name an anonymous self-reference (it collapses to `ZodObject<any>`).
  */
-const serviceSubDependenciesNodeSchema = z.object({
+const serviceSubDependenciesNodeBaseSchema = z.object({
   serviceId: z.uuid(),
   serviceName: z.string(),
   serviceType: z.string(),
   dependencies: z.array(dependencyEdgeSchema),
+});
+
+export interface ServiceSubDependenciesNode extends z.infer<typeof serviceSubDependenciesNodeBaseSchema> {
+  children?: ServiceSubDependenciesNode[];
+}
+
+export interface ServiceSubDependenciesNodeInput extends z.input<
+  typeof serviceSubDependenciesNodeBaseSchema
+> {
+  children?: ServiceSubDependenciesNodeInput[];
+}
+
+const serviceSubDependenciesNodeSchema: z.ZodType<
+  ServiceSubDependenciesNode,
+  ServiceSubDependenciesNodeInput
+> = serviceSubDependenciesNodeBaseSchema.extend({
   get children() {
     return z.array(serviceSubDependenciesNodeSchema).optional();
   },

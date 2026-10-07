@@ -1,0 +1,104 @@
+# =====================================================================
+# Setup BASE config — INCLUDE-ONLY. Everything the setup app needs
+# regardless of variant. The dev variant extends THIS; the orchestrator
+# extends the variant and adds only per-project wiring (container_name,
+# networks).
+#
+# WHY A SEPARATE SERVICE AT ALL
+# Setup is a DIFFERENT APP with a different job (plan §1): it founds or
+# joins the swarm, serves the wizard, drives the API, hands the entry
+# port over, and exits. It is not the API in another mode — which is the
+# arrangement this refactor removes.
+#
+# NO `ports:` — DELIBERATE. Setup is reachable ONLY through Traefik on
+# the private docker network, exactly like the API. Publishing its port
+# would expose the PRE-AUTH wizard on every host interface, for a service
+# whose entire purpose is to be replaced.
+# =====================================================================
+services:
+  setup:
+    # ── WHY NOT `unless-stopped` (the default for every other service) ──────
+    # Setup is a ONE-WAY app: it hands the platform over and then exits 0 by
+    # design (`SetupExitService` + `main.ts`). `unless-stopped` restarts a
+    # container on ANY exit, including a successful one, so the app would come
+    # back up, re-run onboarding, exit, and loop forever — while briefly holding
+    # `setup.<host>` again on a platform that already finished.
+    #
+    # `on-failure` is the correct policy and covers both cases:
+    #   exit 0   → handover complete, stay stopped.
+    #   exit ≠ 0 → the process died (OOM, uncaught fault). Restarting is right:
+    #              a failed setup must stay reachable so the operator can retry,
+    #              which is exactly what `SetupExitService` refuses to give up on.
+    restart: on-failure
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    environment:
+      SETUP_APP_PORT: "3016"
+      # `dev` waits for the compose-managed API; `prod` creates it as a swarm
+      # service. The ONLY behavioural branch in the setup app.
+      SETUP_MODE: ${SETUP_MODE:-dev}
+      SETUP_API_URL: ${SETUP_API_URL:-http://api-dev:3005}
+      # The port the API listens on internally. Read (not hardcoded) because it
+      # differs by environment: dev publishes 3005, prod 3001.
+      SETUP_API_PORT: ${API_PORT:-3005}
+      DEPLOYER_PREFIX: ${DEPLOYER_PREFIX:-}
+      # Same volume name the API uses, so `node_config` is the SAME file: setup
+      # WRITES the swarm participation decision and the API READS it.
+      NODE_LOCAL_DB_PATH: /app/data/local.db
+      # Engine access — setup founds/joins the swarm and (in prod) schedules the
+      # API service, so it drives the daemon directly.
+      DOCKER_HOST: unix:///var/run/docker.sock
+      # Traefik's watched directory. MUST match the API's value: setup writes the
+      # handover files here and the API later rewrites its own files in the same
+      # place, so a mismatch would make the handover look like "Traefik ignores
+      # us" rather than a configuration error.
+      TRAEFIK_CONFIG_BASE_PATH: /app/traefik-configs
+      # ── The BOOTSTRAP ingress (State A) ──────────────────────────────────
+      # Setup SUPERVISES Traefik as a plain container until the API can take
+      # over. Without it this app is unreachable: it publishes no ports, and the
+      # API that normally supervises the ingress cannot start until setup's gate
+      # opens — which needs an operator to load the wizard. See
+      # `BootstrapIngressService` for the full cycle.
+      #
+      # SAME variables the API's `TraefikSupervisorService` runs, so one `.env`
+      # value drives both incarnations and the promotion cannot change the port
+      # or the image.
+      DEPLOYER_TRAEFIK_IMAGE: ${DEPLOYER_TRAEFIK_IMAGE:-traefik:v3.6.10}
+      DEPLOYER_TRAEFIK_HTTP_PORT: ${DEPLOYER_TRAEFIK_HTTP_PORT:-80}
+      TRAEFIK_CONFIG_VOLUME: ${TRAEFIK_CONFIG_VOLUME:-deployer-traefik-config}
+      # WHO OWNS THE INGRESS. `true` in the plain `dev` profile, where compose
+      # already publishes Traefik on the same host port — this app must then only
+      # ROUTE through it, never start a second one (the port is exclusively
+      # bound, so a duplicate either fails to bind or steals it).
+      #
+      # `false` (the default) in `dev-supervised` / `prod`, where nothing runs
+      # Traefik and this app is the only thing that can serve the wizard.
+      MANAGED_TRAEFIK_ENABLED: ${MANAGED_TRAEFIK_ENABLED:-false}
+      # Address that reaches PUBLISHED HOST PORTS from inside this container.
+      # The ingress publishes on the host, so a readiness probe against loopback
+      # would test this container's own namespace and always fail.
+      HOST_GATEWAY_ADDRESS: ${HOST_GATEWAY_ADDRESS:-host.docker.internal}
+      # The address this node advertises for cluster control traffic. Docker
+      # refuses to INFER one on a host with several candidates, so a founding
+      # node needs it explicitly (`could not choose an IP address to advertise`).
+      SWARM_ADVERTISE_ADDR: ${SWARM_ADVERTISE_ADDR:-}
+      SWARM_QUORUM_MAX: ${SWARM_QUORUM_MAX:-3}
+      MANAGED_WIREGUARD_IP: ${MANAGED_WIREGUARD_IP:-}
+      # This node's own public URL — the last-resort control-plane candidate.
+      APP_URL: ${APP_URL:-http://web-dev:3000}
+    volumes:
+      # Docker daemon socket: swarm init/join, (prod) service creation, AND the
+      # bootstrap ingress container this app creates.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Platform config SHARING volume — same mount path as the API's, because
+      # both write into it and the handover lives here. The bootstrap ingress
+      # mounts this SAME volume read-only at /config, which is how a route
+      # written here reaches Traefik without either process talking to the other.
+      - ${TRAEFIK_CONFIG_VOLUME:-deployer-traefik-config}:/app/traefik-configs
+    # `host-gateway` is REQUIRED, not a convenience: the ingress publishes its
+    # entry port on the HOST, so reachability has to be checked through the host
+    # gateway. Without this mapping `host.docker.internal` does not resolve and
+    # every readiness probe reports the ingress as down while it is running.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

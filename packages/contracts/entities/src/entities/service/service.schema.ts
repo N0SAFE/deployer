@@ -169,23 +169,36 @@ export const serviceEffectiveConfigSchema = z.object({
 export type ServiceEffectiveConfig = z.infer<typeof serviceEffectiveConfigSchema>;
 
 /**
- * Recursive schema — zod v4 native mechanism via a lazy `get` accessor
- * (no `z.lazy()` needed). The getter runs when `.children` is first accessed,
- * at which point `serviceSchema` is fully initialized.
+ * Service DTO with its nested sub-services.
  *
- * NOTE: this MUST be declared before `serviceWithEffectiveConfigSchema`
- * (which `.extend()`s it) — otherwise it's a temporal-dead-zone error.
+ * Declared as recursive interfaces (instead of a plain `z.infer` of the
+ * schema) because TypeScript's declaration emitter cannot name an anonymous
+ * recursive type: it replaces the self-reference with `any` (emitted as
+ * `ZodObject<elided, ...>`), which collapses `children` to
+ * `Record<string, unknown>[]` for every consumer that type-checks declarations.
+ * Annotating the schema with those interfaces keeps the recursion exact — see
+ * the zod "recursive types" guidance.
  */
-export const serviceSchema = serviceSchemaBase.extend({
+export interface Service extends z.infer<typeof serviceSchemaBase> {
+  children?: Service[];
+}
+
+/** Input shape of {@link Service} (pre-validation, before defaults). */
+export interface ServiceInput extends z.input<typeof serviceSchemaBase> {
+  children?: ServiceInput[];
+}
+
+export const serviceSchema: z.ZodType<Service, ServiceInput> = serviceSchemaBase.extend({
   get children() {
     return z.array(serviceSchema).optional();
   },
 });
 
-export type Service = z.infer<typeof serviceSchema>;
-
 /** The service DTO extended with its resolved effective config (read-model). */
-export const serviceWithEffectiveConfigSchema = serviceSchema.extend({
+export const serviceWithEffectiveConfigSchema = serviceSchemaBase.extend({
+  get children() {
+    return z.array(serviceSchema).optional();
+  },
   effectiveConfig: serviceEffectiveConfigSchema,
 });
 

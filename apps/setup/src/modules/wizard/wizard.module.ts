@@ -8,9 +8,11 @@ import { SetupHealthModule } from "@/modules/health/setup-health.module";
 import { SetupClusterModule } from "@/modules/cluster/cluster.module";
 import { SetupGateService } from "./setup-gate.service";
 import { WizardController } from "./wizard.controller";
+import { WizardPageController } from "./wizard-page.controller";
 import { WizardStateService } from "./wizard-state.service";
 import { WizardStreamService } from "./wizard-stream.service";
 import { WizardUpstreamService } from "./wizard-upstream.service";
+import { SetupProgressModule } from "@/modules/progress/progress.module";
 
 /**
  * The wizard half of setup: the onboarding page and the proxy to the API that
@@ -29,6 +31,9 @@ import { WizardUpstreamService } from "./wizard-upstream.service";
   imports: [
     EnvModule,
     SetupHealthModule,
+    // The operator's progress timeline. Imported rather than provided here
+    // because `cluster/` and `handover/` report on it too — see the module.
+    SetupProgressModule,
     // The GATE starts the cluster phase, so this module needs the orchestrator.
     //
     // DIRECTION: wizard → cluster, and never the reverse. `SetupClusterModule`
@@ -51,8 +56,18 @@ import { WizardUpstreamService } from "./wizard-upstream.service";
       vite: { port: 5174 },
     }),
   ],
-  controllers: [WizardController],
-  providers: [SetupGateService, WizardStateService, WizardUpstreamService, WizardStreamService],
-  exports: [SetupGateService, WizardStateService, WizardUpstreamService, WizardStreamService],
+  controllers: [WizardPageController, WizardController],
+  providers: [
+    SetupGateService,
+    WizardStateService,
+    WizardUpstreamService,
+    WizardStreamService,
+  ],
+  exports: [
+    SetupGateService,
+    WizardStateService,
+    WizardUpstreamService,
+    WizardStreamService,
+  ],
 })
 export class WizardModule {}

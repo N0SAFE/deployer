@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { Observable } from "rxjs";
 import type { ContractRouterClient } from "@orpc/contract";
-import type { AppContract } from "@repo/api-contracts";
+import type { AppContract } from "@/core/orpc/app-contract";
 
 export interface MeshOpenInternalBridgeInput<TEvent> {
     context: unknown;

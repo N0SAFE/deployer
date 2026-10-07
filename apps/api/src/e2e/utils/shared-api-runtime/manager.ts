@@ -443,7 +443,20 @@ export class SharedApiRuntimeManager {
     private restoreRuntimeEnv(snapshot: Map<string, string | undefined>): void {
         for (const [key, value] of snapshot.entries()) {
             if (value === undefined) {
-                delete process.env[key]
+                // DELETING a key is NOT "restore what we found".
+                //
+                // `vitest.setup.e2e.ts` supplies its defaults with `??`, so it
+                // only fills a key while that key is UNSET. Deleting here
+                // therefore does not restore the setup value — it hands the next
+                // file in this worker the SCHEMA DEFAULT. For
+                // `NODE_LOCAL_DB_PATH` that default is `/app/data/local.db`, the
+                // path INSIDE the container, so the local-SQLite factory then
+                // died with `EACCES: mkdir '/app/data'` in whatever file ran
+                // next.
+                //
+                // That is why the failure moved between runs and never
+                // reproduced in isolation, and why the two files it landed on
+                // looked unrelated to each other.
                 continue
             }
 

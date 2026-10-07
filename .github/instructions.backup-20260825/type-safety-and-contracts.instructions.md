@@ -267,9 +267,9 @@ const stream = useQuery(
 
 | Package | Purpose | When to add a new export here |
 |---------|---------|--------------------------------|
-| `packages/utils/orpc` | ORPC builder helpers (`standard.zod`, error builders, mesh errors) | Adding a new error type, a new standard operation, or a new contract helper |
-| `packages/utils/logger` | Pino + `ContextFilterLogger` | Adding a new logger method, env-var-gated feature, or log channel |
-| `packages/utils/auth` | Better Auth factories | Adding a new auth provider, session helper, or permission check |
+| `packages/transport/orpc` | ORPC builder helpers (`standard.zod`, error builders, mesh errors) | Adding a new error type, a new standard operation, or a new contract helper |
+| `packages/infrastructure/logger` | Pino + `ContextFilterLogger` | Adding a new logger method, env-var-gated feature, or log channel |
+| `packages/auth` | Better Auth factories | Adding a new auth provider, session helper, or permission check |
 | `packages/utils/use-safe-query-param-states-from-zod` | URL state from Zod | Adding new URL-state helpers |
 | `packages/contracts/entities` | All Zod entity schemas (docker, mesh, etc.) | Adding a new entity schema — never re-declare elsewhere |
 | `packages/contracts/api` | All ORPC contracts (input/output/error definitions) | Adding a new ORPC contract |
@@ -284,9 +284,9 @@ const stream = useQuery(
 ### Package Boundary Rules
 
 - **No circular dependencies.** Use the dependency graph (`repo://graph/uses/{name}`) to verify.
-- **Lower-level packages must not import from higher-level packages.** `packages/contracts/entities` must not import from `apps/api`. `packages/utils/logger` must not import from `packages/contracts/api`.
+- **Lower-level packages must not import from higher-level packages.** `packages/contracts/entities` must not import from `apps/api`. `packages/infrastructure/logger` must not import from `packages/contracts/api`.
 - **Apps depend on packages; packages depend on packages; never the other way around.** `apps/*` is the top of the dependency graph.
-- **Public API of a package is its `index.ts`.** Don't reach into deep paths from outside (`import { foo } from "packages/utils/logger/src/internal/foo"`).
+- **Public API of a package is its `index.ts`.** Don't reach into deep paths from outside (`import { foo } from "packages/infrastructure/logger/src/internal/foo"`).
 - **Tests are colocated.** App code: `*.spec.ts` next to source. Package code: `__tests__/*.test.ts` next to source module. Don't put tests in a separate `test/` package.
 
 ### Anti-Patterns

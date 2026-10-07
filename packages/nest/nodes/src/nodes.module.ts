@@ -9,18 +9,31 @@ import { ClusterNodeInventoryRepository } from "./cluster-node-inventory.reposit
  *
  * HOW TO USE IT
  *
- *   NodesModule.forRoot()
+ *   NodesModule.forRoot({ localDatabase: LocalDatabaseModule.forRootAsync({ ... }) })
  *
- * No options: these repositories are storage-only. They read `node_config`,
- * `cluster_node` and `cluster_nodes` from whatever `LOCAL_DATABASE_CONNECTION`
- * the app already registered — the CONNECTION's configuration (file path,
- * migrations) belongs to `@repo/nest-database-local`, so duplicating it here
- * would be a second source of truth for the same file.
+ * WHY `forRoot` TAKES THE DATABASE REGISTRATION AS A PARAMETER
+ * The repositories inject `LocalDatabaseService`, so Nest must be able to
+ * RESOLVE it from this module's scope. This module used to declare no imports at
+ * all and rely on `LocalDatabaseModule` being registered globally elsewhere in
+ * the app — which held in `apps/api` (one module there calls
+ * `forRootAsync`) and failed in every other app. `apps/setup` was the first
+ * consumer outside that arrangement and could not assemble its module graph:
  *
- * `forRoot()` still exists, rather than a bare module import, so the
- * registration call reads the same way as its siblings (`DockerModule.forRoot`,
- * `SwarmModule.forRoot`, …). A mixed vocabulary — some packages imported
- * directly and others configured — is what makes a wiring mistake hard to spot.
+ *   Nest can't resolve dependencies of the NodeConfigRepository (?).
+ *   Please make sure that the argument LocalDatabaseService at index [0] is
+ *   available in the NodesModule module.
+ *
+ * Importing the bare `LocalDatabaseModule` class is NOT a fix: it is
+ * `@Module({})`, so it provides nothing — only `forRoot`/`forRootAsync`
+ * register the connection, and the nine existing `imports: [LocalDatabaseModule]`
+ * sites in `apps/api` are no-ops that work purely because that one `forRootAsync`
+ * makes the module `@Global()`.
+ *
+ * So the registration is passed IN, through `imports`, exactly as NestJS
+ * intends. This keeps the file path and migrations directory the APP's decision
+ * (they differ per app — `apps/api` and `apps/setup` ship different local
+ * tables) while making the dependency explicit and the module self-contained for
+ * any app that registers it.
  *
  * WHY `@Global()`
  * Ten modules consume these repositories (mesh, swarm, setup, reachability, the
@@ -34,14 +47,38 @@ import { ClusterNodeInventoryRepository } from "./cluster-node-inventory.reposit
  * nothing but local storage, so extracting them is what lets `swarm`, `mesh` and
  * `setup` all read node state without importing each other.
  */
+
+/** What `NodesModule.forRoot` needs from the consuming app. */
+export interface NodesModuleOptions {
+    /**
+     * The already-configured local-database registration.
+     *
+     * Pass `LocalDatabaseModule.forRoot(...)` / `.forRootAsync(...)` — the
+     * DynamicModule, NOT the class. The app owns `databasePath` and
+     * `migrationsDir` because they describe ITS local tables.
+     */
+    localDatabase: DynamicModule;
+}
+
 @Global()
 @Module({})
 export class NodesModule {
-	static forRoot(): DynamicModule {
-		return {
-			module: NodesModule,
-			providers: [NodeConfigRepository, ClusterNodeRepository, ClusterNodeInventoryRepository],
-			exports: [NodeConfigRepository, ClusterNodeRepository, ClusterNodeInventoryRepository],
-		};
-	}
+    static forRoot(options: NodesModuleOptions): DynamicModule {
+        return {
+            module: NodesModule,
+            // The app's registration, forwarded verbatim. This is what brings
+            // `LocalDatabaseService` into scope for the repositories below.
+            imports: [options.localDatabase],
+            providers: [
+                NodeConfigRepository,
+                ClusterNodeRepository,
+                ClusterNodeInventoryRepository,
+            ],
+            exports: [
+                NodeConfigRepository,
+                ClusterNodeRepository,
+                ClusterNodeInventoryRepository,
+            ],
+        };
+    }
 }

@@ -51,14 +51,14 @@ Invariants:
 
 - **Idempotent, SDK-only:** `ClusterService.ensureCluster()` reads `LocalNodeState` via dockerode (`DockerService.getSystemInfo()` → `Swarm.LocalNodeState`); `active` → no-op; `inactive` → `DockerService.swarmInit(...)`; `pending` → wait. No `exec`/`spawn` of the CLI anywhere.
 - The one node is recorded in `cluster.nodes` with `role=both`, `isManager=true`, `isMaster=true`.
-- Join tokens never live in `.env` — they are stored once by the master and distributed via the mesh secret-sharing path (same mechanism as `AUTH_SECRET`/`MESH_NODE_ID` today, see `docker/compose/deployer/docker-compose.deployer.yml`).
+- Join tokens never live in `.env` — they are stored once by the master and distributed via the mesh secret-sharing path (same mechanism as `AUTH_SECRET`/`MESH_NODE_ID` today, see `infra/docker/compose/deployer/docker-compose.deployer.yml`).
 - dockerode ships TS types for the full Swarm API (`SwarmServiceSpec`, `SwarmNodeSpec`, `SwarmTask`, …); the platform wraps them behind the Zod contract layer (`entities/swarm/`) so business code never touches loose dockerode shapes directly (§2 of `05-swarm-execution-backend.md`).
 
 ## 4. Unique development path (dev parity)
 
 `bun run dev` on a single host must exercise the swarm path:
 
-- **API-driven convergence**: the API initializes swarm on the host (or in the dev container with a sibling socket) through `SwarmBootstrapService` (`SWARM_ENABLED`, idempotent) — zero CLI, zero `docker stack deploy`, one code path for dev and prod. `MESH_*` env still seeds from the mesh-6 pattern (`docker/compose/docker-compose.mesh-6.dev.yml`).
+- **API-driven convergence**: the API initializes swarm on the host (or in the dev container with a sibling socket) through `SwarmBootstrapService` (`SWARM_ENABLED`, idempotent) — zero CLI, zero `docker stack deploy`, one code path for dev and prod. `MESH_*` env still seeds from the mesh-6 pattern (`infra/docker/compose/docker-compose.mesh-6.dev.yml`).
 - **Layering (per architecture)**: Swarm schedules **everything**. Both the WORKLOAD Deployer owns (user deployments / projects / services via the `runners/swarm` backend) AND Deployer's OWN platform infra (ingress Traefik, global DB, Redis, database-service instances, WireGuard, failover proxy, managed web console) run as swarm services driven by the platform supervisors. Each supervisor declares a scope — `node-local → global` (one task per node), `mesh-wide → replicated` (one shared service) — and there is no plain-container fallback. The former `PlatformStackService` + `SWARM_PLATFORM_STACK` placeholder stays removed: it was a `stack deploy`-shaped duplicate of what the supervisors now express as SDK service specs, and it collided with the compose-owned `deployer-platform` bridge network.
 
 Desired dev properties:

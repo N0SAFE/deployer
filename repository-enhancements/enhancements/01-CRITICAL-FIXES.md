@@ -7,7 +7,7 @@
 ## 🔴 1. Fix @repo/orpc-utils Test Failures
 
 ### Problem
-45 out of 54 tests failing in `packages/utils/orpc/src/hooks/__tests__/`
+45 out of 54 tests failing in `packages/transport/orpc/src/hooks/__tests__/`
 
 ### Root Cause
 Zod 4 import issue - `z.object` is undefined in Vitest environment
@@ -51,13 +51,13 @@ import { z } from 'zod/v4'
 The root cause is that Zod 4 changed its module structure. When importing from `'zod'` in certain test environments, the `z.object` and other schema builders are undefined. Using `'zod/v4'` directly bypasses this issue.
 
 ### Files to Modify
-1. `packages/utils/orpc/vitest.config.ts`
-2. `packages/utils/orpc/src/hooks/__tests__/generate-hooks.test.ts`
+1. `packages/transport/orpc/vitest.config.ts`
+2. `packages/transport/orpc/src/hooks/__tests__/generate-hooks.test.ts`
 3. Potentially all files importing Zod
 
 ### Verification
 ```bash
-cd packages/utils/orpc
+cd packages/transport/orpc
 bun run test
 # Expected: 54/54 tests passing
 ```
@@ -279,7 +279,7 @@ During our discussion, we identified a critical distinction that many projects m
 1. **App-level invitations** = Inviting someone to CREATE AN ACCOUNT on the platform
    - "Hey, join our app!"
    - User doesn't exist yet in the system
-   - Handled by a **custom Better Auth plugin** we create in `packages/utils/auth`
+   - Handled by a **custom Better Auth plugin** we create in `packages/auth`
 
 2. **Organization invitations** = Inviting an EXISTING USER to join an organization
    - "Hey, join my team!"
@@ -290,7 +290,7 @@ During our discussion, we identified a critical distinction that many projects m
 
 #### App-Level Invitations (Custom Plugin)
 
-**Location:** `packages/utils/auth/src/plugins/invitation.ts`
+**Location:** `packages/auth/src/plugins/invitation.ts`
 
 **Purpose:** Invite new users to the platform itself. This is NOT covered by Better Auth's organization plugin because that assumes the user already exists.
 

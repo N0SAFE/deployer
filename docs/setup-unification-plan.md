@@ -196,7 +196,7 @@ Implementation: `SetupDevService` CASE 0 reuses the same `probe()` throw path as
    `DefaultAdminService` (§3.1).
 4. **One-shot containers.** Either re-add `api-db-migrate-dev` / `api-db-seed-dev` as compose
    profiles driven by the same `DefaultAdminService` + migrator (for ops who want explicit
-   jobs), or delete the stale comments — pick one and update `docker/compose` accordingly.
+   jobs), or delete the stale comments — pick one and update `infra/docker/compose` accordingly.
 5. **Env schema.** Centralize every switch in `@repo/env` (`apiEnvSchema`) so Zod validates
    the **whole** policy surface at boot and rejects unknown/conflicting combos
    (e.g. `MANAGED_GLOBAL_DB_ENABLED=true` **and** `SETUP_AUTO_DATABASE_URL` set → warn or

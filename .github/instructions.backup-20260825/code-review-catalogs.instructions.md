@@ -232,9 +232,9 @@ Every package and app has path aliases. **Use them, never use `../../../`**:
 | `packages/ui` | `@repo/ui` |
 | `packages/contracts/entities` | `@repo/contracts-entities` |
 | `packages/contracts/api` | `@repo/contracts-api` |
-| `packages/utils/orpc` | `@repo/utils-orpc` |
-| `packages/utils/logger` | `@repo/utils-logger` |
-| `packages/utils/auth` | `@repo/utils-auth` |
+| `packages/transport/orpc` | `@repo/utils-orpc` |
+| `packages/infrastructure/logger` | `@repo/utils-logger` |
+| `packages/auth` | `@repo/utils-auth` |
 | `packages/utils/use-safe-query-param-states-from-zod` | `@repo/use-safe-query-param-states-from-zod` |
 | `packages/nest` | `@repo/nest` |
 | `packages/types` | `@repo/types` |

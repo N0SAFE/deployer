@@ -21,7 +21,10 @@
 
 import { createAuthClientFactory } from "@repo/auth/client";
 
-export const auth = createAuthClientFactory({
+// Explicit `ReturnType` annotation matches the web app: it pins the client
+// type to the factory's declared return, which keeps plugin inference stable
+// across compilers.
+export const auth: ReturnType<typeof createAuthClientFactory> = createAuthClientFactory({
 	basePath: "/api/auth",
 	fetchOptions: { credentials: "include" },
 });

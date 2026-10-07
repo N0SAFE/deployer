@@ -13,39 +13,39 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { appContract } from "@repo/api-contracts";
+import { platformContract } from "@repo/api-contracts";
 import { PlatformManagedWebService } from "../services/platform-managed-web.service";
 
 @Controller()
 export class PlatformManagedWebController {
 	constructor(private readonly managedWeb: PlatformManagedWebService) {}
 
-	@Implement(appContract.platform.getManagedWebState)
+	@Implement(platformContract.getManagedWebState)
 	state() {
-		return implement(appContract.platform.getManagedWebState).handler(
+		return implement(platformContract.getManagedWebState).handler(
 			async () => this.managedWeb.state(),
 		);
 	}
 
-	@Implement(appContract.platform.toggleManagedWeb)
+	@Implement(platformContract.toggleManagedWeb)
 	toggle() {
-		return implement(appContract.platform.toggleManagedWeb).handler(async () => {
+		return implement(platformContract.toggleManagedWeb).handler(async () => {
 			const state = await this.managedWeb.toggle();
 			return { status: 201 as const, body: { state } };
 		});
 	}
 
-	@Implement(appContract.platform.restartManagedWeb)
+	@Implement(platformContract.restartManagedWeb)
 	restart() {
-		return implement(appContract.platform.restartManagedWeb).handler(async () => {
+		return implement(platformContract.restartManagedWeb).handler(async () => {
 			const state = await this.managedWeb.restart();
 			return { status: 201 as const, body: { state } };
 		});
 	}
 
-	@Implement(appContract.platform.setManagedWebOrigin)
+	@Implement(platformContract.setManagedWebOrigin)
 	setOrigin() {
-		return implement(appContract.platform.setManagedWebOrigin).handler(
+		return implement(platformContract.setManagedWebOrigin).handler(
 			async ({ input }) => {
 				const state = await this.managedWeb.setOrigin(input.origin);
 				return { status: 201 as const, body: { state } };
@@ -53,9 +53,9 @@ export class PlatformManagedWebController {
 		);
 	}
 
-	@Implement(appContract.platform.enableManagedWebTunnel)
+	@Implement(platformContract.enableManagedWebTunnel)
 	enableTunnel() {
-		return implement(appContract.platform.enableManagedWebTunnel).handler(
+		return implement(platformContract.enableManagedWebTunnel).handler(
 			async ({ input }) => {
 				const state = await this.managedWeb.enableTunnel(input.hostname);
 				return { status: 201 as const, body: { state } };
@@ -63,9 +63,9 @@ export class PlatformManagedWebController {
 		);
 	}
 
-	@Implement(appContract.platform.disableManagedWebTunnel)
+	@Implement(platformContract.disableManagedWebTunnel)
 	disableTunnel() {
-		return implement(appContract.platform.disableManagedWebTunnel).handler(async () => {
+		return implement(platformContract.disableManagedWebTunnel).handler(async () => {
 			const state = await this.managedWeb.disableTunnel();
 			return { status: 201 as const, body: { state } };
 		});

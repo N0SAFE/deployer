@@ -383,7 +383,6 @@ export function ServiceDependencyGraphPanel({
             serviceEndpoints.dependencies.list.queryOptions({
               input: {
                 params: { id: service.id },
-                id: service.id,
               },
             }),
           ),

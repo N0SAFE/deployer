@@ -8,7 +8,7 @@
 import { Controller, Logger } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { appContract } from "@repo/api-contracts";
+import { providersContract } from "@repo/api-contracts";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { CloudflareAppService } from "../services/cloudflare-app.service";
 import { CloudflareDnsProviderService } from "../services/cloudflare-dns-provider.service";
@@ -37,9 +37,9 @@ export class CloudflareController {
 
     // ─── Cloudflare Zones & Records ─────────────────────────────────────────
 
-    @Implement(appContract.providers.dns.cloudflare.listZones)
+    @Implement(providersContract.dns.cloudflare.listZones)
     listZones() {
-        return implement(appContract.providers.dns.cloudflare.listZones)
+        return implement(providersContract.dns.cloudflare.listZones)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 try {
@@ -55,9 +55,9 @@ export class CloudflareController {
             });
     }
 
-    @Implement(appContract.providers.dns.cloudflare.listRecords)
+    @Implement(providersContract.dns.cloudflare.listRecords)
     listRecords() {
-        return implement(appContract.providers.dns.cloudflare.listRecords)
+        return implement(providersContract.dns.cloudflare.listRecords)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 const { params } = input;
@@ -100,9 +100,9 @@ export class CloudflareController {
             });
     }
 
-    @Implement(appContract.providers.dns.cloudflare.checkRecord)
+    @Implement(providersContract.dns.cloudflare.checkRecord)
     checkRecord() {
-        return implement(appContract.providers.dns.cloudflare.checkRecord)
+        return implement(providersContract.dns.cloudflare.checkRecord)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 const { params } = input;
@@ -149,9 +149,9 @@ export class CloudflareController {
             });
     }
 
-    @Implement(appContract.providers.dns.cloudflare.createRecord)
+    @Implement(providersContract.dns.cloudflare.createRecord)
     createRecord() {
-        return implement(appContract.providers.dns.cloudflare.createRecord)
+        return implement(providersContract.dns.cloudflare.createRecord)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 const { params, body } = input;
@@ -177,9 +177,9 @@ export class CloudflareController {
             });
     }
 
-    @Implement(appContract.providers.dns.cloudflare.deleteRecord)
+    @Implement(providersContract.dns.cloudflare.deleteRecord)
     deleteRecord() {
-        return implement(appContract.providers.dns.cloudflare.deleteRecord)
+        return implement(providersContract.dns.cloudflare.deleteRecord)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 await this.dnsService.deleteRecord(
@@ -193,36 +193,36 @@ export class CloudflareController {
 
     // ─── Cloudflare Tunnels ─────────────────────────────────────────────────
 
-    @Implement(appContract.providers.dns.cloudflare.listTunnels)
+    @Implement(providersContract.dns.cloudflare.listTunnels)
     listTunnels() {
-        return implement(appContract.providers.dns.cloudflare.listTunnels)
+        return implement(providersContract.dns.cloudflare.listTunnels)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.tunnelService.listTunnels(input.params.providerId);
             });
     }
 
-    @Implement(appContract.providers.dns.cloudflare.getTunnel)
+    @Implement(providersContract.dns.cloudflare.getTunnel)
     getTunnel() {
-        return implement(appContract.providers.dns.cloudflare.getTunnel)
+        return implement(providersContract.dns.cloudflare.getTunnel)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.tunnelService.getTunnel(input.params.providerId, input.params.id);
             });
     }
 
-    @Implement(appContract.providers.dns.cloudflare.createTunnel)
+    @Implement(providersContract.dns.cloudflare.createTunnel)
     createTunnel() {
-        return implement(appContract.providers.dns.cloudflare.createTunnel)
+        return implement(providersContract.dns.cloudflare.createTunnel)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.tunnelService.createTunnel(input.params.providerId, input.body);
             });
     }
 
-    @Implement(appContract.providers.dns.cloudflare.deleteTunnel)
+    @Implement(providersContract.dns.cloudflare.deleteTunnel)
     deleteTunnel() {
-        return implement(appContract.providers.dns.cloudflare.deleteTunnel)
+        return implement(providersContract.dns.cloudflare.deleteTunnel)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 // Resolve the bound hostname (if any) so the CNAME this tunnel
@@ -260,9 +260,9 @@ export class CloudflareController {
             });
     }
 
-    @Implement(appContract.providers.dns.cloudflare.getTunnelToken)
+    @Implement(providersContract.dns.cloudflare.getTunnelToken)
     getTunnelToken() {
-        return implement(appContract.providers.dns.cloudflare.getTunnelToken)
+        return implement(providersContract.dns.cloudflare.getTunnelToken)
             .use(requireAuth())
             .handler(async ({ input }) => {
                 return this.tunnelService.getTunnelToken(input.params.providerId, input.params.id);

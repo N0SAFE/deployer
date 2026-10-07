@@ -4,30 +4,25 @@
     "private": true,
     "type": "module",
     "main": "./dist/cjs/index.js",
-    "types": "./src/index.ts",
+    "types": "./dist/types/index.d.ts",
     "exports": {
         ".": {
-            "types": [
-                "./src/index.ts",
-                "./src/index.tsx"
-            ],
+            "types": "./dist/types/index.d.ts",
             "import": "./dist/esm/index.mjs",
             "require": "./dist/cjs/index.js"
         },
         "./*": {
-            "types": [
-                "./src/*.ts",
-                "./src/*.tsx"
-            ],
+            "types": "./dist/types/*.d.ts",
             "import": "./dist/esm/*.mjs",
             "require": "./dist/cjs/*.js"
         }
     },
     "scripts": {
         "type-check": "tsc --noEmit",
-        "build": "bun --bun ../../bin/pkg-build/index.ts",
-        "dev": "bun --bun ../../bin/pkg-build/index.ts --watch",
-        "clean": "rimraf dist"
+        "build": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js",
+        "dev": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js --watch",
+        "clean": "rimraf dist",
+        "build:types": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js --types"
     },
     "dependencies": {
         "@repo/type-guards": "*",

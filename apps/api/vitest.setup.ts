@@ -22,7 +22,12 @@ process.env.ENABLE_DEV_BOOTSTRAP = 'true';
 process.env.SKIP_MIGRATIONS = 'false';
 process.env.DISABLE_AUTO_SCAN = 'false';
 process.env.SETUP_DATABASE_URL = 'postgresql://test:test@localhost:5432/testdb';
-process.env.NODE_LOCAL_DB_PATH = process.env.NODE_LOCAL_DB_PATH ?? '/tmp/deployer-api-unit-local.db';
+// FORCED, not `??`-guarded — see the e2e setup file for the full reasoning.
+// The schema default is `/app/data/local.db` (the CONTAINER path), and anything
+// that parses the schema before this line writes it into `process.env`; a `??`
+// guard would then preserve it and the local SQLite factory would try to mkdir
+// a root-owned container directory.
+process.env.NODE_LOCAL_DB_PATH = '/tmp/deployer-api-unit-local.db';
 
 // Managed services — nested object fields require explicit env vars because
 // ConfigModule.forRoot({ validate }) → envSchema.parse(process.env) and
