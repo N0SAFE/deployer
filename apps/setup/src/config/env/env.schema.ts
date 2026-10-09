@@ -268,17 +268,33 @@ export const setupEnvSchema = z.object({
   // nothing — which passed the "do I have addresses?" guard and then failed the
   // schema's per-item `min(1)`.
 
+  // There is no advertise-address key: Swarm advertises, listens and carries its
+  // data path on this node's MESH address, which the node's mesh agent derives
+  // from its own WireGuard key (docs/edge-mesh-architecture.md).
+
+  /** Image of the per-node mesh agent this app starts before founding the swarm. */
+  MESH_AGENT_IMAGE: z.string().min(1).default("deployer-mesh-agent:latest"),
+  /** Where the agent's control socket is mounted in this container. */
+  MESH_AGENT_SOCKET: z.string().optional(),
+
   /**
-   * Address this node advertises for cluster control traffic.
+   * Whether the agent this app starts touches the KERNEL at all.
    *
-   * NOT a participation default, which is why it stays: it is read on EVERY
-   * boot by `SwarmBootstrapService.advertiseAddr()`, because `docker swarm init`
-   * refuses to infer one on a host with several candidates
-   * (`could not choose an IP address to advertise`). The wizard collects a value
-   * into `swarmConfig` too, but a FOUNDING node needs an address before that row
-   * exists.
+   * Setup is the FIRST process on a fresh node, so it is the one that starts the
+   * agent — which makes this the variable that decides whether onboarding a
+   * machine silently creates a host WireGuard interface on it.
+   *
+   *   kernel   founds a real mesh; needs NET_ADMIN and a WireGuard-capable kernel
+   *   observe  no interface is created; the stack still comes up, alone
+   *
+   * Defaults to `observe`, matching the API's schema, so the safe behaviour is
+   * what an unset variable gets. The dev-supervised profile overrides it the same
+   * way; a real deployment sets `kernel` explicitly.
    */
-  SWARM_ADVERTISE_ADDR: z.string().optional(),
+  MESH_AGENT_DATAPLANE: z
+    .enum(["kernel", "observe"])
+    .optional()
+    .transform((value) => value ?? "observe"),
 
   /**
    * Cap on the number of managers (the election quorum target).
@@ -288,10 +304,6 @@ export const setupEnvSchema = z.object({
    * come from here. `SwarmJoinGrantService` reads it when issuing a join grant.
    */
   SWARM_QUORUM_MAX: z.coerce.number().int().min(1).default(3),
-  /** Overlay IP peers dial when no explicit advertise address is set. */
-  MANAGED_WIREGUARD_IP: z.string().optional(),
-  /** This node's own public URL — the last-resort control-plane candidate. */
-  APP_URL: z.string().optional(),
 
   // ─── Election timings ─────────────────────────────────────────────────────
   // Setup does NOT run the election loop (the API does); the values are read

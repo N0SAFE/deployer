@@ -104,17 +104,19 @@
   --card-foreground: oklch(0.2050 0.0450 290.00);
   --popover: oklch(0.9650 0.0180 297.00);
   --popover-foreground: oklch(0.2050 0.0450 290.00);
-  --primary: oklch(0.5600 0.2250 304.00);
+  --primary: oklch(0.5300 0.2250 304.00);
   --primary-foreground: oklch(0.9750 0.0100 300.00);
   --secondary: oklch(0.8450 0.0380 293.00);
   --secondary-foreground: oklch(0.2650 0.0600 292.00);
   --muted: oklch(0.8250 0.0340 293.00);
-  --muted-foreground: oklch(0.4700 0.0450 292.00);
+  --muted-foreground: oklch(0.4300 0.0450 292.00);
   --accent: oklch(0.7700 0.0850 309.00);
   --accent-foreground: oklch(0.2850 0.0950 304.00);
-  --destructive: oklch(0.6200 0.2200 25.00);
+  --destructive: oklch(0.5500 0.2200 25.00);
   --destructive-foreground: oklch(0.9750 0.0100 300.00);
   --border: oklch(0.7000 0.0550 293.00);
+  /* Boundary of an interactive control (input, select, checkbox): WCAG 1.4.11 needs 3:1. */
+  --control-border: oklch(0.6000 0.0600 293.00);
   --input: oklch(0.8750 0.0300 294.00);
   --ring: oklch(0.5600 0.2250 304.00);
   --chart-1: oklch(0.5600 0.2250 304.00);
@@ -142,11 +144,11 @@
      a raw palette step, so "healthy" is the same green on every page and both
      themes stay legible. Lightness is tuned for TEXT on --background (≥4.5:1),
      so one token is safe as a dot, an icon, or a label colour. */
-  --status-live: oklch(0.5100 0.1300 152.00);
-  --status-pending: oklch(0.5500 0.1250 68.00);
+  --status-live: oklch(0.4800 0.1300 152.00);
+  --status-pending: oklch(0.4900 0.1150 68.00);
   --status-danger: oklch(0.5300 0.2000 22.00);
   --status-busy: oklch(0.5100 0.1450 252.00);
-  --status-idle: oklch(0.4700 0.0450 292.00);
+  --status-idle: oklch(0.4300 0.0450 292.00);
   --font-sans: Inter, system-ui, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: JetBrains Mono, monospace;
@@ -173,7 +175,7 @@
 .dark {
   --background: oklch(0.0680 0.0420 294.00);
   --foreground: oklch(0.9400 0.0200 298.00);
-  --card: oklch(0.0950 0.0500 294.00);
+  --card: oklch(0.1100 0.0500 294.00);
   --card-foreground: oklch(0.9300 0.0180 296.00);
   --popover: oklch(0.0750 0.0450 294.00);
   --popover-foreground: oklch(0.9400 0.0200 298.00);
@@ -182,12 +184,13 @@
   --secondary: oklch(0.1450 0.0500 294.00);
   --secondary-foreground: oklch(0.9150 0.0200 296.00);
   --muted: oklch(0.1250 0.0450 294.00);
-  --muted-foreground: oklch(0.7300 0.0340 296.00);
+  --muted-foreground: oklch(0.7500 0.0340 296.00);
   --accent: oklch(0.2050 0.1100 307.00);
   --accent-foreground: oklch(0.9200 0.0220 298.00);
   --destructive: oklch(0.6900 0.1800 26.00);
-  --destructive-foreground: oklch(0.9550 0.0140 298.00);
-  --border: oklch(0.1800 0.0450 294.00);
+  --destructive-foreground: oklch(0.1500 0.0300 26.00);
+  --border: oklch(0.2400 0.0450 294.00);
+  --control-border: oklch(0.5000 0.0500 294.00);
   --input: oklch(0.1200 0.0450 294.00);
   --ring: oklch(0.7050 0.1950 304.00);
   --chart-1: oklch(0.7050 0.1950 304.00);
@@ -213,9 +216,9 @@
   /* Status semantics — lightness raised for text on the dark background. */
   --status-live: oklch(0.7900 0.1450 156.00);
   --status-pending: oklch(0.8250 0.1350 82.00);
-  --status-danger: oklch(0.7250 0.1550 20.00);
+  --status-danger: oklch(0.7700 0.1450 20.00);
   --status-busy: oklch(0.7700 0.1250 246.00);
-  --status-idle: oklch(0.7300 0.0340 296.00);
+  --status-idle: oklch(0.7500 0.0340 296.00);
   --font-sans: Inter, system-ui, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: JetBrains Mono, monospace;
@@ -235,6 +238,39 @@
   --shadow-lg: 0px 18px 34px -12px hsl(292 72% 2% / 0.75);
   --shadow-xl: 0px 26px 42px -14px hsl(292 72% 2% / 0.82);
   --shadow-2xl: 0px 1px 4px 0px hsl(0 0 0 / 1.25);
+}
+
+/* ── Semantic status roles (fg / bg / border) ────────────────────────────
+   Derived from the --status-* tokens, so they follow the active theme. Use as
+   `text-success bg-success-bg border-success-border`. */
+:root,
+.dark {
+  --success: var(--status-live);
+  --success-bg: color-mix(in oklch, var(--status-live) 12%, var(--card));
+  --success-border: color-mix(in oklch, var(--status-live) 40%, var(--card));
+  --warning: var(--status-pending);
+  --warning-bg: color-mix(in oklch, var(--status-pending) 12%, var(--card));
+  --warning-border: color-mix(in oklch, var(--status-pending) 40%, var(--card));
+  --danger: var(--status-danger);
+  --danger-bg: color-mix(in oklch, var(--status-danger) 12%, var(--card));
+  --danger-border: color-mix(in oklch, var(--status-danger) 40%, var(--card));
+  --info: var(--status-busy);
+  --info-bg: color-mix(in oklch, var(--status-busy) 12%, var(--card));
+  --info-border: color-mix(in oklch, var(--status-busy) 40%, var(--card));
+  --neutral: var(--status-idle);
+  --neutral-bg: color-mix(in oklch, var(--status-idle) 12%, var(--card));
+  --neutral-border: color-mix(in oklch, var(--status-idle) 40%, var(--card));
+  /* Type scale: page title 24, section title 18, body 14, small 13, label 12, mono 13.
+     Nothing in the app should render below 12px. */
+  --text-page-title: 1.5rem;
+  --text-section-title: 1.125rem;
+  --text-body: 0.875rem;
+  --text-small: 0.8125rem;
+  --text-label: 0.75rem;
+  --text-mono: 0.8125rem;
+  /* Spacing rhythm: 4px base, 8px steps (Tailwind's --spacing). Table density: */
+  --table-row-height: 2.5rem;
+  --table-head-height: 2.25rem;
 }
 
 @theme inline {
@@ -277,6 +313,24 @@
   --color-leader-foreground: var(--leader-foreground);
   --color-fail: var(--fail);
   --color-fail-foreground: var(--fail-foreground);
+
+  --color-control-border: var(--control-border);
+
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-success-border: var(--success-border);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-border: var(--warning-border);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-border: var(--danger-border);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+  --color-info-border: var(--info-border);
+  --color-neutral: var(--neutral);
+  --color-neutral-bg: var(--neutral-bg);
+  --color-neutral-border: var(--neutral-border);
 
   --color-status-live: var(--status-live);
   --color-status-pending: var(--status-pending);
@@ -323,6 +377,66 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     }
+}
+
+@utility tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+@utility text-page-title {
+  font-size: var(--text-page-title);
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+@utility text-section-title {
+  font-size: var(--text-section-title);
+  line-height: 1.35;
+  font-weight: 600;
+}
+@utility text-body {
+  font-size: var(--text-body);
+  line-height: 1.5;
+}
+@utility text-small {
+  font-size: var(--text-small);
+  line-height: 1.45;
+}
+@utility text-label {
+  font-size: var(--text-label);
+  line-height: 1.35;
+  font-weight: 500;
+}
+@utility text-mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-mono);
+  line-height: 1.45;
+}
+
+/* Reduced motion: keep state changes, drop movement. Spinners keep rotating
+   (they are the only signal that work is in progress) but slower; decorative
+   pulses and entrance animations stop. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+  .animate-pulse,
+  .animate-bounce,
+  .animate-ping {
+    animation: none !important;
+  }
+  [data-state='open'],
+  [data-state='closed'],
+  [data-open],
+  [data-closed] {
+    animation-duration: 0.01ms !important;
+  }
+  .animate-spin {
+    animation-duration: 2s !important;
+  }
 }
 
 @layer components {

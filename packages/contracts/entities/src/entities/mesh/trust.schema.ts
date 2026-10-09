@@ -14,11 +14,24 @@ export const meshJoinGrantIssueCommandInputSchema = meshJoinGrantIssueInputSchem
 });
 export type MeshJoinGrantIssueCommandInput = z.infer<typeof meshJoinGrantIssueCommandInputSchema>;
 
+/**
+ * The peer-equal network the joiner must enter first (see
+ * docs/edge-mesh-architecture.md). The joiner needs both values to SIGN its join
+ * request: the cluster id it asks to join and the CIDR its address is derived in.
+ * Null when the issuing node has no mesh agent in a cluster yet.
+ */
+export const meshNetworkClusterSchema = z.object({
+    clusterId: z.string().min(1),
+    cidr: z.string().min(1),
+});
+export type MeshNetworkCluster = z.infer<typeof meshNetworkClusterSchema>;
+
 export const meshJoinGrantIssueResultSchema = z.object({
     grantId: z.uuid(),
     grantToken: z.string().min(1),
     expiresAt: z.string(),
     status: z.enum(["issued"]),
+    meshNetwork: meshNetworkClusterSchema.nullable().default(null),
 });
 export type MeshJoinGrantIssueResult = z.infer<typeof meshJoinGrantIssueResultSchema>;
 
@@ -37,6 +50,12 @@ export const meshJoinGrantConsumeInputSchema = z.object({
      * sizing and the master-weight score justify another manager.
      */
     requestedSwarmPolicy: z.enum(["auto", "manager", "worker"]).optional(),
+    /**
+     * The joiner's self-signed mesh member entry. Opaque here on purpose: the
+     * ADMITTING node's mesh agent verifies it (signature, key-derived id and
+     * address, no collision) — the API only carries it.
+     */
+    meshJoinRequest: z.json().optional(),
 });
 export type MeshJoinGrantConsumeInput = z.infer<typeof meshJoinGrantConsumeInputSchema>;
 
@@ -119,6 +138,12 @@ export const meshJoinGrantConsumeResultSchema = z.object({
      * then defers its own convergence instead of founding a rival cluster).
      */
     swarmGrant: meshSwarmJoinGrantSchema.nullable().default(null),
+    /**
+     * The mesh roster that now admits the joiner (opaque; the joiner's agent
+     * verifies it admits THIS identity before adopting it). Null when no join
+     * request was sent or the admitting node has no mesh.
+     */
+    meshAdmission: z.object({ roster: z.json() }).nullable().default(null),
 });
 export type MeshJoinGrantConsumeResult = z.infer<typeof meshJoinGrantConsumeResultSchema>;
 

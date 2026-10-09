@@ -11,6 +11,7 @@ import { statusBadgeVariant } from '../../../_utils/helpers'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
+import { PageHeader } from '@/components/dashboard'
 import { Switch } from '@repo/ui/components/shadcn/switch'
 import { ChevronRight, Siren, Home } from 'lucide-react'
 import { toast } from 'sonner'
@@ -31,8 +32,8 @@ export function ServiceDetailLayoutInner({ children }: { children: ReactNode }) 
   const serviceId = params.serviceId
   const segment = useSelectedLayoutSegment()
 
-  const { data: projectData, isLoading: projectLoading } = useProject(projectId)
-  const { data: serviceData, isLoading: serviceLoading } = useService(serviceId)
+  const { data: projectData, isLoading: projectLoading, error: projectError, refetch: refetchProject } = useProject(projectId)
+  const { data: serviceData, isLoading: serviceLoading, error: serviceError, refetch: refetchService } = useService(serviceId)
   const toggleActive = useToggleServiceActive()
 
   // Breadcrumb: the service's parent (if any) — sub-services are first-class
@@ -44,7 +45,7 @@ export function ServiceDetailLayoutInner({ children }: { children: ReactNode }) 
   // Active section: 'configuration' wins for all configuration sub-segments
   // (general/provider/network/environment).
   const active: ServiceSection =
-    segment === null || segment === undefined || segment === ''
+    segment === null || segment === ''
       ? 'overview'
       : segment === 'configuration'
         ? 'configuration'
@@ -54,6 +55,29 @@ export function ServiceDetailLayoutInner({ children }: { children: ReactNode }) 
 
   if (isLoading) {
     return <ServiceDetailSkeleton />
+  }
+
+  const loadError = projectError ?? serviceError
+  if (loadError) {
+    return (
+      <div className="flex items-center justify-center p-12">
+        <Alert variant="destructive" className="max-w-md">
+          <Siren className="size-4" />
+          <AlertTitle>Could not load this service</AlertTitle>
+          <AlertDescription>
+            {isDefinedORPCError(loadError) ? getErrorMessage(loadError, 'An unexpected error occurred.') : 'An unexpected error occurred.'}
+          </AlertDescription>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={() => { void refetchProject(); void refetchService() }}
+          >
+            Retry
+          </Button>
+        </Alert>
+      </div>
+    )
   }
 
   if (!projectData || !serviceData) {
@@ -138,32 +162,37 @@ export function ServiceDetailLayoutInner({ children }: { children: ReactNode }) 
             <span className="max-w-48 truncate font-medium text-foreground">{serviceName}</span>
           </nav>
           <div className={isSubService ? 'rounded-xl border border-amber-500/30 bg-amber-500/6 px-3 py-2' : undefined}>
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-semibold tracking-tight">{serviceName}</h1>
-              {isSubService && (
-                <Badge variant="secondary" className="gap-1 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400">
-                  <span className="size-1.5 rounded-full bg-amber-500" />
-                  Sub-service
-                </Badge>
-              )}
-              <Badge variant={statusBadgeVariant(serviceStatus) as 'default' | 'secondary' | 'destructive' | 'outline' | 'ghost'} className="capitalize">
-                {serviceStatus}
-              </Badge>
-              <Badge variant="outline" className="capitalize">{runnerType}</Badge>
-              <Badge variant={isActive ? 'secondary' : 'destructive'}>{isActive ? 'Active' : 'Inactive'}</Badge>
-            </div>
+            <PageHeader
+              eyebrow="Service"
+              title={serviceName}
+              badge={
+                <>
+                  {isSubService && (
+                    <Badge variant="secondary" className="gap-1 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400">
+                      <span className="size-1.5 rounded-full bg-amber-500" />
+                      Sub-service
+                    </Badge>
+                  )}
+                  <Badge variant={statusBadgeVariant(serviceStatus)} className="capitalize">
+                    {serviceStatus}
+                  </Badge>
+                  <Badge variant="outline" className="capitalize">{runnerType}</Badge>
+                  <Badge variant={isActive ? 'secondary' : 'destructive'}>{isActive ? 'Active' : 'Inactive'}</Badge>
+                </>
+              }
+              description={service.description ?? undefined}
+            />
             {isSubService ? (
               <p className="mt-1 text-xs text-amber-700/80 dark:text-amber-400/80">
                 Inherits configuration from its parent service unless overridden here.
               </p>
             ) : null}
-            {service.description ? <p className="mt-1 text-sm text-muted-foreground">{service.description}</p> : null}
           </div>
         </div>
 
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
-          Active
-          <Switch checked={isActive} onCheckedChange={() => { void handleToggleActive() }} disabled={toggleActive.isPending} />
+          {isActive ? 'Switched on' : 'Switched off'}
+          <Switch aria-label="Switch this service on or off" checked={isActive} onCheckedChange={() => { void handleToggleActive() }} disabled={toggleActive.isPending} />
         </label>
       </div>
 

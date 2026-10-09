@@ -31,7 +31,7 @@ export function DockerFlowTabGroup<T extends string>({
             <button
               type="button"
               className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === tab.value ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-              onClick={() => onTabChange(tab.value)}
+              onClick={() => { onTabChange(tab.value); }}
             >
               <Icon className="h-4 w-4" />
               {tab.label}

@@ -1,8 +1,12 @@
 import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import {
-    ingressProviderSchema,
-    ingressProviderTraits,
-    isExternallyReachable,
+    edgeOptionsSchema,
+    edgeProviderDescriptorSchema,
+    edgeProviderIdSchema,
+    edgeStatusSchema,
+    ingressLanesSchema,
+    joinEntryPointSummarySchema,
+    routeVisibilitySchema,
 } from "@repo/contracts-entities/entities/ingress/index";
 import z from "zod/v4";
 
@@ -56,21 +60,6 @@ const publicIpOutputSchema = z.object({
 // ─── Node Network Config (public IP + tunnel) ──────────────────────────────
 
 /**
- * Live health of the stack's tunnel, as Cloudflare reports it.
- *
- * Health is a property of the STACK tunnel, so this no longer takes a nodeId:
- * every node's connectors share one tunnel, and its connection count is the
- * platform's, not a node's.
- */
-export const nodeTunnelHealthSchema = z.object({
-    status: z.enum(["healthy", "degraded", "down", "inactive", "unknown"]).nullable(),
-    checkedAt: z.string().nullable(),
-    connections: z.number().int().min(0),
-    tunnelId: z.string().nullable(),
-    error: z.string().nullable(),
-});
-
-/**
  * Per-node network config. `nodeId` links to the mesh node
  * (cluster_nodes.nodeId / node_config.nodeId). Stored in the global DB.
  */
@@ -101,96 +90,155 @@ const nodeNetworkGateSchema = z.object({
 
 });
 
-// ─── Stack edge (provider + the ONE tunnel the whole stack shares) ─────────
+// ─── Ingress lanes (local · private · public) and the mesh under them ──────
 
 /**
- * How a client reaches the stack's ingress.
- *
- * Re-exported from the canonical entity rather than re-declared: the API, the
- * supervisors and the web app must agree on the four providers and on what each
- * one requires, and a second definition here is a second chance to drift.
- *
- *   `local`     — Traefik binds loopback only; reachable from this machine.
- *   `wireguard` — Traefik binds its overlay address; reachable by mesh peers.
- *   `tunnel`    — a connector dials out; the node accepts no inbound traffic.
- *   `direct`    — DNS points at the node; Traefik binds :80/:443 publicly.
+ * The public edge: every edge provider this API can run the public lane on (the
+ * catalog the UI renders its picker and forms from), and the active one's status.
  */
-export const stackEdgeModeSchema = ingressProviderSchema;
-
-/**
- * How exposed the stack currently is, as plain answers rather than as a mode
- * name the client has to interpret.
- *
- * Derived server-side from `mode`, so the UI never re-implements the rules and
- * cannot disagree with the supervisor about what is bound. `bindsNonLoopbackPort`
- * is deliberately separate from "publishes a port": `local` publishes a port but
- * only on loopback, which is not exposure.
- */
-export const stackEdgeExposureSchema = z.object({
-    /** True only for the providers reachable from another machine. */
-    externallyReachable: z.boolean(),
-    /** True when the ingress binds a NON-loopback host port. */
-    bindsNonLoopbackPort: z.boolean(),
-    /** True when the machine needs a globally routable address. */
-    requiresPublicIp: z.boolean(),
-    /** True when inbound ports must be open on the public interface. */
-    requiresOpenInboundPorts: z.boolean(),
+export const publicEdgeViewSchema = z.object({
+    providers: z.array(edgeProviderDescriptorSchema),
+    /** Null when there is no public lane. */
+    active: z
+        .object({
+            /** The provider the lane names — reported even when it is not registered here. */
+            providerId: z.string(),
+            provider: edgeProviderDescriptorSchema.nullable(),
+            status: edgeStatusSchema,
+        })
+        .nullable(),
 });
 
-/**
- * The stack's single tunnel.
- *
- * One per STACK, not one per node: Cloudflare allows up to 25 connectors on a
- * tunnel and balances across them, so HA comes from connector replicas. The
- * token is deliberately absent from this schema — it is a credential and never
- * travels back to a client.
- */
-export const stackTunnelSchema = z.object({
-    /** Cloudflare tunnel id, so it is reused/deleted rather than duplicated. */
-    tunnelId: z.string().nullable(),
-    /** DNS provider app owning the tunnel (`dns_providers.id`). */
-    providerId: z.string().nullable(),
-    /** Wildcard the tunnel routes (e.g. `*.example.com`), when set. */
-    wildcard: z.string().nullable(),
-    /** True when a run token is stored, i.e. a connector CAN be started. */
-    provisioned: z.boolean(),
+/** One mesh member as the Network pages show it. */
+export const meshMemberViewSchema = z.object({
+    memberId: z.string(),
+    name: z.string(),
+    kind: z.enum(["node", "operator"]),
+    address: z.string(),
+    state: z.enum(["active", "left"]),
+    /** True for the member answering this request (the node the API runs on). */
+    self: z.boolean(),
+    /** Facts the member published about itself (swarm node id, platform node id…). */
+    labels: z.record(z.string(), z.string()),
+    /** Addresses peers may try to reach it on (LAN, declared, STUN-reflexive). */
+    endpoints: z.array(z.object({ kind: z.string(), address: z.string() })),
+    /** `self` for the node answering; `direct` when a WireGuard handshake is fresh. */
+    link: z.object({
+        path: z.enum(["self", "direct", "trying", "relay", "passive"]),
+        endpoint: z.string().nullable(),
+        latestHandshakeAt: z.string().nullable(),
+    }),
 });
 
-export const stackEdgeSchema = z.object({
-    /** Effective provider (persisted operator choice, else the install default). */
-    mode: stackEdgeModeSchema,
-    /** The stack's tunnel. All-null fields mean none is provisioned yet. */
-    tunnel: stackTunnelSchema,
-    /**
-     * Whether the ingress publishes a host port under the CURRENT provider.
-     *
-     * Kept for the supervisor's port logic, but NOT the exposure test: `local`
-     * binds a port too. Use `exposure` for anything user-facing.
-     */
-    publishesEntryPort: z.boolean(),
-    /** How exposed this stack is right now, derived from `mode`. */
-    exposure: stackEdgeExposureSchema,
-    /**
-     * The URL a client on this machine opens to reach the console.
-     *
-     * Always present, in every provider — it is the loopback lane, which works
-     * whether or not anything else is configured. This is what a fresh install
-     * shows the operator.
-     */
-    localUrl: z.string(),
-    /** Cluster-wide public hostname every app shares, when known. */
-    publicHostname: z.string().nullable(),
+/** One node door (loopback, LAN or mesh-address listener in front of Traefik). */
+export const meshDoorViewSchema = z.object({
+    lane: z.enum(["local", "private", "lan"]),
+    container: z.string(),
+    bindAddress: z.string(),
+    port: z.number().int(),
+    state: z.enum(["running", "absent", "failed"]),
+    detail: z.string().nullable(),
 });
 
-const setStackEdgeModeInputSchema = z.object({
-    mode: stackEdgeModeSchema,
+export const ingressStateSchema = z.object({
+    lanes: ingressLanesSchema,
+    /** Plain answers derived server-side from the lanes. */
+    exposure: z.object({
+        reachableOffMachine: z.boolean(),
+        reachableFromInternet: z.boolean(),
+        opensInboundPorts: z.boolean(),
+        usesProviderAccount: z.boolean(),
+        reachableOnLan: z.boolean(),
+    }),
+    /** The wildcard base of each lane: apps answer on `<label>.<domain>` (null when the lane is off). */
+    domains: z.object({
+        local: z.string(),
+        private: z.string().nullable(),
+        public: z.string().nullable(),
+    }),
+    /** Where the console answers on each lane (null when the lane is off or the console is not on it). */
+    consoleUrls: z.object({
+        local: z.string(),
+        private: z.string().nullable(),
+        public: z.string().nullable(),
+    }),
+    edge: publicEdgeViewSchema,
+    /** DNS records the lanes need, as last converged (`manual` = no provider owns the zone). */
+    dns: z.array(
+        z.object({
+            lane: z.enum(["public", "private"]),
+            name: z.string(),
+            type: z.enum(["A", "CNAME"]),
+            contents: z.array(z.string()),
+            status: z.enum(["synced", "manual", "error"]),
+            detail: z.string().nullable(),
+        }),
+    ),
+    /** The mesh as seen by the agent on the node serving this request. */
+    mesh: z.object({
+        available: z.boolean(),
+        clusterId: z.string().nullable(),
+        cidr: z.string().nullable(),
+        address: z.string().nullable(),
+        listenPort: z.number().int().nullable(),
+        interfaceUp: z.boolean(),
+        members: z.array(meshMemberViewSchema),
+        doors: z.array(meshDoorViewSchema),
+        lastGossipAt: z.string().nullable(),
+        lastError: z.string().nullable(),
+    }),
     /**
-     * Required when switching to `tunnel` without a tunnel yet — the provider
-     * app the tunnel is created on.
+     * How a node that is NOT a member yet reaches one. Separate from `exposure`:
+     * exposure describes who can reach the RUNNING stack, this describes the
+     * routes that exist to JOIN it at all.
      */
-    providerId: z.string().min(1).optional(),
-    /** Wildcard to route; defaults to the configured DEPLOYER_TUNNEL_WILDCARD. */
-    wildcard: z.string().min(1).optional(),
+    entryPoints: joinEntryPointSummarySchema,
+});
+
+export type IngressState = z.output<typeof ingressStateSchema>;
+
+/** One member as the Network pages show it. */
+export type MeshMemberView = z.output<typeof meshMemberViewSchema>;
+
+/** One node door as the Network pages show it. */
+export type MeshDoorView = z.output<typeof meshDoorViewSchema>;
+
+export type PublicEdgeView = z.output<typeof publicEdgeViewSchema>;
+
+export const updateIngressInputSchema = z.object({
+    entryPort: z.number().int().min(1).max(65_535).optional(),
+    private: z
+        .object({
+            enabled: z.boolean(),
+            domain: z.string().min(3).max(253).optional(),
+            /** Also bind the private lane on the node's LAN address (same-network joins). */
+            exposeOnLan: z.boolean().optional(),
+        })
+        .optional(),
+    /**
+     * Null turns the public lane off (and tears the previous edge down). Otherwise
+     * `provider` names a registered edge provider and `options` are its options, as
+     * its descriptor lists them. A provider that opens inbound ports requires
+     * `acknowledgedInboundPorts: true`.
+     */
+    public: z
+        .object({
+            provider: edgeProviderIdSchema,
+            domain: z.string().min(3).max(253),
+            acknowledgedInboundPorts: z.boolean().optional(),
+            options: edgeOptionsSchema.optional(),
+        })
+        .nullable()
+        .optional(),
+    consoleVisibility: routeVisibilitySchema.optional(),
+});
+
+export type UpdateIngressInput = z.output<typeof updateIngressInputSchema>;
+
+const revokeMeshMemberInputSchema = z.object({
+    memberId: z.string().min(1),
+    /** Why — recorded in the signed revocation every member keeps. */
+    reason: z.string().min(1).max(512),
 });
 
 // ─── Contract Builders ────────────────────────────────────────────────────
@@ -201,7 +249,7 @@ const domainCheckOps = standard.zod(domainReachabilityResultSchema, "domainReach
 const publicIpOps = standard.zod(publicIpOutputSchema, "publicIp");
 const nodeNetworkOps = standard.zod(nodeNetworkConfigSchema, "nodeNetwork");
 const nodeGateOps = standard.zod(nodeNetworkGateSchema, "nodeNetworkGate");
-const stackEdgeOps = standard.zod(stackEdgeSchema, "stackEdge");
+const ingressOps = standard.zod(ingressStateSchema, "ingress");
 
 // ─── Contracts ────────────────────────────────────────────────────────────
 
@@ -273,14 +321,6 @@ export const listNodeNetworkConfigsContract = nodeNetworkOps
     .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
-export const getTunnelHealthContract = nodeNetworkOps
-    .read()
-    .path("/reachability/tunnel-health")
-    .input(z.object({}))
-    .output(nodeTunnelHealthSchema)
-    .errors((e) => [...standardDomainErrorContracts(e)])
-    .build();
-
 export const checkDomainGateContract = nodeGateOps
     .read()
     .path("/reachability/domain-gate")
@@ -329,49 +369,58 @@ export const watchPublicAccessPointContract = accessPointOps
     .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
-// ─── Stack edge contracts ─────────────────────────────────────────────────
+// ─── Ingress lane contracts ───────────────────────────────────────────────
 
-/** Read the stack's edge: mode, tunnel, and whether the entry port is published. */
-export const getStackEdgeContract = stackEdgeOps
+/** Read the stack's lanes, exposure, console URLs, tunnel and mesh status. */
+export const getIngressContract = ingressOps
     .read()
-    .path("/reachability/stack-edge")
+    .path("/reachability/ingress")
     .input(z.object({}))
-    .output(stackEdgeSchema)
+    .output(ingressStateSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 /**
- * Switch the stack's edge mode.
+ * Change the lanes.
  *
- * POST, not PUT: the edge is a SINGLETON resource (one per stack), and the
- * standard `update()` builder generates a `:id` path param — an id that does
- * not exist here. `create()` addresses the collection instead.
- *
- * Switching TO `tunnel` provisions the stack's tunnel when none exists (creating
- * it on `providerId` and storing its run token), so the connector supervisor has
- * something to start. Switching to `direct` leaves the tunnel in place but stops
- * using it — deleting it is a separate, explicit call so a mode flip is cheap to
- * reverse.
+ * POST, not PUT: the lanes are a SINGLETON (one per stack), and the standard
+ * `update()` builder generates an `:id` path param that does not exist here.
+ * Only the fields sent change; the rest keep their current value.
  */
-export const setStackEdgeModeContract = stackEdgeOps
+export const updateIngressContract = ingressOps
     .create()
-    .path("/reachability/stack-edge/mode")
-    .input((b) => b.body(setStackEdgeModeInputSchema))
-    .output(stackEdgeSchema)
+    .path("/reachability/ingress")
+    .input((b) => b.body(updateIngressInputSchema))
+    .output(ingressStateSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
 /**
- * Delete the stack's tunnel on its provider and forget it locally.
+ * Tear the public edge down: delete what its provider created (a tunnel, its
+ * routing), remove its DNS records, and turn the public lane off.
  *
- * Destructive on the Cloudflare side (the tunnel and its routing rules are
- * removed), which is why it is not folded into the mode switch.
+ * Destructive on the provider side, which is why switching providers through
+ * `updateIngress` is the everyday path and this is the explicit "remove it all".
  */
-export const clearStackEdgeTunnelContract = stackEdgeOps
+export const teardownPublicEdgeContract = ingressOps
     .delete()
-    .path("/reachability/stack-edge/tunnel")
+    .path("/reachability/ingress/public-edge")
     .input(z.object({}))
-    .output(stackEdgeSchema)
+    .output(ingressStateSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .build();
+
+/**
+ * Revoke a mesh member (a dead or retired node, a lost operator laptop).
+ *
+ * Every member drops it on the next gossip round; its WireGuard key stops being
+ * accepted anywhere. It cannot re-join without a new admission.
+ */
+export const revokeMeshMemberContract = ingressOps
+    .create()
+    .path("/reachability/mesh/revocations")
+    .input((b) => b.body(revokeMeshMemberInputSchema))
+    .output(ingressStateSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
@@ -384,13 +433,13 @@ export const reachabilityContract = {
     getNodeNetworkConfig: getNodeNetworkConfigContract,
     updateNodeNetworkConfig: updateNodeNetworkConfigContract,
     listNodeNetworkConfigs: listNodeNetworkConfigsContract,
-    getTunnelHealth: getTunnelHealthContract,
     checkDomainGate: checkDomainGateContract,
     getPublicAccessPoint: getPublicAccessPointContract,
     watchPublicAccessPoint: watchPublicAccessPointContract,
-    getStackEdge: getStackEdgeContract,
-    setStackEdgeMode: setStackEdgeModeContract,
-    clearStackEdgeTunnel: clearStackEdgeTunnelContract,
+    getIngress: getIngressContract,
+    updateIngress: updateIngressContract,
+    teardownPublicEdge: teardownPublicEdgeContract,
+    revokeMeshMember: revokeMeshMemberContract,
 };
 
 export type ReachabilityContract = typeof reachabilityContract;

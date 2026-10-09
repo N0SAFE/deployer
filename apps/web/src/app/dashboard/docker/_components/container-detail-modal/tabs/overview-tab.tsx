@@ -45,12 +45,12 @@ interface DockerContainerOverviewTabProps {
     rxTotal: number
     txTotal: number
   }
-  metricChartData: Array<{
+  metricChartData: {
     tick: string
     index: number
     cpu: number
     memory: number
-  }>
+  }[]
 }
 
 export function DockerContainerOverviewTab({

@@ -13,6 +13,9 @@
  *     dns/           DNS providers (cloudflare, route53, ...)
  *       shared/      dns-provider.interface.ts + registry + controllers/dns-providers.controller.ts (generic CRUD)
  *       cloudflare/  controllers/cloudflare.controller.ts + services/*
+ *     edge/          EDGE providers that need an account (the public lane's plugins)
+ *       cloudflare-tunnel/  registers itself into the core EdgeProviderRegistry
+ *                           (the account-free `direct` edge is built into core/modules/edge)
  */
 import { Module } from "@nestjs/common";
 import { GlobalDatabaseModule } from "@/core/modules/database/global/global-database.module";
@@ -35,6 +38,9 @@ import { DnsProvidersRepository } from "./dns/shared/repositories/dns-providers.
 import { CloudflareAppService } from "./dns/cloudflare/services/cloudflare-app.service";
 import { CloudflareTunnelService } from "./dns/cloudflare/services/cloudflare-tunnel.service";
 import { CloudflareDnsProviderService } from "./dns/cloudflare/services/cloudflare-dns-provider.service";
+import { CloudflareTunnelEdgeProvider } from "./edge/cloudflare-tunnel/cloudflare-tunnel.edge-provider";
+import { CoreEdgeModule } from "@/core/modules/edge/edge.module";
+import { EnvModule } from "@/config/env/env.module";
 import { GitHubAppsController } from "./code/github/controllers/github-account.controller";
 import { GitlabAppsController } from "./code/gitlab/controllers/gitlab-account.controller";
 import { GithubWebhooksController } from "./code/github/controllers/github.webhooks.controller";
@@ -62,6 +68,8 @@ import { PreviewLifecycleEventService } from "./code/github/events/preview-lifec
         ConfigurationCoreModule,
         EventsModule,
         TraefikCoreModule,
+        CoreEdgeModule,
+        EnvModule,
     ],
     controllers: [
         GitHubAppsController,
@@ -103,6 +111,8 @@ import { PreviewLifecycleEventService } from "./code/github/events/preview-lifec
                 new DnsProviderRegistryService([cloudflare]),
             inject: [CloudflareDnsProviderService],
         },
+        // Edge providers — register themselves into the core EdgeProviderRegistry
+        CloudflareTunnelEdgeProvider,
         // GitHub webhook / preview stack
         GithubAppsRepository,
         GitlabAppsRepository,

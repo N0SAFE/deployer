@@ -1,7 +1,7 @@
 'use client'
 
 import { isDefinedORPCError, getErrorMessage } from "@/lib/orpc/typed-errors";
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Input } from '@repo/ui/components/shadcn/input'
@@ -34,7 +34,7 @@ const addressSchema = z.object({ publicAddress: z.string().optional() })
  * A node's OWN network config.
  *
  * No tunnel field: the tunnel belongs to the STACK (one tunnel serves every
- * node), configured in Edge & Ingress. This card answers only "what is this
+ * node), configured in Network → Ingress & edge. This card answers only "what is this
  * node's address, and is it reachable?"
  */
 interface NodeNetworkView {
@@ -50,13 +50,13 @@ export function NodeNetworkConfig() {
   const { state: meshState } = useMeshSseState()
   const { data: gate } = useCheckDomainGate()
 
-  const currentNodeId = meshState?.localNode?.nodeId ?? ''
-  const allConfigs = (allConfigsData?.configs ?? []) as NodeNetworkView[]
+  const currentNodeId = meshState?.localNode.nodeId ?? ''
+  const allConfigs = useMemo<NodeNetworkView[]>(() => allConfigsData?.configs ?? [], [allConfigsData])
 
   // Node options: every cluster node (from the fleet) ∪ configured nodes.
   const nodeOptions = useMemo(() => {
     const map = new Map<string, string>()
-    for (const s of (fleetData?.items ?? []) as Array<{ nodeId: string; displayName: string | null }>) {
+    for (const s of fleetData?.items ?? []) {
       if (s.nodeId) map.set(s.nodeId, s.displayName ?? s.nodeId)
     }
     for (const c of allConfigs) {
@@ -65,20 +65,18 @@ export function NodeNetworkConfig() {
     return [...map.entries()].map(([nodeId, label]) => ({ nodeId, label }))
   }, [fleetData, allConfigs])
 
-  const [selectedNodeId, setSelectedNodeId] = useState<string>(currentNodeId)
-  useEffect(() => {
-    if (currentNodeId) setSelectedNodeId(currentNodeId)
-  }, [currentNodeId])
+  // Follows this node until the operator picks another one.
+  const [chosenNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const selectedNodeId = chosenNodeId ?? currentNodeId
 
   const { data: nodeConfigData } = useNodeNetworkConfig(selectedNodeId || undefined)
-  const config = nodeConfigData as NodeNetworkView | undefined
+  const config: NodeNetworkView | undefined = nodeConfigData
   const updateConfig = useUpdateNodeNetworkConfig()
 
-  const [addressInput, setAddressInput] = useState('')
-
-  useEffect(() => {
-    setAddressInput(config?.publicAddress ?? '')
-  }, [selectedNodeId, config?.publicAddress])
+  // An edit is kept per node; with none, the input shows the saved address.
+  const [edit, setEdit] = useState<{ nodeId: string; value: string } | null>(null)
+  const addressInput = edit?.nodeId === selectedNodeId ? edit.value : (config?.publicAddress ?? '')
+  const setAddressInput = (value: string) => { setEdit({ nodeId: selectedNodeId, value }) }
 
   // LIVE public access point (SSE) — always the latest for the current node.
   const accessPoint = usePublicAccessPointLive()
@@ -87,7 +85,8 @@ export function NodeNetworkConfig() {
   const saveAddress = async () => {
     const parsed = addressSchema.safeParse({ publicAddress: addressInput })
     if (!parsed.success) return
-    const value = parsed.data.publicAddress?.trim() || null
+    const trimmed = parsed.data.publicAddress?.trim()
+    const value = trimmed === undefined || trimmed === '' ? null : trimmed
     try {
       if (value) toast.info('Verifying reachability…', { description: `Probing ${value} on this node's health and mesh endpoints.` })
       await updateConfig.mutateAsync({ nodeId: selectedNodeId, publicAddress: value })
@@ -97,12 +96,7 @@ export function NodeNetworkConfig() {
     }
   }
 
-  const gateInfo = gate as {
-    allowed: boolean
-    reason: string | null
-    publicAddress: string | null
-    addressKind: 'ip' | 'hostname' | null
-  } | undefined
+  const gateInfo = gate
 
   const selectedLabel = nodeOptions.find((n) => n.nodeId === selectedNodeId)?.label ?? selectedNodeId
 
@@ -115,8 +109,9 @@ export function NodeNetworkConfig() {
         </div>
         <CardDescription>
           Per-node globally reachable address. Each node keeps its own config in the global DB.
-          How the internet reaches this stack (direct DNS or a Cloudflare tunnel) is a STACK
-          setting — see <span className="font-medium">Edge &amp; Ingress</span>.
+          It is what an inbound edge (Direct) points the public domain at; a tunnel edge needs none.
+          How the internet reaches the stack is a STACK setting — see{' '}
+          <span className="font-medium">Network → Ingress &amp; edge</span>.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -158,7 +153,7 @@ export function NodeNetworkConfig() {
           <div className="flex items-center gap-2">
             {live?.reachable === true && (
               <Badge variant="default" className="gap-1.5">
-                <Globe className="size-3" /> Reachable{live.latencyMs != null ? ` · ${live.latencyMs}ms` : ''}
+                <Globe className="size-3" /> Reachable{live.latencyMs != null ? ` · ${String(live.latencyMs)}ms` : ''}
               </Badge>
             )}
             {live?.reachable === false && (
@@ -205,9 +200,9 @@ export function NodeNetworkConfig() {
               className="font-mono flex-1"
               placeholder="203.0.113.10 or node.example.com"
               value={addressInput}
-              onChange={(e) => setAddressInput(e.target.value)}
+              onChange={(e) => { setAddressInput(e.target.value) }}
             />
-            <Button size="sm" onClick={saveAddress} disabled={updateConfig.isPending}>
+            <Button size="sm" onClick={() => void saveAddress()} disabled={updateConfig.isPending}>
               <Save className="mr-1 size-4" /> {updateConfig.isPending ? 'Saving…' : 'Save'}
             </Button>
           </div>

@@ -73,6 +73,7 @@ import { TraefikCoreModule } from "./core/modules/traefik/traefik.module";
 import { SwarmCoreModule } from "./core/modules/swarm/swarm.module";
 import { SwarmInventoryModule } from "./core/modules/swarm/swarm-inventory.module";
 import { CorePlatformIngressModule } from "./core/modules/platform-ingress/platform-ingress.module";
+import { MeshAgentModule } from "./core/modules/mesh-agent/mesh-agent.module";
 
 import { AuthCoreService } from "./core/modules/auth/services/auth-core.service";
 import type { ORPCAuthContext } from "./core/modules/auth/orpc/types";
@@ -170,6 +171,7 @@ declare module "@orpc/server" {
         // Platform helper services (hostname, route config, app-instance,
         // platform settings) — consumed here by the app-instance token plugin,
         // and by the platform supervisors imported above.
+        MeshAgentModule,
         CorePlatformIngressModule,
 
         // ── ORPC — Must be before feature modules ────────────────────────────

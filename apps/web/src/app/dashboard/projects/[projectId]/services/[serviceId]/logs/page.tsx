@@ -1,6 +1,5 @@
 'use client'
 
-import { isDefinedORPCError, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { DockerSelectionToggle } from '@/app/dashboard/docker/_components/docker-page-utilities'
@@ -9,13 +8,13 @@ import {
   useDockerDeploymentList,
 } from '@/domains/docker/hooks'
 import { useMeshSseState } from '@/domains/mesh/hooks'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Input } from '@repo/ui/components/shadcn/input'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+import { PageSkeleton } from '@/components/dashboard/Skeletons'
+import { InlineError, SectionHeading } from '../../../../_components/workload/WorkloadStates'
 import { Toggle } from '@repo/ui/components/shadcn/toggle'
-import { ArrowLeft, Pause, Play, Search, Siren, WrapText } from 'lucide-react'
+import { Check, Copy, Pause, Play, Search, WrapText } from 'lucide-react'
 import { formatDateTime as formatDate } from '@/lib/format/date'
 
 const LIST_INPUT = {
@@ -74,8 +73,9 @@ export default function DashboardServiceLogsPage() {
   const [fontSizePx, setFontSizePx] = useState(12)
   const [pausedSnapshot, setPausedSnapshot] = useState<ServiceLogLine[] | null>(null)
   const [clearedAt, setClearedAt] = useState<number | null>(null)
+  const [copied, setCopied] = useState(false)
 
-  const { data: deploymentData, isLoading: deploymentLoading, error: deploymentError } = useDockerDeploymentList(LIST_INPUT)
+  const { data: deploymentData, isLoading: deploymentLoading, error: deploymentError, refetch: refetchDeployments } = useDockerDeploymentList(LIST_INPUT)
   const { data: containerData, isLoading: containerLoading } = useDockerContainerList(LIST_INPUT)
   const { state: meshState, status: meshSseStatus } = useMeshSseState()
 
@@ -182,7 +182,7 @@ export default function DashboardServiceLogsPage() {
       projected.push({
         id: `mesh-state-${String(meshState.revision)}-${serviceId}`,
         containerId: null,
-        containerName: serviceId ?? 'mesh-control-plane',
+        containerName: serviceId,
         source: 'mesh',
         status: meshSseStatus,
         message: `Mesh ${meshState.reason.replaceAll('_', ' ')} · ${String(meshState.sessions.length)} sessions · ${String(meshState.peers.length)} peers`,
@@ -228,23 +228,19 @@ export default function DashboardServiceLogsPage() {
   // Loading / error states — AFTER all hooks (Rules of Hooks: returns must
   // come after every unconditional hook call).
   if (deploymentLoading || containerLoading) {
-    return (
-      <div className="space-y-6"><Skeleton className="h-8 w-48" /><Skeleton className="h-48 w-full rounded-xl" /></div>
-    )
+    return <PageSkeleton label="Loading service activity" blocks={1} withStrip={false} />
   }
 
   if (deploymentError) {
-    return (
-      <Alert variant="destructive">
-        <Siren className="size-4" />
-        <AlertTitle>Failed to load logs</AlertTitle>
-        <AlertDescription>{isDefinedORPCError(deploymentError) ? getErrorMessage(deploymentError, 'An error occurred.') : 'An error occurred.'}</AlertDescription>
-      </Alert>
-    )
+    return <InlineError title="Could not load service activity" error={deploymentError} onRetry={() => void refetchDeployments()} />
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      <SectionHeading
+        title="Activity"
+        description="Status events for this service: deployment results, replica state and mesh changes. This is not the process output of your containers — open a replica in Docker for that."
+      />
       <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="overflow-hidden rounded-2xl border border-border/60 bg-card/50 backdrop-blur-xl">
           <div className="border-b border-border/60 px-3 py-3">
@@ -307,7 +303,7 @@ export default function DashboardServiceLogsPage() {
                   />
                   <div className="min-w-0">
                     <p className="truncate text-xs font-medium">{replicaName}</p>
-                    <p className="text-[10px] text-muted-foreground">service replica</p>
+                    <p className="text-xs text-muted-foreground">service replica</p>
                   </div>
                 </div>
               )
@@ -318,11 +314,11 @@ export default function DashboardServiceLogsPage() {
           </div>
 
           <div className="border-t border-border/60 px-3 py-2">
-            <div className="mb-2 flex items-center justify-between text-[11px] text-muted-foreground">
+            <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
               <span>{effectiveSelectedReplicaNames.size} selected</span>
               <span>{replicaNames.length} replicas</span>
             </div>
-            <Badge variant="outline" className="text-[10px]">
+            <Badge variant="outline" className="text-xs">
               {allVisibleReplicasSelected
                 ? 'All visible selected'
                 : someVisibleReplicasSelected
@@ -336,9 +332,9 @@ export default function DashboardServiceLogsPage() {
           <div className="border-b border-border/60 bg-background/70 px-4 py-2.5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-xs">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                <span className="font-medium">Live</span>
-                <Badge variant="outline" className="text-[10px]">{meshSseStatus}</Badge>
+                <span className={`size-2 rounded-full ${meshSseStatus === 'connected' ? 'bg-status-live' : 'bg-status-idle'}`} aria-hidden />
+                <span className="font-medium">{meshSseStatus === 'connected' ? 'Live' : 'Not live'}</span>
+                <Badge variant="outline" className="text-xs">Event stream: {meshSseStatus}</Badge>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -367,7 +363,7 @@ export default function DashboardServiceLogsPage() {
                   onPressedChange={setIsAutoScroll}
                   className="h-8 data-[state=on]:border-primary/40 data-[state=on]:bg-primary/15"
                 >
-                  Auto-scroll
+                  Follow newest
                 </Toggle>
 
                 <Button
@@ -393,6 +389,25 @@ export default function DashboardServiceLogsPage() {
                   Wrap
                 </Toggle>
                 
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5"
+                  onClick={() => {
+                    const text = displayedLogs
+                      .map((log) => `${formatDate(log.timestamp)}\t${log.containerName}\t${log.source}\t${log.message}`)
+                      .join('\n')
+                    void navigator.clipboard.writeText(text).then(() => {
+                      setCopied(true)
+                      window.setTimeout(() => { setCopied(false) }, 1500)
+                    })
+                  }}
+                >
+                  {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                  {copied ? 'Copied' : 'Copy'}
+                </Button>
 
                 <Button
                   type="button"
@@ -438,10 +453,10 @@ export default function DashboardServiceLogsPage() {
                     setLogsSearchTerm(event.target.value)
                   }}
                   className="h-9 border-border/70 bg-background/70 pl-9"
-                  placeholder="Search logs"
+                  placeholder="Search events"
                 />
               </div>
-              <select aria-label="All sources"
+              <select aria-label="Filter by source"
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={logsSourceFilter}
                 onChange={(event) => {
@@ -453,7 +468,7 @@ export default function DashboardServiceLogsPage() {
                 <option value="deployment">Deployments</option>
                 <option value="mesh">Mesh</option>
               </select>
-              <select aria-label="All replicas"
+              <select aria-label="Filter by replica"
                 className="h-9 rounded-md border border-border/70 bg-background/70 px-3 text-sm"
                 value={logsReplicaFilter}
                 onChange={(event) => {
@@ -471,7 +486,7 @@ export default function DashboardServiceLogsPage() {
           <div className="flex flex-wrap items-center gap-2 border-b border-border/60 px-4 py-2 text-xs">
             <Badge variant="outline">{replicaNames.length} replicas</Badge>
             <Badge variant="outline">{effectiveSelectedReplicaNames.size} selected</Badge>
-            <Badge variant="outline">{displayedLogs.length} lines</Badge>
+            <Badge variant="outline">{displayedLogs.length} events</Badge>
             {effectiveSelectedReplicaNames.size > 1 ? <Badge>Combined stream</Badge> : null}
 
             <div className="ml-auto flex items-center gap-2">
@@ -490,7 +505,7 @@ export default function DashboardServiceLogsPage() {
                   }
                 }}
               />
-              <span className="text-[11px] text-muted-foreground">Visible list select</span>
+              <span className="text-xs text-muted-foreground">Select all visible</span>
             </div>
           </div>
 
@@ -507,7 +522,7 @@ export default function DashboardServiceLogsPage() {
                 {log.message}
               </p>
             ))}
-            {displayedLogs.length === 0 ? <p className="text-slate-400">No logs match the current filters.</p> : null}
+            {displayedLogs.length === 0 ? <p className="text-slate-300">No events match the current filters.</p> : null}
           </div>
         </section>
       </div>

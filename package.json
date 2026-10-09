@@ -5,7 +5,6 @@
         "packages": [
             "apps/**",
             "packages/**",
-            "tools/**",
             "tooling/**",
             "infra/**",
             "!**/dist",

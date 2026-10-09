@@ -105,4 +105,21 @@ describe("LocalDatabaseModule migrations", () => {
             rmSync(migrationsDir, { recursive: true, force: true });
         }
     });
+
+    it("never touches the configured path when the client is overridden", async () => {
+        const { Database } = await import("bun:sqlite");
+        const memory = new Database(":memory:");
+        const module: TestingModule = await Test.createTestingModule({
+            imports: [
+                LocalDatabaseModule.forRoot({ databasePath: "/nonexistent-root/data/local.db" }),
+            ],
+        })
+            .overrideProvider(LOCAL_DATABASE_CLIENT)
+            .useValue(memory)
+            .compile();
+        await module.init();
+
+        expect(module.get(LOCAL_DATABASE_CLIENT)).toBe(memory);
+        await module.close();
+    });
 });

@@ -10,6 +10,7 @@ import { MeshVersionService } from '../../mesh/version/mesh-version.service'
 import type { MeshSwarmJoinGrant } from '@repo/contracts-entities'
 import { SwarmBootstrapService } from '@repo/nest-swarm'
 import { SwarmClusterService } from '@repo/nest-swarm'
+import { MeshAdmissionService } from '@/core/modules/mesh-agent/mesh-admission.service'
 
 @Injectable()
 export class RemoteInitializationService {
@@ -24,6 +25,8 @@ export class RemoteInitializationService {
         private readonly swarmBootstrap: SwarmBootstrapService,
         /** Read-back of the engine state for the finalize report. */
         private readonly swarmCluster: SwarmClusterService,
+        /** Enters the peer-equal network in the same exchange as the join grant. */
+        private readonly meshAdmission: MeshAdmissionService,
     ) {}
 
     /**
@@ -46,6 +49,8 @@ export class RemoteInitializationService {
         let meshSharedSecret: string | null = null
         /** The fleet's swarm role decision for this node (null = none offered). */
         let swarmGrant: MeshSwarmJoinGrant | null = null
+        /** Whether this node entered the cluster's mesh (Swarm then rides it). */
+        let meshJoined = false
 
         // Resolve the local server URL once so we can pass it to the
         // remote mesh as the address it should use to reach us back.
@@ -64,11 +69,19 @@ export class RemoteInitializationService {
             //         grant via the remote mesh's issueJoinGrant endpoint
             //         (which requires requireAuth()), then consume it.
             stepLog('Issuing join grant on remote mesh…')
-            const grantToken = await this.meshInitializationService.issueRemoteJoinGrant(
+            const { grantToken, meshNetwork } = await this.meshInitializationService.issueRemoteJoinGrant(
                 input.meshUrl,
                 input.authToken,
             )
             stepLog('✅ Join grant issued — consuming…')
+
+            // This node's agent signs its own mesh entry for the target cluster;
+            // the member that admits it is whichever one we reached.
+            const meshJoinRequest =
+                meshNetwork === null ? undefined : await this.meshAdmission.createJoinRequest(meshNetwork).catch((error: unknown) => {
+                    stepLog(`⚠️  Mesh join request not created: ${error instanceof Error ? error.message : String(error)}`)
+                    return undefined
+                })
 
             // Step 2: Consume the grant to complete the bootstrap handshake.
             const bootstrapConfig = await this.meshInitializationService.bootstrap(
@@ -79,6 +92,7 @@ export class RemoteInitializationService {
                 // with what it actually grants — requesting "auto" makes the
                 // node a CANDIDATE for master, not a manager by right.
                 input.swarm?.policy,
+                meshJoinRequest,
             )
             nodeId = bootstrapConfig.nodeId
             databaseUrl = bootstrapConfig.databaseUrl
@@ -87,6 +101,14 @@ export class RemoteInitializationService {
             meshSharedSecret = bootstrapConfig.meshSharedSecret
             swarmGrant = bootstrapConfig.swarmGrant
             stepLog(`✅ Handshake successful — remote node ${bootstrapConfig.nodeId}`)
+
+            if (bootstrapConfig.meshAdmission === null) {
+                stepLog('⚠️  Not admitted into the mesh — Swarm will join over the network it can reach')
+            } else {
+                await this.meshAdmission.adopt(bootstrapConfig.meshAdmission)
+                meshJoined = true
+                stepLog('✅ Admitted into the mesh — bringing up WireGuard links')
+            }
 
             // The FLEET decides the swarm role; report its answer here so the
             // operator sees the outcome at the point the decision was made.
@@ -204,6 +226,12 @@ export class RemoteInitializationService {
 
             stepLog(`▸ Joining the mesh Swarm cluster as ${swarmGrant.role}…`)
             stepLog(`  control = ${swarmGrant.controlPlaneAddrs.join(', ')}`)
+            // The managers advertise MESH addresses, so the join can only succeed
+            // once a WireGuard link is up — wait for it rather than racing it.
+            if (meshJoined) {
+                const linked = await this.meshAdmission.waitForLink()
+                stepLog(linked ? '✅ Mesh link established' : '⚠️  No mesh link yet — attempting the join anyway')
+            }
             await this.swarmBootstrap.converge('setup')
             const snapshot = await this.swarmCluster.getLocalClusterSnapshot()
 

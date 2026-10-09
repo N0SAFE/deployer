@@ -65,14 +65,14 @@ export function useDockerDataTable<TData, TSortKey extends string>({
   const normalizedPage = Math.min(Math.max(page, 1), totalPages)
 
   const columns = useMemo<ColumnDef<TData>[]>(() => {
-    return (Object.entries(sorters) as Array<[TSortKey, SortAccessor<TData>]>).map(([columnId, accessor]) => ({
+    return (Object.entries(sorters) as [TSortKey, SortAccessor<TData>][]).map(([columnId, accessor]) => ({
       id: columnId,
-      accessorFn: (row) => normalizeSortValue(accessor(row as TData)),
+      accessorFn: (row) => normalizeSortValue(accessor(row)),
     }))
   }, [sorters])
 
   const sorting = useMemo<SortingState>(
-    () => [{ id: String(sortBy), desc: sortDirection === 'desc' }],
+    () => [{ id: sortBy, desc: sortDirection === 'desc' }],
     [sortBy, sortDirection],
   )
 

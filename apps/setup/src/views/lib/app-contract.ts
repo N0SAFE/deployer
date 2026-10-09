@@ -24,7 +24,7 @@ import {
     providerSchemaContract,
     templateContract,
     dockerContract,
-    setupContract,
+    setupAppContract,
     nodesContract,
     reachabilityContract,
     providersContract,
@@ -48,7 +48,10 @@ export const appContract = oc.router({
     providerSchema: providerSchemaContract,
     template: templateContract,
     docker: dockerContract,
-    setup: setupContract,
+    // The contract the SETUP APP implements (a superset of nothing the wizard uses
+    // from the API's own `setupContract`): it also carries the setup-only
+    // procedures, e.g. `retryHandover`.
+    setup: setupAppContract,
     nodes: nodesContract,
     reachability: reachabilityContract,
     providers: providersContract,

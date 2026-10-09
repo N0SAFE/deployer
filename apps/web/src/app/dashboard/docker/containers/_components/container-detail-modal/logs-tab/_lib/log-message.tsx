@@ -1,10 +1,17 @@
 import type { ReactNode } from 'react'
 
+/** C0 and C1 control characters, which Docker's stream framing leaves in front of a line. */
+function isControlCode(code: number): boolean {
+  return code <= 0x1f || (code >= 0x7f && code <= 0x9f)
+}
+
 export function sanitizeContainerLogMessage(message: string): string {
   const timestampIndex = message.search(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/u)
   const withoutDockerPrefix = timestampIndex > 0 ? message.slice(timestampIndex) : message
 
-  return withoutDockerPrefix.replace(/^[\u0000-\u001f\u007f-\u009f]+/u, '')
+  let start = 0
+  while (start < withoutDockerPrefix.length && isControlCode(withoutDockerPrefix.charCodeAt(start))) start += 1
+  return withoutDockerPrefix.slice(start)
 }
 
 export function renderHighlightedLogMessage(text: string, normalizedSearchTerm: string): ReactNode {

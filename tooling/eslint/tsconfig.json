@@ -27,7 +27,7 @@
     }
   },
   "include": [
-    "src/**/*",
+    "pkg-build.config.ts", "src/**/*",
     "plugins/**/*"
   ],
   "exclude": [

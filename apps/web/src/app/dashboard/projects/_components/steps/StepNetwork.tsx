@@ -1,14 +1,12 @@
 'use client'
 
-import { useState } from 'react'
 import { Input } from '@repo/ui/components/shadcn/input'
-import { Button } from '@repo/ui/components/shadcn/button'
 import { Switch } from '@repo/ui/components/shadcn/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@repo/ui/components/shadcn/select'
 import { Checkbox } from '@repo/ui/components/shadcn/checkbox'
 import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
 import { Field, FieldLabel, FieldDescription } from '@repo/ui/components/shadcn/field'
-import { Check, Plus, X, Lock, Globe } from 'lucide-react'
+import { Check, Lock, Globe } from 'lucide-react'
 import { cn } from '@repo/ui/lib/utils'
 import type { CreateServiceFormApi } from '../CreateService.hook'
 import { AutocompleteField } from './autocomplete-field'
@@ -40,66 +38,6 @@ function NumberField({ value, onChange, options, placeholder }: {
         {all.map((o) => (<SelectItem key={o} value={o}>{o}</SelectItem>))}
       </SelectContent>
     </Select>
-  )
-}
-
-interface PortMapping {
-  containerPort: number
-  hostPort?: number
-  protocol: 'tcp' | 'udp'
-  name?: string
-}
-
-/** Editor for extra port forwards (container → host). */
-function PortMappingEditor({ value, onChange }: { value: PortMapping[]; onChange: (v: PortMapping[]) => void }) {
-  const [adding, setAdding] = useState(false)
-  const [containerPort, setContainerPort] = useState('')
-  const [hostPort, setHostPort] = useState('')
-  const [protocol, setProtocol] = useState<'tcp' | 'udp'>('tcp')
-
-  const commit = () => {
-    const cp = Number(containerPort)
-    if (!Number.isInteger(cp) || cp <= 0) return
-    const hp = hostPort.trim() ? Number(hostPort) : undefined
-    onChange([...value, { containerPort: cp, hostPort: hp, protocol, name: `mapping-${String(value.length + 1)}` }])
-    setContainerPort(''); setHostPort(''); setProtocol('tcp'); setAdding(false)
-  }
-
-  return (
-    <div className="space-y-2">
-      {value.map((m, i) => (
-        <div key={i} className="flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs">
-          <span className="font-mono text-muted-foreground">{m.protocol}</span>
-          <code className="font-mono">{m.hostPort ?? 'auto'}</code>
-          <span className="text-muted-foreground">→</span>
-          <code className="font-mono">{m.containerPort}</code>
-          <span className="flex-1" />
-          <Button type="button" variant="ghost" size="icon" className="size-6" aria-label="Remove port mapping" onClick={() => { onChange(value.filter((_, idx) => idx !== i)) }}>
-            <X className="size-3" />
-          </Button>
-        </div>
-      ))}
-      {adding ? (
-        <div className="flex items-center gap-2">
-          <Select value={protocol} onValueChange={(v) => { setProtocol(v as 'tcp' | 'udp') }}>
-            <SelectTrigger className="h-7 w-20 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="tcp">tcp</SelectItem>
-              <SelectItem value="udp">udp</SelectItem>
-            </SelectContent>
-          </Select>
-          <Input value={hostPort} onChange={(e) => { setHostPort(e.target.value) }} placeholder="host (auto)" className="h-7 w-24 font-mono text-xs" />
-          <span className="text-xs text-muted-foreground">→</span>
-          <Input value={containerPort} onChange={(e) => { setContainerPort(e.target.value) }} placeholder="container" className="h-7 w-24 font-mono text-xs" />
-          <Button type="button" size="sm" variant="outline" className="h-7" onClick={commit}>Add</Button>
-          <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => { setAdding(false) }}>Cancel</Button>
-        </div>
-      ) : (
-        <Button type="button" size="sm" variant="outline" className="h-7 w-fit gap-1.5 text-xs" onClick={() => { setAdding(true) }}>
-          <Plus className="size-3.5" /> Add port forward
-        </Button>
-      )}
-    </div>
   )
 }
 
@@ -139,8 +77,9 @@ const HTTP_METHODS = ['GET', 'HEAD', 'POST'] as const
 const STATUS_PRESETS = ['200', '201', '204', '301', '302', '401', '403', '404', '500'] as const
 
 /**
- * Step 6 — Network & Health. Modern, advanced: container port, port
- * forwards, internet exposure + TLS, and a full health-check editor.
+ * Step 6 — Network & Health. Container port, ingress visibility + TLS,
+ * and a full health-check editor. User workloads never publish host ports:
+ * traffic reaches them only through the ingress lanes.
  */
 export function StepNetwork({ form }: { form: CreateServiceFormApi }) {
   return (
@@ -164,23 +103,23 @@ export function StepNetwork({ form }: { form: CreateServiceFormApi }) {
                 <AlertTitle className="text-xs">Networking is configured per sub-service</AlertTitle>
                 <AlertDescription className="text-xs">
                   This orchestrator owns <strong>{String(subServiceCount)} sub-service(s)</strong>.
-                  Ports, exposure, TLS and health checks are configured inside each sub-service in
-                  the Runner step — the orchestrator shell itself does not expose a port.
+                  Ports, visibility, TLS and health checks are configured inside each sub-service in
+                  the Runner step — the orchestrator shell itself has no route of its own.
                 </AlertDescription>
               </Alert>
               <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
                 Go back to <strong>Runner</strong> to configure each sub-service&apos;s networking,
-                exposure, TLS and domains.
+                visibility, TLS and domains.
               </div>
             </div>
           )
         }
 
         return (
-          <form.Subscribe selector={(s) => ({ hcType: s.values.network.healthCheck.type, expose: s.values.network.expose })} children={({ hcType, expose }) => (
+          <form.Subscribe selector={(s) => ({ hcType: s.values.network.healthCheck.type, visibility: s.values.network.visibility })} children={({ hcType, visibility }) => (
       <div className="space-y-4">
         {/* ── Networking ── */}
-        <Section title="Networking" description="The port(s) your service listens on and how they are exposed.">
+        <Section title="Networking" description="The port your service listens on and which ingress lanes route to it. Services never publish host ports.">
           <div className="grid gap-3 sm:grid-cols-2">
             <form.Field name="network.port" children={(f) => (
               <Field>
@@ -189,26 +128,26 @@ export function StepNetwork({ form }: { form: CreateServiceFormApi }) {
                 <FieldDescription>The primary port your service listens on inside the container.</FieldDescription>
               </Field>
             )} />
-            <form.Field name="network.expose" children={(f) => (
+            <form.Field name="network.visibility" children={(f) => (
               <Field>
-                <FieldLabel className="flex items-center gap-2"><Globe className="size-3.5" /> Expose to internet</FieldLabel>
-                <div className="flex items-center gap-2">
-                  <Switch checked={f.state.value} onCheckedChange={(c) => { f.handleChange(c) }} />
-                  <span className="text-xs text-muted-foreground">Route traffic through the ingress (Traefik).</span>
-                </div>
+                <FieldLabel className="flex items-center gap-2"><Globe className="size-3.5" /> Visibility</FieldLabel>
+                <Select value={f.state.value} onValueChange={(v) => { f.handleChange(v as 'private' | 'public') }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="public">Public — also on the public lane (internet) when one is enabled</SelectItem>
+                    <SelectItem value="private">Private — this machine and mesh members only</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FieldDescription>
+                  Routes always answer on the local lane (<code>&lt;app&gt;.deployer.localhost</code>) and the
+                  private lane; visibility only decides whether the public lane carries this service too.
+                  Lanes are configured in Network → Ingress &amp; edge.
+                </FieldDescription>
               </Field>
             )} />
           </div>
 
-          <form.Field name="network.portMappings" children={(f) => (
-            <Field>
-              <FieldLabel>Port forwards</FieldLabel>
-              <FieldDescription>Extra container → host port bindings.</FieldDescription>
-              <PortMappingEditor value={(f.state.value as never as PortMapping[] | undefined) ?? []} onChange={(v) => { f.handleChange(v) }} />
-            </Field>
-          )} />
-
-          {expose && (
+          {visibility === 'public' && (
             <form.Field name="network.tls" children={(f) => {
               const tlsVal = f.state.value as never as { enabled: boolean; certSecretRef?: string; httpRedirect: boolean }
               const update = (patch: Partial<typeof tlsVal>) => { f.handleChange({ ...tlsVal, ...patch }) }

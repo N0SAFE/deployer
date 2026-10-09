@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@repo/ui/components/shadcn/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useCreateServiceForm } from './CreateService.hook'
 import { RunnerDetectionProvider } from './steps/runner-detection-context'
@@ -66,6 +67,18 @@ function hiddenStepIds(runnerId: string, subServiceCount: number): Set<number> {
   return hidden
 }
 
+/** "runner.config.startCommand: Required" → "Start command: Required" (field names are jargon in a form). */
+export function friendlyIssue(issue: string): string {
+  const split = issue.indexOf(': ')
+  if (split < 0) return issue
+  const path = issue.slice(0, split)
+  const message = issue.slice(split + 2)
+  const field = path.split('.').filter((part) => part !== '(form)').pop()
+  if (!field) return message
+  const words = field.replace(/([A-Z])/g, ' $1').toLowerCase().trim()
+  return `${words.charAt(0).toUpperCase()}${words.slice(1)}: ${message}`
+}
+
 /* ─── Props ─── */
 
 interface CreateServiceWizardProps {
@@ -94,12 +107,10 @@ function WizardDialog({ onOpenChange, projectId, onConfirm, creating }: {
   const handleConfirm = async () => { await form.handleSubmit(); handleReset() }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl rounded-xl border bg-background shadow-2xl">
+    <Dialog open onOpenChange={(next) => { if (!next && !creating) handleClose() }}>
+      <DialogContent className="max-w-2xl gap-0 p-0 sm:max-w-2xl" aria-describedby="wizard-step-description">
         {/* Subscribe to live form values → reactive step filtering + per-step validation */}
-        <form.Subscribe selector={(s) => s.values} children={(rawValues) => {
-          const values = rawValues
-
+        <form.Subscribe selector={(s) => s.values} children={(values) => {
           // Filter steps based on the current runner state (live).
           const visibleSteps = (() => {
             const runnerId = values.runner.runnerId
@@ -114,80 +125,68 @@ function WizardDialog({ onOpenChange, projectId, onConfirm, creating }: {
           const safeStep = Math.min(step, Math.max(visibleSteps.length - 1, 0))
           const current = visibleSteps[safeStep]
 
-          // Per-step validation — the Next button is disabled while the current
-          // step's slice of the form is invalid.
+          // Per-step validation — Next is disabled while the current step is invalid,
+          // and the reasons are listed above the buttons.
           const stepValidation = current ? validateStep(values, current.id) : { valid: true, issues: [] }
           const nextDisabled = !stepValidation.valid
           const isLast = safeStep >= visibleSteps.length - 1
-
-          /* ─── Stepper ─── */
-          const stepIndicator = (
-            <div className="flex items-center gap-2 pt-3">
-              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-primary transition-all duration-300"
-                  style={{ width: `${String(((safeStep + 1) / Math.max(visibleSteps.length, 1)) * 100)}%` }}
-                />
-              </div>
-              <span className="shrink-0 text-[10px] font-medium tabular-nums text-muted-foreground">
-                {safeStep + 1}/{visibleSteps.length}
-              </span>
-            </div>
-          )
+          const issues = stepValidation.issues.slice(0, 3).map(friendlyIssue)
 
           return (
             <form
+              noValidate
               onSubmit={(e) => {
                 e.preventDefault()
+                if (nextDisabled) return
                 if (isLast) { void handleConfirm() } else { setStep(safeStep + 1) }
               }}
             >
-              {/* Header */}
-              <div className="border-b px-6 py-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold">Create service</h2>
-                  <span className="text-xs text-muted-foreground">
-                    {current?.label}
-                  </span>
-                </div>
-                {stepIndicator}
-              </div>
+              <DialogHeader className="space-y-2 border-b px-6 py-4 text-left">
+                <DialogTitle>Create service</DialogTitle>
+                <DialogDescription id="wizard-step-description">
+                  Step {safeStep + 1} of {visibleSteps.length} — {current?.label}
+                </DialogDescription>
+                <ol className="flex flex-wrap gap-x-3 gap-y-1 text-sm" aria-label="Steps">
+                  {visibleSteps.map((s, index) => (
+                    <li
+                      key={s.id}
+                      aria-current={index === safeStep ? 'step' : undefined}
+                      className={index === safeStep ? 'font-medium text-foreground' : index < safeStep ? 'text-muted-foreground' : 'text-muted-foreground/70'}
+                    >
+                      {index + 1}. {s.label}
+                    </li>
+                  ))}
+                </ol>
+              </DialogHeader>
 
-              {/* Step content */}
-              <div className="max-h-[60vh] overflow-y-auto px-6 py-4">{current?.render({ form, projectId })}</div>
+              <div className="max-h-[55vh] overflow-y-auto px-6 py-4">{current?.render({ form, projectId })}</div>
 
-              {/* Footer */}
-              <div className="flex items-center justify-between border-t px-6 py-4">
-                <div>
-                  {safeStep > 0 && (
-                    <Button type="button" variant="ghost" size="sm" onClick={() => { setStep(safeStep - 1) }}>
-                      <ChevronLeft className="mr-1 size-4" /> Back
-                    </Button>
-                  )}
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  {nextDisabled && stepValidation.issues[0] && (
-                    <p className="max-w-64 truncate text-[10px] text-destructive" title={stepValidation.issues[0]}>
-                      {stepValidation.issues[0]}
-                    </p>
-                  )}
-                  <div className="flex gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={handleClose} disabled={creating}>
-                      Cancel
-                    </Button>
-                    {!isLast
-                      ? <Button type="submit" size="sm" disabled={nextDisabled}>Next <ChevronRight className="ml-1 size-4" /></Button>
-                      : <Button type="submit" size="sm" disabled={creating || nextDisabled}>
-                        {creating ? <><span className="mr-2 size-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> Creating…</> : 'Create service'}
-                      </Button>}
-                  </div>
+              {nextDisabled && issues.length > 0 ? (
+                <ul role="alert" className="space-y-0.5 border-t bg-destructive/5 px-6 py-2 text-sm text-destructive">
+                  {issues.map((issue) => (<li key={issue}>{issue}</li>))}
+                </ul>
+              ) : null}
+
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t px-6 py-4">
+                <Button type="button" variant="ghost" size="sm" onClick={() => { setStep(safeStep - 1) }} disabled={safeStep === 0 || creating}>
+                  <ChevronLeft className="mr-1 size-4" /> Back
+                </Button>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={handleClose} disabled={creating}>
+                    Cancel
+                  </Button>
+                  {!isLast
+                    ? <Button type="submit" size="sm" disabled={nextDisabled}>Next <ChevronRight className="ml-1 size-4" /></Button>
+                    : <Button type="submit" size="sm" disabled={creating || nextDisabled}>
+                      {creating ? 'Creating…' : 'Create service'}
+                    </Button>}
                 </div>
               </div>
             </form>
           )
         }} />
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -202,7 +201,6 @@ export function CreateServiceWizard({
 }: CreateServiceWizardProps) {
   return (
     <>
-      {open && <div className="fixed inset-0 z-40 bg-black/50" onClick={() => { onOpenChange(false) }} />}
       {open && (
         <RunnerDetectionProvider>
           <WizardDialog

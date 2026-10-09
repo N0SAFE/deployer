@@ -285,8 +285,8 @@ export class TurboRunner {
             return
         }
 
-        // Only `apps/**`-style entries: `packages/**` and `tools/**` must stay,
-        // because the union is built from them.
+        // Only `apps/**`-style entries: `packages/**` and `tooling/**` must
+        // stay, because the union is built from them.
         const kept = list.filter((entry) => !entry.startsWith('apps'))
         if (kept.length === list.length) return // already excluded
 

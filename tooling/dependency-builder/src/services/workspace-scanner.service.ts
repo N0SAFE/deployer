@@ -21,7 +21,6 @@ import { WorkspaceScanError } from '../errors'
 const DEFAULT_WORKSPACE_ROOTS = [
     'apps',
     'packages',
-    'tools',
     'tooling',
     'infra',
 ] as const
@@ -136,8 +135,9 @@ export class WorkspaceScanner {
     /**
      * Every directory containing a `package.json`, relative to `root`.
      *
-     * Walks `apps`, `packages`, and `tools` (the workspace globs) and descends
-     * through package directories rather than stopping at them — see rule 1.
+     * Walks `apps`, `packages`, and `tooling` (the workspace globs) and
+     * descends through package directories rather than stopping at them — see
+     * rule 1.
      */
     private collectManifests(root: string): string[] {
         const found: string[] = []
@@ -175,10 +175,10 @@ export class WorkspaceScanner {
      * The top-level directories the root manifest declares as workspace globs.
      *
      * Derived from `workspaces.packages` rather than hardcoded: this repository
-     * keeps workspaces under `apps`, `packages`, `tools`, `tooling` and `infra`,
-     * and a hardcoded list silently drops a whole tree the moment one of those
-     * moves — the union then omits every package under it. Reading the globs
-     * keeps the scanner and the install in agreement by construction.
+     * keeps workspaces under `apps`, `packages`, `tooling` and `infra`, and a
+     * hardcoded list silently drops a whole tree the moment one of those moves
+     * — the union then omits every package under it. Reading the globs keeps
+     * the scanner and the install in agreement by construction.
      *
      * Globs are directory globs (with negations prefixed by a bang); only the
      * leading directory segment is needed, and negations are skipped.
@@ -205,7 +205,7 @@ export class WorkspaceScanner {
 
             // A manifest that declares no globs is still a valid workspace root
             // by convention; scanning the usual trees beats scanning nothing.
-            return roots.size > 0 ? [...roots] : DEFAULT_WORKSPACE_ROOTS
+            return roots.size > 0 ? [...roots] : [...DEFAULT_WORKSPACE_ROOTS]
         } catch {
             return [...DEFAULT_WORKSPACE_ROOTS]
         }

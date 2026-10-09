@@ -1,410 +1,229 @@
 'use client'
 
-import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { useMemo, useState } from 'react'
-import { useForm } from '@tanstack/react-form'
-import { useProjectDetail } from '../_hooks/use-project-detail'
+import { useParams } from 'next/navigation'
+import { Rocket, Search } from 'lucide-react'
+import { toast } from 'sonner'
 import { useDeploymentFilters } from '../_hooks/use-project-filters'
-import { useTriggerDeployment, useCancelDeployment, useRollbackDeployment, useRetryDeployment, useDeleteDeployment } from '@/domains/deployment/hooks'
+import {
+  useTriggerDeployment, useCancelDeployment, useRollbackDeployment, useRetryDeployment, useDeleteDeployment, useDeploymentList,
+} from '@/domains/deployment/hooks'
 import { useServiceList } from '@/domains/service/hooks'
 import { useProjectEnvironments } from '@/domains/project/hooks'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Label } from '@repo/ui/components/shadcn/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@repo/ui/components/shadcn/select'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@repo/ui/components/shadcn/dialog'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
-import { Siren, RefreshCw, Rocket, RotateCcw, XCircle, Play, Trash2, ScrollText } from 'lucide-react'
-import { toast } from 'sonner'
-import { formatDate, shortId } from '../_utils/helpers'
-import { StatusBadge, EmptyState, FilteredEmptyState } from '@/components/dashboard'
 import { filterProjectTopLevelServices } from '@/domains/service/hierarchy'
-import { AuthDashboardProjectsProjectIdServicesServiceIdLogs } from '@/routes'
-import { z } from 'zod/v4'
+import { useNow } from '@/components/dashboard/use-now'
+import { EmptyState, FilteredEmptyState } from '@/components/dashboard'
+import { Button } from '@repo/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
+import { Input } from '@repo/ui/components/shadcn/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@repo/ui/components/shadcn/select'
+import { ListLoading, InlineError, SectionHeading, errorReason } from '../../_components/workload/WorkloadStates'
+import { findRollbackTarget } from '../../_utils/workload'
+import { filterDeployments, sortDeployments, hasActiveFilters, type StatusFilter } from '../../_utils/deployment-list'
+import { buildTriggerSource } from '../../_utils/trigger-source'
+import { ProjectDeploymentsTable, type ProjectDeploymentRow, type RowAction } from './_components/project-deployments-table'
+import { ConfirmDialog } from './_components/confirm-dialog'
+import { TriggerDialog, type TriggerChoice } from './_components/trigger-dialog'
 
-const triggerSchema = z.object({
-  serviceId: z.string().min(1, 'Select a service'),
-  // Environments are first-class primitives (free-form names) — any env the
-  // project defines can be a deploy target.
-  environment: z.string().min(1, 'Select an environment'),
-})
+const COPY: Record<RowAction, { title: string; body: string; confirm: string; destructive: boolean; done: string }> = {
+  cancel: { title: 'Cancel this run?', body: 'The run is stopped where it is. Nothing is rolled back automatically.', confirm: 'Cancel run', destructive: true, done: 'Run cancelled' },
+  rollback: { title: 'Roll back to the previous successful run?', body: 'The service is redeployed from the most recent earlier successful run in the same environment.', confirm: 'Roll back', destructive: false, done: 'Rollback started' },
+  retry: { title: 'Retry this run?', body: 'Starts a new run from the same source.', confirm: 'Retry run', destructive: false, done: 'Run queued again' },
+  delete: { title: 'Delete this deployment record?', body: 'Only the history entry is removed. Whatever is currently running is not touched. This cannot be undone.', confirm: 'Delete record', destructive: true, done: 'Record deleted' },
+}
 
 export default function ProjectDeploymentsPage() {
-  const { projectId, deployments, isLoading, error, refetchDeployments } = useProjectDetail()
+  const params = useParams<{ projectId: string }>()
+  const projectId = params.projectId
+  const now = useNow(30_000)
   const { filters, setFilters } = useDeploymentFilters()
 
-  const triggerDeployment = useTriggerDeployment()
-  const cancelDeployment = useCancelDeployment()
-  const rollbackDeployment = useRollbackDeployment()
-  const retryDeployment = useRetryDeployment()
-  const deleteDeployment = useDeleteDeployment()
-  const { data: servicesData } = useServiceList({ query: { limit: 100, offset: 0 } })
-  const { data: environmentsData } = useProjectEnvironments(projectId)
-
-  // Real environment primitives of this project (free-form names + kinds).
-  const projectEnvironments = useMemo(() => {
-    if (!environmentsData) return []
-    const list = Array.isArray(environmentsData) ? environmentsData : (environmentsData as { environments?: unknown[] }).environments ?? []
-    return list as Array<{ id: string; name: string; kind?: string }>
-  }, [environmentsData])
-
-  // ── Service filter state (not URL-synced — derived per project) ──
-  const [serviceFilter, setServiceFilter] = useState('all')
-
-  // TOP-LEVEL services of this project only — sub-services are deployed from
-  // their own page (inside the parent service), not from the project-level
-  // trigger selector.
-  const localServices = useMemo(() => {
-    if (!servicesData?.data) return []
-    return filterProjectTopLevelServices(servicesData.data, projectId)
-  }, [servicesData, projectId])
-
-  // ── Filter state ────────────────────────────────────────────────
-  const filteredDeployments = useMemo(() => {
-    if (!deployments || deployments.length === 0) return []
-    let result = deployments
-    if (filters.status && filters.status !== 'all') {
-      result = result.filter((d: any) => (d.status ?? d.state ?? '').toLowerCase() === filters.status)
-    }
-    if (filters.environment && filters.environment !== 'all') {
-      result = result.filter((d: any) => (d.environment ?? '').toLowerCase() === filters.environment)
-    }
-    if (serviceFilter && serviceFilter !== 'all') {
-      result = result.filter((d: any) => (d.serviceId ?? d.service_id) === serviceFilter)
-    }
-    return result
-  }, [deployments, filters, serviceFilter])
-
-  // Distinct environments present in this project's deployments
-  const availableEnvironments = useMemo(() => {
-    const set = new Set<string>()
-    for (const d of deployments ?? []) {
-      const env = (d as any).environment
-      if (env) set.add(String(env))
-    }
-    return Array.from(set).sort()
-  }, [deployments])
-
-  // ── Trigger dialog ──────────────────────────────────────────────
-  const [triggerOpen, setTriggerOpen] = useState(false)
-
-  const triggerForm = useForm({
-    defaultValues: { serviceId: '', environment: 'production' },
-    onSubmit: async ({ value }) => {
-      const parsed = triggerSchema.safeParse(value)
-      if (!parsed.success) { toast.error(parsed.error.issues[0]?.message ?? 'Invalid input'); return }
-      const svc = localServices.find((s: any) => s.id === parsed.data.serviceId) as Record<string, unknown> | undefined
-      if (!svc) { toast.error('Selected service not found'); return }
-      const providerId = String(svc.providerId ?? svc.provider_type ?? '')
-      const source = providerId === 'github' ? {
-        sourceType: 'github' as const,
-        repositoryUrl: String((svc.providerConfig ?? svc.provider_config) ? ((svc.providerConfig ?? svc.provider_config) as Record<string, unknown>).sourceUrl ?? ((svc.providerConfig ?? svc.provider_config) as Record<string, unknown>).repositoryUrl ?? '' : ''),
-        branch: String((svc.providerConfig ?? svc.provider_config) ? ((svc.providerConfig ?? svc.provider_config) as Record<string, unknown>).branch ?? 'main' : ''),
-      } : undefined
-      try {
-        await triggerDeployment.mutateAsync({
-          body: {
-            serviceId: parsed.data.serviceId,
-            environment: parsed.data.environment,
-            ...(source ? { source } : {}),
-          },
-        } as any)
-        toast.success('Deployment triggered')
-        setTriggerOpen(false)
-        triggerForm.reset()
-      } catch (err) { toast.error('Failed to trigger deployment', { description: isDefinedORPCError(err) ? getErrorMessage(err) : UNKNOWN_ORPC_ERROR_MESSAGE }) }
-    },
+  const deploymentsQuery = useDeploymentList({
+    query: { filter: { projectId: { operator: 'eq' as const, value: projectId } }, limit: 100, offset: 0 },
   })
+  const servicesQuery = useServiceList({ query: { limit: 100, offset: 0 } })
+  const environmentsQuery = useProjectEnvironments(projectId)
+  const trigger = useTriggerDeployment()
+  const cancel = useCancelDeployment()
+  const rollback = useRollbackDeployment()
+  const retry = useRetryDeployment()
+  const remove = useDeleteDeployment()
 
-  // ── Cancel confirm ──────────────────────────────────────────────
-  const [cancelOpen, setCancelOpen] = useState(false)
-  const [cancelId, setCancelId] = useState<string | null>(null)
+  const [triggerOpen, setTriggerOpen] = useState(false)
+  const [pending, setPending] = useState<{ action: RowAction; row: ProjectDeploymentRow } | null>(null)
 
-  const handleCancel = async () => {
-    if (!cancelId) return
+  const deployments = useMemo(() => deploymentsQuery.data?.data ?? [], [deploymentsQuery.data])
+  const services = useMemo(
+    () => filterProjectTopLevelServices(servicesQuery.data?.data ?? [], projectId),
+    [servicesQuery.data, projectId],
+  )
+  const serviceNames = useMemo(() => new Map(services.map((s) => [s.id, s.name])), [services])
+  const environments = environmentsQuery.data?.environments ?? []
+  const nameOf = useMemo(() => (id: string) => serviceNames.get(id) ?? '', [serviceNames])
+
+  const f = { search: filters.q, status: filters.status, environment: filters.environment, serviceId: filters.service }
+  const rows = useMemo(
+    () => sortDeployments(filterDeployments(deployments, { search: filters.q, status: filters.status, environment: filters.environment, serviceId: filters.service }, nameOf), 'newest', nameOf),
+    [deployments, filters.q, filters.status, filters.environment, filters.service, nameOf],
+  )
+  const environmentNames = useMemo(
+    () => Array.from(new Set(deployments.map((d) => d.environment).filter((e): e is NonNullable<typeof e> => Boolean(e)))).sort(),
+    [deployments],
+  )
+
+  const clearFilters = () => { setFilters({ status: 'all', environment: 'all', service: 'all', q: '' }) }
+  const rollbackTargetOf = (row: ProjectDeploymentRow) => findRollbackTarget(deployments, row)
+
+  const handleTrigger = async (choice: TriggerChoice) => {
+    const svc = services.find((s) => s.id === choice.serviceId)
+    if (!svc) { toast.error('That service no longer exists'); return }
+    const environment = choice.environment as 'production' | 'staging' | 'preview' | 'development'
     try {
-      await cancelDeployment.mutateAsync({ params: { id: cancelId } } as any)
-      toast.success('Deployment cancelled'); setCancelOpen(false); setCancelId(null)
-    } catch (err) { toast.error('Failed to cancel', { description: isDefinedORPCError(err) ? getErrorMessage(err) : UNKNOWN_ORPC_ERROR_MESSAGE }) }
+      await trigger.mutateAsync({ serviceId: svc.id, environment, source: buildTriggerSource(svc.providerId, svc.providerConfig) })
+      toast.success(`Deployment of ${svc.name} started`)
+      setTriggerOpen(false)
+    } catch (err) {
+      toast.error('Could not start the deployment', { description: errorReason(err) })
+    }
   }
 
-  // ── Rollback confirm ────────────────────────────────────────────
-  const [rollbackOpen, setRollbackOpen] = useState(false)
-  const [rollbackId, setRollbackId] = useState<string | null>(null)
-
-  const handleRollback = async () => {
-    if (!rollbackId) return
+  const runAction = async () => {
+    if (!pending) return
+    const { action, row } = pending
     try {
-      await rollbackDeployment.mutateAsync({ params: { id: rollbackId } } as any)
-      toast.success('Rollback initiated'); setRollbackOpen(false); setRollbackId(null)
-    } catch (err) { toast.error('Failed to rollback', { description: isDefinedORPCError(err) ? getErrorMessage(err) : UNKNOWN_ORPC_ERROR_MESSAGE }) }
+      if (action === 'cancel') await cancel.mutateAsync({ params: { id: row.id } })
+      else if (action === 'retry') await retry.mutateAsync({ params: { id: row.id } })
+      else if (action === 'delete') await remove.mutateAsync({ params: { id: row.id } })
+      else {
+        const target = rollbackTargetOf(row)
+        if (!target) { toast.error('No earlier successful run to roll back to'); setPending(null); return }
+        await rollback.mutateAsync({ params: { id: row.id }, body: { targetDeploymentId: target.id } })
+      }
+      toast.success(COPY[action].done)
+      setPending(null)
+    } catch (err) {
+      toast.error(`${COPY[action].confirm} failed`, { description: errorReason(err) })
+    }
   }
 
-  // ── Retry ───────────────────────────────────────────────────────
-  const handleRetry = async (id: string) => {
-    try {
-      await retryDeployment.mutateAsync({ params: { id } } as any)
-      toast.success('Retrying deployment')
-    } catch (err) { toast.error('Failed to retry', { description: isDefinedORPCError(err) ? getErrorMessage(err) : UNKNOWN_ORPC_ERROR_MESSAGE }) }
-  }
-
-  // ── Delete confirm ──────────────────────────────────────────────
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deleteId, setDeleteId] = useState<string | null>(null)
-
-  const handleDelete = async () => {
-    if (!deleteId) return
-    try {
-      await deleteDeployment.mutateAsync({ params: { id: deleteId } } as any)
-      toast.success('Deployment deleted'); setDeleteOpen(false); setDeleteId(null)
-    } catch (err) { toast.error('Failed to delete', { description: isDefinedORPCError(err) ? getErrorMessage(err) : UNKNOWN_ORPC_ERROR_MESSAGE }) }
-  }
-
-  // ── Render ──────────────────────────────────────────────────────
-  if (isLoading) return <div className="space-y-6"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full rounded-xl" /></div>
-  if (error) return (
-    <Alert variant="destructive">
-      <Siren className="size-4" />
-      <AlertTitle>Failed to load deployments</AlertTitle>
-      <AlertDescription>
-        {isDefinedORPCError(error) ? getErrorMessage(error) : 'An unexpected error occurred.'}
-        <button
-          type="button"
-          onClick={() => void refetchDeployments()}
-          className="ml-2 inline-flex items-center gap-1.5 rounded-md border border-destructive/30 px-2 py-0.5 text-xs font-medium text-destructive underline-offset-2 hover:underline"
-        >
-          <RefreshCw className="size-3" /> Retry
-        </button>
-      </AlertDescription>
-    </Alert>
+  const busy = cancel.isPending || rollback.isPending || retry.isPending || remove.isPending
+  const filtered = hasActiveFilters(f)
+  const deployButton = (
+    <Button size="sm" onClick={() => { setTriggerOpen(true) }} disabled={services.length === 0}>
+      <Rocket className="mr-1.5 size-4" />
+      Deploy a service
+    </Button>
   )
 
   return (
-    <>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Deployments</CardTitle>
-            <CardDescription>{filteredDeployments.length} deployment{filteredDeployments.length !== 1 ? 's' : ''}</CardDescription>
-          </div>
-          <Dialog open={triggerOpen} onOpenChange={setTriggerOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm"><Rocket className="mr-2 size-4" />New Deployment</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader><DialogTitle>Trigger Deployment</DialogTitle><DialogDescription>Select service and environment to deploy.</DialogDescription></DialogHeader>
-              <div className="grid gap-4 py-4">
-                <triggerForm.Field name="serviceId">
-                  {(field) => (
-                    <div className="grid gap-2">
-                      <Label>Service</Label>
-                      <Select value={field.state.value} onValueChange={(v) => field.handleChange(v)}>
-                        <SelectTrigger><SelectValue placeholder="Select service" /></SelectTrigger>
-                        <SelectContent>
-                          {localServices.map((s: any) => (<SelectItem key={s.id} value={s.id}>{s.name ?? s.id}</SelectItem>))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </triggerForm.Field>
-                <triggerForm.Field name="environment">
-                  {(field) => (
-                    <div className="grid gap-2">
-                      <Label>Environment</Label>
-                      <Select value={field.state.value} onValueChange={(v) => field.handleChange(v)}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {projectEnvironments.length === 0 ? (
-                            <SelectItem value="__none__" disabled>No environments defined</SelectItem>
-                          ) : (
-                            projectEnvironments.map((env) => (
-                              <SelectItem key={env.id} value={env.name} className="capitalize">
-                                {env.name}{env.kind ? ` · ${env.kind}` : ''}
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </triggerForm.Field>
+    <div className="space-y-5">
+      <SectionHeading
+        title="Deployments"
+        description="Every deployment run of this project’s services, newest first."
+        actions={deployButton}
+      />
+
+      {deploymentsQuery.isError ? (
+        <InlineError title="Could not load deployments" error={deploymentsQuery.error} onRetry={() => void deploymentsQuery.refetch()} />
+      ) : null}
+      {servicesQuery.isError ? (
+        <InlineError title="Could not load services" error={servicesQuery.error} onRetry={() => void servicesQuery.refetch()} />
+      ) : null}
+
+      {deploymentsQuery.isLoading ? (
+        <ListLoading label="Loading deployments" waitingOn="the deployment history" columns={6} />
+      ) : deploymentsQuery.isError ? null : deployments.length === 0 ? (
+        <EmptyState
+          icon={Rocket}
+          title="No deployments yet"
+          description={services.length === 0
+            ? 'This project has no services to deploy. Create a service first.'
+            : 'Choose “Deploy a service” to start the first run.'}
+        />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Runs</CardTitle>
+            <CardDescription>
+              {rows.length} of {deployments.length} shown
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative min-w-52 flex-1 md:max-w-sm">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={filters.q}
+                  onChange={(e) => { setFilters({ q: e.target.value }) }}
+                  placeholder="Search service or id"
+                  className="pl-9"
+                  aria-label="Search deployments"
+                />
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setTriggerOpen(false)}>Cancel</Button>
-                <triggerForm.Subscribe selector={(s) => s.isSubmitting}>
-                  {(isSubmitting) => (
-                    <Button onClick={triggerForm.handleSubmit} disabled={isSubmitting || triggerDeployment.isPending}>
-                      {triggerDeployment.isPending ? 'Triggering...' : 'Deploy'}
-                    </Button>
-                  )}
-                </triggerForm.Subscribe>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </CardHeader>
-        <CardContent>
-          {/* Filter bar — status / environment / service */}
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            <div className="grid gap-1.5">
-              <Label className="text-[11px] text-muted-foreground">Status</Label>
-              <Select value={filters.status} onValueChange={(v) => setFilters({ status: v as never })}>
-                <SelectTrigger className="h-8 w-36"><SelectValue /></SelectTrigger>
+              <Select value={filters.status} onValueChange={(v) => { setFilters({ status: v as StatusFilter }) }}>
+                <SelectTrigger className="w-40" aria-label="Filter by status"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All statuses</SelectItem>
-                  <SelectItem value="running">Running</SelectItem>
-                  <SelectItem value="success">Success</SelectItem>
+                  <SelectItem value="in-progress">In progress</SelectItem>
+                  <SelectItem value="success">Succeeded</SelectItem>
                   <SelectItem value="failed">Failed</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label className="text-[11px] text-muted-foreground">Environment</Label>
-              <Select value={filters.environment ?? 'all'} onValueChange={(v) => setFilters({ environment: v })}>
-                <SelectTrigger className="h-8 w-36"><SelectValue /></SelectTrigger>
+              <Select value={filters.environment} onValueChange={(v) => { setFilters({ environment: v }) }}>
+                <SelectTrigger className="w-44" aria-label="Filter by environment"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All environments</SelectItem>
-                  {availableEnvironments.map((env) => (
-                    <SelectItem key={env} value={env} className="capitalize">{env}</SelectItem>
-                  ))}
+                  {environmentNames.map((env) => (<SelectItem key={env} value={env} className="capitalize">{env}</SelectItem>))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label className="text-[11px] text-muted-foreground">Service</Label>
-              <Select value={serviceFilter} onValueChange={setServiceFilter}>
-                <SelectTrigger className="h-8 w-44"><SelectValue /></SelectTrigger>
+              <Select value={filters.service} onValueChange={(v) => { setFilters({ service: v }) }}>
+                <SelectTrigger className="w-44" aria-label="Filter by service"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All services</SelectItem>
-                  {localServices.map((s: any) => (
-                    <SelectItem key={s.id} value={s.id}>{s.name ?? s.id}</SelectItem>
-                  ))}
+                  {services.map((s) => (<SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>))}
                 </SelectContent>
               </Select>
+              {filtered ? <Button variant="ghost" size="sm" onClick={clearFilters}>Clear filters</Button> : null}
             </div>
-            {(filters.status !== 'all' || (filters.environment ?? 'all') !== 'all' || serviceFilter !== 'all') && (
-              <Button size="sm" variant="ghost" className="mt-4 h-8" onClick={() => { setFilters({ status: 'all', environment: 'all' }); setServiceFilter('all') }}>
-                Clear filters
-              </Button>
-            )}
-          </div>
 
-          {filteredDeployments.length === 0 ? (
-            /*
-              Two different facts, previously told the same way. Filtering to a
-              service with no deploys showed "No deployments yet — trigger a
-              deployment to get started", which is false: deployments exist,
-              you just filtered them out.
-            */
-            serviceFilter !== 'all' ? (
-              <FilteredEmptyState
-                label="No deployments for this service."
-                onClear={() => { setServiceFilter('all') }}
-              />
+            {rows.length === 0 ? (
+              <FilteredEmptyState label="No deployment matches these filters." onClear={clearFilters} />
             ) : (
-              <EmptyState
-                icon={Rocket}
-                title="No deployments yet"
-                description="Trigger a deployment to get started."
-                action={{ label: 'Trigger deployment', onClick: () => { setTriggerOpen(true) } }}
+              <ProjectDeploymentsTable
+                rows={rows}
+                projectId={projectId}
+                serviceNames={serviceNames}
+                canRollback={(row) => rollbackTargetOf(row) !== null}
+                now={now}
+                busy={busy}
+                onAction={(action, row) => { setPending({ action, row }) }}
               />
-            )
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Environment</TableHead>
-                  <TableHead>Service</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="w-40">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredDeployments.map((dep: any, index: number) => {
-                  const status = (dep.status ?? dep.state ?? '').toLowerCase()
-                  // Read the id once and reuse it: the row already needed it for
-                  // the ID cell, and the action labels below need it too.
-                  const displayId = shortId(dep.id)
-                  return (
-                    <TableRow key={dep.id ?? index}>
-                      <TableCell className="font-mono text-xs">{displayId}</TableCell>
-                      <TableCell><StatusBadge status={status} className="text-[11px]" /></TableCell>
-                      <TableCell>{dep.environment ?? '-'}</TableCell>
-                      <TableCell>{dep.serviceName ?? dep.service_id ?? dep.serviceId ?? '-'}</TableCell>
-                      <TableCell className="text-muted-foreground text-xs">{formatDate(dep.createdAt ?? dep.created_at)}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          {/* Link to the service logs for this deployment */}
-                          {dep.serviceId || dep.service_id ? (
-                            <AuthDashboardProjectsProjectIdServicesServiceIdLogs.Link
-                              projectId={projectId}
-                              serviceId={dep.serviceId ?? dep.service_id}
-                            >
-                              <Button variant="ghost" size="icon" className="size-7" title="View service logs" aria-label="View service logs">
-                                <ScrollText className="size-3.5" />
-                              </Button>
-                            </AuthDashboardProjectsProjectIdServicesServiceIdLogs.Link>
-                          ) : null}
-                          {(status === 'pending' || status === 'queued' || status === 'building' || status === 'deploying') && (
-                            <Button variant="ghost" size="icon" className="size-7" onClick={() => { setCancelId(dep.id); setCancelOpen(true) }} title="Cancel" aria-label={`Cancel deployment ${displayId}`}><XCircle className="size-3.5" /></Button>
-                          )}
-                          {(status === 'success' || status === 'failed') && (
-                            <Button variant="ghost" size="icon" className="size-7" onClick={() => { setRollbackId(dep.id); setRollbackOpen(true) }} title="Rollback" aria-label={`Roll back deployment ${displayId}`}><RotateCcw className="size-3.5" /></Button>
-                          )}
-                          {status === 'failed' && (
-                            <Button variant="ghost" size="icon" className="size-7" onClick={() => { void handleRetry(dep.id) }} title="Retry" aria-label={`Retry deployment ${displayId}`}><Play className="size-3.5" /></Button>
-                          )}
-                          {status !== 'pending' && status !== 'queued' && status !== 'building' && status !== 'deploying' && (
-                            <Button variant="ghost" size="icon" className="size-7" onClick={() => { setDeleteId(dep.id); setDeleteOpen(true) }} title="Delete" aria-label={`Delete deployment ${displayId}`}><Trash2 className="size-3.5" /></Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Cancel Dialog */}
-      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Cancel Deployment</DialogTitle><DialogDescription>This will stop the running deployment <strong className="font-mono">{shortId(cancelId ?? '')}</strong>.</DialogDescription></DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCancelOpen(false)}>Close</Button>
-            <Button variant="destructive" onClick={handleCancel} disabled={cancelDeployment.isPending}>{cancelDeployment.isPending ? 'Cancelling...' : 'Cancel Deployment'}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Rollback Dialog */}
-      <Dialog open={rollbackOpen} onOpenChange={setRollbackOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Rollback Deployment</DialogTitle><DialogDescription>Revert deployment <strong className="font-mono">{shortId(rollbackId ?? '')}</strong> to the previous version.</DialogDescription></DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRollbackOpen(false)}>Close</Button>
-            <Button onClick={handleRollback} disabled={rollbackDeployment.isPending}>{rollbackDeployment.isPending ? 'Rolling back...' : 'Rollback'}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Dialog */}
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Delete Deployment</DialogTitle><DialogDescription>This permanently removes the deployment record <strong className="font-mono">{shortId(deleteId ?? '')}</strong>.</DialogDescription></DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleteDeployment.isPending}>{deleteDeployment.isPending ? 'Deleting...' : 'Delete'}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+      {triggerOpen ? (
+        <TriggerDialog
+          services={services}
+          environments={environments}
+          pending={trigger.isPending}
+          onSubmit={(choice) => void handleTrigger(choice)}
+          onClose={() => { setTriggerOpen(false) }}
+        />
+      ) : null}
+      {pending ? (
+        <ConfirmDialog
+          title={COPY[pending.action].title}
+          description={`${serviceNames.get(pending.row.serviceId) ?? 'Sub-service'} · ${pending.row.environment ?? 'unknown environment'}. ${COPY[pending.action].body}`}
+          confirmLabel={COPY[pending.action].confirm}
+          destructive={COPY[pending.action].destructive}
+          pending={busy}
+          onConfirm={() => void runAction()}
+          onClose={() => { setPending(null) }}
+        />
+      ) : null}
+    </div>
   )
 }

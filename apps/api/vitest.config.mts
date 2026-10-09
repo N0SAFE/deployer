@@ -107,7 +107,7 @@ export default defineConfig(
             name: "unit",
             environment: "node",
             setupFiles: ["./vitest.setup.ts"],
-            include: ["**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts}"],
+            include: ["src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts}"],
             exclude: [
               "node_modules",
               "dist",

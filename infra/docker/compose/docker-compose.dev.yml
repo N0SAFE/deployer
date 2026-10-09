@@ -37,7 +37,7 @@ services:
       service: api
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-dev
     ports:
-      - "${DRIZZLE_STUDIO_PORT:-4983}:4983"
+      - "127.0.0.1:${DRIZZLE_STUDIO_PORT:-4983}:4983"
     depends_on:
       # ── THE GATE ──────────────────────────────────────────────────────────
       # The API is a CONVERGED-PLATFORM process: migrations, seed, admin and
@@ -81,7 +81,11 @@ services:
       MANAGED_DATABASE_USER: deployer
       MANAGED_DATABASE_PASSWORD: deployer
       MANAGED_DATABASE_NAME: deployer
-      MANAGED_WIREGUARD_ENABLED: "true"
+      # This profile is DEV: the stack is started and stopped by hand on a
+      # workstation, so the mesh defaults to `observe` and the node does NOT bring
+      # up a host-level WireGuard interface on every start. Set `kernel` to
+      # exercise the real dataplane locally.
+      MESH_AGENT_DATAPLANE: ${MESH_AGENT_DATAPLANE:-observe}
     networks:
       app_network_dev:
         aliases:
@@ -139,10 +143,10 @@ services:
       # `dynamic-setup.yml` into the shared config volume.
       MANAGED_TRAEFIK_ENABLED: "true"
       DEPLOYER_PREFIX: ${DEPLOYER_PREFIX:-}
-      # WireGuard is a compose-provided sidecar, and the overlay must exist
-      # before the API is scheduled onto the cluster.
-      MANAGED_WIREGUARD_IP: ${MANAGED_WIREGUARD_IP:-}
-      APP_URL: ${APP_URL:-http://web-dev:3000}
+      # Same dev default as the API above: the node brings up NO host WireGuard
+      # interface when the stack starts. Set `kernel` to exercise the real
+      # dataplane (needs NET_ADMIN and a WireGuard-capable kernel).
+      MESH_AGENT_DATAPLANE: ${MESH_AGENT_DATAPLANE:-observe}
     volumes:
       # The SAME SQLite file the API reads: setup WRITES the swarm participation
       # decision and the API READS it, so they must be the same file.
@@ -268,17 +272,9 @@ volumes:
     name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_dep_output_dev
   deployer-traefik-config:
     name: ${TRAEFIK_CONFIG_VOLUME:-deployer-traefik-config}
-  deployer-port-proxy-config:
-    name: ${DIRECT_PROXY_CONFIG_VOLUME:-deployer-port-proxy-config}
-  wireguard-state-mesh-1:
-    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-1
-  wireguard-state-mesh-2:
-    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-2
-  wireguard-state-mesh-3:
-    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-3
-  wireguard-state-mesh-4:
-    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-4
-  wireguard-state-mesh-5:
-    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-5
-  wireguard-state-mesh-6:
-    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-6
+  # The mesh agent's control-socket volume (`/run/deployer-mesh/agent.sock`).
+  # NAMED LITERALLY, never project-prefixed: the agent container and the API
+  # swarm service mount it by this exact name, so setup and api-dev must mount
+  # the same one.
+  deployer-mesh-run:
+    name: deployer-mesh-run

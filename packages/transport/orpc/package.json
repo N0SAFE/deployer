@@ -45,10 +45,10 @@
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
-        "build": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js",
-        "dev": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js --watch",
+        "build": "bun --bun pkg-build",
+        "dev": "bun --bun pkg-build --watch",
         "clean": "rimraf dist",
-        "build:types": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js --types"
+        "build:types": "bun --bun pkg-build --types"
     },
     "dependencies": {
         "@orpc/client": "catalog:orpc",

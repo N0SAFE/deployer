@@ -1,7 +1,5 @@
 'use client'
 
-import { Badge } from '@repo/ui/components/shadcn/badge'
-
 interface DockerRuntimeStackOverviewProps {
   image: string
   pullStatus: 'idle' | 'pulling' | 'complete' | 'error'
@@ -14,6 +12,7 @@ interface DockerRuntimeStackOverviewProps {
   selectedNetworksCount: number
 }
 
+/** Compact summary of what a container is about to be created with. */
 export function DockerRuntimeStackOverview({
   image,
   pullStatus,
@@ -26,29 +25,27 @@ export function DockerRuntimeStackOverview({
   selectedNetworksCount,
 }: DockerRuntimeStackOverviewProps) {
   return (
-    <div className="rounded border bg-muted/20 p-3 space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-muted-foreground">Runtime stack overview</p>
-        <Badge variant="outline" className="text-[10px]">Dedicated stack component</Badge>
-      </div>
-
-      <div className="grid gap-2 md:grid-cols-3 text-xs">
+    <section aria-label="Runtime stack overview" className="space-y-2 rounded border bg-muted/20 p-3">
+      <h3 className="text-sm font-medium text-muted-foreground">Summary</h3>
+      <dl className="grid gap-2 text-sm md:grid-cols-3">
         <div className="rounded border bg-background p-2.5">
-          <p className="text-muted-foreground">Image stack</p>
-          <p className="mt-1 truncate font-mono text-[11px]">{image || 'Not set'}</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">pull: {pullStatus} • scan: {scanStatus}</p>
+          <dt className="text-muted-foreground">Image</dt>
+          <dd className="mt-1 truncate font-mono text-xs" title={image || undefined}>{image || 'Not set'}</dd>
+          <dd className="mt-1 text-xs text-muted-foreground">Pull: {pullStatus}. Security scan: {scanStatus}.</dd>
         </div>
         <div className="rounded border bg-background p-2.5">
-          <p className="text-muted-foreground">Network stack</p>
-          <p className="mt-1">mode: <span className="font-medium">{networkMode}</span></p>
-          <p className="text-[11px] text-muted-foreground">attached: {selectedNetworksCount}</p>
+          <dt className="text-muted-foreground">Networking</dt>
+          <dd className="mt-1">Mode <span className="font-medium">{networkMode}</span></dd>
+          <dd className="text-xs text-muted-foreground">{selectedNetworksCount} network{selectedNetworksCount === 1 ? '' : 's'} attached</dd>
         </div>
         <div className="rounded border bg-background p-2.5">
-          <p className="text-muted-foreground">Config stack</p>
-          <p className="mt-1">ports: <span className="font-medium">{portsCount}</span> • volumes: <span className="font-medium">{volumesCount}</span></p>
-          <p className="text-[11px] text-muted-foreground">env: {envVarsCount} • labels: {labelsCount}</p>
+          <dt className="text-muted-foreground">Configuration</dt>
+          <dd className="mt-1">
+            <span className="font-medium">{portsCount}</span> ports, <span className="font-medium">{volumesCount}</span> volumes
+          </dd>
+          <dd className="text-xs text-muted-foreground">{envVarsCount} env vars, {labelsCount} labels</dd>
         </div>
-      </div>
-    </div>
+      </dl>
+    </section>
   )
 }

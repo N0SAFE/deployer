@@ -4,10 +4,11 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   AuthDashboard,
-  AuthDashboardAdminSystem,
   AuthDashboardDeployments,
   AuthDashboardDocker,
-  AuthDashboardProfile,
+  AuthDashboardNodes,
+  AuthDashboardSettings,
+  AuthDashboardSettingsAccount,
   AuthDashboardProjects,
   AuthDashboardServices,
 } from '@/routes'
@@ -23,12 +24,13 @@ import { openCommandPalette } from './command-palette-store'
 /** go-to bindings: press `g`, then a letter within the window. */
 const GO_TO_BINDINGS: Record<string, { label: string; href: string }> = {
   o: { label: 'Command center', href: AuthDashboard() },
+  n: { label: 'Nodes', href: AuthDashboardNodes() },
   p: { label: 'Projects', href: AuthDashboardProjects() },
   d: { label: 'Deployments', href: AuthDashboardDeployments() },
   s: { label: 'Services', href: AuthDashboardServices() },
   c: { label: 'Docker', href: AuthDashboardDocker() },
-  a: { label: 'Admin · System', href: AuthDashboardAdminSystem() },
-  u: { label: 'Profile', href: AuthDashboardProfile() },
+  a: { label: 'Settings', href: AuthDashboardSettings() },
+  u: { label: 'Account', href: AuthDashboardSettingsAccount() },
 }
 
 const SHORTCUT_ROWS: Array<{ keys: string; action: string }> = [
@@ -135,13 +137,13 @@ export function KeyboardShortcutsProvider() {
           {SHORTCUT_ROWS.map((row) => (
             <div key={row.keys} className="flex items-center justify-between gap-4 rounded-md px-2 py-1.5 odd:bg-muted/30">
               <span className="text-sm text-muted-foreground">{row.action}</span>
-              <kbd className="rounded-md border border-border/60 bg-background px-2 py-1 font-mono text-[11px] tabular-nums">
+              <kbd className="rounded-md border border-border/60 bg-background px-2 py-1 font-mono text-xs tabular-nums">
                 {row.keys}
               </kbd>
             </div>
           ))}
         </div>
-        <p className="rounded-md border border-dashed border-border/60 bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
+        <p className="rounded-md border border-dashed border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
           Tip: press <kbd className="rounded-sm border border-border/60 bg-background px-1">⌘K</kbd> from anywhere to search pages, projects, and services.
         </p>
       </DialogContent>

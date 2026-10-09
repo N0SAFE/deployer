@@ -171,3 +171,84 @@ describe("OrchestrationStreamService — reconnect re-sync", () => {
 		expect(service.emittedSoFar()).toBe(before + 6);
 	});
 });
+
+describe("OrchestrationStreamService — how the run ended", () => {
+	it("replays the API's `completed` to a client that reconnects after it", () => {
+		const service = makeService();
+		service.forward({
+			type: "completed",
+			result: { nodeId: "00000000-0000-4000-8000-000000000001", strategy: "local", databaseUrl: "x", completedAt: new Date().toISOString() },
+		} as SetupStreamEvent);
+
+		// A re-sync is a snapshot plus the live tail, which skips history — so the
+		// terminal event has to be remembered, or the client never learns the run
+		// finished and the wizard sits on "Live setup output" forever.
+		expect(service.terminalEvent()?.type).toBe("completed");
+	});
+
+	it("marks only the in-flight steps as failed and reports why", () => {
+		const service = makeService();
+		service.snapshot([
+			{ id: "start_api", status: "completed" },
+			{ id: "promote_ingress", status: "in_progress" },
+		]);
+
+		service.failActive("the swarm ingress did not claim the entry port");
+
+		const snapshot = service.currentSnapshot();
+		const steps = snapshot?.type === "snapshot" ? snapshot.steps : [];
+		expect(steps.find((step) => step.id === "start_api")?.status).toBe("completed");
+		expect(steps.find((step) => step.id === "promote_ingress")).toMatchObject({
+			status: "failed",
+			error: "the swarm ingress did not claim the entry port",
+		});
+		expect(service.terminalEvent()).toMatchObject({ type: "error", message: "the swarm ingress did not claim the entry port" });
+	});
+
+	it("emits the failure as ordinary events, so a connected client sees it live", async () => {
+		const service = makeService();
+		service.snapshot([{ id: "promote_ingress", status: "in_progress" }]);
+		const checkpoint = service.emittedSoFar();
+		const tail = firstValueFrom(service.liveAfter(checkpoint).pipe(take(2), (source) => source));
+
+		service.failActive("boom");
+
+		// First the failed step, then the terminal `error` — in that order, so the
+		// client can attribute the error to a step before it ends the run.
+		expect((await tail).type).toBe("snapshot");
+	});
+
+	it("delivers events emitted after the checkpoint even when the run outgrew the replay buffer", async () => {
+		const service = makeService();
+		// More than the replay capacity (200): the buffer has dropped the earliest.
+		for (let index = 0; index < 450; index += 1) service.log("await_api_boot", `line ${String(index)}`);
+		const checkpoint = service.emittedSoFar();
+		const received: SetupStreamEvent[] = [];
+		const subscription = service.liveAfter(checkpoint).subscribe((event) => received.push(event));
+
+		service.log("await_api_boot", "after the checkpoint");
+		service.fail("boom");
+		subscription.unsubscribe();
+
+		// Skipping the absolute checkpoint from the replay's own start swallowed
+		// the next 250 live events, so the terminal error never reached the client.
+		expect(received.map((event) => event.type)).toEqual(["log", "error"]);
+	});
+
+	it("keeps `completed` when a handover failure is cleared for a retry", () => {
+		const service = makeService();
+		service.forward({
+			type: "completed",
+			result: { nodeId: "00000000-0000-4000-8000-000000000001", strategy: "local", databaseUrl: "x", completedAt: new Date().toISOString() },
+		} as SetupStreamEvent);
+		service.fail("handover failed");
+		expect(service.terminalEvent()?.type).toBe("error");
+
+		service.clearFailure();
+
+		// Provisioning succeeded and a handover retry does not redo it, so that
+		// fact must not be lost — but the error must be, or the retry shows the
+		// previous failure on a run that has not failed.
+		expect(service.terminalEvent()).toBeNull();
+	});
+});

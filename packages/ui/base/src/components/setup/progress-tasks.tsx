@@ -45,11 +45,13 @@ const SETUP_OWNED_STEP_IDS: readonly string[] = [
 /**
  * Whether the API's stream has taken over the timeline.
  *
- * Any node the API owns is proof that setup handed over: the API only answers on
- * this URL AFTER the handover repoints it, which happens at the very end of
- * `promote_ingress` — after the port was released and the swarm ingress proved it
- * was routing. So the API speaking is itself the evidence that the ingress swap
- * SUCCEEDED.
+ * Any node the API owns is proof that setup handed over and exited: the API only
+ * answers on this URL once the handover repointed it. That is enough to RETIRE
+ * setup's own steps (below) — they can never be updated again — but it is NOT
+ * evidence that the platform is usable: the API speaking says nothing about the
+ * ingress that was just replaced, or about the dashboard. That is the job of the
+ * final verification steps (`platform-verification.ts`), which gate the Continue
+ * button on a live check rather than on this inference.
  */
 function apiTookOver(events: SetupStreamEvent[]): boolean {
   return events.some((event) => {
@@ -327,7 +329,32 @@ export function isPipelineComplete(tasks: ProgressTask[]): boolean {
   return tasks.length > 0 && tasks.every((task) => task.status === "done")
 }
 
-export function ProgressTasks({ tasks }: { tasks: ProgressTask[] }) {
+/**
+ * Whether the setup stream is FINISHED — there is nothing left to wait for, so a
+ * closed connection is the end and not an interruption to retry.
+ *
+ * ── THE PIPELINE'S END, NOT THE FIRST TERMINAL EVENT ────────────────────────
+ * The API's `completed` reports PROVISIONING, and it arrives BEFORE the ingress
+ * swap — the very step that tears the wizard's connection down. Treating
+ * `completed` as "finished" told the stream it was done at the moment it was about
+ * to be cut: nothing reconnected, the timeline froze on "switching the ingress",
+ * and the operator watched a run that had silently stopped receiving updates.
+ *
+ * So the stream is finished when the run FAILED (`error`), or when it completed
+ * AND every announced step is done. Until then a dropped connection is a real
+ * interruption, retried against the same origin — which re-syncs from the
+ * server's current state.
+ *
+ * Searched over the whole timeline rather than read from the last event: two
+ * producers append to it and the later one can append after a terminal.
+ */
+export function isSetupRunFinished(events: readonly SetupStreamEvent[]): boolean {
+  if (events.some((event) => event.type === "error")) return true
+  if (!events.some((event) => event.type === "completed")) return false
+  return isPipelineComplete(buildTasksFromEvents([...events]))
+}
+
+export function ProgressTasks({ tasks, scrollable = false }: { tasks: ProgressTask[]; scrollable?: boolean }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const prevStatusRef = useRef<Record<string, TaskStatus>>({})
 
@@ -353,10 +380,28 @@ export function ProgressTasks({ tasks }: { tasks: ProgressTask[] }) {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }))
   }
 
+  // ── SCROLLABLE: PINNED TO THE NEWEST STEP ──────────────────────────────────
+  // The list takes the space its flex-column parent leaves (`flex-1 min-h-0`) and
+  // scrolls inside itself, so a long run never pushes the heading and the
+  // verification steps off screen — the page itself does not scroll.
+  //
+  // `flex-col-reverse` is what makes the scroll position STICK to the bottom: a
+  // reversed column's scroll origin is its bottom edge, so new content grows
+  // upward and the newest step stays in view without any scroll-to-end effect. The
+  // DOM order is reversed to compensate, which leaves the steps reading
+  // first-to-last from the top while the LAST one rests at the bottom.
+  const ordered = scrollable ? [...tasks].reverse() : tasks
+
   return (
-    <ol className="flex flex-col gap-2.5" aria-label="Setup progress">
-      {tasks.map((task) => (
-        <li key={task.id}>
+    <ol
+      className={cn(
+        "flex gap-2.5",
+        scrollable ? "min-h-0 flex-1 flex-col-reverse overflow-y-auto overscroll-contain pr-1" : "shrink-0 flex-col",
+      )}
+      aria-label="Setup progress"
+    >
+      {ordered.map((task) => (
+        <li key={task.id} className="shrink-0">
           <TaskCard task={task} expanded={!!expanded[task.id]} onToggle={() => toggle(task.id)} />
         </li>
       ))}

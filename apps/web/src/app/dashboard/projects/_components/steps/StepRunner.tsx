@@ -127,8 +127,7 @@ function emptySubService(index: number): OrchestratorSubService {
     name: `svc-${String(index + 1)}`,
     image: '',
     ports: [],
-    portMappings: [],
-    expose: false,
+    visibility: 'public',
     tls: { enabled: false, httpRedirect: true },
     networks: [],
     customDomains: [],
@@ -144,63 +143,6 @@ function emptySubService(index: number): OrchestratorSubService {
   }
 }
 
-/** Compact port-forward editor for a sub-service. */
-function SubPortMappingEditor({ value, onChange }: {
-  value: { containerPort: number; hostPort?: number; protocol: 'tcp' | 'udp'; name?: string }[]
-  onChange: (next: { containerPort: number; hostPort?: number; protocol: 'tcp' | 'udp'; name?: string }[]) => void
-}) {
-  const [adding, setAdding] = useState(false)
-  const [containerPort, setContainerPort] = useState('')
-  const [hostPort, setHostPort] = useState('')
-  const [protocol, setProtocol] = useState<'tcp' | 'udp'>('tcp')
-
-  const commit = () => {
-    const cp = Number(containerPort)
-    if (!Number.isInteger(cp) || cp <= 0) return
-    const hp = hostPort.trim() ? Number(hostPort) : undefined
-    onChange([...value, { containerPort: cp, hostPort: hp, protocol, name: `mapping-${String(value.length + 1)}` }])
-    setContainerPort(''); setHostPort(''); setProtocol('tcp'); setAdding(false)
-  }
-
-  return (
-    <div className="space-y-1.5">
-      {value.length === 0 && <p className="text-[11px] text-muted-foreground">No extra forwards.</p>}
-      {value.map((m, i) => (
-        <div key={i} className="flex items-center gap-1.5 rounded border px-2 py-1 text-[11px]">
-          <span className="font-mono text-muted-foreground">{m.protocol}</span>
-          <code className="font-mono">{m.hostPort ?? 'auto'}</code>
-          <span className="text-muted-foreground">→</span>
-          <code className="font-mono">{m.containerPort}</code>
-          <span className="flex-1" />
-          <Button type="button" variant="ghost" size="icon" className="size-5" aria-label="Remove port mapping" onClick={() => { onChange(value.filter((_, idx) => idx !== i)) }}>
-            <X className="size-3" />
-          </Button>
-        </div>
-      ))}
-      {adding ? (
-        <div className="flex items-center gap-1.5">
-          <Select value={protocol} onValueChange={(v) => { setProtocol(v as 'tcp' | 'udp') }}>
-            <SelectTrigger className="h-6 w-16 text-[11px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="tcp">tcp</SelectItem>
-              <SelectItem value="udp">udp</SelectItem>
-            </SelectContent>
-          </Select>
-          <Input value={hostPort} onChange={(e) => { setHostPort(e.target.value) }} placeholder="host" className="h-6 w-16 font-mono text-[11px]" />
-          <span className="text-[11px] text-muted-foreground">→</span>
-          <Input value={containerPort} onChange={(e) => { setContainerPort(e.target.value) }} placeholder="container" className="h-6 w-20 font-mono text-[11px]" />
-          <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-[11px]" onClick={commit}>Add</Button>
-          <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => { setAdding(false) }}>Cancel</Button>
-        </div>
-      ) : (
-        <Button type="button" size="sm" variant="outline" className="h-6 w-fit gap-1 text-[11px]" onClick={() => { setAdding(true) }}>
-          <Plus className="size-3" /> Add forward
-        </Button>
-      )}
-    </div>
-  )
-}
-
 /** Collapsed summary row for a sub-service. */
 function SubServiceRow({ svc, index, expanded, onToggle, onRemove }: {
   svc: OrchestratorSubService
@@ -212,7 +154,7 @@ function SubServiceRow({ svc, index, expanded, onToggle, onRemove }: {
   const facts = [
     svc.port ? `:${String(svc.port)}` : null,
     svc.ports.length > 0 ? `ports: ${svc.ports.join(', ')}` : null,
-    svc.expose ? 'internet' : 'internal',
+    svc.visibility,
     svc.replicas > 1 ? `×${String(svc.replicas)}` : null,
     Object.keys(svc.environment).length > 0 ? `${String(Object.keys(svc.environment).length)} env` : null,
     svc.volumes.length > 0 ? `${String(svc.volumes.length)} vol` : null,
@@ -291,20 +233,19 @@ function SubServiceEditorExpanded({ svc, mainEnv, onPatch, onPatchNested }: {
               <Input type="number" value={svc.port ?? ''} onChange={(e) => { onPatch({ port: e.target.value ? Number(e.target.value) : undefined }) }} placeholder="3000" className="text-xs" />
             </Field>
             <Field>
-              <FieldLabel className="text-[11px]">Expose to internet</FieldLabel>
-              <div className="flex items-center gap-2">
-                <Switch checked={svc.expose} onCheckedChange={(c) => { onPatch({ expose: c }) }} />
-                <span className="text-[11px] text-muted-foreground">Ingress (Traefik)</span>
-              </div>
+              <FieldLabel className="text-[11px]">Visibility</FieldLabel>
+              <Select value={svc.visibility} onValueChange={(v) => { onPatch({ visibility: v as OrchestratorSubService['visibility'] }) }}>
+                <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="public">Public — also on the public lane (internet) when one is enabled</SelectItem>
+                  <SelectItem value="private">Private — this machine and mesh members only</SelectItem>
+                </SelectContent>
+              </Select>
             </Field>
             <Field><FieldLabel className="text-[11px]">Container ports</FieldLabel><TagsInput value={svc.ports.map(String)} onChange={(v) => { onPatch({ ports: v.map(Number) }) }} placeholder="80, 443" /></Field>
             <Field><FieldLabel className="text-[11px]">Networks</FieldLabel><TagsInput value={svc.networks} onChange={(v) => { onPatch({ networks: v }) }} placeholder="frontend, backend" /></Field>
           </div>
-          <Field>
-            <FieldLabel className="text-[11px]">Port forwards</FieldLabel>
-            <SubPortMappingEditor value={svc.portMappings} onChange={(portMappings) => { onPatch({ portMappings }) }} />
-          </Field>
-          {svc.expose && (
+          {svc.visibility === 'public' && (
             <div className="space-y-2 rounded-md border bg-background/40 p-2.5">
               <div className="flex items-center gap-2">
                 <Switch checked={svc.tls.enabled} onCheckedChange={(c) => { onPatchNested('tls', { enabled: c }) }} />
@@ -1202,7 +1143,7 @@ export function StepRunner({ form }: { form: CreateServiceFormApi }) {
                           environment: currentCfg.environment ?? {},
                           subServices: detected.length > 0
                             ? subServicesFromHints(detected)
-                            : declared.map((d) => ({ name: d.name, image: d.image ?? '', ports: (d.ports ?? []).map(Number), portMappings: [], expose: false, tls: { enabled: false, httpRedirect: true }, networks: [], customDomains: [], environment: {}, volumes: [], labels: {}, secrets: [], dependsOn: [], dependsOnCondition: 'service_started', replicas: 1, restart: 'no', build: { args: {} } })),
+                            : declared.map((d) => ({ name: d.name, image: d.image ?? '', ports: (d.ports ?? []).map(Number), visibility: 'public', tls: { enabled: false, httpRedirect: true }, networks: [], customDomains: [], environment: {}, volumes: [], labels: {}, secrets: [], dependsOn: [], dependsOnCondition: 'service_started', replicas: 1, restart: 'no', build: { args: {} } })),
                         },
                       } as never)
                       return

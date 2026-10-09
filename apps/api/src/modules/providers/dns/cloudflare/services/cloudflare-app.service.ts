@@ -17,7 +17,8 @@ import { BadRequestException, ConflictException, Injectable, Logger, NotFoundExc
 import { Cloudflare } from "cloudflare";
 import z from "zod/v4";
 import { DnsProvidersRepository } from "../../shared/repositories/dns-providers.repository";
-import { PlatformIngressSettingsService } from "@/core/modules/platform-ingress/services/platform-ingress-settings.service";
+import { IngressLanesService } from "@/core/modules/platform-ingress/services/ingress-lanes.service";
+import { EdgeProviderRegistry } from "@/core/modules/edge/edge-provider.registry";
 import { toCloudflareErrorMessage } from "./cloudflare.helpers";
 
 import { AppError } from "@repo/errors";
@@ -58,7 +59,8 @@ export class CloudflareAppService {
 
     constructor(
         private readonly dnsProvidersRepository: DnsProvidersRepository,
-        private readonly edgeSettings: PlatformIngressSettingsService,
+        private readonly ingressLanes: IngressLanesService,
+        private readonly edges: EdgeProviderRegistry,
     ) {}
 
     // ─── Row access ──────────────────────────────────────────────────────────
@@ -158,13 +160,13 @@ export class CloudflareAppService {
     }
 
     async deleteApp(providerId: string): Promise<boolean> {
-        // Guard: the app backing the STACK's tunnel cannot be deleted while in
-        // use — deleting it would leave the connector holding a token whose
-        // account is gone, and the edge would fail with no obvious cause.
-        const edge = await this.edgeSettings.getEdgeTunnel();
-        if (edge.providerId === providerId) {
+        // Guard: an account the public edge runs on (a tunnel's account) cannot be
+        // deleted while in use — the edge would keep a credential whose account is
+        // gone and fail with no obvious cause. Generic: the registry knows which
+        // lane options are DNS accounts, whatever the edge provider.
+        if (this.edges.accountsInUse(await this.ingressLanes.getLanes()).includes(providerId)) {
             throw new ConflictException(
-                `Cannot delete: this provider backs the stack's edge tunnel${edge.tunnelId === null ? "" : ` (${edge.tunnelId})`}. Clear the tunnel in Edge & Ingress first.`,
+                "Cannot delete: the stack's public edge runs on this account. Switch or tear down the public edge in Network → Ingress first.",
             );
         }
         await this.dnsProvidersRepository.deleteById(providerId);

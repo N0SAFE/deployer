@@ -23,13 +23,6 @@ export function toSafePathName(value: string): string {
   return value.trim().replace(/\/+/g, '-').replace(/\s+/g, '-').replace(/[^a-zA-Z0-9._-]/g, '').slice(0, 64)
 }
 
-export function formatFileSize(sizeInBytes: number): string {
-  if (sizeInBytes <= 0) return '0 B'
-  if (sizeInBytes < 1024) return `${String(sizeInBytes)} B`
-  if (sizeInBytes < 1024 * 1024) return `${(sizeInBytes / 1024).toFixed(1)} KB`
-  return `${(sizeInBytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
 export function getPathBreadcrumb(path: string): string[] {
   if (path === '/') return ['/']
   const parts = path.split('/').filter(Boolean)

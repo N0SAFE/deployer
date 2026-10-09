@@ -1,0 +1,48 @@
+{
+    "name": "@repo/mesh-network",
+    "version": "1.0.0",
+    "description": "Peer-equal mesh protocol: node identity, key-derived addresses, the signed replicated roster (CRDT), link planning, WireGuard/STUN wire formats, and the agent control client + container spec. Reads no environment.",
+    "main": "./dist/cjs/index.js",
+    "types": "./dist/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/types/index.d.ts",
+            "import": "./dist/esm/index.mjs",
+            "require": "./dist/cjs/index.js"
+        },
+        "./*": {
+            "types": "./dist/types/*.d.ts",
+            "import": "./dist/esm/*.mjs",
+            "require": "./dist/cjs/*.js"
+        }
+    },
+    "scripts": {
+        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "format": "bun run prettify",
+        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
+        "lint": "eslint . --fix --cache",
+        "type-check": "tsc --noEmit",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "build": "bun --bun pkg-build",
+        "dev": "bun --bun pkg-build --watch",
+        "clean": "rimraf dist",
+        "build:types": "bun --bun pkg-build --types"
+    },
+    "dependencies": {
+        "zod": "catalog:utils"
+    },
+    "devDependencies": {
+        "@repo/config-eslint": "*",
+        "@repo/config-prettier": "*",
+        "@repo/config-typescript": "*",
+        "@repo/pkg-build": "*",
+        "@types/node": "catalog:build",
+        "chokidar": "catalog:build",
+        "eslint": "catalog:linting",
+        "rimraf": "catalog:build",
+        "typescript": "catalog:build",
+        "vitest": "catalog:testing"
+    },
+    "module": "./dist/esm/index.mjs"
+}

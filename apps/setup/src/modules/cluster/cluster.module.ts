@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { AGENT_SOCKET_PATH, MeshAgentHttpClient } from "@repo/mesh-network";
 import { DockerModule } from "@repo/nest-docker/docker.module";
 import { NodesModule } from "@repo/nest-nodes";
 import { SwarmModule } from "@repo/nest-swarm";
@@ -8,7 +9,19 @@ import { EnvModule, EnvService } from "@/config/env/env.module";
 import { SetupHealthModule } from "@/modules/health/setup-health.module";
 import { SetupProgressModule } from "@/modules/progress/progress.module";
 import { ClusterOrchestratorService } from "./services/cluster-orchestrator.service";
+import { MeshAgentLauncherService } from "./services/mesh-agent-launcher.service";
 import { SwarmBootstrapService } from "./services/swarm-bootstrap.service";
+
+/**
+ * This node's mesh address for the swarm package, once the interface carries it.
+ *
+ * A plain function rather than an injected service: the package's options are
+ * built in a factory, before this module's providers exist.
+ */
+async function meshAgentAddress(env: EnvService): Promise<string | null> {
+  const status = await new MeshAgentHttpClient(env.get("MESH_AGENT_SOCKET") ?? AGENT_SOCKET_PATH).status().catch(() => null);
+  return status?.cluster?.interfaceUp === true ? status.cluster.address : null;
+}
 
 /**
  * The cluster half of setup: found or join the swarm, then apply the node
@@ -78,26 +91,12 @@ import { SwarmBootstrapService } from "./services/swarm-bootstrap.service";
           heartbeatTtlMs: env.get("SWARM_HEARTBEAT_TTL_MS") ?? 30_000,
           masterGraceMs: env.get("SWARM_MASTER_GRACE_MS") ?? 15_000,
         },
-        // ── ONLY `overlayIp`, AND ONLY BECAUSE IT IS A FALLBACK ────────────
-        // The mode / policy / join-token / join-address defaults are gone: this
-        // app never converges the engine before setup, and the wizard always
-        // writes the full `node_config.swarmConfig`, which `effectiveConfig()`
-        // prefers. Supplying them would be dead configuration.
-        //
-        // `overlayIp` is different in kind — it is not a participation CHOICE but
-        // an ADDRESS SOURCE. `SwarmParticipationService.initOptions()` resolves
-        // the advertised address as
-        //
-        //   cfg.advertiseAddr ?? defaults.advertiseAddr ?? defaults.overlayIp
-        //
-        // and the wizard persists `advertiseAddr: null` whenever the operator
-        // leaves that field blank (it is optional on the form). Without this
-        // fallback a founding node on a mesh would advertise `127.0.0.1`, which is
-        // precisely the multi-address failure `AdvertiseAddr` exists to prevent.
-        //
-        // So the one value kept is the one the persisted config cannot express.
+        // ── SWARM RIDES THE MESH ─────────────────────────────────────────────
+        // The address Swarm binds is this node's mesh address, read from its mesh
+        // agent when needed (the agent derives it from its own key). No env key
+        // names it; with no mesh yet, the package binds loopback.
         participation: {
-          overlayIp: env.get("MANAGED_WIREGUARD_IP") ?? null,
+          meshAddress: () => meshAgentAddress(env),
         },
         // ── THE ENGINE IS CONVERGED BY THE SETUP FLOW, NOT AT BOOT ────────────
         // Whoever starts an app also decides whether it may touch the engine on
@@ -113,26 +112,17 @@ import { SwarmBootstrapService } from "./services/swarm-bootstrap.service";
         // founded while the wizard runs — which is when it must be, because the
         // API is scheduled onto that swarm immediately afterwards.
         convergeOnBoot: false,
-        join: {
-          // Setup founds the cluster, so the advertised address is resolved from
-          // what this node actually answers on. `SwarmBootstrapService` uses the
-          // same precedence when it calls `ensureCluster`; these candidates serve
-          // the grant issuer, which needs to tell OTHER nodes where to dial.
-          controlPlaneCandidates: [
-            env.get("SWARM_ADVERTISE_ADDR"),
-            env.get("MANAGED_WIREGUARD_IP"),
-            env.get("APP_URL"),
-          ],
-          quorumMax: env.get("SWARM_QUORUM_MAX") ?? 3,
-        },
+        // Joiners are handed the addresses the managers advertise (from the
+        // engine) — there is no address list to configure.
+        join: { quorumMax: env.get("SWARM_QUORUM_MAX") ?? 3 },
       }),
     }),
   ],
-  providers: [SwarmBootstrapService, ClusterOrchestratorService],
+  providers: [SwarmBootstrapService, ClusterOrchestratorService, MeshAgentLauncherService],
   // `ClusterOrchestratorService` is exported because the handover REACTS to the
   // cluster result: it subscribes to `stream$` rather than polling a phase,
   // which is what keeps this app event-driven and makes the dependency
   // direction explicit (handover imports cluster, never the reverse).
-  exports: [SwarmBootstrapService, ClusterOrchestratorService],
+  exports: [SwarmBootstrapService, ClusterOrchestratorService, MeshAgentLauncherService],
 })
 export class SetupClusterModule {}

@@ -154,7 +154,7 @@ export const services = pgTable("services", {
         recordContent?: string | null;
         proxied?: boolean;
         autoProvision?: boolean;
-        expose?: boolean;
+        visibility?: "private" | "public";
         tls?: { enabled?: boolean; httpRedirect?: boolean };
     } | null>(),
 

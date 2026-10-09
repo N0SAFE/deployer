@@ -8,7 +8,7 @@
  * itself — works when NO web app is running at all. When the web app IS
  * running, Traefik's `PathPrefix(/manage/web-app)` rule routes the SAME URL
  * to the beautiful web page instead — one URL, two visuals, selected by
- * `managed_web_app.enabled` (see TraefikPlatformConfigService).
+ * `managed_web_app.enabled` (see TraefikIngressConfigService).
  *
  * DATA: this controller ONLY renders views (@Render). Every action
  * (toggle/restart/origin/tunnel) is a typed ORPC implementation in

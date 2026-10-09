@@ -1,25 +1,21 @@
+import type { PublicAccessPointState } from './public-access-point.state'
 import { BadRequestException, Injectable, Logger } from '@nestjs/common'
 import { probeAddress, probePeer } from "@repo/nest-reachability"
 import dns from 'node:dns/promises'
 import { isIP } from 'node:net'
 import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository"
 import { NodeNetworkConfigRepository } from "../repositories/node-network-config.repository"
-import { PlatformIngressSettingsService } from "@/core/modules/platform-ingress/services/platform-ingress-settings.service"
+import { IngressLanesService } from "@/core/modules/platform-ingress/services/ingress-lanes.service"
+import { EdgeProviderRegistry } from "@/core/modules/edge/edge-provider.registry"
+import { deriveAddressKind, toNodeNetworkConfigData, type NodeNetworkConfigData } from "./node-network-config.mapper"
+import { PublicEdgeService } from "./public-edge.service"
 
-/** Full per-node network config persisted in the global `node_network_config`. */
-export interface NodeNetworkConfigData {
-  nodeId: string
-  publicAddress: string | null
-  addressKind: 'ip' | 'hostname' | null
-  updatedAt: string
-}
 
 /**
  * The node's reachable address, as the domain gate sees it.
  *
- * The tunnel is no longer part of this answer: it belongs to the stack
- * (`PlatformIngressSettingsService`), so the gate consults it directly rather
- * than through a per-node row.
+ * The public edge is not part of this row: it belongs to the stack, so the gate
+ * asks the edge provider rather than a per-node row.
  */
 export interface NodeAddressGate {
   allowed: boolean
@@ -35,7 +31,9 @@ export class ReachabilityService {
   constructor(
     private readonly nodeNetworkConfigRepository: NodeNetworkConfigRepository,
     private readonly nodeConfigRepository: NodeConfigRepository,
-    private readonly edgeSettings: PlatformIngressSettingsService,
+    private readonly lanes: IngressLanesService,
+    private readonly edges: EdgeProviderRegistry,
+    private readonly publicEdge: PublicEdgeService,
   ) {}
 
   /**
@@ -63,31 +61,13 @@ export class ReachabilityService {
    */
   async getNodeNetworkConfig(nodeId?: string): Promise<NodeNetworkConfigData> {
     const target = nodeId?.trim() ? nodeId : this.getCurrentNodeId()
-    const row = await this.getConfigRow(target)
-    return {
-      nodeId: target,
-      publicAddress: row?.publicAddress?.trim() ? row.publicAddress.trim() : null,
-      addressKind: this.deriveAddressKind(row?.publicAddress ?? null),
-      updatedAt: row?.updatedAt?.toISOString() ?? new Date(0).toISOString(),
-    }
+    return toNodeNetworkConfigData(target, await this.getConfigRow(target))
   }
 
   /** Every node's network config (for the System page + provider detail tags). */
   async listNodeNetworkConfigs(): Promise<NodeNetworkConfigData[]> {
     const rows = await this.nodeNetworkConfigRepository.list()
-    return rows.map((row) => ({
-      nodeId: row.nodeId,
-      publicAddress: row.publicAddress?.trim() ? row.publicAddress.trim() : null,
-      addressKind: this.deriveAddressKind(row.publicAddress ?? null),
-      updatedAt: row.updatedAt.toISOString(),
-    }))
-  }
-
-  private deriveAddressKind(value: string | null): 'ip' | 'hostname' | null {
-    const clean = value?.trim()
-    if (!clean) return null
-    const host = clean.replace(/^https?:\/\//i, '').split('/')[0]!.split(':')[0]!
-    return isIP(host) !== 0 ? 'ip' : 'hostname'
+    return rows.map((row) => toNodeNetworkConfigData(row.nodeId, row))
   }
 
   /**
@@ -103,36 +83,21 @@ export class ReachabilityService {
   }
 
   /**
-   * Derive the node's PUBLIC URL from the node network config — the SINGLE
-   * source of truth for how this machine is reachable from the internet.
-   * Never reads env vars. Precedence:
-   *   1. tunnel hostname (https) when the tunnel is enabled
-   *   2. the configured public address: hostname → https, IP → http
-   * Returns null when neither is set.
+   * The platform's PUBLIC URL — where OAuth redirects and webhook callbacks reach
+   * the API — derived from the lanes, never from env.
+   *
+   * It exists only when a public lane is on AND the console is public on it:
+   * `https://api.<public domain>` when the edge serves HTTPS (a tunnel terminating
+   * TLS, or Traefik with ACME), `http://` otherwise. The apex of the domain is NOT
+   * used: the edge and its DNS record only cover `*.<domain>`, so the apex routes
+   * nowhere.
    */
-  async getNodePublicUrl(nodeId?: string): Promise<string | null> {
-    // The STACK tunnel's wildcard, when the edge is actually in tunnel mode and
-    // provisioned. Read from the shared edge settings, not a per-node row.
-    const mode = await this.edgeSettings.getEdgeMode()
-    const tunnel = await this.edgeSettings.getEdgeTunnel()
-    if (mode === 'tunnel' && tunnel.token !== null && tunnel.wildcard !== null) {
-      // A wildcard (`*.example.com`) is not itself a URL: the platform's own
-      // hostname is what a client can open, and the wildcard only guarantees
-      // that every app hostname under it routes.
-      const base = tunnel.wildcard.replace(/^\*\./, '')
-      return `https://${base}`
-    }
-
-    const config = await this.getNodeNetworkConfig(nodeId)
-    const address = config.publicAddress?.trim() ?? ''
-    if (!address) return null
-    // Preserve the full origin + path the user configured (e.g.
-    // https://example.com/base stays intact; a bare IP/hostname gets a scheme).
-    if (/^https?:\/\//i.test(address)) {
-      return address.replace(/\/+$/, '')
-    }
-    const host = address.split('/')[0]!
-    return isIP(host) !== 0 ? `http://${address}` : `https://${address}`
+  async getNodePublicUrl(_nodeId?: string): Promise<string | null> {
+    const lanes = await this.lanes.getLanes()
+    const lane = lanes.public
+    if (lane === null || lanes.consoleVisibility !== 'public') return null
+    const scheme = this.edges.ingressPlan(lanes).tls === 'none' ? 'http' : 'https'
+    return `${scheme}://api.${lane.domain}`
   }
 
   /**
@@ -144,7 +109,7 @@ export class ReachabilityService {
     const url = await this.getNodePublicUrl()
     if (!url) {
       throw new BadRequestException(
-        `${what} requires a globally reachable address for this node. Set a public IP or hostname (or enable the tunnel with a hostname) in System → Node Network & Reachability first.`,
+        `${what} requires the platform to be publicly reachable. Enable a public lane with a public console on the Network → Ingress page first.`,
       )
     }
     return url
@@ -155,18 +120,14 @@ export class ReachabilityService {
    * tunnel + provider) AND a live availability probe. Used by the
    * PublicAccessPointRelayService to broadcast over the global relay.
    */
-  async resolveAccessPointState(): Promise<import("./public-access-point.state").PublicAccessPointState> {
-    const config = await this.getNodeNetworkConfig()
-    const mode = await this.edgeSettings.getEdgeMode()
-    const tunnel = await this.edgeSettings.getEdgeTunnel()
-    // The stack tunnel counts as configured only when the edge is IN tunnel mode
-    // and a token exists — a stored-but-unused tunnel must not claim the edge.
-    const tunnelEnabled = mode === 'tunnel' && tunnel.token !== null
-    const tunnelHostname = tunnelEnabled && tunnel.wildcard ? tunnel.wildcard.replace(/^\*\./, '') : ''
-    const address = tunnelHostname || (config.publicAddress?.trim() ?? '')
+  async resolveAccessPointState(): Promise<PublicAccessPointState> {
+    const lanes = await this.lanes.getLanes()
+    const edge = this.edges.active(lanes)?.descriptor ?? null
+    const tunnelEnabled = edge?.kind === 'tunnel'
+    const [account = null] = this.edges.accountsInUse(lanes)
     const publicUrl = await this.getNodePublicUrl()
 
-    if (!address || !publicUrl) {
+    if (lanes.public === null || publicUrl === null) {
       return {
         configured: false,
         kind: null,
@@ -178,20 +139,17 @@ export class ReachabilityService {
         lastCheckedAt: new Date().toISOString(),
         latencyMs: null,
         statusCode: null,
-        error: 'No public address configured for this node. Set a public IP or hostname (or enable the tunnel with a hostname) in System → Node Network & Reachability first.',
+        error: 'No public lane with a public console is enabled. Turn one on on the Network → Ingress page.',
       }
     }
-
-    const hostPart = address.split('/')[0]!
-    const kind = tunnelHostname ? 'tunnel' : (isIP(hostPart) !== 0 ? 'ip' : 'hostname') as 'ip' | 'hostname' | 'tunnel'
 
     const verification = await this.verifyPublicAddress(publicUrl)
     return {
       configured: true,
-      kind,
-      address,
+      kind: tunnelEnabled ? 'tunnel' : 'hostname',
+      address: new URL(publicUrl).hostname,
       publicUrl,
-      providerId: tunnelEnabled ? tunnel.providerId : null,
+      providerId: account,
       tunnelEnabled,
       reachable: verification.valid,
       lastCheckedAt: new Date().toISOString(),
@@ -207,8 +165,8 @@ export class ReachabilityService {
    * points to this node (see verifyPublicAddress) — it is rejected otherwise.
    * Clearing the address is always allowed.
    *
-   * Tunnel provisioning is NOT here: the tunnel belongs to the STACK, and is
-   * provisioned by the reachability controller's stack-edge handlers.
+   * Edge provisioning is NOT here: the public edge belongs to the STACK and is
+   * provisioned through its edge provider (`IngressEdgeService`).
    */
   async updateNodeNetworkConfig(input: {
     nodeId?: string
@@ -235,35 +193,9 @@ export class ReachabilityService {
     await this.nodeNetworkConfigRepository.upsert({
       nodeId: target,
       publicAddress,
-      addressKind: this.deriveAddressKind(publicAddress),
+      addressKind: deriveAddressKind(publicAddress),
     })
     return this.getNodeNetworkConfig(target)
-  }
-
-  /**
-   * Resolve the hostname the STACK tunnel routes (its wildcard), when set.
-   *
-   * Used by the provider page so deleting a tunnel can also remove the CNAME
-   * record that pointed to it.
-   */
-  async getTunnelHostname(providerId: string, tunnelId: string): Promise<string | null> {
-    const tunnel = await this.edgeSettings.getEdgeTunnel()
-    if (tunnel.providerId !== providerId || tunnel.tunnelId !== tunnelId) return null
-    return tunnel.wildcard?.trim() ? tunnel.wildcard.trim() : null
-  }
-
-  /**
-   * Forget the stack tunnel when it is deleted externally (from the provider
-   * page), so no dead tunnel id is left claiming the edge. Returns 1 when a
-   * binding was cleared, 0 otherwise — same shape the per-node version had, so
-   * the provider page's reporting does not change.
-   */
-  async clearTunnelBinding(providerId: string, tunnelId: string): Promise<number> {
-    const tunnel = await this.edgeSettings.getEdgeTunnel()
-    if (tunnel.providerId !== providerId || tunnel.tunnelId !== tunnelId) return 0
-    await this.edgeSettings.clearEdgeTunnel()
-    this.logger.log(`Cleared stack tunnel binding ${tunnelId} (tunnel deleted externally)`)
-    return 1
   }
 
   /**
@@ -296,83 +228,28 @@ export class ReachabilityService {
   }
 
   /**
-   * Whether a provider app referenced by the tunnel config exists, is active
-   * and has the tunnelManagement feature enabled. Data access goes through
-   * NodeNetworkConfigRepository (the reachability domain's repository).
-   */
-  private async isTunnelProviderActive(providerId: string): Promise<boolean> {
-    try {
-      const row = await this.nodeNetworkConfigRepository.findTunnelProviderById(providerId)
-      if (!row) return false
-      if (!row.isActive) return false
-      if (!row.features?.tunnelManagement) return false
-      return typeof row.credentials === 'string' && row.credentials.length > 0
-    } catch {
-      return false
-    }
-  }
-
-  /**
-   * Domain creation gate: domains can only be created when the stack edge can
-   * actually resolve them to something.
+   * Domain creation gate: a custom domain is served on the public lane, so it can
+   * be created when the public edge can carry it.
    *
-   * THE ANSWER DEPENDS ON THE PROVIDER, not only on the node address:
-   *
-   *   `local`     — domains resolve on THIS machine through the loopback
-   *                 listener, so no public address is required at all. Gating
-   *                 here would block a fresh install from creating its first
-   *                 domain for no reason.
-   *   `wireguard` — domains resolve for enrolled mesh peers; no public address
-   *                 required either.
-   *   `tunnel`    — needs a provisioned, provider-backed tunnel.
-   *   `direct`    — needs a public address on this node (that is what DNS points
-   *                 at).
+   * With NO public lane a domain can still be registered — it goes live when one is
+   * turned on — so a fresh, local-only install is never blocked from preparing its
+   * domains. With a public lane, its edge provider must report itself provisioned
+   * (a tunnel created, a public address declared…); otherwise its own reason is
+   * returned, so this gate never has to know which provider it is.
    */
   async checkDomainGate(): Promise<NodeAddressGate> {
     const config = await this.getNodeNetworkConfig()
-    const mode = await this.edgeSettings.getEdgeMode()
-    const tunnel = await this.edgeSettings.getEdgeTunnel()
-
-    // `local` and `wireguard` serve names on an address they own themselves
-    // (loopback / the mesh overlay), so nothing about this node's PUBLIC
-    // address is needed for a domain to work. Requiring one would make a
-    // fresh install unable to create a domain until it went public — the
-    // inversion this change removes.
-    if (mode === 'local' || mode === 'wireguard') {
-      return { allowed: true, reason: null, publicAddress: config.publicAddress, addressKind: config.addressKind }
-    }
-
-    if (mode === 'tunnel') {
-      if (tunnel.token === null || tunnel.tunnelId === null || tunnel.providerId === null) {
-        return {
-          allowed: false,
-          reason: 'Edge provider is `tunnel` but no tunnel is provisioned. Set one on the edge settings page.',
-          publicAddress: config.publicAddress,
-          addressKind: config.addressKind,
-        }
-      }
-      const providerActive = await this.isTunnelProviderActive(tunnel.providerId)
-      if (providerActive) {
-        return { allowed: true, reason: null, publicAddress: config.publicAddress, addressKind: config.addressKind }
-      }
-      return {
-        allowed: false,
-        reason: 'The stack tunnel is provisioned but the linked DNS provider is missing or inactive. Configure the provider on the Cloudflare apps page.',
-        publicAddress: config.publicAddress,
-        addressKind: config.addressKind,
-      }
-    }
-
-    if (config.publicAddress) {
-      return { allowed: true, reason: null, publicAddress: config.publicAddress, addressKind: config.addressKind }
-    }
+    const lanes = await this.lanes.getLanes()
+    const base = { publicAddress: config.publicAddress, addressKind: config.addressKind }
+    const edge = await this.publicEdge.view(lanes)
+    if (edge === null || edge.status.provisioned) return { allowed: true, reason: null, ...base }
     return {
       allowed: false,
-      reason: 'No public address configured for this node. Set a globally reachable address (IP or hostname), or switch the edge to tunnel mode with a provisioned tunnel.',
-      publicAddress: config.publicAddress,
-      addressKind: config.addressKind,
+      reason: edge.status.detail ?? `The public edge (${edge.provider?.label ?? edge.providerId}) is not ready yet.`,
+      ...base,
     }
   }
+
 
   /**
    * Get the public IP of this API server by querying an external service.
@@ -426,7 +303,7 @@ export class ReachabilityService {
           signal: AbortSignal.timeout(5000),
         })
         if (resp.ok) {
-          const data = await resp.json() as { Answer?: Array<{ data: string }> }
+          const data = await resp.json() as { Answer?: { data: string }[] }
           resolvedIps = (data.Answer ?? []).map((a: { data: string }) => a.data)
         }
       } catch { /* fallback failed */ }

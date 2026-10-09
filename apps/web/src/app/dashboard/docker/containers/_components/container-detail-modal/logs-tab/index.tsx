@@ -8,6 +8,7 @@ import { Calendar } from 'lucide-react'
 import { formatInputDateTimeToIso, formatIsoToInputDateTime } from './_lib/log-date-time'
 import { sanitizeContainerLogMessage } from './_lib/log-message'
 import type { DockerContainerLogsTabProps } from './_models/logs-tab.types'
+import { useOnDepsChange } from '../../../../_hooks/use-on-deps-change'
 
 export function DockerContainerLogsTab({
   liveLogs,
@@ -26,10 +27,10 @@ export function DockerContainerLogsTab({
   const [draftStartAt, setDraftStartAt] = useState('')
   const [draftEndAt, setDraftEndAt] = useState('')
 
-  useEffect(() => {
+  useOnDepsChange([timeRange.end, timeRange.start], () => {
     setDraftStartAt(formatIsoToInputDateTime(timeRange.start))
     setDraftEndAt(formatIsoToInputDateTime(timeRange.end))
-  }, [timeRange.end, timeRange.start])
+  })
 
   const rangedLogs = useMemo(() => {
     const timeRangeStartMillis = timeRange.start ? Date.parse(timeRange.start) : null

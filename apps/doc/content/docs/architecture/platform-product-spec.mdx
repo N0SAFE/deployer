@@ -154,10 +154,10 @@ Platform manages start order and waits for health check gates between dependent 
 
 ## Ingress and traffic management
 
-- **Canonical ingress**: Traefik (Swarm provider) + service labels
+- **Canonical ingress**: Traefik (swarm `global` service) with routes polled from the API's HTTP provider; reached through lanes (local / private / public via one edge provider)
 - **Default balancing**: Swarm service replicas + Traefik routing (no custom redirect app required for standard HTTP/S)
 - **Replica policy target**: when at least two schedulable nodes exist, critical user-facing services should run with at least two replicas spread across nodes
-- **No standalone load balancer**: Traefik is the sole reverse proxy for platform and deployment traffic; a direct-proxy supervisor provides temporary failover while Traefik recovers.
+- **No standalone load balancer**: Traefik is the sole reverse proxy for platform and deployment traffic; while it recovers, the local door's rescue route keeps the console reachable on the machine itself.
 
 ## Storage
 

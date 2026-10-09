@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { ScanSearch, Bell, Globe, Cog } from "lucide-react";
-import { AuthDashboardAdminSystem } from "@/routes";
+import { AuthDashboardSettingsAccount } from "@/routes";
 import { setupEndpoints } from "@/domains/setup/endpoints";
 
 // ─── Hint definitions with fully custom run() logic ─────────────────────
@@ -52,7 +52,7 @@ const HINTS: HintDef[] = [
         duration: 20_000,
         position: "bottom-right",
         icon: <Bell className="h-4 w-4" />,
-        action: { label: "Configure", onClick: () => { router.push("/dashboard/profile"); next("configured"); } },
+        action: { label: "Configure", onClick: () => { router.push(AuthDashboardSettingsAccount()); next("configured"); } },
         cancel: { label: "Skip", onClick: () => next("dismissed") },
         onDismiss: () => next("skipped"),
       });

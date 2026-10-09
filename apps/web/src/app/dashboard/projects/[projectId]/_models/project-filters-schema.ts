@@ -40,12 +40,12 @@ export const projectFilterSchema = z.object({
   tab: z.enum(['overview', 'dependencies', 'deployments']).default('overview'),
 })
 
-/** Filter schema for the Deployments tab (separate — different fields) */
+/** Filter schema for the Deployments tab (URL-synced). Statuses match the contract; "in-progress" groups pending/queued/building/deploying. */
 export const deploymentFilterSchema = z.object({
-  status: z.enum(['all', 'running', 'success', 'failed', 'cancelled']).default('all'),
+  status: z.enum(['all', 'in-progress', 'success', 'failed', 'cancelled']).default('all'),
   environment: z.string().default('all'),
-  dateFrom: z.string().optional(),
-  dateTo: z.string().optional(),
+  service: z.string().default('all'),
+  q: z.string().default(''),
 })
 
 export type ProjectFilterParams = z.infer<typeof projectFilterSchema>

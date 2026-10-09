@@ -10,6 +10,7 @@ import { Pool } from "pg";
 import { InitializationService } from "@/core/modules/setup/services/initialization.service";
 import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
 import { PostSetupDestinationService } from "../services/post-setup-destination.service";
+import { PostSetupVerificationService } from "../services/post-setup-verification.service";
 import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 
 /**
@@ -32,6 +33,7 @@ export class SetupController {
         private readonly reachabilityService: ReachabilityService,
         private readonly nodeConfigRepository: NodeConfigRepository,
         private readonly postSetupDestination: PostSetupDestinationService,
+        private readonly postSetupVerification: PostSetupVerificationService,
     ) {}
 
     // ─── State ────────────────────────────────────────────────────────────────
@@ -378,6 +380,20 @@ export class SetupController {
         return implement(setupContract.getPostSetupDestination)
             .use(publicAccess())
             .handler(async () => this.postSetupDestination.resolve());
+    }
+
+    /**
+     * Do the API and the dashboard really answer through the cluster ingress?
+     *
+     * The wizard asks this (and dials the returned URLs from the browser) before
+     * it lets the operator leave: the ingress is replaced at the end of setup and
+     * the stream reporting "done" is not evidence that the new one routes.
+     */
+    @Implement(setupContract.getPostSetupVerification)
+    getPostSetupVerification() {
+        return implement(setupContract.getPostSetupVerification)
+            .use(publicAccess())
+            .handler(async () => this.postSetupVerification.verify());
     }
 }
 

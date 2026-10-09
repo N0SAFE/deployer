@@ -10,9 +10,18 @@
         "experimentalDecorators": true,
         "emitDecoratorMetadata": true,
         "outDir": "./dist",
-        "rootDir": "./src",
-        "types": ["node", "bun"]
+        "types": ["node", "bun"],
+        // Self-reference so this package's own pkg-build.config.ts type-checks
+        // without depending on its built `./config` export (which cannot exist
+        // before the builder has been built once).
+        //
+        // No `rootDir`: `pkg-build.config.ts` sits beside `package.json`, and a
+        // `rootDir: src` would reject it (TS6059). The declaration pass pins its
+        // own `rootDir`, so nothing here needs one.
+        "paths": {
+            "@repo/pkg-build/config": ["./src/config.ts"]
+        }
     },
-    "include": ["src/**/*.ts"],
+    "include": ["src/**/*.ts", "pkg-build.config.ts"],
     "exclude": ["node_modules", "dist"]
 }

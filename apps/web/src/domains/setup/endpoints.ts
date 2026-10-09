@@ -11,6 +11,7 @@ import { orpc } from "@/lib/orpc";
  * - remoteAuth            → Authenticate against a remote mesh (returns authToken)
  * - triggerInitialize     → POST — start initialization in the background
  * - getInitializeStream   → GET observable — SSE stream of setup progress events
+ * - getPostSetupVerification → do the API and the dashboard really answer?
  */
 export const setupEndpoints = {
   getState: orpc.setup.getState,
@@ -22,6 +23,7 @@ export const setupEndpoints = {
   getInitializeStream: orpc.setup.getInitializeStream,
   listPostSetupHints: orpc.setup.listPostSetupHints,
   dismissPostSetupHint: orpc.setup.dismissPostSetupHint,
+  getPostSetupVerification: orpc.setup.getPostSetupVerification,
 } as const;
 
 export type SetupEndpoints = typeof setupEndpoints;

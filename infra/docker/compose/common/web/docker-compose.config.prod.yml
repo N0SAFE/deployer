@@ -19,7 +19,7 @@ services:
       cache_to:
         - type=inline
     ports:
-      - "${NEXT_PUBLIC_APP_PORT:-3000}:${NEXT_PUBLIC_APP_PORT:-3000}"
+      - "127.0.0.1:${NEXT_PUBLIC_APP_PORT:-3000}:${NEXT_PUBLIC_APP_PORT:-3000}"
     environment:
       NODE_ENV: production
       # URLs — server-side (internal Docker network)

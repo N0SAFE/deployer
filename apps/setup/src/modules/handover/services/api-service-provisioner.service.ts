@@ -1,3 +1,5 @@
+import { AGENT_RUN_VOLUME, AGENT_SOCKET_DIR } from "@repo/mesh-network";
+import type { DockerodeServiceSummary } from "@repo/contracts-entities";
 import { Injectable, Logger } from "@nestjs/common";
 import { DockerService } from "@repo/nest-docker/services/docker.service";
 import { platformOverlayForPrefix } from "@repo/nest-docker/services/docker-supervisor-runtime";
@@ -180,31 +182,7 @@ export class ApiServiceProvisioner {
     // handover able to reach it.
     await this.connectSelfToOverlay(overlay);
 
-    if (await this.findExistingService(name)) {
-      this.logger.log(`API swarm service "${name}" already exists — reusing it`);
-      return this.backendFor(name, image, "existing swarm service");
-    }
-
-    this.logger.log(`Creating API swarm service "${name}" from image ${image} (${String(replicas)} replica(s)) on ${overlay}`);
-
-    // ── THE CANONICAL SPEC SHAPE, MAPPED BY THE SHARED MAPPER ───────────────
-    // `toDockerServiceSpec` is the ONLY place in the codebase that builds a
-    // dockerode service spec (its own module note says so), and it exists
-    // because the two shapes are NOT interchangeable: `Networks` belongs on the
-    // TASK TEMPLATE, and the platform's own contract uses lowercase keys.
-    //
-    // Hand-building a spec with raw dockerode keys silently produced a service
-    // with an EMPTY `Spec.Networks` — docker accepted it, dropped the field, and
-    // attached the task to the default `ingress` network instead. The service
-    // then ran happily on the wrong network and its name resolved NOWHERE:
-    //
-    //   Spec.Networks      : (empty)
-    //   Endpoint.VirtualIPs: 4d7mwep40le5  <- that is `ingress`
-    //
-    // which is why every forward failed with `getaddrinfo ENOTFOUND
-    // deployer-api` while `docker service ls` showed 1/1.
-    await this.docker.createSwarmService(
-      toDockerServiceSpec({
+    const spec = toDockerServiceSpec({
         name,
         image,
         // Replicated rather than global: the API is a stateless HTTP server
@@ -253,6 +231,17 @@ export class ApiServiceProvisioner {
             target: "/app/traefik-configs",
             readOnly: false,
           },
+          // ── THE MESH AGENT'S SOCKET ─────────────────────────────────────────
+          // The agent on the node this task runs on holds the replicated cluster
+          // settings (ingress lanes, the doors plan, the tunnel) and admits joiners.
+          // Its run volume is node-local, and the agent on EVERY node creates it,
+          // so wherever the task lands it reaches that node's agent.
+          {
+            type: "volume",
+            source: AGENT_RUN_VOLUME,
+            target: AGENT_SOCKET_DIR,
+            readOnly: false,
+          },
           // ── THE ENGINE SOCKET, WHICH THE API CANNOT WORK WITHOUT ────────
           // The API SUPERVISES the platform: it creates the managed Postgres,
           // redis, the ingress and the web app as swarm services, and it reads
@@ -287,15 +276,35 @@ export class ApiServiceProvisioner {
         // balances across replicas. `dnsrr` would return every task IP and push
         // balancing to Traefik, which then needs the task list to stay current.
         endpointMode: "vip",
-        endpointPorts: [{ protocol: "tcp", targetPort: port, publishedPort: port }],
+        // NO PUBLISHED PORT. A swarm publish binds every interface of every node,
+        // and the API is reached through the ingress lanes (and, when Traefik is
+        // down, the local door's rescue route) — never on a raw host port.
+        endpointPorts: [],
         placementPreferences: [],
         placementConstraints: [],
         resourcesLimits: {},
         resourcesReservations: {},
         capabilitiesAdd: [],
-      }),
-    );
+      });
 
+    const existing = await this.findExistingService(name);
+    if (existing !== null) {
+      // ── AN EXISTING SERVICE IS CONVERGED, NOT JUST REUSED ─────────────────
+      // A node installed before the mesh existed carries a service that publishes
+      // the API port on every interface and cannot see its mesh agent. Reusing it
+      // as-is would keep both forever, so it is moved onto the current spec — once:
+      // a service already on it is left untouched (no needless rolling restart).
+      if (this.needsMeshFirstUpgrade(existing)) {
+        this.logger.log(`API swarm service "${name}" predates the mesh-first spec — updating it (no published port, agent socket mounted)`);
+        await this.docker.updateSwarmService(name, existing.Version.Index, spec);
+        return this.backendFor(name, image, "existing swarm service (upgraded)");
+      }
+      this.logger.log(`API swarm service "${name}" already exists — reusing it`);
+      return this.backendFor(name, image, "existing swarm service");
+    }
+
+    this.logger.log(`Creating API swarm service "${name}" from image ${image} (${String(replicas)} replica(s)) on ${overlay}`);
+    await this.docker.createSwarmService(spec);
     this.logger.log(`API swarm service "${name}" created`);
     return this.backendFor(name, image, "newly created swarm service");
   }
@@ -317,16 +326,26 @@ export class ApiServiceProvisioner {
   }
 
   /** Find a service by name, or `null`. */
-  private async findExistingService(name: string): Promise<boolean> {
+  private async findExistingService(name: string): Promise<DockerodeServiceSummary | null> {
     try {
-      await this.docker.inspectSwarmService(name);
-      return true;
+      return await this.docker.inspectSwarmService(name);
     } catch {
       // "Not found" is the interesting case and the expected one on first run.
       // Any OTHER engine error will surface on the create call, which reports it
       // with the operation name — swallowing it here would hide the cause.
-      return false;
+      return null;
     }
+  }
+
+  /** True for a service from before the mesh: a published port, or no agent socket mount. */
+  private needsMeshFirstUpgrade(service: DockerodeServiceSummary): boolean {
+    const raw = service as unknown as {
+      Endpoint?: { Spec?: { Ports?: unknown[] } };
+      Spec?: { TaskTemplate?: { ContainerSpec?: { Mounts?: Array<{ Source?: string }> } } };
+    };
+    const published = (raw.Endpoint?.Spec?.Ports ?? []).length > 0;
+    const mounted = (raw.Spec?.TaskTemplate?.ContainerSpec?.Mounts ?? []).some((mount) => mount.Source === AGENT_RUN_VOLUME);
+    return published || !mounted;
   }
 
   /**
@@ -427,11 +446,26 @@ export class ApiServiceProvisioner {
       "DEPLOYER_TRAEFIK_IMAGE",
       "DEPLOYER_REDIS_IMAGE",
       "DEPLOYER_DIRECT_PROXY_IMAGE",
+      "MESH_AGENT_IMAGE",
     ] as const;
     for (const name of imageVars) {
       const value = this.env.get(name);
       if (value !== undefined && value.length > 0) env.push(`${name}=${value}`);
     }
+
+    // ── WHETHER THE API'S NODE BRINGS UP A WIREGUARD INTERFACE ──────────────
+    // The API starts this node's mesh agent at boot, and the agent is what
+    // creates the host `deployer-mesh` interface. A swarm task inherits NOTHING
+    // from the compose project, so without this the API falls back to its own
+    // schema default (`observe`) and the operator's `kernel` is discarded —
+    // the mesh silently stays down on a deployment that asked for it.
+    //
+    // Forwarded unconditionally because the value is never empty: the schema
+    // enum resolves an unset variable to `observe`, so this is always a real
+    // choice rather than an accidental override. `kernel` in the API's schema is
+    // what makes a real deployment span nodes; `observe` is what keeps a
+    // workstation start from touching the host's network stack.
+    env.push(`MESH_AGENT_DATAPLANE=${this.env.get("MESH_AGENT_DATAPLANE")}`);
 
     // ── THE DASHBOARD DECISION THE OPERATOR MADE IN THE WIZARD ──────────────
     // `MANAGED_WEB_APP_ENABLED` is the API's SEED for `managed_web_app.enabled`

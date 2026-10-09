@@ -45,9 +45,9 @@ For user-facing critical services, target this rule:
 ## Ingress and routing model (Traefik-first)
 
 - Traefik is the canonical ingress and load-balancing layer.
-- In Swarm mode, Traefik should discover services from the Swarm provider and route via service labels.
+- Traefik runs as a swarm `global` service with no Docker socket and no config volume; it polls its routes from the API (HTTP provider), so every node routes identically — no service labels, no Swarm/Docker provider.
 - Standard HTTP/S traffic does **not** require a custom redirect app when Traefik + Swarm routing is correctly configured.
-- There is **no standalone load balancer**: Traefik is the sole reverse proxy; the API's direct-proxy supervisor temporarily takes over ingress only while Traefik is down.
+- There is **no standalone load balancer**: Traefik is the sole reverse proxy. In front of it, each node's mesh agent runs address-scoped doors (loopback for the local lane, the mesh address for the private lane), and the public lane is served by one pluggable edge provider (`cloudflare-tunnel` or an acknowledged `direct`). While Traefik is down, the local door's rescue route serves the console's own hostnames on the machine itself — see [Networking](/docs/deployment/networking).
 
 ### Traefik must be v3.6 or newer
 

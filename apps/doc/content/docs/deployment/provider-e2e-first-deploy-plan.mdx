@@ -144,9 +144,11 @@ lands here before/with the code).
 ### D-1 — Load balancer app REMOVED entirely (architectural decision)
 The standalone `apps/load-balancer` is **deleted** — it is not necessary:
 
-- **Deployment access** is handled by **Traefik redirect or the direct-proxy
-  supervisor** depending on setup (Traefik healthy = Traefik route; Traefik
-  down = DirectProxySupervisor takes over, then self-closes).
+- **Deployment access** is handled by **Traefik** (Traefik healthy = Traefik
+  route). *(Updated: the direct-proxy supervisor this plan relied on for
+  Traefik downtime was removed; the mesh agent's local door now serves the
+  console's own hostnames on the machine while Traefik is down — see
+  [Networking](/docs/deployment/networking).)*
 - **Direct app access** needs no LB: Traefik is small (single-node self-hosted);
   the platform never needed an external balancer in front of it.
 
@@ -243,7 +245,7 @@ only; production code clean).
 - **W5 done (TLS)**: flag-gated `DEPLOYER_TRAEFIK_TLS_ENABLED` adds the
   websecure(443) entrypoint + HTTP→HTTPS redirect (Traefik self-signed default
   cert — no new deps); env schema + turbo globalEnv + `.env.example` updated;
-  supervisor spec guard (18/18).
+  supervisor spec guard (18/18). *(Superseded: `DEPLOYER_TRAEFIK_TLS_ENABLED` was removed by the edge-mesh rework — HTTPS is now served by the public edge provider: Cloudflare for `cloudflare-tunnel`, Let's Encrypt on the `public-tls` entrypoint for `direct`. See [Networking](/docs/deployment/networking).)*
 - **W10 done (retry)**: `retryDeployment` enqueues a REAL `retry` job
   (idempotency `retry:<id>`), re-resolves the source checkout from the saved
   discriminated source, and `completeQueueJob`/`handleClaimedQueueJob` now

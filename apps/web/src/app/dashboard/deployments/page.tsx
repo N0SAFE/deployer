@@ -1,437 +1,242 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { AuthDashboardProjects } from '@/routes'
-import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
 import { Input } from '@repo/ui/components/shadcn/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@repo/ui/components/shadcn/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
-import { ArrowRight, CheckCircle2, RefreshCw, Rocket, Search, Workflow, XOctagon, TrendingUp, Server, Network } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@repo/ui/components/shadcn/select'
+import { RefreshCw, Rocket, Search } from 'lucide-react'
 import { toast } from 'sonner'
-import { PageHeader, PageLoadingState, PageErrorState, StatusDot, StatusBadge, EnvironmentBadge, ScopeLabel, FilteredEmptyState } from '@/components/dashboard'
+import {
+  PageHeader, PageErrorState, ScopeLabel, EmptyState, FilteredEmptyState, StatStrip, StatStripItem,
+} from '@/components/dashboard'
+import { PageSkeleton } from '@/components/dashboard/Skeletons'
+import { useNow } from '@/components/dashboard/use-now'
 import { useDeploymentList, useRetryDeployment } from '@/domains/deployment/hooks'
-import { formatDateTime as formatDate } from '@/lib/format/date'
-import { getErrorMessage, isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE } from '@/lib/orpc/typed-errors'
+import { useServiceList } from '@/domains/service/hooks'
 import { useNodeScope } from '@/domains/node/node-context'
+import { errorReason, useSlowLoading, InlineError } from '../projects/_components/workload/WorkloadStates'
+import { summarizeDeployments } from '../projects/_utils/workload'
+import {
+  filterDeployments, hasActiveFilters, sortDeployments, type DeploymentSort, type StatusFilter,
+} from '../projects/_utils/deployment-list'
+import { DeploymentsTable, type ServiceRef } from './_components/deployments-table'
 
-type DeploymentSortKey = 'startedAt' | 'projectId' | 'status' | 'environment'
-type SortDirection = 'asc' | 'desc'
-
-function computeDurationLabel(startedAt: string, finishedAt?: string): string {
-  const start = new Date(startedAt).getTime()
-  const end = finishedAt ? new Date(finishedAt).getTime() : Date.now()
-  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return '—'
-
-  const durationSeconds = Math.floor((end - start) / 1000)
-  const minutes = Math.floor(durationSeconds / 60)
-  const seconds = durationSeconds % 60
-  return `${String(minutes)}m ${String(seconds)}s`
-}
-
-function serviceLabel(serviceId: string): string {
-  return serviceId.replace(/-/g, ' ').slice(0, 20)
-}
-
-/** Fields the deployments page reads from a deployment entity. */
-interface DeploymentRow {
-  id: string
-  serviceId: string
-  status: string
-  environment?: string | null
-  triggeredBy?: string | null
-  domainUrl?: string | null
-  deployStartedAt?: string | null
-  buildStartedAt?: string | null
-  createdAt?: string | null
-  deployCompletedAt?: string | null
-  buildCompletedAt?: string | null
-}
+const WINDOW = 100
 
 export default function DashboardDeploymentsPage() {
-  const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'success' | 'failed' | 'in-progress' | 'rolled-back'>('all')
-  const [environmentFilter, setEnvironmentFilter] = useState<'all' | 'production' | 'staging' | 'preview' | 'development'>('all')
-  const [sortBy, setSortBy] = useState<DeploymentSortKey>('startedAt')
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  const router = useRouter()
   const { nodeId, isNodeSelected } = useNodeScope()
+  const now = useNow(30_000)
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState<StatusFilter>('all')
+  const [environment, setEnvironment] = useState('all')
+  const [sort, setSort] = useState<DeploymentSort>('newest')
 
-  const deploymentQuery = useMemo(() => {
-    if (nodeId) {
-      return {
-        query: {
-          filter: { nodeId: { operator: 'eq' as const, value: nodeId } },
-          limit: 100,
-          offset: 0,
-        },
-      }
-    }
-    return { query: { limit: 100, offset: 0 } }
-  }, [nodeId])
-
-  const { data: deploymentsData, isLoading, isFetching, error, refetch } = useDeploymentList(deploymentQuery)
-
+  const deploymentInput = useMemo(
+    () => ({
+      query: {
+        ...(nodeId ? { filter: { nodeId: { operator: 'eq' as const, value: nodeId } } } : {}),
+        limit: WINDOW,
+        offset: 0,
+      },
+    }),
+    [nodeId],
+  )
+  const deploymentsQuery = useDeploymentList(deploymentInput)
+  const servicesQuery = useServiceList({ query: { limit: 100, offset: 0 } })
   const retryDeployment = useRetryDeployment()
+  const slow = useSlowLoading(deploymentsQuery.isLoading)
 
-  /**
-   * The row actions used to raise a toast and set a feedback line —
-   * "Retry queued for <id>" — while performing no work at all, so the page
-   * reported success for operations it never started. This calls the real
-   * mutation and only claims success once the API accepted the request.
-   *
-   * Rollback is deliberately absent: `deployment.rollback` requires a
-   * `targetDeploymentId` (which deployment to roll back TO), and a one-click
-   * row button has no way to collect it. Offering it here meant offering an
-   * operation that could not be completed.
-   */
-  const handleRetry = async (id: string) => {
-    try {
-      await retryDeployment.mutateAsync({ params: { id } })
-      toast.success('Deployment retried', { description: id })
-    } catch (caught) {
-      toast.error('Could not retry this deployment', {
-        description: isDefinedORPCError(caught) ? getErrorMessage(caught) : UNKNOWN_ORPC_ERROR_MESSAGE,
-      })
-    }
-  }
-  const deployments = useMemo<DeploymentRow[]>(() => {
-    const d = deploymentsData as { data?: DeploymentRow[] } | undefined
-    return d?.data ?? []
-  }, [deploymentsData])
+  const deployments = useMemo(() => deploymentsQuery.data?.data ?? [], [deploymentsQuery.data])
+  const services = useMemo(
+    () => new Map<string, ServiceRef>((servicesQuery.data?.data ?? []).map((s) => [s.id, { name: s.name, projectId: s.projectId }])),
+    [servicesQuery.data],
+  )
+  const serviceName = useMemo(
+    () => (id: string) => services.get(id)?.name ?? '',
+    [services],
+  )
 
-  const filteredDeployments = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase()
-    const filtered = deployments.filter((deployment) => {
-      if (statusFilter !== 'all' && deployment.status !== statusFilter) return false
-      if (environmentFilter !== 'all' && deployment.environment !== environmentFilter) return false
-      if (!query) return true
-      return (
-        deployment.id.toLowerCase().includes(query)
-        || deployment.serviceId.toLowerCase().includes(query)
-        || (deployment.triggeredBy ?? '').toLowerCase().includes(query)
-      )
-    })
+  const filters = { search, status, environment }
+  const rows = useMemo(
+    () => sortDeployments(filterDeployments(deployments, filters, serviceName), sort, serviceName),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `filters` is rebuilt each render from the three primitives below
+    [deployments, search, status, environment, sort, serviceName],
+  )
+  const summary = useMemo(() => summarizeDeployments(deployments), [deployments])
 
-    return filtered.sort((a, b) => {
-      const multiplier = sortDirection === 'asc' ? 1 : -1
-      const aTime = a.deployStartedAt ?? a.buildStartedAt ?? a.createdAt ?? ''
-      const bTime = b.deployStartedAt ?? b.buildStartedAt ?? b.createdAt ?? ''
-      if (sortBy === 'projectId') return a.serviceId.localeCompare(b.serviceId) * multiplier
-      if (sortBy === 'status') return a.status.localeCompare(b.status) * multiplier
-      if (sortBy === 'environment') return (a.environment ?? '').localeCompare(b.environment ?? '') * multiplier
-      return (new Date(aTime).getTime() - new Date(bTime).getTime()) * multiplier
-    })
-  }, [deployments, environmentFilter, searchTerm, sortBy, sortDirection, statusFilter])
-
-  const deploymentSummary = useMemo(() => {
-    const list = deployments
-    const total = list.length
-    const successful = list.filter((d) => d.status === 'success').length
-    const failed = list.filter((d) => d.status === 'failed').length
-    const inProgress = list.filter((d) => d.status === 'in-progress').length
-    const completed = list.filter((d) => d.deployCompletedAt ?? d.buildCompletedAt)
-    const avgDurationSeconds = completed.length > 0
-      ? Math.round(
-          completed.reduce((sum: number, d: DeploymentRow) => {
-            const start = new Date(d.deployStartedAt ?? d.buildStartedAt ?? d.createdAt ?? '').getTime()
-            const end = new Date(d.deployCompletedAt ?? d.buildCompletedAt ?? d.createdAt ?? '').getTime()
-            if (Number.isNaN(start) || Number.isNaN(end) || end < start) return sum
-            return sum + (end - start) / 1000
-          }, 0) / completed.length,
-        )
-      : 0
-
-    return {
-      total,
-      successful,
-      failed,
-      inProgress,
-      successRate: total > 0 ? Math.round((successful / total) * 1000) / 10 : 0,
-      avgDurationSeconds,
-    }
-  }, [deployments])
-
-  if (error) {
+  if (deploymentsQuery.error) {
     return (
       <PageErrorState
-        title="Failed to load deployments"
-        message={(error as Error).message ?? 'An unexpected error occurred'}
-        onRetry={() => void refetch()}
+        title="Could not load deployments"
+        message={errorReason(deploymentsQuery.error)}
+        onRetry={() => void deploymentsQuery.refetch()}
       />
     )
   }
 
-  if (isLoading) {
-    return <PageLoadingState label="Loading deployments…" />
+  if (deploymentsQuery.isLoading) {
+    return (
+      <div className="space-y-4">
+        <PageSkeleton label="Loading deployments" blocks={1} />
+        {slow ? (
+          <p role="status" className="text-sm font-medium text-status-pending">
+            Still loading — waiting on the platform API to return deployment runs. It may be starting.
+          </p>
+        ) : null}
+      </div>
+    )
   }
+
+  const handleRetry = async (id: string) => {
+    try {
+      await retryDeployment.mutateAsync({ params: { id } })
+      toast.success('Deployment queued again', { description: 'A new run was started from the failed one.' })
+    } catch (err) {
+      toast.error('Could not retry this deployment', { description: errorReason(err) })
+    }
+  }
+
+  const clearFilters = () => {
+    setSearch('')
+    setStatus('all')
+    setEnvironment('all')
+  }
+  const filtered = hasActiveFilters(filters)
+  const scopeText = isNodeSelected ? 'on this node' : 'across the mesh'
+  const windowFull = deployments.length >= WINDOW
 
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow={isNodeSelected ? 'Node Deployments' : 'Mesh Deployments'}
-        title={isNodeSelected ? `Deployments — ${nodeId?.slice(0, 8)}` : 'Deployment timeline'}
-        description={isNodeSelected
-          ? `Showing deployments running on node ${nodeId?.slice(0, 8)}. Select "All Nodes" to see mesh-wide deployments.`
-          : 'Filter, sort, and operate on recent rollouts across environments and nodes.'
-        }
+        eyebrow="Workloads"
+        title="Deployments"
+        description={`Every deployment run ${scopeText}, newest first. Open a service to see its logs and roll back.`}
         badge={<ScopeLabel scope={isNodeSelected ? 'node' : 'mesh'} />}
         actions={
           <>
             <Button
               type="button"
               variant="outline"
-              onClick={() => {
-                void refetch()
-              }}
-              disabled={isFetching}
+              onClick={() => void deploymentsQuery.refetch()}
+              disabled={deploymentsQuery.isFetching}
             >
-              <RefreshCw className={`mr-2 size-4 ${isFetching ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`mr-1.5 size-4 ${deploymentsQuery.isFetching ? 'animate-spin motion-reduce:animate-none' : ''}`} />
               Refresh
             </Button>
             <Button asChild variant="outline">
-              <AuthDashboardProjects.Link>
-                Open projects
-                <ArrowRight className="ml-2 size-4" />
-              </AuthDashboardProjects.Link>
+              <AuthDashboardProjects.Link>Projects</AuthDashboardProjects.Link>
             </Button>
           </>
         }
       />
 
-      {/* Section-first summary band — metrics live with the table they describe,
-          not as a floating top-of-page KPI strip (web AGENTS.md rule). */}
-      <div className="flex flex-wrap items-stretch divide-y divide-border/60 overflow-hidden rounded-xl border border-border/60 bg-card/40 backdrop-blur-xl sm:divide-x sm:divide-y-0">
-        <BandCell
-          label="Total"
-          value={deploymentSummary.total}
-          tone={deploymentSummary.total > 0 ? 'live' : 'neutral'}
+      {servicesQuery.isError ? (
+        <InlineError
+          title="Service names could not be loaded"
+          error={servicesQuery.error}
+          onRetry={() => void servicesQuery.refetch()}
+        />
+      ) : null}
+
+      {deployments.length === 0 ? (
+        <EmptyState
           icon={Rocket}
+          title={isNodeSelected ? 'No deployments on this node yet' : 'No deployments yet'}
+          description={
+            isNodeSelected
+              ? 'Nothing has been deployed to this node. Switch the scope to All nodes to see the rest of the mesh.'
+              : 'Deployments appear here once a service is deployed. Open a project, pick a service and choose Deploy.'
+          }
+          action={{ label: 'Go to projects', onClick: () => { router.push(AuthDashboardProjects()) } }}
         />
-        <BandCell
-          label="Success"
-          value={deploymentSummary.successful}
-          tone="live"
-          icon={CheckCircle2}
-        />
-        <BandCell
-          label="Failed"
-          value={deploymentSummary.failed}
-          tone={deploymentSummary.failed > 0 ? 'danger' : 'neutral'}
-          icon={XOctagon}
-        />
-        <BandCell
-          label="In progress"
-          value={deploymentSummary.inProgress}
-          tone={deploymentSummary.inProgress > 0 ? 'pending' : 'neutral'}
-          icon={Workflow}
-          pulse={deploymentSummary.inProgress > 0}
-        />
-        <BandCell
-          label="Success rate"
-          value={`${deploymentSummary.successRate}%`}
-          tone={deploymentSummary.successRate >= 90 ? 'live' : deploymentSummary.successRate > 0 ? 'pending' : 'neutral'}
-          icon={TrendingUp}
-        />
-      </div>
+      ) : (
+        <>
+          <StatStrip>
+            <StatStripItem label="Runs" value={summary.total} hint={windowFull ? `latest ${String(WINDOW)}` : undefined} />
+            <StatStripItem label="Succeeded" value={summary.success} tone={summary.success > 0 ? 'live' : undefined} />
+            <StatStripItem label="Failed" value={summary.failed} tone={summary.failed > 0 ? 'danger' : undefined} />
+            <StatStripItem label="In progress" value={summary.inProgress} tone={summary.inProgress > 0 ? 'busy' : undefined} />
+            <StatStripItem
+              label="Success rate"
+              value={summary.successRate === null ? undefined : `${String(summary.successRate)}%`}
+              hint={summary.successRate === null ? 'no finished runs yet' : 'of finished runs'}
+            />
+          </StatStrip>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Rollouts</CardTitle>
-          <CardDescription>Search, filter, and act on deployment records.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid gap-2 md:grid-cols-[minmax(260px,1fr)_170px_180px_170px_130px]">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" />
-              <Input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search deployment, project, initiator…"
-                className="pl-9"
-                aria-label="Search deployments"
-              />
-            </div>
-            <Select
-              value={statusFilter}
-              onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}
-            >
-              <SelectTrigger aria-label="Filter by status">
-                <SelectValue placeholder="All statuses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                <SelectItem value="success">Success</SelectItem>
-                <SelectItem value="failed">Failed</SelectItem>
-                <SelectItem value="in-progress">In progress</SelectItem>
-                <SelectItem value="rolled-back">Rolled back</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={environmentFilter}
-              onValueChange={(value) => setEnvironmentFilter(value as typeof environmentFilter)}
-            >
-              <SelectTrigger aria-label="Filter by environment">
-                <SelectValue placeholder="All environments" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All environments</SelectItem>
-                <SelectItem value="production">Production</SelectItem>
-                <SelectItem value="staging">Staging</SelectItem>
-                <SelectItem value="preview">Preview</SelectItem>
-                <SelectItem value="development">Development</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={sortBy}
-              onValueChange={(value) => setSortBy(value as DeploymentSortKey)}
-            >
-              <SelectTrigger aria-label="Sort by">
-                <SelectValue placeholder="Sort: Started" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="startedAt">Sort: Started</SelectItem>
-                <SelectItem value="projectId">Sort: Project</SelectItem>
-                <SelectItem value="status">Sort: Status</SelectItem>
-                <SelectItem value="environment">Sort: Environment</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={sortDirection}
-              onValueChange={(value) => setSortDirection(value as SortDirection)}
-            >
-              <SelectTrigger aria-label="Sort direction">
-                <SelectValue placeholder="Desc" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="desc">Desc</SelectItem>
-                <SelectItem value="asc">Asc</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="overflow-x-auto rounded-lg border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Deployment</TableHead>
-                  <TableHead>Service</TableHead>
-                  <TableHead>Environment</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>URL</TableHead>
-                  <TableHead>Initiated by</TableHead>
-                  <TableHead>Started</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead className="w-56">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredDeployments.map((deployment) => (
-                  <TableRow key={deployment.id}>
-                    <TableCell className="font-mono text-xs">{deployment.id}</TableCell>
-                    <TableCell className="font-medium capitalize">{serviceLabel(deployment.serviceId)}</TableCell>
-                    <TableCell><EnvironmentBadge environment={deployment.environment} /></TableCell>
-                    <TableCell><StatusBadge status={deployment.status} /></TableCell>
-                    <TableCell className="text-xs">
-                      {deployment.domainUrl ? (
-                        <a
-                          href={deployment.domainUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-block max-w-40 truncate align-bottom font-mono text-primary underline decoration-primary/40 hover:decoration-primary"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          {String(deployment.domainUrl).replace(/^https?:\/\//, '')}
-                        </a>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>{deployment.triggeredBy ?? '—'}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{formatDate(deployment.deployStartedAt ?? deployment.buildStartedAt ?? deployment.createdAt ?? '')}</TableCell>
-                    <TableCell className="text-xs">{computeDurationLabel(deployment.deployStartedAt ?? deployment.buildStartedAt ?? deployment.createdAt ?? '', deployment.deployCompletedAt ?? deployment.buildCompletedAt ?? '')}</TableCell>
-                    <TableCell>
-                      {/*
-                        Only actions that are both possible and useful for this
-                        row's status. Retry on a successful rollout and rollback on
-                        a running one were offered before and could not mean
-                        anything; the sibling service page already gates the same
-                        way, so the two now agree.
-                      */}
-                      <div className="flex flex-wrap gap-1.5">
-                        {deployment.status === 'failed' ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-2 text-[11px]"
-                            disabled={retryDeployment.isPending}
-                            onClick={() => {
-                              void handleRetry(deployment.id)
-                            }}
-                          >
-                            <Workflow className="mr-1 size-3" />
-                            Retry
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {filteredDeployments.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={9}>
-                      <FilteredEmptyState
-                        onClear={() => {
-                          setSearchTerm('')
-                          setStatusFilter('all')
-                          setEnvironmentFilter('all')
-                        }}
-                      />
-                    </TableCell>
-                  </TableRow>
+          <Card>
+            <CardHeader>
+              <CardTitle>Runs</CardTitle>
+              <CardDescription>
+                {rows.length} of {deployments.length} shown
+                {windowFull ? ` — only the latest ${String(WINDOW)} runs are loaded` : ''}.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative min-w-52 flex-1 md:max-w-sm">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={search}
+                    onChange={(event) => { setSearch(event.target.value) }}
+                    placeholder="Search service, initiator or id"
+                    className="pl-9"
+                    aria-label="Search deployments"
+                  />
+                </div>
+                <Select value={status} onValueChange={(v) => { setStatus(v as StatusFilter) }}>
+                  <SelectTrigger className="w-40" aria-label="Filter by status"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All statuses</SelectItem>
+                    <SelectItem value="in-progress">In progress</SelectItem>
+                    <SelectItem value="success">Succeeded</SelectItem>
+                    <SelectItem value="failed">Failed</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={environment} onValueChange={setEnvironment}>
+                  <SelectTrigger className="w-44" aria-label="Filter by environment"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All environments</SelectItem>
+                    <SelectItem value="production">Production</SelectItem>
+                    <SelectItem value="staging">Staging</SelectItem>
+                    <SelectItem value="preview">Preview</SelectItem>
+                    <SelectItem value="development">Development</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={sort} onValueChange={(v) => { setSort(v as DeploymentSort) }}>
+                  <SelectTrigger className="w-44" aria-label="Sort deployments"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="newest">Newest first</SelectItem>
+                    <SelectItem value="oldest">Oldest first</SelectItem>
+                    <SelectItem value="service">Service (A–Z)</SelectItem>
+                    <SelectItem value="status">Status</SelectItem>
+                    <SelectItem value="environment">Environment</SelectItem>
+                  </SelectContent>
+                </Select>
+                {filtered ? (
+                  <Button variant="ghost" size="sm" onClick={clearFilters}>Clear filters</Button>
                 ) : null}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
+              </div>
 
-/** One cell of the compact summary band — dot + label + value. */
-function BandCell({
-  label,
-  value,
-  icon: Icon,
-  tone,
-  pulse = false,
-}: {
-  label: string
-  value: React.ReactNode
-  icon: typeof Rocket
-  tone: 'live' | 'pending' | 'danger' | 'neutral'
-  pulse?: boolean
-}) {
-  return (
-    <div className="flex flex-1 items-center gap-3 px-4 py-3">
-      <StatusDot tone={tone} pulse={pulse} />
-      <div className="min-w-0">
-        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
-        <p className="flex items-center gap-1.5 text-lg font-semibold tracking-tight tabular-nums">
-          <Icon className="size-3.5 text-muted-foreground/70" />
-          {value}
-        </p>
-      </div>
+              {rows.length === 0 ? (
+                <FilteredEmptyState label="No deployment matches these filters." onClear={clearFilters} />
+              ) : (
+                <DeploymentsTable
+                  rows={rows}
+                  services={services}
+                  now={now}
+                  retryPending={retryDeployment.isPending}
+                  onRetry={(id) => void handleRetry(id)}
+                />
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   )
 }

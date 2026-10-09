@@ -17,6 +17,8 @@ export type ImageTagRow = Pick<DockerImageEntity, 'id' | 'sizeBytes' | 'createdA
   failed: number
 }
 
+// A type alias (not an interface) so the row is assignable to DataTable's index-signature `ExportableData`.
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 export type ImageGroupRow = {
   rowId: string
   repositoryKey: string

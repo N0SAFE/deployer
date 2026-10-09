@@ -6,18 +6,18 @@ interface ComposeConfig {
   projectName: string | null
   ports: unknown[]
   volumes: unknown[]
-  dependsOn: Array<{
+  dependsOn: {
     service: string
     condition: string
     required: boolean
-  }>
+  }[]
   rawYaml: string
 }
 
 interface DockerContainerComposeTabProps {
   composeConfig: ComposeConfig | null
   orchestrator: 'compose' | 'swarm' | 'kubernetes'
-  composeRows: Array<{ key: string; value: string }>
+  composeRows: { key: string; value: string }[]
   showRawCompose: boolean
   onToggleShowRawCompose: () => void
 }

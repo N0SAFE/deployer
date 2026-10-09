@@ -10,7 +10,6 @@ import {
 import { AuthSignin, AuthDashboard } from '@/routes'
 import {
     ArrowRight,
-    Rocket,
     GitBranch,
     Layers,
     Shield,
@@ -38,7 +37,7 @@ function FeatureCard({
             <CardHeader>
                 <div className="flex items-center space-x-3">
                     <div className="bg-primary/10 rounded-lg p-2">
-                        <Icon className={`h-5 w-5 ${iconClassName}`} />
+                        <Icon className={`h-5 w-5 ${iconClassName}`} aria-hidden />
                     </div>
                     <CardTitle className="text-lg">{title}</CardTitle>
                 </div>
@@ -54,78 +53,70 @@ function FeatureCard({
 
 export default function Page(): JSX.Element {
     return (
-        <div className="container mx-auto mt-8 space-y-12 px-4 py-12 md:py-16 lg:py-20">
+        <div className="container mx-auto space-y-12 px-4 py-12 md:py-16 lg:py-20">
             <section className="space-y-6 text-center">
                 <div className="space-y-4">
-                    <h1 className="from-primary to-primary/60 bg-linear-to-r bg-clip-text text-4xl font-bold text-transparent md:text-6xl">
-                        Deployer Platform
+                    <h1 className="text-4xl font-bold tracking-tight md:text-6xl">
+                        Deploy to your own servers
                     </h1>
-                    <p className="text-muted-foreground mx-auto max-w-2xl text-xl">
-                        Self-hosted multi-service deployments with preview
-                        environments, team collaboration, and production-grade
-                        orchestration.
+                    <p className="text-muted-foreground mx-auto max-w-2xl text-lg md:text-xl">
+                        Deployer is a self-hosted platform: connect a Git repository or upload a
+                        build, and it runs your services in containers on machines you control,
+                        with automatic HTTPS, preview URLs per branch, and one dashboard for
+                        your team.
                     </p>
                 </div>
-                <div className="flex flex-col justify-center gap-4 sm:flex-row">
-                    <AuthSignin.Link>
-                        <Button
-                            size="lg"
-                            className="flex items-center space-x-2"
-                        >
-                            <Rocket className="h-5 w-5" />
-                            <span>Start Deploying</span>
-                            <ArrowRight className="h-4 w-4" />
-                        </Button>
-                    </AuthSignin.Link>
-                    <AuthDashboard.Link>
-                        <Button
-                            variant="outline"
-                            size="lg"
-                            className="flex items-center space-x-2"
-                        >
-                            <Server className="h-5 w-5" />
-                            <span>Open Dashboard</span>
-                        </Button>
-                    </AuthDashboard.Link>
+                <div className="flex flex-col justify-center gap-3 sm:flex-row">
+                    <Button asChild size="lg">
+                        <AuthDashboard.Link>
+                            <Server className="h-5 w-5" aria-hidden />
+                            Open dashboard
+                            <ArrowRight className="h-4 w-4" aria-hidden />
+                        </AuthDashboard.Link>
+                    </Button>
+                    <Button asChild variant="outline" size="lg">
+                        <AuthSignin.Link>Sign in</AuthSignin.Link>
+                    </Button>
                 </div>
+                <p className="text-muted-foreground text-sm">
+                    The dashboard asks you to sign in if you have not already.
+                </p>
             </section>
 
             <section className="space-y-8">
                 <div className="space-y-2 text-center">
-                    <h2 className="text-3xl font-bold">Features</h2>
-                    <p className="text-muted-foreground">
-                        Foundation capabilities for the v3 deployer rebuild
-                    </p>
+                    <h2 className="text-3xl font-bold">What you get</h2>
+                    <p className="text-muted-foreground">From a commit to a running, monitored service</p>
                 </div>
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     <FeatureCard
                         icon={GitBranch}
-                        title="Git & Upload Sources"
-                        description="Deploy from repositories or uploaded bundles, with typed source provider contracts."
+                        title="Deploy from Git or an upload"
+                        description="Point at a GitHub, GitLab or any Git repository, or upload a zip. Every push can build and ship."
                         iconClassName="text-emerald-500"
                     />
                     <FeatureCard
                         icon={Layers}
-                        title="Multi-Service Projects"
-                        description="Compose services with environment-aware workflows and mesh-wide deployments."
+                        title="Multi-service projects"
+                        description="Group services that depend on each other, with separate environments and ordered, cascading deploys."
                         iconClassName="text-blue-500"
                     />
                     <FeatureCard
                         icon={Workflow}
-                        title="Deployment Workflows"
-                        description="Queue-driven build and runtime execution with lifecycle events and resilience controls."
+                        title="Previews and live logs"
+                        description="A preview URL per branch or pull request, deployment history, and logs streamed as they happen."
                         iconClassName="text-violet-500"
                     />
                     <FeatureCard
                         icon={Shield}
-                        title="Role-Based Access"
-                        description="Platform and project-level permission boundaries for safe team collaboration."
+                        title="Roles for your team"
+                        description="Owners, admins, developers and viewers each see and change only what their role allows."
                         iconClassName="text-amber-500"
                     />
                     <FeatureCard
                         icon={Server}
-                        title="Self-Hosted Control"
-                        description="Run the full platform on your own infrastructure with Docker + Traefik orchestration."
+                        title="Your infrastructure"
+                        description="Runs on your own machines with Docker and an automatic reverse proxy. Nodes join a private mesh; nothing depends on a hosted control plane."
                         iconClassName="text-rose-500"
                     />
                 </div>

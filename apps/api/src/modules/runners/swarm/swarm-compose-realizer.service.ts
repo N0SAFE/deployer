@@ -35,7 +35,6 @@ import type {
     ComposeRealizationPlan,
     ComposeServiceModel,
     ComposeCompatibilitySeverity,
-    SwarmEndpointPort,
     SwarmServiceSpecInput,
 } from "@repo/contracts-entities";
 import { composeModelSchema, composeServiceModelSchema } from "@repo/contracts-entities";
@@ -458,11 +457,11 @@ export class SwarmComposeRealizerService {
                     "Bind mounts are not supported on Swarm (they pin tasks to a single host). Use named volumes instead.",
                 );
             }
-            if (service.ports.length > 1) {
+            if (service.ports.some((port) => port.publishedPort !== undefined)) {
                 push(
                     `${base}.ports`,
                     "warn",
-                    "Multiple published ports: only the Routing Mesh / Traefik path is guaranteed across nodes; verify ingress config.",
+                    "Host ports are not published: a swarm publish opens the port on every interface of every node. The service is reached on the overlay at its container port, and from outside through the ingress lanes.",
                 );
             }
             if (service.secretRefs.length > 0 || service.configRefs.length > 0) {
@@ -570,11 +569,13 @@ export class SwarmComposeRealizerService {
                     order: service.deploy.updateOrder,
                     failureAction: service.deploy.failureAction,
                 },
-                endpointPorts: service.ports.map((port): SwarmEndpointPort => ({
-                    targetPort: port.targetPort,
-                    ...(port.publishedPort !== undefined ? { publishedPort: port.publishedPort } : {}),
-                    protocol: port.protocol,
-                })),
+                // NOTHING IS PUBLISHED. Even a target-only port entry makes Swarm
+                // auto-assign a published port on the routing mesh — i.e. on every
+                // interface of every node. Workloads are reached on the overlay at
+                // their container port and, from outside, only through the ingress
+                // lanes (`validateCompatibility` tells the operator their `ports:`
+                // are not published).
+                endpointPorts: [],
                 // USER WORKLOADS keep the default VIP endpoint: they may be scaled
                 // to many replicas, so the load-balanced name is what consumers want.
                 endpointMode: "vip",

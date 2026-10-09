@@ -162,7 +162,7 @@ flowchart TD
         R["redis → swarm service"]
         T["traefik → swarm GLOBAL service"]
         G["global Postgres → swarm service"]
-        P["drizzle-gateway / direct-port-proxy"]
+        P["drizzle-gateway / edge connector (tunnel edge only)"]
     end
 
     S -->|"wizard → node_config<br/>then /setup/health 200"| GATE{"gate open"}

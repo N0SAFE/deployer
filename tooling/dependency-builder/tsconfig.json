@@ -10,6 +10,6 @@
             "@/*": ["./src/*"]
         }
     },
-    "include": ["src/**/*.ts"],
+    "include": ["pkg-build.config.ts", "src/**/*.ts"],
     "exclude": ["node_modules", "dist"]
 }

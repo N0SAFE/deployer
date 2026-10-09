@@ -1,0 +1,82 @@
+import { AuthDashboardSettingsAccount } from '@/routes'
+import { ProfileForm } from './profile-form'
+import { PageTimingLogger } from '@/lib/timing'
+import { PageHeader } from '@/components/dashboard'
+import ModeToggle from '@repo/ui/components/shadcn/mode-toggle'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
+import {
+  ActiveSessionsCard,
+  ApiKeysCard,
+  ConnectedAccountsCard,
+  PasskeysCard,
+  SecurityPostureCard,
+} from '@/components/account/security-cards'
+
+/**
+ * Settings > Account page using SessionRoute pattern
+ * 
+ * Uses AuthDashboardSettingsAccount.SessionRoute to:
+ * 1. Fetch session ONCE on the server
+ * 2. Pass it as a prop AND hydrate to React Query cache
+ * 3. ProfileForm client component reads from cache instantly
+ * 
+ * No loading states needed - session data is immediately available.
+ *
+ * Beyond the profile form, this page is the account's security surface: the
+ * cards below surface what each Better Auth plugin knows about this user —
+ * passkeys, devices with access, API keys and linked providers. They read
+ * through `@/domains/account/hooks` so no plugin's transport leaks here.
+ */
+export default AuthDashboardSettingsAccount.SessionRoute(({ session }) => {
+  // Declared on the user by the two-factor plugin (see the auth factory's
+  // additionalFields). Absent means "not enrolled".
+  const twoFactorEnabled = Boolean(
+    (session?.user as { twoFactorEnabled?: boolean } | undefined)?.twoFactorEnabled,
+  )
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <PageHeader
+        eyebrow="Settings"
+        title="Account"
+        description="Your profile, how the dashboard looks for you, and the ways you sign in and stay signed in."
+      />
+
+      {/* Profile form - client component for interactivity */}
+      <ProfileForm initialSession={session} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Preferences</CardTitle>
+          <CardDescription>
+            Personal display settings. They only apply to you, in this browser.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium">Appearance</p>
+            <p className="text-sm text-muted-foreground">
+              Choose a light or dark theme, or follow your system.
+            </p>
+          </div>
+          <ModeToggle />
+        </CardContent>
+      </Card>
+
+      {/* Security posture at a glance, before the detail cards */}
+      <SecurityPostureCard enabled={twoFactorEnabled} />
+
+      <PasskeysCard />
+
+      <ActiveSessionsCard />
+
+      <ApiKeysCard />
+
+      <ConnectedAccountsCard />
+
+      {/* Timing Logger */}
+      <PageTimingLogger pageName="Settings Account" />
+    </div>
+  )
+})

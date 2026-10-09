@@ -8,6 +8,7 @@ import { SetupHealthModule } from "@/modules/health/setup-health.module";
 import { SetupClusterModule } from "@/modules/cluster/cluster.module";
 import { SetupGateService } from "./setup-gate.service";
 import { WizardController } from "./wizard.controller";
+import { WizardOrpcModule } from "./wizard-orpc.module";
 import { WizardPageController } from "./wizard-page.controller";
 import { WizardStateService } from "./wizard-state.service";
 import { WizardStreamService } from "./wizard-stream.service";
@@ -46,6 +47,11 @@ import { SetupProgressModule } from "@/modules/progress/progress.module";
     // registration is passed in rather than imported ambiently, exactly as
     // `SetupClusterModule` does — the app owns the file path.
     NodesModule.forRoot({ localDatabase: localDatabaseRegistration() }),
+    // The oRPC registration and its error mapping. `@Implement` mounts its own
+    // routes, but the error mapping only exists once this module provides the
+    // (global) `ImplementInterceptor` — without it a thrown `HttpException` or a
+    // raw failure degrades to a bare 500 and the reason is lost.
+    WizardOrpcModule.forRoot(),
     RenderModule.forRoot({
       project: "setup",
       viewsDir: "src/views",

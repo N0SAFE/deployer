@@ -1,5 +1,7 @@
 import z from "zod/v4";
 
+import { routeVisibilitySchema } from "@repo/contracts-entities/entities/ingress/lanes.schema";
+
 /**
  * Network Configuration — provider-backed networking for projects & services.
  *
@@ -84,8 +86,11 @@ export const serviceNetworkConfigSchema = z
         proxied: z.boolean().default(true),
         /** Auto-provision the DNS record for this service on bind. */
         autoProvision: z.boolean().default(false),
-        /** Route this service through the ingress (Traefik). */
-        expose: z.boolean().default(false),
+        /**
+         * Which ingress lanes reach this service: `private` = this machine + the
+         * private mesh; `public` = also the public lane when one is enabled.
+         */
+        visibility: routeVisibilitySchema.default("public"),
         /** Edge TLS policy. */
         tls: networkTlsSchema,
     })

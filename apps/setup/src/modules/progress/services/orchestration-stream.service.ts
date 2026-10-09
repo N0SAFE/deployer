@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { ReplaySubject, skip, type Observable } from "rxjs";
+import { defer, ReplaySubject, skip, type Observable } from "rxjs";
 import type { SetupStreamEvent, SetupStepId } from "@repo/contracts-entities";
 
 import { EnvService } from "@/config/env/env.module";
@@ -9,6 +9,9 @@ export type OrchestrationStepId = Extract<
     SetupStepId,
     "initialize_swarm" | "start_api" | "await_api_boot" | "promote_ingress"
 >;
+
+/** How many events the replay keeps — older ones are dropped from it. */
+const REPLAY_CAPACITY = 200;
 
 type StepStatus = "pending" | "in_progress" | "completed" | "failed";
 
@@ -48,7 +51,8 @@ export class OrchestrationStreamService {
    * Bounded: a page reload is the only consumer, and an unbounded buffer would
    * grow for the lifetime of a long boot.
    */
-  private readonly emitted = new ReplaySubject<SetupStreamEvent>(200);
+  private readonly emitted = new ReplaySubject<SetupStreamEvent>(REPLAY_CAPACITY);
+
 
   /**
    * Per-step log buffers, so a `snapshot` can carry the complete state.
@@ -103,6 +107,20 @@ export class OrchestrationStreamService {
    * client that missed events while disconnected still has the current truth.
    */
   private emittedCount = 0;
+
+  /**
+   * The run's TERMINAL event (`completed` from the API, or an `error`), kept so a
+   * reconnecting client is told how the run ended.
+   *
+   * ── WHY THIS IS NEEDED ──────────────────────────────────────────────────────
+   * A re-sync sends the current snapshot and then only events emitted AFTER it —
+   * history is deliberately skipped. A terminal event is history by the time the
+   * client comes back, so a reconnect (the ingress swap tears the connection
+   * down every time) landed on a timeline that had finished but never said so:
+   * no "setup complete", no way forward. A terminal event is a fact about the run
+   * rather than a delta, so it is replayed with the snapshot.
+   */
+  private terminal: SetupStreamEvent | null = null;
 
   /** Single emission point, so `emittedCount` can never drift from the buffer. */
   private push(event: SetupStreamEvent): void {
@@ -268,7 +286,18 @@ export class OrchestrationStreamService {
    * already folded into its state.
    */
   liveAfter(afterCount: number): Observable<SetupStreamEvent> {
-    return this.emitted.pipe(skip(afterCount));
+    // `afterCount` is an ABSOLUTE position in everything ever emitted, but the
+    // replay only holds the last `REPLAY_CAPACITY` events. Skipping `afterCount`
+    // from the replay's own start therefore over-skipped once the run exceeded the
+    // capacity: it swallowed the whole replay AND the next `emitted - capacity`
+    // LIVE events — which is how a client that reconnected mid-run never received
+    // the step completions and the terminal event, and sat on a step that had
+    // already finished. The offset is computed at SUBSCRIBE time, when the
+    // replay's first entry is known.
+    return defer(() => {
+      const dropped = Math.max(0, this.emittedCount - REPLAY_CAPACITY);
+      return this.emitted.pipe(skip(Math.max(0, afterCount - dropped)));
+    });
   }
 
   /** How many events have been emitted — the cutoff `liveAfter` takes. */
@@ -310,12 +339,79 @@ export class OrchestrationStreamService {
       }
     }
 
-    this.push({ ...event, ...this.stamp() });
+    const stamped = { ...event, ...this.stamp() };
+    if (stamped.type === "completed" || stamped.type === "error") this.terminal = stamped;
+    this.push(stamped);
+  }
+
+  /**
+   * How the run ended, if it has — replayed to a (re)connecting client together
+   * with the snapshot. See `terminal`.
+   */
+  terminalEvent(): SetupStreamEvent | null {
+    return this.terminal;
   }
 
   /** Report a terminal failure on the stream. */
   fail(message: string): void {
-    this.push({ type: "error", message, ...this.stamp() });
+    const event: SetupStreamEvent = { type: "error", message, ...this.stamp() };
+    this.terminal = event;
+    this.push(event);
+  }
+
+  /**
+   * Mark every step that is mid-flight as FAILED, then end the run with `error`.
+   *
+   * ── WHY THE HANDOVER NEEDS THIS ─────────────────────────────────────────────
+   * A failed handover used to move only the internal phase to `failed`. Nothing
+   * reached the stream, so the wizard kept spinning on the step that had actually
+   * stopped — with no reason and no way forward, the worst version of a failure.
+   * Failing the active step names WHERE it stopped; the `error` event carries WHY.
+   *
+   * Does nothing to steps that already finished: a failure never rewrites history.
+   */
+  failActive(message: string): void {
+    const active = [...this.latestStatus.entries()].filter(([, state]) => state.status === "in_progress");
+    for (const [id, state] of active) {
+      this.latestStatus.set(id, { ...state, status: "failed", error: message });
+    }
+    if (active.length > 0) {
+      this.push({
+        type: "snapshot",
+        ...this.stamp(),
+        steps: active.map(([id, state]) => ({
+          id,
+          title: state.title,
+          status: "failed" as const,
+          logs: this.logs.get(id) ?? [],
+          error: message,
+        })),
+      });
+    }
+    this.fail(message);
+  }
+
+  /**
+   * Forget a failure so the run can be attempted again.
+   *
+   * Failed steps go back to `pending` (the retry re-reports them as it reaches
+   * them) and the terminal error is dropped so a reconnecting client is not told
+   * the run is over. A `completed` terminal is kept: that fact belongs to the API's
+   * provisioning, which a handover retry does not redo.
+   */
+  clearFailure(): void {
+    if (this.terminal?.type === "error") this.terminal = null;
+    const reset = [...this.latestStatus.entries()].filter(([, state]) => state.status === "failed");
+    for (const [id, state] of reset) {
+      this.latestStatus.set(id, { title: state.title, status: "pending" });
+    }
+    if (reset.length > 0) {
+      this.push({
+        type: "snapshot",
+        ...this.stamp(),
+        steps: reset.map(([id, state]) => ({ id, title: state.title, status: "pending" as const, logs: this.logs.get(id) ?? [] })),
+      });
+    }
   }
 
   private descriptionFor(stepId: OrchestrationStepId): string {

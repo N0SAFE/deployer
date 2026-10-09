@@ -10,7 +10,7 @@
     "scripts": {
         "start": "bun --bun src/main.ts",
         "dev": "bun --bun --watch src/main.ts",
-        "build": "bun --bun ../bin-pkg-build/dist/cjs/main.js",
+        "build": "bun --bun pkg-build",
         "type-check": "tsc --noEmit",
         "lint": "bun --bun x eslint . --fix --cache",
         "test": "vitest run",
@@ -19,7 +19,8 @@
         "prettify": "bun --bun x prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "bun --bun x prettier . --check --no-error-on-unmatched-pattern",
-        "clean": "rimraf dist"
+        "clean": "rimraf dist",
+        "build:types": "bun --bun pkg-build --types"
     },
     "dependencies": {
         "@nestjs/common": "catalog:api:nest",

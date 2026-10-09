@@ -14,7 +14,7 @@
         }
     },
     "include": [
-        "**/*.ts",
+        "pkg-build.config.ts", "**/*.ts",
         "**/*.tsx"
     ]
 }

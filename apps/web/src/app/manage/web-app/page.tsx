@@ -13,7 +13,7 @@
 
 import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { useEffect, useState, type ReactNode } from 'react'
-import Link from 'next/link'
+import { AuthDashboardNetworkIngress } from '@/routes'
 import {
   Activity,
   ArrowUpRight,
@@ -92,7 +92,7 @@ function PatchRow({
   return (
     <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-card/60 px-3 py-2.5">
       <Led tone={tone} />
-      <Badge variant="outline" className={`font-mono text-[10px] tracking-wider ${modeColor}`}>
+      <Badge variant="outline" className={`font-mono text-xs tracking-wider ${modeColor}`}>
         {mode}
       </Badge>
       <code className="min-w-0 flex-1 truncate font-mono text-sm">{address}</code>
@@ -153,7 +153,7 @@ export default function ManageWebAppPage() {
     <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-6 px-4 py-10">
       {/* Eyebrow + title */}
       <div>
-        <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+        <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
           Deployer · Web Appliance
         </p>
         <div className="mt-2 flex items-center gap-3">
@@ -369,14 +369,11 @@ export default function ManageWebAppPage() {
 
           {/* Footnote */}
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            The node&apos;s global address (Network &amp; Reachability) serves the API via Traefik — this console is the web
+            The ingress lanes and the public edge (Network → Ingress &amp; edge) serve the API via Traefik — this console is the web
             app&apos;s own surface.
-            <Link
-              href="/dashboard/admin/system"
-              className="inline-flex items-center gap-0.5 text-sky-300 hover:underline"
-            >
-              Node network <ArrowUpRight className="size-3" />
-            </Link>
+            <AuthDashboardNetworkIngress.Link className="inline-flex items-center gap-0.5 text-sky-300 hover:underline">
+              Ingress &amp; edge <ArrowUpRight className="size-3" />
+            </AuthDashboardNetworkIngress.Link>
           </p>
         </>
       )}

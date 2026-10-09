@@ -21,6 +21,7 @@ import {
 import { Alert, AlertDescription } from "@repo/ui/components/shadcn/alert"
 import { Button } from "@repo/ui/components/shadcn/button"
 import { toast } from "sonner"
+import { cn } from "@repo/ui/lib/utils"
 import ModeToggle from "@repo/ui/components/shadcn/mode-toggle"
 import { markSetupComplete } from "@repo/ui/components/setup/setup-storage"
 import { setupQueryClient } from "@repo/ui/components/setup/query-client"
@@ -276,9 +277,15 @@ function SetupWizardContent({ api }: SetupWizardProps) {
 
   const error = triggerInit.error ?? initializeStream.error
 
+  // While the run streams, the page is a fixed-height column: header and step
+  // indicator keep their size, the card takes the rest, and ONLY the step list
+  // inside it scrolls. Every ancestor is a flex column with `min-h-0` — one
+  // missing link and the page itself grows a scrollbar instead.
+  const inProgress = state.step === "local-progress" || state.step === "remote-progress"
+
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex items-center justify-between gap-4">
+    <div className={cn("flex min-h-0 flex-col gap-8", inProgress ? "h-full" : "max-h-full")}>
+      <header className="flex shrink-0 items-center justify-between gap-4">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-foreground text-background">
             <Boxes className="h-4 w-4" aria-hidden="true" />
@@ -300,9 +307,16 @@ function SetupWizardContent({ api }: SetupWizardProps) {
         </div>
       </header>
 
-      <StepIndicator current={current} total={total} labels={labels} />
+      <div className="shrink-0">
+        <StepIndicator current={current} total={total} labels={labels} />
+      </div>
 
-      <div className="rounded-xl border border-border bg-card p-6 md:p-8 shadow-sm">
+      <div
+        className={cn(
+          "flex min-h-0 flex-col rounded-xl border border-border bg-card p-6 md:p-8 shadow-sm",
+          inProgress ? "flex-1 overflow-hidden" : "overflow-y-auto",
+        )}
+      >
         {state.step === "mode" ? (
           <ModeStep initialMode={state.mode} onContinue={handleModeContinue} />
         ) : null}
@@ -345,6 +359,7 @@ function SetupWizardContent({ api }: SetupWizardProps) {
             <ProgressStep
               api={api}
               events={events}
+              reconnecting={initializeStream.reconnecting}
               context={{ mode: "remote", meshUrl: state.remote.meshUrl } satisfies ProgressStepContext}
             />
             {error ? (
@@ -399,6 +414,7 @@ function SetupWizardContent({ api }: SetupWizardProps) {
             <ProgressStep
               api={api}
               events={events}
+              reconnecting={initializeStream.reconnecting}
               context={{
                 mode: "local",
                 username: state.local.username,

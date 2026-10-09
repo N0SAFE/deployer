@@ -7,27 +7,6 @@
     "sideEffects": [
         "**/*.css"
     ],
-    "pkgBuild": {
-        "root": "src",
-        "include": [
-            "components",
-            "hooks",
-            "lib"
-        ],
-        "entries": [
-            "index.ts"
-        ],
-        "copy": [
-            {
-                "from": "src/styles",
-                "to": "dist/styles"
-            }
-        ],
-        "variants": [
-            "development",
-            "production"
-        ]
-    },
     "exports": {
         ".": {
             "types": "./dist/types/index.d.ts",
@@ -63,10 +42,10 @@
     },
     "license": "MIT",
     "scripts": {
-        "build": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js",
+        "build": "bun --bun pkg-build",
         "compile": "bun x cross-env COMPILE_MODE=true bun run build",
         "clean": "rimraf dist",
-        "dev": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js --watch",
+        "dev": "bun --bun pkg-build --watch",
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
@@ -76,7 +55,7 @@
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
         "ui:add": "bun x --bun shadcn@latest add --",
-        "build:types": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js --types"
+        "build:types": "bun --bun pkg-build --types"
     },
     "peerDependencies": {
         "react": "catalog:react",

@@ -1,3 +1,5 @@
+import { TRAEFIK_CONFIG_PATH } from '../../platform-ingress/services/ingress-provider-token';
+import { LANE_ENTRYPOINTS } from '../../platform-ingress/services/lane-traefik-config';
 import { Injectable, Logger } from '@nestjs/common';
 import { join, basename, relative, extname } from 'path';
 import * as crypto from 'crypto';
@@ -918,60 +920,32 @@ export class TraefikFileSystemService {
   }
 
   /**
-   * Build the DEFAULT Traefik main configuration.
+   * The DEFAULT main configuration shown in the config browser.
    *
-   * Env-gated (W-P1):
-   *  - `DEPLOYER_TRAEFIK_TLS_ENABLED=true` adds the HTTP→HTTPS redirect on the
-   *    web entrypoint and the letsencrypt ACME resolver (contact from
-   *    `DEPLOYER_TRAEFIK_ACME_EMAIL`). Default (false) keeps plain-HTTP dev
-   *    flows — no ACME resolver, no redirect.
-   *  - Both entry points are always declared (routers reference them), but the
-   *    ACME resolver is only attached to TLS-enabled routers per-domain via
-   *    the persisted ssl flag (traefik-sync.service.ts).
+   * It describes what the live ingress actually runs — one entrypoint per lane and
+   * routes polled from the API (HTTP provider) — so the browser never shows an
+   * ingress the platform does not have. The supervisor's arguments are the source
+   * this mirrors (`traefik-supervisor.service.ts`).
    */
   private buildDefaultMainConfig(): string {
-    const tlsEnabled = this.envService.get('DEPLOYER_TRAEFIK_TLS_ENABLED') === true;
-    const acmeEmail = this.envService.get('DEPLOYER_TRAEFIK_ACME_EMAIL') ?? 'admin@example.com';
-
-    const webEntryPoint = tlsEnabled
-      ? `  web:
-    address: ":80"
-    http:
-      redirections:
-        entryPoint:
-          to: websecure
-          scheme: https
-          permanent: true`
-      : `  web:
-    address: ":80"`;
-
-    const acmeBlock = tlsEnabled
-      ? `
-certificatesResolvers:
-  letsencrypt:
-    acme:
-      email: ${acmeEmail}
-      storage: /etc/traefik/acme.json
-      httpChallenge:
-        entryPoint: web
-`
-      : '';
-
-    return `# Traefik main configuration
-api:
-  dashboard: true
-  insecure: true
-
+    const { local, private: privateLane, public: publicLane, publicTls } = LANE_ENTRYPOINTS;
+    return `# Traefik main configuration (mirrors the platform ingress's static arguments)
 entryPoints:
-${webEntryPoint}
-  websecure:
-    address: ":443"
+  ${local.name}:
+    address: ":${String(local.port)}"
+  ${privateLane.name}:
+    address: ":${String(privateLane.port)}"
+  ${publicLane.name}:
+    address: ":${String(publicLane.port)}"
+  # only when the public lane is \`direct\` with TLS:
+  ${publicTls.name}:
+    address: ":${String(publicTls.port)}"
 
 providers:
-  file:
-    directory: /etc/traefik/dynamic
-    watch: true
-${acmeBlock}`;
+  http:
+    endpoint: http://<api>/${TRAEFIK_CONFIG_PATH}
+    pollInterval: 5s
+`;
   }
   /**
    * Get virtual main config content

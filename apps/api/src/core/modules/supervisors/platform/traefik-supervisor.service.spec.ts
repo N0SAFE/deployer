@@ -1,22 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NotFoundException } from "@nestjs/common";
-import { join } from "node:path";
-import { mkdtemp } from "node:fs/promises";
-import { PlatformNetwork, TraefikSupervisorService, type EntrypointProbe } from "./traefik-supervisor.service";
-import { EnvHostnameService } from "../../platform-ingress/services/hostname.service";
-import type { PlatformIngressSettingsService } from "../../platform-ingress/services/platform-ingress-settings.service";
-import type { LocalIngressForwarderService } from "../../platform-ingress/services/local-ingress-forwarder.service";
+import { defaultIngressLanes, type IngressLanes } from "@repo/contracts-entities/entities/ingress/index";
+
+import { TEST_TUNNEL_ID, testEdgeRegistry } from "../../edge/testing/edge-registry.fixture";
 import type { DockerService } from "@repo/nest-docker/services/docker.service";
+
 import type { EnvService } from "@/config/env/env.module";
+import type { MeshAgentClient } from "../../mesh-agent/mesh-agent.client";
+import { EnvHostnameService } from "../../platform-ingress/services/hostname.service";
+import type { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service";
+import { deriveIngressProviderToken } from "../../platform-ingress/services/ingress-provider-token";
+import type { PlatformWebTargetService } from "../../platform-ingress/services/platform-web-target.service";
+import { PlatformNetwork, TraefikSupervisorService, type EntrypointProbe } from "./traefik-supervisor.service";
 
 /**
- * The ingress is a swarm-GLOBAL service now, so this suite asserts the SWARM
- * contract: service spec shape, host publish mode, alias registration, entry
- * port conflicts, and process-info/probe reporting. There is deliberately no
- * container assertion — the container path was removed, not kept alongside.
+ * The ingress is one GLOBAL swarm service with one entrypoint per lane. These tests
+ * pin the properties the architecture depends on:
+ *
+ *   - routes come from the API (HTTP provider) — no Docker socket, no config volume;
+ *   - only the `direct` public lane publishes host ports, every other lane is
+ *     reached through the node doors the mesh agent runs;
+ *   - the doors plan is published into the replicated roster on every convergence.
  */
 
-/** A swarm service as the engine would report it. */
 interface ServiceState {
 	ID: string;
 	Version: { Index: number };
@@ -25,22 +31,12 @@ interface ServiceState {
 	UpdatedAt: string;
 }
 
-interface SwarmTaskState {
-	NodeID: string;
-	Status: { State: string };
-}
-
-/** The dockerode service spec shape this suite inspects. */
 interface CapturedSpec {
 	Name: string;
 	Mode: Record<string, unknown>;
 	Labels?: Record<string, string>;
 	TaskTemplate: {
 		ContainerSpec: {
-			/**
-			 * `Command` replaces the image ENTRYPOINT; `Args` appends to its CMD.
-			 * The Traefik flags belong in `Args` — see the assertions below.
-			 */
 			Command?: string[];
 			Args?: string[];
 			Mounts?: Array<{ Source?: string; Target?: string; ReadOnly?: boolean }>;
@@ -50,19 +46,12 @@ interface CapturedSpec {
 	EndpointSpec?: { Ports?: Array<{ TargetPort?: number; PublishedPort?: number; PublishMode?: string }> };
 }
 
-function makeDockerService(bootstrapLabels: Record<string, string> | null = null) {
-	/** Services by name — the engine's source of truth in this fixture. */
+function makeDockerService(bootstrapLabels: Record<string, string> | null = null, legacyForwarder = false) {
 	const services = new Map<string, ServiceState>();
-	/** Tasks by service name — one task per node for a global service. */
-	const tasks = new Map<string, SwarmTaskState[]>();
+	const tasks = new Map<string, Array<{ NodeID: string; Status: { State: string } }>>();
+	const removedContainers: string[] = [];
 
-	const inspectSwarmService = vi.fn(async (name: string): Promise<ServiceState> => {
-		const found = services.get(name);
-		if (found === undefined) throw new NotFoundException(`service ${name} not found`);
-		return found;
-	});
-
-	const createSwarmService = vi.fn(async (spec: CapturedSpec): Promise<ServiceState> => {
+	const createSwarmService = vi.fn((spec: CapturedSpec): Promise<ServiceState> => {
 		const state: ServiceState = {
 			ID: `svc-${spec.Name}`,
 			Version: { Index: 1 },
@@ -72,53 +61,54 @@ function makeDockerService(bootstrapLabels: Record<string, string> | null = null
 		};
 		services.set(spec.Name, state);
 		tasks.set(spec.Name, [{ NodeID: "n1", Status: { State: "running" } }]);
-		return state;
+		return Promise.resolve(state);
 	});
 
 	const dockerService = {
 		getDockerClient: () => ({
 			getNetwork: vi.fn((name: string) => ({
-				inspect: vi.fn(async () => ({ Id: `net-${name}`, Driver: "overlay", Containers: {} })),
-				connect: vi.fn(async () => undefined),
+				inspect: vi.fn(() => Promise.resolve({ Id: `net-${name}`, Driver: "overlay", Containers: {} })),
+				connect: vi.fn(() => Promise.resolve()),
 			})),
-			getVolume: vi.fn(() => ({
-				inspect: vi.fn(async () => {
-					throw Object.assign(new Error("not found"), { statusCode: 404 });
-				}),
-			})),
-			createVolume: vi.fn(async () => ({ name: "created" })),
-			/** Setup's BOOTSTRAP ingress is a plain CONTAINER named in the group —
-			 *  `bootstrapLabels === null` models "no such container" (the port has
-			 *  been released, or setup never ran one). */
+			getVolume: vi.fn(() => ({ inspect: vi.fn(() => Promise.reject(Object.assign(new Error("nf"), { statusCode: 404 }))) })),
+			createVolume: vi.fn(() => Promise.resolve({ name: "created" })),
 			getContainer: vi.fn((name: string) => ({
-				inspect: vi.fn(async () => {
-					if (bootstrapLabels === null) {
-						throw Object.assign(new Error(`No such container: ${name}`), { statusCode: 404 });
+				inspect: vi.fn(() => {
+					if (name === "deployer-ingress-forwarder") {
+						return legacyForwarder ? Promise.resolve({ Id: "fwd", Config: { Labels: {} } }) : Promise.reject(new Error("no such container"));
 					}
-					return { Id: "bootstrap", Config: { Labels: bootstrapLabels } };
+					if (bootstrapLabels === null) return Promise.reject(Object.assign(new Error(`No such container: ${name}`), { statusCode: 404 }));
+					return Promise.resolve({ Id: "bootstrap", Config: { Labels: bootstrapLabels } });
+				}),
+				remove: vi.fn(() => {
+					removedContainers.push(name);
+					return Promise.resolve();
 				}),
 			})),
 		}),
-		getSwarmInfo: vi.fn(async () => ({ NodeID: "n1", LocalNodeState: "active", ControlAvailable: true })),
-		inspectSwarmService,
+		getSwarmInfo: vi.fn(() => Promise.resolve({ NodeID: "n1", LocalNodeState: "active", ControlAvailable: true })),
+		inspectSwarmService: vi.fn((name: string) => {
+			const found = services.get(name);
+			return found === undefined ? Promise.reject(new NotFoundException(`service ${name} not found`)) : Promise.resolve(found);
+		}),
 		createSwarmService,
-		updateSwarmService: vi.fn(async () => undefined),
-		removeSwarmService: vi.fn(async (name: string) => {
+		updateSwarmService: vi.fn(() => Promise.resolve()),
+		removeSwarmService: vi.fn((name: string) => {
 			services.delete(name);
 			tasks.delete(name);
+			return Promise.resolve();
 		}),
-		listSwarmServiceTasks: vi.fn(async (name: string) => tasks.get(name) ?? []),
-		ensureOverlayNetwork: vi.fn(async () => undefined),
-		getSwarmServiceLogs: vi.fn(async () => ""),
+		listSwarmServiceTasks: vi.fn((name: string) => Promise.resolve(tasks.get(name) ?? [])),
+		ensureOverlayNetwork: vi.fn(() => Promise.resolve()),
+		getSwarmServiceLogs: vi.fn(() => Promise.resolve("")),
 	} as unknown as DockerService;
 
 	return {
 		dockerService,
-		services,
 		tasks,
+		removedContainers,
 		createSwarmService: createSwarmService as unknown as {
-			mock: { calls: Array<[CapturedSpec]>; results: unknown[] };
-			toHaveBeenCalledTimes: (n: number) => void;
+			mock: { calls: Array<[CapturedSpec]> };
 			mockRejectedValue: (e: unknown) => void;
 			mockRejectedValueOnce: (e: unknown) => void;
 		},
@@ -128,466 +118,208 @@ function makeDockerService(bootstrapLabels: Record<string, string> | null = null
 function makeEnv(overrides: Partial<Record<string, unknown>> = {}): EnvService {
 	const values: Record<string, unknown> = {
 		DEPLOYER_PREFIX: "",
-		DEPLOYER_TRAEFIK_IMAGE: "traefik:v3.3",
+		DEPLOYER_TRAEFIK_IMAGE: "traefik:v3.6.10",
 		DEPLOYER_TRAEFIK_HTTP_PORT: 80,
-		// The INSTALL DEFAULT: `local` binds loopback only (through the forwarder),
-		// so the swarm service publishes nothing. Tests that need a published port
-		// pass `DEPLOYER_EDGE_MODE: "direct"` explicitly.
-		DEPLOYER_EDGE_MODE: "local",
-		DOCKER_HOST: undefined,
-		NODE_ENV: "development",
+		DEPLOYER_TRAEFIK_ACME_EMAIL: "ops@example.com",
+		DEPLOYER_DOOR_IMAGE: "nginx:alpine",
+		AUTH_SECRET: "test-secret",
 		API_PORT: 3005,
-		TRAEFIK_CONFIG_BASE_PATH: "/tmp/deployer-test-traefik-configs",
 		...overrides,
 	};
 	return { get: vi.fn((key: string) => values[key]) } as unknown as EnvService;
 }
 
-async function makeConfigDir(): Promise<string> {
-	// node:os is globally mocked in this suite — use TMPDIR directly.
-	const base = process.env.TMPDIR ?? "/tmp";
-	return await mkdtemp(join(base, "platform-traefik-"));
-}
-
-function makeSupervisor(
-	envOverrides: Partial<Record<string, unknown>> = {},
-	entryPort: number | null = null,
-	bootstrapLabels: Record<string, string> | null = null,
-) {
-	const mocks = makeDockerService(bootstrapLabels);
-	const env = makeEnv(envOverrides);
-	const hostnameService = new EnvHostnameService(makeEnv(envOverrides));
-	const settings = {
-		getPlatformEntry: vi.fn(async () => ({
-			port: entryPort ?? 80,
-			isDefault80: (entryPort ?? 80) === 80,
-			sourcedFrom: (entryPort === null ? "default" : "local-db") as "default" | "local-db",
-		})),
-		getEntryPort: vi.fn(async () => entryPort ?? 80),
-		setEntryPort: vi.fn(),
-		clearEntryPort: vi.fn(),
-		// The entry-port decision now follows the INGRESS PROVIDER (persisted,
-		// else the env seed) rather than NODE_ENV. Default here is the install
-		// default, `local` — the provider that binds LOOPBACK only.
-		getEdgeMode: vi.fn(async () => (envOverrides.DEPLOYER_EDGE_MODE as string | undefined) ?? "local"),
-	} as unknown as PlatformIngressSettingsService & {
-		getPlatformEntry: ReturnType<typeof vi.fn>;
-	};
-	// The address-scoped lane (`local` / `wireguard`): Swarm cannot bind a single
-	// address, so those providers are realized as a container instead.
-	const forwarder = { converge: vi.fn(async () => undefined), remove: vi.fn(async () => undefined) } as unknown as LocalIngressForwarderService;
-	const supervisor = new TraefikSupervisorService(mocks.dockerService, hostnameService, env, settings, forwarder);
-	return { supervisor, settings, env, forwarder, ...mocks };
-}
-
-/** Bypass the private HTTP entrypoint probe — liveness is covered by the task state. */
-function stubProbe(supervisor: TraefikSupervisorService): void {
+function makeSupervisor(options: {
+	env?: Partial<Record<string, unknown>>;
+	lanes?: IngressLanes;
+	bootstrapLabels?: Record<string, string> | null;
+	legacyForwarder?: boolean;
+	meshWrite?: () => Promise<void>;
+} = {}) {
+	const mocks = makeDockerService(options.bootstrapLabels ?? null, options.legacyForwarder ?? false);
+	const env = makeEnv(options.env);
+	const lanes = { getLanes: vi.fn(() => Promise.resolve(options.lanes ?? defaultIngressLanes())) } as unknown as IngressLanesService;
+	const writeSetting = vi.fn(options.meshWrite ?? (() => Promise.resolve()));
+	const mesh = { writeSetting } as unknown as MeshAgentClient;
+	const webTarget = { resolveWebTarget: vi.fn(() => Promise.resolve("deployer-managed-web")) } as unknown as PlatformWebTargetService;
+	const supervisor = new TraefikSupervisorService(mocks.dockerService, new EnvHostnameService(env), env, lanes, mesh, webTarget, testEdgeRegistry().registry);
 	vi.spyOn(
-		supervisor as unknown as { probeEntrypoint(candidates: string[], port?: number): Promise<EntrypointProbe> },
+		supervisor as unknown as { probeEntrypoint(candidates: string[], port: number): Promise<EntrypointProbe> },
 		"probeEntrypoint",
-	).mockResolvedValue({ reachable: true, host: "deployer-traefik", port: 80, statusCode: 200, latencyMs: 1 });
+	).mockResolvedValue({ reachable: true, host: "deployer-traefik", port: 80, statusCode: 404, latencyMs: 1 });
+	vi.spyOn(supervisor as unknown as { delay(ms: number): Promise<void> }, "delay").mockResolvedValue();
+	return { supervisor, writeSetting, ...mocks };
 }
+
+const tunnelLanes = (): IngressLanes => ({
+	...defaultIngressLanes(),
+	public: { provider: TEST_TUNNEL_ID, domain: "apps.example.com", acknowledgedInboundPorts: false, options: { account: "acc" } },
+});
+const directLanes = (tls: boolean): IngressLanes => ({
+	...defaultIngressLanes(),
+	public: { provider: "direct", domain: "apps.example.com", acknowledgedInboundPorts: true, options: { tls } },
+});
 
 describe("PlatformNetwork", () => {
-	it("names the network without prefix segment when prefix empty", () => {
-		expect(PlatformNetwork.name("")).toBe("deployer-platform");
-	});
-
 	it("isolates networks per prefix", () => {
+		expect(PlatformNetwork.name("")).toBe("deployer-platform");
 		expect(PlatformNetwork.name("acme")).toBe("deployer-platform-acme");
 	});
 });
 
-describe("TraefikSupervisorService (swarm-global ingress)", () => {
+describe("TraefikSupervisorService", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 	});
-
 	afterEach(() => {
 		vi.useRealTimers();
 	});
 
-	/**
-	 * The State A → State B handover, which is the ONE reason this supervisor may
-	 * legitimately refuse to converge.
-	 *
-	 * Creating the swarm service while setup's bootstrap container still holds the
-	 * entry port did far more damage than a degraded ingress: every failed task
-	 * join corrupted `deployer-platform-overlay`'s NetworkDB, killing the veths of
-	 * EVERY container on the overlay — so the API lost Postgres and setup lost the
-	 * API, AFTER a wizard that reported all seven steps successful.
-	 */
 	describe("bootstrap-ingress handover", () => {
-		it("defers (pending) instead of creating a service that cannot bind the port", async () => {
-			const { supervisor, createSwarmService } = makeSupervisor(
-				{},
-				null,
-				{ "deployer.bootstrap": "true" },
-			);
-
-			const state = await supervisor.ensureDesiredState();
-
-			expect(state).toBe("pending");
-			// Nothing was created — the crash-loop this prevents is the whole point.
+		it("defers while setup's bootstrap ingress still serves", async () => {
+			const { supervisor, createSwarmService } = makeSupervisor({ bootstrapLabels: { "deployer.bootstrap": "true" } });
+			expect(await supervisor.ensureDesiredState()).toBe("pending");
 			expect(createSwarmService.mock.calls).toHaveLength(0);
-			expect(supervisor.getStateSnapshot().detail).toContain("bootstrap ingress owns the entry port");
-		});
-
-		it("converges normally once the handover released the container", async () => {
-			// No bootstrap container: setup removed it when it released the port.
-			const configDir = await makeConfigDir();
-			const { supervisor, createSwarmService } = makeSupervisor({ TRAEFIK_CONFIG_BASE_PATH: configDir });
-			stubProbe(supervisor);
-
-			const state = await supervisor.ensureDesiredState();
-
-			expect(state).toBe("converged");
-			expect(createSwarmService.mock.calls).toHaveLength(1);
-		});
-
-		it("polices the retry timer on destroy so a deferred supervisor cannot leak", async () => {
-			const { supervisor } = makeSupervisor({}, null, { "deployer.bootstrap": "true" });
-			await supervisor.ensureDesiredState();
-
-			// The retry it scheduled must not keep the process alive.
-			expect(() => supervisor.onModuleDestroy()).not.toThrow();
+			expect(supervisor.getStateSnapshot().detail).toContain("bootstrap ingress");
+			supervisor.onModuleDestroy();
 			expect(vi.getTimerCount()).toBe(0);
 		});
 
-		it("treats a container WITHOUT the bootstrap label as ours (not a handover)", async () => {
-			// Same name, different owner: the name is shared by design, so only the
-			// label distinguishes setup's incarnation from this supervisor's.
-			const configDir = await makeConfigDir();
-			const { supervisor, createSwarmService } = makeSupervisor(
-				{ TRAEFIK_CONFIG_BASE_PATH: configDir },
-				null,
-				{ "deployer.platform.role": "ingress" },
-			);
-			stubProbe(supervisor);
-
-			const state = await supervisor.ensureDesiredState();
-
-			expect(state).toBe("converged");
+		it("treats a container without the bootstrap label as not a handover", async () => {
+			const { supervisor, createSwarmService } = makeSupervisor({ bootstrapLabels: { "deployer.platform.role": "ingress" } });
+			expect(await supervisor.ensureDesiredState()).toBe("converged");
 			expect(createSwarmService.mock.calls).toHaveLength(1);
 		});
 	});
 
-	it("exposes a stable identity for registry + health reporting", () => {
-		const { supervisor } = makeSupervisor();
-		expect(supervisor.supervisorId).toBe("platform-ingress-traefik");
-		expect(supervisor.description.length).toBeGreaterThan(0);
-	});
-
-	it("converges by creating a GLOBAL swarm service when missing", async () => {
-		const configDir = await makeConfigDir();
-		const { supervisor, createSwarmService } = makeSupervisor({ TRAEFIK_CONFIG_BASE_PATH: configDir });
-		stubProbe(supervisor);
-
-		const state = await supervisor.ensureDesiredState();
-
-		expect(state).toBe("converged");
-		expect(createSwarmService.mock.calls).toHaveLength(1);
+	it("creates ONE global service, aliased on the overlay", async () => {
+		const { supervisor, createSwarmService } = makeSupervisor();
+		expect(await supervisor.ensureDesiredState()).toBe("converged");
 		const spec = createSwarmService.mock.calls[0]?.[0];
 		expect(spec?.Name).toBe("deployer-traefik");
-		// GLOBAL = one task per node: the single-node case is the same code path.
 		expect(spec?.Mode).toEqual({ Global: {} });
-		expect(spec?.Labels?.["deployer.platform.role"]).toBe("ingress");
+		expect(spec?.TaskTemplate.Networks).toEqual([{ Target: "deployer-platform-overlay", Aliases: ["deployer-traefik"] }]);
 	});
 
-	it("does not recreate when the service already exists (idempotent update)", async () => {
-		const configDir = await makeConfigDir();
-		const { supervisor, createSwarmService, dockerService } = makeSupervisor({
-			TRAEFIK_CONFIG_BASE_PATH: configDir,
-		});
-		stubProbe(supervisor);
-
+	it("polls its routes from the API service alias, authenticated, with no socket and no volume", async () => {
+		const { supervisor, createSwarmService } = makeSupervisor();
 		await supervisor.ensureDesiredState();
-		await supervisor.ensureDesiredState();
+		const container = createSwarmService.mock.calls[0]?.[0]?.TaskTemplate.ContainerSpec;
+		const args = container?.Args ?? [];
 
-		expect(createSwarmService.mock.calls).toHaveLength(1);
-		expect(dockerService.updateSwarmService).toHaveBeenCalledTimes(1);
+		// `Args`, not `Command`: `Command` would replace the image's entrypoint.
+		expect(container?.Command ?? []).toEqual([]);
+		expect(args).toContain("--providers.http.endpoint=http://deployer-api:3005/internal/ingress/traefik-config");
+		expect(args).toContain(`--providers.http.headers.X-Deployer-Ingress-Token=${deriveIngressProviderToken("test-secret")}`);
+		expect(args.some((arg) => arg.startsWith("--providers.docker") || arg.startsWith("--providers.swarm") || arg.startsWith("--providers.file"))).toBe(false);
+		expect(container?.Mounts ?? []).toEqual([]);
 	});
 
-	it("enables the SWARM provider and the file provider, and never the v2 flag", async () => {
-		const configDir = await makeConfigDir();
-		const { supervisor, createSwarmService } = makeSupervisor({ TRAEFIK_CONFIG_BASE_PATH: configDir });
-		stubProbe(supervisor);
-
+	it("declares one entrypoint per lane, keeping :80 for the local lane", async () => {
+		const { supervisor, createSwarmService } = makeSupervisor();
 		await supervisor.ensureDesiredState();
-
-		// ── `Args`, NOT `Command` ────────────────────────────────────────────────
-		// `Command` REPLACES the image's ENTRYPOINT. The Traefik image declares
-		// `Entrypoint: ["/entrypoint.sh"]` + `Cmd: ["traefik"]`, so putting the
-		// flags in `Command` made the engine exec `--providers.docker=true`
-		// directly and every task died at container init:
-		//
-		//   exec: "--providers.docker=true": executable file not found
-		//
-		// leaving the ingress at 0/0 and readiness permanently degraded.
 		const args = createSwarmService.mock.calls[0]?.[0]?.TaskTemplate.ContainerSpec.Args ?? [];
-		// Workloads are SWARM SERVICES, so the SWARM provider is what reads their
-		// labels — without it every route 404s.
-		expect(args).toContain("--providers.swarm=true");
-		expect(args).toContain("--providers.file.directory=/config");
-		expect(args).toContain("--providers.file.watch=true");
-
-		// AND the v2 flag must be ABSENT. Traefik v3 split the docker provider in
-		// two and removed `swarmMode`; the migration guide states that leaving it
-		// in place "would prevent Traefik to start". Asserting the absence keeps a
-		// future edit from reintroducing an option that makes the ingress
-		// supervisor unable to converge at all.
-		expect(args).not.toContain("--providers.docker.swarmMode=true");
-	});
-
-	it("mounts the docker socket and the config volume read-only", async () => {
-		const configDir = await makeConfigDir();
-		const { supervisor, createSwarmService } = makeSupervisor({ TRAEFIK_CONFIG_BASE_PATH: configDir });
-		stubProbe(supervisor);
-
-		await supervisor.ensureDesiredState();
-
-		const mounts = createSwarmService.mock.calls[0]?.[0]?.TaskTemplate.ContainerSpec.Mounts ?? [];
-		const sources = mounts.map((mount) => `${String(mount.Source)}:${String(mount.Target)}:${String(mount.ReadOnly)}`);
-		expect(sources).toContain("/var/run/docker.sock:/var/run/docker.sock:true");
-		expect(sources).toContain("deployer-traefik-config:/config:true");
-	});
-
-	it("attaches the overlay under the service name so the ingress is addressable", async () => {
-		const configDir = await makeConfigDir();
-		const { supervisor, createSwarmService, dockerService } = makeSupervisor({
-			TRAEFIK_CONFIG_BASE_PATH: configDir,
-		});
-		stubProbe(supervisor);
-
-		await supervisor.ensureDesiredState();
-
-		expect(dockerService.ensureOverlayNetwork).toHaveBeenCalled();
-		expect(createSwarmService.mock.calls[0]?.[0]?.TaskTemplate.Networks).toEqual([
-			{ Target: "deployer-platform-overlay", Aliases: ["deployer-traefik"] },
-		]);
-	});
-
-	it("derives the prefixed service name from DEPLOYER_PREFIX", async () => {
-		const configDir = await makeConfigDir();
-		const { supervisor, createSwarmService } = makeSupervisor({
-			DEPLOYER_PREFIX: "acme",
-			TRAEFIK_CONFIG_BASE_PATH: configDir,
-		});
-		stubProbe(supervisor);
-
-		await supervisor.ensureDesiredState();
-
-		expect(createSwarmService.mock.calls[0]?.[0]?.Name).toBe("deployer-traefik-acme");
-	});
-
-	it("publishes the entry port in HOST mode under `direct` (a global service cannot use ingress)", async () => {
-		const configDir = await makeConfigDir();
-		const { supervisor, createSwarmService } = makeSupervisor({
-			DEPLOYER_EDGE_MODE: "direct",
-			TRAEFIK_CONFIG_BASE_PATH: configDir,
-		});
-		stubProbe(supervisor);
-
-		await supervisor.ensureDesiredState();
-
-		expect(createSwarmService.mock.calls[0]?.[0]?.EndpointSpec?.Ports).toEqual([
-			{ TargetPort: 80, PublishedPort: 80, Protocol: "tcp", PublishMode: "host" },
-		]);
-	});
-
-	it("publishes NOTHING under the default `local` provider — Swarm cannot bind loopback", async () => {
-		const configDir = await makeConfigDir();
-		// No DEPLOYER_EDGE_MODE override: this is the fresh-install default.
-		const { supervisor, createSwarmService } = makeSupervisor({ TRAEFIK_CONFIG_BASE_PATH: configDir });
-		stubProbe(supervisor);
-
-		await supervisor.ensureDesiredState();
-
-		// The whole point of the inverted default: a fresh install publishes no
-		// host port on the swarm service, so nothing is reachable off-box. The
-		// loopback listener is the FORWARDER's job, not the service's — Swarm's
-		// port spec has no host-IP field, so it could only bind 0.0.0.0.
-		expect(createSwarmService.mock.calls[0]?.[0]?.EndpointSpec?.Ports ?? []).toEqual([]);
-	});
-
-	it("hands the loopback binding to the forwarder, not the swarm service", async () => {
-		const configDir = await makeConfigDir();
-		const { supervisor, forwarder } = makeSupervisor({ TRAEFIK_CONFIG_BASE_PATH: configDir });
-		stubProbe(supervisor);
-
-		await supervisor.ensureDesiredState();
-
-		// `local` = bind 127.0.0.1 only, which is exactly the scope the forwarder
-		// realizes. If this ever stops being called, a fresh install has NO
-		// reachable console at all.
-		expect(forwarder.converge).toHaveBeenCalled();
-		const binding = (forwarder.converge as unknown as { mock: { calls: unknown[][] } }).mock.calls[0]?.[0] as
-			| { scope: string; bindAddress: string | null }
-			| null;
-		expect(binding?.scope).toBe("loopback");
-		expect(binding?.bindAddress).toBe("127.0.0.1");
-	});
-
-	it("adds the websecure entrypoint + HTTP→HTTPS redirect when TLS is enabled", async () => {
-		const configDir = await makeConfigDir();
-		const { supervisor, createSwarmService } = makeSupervisor({
-			// `direct` so the ports ARE published by the swarm service; under
-			// `local` they go through the forwarder instead.
-			DEPLOYER_EDGE_MODE: "direct",
-			DEPLOYER_TRAEFIK_TLS_ENABLED: true,
-			TRAEFIK_CONFIG_BASE_PATH: configDir,
-		});
-		stubProbe(supervisor);
-
-		await supervisor.ensureDesiredState();
-
-		const spec = createSwarmService.mock.calls[0]?.[0];
-		expect(spec?.TaskTemplate.ContainerSpec.Args).toContain("--entrypoints.websecure.address=:443");
-		expect(spec?.EndpointSpec?.Ports).toEqual([
-			{ TargetPort: 80, PublishedPort: 80, Protocol: "tcp", PublishMode: "host" },
-			{ TargetPort: 443, PublishedPort: 443, Protocol: "tcp", PublishMode: "host" },
-		]);
-	});
-
-	it("keeps a loopback install off every interface even when TLS is enabled", async () => {
-		const configDir = await makeConfigDir();
-		const { supervisor, createSwarmService, forwarder } = makeSupervisor({
-			// Default provider (`local`) WITH TLS: the ports must still not be
-			// published on the swarm service, or enabling HTTPS would silently
-			// expose the machine on :80/:443 — the exact regression this guards.
-			DEPLOYER_TRAEFIK_TLS_ENABLED: true,
-			TRAEFIK_CONFIG_BASE_PATH: configDir,
-		});
-		stubProbe(supervisor);
-
-		await supervisor.ensureDesiredState();
-
-		expect(createSwarmService.mock.calls[0]?.[0]?.EndpointSpec?.Ports ?? []).toEqual([]);
-		// Both ports are handed to the loopback lane instead.
-		const binding = (forwarder.converge as unknown as { mock: { calls: unknown[][] } }).mock.calls[0]?.[0] as
-			| { scope: string; ports: number[] }
-			| null;
-		expect(binding?.scope).toBe("loopback");
-		expect(binding?.ports).toEqual([80, 443]);
-	});
-
-	it("publishes no host port in tunnel mode (the connector dials out)", async () => {
-		const configDir = await makeConfigDir();
-		const { supervisor, createSwarmService } = makeSupervisor({
-			DEPLOYER_EDGE_MODE: "tunnel",
-			TRAEFIK_CONFIG_BASE_PATH: configDir,
-		});
-		stubProbe(supervisor);
-
-		await supervisor.ensureDesiredState();
-
-		expect(createSwarmService.mock.calls[0]?.[0]?.EndpointSpec?.Ports ?? []).toEqual([]);
-	});
-
-	it("still publishes in PRODUCTION when the edge mode is direct", async () => {
-		const configDir = await makeConfigDir();
-		const { supervisor, createSwarmService } = makeSupervisor({
-			NODE_ENV: "production",
-			DEPLOYER_EDGE_MODE: "direct",
-			TRAEFIK_CONFIG_BASE_PATH: configDir,
-		});
-		stubProbe(supervisor);
-
-		await supervisor.ensureDesiredState();
-
-		// The edge mode, not NODE_ENV, decides: in `direct` the operator points
-		// DNS at the node IP, so the port MUST be bound or the whole stack is
-		// unreachable by construction.
-		expect(createSwarmService.mock.calls[0]?.[0]?.EndpointSpec?.Ports).toEqual([
-			{ TargetPort: 80, PublishedPort: 80, Protocol: "tcp", PublishMode: "host" },
-		]);
-	});
-
-	it("marks Traefik DEGRADED when the entry port is unavailable (no silent fallback)", async () => {
-		const configDir = await makeConfigDir();
-		const { supervisor, createSwarmService } = makeSupervisor({ TRAEFIK_CONFIG_BASE_PATH: configDir });
-		stubProbe(supervisor);
-		vi.spyOn(supervisor as unknown as { delay(ms: number): Promise<void> }, "delay").mockResolvedValue();
-
-		// The engine rejects the global service because the entry port is
-		// already bound on the node.
-		createSwarmService.mockRejectedValueOnce(
-			new Error(
-				"failed to program external connectivity on endpoint deployer-traefik: failed to bind host port 0.0.0.0:80/tcp: address already in use",
-			),
+		expect(args).toEqual(
+			expect.arrayContaining(["--entrypoints.local.address=:80", "--entrypoints.private.address=:8001", "--entrypoints.public.address=:8002"]),
 		);
-
-		const state = await supervisor.ensureDesiredState();
-
-		// NO headless fallback — the conflict surfaces as an ERROR the web can
-		// see and remediate (set a different entry port).
-		expect(state).toBe("degraded");
-		expect(supervisor.getStateSnapshot().detail).toContain("entry port 80 is already in use");
 	});
 
-	it("reports the entire ingress process info (swarm process + entry + urls)", async () => {
-		const configDir = await makeConfigDir();
-		const { supervisor } = makeSupervisor({ TRAEFIK_CONFIG_BASE_PATH: configDir });
-		stubProbe(supervisor);
+	it.each([
+		["local only", defaultIngressLanes()],
+		["private lane", { ...defaultIngressLanes(), private: { enabled: true, domain: "deployer.internal", exposeOnLan: false } }],
+		["tunnel public lane", tunnelLanes()],
+	])("publishes NO host port with %s", async (_label, lanes) => {
+		const { supervisor, createSwarmService } = makeSupervisor({ lanes });
 		await supervisor.ensureDesiredState();
-
-		const info = await supervisor.getProcessInfo();
-
-		expect(info.supervisorId).toBe("platform-ingress-traefik");
-		expect(info.process.kind).toBe("swarm");
-		const swarmProcess = info.process.kind === "swarm" ? info.process : null;
-		expect(swarmProcess?.desired.name).toBe("deployer-traefik");
-		expect(swarmProcess?.desired.image).toBe("traefik:v3.3");
-		expect(swarmProcess?.desired.mode).toBe("global");
-		expect(swarmProcess?.live.exists).toBe(true);
-		expect(swarmProcess?.live.runningTasks).toBe(1);
-		expect(info.entry).toEqual({ port: 80, isDefault80: true, source: "default" });
-		// The reachable URL follows the BINDING, not the swarm publish: under the
-		// default `local` provider the service publishes nothing while the
-		// forwarder serves the hostnames on loopback, so the install IS reachable
-		// from this machine and reporting null would be wrong.
-		expect(info.urls.entryUrl).toBe("http://web.deployer.localhost");
-		expect(info.urls.apiUrl).toBe("http://api.deployer.localhost");
-		expect(info.config.dynamicApiFile).toContain("dynamic-api.yml");
+		expect(createSwarmService.mock.calls[0]?.[0]?.EndpointSpec?.Ports ?? []).toEqual([]);
 	});
 
-	it("reports the web-configured entry port (local-db source) in process info", async () => {
-		const configDir = await makeConfigDir();
-		const { supervisor } = makeSupervisor({ TRAEFIK_CONFIG_BASE_PATH: configDir }, 8080);
-		stubProbe(supervisor);
+	it("publishes :80 in host mode for `direct` — the only lane that opens a port", async () => {
+		const { supervisor, createSwarmService } = makeSupervisor({ lanes: directLanes(false) });
 		await supervisor.ensureDesiredState();
-
-		const info = await supervisor.getProcessInfo();
-
-		expect(info.entry).toEqual({ port: 8080, isDefault80: false, source: "local-db" });
-		expect(info.process.kind).toBe("swarm");
-		expect(info.urls.entryUrl).toBe("http://web.deployer.localhost");
+		expect(createSwarmService.mock.calls[0]?.[0]?.EndpointSpec?.Ports).toEqual([
+			{ TargetPort: 8002, PublishedPort: 80, Protocol: "tcp", PublishMode: "host" },
+		]);
 	});
 
-	it("reports unhealthy when the ingress task is not running on this node", async () => {
-		const configDir = await makeConfigDir();
-		const { supervisor, tasks } = makeSupervisor({ TRAEFIK_CONFIG_BASE_PATH: configDir });
-		stubProbe(supervisor);
+	it("adds :443, the redirect and a real ACME resolver for `direct` + TLS", async () => {
+		const { supervisor, createSwarmService } = makeSupervisor({ lanes: directLanes(true) });
+		await supervisor.ensureDesiredState();
+		const spec = createSwarmService.mock.calls[0]?.[0];
+		expect(spec?.EndpointSpec?.Ports).toEqual([
+			{ TargetPort: 8002, PublishedPort: 80, Protocol: "tcp", PublishMode: "host" },
+			{ TargetPort: 8443, PublishedPort: 443, Protocol: "tcp", PublishMode: "host" },
+		]);
+		const args = spec?.TaskTemplate.ContainerSpec.Args ?? [];
+		expect(args).toContain("--entrypoints.public.http.redirections.entrypoint.to=public-tls");
+		expect(args).toContain("--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=public");
+		expect(spec?.TaskTemplate.ContainerSpec.Mounts?.map((m) => m.Target)).toEqual(["/acme"]);
+	});
+
+	it("publishes the doors plan into the mesh: local always, private only when enabled", async () => {
+		const { supervisor, writeSetting } = makeSupervisor({
+			lanes: { ...defaultIngressLanes(8080), private: { enabled: true, domain: "deployer.internal", exposeOnLan: false } },
+		});
+		await supervisor.ensureDesiredState();
+		expect(writeSetting).toHaveBeenCalledWith(
+			"node.doors",
+			expect.objectContaining({
+				entryPort: 8080,
+				upstream: "deployer-traefik",
+				network: "deployer-platform-overlay",
+				namePrefix: "deployer",
+				lanes: { local: { upstreamPort: 80 }, private: { upstreamPort: 8001 }, lan: null },
+				rescue: [
+					{ host: "api.deployer.localhost", target: "deployer-api", port: 3005 },
+					{ host: "web.deployer.localhost", target: "deployer-managed-web", port: 3000 },
+				],
+			}),
+		);
+	});
+
+	it("still converges when the mesh agent is unavailable — only the doors are missing", async () => {
+		const { supervisor } = makeSupervisor({ meshWrite: () => Promise.reject(new Error("mesh agent is not reachable")) });
+		expect(await supervisor.ensureDesiredState()).toBe("converged");
+	});
+
+	it("removes the legacy API-owned forwarder the agent's door replaces", async () => {
+		const { supervisor, removedContainers } = makeSupervisor({ legacyForwarder: true });
+		await supervisor.ensureDesiredState();
+		expect(removedContainers).toContain("deployer-ingress-forwarder");
+	});
+
+	it("prefixes the service and the doors from DEPLOYER_PREFIX", async () => {
+		const { supervisor, createSwarmService, writeSetting } = makeSupervisor({ env: { DEPLOYER_PREFIX: "acme" } });
+		await supervisor.ensureDesiredState();
+		expect(createSwarmService.mock.calls[0]?.[0]?.Name).toBe("deployer-traefik-acme");
+		expect(writeSetting).toHaveBeenCalledWith("node.doors", expect.objectContaining({ namePrefix: "deployer-acme", upstream: "deployer-traefik-acme" }));
+	});
+
+	it("marks the ingress DEGRADED when a `direct` port is already bound", async () => {
+		const { supervisor, createSwarmService } = makeSupervisor({ lanes: directLanes(false) });
+		createSwarmService.mockRejectedValueOnce(new Error("failed to bind host port 0.0.0.0:80/tcp: address already in use"));
+		expect(await supervisor.ensureDesiredState()).toBe("degraded");
+		expect(supervisor.getStateSnapshot().detail).toContain("port 80 is already in use");
+	});
+
+	it("reports the lanes, the provider endpoint and the local console URL", async () => {
+		const { supervisor } = makeSupervisor({ lanes: { ...tunnelLanes(), entryPort: 8080 } });
+		await supervisor.ensureDesiredState();
+		const info = await supervisor.getProcessInfo();
+		expect(info.entry).toEqual({ port: 8080, isDefault80: false });
+		expect(info.urls.entryUrl).toBe("http://web.deployer.localhost:8080");
+		expect(info.config).toEqual({
+			providerEndpoint: "http://deployer-api:3005/internal/ingress/traefik-config",
+			lanes: ["local", "public"],
+		});
+	});
+
+	it("reports unhealthy when this node's ingress task is not running", async () => {
+		const { supervisor, tasks } = makeSupervisor();
 		await supervisor.ensureDesiredState();
 		tasks.set("deployer-traefik", [{ NodeID: "n1", Status: { State: "pending" } }]);
-
 		const health = await supervisor.getHealth();
-
 		expect(health.healthy).toBe(false);
 		expect(health.detail).toContain("not running");
-	});
-
-	it("degrades instead of throwing when convergence keeps failing", async () => {
-		const configDir = await makeConfigDir();
-		const { supervisor, createSwarmService } = makeSupervisor({ TRAEFIK_CONFIG_BASE_PATH: configDir });
-		stubProbe(supervisor);
-		// Retries are real backoff delays — collapse them for determinism.
-		vi.spyOn(supervisor as unknown as { delay(ms: number): Promise<void> }, "delay").mockResolvedValue();
-		createSwarmService.mockRejectedValue(new Error("engine refused"));
-
-		const state = await supervisor.ensureDesiredState();
-
-		expect(state).toBe("degraded");
-		expect(supervisor.getStateSnapshot().detail).toContain("engine refused");
 	});
 });

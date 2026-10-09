@@ -1,6 +1,8 @@
 'use client'
 
-import { Tabs, TabsList, TabsTrigger } from '@repo/ui/components/shadcn/tabs'
+import {
+  LayoutDashboard, Boxes, Layers3, Rocket, Network, Globe, Users, Settings2, type LucideIcon,
+} from 'lucide-react'
 import {
   AuthDashboardProjectsProjectId,
   AuthDashboardProjectsProjectIdServices,
@@ -11,6 +13,7 @@ import {
   AuthDashboardProjectsProjectIdTeam,
   AuthDashboardProjectsProjectIdDomains,
 } from '@/routes'
+import { ScopedSectionNav, type ScopedNavItem } from '../../_components/workload/ScopedSectionNav'
 
 type ProjectSection = 'overview' | 'services' | 'environments' | 'configuration' | 'dependencies' | 'deployments' | 'team' | 'domains'
 
@@ -19,16 +22,16 @@ interface ProjectSectionNavProps {
   active: ProjectSection
 }
 
-const sectionLabel: Record<ProjectSection, string> = {
-  overview: 'Overview',
-  services: 'Services',
-  environments: 'Environments',
-  configuration: 'Settings',
-  dependencies: 'Dependencies',
-  deployments: 'Deployments',
-  team: 'Team',
-  domains: 'Domains',
-}
+const sections: readonly { key: ProjectSection; title: string; icon: LucideIcon }[] = [
+  { key: 'overview', title: 'Overview', icon: LayoutDashboard },
+  { key: 'services', title: 'Services', icon: Boxes },
+  { key: 'environments', title: 'Environments', icon: Layers3 },
+  { key: 'deployments', title: 'Deployments', icon: Rocket },
+  { key: 'dependencies', title: 'Dependencies', icon: Network },
+  { key: 'domains', title: 'Domains', icon: Globe },
+  { key: 'team', title: 'Team', icon: Users },
+  { key: 'configuration', title: 'Settings', icon: Settings2 },
+]
 
 const sectionRoute = {
   overview: AuthDashboardProjectsProjectId,
@@ -41,37 +44,19 @@ const sectionRoute = {
   domains: AuthDashboardProjectsProjectIdDomains,
 } as const
 
-const sections: ProjectSection[] = [
-  'overview',
-  'services',
-  'environments',
-  'deployments',
-  'dependencies',
-  'domains',
-  'team',
-  'configuration',
-]
-
-/**
- * Project section navigation tabs.
- * Follows the same pattern as ServiceSectionNav in services/[serviceId]/_components/.
- * Each tab navigates to its own route via typed <Route.Link>.
- */
+/** Project section tabs: same tab strip as every other section, scrolls horizontally at 375 px. */
 export function ProjectSectionNav({ projectId, active }: ProjectSectionNavProps) {
-  return (
-    <Tabs value={active} className="rounded-xl border border-border/60 bg-card/30 p-2">
-      <TabsList className="h-auto w-full flex-wrap justify-start gap-1 bg-transparent p-0">
-        {sections.map((section) => {
-          const Route = sectionRoute[section]
-          return (
-            <TabsTrigger key={section} value={section} asChild className="h-8">
-              <Route.Link projectId={projectId}>
-                {sectionLabel[section]}
-              </Route.Link>
-            </TabsTrigger>
-          )
-        })}
-      </TabsList>
-    </Tabs>
-  )
+  const items: ScopedNavItem[] = sections.map(({ key, title, icon }) => {
+    const Route = sectionRoute[key]
+    return {
+      key,
+      title,
+      icon,
+      active: active === key,
+      renderLink: ({ className, children, 'aria-current': ariaCurrent }) => (
+        <Route.Link projectId={projectId} className={className} aria-current={ariaCurrent}>{children}</Route.Link>
+      ),
+    }
+  })
+  return <ScopedSectionNav label="Project sections" items={items} />
 }

@@ -39,12 +39,12 @@
     },
     "scripts": {
         "build": "bun --bun build.ts",
-        "build:types": "bun --bun ../bin-pkg-build/dist/cjs/main.js --types",
+        "build:types": "bun --bun pkg-build --types",
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
         "type-check": "tsc --noEmit",
-        "dev": "bun --bun ../bin-pkg-build/dist/cjs/main.js --watch",
+        "dev": "bun --bun pkg-build --watch",
         "clean": "rimraf dist"
     },
     "devDependencies": {

@@ -57,22 +57,4 @@ export class NodeNetworkConfigRepository {
                 set: values,
             });
     }
-
-    /**
-     * Load a DNS provider row by id (tunnel-capability check).
-     * Reads the global schema directly — this repository is the reachability
-     * domain's data-access layer and must not import product modules.
-     */
-    async findTunnelProviderById(providerId: string) {
-        const rows = await this.db
-            .select({
-                isActive: globalSchema.dnsProviders.isActive,
-                features: globalSchema.dnsProviders.features,
-                credentials: globalSchema.dnsProviders.credentials,
-            })
-            .from(globalSchema.dnsProviders)
-            .where(eq(globalSchema.dnsProviders.id, providerId))
-            .limit(1);
-        return rows[0] ?? null;
-    }
 }

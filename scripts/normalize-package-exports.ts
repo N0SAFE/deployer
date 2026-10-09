@@ -42,6 +42,42 @@ const ROOT_ENTRY_PACKAGES = new Set(['packages/contracts/api']);
  */
 const TOOL_PACKAGES = new Set(['tooling/bin-pkg-build']);
 
+/**
+ * The CLI's bin name, as declared in `@repo/pkg-build`'s `bin` map.
+ *
+ * Invocations are rewritten to call it by name so the caller never encodes the
+ * builder's internal `dist/` layout, and the path cannot rot when either package
+ * moves.
+ */
+const PKG_BUILD_BIN = 'pkg-build';
+
+/**
+ * Rewrite any invocation of the pkg-build CLI to its bin name.
+ *
+ * Handles both the historical relative paths into the builder's own output
+ * (`../../tooling/bin-pkg-build/dist/cjs/main.js`) and an invocation that
+ * already uses the bin name — so a re-run is idempotent and still counts as
+ * "this package builds with pkg-build".
+ *
+ * Returns the rewritten script, or `null` when the script does not invoke the
+ * builder's CLI.
+ *
+ * `src/main.ts` is deliberately NOT matched: several packages have their own
+ * `src/main.ts`, and the builder itself must keep running from source (it cannot
+ * invoke its own bin before that bin has been built).
+ */
+function rewritePkgBuildInvocation(script: string): string | null {
+    if (/bin-pkg-build\//.test(script)) {
+        return script.replace(
+            /bun\s+(--bun\s+)?\S*bin-pkg-build\/\S*/g,
+            (_match, bunFlag: string | undefined) =>
+                `bun ${bunFlag ?? ''}${PKG_BUILD_BIN}`.replace(/\s+/g, ' ').trim(),
+        );
+    }
+    if (/bun\s+(?:--bun\s+)?pkg-build(?:\s|$)/.test(script)) return script;
+    return null;
+}
+
 function stripJsonComments(input: string): string {
     let out = '';
     let inString = false;
@@ -72,6 +108,51 @@ function stripJsonComments(input: string): string {
         out += char;
     }
     return out.replace(/,\s*([}\]])/g, '$1');
+}
+
+/**
+ * Ensure the package's `tsconfig.json` includes its authored `pkg-build.config.ts`.
+ *
+ * Without this the `defineConfig()` typing is decorative: `type-check` never
+ * reads a file outside the program's `include`, so a misspelled key passes CI
+ * and only fails when the builder runs.
+ *
+ * Several tsconfigs carry comments, so this edits the file as text rather than
+ * round-tripping through `JSON.parse`. `include` is the last key in every one of
+ * these files, so prepending an entry preserves the rest verbatim.
+ *
+ * A package-level `rootDir` pointing at `src` is removed in the same pass: it
+ * exists only to reject files outside `src`, and the builder's declaration pass
+ * pins its own `rootDir` (with `files` + `include: []`) so the package's copy is
+ * already dead. Leaving it in place makes `tsc` fail with TS6059 the moment the
+ * root-level config file joins the program.
+ */
+function ensureTsconfigIncludesConfig(pkgDir: string): void {
+    const tsconfigPath = path.join(root, pkgDir, 'tsconfig.json');
+    if (!fs.existsSync(tsconfigPath)) return;
+    let source = fs.readFileSync(tsconfigPath, 'utf8');
+
+    const rootDirPattern = /"rootDir"\s*:\s*"([^"]*)"\s*,?\s*/;
+    const rootDir = rootDirPattern.exec(source);
+    if (rootDir !== null && rootDir[1] !== '.' && rootDir[1] !== './') {
+        source = source.replace(rootDirPattern, '').replace(/,\s*([}\]])/g, '$1');
+        report.push(`  · ${pkgDir} (dropped dead rootDir)`);
+        changed += 1;
+    }
+
+    if (!source.includes('"pkg-build.config.ts"')) {
+        const include = /"include"\s*:\s*\[\s*/.exec(source);
+        if (include !== null) {
+            const insertAt = include.index + include[0].length;
+            source = `${source.slice(0, insertAt)}"pkg-build.config.ts", ${source.slice(
+                insertAt,
+            )}`;
+            report.push(`  · ${pkgDir} (tsconfig include)`);
+            changed += 1;
+        }
+    }
+
+    fs.writeFileSync(tsconfigPath, source);
 }
 
 /**
@@ -181,7 +262,10 @@ function sourcePathOf(value: unknown): string | null {
 let changed = 0;
 const report: string[] = [];
 
-for (const rel of new Glob('packages/**/package.json').scanSync({ cwd: root })) {
+for (const rel of [
+    ...new Glob('packages/**/package.json').scanSync({ cwd: root }),
+    ...new Glob('tooling/**/package.json').scanSync({ cwd: root }),
+]) {
     if (rel.includes('node_modules')) continue;
     const dir = path.dirname(rel);
     const manifestPath = path.join(root, rel);
@@ -191,18 +275,39 @@ for (const rel of new Glob('packages/**/package.json').scanSync({ cwd: root })) 
 
     const before = JSON.stringify(manifest);
 
-    // Every package built through pkg-build gets a declarations task and an
-    // explicit workspace dependency on the builder. The latter is what lets
-    // turbo order `@repo/pkg-build#build` before any consumer task — consumers
-    // execute the built CLI (`dist/cjs/main.js`), because bun resolves tsconfig
-    // from the CWD and running the CLI source under a consumer's tsconfig
-    // silently drops its decorators.
+    // Every package that uses pkg-build gets an explicit workspace dependency on
+    // the builder, and its `pkg-build.config.ts` joined to the TS program. The
+    // dependency is what lets turbo order `@repo/pkg-build#build` before any
+    // consumer task — consumers execute the built CLI, because bun resolves
+    // tsconfig from the CWD and running the CLI source under a consumer's
+    // tsconfig silently drops its decorators.
+    //
+    // The CLI is invoked by its **bin name** (`pkg-build`), resolved through
+    // this package's own `node_modules/.bin`. Relative paths into another
+    // package's `dist/` break the moment either package moves, and encode an
+    // internal layout the caller has no business knowing.
+    //
+    // Every such path is rewritten, in every script, unconditionally. Deriving
+    // `build:types` is the narrower operation: it is only correct when `build`
+    // itself runs the CLI. `@repo/config-eslint` is the hybrid case — custom
+    // bundler for JS, pkg-build for declarations — so its `build:types` is
+    // authored around its own `build`, not regenerated from it.
     const scripts = (manifest.scripts ?? {}) as Record<string, string>;
+    for (const [name, script] of Object.entries(scripts)) {
+        if (typeof script !== 'string') continue;
+        const rewritten = rewritePkgBuildInvocation(script);
+        if (rewritten !== null) scripts[name] = rewritten;
+    }
     const usesPkgBuild = Object.values(scripts).some(
-        (script) => typeof script === 'string' && script.includes('pkg-build/'),
+        (script) => typeof script === 'string' && rewritePkgBuildInvocation(script) !== null,
     );
     if (usesPkgBuild) {
-        if (typeof scripts.build === 'string' && scripts.build.includes('pkg-build/')) {
+        // Derived task, regenerated from `build` — but only when `build` is the
+        // CLI itself. A hybrid package authors its own `build:types`.
+        if (
+            typeof scripts.build === 'string' &&
+            rewritePkgBuildInvocation(scripts.build) !== null
+        ) {
             scripts['build:types'] = `${scripts.build} --types`;
         }
         manifest.scripts = scripts;
@@ -211,6 +316,10 @@ for (const rel of new Glob('packages/**/package.json').scanSync({ cwd: root })) 
             devDependencies['@repo/pkg-build'] = '*';
             manifest.devDependencies = devDependencies;
         }
+        // `pkg-build.config.ts` must be part of the package's TS program, or the
+        // `defineConfig()` typing is decorative: `type-check` never reads the
+        // file, so a misspelled key passes CI and only fails in the builder.
+        if (!DRY) ensureTsconfigIncludesConfig(dir);
     }
 
     // Tooling configs are loaded by eslint/prettier/vitest directly; their
@@ -219,6 +328,10 @@ for (const rel of new Glob('packages/**/package.json').scanSync({ cwd: root })) 
     // script above was added.
     const authoredExports =
         dir.startsWith('packages/configs/') ||
+        // Every `tooling/**` package authors its own `exports` (prettier exposes
+        // `./base`/`./tailwind`, eslint points some entries at `src/`, the CLIs
+        // have no library surface at all). Only their *scripts* are normalized.
+        dir.startsWith('tooling/') ||
         ROOT_ENTRY_PACKAGES.has(dir) ||
         TOOL_PACKAGES.has(dir) ||
         !fs.existsSync(path.join(root, dir, 'src'));

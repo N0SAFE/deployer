@@ -13,7 +13,7 @@ import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { CloudflareAppService } from "../services/cloudflare-app.service";
 import { CloudflareDnsProviderService } from "../services/cloudflare-dns-provider.service";
 import { CloudflareTunnelService } from "../services/cloudflare-tunnel.service";
-import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
+import { CloudflareTunnelEdgeProvider } from "@/modules/providers/edge/cloudflare-tunnel/cloudflare-tunnel.edge-provider";
 
 /**
  * Normalize a DNS record content value for comparison: trimmed, lowercased,
@@ -32,7 +32,7 @@ export class CloudflareController {
         private readonly appService: CloudflareAppService,
         private readonly dnsService: CloudflareDnsProviderService,
         private readonly tunnelService: CloudflareTunnelService,
-        private readonly reachabilityService: ReachabilityService,
+        private readonly tunnelEdge: CloudflareTunnelEdgeProvider,
     ) {}
 
     // ─── Cloudflare Zones & Records ─────────────────────────────────────────
@@ -225,34 +225,19 @@ export class CloudflareController {
         return implement(providersContract.dns.cloudflare.deleteTunnel)
             .use(requireAuth())
             .handler(async ({ input }) => {
-                // Resolve the bound hostname (if any) so the CNAME this tunnel
-                // owned is removed too, then delete the Cloudflare tunnel.
-                const hostname = await this.reachabilityService.getTunnelHostname(
-                    input.params.providerId,
-                    input.params.id,
-                );
-                const success = await this.tunnelService.deleteTunnel(
-                    input.params.providerId,
-                    input.params.id,
-                    { hostname },
-                );
-                // Keep node_network_config consistent: if any node still bound
-                // this tunnel, clear the binding so it does not reference a
-                // dead tunnel. Best-effort — never fails the deletion.
+                // When this is the STACK's tunnel, remove its wildcard CNAME too, and
+                // make the edge forget it so no dead tunnel id keeps claiming the
+                // public lane (the Ingress page then shows it as not provisioned).
+                const hostname = await this.tunnelEdge.stackWildcard(input.params.providerId, input.params.id);
+                const success = await this.tunnelService.deleteTunnel(input.params.providerId, input.params.id, { hostname });
                 if (success) {
                     try {
-                        const cleared = await this.reachabilityService.clearTunnelBinding(
-                            input.params.providerId,
-                            input.params.id,
-                        );
-                        if (cleared > 0) {
-                            this.logger.log(
-                                `Cleared ${cleared} node binding(s) for deleted tunnel ${input.params.id}`,
-                            );
+                        if (await this.tunnelEdge.forgetDeletedTunnel(input.params.providerId, input.params.id)) {
+                            this.logger.log(`Deleted tunnel ${input.params.id} was the stack's public edge — forgotten`);
                         }
                     } catch (err) {
                         this.logger.warn(
-                            `Node-binding cleanup for tunnel ${input.params.id} failed: ${err instanceof Error ? err.message : String(err)}`,
+                            `Edge cleanup for tunnel ${input.params.id} failed: ${err instanceof Error ? err.message : String(err)}`,
                         );
                     }
                 }

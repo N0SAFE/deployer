@@ -123,6 +123,10 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
           this.phase.record("ready", `Handed over to ${result.apiBackend}`, { apiReady: true });
         } else {
           this.phase.fail(`Handover failed: ${result.reason}`);
+          // On the STREAM too, not just the phase: the phase is read by compose,
+          // the stream is what the operator watches. Without this the step that
+          // actually stopped kept spinning, with no reason and no way forward.
+          this.orchestration.failActive(result.reason);
         }
       }),
       // Tied to this service's lifetime so a shutdown cannot leave the replay
@@ -370,11 +374,20 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
       //    Only when a dashboard was REQUESTED: an API-only install has no web
       //    surface, and waiting for one would stall onboarding forever on a
       //    configuration the operator deliberately chose.
-      this.orchestration.log("await_api_boot", "Waiting for the dashboard to become reachable…");
+      // Reported on `promote_ingress`, which is still in progress: `await_api_boot`
+      // was completed above, and logging onto a finished step reads as output from
+      // something that is over.
+      this.orchestration.log("promote_ingress", "Waiting for the dashboard to be routed by the cluster ingress…");
       const webReady = await this.waitForWebApp();
       if (!webReady.ok) {
         return { ok: false, reason: webReady.reason };
       }
+      this.orchestration.log(
+        "promote_ingress",
+        webReady.reason === "no dashboard requested"
+          ? "No dashboard requested — only the API is routed"
+          : `The dashboard is routed (${webReady.reason})`,
+      );
 
       // 7. `setup.<host>` now serves the API's done page (invariant 3).
       await this.ingress.pointSetupAtDonePage(backend.url);

@@ -17,12 +17,14 @@ vi.mock('../services/pkg-builder.service', () => ({
 
 import { PkgBuildCommand } from './pkg-build.command'
 import { PkgBuilderService } from '../services/pkg-builder.service'
-import { PkgConfigService } from '../services/pkg-config.service'
 
+/**
+ * `PkgBuilderService` is mocked above, so the real `PkgConfigService` (whose
+ * constructor is private — construction goes through the async `create()`) is
+ * never touched. Only the shape the command calls is needed.
+ */
 function createCommand(): PkgBuildCommand {
-    return new PkgBuildCommand(
-        new PkgBuilderService(new PkgConfigService(process.cwd()))
-    )
+    return new PkgBuildCommand(new PkgBuilderService(undefined as never))
 }
 
 describe('PkgBuildCommand', () => {

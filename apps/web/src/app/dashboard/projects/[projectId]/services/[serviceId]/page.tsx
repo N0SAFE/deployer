@@ -5,20 +5,21 @@ import { useParams } from 'next/navigation'
 import { useProject, useProjectServiceEnvironmentLinks } from '@/domains/project/hooks'
 import { useService, useServiceDependencies } from '@/domains/service/hooks'
 import { useDeploymentList } from '@/domains/deployment/hooks'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
 import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+import { PageSkeleton } from '@/components/dashboard/Skeletons'
+import { InlineError } from '../../../_components/workload/WorkloadStates'
+import { RelativeTime } from '../../../_components/workload/RelativeTime'
 import {
-  Siren, ArrowLeft, ArrowRight, Activity, GitBranch,
+  ArrowLeft, ArrowRight, Activity, GitBranch,
 } from 'lucide-react'
 import {
   AuthDashboardProjectsProjectIdServicesServiceId,
   AuthDashboardProjectsProjectIdServicesServiceIdDeployments,
 } from '@/routes'
-import { StatusBadge, StatusDot } from '@/components/dashboard'
-import { formatDateTime } from '@/lib/format/date'
+import { StatusBadge } from '@/components/dashboard'
 import { EmptyState } from '@/components/dashboard'
 import { ENV_NAMES } from '@repo/contracts-common'
 
@@ -77,7 +78,7 @@ export default function DashboardServiceOverviewPage() {
   const { data: serviceData, isLoading: serviceLoading } = useService(serviceId)
   const { data: envLinksData } = useProjectServiceEnvironmentLinks(projectId)
   const { data: depsData } = useServiceDependencies(serviceId)
-  const { data: deploymentsData, isLoading: deploymentsLoading } = useDeploymentList({
+  const { data: deploymentsData, isLoading: deploymentsLoading, error: deploymentsError, refetch: refetchDeployments } = useDeploymentList({
     query: {
       filter: { serviceId: { operator: 'eq' as const, value: serviceId } },
       limit: 5,
@@ -120,27 +121,6 @@ export default function DashboardServiceOverviewPage() {
     return d?.data ?? []
   }, [deploymentsData])
 
-  if (projectLoading || serviceLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-16 w-full rounded-xl" />
-        <Skeleton className="h-48 w-full rounded-xl" />
-      </div>
-    )
-  }
-
-  if (!projectData || !serviceData) {
-    return (
-      <Alert variant="destructive">
-        <Siren className="size-4" />
-        <AlertTitle>Not found</AlertTitle>
-        <AlertDescription>The service or its project does not exist or has been deleted.</AlertDescription>
-      </Alert>
-    )
-  }
-
-  const s = serviceData as ServiceFields
   /**
    * Environment membership lives on the `service_environments` link rows — the
    * service entity has no `enabledEnvironments` field, so the previous
@@ -155,6 +135,16 @@ export default function DashboardServiceOverviewPage() {
         .filter((name) => (ENV_NAMES as readonly string[]).includes(name)),
     [envLinksData, serviceId],
   )
+
+  if (projectLoading || serviceLoading) {
+    return <PageSkeleton label="Loading service" blocks={2} withStrip={false} />
+  }
+
+  if (!projectData || !serviceData) {
+    return <InlineError title="Service not found" error={new Error('The service or its project does not exist or has been deleted.')} />
+  }
+
+  const s = serviceData as ServiceFields
   const ec = s.effectiveConfig ?? null
   const parentName = (parentData as unknown as { name?: string } | undefined)?.name
   const serviceStatus = s.status ?? s.state ?? 'unknown'
@@ -176,7 +166,7 @@ export default function DashboardServiceOverviewPage() {
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm">
             <Activity className="size-4 text-muted-foreground" /> Status
-            {isSubService ? <Badge variant="secondary" className="text-[10px]">sub-service</Badge> : null}
+            {isSubService ? <Badge variant="secondary" className="text-xs">sub-service</Badge> : null}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -187,7 +177,9 @@ export default function DashboardServiceOverviewPage() {
             {ec?.port ?? s.port ? <Badge variant="outline">port {ec?.port ?? s.port}</Badge> : null}
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
-            {enabledEnvs.map((env) => (
+            {enabledEnvs.length === 0 ? (
+              <span className="text-sm text-muted-foreground">Not enabled in any environment yet.</span>
+            ) : enabledEnvs.map((env) => (
               <Badge key={env} variant="secondary" className="gap-1 capitalize">{env}</Badge>
             ))}
           </div>
@@ -218,10 +210,10 @@ export default function DashboardServiceOverviewPage() {
                   projectId={projectId}
                   serviceId={node.serviceId}
                 >
-                  <Badge variant="secondary" className="gap-1 text-[11px]">
+                  <Badge variant="secondary" className="gap-1 text-xs">
                     <GitBranch className="size-3" />
                     {node.serviceName ?? node.serviceId}
-                    {node.dependencies && node.dependencies.length > 0 ? ` · ${node.dependencies.length} dep${node.dependencies.length === 1 ? '' : 's'}` : ''}
+                    {node.dependencies && node.dependencies.length > 0 ? ` · ${String(node.dependencies.length)} dep${node.dependencies.length === 1 ? '' : 's'}` : ''}
                   </Badge>
                 </AuthDashboardProjectsProjectIdServicesServiceId.Link>
               ))}
@@ -234,14 +226,16 @@ export default function DashboardServiceOverviewPage() {
       <Card className="border-border/60 bg-card/40 backdrop-blur-xl">
         <CardHeader className="flex flex-row items-center justify-between">
           <div><CardTitle className="text-sm">Recent deployments</CardTitle><CardDescription className="text-xs">Latest activity for this service.</CardDescription></div>
-          <Button asChild size="sm" variant="ghost" className="h-7 gap-1 text-[11px]">
+          <Button asChild size="sm" variant="ghost" className="gap-1">
             <AuthDashboardProjectsProjectIdServicesServiceIdDeployments.Link projectId={projectId} serviceId={serviceId}>
-              View all <ArrowRight className="size-3" />
+              All deployments <ArrowRight className="size-3" />
             </AuthDashboardProjectsProjectIdServicesServiceIdDeployments.Link>
           </Button>
         </CardHeader>
         <CardContent>
-          {deploymentsLoading ? (
+          {deploymentsError ? (
+            <InlineError title="Could not load deployments" error={deploymentsError} onRetry={() => void refetchDeployments()} />
+          ) : deploymentsLoading ? (
             <div className="space-y-1.5">
               <Skeleton className="h-9 w-full rounded-md" />
               <Skeleton className="h-9 w-full rounded-md" />
@@ -257,13 +251,10 @@ export default function DashboardServiceOverviewPage() {
           ) : (
             <div className="space-y-1.5">
               {recentDeployments.map((dep, i) => (
-                <div key={dep.id ?? i} className="flex items-center gap-2.5 rounded-md border bg-background/40 px-3 py-2 text-xs">
-                  <StatusDot status={dep.status ?? 'unknown'} />
-                  <StatusBadge status={dep.status ?? 'unknown'} className="text-[10px]" />
-                  <Badge variant="outline" className="capitalize text-[10px]">{dep.environment ?? 'production'}</Badge>
-                  <span className="ml-auto text-muted-foreground tabular-nums">
-                    {dep.createdAt ? formatDateTime(dep.createdAt) : '—'}
-                  </span>
+                <div key={dep.id ?? i} className="flex flex-wrap items-center gap-2.5 rounded-md border bg-background/40 px-3 py-2 text-sm">
+                  <StatusBadge status={dep.status ?? 'unknown'} />
+                  <Badge variant="outline" className="capitalize">{dep.environment ?? 'unknown environment'}</Badge>
+                  <RelativeTime value={dep.createdAt} className="ml-auto text-muted-foreground tabular-nums" />
                 </div>
               ))}
             </div>
@@ -304,7 +295,7 @@ function SubServiceBanner({
           <AuthDashboardProjectsProjectIdServicesServiceId.Link
             projectId={projectId}
             serviceId={parentId}
-            className="ml-auto inline-flex h-7 items-center gap-1 rounded-md border border-border/60 bg-background/40 px-2.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground"
+            className="ml-auto inline-flex h-7 items-center gap-1 rounded-md border border-border/60 bg-background/40 px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground"
           >
             <ArrowLeft className="size-3" />
             Parent: {parentName ?? 'service'}

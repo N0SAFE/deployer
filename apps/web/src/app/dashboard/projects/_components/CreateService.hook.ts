@@ -148,16 +148,10 @@ const orchestratorSubServiceSchema = z.object({
     /** Primary container port (ingress + health default). */
     port: z.number().int().positive().optional(),
     ports: z.array(z.number().int().positive()).default([]),
-    /** Extra container → host port forwards. */
-    portMappings: z.array(z.object({
-        containerPort: z.number().int().positive(),
-        hostPort: z.number().int().positive().optional(),
-        protocol: z.enum(['tcp', 'udp']),
-        name: z.string().optional(),
-    })).default([]),
-    /** Expose this sub-service to the internet via the ingress (Traefik). */
-    expose: z.boolean().default(false),
-    /** TLS termination config (when exposed). */
+    /** Ingress visibility: `private` = local + private mesh lanes only;
+     * `public` = also on the public lane when one is enabled. */
+    visibility: z.enum(['private', 'public']).default('public'),
+    /** TLS termination config (public lane). */
     tls: z.object({
         enabled: z.boolean().default(false),
         certSecretRef: z.string().optional(),
@@ -409,15 +403,9 @@ const wizardSchema = z.object({
     network: z.object({
         /** Primary container port (used for ingress/health default). */
         port: z.number().int().positive().optional(),
-        /** Extra port forwards: container → host (host omitted = auto). */
-        portMappings: z.array(z.object({
-            containerPort: z.number().int().positive(),
-            hostPort: z.number().int().positive().optional(),
-            protocol: z.enum(['tcp', 'udp']),
-            name: z.string().optional(),
-        })).default([]),
-        /** Expose to the internet via the ingress (Traefik). */
-        expose: z.boolean().default(false),
+        /** Ingress visibility: `private` = local + private mesh lanes only;
+         * `public` = also on the public lane when one is enabled. */
+        visibility: z.enum(['private', 'public']).default('public'),
         /** TLS termination config. */
         tls: z.object({
             enabled: z.boolean().default(false),
@@ -479,8 +467,7 @@ const defaultWizardValues: WizardFormData = {
     },
     network: {
         port: undefined,
-        portMappings: [],
-        expose: false,
+        visibility: 'public',
         tls: { enabled: false, httpRedirect: true },
         healthCheck: {
             type: 'http',

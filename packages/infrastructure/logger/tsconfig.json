@@ -14,7 +14,7 @@
         }
     },
     "include": [
-        "src/**/*",
+        "pkg-build.config.ts", "src/**/*",
         "eslint.config.ts"
     ]
 }

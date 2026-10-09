@@ -34,17 +34,13 @@ export interface SwarmElectionConfig {
 }
 
 /**
- * Where a joining node can reach THIS cluster, and how large the control plane
- * may grow.
+ * How large the control plane may grow.
  *
- * `controlPlaneCandidates` is a list because the advertised address is resolved
- * from several possible sources (an explicit swarm address, an overlay IP, the
- * node's public URL) and the first usable one wins. The package tries them in
- * order; it does not know or care which source produced them.
+ * There is no address list here: a joiner is handed the addresses the cluster's
+ * MANAGERS advertise (read from the engine), which is the only set guaranteed to
+ * be where the control plane actually listens.
  */
 export interface SwarmJoinConfig {
-	/** Ordered candidate addresses for the cluster's control plane. */
-	readonly controlPlaneCandidates: readonly (string | undefined)[];
 	/**
 	 * Target/maximum number of managers. `1` is refused by the package (it is
 	 * not a quorum); an even value is rounded up to the next odd number.
@@ -60,9 +56,11 @@ export interface SwarmJoinConfig {
  * app that always drives setup can supply `{}`. Fields mirror the persisted
  * config so the merge in `effectiveConfig()` needs no translation.
  *
- * `overlayIp` is separate from `advertiseAddr` because it is a fallback for the
- * SAME purpose (what address peers should dial) resolved from a different
- * source — the app decides which source it trusts, then passes both.
+ * `meshAddress` is not a choice but a FACT about the node, resolved at the
+ * moment it is needed: the private address peers reach this node on. When it is
+ * known, Swarm listens, advertises and carries its data path there — so the
+ * control plane (2377, 7946) and the overlay data path (4789) never touch a public
+ * interface. When it is not (a lone node with no mesh yet), Swarm binds loopback.
  */
 export interface SwarmParticipationDefaults {
 	readonly mode?: "create" | "join";
@@ -70,7 +68,7 @@ export interface SwarmParticipationDefaults {
 	readonly advertiseAddr?: string | null;
 	readonly joinToken?: string | null;
 	readonly joinAddrs?: readonly string[];
-	readonly overlayIp?: string | null;
+	readonly meshAddress?: () => Promise<string | null>;
 	/**
 	 * Whether this deployment runs a swarm AT ALL.
 	 *

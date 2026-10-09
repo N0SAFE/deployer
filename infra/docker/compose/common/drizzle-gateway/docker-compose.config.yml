@@ -11,6 +11,6 @@ services:
       PORT: "4983"
       MASTERPASS: ${DRIZZLE_GATEWAY_MASTERPASS:-change-me}
     ports:
-      - "${DRIZZLE_GATEWAY_PORT:-4984}:4983"
+      - "127.0.0.1:${DRIZZLE_GATEWAY_PORT:-4984}:4983"
     volumes:
       - drizzle-gateway:/app

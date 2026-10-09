@@ -137,6 +137,13 @@ describe("SwarmComposeRealizerService", () => {
             const report = realizer.validateCompatibility(model);
             expect(report.issues.filter((issue) => issue.severity === "error")).toEqual([]);
         });
+
+        it("tells the operator that declared host ports are not published", () => {
+            const report = realizer.validateCompatibility(realizer.parseComposeYaml(FULL_COMPOSE));
+            expect(report.issues).toContainEqual(
+                expect.objectContaining({ path: "services.api.ports", severity: "warn", message: expect.stringContaining("not published") }),
+            );
+        });
     });
 
     describe("realizeCompose", () => {
@@ -155,7 +162,8 @@ describe("SwarmComposeRealizerService", () => {
             expect(dbSpec?.healthcheck?.intervalMs).toBe(10_000);
 
             const apiSpec = plan.services.find((entry) => entry.serviceName === "api")?.spec;
-            expect(apiSpec?.endpointPorts).toEqual([{ targetPort: 3000, publishedPort: 8080, protocol: "tcp" }]);
+            // Nothing is published on the host — a swarm publish opens every node.
+            expect(apiSpec?.endpointPorts).toEqual([]);
             expect(apiSpec?.networks).toEqual([
                 { target: "deployer-proj-1-private", aliases: [] },
             ]);

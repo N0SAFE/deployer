@@ -61,3 +61,36 @@ export function DockerDetailLoadingState({ label = 'Loading details…' }: Docke
     </div>
   )
 }
+
+/** Table-in-a-card skeleton: header strip plus rows. Use instead of a bare spinner. */
+export function DockerTableSkeleton({ columns = 5, rows = 6, label }: { columns?: number; rows?: number; label?: string }) {
+  return (
+    <div role="status" aria-busy="true" className="overflow-hidden rounded-xl border border-border/60">
+      <span className="sr-only">{label ?? 'Loading…'}</span>
+      <div className="flex gap-4 border-b border-border/60 bg-muted/30 px-4 py-2.5">
+        {Array.from({ length: columns }, (_, i) => <Skeleton key={i} className="h-3 w-20" />)}
+      </div>
+      <div className="space-y-3 p-4">
+        {Array.from({ length: rows }, (_, r) => (
+          <div key={r} className="flex gap-4">
+            {Array.from({ length: columns }, (__, c) => <Skeleton key={c} className="h-4 flex-1" />)}
+          </div>
+        ))}
+      </div>
+      {label ? <p className="border-t border-border/60 px-4 py-2 text-xs text-muted-foreground">{label}</p> : null}
+    </div>
+  )
+}
+
+/** Whole-page skeleton: toolbar line plus a table skeleton. */
+export function DockerPageSkeleton({ label, columns = 5 }: { label?: string; columns?: number }) {
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        <Skeleton className="h-8 w-56" />
+        <Skeleton className="h-8 w-24" />
+      </div>
+      <DockerTableSkeleton columns={columns} label={label} />
+    </div>
+  )
+}

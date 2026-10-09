@@ -81,8 +81,9 @@ export default function DashboardClusterPage() {
   const applyRole = (nodeId: string, platformRole: 'both' | 'control' | 'worker') => {
     updateNode.mutate({ params: { nodeId }, body: { platformRole } })
   }
-  const toggleIngress = (nodeId: string, current: boolean) => {
-    updateNode.mutate({ params: { nodeId }, body: { ingress: !current } })
+  // `onCheckedChange` hands over the NEW value — send it as is.
+  const setIngressNode = (nodeId: string, ingress: boolean) => {
+    updateNode.mutate({ params: { nodeId }, body: { ingress } })
   }
 
   if (isLoading) return <PageLoadingState label="Loading cluster state…" />
@@ -153,7 +154,9 @@ export default function DashboardClusterPage() {
                 <TableHead>Node</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead className="text-center">Master</TableHead>
-                <TableHead className="text-center">Ingress</TableHead>
+                <TableHead className="text-center" title="Ingress nodes are kept free of workloads that ask to avoid them (placement `exclude-ingress`). Traefik itself runs on every node.">
+                  Ingress node
+                </TableHead>
                 <TableHead>Availability</TableHead>
                 <TableHead>Platform role</TableHead>
                 <TableHead className="text-right">Capacity</TableHead>
@@ -214,7 +217,7 @@ export default function DashboardClusterPage() {
                         <Switch
                           checked={!!node.isIngress}
                           onCheckedChange={(checked) => {
-                            toggleIngress(node.nodeId, checked)
+                            setIngressNode(node.nodeId, checked)
                           }}
                           onClick={(e) => {
                             e.stopPropagation()

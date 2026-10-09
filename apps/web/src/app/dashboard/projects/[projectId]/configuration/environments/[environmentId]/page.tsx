@@ -1,121 +1,103 @@
 'use client'
 
-import { isDefinedORPCError, getErrorMessage } from "@/lib/orpc/typed-errors";
-import { useMemo } from 'react'
 import { useParams } from 'next/navigation'
-import { ENV_NAMES, type EnvName } from '@repo/contracts-common'
-import { useProject, useProjectEnvironment } from '@/domains/project/hooks'
+import { ArrowLeft } from 'lucide-react'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
-import { Siren, ArrowLeft } from 'lucide-react'
-import { AuthDashboardProjectsProjectIdConfiguration } from '@/routes'
-import { formatDate, shortId } from '../../../_utils/helpers'
+import { PageSkeleton, StatusBadge } from '@/components/dashboard'
+import { useProject, useProjectEnvironment } from '@/domains/project/hooks'
+import { AuthDashboardProjectsProjectIdConfiguration, AuthDashboardProjectsProjectIdEnvironments } from '@/routes'
+import { IdChip } from '../../../../_components/workload/CopyButton'
+import { RelativeTime } from '../../../../_components/workload/RelativeTime'
+import { InlineError } from '../../../../_components/workload/WorkloadStates'
 
-export default function DashboardProjectEnvironmentPage() {
-  const params = useParams<{ projectId: string; environmentId: string }>()
-  const projectId = params.projectId
-  const environmentId = params.environmentId
-
-  const { data: projectData, isLoading: projectLoading, error: projectError } = useProject(projectId)
-  const { data: environmentData, isLoading: envLoading, error: envError } = useProjectEnvironment(projectId, environmentId)
-
-  const isKnownEnv = ENV_NAMES?.includes(environmentId as EnvName)
-  const envName = environmentData?.name ?? environmentId
-
-  if (projectLoading || envLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-48 w-full rounded-xl" />
-      </div>
-    )
-  }
-
-  if (projectError || envError) {
-    return (
-      <Alert variant="destructive">
-        <Siren className="size-4" />
-        <AlertTitle>Failed to load environment</AlertTitle>
-        <AlertDescription>
-          {(() => {
-            const err = projectError ?? envError
-            return isDefinedORPCError(err) ? getErrorMessage(err, 'An unexpected error occurred.') : 'An unexpected error occurred.'
-          })()}
-        </AlertDescription>
-      </Alert>
-    )
-  }
-
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-6">
-      {/* Back button */}
-      <AuthDashboardProjectsProjectIdConfiguration.Link projectId={projectId}>
-        <Button variant="ghost" size="sm">
-          <ArrowLeft className="mr-2 size-4" />
-          Back to Configuration
-        </Button>
-      </AuthDashboardProjectsProjectIdConfiguration.Link>
-
-      {/* Environment detail */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <CardTitle>Environment: {envName}</CardTitle>
-            {isKnownEnv && <Badge>Standard</Badge>}
-          </div>
-          <CardDescription>
-            Configuration details for the <strong>{environmentId}</strong> environment.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label>Environment ID</Label>
-              <p className="text-sm text-muted-foreground font-mono">{shortId(environmentId)}</p>
-            </div>
-            <div>
-              <Label>Project</Label>
-              <p className="text-sm text-muted-foreground">{projectData?.name ?? 'Unknown'}</p>
-            </div>
-            <div>
-              <Label>Type</Label>
-              <p className="text-sm text-muted-foreground">
-                {environmentData?.type ?? isKnownEnv ? 'standard' : 'custom'}
-              </p>
-            </div>
-            <div>
-              <Label>Status</Label>
-              <p className="text-sm text-muted-foreground">
-                  <Badge variant={environmentData?.status === 'healthy' ? 'default' : 'secondary'}>
-                  {environmentData?.status ?? 'unknown'}
-                </Badge>
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Environment details from API */}
-      {environmentData && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Environment Properties</CardTitle>
-            <CardDescription>Raw properties returned by the API.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <pre className="text-xs bg-muted p-4 rounded-lg overflow-auto max-h-96">
-              {JSON.stringify(environmentData, null, 2)}
-            </pre>
-          </CardContent>
-        </Card>
-      )}
+    <div>
+      <dt className="mb-1 text-sm font-medium">{label}</dt>
+      <dd className="text-sm text-muted-foreground">{children}</dd>
     </div>
   )
 }
 
-function Label({ children }: { children: React.ReactNode }) {
-  return <p className="text-sm font-medium mb-1">{children}</p>
+/** Read-only detail of one environment: identity, status and its rules. Edit it from the Environments page. */
+export default function DashboardProjectEnvironmentPage() {
+  const { projectId, environmentId } = useParams<{ projectId: string; environmentId: string }>()
+
+  const projectQuery = useProject(projectId)
+  const envQuery = useProjectEnvironment(projectId, environmentId)
+  const env = envQuery.data
+
+  if (projectQuery.isLoading || envQuery.isLoading) return <PageSkeleton blocks={2} withStrip={false} label="Loading environment" />
+
+  const error = projectQuery.error ?? envQuery.error
+  if (error) {
+    return (
+      <InlineError
+        title="Could not load the environment"
+        error={error}
+        onRetry={() => { void projectQuery.refetch(); void envQuery.refetch() }}
+        action={
+          <AuthDashboardProjectsProjectIdConfiguration.Link projectId={projectId}>
+            <Button variant="outline" size="sm">Back to configuration</Button>
+          </AuthDashboardProjectsProjectIdConfiguration.Link>
+        }
+      />
+    )
+  }
+  if (!env) {
+    return <InlineError title="Environment not found" error={new Error('This environment does not exist or was deleted.')} />
+  }
+
+  return (
+    <div className="space-y-6">
+      <AuthDashboardProjectsProjectIdConfiguration.Link projectId={projectId}>
+        <Button variant="ghost" size="sm"><ArrowLeft className="mr-2 size-4" />Back to configuration</Button>
+      </AuthDashboardProjectsProjectIdConfiguration.Link>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center gap-3">
+            <CardTitle>Environment: {env.name}</CardTitle>
+            <Badge variant="outline">{env.kind}</Badge>
+            <StatusBadge status={env.status} />
+          </div>
+          <CardDescription>
+            {env.description ?? 'No description.'} To rename, clone or delete it, use{' '}
+            <AuthDashboardProjectsProjectIdEnvironments.Link projectId={projectId} className="underline underline-offset-2">
+              the project Environments page
+            </AuthDashboardProjectsProjectIdEnvironments.Link>.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <dl className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Fact label="Environment ID"><IdChip id={env.id} label="Copy environment ID" chars={36} /></Fact>
+            <Fact label="Project">{projectQuery.data?.name ?? '—'}</Fact>
+            <Fact label="Slug"><code className="font-mono">{env.slug}</code></Fact>
+            <Fact label="Legacy type">{env.type ?? 'custom (none)'}</Fact>
+            <Fact label="Active">{env.isActive ? 'Yes' : 'No — deployments to it are paused'}</Fact>
+            <Fact label="Last updated"><RelativeTime value={env.updatedAt} /></Fact>
+          </dl>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Rules</CardTitle>
+          <CardDescription>How deployments behave in this environment.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <dl className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Fact label="Auto-deploy">{env.rules.autoDeployEnabled ? 'Enabled' : 'Disabled'}</Fact>
+            <Fact label="Strategy">{env.rules.deploymentStrategy}</Fact>
+            <Fact label="Health gate">{env.rules.healthGate}</Fact>
+            <Fact label="Startup mode">{env.rules.startupMode}</Fact>
+            <Fact label="Replicas">{String(env.rules.replicas.min)} – {String(env.rules.replicas.max)}</Fact>
+            <Fact label="Max error rate / latency">{String(env.rules.trafficPolicy.maxErrorRatePercent)}% / {String(env.rules.trafficPolicy.maxLatencyMs)} ms</Fact>
+          </dl>
+        </CardContent>
+      </Card>
+    </div>
+  )
 }

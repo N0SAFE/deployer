@@ -83,7 +83,7 @@ This document is the authoritative, exhaustive inventory of every feature the pl
 | Cluster health overview | 🟡 | Mesh topology service + health module, no admin UI |
 | Multi-node gossip ring (mesh transport) | 🟡 | `MeshCoreModule` + event replication, wiring incomplete |
 | Cross-node event delivery (ORPC SSE) | 🟡 | `BaseMeshService` + EventIterator contracts exist |
-| Standalone load balancer | ❌ | Removed — Traefik is the sole reverse proxy; direct-proxy supervisor covers Traefik downtime |
+| Standalone load balancer | ❌ | Removed — Traefik is the sole reverse proxy; the local door's rescue route covers the console during Traefik downtime |
 | Platform self-update (cluster-wide) | 🔴 | Not implemented |
 | Cluster backup to S3 | 🔴 | Not implemented |
 | Multi-region cluster federation | 🔴 | Architecture defined, not implemented |

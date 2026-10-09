@@ -5,7 +5,8 @@ import type { DockerFileEntry } from '@repo/contracts-entities'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from '@repo/ui/components/shadcn/context-menu'
-import { FolderOpen, Maximize2, Minimize2, X } from 'lucide-react'
+import { File as FileIcon, FolderOpen, Maximize2, Minimize2, X } from 'lucide-react'
+import { DockerCopyButton } from './docker-copy-button'
 import { getFilesInDirectory, getPathBreadcrumb, getParentPath } from './docker-filesystem-utils'
 
 interface DockerFileBrowserProps {
@@ -79,8 +80,11 @@ export function DockerFileBrowser({
             ) : null}
             <div className="sticky top-0 z-10 border-b bg-background/95 px-3 py-2">
               <p className="text-xs text-muted-foreground">Full path</p>
-              <p className="font-mono text-xs break-all">{currentPath}</p>
-              {notice ? <p className="mt-1 text-[11px] text-muted-foreground">{notice}</p> : null}
+              <p className="flex items-center gap-1 font-mono text-xs break-all">
+                {currentPath}
+                <DockerCopyButton value={currentPath} label="path" />
+              </p>
+              {notice ? <p className="mt-1 text-xs text-muted-foreground">{notice}</p> : null}
             </div>
 
             <div className="border-b px-3 py-2">
@@ -115,6 +119,7 @@ export function DockerFileBrowser({
               <button
                 type="button"
                 className="w-full text-left px-3 py-2 hover:bg-muted/40 text-xs font-mono"
+                aria-label="Go to parent directory"
                 onClick={() => {
                   const candidate = getParentPath(currentPath)
                   const clampedPath = !candidate.startsWith(modeRootPath)
@@ -156,7 +161,7 @@ export function DockerFileBrowser({
                   }}
                 >
                   <span className="text-sm" aria-hidden="true">
-                    {entry.type === 'dir' ? <FolderOpen className="h-4 w-4 text-muted-foreground" /> : '📄'}
+                    {entry.type === 'dir' ? <FolderOpen className="h-4 w-4 text-muted-foreground" /> : <FileIcon className="h-4 w-4 text-muted-foreground" />}
                   </span>
                   <span className="font-mono text-xs break-all text-left">{entry.name}</span>
                   <Badge variant="outline" className="justify-self-end">{entry.type}</Badge>
@@ -205,6 +210,7 @@ export function DockerFileBrowser({
                 <button
                   type="button"
                   title={isPreviewFullTab ? 'Exit full tab preview' : 'Open preview in full tab'}
+                  aria-label={isPreviewFullTab ? 'Exit full tab preview' : 'Open preview in full tab'}
                   className="inline-flex h-8 w-8 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={() => {
                     setIsPreviewFullTab((previous) => !previous)
@@ -216,6 +222,7 @@ export function DockerFileBrowser({
                 <button
                   type="button"
                   title="Close preview"
+                  aria-label="Close preview"
                   className="inline-flex h-8 w-8 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   onClick={() => {
                     setIsPreviewOpen(false)
@@ -230,7 +237,7 @@ export function DockerFileBrowser({
               {selectedFile ? (
                 <pre className="text-xs font-mono whitespace-pre-wrap wrap-break-word">{getFilePreviewContent(selectedFile)}</pre>
               ) : (
-                <p className="text-xs text-muted-foreground">Choose any file from the directory pane.</p>
+                <p className="text-sm text-muted-foreground">Choose a file from the directory pane to see its details.</p>
               )}
             </div>
           </div>

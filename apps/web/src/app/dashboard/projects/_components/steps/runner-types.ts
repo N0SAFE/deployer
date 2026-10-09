@@ -14,8 +14,7 @@ export interface OrchestratorSubService {
   entrypoint?: string
   port?: number
   ports: number[]
-  portMappings: { containerPort: number; hostPort?: number; protocol: 'tcp' | 'udp'; name?: string }[]
-  expose: boolean
+  visibility: 'private' | 'public'
   tls: { enabled: boolean; certSecretRef?: string; httpRedirect: boolean }
   networks: string[]
   customDomains: string[]

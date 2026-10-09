@@ -25,7 +25,7 @@ export function ProjectDetailLayoutInner({ children }: { children: ReactNode }) 
   const projectId = params.projectId
   const segment = useSelectedLayoutSegment()
 
-  const { data: projectData, isLoading, error } = useProject(projectId)
+  const { data: projectData, isLoading, error, refetch } = useProject(projectId)
 
   // Service pages have their OWN shell (ServiceDetailLayout): breadcrumb,
   // service identity, service section nav. The project shell (header + project
@@ -36,7 +36,7 @@ export function ProjectDetailLayoutInner({ children }: { children: ReactNode }) 
   }
 
   // Determine active tab from URL segment
-  const activeSection = segment === undefined || segment === null
+  const activeSection = segment === null
     ? 'overview'
     : segment === 'services' ? 'services'
     : segment === 'environments' ? 'environments'
@@ -66,7 +66,7 @@ export function ProjectDetailLayoutInner({ children }: { children: ReactNode }) 
             variant="outline"
             size="sm"
             className="mt-4"
-            onClick={() => window.location.reload()}
+            onClick={() => void refetch()}
           >
             Retry
           </Button>
@@ -95,7 +95,7 @@ export function ProjectDetailLayoutInner({ children }: { children: ReactNode }) 
     )
   }
 
-  const projectName = projectData.name ?? 'Untitled Project'
+  const projectName = projectData.name
   const projectDescription = 'description' in projectData && projectData.description
     ? projectData.description
     : null
@@ -118,7 +118,7 @@ export function ProjectDetailLayoutInner({ children }: { children: ReactNode }) 
             <AuthDashboardProjectsProjectIdConfiguration.Link projectId={projectId}>
               <Button variant="outline" size="sm">
                 <Settings className="mr-1 size-4" />
-                Configuration
+                Settings
               </Button>
             </AuthDashboardProjectsProjectIdConfiguration.Link>
           }

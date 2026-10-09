@@ -74,12 +74,53 @@ export class SwarmClusterService {
      * Join an existing cluster (worker or manager) using a join token issued
      * by the controlling node. No CLI: `dockerode.swarmJoin`.
      */
-    async joinCluster(options: { joinToken: string; remoteAddrs: string[] }): Promise<ClusterSnapshot> {
+    async joinCluster(options: {
+        joinToken: string;
+        remoteAddrs: string[];
+        /** This node's mesh address: listen, advertise and data path all bind it. */
+        meshAddress?: string | null;
+    }): Promise<ClusterSnapshot> {
+        const mesh = options.meshAddress ?? null;
         await this.dockerService.swarmJoin({
             RemoteAddrs: options.remoteAddrs,
             JoinToken: options.joinToken,
+            ...(mesh === null ? {} : { ListenAddr: `${mesh}:2377`, AdvertiseAddr: `${mesh}:2377`, DataPathAddr: mesh }),
         });
         return this.getLocalClusterSnapshot();
+    }
+
+    /**
+     * Re-found a LONE single-node cluster on a new address, keeping its state.
+     *
+     * A cluster founded before the node had a mesh address advertises loopback,
+     * which no joiner can dial. `--force-new-cluster` with a new advertise address
+     * is the engine's own way to move a manager: it rebuilds the Raft store with
+     * this node as the only manager and keeps services, networks and secrets.
+     * Refused for anything but a one-node cluster, where there is no peer to lose.
+     */
+    async reanchorLoneCluster(meshAddress: string): Promise<void> {
+        const snapshot = await this.getLocalClusterSnapshot();
+        if (snapshot.nodeCount > 1 || snapshot.managerCount > 1) {
+            throw new ServiceUnavailableError(
+                `re-anchoring a ${String(snapshot.nodeCount)}-node cluster (only a lone node may be re-founded)`,
+            );
+        }
+        await this.dockerService.swarmInit({
+            ForceNewCluster: true,
+            ListenAddr: `${meshAddress}:2377`,
+            AdvertiseAddr: `${meshAddress}:2377`,
+            DataPathAddr: meshAddress,
+        });
+        await this.waitForActiveCluster();
+        this.logger.log(`Re-anchored the lone cluster on its mesh address ${meshAddress}`);
+    }
+
+    /** The addresses the cluster's managers advertise (`host:2377`), from the engine. */
+    async managerAddresses(): Promise<string[]> {
+        const nodes = await this.dockerService.listSwarmNodes();
+        return nodes
+            .map((node) => node.ManagerStatus?.Addr ?? "")
+            .filter((addr) => addr !== "");
     }
 
     /**

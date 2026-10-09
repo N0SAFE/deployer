@@ -1,4 +1,5 @@
 import z from "zod/v4";
+import { routeVisibilitySchema } from "@repo/contracts-entities/entities/ingress/index";
 import { standard, standardDomainErrorContracts } from "@repo/orpc-utils";
 import { serviceNetworkConfigSchema } from "@repo/contracts-entities";
 
@@ -51,7 +52,7 @@ export const serviceUpdateNetworkInputSchema = z
         recordContent: z.string().nullable().optional(),
         proxied: z.boolean().optional(),
         autoProvision: z.boolean().optional(),
-        expose: z.boolean().optional(),
+        visibility: routeVisibilitySchema.optional(),
         tls: z
             .object({
                 enabled: z.boolean().optional(),

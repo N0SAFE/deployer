@@ -1,6 +1,7 @@
 'use client'
 
-import { AlertCircle, LayoutDashboard, RotateCcw } from 'lucide-react'
+import { useState } from 'react'
+import { AlertCircle, Check, Copy, LayoutDashboard, RotateCcw } from 'lucide-react'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { getErrorMessage, isDefinedORPCError } from '@/lib/orpc/typed-errors'
 import { AuthDashboard } from '@/routes'
@@ -28,16 +29,17 @@ export function RouteError({
   reset: () => void
   scope?: string
 }) {
+  const [copied, setCopied] = useState(false)
   const message = isDefinedORPCError(error)
     ? getErrorMessage(error)
     : 'This page hit an unexpected problem while loading its data.'
 
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 py-16">
+    <div role="alert" className="flex min-h-[60vh] flex-col items-center justify-center px-6 py-16">
       <div className="max-w-md space-y-5 text-center">
         <div className="flex justify-center">
           <div className="flex size-14 items-center justify-center rounded-full bg-destructive/10">
-            <AlertCircle className="size-7 text-destructive" />
+            <AlertCircle className="size-7 text-destructive" aria-hidden />
           </div>
         </div>
 
@@ -46,6 +48,9 @@ export function RouteError({
             {scope ? `${scope} couldn’t load` : 'This page couldn’t load'}
           </h1>
           <p className="text-sm text-muted-foreground">{message}</p>
+          <p className="text-sm text-muted-foreground">
+            Your data is safe. Try again, or go back to the dashboard.
+          </p>
         </div>
 
         <div className="flex flex-col justify-center gap-2 sm:flex-row">
@@ -62,9 +67,26 @@ export function RouteError({
         </div>
 
         {error.digest ? (
-          <p className="text-xs text-muted-foreground">
-            Reference: <span className="font-mono">{error.digest}</span>
-          </p>
+          <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-muted-foreground">
+            <span>
+              Error id: <span className="font-mono">{error.digest}</span>
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                void navigator.clipboard.writeText(error.digest ?? '').then(() => {
+                  setCopied(true)
+                  window.setTimeout(() => {
+                    setCopied(false)
+                  }, 1500)
+                })
+              }}
+            >
+              {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+              {copied ? 'Copied' : 'Copy error id'}
+            </Button>
+          </div>
         ) : null}
 
         <ErrorDetails error={error} />

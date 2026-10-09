@@ -15,6 +15,7 @@ import {
     nodeConfigStatusSchema,
     listHintsResultSchema,
     setupPostSetupDestinationSchema,
+    setupPostSetupVerificationSchema,
     dismissHintInputSchema,
 } from "@repo/contracts-entities";
 import {
@@ -68,6 +69,8 @@ const setupAppProbeMeshOps = standard.zod(setupProbeMeshResultSchema, "setupAppP
 const setupAppRemoteAuthOps = standard.zod(setupRemoteAuthResultSchema, "setupAppRemoteAuth");
 const setupAppHintsOps = standard.zod(listHintsResultSchema, "setupAppHints");
 const setupAppDestinationOps = standard.zod(setupPostSetupDestinationSchema, "setupAppDestination");
+const setupAppVerificationOps = standard.zod(setupPostSetupVerificationSchema, "setupAppVerification");
+const setupAppRetryOps = standard.zod(z.object({ accepted: z.boolean() }), "setupAppHandoverRetry");
 
 /**
  * The trigger and its stream share one builder, exactly as the API's own
@@ -258,6 +261,43 @@ export const setupAppContract = oc
             .path("/post-setup/destination")
             .input((b) => b.body(z.object({}).optional()))
             .output((b) => b.body(setupPostSetupDestinationSchema))
+            .errors((e) => setupAppErrorContracts(e))
+            .build(),
+
+        // ─── Proof that the platform really answers (forwarded) ─────────────
+
+        /**
+         * Do the API and the dashboard answer through the cluster ingress?
+         *
+         * FORWARDED to the API, which owns the facts (is a dashboard expected,
+         * which hostnames) and can ask the ingress as the platform sees it. A
+         * transport failure surfaces as `SERVICE_UNAVAILABLE`, which the wizard
+         * renders as "still waiting", not as a failure: the API legitimately
+         * does not answer for a moment while the ingress is swapped.
+         */
+        getPostSetupVerification: setupAppVerificationOps
+            .list()
+            .path("/post-setup/verification")
+            .input((b) => b.body(z.object({}).optional()))
+            .output((b) => b.body(setupPostSetupVerificationSchema))
+            .errors((e) => setupAppErrorContracts(e))
+            .build(),
+
+        // ─── Recovery ───────────────────────────────────────────────────────
+
+        /**
+         * Run the handover again after it failed.
+         *
+         * A failed handover tears nothing down (see the setup AGENTS.md), so the
+         * honest recovery is "try the same steps again", not "start over and
+         * re-enter every choice". Answered LOCALLY by the setup app — the API
+         * is not involved in the handover's own retry.
+         */
+        retryHandover: setupAppRetryOps
+            .create()
+            .path("/handover/retry")
+            .input((b) => b.body(z.object({}).optional()))
+            .output((b) => b.body(z.object({ accepted: z.boolean() })))
             .errors((e) => setupAppErrorContracts(e))
             .build(),
     });

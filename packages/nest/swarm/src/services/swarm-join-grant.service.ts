@@ -54,7 +54,12 @@
 
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { MeshSwarmJoinGrant, SwarmNodePolicy } from "@repo/contracts-entities";
-import { SWARM_JOIN_CONFIG, type SwarmJoinConfig } from "../swarm-config";
+import {
+    SWARM_JOIN_CONFIG,
+    SWARM_PARTICIPATION_DEFAULTS,
+    type SwarmJoinConfig,
+    type SwarmParticipationDefaults,
+} from "../swarm-config";
 import { SwarmClusterService } from "./swarm-cluster.service";
 
 /** Default target quorum size when the operator has not pinned one. */
@@ -75,6 +80,7 @@ export class SwarmJoinGrantService {
          * variables must be able to run the same grant logic.
          */
         @Inject(SWARM_JOIN_CONFIG) private readonly config: SwarmJoinConfig,
+        @Inject(SWARM_PARTICIPATION_DEFAULTS) private readonly participation: SwarmParticipationDefaults,
     ) {}
 
     /**
@@ -226,26 +232,24 @@ export class SwarmJoinGrantService {
     }
 
     /**
-     * Addresses the joining node can reach this cluster's control plane on.
+     * Where a joiner reaches this cluster's control plane: the addresses its
+     * MANAGERS advertise, read from the engine — the only set guaranteed to be
+     * where the control plane actually listens.
      *
-     * The candidates are ordered by the app (an explicit swarm address, then an
-     * overlay IP, then the node's public URL); the first usable one wins and the
-     * manager port is appended when absent.
+     * A lone cluster founded before the node had a mesh address advertises
+     * loopback, which no joiner can dial; it is re-anchored onto the mesh address
+     * first (a one-node cluster has no peer to lose). A multi-node cluster stuck on
+     * loopback cannot happen — nobody could have joined it.
      */
     private async resolveControlPlaneAddrs(): Promise<string[]> {
-        return this.config.controlPlaneCandidates
-            .map((value) => (typeof value === "string" ? value.trim() : ""))
-            .filter((value) => value !== "")
-            .map((value) => {
-                // Already "host:port" — keep verbatim.
-                if (/:\d+$/.test(value)) return value;
-                // URLs and bare hosts both become "host:2377" (the manager port).
-                try {
-                    const url = new URL(value);
-                    return `${url.hostname}:2377`;
-                } catch {
-                    return `${value.replace(/^https?:\/\//, "").replace(/\/.*$/, "")}:2377`;
-                }
-            });
+        const reachable = (addrs: string[]) => addrs.filter((addr) => !addr.startsWith("127.") && !addr.startsWith("0.0.0.0"));
+        let addrs = reachable(await this.clusterService.managerAddresses());
+        if (addrs.length > 0) return addrs;
+
+        const mesh = await this.participation.meshAddress?.().catch(() => null);
+        if (mesh === null || mesh === undefined) return [];
+        await this.clusterService.reanchorLoneCluster(mesh);
+        addrs = reachable(await this.clusterService.managerAddresses());
+        return addrs;
     }
 }

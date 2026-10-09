@@ -1,7 +1,8 @@
 import { Suspense } from 'react'
 import { DockerRuntimeEventsProviderClient } from './_components/docker-runtime-events-provider'
 import { DockerSectionTabs } from './_components/docker-section-tabs'
-import { PageHeader } from '@/components/dashboard'
+import { DockerSectionHeader } from './_components/docker-section-header'
+import { DockerScopeNotice } from './_components/docker-node-context'
 import type { Metadata } from 'next'
 
 // Metadata lives in the layout: the pages under it are client components, and
@@ -14,11 +15,9 @@ export const metadata: Metadata = {
 export default function DashboardDockerLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="space-y-5">
-      <PageHeader
-        eyebrow="Docker workspace"
-        title="Container Operations"
-        description="Monitor containers, inspect runtime health, and manage orchestration resources."
-      />
+      <Suspense fallback={null}>
+        <DockerSectionHeader />
+      </Suspense>
 
       {/* DockerSectionTabs calls usePathname() (URL data) — wrap in Suspense
           so the docker sub-routes keep their static shell. The fallback is a
@@ -27,6 +26,8 @@ export default function DashboardDockerLayout({ children }: { children: React.Re
       <Suspense fallback={<DockerTabsSkeleton />}>
         <DockerSectionTabs />
       </Suspense>
+
+      <DockerScopeNotice />
 
       <DockerRuntimeEventsProviderClient>
         <div>{children}</div>

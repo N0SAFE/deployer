@@ -15,9 +15,9 @@ import {
 } from '@/routes'
 import { cn } from '@/lib/utils'
 
-const TABS: Array<{ label: string; href: string }> = [
+const TABS: { label: string; href: string }[] = [
   { label: 'Overview', href: AuthDashboardDocker() },
-  { label: 'Tasks · Containers', href: AuthDashboardDockerContainers() },
+  { label: 'Containers', href: AuthDashboardDockerContainers() },
   { label: 'Logs', href: AuthDashboardDockerLogs() },
   { label: 'Images', href: AuthDashboardDockerImages() },
   { label: 'Networks', href: AuthDashboardDockerNetworks() },
@@ -46,7 +46,7 @@ function DockerSectionTabsInner() {
   const pathname = usePathname()
 
   return (
-    <nav aria-label="Docker sections" className="flex flex-wrap items-center gap-1">
+    <nav aria-label="Docker sections" className="flex items-center gap-1 overflow-x-auto pb-1">
       {TABS.map((tab) => {
         const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`)
         return (
@@ -55,7 +55,7 @@ function DockerSectionTabsInner() {
             href={tab.href}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'inline-flex h-8 items-center rounded-lg px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+              'inline-flex h-8 shrink-0 items-center whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
               active
                 ? 'bg-primary/10 text-primary ring-1 ring-primary/20'
                 : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',

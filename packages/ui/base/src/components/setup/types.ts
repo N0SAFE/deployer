@@ -1,6 +1,11 @@
 "use client";
 
-import type { SetupInitializeInput, SetupPostSetupDestination, SetupStreamEvent } from "@repo/contracts-entities";
+import type {
+	SetupInitializeInput,
+	SetupPostSetupDestination,
+	SetupPostSetupVerification,
+	SetupStreamEvent,
+} from "@repo/contracts-entities";
 
 /**
  * The wizard's DATA seam.
@@ -45,6 +50,12 @@ export interface SetupWizardApi {
 	useInitializeStream: (options?: { enabled?: boolean }) => {
 		data?: SetupStreamEvent[] | undefined;
 		error: unknown;
+		/**
+		 * The connection dropped and is being re-established. Expected during the
+		 * handover (the ingress is replaced under the stream) — the wizard says so
+		 * instead of leaving the timeline silently frozen.
+		 */
+		reconnecting?: boolean;
 	};
 
 	/** Probe a PostgreSQL URL without side effects. */
@@ -126,6 +137,27 @@ export interface SetupWizardApi {
 	usePostSetupDestination: (options?: { enabled?: boolean }) => {
 		data?: SetupPostSetupDestination | undefined;
 	};
+
+	/**
+	 * Do the API and the dashboard REALLY answer through the cluster ingress?
+	 *
+	 * The wizard gates its final button on this (plus the browser's own probes of
+	 * the returned URLs): the ingress is replaced at the end of setup, and the
+	 * stream reporting "done" is not evidence that the new one routes.
+	 *
+	 * The host polls it while `enabled`. An `error` means the platform could not be
+	 * asked yet — a WAIT during the swap, not a verdict.
+	 */
+	usePostSetupVerification: (options?: { enabled?: boolean }) => {
+		data?: SetupPostSetupVerification | undefined;
+		error?: unknown;
+	};
+
+	/**
+	 * Run a failed handover again. Optional: only the setup app owns the handover,
+	 * so a host without it (the dashboard) simply offers no retry.
+	 */
+	retryHandover?: () => Promise<{ accepted: boolean }>;
 
 	/**
 	 * Fallback destination used while the answer is loading or if it failed.

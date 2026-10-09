@@ -7,6 +7,7 @@ import type {
     SetupStreamEvent,
     SetupInitializeInput,
 } from "@repo/contracts-entities";
+import { isSetupRunFinished } from "@repo/ui/components/setup/progress-tasks";
 import { setupEndpoints } from "./endpoints";
 
 // ─── Query keys ───────────────────────────────────────────────────────────────
@@ -145,7 +146,7 @@ export function useTriggerInitialize() {
  * @param options.enabled - Enable the query (e.g. only after trigger)
  */
 export function useInitializeStream(options?: { enabled?: boolean }) {
-  return useQuery({
+  const query = useQuery({
     ...setupEndpoints.getInitializeStream.experimental_streamedObservableOptions({
       input: undefined,
       enabled: options?.enabled ?? false,
@@ -164,7 +165,7 @@ export function useInitializeStream(options?: { enabled?: boolean }) {
       //
       // The step list is PRESERVED across reconnects, so the operator keeps the
       // progress they already had instead of an empty view.
-      isComplete: isSetupStreamFinished,
+      isComplete: isSetupRunFinished,
       // Short, and now SAFE to be short: the server sends a heartbeat every 3s,
       // so a healthy stream always delivers bytes inside this window even while
       // a step waits on something slow. Only a DEAD socket is silent this long.
@@ -175,17 +176,32 @@ export function useInitializeStream(options?: { enabled?: boolean }) {
     retry: (failureCount) => failureCount < 30,
     retryDelay: (attempt: number) => Math.min(1_500 * (attempt + 1), 5_000),
   });
+  return {
+    data: query.data,
+    error: query.error,
+    // A failed attempt being retried, with no terminal error yet — what the
+    // handover looks like from here (the ingress is replaced under the stream).
+    reconnecting: query.failureCount > 0 && query.error === null,
+  };
 }
 
 /**
- * Whether the setup stream has reached a TERMINAL event.
+ * Do the API and the dashboard REALLY answer through the cluster ingress?
  *
- * SEARCHED, not read from the last event: the two producers append to one
- * timeline and the later one can append AFTER the terminal, so `at(-1)` would
- * miss the completion and retry forever.
+ * Polled while enabled, and NOT retried by TanStack: a failed call is itself part
+ * of the answer (the API is legitimately unreachable for a moment mid-swap) and
+ * the wizard shows it as "still waiting" while the next poll tries again.
  */
-function isSetupStreamFinished(events: readonly SetupStreamEvent[]): boolean {
-  return events.some((event) => event.type === "completed" || event.type === "error");
+export function usePostSetupVerification(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: [...setupKeys.all, 'verification'] as const,
+    queryFn: async () => await setupEndpoints.getPostSetupVerification.call({}),
+    enabled: options?.enabled ?? false,
+    refetchInterval: 2_000,
+    retry: false,
+    staleTime: 0,
+    gcTime: 0,
+  });
 }
 
 /**

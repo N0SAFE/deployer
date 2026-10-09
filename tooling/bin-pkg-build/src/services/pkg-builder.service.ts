@@ -6,15 +6,32 @@ import * as path from 'node:path'
 import { c } from '../utils/colors'
 import { die } from '../utils/errors'
 import { walkFiles } from '../utils/glob'
-import {
-    PkgConfigService,
-    type Format,
-    type Variant,
-} from './pkg-config.service'
+import { PkgConfigService } from './pkg-config.service'
+import type { BuildMode, Format, Variant } from '../config'
 
 export interface PkgBuildRunOptions {
     watch: boolean
     types: boolean
+    /** Build target. Defaults to the mode `NODE_ENV` implies. */
+    mode?: BuildMode
+}
+
+/**
+ * The build mode `NODE_ENV` implies.
+ *
+ * `NODE_ENV=production` marks a build destined for a production consumer (the
+ * prod images set it before `turbo run build`); anything else — including the
+ * `development` the dev container and `.env.example` set — is a development
+ * build, which stays unminified and keeps its sourcemaps.
+ *
+ * Read with **bracket** access, deliberately. bun statically folds the
+ * `process.env.NODE_ENV` dot-form to a string literal at build time (verified:
+ * it folds even with `define: {}` and `env: 'disable'`), which would bake THIS
+ * package's build-time value into the shipped CLI and make every consumer's mode
+ * read the same forever. The bracket form is left as a real runtime lookup.
+ */
+export function modeFromEnv(): BuildMode {
+    return process.env['NODE_ENV'] === 'production' ? 'prod' : 'dev'
 }
 
 /** Directives that must remain the first statement of the emitted module. */
@@ -48,11 +65,17 @@ export class PkgBuilderService {
     constructor(private readonly pkg: PkgConfigService) {}
 
     /** Entry point for the CLI: one-shot or watch, JS + types or types only. */
-    async run({ watch, types }: PkgBuildRunOptions): Promise<void> {
+    async run({ watch, types, mode }: PkgBuildRunOptions): Promise<void> {
         const { manifest, pkgRoot, config } = this.pkg
+        // Resolve the mode once, here, and pass it down: the variant children are
+        // spawned with `NODE_ENV` overwritten to their variant, so they cannot read
+        // the mode off their own environment.
+        const buildMode = mode ?? modeFromEnv()
         console.log(
             `${c.cyan('>')} ${c.dim(String(manifest.name ?? pkgRoot))} ${c.dim(
-                `[${config.variants.join('+')}]${types ? ' [types]' : ''}`
+                `[${buildMode}] [${config.variants.join('+')}]${
+                    types ? ' [types]' : ''
+                }`
             )}`
         )
 
@@ -63,12 +86,12 @@ export class PkgBuilderService {
             return
         }
 
-        await this.buildAll()
+        await this.buildAll(buildMode)
         this.buildTypes()
         if (!watch) return
 
         await this.startWatch(async () => {
-            await this.buildAll()
+            await this.buildAll(buildMode)
             this.buildTypes()
         })
     }
@@ -79,12 +102,14 @@ export class PkgBuilderService {
      * Only reached in a variant child process: `bun build` reads `NODE_ENV` at
      * process start, so the variant is already fixed by the time we run.
      */
-    async buildVariant(variant: Variant): Promise<void> {
+    async buildVariant(mode: BuildMode, variant: Variant): Promise<void> {
         const entries = this.pkg.listEntries()
         const formats =
             this.pkg.config.formats === false ? [] : this.pkg.config.formats
         await Promise.all(
-            formats.map((format) => this.buildFormat(entries, format, variant))
+            formats.map((format) =>
+                this.buildFormat(entries, format, mode, variant)
+            )
         )
     }
 
@@ -100,8 +125,7 @@ export class PkgBuilderService {
     buildTypes(): void {
         const { config, rootDir, typesDir, typesTsconfig, pkgRoot } = this.pkg
         if (!config.types) return
-        if (!fs.existsSync(rootDir))
-            die(`Source root not found: ${config.root}`)
+        if (!fs.existsSync(rootDir)) die(`Source root not found: ${config.root}`)
 
         const entries = this.pkg.listEntries()
         // Source `.d.ts` files are inputs, not outputs: they must be part of the
@@ -150,6 +174,13 @@ export class PkgBuilderService {
                 incremental: false,
                 outDir: rel(typesDir),
                 rootDir: rel(rootDir),
+                // The inherited `outDir` (some packages set `dist`) otherwise
+                // routes `tsc --build` bookkeeping — `tsconfig.tsbuildinfo` —
+                // into the published tree. Pin it beside the generated config,
+                // which is deleted when the compiler exits.
+                tsBuildInfoFile: rel(
+                    path.join(pkgRoot, '.pkg-build-types.tsbuildinfo')
+                ),
             },
             // `files` is the same entry set as the JS build plus authored `.d.ts`
             // inputs. `include: []` makes sure the base config's include globs
@@ -175,6 +206,9 @@ export class PkgBuilderService {
             if (result.exitCode !== 0) die('types build failed')
         } finally {
             fs.rmSync(typesTsconfig, { force: true })
+            fs.rmSync(path.join(pkgRoot, '.pkg-build-types.tsbuildinfo'), {
+                force: true,
+            })
         }
 
         for (const ambientRel of ambientDeclarations) {
@@ -201,7 +235,7 @@ export class PkgBuilderService {
      * `NODE_ENV` at process start and no build option overrides the JSX runtime it
      * selects. A single variant runs in-process.
      */
-    async buildAll(): Promise<void> {
+    async buildAll(mode: BuildMode): Promise<void> {
         const { config, distDir } = this.pkg
         const variants = config.variants
 
@@ -226,10 +260,10 @@ export class PkgBuilderService {
         }
 
         if (variants.length === 1) {
-            await this.buildVariant(variants[0]!)
+            await this.buildVariant(mode, variants[0]!)
         } else {
             for (const variant of variants) {
-                await this.runChildForVariant(variant)
+                await this.runChildForVariant(mode, variant)
             }
         }
 
@@ -246,11 +280,14 @@ export class PkgBuilderService {
     private async buildFormat(
         entries: string[],
         format: Format,
+        mode: BuildMode,
         variant: Variant
     ): Promise<void> {
         const { config, rootDir, pkgRoot, manifest } = this.pkg
         const outDir = this.pkg.formatOutDir(format, variant)
         const ext = format === 'esm' ? 'mjs' : 'js'
+        const minify = this.pkg.minifyFor(mode, variant)
+        const sourcemap = this.pkg.sourcemapFor(mode, variant)
 
         // Client and server entries are built in SEPARATE passes so their chunks are
         // never shared. A shared chunk would let a server component pull client code
@@ -272,11 +309,16 @@ export class PkgBuilderService {
                 // bun refuses code splitting for cjs ("Code splitting currently only
                 // supported when format set to esm").
                 splitting: config.splitting ?? format === 'esm',
-                minify: config.minify,
-                sourcemap: config.sourcemap,
+                treeShaking: true,
+                minify,
+                sourcemap,
+                // Chunks land in a `chunks/` subdirectory so the entry tree stays a
+                // readable mirror of `src/` instead of being polluted with
+                // `<name>-<hash>` files. Entry names keep the source basename so a
+                // stack frame or a stray import maps straight back to a file.
                 naming: {
                     entry: `[dir]/[name].${ext}`,
-                    chunk: `[name]-[hash].${ext}`,
+                    chunk: `chunks/[name]-[hash].${ext}`,
                 },
                 // Workspace + external deps stay external: the consuming app
                 // resolves them, and bundling would duplicate singletons.
@@ -318,7 +360,9 @@ export class PkgBuilderService {
 
         console.log(
             `${c.green('ok')} ${format.padEnd(4)} ${c.dim(
-                `${entries.length} entries -> ${path.relative(pkgRoot, outDir)}`
+                `${entries.length} entries -> ${path.relative(pkgRoot, outDir)}${
+                    minify ? ' [minified]' : ''
+                }${sourcemap === 'none' ? ' [no map]' : ''}`
             )}`
         )
     }
@@ -384,21 +428,18 @@ export class PkgBuilderService {
 
             // Drop any directive that is no longer the first statement. The bundler
             // emits `"use client";` on its own line, possibly after hoisted imports.
-            const withoutLeading = body.replace(
-                /^"use (client|server)";?\r?\n/,
-                ''
-            )
-            const withoutStray = withoutLeading.replace(
-                /^[ \t]*["']use (client|server)["'];?[ \t]*\r?\n/gm,
-                ''
-            )
+            // Whitespace is optional so a minified body (no newline after `;`) is
+            // still matched.
+            const withoutStray = body
+                .replace(/^"use (client|server)";?\s*/, '')
+                .replace(/["']use (client|server)["'];?/g, '')
             if (withoutStray !== body) stripped += 1
 
             // An entry that declares a directive must lead with it.
             const directive = entryOut.get(outFile)
             const finalBody =
                 directive !== undefined
-                    ? `"${directive}"\n${withoutStray}`
+                    ? `"${directive}";\n${withoutStray}`
                     : withoutStray
 
             if (finalBody !== body) fs.writeFileSync(outFile, finalBody)
@@ -416,7 +457,7 @@ export class PkgBuilderService {
         }
     }
 
-    /** Every file `bun build` wrote for this format + variant. */
+    /** Every emitted JS file (entries and chunks) for this format + variant. */
     private listEmittedFiles(format: Format, variant: Variant): string[] {
         const outDir = this.pkg.formatOutDir(format, variant)
         if (!fs.existsSync(outDir)) return []
@@ -508,11 +549,16 @@ export class PkgBuilderService {
             : path.join(import.meta.dir, '..', name)
     }
 
-    private runChildForVariant(variant: Variant): Promise<void> {
+    private runChildForVariant(mode: BuildMode, variant: Variant): Promise<void> {
         const childEntry = this.variantChildEntry()
         return new Promise((resolve, reject) => {
             const child = Bun.spawn(
-                [process.execPath, childEntry, `--variant=${variant}`],
+                [
+                    process.execPath,
+                    childEntry,
+                    `--variant=${variant}`,
+                    `--mode=${mode}`,
+                ],
                 {
                     cwd: this.pkg.pkgRoot,
                     env: { ...process.env, NODE_ENV: variant },

@@ -1,150 +1,196 @@
 'use client'
 
-import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage, isDomainError } from "@/lib/orpc/typed-errors";
 import { useState } from 'react'
-import { useForm } from '@tanstack/react-form'
+import { Code2, Plus, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { z } from 'zod/v4'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Label } from '@repo/ui/components/shadcn/label'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
-import { Field, FieldLabel, FieldDescription, FieldError } from '@repo/ui/components/shadcn/field'
-import { Siren, Plus, Trash2, Code2, ArrowLeft } from 'lucide-react'
-import { toast } from 'sonner'
-import { AuthDashboardAdminProvidersCode } from '@/routes'
-import { useGitlabApps, useCreateGitlabApp, useDeleteGitlabApp } from '@/domains/gitlab/hooks'
-import { EmptyState, PageHeader } from '@/components/dashboard'
-import { z } from 'zod/v4'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
+import { EmptyState, PageHeader, StatusBadge } from '@/components/dashboard'
+import { useCreateGitlabApp, useDeleteGitlabApp, useGitlabApps } from '@/domains/gitlab/hooks'
+import { getErrorMessage, isDomainError } from '@/lib/orpc/typed-errors'
+import { FieldHelp } from '../../_components/field-help'
+import { RemoveAccountDialog } from '../../_components/remove-account-dialog'
+import { ProviderLoadError, ProviderPageSkeleton } from '../../_components/states'
+import { TextField } from '../../_components/text-field'
+import { useSimpleForm } from '../../_lib/use-simple-form'
 
 const gitlabSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  url: z.string().min(1, 'GitLab URL is required').url('Must be a valid URL'),
-  accessToken: z.string().min(1, 'Access token is required'),
+  name: z.string().trim().min(1, 'Give this account a name'),
+  url: z.url('Must be a full URL, e.g. https://gitlab.com'),
+  accessToken: z.string().min(1, 'Paste a personal access token'),
 })
 
-export default function AdminProvidersCodeGitlabPage() {
-  const { data, isLoading, error, refetch } = useGitlabApps()
+export default function GitlabIntegrationPage() {
+  const { data, isLoading, error, refetch, isRefetching } = useGitlabApps()
   const createApp = useCreateGitlabApp()
   const deleteApp = useDeleteGitlabApp()
-
   const apps = data?.apps ?? []
 
   const [addOpen, setAddOpen] = useState(false)
-  const form = useForm({
-    defaultValues: { name: '', url: '', accessToken: '' },
-    onSubmit: async ({ value }) => {
-      const parsed = gitlabSchema.safeParse(value)
-      if (!parsed.success) return
-      try {
-        await createApp.mutateAsync(parsed.data)
-        toast.success('GitLab integration added')
-        setAddOpen(false)
-        form.reset()
-        await refetch()
-      } catch (err) {
-        toast.error("Failed to add GitLab account", {
-          description: isDomainError(err, "CONFLICT")
-            ? "A GitLab account with this name already exists."
-            : getErrorMessage(err, "Unknown error"),
-        })
-      }
-    },
-  })
+  const [formError, setFormError] = useState<string | null>(null)
+  const form = useSimpleForm(gitlabSchema, { name: '', url: 'https://gitlab.com', accessToken: '' })
 
-  const [deleteId, setDeleteId] = useState<string | null>(null)
-  const [deleteName, setDeleteName] = useState('')
-  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null)
+  const [removeError, setRemoveError] = useState<string | null>(null)
 
-  const confirmDelete = async () => {
-    if (!deleteId) return
+  const submit = async () => {
+    if (!form.validate()) return
+    setFormError(null)
     try {
-      await deleteApp.mutateAsync({ params: { id: deleteId } })
-      toast.success('GitLab account removed')
-      setDeleteOpen(false)
-      setDeleteId(null)
-      await refetch()
+      await createApp.mutateAsync({ name: form.values.name.trim(), url: form.values.url.trim(), accessToken: form.values.accessToken })
+      toast.success('GitLab account connected')
+      setAddOpen(false)
+      form.reset()
     } catch (err) {
-      toast.error('Failed to remove GitLab account', { description: isDefinedORPCError(err) ? getErrorMessage(err, 'Unknown error') : UNKNOWN_ORPC_ERROR_MESSAGE })
+      setFormError(
+        isDomainError(err, 'CONFLICT') ? 'A GitLab account with this name already exists. Choose another name.' : getErrorMessage(err, 'GitLab rejected the URL or token.'),
+      )
+    }
+  }
+
+  const confirmRemove = async () => {
+    if (!removeTarget) return
+    setRemoveError(null)
+    try {
+      await deleteApp.mutateAsync({ params: { id: removeTarget.id } })
+      toast.success(`GitLab account “${removeTarget.name}” removed`)
+      setRemoveTarget(null)
+    } catch (err) {
+      setRemoveError(getErrorMessage(err, 'The account could not be removed.'))
     }
   }
 
   return (
     <div className="space-y-6">
-      <AuthDashboardAdminProvidersCode.Link><Button variant="ghost" size="sm" className="-ml-2"><ArrowLeft className="mr-1 size-4" />Code providers</Button></AuthDashboardAdminProvidersCode.Link>
       <PageHeader
+        eyebrow="Settings › Integrations"
         title="GitLab"
-        description="Connect GitLab repositories for CI/CD integration."
+        description="Deploy services from GitLab.com or a self-hosted GitLab. An account is an instance URL plus an access token; the token is encrypted at rest."
         actions={
-          <Button size="sm" onClick={() => setAddOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            Add GitLab account
-          </Button>
+          apps.length > 0 ? (
+            <Button size="sm" onClick={() => { setAddOpen(true); }}>
+              <Plus className="mr-2 size-4" />
+              Add GitLab account
+            </Button>
+          ) : null
         }
       />
 
       {error ? (
-        <Alert variant="destructive"><Siren className="size-4" /><AlertTitle>Failed to load GitLab accounts</AlertTitle><AlertDescription>{isDefinedORPCError(error) ? getErrorMessage(error) : 'Unknown error'}</AlertDescription></Alert>
+        <ProviderLoadError what="GitLab accounts" message={getErrorMessage(error, 'The API did not answer.')} onRetry={() => void refetch()} retrying={isRefetching} />
       ) : isLoading ? (
-        <div className="space-y-3"><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /></div>
+        <ProviderPageSkeleton />
+      ) : apps.length === 0 ? (
+        <EmptyState
+          icon={Code2}
+          title="No GitLab account connected"
+          description="Connect one to pick repositories when you create a service. You will need a personal access token with the api and read_repository scopes."
+          action={{ label: 'Connect GitLab', onClick: () => { setAddOpen(true); } }}
+        />
       ) : (
         <Card>
-          <CardHeader><CardTitle>Connected Accounts</CardTitle><CardDescription>GitLab accounts configured for repository access.</CardDescription></CardHeader>
-          <CardContent>
-            {apps.length === 0 ? (
-              <EmptyState
-                icon={Code2}
-                title="No accounts configured"
-                description="Add a GitLab personal access token to access repositories."
-                action={{ label: 'Add GitLab account', onClick: () => setAddOpen(true) }}
-              />
-            ) : (
-              <Table><TableHeader><TableRow><TableHead>Name</TableHead><TableHead>URL</TableHead><TableHead>Status</TableHead><TableHead className="w-20">Actions</TableHead></TableRow></TableHeader>
-                <TableBody>{apps.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.name}</TableCell><TableCell className="text-xs">{item.url}</TableCell>
-                    <TableCell><Badge variant="default">Active</Badge></TableCell>
-                    <TableCell><Button variant="ghost" size="icon" className="size-8" aria-label={`Remove ${item.name}`} onClick={() => { setDeleteId(item.id); setDeleteName(item.name); setDeleteOpen(true) }}><Trash2 className="size-4" /></Button></TableCell>
+          <CardHeader>
+            <CardTitle>Connected accounts</CardTitle>
+            <CardDescription>Tokens are verified by GitLab when added and again whenever a deploy uses them.</CardDescription>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Instance</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-12 text-right">
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {apps.map((app) => (
+                  <TableRow key={app.id}>
+                    <TableCell className="font-medium">{app.name}</TableCell>
+                    <TableCell className="font-mono text-sm">{app.url}</TableCell>
+                    <TableCell>
+                      <StatusBadge status={app.isActive ? 'connected' : 'inactive'} className="normal-case">
+                        {app.isActive ? 'Configured' : 'Disabled'}
+                      </StatusBadge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-destructive hover:text-destructive"
+                        aria-label={`Remove GitLab account ${app.name}`}
+                        onClick={() => {
+                          setRemoveError(null)
+                          setRemoveTarget({ id: app.id, name: app.name })
+                        }}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
-                ))}</TableBody>
-              </Table>
-            )}
+                ))}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       )}
 
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Add GitLab Account</DialogTitle>
-            <DialogDescription>Enter your GitLab instance URL and a personal access token.
-              <a href="https://gitlab.com/-/user_settings/personal_access_tokens" target="_blank" rel="noopener noreferrer" className="ml-1 text-primary underline">Create token ↗</a>
-            </DialogDescription>
+      <Dialog
+        open={addOpen}
+        onOpenChange={(open) => {
+          setAddOpen(open)
+          if (!open) setFormError(null)
+        }}
+      >
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Connect a GitLab account</DialogTitle>
+            <DialogDescription>GitLab verifies the token when you connect; a wrong URL or token is reported here, nothing is saved.</DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <form.Field name="name">{(f) => <div className="grid gap-2"><Label>Name</Label><Input value={f.state.value as string} onChange={(e) => f.handleChange(e.target.value)} placeholder="My GitLab Account" /></div>}</form.Field>
-            <form.Field name="url">{(f) => (<Field><FieldLabel>GitLab URL</FieldLabel><FieldDescription>Your GitLab instance URL (e.g., https://gitlab.com).</FieldDescription><Input value={f.state.value as string} onChange={(e) => f.handleChange(e.target.value)} placeholder="https://gitlab.com" />{f.state.meta.errors?.length ? <FieldError>{f.state.meta.errors.join(', ')}</FieldError> : null}</Field>)}</form.Field>
-            <form.Field name="accessToken">{(f) => (<Field><FieldLabel>Personal Access Token</FieldLabel><FieldDescription>Token with api and read_repository scopes. Encrypted at rest.</FieldDescription><Input type="password" value={f.state.value as string} onChange={(e) => f.handleChange(e.target.value)} placeholder="glpat-..." /></Field>)}</form.Field>
+          <div className="space-y-4">
+            <FieldHelp href="https://gitlab.com/-/user_settings/personal_access_tokens" linkLabel="Create a token on GitLab">
+              <p>
+                Choose the scopes <code className="font-mono">api</code> and <code className="font-mono">read_repository</code>. On a self-hosted
+                GitLab, open <em>Preferences → Access tokens</em> on your instance instead.
+              </p>
+            </FieldHelp>
+            <TextField id="gl-name" label="Account name" value={form.values.name} onChange={(v) => { form.setValue('name', v); }} onBlur={() => { form.touch('name'); }} error={form.errorFor('name')} placeholder="Company GitLab" />
+            <TextField id="gl-url" label="GitLab URL" mono help="Your instance address, without a path." value={form.values.url} onChange={(v) => { form.setValue('url', v); }} onBlur={() => { form.touch('url'); }} error={form.errorFor('url')} placeholder="https://gitlab.com" />
+            <TextField id="gl-token" label="Personal access token" secret help="Starts with glpat-. Encrypted at rest; you will not be able to read it back." value={form.values.accessToken} onChange={(v) => { form.setValue('accessToken', v); }} onBlur={() => { form.touch('accessToken'); }} error={form.errorFor('accessToken')} placeholder="glpat-…" />
+            {formError ? (
+              <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {formError}
+              </p>
+            ) : null}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button onClick={form.handleSubmit} disabled={createApp.isPending}>{createApp.isPending ? 'Adding...' : 'Add Account'}</Button>
+            <Button variant="outline" onClick={() => { setAddOpen(false); }}>
+              Cancel
+            </Button>
+            <Button onClick={() => void submit()} disabled={createApp.isPending}>
+              {createApp.isPending ? 'Verifying with GitLab…' : 'Connect account'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Remove Account</DialogTitle><DialogDescription>Remove this GitLab account?</DialogDescription></DialogHeader>
-          <p className="text-sm text-muted-foreground">Remove <strong>{deleteName}</strong>?</p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={confirmDelete} disabled={deleteApp.isPending}>{deleteApp.isPending ? 'Removing...' : 'Remove'}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RemoveAccountDialog
+        open={removeTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setRemoveTarget(null)
+        }}
+        kind="GitLab account"
+        name={removeTarget?.name ?? ''}
+        consequences="Services that deploy from this account will fail their next build until you connect another one. Repositories on GitLab are not touched."
+        pending={deleteApp.isPending}
+        error={removeError}
+        onConfirm={() => void confirmRemove()}
+      />
     </div>
   )
 }

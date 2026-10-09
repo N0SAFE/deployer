@@ -11,17 +11,21 @@ import RedirectAfterDelay from './RedirectAfterDelay'
 
 import type { Metadata } from 'next'
 function renderInvalidType(issue: $ZodIssueInvalidType) {
+    // The received value may be a secret: only ever echo it in development.
+    const showReceived = process.env.NODE_ENV === 'development'
     return (
         <div className="m-4 flex gap-4">
-            <div className="flex justify-between gap-2">
-                <div className="text-sm text-gray-500">Received: </div>
-                <div className="text-sm text-red-500">
-                    {JSON.stringify(issue.input)}
+            {showReceived ? (
+                <div className="flex justify-between gap-2">
+                    <div className="text-muted-foreground text-sm">Received: </div>
+                    <div className="text-destructive text-sm">
+                        {JSON.stringify(issue.input)}
+                    </div>
                 </div>
-            </div>
+            ) : null}
             <div className="flex justify-between gap-2">
-                <div className="text-sm text-gray-500">Expected Type: </div>
-                <div className="text-sm text-red-500">
+                <div className="text-muted-foreground text-sm">Expected Type: </div>
+                <div className="text-destructive text-sm">
                     {issue.expected}
                 </div>
             </div>{' '}
@@ -46,10 +50,10 @@ export default async function EnvPage(props: {
     if (parsedEnv.success) {
         return (
             <div className="mt-12 flex flex-col items-center justify-center">
-                <Card className="w-[380px]">
+                <Card className="w-full max-w-sm">
                     <CardHeader className="text-center">
                         <CardTitle>Environment is Valid</CardTitle>
-                        <CardDescription>Redirecting...</CardDescription>
+                        <CardDescription>The configuration looks correct. Taking you back…</CardDescription>
                     </CardHeader>
                 </Card>
                 <RedirectAfterDelay
@@ -61,11 +65,15 @@ export default async function EnvPage(props: {
     }
     const issues = parsedEnv.error.issues
     return (
-        <div className="mt-12 flex flex-col items-center justify-center">
+        <div className="mt-12 flex flex-col items-center justify-center gap-4 px-4">
+            <p className="text-muted-foreground max-w-md text-center text-sm">
+                The platform cannot start because its configuration is invalid. Fix the
+                variable(s) below in the server environment, then restart the web app.
+            </p>
             {issues.map((issue, index) => (
-                <Card key={index} className="w-[380px]">
+                <Card key={index} className="w-full max-w-sm">
                     <CardHeader className="text-center">
-                        <CardTitle className="text-red-500">
+                        <CardTitle className="text-destructive">
                             {issue.message}
                         </CardTitle>
                         <CardDescription>
@@ -75,7 +83,7 @@ export default async function EnvPage(props: {
                     <CardContent>
                         {renderByCode(issue)}
                         <div className="flex items-center justify-between pt-8">
-                            <div className="text-sm text-gray-500">
+                            <div className="text-muted-foreground text-sm">
                                 Code: {issue.code}
                             </div>
                         </div>

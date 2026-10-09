@@ -34,3 +34,17 @@ export function platformTraefikContainerName(prefix?: string | null): string {
 /** Web runtime port INSIDE the container (the web runtime image serves 3000,
  *  never published to the host). */
 export const PLATFORM_WEB_INTERNAL_PORT = 3000;
+/** Base name of the API swarm service (setup creates it with this name). */
+export const PLATFORM_API_BASE_NAME = "deployer-api";
+
+/**
+ * The API's swarm SERVICE name — also its overlay alias.
+ *
+ * This is the name the ingress dials for its routes: it is stable across task
+ * reschedules and shared by every API replica, whereas a task's container name
+ * changes on every reschedule and differs per replica (two replicas each writing
+ * their own name into Traefik's arguments would roll the ingress forever).
+ */
+export function platformApiServiceName(prefix?: string | null): string {
+	return prefix === "" || prefix === undefined || prefix === null ? PLATFORM_API_BASE_NAME : `${PLATFORM_API_BASE_NAME}-${prefix}`;
+}

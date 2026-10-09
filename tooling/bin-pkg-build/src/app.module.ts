@@ -8,15 +8,16 @@ import { PkgConfigService } from './services/pkg-config.service'
  * The CLI application graph.
  *
  * `PkgConfigService` is created from the process cwd (the consuming package):
- * the CLI is always launched from the package it builds, exactly like the
- * previous script. The factory provider keeps that path explicit instead of
- * relying on a default constructor parameter, which Nest cannot inject.
+ * the CLI is always launched from the package it builds. Its construction is
+ * async because the package's `pkg-build.config.ts` is an ES module that has to
+ * be imported, so the provider is an async factory rather than a plain class.
  */
 @Module({
     providers: [
         {
             provide: PkgConfigService,
-            useFactory: () => new PkgConfigService(),
+            useFactory: (): Promise<PkgConfigService> =>
+                PkgConfigService.create(),
         },
         PkgBuilderService,
         PkgBuildCommand,

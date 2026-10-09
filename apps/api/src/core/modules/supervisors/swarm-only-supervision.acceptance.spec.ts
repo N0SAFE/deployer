@@ -7,11 +7,10 @@ import {
 import { PLATFORM_SUPERVISOR_TOPOLOGY } from "@/core/modules/supervisors/supervisor-topology";
 import { GLOBAL_DB_SUPERVISOR_ID } from "@/core/modules/supervisors/database/global-db-supervisor.service";
 import { DATABASE_SERVICE_SUPERVISOR_ID } from "@/core/modules/supervisors/database/database-service-supervisor.service";
-import { DIRECT_PORT_PROXY_SUPERVISOR_ID } from "@/core/modules/supervisors/platform/direct-port-proxy.supervisor.service";
+import { EDGE_CONNECTOR_SUPERVISOR_ID } from "@/core/modules/supervisors/platform/edge-connector-supervisor.service";
 import { PLATFORM_MANAGED_WEB_SUPERVISOR_ID } from "@/core/modules/supervisors/platform/managed-web-supervisor.service";
 import { PLATFORM_REDIS_SUPERVISOR_ID } from "@/core/modules/supervisors/platform/redis-supervisor.service";
 import { PLATFORM_INGRESS_SUPERVISOR_ID } from "@/core/modules/supervisors/platform/traefik-supervisor.service";
-import { PLATFORM_WIREGUARD_SUPERVISOR_ID } from "@/core/modules/supervisors/platform/wireguard-supervisor.service";
 
 /**
  * ACCEPTANCE TEST — "every supervisor runs on the swarm, and the global
@@ -28,8 +27,7 @@ const SWARM_SUPERVISORS = [
 	PLATFORM_INGRESS_SUPERVISOR_ID,
 	PLATFORM_REDIS_SUPERVISOR_ID,
 	PLATFORM_MANAGED_WEB_SUPERVISOR_ID,
-	DIRECT_PORT_PROXY_SUPERVISOR_ID,
-	PLATFORM_WIREGUARD_SUPERVISOR_ID,
+	EDGE_CONNECTOR_SUPERVISOR_ID,
 	GLOBAL_DB_SUPERVISOR_ID,
 	DATABASE_SERVICE_SUPERVISOR_ID,
 ] as const;
@@ -60,10 +58,9 @@ describe("requirement: every supervisor uses the swarm", () => {
 		const nodeLocal = PLATFORM_SUPERVISOR_TOPOLOGY.filter((entry) => entry.scope === "node-local").map(
 			(entry) => entry.supervisorId,
 		);
-		// The ingress, the failover proxy and the WireGuard sidecar are per-node.
-		expect(nodeLocal).toContain(PLATFORM_INGRESS_SUPERVISOR_ID);
-		expect(nodeLocal).toContain(DIRECT_PORT_PROXY_SUPERVISOR_ID);
-		expect(nodeLocal).toContain(PLATFORM_WIREGUARD_SUPERVISOR_ID);
+		// The ingress is per-node: every node's doors forward to its LOCAL task.
+		// (The WireGuard interface and the doors are the mesh agent's, below Swarm.)
+		expect(nodeLocal).toEqual([PLATFORM_INGRESS_SUPERVISOR_ID]);
 		for (const supervisorId of nodeLocal) {
 			expect(resolveSupervisorRuntime({ managed: false, swarmActive: true, scope: "node-local" }).runtime).toBe(
 				"swarm-global",
@@ -78,6 +75,8 @@ describe("requirement: every supervisor uses the swarm", () => {
 		);
 		expect(meshWide).toContain(PLATFORM_REDIS_SUPERVISOR_ID);
 		expect(meshWide).toContain(PLATFORM_MANAGED_WEB_SUPERVISOR_ID);
+		// Connectors dial out and publish nothing — nothing about them is per-node.
+		expect(meshWide).toContain(EDGE_CONNECTOR_SUPERVISOR_ID);
 		// Database supervisors are shared cluster state, not per-node copies.
 		expect(meshWide).toContain(GLOBAL_DB_SUPERVISOR_ID);
 		expect(meshWide).toContain(DATABASE_SERVICE_SUPERVISOR_ID);

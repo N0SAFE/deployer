@@ -161,7 +161,7 @@ export class ServiceNetworkService {
             recordContent: input.recordContent !== undefined ? (input.recordContent as string | null) : current.recordContent,
             proxied: typeof input.proxied === "boolean" ? input.proxied : current.proxied,
             autoProvision: typeof input.autoProvision === "boolean" ? input.autoProvision : current.autoProvision,
-            expose: typeof input.expose === "boolean" ? input.expose : current.expose,
+            visibility: input.visibility === "private" || input.visibility === "public" ? input.visibility : current.visibility,
             tls: input.tls && typeof input.tls === "object"
                 ? {
                       enabled: typeof (input.tls as { enabled?: unknown }).enabled === "boolean" ? (input.tls as { enabled: boolean }).enabled : current.tls.enabled,

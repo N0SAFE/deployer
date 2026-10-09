@@ -11,3 +11,30 @@
 
 /* Scan apps/setup/src/** (views + any component used by them). */
 @source "../**/*.{ts,tsx}";
+
+/*
+ * The wizard's components live in `@repo/ui`, which this app consumes BUILT: the
+ * `@source` inside the ui globals resolves next to the compiled output, where
+ * there is no `.tsx` to scan, so a class used only there (the progress list's
+ * `max-h-dvh` / `flex-col-reverse`) was never generated. Scan the source.
+ */
+@source "../../../../packages/ui/base/src/components/setup/**/*.{ts,tsx}";
+
+
+/*
+ * The SSR page system wraps every layout's children in `<div data-outlet>` (and
+ * the layout itself in `<div data-layout>`), on the server AND on the client.
+ * Those divs sit between the layout's `main` and the page, so without a rule of
+ * their own they are plain blocks sized by their content: the `flex-1 min-h-0`
+ * chain below them has nothing to fill, the page grows past the viewport, and the
+ * run's step list never gets its own scroll.
+ *
+ * Make the outlet part of the flex chain: it takes the height `main` leaves and
+ * lets its child shrink.
+ */
+[data-outlet] {
+  display: flex;
+  flex: 1 1 0%;
+  min-height: 0;
+  flex-direction: column;
+}

@@ -57,7 +57,7 @@ The rewrite inverts the relationship: **the API is the only deployment unit**. I
 3. **The web app is portable.** Any consumer can run the web container anywhere and point it at any deployer API. The API must not require prior knowledge of that web app's origin.
 4. **Possession over origin.** Cross-origin trust is granted by proving possession of an app-instance token issued to the web app itself — never by enumerating origins.
 5. **Same behavior in dev and prod.** The API's supervision logic is identical everywhere; only inputs differ (flags, env vars). Dev adds nothing except the ability to run both processes side by side on the host.
-6. **Hostname-first ingress.** Traffic reaches services through Traefik hostnames (`api.{prefix}deployer.localhost`), not ports. No service publishes a host port; the failover direct-port proxy is the only other exposure and ONLY while Traefik is failed.
+6. **Hostname-first ingress.** Traffic reaches services through Traefik hostnames (`api.{prefix}deployer.localhost`), not ports. No service publishes a host port; the node's mesh agent runs address-scoped **doors** in front of Traefik (loopback for the local lane, the mesh address for the private lane), and the only public exposure is the one edge provider the operator chooses — `:80`/`:443` only with an explicitly acknowledged `direct` edge. When Traefik does not answer, the local door's **rescue route** serves the console's own hostnames on the machine itself (see [Networking](/docs/deployment/networking)).
 7. **No bridges.** The old model is removed in the same change set the new model lands (see [What gets deleted](#what-gets-deleted)).
 
 ---
@@ -135,7 +135,7 @@ Supervisors no longer report a bare boolean. Every supervisor declares **`payloa
 
 | Supervisor | Reported measurements (payload) |
 |------------|----------------------------------|
-| `TraefikSupervisorService` | container id/image/state + `sizeRw`/`sizeRootFs`/started/restarts; **real HTTP entrypoint probe** across candidate hosts (status code + latency); dynamic-config file size |
+| `TraefikSupervisorService` | live swarm service view (null when absent); **real HTTP probe of the `local` entrypoint** across candidate hosts (status code + latency); config view (API hostname, HTTP-provider endpoint, lanes served) |
 | `PostgresSupervisorService` | **discriminated union** `mode: "managed" \| "external"`: managed → container + volume usage (`UsageData.Size`) + host port; external → real `SELECT 1` + `information_schema` table count/names |
 | `ManagedWebSupervisorService` | container state/sizes + desired-state flag + web hostname |
 
@@ -186,14 +186,17 @@ core/modules/supervisors/
 └── platform/
     ├── traefik-supervisor.service.ts       # Traefik ingress (prefix routing)
     ├── managed-web-supervisor.service.ts   # managed web app
-    ├── direct-port-proxy.supervisor.service.ts # FAILOVER nginx (Traefik failed)
+    ├── edge-connector-supervisor.service.ts # public edge connector (any tunnel-style edge provider)
     ├── redis-supervisor.service.ts         # Platform Redis
-    ├── wireguard-supervisor.service.ts     # per-node WireGuard sidecar (mesh overlay)
+    ├── swarm-app-wiring.supervisor.service.ts # swarm app wiring
     └── platform-supervisors.module.ts
 ```
 
 The framework module stays import-free so unit harnesses never pull Docker/Env
 machinery; the `database/` and `platform/` folders register their supervisors.
+The node's **mesh agent** (`deployer-mesh-agent`) and its **doors** are deliberately
+NOT supervisors: the agent is a plain host-network container that must exist
+before Swarm (which binds its mesh address), and it runs the doors itself.
 The **database service primitive** (`database-service-supervisor.service.ts`)
 extends the multi-instance base: one child supervisor per scaled Postgres
 instance, each reachable by alias over the private overlay.
@@ -213,7 +216,6 @@ matching nested `managed.<service>.<key>` configuration (split from the flat
 | Redis | `MANAGED_REDIS_ENABLED` | `managed.redis.{url,host,port,password}` |
 | Local SQLite | `MANAGED_LOCAL_DB_ENABLED` | `managed.localDb.path` |
 | Traefik | `MANAGED_TRAEFIK_ENABLED` | `managed.traefik.{host,image,httpPort,webHost,apiHost}` |
-| WireGuard sidecar | `MANAGED_WIREGUARD_ENABLED` | `managed.wireguard.{ip,network,privateKey,peers,port,image,stateVolume}` |
 | DB service primitive | `MANAGED_DATABASE_ENABLED` | `managed.database.{instances,host,port,user,password,name,image,dataVolumeBase}` |
 
 Mechanics:
@@ -225,8 +227,11 @@ Mechanics:
 - `RedisSupervisorService.getConnectionUrl()` resolves the compose-managed
   URL when `managed.redis.enabled` is true.
 - `TraefikSupervisorService` skips spawning when `managed.traefik.enabled` is
-  true — the route config generation still feeds the MANAGED traefik's file
-  provider.
+  true — the managed Traefik polls the same routes from the API's HTTP provider
+  endpoint (`GET /internal/ingress/traefik-config`).
+- The mesh is never compose-managed: there is no WireGuard flag. Compose only
+  mounts the agent's control-socket volume (`deployer-mesh-run`) into setup and
+  the API.
 - **The env wiring lives in the ORCHESTRATOR compose file** per profile
   (`docker-compose.dev.yml` sets all `MANAGED_*_ENABLED=true`;
   `docker-compose.dev-supervised.yml` / `docker-compose.prod.yml` leave them
@@ -235,11 +240,11 @@ Mechanics:
 **Compose architecture — `common/` base configs + `extends`.**
 Every service's REAL config (build, env defaults, `develop.watch` for dev,
 healthchecks, volumes) lives once in a **base config** under
-`infra/infra/docker/compose/common/`, organized per service with **variant files** where
+`infra/docker/compose/common/`, organized per service with **variant files** where
 dev/prod differ:
 
 ```text
-infra/infra/docker/compose/
+infra/docker/compose/
 ├── common/
 │   ├── api/
 │   │   ├── docker-compose.config.yml        # shared (env, sockets, volumes)
@@ -252,7 +257,6 @@ infra/infra/docker/compose/
 │   │   └── local/docker-compose.config.yml   # SQLite base
 │   ├── redis/        docker-compose.config.yml
 │   ├── traefik/      docker-compose.config.yml
-│   ├── wireguard/    docker-compose.config.yml   # one generic wg service
 │   └── drizzle-gateway/docker-compose.config.yml
 ├── docker-compose.dev.yml                 # dev (compose-managed)
 ├── docker-compose.dev-supervised.yml      # dev (API-managed)
@@ -264,24 +268,29 @@ infra/infra/docker/compose/
 The orchestrators **`extends` the common bases** (chained: orchestrator →
 variant → shared base) and add only per-project wiring: container_name,
 ports, networks (with aliases), depends_on, and the `MANAGED_*_ENABLED`
-flags. Mesh nodes stamp out 6 API + 6 WireGuard services from the same
-bases with per-node overrides (`NODE_LOCAL_DB_PATH`, overlay IP, peers,
-bootstrap peers). `develop.watch` lives in the dev bases so every extended
+flags. Mesh nodes stamp out 6 API services from the same bases with per-node
+overrides (`NODE_LOCAL_DB_PATH`, `MESH_NODE_ID`, bootstrap peers) — there are no
+WireGuard services: setup / the API start the host-network mesh agent
+themselves. A dev compose host cannot simulate several meshes (one agent per
+Docker daemon), so `mesh-6` shares one agent. `develop.watch` lives in the dev bases so every extended
 dev service gets hot-reload watching automatically.
 
-### WireGuard: private mesh overlay
+### Mesh: the network under Swarm
 
-The mesh is a **WireGuard mesh LAYER** (not an orchestrator). Each node runs a
-`linuxserver/wireguard` **sidecar** that joins the same overlay
-(`10.0.0.0/24`), with a unique overlay IP (`mesh-node-1..N` → `10.0.0.1..N`),
-a persisted private key in a per-node state volume, and a peer list
-(`MANAGED_WIREGUARD_PEERS` = `ip|pubkey|endpoint:port,...`). Nodes reach each
-other over the private overlay — the mesh dial/control plane AND a private
-path for a **drizzle-gateway** (attached to the overlay) to reach internal
-database services. Userspace not required (kernel module via `NET_ADMIN` +
-`/dev/net/tun`). Compose declares the sidecars (`MANAGED_WIREGUARD_ENABLED=true`
-on the nodes); `WireGuardSupervisorService` skips spawn and only reports the
-sidecar's health/identity.
+Nodes reach each other over a **peer-equal WireGuard mesh** with no controller:
+each node runs one `deployer-mesh-agent` (host network, `NET_ADMIN`), which
+owns the node's keys, derives its mesh address from its WireGuard key (default
+CIDR `100.88.0.0/16`), gossips a signed, replicated roster, and plans its
+WireGuard links (LAN → declared address → hole punch). Swarm advertises,
+listens and carries VXLAN on that mesh address (loopback when the node has no
+mesh interface), so cluster traffic between nodes is encrypted by WireGuard.
+The roster also carries the cluster-wide settings — `ingress.lanes`,
+`edge.<provider id>`, `node.doors` — read through `ClusterSettingsService`.
+
+The full operator-facing explanation (lanes, doors, edge providers, DNS,
+joining and revoking nodes, current limits) is
+[Networking: mesh, lanes and edge providers](/docs/deployment/networking); the
+design is `docs/edge-mesh-architecture.md`.
 
 ### Database service primitive
 
@@ -299,131 +308,119 @@ deployment owns the instances and the supervisor skips.
 
 Services (API, web, doc, managed web) do **not** publish any host port in
 docker-compose — every port binding was removed. ALL traffic enters through
-the platform Traefik, routed by hostname over the private platform network:
+the platform Traefik, routed by hostname over the private platform overlay. What
+sits in front of Traefik is decided per **lane** (see
+[Networking](/docs/deployment/networking)):
 
 ```mermaid
 flowchart TB
-    subgraph HOST["Host"]
-        EXT["ENTRY PORT (default 80) via DEPLOYER_TRAEFIK_HTTP_PORT"]
+    subgraph NODE["Each node"]
+        LD["local door (mesh agent)<br/>127.0.0.1:entry port"]
+        PD["private door (mesh agent)<br/>mesh address:entry port"]
     end
-    subgraph NET["deployer-platform (private)"]
-        TR["Traefik (prefix routing + docker DNS)"]
-        PR["Direct-port proxy nginx (FAILOVER)"]
-        API["api container"]
+    EDGE["public edge provider<br/>tunnel connector OR direct :80/:443"]
+    subgraph NET["platform overlay (private)"]
+        TR["Traefik (swarm global)<br/>entrypoints local / private / public"]
+        API["api"]
         WEB["web-dev / managed-web"]
     end
-    EXT -->|"api.deployer.localhost / web.deployer.localhost"| TR
+    LD -->|"local entrypoint"| TR
+    PD -->|"private entrypoint"| TR
+    EDGE -->|"public entrypoint"| TR
     TR -->|"api.* → api:port"| API
     TR -->|"web.* → web:3000"| WEB
-    TR -.->|"DEGRADED (entry port taken) → proxy takes over"| PR
-    PR -->|"host:API_PORT → api:port"| API
-    PR -->|"host:web-port → web:port"| WEB
+    LD -.->|"RESCUE: Traefik not answering → api.* / web.* direct"| API
+    LD -.->|"RESCUE"| WEB
 ```
 
-**Traefik (THE single entry point)**: binds the **entry port** (local-settings
-`ingress.entry_port`, default 80, env `DEPLOYER_TRAEFIK_HTTP_PORT` as the
-fallback) and routes `api.<prefix>deployer.localhost` / `web.<prefix>` to the
-container names over the private network. When the entry port is unavailable
-(already bound elsewhere) Traefik does **NOT** fall back to headless — it goes
-**DEGRADED** with its container removed (`EntryPortConflictError`) and the web
-app shows a big warning so the operator can configure a free entry port.
+**Traefik (THE single router)**: a swarm `global` service on every node with **no
+Docker socket and no config volume**. It polls its whole dynamic configuration
+from the API over the overlay (HTTP provider, every 5 s, authenticated by a
+token derived from the auth secret), so every node routes identically and a node
+that loses the API keeps its last configuration. It publishes **no host port**
+unless the public lane's edge provider asks for one (`direct`: `:80`, plus `:443`
+with Let's Encrypt), and only when the operator acknowledged inbound ports. If
+another process already holds `:80`/`:443` for a `direct` edge, the ingress goes
+**DEGRADED** (`EntryPortConflictError`, fatal — no retry) with its service
+removed, instead of silently running headless.
 
-**Direct-port proxy (`DirectPortProxySupervisorService`)** — the FAILOVER the
-operator asked for. Whenever Traefik is NOT the working ingress (degraded on
-entry-port conflict, removed, or not registered yet), this supervised nginx
-container binds the **service ports** (`API_PORT` + `DIRECT_PROXY_WEB_HOST_PORT`)
-on the host and forwards to the container names over the private network —
-the rescue lane to reach the platform and fix the entry port in the web
-console. It **closes itself the moment Traefik converges again**:
+**Doors (owned by the mesh agent, not the API)** — Swarm's port spec cannot bind
+a single host address, so the address-scoped listeners are plain nginx
+containers the node's `deployer-mesh-agent` converges from the replicated
+`node.doors` setting the Traefik supervisor publishes:
+`deployer[-<prefix>]-door-local` on `127.0.0.1:<entry port>`, `…-door-private` on
+`<mesh address>:<entry port>` (private lane), and `…-door-lan` on the LAN
+address when "allow same-network join" is on. The entry port (default 80, seeded
+once from `DEPLOYER_TRAEFIK_HTTP_PORT`) lives in the `ingress.lanes` cluster
+setting and is changed on **Network → Ingress & edge**.
 
-- **Event-driven**: subscribes to the Traefik supervisor's event bus
-  (`registered`/`state-changed`/`reconciled`/`health-snapshot`); a burst of
-  events coalesces into one convergence pass. Traefik failure → start;
-  Traefik recovery → remove itself.
-- **No port-80**: the proxy binds ONLY the non-privileged service ports — it
-  never competes with Traefik's entry port (a backup on 80 would fail
-  wherever Traefik failed).
-- **Restart-on-change**: the nginx config is written to the shared volume and
-  the forwards are hashed into a container label; different ports/targets →
-  the container is recreated.
-- **Self-healing**: a host port already bound by another process is detected
-  on start failure, dropped from the forwarding set, and the proxy converges
-  with the remaining forwards (warning logged).
-- **Targets**: `DIRECT_PROXY_API_TARGET` defaults to THIS API container's name
-  (resolved from Docker); `DIRECT_PROXY_WEB_TARGET` defaults to the managed web
-  container (`deployer-managed-web`), overridden to `web-dev` in dev
-  side-by-side stacks.
-- Controlled by `DEPLOYER_DIRECT_PROXY_ENABLED` (default true) +
-  `DEPLOYER_DIRECT_PROXY_IMAGE`, `DIRECT_PROXY_WEB_HOST_PORT`,
-  `DIRECT_PROXY_CONFIG_VOLUME`.
+**The local door's rescue route** replaces the old direct-port failover proxy.
+When the door's own upstream call to Traefik fails (502/503/504 from nginx
+itself — a 502 Traefik returns for an app passes through untouched), it serves
+the platform's own hostnames straight from their containers: `api.*` → this API
+(`API_PORT`), `web.*` → the resolved web target. It exists only on loopback, so
+the console stays reachable on the machine without publishing anything to the
+network — the old proxy published `:80`/`:3000`/`:3001` on every interface of
+every node whenever Traefik degraded.
 
-### Shared config volumes (cross-container writes)
+### Shared config volumes (none for the ingress)
 
-Generated configs (dynamic Traefik routes, the proxy's `nginx.conf`) are
-written by the API and consumed by OTHER containers. A path inside the API
-container is invisible to the host, so **named docker volumes** are the sharing
-mechanism:
-
-| Volume (env override) | API-side mount | Consumer mount |
-|---|---|---|
-| `deployer-traefik-config` (`TRAEFIK_CONFIG_VOLUME`) | `/app/traefik-configs` (compose) | Traefik at `/config` (read-only) |
-| `deployer-port-proxy-config` (`DIRECT_PROXY_CONFIG_VOLUME`) | `/app/port-proxy-config` (compose) | nginx at `/etc/nginx/port-proxy` (read-only) |
-
-Both sides bind the VOLUME NAME (not a container path). The supervisors also
-`ensureVolume(...)` so dockerode-only deployments (no compose) still work.
+The ingress needs **no shared volume**: routes travel over HTTP
+(`GET /internal/ingress/traefik-config`), and each door's nginx config is
+rendered by the mesh agent on the node that runs it. The only Traefik volume is
+the ACME store, created when a `direct` edge serves HTTPS. (Named config volumes
+used to carry API-written dynamic YAML to a file provider; on a multi-node
+cluster each node mounted its own empty copy, which is why that model was
+removed.) During onboarding only, `apps/setup` still runs its own bootstrap
+Traefik as a plain loopback-bound container with setup-written files — see
+[Startup order](/docs/deployment/startup-order).
 
 ### DB-driven domain routes (deployments, previews, global hostname)
 
-The ingress publishes a THIRD config family: **`dynamic-domain.yml`**, owned by
-the Traefik supervisor, generated from the DATABASE (`PlatformRoutesSource`).
+`TraefikIngressConfigService` builds ONE dynamic configuration from the
+DATABASE (`PlatformRoutesSource` + the traefik tables), lane-agnostic, then
+attaches every route to the lanes its **visibility** allows (`private` → local +
+private; `public` → local + private + public):
 
-| Source | Host rule → backend |
+| Source | Labels / hosts → backend |
 |---|---|
-| **Global public hostname** (`node_network_config.publicAddress`, kind `hostname`) | `Host(deployer.sebille.net)` → this API — the operator setting the global hostname in the web makes Traefik ready to reverse-proxy exactly that rule |
-| **Global public IP** (`node_network_config.publicAddress`, kind `ip`) | `Host(203.0.113.10)` → this API — a public IP resolves to this host, enters Traefik (web:80) and routes to the API like any hostname |
-| **Tunnel hostname** (`node_network_config.tunnelHostname`) | `Host(tunnel.sebille.net)` → this API |
-| **Deployments** (status `success`, container name + service port) | `Host(deployments.domainUrl)` + `Host(customDomains…)` → `<containerName>:<port>` |
+| **Platform** (`platform-api`, `platform-web`, `platform-setup`) | labels `api`, `web`, `setup` on every enabled lane (console visibility) → this API / the web target / setup |
+| **Global public address** (`node_network_config.publicAddress`) | public hosts only → this API |
+| **Deployments** (status `success`, container name + service port) | label `<svc>-<proj>` + `Host(customDomains…)` → `<containerName>:<port>` (service visibility) |
 | **Previews** (active `preview_environments` + their deployment) | `Host(fullDomain)` → the preview deployment container |
+| **Per-service configs** (`traefik_service_configs` + `traefik_domain_routes` + `traefik_service_targets`) | their hosts → their targets |
 
-**Every public entry point terminates at Traefik.** The node's global
-domain/IP/tunnel, the deployments' domains, and the managed web app's own
-domain/IP/tunnel ALL deliver their requests into the platform Traefik
-(`deployer-traefik`, web:80) — Traefik routes each by Host. In particular, a
-Cloudflare tunnel's ingress is configured with the tunnel hostname →
-`http://deployer-traefik:80` (never the API/web container directly), so
-cloudflared hands traffic to Traefik and the DB-driven rules above decide the
-backend. The managed web app gets its OWN surface — it never shares the node's
-global address: a custom origin (domain/IP) and/or a dedicated web tunnel
-(configured from the management console) are added to the `dynamic-web.yml`
-`Host(...)` rule → the web backend, and the web container is restarted with the
+**Every public entry point terminates at Traefik's `public` entrypoint.** A
+tunnel-style edge provider (Cloudflare Tunnel) runs connectors — one swarm
+service, `EdgeConnectorSupervisorService`, whatever the provider — that dial out
+and hand traffic to Traefik on the overlay; an inbound provider (`direct`)
+publishes Traefik's ports. Either way the routes above decide the backend. The
+managed web app still gets its OWN public surface — a custom origin and/or a
+dedicated web hostname configured from the management console are added to the
+`platform-web` route's public hosts, and the web container is restarted with the
 new origin in `NEXT_PUBLIC_APP_URL` / `NEXT_ALLOWED_DEV_ORIGINS`.
 
 ### Who owns config vs who owns the process
 
-**The traefik CORE module owns ALL config updates in the running instance**
-(`TraefikPlatformConfigService` in `core/modules/traefik/services/`). It
-rewrites the dynamic files the live file provider watches, one file per owner
-at the volume root:
-`dynamic-api.yml`, `dynamic-web.yml`, `dynamic-domain.yml`, and
-`dynamic-services.yml` (per-service configs from the traefik DB tables
-`traefik_service_configs` + `traefik_domain_routes` + `traefik_service_targets`
-— the domain-registration UI flow). Empty families remove their file so Traefik
-drops stale rules (`watch=true` picks up deletions); a failing family (e.g. the
-tables not migrated yet) is logged + skipped, never blocking the platform
-routes.
+**The traefik CORE module owns the routes** (`TraefikIngressConfigService` in
+`core/modules/traefik/services/`), served on demand to every polling ingress
+task — nothing is written to disk, so a deploy or a domain change is live on
+the next poll. A failing route family (e.g. the tables not migrated yet) is
+logged + skipped, never blocking the platform routes.
 
-**The Traefik supervisor only ensures the PROCESS** — container, network,
-volume, the entry port (recreate-on-change) and liveness probes. It contains
-zero config-authoring code.
+**The Traefik supervisor only ensures the PROCESS** — the swarm service, its
+overlay, the published ports an inbound edge needs, the `node.doors` setting,
+and liveness probes. It contains zero route-authoring code.
 
-**Triggering a config update** — `TraefikConfigRefresher` (core module):
-writes config, then re-converges the process (`convergeNow` on the supervisor —
-a no-op when healthy). Called from:
-- the reachability controller when the global hostname/tunnel config is saved,
+**Applying an operator action now** — `TraefikConfigRefresher` (core module)
+re-converges the ingress and edge-connector supervisors (`convergeNow`, a no-op
+when nothing changed) so a lane switch, a new edge provider or a new entry port
+takes effect immediately rather than on the next sweep. Called from:
+- the ingress/edge service when lanes or the edge provider change,
+- the reachability controller when the global address config is saved,
 - the deployment service when a deploy/rollback queue job completes,
 - the management console (`/manage/web-app`) when the managed web app's origin
-  or its dedicated tunnel changes,
-- the gateway orchestrator after setup completes (boot-time config handoff).
+  changes.
 
 Router keys are slugged (`deploy-<host>`, `svc-<configId>`) so they never
 collide with the platform `platform-api`/`platform-web` routers.
@@ -519,7 +516,7 @@ The gateway exposes two levels of health:
 
 The basic endpoint responds immediately (`status: ok`) even before the orchestrator completes — Docker needs an immediate signal. The detailed endpoint is richer but requires authentication.
 
-Every `BaseSupervisorService` exposes `getHealth()` returning a `SupervisorHealth` snapshot with `supervisorId`, `healthy`, `state` (idle/converging/converged/degraded/pending), and `detail`. The `SupervisorOrchestratorService.getHealthOfAll()` runs all probes in parallel, never throwing — each probe catches its own errors. When a supervisor fails to converge, the API **stays alive** and `/health`/`/health/detailed` report supervisor status (the failover proxy keeps the service ports reachable for diagnosis).
+Every `BaseSupervisorService` exposes `getHealth()` returning a `SupervisorHealth` snapshot with `supervisorId`, `healthy`, `state` (idle/converging/converged/degraded/pending), and `detail`. The `SupervisorOrchestratorService.getHealthOfAll()` runs all probes in parallel, never throwing — each probe catches its own errors. When a supervisor fails to converge, the API **stays alive** and `/health`/`/health/detailed` report supervisor status (if the ingress is the one failing, the local door's rescue route keeps `api.*`/`web.*` reachable on the machine for diagnosis).
 
 `pending` is the deferred state: a swarm-only supervisor whose cluster does not exist yet reports `pending` (untouched, retried automatically once setup creates the swarm) rather than a false `degraded` — see [Supervisor state machine](./onboarding-and-lifecycle.mdx#supervisor-state-machine).
 
@@ -531,12 +528,10 @@ The platform supervisors are owned by the **API** (`AppModule`, i.e. the one gra
 
 1. **At API boot**, the platform-Traefik supervisor ensures a Traefik service exists:
    - Image: configurable via `DEPLOYER_TRAEFIK_IMAGE` (default pinned `traefik:v3.6.10`).
-   - Attached to the platform Docker network the API creates/reuses.
-   - Mounts the Docker socket **read-only** so Traefik's `swarm` provider can discover services by label.
-   - Single entrypoint `web` on :80 (bound to the configured **entry port**, default 80).
-2. Routing is built through the **file provider** (`--providers.file.directory=/config`, watch=true). Two files are platform-owned by DIFFERENT writers, which is what prevents a merge race:
-   - `dynamic-setup.yml` — written by **`apps/setup`** (the wizard, then the done page).
-   - `dynamic-api.yml`, `dynamic-web.yml`, `dynamic-domain.yml`, `dynamic-services.yml` — written by the **API's** `TraefikPlatformConfigService`.
+   - A swarm `global` service attached to the platform overlay the API creates/reuses.
+   - **No Docker socket and no config volume.** One entrypoint per lane: `local` (:80), `private` (:8001), `public` (:8002), plus `public-tls` (:8443) when the edge serves HTTPS through Let's Encrypt. Host ports are published only for an acknowledged inbound edge (`direct`); otherwise the node's doors reach the entrypoints over the overlay.
+2. Routing comes from the **HTTP provider**: every task polls `GET /internal/ingress/traefik-config` on the API every 5 s (authenticated by a token derived from the auth secret). The API is the only writer of the swarm ingress's routes; there is no file to race on.
+   - During onboarding, `apps/setup` runs a separate **bootstrap** Traefik (plain container, bound to loopback) fed by the files setup writes (`dynamic-setup.yml`, `dynamic-api.yml`). The API's supervisor promotes the ingress to the swarm service, which serves `setup.*` from the HTTP configuration from then on.
 3. **Onboarding runs in `apps/setup`**, which is the only process answering on `setup.{prefix}deployer.localhost` during that phase. It proxies the `/setup/*` contract to the API (the executor) and pipes the SSE stream.
 4. **At handover**, setup retargets `dynamic-api.yml`, polls `/health/ready` to `200`, rewrites `dynamic-setup.yml` to the API's `/setup/done` page, publishes `ready`, and exits.
 5. **The API then converges its supervisors** once the global DB exists (swarm app wiring → Postgres → Redis → managed web → ingress), which is what turns `/health/ready` green.
@@ -545,18 +540,16 @@ The platform supervisors are owned by the **API** (`AppModule`, i.e. the one gra
 
 The supervisor framework providers (`SupervisorOrchestratorService`, `SupervisorEventBus`) are backed by **process-wide singletons** (`supervisor-shared.ts`) — one registry per process, so health aggregation and convergence observe the same state.
 
-<DocCallout title="Traefik v3 split the docker provider — do not pass the v2 flag" tone="danger">
-Traefik v3 has TWO providers where v2 had one: the **docker** provider (containers only) and the **swarm** provider (swarm services only). The v2 option `--providers.docker.swarmMode=true` was REMOVED, and per Traefik's own v3 migration guide ("Install Configuration Changes → SwarmMode") leaving it in place **prevents Traefik from starting**.
-
-That is why `TraefikSupervisorService` passes `--providers.swarm=true` (plus `exposedbydefault=false`) alongside `--providers.docker=true`. A supervisor that cannot start its ingress cannot converge at all, and the platform would have no way in.
+<DocCallout title="Traefik must be v3.6+, and the platform ingress uses no Docker provider" tone="warning">
+The swarm ingress reads only the HTTP provider — it has neither the `docker` nor the `swarm` provider, so the v2 option `--providers.docker.swarmMode=true` (removed in v3, and fatal at start-up if left in place) cannot reach it. Keep the image at v3.6 or newer all the same (`DEPLOYER_TRAEFIK_IMAGE`): earlier v3 releases do not negotiate the Docker Engine API version, which still matters for setup's bootstrap Traefik.
 </DocCallout>
 
 ### Reaching the app before/during setup
 
-Setup is reachable **only through Traefik** (its port is never published — a pre-auth wizard on every host interface is unnecessary attack surface). With Traefik down, the failover proxy is the path in for the surfaces that already exist:
+Setup is reachable **only through Traefik** (its port is never published — a pre-auth wizard on every host interface is unnecessary attack surface). With Traefik down, the local door's rescue route is the path in for the surfaces that already exist:
 
 - **Traefik healthy** → `http://setup.deployer.localhost` (wizard, then done page) on the entry port.
-- **Traefik failed** → the **direct-port proxy** publishes `API_PORT` (+ web port) on the host and forwards to the API: `http://localhost:API_PORT`. The proxy closes itself the moment Traefik converges.
+- **Traefik not answering** (after the API has published the node doors) → the **local door** (`127.0.0.1:<entry port>`) serves `api.*` and `web.*` straight from the API and web containers, at their usual URLs, on this machine only. Nothing is published on another interface, and nothing has to "close itself": the door forwards to Traefik again as soon as Traefik answers.
 
 ### Hostname scheme
 
@@ -573,9 +566,10 @@ DEPLOYER_PREFIX unset   →  api.deployer.localhost           /  web.deployer.lo
 
 ### Port exposure
 
-- No service publishes a host port in docker-compose — every binding was removed. All traffic enters through Traefik (hostname routing over the platform network).
-- Traefik publishes the **entry port** (default 80, configurable via the local-settings `ingress.entry_port` / `DEPLOYER_TRAEFIK_HTTP_PORT`). When the entry port is unavailable, Traefik goes DEGRADED (never silent-headless) and the web app shows a big warning.
-- The failover **direct-port proxy** is the only other host exposure, and ONLY while Traefik is failed: it publishes `API_PORT` + `DIRECT_PROXY_WEB_HOST_PORT` and forwards to the gateway/managed web over the platform network. It removes itself as soon as Traefik converges.
+- No service publishes a host port in docker-compose — every binding was removed. All traffic enters through Traefik (hostname routing over the platform overlay).
+- The node's **doors** (run by the mesh agent) bind the **entry port** on scoped addresses only: `127.0.0.1` (local lane, always), the mesh address (private lane), the LAN address ("allow same-network join"). The entry port defaults to 80 (`DEPLOYER_TRAEFIK_HTTP_PORT` seeds it once) and lives in the `ingress.lanes` cluster setting, edited on Network → Ingress & edge. A door that cannot bind is reported `failed` in that page's doors table.
+- Traefik itself publishes host ports **only** for an inbound edge provider the operator acknowledged (`direct`: `:80`, plus `:443` with TLS). If they are taken, the ingress goes DEGRADED (`EntryPortConflictError`, never silent-headless).
+- The WireGuard UDP port is the mesh agent's listener; it is never published or forwarded, and does not answer packets without a valid key.
 
 ---
 
@@ -611,7 +605,7 @@ When spawning the managed web container, the API injects:
 | `API_URL` | Internal address of the API (platform network) for server-side calls |
 | `NEXT_PUBLIC_API_URL` | Public Traefik hostname of the API — what browsers will call |
 | `NEXT_PUBLIC_APP_URL` | Public Traefik hostname of the web app itself |
-| Traefik labels | Host-based router `app.{prefix}deployer.localhost` targeting the web container's listen port |
+| Routing (not an env var) | Host-based router for the web hostname targeting the web container's listen port — served in the API's HTTP-provider configuration, never as container labels |
 
 The web container performs its **app-instance registration** against the API at boot (see [Identity redesign](#identity-redesign--app-instance-tokens)); the supervisor waits for a registered-and-healthy signal before declaring the managed web `Healthy`.
 
@@ -644,7 +638,7 @@ The architecture defines three deployment tiers, each with a different web-app o
 
 In dev and prod-like, the web container is owned by the compose stack and registers against the API using `DEPLOYER_INSTANCE_EMAIL`/`DEPLOYER_INSTANCE_PASSWORD` credentials from the host `.env`. The API sees `MANAGED_WEB_APP_EXTERNAL=true` and defers to the compose stack's lifecycle.
 
-In prod, the API runs with `MANAGED_WEB_APP_EXTERNAL=false` and `MANAGED_WEB_APP_ENABLED=true`. If no pre-built web image exists, the `web-build` one-shot service produces `deployer-web:local` at build time before the API starts, and the API's managed-web supervisor spawns it as a container with Traefik labels and an auto-provisioned app-instance token injected as env.
+In prod, the API runs with `MANAGED_WEB_APP_EXTERNAL=false` and `MANAGED_WEB_APP_ENABLED=true`. If no pre-built web image exists, the `web-build` one-shot service produces `deployer-web:local` at build time before the API starts, and the API's managed-web supervisor spawns it (routed by the API's HTTP-provider configuration, not container labels) with an auto-provisioned app-instance token injected as env.
 
 Consumer-hosted web apps (BYO) are untethered from all three tiers: the consumer runs the web container anywhere, on any machine, pointing at any deployer API.
 
@@ -812,7 +806,13 @@ export const registerAppInstanceContract = standard
 | `MANAGED_WEB_APP_EXTERNAL` | no | `false` | Side-by-side dev marker: do not spawn web, do not serve the management page. |
 | `MANAGED_WEB_APP_ENABLED` | no | `true` | Seeds the initial value of the `managed_web_app.enabled` DB flag (first boot only; afterwards the DB wins). |
 | `MANAGED_WEB_APP_IMAGE` | no | same release as API | Image reference for the spawned managed web container. |
-| `DEPLOYER_TRAEFIK_IMAGE` | no | pinned `traefik:v3` | Image for the platform Traefik container. |
+| `DEPLOYER_TRAEFIK_IMAGE` | no | pinned `traefik:v3.6.10` | Image for the platform Traefik service. |
+| `DEPLOYER_TRAEFIK_HTTP_PORT` | no | `80` | Seeds the doors' entry port the first time `ingress.lanes` is written; afterwards the cluster setting is the only source. |
+| `DEPLOYER_DOOR_IMAGE` | no | `nginx:alpine` | Image the mesh agent runs the node doors with. |
+| `MESH_AGENT_IMAGE` | no | `deployer-mesh-agent:latest` | Image of the per-node mesh agent setup / the API start. |
+| `DEPLOYER_CLOUDFLARED_IMAGE` / `DEPLOYER_CLOUDFLARED_REPLICAS` | no | pinned / `1` | Connector image and replicas for the `cloudflare-tunnel` edge provider. |
+
+There is deliberately **no env key for how the stack is reached**: the lanes and the public edge provider are an operator decision stored in the `ingress.lanes` mesh-roster setting (see [Networking](/docs/deployment/networking)).
 
 ### Web (BYO / managed — same contract)
 
@@ -827,6 +827,11 @@ export const registerAppInstanceContract = standard
 | Variable | Fate |
 |---|---|
 | `TRUSTED_ORIGINS` | Deleted from the cross-origin path (see [What gets deleted](#what-gets-deleted)). |
+| `MANAGED_WIREGUARD_*` | Removed with the WireGuard sidecar — the per-node mesh agent replaces it. |
+| `DEPLOYER_DIRECT_PROXY_*`, `DIRECT_PROXY_*` | Removed with the failover proxy — the local door's rescue route replaces it. |
+| `DEPLOYER_EDGE_MODE`, `DEPLOYER_TUNNEL_*` | Removed — lanes and the edge provider live in the `ingress.lanes` / `edge.<provider id>` cluster settings. |
+| `DEPLOYER_TRAEFIK_TLS_ENABLED` | Removed — HTTPS is served by the edge provider (Cloudflare) or by Let's Encrypt on `public-tls` for `direct`. |
+| `SWARM_ADVERTISE_ADDR` | Removed — Swarm always advertises the node's mesh address (loopback without a mesh interface). |
 
 All new variables are declared in `turbo.json` (`globalEnv`/task `env`) and mirrored in `.env.example` — undeclared env vars cause wrong cache hits, which is a documented anti-pattern in this repo.
 
@@ -919,7 +924,7 @@ No changes to user/org/auth tables. Better Auth remains the user identity system
 | Zombie instances | Heartbeat TTL marks instances stale; stale beyond threshold → auto-revoke, visible in console. |
 | Credential exposure in registration calls | HTTPS enforced for any non-loopback deployment; registration excluded from access logs payload capture. |
 | Passkey/WebAuthn across split hostnames | RP ID must cover both `api.*` and `app.*` hostnames (RP ID = shared parent domain). Called out explicitly in [Open questions](#open-questions). |
-| Traefik Docker socket | Mounted **read-only** into the platform Traefik only; it is the same trust level the API already holds. |
+| Traefik Docker socket | **Not mounted.** The swarm ingress reads routes from the API's HTTP provider (token-authenticated) and has no socket and no config volume. The mesh agent holds the socket on each node because it owns the doors. |
 
 ---
 

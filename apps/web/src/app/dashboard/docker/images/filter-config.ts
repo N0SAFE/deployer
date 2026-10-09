@@ -84,4 +84,4 @@ export function buildImageActiveFilterChips(query: Pick<ImageListQueryShape, 'q'
   ]
 }
 
-export type ImageListQueryFromSchema<TSchema extends z.ZodTypeAny> = z.infer<TSchema>
+export type ImageListQueryFromSchema<TSchema extends z.ZodType> = z.infer<TSchema>

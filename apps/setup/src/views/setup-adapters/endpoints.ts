@@ -20,6 +20,8 @@ export const setupEndpoints = {
 	listPostSetupHints: orpc.setup.listPostSetupHints,
 	dismissPostSetupHint: orpc.setup.dismissPostSetupHint,
 	getPostSetupDestination: orpc.setup.getPostSetupDestination,
+	getPostSetupVerification: orpc.setup.getPostSetupVerification,
+	retryHandover: orpc.setup.retryHandover,
 } as const;
 
 export type SetupEndpoints = typeof setupEndpoints;

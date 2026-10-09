@@ -1,69 +1,28 @@
 /**
  * Reachability Controller
  *
- * HTTP endpoints for URL/domain reachability and for the STACK's edge.
- *
- * Two distinct concerns live here, and the split matters:
- *
- *   NODE  — a node's own public address (`node_network_config`). Needed in
- *           `direct` mode, where DNS resolves an app hostname to a node address.
- *   STACK — how the internet reaches the edge at all: the mode (`direct` vs
- *           `tunnel`) and the ONE tunnel every node shares. Persisted in the
- *           local `platform_settings` table via PlatformIngressSettingsService.
- *
- * The tunnel used to be per NODE, which meant N Cloudflare tunnels for one
- * platform — N objects to create, N hostname rules to keep in sync, and N
- * connectors racing to answer for the same hostname. It is a property of the
- * stack, so it is provisioned once here and run by the connector supervisor.
- *
- * This controller is also the layer that talks to the PROVIDER (creating and
- * routing the tunnel); the core service only persists config and probes.
+ * HTTP endpoints for URL/domain reachability, a node's own public address, and
+ * the STACK's ingress lanes. Thin: the lanes, the public edge, DNS and the mesh
+ * view are orchestrated by `IngressEdgeService`; this file only maps contracts to it.
  */
-import { Controller, Logger, BadRequestException } from "@nestjs/common";
+import { Controller, Logger } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
 import { reachabilityContract } from "@repo/api-contracts";
-import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
-import { ReachabilityService, type NodeNetworkConfigData } from "@/core/modules/reachability/services/reachability.service";
+import { requireAuth, requirePlatformRole } from "@/core/modules/auth/orpc/middlewares";
+
+/** Changing how the stack is reached, or who is in the mesh, is a platform-admin act. */
+const EDGE_ADMIN_ROLES = ["superAdmin", "admin"];
+import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
+import type { NodeNetworkConfigData } from "@/core/modules/reachability/services/node-network-config.mapper";
 import { PublicAccessPointService } from "@/core/modules/reachability/services/public-access-point.service";
-import { CloudflareTunnelService } from "@/modules/providers/dns/cloudflare/services/cloudflare-tunnel.service";
 import { TraefikConfigRefresher } from "@/core/modules/traefik/services/traefik-config-refresher.service";
-import { platformTraefikContainerName } from "@/core/modules/platform-ingress/services/platform-names";
-import { PlatformIngressSettingsService } from "@/core/modules/platform-ingress/services/platform-ingress-settings.service";
-import { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
-import {
-    ingressProviderTraits,
-    isExternallyReachable,
-} from "@repo/contracts-entities/entities/ingress/index";
 import { Observable } from "rxjs";
 
-/**
- * Name of the STACK's tunnel on the provider account.
- *
- * Stack-scoped, deliberately: naming it after a node (the old behaviour) made a
- * second tunnel look correct on the next node and split the edge in two.
- * `createTunnel` reuses a tunnel the account already owns under this name, so a
- * retry converges instead of creating a duplicate.
- */
-function stackTunnelName(prefix: string | undefined): string {
-    const clean = (prefix ?? "").trim();
-    return clean === "" ? "deployer-stack" : `deployer-stack-${clean}`;
-}
+import { IngressEdgeService } from "../services/ingress-edge.service";
 
-/** The service the tunnel forwards to — the platform ingress, always. */
-function tunnelRouteTarget(): string {
-    return (
-        process.env.CLOUDFLARE_TUNNEL_SERVICE_URL?.trim() ||
-        `http://${platformTraefikContainerName(process.env.DEPLOYER_PREFIX)}:80`
-    );
-}
-
-/**
- * A node's own network config as the contract sees it.
- *
- * No tunnel field: the tunnel belongs to the STACK (`getStackEdge`).
- */
-interface NodeNetworkView extends NodeNetworkConfigData {}
+/** A node's own network config as the contract sees it (the public edge belongs to the stack). */
+type NodeNetworkView = NodeNetworkConfigData;
 
 @Controller()
 export class ReachabilityController {
@@ -72,10 +31,8 @@ export class ReachabilityController {
     constructor(
         private readonly reachabilityService: ReachabilityService,
         private readonly publicAccessPointService: PublicAccessPointService,
-        private readonly tunnelService: CloudflareTunnelService,
         private readonly ingressRefresher: TraefikConfigRefresher,
-        private readonly edgeSettings: PlatformIngressSettingsService,
-        private readonly hostnames: HostnameService,
+        private readonly ingressEdge: IngressEdgeService,
     ) {}
 
     @Implement(reachabilityContract.check)
@@ -197,79 +154,37 @@ export class ReachabilityController {
             });
     }
 
-    // ─── Stack edge (mode + ONE tunnel for the whole stack) ────────────────
+    // ─── Ingress lanes (local · private · public) ──────────────────────────
 
-    @Implement(reachabilityContract.getStackEdge)
-    getStackEdge() {
-        return implement(reachabilityContract.getStackEdge)
+    @Implement(reachabilityContract.getIngress)
+    getIngress() {
+        return implement(reachabilityContract.getIngress)
             .use(requireAuth())
-            .handler(async () => await this.toStackEdgeView());
+            .handler(async () => await this.ingressEdge.getState());
     }
 
-    @Implement(reachabilityContract.setStackEdgeMode)
-    setStackEdgeMode() {
-        return implement(reachabilityContract.setStackEdgeMode)
+    @Implement(reachabilityContract.updateIngress)
+    updateIngress() {
+        return implement(reachabilityContract.updateIngress)
             .use(requireAuth())
-            .handler(async ({ input }) => {
-                // The singleton edge is addressed as a collection (POST), so the
-                // payload IS the input — there is no `:id` to nest under.
-                const { mode, providerId, wildcard } = input;
-                // Switching to `tunnel` must leave a USABLE tunnel behind, so the
-                // provisioning happens here rather than being left to the caller:
-                // a mode that claims `tunnel` with no token would report an edge
-                // that cannot exist, and the connector would silently never start.
-                if (mode === "tunnel") {
-                    await this.ensureStackTunnel(providerId, wildcard);
-                }
-                await this.edgeSettings.setEdgeMode(mode);
-                this.logger.log(`Stack edge mode set to '${mode}'`);
-                return await this.toStackEdgeView();
-            });
+            .use(requirePlatformRole(EDGE_ADMIN_ROLES))
+            .handler(async ({ input }) => await this.ingressEdge.update(input));
     }
 
-    @Implement(reachabilityContract.clearStackEdgeTunnel)
-    clearStackEdgeTunnel() {
-        return implement(reachabilityContract.clearStackEdgeTunnel)
+    @Implement(reachabilityContract.teardownPublicEdge)
+    teardownPublicEdge() {
+        return implement(reachabilityContract.teardownPublicEdge)
             .use(requireAuth())
-            .handler(async () => {
-                const { tunnelId, providerId, wildcard } = await this.edgeSettings.getEdgeTunnel();
-                // Delete on the provider BEFORE forgetting it locally: the reverse
-                // order would lose the ids and leave an orphan tunnel no one can
-                // name — the failure the per-node model produced routinely.
-                if (tunnelId !== null && providerId !== null) {
-                    await this.tunnelService.deleteTunnel(providerId, tunnelId, { hostname: wildcard });
-                    this.logger.log(`Deleted stack edge tunnel ${tunnelId} (provider ${providerId})`);
-                }
-                await this.edgeSettings.clearEdgeTunnel();
-                return await this.toStackEdgeView();
-            });
+            .use(requirePlatformRole(EDGE_ADMIN_ROLES))
+            .handler(async () => await this.ingressEdge.teardownPublicEdge());
     }
 
-    @Implement(reachabilityContract.getTunnelHealth)
-    getTunnelHealth() {
-        return implement(reachabilityContract.getTunnelHealth)
+    @Implement(reachabilityContract.revokeMeshMember)
+    revokeMeshMember() {
+        return implement(reachabilityContract.revokeMeshMember)
             .use(requireAuth())
-            .handler(async () => {
-                // Health of the STACK's tunnel — the one tunnel every node shares.
-                const { tunnelId, providerId } = await this.edgeSettings.getEdgeTunnel();
-                if (tunnelId === null || providerId === null) {
-                    return {
-                        status: null,
-                        checkedAt: new Date().toISOString(),
-                        connections: 0,
-                        tunnelId,
-                        error: "No stack tunnel is provisioned",
-                    };
-                }
-                const health = await this.tunnelService.getTunnelHealth(providerId, tunnelId);
-                return {
-                    status: health.status,
-                    checkedAt: health.checkedAt,
-                    connections: health.connections,
-                    tunnelId,
-                    error: health.error,
-                };
-            });
+            .use(requirePlatformRole(EDGE_ADMIN_ROLES))
+            .handler(async ({ input }) => await this.ingressEdge.revokeMeshMember(input.memberId, input.reason));
     }
 
     // ─── Public access point (global relay) ────────────────────────────────
@@ -300,10 +215,10 @@ export class ReachabilityController {
             .handler(async () => {
                 return new Observable((subscriber) => {
                     const sub = this.publicAccessPointService.watchAccessPoint().subscribe({
-                        next: (state) => subscriber.next(state),
-                        error: (err) => subscriber.error(err),
+                        next: (state) => { subscriber.next(state); },
+                        error: (err) => { subscriber.error(err); },
                     });
-                    return () => sub.unsubscribe();
+                    return () => { sub.unsubscribe(); };
                 });
             });
     }
@@ -349,7 +264,7 @@ export class ReachabilityController {
      * The per-node view: this node's own public address.
      *
      * The TUNNEL is deliberately absent — it belongs to the STACK (see
-     * `getStackEdge`).
+     * `getIngress`).
      */
     private toNodeNetworkView(config: NodeNetworkConfigData): NodeNetworkView {
         return {
@@ -358,110 +273,5 @@ export class ReachabilityController {
             addressKind: config.addressKind,
             updatedAt: config.updatedAt,
         };
-    }
-
-    /**
-     * The stack edge as the contract sees it. The token is NEVER included — it
-     * is a credential, and nothing outside the connector supervisor needs it.
-     *
-     * `exposure` is derived here rather than left to the client: the UI must not
-     * re-implement "is this provider public?" from the mode name, because the
-     * two answers drifted once already (the old two-value model could not say
-     * "binds a port, but only on loopback").
-     */
-    private async toStackEdgeView() {
-        const mode = await this.edgeSettings.getEdgeMode();
-        const tunnel = await this.edgeSettings.getEdgeTunnel();
-        const traits = ingressProviderTraits(mode);
-        return {
-            mode,
-            tunnel: {
-                tunnelId: tunnel.tunnelId,
-                providerId: tunnel.providerId,
-                wildcard: tunnel.wildcard,
-                provisioned: tunnel.token !== null && tunnel.tunnelId !== null,
-            },
-            // True whenever the ingress binds a host port — INCLUDING `local`,
-            // which binds loopback. Kept for the supervisor's port logic; the
-            // exposure block below is what a client should reason about.
-            publishesEntryPort: mode !== "tunnel",
-            exposure: {
-                externallyReachable: isExternallyReachable(mode),
-                bindsNonLoopbackPort: traits.bindsNonLoopbackPort,
-                requiresPublicIp: traits.requiresPublicIp,
-                requiresOpenInboundPorts: traits.requiresOpenInboundPorts,
-            },
-            // Always available, in every provider: the loopback lane works
-            // whether or not anything else is configured. On a fresh `local`
-            // install this IS the console URL. `*.deployer.localhost` resolves
-            // to 127.0.0.1 in the browser, which is exactly the address `local`
-            // binds, so no port is needed in the origin.
-            localUrl: this.hostnames.webOrigin(),
-            publicHostname: tunnel.wildcard ?? null,
-        };
-    }
-
-    /**
-     * Create the stack's tunnel when none is stored yet, and make it usable.
-     *
-     * Idempotent: an already-provisioned tunnel keeps its token and only has its
-     * routing rule re-applied. `createTunnel` itself also reuses a tunnel the
-     * account already owns under the same name, so a retry after a partial
-     * failure converges instead of creating a second tunnel.
-     */
-    private async ensureStackTunnel(providerId?: string, wildcard?: string): Promise<void> {
-        const existing = await this.edgeSettings.getEdgeTunnel();
-        const resolvedProvider = providerId ?? existing.providerId;
-        if (resolvedProvider === null) {
-            throw new BadRequestException(
-                "Switching to tunnel mode requires a DNS provider — pass 'providerId' (the Cloudflare app the tunnel is created on).",
-            );
-        }
-
-        // The wildcard the tunnel routes: explicit, else stored, else the env
-        // default. Persisted so the routing rule survives a restart without env.
-        const resolvedWildcard =
-            wildcard?.trim() ||
-            existing.wildcard?.trim() ||
-            process.env.DEPLOYER_TUNNEL_WILDCARD?.trim() ||
-            null;
-
-        // A tunnel with no wildcard routes NOTHING, so the mode would claim a
-        // working edge while every request 404s at Cloudflare. Refused here,
-        // where the operator can still fix it.
-        if (resolvedWildcard === null) {
-            throw new BadRequestException(
-                "Tunnel mode needs a wildcard hostname (e.g. '*.example.com') — without one the tunnel would route nothing. Pass 'wildcard' or set DEPLOYER_TUNNEL_WILDCARD.",
-            );
-        }
-
-        let tunnelId = existing.tunnelId;
-        if (tunnelId === null || existing.token === null) {
-            this.logger.log(`Provisioning the stack edge tunnel on provider ${resolvedProvider}`);
-            const result = await this.tunnelService.createTunnel(resolvedProvider, {
-                name: stackTunnelName(process.env.DEPLOYER_PREFIX),
-                hostname: resolvedWildcard,
-            });
-            tunnelId = result.tunnel.id;
-            await this.edgeSettings.setEdgeTunnel({
-                token: result.token,
-                tunnelId: result.tunnel.id,
-                providerId: resolvedProvider,
-                wildcard: resolvedWildcard,
-            });
-        }
-
-        // Point the tunnel at the platform TRAEFIK: every public entry point
-        // terminates there, and Traefik decides which app a Host header belongs
-        // to. ONE wildcard rule covers every app and preview, so onboarding a
-        // deployment never touches Cloudflare — a rule per hostname would make
-        // Cloudflare a participant in every deploy, turning its failures into
-        // failed deploys.
-        await this.tunnelService.configureIngress(
-            resolvedProvider,
-            tunnelId,
-            resolvedWildcard,
-            tunnelRouteTarget(),
-        );
     }
 }

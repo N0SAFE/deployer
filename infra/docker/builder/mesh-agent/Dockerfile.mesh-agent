@@ -1,0 +1,49 @@
+# syntax=docker/dockerfile:1-labs
+# The mesh agent — one per node, below Swarm.
+#
+# WHY A COMPILED BINARY ON PLAIN ALPINE
+# The agent runs with NET_ADMIN in the HOST network namespace and holds the node's
+# private keys, so its image should contain as little as possible. Its only runtime
+# dependencies are the protocol package and zod, both bundled by
+# `bun build --compile` into one executable; the runner stage is Alpine plus the two
+# kernel tools it drives (`ip`, `wg`) and the C++ runtime the Bun binary links.
+#
+# The pruner/installer/builder stages mirror the other app images (see
+# infra/docker/builder/AGENTS.md) so the cache strategy is reviewed the same way.
+
+FROM oven/bun:1.4.2-alpine AS base
+RUN apk add --no-cache libc6-compat
+RUN --mount=type=cache,target=/root/.bun/install/cache bun install -g turbo@^2
+WORKDIR /app
+
+FROM base AS pruner-json
+COPY turbo.json package.json ./
+COPY bun.lock* ./
+COPY --parents **/package.json ./
+RUN --mount=type=cache,target=/root/.cache/turbo turbo prune mesh-agent --docker
+
+FROM base AS pruner-full
+COPY --from=pruner-json /app/out/json/ ./
+RUN --mount=type=bind,target=/src \
+  --mount=type=cache,target=/root/.cache/turbo \
+  cp /src/turbo.json . && \
+  cp /src/bun.lock* . 2>/dev/null || true ; \
+  tar -C /src -cf - apps packages tooling 2>/dev/null | tar -xf - 2>/dev/null || true ; \
+  turbo prune mesh-agent --docker
+
+FROM base AS builder
+COPY --from=pruner-full /app/out/full/ .
+# The ORIGINAL lockfile, not the pruned one — `turbo prune` corrupts nested
+# resolutions (see Dockerfile.setup.prod for the measured failure).
+COPY --from=pruner-full /app/bun.lock ./bun.lock
+RUN --mount=type=cache,target=/root/.bun/install/cache bun ci
+# `mesh-agent...` builds the protocol package's dist first, then compiles the agent.
+RUN --mount=type=cache,target=/root/.cache bunx turbo run build --filter=mesh-agent...
+
+FROM alpine:3.22 AS runner
+RUN apk add --no-cache wireguard-tools-wg iproute2 libstdc++ libgcc
+COPY --from=builder /app/apps/mesh-agent/dist/mesh-agent /usr/local/bin/mesh-agent
+# State (identity + roster) and the control socket live on volumes; see
+# docs/edge-mesh-architecture.md for how the container must be run.
+VOLUME ["/var/lib/deployer-mesh", "/run/deployer-mesh"]
+ENTRYPOINT ["/usr/local/bin/mesh-agent"]

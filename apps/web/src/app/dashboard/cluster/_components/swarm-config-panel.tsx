@@ -9,6 +9,8 @@
 
 import { useEffect, useState } from "react";
 import { Loader2, Save } from "lucide-react";
+import { Skeleton } from "@repo/ui/components/shadcn/skeleton";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@repo/ui/components/shadcn/dialog";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@repo/ui/components/shadcn/button";
@@ -24,10 +26,11 @@ import {
 } from "@repo/ui/components/setup/swarm-participation-form";
 
 export function SwarmConfigPanel() {
-  const { data: view, isPending, error } = useSwarmConfig()
+  const { data: view, isPending, error, refetch } = useSwarmConfig()
   const setConfig = useSetSwarmConfig()
   const queryClient = useQueryClient()
   const [draft, setDraft] = useState<SwarmParticipationDraft | null>(null)
+  const [confirming, setConfirming] = useState(false)
 
   // Re-sync the draft whenever the server view changes (until the user edits).
   useEffect(() => {
@@ -40,6 +43,7 @@ export function SwarmConfigPanel() {
 
   const save = () => {
     if (!draft) return
+    setConfirming(false)
     setConfig.mutate(draftToInput(draft), {
       onSuccess: (updated) => {
         setDraft(participationDraftFromView(updated))
@@ -57,10 +61,11 @@ export function SwarmConfigPanel() {
         <div className="flex flex-col gap-1">
           <CardTitle className="flex items-center gap-2 text-sm">
             <Badge variant="outline" className="font-mono text-[10px]">SWARM</Badge>
-            Participation
+            Swarm participation
           </CardTitle>
-          <CardDescription className="text-xs">
-            How this node joins the cluster — decide create/join and the master policy here.
+          <CardDescription className="text-sm">
+            How THIS node takes part in the cluster: create a new swarm or join an existing one, and the policy for electing the master.
+            It affects only this node; other nodes are changed from their own console.
           </CardDescription>
         </div>
         {view && (
@@ -71,11 +76,12 @@ export function SwarmConfigPanel() {
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {isPending ? (
-          <div className="flex h-32 items-center justify-center text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          </div>
+          <Skeleton aria-busy="true" className="h-32 w-full" />
         ) : error ? (
-          <p className="text-sm text-destructive">Unable to load swarm configuration — {String(error)}</p>
+          <div role="alert" className="flex items-center gap-3 text-sm text-destructive">
+            <span>Unable to load swarm configuration — {error instanceof Error ? error.message : "unknown error"}</span>
+            <Button variant="outline" size="sm" onClick={() => void refetch()}>Retry</Button>
+          </div>
         ) : view && draft ? (
           <>
             <SwarmParticipationForm
@@ -99,16 +105,32 @@ export function SwarmConfigPanel() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => view && setDraft(participationDraftFromView(view))}
+                onClick={() => { setDraft(participationDraftFromView(view)); }}
                 disabled={!dirty || setConfig.isPending}
               >
                 Reset
               </Button>
-              <Button size="sm" onClick={save} disabled={!dirty || setConfig.isPending} className="gap-2">
+              <Button size="sm" onClick={() => { setConfirming(true); }} disabled={!dirty || setConfig.isPending} className="gap-2">
                 {setConfig.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                Apply
+                Apply changes
               </Button>
             </div>
+            <Dialog open={confirming} onOpenChange={setConfirming}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Apply swarm participation changes?</DialogTitle>
+                  <DialogDescription>
+                    The change is saved and applied to the Swarm engine on this node right away. If it makes this node
+                    leave or re-join a swarm, the tasks running here may be rescheduled on other nodes and the managers
+                    count (and so quorum) may change. Other nodes are not touched.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => { setConfirming(false); }}>Cancel</Button>
+                  <Button onClick={save}>Apply changes</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </>
         ) : null}
       </CardContent>

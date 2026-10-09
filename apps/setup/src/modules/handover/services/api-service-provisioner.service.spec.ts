@@ -1,3 +1,4 @@
+import { AGENT_RUN_VOLUME } from "@repo/mesh-network";
 import type { Mock } from "vitest";
 import { describe, expect, it, vi } from "vitest";
 
@@ -110,18 +111,47 @@ describe("ApiServiceProvisioner", () => {
       expect(backend).toMatchObject({ kind: "swarm", serviceName: "deployer-api" });
     });
 
+    /** An API service as the mesh-first spec creates it: agent socket mounted, no published port. */
+    const meshFirstService = {
+      Version: { Index: 7 },
+      Endpoint: { Spec: { Ports: [] } },
+      Spec: { TaskTemplate: { ContainerSpec: { Mounts: [{ Source: AGENT_RUN_VOLUME }] } } },
+    };
+
     it("REUSES an existing service instead of recreating it", async () => {
       const { provisioner, docker } = makeProvisioner(
         { SETUP_MODE: "prod", DEPLOYER_API_IMAGE: "deployer-api:local" },
-        { inspectSwarmService: vi.fn().mockResolvedValue({}) },
+        { inspectSwarmService: vi.fn().mockResolvedValue(meshFirstService), updateSwarmService: vi.fn() },
       );
 
       const backend = await provisioner.ensureApi();
 
       // Recreating would restart a healthy API — a retry of a later step would
-      // become an outage.
+      // become an outage. An already-upgraded service is not even UPDATED.
       expect(docker.createSwarmService).not.toHaveBeenCalled();
+      expect(docker.updateSwarmService).not.toHaveBeenCalled();
       expect(backend).toMatchObject({ kind: "swarm" });
+    });
+
+    it("UPGRADES a service that predates the mesh (published port, no agent socket) in place", async () => {
+      const preMesh = {
+        Version: { Index: 3 },
+        Endpoint: { Spec: { Ports: [{ PublishedPort: 3005 }] } },
+        Spec: { TaskTemplate: { ContainerSpec: { Mounts: [] } } },
+      };
+      const { provisioner, docker } = makeProvisioner(
+        { SETUP_MODE: "prod", DEPLOYER_API_IMAGE: "deployer-api:local" },
+        { inspectSwarmService: vi.fn().mockResolvedValue(preMesh), updateSwarmService: vi.fn().mockResolvedValue({}) },
+      );
+
+      await provisioner.ensureApi();
+
+      // Updated against its CURRENT version (swarm rejects a stale one), never
+      // recreated — and the new spec publishes nothing.
+      expect(docker.createSwarmService).not.toHaveBeenCalled();
+      expect(docker.updateSwarmService).toHaveBeenCalledWith("deployer-api", 3, expect.anything());
+      const updated = vi.mocked(docker.updateSwarmService!).mock.calls[0]?.[2] as { EndpointSpec: { Ports?: unknown[] } };
+      expect(updated.EndpointSpec.Ports ?? []).toEqual([]);
     });
 
     it("REFUSES to schedule without an image tag", async () => {
@@ -192,6 +222,64 @@ describe("ApiServiceProvisioner", () => {
       expect(env).toContain("AUTH_BASE_DOMAIN=.deployer.localhost");
       // And the setup origin is named explicitly as a belt-and-braces measure.
       expect(env).toContain("TRUSTED_ORIGINS=http://setup.deployer.localhost");
+    });
+
+    /**
+     * REGRESSION GUARD: the API starts this node's mesh agent at boot, and the
+     * agent is what creates the host `deployer-mesh` WireGuard interface. A
+     * swarm task inherits NOTHING from compose, so a value the operator set is
+     * silently dropped here and the mesh stays down on a deployment that asked
+     * for it.
+     *
+     * The failure is invisible: the API boots, the wizard completes, and only
+     * the node's own interface is missing — which reads as a WireGuard or
+     * NET_ADMIN problem rather than a forgotten forward.
+     */
+    it("forwards the mesh dataplane so the scheduled node honours the operator's choice", async () => {
+      const { provisioner, docker } = makeProvisioner(
+        {
+          SETUP_MODE: "prod",
+          DEPLOYER_API_IMAGE: "deployer-api:local",
+          MESH_AGENT_DATAPLANE: "kernel",
+        },
+        { inspectSwarmService: notFound() },
+      );
+
+      await provisioner.ensureApi();
+
+      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
+        TaskTemplate: { ContainerSpec: { Env: string[] } };
+      };
+      const env = spec.TaskTemplate.ContainerSpec.Env;
+
+      expect(env).toContain("MESH_AGENT_DATAPLANE=kernel");
+      // The agent's image is the OTHER half of the same handover: setup is the
+      // only process that can name a tag the dev producers actually built.
+      expect(env.some((e) => e.startsWith("MESH_AGENT_IMAGE="))).toBe(true);
+    });
+
+    /**
+     * The variable is never empty — the schema enum resolves an unset value to
+     * `observe` — so it is forwarded UNCONDITIONALLY. This pins that: a
+     * dev-supervised stack must come up WITHOUT adding a host network device,
+     * which is the whole reason `observe` is the default.
+     */
+    it("forwards `observe` by schema default when the operator set nothing", async () => {
+      const { provisioner, docker } = makeProvisioner(
+        { SETUP_MODE: "prod", DEPLOYER_API_IMAGE: "deployer-api:local" },
+        { inspectSwarmService: notFound() },
+      );
+
+      await provisioner.ensureApi();
+
+      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
+        TaskTemplate: { ContainerSpec: { Env: string[] } };
+      };
+      const env = spec.TaskTemplate.ContainerSpec.Env;
+
+      // `makeProvisioner` seeds a real env through the schema, so this is the
+      // resolved value, not a literal the test supplied.
+      expect(env).toContain(`MESH_AGENT_DATAPLANE=${"observe"}`);
     });
 
     it("derives the auth domain from the prefix so a prefixed install is not broken", async () => {

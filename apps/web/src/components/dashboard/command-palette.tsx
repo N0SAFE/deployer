@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { Clock } from 'lucide-react'
+import { isStringArray, pushRecent, readStoredJson, writeStoredJson } from './persisted-state'
 import { useRouter } from 'next/navigation'
 import {
   AuthDashboardProjectsProjectId,
@@ -20,8 +22,9 @@ import { FolderKanban, Server, type LucideIcon } from 'lucide-react'
 import { useProjectList } from '@/domains/project/hooks'
 import { useServiceList } from '@/domains/service/hooks'
 import { useSession } from '@/lib/auth'
-import { NAV_GROUPS } from './navigation'
+import { visibleNavGroups } from './navigation'
 import { subscribeCommandPalette } from './command-palette-store'
+import { fuzzyMatch } from './fuzzy'
 
 interface PaletteEntry {
   id: string
@@ -31,7 +34,10 @@ interface PaletteEntry {
   href: string
   shortcut?: string
   keywords?: string
+  group: string
 }
+
+const RECENT_KEY = 'deployer.palette.recent'
 
 /**
  * The palette's navigation section, flattened from the shared navigation model.
@@ -43,11 +49,12 @@ interface PaletteEntry {
  * indistinguishable from any other container-flavoured result.
  */
 function navigationEntries(isAdmin: boolean): PaletteEntry[] {
-  return NAV_GROUPS.filter((group) => group.adminOnly !== true || isAdmin).flatMap(
+  return visibleNavGroups(isAdmin).flatMap(
     (group) =>
       group.items.map((item) => ({
         id: `nav:${group.id}:${item.url}`,
-        label: `${group.label} · ${item.title}`,
+        label: item.title,
+        group: group.label,
         hint: item.hint,
         icon: item.icon,
         href: item.url,
@@ -57,16 +64,6 @@ function navigationEntries(isAdmin: boolean): PaletteEntry[] {
   )
 }
 
-/** Substring-in-order fuzzy match (same matcher as the sidebar). */
-function fuzzyMatch(text: string, query: string): boolean {
-  const lower = text.toLowerCase()
-  const q = query.toLowerCase()
-  let qi = 0
-  for (let ti = 0; ti < lower.length && qi < q.length; ti++) {
-    if (lower[ti] === q[qi]) qi++
-  }
-  return qi === q.length
-}
 
 interface ProjectLike {
   id: string
@@ -88,6 +85,7 @@ export function CommandPalette() {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [recent, setRecent] = useState<string[]>([])
 
   const { data: session } = useSession()
   // Mirrors the rail's gate: someone who cannot see the Admin Panel in the
@@ -120,6 +118,7 @@ export function CommandPalette() {
   useEffect(
     () =>
       subscribeCommandPalette(() => {
+        setRecent(readStoredJson<string[]>(RECENT_KEY, [], isStringArray))
         setOpen(true)
       }),
     [],
@@ -145,14 +144,30 @@ export function CommandPalette() {
   const noResults =
     filteredNav.length === 0 && filteredProjects.length === 0 && filteredServices.length === 0
 
-  const go = (href: string) => {
+  const navGroups = useMemo(() => {
+    const groups = new Map<string, PaletteEntry[]>()
+    for (const entry of filteredNav) groups.set(entry.group, [...(groups.get(entry.group) ?? []), entry])
+    return Array.from(groups.entries())
+  }, [filteredNav])
+
+  // Recently opened pages, only those the user can still see (nav is already role-filtered).
+  const recentEntries = useMemo(
+    () => (query.trim() ? [] : recent.flatMap((id) => navEntries.filter((e) => e.id === id))),
+    [recent, navEntries, query],
+  )
+
+  const go = (href: string, entryId?: string) => {
+    if (entryId) {
+      const next = pushRecent(readStoredJson<string[]>(RECENT_KEY, [], isStringArray), entryId)
+      writeStoredJson(RECENT_KEY, next)
+    }
     setOpen(false)
     setQuery('')
     router.push(href)
   }
 
   return (
-    <CommandDialog open={open} onOpenChange={setOpen} title="Command center" description="Jump to any page, project, or service">
+    <CommandDialog open={open} onOpenChange={setOpen} title="Search the console" description="Jump to any page, project, or service">
       <CommandInput
         placeholder="Search pages, projects, services…"
         value={query}
@@ -161,29 +176,47 @@ export function CommandPalette() {
       <CommandList className="max-h-105">
         {noResults ? (
           <CommandEmpty className="flex flex-col items-center gap-1 py-10 text-center">
-            <p className="text-sm font-medium text-foreground">No results for “{query}”</p>
-            <p className="text-xs text-muted-foreground">Try a page name (projects, docker), a project, or a service.</p>
+            <p className="text-sm font-medium text-foreground">Nothing found for “{query}”</p>
+            <p className="text-sm text-muted-foreground">Try a page name (nodes, network), a project, or a service. Press Esc to close.</p>
           </CommandEmpty>
         ) : null}
 
-        {filteredNav.length > 0 ? (
-          <CommandGroup heading="Pages">
-            {filteredNav.map((entry) => (
+        {recentEntries.length > 0 ? (
+          <CommandGroup heading="Recent">
+            {recentEntries.map((entry) => (
               <CommandItem
-                key={entry.id}
-                value={entry.id}
+                key={`recent:${entry.id}`}
+                value={`recent:${entry.id}`}
                 onSelect={() => {
-                  go(entry.href)
+                  go(entry.href, entry.id)
                 }}
               >
-                <entry.icon className="size-4" />
+                <Clock className="size-4" />
                 <span className="flex-1 truncate">{entry.label}</span>
-                {entry.hint ? <span className="mr-1 truncate text-xs text-muted-foreground">{entry.hint}</span> : null}
-                {entry.shortcut ? <CommandShortcut>{entry.shortcut}</CommandShortcut> : null}
+                <span className="mr-1 truncate text-xs text-muted-foreground">{entry.group}</span>
               </CommandItem>
             ))}
           </CommandGroup>
         ) : null}
+
+        {navGroups.map(([groupLabel, entries]) => (
+          <CommandGroup key={groupLabel} heading={groupLabel}>
+            {entries.map((entry) => (
+              <CommandItem
+                key={entry.id}
+                value={entry.id}
+                onSelect={() => {
+                  go(entry.href, entry.id)
+                }}
+              >
+                <entry.icon className="size-4" />
+                <span className="flex-1 truncate">{entry.label}</span>
+                {entry.hint ? <span className="mr-1 hidden truncate text-xs text-muted-foreground sm:inline">{entry.hint}</span> : null}
+                {entry.shortcut ? <CommandShortcut>{entry.shortcut}</CommandShortcut> : null}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        ))}
 
         {filteredProjects.length > 0 ? (
           <>
@@ -239,13 +272,13 @@ export function CommandPalette() {
           </>
         ) : null}
       </CommandList>
-      <div className="flex items-center justify-between border-t border-border/60 px-3 py-2 text-[10px] text-muted-foreground">
+      <div className="flex items-center justify-between border-t border-border/60 px-3 py-2 text-xs text-muted-foreground">
         <span className="flex items-center gap-3">
-          <span><kbd className="rounded-sm border border-border/60 bg-muted/40 px-1 py-0.5 font-sans">↑↓</kbd> navigate</span>
-          <span><kbd className="rounded-sm border border-border/60 bg-muted/40 px-1 py-0.5 font-sans">↵</kbd> open</span>
-          <span><kbd className="rounded-sm border border-border/60 bg-muted/40 px-1 py-0.5 font-sans">esc</kbd> close</span>
+          <span><kbd className="rounded-sm border border-border/60 bg-muted/40 px-1.5 py-0.5 font-sans">↑↓</kbd> navigate</span>
+          <span><kbd className="rounded-sm border border-border/60 bg-muted/40 px-1.5 py-0.5 font-sans">↵</kbd> open</span>
+          <span><kbd className="rounded-sm border border-border/60 bg-muted/40 px-1.5 py-0.5 font-sans">esc</kbd> close</span>
         </span>
-        <span>g + letter to jump</span>
+        <span className="hidden sm:inline">Shortcuts: g then a letter (e.g. g p)</span>
       </div>
     </CommandDialog>
   )

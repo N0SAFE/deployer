@@ -1,8 +1,8 @@
 interface DockerContainerLabelsTabProps {
-  labels: Array<{
+  labels: {
     key: string
     value: string
-  }>
+  }[]
 }
 
 export function DockerContainerLabelsTab({ labels }: DockerContainerLabelsTabProps) {

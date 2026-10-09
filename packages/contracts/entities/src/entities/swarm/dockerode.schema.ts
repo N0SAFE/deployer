@@ -83,6 +83,8 @@ export const swarmInitOptionsSchema = z
     ListenAddr: z.string().optional(),
     AdvertiseAddr: z.string().optional(),
     ForceNewCluster: z.boolean().optional(),
+    /** Address VXLAN (4789) data traffic is sent from — the mesh address, so overlays ride WireGuard. */
+    DataPathAddr: z.string().optional(),
     Spec: z
       .object({
         Name: z.string().optional(),
@@ -106,6 +108,7 @@ export const swarmJoinOptionsSchema = z
   .object({
     ListenAddr: z.string().optional(),
     AdvertiseAddr: z.string().optional(),
+    DataPathAddr: z.string().optional(),
     RemoteAddrs: z.array(z.string().min(1)).min(1),
     JoinToken: z.string().min(1),
   })

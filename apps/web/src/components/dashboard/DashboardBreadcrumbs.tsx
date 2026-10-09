@@ -2,7 +2,11 @@
 
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { Fragment } from 'react'
+import { Fragment, useMemo } from 'react'
+import { cn } from '@/lib/utils'
+import { useProjectList } from '@/domains/project/hooks'
+import { useServiceList } from '@/domains/service/hooks'
+import { buildBreadcrumbs } from './breadcrumbs-model'
 import { Home } from 'lucide-react'
 import {
   Breadcrumb,
@@ -12,61 +16,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@repo/ui/components/shadcn/breadcrumb'
-
-interface BreadcrumbConfig {
-  label: string
-  href?: string
-}
-
-/**
- * Mapping of path segments to human-readable labels
- * Add entries here to customize breadcrumb labels
- */
-const pathLabels: Record<string, string> = {
-  dashboard: 'Dashboard',
-  deployments: 'Deployments',
-  admin: 'Admin',
-  users: 'Users',
-  system: 'System',
-  profile: 'Profile',
-  demo: 'Demo',
-  settings: 'Settings',
-  projects: 'Projects',
-  docker: 'Docker',
-  containers: 'Containers',
-  logs: 'Logs',
-  shell: 'Shell',
-  images: 'Images',
-  volumes: 'Volumes',
-  networks: 'Networks',
-  stacks: 'Stacks',
-  registry: 'Registry',
-  activity: 'Activity',
-  events: 'Activity',
-  terminal: 'Shell',
-}
-
-function formatSegmentLabel(segment: string): string {
-  // Check for custom mapping
-  const customLabel = pathLabels[segment.toLowerCase()]
-  if (customLabel) {
-    return customLabel
-  }
-  
-  // Check if it looks like a UUID or ID — detail layouts (project/service)
-  // render their own richer breadcrumbs, so a generic "Details" is noise.
-  const uuidRegex = /^[a-f0-9-]{36}$/i
-  const mongoIdRegex = /^[a-f0-9]{24}$/i
-  if (uuidRegex.exec(segment) ?? mongoIdRegex.exec(segment)) {
-    return ''
-  }
-  
-  // Convert kebab-case or camelCase to Title Case
-  return segment
-    .replace(/[-_]/g, ' ')
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .replace(/\b\w/g, (char) => char.toUpperCase())
-}
 
 /**
  * DashboardBreadcrumbs — breadcrumb trail for the dashboard header.
@@ -83,67 +32,52 @@ export function DashboardBreadcrumbs() {
 
 function DashboardBreadcrumbsInner() {
   const pathname = usePathname()
-  
-  // Split pathname into segments and filter out empty ones
-  const segments = pathname.split('/').filter(Boolean)
-  
-  // Skip if we're at the root dashboard
-  if (segments.length === 0) {
-    return null
-  }
-  
-  // Build breadcrumb items — dynamic-ID segments (project/service detail)
-  // render their own richer breadcrumbs, so skip them here to avoid "Details".
-  const breadcrumbs: BreadcrumbConfig[] = []
-  segments.forEach((segment, index) => {
-    const href = '/' + segments.slice(0, index + 1).join('/')
-    const label = formatSegmentLabel(segment)
-    if (label) {
-      breadcrumbs.push({ label, href })
-    }
-  })
-  
-  // Don't show breadcrumbs if only at dashboard root
-  if (breadcrumbs.length === 1 && breadcrumbs[0]?.href === '/dashboard') {
-    return (
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbPage className="flex items-center gap-1">
-              <Home className="h-3.5 w-3.5" />
-              Dashboard
-            </BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-    )
-  }
+  const { data: projectsData } = useProjectList({ query: { limit: 50, offset: 0 } })
+  const { data: servicesData } = useServiceList({ query: { limit: 50, offset: 0 } })
+
+  const names = useMemo(() => {
+    const map = new Map<string, string>()
+    const projects = (projectsData as { data?: { id: string; name?: string | null }[] } | undefined)?.data ?? []
+    for (const p of projects) if (p.name) map.set(`projects:${p.id}`, p.name)
+    const services = (servicesData as { data?: { id: string; name?: string | null }[] } | undefined)?.data ?? []
+    for (const sv of services) if (sv.name) map.set(`services:${sv.id}`, sv.name)
+    return map
+  }, [projectsData, servicesData])
+
+  const breadcrumbs = buildBreadcrumbs(pathname, (kind, id) => names.get(`${kind}:${id}`))
+
+  if (breadcrumbs.length === 0) return null
 
   return (
-    <Breadcrumb>
-      <BreadcrumbList>
+    <Breadcrumb className="min-w-0">
+      <BreadcrumbList className="flex-nowrap">
         {breadcrumbs.map((crumb, index) => {
           const isLast = index === breadcrumbs.length - 1
           const isFirst = index === 0
-          
+          // On phones keep only the first and last crumbs; the middle ones return from `sm`.
+          const hideOnPhone = !isFirst && !isLast
+          const content = (
+            <>
+              {isFirst ? <Home className="size-3.5 shrink-0" aria-hidden /> : null}
+              <span className={cn('truncate', crumb.mono && 'font-mono text-xs')}>{crumb.label}</span>
+            </>
+          )
           return (
             <Fragment key={crumb.href}>
-              <BreadcrumbItem>
+              <BreadcrumbItem className={cn('min-w-0', hideOnPhone && 'hidden sm:inline-flex')}>
                 {isLast ? (
-                  <BreadcrumbPage className="flex items-center gap-1">
-                    {isFirst && <Home className="h-3.5 w-3.5" />}
-                    {crumb.label}
+                  <BreadcrumbPage className="flex min-w-0 items-center gap-1" title={crumb.label}>
+                    {content}
                   </BreadcrumbPage>
                 ) : (
                   <BreadcrumbLink asChild>
-                    <Link href={crumb.href ?? ''} className="flex items-center gap-1">
-                      {isFirst && <Home className="h-3.5 w-3.5" />}
-                      {crumb.label}
+                    <Link href={crumb.href} className="flex min-w-0 items-center gap-1">
+                      {content}
                     </Link>
                   </BreadcrumbLink>
                 )}
               </BreadcrumbItem>
-              {!isLast && <BreadcrumbSeparator />}
+              {!isLast ? <BreadcrumbSeparator className={cn(hideOnPhone && 'hidden sm:block')} /> : null}
             </Fragment>
           )
         })}

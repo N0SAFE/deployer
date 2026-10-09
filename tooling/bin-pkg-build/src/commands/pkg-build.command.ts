@@ -5,6 +5,7 @@ import {
     PkgBuilderService,
     type PkgBuildRunOptions,
 } from '../services/pkg-builder.service'
+import type { BuildMode } from '../config'
 
 /**
  * `pkg-build` — the workspace package builder.
@@ -15,6 +16,7 @@ import {
  *     pkg-build                 JS + declarations, one shot
  *     pkg-build --types         declarations only (`build:types`)
  *     pkg-build --watch         rebuild on change (`dev`)
+ *     pkg-build --mode=dev      unminified JS + sourcemaps (implied by NODE_ENV)
  */
 @RootCommand({
     name: 'pkg-build',
@@ -42,6 +44,18 @@ export class PkgBuildCommand extends CommandRunner {
         return true
     }
 
+    @Option({
+        flags: '-m, --mode <mode>',
+        description:
+            'Build target: dev (unminified + sourcemaps) or prod. Defaults to what NODE_ENV implies.',
+    })
+    parseMode(mode: string): BuildMode {
+        if (mode !== 'dev' && mode !== 'prod') {
+            throw new Error(`--mode must be "dev" or "prod", got "${mode}"`)
+        }
+        return mode
+    }
+
     async run(
         _passedParams: string[],
         options?: PkgBuildRunOptions
@@ -49,6 +63,7 @@ export class PkgBuildCommand extends CommandRunner {
         await this.builder.run({
             watch: options?.watch === true,
             types: options?.types === true,
+            mode: options?.mode,
         })
     }
 }

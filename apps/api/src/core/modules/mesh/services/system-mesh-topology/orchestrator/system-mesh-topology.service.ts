@@ -405,9 +405,13 @@ export class SystemMeshTopologyService
 
     // ─── Join grants ──────────────────────────────────────────────────────────
 
+    /**
+     * Issue the platform half of a join grant. The mesh half (`meshNetwork`) is
+     * attached by the controller from this node's mesh agent.
+     */
     async issueJoinGrant(
         input: MeshJoinGrantIssueCommandInput
-    ): Promise<MeshJoinGrantIssueResult> {
+    ): Promise<Omit<MeshJoinGrantIssueResult, "meshNetwork">> {
         this.assertSuperAdmin(input.issuedByRole, 'issue bootstrap join grants')
         const repo = this.requireClusterRepository(
             'issue bootstrap join grants'
@@ -436,7 +440,7 @@ export class SystemMeshTopologyService
      */
     async consumeJoinGrant(
         input: MeshJoinGrantConsumeInput
-    ): Promise<Omit<MeshJoinGrantConsumeResult, "peerServiceToken" | "peerServiceTokenExpiresAt" | "meshSharedSecret" | "swarmGrant">> {
+    ): Promise<Omit<MeshJoinGrantConsumeResult, "peerServiceToken" | "peerServiceTokenExpiresAt" | "meshSharedSecret" | "swarmGrant" | "meshAdmission">> {
         const repo = this.requireClusterRepository(
             'consume bootstrap join grants'
         )

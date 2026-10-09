@@ -14,6 +14,12 @@ import { EnvService } from "@/config/env/env.module";
 export const DEPLOYER_BASE_HOST = "deployer.localhost";
 
 export abstract class HostnameService {
+	/**
+	 * Base domain of the LOCAL lane: `deployer.localhost`, or
+	 * `<prefix>.deployer.localhost` on a prefixed install. Every `*.localhost` name
+	 * resolves to loopback (RFC 6761), so this lane needs no DNS at all.
+	 */
+	abstract localDomain(): string;
 	/** Hostname of the API as routed by the platform Traefik. */
 	abstract apiHostname(): string;
 	/** Hostname of the managed web app as routed by the platform Traefik. */
@@ -39,9 +45,13 @@ export class EnvHostnameService extends HostnameService {
 		super();
 	}
 
-	private prefixedHost(service: "api" | "web" | "setup"): string {
+	localDomain(): string {
 		const prefix = this.env.get("DEPLOYER_PREFIX");
-		return prefix === "" ? `${service}.${DEPLOYER_BASE_HOST}` : `${service}.${prefix}.${DEPLOYER_BASE_HOST}`;
+		return prefix === "" ? DEPLOYER_BASE_HOST : `${prefix}.${DEPLOYER_BASE_HOST}`;
+	}
+
+	private prefixedHost(service: "api" | "web" | "setup"): string {
+		return `${service}.${this.localDomain()}`;
 	}
 
 	apiHostname(): string {

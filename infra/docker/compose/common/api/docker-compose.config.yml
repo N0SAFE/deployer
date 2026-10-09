@@ -32,11 +32,20 @@ services:
       DEPLOYER_TRAEFIK_IMAGE: ${DEPLOYER_TRAEFIK_IMAGE:-traefik:v3.6.10}
       DEPLOYER_TRAEFIK_HTTP_PORT: ${DEPLOYER_TRAEFIK_HTTP_PORT:-80}
       DEPLOYER_REDIS_URL: ${DEPLOYER_REDIS_URL:-redis://redis:6379}
-      DEPLOYER_DIRECT_PROXY_ENABLED: ${DEPLOYER_DIRECT_PROXY_ENABLED:-true}
-      DEPLOYER_DIRECT_PROXY_IMAGE: ${DEPLOYER_DIRECT_PROXY_IMAGE:-nginx:alpine}
-      DIRECT_PROXY_API_TARGET: ${DIRECT_PROXY_API_TARGET:-}
-      DIRECT_PROXY_WEB_HOST_PORT: ${DIRECT_PROXY_WEB_HOST_PORT:-3000}
-      DIRECT_PROXY_CONFIG_VOLUME: ${DIRECT_PROXY_CONFIG_VOLUME:-deployer-port-proxy-config}
+      # The mesh agent image the API ensures on its own node. MUST match the tag
+      # setup started the agent from: on a mismatch the API replaces the running
+      # agent with this one.
+      MESH_AGENT_IMAGE: ${MESH_AGENT_IMAGE:-deployer-mesh-agent:latest}
+      # Whether the per-node agent brings up a REAL WireGuard interface.
+      #
+      #   observe  default in dev — plan, gossip and converge doors, but never
+      #            touch the kernel. The dev stack stops creating a host-level
+      #            `deployer-mesh` interface every time it starts.
+      #   kernel   what production runs, and what a real cluster needs: Swarm
+      #            advertises the mesh address the interface carries.
+      #
+      # Set `kernel` here (or in .env) to exercise the real dataplane locally.
+      MESH_AGENT_DATAPLANE: ${MESH_AGENT_DATAPLANE:-kernel}
       TURBO_TOKEN: ${TURBO_TOKEN:-}
       TURBO_TEAM: ${TURBO_TEAM:-}
     volumes:
@@ -44,5 +53,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       # Platform config SHARING volume (API writes; Traefik mounts ro).
       - ${TRAEFIK_CONFIG_VOLUME:-deployer-traefik-config}:/app/traefik-configs
-      # Failover proxy config SHARING volume.
-      - ${DIRECT_PROXY_CONFIG_VOLUME:-deployer-port-proxy-config}:/app/port-proxy-config
+      # The mesh agent's control socket (`/run/deployer-mesh/agent.sock`). Only
+      # needed when the API runs as a COMPOSE container; the swarm service setup
+      # schedules mounts it itself. The orchestrator MUST declare it as
+      # `deployer-mesh-run: { name: deployer-mesh-run }` (literal, unprefixed).
+      - deployer-mesh-run:/run/deployer-mesh

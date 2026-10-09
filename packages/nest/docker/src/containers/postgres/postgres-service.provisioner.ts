@@ -163,23 +163,13 @@ export class PostgresServiceProvisioner {
                 retries: 12,
                 startPeriodMs: 5_000,
             },
-            // ── `stop-first`, BECAUSE THE PORT IS PUBLISHED IN HOST MODE ────────
+            // ── `stop-first`, BECAUSE THE DATA DIRECTORY IS EXCLUSIVE ───────────
             // `start-first` starts the replacement BEFORE stopping the old task,
-            // which is right for a stateless service behind a load balancer. It
-            // is IMPOSSIBLE here: the port below is published in `host` mode, so
-            // only one task on the node can hold it, and the replacement can
-            // never start. The engine reports exactly that, and the service sits
-            // at 0/1 forever:
-            //
-            //   "no suitable node (host-mode port already in use on 1 node)"
-            //
-            // Measured: after any `docker service update --force`, the new task
-            // stayed `Pending` while the old one kept running, so the database
-            // became unreachable and the API could not boot.
-            //
-            // `stop-first` gives the port up before the new task claims it. The
-            // brief gap is unavoidable for a host-bound port, and the API's
-            // startup guard already waits for the database to come back.
+            // which is right for a stateless service. Here two tasks would open the
+            // SAME data directory on the node — Postgres refuses the second (stale
+            // `postmaster.pid`) at best and corrupts it at worst. The brief gap is
+            // unavoidable, and the API's startup guard already waits for the
+            // database to come back.
             updateConfig: { parallelism: 1, delayMs: 0, order: "stop-first", failureAction: "rollback" },
             // One task, addressed by DNS name (`global-db`): a VIP would only ever
             // forward to that same task, so the load-balancer hop is pure risk —
@@ -191,19 +181,11 @@ export class PostgresServiceProvisioner {
             // early (SIGKILL) corrupts the data directory, which then fails to
             // start with "could not locate a valid checkpoint record".
             stopGracePeriodSeconds: 60,
-            // Published on the node running the task (host mode): a NODE-LOCAL
-            // host binding is what lets an operator reach the database from the
-            // host, and it never routes through the swarm ingress — the ingress
-            // IPVS rejects traffic arriving from the bridge gateway, which is
-            // exactly how containers used to lose the database.
-            endpointPorts: [
-                {
-                    protocol: "tcp",
-                    publishedPort: MANAGED_POSTGRES_PORT,
-                    targetPort: MANAGED_POSTGRES_PORT,
-                    publishMode: "host",
-                },
-            ],
+            // NO PUBLISHED PORT. Every consumer reaches the database on the platform
+            // overlay by its alias (`global-db`); a host publish bound 0.0.0.0:5432
+            // on the node, which put the platform's state store on every interface.
+            // An operator who needs a shell uses `docker exec` or the private lane.
+            endpointPorts: [],
         };
     }
 

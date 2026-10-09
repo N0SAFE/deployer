@@ -85,7 +85,7 @@ export default function GlobalError({
               .ge-btn--primary { background: var(--ge-primary); border-color: transparent; color: var(--ge-on-primary); }
               .ge-btn:hover { opacity: 0.9; }
               .ge-btn:focus-visible { outline: 2px solid var(--ge-primary); outline-offset: 2px; }
-              .ge-ref { margin-top: 1.25rem; font-size: 0.75rem; color: var(--ge-muted); }
+              .ge-ref { margin-top: 1.25rem; font-size: 0.8125rem; color: var(--ge-muted); }
               .ge-ref code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
             `,
           }}
@@ -111,7 +111,9 @@ export default function GlobalError({
           </div>
           <h1 className="ge-title">Deployer couldn’t start</h1>
           <p className="ge-body">
-            {getErrorMessage(error, 'The application shell failed to render.')}{' '}
+            {process.env.NODE_ENV === 'development'
+              ? getErrorMessage(error, 'The application shell failed to render.')
+              : 'The application shell failed to render.'}{' '}
             Reloading usually clears it — if it keeps happening, check the API
             health endpoint and the server logs.
           </p>
@@ -131,7 +133,7 @@ export default function GlobalError({
           </div>
           {error.digest ? (
             <p className="ge-ref">
-              Reference: <code>{error.digest}</code>
+              Error id: <code>{error.digest}</code>
             </p>
           ) : null}
         </div>

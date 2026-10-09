@@ -5,7 +5,7 @@ import { reachabilityEndpoints, reachabilityEndpointOperations } from './endpoin
 import { wrapWithInvalidations } from '../shared/helpers'
 import { reachabilityInvalidations } from './invalidations'
 
-const enhancedReachability = wrapWithInvalidations(reachabilityEndpointOperations, reachabilityInvalidations as never)
+const enhancedReachability = wrapWithInvalidations(reachabilityEndpointOperations, reachabilityInvalidations)
 
 export function useReachabilityCheck() {
   return useMutation(reachabilityEndpoints.check.mutationOptions())
@@ -60,47 +60,55 @@ export function useCheckDomainGate() {
   )
 }
 
-// ─── Stack edge (mode + the ONE tunnel every node shares) ──────────────────
+// ─── Ingress lanes (local · private · public) and the mesh under them ──────
 
 /**
- * The stack's edge: its mode, its tunnel, and whether the ingress publishes an
- * entry port under that mode.
- */
-export function useStackEdge() {
-  return useQuery(
-    reachabilityEndpoints.getStackEdge.queryOptions({ input: {} }),
-  )
-}
-
-/**
- * Switch the stack edge mode.
+ * The stack's ingress: its lanes, the exposure they add up to, where the console
+ * answers on each lane, the public edge (provider catalog + active status), the
+ * DNS records the lanes need and the mesh as seen by the node serving the request.
  *
- * Switching to `tunnel` also provisions the tunnel server-side (creating it on
- * `providerId` and storing its run token), which is why `providerId` and
- * `wildcard` are required for that direction — a mode claiming `tunnel` with no
- * usable tunnel would report an edge that cannot exist.
+ * Polled while visible: link paths, handshakes and edge health move on their own.
  */
-export function useSetStackEdgeMode() {
+export function useIngress(options: { refetchInterval?: number } = {}) {
+  return useQuery({
+    ...reachabilityEndpoints.getIngress.queryOptions({ input: {} }),
+    refetchInterval: options.refetchInterval ?? 15_000,
+  })
+}
+
+/**
+ * Change the lanes. Only the fields sent change.
+ *
+ * The public lane names an edge provider from the catalog (`edge.providers`) and
+ * carries that provider's options; the API provisions the new edge before the
+ * lanes switch, and tears the previous one down after.
+ */
+export function useUpdateIngress() {
   return useMutation(
-    reachabilityEndpoints.setStackEdgeMode.mutationOptions({
-      onSuccess: enhancedReachability.setStackEdgeMode.withInvalidationOnSuccess(),
+    reachabilityEndpoints.updateIngress.mutationOptions({
+      onSuccess: enhancedReachability.updateIngress.withInvalidationOnSuccess(),
     }),
   )
 }
 
-/** Delete the stack's tunnel on its provider and forget it locally. */
-export function useClearStackEdgeTunnel() {
+/**
+ * Tear the public edge down: delete what its provider created, remove its DNS
+ * records and turn the public lane off.
+ */
+export function useTeardownPublicEdge() {
   return useMutation(
-    reachabilityEndpoints.clearStackEdgeTunnel.mutationOptions({
-      onSuccess: enhancedReachability.clearStackEdgeTunnel.withInvalidationOnSuccess(),
+    reachabilityEndpoints.teardownPublicEdge.mutationOptions({
+      onSuccess: enhancedReachability.teardownPublicEdge.withInvalidationOnSuccess(),
     }),
   )
 }
 
-/** Live health of the stack's tunnel (connection count, status). */
-export function useTunnelHealth() {
-  return useQuery(
-    reachabilityEndpoints.getTunnelHealth.queryOptions({ input: {} }),
+/** Revoke a mesh member; every member drops it on the next gossip round. */
+export function useRevokeMeshMember() {
+  return useMutation(
+    reachabilityEndpoints.revokeMeshMember.mutationOptions({
+      onSuccess: enhancedReachability.revokeMeshMember.withInvalidationOnSuccess(),
+    }),
   )
 }
 

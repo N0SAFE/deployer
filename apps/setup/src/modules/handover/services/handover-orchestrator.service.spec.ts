@@ -27,6 +27,7 @@ import type { IngressHandoverService } from "./ingress-handover.service";
 describe("HandoverOrchestratorService", () => {
   let effects: string[];
   let phases: SetupPhaseService;
+  let orchestration: OrchestrationStreamService;
 
   function makeOrchestrator(
     options: {
@@ -132,6 +133,7 @@ describe("HandoverOrchestratorService", () => {
     // called here — these tests drive the pipeline through `attempt()`, the same
     // entry point the subscription uses.
     const envService = makeEnvService({ SETUP_MODE: "dev" });
+    orchestration = new OrchestrationStreamService(envService);
 
     // The API stream is stubbed: attaching it is a long-running subscription
     // against a process that does not exist in a unit test. What matters here is
@@ -151,7 +153,7 @@ describe("HandoverOrchestratorService", () => {
       phases,
       gate,
       bootstrapIngress,
-      new OrchestrationStreamService(envService),
+      orchestration,
       stream,
       envService,
     );
@@ -409,6 +411,43 @@ describe("HandoverOrchestratorService", () => {
     });
   });
 
+  describe("a failure is REPORTED on the stream, not only on the phase", () => {
+    // The phase is what compose reads; the stream is what the operator watches.
+    // A handover that failed silently left the step that stopped spinning forever.
+    it("fails the step that stopped and ends the run with the reason", async () => {
+      await run(makeOrchestrator({ serving: false }));
+
+      const snapshot = orchestration.currentSnapshot();
+      const promote =
+        snapshot?.type === "snapshot" ? snapshot.steps.find((step) => step.id === "promote_ingress") : undefined;
+      expect(promote?.status).toBe("failed");
+      expect(promote?.error).toContain("not routing the API yet");
+
+      expect(orchestration.terminalEvent()).toMatchObject({ type: "error" });
+    });
+
+    it("never rewrites a step that already finished", async () => {
+      await run(makeOrchestrator({ serving: false }));
+
+      const snapshot = orchestration.currentSnapshot();
+      const statuses =
+        snapshot?.type === "snapshot" ? Object.fromEntries(snapshot.steps.map((step) => [step.id, step.status])) : {};
+      expect(statuses["start_api"]).toBe("completed");
+      expect(statuses["await_api_boot"]).toBe("completed");
+    });
+
+    it("remembers the failure for a client that reconnects after it", async () => {
+      await run(makeOrchestrator({ ready: false }));
+
+      // A re-sync skips history, so without this a reconnecting client would be
+      // handed a snapshot with a failed step and never learn the run was over.
+      expect(orchestration.terminalEvent()).toMatchObject({
+        type: "error",
+        message: expect.stringContaining("did not report ready"),
+      });
+    });
+  });
+
   describe("the phase vocabulary matches the work", () => {
     it("reports `provisioning` while waiting, and only `handover` for the swap", async () => {
       const orchestrator = makeOrchestrator();
@@ -446,6 +485,20 @@ describe("HandoverOrchestratorService", () => {
       expect(result.ok).toBe(false);
       // Two full passes means the pipeline is re-runnable, not one-shot.
       expect(effects.filter((e) => e === "ensureApi")).toHaveLength(2);
+    });
+
+    it("clears the failure so a retried run does not show the old one", async () => {
+      const orchestrator = makeOrchestrator({ serving: false });
+      await run(orchestrator);
+      expect(orchestration.terminalEvent()).toMatchObject({ type: "error" });
+
+      orchestration.clearFailure();
+
+      expect(orchestration.terminalEvent()).toBeNull();
+      const snapshot = orchestration.currentSnapshot();
+      const promote =
+        snapshot?.type === "snapshot" ? snapshot.steps.find((step) => step.id === "promote_ingress") : undefined;
+      expect(promote?.status).toBe("pending");
     });
   });
 });

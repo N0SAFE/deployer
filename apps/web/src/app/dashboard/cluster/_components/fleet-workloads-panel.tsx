@@ -18,7 +18,9 @@ import {
 } from '@repo/ui/components/shadcn/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
 import { Boxes, Globe, Layers, ListTree } from 'lucide-react'
-import { PageErrorState, PageLoadingState, StatStrip, StatStripItem, StatusBadge } from '@/components/dashboard'
+import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+import { CopyId } from '../../_components/copy-id-button'
+import { PageErrorState, StatStrip, StatStripItem, StatusBadge } from '@/components/dashboard'
 import { useClusterServices, useClusterTasks } from '@/domains/cluster/hooks'
 
 interface ServiceRow {
@@ -86,13 +88,13 @@ export function FleetWorkloadsPanel() {
     image: t.image ?? '',
   })), [tasksData])
 
-  if (isLoading) return <PageLoadingState label="Loading swarm workloads…" />
+  if (isLoading) return <Skeleton aria-busy="true" className="h-72 w-full" />
 
   if (error) {
     return (
       <PageErrorState
         title="Unable to load swarm workloads"
-        message="The fleet service/task surface could not be fetched. Check that the engine is in Swarm mode."
+        message="Swarm services and tasks could not be read. Check that the Docker engine is in Swarm mode and reachable."
         onRetry={() => void refetch()}
       />
     )
@@ -126,13 +128,13 @@ export function FleetWorkloadsPanel() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
+          <Table stickyHeader containerClassName="max-h-96">
             <TableHeader>
               <TableRow>
                 <TableHead>Service</TableHead>
                 <TableHead>Mode</TableHead>
-                <TableHead className="text-center">Desired</TableHead>
-                <TableHead className="text-center">Running</TableHead>
+                <TableHead className="text-right" title="Tasks the service should have">Desired</TableHead>
+                <TableHead title="Tasks currently running">Running</TableHead>
                 <TableHead>Image</TableHead>
               </TableRow>
             </TableHeader>
@@ -140,7 +142,7 @@ export function FleetWorkloadsPanel() {
               {services.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
-                    No swarm services yet. Deployments and supervised services appear here once scheduled.
+                    No swarm services yet. A service shows up here once a deployment schedules it (or a platform component is supervised).
                   </TableCell>
                 </TableRow>
               ) : (
@@ -164,7 +166,7 @@ export function FleetWorkloadsPanel() {
                           : ''}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-center font-mono">{service.desiredTasks}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">{service.desiredTasks}</TableCell>
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center gap-1.5">
                         {service.runningTasks > 0 && service.runningTasks >= service.desiredTasks ? (
@@ -194,11 +196,11 @@ export function FleetWorkloadsPanel() {
           <div>
             <CardTitle>Swarm tasks</CardTitle>
             <CardDescription>
-              Live task placement across the fleet. Tasks carry the node they are scheduled on.
+              Where each task of each service is running right now, with the error that stopped it if it failed.
             </CardDescription>
           </div>
           <Select value={serviceFilter} onValueChange={setServiceFilter} aria-label="Filter by service">
-            <SelectTrigger className="w-56" aria-label="Filter tasks by service">
+            <SelectTrigger className="w-full sm:w-56" aria-label="Filter tasks by service">
               <SelectValue placeholder="All services" />
             </SelectTrigger>
             <SelectContent>
@@ -213,9 +215,9 @@ export function FleetWorkloadsPanel() {
         </CardHeader>
         <CardContent>
           {tasksLoading ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">Loading tasks…</p>
+            <Skeleton aria-busy="true" className="h-40 w-full" />
           ) : (
-            <Table>
+            <Table stickyHeader containerClassName="max-h-96">
               <TableHeader>
                 <TableRow>
                   <TableHead>Task</TableHead>
@@ -224,22 +226,23 @@ export function FleetWorkloadsPanel() {
                   <TableHead className="text-center">Slot</TableHead>
                   <TableHead>State</TableHead>
                   <TableHead>Desired</TableHead>
+                  <TableHead>Error</TableHead>
                   <TableHead>Image</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {tasks.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
-                      No tasks match the current filter.
+                    <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
+                      {serviceFilter === 'all' ? 'No tasks are scheduled yet.' : 'This service has no tasks right now.'}
                     </TableCell>
                   </TableRow>
                 ) : (
                   tasks.map((task) => (
                     <TableRow key={task.id}>
-                      <TableCell className="font-mono text-xs">{task.id.slice(0, 12)}…</TableCell>
+                      <TableCell><CopyId value={task.id} label="task id" /></TableCell>
                       <TableCell className="font-medium">{task.serviceName || task.serviceId.slice(0, 8)}</TableCell>
-                      <TableCell className="font-mono text-xs">{task.nodeId ? task.nodeId.slice(0, 12) + '…' : '—'}</TableCell>
+                      <TableCell>{task.nodeId ? <CopyId value={task.nodeId} label="node id" /> : <span className="text-muted-foreground">—</span>}</TableCell>
                       <TableCell className="text-center font-mono text-xs">{task.slot ?? '—'}</TableCell>
                       <TableCell>
                         <StatusBadge
@@ -255,6 +258,7 @@ export function FleetWorkloadsPanel() {
                         />
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{task.desiredState}</TableCell>
+                      <TableCell className="max-w-64 truncate text-xs text-destructive" title={task.error ?? undefined}>{task.error ?? ''}</TableCell>
                       <TableCell className="max-w-70 truncate font-mono text-xs text-muted-foreground">
                         {task.image || '—'}
                       </TableCell>

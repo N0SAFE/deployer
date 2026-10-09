@@ -151,6 +151,7 @@ function DeviceApprovalForm() {
                     id="user-code"
                     value={userCode}
                     autoComplete="off"
+                    autoFocus
                     spellCheck={false}
                     placeholder="ABCD-1234"
                     className="font-mono tracking-widest uppercase"
@@ -159,7 +160,7 @@ function DeviceApprovalForm() {
                         if (e.key === 'Enter') void submit(true)
                     }}
                 />
-                <p className="text-muted-foreground text-xs">
+                <p className="text-muted-foreground text-sm">
                     Shown on the device that requested access.
                 </p>
             </div>
@@ -167,10 +168,10 @@ function DeviceApprovalForm() {
             <div className="flex gap-2">
                 <Button disabled={busy} onClick={() => void submit(true)}>
                     {busy && <Loader2 className="size-4 animate-spin" />}
-                    <span className="ml-2">Approve</span>
+                    <span className="ml-2">Approve this device</span>
                 </Button>
                 <Button variant="outline" disabled={busy} onClick={() => void submit(false)}>
-                    Deny
+                    Deny request
                 </Button>
             </div>
         </div>

@@ -1,15 +1,16 @@
 /**
- * PlatformRoutesSource — DB-driven source of SUPERVISED domain routes for the
- * platform ingress.
+ * PlatformRoutesSource — DB-driven source of SUPERVISED routes for the platform
+ * ingress (everything that is not the platform's own console).
  *
- * The Traefik supervisor publishes three config families (one file per owner):
- *   - dynamic-api.yml   → this API (platform hostname)
- *   - dynamic-web.yml   → the web surface (platform hostname)
- *   - dynamic-domain.yml → EVERYTHING ELSE derived from the database
+ * It reads the persisted platform state and answers "which routes should the
+ * ingress publish, on which lanes, to which backend". Each route carries:
  *
- * This service produces that third family. It reads the persisted platform
- * state and answers "which Host(...) rules should Traefik publish, and to
- * which backend":
+ *   - a LABEL: its subdomain on the generated lanes (`<label>.deployer.localhost`
+ *     on the local lane, `<label>.<private domain>` on the private one), so every
+ *     deployment is reachable on this machine and on the mesh with no DNS at all;
+ *   - HOSTS: explicit public DNS names (custom domains, a preview's domain), served
+ *     on the public lane only;
+ *   - a VISIBILITY: the service's own choice (`private` keeps it off the public lane).
  *
  *   1. GLOBAL PUBLIC HOSTNAME / TUNNEL  — the node's globally reachable
  *      address (`node_network_config`): when the global hostname is set (e.g.
@@ -34,9 +35,11 @@ import z from "zod/v4";
 
 import { GLOBAL_DATABASE_CONNECTION } from "@repo/nest-database-core/database-connection";
 import type { GlobalDatabase } from "@/core/modules/database/global/global-database.service";
+import { routeVisibilitySchema, type RouteVisibility } from "@repo/contracts-entities/entities/ingress/index";
 import {
 	deployments,
 	previewEnvironments,
+	projects,
 	services,
 } from "@repo/nest-schema/global";
 import { nodeNetworkConfig } from "@repo/nest-schema/global";
@@ -64,18 +67,62 @@ export const supervisedRouteTargetSchema = z.discriminatedUnion("kind", [
 export type SupervisedRouteTarget = z.infer<typeof supervisedRouteTargetSchema>;
 
 /** One dynamic route the platform ingress must publish. */
-export const supervisedRouteSchema = z.object({
-	/** Stable router key (slug of the primary host, namespaced). */
-	name: z.string().regex(/^[a-z0-9-]{1,80}$/),
-	/** Hostnames that route to the backend. */
-	hosts: z.array(z.string().min(1)).min(1),
-	source: supervisedRouteSourceSchema,
-	target: supervisedRouteTargetSchema,
-});
+export const supervisedRouteSchema = z
+	.object({
+		/** Stable router key (namespaced slug). */
+		name: z.string().regex(/^[a-z0-9-]{1,80}$/),
+		/** Subdomain on the generated lanes, or null for a public-hosts-only route. */
+		label: z.string().regex(/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/).nullable(),
+		/** Explicit public hostnames (public lane only). */
+		hosts: z.array(z.string().min(1)),
+		visibility: routeVisibilitySchema,
+		source: supervisedRouteSourceSchema,
+		target: supervisedRouteTargetSchema,
+	})
+	.refine((route) => route.label !== null || route.hosts.length > 0, { message: "a route needs a label or a host" });
 export type SupervisedRoute = z.output<typeof supervisedRouteSchema>;
 
 /** Router name prefix — never collides with platform-api/platform-web. */
 const ROUTE_NAME_PREFIX = "deploy-";
+
+/** A DNS label: lowercase alnum + dash, max 63, no leading/trailing dash. */
+export function dnsLabel(...parts: string[]): string {
+	const label = parts
+		.join("-")
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "")
+		.slice(0, 63)
+		.replace(/-+$/g, "");
+	return label === "" ? "app" : label;
+}
+
+/**
+ * Keep, for each route, only the hosts and label no earlier route claimed; drop
+ * routes left with nothing. Pure, so the precedence rules are tested directly.
+ */
+export function dedupeRoutes(ordered: readonly SupervisedRoute[]): SupervisedRoute[] {
+	const claimed = new Set<string>();
+	const names = new Set<string>();
+	const out: SupervisedRoute[] = [];
+	for (const route of ordered) {
+		if (names.has(route.name)) continue;
+		const hosts = route.hosts.filter((host) => !claimed.has(host));
+		const label = route.label !== null && !claimed.has(`label:${route.label}`) ? route.label : null;
+		if (hosts.length === 0 && label === null) continue;
+		for (const host of hosts) claimed.add(host);
+		if (label !== null) claimed.add(`label:${label}`);
+		names.add(route.name);
+		out.push({ ...route, hosts, label });
+	}
+	return out;
+}
+
+/** A service's ingress visibility, from its network config (default `public`). */
+export function serviceVisibility(network: { visibility?: unknown } | null | undefined): RouteVisibility {
+	const parsed = routeVisibilitySchema.safeParse(network?.visibility);
+	return parsed.success ? parsed.data : "public";
+}
 
 /** Sluggify a hostname into a stable router key (lowercase alnum + dash). */
 export function routeNameFromHost(host: string): string {
@@ -113,45 +160,19 @@ export class PlatformRoutesSource {
 	) {}
 
 	/**
-	 * All supervised domain routes from the database. Order matters for
-	 * host-dedupe: global hostname/tunnel first (lowest priority), then
-	 * deployments, then previews — the FIRST occurrence of a host wins, so
-	 * preview/deployment rules are never shadowed by the global address.
+	 * All supervised routes from the database.
+	 *
+	 * Order is precedence: global address first, then deployments (newest first),
+	 * then previews. The FIRST source to claim a host or a label keeps it, and a
+	 * later route keeps only what nobody claimed before it — so an older deployment
+	 * can never take a label back from the newer one that superseded it.
 	 */
 	async listSupervisedRoutes(): Promise<SupervisedRoute[]> {
-		const collected = new Map<string, SupervisedRoute>();
-
-		for (const route of await this.globalHostnameRoutes()) {
-			this.collectUnique(collected, route);
-		}
-		for (const route of await this.deploymentRoutes()) {
-			this.collectUnique(collected, route);
-		}
-		for (const route of await this.previewRoutes()) {
-			this.collectUnique(collected, route);
-		}
-
-		// One ROUTE per name (a route may claim several hosts — the map holds
-		// one entry per host, so dedupe before emitting).
-		const seen = new Set<string>();
-		const routes: SupervisedRoute[] = [];
-		for (const route of collected.values()) {
-			if (seen.has(route.name)) continue;
-			seen.add(route.name);
-			routes.push(route);
-		}
-
-		return z.array(supervisedRouteSchema).parse(routes);
-	}
-
-	private collectUnique(collected: Map<string, SupervisedRoute>, route: SupervisedRoute): void {
-		// Earlier sources win: a host already claimed (by a global address, an
-		// older deployment or a preview) is never overwritten. A route whose
-		// hosts ALL collide is skipped entirely.
-		if (route.hosts.every((host) => collected.has(host))) return;
-		for (const host of route.hosts) {
-			collected.set(host, route);
-		}
+		return z
+			.array(supervisedRouteSchema)
+			.parse(
+				dedupeRoutes([...(await this.globalHostnameRoutes()), ...(await this.deploymentRoutes()), ...(await this.previewRoutes())]),
+			);
 	}
 
 	// ─── Global public address (hostname / tunnel) → this API ─────────────
@@ -176,7 +197,9 @@ export class PlatformRoutesSource {
 		if (publicHost !== null) {
 			routes.push({
 				name: routeNameFromHost(publicHost),
+				label: null,
 				hosts: [publicHost],
+				visibility: "public",
 				source: "global-hostname",
 				target: { kind: "api" },
 			});
@@ -189,14 +212,17 @@ export class PlatformRoutesSource {
 
 	private async deploymentRoutes(): Promise<SupervisedRoute[]> {
 		const rows = await this.db
-			.select({ deployment: deployments, service: services })
+			.select({ deployment: deployments, service: services, project: projects })
 			.from(deployments)
 			.innerJoin(services, eq(deployments.serviceId, services.id))
+			.innerJoin(projects, eq(services.projectId, projects.id))
 			.where(eq(deployments.status, "success"))
 			.orderBy(desc(deployments.createdAt));
 
+		// Newest first: the first deployment of a service claims its label, so the
+		// label always routes to the latest successful deployment.
 		const routes: SupervisedRoute[] = [];
-		for (const { deployment, service } of rows) {
+		for (const { deployment, service, project } of rows) {
 			const containerName = deployment.containerName?.trim();
 			const port = service.port;
 			if (!containerName || port === null || port < 1) continue;
@@ -208,13 +234,12 @@ export class PlatformRoutesSource {
 				const host = hostnameOf(custom);
 				if (host !== null) hosts.push(host);
 			}
-			if (hosts.length === 0) continue;
-			const primary = hosts[0];
-			if (primary === undefined) continue;
-
+			const label = dnsLabel(service.name, project.name);
 			routes.push({
-				name: routeNameFromHost(primary),
+				name: routeNameFromHost(label),
+				label,
 				hosts,
+				visibility: serviceVisibility(service.network),
 				source: "deployment",
 				target: { kind: "container", name: containerName, port },
 			});
@@ -241,7 +266,9 @@ export class PlatformRoutesSource {
 
 			routes.push({
 				name: routeNameFromHost(host),
+				label: dnsLabel(host.split(".")[0] ?? host),
 				hosts: [host],
+				visibility: serviceVisibility(service.network),
 				source: "preview",
 				target: { kind: "container", name: containerName, port },
 			});

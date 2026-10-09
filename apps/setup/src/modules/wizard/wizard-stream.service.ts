@@ -244,8 +244,12 @@ export class WizardStreamService {
     // Merged into the LIVE TAIL rather than the prefix: the re-sync
     // (`details` + `initial`) is written as one atomic batch, and interleaving a
     // ping there would be pointless — it exists to prove liveness DURING waits.
+    // A terminal event is a fact about the RUN, not a delta, so it is replayed with
+    // the snapshot: the live tail below skips history, and a client that
+    // reconnected after the run ended would otherwise never learn that it had.
+    const terminal = orchestration.terminalEvent();
     return merge(
-      concat(from([...details, initial]), orchestration.liveAfter(checkpoint)),
+      concat(from([...details, initial, ...(terminal === null ? [] : [terminal])]), orchestration.liveAfter(checkpoint)),
       interval(WizardStreamService.HEARTBEAT_INTERVAL_MS).pipe(
         map(() => ({
           type: "heartbeat" as const,

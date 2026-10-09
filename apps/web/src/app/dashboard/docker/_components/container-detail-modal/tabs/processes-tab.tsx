@@ -46,10 +46,10 @@ export function DockerContainerProcessesTab({
               const processLogs = isExpanded ? expandedProcessLogs : []
 
               return (
-                <Fragment key={`${proc.pid}-${proc.command}`}>
+                <Fragment key={`${String(proc.pid)}-${proc.command}`}>
                   <tr
                     className="border-t cursor-pointer hover:bg-muted/40"
-                    onClick={() => onToggleProcess(proc.pid)}
+                    onClick={() => { onToggleProcess(proc.pid); }}
                   >
                     <td className="p-2 font-mono">{proc.pid}</td>
                     <td className="p-2">{proc.user}</td>

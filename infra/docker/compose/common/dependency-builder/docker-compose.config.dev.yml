@@ -25,7 +25,7 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-dependency-builder-dev
     # The tool resolves `tsconfig.json` from `$cwd`, and the decorator flags
     # nest-commander needs are read from there.
-    working_dir: /app/tools/dependency-builder
+    working_dir: /app/tooling/dependency-builder
     environment:
       NODE_ENV: development
       LOG_LEVEL: debug

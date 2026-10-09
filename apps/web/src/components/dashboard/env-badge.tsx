@@ -66,7 +66,7 @@ export function EnvironmentBadge({
     <Badge
       variant="outline"
       className={cn(
-        'gap-1.5 py-0.5 text-[10px] font-medium capitalize',
+        'gap-1.5 py-0.5 text-xs font-medium capitalize',
         envToneClasses[tone],
         className,
       )}

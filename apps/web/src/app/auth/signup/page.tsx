@@ -20,6 +20,8 @@ import { AlertCircle, Spinner } from '@repo/ui/components/atomics/atoms/Icon'
 import { signupSchema } from './schema'
 import { AuthSignup, AuthSignin } from '@/routes'
 import { UserPlus } from 'lucide-react'
+import { PasswordInput } from '../_components/password-input'
+import { devConveniencesEnabled } from '../_utils/dev-only'
 import { authClient } from '@/lib/auth'
 import { useSetupState } from '@/domains/setup/hooks'
 import { setupDestinationUrl } from '@/lib/setup-url'
@@ -71,7 +73,7 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
                 return
             }
 
-            setSuccess('Account created successfully! Redirecting...')
+            setSuccess('Account created. Taking you to the dashboard…')
             setTimeout(() => {
                 void redirect(searchParams.redirectTo ?? searchParams.callbackUrl ?? '/')
             }, 1500)
@@ -90,7 +92,32 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
         }
     }, [setupStatus.data, router, searchParams.callbackUrl, searchParams.redirectTo])
 
-    // ─── Early return only happens AFTER every hook above has been called ───
+    // ─── Early returns only happen AFTER every hook above has been called ───
+    if (!devConveniencesEnabled()) {
+        // No server flag exists for sign-up availability: outside development
+        // the page does not offer registration (accounts are admin-created).
+        return (
+            <div className="flex flex-1 items-center justify-center">
+                <Card className="w-full max-w-md text-center">
+                    <CardHeader>
+                        <CardTitle className="text-2xl font-bold">Sign-up is closed</CardTitle>
+                        <CardDescription className="text-base">
+                            Accounts on this server are created by an administrator. Ask yours for an invitation, then sign in.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <AuthSignin.Link
+                            search={{ redirectTo: searchParams.redirectTo, callbackUrl: searchParams.callbackUrl }}
+                            className="text-primary text-sm hover:underline"
+                        >
+                            Back to sign in
+                        </AuthSignin.Link>
+                    </CardContent>
+                </Card>
+            </div>
+        )
+    }
+
     if (setupStatus.data?.needsSetup) {
         return (
             <div className="flex flex-1 items-center justify-center">
@@ -113,11 +140,11 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
                         </div>
                         <div>
                             <CardTitle className="text-2xl font-bold">
-                                Create Account
+                                Create your account
                             </CardTitle>
                             <CardDescription className="text-base">
-                                Sign up to get started with the NestJS
-                                application
+                                Register to manage deployments on this Deployer
+                                server. Use a password of at least 8 characters.
                             </CardDescription>
                         </div>
                     </CardHeader>
@@ -134,10 +161,11 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
                                 <form.Field name="name">
                                     {(field) => (
                                         <div className="space-y-2">
-                                            <Label htmlFor="name">Full Name</Label>
+                                            <Label htmlFor="name">Full name</Label>
                                             <Input
-                                                placeholder="John Doe"
+                                                placeholder="Ada Lovelace"
                                                 id="name"
+                                                autoFocus
                                                 type="text"
                                                 className="h-12"
                                                 autoComplete="name"
@@ -159,13 +187,13 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
                                 <form.Field name="email">
                                     {(field) => (
                                         <div className="space-y-2">
-                                            <Label htmlFor="email">Email Address</Label>
+                                            <Label htmlFor="email">Email address</Label>
                                             <Input
-                                                placeholder="john@example.com"
+                                                placeholder="you@example.com"
                                                 id="email"
                                                 type="email"
                                                 className="h-12"
-                                                autoComplete="username"
+                                                autoComplete="email"
                                                 value={field.state.value}
                                                 onBlur={field.handleBlur}
                                                 onChange={(event) => field.handleChange(event.target.value)}
@@ -185,9 +213,8 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
                                     {(field) => (
                                         <div className="space-y-2">
                                             <Label htmlFor="password">Password</Label>
-                                            <Input
+                                            <PasswordInput
                                                 id="password"
-                                                type="password"
                                                 className="h-12"
                                                 autoComplete="new-password"
                                                 value={field.state.value}
@@ -208,10 +235,9 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
                                 <form.Field name="confirmPassword">
                                     {(field) => (
                                         <div className="space-y-2">
-                                            <Label htmlFor="confirmPassword">Confirm Password</Label>
-                                            <Input
+                                            <Label htmlFor="confirmPassword">Confirm password</Label>
+                                            <PasswordInput
                                                 id="confirmPassword"
-                                                type="password"
                                                 className="h-12"
                                                 autoComplete="new-password"
                                                 value={field.state.value}
@@ -239,7 +265,7 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
                                 )}
 
                                 {success && (
-                                    <Alert>
+                                    <Alert role="status">
                                         <AlertDescription>
                                             {success}
                                         </AlertDescription>
@@ -260,7 +286,7 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
                                             className="h-12 w-full text-base"
                                         >
                                             {isSubmitting && <Spinner />}
-                                            Create Account
+                                            {isSubmitting ? 'Creating account…' : 'Create account'}
                                         </Button>
                                     )}
                                 </form.Subscribe>

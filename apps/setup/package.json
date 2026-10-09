@@ -43,6 +43,7 @@
     "@repo/contracts-entities": "*",
     "@repo/env": "*",
     "@repo/errors": "*",
+    "@repo/mesh-network": "*",
     "@repo/logger": "*",
     "@repo/nest-database-local": "*",
     "@repo/nest-docker": "*",

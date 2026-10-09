@@ -9,17 +9,15 @@ import type { Metadata } from 'next'
  * granular error handling for admin operations. Admin errors are logged
  * with feature context for better debugging.
  * 
- * Admin routes:
- * - /dashboard/admin/users - User management
- * - /dashboard/admin/domains - Project domain verification
- * - /dashboard/admin/providers - Provider configuration
- * - /dashboard/admin/system - System settings
+ * Only `/dashboard/admin/providers/**` remains here (shown as Settings →
+ * Integrations). Its URLs are kept because GitHub/GitLab callback URLs are
+ * registered with the providers; everything else moved under `/dashboard/settings`.
  */
 // Metadata lives in the layout: the admin pages are client components, and
 // `metadata` cannot be exported from a `'use client'` file.
 export const metadata: Metadata = {
-  title: 'Administration',
-  description: 'Users, providers, domains and system settings',
+  title: 'Integrations',
+  description: 'Git hosts, registries and DNS providers',
 }
 
 export default function AdminLayout({ children }: { children: ReactNode }) {

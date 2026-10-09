@@ -1,11 +1,13 @@
 "use client"
 
 import { useCallback, useMemo, useState } from "react"
-import { Activity, CheckCircle2, Loader2, XCircle } from "lucide-react"
+import { Activity, CheckCircle2, Loader2, RefreshCw, WifiOff, XCircle } from "lucide-react"
 import type { SetupStreamEvent } from "@repo/contracts-entities"
 import { Button } from "@repo/ui/components/shadcn/button"
 import { ProgressTasks, buildTasksFromEvents, isPipelineComplete } from "@repo/ui/components/setup/progress-tasks"
+import { buildVerificationTasks } from "@repo/ui/components/setup/platform-verification"
 import { markSetupComplete } from "@repo/ui/components/setup/setup-storage"
+import { usePlatformVerification } from "@repo/ui/components/setup/use-platform-verification"
 import type { SetupWizardApi } from "@repo/ui/components/setup/types"
 
 /**
@@ -38,9 +40,11 @@ interface Props {
   context: ProgressStepContext
   onComplete?: (result: { nodeId: string; strategy: "local" | "remote"; databaseUrl: string }) => void
   onError?: (message: string) => void
+  /** The stream's connection dropped and is being re-established (see `SetupWizardApi`). */
+  reconnecting?: boolean
 }
 
-export function ProgressStep({ api, events, context, onComplete, onError }: Props) {
+export function ProgressStep({ api, events, context, onComplete, onError, reconnecting = false }: Props) {
   const tasks = useMemo(() => buildTasksFromEvents(events), [events])
 
   // ── SEARCHED, NOT READ FROM THE LAST EVENT ───────────────────────────────
@@ -61,6 +65,14 @@ export function ProgressStep({ api, events, context, onComplete, onError }: Prop
   // terminal event alone arrives BEFORE the ingress swap. See `ContinueButton`.
   const pipelineComplete = isPipelineComplete(tasks)
 
+  // The pipeline being done is NOT the same as the platform being usable: the
+  // ingress was just replaced, and the stream reporting success says nothing about
+  // whether the browser can open the API or the dashboard. The Continue button is
+  // gated on the verification below, not on this.
+  const serverDone = Boolean(completedEvent) && pipelineComplete
+  // Remounting the verification (new key) restarts its deadline — see the hook.
+  const [verificationRound, setVerificationRound] = useState(0)
+
   if (completedEvent && onComplete) {
     onComplete(completedEvent.result)
   }
@@ -70,6 +82,7 @@ export function ProgressStep({ api, events, context, onComplete, onError }: Prop
 
   const heading = getHeading(context)
   const description = getDescription(context, completedEvent, errorEvent)
+  const showReconnecting = reconnecting && !errorEvent && !serverDone
 
   // Narrowed once here rather than re-checked at the JSX: a boolean flag
   // (`showAdminTile`) does not carry the narrowing, which is what forced the
@@ -82,8 +95,8 @@ export function ProgressStep({ api, events, context, onComplete, onError }: Prop
   const showInfoTiles = adminIdentity !== undefined || showDbTile
 
   return (
-    <div className="flex flex-col gap-7">
-      <div className="flex flex-col gap-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-7">
+      <div className="flex shrink-0 flex-col gap-2">
         <h2 className="text-2xl font-semibold tracking-tight text-balance">
           {context.recovery ? "Setup in progress" : heading}
         </h2>
@@ -120,46 +133,218 @@ export function ProgressStep({ api, events, context, onComplete, onError }: Prop
             )}
             <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
               {completedEvent
-                ? "Setup complete — review the output below"
+                ? serverDone
+                  ? "Provisioned — confirming the platform answers"
+                  : "Provisioned — switching the ingress"
                 : errorEvent
                   ? "Setup stopped — review the error"
                   : "Live setup output"}
             </span>
             <span className="flex-1 h-px bg-border/60 ml-2" aria-hidden="true" />
           </div>
-          <ProgressTasks tasks={tasks} />
+          {showReconnecting ? <ReconnectingNotice /> : null}
+          <ProgressTasks tasks={tasks} scrollable />
 
           {/**
-           * THE BUTTON APPEARS ONLY ONCE THE PIPELINE IS DONE.
+           * THE LAST STEPS PROVE THE PLATFORM ANSWERS; THE BUTTON FOLLOWS THEM.
+           *
+           * The Continue button used to appear the moment the stream said done —
+           * and, after the ingress swap dropped the connection, the moment the
+           * API merely spoke again. Neither says the operator's browser can open
+           * anything. So the button now appears only after the API and the
+           * dashboard have each been checked from the platform's side (routed by
+           * the cluster ingress) AND from this browser (reachable at all).
            *
            * Rendering it earlier as a DISABLED spinner was the wrong shape: the
-           * step list ABOVE already says the ingress is switching, so a second
-           * loading affordance duplicated that message and then disappeared when
-           * the button unmounted — reading as a glitch rather than as progress.
-           * Nothing is clickable until there is somewhere safe to go, and the
-           * steps are the thing reporting that.
+           * steps above and below already say what is being waited on, and a
+           * second loading affordance read as a glitch when it disappeared.
            */}
-          {completedEvent && pipelineComplete ? (
-            <ContinueButton api={api} context={context} />
-          ) : null}
-          {errorEvent ? (
-            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4">
-              <div className="flex items-start gap-3">
-                <XCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" aria-hidden="true" />
-                <div className="flex flex-col gap-1.5 min-w-0">
-                  <span className="text-sm font-semibold text-destructive">Setup failed</span>
-                  <code className="font-mono text-xs text-destructive/90 break-all whitespace-pre-wrap">
-                    {errorEvent.message}
-                  </code>
-                </div>
-              </div>
-            </div>
-          ) : null}
+          {errorEvent ? null : serverDone ? (
+            <FinalVerification
+              key={verificationRound}
+              api={api}
+              context={context}
+              onRetry={() => {
+                setVerificationRound((round) => round + 1)
+              }}
+            />
+          ) : (
+            <ProgressTasks
+              tasks={buildVerificationTasks({
+                verification: null,
+                browserByTarget: {},
+                serverUnavailable: false,
+                active: false,
+                expired: false,
+              })}
+            />
+          )}
+          {errorEvent ? <FailureNotice api={api} message={errorEvent.message} /> : null}
         </>
       ) : (
         <div className="flex items-center justify-center py-12">
           <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
           <span className="ml-3 text-sm text-muted-foreground">Starting setup…</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The connection to setup dropped and is coming back.
+ *
+ * Expected, not a fault: the ingress is replaced during the handover, and the
+ * wizard's own connection travels through it. Said out loud because the timeline
+ * above freezes while it happens, and a frozen timeline with no explanation looks
+ * like a hung install. The progress already received is kept.
+ */
+function ReconnectingNotice() {
+  return (
+    <div
+      role="status"
+      className="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3.5"
+    >
+      <WifiOff className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" aria-hidden="true" />
+      <div className="flex flex-col gap-0.5 min-w-0">
+        <span className="text-sm font-medium">Connection to setup interrupted — reconnecting…</span>
+        <span className="text-xs text-muted-foreground leading-relaxed">
+          This is expected while the cluster ingress takes over the entry port. Your progress is kept, and the
+          steps below update as soon as the connection is back.
+        </span>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The last two steps — "is the API reachable", "is the dashboard reachable" —
+ * and the way out they unlock.
+ *
+ * Mounted only once the pipeline reported done, and re-mounted to retry: the
+ * verification's deadline starts at mount, so a retry gets a fresh one.
+ *
+ * When it gives up the operator is NOT left at a dead end: they can re-check, or
+ * continue anyway. Continuing is deliberately possible only AFTER a visible
+ * failure — a browser on a network that cannot resolve the platform's hostnames
+ * is a real situation in which the platform itself is perfectly healthy.
+ */
+function FinalVerification({
+  api,
+  context,
+  onRetry,
+}: {
+  api: SetupWizardApi
+  context: ProgressStepContext
+  onRetry: () => void
+}) {
+  const verification = usePlatformVerification(api)
+  const [continueAnyway, setContinueAnyway] = useState(false)
+
+  return (
+    <>
+      <ProgressTasks tasks={verification.tasks} />
+      {verification.passed ? (
+        <div className="flex flex-col gap-3">
+          <p className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+            Everything answers — you can continue.
+          </p>
+          <ContinueButton api={api} context={context} />
+        </div>
+      ) : null}
+      {verification.failed ? (
+        <div className="flex flex-col gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4">
+          <div className="flex items-start gap-3">
+            <XCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" aria-hidden="true" />
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-semibold text-destructive">The platform is not answering yet</span>
+              <span className="text-xs text-muted-foreground leading-relaxed">
+                Setup finished, but a check above has not passed. The ingress may still be loading its routes, or this
+                browser may not be able to resolve the platform&apos;s hostnames.
+              </span>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={onRetry}>
+              <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+              Check again
+            </Button>
+            {continueAnyway ? null : (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setContinueAnyway(true)
+                }}
+              >
+                Continue anyway
+              </Button>
+            )}
+          </div>
+          {continueAnyway ? <ContinueButton api={api} context={context} /> : null}
+        </div>
+      ) : null}
+    </>
+  )
+}
+
+/**
+ * The run stopped. Says which step and why (both come from the stream), and
+ * offers the recovery that fits: a failed handover tore nothing down, so running
+ * it again is the honest fix — not "start over and re-enter every choice".
+ */
+function FailureNotice({ api, message }: { api: SetupWizardApi; message: string }) {
+  const { retryHandover, getErrorMessage } = api
+  const [retrying, setRetrying] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
+
+  const handleRetry = useCallback(async () => {
+    if (retryHandover === undefined) return
+    setRetrying(true)
+    setNote(null)
+    try {
+      const { accepted } = await retryHandover()
+      if (accepted) {
+        // A fresh page and a fresh stream: this client's timeline still holds the
+        // error event, and a re-sync from the server is the clean way to drop it.
+        window.location.reload()
+        return
+      }
+      setNote("Setup is not in a failed state, so there is nothing to retry. Use “Start over” below if it is stuck.")
+    } catch (err: unknown) {
+      setNote(getErrorMessage(err))
+    }
+    setRetrying(false)
+  }, [retryHandover, getErrorMessage])
+
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4">
+      <div className="flex items-start gap-3">
+        <XCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" aria-hidden="true" />
+        <div className="flex flex-col gap-1.5 min-w-0">
+          <span className="text-sm font-semibold text-destructive">Setup failed</span>
+          <code className="font-mono text-xs text-destructive/90 break-all whitespace-pre-wrap">{message}</code>
+        </div>
+      </div>
+      {retryHandover === undefined ? null : (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Nothing was torn down, so the failed step can simply run again.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-fit gap-1.5"
+            disabled={retrying}
+            onClick={() => {
+              void handleRetry()
+            }}
+          >
+            {retrying ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}
+            Retry the failed step
+          </Button>
+          {note === null ? null : <p className="text-xs text-muted-foreground">{note}</p>}
         </div>
       )}
     </div>
@@ -266,10 +451,7 @@ function getDescription(
     return "Setup stopped — see the failing step below for the error message."
   }
   if (completedEvent) {
-    if (context.mode === "remote") {
-      return "Done — your logs are still available below."
-    }
-    return "Setup finished. Your logs are still available above."
+    return "The platform is provisioned. The last steps confirm it really answers before you continue — your logs stay available above."
   }
   if (context.mode === "remote" && context.meshUrl) {
     return (

@@ -12,6 +12,8 @@ import type { SetupWizardApi } from "@repo/ui/components/setup/types";
 import {
 	useInitializeStream,
 	usePostSetupDestination,
+	usePostSetupVerification,
+	retryHandover,
 	useProbeDatabase,
 	useProbeMesh,
 	useRemoteAuth,
@@ -35,5 +37,7 @@ export const setupApi: SetupWizardApi = {
 	// own origin (proxy/tunnel safe).
 	apiBaseUrl: () => (typeof window === "undefined" ? "" : window.location.origin),
 	usePostSetupDestination,
+	usePostSetupVerification,
+	retryHandover,
 	postSetupRedirectUrl: () => resolvePostSetupRedirect(),
 };

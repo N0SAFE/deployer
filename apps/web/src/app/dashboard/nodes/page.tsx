@@ -1,261 +1,180 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AuthDashboardNodesNodeId } from '@/routes'
 import { Badge } from '@repo/ui/components/shadcn/badge'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@repo/ui/components/shadcn/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
-import { Activity, ArrowRight, Cpu, Globe, HardDrive, Network, Server, ShieldCheck } from 'lucide-react'
-import { PageHeader, PageLoadingState, PageErrorState, StatusBadge, ScopeLabel, StatStrip, StatStripItem } from '@/components/dashboard'
-import { formatDateTime } from '@/lib/format/date'
+import { Button } from '@repo/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
+import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+import { Cpu, Globe, Info, Network, Server, WifiOff } from 'lucide-react'
+import { PageHeader, PageErrorState, ScopeLabel, StatStrip, StatStripItem } from '@/components/dashboard'
 import { useFleetServers, useFleetAllocations } from '@/domains/fleet/hooks'
-import { useMeshSseState } from '@/domains/mesh/hooks'
-import { isRecord } from '@repo/type-guards'
+import { useMeshLocalNode, useMeshSseState } from '@/domains/mesh/hooks'
 import { FleetTopologyPanel } from './_components/fleet-topology-panel'
+import { NodesTable, type NodeRow } from './_components/nodes-table'
+import { comparePresence, isPresent, liveNodeIds, nodePresence } from './_utils/node-presence'
+import { useNow } from './_utils/use-now'
 
-interface FleetServerRow {
-  nodeId: string
-  serverUrl?: string | null
-  displayName?: string | null
-  status?: string
-  healthy?: boolean
-  lastSeenAt?: string | null
-  maxCpuMillicores?: number | null
-  maxMemoryMb?: number | null
-  metrics?: {
-    cpuUsage?: number
-    memoryUsage?: number
-  } | null
-}
+type PresenceFilter = 'all' | 'online' | 'offline'
 
-function nodeLabel(row: FleetServerRow): string {
-  return row.displayName || row.nodeId.slice(0, 8)
-}
+const FILTERS: readonly { id: PresenceFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'online', label: 'Online' },
+  { id: 'offline', label: 'Offline' },
+]
 
-function formatBytes(mb: number | null | undefined): string {
-  if (mb == null) return '—'
-  if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`
-  return `${mb} MB`
-}
-
-function pct(value: number | null | undefined): string {
-  if (value == null) return '—'
-  return `${Math.round(value * 100)}%`
+function PageSkeleton() {
+  return (
+    <div className="space-y-5" aria-busy="true" aria-label="Loading nodes">
+      <div className="space-y-2">
+        <Skeleton className="h-3 w-16" />
+        <Skeleton className="h-8 w-56" />
+        <Skeleton className="h-4 w-96 max-w-full" />
+      </div>
+      <Skeleton className="h-12 w-full rounded-xl" />
+      <Skeleton className="h-96 w-full rounded-xl" />
+    </div>
+  )
 }
 
 /**
  * Nodes — the fleet view of the mesh.
  *
- * Mesh-wide page that lists every registered cluster node with its live
- * status, capacity and allocation summary. Each row links to the per-node
- * workspace (`/dashboard/nodes/[nodeId]`) where deployments, docker and
- * node configuration are scoped.
- *
- * Concept: projects and services are mesh-wide; this page is the entry
- * point to everything that is per-node.
+ * Presence (online / stale / offline) is derived from live mesh membership and
+ * `lastSeenAt` by `nodePresence`, never from the registry's `status`/`healthy`,
+ * which only describe the registry row and stay "active" for dead nodes.
  */
 export default function DashboardNodesPage() {
   const router = useRouter()
   const { data: serversData, isLoading, error, refetch } = useFleetServers()
   const { data: allocationsData } = useFleetAllocations()
+  const { data: localNode } = useMeshLocalNode()
   const { state: meshEvent, status: streamStatus } = useMeshSseState()
+  const now = useNow()
+  const [filter, setFilter] = useState<PresenceFilter>('all')
 
-  const openNode = (nodeId: string) => {
-    router.push(AuthDashboardNodesNodeId({ nodeId }))
-  }
+  const rows = useMemo<NodeRow[]>(() => {
+    const live = liveNodeIds(meshEvent?.snapshot.nodes ?? [])
+    const localId = localNode?.nodeId ?? meshEvent?.localNode.nodeId ?? null
+    return (serversData?.items ?? [])
+      .map((item) => ({
+        node: item,
+        presence: nodePresence(item, now, live, localId),
+      }))
+      .sort(comparePresence)
+      .map(({ node, presence }) => ({
+        nodeId: node.nodeId,
+        displayName: node.displayName,
+        serverUrl: node.serverUrl,
+        status: node.status,
+        lastSeenAt: node.lastSeenAt,
+        maxCpuMillicores: node.maxCpuMillicores,
+        maxMemoryMb: node.maxMemoryMb,
+        cpuUsage: node.metrics?.cpuUsage ?? null,
+        memoryUsage: node.metrics?.memoryUsage ?? null,
+        presence,
+      }))
+  }, [serversData, meshEvent, localNode, now])
 
-  const servers = useMemo<FleetServerRow[]>(() => {
-    const raw = serversData as
-      | { items?: Array<Record<string, unknown>> }
-      | undefined
-    return (raw?.items ?? []).map((item) => ({
-      nodeId: String(item.nodeId ?? ''),
-      serverUrl: item.serverUrl as string | null | undefined,
-      displayName: item.displayName as string | null | undefined,
-      status: item.status as string | undefined,
-      healthy: item.healthy as boolean | undefined,
-      lastSeenAt: item.lastSeenAt as string | null | undefined,
-      maxCpuMillicores: item.maxCpuMillicores as number | null | undefined,
-      maxMemoryMb: item.maxMemoryMb as number | null | undefined,
-      metrics: isRecord(item.metrics)
-        ? {
-            cpuUsage: item.metrics.cpuUsage as number | undefined,
-            memoryUsage: item.metrics.memoryUsage as number | undefined,
-          }
-        : null,
-    }))
-  }, [serversData])
-
-  const allocations = useMemo(() => {
-    const raw = allocationsData as { items?: Array<Record<string, unknown>> } | undefined
-    return raw?.items ?? []
-  }, [allocationsData])
-
-  const totalAllocations = allocations.length
-  const meshNodes = meshEvent?.snapshot?.nodes ?? []
-  // Membership-snapshot lifecycle states are mesh-view states; "healthy"
-  // is the live/connected equivalent of the cluster node status "active".
-  const connectedNodes = meshNodes.filter((n) => n.lifecycleState === 'healthy').length
-
-  if (isLoading) {
-    return <PageLoadingState label="Loading nodes…" />
-  }
+  if (isLoading) return <PageSkeleton />
 
   if (error) {
     return (
       <PageErrorState
         title="Failed to load nodes"
-        message="The fleet server list could not be fetched. Check that the mesh control plane is reachable."
+        message="The node registry could not be fetched. Check that the API is reachable, then retry."
         onRetry={() => void refetch()}
       />
     )
   }
+
+  const onlineCount = rows.filter((r) => isPresent(r.presence)).length
+  const offlineCount = rows.length - onlineCount
+  const visible = rows.filter((r) =>
+    filter === 'all' ? true : filter === 'online' ? isPresent(r.presence) : !isPresent(r.presence),
+  )
+  const allocationCount = allocationsData?.items.length ?? 0
 
   return (
     <div className="space-y-5">
       <PageHeader
         eyebrow="Nodes"
         title="Node fleet"
-        description="Every node in the mesh, with live capacity and allocation. Deployments, docker and node configuration are per-node — open a node to work in its scope."
-        badge={
-          <>
-            <ScopeLabel scope="mesh" />
-            <Badge variant="secondary">{servers.length} nodes</Badge>
-            <Badge variant={streamStatus === 'connected' ? 'default' : 'secondary'}>
-              stream {streamStatus}
-            </Badge>
-          </>
-        }
-        actions={
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <Activity className="size-4" /> {connectedNodes} connected
-            </span>
-            <span className="flex items-center gap-1.5">
-              <ShieldCheck className="size-4" /> {totalAllocations} allocations
-            </span>
-          </div>
-        }
+        description="Every node registered in the mesh and whether it is actually connected right now. Open a node to see its deployments, network identity and configuration."
+        badge={<ScopeLabel scope="mesh" />}
       />
 
-      {/*
-        Fleet scale, as one dense row. Four integers do not need four cards —
-        the node table below is what this page is for, and it should start
-        above the fold.
-      */}
       <StatStrip>
-        <StatStripItem icon={Server} label="Nodes" value={servers.length} />
-        <StatStripItem icon={Network} label="Live peers" value={connectedNodes} />
-        <StatStripItem icon={Cpu} label="Allocations" value={totalAllocations} />
+        <StatStripItem icon={Server} label="Registered" value={rows.length} />
         <StatStripItem
-          icon={HardDrive}
-          label="Healthy"
+          icon={Network}
+          label="Online"
           value={
             <>
-              {servers.filter((s) => s.healthy).length}
-              <span className="font-normal text-muted-foreground"> / {servers.length}</span>
+              {onlineCount}
+              <span className="font-normal text-muted-foreground"> / {rows.length}</span>
             </>
           }
-          tone={
-            servers.length > 0 && servers.filter((s) => s.healthy).length < servers.length
-              ? 'pending'
-              : undefined
-          }
+          tone={rows.length > 0 && onlineCount === 0 ? 'danger' : onlineCount < rows.length ? 'pending' : 'live'}
+          hint={streamStatus === 'connected' ? 'live mesh stream' : `mesh stream ${streamStatus}`}
         />
+        <StatStripItem icon={WifiOff} label="Offline" value={offlineCount} />
+        <StatStripItem icon={Cpu} label="Allocations" value={allocationCount} />
       </StatStrip>
 
-      {/* Node table */}
+      {offlineCount > 0 ? (
+        <div role="note" className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/30 px-4 py-3 text-sm">
+          <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          <p className="text-muted-foreground">
+            <span className="font-medium text-foreground">
+              {offlineCount} offline {offlineCount === 1 ? 'node' : 'nodes'} in the registry.
+            </span>{' '}
+            They are not connected and have not reported for over 24 hours (or were revoked). The registry keeps
+            every node that ever joined, so they stay listed until removed — they are dimmed below and take no
+            part in scheduling. Removing them needs an API that does not exist yet.
+          </p>
+        </div>
+      ) : null}
+
       <Card>
         <CardHeader>
-          <CardTitle>Registered nodes</CardTitle>
-          <CardDescription>
-            Capacity is set per node. Click a node to view its deployments, docker daemon and configuration.
-          </CardDescription>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1.5">
+              <CardTitle>Registered nodes</CardTitle>
+              <CardDescription>
+                Online first. “Registry” is the node’s record, not its health: it stays “registered” for a dead node.
+              </CardDescription>
+            </div>
+            <div role="group" aria-label="Filter nodes by presence" className="flex gap-1">
+              {FILTERS.map((f) => (
+                <Button
+                  key={f.id}
+                  type="button"
+                  size="sm"
+                  variant={filter === f.id ? 'secondary' : 'ghost'}
+                  aria-pressed={filter === f.id}
+                  onClick={() => { setFilter(f.id) }}
+                >
+                  {f.label}
+                  <Badge variant="outline" className="ml-1.5 px-1.5 font-normal tabular-nums">
+                    {f.id === 'all' ? rows.length : f.id === 'online' ? onlineCount : offlineCount}
+                  </Badge>
+                </Button>
+              ))}
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Node</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Health</TableHead>
-                <TableHead>CPU</TableHead>
-                <TableHead>Memory</TableHead>
-                <TableHead>Last seen</TableHead>
-                <TableHead className="text-right">Open</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {servers.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
-                    No nodes registered yet. Nodes appear here once they join the mesh.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                servers.map((row) => (
-                  <TableRow key={row.nodeId}>
-                    <TableCell className="font-medium">
-                      <AuthDashboardNodesNodeId.Link nodeId={row.nodeId} className="hover:underline">
-                        {nodeLabel(row)}
-                      </AuthDashboardNodesNodeId.Link>
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={row.status === 'active' ? 'active' : row.status === 'suspect' ? 'degraded' : row.status === 'draining' ? 'paused' : 'not-found'} />
-                    </TableCell>
-                    <TableCell>
-                      {row.healthy ? (
-                        <StatusBadge status="healthy" />
-                      ) : (
-                        <StatusBadge status="unhealthy" />
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {pct(row.metrics?.cpuUsage)}
-                        <span className="text-xs text-muted-foreground">
-                          / {row.maxCpuMillicores != null ? `${(row.maxCpuMillicores / 1000).toFixed(1)} vCPU` : '∞'}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {pct(row.metrics?.memoryUsage)}
-                        <span className="text-xs text-muted-foreground">/ {formatBytes(row.maxMemoryMb)}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {row.lastSeenAt ? formatDateTime(row.lastSeenAt) : '—'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <AuthDashboardNodesNodeId.Link
-                        nodeId={row.nodeId}
-                        className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-                      >
-                        Open <ArrowRight className="size-3.5" />
-                      </AuthDashboardNodesNodeId.Link>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <NodesTable rows={visible} totalCount={rows.length} onClearFilter={() => { setFilter('all') }} />
         </CardContent>
       </Card>
 
-      {/* Live mesh topology */}
       <section className="space-y-3">
         <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
           <Globe className="size-4" /> Live topology
         </h2>
-        <FleetTopologyPanel onNodeOpen={openNode} />
+        <FleetTopologyPanel onNodeOpen={(nodeId) => { router.push(AuthDashboardNodesNodeId({ nodeId })) }} />
       </section>
     </div>
   )

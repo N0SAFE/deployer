@@ -73,21 +73,15 @@ export function FleetTopologyPanel({
   const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
-  const servers = useMemo(() => {
-    const raw = serversData as { items?: Array<Record<string, unknown>> } | undefined
-    return raw?.items ?? []
-  }, [serversData])
-
   const displayNames = useMemo(() => {
     const map = new Map<string, string>()
-    for (const s of servers) {
-      const id = String(s.nodeId ?? '')
-      if (id) {
-        map.set(id, (s.displayName as string | null | undefined) || id.slice(0, 8))
+    for (const s of serversData?.items ?? []) {
+      if (s.nodeId !== '') {
+        map.set(s.nodeId, s.displayName ?? s.nodeId.slice(0, 8))
       }
     }
     return map
-  }, [servers])
+  }, [serversData])
 
   const localNode = meshEvent?.localNode
   const sessions = useMemo(() => meshEvent?.sessions ?? [], [meshEvent?.sessions])
@@ -169,14 +163,6 @@ export function FleetTopologyPanel({
   const liveTelemetryLinks = useMemo(() => links.filter((link) => !link.inferred), [links])
   const mapCenter = useMemo(() => averageCenter(nodes), [nodes])
 
-  const avgLatency = useMemo(() => {
-    if (liveTelemetryLinks.length === 0) return 0
-    return Math.round(
-      liveTelemetryLinks.reduce((sum, item) => sum + item.latencyMs, 0) /
-        liveTelemetryLinks.length,
-    )
-  }, [liveTelemetryLinks])
-
   const healthStats = useMemo(() => {
     if (liveTelemetryLinks.length === 0) {
       return { avgJitter: 0, avgLossPct: 0, avgReliabilityPct: 0, p95Latency: 0, highLatencyCount: 0, highLossCount: 0 }
@@ -250,11 +236,11 @@ export function FleetTopologyPanel({
               </Badge>
             </div>
             <div className="flex items-center justify-between rounded-md border px-3 py-2">
-              <span className="text-muted-foreground">Membership version</span>
+              <span className="text-muted-foreground" title="Increments each time the set of mesh members changes.">Membership version</span>
               <span className="font-semibold">v{snapshot?.version ?? 0}</span>
             </div>
             <div className="flex items-center justify-between rounded-md border px-3 py-2">
-              <span className="text-muted-foreground">Sessions</span>
+              <span className="text-muted-foreground" title="Open control connections between this node and its peers.">Sessions</span>
               <span className="font-semibold">{sessions.length}</span>
             </div>
           </CardContent>

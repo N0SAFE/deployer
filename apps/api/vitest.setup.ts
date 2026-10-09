@@ -1,5 +1,16 @@
 import { beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import 'reflect-metadata';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// `@nestjs-ssr/react` resolves nest-cli.json from process.cwd(), so specs that
+// load AppModule fail ("project api was not found") when vitest is launched
+// from the monorepo root. Pin the cwd to this app, wherever vitest was started.
+try {
+    process.chdir(dirname(fileURLToPath(import.meta.url)));
+} catch {
+    // chdir is unavailable in worker threads; those runs already start in the app dir.
+}
 
 // Set up test environment variables BEFORE any other imports to ensure they're available
 // when modules are loaded and the env schema is validated.

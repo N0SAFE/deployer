@@ -52,7 +52,7 @@ interface SubServiceSummary {
   image: string
   port?: number
   ports?: number[]
-  expose?: boolean
+  visibility?: 'private' | 'public'
   tls?: { enabled?: boolean }
   replicas?: number
   restart?: string
@@ -71,7 +71,7 @@ function SubServiceCard({ svc, index }: { svc: SubServiceSummary; index: number 
     const p = svc.port ?? svc.ports?.[0]
     facts.push({ label: 'Port', value: p ? String(p) : '\u2014', icon: <Box className="size-3" /> })
   }
-  if (svc.expose) facts.push({ label: 'Exposed', value: 'Internet', icon: <Globe className="size-3" /> })
+  if (svc.visibility) facts.push({ label: 'Visibility', value: svc.visibility === 'public' ? 'Public' : 'Private', icon: <Globe className="size-3" /> })
   if (svc.replicas && svc.replicas > 1) facts.push({ label: 'Replicas', value: String(svc.replicas), icon: <Boxes className="size-3" /> })
   if (svc.restart && svc.restart !== 'no') facts.push({ label: 'Restart', value: svc.restart, icon: <RefreshIcon /> })
   if (svc.environment && Object.keys(svc.environment).length > 0) facts.push({ label: 'Env', value: String(Object.keys(svc.environment).length), icon: <KeyRound className="size-3" /> })
@@ -92,7 +92,7 @@ function SubServiceCard({ svc, index }: { svc: SubServiceSummary; index: number 
               <span className="block truncate text-xs font-medium">{svc.name || `service-${String(index + 1)}`}</span>
               {svc.image ? <code className="block truncate font-mono text-[10px] text-muted-foreground">{svc.image}</code> : null}
             </span>
-            {svc.expose && <Badge variant="outline" className="shrink-0 text-[9px] text-primary">internet</Badge>}
+            {svc.visibility === 'public' && <Badge variant="outline" className="shrink-0 text-[9px] text-primary">public</Badge>}
           </button>
         </CollapsibleTrigger>
         <CollapsibleContent className="border-t px-3 py-2">
@@ -144,7 +144,7 @@ export function StepReview({ form }: { form: CreateServiceFormApi }) {
         }
         network: {
           port?: number
-          expose?: boolean
+          visibility?: 'private' | 'public'
           tls?: { enabled?: boolean }
           healthCheck: { type: string; interval?: number; timeout?: number; retries?: number }
           customDomains?: string[]
@@ -276,8 +276,8 @@ export function StepReview({ form }: { form: CreateServiceFormApi }) {
           <Section title="Network & health" icon={<Globe className="size-3.5" />}>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1">
               <Row label="Port" value={network.port} />
-              <Row label="Exposed" value={network.expose ? 'Yes' : 'No'} />
-              {network.expose && <Row label="TLS" value={network.tls?.enabled ? 'Enabled' : 'Disabled'} />}
+              <Row label="Visibility" value={network.visibility === 'private' ? 'Private' : 'Public'} />
+              {network.visibility !== 'private' && <Row label="TLS" value={network.tls?.enabled ? 'Enabled' : 'Disabled'} />}
               <Row label="Health check" value={network.healthCheck.type} />
               {network.healthCheck.type && network.healthCheck.type !== 'none' && (<>
                 <Row label="Interval" value={network.healthCheck.interval} defaultVal={30} />

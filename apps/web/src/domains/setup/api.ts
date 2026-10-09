@@ -14,6 +14,7 @@ import {
 	useProbeDatabase,
 	useProbeMesh,
 	useRemoteAuth,
+	usePostSetupVerification,
 	useSetupState,
 	useTriggerInitialize,
 } from "@/domains/setup/hooks";
@@ -29,6 +30,7 @@ export const setupApi: SetupWizardApi = {
 	useProbeDatabase,
 	useProbeMesh,
 	useRemoteAuth,
+	usePostSetupVerification,
 	signInWithEmail,
 	getErrorMessage,
 	// The web app serves the dashboard, so provisioning must address the API

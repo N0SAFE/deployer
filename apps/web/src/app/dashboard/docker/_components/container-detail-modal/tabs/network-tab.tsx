@@ -13,12 +13,12 @@ interface NetworkItem {
 
 interface DockerContainerNetworkTabProps {
   networks: NetworkItem[]
-  portMappings: Array<{
+  portMappings: {
     hostIp: string
     hostPort: number | null
     containerPort: number
     protocol: string
-  }>
+  }[]
 }
 
 export function DockerContainerNetworkTab({ networks, portMappings }: DockerContainerNetworkTabProps) {
@@ -29,7 +29,7 @@ export function DockerContainerNetworkTab({ networks, portMappings }: DockerCont
         <div className="mt-2 flex flex-wrap gap-2">
           {portMappings.map((port) => (
             <Badge key={`${port.containerPort}-${port.protocol}-${String(port.hostPort)}`} variant="outline">
-              {port.hostIp}:{port.hostPort ?? '—'} → {port.containerPort}/{port.protocol}
+              {port.hostIp}:{port.hostPort === undefined || port.hostPort === null ? '—' : String(port.hostPort)} → {String(port.containerPort)}/{port.protocol}
             </Badge>
           ))}
         </div>

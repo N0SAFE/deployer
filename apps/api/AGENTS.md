@@ -43,8 +43,8 @@ Testing and checks:
 
 ## Supervised / Compose-managed platform services
 
-Platform services (global Postgres, Redis, local SQLite, Traefik, per-node
-WireGuard sidecar, DB service primitive, failover proxy, managed web) are
+Platform services (global Postgres, Redis, local SQLite, Traefik, the public
+edge connector, DB service primitive, managed web) are
 **API-supervised as SWARM SERVICES** (the default) or **deployment-managed**
 (`MANAGED_<SERVICE>_ENABLED=true` — compose/operator owns the process and the
 supervisor only wires networks). The `MANAGED_<SERVICE>_ENABLED` env flags +
@@ -57,8 +57,8 @@ into the nested `managed[service].key` / `.enabled` shape.
 
 | Scope | Runtime | Examples |
 |---|---|---|
-| `node-local` | `swarm-global` (one task per node) | Traefik ingress, WireGuard, failover proxy |
-| `mesh-wide` | `swarm-replicated` (one shared service) | global Postgres, Redis, database-service instances, managed web |
+| `node-local` | `swarm-global` (one task per node) | Traefik ingress |
+| `mesh-wide` | `swarm-replicated` (one shared service) | global Postgres, Redis, database-service instances, managed web, edge connector |
 | — | `managed` | `MANAGED_*_ENABLED=true` → link-only wiring, never spawn |
 | — | `unavailable` | engine is not a swarm member → **degrade**, never fall back to a container |
 
@@ -66,6 +66,22 @@ into the nested `managed[service].key` / `.enabled` shape.
 always available; a supervisor that still finds no active swarm reports
 `unavailable` with an actionable message instead of spawning a second,
 container-based copy of its process.
+
+The node's **mesh agent** and its **doors** are NOT supervised services: the
+agent is a plain host-network container (it must exist before Swarm, which binds
+its mesh address), started by setup or by `MeshAgentBootstrapService`, and it
+runs the doors itself. See `docs/edge-mesh-architecture.md`.
+
+## Edge providers (plugins)
+
+The public lane is served by ONE edge provider, chosen by the operator. Providers
+implement `EdgeProvider` (`src/core/modules/edge/edge-provider.ts`) and register
+themselves into `EdgeProviderRegistry` from their constructor. Core code (Traefik
+supervisor, `EdgeConnectorSupervisorService`, DNS plane, domain gate) only ever
+talks to the registry / `PublicEdgeService` — never name a provider in core.
+Built in: `direct` (core/modules/edge/providers) and `cloudflare-tunnel`
+(modules/providers/edge). Cluster-wide state goes through `ClusterSettingsService`
+(replicated by the mesh), never a node-local store.
 
 ## Boot model: ONE graph, and onboarding belongs to `apps/setup`
 

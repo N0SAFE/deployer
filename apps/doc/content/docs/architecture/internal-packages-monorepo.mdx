@@ -107,6 +107,39 @@ re-compiling every package implementation. Turbo drives it:
 | `watch:types` | root script: `turbo watch build:types` |
 | `type-check` / `lint` | wait for dependencies' `build:types` |
 
+### Configuring a package
+
+Each package declares its build in a typed `pkg-build.config.ts` at its root,
+and invokes the builder **by its bin name** — never by a path into another
+package's `dist/`:
+
+```json
+{
+    "scripts": {
+        "build": "bun --bun pkg-build",
+        "build:types": "bun --bun pkg-build --types",
+        "dev": "bun --bun pkg-build --watch"
+    }
+}
+```
+
+```ts
+// packages/<name>/pkg-build.config.ts
+import { defineConfig } from '@repo/pkg-build/config'
+
+export default defineConfig({
+    root: 'src',
+    include: ['components', 'hooks'],
+})
+```
+
+Every key is optional; `defineConfig({})` means "defaults apply". The config is
+validated against a Zod schema (unknown keys fail the build) and is part of the
+package's TS program, so a misspelled key fails `type-check` with a suggestion
+rather than being silently ignored. `@repo/pkg-build/config` exports the
+`defineConfig` helper, the `PkgBuildConfig` type, and the schema. See
+`tooling/bin-pkg-build/AGENTS.md` for the full key reference.
+
 Two declaration-emit rules follow from the above, both documented in
 `tooling/bin-pkg-build/AGENTS.md`:
 

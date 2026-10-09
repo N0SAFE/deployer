@@ -6,7 +6,7 @@ import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { Globe, ShieldCheck, Cloud, Rocket, Loader2, Plus, CheckCircle2, XCircle, Radio } from 'lucide-react'
 import { useDNSProviders } from '@/domains/dns-providers/hooks'
-import { AuthDashboardAdminDomains } from '@/routes'
+import { AuthDashboardNetworkDomains } from '@/routes'
 import type { CreateServiceFormApi } from '../CreateService.hook'
 import { DomainPicker } from '../DomainPicker'
 import { ServiceDomainConfig } from '../ServiceDomainConfig'
@@ -54,11 +54,11 @@ function DnsProvidersCard() {
             <p className="text-xs text-muted-foreground">
               No DNS provider connected. Connect one to auto-verify domains and create DNS records.
             </p>
-            <AuthDashboardAdminDomains.Link>
+            <AuthDashboardNetworkDomains.Link>
               <Button type="button" size="sm" variant="outline" className="h-7 w-fit gap-1.5 text-xs">
                 <Plus className="size-3.5" /> Connect a DNS provider
               </Button>
-            </AuthDashboardAdminDomains.Link>
+            </AuthDashboardNetworkDomains.Link>
           </div>
         ) : (
           <div className="grid gap-2 sm:grid-cols-2">

@@ -1,8 +1,8 @@
 /**
  * PlatformIngressModule — API-owned platform infrastructure helper services.
  *
- * Provides the platform helper services (hostname grammar, routing config,
- * app-instance identity, platform settings). The SUPERVISORS that consume
+ * Provides the platform helper services (hostname grammar, ingress lanes,
+ * app-instance identity, route sources). The SUPERVISORS that consume
  * them (Traefik ingress, managed web) live in the supervisors module — this
  * module deliberately imports nothing from `supervisors/` (one-way dependency
  * keeps the helpers reusable and the supervisors the sole consumers).
@@ -18,9 +18,7 @@ import { Global, Module } from "@nestjs/common";
 import { CoreDockerModule } from "@/core/modules/docker/docker.module";
 import { EnvModule } from "@/config/env/env.module";
 import { EnvHostnameService, HostnameService } from "./services/hostname.service";
-import { PlatformRouteConfigService } from "./services/platform-route-config.service";
-import { PlatformIngressSettingsService } from "./services/platform-ingress-settings.service";
-import { LocalIngressForwarderService } from "./services/local-ingress-forwarder.service";
+import { IngressLanesService } from "./services/ingress-lanes.service";
 import { AppInstanceService } from "./services/app-instance.service";
 import { PlatformConfigService } from "./services/platform-config.service";
 import { PlatformWebTargetService } from "./services/platform-web-target.service";
@@ -31,9 +29,7 @@ import { PlatformRoutesSource } from "./services/platform-routes-source.service"
 	imports: [CoreDockerModule, EnvModule],
 	providers: [
 		{ provide: HostnameService, useClass: EnvHostnameService },
-		PlatformRouteConfigService,
-		PlatformIngressSettingsService,
-		LocalIngressForwarderService,
+		IngressLanesService,
 		AppInstanceService,
 		PlatformConfigService,
 		PlatformWebTargetService,
@@ -41,9 +37,7 @@ import { PlatformRoutesSource } from "./services/platform-routes-source.service"
 	],
 	exports: [
 		HostnameService,
-		PlatformRouteConfigService,
-		PlatformIngressSettingsService,
-		LocalIngressForwarderService,
+		IngressLanesService,
 		AppInstanceService,
 		PlatformConfigService,
 		PlatformWebTargetService,

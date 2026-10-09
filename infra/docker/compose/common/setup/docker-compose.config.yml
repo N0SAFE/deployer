@@ -79,14 +79,18 @@ services:
       # The ingress publishes on the host, so a readiness probe against loopback
       # would test this container's own namespace and always fail.
       HOST_GATEWAY_ADDRESS: ${HOST_GATEWAY_ADDRESS:-host.docker.internal}
-      # The address this node advertises for cluster control traffic. Docker
-      # refuses to INFER one on a host with several candidates, so a founding
-      # node needs it explicitly (`could not choose an IP address to advertise`).
-      SWARM_ADVERTISE_ADDR: ${SWARM_ADVERTISE_ADDR:-}
+      # No advertise-address key: Swarm advertises, listens and carries its data
+      # path on this node's MESH address, which the mesh agent derives from its
+      # own WireGuard key (docs/edge-mesh-architecture.md).
       SWARM_QUORUM_MAX: ${SWARM_QUORUM_MAX:-3}
-      MANAGED_WIREGUARD_IP: ${MANAGED_WIREGUARD_IP:-}
-      # This node's own public URL — the last-resort control-plane candidate.
-      APP_URL: ${APP_URL:-http://web-dev:3000}
+      # The image of the per-node mesh agent. Setup starts it (a plain
+      # host-network container, `deployer-mesh-agent`) BEFORE founding the
+      # swarm, because the swarm binds the mesh address the agent brings up.
+      MESH_AGENT_IMAGE: ${MESH_AGENT_IMAGE:-deployer-mesh-agent:latest}
+      # Whether the agent setup starts brings up a REAL WireGuard interface.
+      # `observe` (dev default) plans and gossips without touching the kernel;
+      # `kernel` is what production runs. See common/api/docker-compose.config.yml.
+      MESH_AGENT_DATAPLANE: ${MESH_AGENT_DATAPLANE:-kernel}
     volumes:
       # Docker daemon socket: swarm init/join, (prod) service creation, AND the
       # bootstrap ingress container this app creates.
@@ -96,6 +100,12 @@ services:
       # mounts this SAME volume read-only at /config, which is how a route
       # written here reaches Traefik without either process talking to the other.
       - ${TRAEFIK_CONFIG_VOLUME:-deployer-traefik-config}:/app/traefik-configs
+      # The mesh agent's control socket (`/run/deployer-mesh/agent.sock`), shared
+      # with the agent container. The orchestrator MUST declare this volume as
+      # `deployer-mesh-run: { name: deployer-mesh-run }` — the literal name, not
+      # a project-prefixed one — because the agent and the API mount it by that
+      # exact name. An orchestrator that `!override`s this list must restate it.
+      - deployer-mesh-run:/run/deployer-mesh
     # `host-gateway` is REQUIRED, not a convenience: the ingress publishes its
     # entry port on the HOST, so reachability has to be checked through the host
     # gateway. Without this mapping `host.docker.internal` does not resolve and

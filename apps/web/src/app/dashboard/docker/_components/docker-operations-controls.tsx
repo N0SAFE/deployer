@@ -1,32 +1,33 @@
 'use client'
 
 import { useEffect } from 'react'
-import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
-import { toast } from 'sonner'
 
 interface DockerSavedViewSelectProps {
   storageKey: string
-  options: Array<{ value: string; label: string }>
+  /** Accessible name of the select (what it chooses). */
+  label?: string
+  options: { value: string; label: string }[]
   value: string
   onChange: (value: string) => void
 }
 
-export function DockerSavedViewSelect({ storageKey, options, value, onChange }: DockerSavedViewSelectProps) {
+export function DockerSavedViewSelect({ storageKey, label = 'Saved view', options, value, onChange }: DockerSavedViewSelectProps) {
   useEffect(() => {
-    const cached = globalThis.localStorage?.getItem(storageKey)
+    const cached = globalThis.localStorage.getItem(storageKey)
     if (cached && options.some((option) => option.value === cached)) {
       onChange(cached)
     }
   }, [onChange, options, storageKey])
 
   useEffect(() => {
-    globalThis.localStorage?.setItem(storageKey, value)
+    globalThis.localStorage.setItem(storageKey, value)
   }, [storageKey, value])
 
   return (
-    <select aria-label="{option.label}"
-      className="h-10 rounded-md border bg-background px-3 text-sm"
+    <select
+      aria-label={label}
+      className="h-9 rounded-md border bg-background px-3 text-sm"
       value={value}
       onChange={(event) => {
         onChange(event.target.value)
@@ -39,36 +40,64 @@ export function DockerSavedViewSelect({ storageKey, options, value, onChange }: 
   )
 }
 
+export type DockerBatchAction = 'start' | 'stop' | 'restart' | 'update' | 'remove'
+
+const BATCH_ACTION_LABELS: Record<DockerBatchAction, string> = {
+  start: 'Start',
+  stop: 'Stop',
+  restart: 'Restart',
+  update: 'Update',
+  remove: 'Remove',
+}
+
 interface DockerBatchOperationsBarProps {
   selectedCount: number
   resourceLabel: string
   onClearSelection: () => void
-  onAction?: (action: 'start' | 'stop' | 'restart' | 'update' | 'remove') => void
+  onAction?: (action: DockerBatchAction) => void
+  /** Which actions to offer, in order. Defaults to every action. */
+  actions?: readonly DockerBatchAction[]
+  /** How many of the selected items each action applies to; an action at 0 is disabled. */
+  applicableCounts?: Partial<Record<DockerBatchAction, number>>
+  /** Disables every action while one is running. */
+  busy?: boolean
 }
 
-export function DockerBatchOperationsBar({ selectedCount, resourceLabel, onClearSelection, onAction }: DockerBatchOperationsBarProps) {
+const ALL_BATCH_ACTIONS: readonly DockerBatchAction[] = ['start', 'stop', 'restart', 'update', 'remove']
+
+/** Bulk-action bar shown while rows are selected. Renders nothing when the selection is empty. */
+export function DockerBatchOperationsBar({
+  selectedCount,
+  resourceLabel,
+  onClearSelection,
+  onAction,
+  actions = ALL_BATCH_ACTIONS,
+  applicableCounts,
+  busy = false,
+}: DockerBatchOperationsBarProps) {
   if (selectedCount === 0) return null
 
-  function execute(action: 'start' | 'stop' | 'restart' | 'update' | 'remove'): void {
-    onAction?.(action)
-    if (!onAction) {
-      toast.success(`${action} queued`, {
-        description: `${String(selectedCount)} ${resourceLabel} selected`,
-      })
-    }
-  }
-
   return (
-    <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 flex flex-wrap items-center gap-2">
-      <Badge>{selectedCount} selected</Badge>
-      <span className="text-sm text-muted-foreground">Batch actions for {resourceLabel}</span>
+    <div role="region" aria-label={`Actions for selected ${resourceLabel}`} className="flex flex-wrap items-center gap-2 border-b border-border/60 bg-muted/30 px-3 py-2">
+      <span className="text-sm font-medium" aria-live="polite">{selectedCount} selected</span>
       <div className="ml-auto flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" onClick={() => execute('start')}>Start</Button>
-        <Button size="sm" variant="outline" onClick={() => execute('stop')}>Stop</Button>
-        <Button size="sm" variant="outline" onClick={() => execute('restart')}>Restart</Button>
-        <Button size="sm" variant="outline" onClick={() => execute('update')}>Update</Button>
-        <Button size="sm" variant="destructive" onClick={() => execute('remove')}>Remove</Button>
-        <Button size="sm" variant="ghost" onClick={onClearSelection}>Clear</Button>
+        {actions.map((action) => {
+          const applicable = applicableCounts?.[action]
+          const count = applicable === undefined ? '' : ` (${String(applicable)})`
+          return (
+            <Button
+              key={action}
+              size="sm"
+              variant={action === 'remove' ? 'destructive' : 'outline'}
+              disabled={busy || !onAction || applicable === 0}
+              title={applicable === 0 ? `None of the selected ${resourceLabel} can be ${BATCH_ACTION_LABELS[action].toLowerCase()}ed right now` : undefined}
+              onClick={() => { onAction?.(action) }}
+            >
+              {BATCH_ACTION_LABELS[action]}{count}
+            </Button>
+          )
+        })}
+        <Button size="sm" variant="ghost" onClick={onClearSelection}>Clear selection</Button>
       </div>
     </div>
   )

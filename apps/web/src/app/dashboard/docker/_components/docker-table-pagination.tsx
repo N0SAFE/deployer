@@ -30,7 +30,7 @@ export function DockerTablePagination({
   const canGoNext = page < totalPages
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">
+    <nav aria-label="Pagination" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 bg-background/50 px-3 py-2 text-xs">
       <div className="text-muted-foreground">
         Showing <span className="font-medium text-foreground">{from}</span>–<span className="font-medium text-foreground">{to}</span> of <span className="font-medium text-foreground">{totalRows}</span>
       </div>
@@ -82,6 +82,6 @@ export function DockerTablePagination({
           <ChevronRight className="h-3.5 w-3.5" />
         </Button>
       </div>
-    </div>
+    </nav>
   )
 }

@@ -10,20 +10,20 @@ import {
   LayoutDashboard,
   Network,
   Rocket,
+  Route as RouteIcon,
   ScrollText,
   Server,
   ServerCog,
   Settings,
-  SlidersHorizontal,
+  ShieldCheck,
   TerminalSquare,
   UserCircle,
   Users,
+  Waypoints,
   type LucideIcon,
 } from 'lucide-react'
 import {
   AuthDashboard,
-  AuthDashboardAdminDomains,
-  AuthDashboardAdminEdge,
   AuthDashboardAdminProviders,
   AuthDashboardAdminProvidersCode,
   AuthDashboardAdminProvidersCodeDockerHub,
@@ -33,10 +33,7 @@ import {
   AuthDashboardAdminProvidersDnsCloudflare,
   AuthDashboardAdminProvidersDnsGoogleDns,
   AuthDashboardAdminProvidersDnsRoute53,
-  AuthDashboardAdminSystem,
-  AuthDashboardAdminUsers,
   AuthDashboardCluster,
-  AuthDashboardConfiguration,
   AuthDashboardDeployments,
   AuthDashboardDocker,
   AuthDashboardDockerActivity,
@@ -46,9 +43,18 @@ import {
   AuthDashboardDockerNetworks,
   AuthDashboardDockerShell,
   AuthDashboardDockerVolumes,
+  AuthDashboardNetwork,
+  AuthDashboardNetworkDns,
+  AuthDashboardNetworkDomains,
+  AuthDashboardNetworkIngress,
+  AuthDashboardNetworkMesh,
   AuthDashboardNodes,
-  AuthDashboardProfile,
   AuthDashboardProjects,
+  AuthDashboardSettings,
+  AuthDashboardSettingsAccount,
+  AuthDashboardSettingsNode,
+  AuthDashboardSettingsSecurity,
+  AuthDashboardSettingsUsers,
   AuthDashboardServices,
   DashboardAnalytics,
 } from '@/routes'
@@ -73,6 +79,8 @@ export interface NavItem {
    * impossible to disambiguate from the rail alone.
    */
   exact?: boolean
+  /** Hidden from non-admin sessions, in the rail AND in search. */
+  adminOnly?: boolean
   /** Rendered as a nested `SidebarMenuSub`. */
   items?: NavSubItem[]
   /** Command-palette subtitle. */
@@ -85,11 +93,11 @@ export interface NavItem {
 
 export type NavGroupId =
   | 'platform'
+  | 'network'
   | 'workloads'
   | 'observability'
   | 'engine'
-  | 'admin'
-  | 'account'
+  | 'settings'
 
 export interface NavGroup {
   /** Stable key. Presentation branches on this, never on the label. */
@@ -156,12 +164,51 @@ export const NAV_GROUPS: NavGroup[] = [
         hint: 'Swarm state, managers & control plane',
         keywords: 'cluster swarm manager quorum control plane master',
       },
+    ],
+  },
+  {
+    // One group for every networking plane, so they read as one system: how
+    // clients reach the stack (ingress & edge), how nodes reach each other (mesh),
+    // where names point (DNS), and the domains deployments publish on top.
+    id: 'network',
+    label: 'Network',
+    icon: Network,
+    items: [
       {
-        title: 'Mesh config',
-        url: AuthDashboardConfiguration(),
-        icon: SlidersHorizontal,
-        hint: 'Mesh-wide settings & per-node configuration',
-        keywords: 'configuration settings node mesh trust keyring bootstrap',
+        title: 'Network',
+        url: AuthDashboardNetwork(),
+        icon: Network,
+        exact: true,
+        hint: 'Lanes, edge, mesh & DNS at a glance',
+        keywords: 'network overview reachability exposure join',
+      },
+      {
+        title: 'Ingress & edge',
+        url: AuthDashboardNetworkIngress(),
+        icon: RouteIcon,
+        hint: 'Lanes & the public edge provider',
+        keywords: 'ingress edge traefik tunnel cloudflare direct lanes public private local doors ports',
+      },
+      {
+        title: 'Mesh',
+        url: AuthDashboardNetworkMesh(),
+        icon: Waypoints,
+        hint: 'WireGuard members & links',
+        keywords: 'mesh wireguard members peers links handshake join admit revoke',
+      },
+      {
+        title: 'DNS',
+        url: AuthDashboardNetworkDns(),
+        icon: Network,
+        hint: 'Records the lanes need',
+        keywords: 'dns records cname wildcard zone',
+      },
+      {
+        title: 'Domains',
+        url: AuthDashboardNetworkDomains(),
+        icon: Globe,
+        hint: 'Custom domains & TLS',
+        keywords: 'domains dns verify tls certificates hostnames',
       },
     ],
   },
@@ -194,25 +241,6 @@ export const NAV_GROUPS: NavGroup[] = [
         hint: 'Timeline & rollouts',
         shortcut: 'g d',
         keywords: 'rollout release timeline deploys',
-      },
-      {
-        // Listed here, not under Admin Panel: domains are what a deployment
-        // exposes. The route is namespaced under /admin, which is an accident
-        // of where it was first built, not a statement about who uses it.
-        title: 'Domains',
-        url: AuthDashboardAdminDomains(),
-        icon: Globe,
-        hint: 'Custom domains & TLS',
-        keywords: 'domains dns verify tls certificates hostnames',
-      },
-      {
-        // Sits beside Domains for the same reason: the edge is HOW those
-        // domains reach the stack. Same /admin namespace accident.
-        title: 'Edge & Ingress',
-        url: AuthDashboardAdminEdge(),
-        icon: Network,
-        hint: 'Direct DNS or tunnel',
-        keywords: 'edge ingress traefik tunnel cloudflare direct dns port entry',
       },
     ],
   },
@@ -290,24 +318,46 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    id: 'admin',
-    label: 'Admin Panel',
+    // ONE home for settings, ordered from personal to platform-wide. Settings that
+    // belong to a thing live WITH that thing — network lanes under Network, swarm
+    // participation under Cluster, capacity under Nodes, project/service config on
+    // their own pages — and the hub (`Overview`) says so and links there.
+    id: 'settings',
+    label: 'Settings',
     icon: Settings,
-    adminOnly: true,
     items: [
       {
-        title: 'Users',
-        url: AuthDashboardAdminUsers(),
-        icon: Users,
-        hint: 'Accounts & roles',
-        keywords: 'users accounts roles permissions',
+        title: 'Settings',
+        url: AuthDashboardSettings(),
+        icon: Settings,
+        exact: true,
+        hint: 'Where every setting lives',
+        shortcut: 'g a',
+        keywords: 'settings preferences configuration admin hub overview',
       },
       {
-        title: 'Providers',
+        title: 'Account',
+        url: AuthDashboardSettingsAccount(),
+        icon: UserCircle,
+        hint: 'Your profile, password & appearance',
+        shortcut: 'g u',
+        keywords: 'account profile user password avatar theme dark light appearance',
+      },
+      {
+        title: 'Users & access',
+        url: AuthDashboardSettingsUsers(),
+        icon: Users,
+        adminOnly: true,
+        hint: 'Platform users & roles',
+        keywords: 'users accounts roles permissions ban invite access admin',
+      },
+      {
+        title: 'Integrations',
         url: AuthDashboardAdminProviders(),
         icon: GitFork,
-        hint: 'Source & DNS integrations',
-        keywords: 'providers code dns cloudflare github gitlab route53 docker hub',
+        adminOnly: true,
+        hint: 'Git hosts, registries & DNS providers',
+        keywords: 'integrations providers code dns cloudflare github gitlab route53 docker hub tokens',
         items: [
           { title: 'Code providers', url: AuthDashboardAdminProvidersCode() },
           { title: 'GitHub', url: AuthDashboardAdminProvidersCodeGithub() },
@@ -320,31 +370,35 @@ export const NAV_GROUPS: NavGroup[] = [
         ],
       },
       {
-        title: 'System',
-        url: AuthDashboardAdminSystem(),
-        icon: Settings,
-        hint: 'Control plane',
-        shortcut: 'g a',
-        keywords: 'system control plane readiness upgrade version mesh',
+        title: 'This node',
+        url: AuthDashboardSettingsNode(),
+        icon: Server,
+        adminOnly: true,
+        hint: 'Configuration, address & database of this node',
+        keywords: 'node configuration database url secret restart address public',
       },
-    ],
-  },
-  {
-    id: 'account',
-    label: 'Account',
-    icon: UserCircle,
-    items: [
       {
-        title: 'Profile',
-        url: AuthDashboardProfile(),
-        icon: UserCircle,
-        hint: 'Account settings',
-        shortcut: 'g u',
-        keywords: 'account user settings profile password avatar',
+        title: 'Security',
+        url: AuthDashboardSettingsSecurity(),
+        icon: ShieldCheck,
+        adminOnly: true,
+        hint: 'Mesh trust keyring & strict mode',
+        keywords: 'security trust keyring strict mode keys rotate mesh',
       },
     ],
   },
 ]
+
+/**
+ * The groups a session may see, with admin-only entries filtered out and groups
+ * left empty dropped. ONE filter for the rail and the palette, so a page hidden
+ * from one is never offered by the other.
+ */
+export function visibleNavGroups(isAdmin: boolean): NavGroup[] {
+  return NAV_GROUPS.filter((group) => group.adminOnly !== true || isAdmin)
+    .map((group) => ({ ...group, items: group.items.filter((item) => item.adminOnly !== true || isAdmin) }))
+    .filter((group) => group.items.length > 0)
+}
 
 /** An entry owns every path beneath it unless it is marked `exact`. */
 export function isNavItemActive(

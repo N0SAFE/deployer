@@ -18,15 +18,15 @@
     },
     "scripts": {
         "clean": "rm -rf dist",
-        "build": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js",
+        "build": "bun --bun pkg-build",
         "compile": "bun x cross-env COMPILE_MODE=true bun run build",
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "dev": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js --watch",
+        "dev": "bun --bun pkg-build --watch",
         "lint": "bunx eslint . --cache",
         "type-check": "tsc --noEmit",
-        "build:types": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js --types"
+        "build:types": "bun --bun pkg-build --types"
     },
     "dependencies": {
         "@octokit/webhooks-types": "catalog:utils",
@@ -55,22 +55,5 @@
         "@repo/config-typescript": "*",
         "typescript": "catalog:build",
         "@repo/pkg-build": "*"
-    },
-    "pkgBuild": {
-        "root": ".",
-        "entries": [
-            "index.ts"
-        ],
-        "formats": [
-            "esm"
-        ],
-        "flat": true,
-        "target": "bun",
-        "minify": true,
-        "external": [
-            "@orpc/contract",
-            "@orpc/shared",
-            "zod"
-        ]
     }
 }

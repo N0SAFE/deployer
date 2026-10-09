@@ -6,6 +6,7 @@ import { SetupController } from "./setup.controller";
 import { InitializationService } from "@/core/modules/setup/services/initialization.service";
 import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
 import { PostSetupDestinationService } from "../services/post-setup-destination.service";
+import { PostSetupVerificationService } from "../services/post-setup-verification.service";
 import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
 
 function createImplementMock() {
@@ -92,6 +93,11 @@ describe("SetupController", () => {
                     // wizard's final click lands. Stubbed here because this spec
                     // is about the controller's FORWARDING behaviour, and the
                     // resolver has its own concerns (the managed-web flag).
+                    provide: PostSetupVerificationService,
+                    // Stubbed for the same reason: the verification has its own spec.
+                    useValue: { verify: vi.fn(async () => ({ checkedAt: new Date(0).toISOString(), targets: [] })) },
+                },
+                {
                     provide: PostSetupDestinationService,
                     useValue: {
                         resolve: vi.fn(async () => ({

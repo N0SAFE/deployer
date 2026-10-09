@@ -4,6 +4,7 @@ import { implement, ORPCError } from "@orpc/server";
 import { setupAppContract } from "@repo/api-contracts";
 import type {
   SetupPostSetupDestination,
+  SetupPostSetupVerification,
   SetupProbeDbResult,
   SetupProbeMeshResult,
   SetupRemoteAuthResult,
@@ -14,6 +15,7 @@ import { WizardStateService } from "./wizard-state.service";
 import { WizardStreamService } from "./wizard-stream.service";
 import { WizardUpstreamService } from "./wizard-upstream.service";
 import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
+import { SetupPhaseService } from "@/modules/health/setup-phase.service";
 
 /**
  * The forwarded bodies, named by the entity schemas rather than re-declared.
@@ -64,6 +66,7 @@ export class WizardController {
     private readonly gate: SetupGateService,
     private readonly state: WizardStateService,
     private readonly orchestration: OrchestrationStreamService,
+    private readonly phase: SetupPhaseService,
   ) {}
 
   // ─── State (answered LOCALLY — the API does not exist yet) ──────────────
@@ -253,6 +256,53 @@ export class WizardController {
           managedWebEnabled: false,
         };
       }
+    });
+  }
+
+  // ─── Proof that the platform really answers (forwarded) ─────────────────
+
+  /**
+   * Relay the API's verdict on whether it and the dashboard answer through the
+   * cluster ingress.
+   *
+   * NO FALLBACK, unlike the destination. A destination has a safe default (this
+   * app's own origin); a verification does not — inventing "all good" for an API
+   * that did not answer would be exactly the false success this exists to catch.
+   * The transport failure surfaces as `SERVICE_UNAVAILABLE`, which the wizard
+   * treats as "still waiting": the API legitimately goes quiet for a moment
+   * while the ingress is swapped.
+   */
+  @Implement(setupAppContract.getPostSetupVerification)
+  getPostSetupVerification() {
+    return implement(setupAppContract.getPostSetupVerification).handler(async () =>
+      await this.forwardJson<SetupPostSetupVerification>("/setup/post-setup/verification", "GET", undefined),
+    );
+  }
+
+  // ─── Recovery ───────────────────────────────────────────────────────────
+
+  /**
+   * Run the handover again after it failed.
+   *
+   * A failed handover tore nothing down, and every step is idempotent, so the
+   * recovery is "do it again" rather than "start over and re-enter everything".
+   * Re-entering `launching` is what the handover pipeline is subscribed to — the
+   * same edge that started it the first time — so there is ONE way to run it.
+   *
+   * Refused unless the run actually FAILED: a retry clicked mid-handover would
+   * otherwise reset a phase that is working.
+   */
+  @Implement(setupAppContract.retryHandover)
+  retryHandover() {
+    return implement(setupAppContract.retryHandover).handler(() => {
+      if (this.phase.current().phase !== "failed") {
+        return { status: 201 as const, headers: {}, body: { accepted: false } };
+      }
+      this.logger.log("Operator asked to retry the failed handover");
+      this.orchestration.clearFailure();
+      this.phase.reset();
+      this.phase.record("launching", "Retrying the handover");
+      return { status: 201 as const, headers: {}, body: { accepted: true } };
     });
   }
 

@@ -1,209 +1,167 @@
 'use client'
 
-import { isDefinedORPCError, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { useMemo } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
+import { ArrowUpRight, Rocket } from 'lucide-react'
 import { useProject, useProjectEnvironments } from '@/domains/project/hooks'
 import { useServiceList } from '@/domains/service/hooks'
 import { useDeploymentList } from '@/domains/deployment/hooks'
+import { filterProjectTopLevelServices } from '@/domains/service/hierarchy'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
-import { Siren, ArrowUpRight, Boxes, Layers, Rocket, GitBranch } from 'lucide-react'
-import { EmptyState } from '@/components/dashboard'
+import { Button } from '@repo/ui/components/shadcn/button'
+import { EmptyState, EnvironmentBadge, StatStrip, StatStripItem, StatusBadge } from '@/components/dashboard'
+import { PageSkeleton } from '@/components/dashboard/Skeletons'
 import {
   AuthDashboardProjectsProjectIdServices,
+  AuthDashboardProjectsProjectIdServicesServiceId,
   AuthDashboardProjectsProjectIdEnvironments,
   AuthDashboardProjectsProjectIdDeployments,
   AuthDashboardProjectsProjectIdDependencies,
 } from '@/routes'
-import { formatDate } from './_utils/helpers'
-import { filterProjectTopLevelServices } from '@/domains/service/hierarchy'
+import { InlineError } from '../_components/workload/WorkloadStates'
+import { RelativeTime } from '../_components/workload/RelativeTime'
+import { toTime } from '../_utils/workload'
 
 /**
- * Project Overview — the lean project dashboard.
- *
- * The project identity header + section nav live in the layout. This page
- * ONLY renders dashboard content: KPI stats, recent deployments, and quick
- * links to the dedicated Services / Environments / Deployments pages.
- * No service tables, no create wizards, no config — those live in their
- * own pages now.
+ * Project overview — vitals plus the latest deployments. The identity header and
+ * section nav live in the layout; services, environments and deployments each have
+ * their own page, linked from here.
  */
 export default function DashboardProjectOverviewPage() {
   const params = useParams<{ projectId: string }>()
+  const router = useRouter()
   const projectId = params.projectId || ''
 
-  const { data: projectData, isLoading: projectLoading, error: projectError } = useProject(projectId)
-  const { data: servicesData, isLoading: servicesLoading, error: servicesError } = useServiceList({ query: { limit: 100, offset: 0 } })
-  const { data: environmentsData, isLoading: envLoading, error: envError } = useProjectEnvironments(projectId)
-  const { data: deploymentsData, isLoading: deploymentsLoading, error: deploymentsError } = useDeploymentList({
-    query: {
-      filter: { projectId: { operator: 'eq' as const, value: projectId } },
-      limit: 50,
-      offset: 0,
-    },
+  const projectQuery = useProject(projectId)
+  const servicesQuery = useServiceList({ query: { limit: 100, offset: 0 } })
+  const environmentsQuery = useProjectEnvironments(projectId)
+  const deploymentsQuery = useDeploymentList({
+    query: { filter: { projectId: { operator: 'eq' as const, value: projectId } }, limit: 50, offset: 0 },
   })
 
-  const localServices = useMemo(
-    () => filterProjectTopLevelServices(servicesData?.data ?? [], projectId),
-    [servicesData, projectId],
+  const services = useMemo(
+    () => filterProjectTopLevelServices(servicesQuery.data?.data ?? [], projectId),
+    [servicesQuery.data, projectId],
   )
-  const environments = useMemo(() => {
-    if (environmentsData) return Array.isArray(environmentsData) ? environmentsData : (environmentsData as any).environments ?? []
-    return []
-  }, [environmentsData])
-  const deploymentItems = useMemo(() => deploymentsData?.data ?? [], [deploymentsData])
+  const serviceNames = useMemo(() => new Map(services.map((s) => [s.id, s.name])), [services])
+  const environments = environmentsQuery.data?.environments ?? []
+  const deployments = useMemo(() => deploymentsQuery.data?.data ?? [], [deploymentsQuery.data])
+  const recent = useMemo(
+    () => [...deployments].sort((a, b) => (toTime(b.createdAt) ?? 0) - (toTime(a.createdAt) ?? 0)).slice(0, 8),
+    [deployments],
+  )
 
-  const activeServices = localServices.filter((s: any) => (s.status ?? s.state ?? 'active') === 'active').length
+  if (projectQuery.isLoading) return <PageSkeleton label="Loading project" blocks={1} />
 
-  const recentDeployments = useMemo(() => {
-    return [...deploymentItems]
-      .sort((a: any, b: any) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')))
-      .slice(0, 8)
-  }, [deploymentItems])
-
-  if (projectLoading || servicesLoading || envLoading || deploymentsLoading) {
+  const firstError = projectQuery.error ?? servicesQuery.error ?? environmentsQuery.error ?? deploymentsQuery.error
+  if (projectQuery.error) {
     return (
-      <div className="space-y-6">
-        {/* Matches the loaded layout: a thin summary row, not four tall cards. */}
-        <Skeleton className="h-12 w-full rounded-xl" />
-        <Skeleton className="h-72 w-full rounded-xl" />
-      </div>
+      <InlineError title="Could not load this project" error={projectQuery.error} onRetry={() => void projectQuery.refetch()} />
     )
   }
-
-  if (projectError || servicesError || envError || deploymentsError) {
-    const activeError = projectError ?? servicesError ?? envError ?? deploymentsError
-    return (
-      <Alert variant="destructive">
-        <Siren className="size-4" />
-        <AlertTitle>Failed to load project data</AlertTitle>
-        <AlertDescription>
-          {isDefinedORPCError(activeError) ? getErrorMessage(activeError, 'An unexpected error occurred.') : 'An unexpected error occurred.'}
-        </AlertDescription>
-      </Alert>
-    )
+  if (!projectQuery.data) {
+    return <InlineError title="Project not found" error={new Error('It does not exist or has been deleted.')} />
   }
 
-  if (!projectData) {
-    return (
-      <Alert variant="destructive">
-        <Siren className="size-4" />
-        <AlertTitle>Project not found</AlertTitle>
-        <AlertDescription>The requested project does not exist or has been deleted.</AlertDescription>
-      </Alert>
-    )
+  const retryAll = () => {
+    void servicesQuery.refetch()
+    void environmentsQuery.refetch()
+    void deploymentsQuery.refetch()
   }
-
-  // Three real counts. "Dependencies" is deliberately NOT one of them: its
-  // "value" was the literal string "Graph", making it a navigation link wearing
-  // a metric's clothes. It stays reachable — as a link, at the end of the row.
-  const kpis = [
-    {
-      label: 'Services',
-      value: String(localServices.length),
-      sub: `${String(activeServices)} active`,
-      icon: Boxes,
-      route: AuthDashboardProjectsProjectIdServices,
-    },
-    {
-      label: 'Environments',
-      value: String(environments.length),
-      sub: environments.map((e: any) => e.name).slice(0, 3).join(', ') || 'none',
-      icon: GitBranch,
-      route: AuthDashboardProjectsProjectIdEnvironments,
-    },
-    {
-      label: 'Deployments',
-      value: String(deploymentItems.length),
-      sub: 'All time',
-      icon: Rocket,
-      route: AuthDashboardProjectsProjectIdDeployments,
-    },
-  ]
+  const activeServices = services.filter((s) => s.isActive).length
+  const failing = services.filter((s) => {
+    const last = recent.find((d) => d.serviceId === s.id)
+    return last?.status === 'failed'
+  }).length
 
   return (
-    <div className="space-y-6">
-      {/*
-        Project summary — one dense row instead of a 4-up KPI card grid.
-        The strip under a page title is the most valuable space on the screen.
-        Spending four bordered cards (each with a header, an icon, a hover state
-        and a sparkle arrow) to carry three integers pushed the content people
-        actually came for — services, deployments — below the fold.
-      */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-border/60 bg-card/30 px-4 py-3">
-        {kpis.map(({ label, value, sub, icon: Icon, route: Route }) => (
-          <Route.Link key={label} projectId={projectId} className="group flex items-center gap-2">
-            <Icon className="size-3.5 shrink-0 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">{label}</span>
-            <span className="text-sm font-medium tabular-nums text-foreground transition-colors group-hover:text-primary">
-              {value}
-            </span>
-            <span className="hidden truncate text-xs text-muted-foreground sm:inline">· {sub}</span>
-          </Route.Link>
-        ))}
-        <AuthDashboardProjectsProjectIdDependencies.Link
-          projectId={projectId}
-          className="group ml-auto flex items-center gap-1 text-xs font-medium text-primary"
-        >
-          Dependency graph
-          <ArrowUpRight className="size-3 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-        </AuthDashboardProjectsProjectIdDependencies.Link>
-      </div>
+    <div className="space-y-5">
+      {firstError ? (
+        <InlineError title="Some project data could not be loaded" error={firstError} onRetry={retryAll} />
+      ) : null}
 
-      {/* Recent deployments */}
-      <Card className="border-border/60 bg-card/40 backdrop-blur-xl">
-        <CardHeader className="flex flex-row items-center justify-between">
+      <StatStrip
+        trailing={
+          <AuthDashboardProjectsProjectIdDependencies.Link
+            projectId={projectId}
+            className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+          >
+            Dependency graph
+            <ArrowUpRight className="size-3.5" aria-hidden />
+          </AuthDashboardProjectsProjectIdDependencies.Link>
+        }
+      >
+        <StatStripItem
+          label="Services"
+          value={servicesQuery.isLoading ? undefined : services.length}
+          hint={servicesQuery.isLoading ? 'loading' : `${String(activeServices)} switched on`}
+        />
+        <StatStripItem
+          label="Environments"
+          value={environmentsQuery.isLoading || environmentsQuery.isError ? undefined : environments.length}
+          hint={environments.slice(0, 3).map((e) => e.name).join(', ') || undefined}
+        />
+        <StatStripItem
+          label="Recent deployments"
+          value={deploymentsQuery.isLoading || deploymentsQuery.isError ? undefined : deployments.length}
+          hint={failing > 0 ? `${String(failing)} service${failing === 1 ? '' : 's'} failing` : undefined}
+          tone={failing > 0 ? 'danger' : undefined}
+        />
+      </StatStrip>
+
+      <Card>
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
           <div>
-            <CardTitle className="text-base">Recent deployments</CardTitle>
-            <CardDescription className="text-xs">Latest deployment activity in this project.</CardDescription>
+            <CardTitle className="text-base">Latest deployments</CardTitle>
+            <CardDescription>The most recent runs across this project’s services.</CardDescription>
           </div>
-          <AuthDashboardProjectsProjectIdDeployments.Link projectId={projectId}>
-            <Badge variant="outline" className="cursor-pointer">View all</Badge>
-          </AuthDashboardProjectsProjectIdDeployments.Link>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline" size="sm">
+              <AuthDashboardProjectsProjectIdServices.Link projectId={projectId}>Services</AuthDashboardProjectsProjectIdServices.Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <AuthDashboardProjectsProjectIdEnvironments.Link projectId={projectId}>Environments</AuthDashboardProjectsProjectIdEnvironments.Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <AuthDashboardProjectsProjectIdDeployments.Link projectId={projectId}>All deployments</AuthDashboardProjectsProjectIdDeployments.Link>
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
-          {recentDeployments.length === 0 ? (
+          {deploymentsQuery.isLoading ? (
+            <p role="status" className="text-sm text-muted-foreground">Loading deployments…</p>
+          ) : deploymentsQuery.isError ? null : recent.length === 0 ? (
             <EmptyState
-              icon={Layers}
+              icon={Rocket}
               title="No deployments yet"
-              description="Deployments appear here once a service is deployed."
+              description={
+                services.length === 0
+                  ? 'Create a service first, then deploy it. Runs show up here.'
+                  : 'Open a service and choose Deploy. Runs show up here.'
+              }
+              action={{
+                label: services.length === 0 ? 'Create a service' : 'Open services',
+                onClick: () => { router.push(AuthDashboardProjectsProjectIdServices({ projectId })) },
+              }}
               compact
             />
           ) : (
-            <div className="divide-y divide-border/60">
-              {recentDeployments.map((dep: any) => {
-                const status = dep.status ?? 'unknown'
-                const envName = dep.environment ?? (dep as any).environmentId
-                const isSuccess = status === 'success' || status === 'healthy' || status === 'succeeded'
-                const isFailure = status === 'failed' || status === 'error' || status === 'cancelled'
-                return (
-                  <AuthDashboardProjectsProjectIdDeployments.Link
-                    key={dep.id}
+            <ul className="divide-y divide-border/60">
+              {recent.map((d) => (
+                <li key={d.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
+                  <StatusBadge status={d.status} />
+                  <AuthDashboardProjectsProjectIdServicesServiceId.Link
                     projectId={projectId}
-                    className="group/deploy block"
+                    serviceId={d.serviceId}
+                    className="min-w-0 truncate text-sm font-medium hover:underline"
                   >
-                    <div className="flex items-center justify-between gap-3 py-2.5 transition-colors group-hover/deploy:bg-background/40">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
-                            {envName ?? '—'}
-                          </Badge>
-                          <p className="truncate text-sm font-medium">{dep.name ?? dep.id}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <Badge variant={isFailure ? 'destructive' as const : isSuccess ? 'default' as const : 'secondary' as const}>
-                          {status}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">{formatDate(dep.createdAt ?? '')}</span>
-                      </div>
-                    </div>
-                  </AuthDashboardProjectsProjectIdDeployments.Link>
-                )
-              })}
-            </div>
+                    {serviceNames.get(d.serviceId) ?? 'Sub-service'}
+                  </AuthDashboardProjectsProjectIdServicesServiceId.Link>
+                  <EnvironmentBadge environment={d.environment} />
+                  <RelativeTime value={d.createdAt} className="ml-auto text-sm text-muted-foreground" />
+                </li>
+              ))}
+            </ul>
           )}
         </CardContent>
       </Card>

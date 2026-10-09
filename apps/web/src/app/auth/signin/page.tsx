@@ -19,46 +19,22 @@ import { useForm } from '@tanstack/react-form'
 import React, { Suspense } from 'react'
 import redirect from '@/actions/redirect'
 import { AlertCircle, Spinner } from '@repo/ui/components/atomics/atoms/Icon'
-import { Badge } from '@repo/ui/components/shadcn/badge'
 import { loginSchema } from './schema'
 import { AuthSignup } from '@/routes'
-import { Fingerprint, Shield } from 'lucide-react'
+import { Rocket } from 'lucide-react'
 import { authClient } from '@/lib/auth'
 import { PageTimingLogger } from '@/lib/timing'
 import { useSetupState } from '@/domains/setup/hooks'
 import { setupDestinationUrl } from '@/lib/setup-url'
 import { useRouter } from 'next/navigation'
+import { PasswordInput } from '../_components/password-input'
+import { devConveniencesEnabled, signInErrorHint } from '../_utils/dev-only'
+import { PasskeySignInButton, LastUsedBadge } from './_components/passkey-button'
+import { DevDemoCredentials } from './_components/dev-demo-credentials'
+import { getPostSignInTarget, readUrlSearchParam } from './_utils/url'
 
-/**
- * Read one query parameter without a suspending hook.
- *
- * `useSearchParams()` suspends during a client prerender, which is what pushed
- * this page's content out of its static shell. `window.location.search` holds
- * the same value once mounted, and is read lazily — inside an effect or an event
- * handler — so no render-time URL-data read remains on the page.
- *
- * Returns `undefined` during SSR, and the real value after the first effect.
- */
-function readUrlSearchParam(key: string): string | undefined {
-    if (typeof window === 'undefined') return undefined
-    return new URLSearchParams(window.location.search).get(key) ?? undefined
-}
-
-/**
- * Resolve the post-sign-in destination at SUBMIT time.
- *
- * Reads window.location.search directly instead of useSearchParams(): the
- * submit handler runs on a client event, so no render-time URL-data read is
- * needed — this is what lets the whole form live in the static shell.
- * Same fallback chain as before: redirectTo ?? callbackUrl ?? '/'.
- */
-function getPostSignInTarget(): string {
-    return (
-        readUrlSearchParam('redirectTo') ??
-        readUrlSearchParam('callbackUrl') ??
-        '/'
-    )
-}
+/** Compile-time constant in production bundles (see `dev-only.ts`). */
+const DEV_CONVENIENCES = devConveniencesEnabled()
 
 /**
  * SetupGate — deferred leaf that redirects to /setup on fresh installs.
@@ -154,106 +130,6 @@ function SignUpLink() {
 }
 
 /**
- * "Last used" badge, driven by the Last Login Method plugin.
- *
- * Reads from the plugin's client helper, which stores the method in a cookie —
- * so this is a cheap synchronous read with no request. Rendered as a leaf so it
- * can be dropped next to any sign-in option without threading state.
- */
-function LastUsedBadge({ method }: { method: string }) {
-    const [isLast, setIsLast] = React.useState(false)
-
-    // Read after mount only: the helper touches `document.cookie`, so reading
-    // during render would diverge between server and client HTML.
-    React.useEffect(() => {
-        try {
-            setIsLast(authClient.isLastUsedLoginMethod(method))
-        } catch {
-            // The helper is absent when the plugin is not registered; a missing
-            // hint is not worth surfacing.
-            setIsLast(false)
-        }
-    }, [method])
-
-    if (!isLast) return null
-
-    return (
-        <Badge variant="secondary" className="ml-2 text-[10px] font-normal">
-            last used
-        </Badge>
-    )
-}
-
-/**
- * Passkey sign-in.
- *
- * Uses `autoFill` so the browser can satisfy the request from a credential the
- * user already picked in the autofill UI; when it cannot, the explicit
- * `signIn.passkey()` call opens the platform prompt.
- *
- * Only renders when the passkey client plugin is registered, so a deployment
- * without it does not show a button that cannot work.
- */
-function PasskeySignInButton() {
-    const hasPasskeyPlugin =
-        typeof (authClient as { passkey?: unknown }).passkey !== 'undefined'
-    const [busy, setBusy] = React.useState(false)
-    const [error, setError] = React.useState<string | null>(null)
-
-    if (!hasPasskeyPlugin) return null
-
-    const handleClick = async () => {
-        setBusy(true)
-        setError(null)
-        try {
-            const result = await authClient.signIn.passkey({ autoFill: false })
-
-            if (result?.error) {
-                // A cancelled prompt is the common case and needs no alarm —
-                // the browser already told the user what happened.
-                const message = result.error.message ?? 'Passkey sign-in failed'
-                if (!/cancel|abort|not allowed/i.test(message)) {
-                    setError(message)
-                }
-                return
-            }
-
-            // Full reload, not a client-side push: the session cookie changed,
-            // so every cached user-scoped value is stale.
-            window.location.href = getPostSignInTarget()
-        } catch (err) {
-            const message = err instanceof Error ? err.message : 'Passkey sign-in failed'
-            if (!/cancel|abort|not allowed/i.test(message)) {
-                setError(message)
-            }
-        } finally {
-            setBusy(false)
-        }
-    }
-
-    return (
-        <div className="space-y-2">
-            <Button
-                type="button"
-                variant="outline"
-                className="h-12 w-full text-base"
-                disabled={busy}
-                onClick={() => void handleClick()}
-            >
-                {busy ? <Spinner /> : <Fingerprint className="h-4 w-4" />}
-                <span className="ml-2">Sign in with a passkey</span>
-                <LastUsedBadge method="passkey" />
-            </Button>
-            {error && (
-                <p role="alert" className="text-destructive text-sm font-medium">
-                    {error}
-                </p>
-            )}
-        </div>
-    )
-}
-
-/**
  * Sign In page.
  *
  * Exported as a PLAIN component rather than `AuthSignin.Route(...)`.
@@ -314,21 +190,21 @@ export default function SignInPage() {
             <Suspense fallback={null}>
                 <SetupGate />
             </Suspense>
-            <div className="w-full max-w-md space-y-8">
+            <div className="w-full max-w-md space-y-6">
                 <Card>
                     <CardHeader className="space-y-4 text-center">
                         <div className="flex justify-center">
                             <div className="bg-primary/10 rounded-full p-3">
-                                <Shield className="text-primary h-8 w-8" />
+                                <Rocket className="text-primary h-8 w-8" aria-hidden />
                             </div>
                         </div>
                         <div>
                             <CardTitle className="text-2xl font-bold">
-                                Welcome Back
+                                Sign in to Deployer
                             </CardTitle>
                             <CardDescription className="text-base">
-                                Sign in to your account to access the NestJS
-                                application
+                                Use your account to manage the projects, services and
+                                nodes deployed on this server.
                             </CardDescription>
                         </div>
                     </CardHeader>
@@ -345,10 +221,11 @@ export default function SignInPage() {
                                 <form.Field name="email">
                                     {(field) => (
                                         <div className="space-y-2">
-                                            <Label htmlFor="email">Email Address</Label>
+                                            <Label htmlFor="email">Email address</Label>
                                             <Input
-                                                placeholder="john@example.com"
+                                                placeholder="you@example.com"
                                                 id="email"
+                                                autoFocus
                                                 type="email"
                                                 className="h-12"
                                                 autoComplete="username"
@@ -374,9 +251,8 @@ export default function SignInPage() {
                                     {(field) => (
                                         <div className="space-y-2">
                                             <Label htmlFor="password">Password</Label>
-                                            <Input
+                                            <PasswordInput
                                                 id="password"
-                                                type="password"
                                                 className="h-12"
                                                 autoComplete="current-password"
                                                 value={field.state.value}
@@ -398,7 +274,10 @@ export default function SignInPage() {
                                     <Alert variant="destructive">
                                         <AlertCircle className="h-4 w-4" />
                                         <AlertDescription>
-                                            {authError}
+                                            <p>{authError}</p>
+                                            {signInErrorHint(authError) ? (
+                                                <p className="mt-1">{signInErrorHint(authError)}</p>
+                                            ) : null}
                                         </AlertDescription>
                                     </Alert>
                                 )}
@@ -417,7 +296,7 @@ export default function SignInPage() {
                                             className="h-12 w-full text-base"
                                         >
                                             {isSubmitting && <Spinner />}
-                                            Sign In with Email
+                                            {isSubmitting ? 'Signing in…' : 'Sign in with email'}
                                             <LastUsedBadge method="email" />
                                         </Button>
                                     )}
@@ -429,40 +308,22 @@ export default function SignInPage() {
                                 otherwise meet a button that only shows a browser error. */}
                             <PasskeySignInButton />
 
-                            <div className="relative">
-                                <div className="absolute inset-0 flex items-center">
-                                    <span className="w-full border-t" />
-                                </div>
-                                <div className="relative flex justify-center text-xs uppercase">
-                                    <span className="bg-background text-muted-foreground px-2">
-                                        Demo Credentials
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className="bg-muted/50 rounded-lg p-4 text-sm">
-                                <p className="text-foreground mb-2 font-medium">
-                                    Try the demo:
-                                </p>
-                                <div className="text-muted-foreground space-y-1">
-                                    <p>
-                                        <strong>Email:</strong>{' '}
-                                        admin@admin.com
-                                    </p>
-                                    <p>
-                                        <strong>Password:</strong> adminadmin
-                                    </p>
-                                </div>
-                            </div>
+                            {DEV_CONVENIENCES ? <DevDemoCredentials /> : null}
                         </form>
                     </CardContent>
                 </Card>
-                <div className="text-muted-foreground text-center text-sm">
-                    <p>
-                        Don&apos;t have an account?{' '}
-                        <SignUpLink />
+                {DEV_CONVENIENCES ? (
+                    <div className="text-muted-foreground text-center text-sm">
+                        <p>
+                            Don&apos;t have an account?{' '}
+                            <SignUpLink />
+                        </p>
+                    </div>
+                ) : (
+                    <p className="text-muted-foreground text-center text-sm">
+                        Accounts are created by an administrator of this server. Ask yours for an invitation.
                     </p>
-                </div>
+                )}
 
                 {/* Timing Logger */}
                 <PageTimingLogger pageName="Sign In" />

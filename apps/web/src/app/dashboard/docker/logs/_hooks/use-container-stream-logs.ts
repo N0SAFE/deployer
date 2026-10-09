@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { useOnDepsChange } from '../../_hooks/use-on-deps-change'
 import { useDockerContainerLogsStream } from '@/domains/docker/hooks'
 import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
 import { useLogger } from '@/lib/logging/use-logger'
 import { extractContainerLogEntries } from '../_lib/log-entry-parser'
+import { mergeLines } from '../_lib/merge-lines'
 import { CONTAINER_STREAM_LOG_LIMIT, type LogLineProjection } from '../_models/logs.types'
-import { isRecord, isObjectLike } from "@repo/type-guards"
+import { isRecord } from "@repo/type-guards"
 
 interface ContainerStreamEntity {
   id: string
@@ -41,8 +43,12 @@ function resolveFallbackPayloadMessage(payload: unknown, depth = 0): string | nu
     return trimmed
   }
 
-  if (typeof payload !== 'object') {
+  if (typeof payload === 'number' || typeof payload === 'boolean' || typeof payload === 'bigint') {
     return String(payload)
+  }
+
+  if (typeof payload !== 'object') {
+    return null
   }
 
   if (Array.isArray(payload)) {
@@ -85,11 +91,16 @@ function resolveFallbackPayloadMessage(payload: unknown, depth = 0): string | nu
   }
 }
 
-export function useContainerStreamLogs(
-  activeContainerStreamEntity: ContainerStreamEntity | null,
-  isPaused: boolean,
-) {
-  const [containerStreamLogs, setContainerStreamLogs] = useState<LogLineProjection[]>([])
+/**
+ * Streams one container's logs into a capped, de-duplicated buffer.
+ *
+ * Pausing the *view* never touches this hook: the stream keeps filling the buffer
+ * so nothing is lost while the operator reads. When the stream drops and
+ * reconnects the server replays its tail; `mergeLines` drops ids already held, so
+ * the buffer keeps its history and gains no duplicates.
+ */
+export function useContainerStreamLogs(activeContainerStreamEntity: ContainerStreamEntity | null) {
+  const [containerStreamLogs, setContainerStreamLogs] = useState<readonly LogLineProjection[]>([])
   const activeContainerId = activeContainerStreamEntity?.id ?? null
   const activeContainerName = activeContainerStreamEntity?.name ?? null
 
@@ -97,7 +108,6 @@ export function useContainerStreamLogs(
     debugContainerLogsStream,
     'streamTargetChanged',
     {
-      paused: isPaused,
       containerId: activeContainerId,
       containerName: activeContainerName,
     },
@@ -107,8 +117,7 @@ export function useContainerStreamLogs(
       }
 
       return (
-        lastData.paused !== currentData.paused
-        || lastData.containerId !== currentData.containerId
+        lastData.containerId !== currentData.containerId
         || lastData.containerName !== currentData.containerName
       )
     },
@@ -127,15 +136,13 @@ export function useContainerStreamLogs(
   const containerLogsStreamQuery = useDockerContainerLogsStream(
     containerLogsStreamInput,
     {
-      enabled: !isPaused && activeContainerStreamEntity !== null,
+      enabled: activeContainerStreamEntity !== null,
     },
   )
 
-  useEffect(() => {
-    setContainerStreamLogs([])
-  }, [activeContainerId])
+  useOnDepsChange([activeContainerId], () => { setContainerStreamLogs([]) }, false)
 
-  useEffect(() => {
+  useOnDepsChange([activeContainerStreamEntity, containerLogsStreamQuery.data, containerLogsStreamQuery.isFetching], () => {
     if (!containerLogsStreamQuery.data || !activeContainerStreamEntity) {
       return
     }
@@ -192,6 +199,7 @@ export function useContainerStreamLogs(
           containerName: activeContainerStreamEntity.name,
           source: 'container',
           status: entry.level,
+          stream: entry.stream,
           message: entry.message,
           timestamp: entry.timestamp,
         })
@@ -206,37 +214,21 @@ export function useContainerStreamLogs(
       return
     }
 
-    setContainerStreamLogs((previous) => {
-      const deduped = new Map<string, LogLineProjection>()
+    setContainerStreamLogs((previous) => mergeLines(previous, nextLines, CONTAINER_STREAM_LOG_LIMIT))
+  })
 
-      for (const line of previous) {
-        deduped.set(line.id, line)
-      }
-
-      for (const line of nextLines) {
-        deduped.set(line.id, line)
-      }
-
-      const merged = Array.from(deduped.values()).slice(-CONTAINER_STREAM_LOG_LIMIT)
-
-      debugContainerLogsStream('mergedLinesIntoState', {
-        containerId: activeContainerStreamEntity.id,
-        previousCount: previous.length,
-        incomingCount: nextLines.length,
-        nextCount: merged.length,
-      })
-
-      return merged
-    })
-  }, [
-    activeContainerStreamEntity,
-    containerLogsStreamQuery.data,
-    containerLogsStreamQuery.isFetching,
-  ])
+  const { refetch } = containerLogsStreamQuery
+  const reconnect = useCallback(() => {
+    void refetch()
+  }, [refetch])
 
   return {
     containerStreamLogs,
     setContainerStreamLogs,
-    containerLogsStreamQuery,
+    /** True when the stream errored; the last buffered lines stay visible. */
+    streamError: containerLogsStreamQuery.isError ? containerLogsStreamQuery.error : null,
+    isStreamError: containerLogsStreamQuery.isError,
+    isStreamConnecting: activeContainerStreamEntity !== null && containerLogsStreamQuery.isPending,
+    reconnect,
   }
 }

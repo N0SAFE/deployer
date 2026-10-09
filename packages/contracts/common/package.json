@@ -19,10 +19,10 @@
     },
     "scripts": {
         "type-check": "tsc --noEmit",
-        "build": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js",
-        "dev": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js --watch",
+        "build": "bun --bun pkg-build",
+        "dev": "bun --bun pkg-build --watch",
         "clean": "rimraf dist",
-        "build:types": "bun --bun ../../../tooling/bin-pkg-build/dist/cjs/main.js --types"
+        "build:types": "bun --bun pkg-build --types"
     },
     "dependencies": {
         "@repo/type-guards": "*",

@@ -7,7 +7,7 @@ order: 23
 <DocMeta source="apps/doc/content/docs/deployment/onboarding-and-lifecycle.mdx" scope="canonical" />
 
 <DocCallout title="Status: current behavior" tone="success">
-This document describes the CURRENT runtime behavior of the API-centric deployment (**two apps with one handover** — `apps/setup` onboards and exits, `apps/api` boots one normal graph — plus supervisors owned by the API, Traefik-first ingress with failover proxy). It answers the three operational questions: **how does a fresh user get in, what happens on restart, and what are ALL the states in between**.
+This document describes the CURRENT runtime behavior of the API-centric deployment (**two apps with one handover** — `apps/setup` onboards and exits, `apps/api` boots one normal graph — plus supervisors owned by the API, Traefik-first ingress behind the mesh agent's node doors, whose local door keeps a rescue route for the console). It answers the three operational questions: **how does a fresh user get in, what happens on restart, and what are ALL the states in between**.
 </DocCallout>
 
 ## Table of contents
@@ -16,7 +16,7 @@ This document describes the CURRENT runtime behavior of the API-centric deployme
 2. [The master access matrix](#the-master-access-matrix)
 3. [How the user gets in — onboarding flow](#how-the-user-gets-in--onboarding-flow)
 4. [Supervisor state machine](#supervisor-state-machine)
-5. [Ingress state matrix (Traefik × proxy)](#ingress-state-matrix-traefik--proxy)
+5. [Ingress state matrix (Traefik × local door)](#ingress-state-matrix-traefik--local-door)
 6. [Restart matrix](#restart-matrix)
 7. [Failure matrix & recovery playbook](#failure-matrix--recovery-playbook)
 8. [Health surface](#health-surface)
@@ -38,10 +38,12 @@ flowchart TB
         A1["AppModule<br/>ORPC + product features + SSR views"]
         A2["/health (liveness) · /health/ready (readiness)"]
     end
-    SUP["Supervisors (owner: the API)<br/>Traefik · Direct-port proxy · Global DB · Local DB<br/>Redis · WireGuard · Managed web"]
+    SUP["Supervisors (owner: the API)<br/>Traefik · Edge connector · Global DB · Local DB<br/>Redis · Managed web"]
+    AGT["deployer-mesh-agent (per node, NOT supervised)<br/>WireGuard mesh · node doors"]
     S1 -->|persists choices| A1
     S3 -->|prod: schedules · dev: compose gates| API
     API --> SUP
+    SUP -.->|"node.doors via the mesh roster"| AGT
 ```
 
 - **Setup owns `setup.{prefix}deployer.localhost`; the API owns `api.{prefix}deployer.localhost`.** Traefik routes both by Host from two files, `dynamic-setup.yml` and `dynamic-api.yml`.
@@ -49,6 +51,7 @@ flowchart TB
 - **`GET /setup/health` means “the API may start”.** It is an INPUT to the API's existence, never a report about it — which is what keeps the dependency chain a straight line: `setup → api → web`.
 - **The wizard is served by SETUP, and the API executes.** Setup collects and persists; the API has the Drizzle schema, migrations and auth, so it does the provisioning. The setup contract (`/setup/*`) stays one implementation, in the API.
 - **Supervisors are owned by the API**, which is why readiness only turns green after they have converged.
+- **The mesh agent and its doors are not supervisors.** `deployer-mesh-agent` is a plain host-network container on every node (started by setup or the API, whichever reaches the node first); it runs the WireGuard mesh and the node's **doors** — the loopback/mesh listeners in front of Traefik — from the replicated `node.doors` setting the API publishes. See [Networking](/docs/deployment/networking).
 
 ### dev vs prod — the only difference
 
@@ -70,17 +73,17 @@ If `node_config.setupState` is already `setup_done`, setup skips the wizard (the
 
 > **How to reach the platform** for every combination of **setup phase** × **ingress state**. The URLs are the same in dev and prod; `{prefix}` is `DEPLOYER_PREFIX` (empty → no segment).
 
-| Setup phase | Traefik converged (entry port 80) | Traefik failed (proxy active) |
+| Setup phase | Traefik converged (entry port 80) | Traefik not answering (local door rescue route) |
 |---|---|---|
-| **Fresh boot — wizard open** (gate closed) | `http://setup.{prefix}deployer.localhost` — **the setup app**: the wizard page (served by setup; it forwards only the contract calls the API implements) | (setup is only reachable through Traefik; a failed ingress leaves the operator with `localhost:{DIRECT_PROXY_WEB_HOST_PORT}` for the web app once it exists) |
-| | `http://web.{prefix}deployer.localhost` — **not running yet**: `web-dev` gates on `api-dev` being healthy, which cannot happen before the gate opens | `http://localhost:{DIRECT_PROXY_WEB_HOST_PORT}` (default 3000) — the onboarding UI via the proxy's web forward |
-| **Setup in progress** (gate open, API provisioning) | Same URLs; the browser's SSE stream is served by the SETUP app, which forwards the API's frames — so nothing the operator is watching crosses the ingress swap | Same URLs; the proxy keeps forwarding while the flow runs |
-| **Setup complete** | `http://setup.{prefix}deployer.localhost` → the API's `/setup/done` page (the SETUP app has exited) | (transient) `http://localhost:{API_PORT}` → API |
-| | `http://api.{prefix}deployer.localhost` → API (auth + ORPC) | — |
-| | `http://web.{prefix}deployer.localhost` → the real web dashboard | `http://localhost:3000` → the real web dashboard |
+| **Fresh boot — wizard open** (gate closed) | `http://setup.{prefix}deployer.localhost` — **the setup app**: the wizard page (served by setup; it forwards only the contract calls the API implements) | (setup is only reachable through its bootstrap Traefik, bound to loopback; there is no rescue route yet — the doors and their rescue hosts are published by the API, which is not running) |
+| | `http://web.{prefix}deployer.localhost` — **not running yet**: `web-dev` gates on `api-dev` being healthy, which cannot happen before the gate opens | — |
+| **Setup in progress** (gate open, API provisioning) | Same URLs; the browser's SSE stream is served by the SETUP app, which forwards the API's frames — so nothing the operator is watching crosses the ingress swap | Same as above: no rescue route until the API's ingress supervisor has published the node doors |
+| **Setup complete** | `http://setup.{prefix}deployer.localhost` → the API's `/setup/done` page (the SETUP app has exited) | `setup.*` → 502 (not a rescue host) |
+| | `http://api.{prefix}deployer.localhost` → API (auth + ORPC) | `http://api.{prefix}deployer.localhost` → the local door serves it straight from the API container (this machine only) |
+| | `http://web.{prefix}deployer.localhost` → the real web dashboard | `http://web.{prefix}deployer.localhost` → the local door serves it straight from the web container (this machine only) |
 | **Setup complete + re-provisioned** (DB wiped) | The web's setup gate re-opens the onboarding UI automatically — the operator completes it again; the wizard stops at the running state until `setup_done` |
 
-**The rule of thumb:** the **web app is always where the human lands**. `web.{prefix}deployer.localhost` (or `localhost:3000` in proxy mode) serves the web app in every phase; the web app itself decides whether to show onboarding or the dashboard (its setup gate). `setup.{prefix}deployer.localhost` is where onboarding RUNS (the wizard page, then the done page), and `api.{prefix}deployer.localhost` is the machine surface (health + ORPC + `openapi.json` / `reference`).
+**The rule of thumb:** the **web app is always where the human lands**. `web.{prefix}deployer.localhost` serves the web app in every phase — through Traefik, or through the local door's rescue route when Traefik does not answer, so the URL never changes; the web app itself decides whether to show onboarding or the dashboard (its setup gate). `setup.{prefix}deployer.localhost` is where onboarding RUNS (the wizard page, then the done page), and `api.{prefix}deployer.localhost` is the machine surface (health + ORPC + `openapi.json` / `reference`). No port other than the doors' entry port is ever published for the console: the rescue route lives on the loopback door, not on a host port.
 
 **The setup hostname never disappears.** At handover, setup REWRITES `dynamic-setup.yml` to point the same host at the API's `/setup/done` page rather than deleting the router — deleting it would leave an operator who bookmarked the wizard with a Traefik 404.
 
@@ -143,18 +146,34 @@ When the API reports ready, the SETUP app performs the swap, in this order:
 1. **`dynamic-api.yml` is retargeted** at the API's backend. Done BEFORE waiting too, so the hostname changes BACKEND and never existence (a missing router is a 404).
 2. **`POST /setup/trigger` is delivered** to the API — the operator's choices, which is what makes it provision.
 3. **`/health/ready` is polled to `200`.** That is the convergence gate: nothing touches the setup hostname until the API is actually serving.
-4. **`dynamic-setup.yml` is rewritten** to point `setup.{prefix}deployer.localhost` at the API's `/setup/done` page.
-5. **`ready` is published** — the signal this app is about to stop.
-6. **The SETUP app exits** (after a short grace period for the Traefik reload and the final stream frames).
+4. **`promote_ingress`** — the bootstrap Traefik releases the entry port, the swarm ingress takes it, and setup waits until the new ingress ROUTES the API (a bound port is not enough: Traefik answers a plain-text 404 until it has loaded its routes). When a dashboard was requested, setup also waits until it is routed.
+5. **`dynamic-setup.yml` is rewritten** to point `setup.{prefix}deployer.localhost` at the API's `/setup/done` page.
+6. **`ready` is published** — the signal this app is about to stop.
+7. **The SETUP app exits** (after a short grace period for the Traefik reload and the final stream frames).
 
-**The user's stream never crosses the swap** because it terminates at the SETUP app: the wizard is served by setup and stays there for the whole of onboarding, so the browser was never talking to a port that changed hands. And a FAILED handover does not exit — the phase goes `failed` with the reason, `/setup/health` closes again, and the wizard stays reachable so the operator can retry.
+**The wizard's stream DOES cross the swap, and the wizard is built for it.** The browser reaches the wizard *through* the bootstrap Traefik, so step 4 tears the connection down. The client therefore:
+
+- treats a closed connection as an **interruption to retry** until the whole pipeline is done — not at the API's `completed`, which arrives *before* the swap — and says so (“Connection to setup interrupted — reconnecting…”);
+- is **re-synced** by the server on every reconnect: the current state of every step plus how the run ended (`completed` / `error` are remembered, because a re-sync skips history);
+- sees a **failure on the stream**, not just in the phase: the step that stopped is marked failed, an `error` event carries the reason, and **Retry the failed step** re-enters the handover (`POST /setup/handover/retry`) — nothing was torn down, so it simply runs again.
+
+### Step 4 — verification, then the button
+
+“The pipeline reported success” is not “the operator's browser can open the platform”, so the **Continue** button is gated on two final checks (the API, and the dashboard when one was requested), each with two halves that fail independently:
+
+| Half | Who | What it proves |
+|---|---|---|
+| **Routed** | the platform (`GET /setup/post-setup/verification`) | the cluster ingress routes the hostname, asked with the browser's `Host` header. Tells “up but no route yet” (Traefik's plain-text 404) from “backend failing” (5xx). |
+| **Reachable** | the browser (a `no-cors` fetch of the returned URL) | DNS, the port and the network path work from where the operator sits. |
+
+Both must pass. During the swap every check fails for a while, so a failure is a *wait* for up to 90 s, then a visible failure with **Check again** and **Continue anyway** (a browser that cannot resolve `*.deployer.localhost` is a real situation in which the platform itself is healthy). An API-only install skips the dashboard check. The checks run **after** the stream reports done and do not depend on it, so a dropped event can neither fake nor hide them.
 
 **The API then converges its supervisors** (swarm app wiring → global DB → Redis → managed web → ingress), which is what turns `/health/ready` green and keeps it green across restarts.
 
 ### After onboarding
 
 - The operator logs in with the seeded admin credentials.
-- The web dashboard is the day-to-day surface; the **management/developer surfaces** (managed-web toggle, entry-port warning/editor, supervisor health, global network/tunnel) are part of the web app / health surface below.
+- The web dashboard is the day-to-day surface; the **management/developer surfaces** (managed-web toggle, supervisor health, and the **Network** section — Overview / Ingress & edge / Mesh / DNS / Domains — where the lanes, the entry port, the public edge provider and mesh membership are managed) are part of the web app / health surface below.
 
 ---
 
@@ -195,7 +214,7 @@ sequenceDiagram
     Sup-->>A: converged
 ```
 
-- A blocked supervisor **never calls `reconcile()`**, so it does not touch Docker, does not retry, and does not cascade (a failing Traefik used to re-trigger the failover proxy three extra times).
+- A blocked supervisor **never calls `reconcile()`**, so it does not touch Docker, does not retry, and does not cascade (a failing Traefik used to re-trigger the old failover proxy — since replaced by the local door's rescue route — three extra times).
 - Recovery is **automatic**: the API's `onApplicationBootstrap` runs the ready pipeline and then converges every supervisor. No operator click required.
 - A deferred supervisor reports `healthy: false` with **zero `warnings[]`** — warnings are reserved for `degraded`.
 - `managed` (compose/operator-owned) resources also need an overlay, so they defer too until the swarm exists.
@@ -212,19 +231,19 @@ sequenceDiagram
 
 ---
 
-## Ingress state matrix (Traefik × proxy)
+## Ingress state matrix (Traefik × local door)
 
-The ingress is **two supervisors coordinating through the event bus** — Traefik is the single entry point; the proxy is a failover that only exists while Traefik is failed.
+The ingress is **Traefik behind the node's doors**. Traefik is a swarm `global` service with no host port of its own (its routes come from the API's HTTP provider); the node's `deployer-mesh-agent` runs the doors in front of it — `127.0.0.1:<entry port>` for the local lane, `<mesh address>:<entry port>` for the private lane. The **local door carries a rescue route**: when Traefik does not answer, it serves the platform's own hostnames (`api.*`, `web.*`) straight from the API and web containers. Nothing is ever published on another interface to compensate — see [Networking](/docs/deployment/networking).
 
-| Traefik state | Direct-port proxy | Host ports published | What `api.*` / `web.*` do | Operator sees |
+| Traefik state | Local door | Host listeners | What `api.*` / `web.*` do | Operator sees |
 |---|---|---|---|---|
-| **converged** (entry port bound) | **removed** (nothing) | Only the **entry port** (default 80) | Route normally to API + web via hostname | Nominal app |
-| **converging** (boot window) | **removed** (hold-off — proxy waits for the outcome) | None yet | Not yet routed | Brief wait; if Traefik then fails, its state event starts the proxy |
-| **not registered** (e.g. docker socket down at boot) | **running** (takeover) | `API_PORT` + `DIRECT_PROXY_WEB_HOST_PORT`(3000) | Hostname routing unavailable; direct-port URLs work | Warning: “Traefik ingress is FAILED — fallback proxy active. Fix the entry port.” |
-| **degraded — entry port taken** (`EntryPortConflictError`, fatal → no retry) | **running** (takeover) | `API_PORT` + 3000 via nginx, forwarding to container names over the platform network | Hostname routing unavailable; direct ports work | **Big warning banner in the web app** — “the app can't listen on port 80”. |
-| **degraded → converged** (operator set a free entry port) | **closes itself** (Traefik's `state-changed` event) | Back to only the entry port | Hostname routing restored | Warning clears |
+| **converged** | forwards everything to Traefik's `local` entrypoint | Only the doors (loopback; + mesh address with the private lane; + LAN address with "allow same-network join"). `:80`/`:443` on every node only with an acknowledged `direct` edge | Routed by Traefik on every enabled lane | Nominal app |
+| **converging / task not running** (boot window, crash, image pull) | Traefik unreachable → **rescue route** | Same doors | On this machine, served straight from the API / web containers; every other hostname returns 502 until Traefik is back | Supervisor `converging` / `degraded` in `/health/detailed` |
+| **degraded — inbound edge port taken** (`EntryPortConflictError`: a node already binds `:80`/`:443` for the `direct` edge; fatal → no retry) | rescue route | Doors only (the ingress service is removed) | Rescue on this machine; the public lane is down | Supervisor detail “A node already binds :80/:443”. Free the port or switch edge provider on **Network → Ingress & edge**. |
+| **any** — **the door cannot bind its port** (another process holds `127.0.0.1:<entry port>`) | `failed` | No loopback listener | Unreachable from this machine through the local lane; the private and public lanes are unaffected | The door is `failed` in the doors table on **Network → Ingress & edge**; change the entry port there (or stop the other process). |
+| **not started yet** (before the API has published `node.doors`) | absent | setup's bootstrap Traefik on loopback | — (onboarding phase) | The wizard |
 
-**Self-healing of the proxy:** if one of the service ports (`API_PORT` or 3000) is already bound by another process on the host, the proxy detects it on start failure, **drops only that forward**, and converges with the remaining ones (warning logged) — it never blocks the whole failover.
+**Why there is no “failover” host port any more:** the failover proxy this replaced published `:80`/`:3000`/`:3001` on every interface of every node whenever Traefik degraded. The rescue route keeps the console reachable on the machine itself without opening anything to the network.
 
 ---
 
@@ -234,18 +253,18 @@ The ingress is **two supervisors coordinating through the event bus** — Traefi
 
 | Scenario | What happens | End state | Timeout/notes |
 |---|---|---|---|
-| **API container restarts** (compose restart / crash) | Gateway boots → `node_config` already has a URL → verify → migrations no-op → main app. Supervisors re-run; Traefik/proxy reconcile to the same rules. | Nominal, no wizard | Health green from second 0; full ready in a few seconds. |
+| **API container restarts** (compose restart / crash) | Gateway boots → `node_config` already has a URL → verify → migrations no-op → main app. Supervisors re-run; Traefik and the node doors reconcile to the same state. | Nominal, no wizard | Health green from second 0; full ready in a few seconds. |
 | **Full stack restart** (`docker compose up -d`, same volumes) | API + web containers restart (DB volume persists). Same as API restart + web reboots against the same token/store. | Nominal | Web instance-token volume persists → no re-registration needed. |
-| **Host reboot** | Docker brings back containers by restart policy (`unless-stopped` on API/web/Traefik/managed-web; managed Postgres container is re-ensured by its supervisor). API re-attaches to the platform network. | Nominal | First to answer: `/health`. |
+| **Host reboot** | Docker brings back the mesh agent and containers by restart policy (`unless-stopped`); Swarm restarts its services (Traefik, managed Postgres, Redis, managed web). The mesh agent re-applies WireGuard (Swarm binds the mesh address) and re-converges the doors from its own roster copy, even before the API is back. API re-attaches to the platform network. | Nominal | First to answer: `/health`. |
 | **Managed Postgres container restarts/stopped** | `GlobalDbSupervisorService` probes (`SELECT 1`, container state); if stopped it calls `startPostgresContainer()` (reuses the fixed-name container + named volume — data survives). | Nominal | Degraded only while it's actually down; converges when back. |
 | **External DB restarts** | Not supervised (external mode). `DatabaseStartupGuard` + probes; app reports DB health in `/health/detailed`. | Nominal (as long as the DB returns) | No container is touched. |
-| **Traefik container restarts** (crash) | Supervisor reconciles: inspect → not running → start (same entry port / config volume). | Nominal | Routing resumes; a downgrade during the window falls back to the proxy if Traefik ever degrades. |
+| **Traefik task restarts** (crash) | Swarm reschedules the `global` task; the supervisor verifies a task is running. Routes are re-polled from the API on start. | Nominal | During the window the local door's rescue route serves `api.*` / `web.*` on this machine. |
 | **Web container restarts** (dev web) | Compose restarts it; it re-registers/persists its instance token; Traefik route already points at it. | Nominal | During the window `web.*` returns Traefik's 502/404 — brief. |
 | **Managed web (API-supervised) restarts** | `ManagedWebSupervisorService` sees stopped → **recreates** it (fresh app-instance token, revokes the stale one — rotation is safe, only the newest env-carrying container survives). | Nominal | No manual step. |
-| **Entry port changed via the web** (Traefik can't bind 80) | `PlatformIngressSettingsService.setEntryPort(n)` persists to local SQLite → Traefik reconcile reads it → label mismatch → **recreate on the new port** → verify → converged → proxy closes itself. | Nominal, new entry port | The exact remediation flow for “port 80 taken”. |
+| **Entry port changed** (Network → Ingress & edge; the door can't bind 80) | The new port is written to the `ingress.lanes` cluster setting in the mesh roster → the API republishes `node.doors` → every node's mesh agent recreates its doors on the new port. Traefik itself is untouched. | Nominal, new entry port | The exact remediation flow for “port 80 taken”; it reaches every node, including ones the API cannot reach directly. |
 | **`managed_web_app.enabled` flipped** (management console) | Flag persisted (DB wins) → managed-web supervisor converges: on → spawn container + the Traefik route resolves to it (via `PlatformWebTargetService`); off → remove container + revoke token; web route then targets the external/`DEPLOYER_WEB_TARGET` web or disappears. | Nominal | Live toggle, no restart. |
 | **Database wiped / re-provisioned** | `node_config` still has the URL but the DB is empty/tables missing → `tryHealFromGlobalDb` fails → **wizard reopens** → the onboarding UI returns and the operator provisions again (migrate+seed run; existing tables skip gracefully). | Wizard → Nominal | Idempotent seeding prevents duplicates. |
-| **Platform settings table cleared** (entry port reset) | `clearEntryPort()` → back to env default (80) → Traefik reconcile recreates on 80. | Nominal (if 80 is free) | If 80 is taken again → degraded → proxy + warning loop restarts. |
+| **Fresh mesh, no `ingress.lanes` yet** | The first write seeds the entry port from `DEPLOYER_TRAEFIK_HTTP_PORT` (default 80); after that the cluster setting is the only source. | Nominal (if the port is free) | If it is taken, the local door reports `failed`; change the entry port. |
 
 ---
 
@@ -253,9 +272,10 @@ The ingress is **two supervisors coordinating through the event bus** — Traefi
 
 | Failure | Symptom | Detection (how you know) | Automatic behavior | Recovery |
 |---|---|---|---|---|
-| **Entry port (80) already bound** by another process | `web.*`/`api.*` unreachable; web shows the **big warning** | Traefik `degraded` (`EntryPortConflictError`, fatal — soft-fail, the app stays up); proxy **active**; `/health/detailed` shows it | Proxy publishes `API_PORT` + 3000 → the app remains reachable by direct port | In the web app: set a **free entry port** (e.g. 8080) → Traefik recreates on it → proxy closes → warning clears. |
-| **Traefik image pull fails / config invalid** | `api.*` refuses, proxy takes over if it degrades | `degraded` with detail | Supervisor re-converges with backoff; proxy covers | Check `DEPLOYER_TRAEFIK_IMAGE` / the shared config volume; retry from the dev/management page (`convergeNow`). |
-| **Docker socket unavailable** at boot | Nothing supervised starts; proxy absent → nothing reachable (no possible takeover without docker) | Supervisors degraded on docker errors; `/health/detailed` | Backoff + degrade | Fix the socket mount; restart the API. |
+| **Entry port (80) already bound on loopback** by another process | `web.*`/`api.*` unreachable from this machine through the local lane | The local door is `failed` (doors table on Network → Ingress & edge) | The agent removes the container that could not bind, so it never squats the port | Reach the console through another lane (private or public) or another member, set a **free entry port** (e.g. 8080) → every agent recreates its doors on it. |
+| **`direct` edge: `:80`/`:443` already bound on a node** | Public lane down | Traefik `degraded` (`EntryPortConflictError`, fatal — the app stays up) | The ingress service is removed; the local door's rescue route keeps `api.*`/`web.*` reachable on the machine | Free the port, or switch the public lane to another edge provider. |
+| **Traefik image pull fails / config invalid** | Hostname routing down | `degraded` with detail | Supervisor re-converges with backoff; the local door's rescue route covers `api.*`/`web.*` on the machine | Check `DEPLOYER_TRAEFIK_IMAGE` / the routes the API serves to Traefik's HTTP provider; retry from the dev/management page (`convergeNow`). |
+| **Docker socket unavailable** at boot | Nothing supervised starts; no door can be created or recreated either (the agent drives the same engine) | Supervisors degraded on docker errors; `/health/detailed` | Backoff + degrade | Fix the socket mount; restart the API. |
 | **Global DB unreachable** (external) | App fails health; wizard reopens on next boot if it can't heal | `SELECT 1` probes fail; `GlobalDbSupervisorService` degrades | Nothing retries the external URL — operators fix the DB | Restore the DB / fix the URL; restart. Onboarding stays reachable throughout, because setup does not exit until the API is green. |
 | **API container keeps crashing** | Container cycles; health check fails | Compose restart policy + `/health` | Restart policy handles it | Check logs; the DB must be reachable (mandatory, even in dev). |
 | **Web app container crashed** | `web.*` 502/404 during the window | Managed web supervisor degrades (container missing while flag on); dev web is compose-managed | Managed web is recreated; dev web restarts via compose | None — automatic. |
@@ -266,20 +286,18 @@ The ingress is **two supervisors coordinating through the event bus** — Traefi
 ```mermaid
 sequenceDiagram
     participant Op as Operator (browser)
-    participant Web as Web app
-    participant API as API (platform settings)
-    participant TR as Traefik supervisor
-    participant PR as Failover proxy
-    Op->>Web: land on web.deployer.localhost
-    Web->>Web: show BIG WARNING "can't listen on port 80"
+    participant Web as Web app (Network → Ingress & edge)
+    participant API as API (ingress lanes)
+    participant R as Mesh roster (replicated)
+    participant AG as Mesh agent (every node)
+    Op->>Web: reach the console through another lane or member
+    Web->>Web: doors table shows the local door FAILED (port 80 taken)
     Op->>Web: set entry port = 8080
-    Web->>API: setEntryPort(8080) (local SQLite)
-    API-->>TR: reconcile sees entry.port=8080 + label mismatch
-    TR->>TR: remove container, recreate publishing 8080
-    TR->>TR: verify entrypoint reachable → converged
-    TR-->>PR: health-snapshot event (healthy)
-    PR->>PR: remove proxy container (closes itself)
-    Web-->>Op: warning clears; api/web.* back through Traefik at :8080
+    Web->>API: update lanes (entryPort 8080)
+    API->>R: write ingress.lanes, then node.doors
+    R-->>AG: gossip delivers node.doors
+    AG->>AG: recreate the doors bound to :8080
+    Web-->>Op: door converged; api/web.* answer at :8080
 ```
 
 ---

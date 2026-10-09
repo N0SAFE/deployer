@@ -197,7 +197,7 @@ export function createImageSubRowColumns({ onOpenImageDetail }: ImageSubRowColum
 }
 
 export function createImageTableFetchData(rows: ImageGroupRow[]) {
-  return async (params: ImageTableFetchParams) => {
+  return (params: ImageTableFetchParams) => {
     const { page, limit, search, sort_by, sort_order } = params
     const normalizedSearch = search.trim().toLowerCase()
 
@@ -234,7 +234,7 @@ export function createImageTableFetchData(rows: ImageGroupRow[]) {
     const offset = (safePage - 1) * safeLimit
     const paginated = sorted.slice(offset, offset + safeLimit)
 
-    return {
+    return Promise.resolve({
       success: true,
       data: paginated,
       pagination: {
@@ -243,6 +243,6 @@ export function createImageTableFetchData(rows: ImageGroupRow[]) {
         total_pages: Math.max(1, Math.ceil(sorted.length / safeLimit)),
         total_items: sorted.length,
       },
-    }
+    })
   }
 }

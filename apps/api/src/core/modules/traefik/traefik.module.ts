@@ -9,7 +9,8 @@ import { TraefikMiddlewareLibraryService } from './services/traefik-middleware-l
 import { TraefikRepository } from './repositories/traefik.repository';
 import { TraefikTemplateRepository } from './repositories/traefik-template.repository';
 import { TraefikEventService } from './events/traefik-event.service';
-import { TraefikPlatformConfigService } from './services/traefik-platform-config.service';
+import { TraefikIngressConfigService } from './services/traefik-ingress-config.service';
+import { TraefikIngressConfigController } from './controllers/traefik-ingress-config.controller';
 import { TraefikConfigRefresher } from './services/traefik-config-refresher.service';
 import { DatabaseModule } from '../database/database.module';
 import { EventsModule } from '@/core/modules/events/events.module';
@@ -22,13 +23,16 @@ import { EnvModule, EnvService } from "@/config/env/env.module";
  * CORE MODULE: Traefik
  * Provides all Traefik-related services and infrastructure.
  *
- * This is the CONFIG hander for the live Traefik instance:
- *   - `TraefikPlatformConfigService` rewrites the dynamic files the running
- *     Traefik watches (platform api/web routes + DB-driven domain routes +
- *     per-service configs); `TraefikConfigRefresher` is the fire-and-forget
- *     update trigger (config write → process re-converge).
- *   - The Traefik SUPERVISOR only ensures the process (container/network/
- *     entry port/liveness) — it never writes config (see traefik-supervisor).
+ * This is the CONFIG owner for the live ingress:
+ *   - `TraefikIngressConfigService` builds the dynamic configuration every
+ *     ingress task POLLS (`TraefikIngressConfigController`, Traefik's HTTP
+ *     provider) — platform routes, DB-driven domain routes and per-service
+ *     configs, attached to the lanes their visibility allows.
+ *   - `TraefikConfigRefresher` re-converges the ingress processes after an
+ *     operator action, so a lane change takes effect now rather than on the
+ *     next sweep.
+ *   - The Traefik SUPERVISOR only ensures the process (service/entrypoints/
+ *     doors/liveness) — it never builds routes (see traefik-supervisor).
  *
  * Services exported: ...
  */
@@ -46,6 +50,7 @@ import { EnvModule, EnvService } from "@/config/env/env.module";
     // be registered globally elsewhere.
     EnvModule,
   ],
+  controllers: [TraefikIngressConfigController],
   providers: [
     // Services
     TraefikTemplateService,
@@ -61,8 +66,8 @@ import { EnvModule, EnvService } from "@/config/env/env.module";
     TraefikValidationService,
     TraefikMiddlewareLibraryService,
     TraefikEventService,
-    // Live-instance config handler (core-owned).
-    TraefikPlatformConfigService,
+    // Live-ingress config (served to Traefik's HTTP provider).
+    TraefikIngressConfigService,
     TraefikConfigRefresher,
     // Repositories
     TraefikRepository,
@@ -78,7 +83,7 @@ import { EnvModule, EnvService } from "@/config/env/env.module";
     TraefikValidationService,
     TraefikMiddlewareLibraryService,
     TraefikEventService,
-    TraefikPlatformConfigService,
+    TraefikIngressConfigService,
     TraefikConfigRefresher,
     // Repositories
     TraefikRepository,

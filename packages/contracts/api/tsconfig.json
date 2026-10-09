@@ -32,7 +32,7 @@
     }
   },
   "include": [
-    "src/**/*",
+    "pkg-build.config.ts", "src/**/*",
     "modules/**/*",
     "common/**/*",
     "index.ts",

@@ -68,6 +68,9 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
    */
   static readonly CONTAINER_NAME = "deployer-traefik";
 
+  /** The only host address the onboarding ingress binds (see `create`). */
+  static readonly BIND_ADDRESS = "127.0.0.1";
+
   /**
    * The PROMOTED ingress, addressed on the platform overlay.
    *
@@ -658,7 +661,12 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
       },
       ExposedPorts: { "80/tcp": {} },
       HostConfig: {
-        PortBindings: { "80/tcp": [{ HostPort: String(this.entryPort()) }] },
+        // LOOPBACK ONLY. The wizard is pre-auth and the node has made no exposure
+        // decision yet, so the onboarding ingress is reachable from this machine
+        // and nowhere else — the same posture as the platform's `local` lane that
+        // replaces it after the handover. Binding 0.0.0.0 here put a pre-auth
+        // wizard on every interface of a fresh machine.
+        PortBindings: { "80/tcp": [{ HostIp: BootstrapIngressService.BIND_ADDRESS, HostPort: String(this.entryPort()) }] },
         // `unless-stopped`, matching every other platform service AND the
         // compose-managed ingress: the ingress must come back after a host
         // reboot, because nothing else can serve the wizard that would
@@ -686,6 +694,7 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
     running: boolean;
     image: string;
     port: string | null;
+    hostIp: string | null;
     networks: string[];
   } | null> {
     try {
@@ -695,6 +704,7 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
         running: info.State.Running,
         image: info.Config.Image ?? "",
         port: bindings["80/tcp"]?.[0]?.HostPort ?? null,
+        hostIp: bindings["80/tcp"]?.[0]?.HostIp ?? null,
         networks: Object.keys(info.NetworkSettings?.Networks ?? {}),
       };
     } catch {
@@ -711,8 +721,10 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
    * stale container would hold. Comparing more (env, labels) would recreate for
    * changes that do not affect behaviour and needlessly drop live connections.
    */
-  private matchesDesired(state: { image: string; port: string | null; networks: string[] }): boolean {
-    const portMatches = state.port === String(this.entryPort());
+  private matchesDesired(state: { image: string; port: string | null; hostIp: string | null; networks: string[] }): boolean {
+    // A container from before the loopback rule is bound on every interface: it
+    // must be recreated, not adopted.
+    const portMatches = state.port === String(this.entryPort()) && state.hostIp === BootstrapIngressService.BIND_ADDRESS;
     const imageMatches = state.image === this.image();
     const networkMatches = state.networks.includes(this.platformNetwork());
     return portMatches && imageMatches && networkMatches;
@@ -753,12 +765,19 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
     }
   }
 
-  /** Poll the entry port until it answers, or the budget runs out. */
+  /**
+   * Poll until the ingress answers, or the budget runs out.
+   *
+   * Dialled on the PLATFORM NETWORK by container name, on its container port:
+   * the host binding is loopback-only, so the host gateway this app used to probe
+   * cannot reach it from inside this container any more. The gateway stays a
+   * fallback for a compose-managed ingress published on the host.
+   */
   private async portAnswers(budgetMs: number): Promise<boolean> {
     const deadline = Date.now() + budgetMs;
-    const host = this.hostGateway();
     while (Date.now() < deadline) {
-      if (await this.tcpAnswers(host, this.entryPort())) return true;
+      if (await this.tcpAnswers(BootstrapIngressService.CONTAINER_NAME, 80)) return true;
+      if (await this.tcpAnswers(this.hostGateway(), this.entryPort())) return true;
       await new Promise((resolve) => setTimeout(resolve, BootstrapIngressService.READY_POLL_MS));
     }
     return false;

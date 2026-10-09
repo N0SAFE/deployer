@@ -8,14 +8,14 @@ import {
   AuthDashboardProjectsProjectIdServicesServiceIdConfigurationProvider,
 } from '@/routes'
 import { cn } from '@/lib/utils'
-import { SlidersHorizontal, Puzzle, Network, KeyRound, Rocket, type LucideIcon } from 'lucide-react'
+import { SlidersHorizontal, Puzzle, Network, KeyRound, Rocket } from 'lucide-react'
 
 const sectionRoute = [
   { key: 'general', name: 'General', icon: SlidersHorizontal, Route: AuthDashboardProjectsProjectIdServicesServiceIdConfigurationGeneral },
-  { key: 'provider', name: 'Provider', icon: Puzzle, Route: AuthDashboardProjectsProjectIdServicesServiceIdConfigurationProvider },
-  { key: 'network', name: 'Network', icon: Network, Route: AuthDashboardProjectsProjectIdServicesServiceIdConfigurationNetwork },
-  { key: 'environment', name: 'Environment', icon: KeyRound, Route: AuthDashboardProjectsProjectIdServicesServiceIdConfigurationEnvironment },
-  { key: 'preview', name: 'Preview', icon: Rocket, Route: AuthDashboardProjectsProjectIdServicesServiceIdConfigurationPreview },
+  { key: 'provider', name: 'Source & build', icon: Puzzle, Route: AuthDashboardProjectsProjectIdServicesServiceIdConfigurationProvider },
+  { key: 'environment', name: 'Variables', icon: KeyRound, Route: AuthDashboardProjectsProjectIdServicesServiceIdConfigurationEnvironment },
+  { key: 'network', name: 'Network & domains', icon: Network, Route: AuthDashboardProjectsProjectIdServicesServiceIdConfigurationNetwork },
+  { key: 'preview', name: 'Previews', icon: Rocket, Route: AuthDashboardProjectsProjectIdServicesServiceIdConfigurationPreview },
 ] as const
 
 type ConfigSection = (typeof sectionRoute)[number]['key']

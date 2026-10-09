@@ -4,10 +4,10 @@
 # ── WHAT COMPOSE DOES HERE, AND WHAT IT DELIBERATELY DOES NOT ────────────────
 # TWO responsibilities, and nothing else:
 #
-#   1. BUILD THE IMAGES. `build-api`, `build-web` and `build-doc` are IMAGE
-#      PRODUCERS: they build, print the tag they produced, and EXIT. They are
-#      not application services, and `restart: "no"` is what keeps them from
-#      looping.
+#   1. BUILD THE IMAGES. `build-api`, `build-web`, `build-doc` and
+#      `build-mesh-agent` are IMAGE PRODUCERS: they build, print the tag they
+#      produced, and EXIT. They are not application services, and
+#      `restart: "no"` is what keeps them from looping.
 #   2. RUN SETUP. `setup-dev` is the ONLY long-running service in this profile.
 #      It is the entry point, because the platform cannot be started by compose:
 #      setup founds the swarm, schedules the API onto it from the tag it was
@@ -59,6 +59,10 @@ services:
       # cannot wait for anything cluster-related — that IS the work. Same as prod.
       build-api:
         condition: service_completed_successfully
+      # Setup starts the node's mesh agent from this tag BEFORE it founds the
+      # swarm (the swarm binds the mesh address), so it must exist first too.
+      build-mesh-agent:
+        condition: service_completed_successfully
     environment:
       # ── THIS PROFILE IS PROD'S FLOW, RUNNING DEV IMAGES ───────────────────
       # `SETUP_MODE=prod` — NOT `dev`. Compose manages NO services here, so
@@ -92,6 +96,15 @@ services:
       # The tags setup SCHEDULES onto the cluster. Produced by `build-api` above;
       # in a real deployment this points at a registry and nothing else changes.
       DEPLOYER_API_IMAGE: ${DEPLOYER_API_IMAGE:-deployer-api:dev}
+      # The tag setup RUNS the node's mesh agent from (a plain host-network
+      # container, not a swarm service). Produced by `build-mesh-agent` below;
+      # the setup default is `:latest`, which no dev producer tags.
+      MESH_AGENT_IMAGE: ${MESH_AGENT_IMAGE:-deployer-mesh-agent:dev}
+      # This profile is DEV-SUPERVISED: the stack is started and stopped by hand
+      # on a workstation, so the mesh defaults to `observe` and the node does NOT
+      # bring up a host-level WireGuard interface on every start. Set `kernel` to
+      # exercise the real dataplane.
+      MESH_AGENT_DATAPLANE: ${MESH_AGENT_DATAPLANE:-observe}
       # The tags setup FORWARDS to the API it schedules, so the platform converges
       # the images compose actually built. These names are the ones the API reads
       # (`MANAGED_WEB_APP_IMAGE` for the dashboard, `DEPLOYER_*_IMAGE` for the
@@ -100,7 +113,6 @@ services:
       MANAGED_WEB_APP_IMAGE: ${MANAGED_WEB_APP_IMAGE:-deployer-web:dev}
       DEPLOYER_TRAEFIK_IMAGE: ${DEPLOYER_TRAEFIK_IMAGE:-traefik:v3.6.10}
       DEPLOYER_REDIS_IMAGE: ${DEPLOYER_REDIS_IMAGE:-redis:7-alpine}
-      DEPLOYER_DIRECT_PROXY_IMAGE: ${DEPLOYER_DIRECT_PROXY_IMAGE:-}
       # The managed web app is a SWARM SERVICE here, so the API converges it
       # rather than treating it as an externally-run container.
       MANAGED_WEB_APP_ENABLED: "true"
@@ -119,8 +131,6 @@ services:
       # passed in rather than reconstructed — the same arrangement
       # `TRAEFIK_CONFIG_VOLUME` already uses for the ingress config.
       NODE_LOCAL_DB_VOLUME: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_local_db_data_dev
-      MANAGED_WIREGUARD_IP: ${MANAGED_WIREGUARD_IP:-}
-      APP_URL: ${APP_URL:-http://web-dev:3000}
       # ── THE PLATFORM'S SHARED AUTH SECRET, WHICH A TASK CANNOT INHERIT ──────
       # Setup FORWARDS this into every service it schedules. A swarm task inherits
       # nothing from this compose project, so the web app — whose env schema
@@ -156,6 +166,12 @@ services:
       # exactly how it went missing: the override was added for `dep-output` and
       # silently took this one with it.
       - deployer-traefik-config:/app/traefik-configs
+      # ── THE MESH AGENT'S CONTROL SOCKET — ALSO LOST TO `!override` ─────────
+      # Setup starts the agent and then talks to it over
+      # `/run/deployer-mesh/agent.sock`, which lives in this volume. Without the
+      # mount the agent runs but setup never sees its socket, so it cannot found
+      # the mesh and the swarm falls back to binding loopback.
+      - deployer-mesh-run:/run/deployer-mesh
       # The clusters it creates live on the host engine, so it drives the socket.
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
@@ -240,6 +256,28 @@ services:
     image: ${DEPLOYER_DOC_IMAGE:-deployer-doc:dev}
     command: ["echo", "doc image built: ${DEPLOYER_DOC_IMAGE:-deployer-doc:dev}"]
     restart: "no"
+
+  # The per-node mesh agent. NOT a compose service at runtime: setup starts it
+  # as a plain host-network container (`deployer-mesh-agent`), because it must
+  # exist before the swarm does. Compose only makes the TAG exist.
+  #
+  # Its own Dockerfile (a compiled binary on Alpine), not `Dockerfile.app.dev`:
+  # it holds the node's private keys with NET_ADMIN, so it ships no toolchain.
+  #
+  # `entrypoint`, not `command`, is overridden: the image's ENTRYPOINT is the
+  # agent binary, so a `command:` would only become its arguments and this
+  # producer would start an agent (with no NET_ADMIN) that never exits.
+  build-mesh-agent:
+    build:
+      context: ../../..
+      dockerfile: ./infra/docker/builder/mesh-agent/Dockerfile.mesh-agent
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    # The SAME variable setup reads, so the image compose built and the image
+    # the node runs cannot drift into two tags.
+    image: ${MESH_AGENT_IMAGE:-deployer-mesh-agent:dev}
+    entrypoint: ["echo", "mesh agent image built: ${MESH_AGENT_IMAGE:-deployer-mesh-agent:dev}"]
+    restart: "no"
 networks:
   deployer_platform:
     name: deployer-platform
@@ -253,5 +291,8 @@ volumes:
     name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_local_db_data_dev
   deployer-traefik-config:
     name: ${TRAEFIK_CONFIG_VOLUME:-deployer-traefik-config}
-  deployer-port-proxy-config:
-    name: ${DIRECT_PROXY_CONFIG_VOLUME:-deployer-port-proxy-config}
+  # The mesh agent's control-socket volume (`/run/deployer-mesh/agent.sock`).
+  # NAMED LITERALLY, never project-prefixed: the agent container and the API
+  # swarm service setup schedules mount it by this exact name.
+  deployer-mesh-run:
+    name: deployer-mesh-run

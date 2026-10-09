@@ -3,8 +3,12 @@
  * has, and where each one must live in the fleet.
  *
  * BUSINESS LOGIC, deliberately in the app rather than in `@repo/nest-docker`:
- * it names OUR services (ingress, failover proxy, wireguard, global Postgres,
- * redis, the managed console) and their placement rules. The package supplies
+ * it names OUR services (ingress, tunnel connectors, global Postgres, redis, the
+ * managed console) and their placement rules.
+ *
+ * What is NOT here, by design: the WireGuard interface and the per-node doors in
+ * front of Traefik. Both belong to the node's MESH AGENT, which runs below Swarm
+ * (it must exist before Swarm does) — see docs/edge-mesh-architecture.md. The package supplies
  * the MECHANISM (the runtime/scope vocabulary and the resolver); this file is
  * the platform DECISION the mechanism operates on.
  *
@@ -16,23 +20,18 @@ import type { SupervisorTopology } from "@repo/nest-docker/services/docker-super
 export const PLATFORM_SUPERVISOR_TOPOLOGY: readonly SupervisorTopology[] = [
   {
     supervisorId: "platform-ingress-traefik",
-    role: "Ingress router (api/web console + mesh routes).",
-    // Every node that can serve traffic needs a local ingress to route for the
-    // tasks scheduled on it and to publish the console surface on its own
-    // entry ports. Global mode keeps api.<host>/web.<host> present on every
-    // node, identical to single-node dev/prod parity.
+    role: "Ingress router — one entrypoint per lane (local, private, public), routes polled from the API.",
     scope: "node-local",
     rationale:
-      "Ingress is per-node: each host publishes the entry ports and routes for locally scheduled tasks. Global = one Traefik per node; the single-node case is identical.",
+      "Every node runs its own doors (loopback, mesh address) and each door forwards to the LOCAL lane entrypoint, so every node needs an ingress task. Global = one Traefik per node; no socket, no config volume.",
     replicas: 1,
-    constraint: "node.labels.deployer.ingress == true",
   },
   {
-    supervisorId: "platform-direct-port-proxy",
-    role: "Failover nginx publishing API/web host ports when Traefik is down.",
-    scope: "node-local",
+    supervisorId: "platform-edge-connector",
+    role: "Connector of the public edge, when its provider is a tunnel (outbound only).",
+    scope: "mesh-wide",
     rationale:
-      "The direct-port proxy is the per-node rescue lane for the host-published API/web ports — it must exist on whichever node publishes those ports.",
+      "Connectors dial out and publish nothing, so nothing about them is node-local: replicated, at most one per node, all serving the ONE stack edge. The image and credential come from the edge provider.",
     replicas: 1,
   },
   {
@@ -65,14 +64,6 @@ export const PLATFORM_SUPERVISOR_TOPOLOGY: readonly SupervisorTopology[] = [
     scope: "mesh-wide",
     rationale:
       "The console is a single logical app serving the whole platform — replicated 1 (not per-node).",
-    replicas: 1,
-  },
-  {
-    supervisorId: "platform-wireguard",
-    role: "WireGuard mesh overlay sidecar (one per node, own overlay IP).",
-    scope: "node-local",
-    rationale:
-      "WireGuard is a mesh LAYER: each node owns its sidecar + overlay IP. Global = one sidecar per node, joined with MANAGED_WIREGUARD_IP.",
     replicas: 1,
   },
 ] as const;

@@ -34,6 +34,13 @@ services:
       # setup does not care which, it receives the reference and schedules it.
       DEPLOYER_API_IMAGE: ${DEPLOYER_API_IMAGE:-deployer-api:local}
       DEPLOYER_API_REPLICAS: ${API_REPLICAS:-1}
+      # The image setup runs the node's mesh agent from (a plain host-network
+      # container, started before the swarm is founded). This variant does not
+      # extend the setup base, so it is declared here as well.
+      MESH_AGENT_IMAGE: ${MESH_AGENT_IMAGE:-deployer-mesh-agent:latest}
+      # Production drives the real dataplane: a cluster cannot span nodes on a
+      # kernel-less mesh. Overridable so a smoke test can run without NET_ADMIN.
+      MESH_AGENT_DATAPLANE: ${MESH_AGENT_DATAPLANE:-kernel}
       # The API's INTERNAL port. Read rather than hardcoded because dev publishes
       # 3005 and prod 3001, so a constant would be right in one and produce an
       # unreachable ingress backend in the other.

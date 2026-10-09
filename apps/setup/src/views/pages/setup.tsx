@@ -47,8 +47,8 @@ export default function SetupView({ needsSetup }: PageProps<SetupViewProps>) {
 	}
 
 	return (
-		<div className="flex min-h-[80dvh] items-center justify-center py-6">
-			<div className="w-full max-w-2xl">
+		<div className="flex min-h-0 flex-1 items-center justify-center">
+			<div className="flex max-h-full min-h-0 w-full max-w-2xl flex-col">
 				<SetupWizard api={setupApi} />
 			</div>
 		</div>

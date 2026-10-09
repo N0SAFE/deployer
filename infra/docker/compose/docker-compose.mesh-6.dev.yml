@@ -11,8 +11,12 @@
 # Each api-N EXTENDS the same common api DEV base (build, env,
 # develop.watch) and overrides only the mesh-node-specific bits:
 #   ports, healthcheck (per-node port), container_name, NODE_LOCAL_DB_PATH,
-#   MESH_NODE_ID / SERVER_URL / BOOTSTRAP_PEERS, wireguard overlay IP.
-# WireGuard sidecars likewise EXTEND the common wireguard base once per node.
+#   MESH_NODE_ID / SERVER_URL / BOOTSTRAP_PEERS.
+#
+# NO WIREGUARD SIDECARS. The mesh is a per-node `deployer-mesh-agent`
+# (docs/edge-mesh-architecture.md) that setup / the API start as a plain
+# host-network container from `MESH_AGENT_IMAGE`; compose only mounts its
+# control-socket volume (`deployer-mesh-run`) into setup and the API nodes.
 # =====================================================================
 
 name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-mesh-6-dev
@@ -40,8 +44,11 @@ services:
       SETUP_API_URL: http://api-mesh-dev-1:3301
       SETUP_API_PORT: "3301"
       DEPLOYER_PREFIX: ${DEPLOYER_PREFIX:-}
-      MANAGED_WIREGUARD_IP: ${MANAGED_WIREGUARD_IP:-}
-      APP_URL: ${APP_URL:-http://web-dev:3000}
+      # DEV: setup starts the agent in `observe`, so the node brings up no host
+      # WireGuard interface when the stack starts. Set `kernel` for the real
+      # dataplane (then set it for ALL nodes, or they cannot see each other).
+      MESH_AGENT_DATAPLANE: ${MESH_AGENT_DATAPLANE:-observe}
+      MESH_AGENT_IMAGE: ${MESH_AGENT_IMAGE:-deployer-mesh-agent:dev}
     # NO `ports:` — internal only, reached through Traefik.
     volumes:
       - api_local_db_data_dev:/app/data
@@ -64,7 +71,7 @@ services:
       setup-dev:
         condition: service_healthy
     ports:
-      - "${MESH_API_PORT_1:-3301}:3301"
+      - "127.0.0.1:${MESH_API_PORT_1:-3301}:3301"
     environment:
       API_PORT: "3301"
       API_URL: http://api-mesh-dev-1:3301
@@ -80,6 +87,7 @@ services:
       ENABLE_SEEDING: ${ENABLE_SEEDING:-false}
       NODE_LOCAL_DB_PATH: /app/data/local-mesh-node-1.db
       MESH_NODE_ID: ${MESH_NODE_ID_NODE_1:-22222222-2222-4222-8222-222222222222}
+      MESH_AGENT_DATAPLANE: ${MESH_AGENT_DATAPLANE:-observe}
       MESH_NODE_SERVER_URL: ${MESH_NODE_SERVER_URL_NODE_1:-http://api-mesh-dev-1:3301}
       MESH_BOOTSTRAP_PEERS: ${MESH_BOOTSTRAP_PEERS_NODE_1:-33333333-3333-4333-8333-333333333333@ws://api-mesh-dev-2:3302/mesh,44444444-4444-4444-8444-444444444444@ws://api-mesh-dev-3:3303/mesh,55555555-5555-4555-8555-555555555555@ws://api-mesh-dev-4:3304/mesh,66666666-6666-4666-8666-666666666666@ws://api-mesh-dev-5:3305/mesh,77777777-7777-4777-8777-777777777777@ws://api-mesh-dev-6:3306/mesh}
     healthcheck:
@@ -103,7 +111,7 @@ services:
       service: api
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev-2
     ports:
-      - "${MESH_API_PORT_2:-3302}:3302"
+      - "127.0.0.1:${MESH_API_PORT_2:-3302}:3302"
     depends_on:
       api-1:
         condition: service_healthy
@@ -122,6 +130,7 @@ services:
       ENABLE_SEEDING: ${ENABLE_SEEDING:-false}
       NODE_LOCAL_DB_PATH: /app/data/local-mesh-node-2.db
       MESH_NODE_ID: ${MESH_NODE_ID_NODE_2:-33333333-3333-4333-8333-333333333333}
+      MESH_AGENT_DATAPLANE: ${MESH_AGENT_DATAPLANE:-observe}
       MESH_NODE_SERVER_URL: ${MESH_NODE_SERVER_URL_NODE_2:-http://api-mesh-dev-2:3302}
       MESH_BOOTSTRAP_PEERS: ${MESH_BOOTSTRAP_PEERS_NODE_2:-22222222-2222-4222-8222-222222222222@ws://api-mesh-dev-1:3301/mesh,44444444-4444-4444-8444-444444444444@ws://api-mesh-dev-3:3303/mesh,55555555-5555-4555-8555-555555555555@ws://api-mesh-dev-4:3304/mesh,66666666-6666-4666-8666-666666666666@ws://api-mesh-dev-5:3305/mesh,77777777-7777-4777-8777-777777777777@ws://api-mesh-dev-6:3306/mesh}
     healthcheck:
@@ -144,7 +153,7 @@ services:
       service: api
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev-3
     ports:
-      - "${MESH_API_PORT_3:-3303}:3303"
+      - "127.0.0.1:${MESH_API_PORT_3:-3303}:3303"
     depends_on:
       api-1:
         condition: service_healthy
@@ -163,6 +172,7 @@ services:
       ENABLE_SEEDING: ${ENABLE_SEEDING:-false}
       NODE_LOCAL_DB_PATH: /app/data/local-mesh-node-3.db
       MESH_NODE_ID: ${MESH_NODE_ID_NODE_3:-44444444-4444-4444-8444-444444444444}
+      MESH_AGENT_DATAPLANE: ${MESH_AGENT_DATAPLANE:-observe}
       MESH_NODE_SERVER_URL: ${MESH_NODE_SERVER_URL_NODE_3:-http://api-mesh-dev-3:3303}
       MESH_BOOTSTRAP_PEERS: ${MESH_BOOTSTRAP_PEERS_NODE_3:-22222222-2222-4222-8222-222222222222@ws://api-mesh-dev-1:3301/mesh,33333333-3333-4333-8333-333333333333@ws://api-mesh-dev-2:3302/mesh,55555555-5555-4555-8555-555555555555@ws://api-mesh-dev-4:3304/mesh,66666666-6666-4666-8666-666666666666@ws://api-mesh-dev-5:3305/mesh,77777777-7777-4777-8777-777777777777@ws://api-mesh-dev-6:3306/mesh}
     healthcheck:
@@ -185,7 +195,7 @@ services:
       service: api
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev-4
     ports:
-      - "${MESH_API_PORT_4:-3304}:3304"
+      - "127.0.0.1:${MESH_API_PORT_4:-3304}:3304"
     depends_on:
       api-1:
         condition: service_healthy
@@ -204,6 +214,7 @@ services:
       ENABLE_SEEDING: ${ENABLE_SEEDING:-false}
       NODE_LOCAL_DB_PATH: /app/data/local-mesh-node-4.db
       MESH_NODE_ID: ${MESH_NODE_ID_NODE_4:-55555555-5555-4555-8555-555555555555}
+      MESH_AGENT_DATAPLANE: ${MESH_AGENT_DATAPLANE:-observe}
       MESH_NODE_SERVER_URL: ${MESH_NODE_SERVER_URL_NODE_4:-http://api-mesh-dev-4:3304}
       MESH_BOOTSTRAP_PEERS: ${MESH_BOOTSTRAP_PEERS_NODE_4:-22222222-2222-4222-8222-222222222222@ws://api-mesh-dev-1:3301/mesh,33333333-3333-4333-8333-333333333333@ws://api-mesh-dev-2:3302/mesh,44444444-4444-4444-8444-444444444444@ws://api-mesh-dev-3:3303/mesh,66666666-6666-4666-8666-666666666666@ws://api-mesh-dev-5:3305/mesh,77777777-7777-4777-8777-777777777777@ws://api-mesh-dev-6:3306/mesh}
     healthcheck:
@@ -226,7 +237,7 @@ services:
       service: api
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev-5
     ports:
-      - "${MESH_API_PORT_5:-3305}:3305"
+      - "127.0.0.1:${MESH_API_PORT_5:-3305}:3305"
     depends_on:
       api-1:
         condition: service_healthy
@@ -245,6 +256,7 @@ services:
       ENABLE_SEEDING: ${ENABLE_SEEDING:-false}
       NODE_LOCAL_DB_PATH: /app/data/local-mesh-node-5.db
       MESH_NODE_ID: ${MESH_NODE_ID_NODE_5:-66666666-6666-4666-8666-666666666666}
+      MESH_AGENT_DATAPLANE: ${MESH_AGENT_DATAPLANE:-observe}
       MESH_NODE_SERVER_URL: ${MESH_NODE_SERVER_URL_NODE_5:-http://api-mesh-dev-5:3305}
       MESH_BOOTSTRAP_PEERS: ${MESH_BOOTSTRAP_PEERS_NODE_5:-22222222-2222-4222-8222-222222222222@ws://api-mesh-dev-1:3301/mesh,33333333-3333-4333-8333-333333333333@ws://api-mesh-dev-2:3302/mesh,44444444-4444-4444-8444-444444444444@ws://api-mesh-dev-3:3303/mesh,66666666-6666-4666-8666-666666666666@ws://api-mesh-dev-4:3304/mesh,77777777-7777-4777-8777-777777777777@ws://api-mesh-dev-6:3306/mesh}
     healthcheck:
@@ -267,7 +279,7 @@ services:
       service: api
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-api-mesh-dev-6
     ports:
-      - "${MESH_API_PORT_6:-3306}:3306"
+      - "127.0.0.1:${MESH_API_PORT_6:-3306}:3306"
     depends_on:
       api-1:
         condition: service_healthy
@@ -286,6 +298,7 @@ services:
       ENABLE_SEEDING: ${ENABLE_SEEDING:-false}
       NODE_LOCAL_DB_PATH: /app/data/local-mesh-node-6.db
       MESH_NODE_ID: ${MESH_NODE_ID_NODE_6:-77777777-7777-4777-8777-777777777777}
+      MESH_AGENT_DATAPLANE: ${MESH_AGENT_DATAPLANE:-observe}
       MESH_NODE_SERVER_URL: ${MESH_NODE_SERVER_URL_NODE_6:-http://api-mesh-dev-6:3306}
       MESH_BOOTSTRAP_PEERS: ${MESH_BOOTSTRAP_PEERS_NODE_6:-22222222-2222-4222-8222-222222222222@ws://api-mesh-dev-1:3301/mesh,33333333-3333-4333-8333-333333333333@ws://api-mesh-dev-2:3302/mesh,44444444-4444-4444-8444-444444444444@ws://api-mesh-dev-3:3303/mesh,55555555-5555-4555-8555-555555555555@ws://api-mesh-dev-4:3304/mesh,66666666-6666-4666-8666-666666666666@ws://api-mesh-dev-5:3305/mesh}
     healthcheck:
@@ -326,103 +339,6 @@ services:
       - deployer_platform
       - shared
 
-  # ── WireGuard overlay — one sidecar per node (extends the wg base) ──
-  wireguard-1:
-    extends:
-      file: ./common/wireguard/docker-compose.config.yml
-      service: wireguard
-    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-mesh-1
-    environment:
-      OVERLAY_IP: ${MANAGED_WIREGUARD_IP_1:-10.0.0.1}
-      PRIVATE_KEY: ${MANAGED_WIREGUARD_PRIVATE_KEY_1:-${MANAGED_WIREGUARD_PRIVATE_KEY:-}}
-      PEERS: ${MANAGED_WIREGUARD_PEERS_1:-${MANAGED_WIREGUARD_PEERS:-}}
-    volumes:
-      - wireguard-state-mesh-1:/config
-      - /lib/modules:/lib/modules:ro
-    networks:
-      - deployer_platform
-      - shared
-
-  wireguard-2:
-    extends:
-      file: ./common/wireguard/docker-compose.config.yml
-      service: wireguard
-    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-mesh-2
-    environment:
-      OVERLAY_IP: ${MANAGED_WIREGUARD_IP_2:-10.0.0.2}
-      PRIVATE_KEY: ${MANAGED_WIREGUARD_PRIVATE_KEY_2:-${MANAGED_WIREGUARD_PRIVATE_KEY:-}}
-      PEERS: ${MANAGED_WIREGUARD_PEERS_2:-${MANAGED_WIREGUARD_PEERS:-}}
-    volumes:
-      - wireguard-state-mesh-2:/config
-      - /lib/modules:/lib/modules:ro
-    networks:
-      - deployer_platform
-      - shared
-
-  wireguard-3:
-    extends:
-      file: ./common/wireguard/docker-compose.config.yml
-      service: wireguard
-    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-mesh-3
-    environment:
-      OVERLAY_IP: ${MANAGED_WIREGUARD_IP_3:-10.0.0.3}
-      PRIVATE_KEY: ${MANAGED_WIREGUARD_PRIVATE_KEY_3:-${MANAGED_WIREGUARD_PRIVATE_KEY:-}}
-      PEERS: ${MANAGED_WIREGUARD_PEERS_3:-${MANAGED_WIREGUARD_PEERS:-}}
-    volumes:
-      - wireguard-state-mesh-3:/config
-      - /lib/modules:/lib/modules:ro
-    networks:
-      - deployer_platform
-      - shared
-
-  wireguard-4:
-    extends:
-      file: ./common/wireguard/docker-compose.config.yml
-      service: wireguard
-    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-mesh-4
-    environment:
-      OVERLAY_IP: ${MANAGED_WIREGUARD_IP_4:-10.0.0.4}
-      PRIVATE_KEY: ${MANAGED_WIREGUARD_PRIVATE_KEY_4:-${MANAGED_WIREGUARD_PRIVATE_KEY:-}}
-      PEERS: ${MANAGED_WIREGUARD_PEERS_4:-${MANAGED_WIREGUARD_PEERS:-}}
-    volumes:
-      - wireguard-state-mesh-4:/config
-      - /lib/modules:/lib/modules:ro
-    networks:
-      - deployer_platform
-      - shared
-
-  wireguard-5:
-    extends:
-      file: ./common/wireguard/docker-compose.config.yml
-      service: wireguard
-    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-mesh-5
-    environment:
-      OVERLAY_IP: ${MANAGED_WIREGUARD_IP_5:-10.0.0.5}
-      PRIVATE_KEY: ${MANAGED_WIREGUARD_PRIVATE_KEY_5:-${MANAGED_WIREGUARD_PRIVATE_KEY:-}}
-      PEERS: ${MANAGED_WIREGUARD_PEERS_5:-${MANAGED_WIREGUARD_PEERS:-}}
-    volumes:
-      - wireguard-state-mesh-5:/config
-      - /lib/modules:/lib/modules:ro
-    networks:
-      - deployer_platform
-      - shared
-
-  wireguard-6:
-    extends:
-      file: ./common/wireguard/docker-compose.config.yml
-      service: wireguard
-    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-mesh-6
-    environment:
-      OVERLAY_IP: ${MANAGED_WIREGUARD_IP_6:-10.0.0.6}
-      PRIVATE_KEY: ${MANAGED_WIREGUARD_PRIVATE_KEY_6:-${MANAGED_WIREGUARD_PRIVATE_KEY:-}}
-      PEERS: ${MANAGED_WIREGUARD_PEERS_6:-${MANAGED_WIREGUARD_PEERS:-}}
-    volumes:
-      - wireguard-state-mesh-6:/config
-      - /lib/modules:/lib/modules:ro
-    networks:
-      - deployer_platform
-      - shared
-
 networks:
   app_network_dev:
     name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_app_network_dev
@@ -458,17 +374,9 @@ volumes:
     name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_web_instance_token_dev
   deployer-traefik-config:
     name: ${TRAEFIK_CONFIG_VOLUME:-deployer-traefik-config}
-  deployer-port-proxy-config:
-    name: ${DIRECT_PROXY_CONFIG_VOLUME:-deployer-port-proxy-config}
-  wireguard-state-mesh-1:
-    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-1
-  wireguard-state-mesh-2:
-    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-2
-  wireguard-state-mesh-3:
-    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-3
-  wireguard-state-mesh-4:
-    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-4
-  wireguard-state-mesh-5:
-    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-5
-  wireguard-state-mesh-6:
-    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-wireguard-state-mesh-6
+  # The mesh agent's control-socket volume (`/run/deployer-mesh/agent.sock`).
+  # NAMED LITERALLY, never project-prefixed: the agent container and the API
+  # swarm service mount it by this exact name, so setup and the API nodes must
+  # mount the same one.
+  deployer-mesh-run:
+    name: deployer-mesh-run

@@ -245,84 +245,64 @@ export const apiEnvSchema = zod
         // (`--providers.docker.apiVersion` does not exist in Traefik v3 and the
         // `DOCKER_API_VERSION` env var is ignored), so the image is the fix.
         DEPLOYER_TRAEFIK_IMAGE: zod.string().min(1).default("traefik:v3.6.10"),
-        // Host port the platform Traefik publishes its HTTP entrypoint on
-        // (dev). Default 80 — override when host port 80 is occupied by
-        // another service (e.g. a host proxy). The persisted platform
-        // setting `ingress.entry_port` (local DB) OVERRIDES this env when set.
-        // When even this port is taken, Traefik falls back to running
-        // headless on the platform network only (internal routing works) and
-        // the app surfaces a BIG WARNING instead of crashing.
+        // Host port every node DOOR binds (the local lane on loopback, the private
+        // lane on the mesh address). Seeds `entryPort` in the `ingress.lanes` mesh
+        // setting the first time the lanes are written; after that the setting is
+        // the only source (the UI changes it there).
         DEPLOYER_TRAEFIK_HTTP_PORT: zod.coerce.number().int().min(1).max(65535).default(80),
-        // W5 TLS scaffolding: when true, the Traefik supervisor adds the
-        // websecure (443) entrypoint + HTTP→HTTPS redirect, serving Traefik's
-        // built-in SELF-SIGNED default certificate until a real certificate
-        // source is configured. Default false keeps plain-HTTP dev flows.
-        DEPLOYER_TRAEFIK_TLS_ENABLED: booleanEnv().optional().default(false),
-        // ACME contact e-mail used by the letsencrypt certificate resolver in
-        // the generated (non-DB) main config when TLS is enabled. Persisted
-        // platform TLS settings (local DB) override this per-domain.
+        // ACME contact e-mail for the Let's Encrypt resolver used by the `direct`
+        // public lane when it is configured with TLS.
         DEPLOYER_TRAEFIK_ACME_EMAIL: zod.string().optional().default("admin@example.com"),
 
-        // ─── INGRESS PROVIDER ─────────────────────────────────────────────
+        // ─── INGRESS LANES & THE MESH ─────────────────────────────────────
         //
-        // There is deliberately NO `DEPLOYER_EDGE_MODE` key here.
+        // There is deliberately NO env key for HOW the stack is reached. The lanes
+        // (local always on; private mesh; one public provider) are an operator
+        // decision stored in the `ingress.lanes` setting of the MESH ROSTER —
+        // replicated by every node's mesh agent, so it survives the API being
+        // rescheduled and is readable on every node. The tunnel credential lives
+        // beside it (`ingress.tunnel`). See `docs/edge-mesh-architecture.md`.
         //
-        // How a client reaches this platform's ingress (local | wireguard |
-        // tunnel | direct) is an OPERATOR DECISION stored in the local SQLite
-        // `platform_settings` table under `edge.mode`, and the local DB is its
-        // ONLY source. It used to also exist as this env var, used as a seed
-        // fallback — which meant the operator's choice in the UI and the value
-        // in env could disagree, with whichever won depending on whether the row
-        // existed. The same install could therefore report a different provider
-        // across restarts.
+        // Control socket of THIS node's mesh agent, as mounted into the API task
+        // (the agent's run volume). Defaults to the agent's own path.
+        MESH_AGENT_SOCKET: zod.string().optional(),
+        // Image of the per-node mesh agent (setup starts it before Swarm exists).
+        MESH_AGENT_IMAGE: zod.string().min(1).default("deployer-mesh-agent:latest"),
         //
-        // The install default lives in code as `DEFAULT_INGRESS_PROVIDER`
-        // (`local` — loopback only, the one provider that cannot expose the
-        // machine). The canonical vocabulary and what each provider requires are
-        // in `@repo/contracts-entities` (`entities/ingress/provider.schema.ts`); the
-        // API reads/writes it through `PlatformIngressSettingsService`.
+        // Whether the mesh agent touches the KERNEL at all.
         //
-        // See `docs/edge-ingress-architecture.md` for the boot-order rule that
-        // makes the LOCAL DB the right home: the ingress supervisors run before
-        // the global Postgres exists, so a cluster-scoped store could not answer
-        // this question in time.
+        //   kernel   drives a real WireGuard interface — a cluster needs this, and
+        //            it needs NET_ADMIN plus a WireGuard-capable kernel
+        //   observe  plans and gossips, never creates or configures an interface.
+        //            The stack still runs, the roster still replicates and the
+        //            doors still converge; only the tunnel is absent, so every
+        //            link reads `trying`/`passive` and the node runs alone.
         //
-        // Connector replicas. Cloudflare allows UP TO 25 connectors on ONE
-        // tunnel and load-balances across them, so high availability comes from
-        // replicas rather than from extra tunnels — which keeps the Cloudflare
-        // side fixed no matter how many nodes the fleet grows to.
+        // Defaults to `observe` so that merely STARTING a stack never creates a
+        // host network interface: bringing one up is an operator decision (the
+        // dev and dev-supervised profiles leave it off; prod sets `kernel`).
         //
-        // 1 is the honest default for a single-node install (a second replica
-        // could not be scheduled anywhere else anyway). Raise it on a fleet.
-        // The connector spec spreads replicas AND caps them at one per node
-        // (`placementMaxReplicasPerNode: 1`), so the cap is enforced in the
-        // placement the supervisor builds rather than by a second env var that
-        // could disagree with it.
+        // This value is forwarded verbatim into the agent container, and the
+        // agent container is REPLACED when it differs (`ensureMeshAgentContainer`
+        // compares env, not just the image) — so flipping it here takes effect on
+        // the next start instead of silently doing nothing.
+        MESH_AGENT_DATAPLANE: zod
+            .enum(["kernel", "observe"])
+            .optional()
+            .transform((value) => value ?? "observe"),
+        // Image of the per-node doors (nginx) the mesh agent runs in front of
+        // Traefik's local and private entrypoints.
+        DEPLOYER_DOOR_IMAGE: zod.string().min(1).default("nginx:alpine"),
+        //
+        // Connector replicas for the `tunnel` public lane. Cloudflare allows UP TO
+        // 25 connectors on ONE tunnel and load-balances across them, so high
+        // availability comes from replicas rather than from extra tunnels — which
+        // keeps the Cloudflare side fixed no matter how many nodes the fleet grows
+        // to. The spec caps them at one per node (`placementMaxReplicasPerNode`).
         DEPLOYER_CLOUDFLARED_REPLICAS: zod.coerce.number().int().min(1).max(25).default(1),
         // Image for the connector. Pinned like every other platform image so an
         // unattended `latest` cannot change the edge under a running platform.
         DEPLOYER_CLOUDFLARED_IMAGE: zod.string().min(1).default("cloudflare/cloudflared:2025.10.0"),
-        //
-        // The tunnel the connector serves. BOTH pieces are needed and they are
-        // not interchangeable:
-        //   - the TOKEN authorises this connector against the tunnel, and is
-        //     minted per tunnel (it is the credential; treated as a secret),
-        //   - the optional HOSTNAME is only used when generating ingress rules
-        //     locally, and is left empty in the normal flow because the API
-        //     writes those rules remotely through the Cloudflare API instead.
-        DEPLOYER_TUNNEL_TOKEN: zod.string().optional(),
-        DEPLOYER_TUNNEL_ID: zod.string().optional(),
-        //
-        // The SINGLE hostname the tunnel's catch-all forwards to. Everything the
-        // platform serves — the console, every user app, every preview — arrives
-        // through this one target, which is what keeps the tunnel configuration
-        // independent of how many apps exist.
-        DEPLOYER_TUNNEL_ROUTE_TARGET: zod.string().min(1).default("http://deployer-traefik:80"),
-        //
-        // The wildcard the tunnel ingress rules are written against, e.g.
-        // `*.example.com`. One rule covers every app and preview, so adding a
-        // deployment never touches Cloudflare.
-        DEPLOYER_TUNNEL_WILDCARD: zod.string().optional(),
 
         // ─── Platform Redis (API-supervised, D-5) ─────────────────────────
         // Redis is supervised BY THE API (RedisSupervisorService) like
@@ -384,32 +364,6 @@ export const apiEnvSchema = zod
         MANAGED_TRAEFIK_WEB_HOST: emptyableString().optional(),
         MANAGED_TRAEFIK_API_HOST: emptyableString().optional(),
 
-        // ─── WireGuard (mesh private overlay) ────────────────────────────
-        // The mesh nodes form a WireGuard mesh LAYER (not an orchestrator):
-        // each node runs a wireguard sidecar with a persisted private key +
-        // peer pubkeys, each gets a 10.x.y.z overlay IP, and nodes reach each
-        // other over the overlay (mesh dial/control plane, plus the drizzle
-        // gateway can attach to it to reach internal DB services).
-        // MANAGED_WIREGUARD_ENABLED=true → the deployment owns the sidecar
-        // (compose) and the WireGuardSupervisor skips spawning.
-        MANAGED_WIREGUARD_ENABLED: booleanEnv().default(false),
-        // Unique overlay IP for THIS node (required when enabled) — e.g. 10.0.0.1.
-        MANAGED_WIREGUARD_IP: zod.string().optional(),
-        // Overlay network /24 — dev default 10.0.0.0/24.
-        MANAGED_WIREGUARD_NETWORK: zod.string().optional().default("10.0.0.0/24"),
-        // This node's private key (base64). Auto-generated + persisted in the
-        // state volume when absent.
-        MANAGED_WIREGUARD_PRIVATE_KEY: zod.string().optional(),
-        // Comma-separated peer list: "<ip>|<pubkey>|<endpoint-host>:<port>" —
-        // e.g. "10.0.0.2|<base64pub>|mesh-node-2:51820".
-        MANAGED_WIREGUARD_PEERS: zod.string().optional(),
-        // Port the wireguard sidecar listens on (UDP).
-        MANAGED_WIREGUARD_PORT: zod.coerce.number().int().min(1).max(65535).default(51820),
-        // Image of the wireguard sidecar.
-        MANAGED_WIREGUARD_IMAGE: zod.string().min(1).default("linuxserver/wireguard:latest"),
-        // Named docker volume persisting wg keys + config.
-        MANAGED_WIREGUARD_STATE_VOLUME: zod.string().optional().default("deployer-wireguard-state"),
-
         // ─── Swarm (SDK cluster orchestration) ──────────────────────────
         // The platform converges the local engine into Swarm mode AFTER setup
         // decides how this node enters the cluster (SwarmParticipationService →
@@ -434,13 +388,10 @@ export const apiEnvSchema = zod
         // here is the ADDRESS this node advertises, which `docker swarm init`
         // needs before any participation row exists.
         //
-        // Advertise address forced for `docker swarm init`. When unset the
-        // bootstrap falls back to MANAGED_WIREGUARD_IP, then 127.0.0.1:2377 —
-        // engine auto-detection fails on hosts whose primary interface carries
-        // multiple addresses (e.g. IPv6 temporary + stable on Wi-Fi → HTTP 400),
-        // so a deterministic default keeps single-host dev converging without
-        // relying on daemon auto-detect. Set per node on multi-host meshes.
-        SWARM_ADVERTISE_ADDR: zod.string().optional(),
+        // There is no advertise-address key: Swarm advertises, listens and
+        // carries its data path on this node's MESH address, which the mesh agent
+        // derives from the node's own WireGuard key. That is what keeps
+        // 2377/7946/4789 off every public interface (docs/edge-mesh-architecture.md).
         // Max manager count (quorum cap) for the platform master election.
         SWARM_QUORUM_MAX: zod.coerce.number().int().min(1).default(3),
 
@@ -494,34 +445,6 @@ export const apiEnvSchema = zod
         // makes the file provider actually see the config — a container
         // -internal path is invisible to the host.
         TRAEFIK_CONFIG_VOLUME: zod.string().min(1).default("deployer-traefik-config"),
-
-        // ─── Direct-port proxy (failover ingress) ─────────────────────────
-        // The API-centric platform publishes NO service ports: everything
-        // goes through Traefik (api.<prefix>deployer.localhost /
-        // web.<prefix>deployer.localhost over the entry port). When Traefik
-        // FAILS (entry port unavailable → degraded), this supervised nginx
-        // container takes over the API/web host ports and forwards to the
-        // container names over the private platform network — the rescue
-        // lane the operator uses to reach the platform and reconfigure the
-        // entry port. As soon as Traefik converges again, the proxy removes
-        // itself. Disable to suppress the failover entirely.
-        DEPLOYER_DIRECT_PROXY_ENABLED: booleanEnv().default(true),
-        // Image for the fallback nginx proxy container.
-        DEPLOYER_DIRECT_PROXY_IMAGE: zod.string().min(1).default("nginx:alpine"),
-        // API container name on the platform network (docker embedded DNS).
-        // Default: THIS API container's own name (resolved from docker).
-        DIRECT_PROXY_API_TARGET: emptyableString().optional(),
-        // Web container name on the platform network. Default: the managed
-        // web container (deployer-managed-web[-prefix]); set it to the
-        // compose-owned web (e.g. web-dev) in dev side-by-side stacks.
-        DIRECT_PROXY_WEB_TARGET: emptyableString().optional(),
-        // Host port the fallback proxy publishes for the web surface.
-        DIRECT_PROXY_WEB_HOST_PORT: zod.coerce.number().int().min(1).max(65535).default(3000),
-        // Named docker volume sharing the generated nginx.conf between the
-        // API container (writes) and the proxy container (mount read-only).
-        DIRECT_PROXY_CONFIG_VOLUME: zod.string().min(1).default("deployer-port-proxy-config"),
-        // API-side mount of the proxy config volume (compose declares it).
-        DIRECT_PROXY_CONFIG_BASE_PATH: zod.string().optional().default("/app/port-proxy-config"),
 
         // Database seeding & bootstrap
         // Using .default() which reads from process.env via expandVariables
@@ -653,18 +576,6 @@ export const managedTraefikSchema = zod.object({
 });
 export type ManagedTraefikEnv = zod.infer<typeof managedTraefikSchema>;
 
-export const managedWireguardSchema = zod.object({
-    enabled: booleanEnv().default(false),
-    ip: zod.string().optional(),
-    network: zod.string().optional().default("10.0.0.0/24"),
-    privateKey: zod.string().optional(),
-    peers: zod.string().optional(),
-    port: zod.coerce.number().int().min(1).max(65535).default(51820),
-    image: zod.string().min(1).default("linuxserver/wireguard:latest"),
-    stateVolume: zod.string().optional().default("deployer-wireguard-state"),
-});
-export type ManagedWireguardEnv = zod.infer<typeof managedWireguardSchema>;
-
 export const managedDatabaseSchema = zod.object({
     enabled: booleanEnv().default(false),
     instances: zod.string().optional(),
@@ -684,7 +595,6 @@ export const managedServicesSchema = zod.object({
     redis: managedRedisSchema,
     localDb: managedLocalDbSchema,
     traefik: managedTraefikSchema,
-    wireguard: managedWireguardSchema,
     database: managedDatabaseSchema,
 });
 export type ManagedServicesEnv = zod.infer<typeof managedServicesSchema>;
@@ -740,16 +650,6 @@ const MANAGED_SERVICE_FLAT_KEYS: Record<ManagedServiceName, Record<string, strin
         httpPort: "MANAGED_TRAEFIK_HTTP_PORT",
         webHost: "MANAGED_TRAEFIK_WEB_HOST",
         apiHost: "MANAGED_TRAEFIK_API_HOST",
-    },
-    wireguard: {
-        enabled: "MANAGED_WIREGUARD_ENABLED",
-        ip: "MANAGED_WIREGUARD_IP",
-        network: "MANAGED_WIREGUARD_NETWORK",
-        privateKey: "MANAGED_WIREGUARD_PRIVATE_KEY",
-        peers: "MANAGED_WIREGUARD_PEERS",
-        port: "MANAGED_WIREGUARD_PORT",
-        image: "MANAGED_WIREGUARD_IMAGE",
-        stateVolume: "MANAGED_WIREGUARD_STATE_VOLUME",
     },
     database: {
         enabled: "MANAGED_DATABASE_ENABLED",
@@ -823,16 +723,6 @@ export function splitManagedEnv(source: ManagedEnvSource): ManagedServicesEnv {
             httpPort: read("traefik", "httpPort"),
             webHost: read("traefik", "webHost"),
             apiHost: read("traefik", "apiHost"),
-        },
-        wireguard: {
-            enabled: read("wireguard", "enabled"),
-            ip: read("wireguard", "ip"),
-            network: read("wireguard", "network"),
-            privateKey: read("wireguard", "privateKey"),
-            peers: read("wireguard", "peers"),
-            port: read("wireguard", "port"),
-            image: read("wireguard", "image"),
-            stateVolume: read("wireguard", "stateVolume"),
         },
         database: {
             enabled: read("database", "enabled"),

@@ -28,6 +28,10 @@
  *
  *     MeshCoreModule → SetupModule → CoreInitializationModule → SwarmCoreModule
  *                                                              → MeshCoreModule
+ *
+ * `MeshAgentModule` is a different thing (the node's mesh AGENT, below Swarm): it
+ * has no dependencies but env, so importing it here cannot create a cycle, and it
+ * is what tells Swarm which address to bind (see `meshAddress` below).
  */
 
 import { Module } from "@nestjs/common";
@@ -35,6 +39,8 @@ import { SwarmModule } from "@repo/nest-swarm";
 import { splitManagedEnv } from "@repo/env";
 import { NodeStateModule } from "@/core/modules/node-state/node-state.module";
 import { EnvModule, EnvService } from "@/config/env/env.module";
+import { MeshAgentModule } from "@/core/modules/mesh-agent/mesh-agent.module";
+import { MeshAgentClient } from "@/core/modules/mesh-agent/mesh-agent.client";
 
 /**
  * Whether the DEPLOYMENT owns every platform service (compose / operator).
@@ -49,9 +55,9 @@ import { EnvModule, EnvService } from "@/config/env/env.module";
 function isFullyDeploymentManaged(env: EnvService): boolean {
     const managed = splitManagedEnv(env);
     return (
-        managed.traefik.enabled === true &&
-        managed.redis.enabled === true &&
-        managed.localDb.enabled === true
+        managed.traefik.enabled &&
+        managed.redis.enabled &&
+        managed.localDb.enabled
     );
 }
 
@@ -62,9 +68,9 @@ function isFullyDeploymentManaged(env: EnvService): boolean {
     imports: [
         NodeStateModule,
         SwarmModule.forRootAsync({
-            imports: [EnvModule],
-            inject: [EnvService],
-            useFactory: (env: EnvService) => ({
+            imports: [EnvModule, MeshAgentModule],
+            inject: [EnvService, MeshAgentClient],
+            useFactory: (env: EnvService, mesh: MeshAgentClient) => ({
                 election: {
                     evalStableMs: env.get("SWARM_ELECTION_EVAL_STABLE_MS"),
                     evalVolatileMs: env.get("SWARM_ELECTION_EVAL_VOLATILE_MS"),
@@ -73,49 +79,25 @@ function isFullyDeploymentManaged(env: EnvService): boolean {
                     heartbeatTtlMs: env.get("SWARM_HEARTBEAT_TTL_MS"),
                     masterGraceMs: env.get("SWARM_MASTER_GRACE_MS"),
                 },
-                join: {
-                    // Ordered: an explicit swarm address wins, then the WireGuard
-                    // overlay IP, then the node's own public URL. The package
-                    // tries them in order and does not care which source
-                    // produced them — which source this app trusts is OUR
-                    // decision, so it is made here.
-                    controlPlaneCandidates: [
-                        env.get("SWARM_ADVERTISE_ADDR"),
-                        env.get("MANAGED_WIREGUARD_IP"),
-                        env.get("APP_URL"),
-                    ],
-                    quorumMax: env.get("SWARM_QUORUM_MAX"),
-                },
-                // ONLY `overlayIp`, AND ONLY BECAUSE IT IS AN ADDRESS SOURCE.
-                //
-                // The mode / policy / join-token / join-address defaults are gone:
-                // every path that enters a cluster writes the full
-                // `node_config.swarmConfig` (the wizard's local + remote flows, and
-                // the cluster UI), and `effectiveConfig()` prefers that row — so an
-                // env fallback can never be selected. Their comment also cited
-                // `SETUP_AUTO`, a flag deleted with the gate inversion.
-                //
-                // `overlayIp` is different in kind: not a participation CHOICE but
-                // the WireGuard address peers dial. `initOptions()` resolves the
-                // advertised address as `cfg.advertiseAddr ?? defaults.overlayIp`
-                // and the persisted config stores `advertiseAddr: null` when the
-                // operator leaves the field blank — so without this a mesh node would
-                // advertise `127.0.0.1`, the exact failure `AdvertiseAddr` prevents.
+                // Joiners are handed the addresses the managers advertise (read
+                // from the engine), so there is no address list to configure.
+                join: { quorumMax: env.get("SWARM_QUORUM_MAX") },
                 participation: {
-                    overlayIp: env.get("MANAGED_WIREGUARD_IP") ?? null,
+                    // ── SWARM RIDES THE MESH ────────────────────────────────────
+                    // This node's mesh address, from its mesh agent — but only once
+                    // the kernel interface carries it: Swarm cannot bind an address
+                    // the host does not have. Until then the package binds loopback,
+                    // and re-anchors onto the mesh the first time a joiner needs it.
+                    meshAddress: async () => {
+                        const status = await mesh.status().catch(() => null);
+                        return status?.cluster?.interfaceUp === true ? status.cluster.address : null;
+                    },
                     // ── DOES THIS DEPLOYMENT RUN A SWARM AT ALL? ───────────────
                     // The plain `dev` profile is entirely compose-managed: every
                     // `MANAGED_*_ENABLED` is `true`, so every supervisor skips
                     // registration and nothing is ever scheduled onto a cluster.
-                    // Without this flag the boot path still ran
-                    // `docker swarm init`, because `node_config` already said
-                    // `setup_done` from a previous run — leaving a swarm manager
-                    // running on the developer's machine for the rest of the
-                    // session and making "does dev use swarm?" ambiguous.
-                    //
-                    // Derived from the SAME `splitManagedEnv` source the
-                    // supervisors use, so this can never disagree with them about
-                    // who owns what.
+                    // Derived from the SAME `splitManagedEnv` source the supervisors
+                    // use, so this can never disagree with them about who owns what.
                     swarmManaged: !isFullyDeploymentManaged(env),
                 },
             }),

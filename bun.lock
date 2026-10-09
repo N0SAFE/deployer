@@ -62,6 +62,7 @@
         "@repo/env": "*",
         "@repo/errors": "*",
         "@repo/logger": "*",
+        "@repo/mesh-network": "*",
         "@repo/nest-database-core": "*",
         "@repo/nest-database-local": "*",
         "@repo/nest-docker": "*",
@@ -188,6 +189,24 @@
         "typescript": "catalog:build",
       },
     },
+    "apps/mesh-agent": {
+      "name": "mesh-agent",
+      "version": "1.0.0",
+      "dependencies": {
+        "@repo/mesh-network": "*",
+        "zod": "catalog:utils",
+      },
+      "devDependencies": {
+        "@repo/config-eslint": "*",
+        "@repo/config-prettier": "*",
+        "@repo/config-typescript": "*",
+        "@types/bun": "catalog:build",
+        "eslint": "catalog:linting",
+        "rimraf": "catalog:build",
+        "typescript": "catalog:build",
+        "vitest": "catalog:testing",
+      },
+    },
     "apps/setup": {
       "name": "setup",
       "version": "1.0.0",
@@ -210,6 +229,7 @@
         "@repo/env": "*",
         "@repo/errors": "*",
         "@repo/logger": "*",
+        "@repo/mesh-network": "*",
         "@repo/nest-database-local": "*",
         "@repo/nest-docker": "*",
         "@repo/nest-env": "*",
@@ -518,6 +538,25 @@
         "eslint": "catalog:linting",
         "rimraf": "catalog:build",
         "typescript": "catalog:build",
+      },
+    },
+    "packages/infrastructure/mesh-network": {
+      "name": "@repo/mesh-network",
+      "version": "1.0.0",
+      "dependencies": {
+        "zod": "catalog:utils",
+      },
+      "devDependencies": {
+        "@repo/config-eslint": "*",
+        "@repo/config-prettier": "*",
+        "@repo/config-typescript": "*",
+        "@repo/pkg-build": "*",
+        "@types/node": "catalog:build",
+        "chokidar": "catalog:build",
+        "eslint": "catalog:linting",
+        "rimraf": "catalog:build",
+        "typescript": "catalog:build",
+        "vitest": "catalog:testing",
       },
     },
     "packages/nest/database-core": {
@@ -1105,6 +1144,7 @@
         "chokidar": "catalog:build",
         "nest-commander": "catalog:api:nest",
         "reflect-metadata": "catalog:api:nest",
+        "zod": "catalog:utils",
       },
       "devDependencies": {
         "@types/bun": "catalog:build",
@@ -2455,6 +2495,8 @@
     "@repo/errors": ["@repo/errors@workspace:packages/utils/errors"],
 
     "@repo/logger": ["@repo/logger@workspace:packages/infrastructure/logger"],
+
+    "@repo/mesh-network": ["@repo/mesh-network@workspace:packages/infrastructure/mesh-network"],
 
     "@repo/nest-database-core": ["@repo/nest-database-core@workspace:packages/nest/database-core"],
 
@@ -4671,6 +4713,8 @@
     "merge2": ["merge2@1.4.1", "", {}, "sha512-8q7VEgMJW4J8tcfVPy8g09NcQwZdbwFEqhe/WZkoIzjn/3TGDwtOCYtXGxA3O8tPzpczCCDgv+P2P5y00ZJOOg=="],
 
     "mermaid": ["mermaid@11.17.2", "", { "dependencies": { "@braintree/sanitize-url": "^7.1.2", "@iconify/utils": "^3.0.2", "@mermaid-js/parser": "^1.2.1", "@types/d3": "^7.4.3", "@upsetjs/venn.js": "^2.0.0", "cytoscape": "^3.34.0", "cytoscape-cose-bilkent": "^4.1.0", "cytoscape-fcose": "^2.2.0", "d3": "^7.9.0", "d3-sankey": "^0.12.3", "dagre-d3-es": "7.0.14", "dayjs": "^1.11.21", "dompurify": "^3.3.3", "es-toolkit": "^1.45.1", "fastdom": "1.0.12", "katex": "^0.16.47", "khroma": "^2.1.0", "marked": "^16.3.0", "roughjs": "^4.6.6", "stylis": "^4.3.6", "ts-dedent": "^2.2.0", "uuid": "^11.1.0 || ^12 || ^13 || ^14.0.0" } }, "sha512-V6K3C8EBdEsPFZXSKMJe6ppQOENxuHARr9GvHX4hh47lAbhMRD9qf4oEK7LoaRQxULMa80/qt5gHO73aCleBBg=="],
+
+    "mesh-agent": ["mesh-agent@workspace:apps/mesh-agent"],
 
     "methods": ["methods@1.1.2", "", {}, "sha512-iclAHeNqNm68zFtnZ0e+1L2yUIdvzNoauKU4WBA3VvH/vPFieF7qfRlwUZU+DA9P9bPXIS90ulxoUoCH23sV2w=="],
 

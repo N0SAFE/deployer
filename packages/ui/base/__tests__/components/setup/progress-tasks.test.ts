@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
 	buildTasksFromEvents,
 	isPipelineComplete,
+	isSetupRunFinished,
 	type ProgressTask,
 } from "@repo/ui/components/setup/progress-tasks"
 import type { SetupStreamEvent } from "@repo/contracts-entities"
@@ -283,5 +284,63 @@ describe("isPipelineComplete — the Continue gate", () => {
 		])
 
 		expect(isPipelineComplete(gate)).toBe(false)
+	})
+})
+
+describe("isSetupRunFinished — when a dropped connection stops being retried", () => {
+	const completed = {
+		type: "completed",
+		result: { nodeId: "n", strategy: "local", databaseUrl: "x", completedAt: "2026-01-01T00:00:00Z" },
+	} as unknown as SetupStreamEvent
+	const error = { type: "error", message: "boom" } as SetupStreamEvent
+
+	it("is NOT finished at the API's `completed` while the ingress swap is still running", () => {
+		// The API's `completed` arrives BEFORE promote_ingress, and the swap is what
+		// tears the connection down. Treating it as the end meant nothing
+		// reconnected and the timeline froze mid-swap.
+		const events = [
+			stepDetail("start_api"),
+			stepDetail("promote_ingress"),
+			snapshot([
+				{ id: "start_api", status: "completed" },
+				{ id: "promote_ingress", status: "in_progress" },
+			]),
+			completed,
+		]
+		expect(isSetupRunFinished(events)).toBe(false)
+	})
+
+	it("is finished once it completed AND every step is done", () => {
+		const events = [
+			stepDetail("start_api"),
+			stepDetail("promote_ingress"),
+			snapshot([
+				{ id: "start_api", status: "completed" },
+				{ id: "promote_ingress", status: "completed" },
+			]),
+			completed,
+		]
+		expect(isSetupRunFinished(events)).toBe(true)
+	})
+
+	it("is finished on a failure, whatever else is pending — there is nothing to wait for", () => {
+		expect(isSetupRunFinished([stepDetail("start_api"), error])).toBe(true)
+	})
+
+	it("is not finished before any terminal event", () => {
+		expect(isSetupRunFinished([stepDetail("start_api")])).toBe(false)
+		expect(isSetupRunFinished([])).toBe(false)
+	})
+
+	it("is finished when the API took over, which retires setup's own steps", () => {
+		// Setup exits after the handover; its in-flight steps can never be updated
+		// again, so the API speaking is what ends the wait.
+		const events = [
+			stepDetail("promote_ingress"),
+			snapshot([{ id: "promote_ingress", status: "in_progress" }]),
+			snapshot([{ id: "run_migrations", status: "completed" }]),
+			completed,
+		]
+		expect(isSetupRunFinished(events)).toBe(true)
 	})
 })

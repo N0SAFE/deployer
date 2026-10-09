@@ -4,6 +4,7 @@ import { CoreReachabilityModule } from "@/core/modules/reachability/core-reachab
 import { EnvModule } from "@/config/env/env.module";
 import { SetupController } from "./controllers/setup.controller";
 import { PostSetupDestinationService } from "./services/post-setup-destination.service";
+import { PostSetupVerificationService } from "./services/post-setup-verification.service";
 
 /**
  * Public Setup Module
@@ -37,7 +38,7 @@ import { PostSetupDestinationService } from "./services/post-setup-destination.s
     // `CorePlatformIngressModule` IS `@Global()`.)
     imports: [CoreInitializationModule, CoreReachabilityModule, EnvModule],
     controllers: [SetupController],
-    providers: [PostSetupDestinationService],
-    exports: [CoreInitializationModule, PostSetupDestinationService],
+    providers: [PostSetupDestinationService, PostSetupVerificationService],
+    exports: [CoreInitializationModule, PostSetupDestinationService, PostSetupVerificationService],
 })
 export class SetupModule {}

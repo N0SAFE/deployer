@@ -49,6 +49,11 @@ services:
       # The SAME SQLite file the API reads: setup writes the swarm participation
       # decision and the database URL, and the API is their reader.
       - api_local_db_data_prod:/app/data
+      # The mesh agent's control socket (`/run/deployer-mesh/agent.sock`). Setup
+      # starts the agent before founding the swarm and drives it over this
+      # socket. Restated here because the prod setup variant does not extend
+      # the setup base, which is where the other profiles inherit it from.
+      - deployer-mesh-run:/run/deployer-mesh
     environment:
       # ── THE SHARED NODE-STATE VOLUME, NAMED EXACTLY AS COMPOSE CREATED IT ──
       # Setup schedules the API and mounts this volume into that task, so it must
@@ -133,5 +138,8 @@ volumes:
     name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_web_instance_token_prod
   deployer-traefik-config:
     name: ${TRAEFIK_CONFIG_VOLUME:-deployer-traefik-config}
-  deployer-port-proxy-config:
-    name: ${DIRECT_PROXY_CONFIG_VOLUME:-deployer-port-proxy-config}
+  # The mesh agent's control-socket volume. NAMED LITERALLY, never
+  # project-prefixed: the agent container and the API swarm service setup
+  # schedules mount it by this exact name.
+  deployer-mesh-run:
+    name: deployer-mesh-run

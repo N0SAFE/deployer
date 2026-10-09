@@ -227,7 +227,7 @@ export class SwarmParticipationService {
 
     private async createNew(cfg: SwarmParticipationConfig): Promise<ClusterSnapshot> {
         this.logger.log(`Swarm participation: creating a new cluster (policy=${cfg.policy})`);
-        const options = this.initOptions(cfg);
+        const options = await this.initOptions(cfg);
         return await this.clusterService.ensureCluster(options);
     }
 
@@ -251,19 +251,39 @@ export class SwarmParticipationService {
         await this.clusterService.joinCluster({
             joinToken: cfg.joinToken,
             remoteAddrs: cfg.joinAddrs,
+            meshAddress: await this.meshAddress(),
         });
         // A join is acknowledged immediately but only becomes USABLE once the
         // Raft join settles — wait for the engine to report `active`.
         return await this.clusterService.waitForActiveCluster();
     }
 
-    /** Deterministic init options (ListenAddr + concrete AdvertiseAddr). */
-    private initOptions(cfg: SwarmParticipationConfig): SwarmInitOptions {
-        const options: SwarmInitOptions = { ListenAddr: "0.0.0.0:2377" };
-        const advertise =
-            cfg.advertiseAddr ?? this.defaults.advertiseAddr ?? this.defaults.overlayIp;
-        options.AdvertiseAddr = `${advertise ?? "127.0.0.1"}:2377`;
-        return options;
+    /** This node's mesh address, or null when it has none yet. Never throws. */
+    async meshAddress(): Promise<string | null> {
+        try {
+            return (await this.defaults.meshAddress?.()) ?? null;
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * Init options bound to the mesh.
+     *
+     * With a mesh address, Swarm listens, advertises and carries VXLAN there, so
+     * nothing of the control or data plane binds a public interface. Without one
+     * (a lone node, no mesh yet) everything binds loopback — still reachable from
+     * this node, unreachable from anywhere else, and re-anchored onto the mesh the
+     * first time a joiner needs it (`SwarmJoinGrantService`).
+     */
+    private async initOptions(cfg: SwarmParticipationConfig): Promise<SwarmInitOptions> {
+        const mesh = await this.meshAddress();
+        const advertise = cfg.advertiseAddr ?? this.defaults.advertiseAddr ?? mesh ?? "127.0.0.1";
+        return {
+            ListenAddr: `${mesh ?? "127.0.0.1"}:2377`,
+            AdvertiseAddr: `${advertise}:2377`,
+            ...(mesh === null ? {} : { DataPathAddr: mesh }),
+        };
     }
 
     /**

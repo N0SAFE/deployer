@@ -4,7 +4,8 @@ import { useMemo } from 'react'
 import { Badge } from '@repo/ui/components/shadcn/badge'
 import { Button } from '@repo/ui/components/shadcn/button'
 import { TableCell, TableRow } from '@repo/ui/components/shadcn/table'
-import { Check, ChevronDown, ChevronRight, Minus } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, Download, Minus } from 'lucide-react'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@repo/ui/components/shadcn/dropdown-menu'
 import type { ReactNode } from 'react'
 
 export interface FilterChip {
@@ -19,13 +20,13 @@ interface DockerActiveFilterChipsProps {
 
 export function DockerActiveFilterChips({ chips }: DockerActiveFilterChipsProps) {
   if (chips.length === 0) {
-    return <p className="text-xs text-muted-foreground">No active filters.</p>
+    return <p className="text-xs text-muted-foreground">No filters applied.</p>
   }
 
   return (
     <div className="flex flex-wrap gap-1.5">
       {chips.map((chip) => (
-        <Badge key={chip.key} variant="outline" className="text-[10px]">
+        <Badge key={chip.key} variant="outline" className="text-xs">
           {chip.label}: {chip.value}
         </Badge>
       ))}
@@ -101,6 +102,8 @@ export function DockerColumnSettings({ title, columns, onToggle }: DockerColumnS
 interface DockerExportActionsProps<Row extends Record<string, unknown>> {
   filenameBase: string
   rows: Row[]
+  /** One "Export" menu instead of two buttons and a count badge. */
+  compact?: boolean
 }
 
 function toCsv(rows: Record<string, unknown>[]): string {
@@ -150,7 +153,28 @@ function downloadTextFile(filename: string, content: string, mimeType: string) {
   URL.revokeObjectURL(url)
 }
 
-export function DockerExportActions<Row extends Record<string, unknown>>({ filenameBase, rows }: DockerExportActionsProps<Row>) {
+export function DockerExportActions<Row extends Record<string, unknown>>({ filenameBase, rows, compact = false }: DockerExportActionsProps<Row>) {
+  if (compact) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="outline" size="sm" disabled={rows.length === 0}>
+            <Download />
+            Export
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={() => { downloadTextFile(`${filenameBase}.csv`, toCsv(rows), 'text/csv;charset=utf-8') }}>
+            CSV ({rows.length} rows)
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => { downloadTextFile(`${filenameBase}.json`, JSON.stringify(rows, null, 2), 'application/json;charset=utf-8') }}>
+            JSON ({rows.length} rows)
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+  }
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Button

@@ -1,8 +1,9 @@
 # pkg-build — shared configurable package builder
 
 One build pipeline for every workspace package. Behaviour is declared in each
-package's own `package.json` under a `pkgBuild` block, so a package with unusual
-needs overrides configuration instead of forking a script.
+package's own `pkg-build.config.ts`, type-checked through `defineConfig()` from
+`@repo/pkg-build/config`, so a package with unusual needs overrides
+configuration instead of forking a script.
 
 ## Why
 
@@ -26,17 +27,24 @@ package already has) against a generated config.
 
 ## Usage
 
-Consumers execute the **built CLI** (`dist/cjs/main.js`), not the source:
+Consumers execute the **built CLI**, by its `bin` name, not a path into
+`dist/`. `@repo/pkg-build` is a workspace devDependency, so the bin is linked
+into the package's `node_modules/.bin` and `bun --bun pkg-build` resolves it —
+no `../../../tooling/bin-pkg-build/dist/cjs/main.js` in any manifest:
 
 ```json
 {
     "scripts": {
-        "build": "bun --bun ../../bin/pkg-build/dist/cjs/main.js",
-        "build:types": "bun --bun ../../bin/pkg-build/dist/cjs/main.js --types",
-        "dev": "bun --bun ../../bin/pkg-build/dist/cjs/main.js --watch"
+        "build": "bun --bun pkg-build",
+        "build:types": "bun --bun pkg-build --types",
+        "dev": "bun --bun pkg-build --watch"
     }
 }
 ```
+
+The **mode** is inferred from `NODE_ENV`; `--mode=dev|prod` overrides it. An
+unqualified `build` therefore leaves `NODE_ENV` alone, and the prod images get
+minified output because they set `NODE_ENV=production` before `turbo run build`.
 
 Why the built artifact and not `src/main.ts`? Bun resolves `tsconfig.json` from
 the **process cwd**, and the CLI runs with the consuming package as cwd. A
@@ -95,14 +103,49 @@ markers are deliberate.
 
 ## Config defaults
 
-With no `pkgBuild` block, defaults apply:
+A package with no `pkg-build.config.ts` gets the defaults — but every package
+ships the file anyway, because it is where the build surface is discoverable and
+the type-check proves it:
 
 - `root`: `src`
 - entries: every `src/**/*.{ts,tsx}` except tests
 - `formats`: `esm` → `dist/esm/*.mjs`, `cjs` → `dist/cjs/*.js`
 - `target`: `bun`
 - `splitting`: on for esm only (bun refuses splitting for cjs)
+- `variants`: derived — a package containing `.tsx` ships both JSX variants,
+  anything else ships `production` alone
+- `minify` / `sourcemap`: see **mode × variant** below
 - dts: `dist/types/**`, mirroring the source tree
+
+### Mode × variant
+
+Two independent axes decide what a given output file looks like:
+
+| Axis | Values | Source |
+| --- | --- | --- |
+| **mode** | `dev` \| `prod` | `NODE_ENV` at process start, or `--mode` |
+| **variant** | `development` \| `production` | the JSX runtime the file targets |
+
+They are not the same thing, and conflating them is a bug: a non-JSX package
+emits a single `production` variant, so a variant-only rule would minify every
+dev-container build and drop the maps that make local debugging possible.
+
+| mode | variant | minified | sourcemap |
+| --- | --- | --- | --- |
+| `dev` | either | no | `linked` |
+| `prod` | `development` | no | `linked` |
+| `prod` | `production` | yes | `none` |
+
+The rule is "what a production consumer actually loads is minified and carries no
+maps; everything else stays debuggable". `dev` is the default, so an unqualified
+`bun --bun pkg-build` never minifies; only the prod images (which set
+`NODE_ENV=production` before `turbo run build`) do.
+
+`modeFromEnv` reads `process.env['NODE_ENV']` with **bracket** access on purpose.
+bun statically folds the dot-form `process.env.NODE_ENV` to a string literal at
+build time — even with `define: {}` and `env: 'disable'` (measured) — which would
+bake this package's own build-time value into the shipped CLI and freeze every
+consumer's mode.
 
 ## Config reference
 
@@ -112,12 +155,13 @@ With no `pkgBuild` block, defaults apply:
 | `entries`   | `string[]`                               | —               | Explicit entry files, relative to `root`.                                             |
 | `include`   | `string[]`                               | —               | Narrow the glob to these sub-paths of `root`.                                         |
 | `formats`   | `("esm"\|"cjs")[]` \| `false`            | `["esm","cjs"]` | Formats to emit. `false` emits none.                                                  |
+| `variants`  | `("development"\|"production")[]`        | derived         | JSX variants to emit.                                                                 |
 | `outDir`    | `string`                                 | `"dist"`        | Base output directory.                                                                |
 | `flat`      | `boolean`                                | `false`         | Emit into `outDir` directly instead of `outDir/<format>`.                             |
 | `target`    | `"bun"\|"node"\|"browser"`               | `"bun"`         | Build target.                                                                         |
 | `splitting` | `boolean`                                | esm-only        | Override code splitting.                                                              |
-| `minify`    | `boolean`                                | `false`         | Minify output.                                                                        |
-| `sourcemap` | `"linked"\|"external"\|"inline"\|"none"` | `"linked"`      | Sourcemap mode.                                                                       |
+| `minify`    | `boolean`                                | mode × variant  | Minify output. Default: only prod mode × production variant.                          |
+| `sourcemap` | `"linked"\|"external"\|"inline"\|"none"` | mode × variant  | Sourcemap mode. Default: everything except prod mode × production variant.            |
 | `external`  | `string[]`                               | `[]`            | Extra specifiers to leave unbundled.                                                  |
 | `copy`      | `{from,to}[]`                            | `[]`            | Extra assets copied into the output.                                                  |
 | `keepEnv`   | `boolean`                                | `true`          | Keep `process.env.X` a runtime lookup.                                                |
@@ -126,6 +170,11 @@ With no `pkgBuild` block, defaults apply:
 `entries` and the glob are a **union**: explicit entries are always built, and
 `include` narrows the scan. When only `entries` is given the glob does not run, so
 unrelated root files are not dragged in.
+
+Identifier mangling is deliberately not enabled. Several packages reflect on
+`constructor.name` (NestJS loggers, error classes), and bun's `minify.keepNames`
+does not preserve it under `identifiers` in 1.4.2 — the class name is renamed
+regardless (measured).
 
 Every source file is an entry, so `dist/` mirrors the source tree — which is what
 makes subpath exports such as `./react/session/client` resolve to a real file.
@@ -199,41 +248,64 @@ only when a package genuinely wants build-time substitution.
 
 **Nested packages with root export** — `@repo/ui`:
 
-```json
-"pkgBuild": {
-    "root": "src",
-    "include": ["components", "hooks", "lib"],
-    "entries": ["index.ts"],
-    "copy": [{ "from": "src/styles", "to": "dist/styles" }]
-}
+```ts
+// packages/ui/base/pkg-build.config.ts
+import { defineConfig } from '@repo/pkg-build/config'
+
+export default defineConfig({
+    root: 'src',
+    include: ['components', 'hooks', 'lib'],
+    entries: ['index.ts'],
+    copy: [{ from: 'src/styles', to: 'dist/styles' }],
+    variants: ['development', 'production'],
+})
 ```
 
 **Bundled CLI** — `@repo/cli-declarative-routing` emits one flat CJS file for Node:
 
-```json
-"pkgBuild": {
-    "root": "src",
-    "entries": ["index.ts"],
-    "formats": ["cjs"],
-    "flat": true,
-    "target": "node",
-    "splitting": false,
-    "external": ["@parcel/watcher"],
-    "sourcemap": "external"
-}
+```ts
+// tooling/bin-declarative-routing/pkg-build.config.ts
+import { defineConfig } from '@repo/pkg-build/config'
+
+export default defineConfig({
+    root: 'src',
+    entries: ['index.ts'],
+    formats: ['cjs'],
+    flat: true,
+    target: 'node',
+    splitting: false,
+    external: ['@parcel/watcher'],
+    sourcemap: 'external',
+})
 ```
 
 **Root-entry library** — `@repo/api-contracts` has no `src/`, so `root` is `"."`:
 
-```json
-"pkgBuild": {
-    "root": ".",
-    "entries": ["index.ts"],
-    "formats": ["esm"],
-    "flat": true,
-    "minify": true,
-    "external": ["@orpc/contract", "@orpc/shared", "zod"]
-}
+```ts
+// packages/contracts/api/pkg-build.config.ts
+import { defineConfig } from '@repo/pkg-build/config'
+
+export default defineConfig({
+    root: '.',
+    entries: ['index.ts'],
+    formats: ['esm'],
+    flat: true,
+    minify: true,
+    external: ['@orpc/contract', '@orpc/shared', 'zod'],
+})
+```
+
+**CMS migration assets** — `@repo/nest-schema` copies a tree, and has JSX nowhere,
+so it ships the `production` variant alone:
+
+```ts
+// packages/nest/schema/pkg-build.config.ts
+import { defineConfig } from '@repo/pkg-build/config'
+
+export default defineConfig({
+    root: 'src',
+    copy: [{ from: 'migrations', to: 'dist/migrations' }],
+})
 ```
 
 ## Watch mode

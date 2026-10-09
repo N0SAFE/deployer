@@ -35,7 +35,7 @@ function makeRepo(
                 private: true,
                 packageManager: 'bun@1.4.2',
                 workspaces: {
-                    packages: ['apps/**', 'packages/**', 'tools/**'],
+                    packages: ['apps/**', 'packages/**', 'tooling/**'],
                 },
             },
             null,
@@ -119,9 +119,9 @@ describe('TurboRunner', () => {
             expect(
                 manifest.workspaces.packages.some((w) => w.startsWith('apps'))
             ).toBe(false)
-            // Packages and tools must stay: the union is built from them.
+            // Packages and tooling must stay: the union is built from them.
             expect(manifest.workspaces.packages).toContain('packages/**')
-            expect(manifest.workspaces.packages).toContain('tools/**')
+            expect(manifest.workspaces.packages).toContain('tooling/**')
         })
 
         it('is idempotent, so buildOnce and watch can each call it', () => {

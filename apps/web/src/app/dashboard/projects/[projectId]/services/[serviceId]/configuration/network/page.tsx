@@ -1,5 +1,6 @@
 'use client'
 
+import type { RouteVisibility } from '@repo/contracts-entities/entities/ingress/index'
 import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
@@ -23,6 +24,7 @@ import {
   Siren, Save, Network, Globe, Lock, Plus, Cloud, ShieldCheck, ArrowRight, Loader2,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { AuthDashboardNetworkDns, AuthDashboardNetworkIngress } from '@/routes'
 import { ServiceConfigSubNav } from '../../_components/service-config-subnav'
 import { ServiceDomainConfig } from '@/app/dashboard/projects/_components/ServiceDomainConfig'
 import { AutocompleteField } from '@/app/dashboard/projects/_components/steps/autocomplete-field'
@@ -39,7 +41,7 @@ import {
 const RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'TXT'] as const
 
 /**
- * Service Network — provider-backed networking.
+ * Service Network — "How this service is reached": 1. visibility, 2. domains, 3. DNS.
  *
  * The service INHERITS its project's DNS provider + zone unless overridden
  * here. This page is driven by the DNS provider:
@@ -72,7 +74,7 @@ export default function DashboardServiceConfigurationNetworkPage() {
   const [recordContent, setRecordContent] = useState('')
   const [proxied, setProxied] = useState(true)
   const [autoProvision, setAutoProvision] = useState(false)
-  const [expose, setExpose] = useState(false)
+  const [visibility, setVisibility] = useState<RouteVisibility>('public')
   const [tlsEnabled, setTlsEnabled] = useState(false)
   const [loaded, setLoaded] = useState(false)
 
@@ -95,7 +97,7 @@ export default function DashboardServiceConfigurationNetworkPage() {
         recordContent?: string | null
         proxied?: boolean
         autoProvision?: boolean
-        expose?: boolean
+        visibility?: RouteVisibility
         tls?: { enabled?: boolean }
       } | null
       // Seed with the service's OWN overrides only. When there is no override
@@ -111,7 +113,7 @@ export default function DashboardServiceConfigurationNetworkPage() {
       // network config, i.e. it asserted a setting that had never been made.
       setProxied(n?.proxied ?? false)
       setAutoProvision(n?.autoProvision ?? false)
-      setExpose(n?.expose ?? false)
+      setVisibility(n?.visibility ?? 'public')
       setTlsEnabled(Boolean(n?.tls?.enabled))
       setLoaded(true)
     }
@@ -155,7 +157,7 @@ export default function DashboardServiceConfigurationNetworkPage() {
           recordContent: recordContent.trim() || null,
           proxied,
           autoProvision,
-          expose,
+          visibility,
           tls: { enabled: tlsEnabled, httpRedirect: true },
         },
       })
@@ -169,14 +171,108 @@ export default function DashboardServiceConfigurationNetworkPage() {
     <div className="space-y-6">
       <ServiceConfigSubNav projectId={projectId} serviceId={serviceId} active="network" />
 
+      <div className="space-y-1">
+        <h2 className="text-lg font-semibold tracking-tight">How this service is reached</h2>
+        <p className="max-w-3xl text-sm text-muted-foreground">
+          Work top to bottom: choose its visibility, bind domains, then check the DNS records behind them. One Save applies
+          visibility, TLS and DNS settings together; domain bindings are saved on their own.
+        </p>
+      </div>
+
+      {/* ── 1. Visibility ── */}
+      <Card className="border-border/60 bg-card/40 backdrop-blur-xl">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Network className="size-4 text-muted-foreground" /> 1. Visibility
+          </CardTitle>
+          <CardDescription className="text-xs">Who can reach this service. This decides whether it gets a public route at all.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Visibility</Label>
+              <Select value={visibility} onValueChange={(v) => setVisibility(v as RouteVisibility)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="public">Public — also reachable from the internet</SelectItem>
+                  <SelectItem value="private">Private — this machine and the mesh</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Private: reachable from this machine and mesh members only. Public: also served on the public lane. Neither
+                option publishes a host port. Stack-wide lanes are managed under Network → Ingress &amp; edge.
+              </p>
+            </div>
+            <div className={`flex items-center justify-between rounded-lg border p-3 ${visibility === 'public' ? '' : 'opacity-50'}`}>
+              <div>
+                <p className="flex items-center gap-1.5 text-sm font-medium"><Lock className="size-3.5" /> TLS termination</p>
+                <p className="text-xs text-muted-foreground">Terminate HTTPS at the edge. Public services only.</p>
+              </div>
+              <Switch checked={visibility === 'public' && tlsEnabled} onCheckedChange={(v) => { setTlsEnabled(v); if (v) setVisibility('public') }} disabled={visibility !== 'public'} />
+            </div>
+          </div>
+
+        </CardContent>
+      </Card>
+
+      {/* ── Registered Domains ── */}
+      <Card className="border-border/60 bg-card/40 backdrop-blur-xl">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <ShieldCheck className="size-4 text-muted-foreground" /> 2. Domains
+          </CardTitle>
+          <CardDescription className="text-xs">
+            The addresses people type to open this service. Pick one of the project&apos;s registered domains, then choose a subdomain and an optional path. Domains themselves are registered at project level.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {projectDomains.length === 0 ? (
+            <p className="py-3 text-sm text-muted-foreground">No project domains registered yet. Register one on the project&apos;s Domains tab, then bind it here.</p>
+          ) : (
+            <div className="space-y-3">
+              {projectDomains.map((pd) => (
+                <div key={pd.id} className="rounded-lg border bg-background/40 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-sm font-medium">{pd.domain}</span>
+                    {pd.isPrimary ? <Badge variant="secondary" className="text-[10px]">primary</Badge> : null}
+                    <div className="ml-auto flex flex-wrap gap-1">
+                      {pd.allowedSubdomains.map((s) => (
+                        <Badge key={s} variant="outline" className="font-mono text-[10px]">{s}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                  {pd.existingMappings.length > 0 ? (
+                    <div className="mt-2 space-y-1 border-t pt-2">
+                      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Existing bindings</p>
+                      {pd.existingMappings.map((m, i) => (
+                        <div key={i} className="flex items-center gap-2 text-xs">
+                          <Badge variant="outline" className="text-[10px]">{m.serviceName}</Badge>
+                          <ArrowRight className="size-3 text-muted-foreground" />
+                          <span className="font-mono text-muted-foreground">{m.fullUrl}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Bindings management (subdomain + basePath, conflict-aware) */}
+          <div className="border-t pt-4">
+            <ServiceDomainConfig projectId={projectId} serviceId={serviceId} />
+          </div>
+        </CardContent>
+      </Card>
+
       {/* ── DNS Provider & Zone ── */}
       <Card className="border-border/60 bg-card/40 backdrop-blur-xl">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm">
-            <Cloud className="size-4 text-muted-foreground" /> DNS Provider &amp; Zone
+            <Cloud className="size-4 text-muted-foreground" /> 3. DNS provider &amp; zone
           </CardTitle>
           <CardDescription className="text-xs">
-            The service inherits its project&apos;s provider + zone unless overridden below. The zone name becomes the base domain.
+            Where DNS records for this service&apos;s domains are created. Inherits the project&apos;s provider and zone unless you override them; the zone name is the base domain.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -252,7 +348,7 @@ export default function DashboardServiceConfigurationNetworkPage() {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle className="flex items-center gap-2 text-sm">
-              <Globe className="size-4 text-muted-foreground" /> DNS Records
+              <Globe className="size-4 text-muted-foreground" /> DNS records
             </CardTitle>
             <CardDescription className="text-xs">
               {zoneName ? `Live records in zone ${zoneName}.` : 'Select a zone above to see its DNS records.'}
@@ -278,7 +374,7 @@ export default function DashboardServiceConfigurationNetworkPage() {
         <CardContent>
           {records.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              {zoneId ? 'No records found in this zone (or provider is unreachable).' : 'No zone selected — records appear once a zone is configured.'}
+              {zoneId ? 'No records found in this zone, or the provider is unreachable. Check the provider account under Network → DNS.' : 'No zone resolved yet. Pick a provider and zone above (or set them on the project) to see records.'}
             </p>
           ) : (
             <div className="overflow-auto">
@@ -309,82 +405,15 @@ export default function DashboardServiceConfigurationNetworkPage() {
         </CardContent>
       </Card>
 
-      {/* ── Registered Domains ── */}
+      {/* ── DNS record defaults ── */}
       <Card className="border-border/60 bg-card/40 backdrop-blur-xl">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm">
-            <ShieldCheck className="size-4 text-muted-foreground" /> Registered Domains
+            <Plus className="size-4 text-muted-foreground" /> DNS record defaults
           </CardTitle>
-          <CardDescription className="text-xs">
-            Domains already registered on this project. Bind this service with an allowed subdomain + path.
-          </CardDescription>
+          <CardDescription className="text-xs">What gets created in the zone when a domain is bound to this service.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {projectDomains.length === 0 ? (
-            <p className="py-3 text-sm text-muted-foreground">No project domains registered yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {projectDomains.map((pd) => (
-                <div key={pd.id} className="rounded-lg border bg-background/40 p-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-sm font-medium">{pd.domain}</span>
-                    {pd.isPrimary ? <Badge variant="secondary" className="text-[10px]">primary</Badge> : null}
-                    <div className="ml-auto flex flex-wrap gap-1">
-                      {pd.allowedSubdomains.map((s) => (
-                        <Badge key={s} variant="outline" className="font-mono text-[10px]">{s}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                  {pd.existingMappings.length > 0 ? (
-                    <div className="mt-2 space-y-1 border-t pt-2">
-                      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Existing bindings</p>
-                      {pd.existingMappings.map((m, i) => (
-                        <div key={i} className="flex items-center gap-2 text-xs">
-                          <Badge variant="outline" className="text-[10px]">{m.serviceName}</Badge>
-                          <ArrowRight className="size-3 text-muted-foreground" />
-                          <span className="font-mono text-muted-foreground">{m.fullUrl}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Bindings management (subdomain + basePath, conflict-aware) */}
-          <div className="border-t pt-4">
-            <ServiceDomainConfig projectId={projectId} serviceId={serviceId} />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ── Ingress & Auto-provision ── */}
-      <Card className="border-border/60 bg-card/40 backdrop-blur-xl">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <Network className="size-4 text-muted-foreground" /> Ingress &amp; Auto-provision
-          </CardTitle>
-          <CardDescription className="text-xs">Route traffic to this service and auto-create its DNS record.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <p className="flex items-center gap-1.5 text-sm font-medium"><Globe className="size-3.5" /> Expose to internet</p>
-                <p className="text-xs text-muted-foreground">Route traffic through the ingress (Traefik).</p>
-              </div>
-              <Switch checked={expose} onCheckedChange={setExpose} />
-            </div>
-            <div className={`flex items-center justify-between rounded-lg border p-3 ${expose ? '' : 'opacity-50'}`}>
-              <div>
-                <p className="flex items-center gap-1.5 text-sm font-medium"><Lock className="size-3.5" /> TLS termination</p>
-                <p className="text-xs text-muted-foreground">Terminate HTTPS on the edge.</p>
-              </div>
-              <Switch checked={expose && tlsEnabled} onCheckedChange={(v) => { setTlsEnabled(v); if (v) setExpose(true) }} disabled={!expose} />
-            </div>
-          </div>
-
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
               <Label>Record type</Label>
@@ -423,11 +452,31 @@ export default function DashboardServiceConfigurationNetworkPage() {
             </div>
           </div>
 
-          <Button size="sm" onClick={() => { void handleSave() }} disabled={updateNetwork.isPending}>
-            <Save className="mr-1.5 size-3.5" /> {updateNetwork.isPending ? 'Saving…' : 'Save'}
-          </Button>
         </CardContent>
       </Card>
+
+      <Card className="border-dashed border-border/60 bg-card/20">
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+          <p className="max-w-2xl text-xs text-muted-foreground">
+            Public lanes, tunnels and entry ports apply to the whole stack, not to this service. Manage them under Network →
+            Ingress &amp; edge; DNS provider accounts live under Network → DNS.
+          </p>
+          <div className="flex shrink-0 gap-2">
+            <AuthDashboardNetworkIngress.Link>
+              <Button variant="outline" size="sm">Ingress &amp; edge <ArrowRight className="ml-1.5 size-3.5" /></Button>
+            </AuthDashboardNetworkIngress.Link>
+            <AuthDashboardNetworkDns.Link>
+              <Button variant="outline" size="sm">DNS <ArrowRight className="ml-1.5 size-3.5" /></Button>
+            </AuthDashboardNetworkDns.Link>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div>
+        <Button size="sm" onClick={() => { void handleSave() }} disabled={updateNetwork.isPending}>
+          <Save className="mr-1.5 size-3.5" /> {updateNetwork.isPending ? 'Saving…' : 'Save visibility & DNS settings'}
+        </Button>
+      </div>
     </div>
   )
 }

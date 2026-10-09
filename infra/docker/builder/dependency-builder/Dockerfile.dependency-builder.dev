@@ -63,7 +63,10 @@ WORKDIR /app
 COPY package.json bun.lock* turbo.json ./
 COPY apps ./apps
 COPY packages ./packages
-COPY tools ./tools
+# `tooling/` holds this tool AND the shared config packages (`@repo/pkg-build`,
+# `@repo/eslint`, ...) its build depends on. Copying it wholesale is what makes
+# `turbo run build --filter=@repo/dependency-builder...` resolvable below.
+COPY tooling ./tooling
 
 RUN --mount=type=cache,target=/root/.bun,sharing=locked \
     --mount=type=cache,target=/root/.cache,sharing=locked \
@@ -87,6 +90,6 @@ RUN --mount=type=cache,target=/app/.turbo,sharing=locked,id=turbo-dep-builder-de
 # `--root /app` is where the tool finds the workspace. `-a` names an enabled
 # application and is repeatable; compose supplies the list, so enabling or
 # disabling an application is a compose edit and never an image rebuild.
-WORKDIR /app/tools/dependency-builder
+WORKDIR /app/tooling/dependency-builder
 
 CMD ["bun", "--bun", "src/main.ts", "build", "--root", "/app"]

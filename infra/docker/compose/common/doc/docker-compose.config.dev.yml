@@ -18,7 +18,7 @@ services:
         - APP_DEPS_MODE=${APP_DEPS_MODE:-volume}
         - BUILDKIT_INLINE_CACHE=1
     ports:
-      - "${NEXT_PUBLIC_DOC_PORT:-3020}:${NEXT_PUBLIC_DOC_PORT:-3020}"
+      - "127.0.0.1:${NEXT_PUBLIC_DOC_PORT:-3020}:${NEXT_PUBLIC_DOC_PORT:-3020}"
     environment:
       NODE_ENV: development
       # Read by the shared entrypoint; `APP_NAME` is derived from the image's

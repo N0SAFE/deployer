@@ -178,7 +178,7 @@ prior sessions are mapped, not reused:
 
 | Legacy ID | Meaning | Plan equivalent |
 |---|---|---|
-| `W5` | TLS env-gating scaffold (schema has `DEPLOYER_TRAEFIK_TLS_ENABLED`) | folded into **W-P1** |
+| `W5` | TLS env-gating scaffold (schema had `DEPLOYER_TRAEFIK_TLS_ENABLED`, since removed) | folded into **W-P1** |
 | `W11` | dashboard role sourced from `session.user` (landed) | finding **B11** |
 | `GAP-5` | raw-body hashing fragility in webhook verification | **G6** (single ID) |
 | `P2-1…P2-3` | prior-session verification refs (Redis supervision, typed queue, unit suite, e2e) | evidence refs only |
@@ -273,7 +273,7 @@ from the API dashboard in prod output; persist `acme.json` via a supervisor name
 (G2) instead of anonymous container storage.
 *Depends-on:* G2 resolution. *AC:* TLS-on → redirect + real email + persisted acme.json;
 TLS-off still works for dev; dashboard auth required in prod output; `curl -I` smoke on
-80/443; traefik/TLS docs updated (G10).
+80/443; traefik/TLS docs updated (G10). *(Superseded: `DEPLOYER_TRAEFIK_TLS_ENABLED` was removed by the edge-mesh rework — HTTPS is now served by the public edge provider: Cloudflare for `cloudflare-tunnel`, Let's Encrypt on the `public-tls` entrypoint for `direct`. See [Networking](/docs/deployment/networking).)*
 
 ### W-P10 — Observability: healthchecks + console→logger + redaction + monitoring extension
 *Effort M · Owns G8 monitoring inputs · Feeds W-P6*
@@ -1219,7 +1219,7 @@ metadata` lives in `page.tsx`, per g4). Migration/test/legit refs untouched.
   stay declared (routers reference them); the ACME resolver is only attached to
   per-domain routers when their persisted ssl flag is set (traefik-sync), so
   no dangling resolver references. Normal + DB-error fallback configs share one
-  builder (DRY). 255 traefik unit tests green.
+  builder (DRY). 255 traefik unit tests green. *(Superseded: `DEPLOYER_TRAEFIK_TLS_ENABLED` was removed by the edge-mesh rework — HTTPS is now served by the public edge provider: Cloudflare for `cloudflare-tunnel`, Let's Encrypt on the `public-tls` entrypoint for `direct`. See [Networking](/docs/deployment/networking).)*
 - **W-F11 per-page metadata ✓**: 12 server-component pages that lacked
   metadata now export `Metadata` (static or `generateMetadata` for the dynamic
   `[organizationId]` admin page): landing `(app)`, auth error/me, dashboard,

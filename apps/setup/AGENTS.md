@@ -118,6 +118,33 @@ not rewrite the setup route, and does not exit: the phase goes `failed` with the
 reason and the wizard offers a retry. Exiting would leave a dead container with
 no surface to recover from.
 
+## The final step: the stream crosses the swap, and the button is gated on proof
+
+The wizard reaches this app *through* the bootstrap Traefik, so `promote_ingress`
+(which removes that Traefik) **tears the wizard's connection down**. Everything
+below follows from that:
+
+- **`completed` is not the end.** The API's `completed` arrives *before* the swap.
+  The client treats the stream as finished only when the run failed or the whole
+  pipeline is done (`isSetupRunFinished` in `@repo/ui`), so a dropped connection
+  is retried instead of freezing the timeline.
+- **A reconnect is a re-sync.** `orchestratedStream` sends the step definitions,
+  the *current* snapshot, then the live tail — history is skipped. A terminal
+  event is a fact about the run, not a delta, so `OrchestrationStreamService`
+  remembers it (`terminalEvent()`) and replays it with the snapshot.
+- **A failed handover is reported on the stream**, not only on the phase:
+  `failActive(reason)` fails the in-flight steps and ends the run with `error`.
+  `POST /setup/handover/retry` clears it (`clearFailure`) and re-enters `launching`
+  — the one edge the handover is subscribed to, so there is one way to run it.
+- **The Continue button is gated on verification, never on the stream.**
+  `GET /setup/post-setup/verification` (implemented by the API, forwarded here
+  with no fallback — inventing "all good" is the bug) asks the cluster ingress for
+  the API and dashboard hostnames; the browser then dials the returned URLs
+  itself. Both halves must pass.
+
+Do not infer "usable" from "the API spoke again": that inference is what showed a
+Continue button in front of a platform that did not answer.
+
 ## Boundaries
 
 - **No business logic in packages.** `@repo/nest-*` exports mechanisms

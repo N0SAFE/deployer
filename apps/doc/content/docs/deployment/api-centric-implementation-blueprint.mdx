@@ -192,6 +192,10 @@ Behavioral rules:
 
 ### Routing (implemented — builder-driven file provider)
 
+<DocCallout title="Superseded by the HTTP provider" tone="warning">
+The file-provider routing below is historical. The platform Traefik is now a swarm `global` service with no Docker socket, no config volume and no docker/swarm provider: it polls one dynamic configuration from the API (`GET /internal/ingress/traefik-config`, built by `TraefikIngressConfigService`). See [API-Centric Deployment Architecture](/docs/deployment/api-centric-deployment-architecture#traefik-first-ingress-no-public-service-ports) and [Networking](/docs/deployment/networking).
+</DocCallout>
+
 Platform routes are generated through the **existing traefik config-builder** (`core/modules/traefik/config-builder`) — the single source of truth for Traefik config shapes. `PlatformRouteConfigService.buildDynamicYaml()` emits the dynamic config (`Host(<api hostname>)` router → Traefik `loadBalancer` service targeting the API inside the platform network), written to `<TRAEFIK_CONFIG_BASE_PATH>/platform[-<prefix>]/dynamic.yml`.
 
 The supervisor then:

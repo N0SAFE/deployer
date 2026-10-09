@@ -23,7 +23,7 @@
     }
   },
   "include": [
-    "src/**/*.ts",
+    "pkg-build.config.ts", "src/**/*.ts",
     "scripts/**/*.ts"
   ],
   "exclude": [

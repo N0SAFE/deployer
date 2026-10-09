@@ -16,6 +16,7 @@ import {
     listHintsResultSchema,
     dismissHintInputSchema,
     setupPostSetupDestinationSchema,
+    setupPostSetupVerificationSchema,
 } from "@repo/contracts-entities";
 import {
     standard,
@@ -32,6 +33,7 @@ const setupRemoteAuthOps = standard.zod(setupRemoteAuthResultSchema, "setupRemot
 const setupInitializeOps = standard.zod(setupInitializeLocalResultSchema, "setupInitialize");
 const setupListHintsOps = standard.zod(listHintsResultSchema, "setupListHints");
 const setupDestinationOps = standard.zod(setupPostSetupDestinationSchema, "setupPostSetupDestination");
+const setupVerificationOps = standard.zod(setupPostSetupVerificationSchema, "setupPostSetupVerification");
 
 /**
  * Canonical setup-domain error set.
@@ -200,6 +202,22 @@ export const setupContract = oc.meta(openapi({ tags: ["Setup"], prefix: "/setup"
         .path("/post-setup/destination")
         .input((b) => b.body(z.object({}).optional()))
         .output((b) => b.body(setupPostSetupDestinationSchema))
+        .errors((e) => setupDomainErrorContracts(e))
+        .build(),
+
+    /**
+     * Do the API and the dashboard REALLY answer through the cluster ingress?
+     *
+     * The wizard calls this (and then dials the returned URLs from the browser)
+     * before it lets the operator leave: the ingress is replaced at the very end
+     * of setup, and "the stream said done" is not evidence that the new one
+     * routes. Public, like the destination, because the wizard is pre-auth.
+     */
+    getPostSetupVerification: setupVerificationOps
+        .list()
+        .path("/post-setup/verification")
+        .input((b) => b.body(z.object({}).optional()))
+        .output((b) => b.body(setupPostSetupVerificationSchema))
         .errors((e) => setupDomainErrorContracts(e))
         .build(),
 });

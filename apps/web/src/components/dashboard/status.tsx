@@ -174,12 +174,15 @@ export function StatusBadge({
   className,
   showDot = true,
   pulse,
+  title,
   children,
 }: {
   status: string | null | undefined
   className?: string
   showDot?: boolean
   pulse?: boolean
+  /** Native tooltip explaining the evidence behind the status (e.g. "last seen 3 min ago"). */
+  title?: string
   /** Optional custom label (defaults to the humanized status). */
   children?: React.ReactNode
 }) {
@@ -187,7 +190,7 @@ export function StatusBadge({
   const Icon = meta.icon
   const animating = pulse || meta.animate
   return (
-    <Badge variant={meta.variant} className={cn('gap-1 capitalize', className)}>
+    <Badge variant={meta.variant} title={title} className={cn('gap-1 capitalize', className)}>
       {showDot ? (
         <StatusDot status={status} pulse={animating} />
       ) : null}
@@ -228,7 +231,7 @@ export function StatusMetric({
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <p className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <p className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground">
           {label}
         </p>
         <div className="flex items-center gap-1.5">
@@ -241,7 +244,7 @@ export function StatusMetric({
       ) : (
         <p className="mt-1.5 text-xl font-semibold tracking-tight tabular-nums">{value}</p>
       )}
-      {hint ? <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{hint}</p> : null}
+      {hint ? <p className="mt-0.5 truncate text-xs text-muted-foreground">{hint}</p> : null}
     </div>
   )
 }

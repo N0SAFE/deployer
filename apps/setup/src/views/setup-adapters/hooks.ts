@@ -11,6 +11,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { SetupInitializeInput, SetupStreamEvent } from "@repo/contracts-entities";
+import { isSetupRunFinished } from "@repo/ui/components/setup/progress-tasks";
 import { setupEndpoints } from "@/views/setup-adapters/endpoints";
 import { getErrorMessage } from "@/views/lib/errors";
 
@@ -159,31 +160,19 @@ const STREAM_MAX_RETRIES = 30;
  */
 const STREAM_INACTIVITY_TIMEOUT_MS = 10_000;
 
-/**
- * Whether the setup stream has reached a TERMINAL event.
- *
- * SEARCHED, not read from the last event. The two producers append to one
- * timeline and the later one can append AFTER the terminal: setup reports the
- * ingress swap, and the API's `completed` can arrive before the client has
- * folded every replayed frame. Reading `at(-1)` would then miss the completion
- * and retry forever.
- */
-function isSetupStreamFinished(events: readonly SetupStreamEvent[]): boolean {
-	return events.some((event) => event.type === "completed" || event.type === "error");
-}
-
 export function useInitializeStream(options?: { enabled?: boolean }): {
 	data?: SetupStreamEvent[] | undefined;
 	error: unknown;
+	reconnecting: boolean;
 } {
-	return useQuery({
+	const query = useQuery({
 		...setupEndpoints.getInitializeStream.experimental_streamedObservableOptions({
 			input: undefined,
 			enabled: options?.enabled ?? false,
 			refetchInterval: false,
 			// See the hook note: this is what turns a cut connection into a
 			// RETRYABLE failure rather than a silent success.
-			isComplete: isSetupStreamFinished,
+			isComplete: isSetupRunFinished,
 			// Short window, so a half-open socket is abandoned in seconds instead of
 			// leaving a `pending` request the operator watches indefinitely.
 			inactivityTimeoutMs: STREAM_INACTIVITY_TIMEOUT_MS,
@@ -194,6 +183,14 @@ export function useInitializeStream(options?: { enabled?: boolean }): {
 		retry: (failureCount) => failureCount < STREAM_MAX_RETRIES,
 		retryDelay: (attempt) => Math.min(STREAM_RETRY_INTERVAL_MS * (attempt + 1), 5_000),
 	});
+	return {
+		data: query.data,
+		error: query.error,
+		// A failed attempt that is being retried, with no terminal error yet. This is
+		// what the handover looks like from here: the ingress is replaced under the
+		// connection. Surfaced so the wizard says so instead of freezing silently.
+		reconnecting: query.failureCount > 0 && query.error === null,
+	};
 }
 
 /**
@@ -214,4 +211,32 @@ export function usePostSetupDestination(options?: { enabled?: boolean }) {
 		staleTime: Infinity,
 		gcTime: 60_000,
 	});
+}
+
+/**
+ * Do the API and the dashboard REALLY answer through the cluster ingress?
+ *
+ * Polled while enabled, because the answer changes by itself during the ingress
+ * swap. NOT retried by TanStack (`retry: false`): a failed call is itself part of
+ * the answer — the API is legitimately unreachable for a moment mid-swap — and the
+ * wizard shows it as "still waiting" while the next poll tries again. The old
+ * result is dropped on error (`placeholderData` is off) so a stale "all good"
+ * can never outlive the platform going away.
+ */
+export function usePostSetupVerification(options?: { enabled?: boolean }) {
+	return useQuery({
+		queryKey: [...setupKeys.all, "verification"] as const,
+		queryFn: async () => (await setupEndpoints.getPostSetupVerification.call({})),
+		enabled: options?.enabled ?? false,
+		refetchInterval: 2_000,
+		retry: false,
+		staleTime: 0,
+		gcTime: 0,
+	});
+}
+
+/** Run a failed handover again. */
+export async function retryHandover(): Promise<{ accepted: boolean }> {
+	const response = await setupEndpoints.retryHandover.call({});
+	return response.body;
 }

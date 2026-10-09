@@ -1,3 +1,4 @@
+import { MeshAdmissionService } from "@/core/modules/mesh-agent/mesh-admission.service";
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
@@ -41,6 +42,8 @@ export class MeshController {
         private readonly nodeConfigRepository: NodeConfigRepository,
         /** Builds the FLEET's swarm role decision for a joining node. */
         private readonly swarmJoinGrant: SwarmJoinGrantService,
+        /** Admits the joiner into the peer-equal network in the same exchange. */
+        private readonly meshAdmission: MeshAdmissionService,
     ) {}
 
     // ─── Auth context helpers ──────────────────────────────────────────────
@@ -268,11 +271,14 @@ export class MeshController {
             .use(requireAuth())
             .handler(async ({ input, context }) => {
                 const actor = this.resolveAuthActor(context);
-                return this.meshTopologyService.issueJoinGrant({
+                const grant = await this.meshTopologyService.issueJoinGrant({
                     ...input,
                     issuedByUserId: actor.userId ?? "unknown",
                     issuedByRole: actor.role,
                 });
+                // The joiner must sign its mesh entry for THIS cluster before it
+                // can be admitted, so the grant tells it which one.
+                return { ...grant, meshNetwork: await this.meshAdmission.clusterForGrant() };
             });
     }
 
@@ -615,6 +621,11 @@ export class MeshController {
                 // why a node can neither promote itself nor found a rival swarm.
                 const swarmGrant = await this.swarmJoinGrant.buildGrant(input.requestedSwarmPolicy);
 
+                // MESH ADMISSION — this node's agent admits the joiner's signed
+                // entry. Any member can do it; the operator was authorised above.
+                const meshAdmission =
+                    input.meshJoinRequest === undefined ? null : await this.meshAdmission.admit(input.meshJoinRequest);
+
                 if (!meshSharedSecret) {
                     return {
                         ...result,
@@ -622,6 +633,7 @@ export class MeshController {
                         peerServiceTokenExpiresAt: null,
                         meshSharedSecret: null,
                         swarmGrant,
+                        meshAdmission,
                     };
                 }
 
@@ -633,6 +645,7 @@ export class MeshController {
                     peerServiceTokenExpiresAt: issued.expiresAt,
                     meshSharedSecret,
                     swarmGrant,
+                    meshAdmission,
                 };
             });
     }

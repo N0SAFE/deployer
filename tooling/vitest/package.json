@@ -7,13 +7,6 @@
     "module": "./dist/esm/index.mjs",
     "types": "./dist/types/index.d.ts",
     "type": "module",
-    "pkgBuild": {
-        "root": "src",
-        "formats": [
-            "esm",
-            "cjs"
-        ]
-    },
     "exports": {
         ".": {
             "types": "./dist/types/index.d.ts",
@@ -31,16 +24,16 @@
         "src"
     ],
     "scripts": {
-        "build": "bun --bun ../bin-pkg-build/dist/cjs/main.js",
-        "compile": "bun --bun ../bin-pkg-build/dist/cjs/main.js",
+        "build": "bun --bun pkg-build",
+        "compile": "bun --bun pkg-build",
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
         "clean": "rimraf dist",
         "type-check": "tsc --noEmit",
         "test": "echo 'vitest-config package ready'",
-        "dev": "bun --bun ../bin-pkg-build/dist/cjs/main.js --watch",
-        "build:types": "bun --bun ../bin-pkg-build/dist/cjs/main.js --types"
+        "dev": "bun --bun pkg-build --watch",
+        "build:types": "bun --bun pkg-build --types"
     },
     "keywords": [
         "vitest",

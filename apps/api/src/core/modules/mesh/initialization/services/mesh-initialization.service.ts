@@ -13,6 +13,8 @@ import {
     meshJoinGrantConsumeResultSchema,
     meshJoinGrantIssueResultSchema,
     type MeshSwarmJoinGrant,
+    type MeshJoinGrantConsumeInput,
+    type MeshNetworkCluster,
 } from "@repo/contracts-entities";
 import { signMeshToken } from "@repo/auth/mesh";
 import { MeshValidationError } from "../../services/system-mesh-topology/domain/mesh-errors";
@@ -69,6 +71,8 @@ export interface MeshBootstrapConfig {
      * then defers its own convergence instead of founding a rival cluster).
      */
     swarmGrant: MeshSwarmJoinGrant | null;
+    /** The mesh roster admitting this node, or null when none was offered. */
+    meshAdmission: { roster: unknown } | null;
     /**
      * The mesh shared secret that all nodes in the cluster share.
      * Used by `requireMesh()` / `requireInternalMesh()` to verify peer
@@ -123,6 +127,8 @@ export class MeshInitializationService {
         grantToken: string,
         serverUrl: string,
         requestedSwarmPolicy?: "auto" | "manager" | "worker",
+        /** This node's signed mesh entry, when the target has a mesh to join. */
+        meshJoinRequest?: MeshJoinGrantConsumeInput["meshJoinRequest"],
     ): Promise<MeshBootstrapConfig> {
         const normalized = this.normalizeUrl(meshUrl);
         await this.validateRemoteMesh(normalized.origin);
@@ -155,6 +161,7 @@ export class MeshInitializationService {
             // actually grants (`result.swarmGrant.role`) — a node requesting
             // "auto" is a candidate, not an entitlement.
             requestedSwarmPolicy,
+            meshJoinRequest,
         });
         // The response crosses a trust boundary (remote mesh node) — validate
         // it through the contract's output schema so the types are truthful.
@@ -172,6 +179,7 @@ export class MeshInitializationService {
             peerServiceTokenExpiresAt,
             meshSharedSecret,
             swarmGrant:  result.swarmGrant,
+            meshAdmission: result.meshAdmission,
         };
     }
 
@@ -195,12 +203,13 @@ export class MeshInitializationService {
      *   full `name=value` cookie pair (e.g.
      *   `"better-auth.session_token=abc"`). Raw values are automatically
      *   wrapped in the standard Better Auth cookie name.
-     * @returns The grant token to pass to {@link bootstrap}.
+     * @returns The grant token to pass to {@link bootstrap}, and the mesh the
+     *   joiner must sign its entry for (null when the target has no mesh).
      */
     async issueRemoteJoinGrant(
         meshUrl: string,
         authSession: string,
-    ): Promise<string> {
+    ): Promise<{ grantToken: string; meshNetwork: MeshNetworkCluster | null }> {
         const normalized = this.normalizeUrl(meshUrl)
 
         // Normalize the session token into a proper Cookie header.
@@ -228,7 +237,7 @@ export class MeshInitializationService {
         // parse through the shared Zod schema instead of casting.
         const result = meshJoinGrantIssueResultSchema.parse(body)
 
-        return result.grantToken
+        return { grantToken: result.grantToken, meshNetwork: result.meshNetwork }
     }
 
     // ─── Session ──────────────────────────────────────────────────────────────

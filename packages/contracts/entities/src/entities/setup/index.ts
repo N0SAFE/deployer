@@ -449,6 +449,58 @@ export const setupPostSetupDestinationSchema = z.object({
 });
 export type SetupPostSetupDestination = z.infer<typeof setupPostSetupDestinationSchema>;
 
+// ─── Post-setup verification ──────────────────────────────────────────────────
+
+/**
+ * One surface the operator is about to use, and whether it really answers.
+ *
+ * ── WHY THIS EXISTS ──────────────────────────────────────────────────────────
+ * "The pipeline reported success" and "the operator's browser can open the
+ * platform" are different facts. The ingress is REPLACED at the end of setup
+ * (bootstrap container → swarm service), the wizard's own connection is torn down
+ * by it, and the old completion logic inferred success from the API merely
+ * speaking again — which is how a Continue button appeared in front of a platform
+ * that did not answer yet.
+ *
+ * So the final step is a check, with two halves that fail independently:
+ *   - `routed`  — the SERVER asks the cluster ingress for this host (with the
+ *                 Host header the browser would send) and reads the answer. It
+ *                 tells "no router yet" apart from "backend down".
+ *   - `probeUrl` — an absolute URL the BROWSER then dials itself, because only
+ *                 the browser can know that DNS, the port and the network path
+ *                 work from where the operator sits.
+ */
+export const setupVerificationTargetIdSchema = z.enum(["api", "web"]);
+export type SetupVerificationTargetId = z.infer<typeof setupVerificationTargetIdSchema>;
+
+export const setupVerificationTargetSchema = z.object({
+    id: setupVerificationTargetIdSchema,
+    /**
+     * False when this surface is not part of the install (no dashboard on an
+     * "API only" setup). An unexpected target is reported, never failed.
+     */
+    expected: z.boolean(),
+    /** The hostname the ingress routes for this surface. */
+    host: z.string(),
+    /** Absolute URL for the browser to reach; null when the target is not expected. */
+    probeUrl: z.string().nullable(),
+    /** The cluster ingress's answer for `host`, as seen from inside the platform. */
+    routed: z.object({
+        ok: z.boolean(),
+        /** HTTP status when something answered. */
+        status: z.number().int().nullable(),
+        /** Human reason — always set, so the UI never has to invent one. */
+        detail: z.string(),
+    }),
+});
+export type SetupVerificationTarget = z.infer<typeof setupVerificationTargetSchema>;
+
+export const setupPostSetupVerificationSchema = z.object({
+    checkedAt: z.string().datetime(),
+    targets: z.array(setupVerificationTargetSchema),
+});
+export type SetupPostSetupVerification = z.infer<typeof setupPostSetupVerificationSchema>;
+
 // ─── Node config status ───────────────────────────────────────────────────────
 
 export const nodeConfigStatusSchema = z.object({

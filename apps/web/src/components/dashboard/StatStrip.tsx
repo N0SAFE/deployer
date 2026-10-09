@@ -39,14 +39,19 @@ export function StatStrip({
 	 * a second box inside the first.
 	 */
 	bare = false,
+	label,
 }: {
 	children: ReactNode
 	className?: string
 	trailing?: ReactNode
 	bare?: boolean
+	/** Accessible name for the group, e.g. "Services vitals". */
+	label?: string
 }) {
 	return (
 		<div
+			role={label ? 'group' : undefined}
+			aria-label={label}
 			className={cn(
 				'flex flex-wrap items-center gap-x-6 gap-y-3',
 				!bare && 'rounded-xl border border-border/60 bg-card/30 px-4 py-3',
@@ -73,6 +78,8 @@ export function StatStripItem({
 	hint,
 	tone,
 	className,
+	loading = false,
+	title,
 }: {
 	icon?: LucideIcon
 	label: string
@@ -81,19 +88,27 @@ export function StatStripItem({
 	hint?: ReactNode
 	tone?: StatusTone
 	className?: string
+	/** Show a placeholder instead of the value while the number is being fetched. */
+	loading?: boolean
+	/** Native tooltip, e.g. the absolute time behind a relative one. */
+	title?: string
 }) {
 	return (
-		<div className={cn('flex items-center gap-2', className)}>
+		<div className={cn('flex items-center gap-2', className)} title={title}>
 			{Icon ? <Icon className="size-3.5 shrink-0 text-muted-foreground" /> : null}
 			<span className="text-xs text-muted-foreground">{label}</span>
-			<span
-				className={cn(
-					'text-sm font-medium tabular-nums',
-					tone ? statusToneClasses[tone] : 'text-foreground',
-				)}
-			>
-				{value ?? '—'}
-			</span>
+			{loading ? (
+				<span role="status" aria-label={`Loading ${label}`} className="inline-block h-4 w-8 animate-pulse rounded bg-muted/60 motion-reduce:animate-none" />
+			) : (
+				<span
+					className={cn(
+						'text-sm font-medium tabular-nums',
+						tone ? statusToneClasses[tone] : 'text-foreground',
+					)}
+				>
+					{value ?? '—'}
+				</span>
+			)}
 			{hint ? (
 				<span className="hidden truncate text-xs text-muted-foreground sm:inline">· {hint}</span>
 			) : null}

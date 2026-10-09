@@ -1,4 +1,6 @@
 import { Test } from "@nestjs/testing";
+import { Database } from "bun:sqlite";
+import { LOCAL_DATABASE_CLIENT } from "@repo/nest-database-core/database-connection";
 import { describe, it, vi } from "vitest";
 
 // The SSR module resolves a client bundle on disk (its RenderService reads
@@ -65,7 +67,12 @@ describe("AppModule (graph)", () => {
   it("assembles the Nest module graph", async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      // In-memory handle: the real client creates the configured directory
+      // (e.g. /app/data), which is not writable outside the container.
+      .overrideProvider(LOCAL_DATABASE_CLIENT)
+      .useValue(new Database(":memory:"))
+      .compile();
 
     await moduleRef.close();
   });
