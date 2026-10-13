@@ -11,17 +11,18 @@ import { WebhookService } from "./services/webhook.service";
 import { ApiKeyService } from "./services/api-key.service";
 import { ConfigurationCoreModule } from "@/core/modules/configuration/configuration-core.module";
 import { EventsModule } from "@/core/modules/events/events.module";
-import { ProvidersModule } from "@/modules/providers/providers.module";
+import { DnsProviderGateway } from "@/modules/network/dns-provider.gateway";
 import { CoreDomainModule } from "@/core/modules/domain/domain.module";
 
 @Module({
-    imports: [DatabaseModule, ConfigurationCoreModule, EventsModule, ProvidersModule, CoreDomainModule],
+    imports: [DatabaseModule, ConfigurationCoreModule, EventsModule, CoreDomainModule],
     controllers: [ProjectController],
     providers: [
         ProjectService,
         ProjectRepository,
         ProjectEventService,
         ProjectNetworkService,
+        DnsProviderGateway,
         WebhookRepository,
         WebhookService,
         ApiKeyRepository,

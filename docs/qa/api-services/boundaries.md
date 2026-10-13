@@ -107,7 +107,7 @@ Seeding is a test concern; the exemption is explicit so it reads as a decision, 
 
 ---
 
-## OPEN — `project` injects fleet's Cloudflare provider services off-service
+## DECIDED — `project` reaches fleet's DNS provider facts through the contract
 
 **Q**: `apps/api-services/services/project` imports fleet's provider code directly:
 
@@ -127,15 +127,32 @@ resolve to `apps/api/src/modules/providers` (the monolith), which is why the sui
 passed. `project` calls `listApps()`, `listZones(account)` and
 `listRecords(account, zoneId)` to build `ProjectNetworkView` / `ServiceNetworkView`.
 
-**A**: _OPEN_ — needs a design call.
+**A**: **(a) — a cross-service contract call, implemented.** `project` now injects
+`DnsProviderGateway`
+(`services/project/src/modules/network/dns-provider.gateway.ts`), which reaches fleet
+through `providersContract` via the shared `ServiceClient`. The gateway narrows the
+contract's output to the view shapes `project` renders and resolves a zone name for
+the base-domain sync. `ProvidersModule` is no longer imported by either module.
 
-- **(a) Cross-service contract call.** `fleet` already exposes `providersContract`
-  (with a `dns` sub-contract) at `packages/contracts/fleet/modules/providers`.
-  `project` calls it through the service client instead of injecting fleet's classes.
+The alternatives considered:
+
 - **(b) Move the network views into `fleet`.** They are DNS/provider projections, which
-  is fleet's domain; `project` keeps only the project/service records.
+  is fleet's domain, but it would move BFF-composed screens and routes for no gain.
 - **(c) Denormalise the DNS state `project` needs** onto its own tables, from fleet
-  events. A new projection and a backfill, for data already queryable.
+  events — a new projection and a backfill, for data that is already queryable.
+
+(a) was chosen because `project → fleet` is an anticipated dependency direction (it is
+named in the internal-identity design) and `providersContract` already existed.
+
+**Effect**: `project` went from 64 type errors to 35 (the remainder are pre-existing and
+unrelated — `@deployer/api-contracts`-era controller signatures and `shared/`
+supervisors), and its suite from 4 failing files to **8/8 files, 127/127 tests**. The
+boundary rule reports **0 violations**.
+
+**Note on the mismatch that made this possible**: the vitest alias used to resolve `@/`
+to `apps/api/src`, so `@/modules/providers/...` silently loaded the MONOLITH's copy of
+the provider code and the suite passed. That alias now points at the app's own `src`
+(matching its tsconfig), which is what surfaced the coupling.
 
 **Recommendation**: (a) — smallest correct step; `project → fleet` is already an
 anticipated dependency direction (it is named in the task's internal-identity design),

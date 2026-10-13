@@ -6,9 +6,8 @@ import {
     projectNetworkConfigSchema,
     type ServiceNetworkConfig,
 } from "@deployer/contracts-entities";
-import { type ServiceNetworkView, type ServiceUpdateNetworkInput, type ServiceProvisionDnsRecordInput } from "@deployer/project-contracts";
-import { CloudflareDnsProviderService } from "@/modules/providers/dns/cloudflare/services/cloudflare-dns-provider.service";
-import { CloudflareAppService } from "@/modules/providers/dns/cloudflare/services/cloudflare-app.service";
+import { type ServiceNetworkView, type ServiceProvisionDnsRecordInput } from "@deployer/project-contracts";
+import { DnsProviderGateway } from "@/modules/network/dns-provider.gateway";
 import { ProjectRepository } from "@/modules/project/repositories/project.repository";
 import { ProjectDomainRepository } from "@/core/modules/domain/repositories/project-domain.repository";
 import { ServiceDomainMappingRepository } from "@/core/modules/domain/repositories/service-domain-mapping.repository";
@@ -19,16 +18,23 @@ const recordTypeSchema = z.enum([
     "A", "AAAA", "CAA", "CERT", "CNAME", "DNSKEY", "DS", "HTTPS", "LOC", "MX", "NAPTR", "NS", "OPENPGPKEY", "PTR", "SMIMEA", "SRV", "SVCB", "TLSA", "TXT", "URI",
 ] as const);
 
-const mapRecord = (r: {
-    id: string; zoneId: string; name: string; type: string; content: string; ttl: number; proxied: boolean;
-}): ServiceNetworkView["records"][number] => ({
+/**
+ * A provider record, narrowed to the view shape.
+ *
+ * `zoneId` is passed in rather than read off the record: the contract identifies the
+ * zone in the URL path, so the record it returns does not carry it back.
+ */
+const mapRecord = (
+    zoneId: string,
+    r: { id: string; name: string; type: string; content: string; ttl: number; proxied?: boolean },
+): ServiceNetworkView["records"][number] => ({
     id: r.id,
-    zoneId: r.zoneId,
+    zoneId,
     name: r.name,
     type: recordTypeSchema.safeParse(r.type).success ? (recordTypeSchema.parse(r.type)) : "TXT",
     content: r.content,
     ttl: r.ttl,
-    proxied: r.proxied,
+    proxied: r.proxied ?? false,
 });
 
 /**
@@ -48,8 +54,7 @@ export class ServiceNetworkService {
     constructor(
         private readonly serviceRepository: ServiceRepository,
         private readonly projectRepository: ProjectRepository,
-        private readonly appService: CloudflareAppService,
-        private readonly dnsService: CloudflareDnsProviderService,
+        private readonly dns: DnsProviderGateway,
         private readonly projectDomainRepository: ProjectDomainRepository,
         private readonly mappingRepository: ServiceDomainMappingRepository,
     ) {}
@@ -87,11 +92,13 @@ export class ServiceNetworkService {
         const scope = await this.resolveScope(service);
 
         let records: ServiceNetworkView["records"] = [];
-        if (scope.providerId && scope.zoneId) {
+        if (scope.providerId !== null && scope.zoneId !== null) {
+            // Narrowed once into locals: the contract takes ids as path params, so the
+            // call needs non-null strings and the guard above is the only check.
+            const { providerId, zoneId } = scope;
             try {
-                const account = { providerId: scope.providerId, providerType: "cloudflare" };
-                const providerRecords = await this.dnsService.listRecords(account, scope.zoneId);
-                records = providerRecords.map(mapRecord);
+                const providerRecords = await this.dns.listRecords(providerId, zoneId);
+                records = providerRecords.map((r) => mapRecord(zoneId, r));
             } catch (err) {
                 this.logger.warn(`Failed to fetch zone records for service ${serviceId}: ${(err as Error).message}`);
             }
@@ -187,10 +194,8 @@ export class ServiceNetworkService {
             );
         }
 
-        const account = { providerId: scope.providerId, providerType: "cloudflare" };
         try {
-            const record = await this.dnsService.createRecord(account, {
-                zoneId: scope.zoneId,
+            const record = await this.dns.createRecord(scope.providerId, scope.zoneId, {
                 type: input.type,
                 name: input.name,
                 content: input.content,
@@ -201,12 +206,12 @@ export class ServiceNetworkService {
                 success: true,
                 record: {
                     id: record.id,
-                    zoneId: record.zoneId,
+                    zoneId: scope.zoneId,
                     name: record.name,
                     type: recordTypeSchema.safeParse(record.type).success ? (recordTypeSchema.parse(record.type)) : "TXT",
                     content: record.content,
                     ttl: record.ttl,
-                    proxied: record.proxied,
+                    proxied: record.proxied ?? false,
                 },
                 message: `DNS record created: ${record.name} → ${record.content}`,
             };

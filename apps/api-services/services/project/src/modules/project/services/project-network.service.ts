@@ -5,9 +5,8 @@ import {
     projectNetworkConfigSchema,
     type ProjectNetworkConfig,
 } from "@deployer/contracts-entities";
-import { type ProjectNetworkView, type ProjectUpdateNetworkInput } from "@deployer/project-contracts";
-import { CloudflareAppService } from "@/modules/providers/dns/cloudflare/services/cloudflare-app.service";
-import { CloudflareDnsProviderService } from "@/modules/providers/dns/cloudflare/services/cloudflare-dns-provider.service";
+import { type ProjectNetworkView } from "@deployer/project-contracts";
+import { DnsProviderGateway } from "@/modules/network/dns-provider.gateway";
 import { ProjectDomainRepository } from "@/core/modules/domain/repositories/project-domain.repository";
 import { ProjectRepository } from "../repositories/project.repository";
 
@@ -16,16 +15,23 @@ const recordTypeSchema = z.enum([
     "A", "AAAA", "CAA", "CERT", "CNAME", "DNSKEY", "DS", "HTTPS", "LOC", "MX", "NAPTR", "NS", "OPENPGPKEY", "PTR", "SMIMEA", "SRV", "SVCB", "TLSA", "TXT", "URI",
 ] as const);
 
-const mapRecord = (r: {
-    id: string; zoneId: string; name: string; type: string; content: string; ttl: number; proxied: boolean;
-}): ProjectNetworkView["records"][number] => ({
+/**
+ * A provider record, narrowed to the view shape.
+ *
+ * `zoneId` is passed in rather than read off the record: the contract identifies the
+ * zone in the URL path, so the record it returns does not carry it back.
+ */
+const mapRecord = (
+    zoneId: string,
+    r: { id: string; name: string; type: string; content: string; ttl: number; proxied?: boolean },
+): ProjectNetworkView["records"][number] => ({
     id: r.id,
-    zoneId: r.zoneId,
+    zoneId,
     name: r.name,
     type: recordTypeSchema.safeParse(r.type).success ? recordTypeSchema.parse(r.type) : "TXT",
     content: r.content,
     ttl: r.ttl,
-    proxied: r.proxied,
+    proxied: r.proxied ?? false,
 });
 
 /**
@@ -43,8 +49,7 @@ export class ProjectNetworkService {
 
     constructor(
         private readonly projectRepository: ProjectRepository,
-        private readonly appService: CloudflareAppService,
-        private readonly dnsService: CloudflareDnsProviderService,
+        private readonly dns: DnsProviderGateway,
         private readonly projectDomainRepository: ProjectDomainRepository,
     ) {}
 
@@ -63,23 +68,27 @@ export class ProjectNetworkService {
             ? projectNetworkConfigSchema.safeParse(project.network).data ?? null
             : null;
 
-        const providers = await this.appService.listApps();
+        const providers = await this.dns.listProviders();
 
         let zones: ProjectNetworkView["zones"] = [];
         let records: ProjectNetworkView["records"] = [];
 
         if (network?.dnsProviderId && network.zoneId) {
+            // Narrowed once into locals: the contract takes ids as path params, so the
+            // call site needs non-null strings and the guard above is the only check.
+            const { dnsProviderId, zoneId } = network;
             try {
-                const account = { providerId: network.dnsProviderId, providerType: "cloudflare" };
-                const providerZones = await this.dnsService.listZones(account);
+                const providerZones = await this.dns.listZones(dnsProviderId);
                 zones = providerZones.map((z) => ({
                     id: z.id,
                     name: z.name,
                     status: z.status,
-                    nameServers: z.nameServers,
+                    // The contract makes `nameServers` optional (Cloudflare omits it on
+                    // some responses); the view always carries an array.
+                    nameServers: z.nameServers ?? [],
                 }));
-                const providerRecords = await this.dnsService.listRecords(account, network.zoneId);
-                records = providerRecords.map(mapRecord);
+                const providerRecords = await this.dns.listRecords(dnsProviderId, zoneId);
+                records = providerRecords.map((r) => mapRecord(zoneId, r));
             } catch (err) {
                 this.logger.warn(`Failed to fetch zones/records for project ${projectId}: ${(err as Error).message}`);
             }
@@ -155,8 +164,7 @@ export class ProjectNetworkService {
         // Resolve the zone name from the provider when a zone id is selected.
         if (next.zoneId && next.dnsProviderId) {
             try {
-                const account = { providerId: next.dnsProviderId, providerType: "cloudflare" };
-                const zones = await this.dnsService.listZones(account);
+                const zones = await this.dns.listZones(next.dnsProviderId);
                 const zone = zones.find((z) => z.id === next.zoneId);
                 if (zone) {
                     next.zoneName = zone.name;

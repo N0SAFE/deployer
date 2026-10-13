@@ -8,14 +8,13 @@ import { ServiceEventService } from "./services/service-event.service";
 import { PreviewTopologyService } from "./services/preview-topology.service";
 import { ServiceNetworkService } from "./services/service-network.service";
 import { ProjectModule } from "@/modules/project/project.module";
-import { ProvidersModule } from "@/modules/providers/providers.module";
 import { ConfigurationCoreModule } from "@/core/modules/configuration/configuration-core.module";
 import { EventsModule } from "@/core/modules/events/events.module";
 import { CoreEventSyncService } from "@/core/modules/events";
 import { ProjectAccessService } from "@/core/modules/project/services/project-access.service";
 
 @Module({
-    imports: [DatabaseModule, ProjectCoreModule, ConfigurationCoreModule, EventsModule, ProjectModule, ProvidersModule],
+    imports: [DatabaseModule, ProjectCoreModule, ConfigurationCoreModule, EventsModule, ProjectModule],
     controllers: [ServiceController],
     providers: [
         ServiceService,
