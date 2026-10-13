@@ -1,12 +1,12 @@
 /**
- * Build script for @repo/config-eslint.
+ * Build script for @deployer/config-eslint.
  *
  * Goal:
  *
  *   Application
  *     └── typescript@7
  *
- *   @repo/config-eslint
+ *   @deployer/config-eslint
  *     ├── TypeScript 6 bundled
  *     ├── typescript-eslint bundled
  *     ├── @typescript-eslint/* bundled

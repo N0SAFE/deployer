@@ -1,4 +1,4 @@
-# AGENTS.md — @repo/config-eslint
+# AGENTS.md — @deployer/config-eslint
 
 Centralized ESLint configuration for the monorepo.
 
@@ -10,7 +10,7 @@ Centralized ESLint configuration for the monorepo.
 ## @shadcn/lint
 
 `@shadcn/lint` is registered as the `shadcn` plugin in `src/react.ts` (and therefore in
-`@repo/config-eslint/nextjs`, which re-uses it). **No `shadcn/*` rules are enabled** — the plugin
+`@deployer/config-eslint/nextjs`, which re-uses it). **No `shadcn/*` rules are enabled** — the plugin
 is installed, discoverable, and inert until an app opts in.
 
 Enable rules per app, in that app's own `eslint.config.ts` rules object, next to its files glob:
@@ -20,7 +20,7 @@ Enable rules per app, in that app's own `eslint.config.ts` rules object, next to
 ```
 
 Component discovery: `apps/web` and `packages/ui/base` use their local `components.json`; imports of
-the shared package (`@repo/ui/components/…`) are matched via `settings.shadcn.componentImports` set
+the shared package (`@deployer/ui/components/…`) are matched via `settings.shadcn.componentImports` set
 in `src/react.ts`. Theme CSS comes from each `components.json` `tailwind.css` path.
 
 Rule list: https://github.com/shadcn-ui/lint#rules

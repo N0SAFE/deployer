@@ -1,7 +1,8 @@
-import { defineConfig } from '@repo/pkg-build/config'
+import { defineConfig } from '@deployer/pkg-build/config'
 
-/** Build configuration for `@repo/nest-schema`. */
+/** Build configuration for `@deployer/nest-schema`. */
 export default defineConfig({
+    target: 'node',
     root: 'src',
     copy: [
         {

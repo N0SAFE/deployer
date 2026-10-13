@@ -1,5 +1,5 @@
 {
-    "name": "@repo/config-eslint",
+    "name": "@deployer/config-eslint",
     "version": "0.0.0",
     "private": true,
     "type": "module",
@@ -43,7 +43,7 @@
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "type-check": "tsc --noEmit",
+        "type-check": "bun --check",
         "dev": "bun --bun pkg-build --watch",
         "clean": "rimraf dist"
     },
@@ -51,9 +51,9 @@
         "@darraghor/eslint-plugin-nestjs-typed": "^7.1.22",
         "@eslint/compat": "^2.0.1",
         "@eslint/js": "catalog:linting",
-        "@repo/config-eslint-plugins-progress": "*",
-        "@repo/config-prettier": "*",
-        "@repo/config-vitest": "*",
+        "@deployer/config-eslint-plugins-progress": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-vitest": "*",
         "@shadcn/lint": "catalog:linting",
         "@tanstack/eslint-plugin-query": "catalog:tanstack",
         "@types/node": "catalog:build",
@@ -80,7 +80,8 @@
         "typescript-eslint": "^8.61.1",
         "vitest": "catalog:testing",
         "rimraf": "catalog:build",
-        "@repo/pkg-build": "*"
+        "@deployer/pkg-build": "*",
+        "@deployer/nest-schema": "workspace:*"
     },
     "main": "./dist/index.js",
     "types": "./dist/types/index.d.ts",

@@ -125,7 +125,7 @@ Remaining failures are pre-existing WIP spec gaps (old input shapes, missing tes
 - `arch-avoid-circular-deps`: no `forwardRef()` usage found.
 - `arch-module-sharing`: no duplicate providers detected; `CoreModule` re-export
   pattern (providers-not-imports) is intentional and documented.
-- `arch-use-events`: rich event system (`@repo/nest-events` pooled streams +
+- `arch-use-events`: rich event system (`@deployer/nest-events` pooled streams +
   transactional outbox); fire-and-forget audit found every `void` promise has
   `.catch` or internal try/catch (docker auto-scan listener, webhook preview
   provisioning, mesh heartbeat persist, deployment external probe, queue
@@ -133,7 +133,7 @@ Remaining failures are pre-existing WIP spec gaps (old input shapes, missing tes
 - `di-prefer-constructor-injection`: zero property injection (`@Inject` on
   fields) found. Class tokens used everywhere except documented exceptions
   (`APP_GUARD`-style built-ins, dynamic providers).
-- `error-*`: 3-tier pipeline (AppError hierarchy in `@repo/errors` → ORPC error
+- `error-*`: 3-tier pipeline (AppError hierarchy in `@deployer/errors` → ORPC error
   contracts with `.errors(...)` → `InternalErrorExceptionFilter` with
   request-id correlation). Empty catches audited — all log or have a documented
   reason.

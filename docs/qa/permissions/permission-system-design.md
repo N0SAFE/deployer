@@ -87,7 +87,7 @@ Each org role has two permission sections:
 
 **Section 1 (`orgPermissions`)**: standard Better Auth `{ resource: action[] }` format. Handles org-level resources: `organization`, `member`, `team`, `invitation`, `ac`. Evaluated by `organizationAc.check()`.
 
-**Section 2 (`resourceRules`)**: custom JSON stored alongside the role. Handles project-scoped resources: `project`, `service`, `deployment`, `environment`, `logs`, `template`, `webhook`, `apiKey`. Evaluated by a custom `PermissionEngine` in `@repo/auth`.
+**Section 2 (`resourceRules`)**: custom JSON stored alongside the role. Handles project-scoped resources: `project`, `service`, `deployment`, `environment`, `logs`, `template`, `webhook`, `apiKey`. Evaluated by a custom `PermissionEngine` in `@deployer/auth`.
 
 ### Better Auth config
 

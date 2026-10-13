@@ -2,7 +2,7 @@ import { defineConfig } from "eslint/config";
 import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 import turboConfig from 'eslint-config-turbo/flat';
-import progress from '@repo/config-eslint-plugins-progress';
+import progress from '@deployer/config-eslint-plugins-progress';
 
 const tsconfigRootDir = process.cwd();
 
@@ -109,7 +109,7 @@ export const allConfig = (options: BaseConfigOptions = {}) => {
 
 export default {
     meta: {
-        name: "@repo/config-eslint",
+        name: "@deployer/config-eslint",
         version: "0.0.0",
     },
     configs: {

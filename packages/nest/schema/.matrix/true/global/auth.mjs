@@ -1,0 +1,38 @@
+import {
+  user2,
+  session2,
+  account2,
+  verification2,
+  platformInvite2,
+  userVapidKeys2,
+  pushSubscription2,
+  apikey2,
+  passkey2,
+  twoFactor2,
+  deviceCode2,
+  userRelations2,
+  sessionRelations2,
+  accountRelations2,
+  platformInviteRelations2,
+  userVapidKeysRelations2,
+  pushSubscriptionRelations2
+} from "../chunks/migrations-qcwa49zw.mjs";
+export {
+  account2 as account,
+  accountRelations2 as accountRelations,
+  apikey2 as apikey,
+  deviceCode2 as deviceCode,
+  passkey2 as passkey,
+  platformInvite2 as platformInvite,
+  platformInviteRelations2 as platformInviteRelations,
+  pushSubscription2 as pushSubscription,
+  pushSubscriptionRelations2 as pushSubscriptionRelations,
+  session2 as session,
+  sessionRelations2 as sessionRelations,
+  twoFactor2 as twoFactor,
+  user2 as user,
+  userRelations2 as userRelations,
+  userVapidKeys2 as userVapidKeys,
+  userVapidKeysRelations2 as userVapidKeysRelations,
+  verification2 as verification
+};

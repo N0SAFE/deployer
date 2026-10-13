@@ -24,10 +24,10 @@ const shadcnLintConfig = {
     },
     settings: {
         shadcn: {
-            // The workspace UI package is imported as `@repo/ui/components/...`
+            // The workspace UI package is imported as `@deployer/ui/components/...`
             // (shadcn, atomics, data-table). `apps/web` and `packages/ui/base`
             // have their own `components.json` for local component discovery.
-            componentImports: ["^@repo/ui/components/"],
+            componentImports: ["^@deployer/ui/components/"],
         },
     },
 };
@@ -102,7 +102,7 @@ const all = (options: ReactConfig = {}) => defineConfig([
 
 export default {
     meta: {
-        name: "@repo/config-eslint/react-internal",
+        name: "@deployer/config-eslint/react-internal",
         version: "0.0.0",
     },
     configs: {

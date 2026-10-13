@@ -1,0 +1,49 @@
+{
+    "name": "@deployer/svc-health",
+    "version": "1.0.0",
+    "description": "The health service: liveness/readiness probes and the platform supervisor roll-up. The reference implementation of the service anatomy.",
+    "private": true,
+    "main": "dist/main.js",
+    "scripts": {
+        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "format": "bun run prettify",
+        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
+        "lint": "eslint . --fix --cache",
+        "type-check": "bun --check",
+        "start": "bun --bun src/main.ts",
+        "dev": "bun --bun --watch src/main.ts",
+        "test": "vitest run",
+        "test:watch": "vitest"
+    },
+    "dependencies": {
+        "@nestjs/common": "catalog:api:nest",
+        "@nestjs/core": "catalog:api:nest",
+        "@nestjs/platform-express": "catalog:api:nest",
+        "@nestjs/terminus": "catalog:api:nest",
+        "@orpc/contract": "catalog:orpc",
+        "@orpc/nest": "catalog:orpc",
+        "@orpc/server": "catalog:orpc",
+        "@deployer/shared": "*",
+        "@deployer/health-contracts": "*",
+        "@deployer/logger": "*",
+        "@deployer/nest-database-core": "*",
+        "@deployer/nest-lifecycle": "*",
+        "express": "catalog:api:nest",
+        "reflect-metadata": "catalog:api:nest",
+        "rxjs": "catalog:api:nest",
+        "zod": "catalog:utils"
+    },
+    "devDependencies": {
+        "@deployer/config-eslint": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-typescript": "*",
+        "@deployer/config-vitest": "*",
+        "@nestjs/testing": "catalog:api:nest",
+        "@types/express": "catalog:api:nest",
+        "@types/node": "catalog:build",
+        "eslint": "catalog:linting",
+        "typescript": "catalog:build",
+        "unplugin-swc": "^1.5.9",
+        "vitest": "catalog:testing"
+    }
+}

@@ -144,7 +144,7 @@ export const nodeConfig = sqliteTable("node_config", {
      * Swarm participation config as JSON (decided at setup, editable later):
      * { mode: "create" | "join", policy: "auto" | "manager" | "worker",
      *   advertiseAddr, joinToken, joinAddrs[] } — see
-     * `@repo/contracts-entities` swarm-config.schema.
+     * `@deployer/contracts-entities` swarm-config.schema.
      *
      * This row is the SINGLE source of truth: setup always writes it (local →
      * create, remote → join) and the engine converges from it. There is no env

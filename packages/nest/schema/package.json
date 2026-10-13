@@ -1,5 +1,5 @@
 {
-    "name": "@repo/nest-schema",
+    "name": "@deployer/nest-schema",
     "version": "1.0.0",
     "description": "Drizzle table definitions for the local (SQLite) and global (Postgres) databases, plus the custom column codecs the app configures at boot.",
     "main": "./dist/cjs/index.js",
@@ -19,6 +19,201 @@
             "types": "./dist/types/codecs/codec-registry.d.ts",
             "import": "./dist/esm/codecs/codec-registry.mjs",
             "require": "./dist/cjs/codecs/codec-registry.js"
+        },
+        "./global": {
+            "types": "./dist/types/global/index.d.ts",
+            "import": "./dist/esm/global/index.mjs",
+            "require": "./dist/cjs/global/index.js"
+        },
+        "./global/fleet/cluster": {
+            "types": "./dist/types/global/fleet/cluster.d.ts",
+            "import": "./dist/esm/global/fleet/cluster.mjs",
+            "require": "./dist/cjs/global/fleet/cluster.js"
+        },
+        "./global/fleet/cluster-migration-state": {
+            "types": "./dist/types/global/fleet/cluster-migration-state.d.ts",
+            "import": "./dist/esm/global/fleet/cluster-migration-state.mjs",
+            "require": "./dist/cjs/global/fleet/cluster-migration-state.js"
+        },
+        "./global/fleet/deployment": {
+            "types": "./dist/types/global/fleet/deployment.d.ts",
+            "import": "./dist/esm/global/fleet/deployment.mjs",
+            "require": "./dist/cjs/global/fleet/deployment.js"
+        },
+        "./global/fleet/dns-providers": {
+            "types": "./dist/types/global/fleet/dns-providers.d.ts",
+            "import": "./dist/esm/global/fleet/dns-providers.mjs",
+            "require": "./dist/cjs/global/fleet/dns-providers.js"
+        },
+        "./global/fleet/github-provider": {
+            "types": "./dist/types/global/fleet/github-provider.d.ts",
+            "import": "./dist/esm/global/fleet/github-provider.mjs",
+            "require": "./dist/cjs/global/fleet/github-provider.js"
+        },
+        "./global/fleet/gitlab-provider": {
+            "types": "./dist/types/global/fleet/gitlab-provider.d.ts",
+            "import": "./dist/esm/global/fleet/gitlab-provider.mjs",
+            "require": "./dist/cjs/global/fleet/gitlab-provider.js"
+        },
+        "./global/fleet/index": {
+            "types": "./dist/types/global/fleet/index.d.ts",
+            "import": "./dist/esm/global/fleet/index.mjs",
+            "require": "./dist/cjs/global/fleet/index.js"
+        },
+        "./global/fleet/node-network-config": {
+            "types": "./dist/types/global/fleet/node-network-config.d.ts",
+            "import": "./dist/esm/global/fleet/node-network-config.mjs",
+            "require": "./dist/cjs/global/fleet/node-network-config.js"
+        },
+        "./global/health/health": {
+            "types": "./dist/types/global/health/health.d.ts",
+            "import": "./dist/esm/global/health/health.mjs",
+            "require": "./dist/cjs/global/health/health.js"
+        },
+        "./global/health/index": {
+            "types": "./dist/types/global/health/index.d.ts",
+            "import": "./dist/esm/global/health/index.mjs",
+            "require": "./dist/cjs/global/health/index.js"
+        },
+        "./global/identity/analytics": {
+            "types": "./dist/types/global/identity/analytics.d.ts",
+            "import": "./dist/esm/global/identity/analytics.mjs",
+            "require": "./dist/cjs/global/identity/analytics.js"
+        },
+        "./global/identity/auth": {
+            "types": "./dist/types/global/identity/auth.d.ts",
+            "import": "./dist/esm/global/identity/auth.mjs",
+            "require": "./dist/cjs/global/identity/auth.js"
+        },
+        "./global/identity/index": {
+            "types": "./dist/types/global/identity/index.d.ts",
+            "import": "./dist/esm/global/identity/index.mjs",
+            "require": "./dist/cjs/global/identity/index.js"
+        },
+        "./global/identity/permissions": {
+            "types": "./dist/types/global/identity/permissions.d.ts",
+            "import": "./dist/esm/global/identity/permissions.mjs",
+            "require": "./dist/cjs/global/identity/permissions.js"
+        },
+        "./global/platform/app-config": {
+            "types": "./dist/types/global/platform/app-config.d.ts",
+            "import": "./dist/esm/global/platform/app-config.mjs",
+            "require": "./dist/cjs/global/platform/app-config.js"
+        },
+        "./global/platform/app-instance": {
+            "types": "./dist/types/global/platform/app-instance.d.ts",
+            "import": "./dist/esm/global/platform/app-instance.mjs",
+            "require": "./dist/cjs/global/platform/app-instance.js"
+        },
+        "./global/platform/deployment": {
+            "types": "./dist/types/global/platform/deployment.d.ts",
+            "import": "./dist/esm/global/platform/deployment.mjs",
+            "require": "./dist/cjs/global/platform/deployment.js"
+        },
+        "./global/platform/events": {
+            "types": "./dist/types/global/platform/events.d.ts",
+            "import": "./dist/esm/global/platform/events.mjs",
+            "require": "./dist/cjs/global/platform/events.js"
+        },
+        "./global/platform/github-provider": {
+            "types": "./dist/types/global/platform/github-provider.d.ts",
+            "import": "./dist/esm/global/platform/github-provider.mjs",
+            "require": "./dist/cjs/global/platform/github-provider.js"
+        },
+        "./global/platform/index": {
+            "types": "./dist/types/global/platform/index.d.ts",
+            "import": "./dist/esm/global/platform/index.mjs",
+            "require": "./dist/cjs/global/platform/index.js"
+        },
+        "./global/platform/schema-version": {
+            "types": "./dist/types/global/platform/schema-version.d.ts",
+            "import": "./dist/esm/global/platform/schema-version.mjs",
+            "require": "./dist/cjs/global/platform/schema-version.js"
+        },
+        "./global/platform/seed-version": {
+            "types": "./dist/types/global/platform/seed-version.d.ts",
+            "import": "./dist/esm/global/platform/seed-version.mjs",
+            "require": "./dist/cjs/global/platform/seed-version.js"
+        },
+        "./global/project/deployment": {
+            "types": "./dist/types/global/project/deployment.d.ts",
+            "import": "./dist/esm/global/project/deployment.mjs",
+            "require": "./dist/cjs/global/project/deployment.js"
+        },
+        "./global/project/deployment.schemas": {
+            "types": "./dist/types/global/project/deployment.schemas.d.ts",
+            "import": "./dist/esm/global/project/deployment.schemas.mjs",
+            "require": "./dist/cjs/global/project/deployment.schemas.js"
+        },
+        "./global/project/domain": {
+            "types": "./dist/types/global/project/domain.d.ts",
+            "import": "./dist/esm/global/project/domain.mjs",
+            "require": "./dist/cjs/global/project/domain.js"
+        },
+        "./global/project/environment": {
+            "types": "./dist/types/global/project/environment.d.ts",
+            "import": "./dist/esm/global/project/environment.mjs",
+            "require": "./dist/cjs/global/project/environment.js"
+        },
+        "./global/project/index": {
+            "types": "./dist/types/global/project/index.d.ts",
+            "import": "./dist/esm/global/project/index.mjs",
+            "require": "./dist/cjs/global/project/index.js"
+        },
+        "./global/project/project-scan-config": {
+            "types": "./dist/types/global/project/project-scan-config.d.ts",
+            "import": "./dist/esm/global/project/project-scan-config.mjs",
+            "require": "./dist/cjs/global/project/project-scan-config.js"
+        },
+        "./global/runtime/deployment": {
+            "types": "./dist/types/global/runtime/deployment.d.ts",
+            "import": "./dist/esm/global/runtime/deployment.mjs",
+            "require": "./dist/cjs/global/runtime/deployment.js"
+        },
+        "./global/runtime/deployment.schemas": {
+            "types": "./dist/types/global/runtime/deployment.schemas.d.ts",
+            "import": "./dist/esm/global/runtime/deployment.schemas.mjs",
+            "require": "./dist/cjs/global/runtime/deployment.schemas.js"
+        },
+        "./global/runtime/docker-runtime-activity": {
+            "types": "./dist/types/global/runtime/docker-runtime-activity.d.ts",
+            "import": "./dist/esm/global/runtime/docker-runtime-activity.mjs",
+            "require": "./dist/cjs/global/runtime/docker-runtime-activity.js"
+        },
+        "./global/runtime/docker-security-scan": {
+            "types": "./dist/types/global/runtime/docker-security-scan.d.ts",
+            "import": "./dist/esm/global/runtime/docker-security-scan.mjs",
+            "require": "./dist/cjs/global/runtime/docker-security-scan.js"
+        },
+        "./global/runtime/github-provider": {
+            "types": "./dist/types/global/runtime/github-provider.d.ts",
+            "import": "./dist/esm/global/runtime/github-provider.mjs",
+            "require": "./dist/cjs/global/runtime/github-provider.js"
+        },
+        "./global/runtime/image-project-membership": {
+            "types": "./dist/types/global/runtime/image-project-membership.d.ts",
+            "import": "./dist/esm/global/runtime/image-project-membership.mjs",
+            "require": "./dist/cjs/global/runtime/image-project-membership.js"
+        },
+        "./global/runtime/index": {
+            "types": "./dist/types/global/runtime/index.d.ts",
+            "import": "./dist/esm/global/runtime/index.mjs",
+            "require": "./dist/cjs/global/runtime/index.js"
+        },
+        "./global/runtime/runtime": {
+            "types": "./dist/types/global/runtime/runtime.d.ts",
+            "import": "./dist/esm/global/runtime/runtime.mjs",
+            "require": "./dist/cjs/global/runtime/runtime.js"
+        },
+        "./global/traefik/index": {
+            "types": "./dist/types/global/traefik/index.d.ts",
+            "import": "./dist/esm/global/traefik/index.mjs",
+            "require": "./dist/cjs/global/traefik/index.js"
+        },
+        "./global/utils/zod-enum": {
+            "types": "./dist/types/global/utils/zod-enum.d.ts",
+            "import": "./dist/esm/global/utils/zod-enum.mjs",
+            "require": "./dist/cjs/global/utils/zod-enum.js"
         },
         "./local": {
             "types": "./dist/types/local/index.d.ts",
@@ -55,141 +250,6 @@
             "import": "./dist/esm/local/platform-settings.mjs",
             "require": "./dist/cjs/local/platform-settings.js"
         },
-        "./global": {
-            "types": "./dist/types/global/index.d.ts",
-            "import": "./dist/esm/global/index.mjs",
-            "require": "./dist/cjs/global/index.js"
-        },
-        "./global/analytics": {
-            "types": "./dist/types/global/analytics.d.ts",
-            "import": "./dist/esm/global/analytics.mjs",
-            "require": "./dist/cjs/global/analytics.js"
-        },
-        "./global/app-config": {
-            "types": "./dist/types/global/app-config.d.ts",
-            "import": "./dist/esm/global/app-config.mjs",
-            "require": "./dist/cjs/global/app-config.js"
-        },
-        "./global/auth": {
-            "types": "./dist/types/global/auth.d.ts",
-            "import": "./dist/esm/global/auth.mjs",
-            "require": "./dist/cjs/global/auth.js"
-        },
-        "./global/cluster-migration-state": {
-            "types": "./dist/types/global/cluster-migration-state.d.ts",
-            "import": "./dist/esm/global/cluster-migration-state.mjs",
-            "require": "./dist/cjs/global/cluster-migration-state.js"
-        },
-        "./global/cluster": {
-            "types": "./dist/types/global/cluster.d.ts",
-            "import": "./dist/esm/global/cluster.mjs",
-            "require": "./dist/cjs/global/cluster.js"
-        },
-        "./global/deployment.schemas": {
-            "types": "./dist/types/global/deployment.schemas.d.ts",
-            "import": "./dist/esm/global/deployment.schemas.mjs",
-            "require": "./dist/cjs/global/deployment.schemas.js"
-        },
-        "./global/deployment": {
-            "types": "./dist/types/global/deployment.d.ts",
-            "import": "./dist/esm/global/deployment.mjs",
-            "require": "./dist/cjs/global/deployment.js"
-        },
-        "./global/dns-providers": {
-            "types": "./dist/types/global/dns-providers.d.ts",
-            "import": "./dist/esm/global/dns-providers.mjs",
-            "require": "./dist/cjs/global/dns-providers.js"
-        },
-        "./global/docker-runtime-activity": {
-            "types": "./dist/types/global/docker-runtime-activity.d.ts",
-            "import": "./dist/esm/global/docker-runtime-activity.mjs",
-            "require": "./dist/cjs/global/docker-runtime-activity.js"
-        },
-        "./global/docker-security-scan": {
-            "types": "./dist/types/global/docker-security-scan.d.ts",
-            "import": "./dist/esm/global/docker-security-scan.mjs",
-            "require": "./dist/cjs/global/docker-security-scan.js"
-        },
-        "./global/domain": {
-            "types": "./dist/types/global/domain.d.ts",
-            "import": "./dist/esm/global/domain.mjs",
-            "require": "./dist/cjs/global/domain.js"
-        },
-        "./global/environment": {
-            "types": "./dist/types/global/environment.d.ts",
-            "import": "./dist/esm/global/environment.mjs",
-            "require": "./dist/cjs/global/environment.js"
-        },
-        "./global/events": {
-            "types": "./dist/types/global/events.d.ts",
-            "import": "./dist/esm/global/events.mjs",
-            "require": "./dist/cjs/global/events.js"
-        },
-        "./global/github-provider": {
-            "types": "./dist/types/global/github-provider.d.ts",
-            "import": "./dist/esm/global/github-provider.mjs",
-            "require": "./dist/cjs/global/github-provider.js"
-        },
-        "./global/gitlab-provider": {
-            "types": "./dist/types/global/gitlab-provider.d.ts",
-            "import": "./dist/esm/global/gitlab-provider.mjs",
-            "require": "./dist/cjs/global/gitlab-provider.js"
-        },
-        "./global/health": {
-            "types": "./dist/types/global/health.d.ts",
-            "import": "./dist/esm/global/health.mjs",
-            "require": "./dist/cjs/global/health.js"
-        },
-        "./global/image-project-membership": {
-            "types": "./dist/types/global/image-project-membership.d.ts",
-            "import": "./dist/esm/global/image-project-membership.mjs",
-            "require": "./dist/cjs/global/image-project-membership.js"
-        },
-        "./global/node-network-config": {
-            "types": "./dist/types/global/node-network-config.d.ts",
-            "import": "./dist/esm/global/node-network-config.mjs",
-            "require": "./dist/cjs/global/node-network-config.js"
-        },
-        "./global/permissions": {
-            "types": "./dist/types/global/permissions.d.ts",
-            "import": "./dist/esm/global/permissions.mjs",
-            "require": "./dist/cjs/global/permissions.js"
-        },
-        "./global/project-scan-config": {
-            "types": "./dist/types/global/project-scan-config.d.ts",
-            "import": "./dist/esm/global/project-scan-config.mjs",
-            "require": "./dist/cjs/global/project-scan-config.js"
-        },
-        "./global/runtime": {
-            "types": "./dist/types/global/runtime.d.ts",
-            "import": "./dist/esm/global/runtime.mjs",
-            "require": "./dist/cjs/global/runtime.js"
-        },
-        "./global/schema-version": {
-            "types": "./dist/types/global/schema-version.d.ts",
-            "import": "./dist/esm/global/schema-version.mjs",
-            "require": "./dist/cjs/global/schema-version.js"
-        },
-        "./global/seed-version": {
-            "types": "./dist/types/global/seed-version.d.ts",
-            "import": "./dist/esm/global/seed-version.mjs",
-            "require": "./dist/cjs/global/seed-version.js"
-        },
-        "./global/utils/zod-enum": {
-            "types": "./dist/types/global/utils/zod-enum.d.ts",
-            "import": "./dist/esm/global/utils/zod-enum.mjs",
-            "require": "./dist/cjs/global/utils/zod-enum.js"
-        },
-        "./global/platform/app-instance": {
-            "types": "./dist/types/global/platform/app-instance.d.ts",
-            "import": "./dist/esm/global/platform/app-instance.mjs",
-            "require": "./dist/cjs/global/platform/app-instance.js"
-        },
-        "./global/traefik": {
-            "types": "./dist/types/global/traefik/index.d.ts",
-            "import": "./dist/esm/global/traefik/index.mjs",
-            "require": "./dist/cjs/global/traefik/index.js"
-        },
         "./migrations": {
             "types": "./dist/types/migrations.d.ts",
             "import": "./dist/esm/migrations.mjs",
@@ -201,7 +261,7 @@
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
         "lint": "eslint . --fix --cache",
-        "type-check": "tsc --noEmit",
+        "type-check": "bun --check",
         "test": "vitest run",
         "test:watch": "vitest",
         "build": "bun --bun pkg-build",
@@ -211,10 +271,10 @@
     },
     "dependencies": {
         "@nestjs/common": "catalog:api:nest",
-        "@repo/auth": "*",
-        "@repo/contracts-common": "*",
-        "@repo/contracts-entities": "*",
-        "@repo/errors": "*",
+        "@deployer/auth": "*",
+        "@deployer/contracts-common": "*",
+        "@deployer/contracts-entities": "*",
+        "@deployer/errors": "*",
         "drizzle-orm": "catalog:database",
         "drizzle-zod": "catalog:database",
         "zod": "catalog:utils"
@@ -223,11 +283,11 @@
         "@nestjs/common": "catalog:api:nest"
     },
     "devDependencies": {
-        "@repo/config-eslint": "*",
-        "@repo/config-prettier": "*",
-        "@repo/config-typescript": "*",
-        "@repo/config-vitest": "*",
-        "@repo/pkg-build": "*",
+        "@deployer/config-eslint": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-typescript": "*",
+        "@deployer/config-vitest": "*",
+        "@deployer/pkg-build": "*",
         "@types/node": "catalog:build",
         "chokidar": "catalog:build",
         "eslint": "catalog:linting",

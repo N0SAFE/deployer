@@ -50,7 +50,7 @@ const all = (options: NextJSConfig = {}) => defineConfig([
 
 export default {
     meta: {
-        name: "@repo/config-eslint/nextjs",
+        name: "@deployer/config-eslint/nextjs",
         version: "0.0.0",
     },
     configs: {

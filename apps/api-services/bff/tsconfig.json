@@ -1,0 +1,44 @@
+{
+  "extends": "@deployer/config-typescript/nestjs",
+  "compilerOptions": {
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "jsx": "react-jsx",
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "outDir": "./dist",
+    "noEmit": true,
+    "rootDir": "../..",
+    "types": [
+      "node",
+      "bun"
+    ],
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@/auth": [
+        "../shared/src/auth.ts"
+      ],
+      "@/config/*": [
+        "../shared/src/config/*"
+      ],
+      "@/core/*": [
+        "../shared/src/core/*"
+      ],
+      "@/e2e-harness/*": [
+        "../shared/src/e2e-harness/*"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}

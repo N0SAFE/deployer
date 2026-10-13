@@ -49,3 +49,41 @@ function resolveLocalMigrationsDir(): string {
     dir = parent;
   }
 }
+
+/**
+ * Absolute path to the GLOBAL (Postgres) migration files.
+ *
+ * ── WHY THIS MOVED HERE FROM THE APP ────────────────────────────────────────
+ * It used to be `apps/api/src/config/drizzle/global/migrations`, computed
+ * independently by three callers as a `../..` count from their own file. When
+ * `src/config` was relocated under `shared/`, all three kept pointing at the old
+ * location and the migrator began reporting `Can't find meta/_journal.json file`
+ * while APPLYING NOTHING — a failure that looks like success.
+ *
+ * Hosting it beside the tables those migrations create is what makes the pairing
+ * checkable: a column added to `src/global/*` without a corresponding migration is
+ * a gap visible in one directory listing. It also gives the repository ONE global
+ * journal and ONE destination, so "what is the current schema" has a single answer
+ * instead of one per app.
+ *
+ * The marker is the journal, not the directory: `drizzle-kit generate` writes both
+ * together, so an empty leftover directory does not pass for migrations.
+ */
+export const GLOBAL_MIGRATIONS_DIR = resolveGlobalMigrationsDir();
+
+function resolveGlobalMigrationsDir(): string {
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (;;) {
+    const candidate = join(dir, "migrations", "global");
+    if (existsSync(join(candidate, "meta", "_journal.json"))) {
+      return candidate;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) {
+      throw new Error(
+        `Global migrations directory not found above ${fileURLToPath(import.meta.url)}`,
+      );
+    }
+    dir = parent;
+  }
+}

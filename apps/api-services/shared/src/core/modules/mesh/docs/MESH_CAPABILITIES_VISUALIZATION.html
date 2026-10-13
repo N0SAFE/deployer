@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mesh Resource Discovery - Architecture Visualization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .subtitle {
+            text-align: center;
+            font-size: 1.2em;
+            opacity: 0.9;
+            margin-bottom: 40px;
+        }
+        
+        .section {
+            background: rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .section h2 {
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            color: #ffd700;
+            border-bottom: 2px solid rgba(255,215,0,0.3);
+            padding-bottom: 10px;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .card {
+            background: rgba(255,255,255,0.15);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        .card h3 {
+            color: #00d4ff;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .card ul {
+            list-style: none;
+        }
+        
+        .card li {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            align-items: center;
+        }
+        
+        .card li:last-child {
+            border-bottom: none;
+        }
+        
+        .card li::before {
+            content: "▸";
+            color: #00d4ff;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        
+        .flow-diagram {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 30px 0;
+            padding: 20px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 12px;
+            overflow-x: auto;
+        }
+        
+        .flow-node {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px 25px;
+            border-radius: 8px;
+            text-align: center;
+            min-width: 120px;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        
+        .flow-arrow {
+            font-size: 2em;
+            color: #ffd700;
+            margin: 0 10px;
+        }
+        
+        .code-block {
+            background: rgba(0,0,0,0.4);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-size: 0.9em;
+            overflow-x: auto;
+            border-left: 4px solid #00d4ff;
+        }
+        
+        .code-keyword {
+            color: #ff79c6;
+        }
+        
+        .code-string {
+            color: #f1fa8c;
+        }
+        
+        .code-function {
+            color: #50fa7b;
+        }
+        
+        .code-type {
+            color: #8be9fd;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75em;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .badge-global {
+            background: #28a745;
+        }
+        
+        .badge-node {
+            background: #dc3545;
+        }
+        
+        .badge-sharded {
+            background: #fd7e14;
+        }
+        
+        .badge-replicated {
+            background: #6f42c1;
+        }
+        
+        .event-source {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        
+        .event-source-icon {
+            font-size: 1.5em;
+            margin-right: 15px;
+        }
+        
+        .mermaid {
+            background: rgba(255,255,255,0.95);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .tab:hover, .tab.active {
+            background: #00d4ff;
+            color: #000;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        .comparison-table th,
+        .comparison-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .comparison-table th {
+            background: rgba(0,0,0,0.2);
+            color: #ffd700;
+        }
+        
+        .comparison-table tr:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .highlight {
+            background: rgba(255,215,0,0.2);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        
+        footer {
+            text-align: center;
+            padding: 40px;
+            opacity: 0.7;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔷 Mesh Resource Discovery</h1>
+        <p class="subtitle">Comprehensive Architecture & Capabilities Visualization</p>
+        
+        <!-- Core Concepts Section -->
+        <div class="section">
+            <h2>🎯 Core Concepts</h2>
+            <div class="grid">
+                <div class="card">
+                    <h3>Observable-First Design</h3>
+                    <ul>
+                        <li>All operations are fundamentally streams</li>
+                        <li>SSE (Server-Sent Events) as transport</li>
+                        <li>RxJS Observables for reactive API</li>
+                        <li>Promises as convenience for one-shot</li>
+                    </ul>
+                </div>
+                
+                <div class="card">
+                    <h3>Resource Ownership</h3>
+                    <ul>
+                        <li>Global <span class="badge badge-global">COORDINATED</span></li>
+                        <li>Node-Owned <span class="badge badge-node">SINGLE</span></li>
+                        <li>Sharded <span class="badge badge-sharded">PARTITIONED</span></li>
+                        <li>Replicated <span class="badge badge-replicated">HA</span></li>
+                    </ul>
+                </div>
+                
+                <div class="card">
+                    <h3>Event Sources</h3>
+                    <ul>
+                        <li>Mutation Events (CRUD operations)</li>
+                        <li>External Events (webhooks)</li>
+                        <li>Timer Events (scheduled jobs)</li>
+                        <li>Stream Events (logs, metrics)</li>
+                        <li>Replication Events (sync)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Resource Ownership Patterns -->
+        <div class="section">
+            <h2>🏗️ Resource Ownership Patterns</h2>
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Pattern</th>
+                        <th>Description</th>
+                        <th>Examples</th>
+                        <th>Query Strategy</th>
+                        <th>Listen Strategy</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Global</strong> <span class="badge badge-global">GLOBAL</span></td>
+                        <td>Single source of truth, coordinated by central node</td>
+                        <td>Projects, Organizations, Users</td>
+                        <td>Query global coordinator</td>
+                        <td>Subscribe to global event stream</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Node-Owned</strong> <span class="badge badge-node">NODE</span></td>
+                        <td>Owned by exactly one node</td>
+                        <td>Deployments, Logs, Local configs</td>
+                        <td>Query owner node directly</td>
+                        <td>SSE stream to owner node</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Sharded</strong> <span class="badge badge-sharded">SHARD</span></td>
+                        <td>Partitioned across multiple nodes by key</td>
+                        <td>Time-series data, Large datasets</td>
+                        <td>Route to shard holder</td>
+                        <td>Fan-out SSE to all shard holders</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Replicated</strong> <span class="badge badge-replicated">REPLICA</span></td>
+                        <td>Same data on multiple nodes for HA</td>
+                        <td>Critical configs, Session data</td>
+                        <td>Query any replica</td>
+                        <td>Subscribe to primary replica</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Event Sources Deep Dive -->
+        <div class="section">
+            <h2>📡 Event Source Architecture</h2>
+            <div class="grid">
+                <div class="card">
+                    <h3>🔄 Mutation Events</h3>
+                    <div class="event-source">
+                        <span class="event-source-icon">📝</span>
+                        <div>
+                            <strong>CRUD Operations</strong><br>
+                            <small>Triggered by create, update, delete mutations</small>
+                        </div>
+                    </div>
+                    <div class="code-block">
+<span class="code-keyword">emitsCreated</span>: <span class="code-type">true</span>
+<span class="code-keyword">emitsUpdated</span>: <span class="code-type">true</span> <span class="code-keyword">with</span> previousState
+<span class="code-keyword">emitsDeleted</span>: <span class="code-type">true</span>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h3>🔌 External Events</h3>
+                    <div class="event-source">
+                        <span class="event-source-icon">🌐</span>
+                        <div>
+                            <strong>Webhook Integrations</strong><br>
+                            <small>GitHub, Stripe, External APIs</small>
+                        </div>
+                    </div>
+                    <div class="code-block">
+<span class="code-keyword">source</span>: <span class="code-string">"github"</span>
+<span class="code-keyword">webhookPath</span>: <span class="code-string">"/webhooks/github"</span>
+<span class="code-keyword">validate</span>: <span class="code-function">verifySignature</span>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h3>⏰ Timer Events</h3>
+                    <div class="event-source">
+                        <span class="event-source-icon">🕐</span>
+                        <div>
+                            <strong>Scheduled Jobs</strong><br>
+                            <small>Cron-based or interval-based</small>
+                        </div>
+                    </div>
+                    <div class="code-block">
+<span class="code-keyword">schedule</span>: <span class="code-string">"0 */6 * * *"</span>
+<span class="code-keyword">emitCurrentState</span>: <span class="code-type">true</span>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h3>📊 Stream Events</h3>
+                    <div class="event-source">
+                        <span class="event-source-icon">📈</span>
+                        <div>
+                            <strong>Real-time Data</strong><br>
+                            <small>Logs, Metrics, Analytics</small>
+                        </div>
+                    </div>
+                    <div class="code-block">
+<span class="code-keyword">streamType</span>: <span class="code-string">"container-logs"</span>
+<span class="code-keyword">bufferSize</span>: <span class="code-type">1000</span>
+<span class="code-keyword">transform</span>: parseLogLine
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h3>🔄 Replication Events</h3>
+                    <div class="event-source">
+                        <span class="event-source-icon">🔄</span>
+                        <div>
+                            <strong>Cross-Node Sync</strong><br>
+                            <small>Conflict resolution, Fan-out</small>
+                        </div>
+                    </div>
+                    <div class="code-block">
+<span class="code-keyword">sources</span>: [<span class="code-string">"node-a"</span>, <span class="code-string">"node-b"</span>]
+<span class="code-keyword">conflictStrategy</span>: <span class="code-string">"last-write-wins"</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- API Patterns -->
+        <div class="section">
+            <h2>💻 API Usage Patterns</h2>
+            
+            <div class="tabs">
+                <button class="tab active" onclick="showTab('request')">Request Pattern</button>
+                <button class="tab" onclick="showTab('listen')">Listen Pattern</button>
+                <button class="tab" onclick="showTab('builder')">Builder API</button>
+                <button class="tab" onclick="showTab('resource')">Resource Definition</button>
+            </div>
+            
+            <div id="request" class="tab-content active">
+                <h3>One-Time Request (Promise-based)</h3>
+                <div class="code-block">
+<span class="code-keyword">const</span> result = <span class="code-keyword">await</span> discovery
+  .<span class="code-function">from</span>(resources.deployments)
+  .<span class="code-function">where</span>({ environment: <span class="code-string">"prod"</span>, status: <span class="code-string">"running"</span> })
+  .<span class="code-function">orderBy</span>(<span class="code-string">"createdAt"</span>, <span class="code-string">"desc"</span>)
+  .<span class="code-function">limit</span>(<span class="code-type">100</span>)
+  .<span class="code-function">request</span>(); <span class="code-keyword">// Returns Promise&lt;QueryResult&gt;</span>
+
+<span class="code-keyword">for</span> (<span class="code-keyword">const</span> deployment <span class="code-keyword">of</span> result.items) {
+  <span class="code-function">console</span>.<span class="code-function">log</span>(deployment.deploymentId);
+}
+                </div>
+            </div>
+            
+            <div id="listen" class="tab-content">
+                <h3>Real-Time Updates (Observable-based)</h3>
+                <div class="code-block">
+<span class="code-keyword">const</span> subscription = discovery
+  .<span class="code-function">from</span>(resources.deployments)
+  .<span class="code-function">where</span>({ serviceId: <span class="code-string">"my-service"</span> })
+  .<span class="code-function">listen</span>() <span class="code-keyword">// Returns Observable&lt;ChangeEvent&gt;</span>
+  .<span class="code-function">subscribe</span>(event => {
+    <span class="code-keyword">switch</span> (event.type) {
+      <span class="code-keyword">case</span> <span class="code-string">"created"</span>:
+        <span class="code-function">console</span>.<span class="code-function">log</span>(<span class="code-string">"New deployment:"</span>, event.item);
+        <span class="code-keyword">break</span>;
+      <span class="code-keyword">case</span> <span class="code-string">"updated"</span>:
+        <span class="code-function">console</span>.<span class="code-function">log</span>(<span class="code-string">"Updated:"</span>, event.item);
+        <span class="code-function">console</span>.<span class="code-function">log</span>(<span class="code-string">"Changed fields:"</span>, event.changedFields);
+        <span class="code-keyword">break</span>;
+      <span class="code-keyword">case</span> <span class="code-string">"deleted"</span>:
+        <span class="code-function">console</span>.<span class="code-function">log</span>(<span class="code-string">"Removed:"</span>, event.item);
+        <span class="code-keyword">break</span>;
+    }
+  });
+
+<span class="code-comment">// Cleanup when done</span>
+subscription.<span class="code-function">unsubscribe</span>();
+                </div>
+            </div>
+            
+            <div id="builder" class="tab-content">
+                <h3>Fluent Builder API</h3>
+                <div class="code-block">
+<span class="code-keyword">const</span> builder = discovery
+  .<span class="code-function">from</span>(resources.deployments)
+  .<span class="code-function">where</span>({ environment: <span class="code-string">"prod"</span> })
+  .<span class="code-function">andWhere</span>({ status: <span class="code-string">"running"</span> })
+  .<span class="code-function">select</span>([<span class="code-string">"deploymentId"</span>, <span class="code-string">"status"</span>, <span class="code-string">"version"</span>])
+  .<span class="code-function">orderBy</span>(<span class="code-string">"createdAt"</span>, <span class="code-string">"desc"</span>)
+  .<span class="code-function">limit</span>(<span class="code-type">50</span>)
+  .<span class="code-function">offset</span>(<span class="code-type">0</span>);
+
+<span class="code-comment">// Use for one-time request</span>
+<span class="code-keyword">const</span> result = <span class="code-keyword">await</span> builder.<span class="code-function">request</span>();
+
+<span class="code-comment">// Or for real-time updates</span>
+<span class="code-keyword">const</span> stream$ = builder.<span class="code-function">listen</span>();
+                </div>
+            </div>
+            
+            <div id="resource" class="tab-content">
+                <h3>Type-Safe Resource Definition</h3>
+                <div class="code-block">
+<span class="code-keyword">const</span> deployments = <span class="code-function">defineResource</span>()
+  .<span class="code-function">key</span>(<span class="code-string">"deployments"</span>)
+  .<span class="code-function">itemSchema</span>(deploymentSchema)
+  .<span class="code-function">itemKey</span>(<span class="code-string">"deploymentId"</span>)
+  .<span class="code-function">nodeOwnedOwnership</span>(<span class="code-string">"nodeId"</span>)
+  .<span class="code-function">addQuery</span>(<span class="code-string">"list"</span>, {
+    inputSchema: listInputSchema,
+    outputSchema: listOutputSchema,
+    capabilities: { request: <span class="code-type">true</span>, listen: <span class="code-type">true</span>, paginate: <span class="code-type">true</span> }
+  })
+  .<span class="code-function">addMutation</span>(<span class="code-string">"create"</span>, {
+    inputSchema: createInputSchema,
+    outputSchema: deploymentSchema,
+    capabilities: { returnsItem: <span class="code-type">true</span>, emitsEvents: <span class="code-type">true</span> }
+  })
+  .<span class="code-function">addEventSource</span>(<span class="code-string">"mutations"</span>, {
+    type: <span class="code-string">"mutation"</span>,
+    schema: mutationEventSchema,
+    emitsCreated: <span class="code-type">true</span>,
+    emitsUpdated: <span class="code-type">true</span>,
+    emitsDeleted: <span class="code-type">true</span>,
+    config: { mutations: [<span class="code-string">"create"</span>, <span class="code-string">"update"</span>, <span class="code-string">"delete"</span>], includePreviousState: <span class="code-type">true</span> }
+  })
+  .<span class="code-function">addEventSource</span>(<span class="code-string">"webhooks"</span>, {
+    type: <span class="code-string">"external"</span>,
+    schema: webhookEventSchema,
+    emitsCreated: <span class="code-type">false</span>,
+    emitsUpdated: <span class="code-type">true</span>,
+    emitsDeleted: <span class="code-type">false</span>,
+    config: { system: <span class="code-string">"github"</span>, webhookPath: <span class="code-string">"/webhooks/github"</span> }
+  })
+  .<span class="code-function">build</span>();
+                </div>
+            </div>
+        </div>
+        
+        <!-- Flow Diagrams -->
+        <div class="section">
+            <h2>🔄 Request Flow Diagrams</h2>
+            
+            <h3>Global Resource Request</h3>
+            <div class="flow-diagram">
+                <div class="flow-node">Consumer</div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node">Discovery Service</div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node">Global Coordinator</div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node">Result</div>
+            </div>
+            
+            <h3>Node-Owned Resource Request</h3>
+            <div class="flow-diagram">
+                <div class="flow-node">Consumer</div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node">Discovery Service</div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node">Ownership Resolver</div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node">Owner Node</div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node">Result</div>
+            </div>
+            
+            <h3>Listen Flow (Real-Time)</h3>
+            <div class="flow-diagram">
+                <div class="flow-node">Consumer</div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node">Subscribe</div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node">Open SSE</div>
+                <div class="flow-arrow">⇄</div>
+                <div class="flow-node">Stream Events</div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node">Unsubscribe</div>
+            </div>
+        </div>
+        
+        <!-- Type Safety -->
+        <div class="section">
+            <h2>🔒 Type Safety Features</h2>
+            <div class="grid">
+                <div class="card">
+                    <h3>Schema Validation</h3>
+                    <ul>
+                        <li>Runtime validation with Zod schemas</li>
+                        <li>Type inference from schemas</li>
+                        <li>Input/output type checking</li>
+                        <li>Event payload validation</li>
+                    </ul>
+                </div>
+                
+                <div class="card">
+                    <h3>Generic Inference</h3>
+                    <ul>
+                        <li>Item type from schema</li>
+                        <li>Query input/output types</li>
+                        <li>Mutation payload types</li>
+                        <li>Event type narrowing</li>
+                    </ul>
+                </div>
+                
+                <div class="card">
+                    <h3>Builder Pattern</h3>
+                    <ul>
+                        <li>Method chaining with type safety</li>
+                        <li>Compile-time query validation</li>
+                        <li>Auto-completion support</li>
+                        <li>Refactoring safety</li>
+                    </ul>
+                </div>
+                
+                <div class="card">
+                    <h3>Ownership Types</h3>
+                    <ul>
+                        <li>Type-safe ownership patterns</li>
+                        <li>Compile-time routing info</li>
+                        <li>Access pattern validation</li>
+                        <li>Permission integration</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>Mesh Resource Discovery System | Observable-First Architecture | Full Type Safety</p>
+        </footer>
+    </div>
+    
+    <script>
+        function showTab(tabId) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            document.getElementById(tabId).classList.add('active');
+            
+            // Add active class to clicked tab
+            event.target.classList.add('active');
+        }
+    </script>
+</body>
+</html>

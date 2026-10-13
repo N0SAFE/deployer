@@ -1,0 +1,274 @@
+import { AppError } from "@deployer/errors";
+import { Injectable, Logger } from '@nestjs/common'
+import type { SetupInitializeRemoteInput } from '@deployer/contracts-entities'
+import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository"
+import { MeshInitializationService } from '@/core/modules/mesh/initialization/services/mesh-initialization.service'
+import { EnvService } from "@/config/env/env.module"
+import { runStep, type EmitEvent, SetupStepTracker } from '@/core/modules/setup/utils/setup-runner.utils'
+import { DEPLOYER_VERSION, semverCompare } from '@/core/utils/deployer-version'
+import { MeshVersionService } from '@/core/modules/mesh/version/mesh-version.service'
+import type { MeshSwarmJoinGrant } from '@deployer/contracts-entities'
+import { SwarmBootstrapService } from '@deployer/nest-swarm'
+import { SwarmClusterService } from '@deployer/nest-swarm'
+import { MeshAdmissionService } from '@/core/modules/mesh-agent/mesh-admission.service'
+
+@Injectable()
+export class RemoteInitializationService {
+    private readonly logger = new Logger(RemoteInitializationService.name)
+
+    constructor(
+        private readonly meshInitializationService: MeshInitializationService,
+        private readonly nodeConfigRepository: NodeConfigRepository,
+        private readonly envService: EnvService,
+        private readonly meshVersionService: MeshVersionService,
+        /** Joins this node to the FLEET's swarm from the grant the mesh issued. */
+        private readonly swarmBootstrap: SwarmBootstrapService,
+        /** Read-back of the engine state for the finalize report. */
+        private readonly swarmCluster: SwarmClusterService,
+        /** Enters the peer-equal network in the same exchange as the join grant. */
+        private readonly meshAdmission: MeshAdmissionService,
+    ) {}
+
+    /**
+     * Run the remote bootstrap flow after reachability has been confirmed.
+     *
+     * Owns: grant_issue → mesh_handshake → register_node → finalize.
+     * Returns the final `{ nodeId, databaseUrl }` so the orchestration
+     * layer can emit the terminal `completed` event.
+     */
+    async initialize(
+        input: SetupInitializeRemoteInput,
+        tracker: SetupStepTracker,
+        emit: EmitEvent,
+    ): Promise<{ nodeId: string; databaseUrl: string }> {
+        let nodeId = ''
+        let databaseUrl = ''
+        let meshUrls: string[] = []
+        let peerServiceToken: string | null = null
+        let peerServiceTokenExpiresAt: string | null = null
+        let meshSharedSecret: string | null = null
+        /** The fleet's swarm role decision for this node (null = none offered). */
+        let swarmGrant: MeshSwarmJoinGrant | null = null
+        /** Whether this node entered the cluster's mesh (Swarm then rides it). */
+        let meshJoined = false
+
+        // Resolve the local server URL once so we can pass it to the
+        // remote mesh as the address it should use to reach us back.
+        const serverUrl = this.resolveServerUrl()
+
+        await runStep(tracker, emit, 'mesh_handshake', 'Connect to mesh', async (stepLog) => {
+            stepLog(`Connecting to mesh at ${input.meshUrl}…`)
+            if (serverUrl) {
+                stepLog(`Advertising server URL: ${serverUrl}`)
+            }
+
+            // Step 1: Issue a one-time join grant on the remote mesh
+            //         using the authenticated Better Auth session.
+            //         The authToken from remoteAuth is a session cookie,
+            //         NOT a join grant token — we must first issue the
+            //         grant via the remote mesh's issueJoinGrant endpoint
+            //         (which requires requireAuth()), then consume it.
+            stepLog('Issuing join grant on remote mesh…')
+            const { grantToken, meshNetwork } = await this.meshInitializationService.issueRemoteJoinGrant(
+                input.meshUrl,
+                input.authToken,
+            )
+            stepLog('✅ Join grant issued — consuming…')
+
+            // This node's agent signs its own mesh entry for the target cluster;
+            // the member that admits it is whichever one we reached.
+            const meshJoinRequest =
+                meshNetwork === null ? undefined : await this.meshAdmission.createJoinRequest(meshNetwork).catch((error: unknown) => {
+                    stepLog(`⚠️  Mesh join request not created: ${error instanceof Error ? error.message : String(error)}`)
+                    return undefined
+                })
+
+            // Step 2: Consume the grant to complete the bootstrap handshake.
+            const bootstrapConfig = await this.meshInitializationService.bootstrap(
+                input.meshUrl,
+                grantToken,
+                serverUrl ?? new URL(input.meshUrl).origin,
+                // The role THIS node asked for in the wizard. The mesh replies
+                // with what it actually grants — requesting "auto" makes the
+                // node a CANDIDATE for master, not a manager by right.
+                input.swarm?.policy,
+                meshJoinRequest,
+            )
+            nodeId = bootstrapConfig.nodeId
+            databaseUrl = bootstrapConfig.databaseUrl
+            peerServiceToken = bootstrapConfig.peerServiceToken
+            peerServiceTokenExpiresAt = bootstrapConfig.peerServiceTokenExpiresAt
+            meshSharedSecret = bootstrapConfig.meshSharedSecret
+            swarmGrant = bootstrapConfig.swarmGrant
+            stepLog(`✅ Handshake successful — remote node ${bootstrapConfig.nodeId}`)
+
+            if (bootstrapConfig.meshAdmission === null) {
+                stepLog('⚠️  Not admitted into the mesh — Swarm will join over the network it can reach')
+            } else {
+                await this.meshAdmission.adopt(bootstrapConfig.meshAdmission)
+                meshJoined = true
+                stepLog('✅ Admitted into the mesh — bringing up WireGuard links')
+            }
+
+            // The FLEET decides the swarm role; report its answer here so the
+            // operator sees the outcome at the point the decision was made.
+            if (swarmGrant === null) {
+                stepLog("⚠️  The mesh has no Swarm cluster to hand over — swarm convergence deferred");
+            } else {
+                stepLog(`✅ Swarm role granted by the mesh: ${swarmGrant.role}`);
+                stepLog(`  reason  = ${swarmGrant.reason}`);
+                stepLog(`  control = ${swarmGrant.controlPlaneAddrs.join(", ")}`);
+            }
+        })
+
+        // ── Version Check ──────────────────────────────────────────────
+        // Before joining, verify that this node's version is compatible
+        // with the mesh. If the mesh is on a higher version, the joining
+        // node must be upgraded first. If the joining node is on a higher
+        // version, it can only join with super-admin authorization.
+        await runStep(tracker, emit, 'version_check', 'Version compatibility check', async (stepLog) => {
+            stepLog(`Local deployer version: ${DEPLOYER_VERSION}`);
+            stepLog(`Querying remote mesh version at ${input.meshUrl}…`);
+            const remoteVersion = await this.meshVersionService.getRemoteMeshVersion(input.meshUrl);
+
+            if (!remoteVersion) {
+                // Remote is unreachable — refuse to join
+                throw new AppError(
+                                        `Cannot verify remote mesh version at ${input.meshUrl}. ` +
+                    `The remote mesh is unreachable. Ensure the mesh URL is correct ` +
+                    `and the remote node is running.`,
+                    "INTERNAL_ERROR",
+                );
+            }
+
+            stepLog(`Remote mesh version: ${remoteVersion}`);
+            const comparison = semverCompare(DEPLOYER_VERSION, remoteVersion);
+
+            if (comparison === 0) {
+                stepLog(`✅ Version match: both on ${DEPLOYER_VERSION}. Proceeding with join.`);
+                return;
+            }
+
+            if (comparison < 0) {
+                // Local version is BEHIND the mesh — block join
+                throw new AppError(
+                                        `⛔ Version mismatch: this node is at ${DEPLOYER_VERSION} but the mesh ` +
+                    `is at ${remoteVersion}. A node cannot join a mesh running a higher version. ` +
+                    `Please upgrade this node to ${remoteVersion} before joining.`,
+                    "INTERNAL_ERROR",
+                );
+            }
+
+            // Local version is AHEAD of the mesh — allow join but warn
+            stepLog(
+                `⚠️  This node (${DEPLOYER_VERSION}) is ahead of the mesh (${remoteVersion}). ` +
+                `The mesh should be upgraded to ${DEPLOYER_VERSION}. ` +
+                `Proceeding with join — upgrade trigger will be available to super admin.`
+            );
+        });
+
+        await runStep(tracker, emit, 'register_node', 'Register this node', async (stepLog) => {
+            stepLog('Fetching peer node URLs…')
+            meshUrls = await this.meshInitializationService.getMeshNodeUrls(input.meshUrl, nodeId, peerServiceToken)
+            stepLog(`✅ Found ${String(meshUrls.length)} peer(s)`)
+        })
+
+        await runStep(tracker, emit, 'finalize', 'Finalize', async (stepLog) => {
+            stepLog('Persisting node config…')
+            const now = new Date().toISOString()
+            this.nodeConfigRepository.upsert({
+                nodeId,
+                strategy: 'remote',
+                setupState: 'setup_done',
+                deployerVersion: DEPLOYER_VERSION,
+                meshUrlsSnapshot: meshUrls,
+                databaseUrl,
+                // Remote-join shares the mesh owner's database — externally
+                // managed, never supervised by this node's GlobalDbSupervisorService.
+                databaseProvisioning: 'external' as const,
+                configuredAt: now,
+                peerServiceToken: peerServiceToken ?? undefined,
+                peerServiceTokenExpiresAt: peerServiceTokenExpiresAt ?? undefined,
+                meshSharedSecret: meshSharedSecret ?? undefined,
+                meshSharedSecretUpdatedAt: meshSharedSecret ? now : undefined,
+                // The FLEET's role decision, persisted so a restart re-converges
+                // from the same answer instead of re-asking the mesh.
+                swarmConfig:
+                    swarmGrant === null
+                        ? undefined
+                        : {
+                              mode: 'join' as const,
+                              // "auto" = MAY be master. The mesh already answered
+                              // whether this node actually is (swarmGrant.role),
+                              // so a granted manager keeps the mixed policy.
+                              policy: swarmGrant.role === 'manager' ? ('auto' as const) : ('worker' as const),
+                              advertiseAddr: null,
+                              joinToken:
+                                  swarmGrant.role === 'manager'
+                                      ? (swarmGrant.managerToken ?? swarmGrant.workerToken)
+                                      : swarmGrant.workerToken,
+                              joinAddrs: swarmGrant.controlPlaneAddrs,
+                          },
+                updatedAt: now,
+            })
+            stepLog('✅ Node config persisted')
+
+            // ── Join the FLEET's swarm ─────────────────────────────────────
+            // The role comes from the mesh, never from this node's own ambition:
+            // the manager join token is withheld unless the fleet admitted this
+            // node to quorum. Deferred (not fatal) when the mesh offered no
+            // cluster — a node whose fleet has no swarm yet must still complete
+            // setup and can converge later from the Cluster page.
+            if (swarmGrant === null) {
+                stepLog('⚠️  No Swarm cluster offered by the mesh — convergence deferred')
+                return
+            }
+
+            stepLog(`▸ Joining the mesh Swarm cluster as ${swarmGrant.role}…`)
+            stepLog(`  control = ${swarmGrant.controlPlaneAddrs.join(', ')}`)
+            // The managers advertise MESH addresses, so the join can only succeed
+            // once a WireGuard link is up — wait for it rather than racing it.
+            if (meshJoined) {
+                const linked = await this.meshAdmission.waitForLink()
+                stepLog(linked ? '✅ Mesh link established' : '⚠️  No mesh link yet — attempting the join anyway')
+            }
+            await this.swarmBootstrap.converge('setup')
+            const snapshot = await this.swarmCluster.getLocalClusterSnapshot()
+
+            if (snapshot.localNodeState === 'active') {
+                stepLog('✅ Joined the Swarm cluster')
+                stepLog(`  role   = ${snapshot.localNode.swarmRole}`)
+                stepLog(`  master = ${snapshot.master?.nodeId ?? 'elected elsewhere'}`)
+                stepLog(`  nodes  = ${String(snapshot.nodeCount)} (managers ${String(snapshot.managerCount)})`)
+            } else {
+                stepLog(`⚠️  Swarm join not active (state=${snapshot.localNodeState}) — retry from the Cluster page`)
+            }
+        })
+
+        return { nodeId, databaseUrl }
+    }
+
+    /**
+     * Resolve the public URL that this node advertises to the mesh.
+     *
+     * Uses the same priority as `SystemMeshController.resolveAdvertisedHost`:
+     *   1. `APP_URL` env (canonical — what the operator set in their config)
+     *   2. `NEXT_PUBLIC_APP_URL` env (public web URL — fallback)
+     *
+     * Returns `null` if neither is set or the value is empty. The caller
+     * should fall back to the mesh URL's origin when null.
+     */
+    private resolveServerUrl(): string | null {
+        const candidate = this.envService.get('APP_URL')?.toString().trim()
+            ?? this.envService.get('NEXT_PUBLIC_APP_URL')?.toString().trim()
+        if (!candidate) {
+            return null
+        }
+        try {
+            const parsed = new URL(candidate)
+            return parsed.toString()
+        } catch {
+            return null
+        }
+    }
+}

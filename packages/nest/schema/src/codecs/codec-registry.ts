@@ -1,5 +1,5 @@
 import { Logger } from "@nestjs/common";
-import { AppError } from "@repo/errors";
+import { AppError } from "@deployer/errors";
 import { customType } from "drizzle-orm/pg-core";
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "crypto";
 

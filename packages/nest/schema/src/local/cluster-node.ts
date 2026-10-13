@@ -5,7 +5,7 @@ import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
  * persisted by `ClusterNodeRepository` after the Swarm bootstrap converges
  * (docs/swarm-orchestration/02 — SW-012).
  *
- * Mirrors `ClusterSnapshot` from `@repo/contracts-entities` (entities/swarm)
+ * Mirrors `ClusterSnapshot` from `@deployer/contracts-entities` (entities/swarm)
  * plus the join tokens so onboarding tokens survive restarts WITHOUT being
  * stored in `.env` (docs/swarm-orchestration/01 §3 — SW-011).
  *

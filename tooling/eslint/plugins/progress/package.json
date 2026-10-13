@@ -1,5 +1,5 @@
 {
-  "name": "@repo/config-eslint-plugins-progress",
+  "name": "@deployer/config-eslint-plugins-progress",
   "module": "index.js",
   "type": "module",
   "main": "index.js",

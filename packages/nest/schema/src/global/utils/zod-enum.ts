@@ -1,4 +1,4 @@
-import { AppError } from "@repo/errors";
+import { AppError } from "@deployer/errors";
 interface EnumLike<T extends string> {
   options: readonly T[] | T[]
 }
