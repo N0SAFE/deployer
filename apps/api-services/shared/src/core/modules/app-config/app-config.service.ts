@@ -6,9 +6,9 @@
  * configurable at runtime (e.g. GitHub OAuth credentials).
  */
 import { Injectable, Logger } from "@nestjs/common";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
 import { appConfig } from "@deployer/nest-schema/global/platform/app-config";
+import type { GlobalDatabase } from "@/core/modules/database/global/global-database.service";
 
 export interface GitHubOAuthConfig {
   clientId: string;
@@ -25,7 +25,7 @@ export class AppConfigService {
 
   constructor() {}
 
-  async getGitHubOAuthConfig(db: NodePgDatabase<typeof globalSchema>): Promise<GitHubOAuthConfig | null> {
+  async getGitHubOAuthConfig(db: GlobalDatabase): Promise<GitHubOAuthConfig | null> {
     try {
       const row = await db
         .select()
@@ -46,7 +46,7 @@ export class AppConfigService {
     }
   }
 
-  async getGitHubWebhookConfig(db: NodePgDatabase<typeof globalSchema>): Promise<GitHubWebhookConfig | null> {
+  async getGitHubWebhookConfig(db: GlobalDatabase): Promise<GitHubWebhookConfig | null> {
     try {
       const row = await db
         .select()

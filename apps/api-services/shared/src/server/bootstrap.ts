@@ -55,10 +55,11 @@ export function createCorsMiddleware(): express.RequestHandler {
 /** The `NestFactory` options every app shares. */
 export function apiAppOptions(): NestApplicationOptions {
 	return {
-		// `snapshot` makes a dev boot legible and costs a trace of the whole
-		// bootstrap on every start, so it is off where boot time is a product
-		// concern.
-		snapshot: process.env.NODE_ENV !== "production",
+		// `snapshot` traces the whole bootstrap on every start, costing boot time and
+		// memory, so it is opt-in rather than implied by NODE_ENV: a dev who is not
+		// debugging startup should not pay for it. Set APP_BOOT_SNAPSHOT=true to get
+		// a readable boot trace.
+		snapshot: process.env.APP_BOOT_SNAPSHOT === "true",
 		// Nest must not parse the body twice: each app hands it an Express
 		// instance it built itself (so CORS and the probes can answer before the
 		// graph resolves).
