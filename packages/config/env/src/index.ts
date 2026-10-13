@@ -1,6 +1,6 @@
 import zod from "zod/v4";
-import { guardedUrl, parseDebugScopes, trimTrailingSlash } from "@repo/env/utils";
-import { LOCAL_APP_FALLBACK, LOCAL_API_FALLBACK, DEFAULT_API_PORT } from "@repo/env/constants";
+import { guardedUrl, parseDebugScopes, trimTrailingSlash } from "@deployer/env/utils";
+import { LOCAL_APP_FALLBACK, LOCAL_API_FALLBACK, DEFAULT_API_PORT } from "@deployer/env/constants";
 
 // ============================================================================
 // Shared Environment Variables
@@ -87,7 +87,7 @@ export { emptyableString };
  * ── IDEMPOTENT BY DESIGN: THIS IS WHY IT MUST BE REUSED, NOT REINVENTED ───────
  * `EnvService` validates TWICE on purpose — once through ConfigModule's
  * `validate` hook, then again by re-reading each key through the schema (see
- * `@repo/nest-env`). So a flag parser is fed its OWN OUTPUT on the second pass.
+ * `@deployer/nest-env`). So a flag parser is fed its OWN OUTPUT on the second pass.
  *
  * A `z.enum(["true","false"]).transform(...)` is NOT idempotent: the first pass
  * yields the boolean `false`, which the second pass rejects — `Invalid enum
@@ -340,6 +340,29 @@ export const apiEnvSchema = zod
         MANAGED_GLOBAL_DB_PASSWORD: zod.string().optional().default("deployer"),
         MANAGED_GLOBAL_DB_NAME: zod.string().optional().default("deployer"),
         MANAGED_GLOBAL_DB_IMAGE: zod.string().min(1).default("postgres:16-alpine"),
+
+        // ─── Global DB connection pool (per process) ─────────────────────
+        // Every process opens its OWN pool, so the fleet-wide ceiling is
+        // `GLOBAL_DB_POOL_MAX × <processes>` and must stay under Postgres'
+        // `max_connections` (100 by default) minus ~20 reserved for admin
+        // work. Defaults: 10 per process × the full stack (BFF + 5 services +
+        // api + setup ≈ 8 pools) = 80, leaving 20 of headroom. BFF and the
+        // services may lower `MAX` to 5 on small hosts.
+        // `MIN = 0` because most processes are idle most of the time: a
+        // non-zero floor is multiplied by the process count and held open
+        // even when nothing queries.
+        GLOBAL_DB_POOL_MAX: zod.coerce.number().int().min(1).max(200).default(10),
+        GLOBAL_DB_POOL_MIN: zod.coerce.number().int().min(0).max(200).default(0),
+        GLOBAL_DB_POOL_IDLE_TIMEOUT_MS: zod.coerce
+            .number()
+            .int()
+            .min(1_000)
+            .default(30_000),
+        GLOBAL_DB_POOL_CONNECTION_TIMEOUT_MS: zod.coerce
+            .number()
+            .int()
+            .min(1_000)
+            .default(10_000),
 
         MANAGED_REDIS_ENABLED: booleanEnv().default(false),
         MANAGED_REDIS_URL: zod.string().optional(),
@@ -850,6 +873,6 @@ export type AllEnv = zod.infer<typeof allEnvSchema>;
 // Re-export Everything
 // ============================================================================
 
-export { trimTrailingSlash, guardedUrl, parseDebugScopes } from "@repo/env/utils";
-export * from "@repo/env/constants";
-export * from "@repo/env/validate";
+export { trimTrailingSlash, guardedUrl, parseDebugScopes } from "@deployer/env/utils";
+export * from "@deployer/env/constants";
+export * from "@deployer/env/validate";
