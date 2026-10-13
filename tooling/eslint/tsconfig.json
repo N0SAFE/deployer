@@ -7,7 +7,6 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "outDir": "./dist",
-    "rootDir": "./",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
@@ -27,12 +26,13 @@
     }
   },
   "include": [
-    "pkg-build.config.ts", "src/**/*",
-    "plugins/**/*"
+    "pkg-build.config.ts",
+    "src/**/*"
   ],
   "exclude": [
     "node_modules",
     "dist",
+    "plugins",
     "**/*.test.ts",
     "**/*.spec.ts"
   ]

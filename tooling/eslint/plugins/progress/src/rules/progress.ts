@@ -60,6 +60,14 @@ const isDebugEnabled = (): boolean =>
   process.argv.includes('--debug') ||
   Boolean(process.env.DEBUG);
 
+/**
+ * This process's registration file.
+ *
+ * Worker threads share one PID, so this is only meaningful for the main thread —
+ * that is exactly the distinction `isWorkerThread` draws below.
+ */
+const PID_FILE = path.join(REGISTRY_DIR, String(pid));
+
 /** A PID file older than this is stale, even if the PID is still alive. */
 const PID_STALE_MS = 60_000;
 

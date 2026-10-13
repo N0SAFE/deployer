@@ -6,7 +6,7 @@ import {
   clusterServerAllocations,
   clusterAdmissionRequests,
   clusterNodeMetrics,
-} from "@deployer/nest-schema/global";
+} from "@deployer/nest-schema/global/fleet/cluster";
 
 /**
  * FleetRepository — the data-access layer for the cluster fleet model

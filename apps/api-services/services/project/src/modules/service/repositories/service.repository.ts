@@ -4,10 +4,7 @@ import { GlobalDatabaseService } from "@/core/modules/database/services/global-d
 import { services, serviceDependencies, projects } from "@deployer/nest-schema/global/project/deployment";
 import { localEventOutbox } from "@deployer/nest-schema/global/runtime/runtime";
 import { and, eq, ilike, asc, isNull, inArray } from "drizzle-orm";
-import type { PgTransaction } from "drizzle-orm/pg-core";
-import type { NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
-import type { ExtractTablesWithRelations } from "drizzle-orm";
-import type * as globalSchema from "@deployer/nest-schema/global";
+import type { GlobalTransaction } from "@/core/modules/database/global/global-database.service";
 import { listBuilder } from "@/core/utils/drizzle-filter.utils";
 import { TraefikConfigBuilder } from "@/core/modules/traefik/config-builder/builders";
 import type { ServiceListInput } from "@deployer/api-contracts/modules/service/list";
@@ -25,11 +22,7 @@ const DEFAULT_NODE_ID = "00000000-0000-4000-8000-000000000000";
 
 type ServiceRow = typeof services.$inferSelect;
 
-type DbTransaction = PgTransaction<
-    NodePgQueryResultHKT,
-    typeof globalSchema,
-    ExtractTablesWithRelations<typeof globalSchema>
->;
+type DbTransaction = GlobalTransaction;
 
 function toDto(row: ServiceRow) {
     // The schema package's column is typed `unknown` (it cannot name this app's

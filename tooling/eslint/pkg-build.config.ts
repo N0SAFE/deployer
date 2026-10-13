@@ -19,7 +19,14 @@ import { bundleTs6Island } from './src/plugins/bundle-ts6-island'
  */
 export default defineConfig({
     root: 'src',
-    entries: ['index.ts', 'library.ts', 'nextjs.ts', 'nestjs.ts', 'react.ts'],
+    entries: [
+        'index.ts',
+        'library.ts',
+        'nextjs.ts',
+        'nestjs.ts',
+        'react.ts',
+        'mdx.ts',
+    ],
     formats: ['esm'],
     flat: true,
     target: 'node',

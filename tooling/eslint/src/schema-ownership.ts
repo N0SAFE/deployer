@@ -62,17 +62,26 @@ export function loadSchemaOwnership(): SchemaOwnership {
 
     const registryPath = findRegistry();
     const clean = withoutComments(readFileSync(registryPath, "utf8"));
-    // Everything before the helper functions is the data: TABLE_OWNERSHIP,
-    // INFRASTRUCTURE_TABLES and SHARED_TABLES.
-    const data = clean.slice(0, clean.indexOf("export function"));
+    // Bound each declaration to its own block: TABLE_OWNERSHIP, INFRASTRUCTURE_TABLES and
+    // SHARED_TABLES all contain `key: "..."`-shaped text, so an unbounded scan would read a
+    // shared table's `writer`/`readers` fields as ownership entries.
+    const block = (name: string, endMarker: string): string => {
+        const start = clean.indexOf(name);
+        if (start < 0) return "";
+        const end = clean.indexOf(endMarker, start);
+        return clean.slice(start, end < 0 ? undefined : end);
+    };
+    const ownershipSrc = block("TABLE_OWNERSHIP", "SHARED_TABLES");
+    const sharedSrc = block("SHARED_TABLES", "export function");
+    const infraSrc = block("INFRASTRUCTURE_TABLES", "TABLE_OWNERSHIP");
 
     const tableOwnership: Record<string, string> = {};
-    for (const m of data.matchAll(/^\s*([a-z_][a-z0-9_]*):\s*"([a-z]+)"/gm)) {
+    for (const m of ownershipSrc.matchAll(/^\s{0,4}([a-z_][a-z0-9_]*):\s*"([a-z]+)",/gm)) {
         tableOwnership[m[1]] = m[2];
     }
 
     const readers: Record<string, string[]> = {};
-    for (const m of data.matchAll(
+    for (const m of sharedSrc.matchAll(
         /table:\s*"([a-z_]+)",\s*writer:\s*"([a-z]+)",\s*readers:\s*\[([^\]]*)\]/g,
     )) {
         readers[m[1]] = [
@@ -88,7 +97,7 @@ export function loadSchemaOwnership(): SchemaOwnership {
     // entries, which carry a `reason` and are written by whoever needs them (the event
     // outbox is written by any service that publishes a domain event).
     const multiOwner = new Set<string>();
-    for (const m of data.matchAll(/table:\s*"([a-z_]+)",\s*reason:/g)) multiOwner.add(m[1]);
+    for (const m of infraSrc.matchAll(/table:\s*"([a-z_]+)"/g)) multiOwner.add(m[1]);
     for (const [table, owner] of Object.entries(tableOwnership)) {
         if (owner === "platform") multiOwner.add(table);
     }
