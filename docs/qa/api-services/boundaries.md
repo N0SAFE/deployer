@@ -104,3 +104,52 @@ Seeding is a test concern; the exemption is explicit so it reads as a decision, 
 - The rule was probed with a file importing own / shared / platform / infrastructure / auth /
   unowned symbols: it flagged exactly the unowned import and allowed the rest.
 - No unowned table references remain in any of the five services.
+
+---
+
+## OPEN — `project` injects fleet's Cloudflare provider services off-service
+
+**Q**: `apps/api-services/services/project` imports fleet's provider code directly:
+
+```
+src/modules/project/project.module.ts:14          ProvidersModule          from "@/modules/providers/providers.module"
+src/modules/project/services/project-network.service.ts:9-10
+        CloudflareAppService, CloudflareDnsProviderService
+src/modules/service/service.module.ts:11          ProvidersModule
+src/modules/service/services/service-network.service.ts:10-11
+        CloudflareDnsProviderService, CloudflareAppService
+```
+
+None of those live inside `project`; they are in
+`services/fleet/src/modules/providers/**`. The service's own tsconfig maps `@/*` to
+`./src/*`, so the imports were never resolvable — an earlier vitest alias made them
+resolve to `apps/api/src/modules/providers` (the monolith), which is why the suite
+passed. `project` calls `listApps()`, `listZones(account)` and
+`listRecords(account, zoneId)` to build `ProjectNetworkView` / `ServiceNetworkView`.
+
+**A**: _OPEN_ — needs a design call.
+
+- **(a) Cross-service contract call.** `fleet` already exposes `providersContract`
+  (with a `dns` sub-contract) at `packages/contracts/fleet/modules/providers`.
+  `project` calls it through the service client instead of injecting fleet's classes.
+- **(b) Move the network views into `fleet`.** They are DNS/provider projections, which
+  is fleet's domain; `project` keeps only the project/service records.
+- **(c) Denormalise the DNS state `project` needs** onto its own tables, from fleet
+  events. A new projection and a backfill, for data already queryable.
+
+**Recommendation**: (a) — smallest correct step; `project → fleet` is already an
+anticipated dependency direction (it is named in the task's internal-identity design),
+and `providersContract` exists. It is also the call that must carry the internal
+identity from Phase 4.2.
+
+---
+
+## Follow-up — stale `@deployer/api-contracts`
+
+The split of the single contracts package into per-service packages
+(`packages/contracts/<owner>`) left **22 files** importing `@deployer/api-contracts`,
+which does not exist. Every service e2e suite failed at collection because of it.
+Fixed here: the imports now point at `@deployer/<owner>-contracts`, with
+`modules/<sub-module>` preserved (e.g. `modules/service/list` →
+`@deployer/project-contracts/modules/service/list`). The same class of stale package
+name should be swept repo-wide before the monolith is deleted.
