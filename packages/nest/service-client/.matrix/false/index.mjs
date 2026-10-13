@@ -1,0 +1,229 @@
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __name = (target, name) => {
+  Object.defineProperty(target, "name", {
+    value: name,
+    enumerable: false,
+    configurable: true
+  });
+  return target;
+};
+var __knownSymbol = (name, symbol) => (symbol = Symbol[name]) ? symbol : Symbol.for("Symbol." + name);
+var __typeError = (msg) => {
+  throw TypeError(msg);
+};
+var __defNormalProp = (obj, key, value) => (key in obj) ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __accessCheck = (obj, member, msg) => member.has(obj) || __typeError("Cannot " + msg);
+var __privateIn = (member, obj) => Object(obj) !== obj ? __typeError('Cannot use the "in" operator on this value') : member.has(obj);
+var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
+var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
+var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
+var __decoratorStart = (base) => [, , , __create(base?.[__knownSymbol("metadata")] ?? null)];
+var __decoratorStrings = ["class", "method", "getter", "setter", "accessor", "field", "value", "get", "set"];
+var __expectFn = (fn) => fn !== undefined && typeof fn !== "function" ? __typeError("Function expected") : fn;
+var __decoratorContext = (kind, name, done, metadata, fns) => ({
+  kind: __decoratorStrings[kind],
+  name,
+  metadata,
+  addInitializer: (fn) => done._ ? __typeError("Already initialized") : fns.push(__expectFn(fn || null))
+});
+var __decoratorMetadata = (array, target) => __defNormalProp(target, __knownSymbol("metadata"), array[3]);
+var __runInitializers = (array, flags, self, value) => {
+  for (var i = 0, fns = array[flags >> 1], n = fns && fns.length;i < n; i++)
+    flags & 1 ? fns[i].call(self) : value = fns[i].call(self, value);
+  return value;
+};
+var __decorateElement = (array, flags, name, decorators, target, extra) => {
+  var fn, it, done, ctx, access, k = flags & 7, s = !!(flags & 8), p = !!(flags & 16);
+  var j = k > 3 ? array.length + 1 : k ? s ? 1 : 2 : 0, key = __decoratorStrings[k + 5];
+  var initializers = k > 3 && (array[j - 1] = []), extraInitializers = array[j] || (array[j] = []);
+  var desc = k && (!p && !s && (target = target.prototype), k < 5 && (k > 3 || !p) && __getOwnPropDesc(k < 4 ? target : {
+    get [name]() {
+      return __privateGet(this, extra);
+    },
+    set [name](x) {
+      __privateSet(this, extra, x);
+    }
+  }, name));
+  k ? p && k < 4 && __name(extra, (k > 2 ? "set " : k > 1 ? "get " : "") + name) : __name(target, name);
+  for (var i = decorators.length - 1;i >= 0; i--) {
+    ctx = __decoratorContext(k, name, done = {}, array[3], extraInitializers);
+    if (k) {
+      ctx.static = s, ctx.private = p, access = ctx.access = { has: p ? (x) => __privateIn(target, x) : (x) => (name in x) };
+      if (k ^ 3)
+        access.get = p ? (x) => (k ^ 1 ? __privateGet : __privateMethod)(x, target, k ^ 4 ? extra : desc.get) : (x) => x[name];
+      if (k > 2)
+        access.set = p ? (x, y) => __privateSet(x, target, y, k ^ 4 ? extra : desc.set) : (x, y) => x[name] = y;
+    }
+    it = (0, decorators[i])(k ? k < 4 ? p ? extra : desc[key] : k > 4 ? undefined : { get: desc.get, set: desc.set } : target, ctx);
+    done._ = 1;
+    if (k ^ 4 || it === undefined)
+      __expectFn(it) && (k > 4 ? initializers.unshift(it) : k ? p ? extra = it : desc[key] = it : target = it);
+    else if (typeof it !== "object" || it === null)
+      __typeError("Object expected");
+    else
+      __expectFn(fn = it.get) && (desc.get = fn), __expectFn(fn = it.set) && (desc.set = fn), __expectFn(fn = it.init) && initializers.unshift(fn);
+  }
+  return k || __decoratorMetadata(array, target), desc && __defProp(target, name, desc), p ? k ^ 4 ? extra : desc : target;
+};
+
+// packages/nest/service-client/src/contract-leaves.ts
+function isProcedure(value) {
+  if (typeof value !== "object" && typeof value !== "function")
+    return false;
+  if (value === null)
+    return false;
+  return "~orpc" in value;
+}
+function collectContractLeaves(contract, path = []) {
+  if (contract === null || typeof contract !== "object")
+    return [];
+  const leaves = [];
+  for (const [key, child] of Object.entries(contract)) {
+    if (key === "~orpc")
+      continue;
+    if (isProcedure(child)) {
+      leaves.push({ path, name: key, qualifiedName: [...path, key].join(".") });
+    } else if (typeof child === "object" && child !== null) {
+      leaves.push(...collectContractLeaves(child, [...path, key]));
+    }
+  }
+  return leaves;
+}
+function resolveAtPath(client, path) {
+  let current = client;
+  for (const segment of path) {
+    if (current === null || current === undefined)
+      return;
+    current = current[segment];
+  }
+  return current;
+}
+
+// packages/nest/service-client/src/base-client.ts
+class BaseClient {
+  service;
+  contract;
+  constructor(binder, options) {
+    this.service = options.service;
+    this.contract = options.contract;
+    const bound = binder.bind(options.service, options.contract);
+    this.raw = bound.raw;
+    for (const leaf of collectContractLeaves(options.contract)) {
+      const procedure = resolveAtPath(bound, [...leaf.path, leaf.name]);
+      if (procedure === undefined || procedure === null)
+        continue;
+      Object.defineProperty(this, leaf.name, {
+        value: procedure.bind(bound),
+        enumerable: false,
+        configurable: true,
+        writable: false
+      });
+    }
+  }
+}
+// packages/nest/service-client/src/service-client.registry.ts
+import { createORPCClient } from "@orpc/client";
+import { OpenAPILink } from "@orpc/openapi/fetch";
+
+class ServiceClientRegistry {
+  options;
+  clientsByService = new Map;
+  origins = new Map;
+  constructor(options) {
+    this.options = options;
+  }
+  bind(service, contract) {
+    const base = this.rawClientFor(service, contract);
+    const bound = new Proxy(base, {
+      get: (target, property, receiver) => {
+        if (property === "raw")
+          return target;
+        if (property === "service")
+          return service;
+        if (property === "contract")
+          return contract;
+        return Reflect.get(target, property, receiver);
+      }
+    });
+    return bound;
+  }
+  describe() {
+    const names = new Set([...this.clientsByService.keys(), ...this.origins.keys()]);
+    return [...names].map((service) => ({ service, origin: this.originFor(service) }));
+  }
+  rawClientFor(service, contract) {
+    let byContract = this.clientsByService.get(service);
+    if (byContract === undefined) {
+      byContract = new WeakMap;
+      this.clientsByService.set(service, byContract);
+    }
+    const existing = byContract.get(contract);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const client = createORPCClient(new OpenAPILink(contract, {
+      origin: this.originFor(service),
+      fetch: (request, init) => {
+        const extra = this.options.headers?.() ?? {};
+        return fetch(request, {
+          ...init,
+          headers: { ...init?.headers, ...extra }
+        });
+      }
+    }));
+    byContract.set(contract, client);
+    return client;
+  }
+  originFor(service) {
+    const cached = this.origins.get(service);
+    if (cached !== undefined)
+      return cached;
+    const resolved = this.options.resolveOrigin(service);
+    this.origins.set(service, resolved);
+    return resolved;
+  }
+}
+// packages/nest/service-client/src/service-client.module.ts
+import { Global, Module } from "@nestjs/common";
+var SERVICE_CLIENT_REGISTRY = "SERVICE_CLIENT_REGISTRY";
+var SERVICE_CLIENT_OPTIONS = "SERVICE_CLIENT_OPTIONS";
+var _init, _dec, _ServiceClientModule;
+_dec = [
+  Global(),
+  Module({})
+];
+
+class ServiceClientModule {
+  static {
+    _init = __decoratorStart(undefined);
+    _ServiceClientModule = __decorateElement(_init, 0, "ServiceClientModule", _dec, this);
+  }
+  static forRoot(options) {
+    return {
+      module: ServiceClientModule,
+      providers: [
+        { provide: SERVICE_CLIENT_OPTIONS, useValue: options },
+        {
+          provide: SERVICE_CLIENT_REGISTRY,
+          useFactory: () => new ServiceClientRegistry(options)
+        },
+        { provide: ServiceClientRegistry, useExisting: SERVICE_CLIENT_REGISTRY }
+      ],
+      exports: [SERVICE_CLIENT_REGISTRY, ServiceClientRegistry]
+    };
+  }
+}
+ServiceClientModule = _ServiceClientModule;
+__runInitializers(_init, 1, _ServiceClientModule);
+export {
+  BaseClient,
+  SERVICE_CLIENT_OPTIONS,
+  SERVICE_CLIENT_REGISTRY,
+  ServiceClientModule,
+  ServiceClientRegistry,
+  collectContractLeaves,
+  isProcedure,
+  resolveAtPath
+};

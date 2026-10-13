@@ -1,4 +1,15 @@
-import { index, integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import {
+    index,
+    integer,
+    jsonb,
+    pgEnum,
+    pgTable,
+    text,
+    timestamp,
+    uniqueIndex,
+    uuid,
+} from "drizzle-orm/pg-core";
 
 export const localJobStateEnum = pgEnum("local_job_state", [
     "queued",
@@ -8,7 +19,13 @@ export const localJobStateEnum = pgEnum("local_job_state", [
     "cancelled",
 ]);
 
-export const localOutboxStateEnum = pgEnum("local_outbox_state", ["pending", "sent", "failed", "dead_letter"]);
+export const localOutboxStateEnum = pgEnum("local_outbox_state", [
+    "pending",
+    "dispatching",
+    "sent",
+    "failed",
+    "dead_letter",
+]);
 
 /**
  * Local-only runtime state tables.
@@ -100,6 +117,24 @@ export const localEventOutbox = pgTable(
         state: localOutboxStateEnum("state").default("pending").notNull(),
         retryCount: integer("retry_count").default(0).notNull(),
         nextRetryAt: timestamp("next_retry_at"),
+        /**
+         * The envelope's `eventId`, lifted out of `payload` as a real column.
+         *
+         * Dedupe used to scan `payload ->> 'eventId'` per row, which cannot be indexed
+         * and cannot be enforced — so two producers could enqueue the same event and
+         * both dispatch. As a column with a partial unique index it becomes a database
+         * guarantee rather than a convention.
+         */
+        eventId: uuid("event_id"),
+        /**
+         * When a dispatcher's claim on this row expires.
+         *
+         * Claiming (`state = 'dispatching'`) is what stops two processes delivering the
+         * same row. Without an expiry a process that died mid-dispatch would strand its
+         * rows forever, so a claim is a lease: past `lockedUntil` the row is claimable
+         * again.
+         */
+        lockedUntil: timestamp("locked_until"),
         createdAt: timestamp("created_at")
             .$defaultFn(() => new Date())
             .notNull(),
@@ -110,5 +145,19 @@ export const localEventOutbox = pgTable(
     (table) => [
         index("local_event_outbox_node_state_idx").on(table.nodeId, table.state),
         index("local_event_outbox_topic_idx").on(table.topic),
+        // Drives the claim query: `WHERE node_id = ? AND state = 'pending' AND
+        // next_retry_at <= now() ORDER BY created_at`.
+        index("local_event_outbox_claim_idx").on(
+            table.nodeId,
+            table.state,
+            table.nextRetryAt,
+            table.createdAt,
+        ),
+        // One row per event, so a duplicate enqueue is rejected by the database.
+        // Partial on `event_id IS NOT NULL` because rows written before this column
+        // existed have no value to compare.
+        uniqueIndex("local_event_outbox_event_id_key")
+            .on(table.eventId)
+            .where(sql`${table.eventId} is not null`),
     ],
 );

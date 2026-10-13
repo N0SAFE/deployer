@@ -1,0 +1,59 @@
+{
+    "name": "@deployer/nest-service-client",
+    "version": "0.0.0",
+    "private": true,
+    "description": "Typed service clients for NestJS: extend BaseClient to bind a contract, and call its procedures at the root (this.findService.findById()).",
+    "main": "./dist/cjs/index.js",
+    "module": "./dist/esm/index.mjs",
+    "types": "./dist/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/types/index.d.ts",
+            "import": "./dist/esm/index.mjs",
+            "require": "./dist/cjs/index.js"
+        },
+        "./*": {
+            "types": "./dist/types/*.d.ts",
+            "import": "./dist/esm/*.mjs",
+            "require": "./dist/cjs/*.js"
+        }
+    },
+    "scripts": {
+        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "format": "bun run prettify",
+        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
+        "lint": "eslint . --fix --cache",
+        "type-check": "bun --check",
+        "build": "bun --bun pkg-build",
+        "dev": "bun --bun pkg-build --watch",
+        "clean": "rimraf dist",
+        "build:types": "bun --bun pkg-build --types",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage"
+    },
+    "dependencies": {
+        "@nestjs/common": "catalog:api:nest",
+        "@orpc/client": "catalog:orpc",
+        "@orpc/contract": "catalog:orpc",
+        "@orpc/openapi": "catalog:orpc",
+        "@orpc/openapi-client": "catalog:orpc",
+        "reflect-metadata": "catalog:api:nest"
+    },
+    "peerDependencies": {
+        "@nestjs/common": "catalog:api:nest",
+        "@orpc/client": "catalog:orpc",
+        "@orpc/contract": "catalog:orpc"
+    },
+    "devDependencies": {
+        "@deployer/config-eslint": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-typescript": "*",
+        "@deployer/pkg-build": "*",
+        "@types/node": "catalog:build",
+        "chokidar": "catalog:build",
+        "eslint": "catalog:linting",
+        "rimraf": "catalog:build",
+        "typescript": "catalog:build"
+    }
+}
