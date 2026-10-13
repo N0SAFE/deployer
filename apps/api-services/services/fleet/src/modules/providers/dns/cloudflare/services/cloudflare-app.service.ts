@@ -22,9 +22,9 @@ import { EdgeProviderRegistry } from "@/core/modules/edge/edge-provider.registry
 import { toCloudflareErrorMessage } from "./cloudflare.helpers";
 
 import { AppError } from "@deployer/errors";
-type DnsProviderRow = typeof import("@deployer/nest-schema/global/fleet/dns-providers").dnsProviders.$inferSelect;
-export type DnsProviderRuntimeState = import("@deployer/nest-schema/global/fleet/dns-providers").DnsProviderRuntimeState;
-export type DnsProviderFeatures = import("@deployer/nest-schema/global/fleet/dns-providers").DnsProviderFeatures;
+type DnsProviderRow = typeof import("@deployer/nest-schema/global").dnsProviders.$inferSelect;
+export type DnsProviderRuntimeState = import("@deployer/nest-schema/global").DnsProviderRuntimeState;
+export type DnsProviderFeatures = import("@deployer/nest-schema/global").DnsProviderFeatures;
 
 const cloudflareCredentialsSchema = z.object({
     apiToken: z.string().min(1),

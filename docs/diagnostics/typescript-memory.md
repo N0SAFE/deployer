@@ -13,7 +13,7 @@ The 7–8 GB type-check had three structural causes:
    (each app, each package's `type-check`, each editor project) re-type-checked the
    entire implementation of every package it imports — ~600 files of inference-heavy
    Zod/ORPC/Better-Auth code, re-done per program.
-2. **`@repo/api-contracts` could not emit declarations at all** (TS7056: the combined
+2. **`@deployer/contracts-entities` could not emit declarations at all** (TS7056: the combined
    21-module router exceeds the compiler's serialization limit), which forced every
    consumer to compile the 232-file contract tree from source.
 3. **All projects shared one `.tsbuildinfo` file.** `tsBuildInfoFile: ".tsbuildinfo"`
@@ -81,7 +81,7 @@ Before-program composition (`--listFiles`, 5,215 files): 3,906 `node_modules`,
 93 nest, 10 ui — plus **346 package `src` files pulled in via `exports.types`**,
 which are the most expensive per-line code in the repo.
 
-### 2. TS7056 blocked declarations for `@repo/api-contracts`
+### 2. TS7056 blocked declarations for `@deployer/contracts-entities`
 
 The old root contract:
 
@@ -130,10 +130,10 @@ single `tsc` runs.
 | Package manifests | `exports.types` → `dist/types/**`; top-level `types` → `dist/types/index.d.ts`; every pkg-build package gets `build:types` (`scripts/normalize-package-exports.ts`, idempotent) |
 | `turbo.json` | New `build:types` task (`dependsOn: ["^build:types"]`, outputs `dist/types/**`); `type-check`, `lint`, `compile` depend on `^build:types` |
 | Root `package.json` | `build:types` → `turbo run build:types`; `watch:types` → `turbo watch build:types` |
-| `@repo/config-typescript` | Removed the shared `tsBuildInfoFile`; each project now writes its own buildinfo (default location, e.g. `apps/api/dist/tsconfig.tsbuildinfo`). `.gitignore` covers `*.tsbuildinfo` |
-| `@repo/api-contracts` | No combined router export (TS7056); per-module contracts stay exported |
+| `@deployer/config-typescript` | Removed the shared `tsBuildInfoFile`; each project now writes its own buildinfo (default location, e.g. `apps/api/dist/tsconfig.tsbuildinfo`). `.gitignore` covers `*.tsbuildinfo` |
+| `@deployer/contracts-entities` | No combined router export (TS7056); per-module contracts stay exported |
 | `apps/api` / `apps/web` / `apps/setup` | Compose the router locally (`app-contract.ts`), where `declaration` is off |
-| `@repo/auth` | Named `ReturnType<…>` annotations on plugin wrappers/factory; explicit `Auth<ReturnType<typeof createAuthConfig<TSchema>>>`; nameable plugin tuples |
+| `@deployer/auth` | Named `ReturnType<…>` annotations on plugin wrappers/factory; explicit `Auth<ReturnType<typeof createAuthConfig<TSchema>>>`; nameable plugin tuples |
 | Service contract input | Recursive `children` typed as a named interface (`z.ZodType<ServiceCreateInput, ServiceCreateInputInput>`) so declaration emit keeps the recursion instead of collapsing it to `Record<string, unknown>[]` |
 | Recursive entity/contract schemas | `Service`, service subtree, sub-dependencies tree and the dependency filter union typed with named recursive interfaces — zero `elided`/`any`/`unknown` recursion left in any `dist/types` |
 
@@ -141,15 +141,15 @@ single `tsc` runs.
 
 `turbo run build:types` across all 32 tasks (30 packages + the builder's own JS
 build and declarations): **~18 s** cold, cached afterwards. Heaviest packages:
-`@repo/api-contracts` 230 declarations/0.4 s, `@repo/auth` 64/≈3 s, `@repo/ui`
-88/3.4 s. `@repo/config-eslint` keeps its custom bundler for JS and uses pkg-build
+`@deployer/contracts-entities` 230 declarations/0.4 s, `@deployer/auth` 64/≈3 s, `@deployer/ui`
+88/3.4 s. `@deployer/config-eslint` keeps its custom bundler for JS and uses pkg-build
 for declarations.
 
-The builder itself (`@repo/pkg-build`) is a NestJS + nest-commander CLI, built
+The builder itself (`@deployer/pkg-build`) is a NestJS + nest-commander CLI, built
 with its own pipeline. Consumers execute its **built** CLI
 (`dist/cjs/main.js`): bun resolves `tsconfig.json` from the cwd, so running the
 CLI source under a consumer's tsconfig drops its decorators. Turbo orders
-`@repo/pkg-build#build` before `build:types` via an explicit task dependency.
+`@deployer/pkg-build#build` before `build:types` via an explicit task dependency.
 
 ## Type completeness after the switch
 

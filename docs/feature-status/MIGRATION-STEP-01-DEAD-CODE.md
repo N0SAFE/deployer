@@ -207,13 +207,13 @@ rmdir apps/api/src/sub-apps/auth  # if empty
 **Verification (confirmed):** Zero importers. The API re-implemented auth internally.
 
 ```bash
-grep -rn "@repo/nest\|@repo/nest-auth\|packages/nest/auth" apps/ --include="*.ts" --include="*.tsx" --include="*.json"
+grep -rn "@deployer/nest\|@deployer/nest-auth\|packages/nest/auth" apps/ --include="*.ts" --include="*.tsx" --include="*.json"
 # → only in packages/nest/auth/package.json itself
 ```
 
 **Files:** Entire `packages/nest/auth/` directory.
 
-**⚠️ Before deleting:** Check if `apps/api/package.json` or any `package.json` references `@repo/nest-auth` or `packages/nest/auth` — remove those references.
+**⚠️ Before deleting:** Check if `apps/api/package.json` or any `package.json` references `@deployer/nest-auth` or `packages/nest/auth` — remove those references.
 
 ```bash
 grep -rn "nest-auth\|nest/auth" apps/api/package.json packages/*/package.json
@@ -405,7 +405,7 @@ After deleting packages, update all `package.json` files that reference them:
 
 ### Remove from apps/api/package.json
 ```bash
-# Check for: @repo/nest-auth, simple-git, tar-stream (if only used by dead core/git)
+# Check for: @deployer/nest-auth, simple-git, tar-stream (if only used by dead core/git)
 grep -rn "simple-git\|tar-stream" apps/api/src/ --include="*.ts" | grep -v node_modules
 # If zero → remove from dependencies
 ```
@@ -432,10 +432,10 @@ bun --bun run knip | head -30
 # Expected: significantly fewer unused files
 
 # Run tests
-bun --bun run test --filter=api --filter=web
+bun --bun run test --filter=@deployer/api --filter=@deployer/web
 
 # Check for no dangling imports
-grep -rn "@/core/modules/context\|@/core/modules/ephemeral-http\|@/core/modules/sub-app-orchestrator\|@/core/modules/loader\|@/core/modules/git\|system-fleet\|setup-wizard\|@repo/nest" apps/ --include="*.ts" --include="*.tsx" | grep -v node_modules
+grep -rn "@/core/modules/context\|@/core/modules/ephemeral-http\|@/core/modules/sub-app-orchestrator\|@/core/modules/loader\|@/core/modules/git\|system-fleet\|setup-wizard\|@deployer/nest" apps/ --include="*.ts" --include="*.tsx" | grep -v node_modules
 # → should be zero
 ```
 

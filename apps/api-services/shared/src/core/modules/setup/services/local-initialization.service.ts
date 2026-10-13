@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm";
 import { Roles } from "@deployer/auth/permissions";
 import type { SetupInitializeLocalInput } from "@deployer/contracts-entities";
 import * as globalSchema from "@deployer/nest-schema/global";
-import { user } from "@deployer/nest-schema/global/auth";
+import { user } from "@deployer/nest-schema/global/identity/auth";
 import { createBetterAuth } from "@/config/auth/auth";
 
 import { DockerService } from "@deployer/nest-docker/services/docker.service";

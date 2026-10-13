@@ -1,4 +1,7 @@
-
+import { Injectable } from "@nestjs/common";
+import { and, eq, inArray } from "drizzle-orm";
+import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
+import { roleRules } from "@deployer/nest-schema/global/identity/permissions";
 import type { ResourceRule } from "@deployer/auth/permissions";
 
 /**

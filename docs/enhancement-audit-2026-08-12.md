@@ -14,7 +14,7 @@
 4. **[MED] Env-read sprawl** — 17 verified `process.env` reads outside the `#/env` consolidation (setup-wizard, api-url, utils, masterTokenClient, layout, error fallbacks, WithEnv); "13 was a floor not a ceiling".
 5. **[MED] Unwired events contract** — `eventSyncContract` defined once, zero consumers, absent from `appContract`; events domain has no typed ORPC client surface. Wire-or-delete decision required.
 6. **[MED] Web conformance** — 2 DUPLICATED raw `fetch("/api/auth/sign-in/email")` bypasses in setup flow (+ double type assertion), 1 empty `catch {}` (file-upload-link.ts:193), 12 unlinked `it.todo()`.
-7. **[LOW] Zero-consumer packages** — `@repo/runthenkill`, `@repo/config-schema` (2 of 24) violate the "every package needs ≥1 consumer" rule.
+7. **[LOW] Zero-consumer packages** — `@deployer/runthenkill`, `@deployer/config-schema` (2 of 24) violate the "every package needs ≥1 consumer" rule.
 
 **Clean verdicts:** hardcoded `href` bypassing declarative routes = ZERO production hits; `console.*` = effectively clean (1-2 stragglers); `@ts-expect-error` in vendored declarative-routing assets is ambiguous-but-pinned.
 

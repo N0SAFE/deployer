@@ -1,3 +1,9 @@
+> ⚠️ **SUPERSEDED.** This document describes the setup-app / orchestrator
+> design that has been replaced. See `docs/architecture/` (especially
+> [`01-lifecycle-and-ownership.md`](architecture/01-lifecycle-and-ownership.md)
+> and [`09-implementation-plan.md`](architecture/09-implementation-plan.md))
+> for the current architecture.
+
 # App Startup Flow — Complete Walkthrough
 
 > What happens, in order, from `docker compose up` to a converged platform. Every participant,
@@ -221,19 +227,19 @@ they would be a second implementation or dead weight.
 
 | Primitive | Used by setup? | Why |
 |---|---|---|
-| `@repo/nest-env` (`forRoot({ schema })`) | **yes** | mechanism shared, contract per app (`setupEnvSchema` — 24 vars, none of the API's) |
-| `@repo/nest-swarm` | **yes** | `SwarmClusterService`, `SwarmParticipationService` via `forRootAsync` |
-| `@repo/nest-docker` | **yes** | the engine client + `createSwarmService` (prod) |
-| `@repo/nest-nodes` | **yes** | `NodeConfigRepository` — reads *and writes* of the shared row |
-| `@repo/nest-database-local` | **yes** | the SQLite connection, with the app supplying path + migrations |
-| `@repo/nest-schema` | **yes** | the table definitions (and the migrations that create them) |
-| `@repo/logger`, `@repo/errors` | **yes** | no `console.log`, no bare `Error` |
-| `@repo/ui` | **yes** | the wizard components, shared with the web app — one implementation |
+| `@deployer/nest-env` (`forRoot({ schema })`) | **yes** | mechanism shared, contract per app (`setupEnvSchema` — 24 vars, none of the API's) |
+| `@deployer/nest-swarm` | **yes** | `SwarmClusterService`, `SwarmParticipationService` via `forRootAsync` |
+| `@deployer/nest-docker` | **yes** | the engine client + `createSwarmService` (prod) |
+| `@deployer/nest-nodes` | **yes** | `NodeConfigRepository` — reads *and writes* of the shared row |
+| `@deployer/nest-database-local` | **yes** | the SQLite connection, with the app supplying path + migrations |
+| `@deployer/nest-schema` | **yes** | the table definitions (and the migrations that create them) |
+| `@deployer/logger`, `@deployer/errors` | **yes** | no `console.log`, no bare `Error` |
+| `@deployer/ui` | **yes** | the wizard components, shared with the web app — one implementation |
 | oRPC **client** (`@orpc/client`, `@orpc/tanstack-query`) | **yes** | the view layer is typed end-to-end against `AppContract` |
 | oRPC **server** (`ORPCModule`) | **no — deleted** | setup implements **zero** procedures. Registering a router with no procedures loads a module whose only effect is to route nothing. The contract's value here is on the CLIENT side. |
-| `@repo/nest-lifecycle` | **no** | its vocabulary is "one process booting: config → DB → mesh → serving". Setup's machine answers "may the API start yet?" — a statement about *another* process. Folding them together would push the API's bootstrap vocabulary into setup's public readiness contract, which compose parses. |
+| `@deployer/nest-lifecycle` | **no** | its vocabulary is "one process booting: config → DB → mesh → serving". Setup's machine answers "may the API start yet?" — a statement about *another* process. Folding them together would push the API's bootstrap vocabulary into setup's public readiness contract, which compose parses. |
 | `ReadinessStateService` (event-driven aggregation) | **no** | The API needs it because it has *many* expensive dependencies (DB, swarm, 5+ supervisors, mesh) that must not be probed on the request path. Setup has **one input** and its indicator is already a cache read of `state$.value` — no I/O, nothing to aggregate. |
-| `@repo/nest-events` | **no** | provisioning events are produced by the API; setup forwards the frames verbatim, which is cheaper and cannot drift |
+| `@deployer/nest-events` | **no** | provisioning events are produced by the API; setup forwards the frames verbatim, which is cheaper and cannot drift |
 | Supervisors | **no** | setup does not exist when most platform services are scheduled |
 
 ### 6.1 Where setup *is* event-driven

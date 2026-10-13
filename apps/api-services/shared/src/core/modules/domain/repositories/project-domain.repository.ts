@@ -2,9 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { eq, and, ne } from 'drizzle-orm';
 import { GlobalDatabaseService } from '@/core/modules/database/services/global-database.service';
 import { AppError } from "@deployer/errors";
-import {
-  projectDomains,
-} from "@deployer/nest-schema/global/domain";
+import { projectDomains } from "@deployer/nest-schema/global/project/domain";
 
 type ProjectDomain = typeof projectDomains.$inferSelect;
 type InsertProjectDomain = typeof projectDomains.$inferInsert;

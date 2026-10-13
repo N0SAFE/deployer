@@ -1,11 +1,18 @@
-import { serviceDependencies, projects } from "@deployer/nest-schema/global/project/deployment";
+import { Injectable } from "@nestjs/common";
+import { ConflictError } from "@deployer/errors";
+import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
+import { services, serviceDependencies, projects } from "@deployer/nest-schema/global/project/deployment";
 import { localEventOutbox } from "@deployer/nest-schema/global/runtime/runtime";
 import { and, eq, ilike, asc, isNull, inArray } from "drizzle-orm";
+import type { PgTransaction } from "drizzle-orm/pg-core";
+import type { NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
+import type { ExtractTablesWithRelations } from "drizzle-orm";
+import type * as globalSchema from "@deployer/nest-schema/global";
 import { listBuilder } from "@/core/utils/drizzle-filter.utils";
 import { TraefikConfigBuilder } from "@/core/modules/traefik/config-builder/builders";
-import type { ServiceListInput } from "@deployer/project-contracts/modules/service/list";
-import type { ServiceCreateInput } from "@deployer/project-contracts/modules/service/crud/create";
-import type { ServiceUpdateInput } from "@deployer/project-contracts/modules/service/crud/update";
+import type { ServiceListInput } from "@deployer/api-contracts/modules/service/list";
+import type { ServiceCreateInput } from "@deployer/api-contracts/modules/service/crud/create";
+import type { ServiceUpdateInput } from "@deployer/api-contracts/modules/service/crud/update";
 import { serviceNetworkConfigSchema } from "@deployer/contracts-entities";
 import { serviceProviderConfigUnionSchema, serviceRunnerConfigUnionSchema, implementedContractSchema, previewSourceTemplateSchema } from "@deployer/contracts-entities";
 import * as crypto from "node:crypto";
@@ -17,6 +24,12 @@ import { readTraefikConfig } from "@deployer/nest-schema/codecs/codec-registry";
 const DEFAULT_NODE_ID = "00000000-0000-4000-8000-000000000000";
 
 type ServiceRow = typeof services.$inferSelect;
+
+type DbTransaction = PgTransaction<
+    NodePgQueryResultHKT,
+    typeof globalSchema,
+    ExtractTablesWithRelations<typeof globalSchema>
+>;
 
 function toDto(row: ServiceRow) {
     // The schema package's column is typed `unknown` (it cannot name this app's
@@ -252,7 +265,7 @@ export class ServiceRepository {
 
     /** Insert a nested children tree; returns all inserted rows in depth-first order. */
     private async insertChildrenRecursive(
-        tx: GlobalTransaction,
+        tx: DbTransaction,
         parent: ServiceRow,
         children: ServiceCreateInput[],
     ): Promise<ServiceRow[]> {
@@ -336,7 +349,7 @@ export class ServiceRepository {
      * No-ops when the parent has no subServices manifest.
      */
     private async autoLinkSubServiceDependencies(
-        tx: GlobalTransaction,
+        tx: DbTransaction,
         parent: ServiceRow,
         children: { input: ServiceCreateInput; row: ServiceRow }[],
     ): Promise<void> {
@@ -411,7 +424,7 @@ export class ServiceRepository {
         return parentPath && parentPath.length > 0 ? `${parentPath}/${parentId}` : parentId;
     }
 
-    private async insertCreatedEvent(tx: GlobalTransaction, row: ServiceRow): Promise<void> {
+    private async insertCreatedEvent(tx: DbTransaction, row: ServiceRow): Promise<void> {
         await tx.insert(localEventOutbox).values({
             id: crypto.randomUUID(),
             nodeId: this.resolveNodeId(),
@@ -584,7 +597,7 @@ export class ServiceRepository {
     }
 
     /** After reparenting, recompute depth + parentPath for every descendant (BFS). */
-    private async rebuildSubtreePaths(tx: GlobalTransaction, root: ServiceRow): Promise<void> {
+    private async rebuildSubtreePaths(tx: DbTransaction, root: ServiceRow): Promise<void> {
         const queue: { id: string; parentPath: string | null; depth: number }[] = [{
             id: root.id,
             parentPath: root.parentPath,

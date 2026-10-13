@@ -247,7 +247,7 @@ requestId: (req as RequestWithId).requestId,
 console.log(`[e2e-runtime ${now}] ${message}`);
 
 // After:
-import { AppLogger } from '@repo/logger';
+import { AppLogger } from '@deployer/logger';
 const logger = new AppLogger('e2e');
 logger.info(`[e2e-runtime ${now}] ${message}`);
 ```

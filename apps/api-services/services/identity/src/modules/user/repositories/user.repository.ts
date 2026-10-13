@@ -1,5 +1,7 @@
-
+import { Injectable } from "@nestjs/common";
+import { and, asc, count, desc, eq, gt, gte, ilike, lt, lte, type AnyColumn, type SQL } from "drizzle-orm";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
+import { user } from "@deployer/nest-schema/global/identity/auth";
 
 import { userRules, type NewUser, type User, type UserPatch } from "../domain/user.entity";
 

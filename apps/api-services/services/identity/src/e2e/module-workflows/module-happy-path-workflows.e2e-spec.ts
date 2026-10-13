@@ -1,4 +1,13 @@
-import { services } from "@deployer/nest-schema/global/project/deployment";
+import { randomUUID } from "node:crypto";
+import { beforeAll, describe, expect, it } from "vitest";
+// ── WHY `@/e2e/runtime`, NOT `@/e2e-harness/shared-api-runtime` ─────────────
+// The harness is app-agnostic and REQUIRES `nest.rootModuleLoader` — it lives in
+// `shared`, where `@/app.module` resolves to nothing, so it cannot default. The
+// app-local `@/e2e/runtime` wrapper binds this service's root module; importing the
+// harness directly throws
+// `SharedApiRuntimeOptions.nest.rootModuleLoader is required` at boot.
+import { getSharedApiRuntimeContext, type SharedApiRuntimeContext } from "@/e2e/runtime";
+import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import { user } from "@deployer/nest-schema/global/identity/auth";
 import { UserService } from "@/modules/user/services/user.service";
 import { AnalyticsService } from "@/modules/analytics/services/analytics.service";
@@ -98,44 +107,7 @@ describe("Identity happy-path workflows e2e: the domains this service owns", () 
 	});
 
 	it("returns one realtime sample per requested service", async () => {
-		// ── WHY THE FIXTURE SEEDS ITS OWN SERVICES ──────────────────────────────
-		// The case asserts "one sample PER REQUESTED SERVICE", so the two rows it asks
-		// for must exist. The rows are owned by the PROJECT service — a different
-		// process — so the fixture inserts them directly rather than calling that
-		// service: a suite that had to boot a second app to obtain a fixture would be
-		// testing its availability, not analytics.
-		//
-		// Without them the query matches nothing and the assertion fails with
-		// `expected [] to have a length of 2` — a missing fixture, not a broken rule.
-		const database = runtime.serviceMapper.get(GlobalDatabaseService);
-		const [project] = await database.db
-			.insert(projects)
-			.values({
-				name: `e2e-analytics-${randomUUID()}`,
-				description: "Identity analytics fixture",
-				baseDomain: "analytics.e2e.example.test",
-				ownerId: admin.userId,
-			})
-			.returning();
-		if (project === undefined) throw new Error("failed to seed a project for the analytics fixture");
-
-		const requested = ["api", "cache"] as const;
-		await database.db.insert(services).values(
-			requested.map((name) => ({
-				projectId: project.id,
-				name,
-				description: "Identity analytics fixture service",
-				type: "application" as const,
-				// Real provider/builder ids: the columns are not-null enums, so a
-				// placeholder would be rejected by the column type rather than by a rule.
-				providerId: "artifact-bundle" as const,
-				builderId: "manual" as const,
-				port: 3000,
-				healthCheckPath: "/health",
-			})),
-		);
-
-		const realtime = await analyticsService.realtimeMetrics([...requested]);
+		const realtime = await analyticsService.realtimeMetrics(["api", "cache"]);
 		expect(realtime.services).toHaveLength(2);
 	});
 

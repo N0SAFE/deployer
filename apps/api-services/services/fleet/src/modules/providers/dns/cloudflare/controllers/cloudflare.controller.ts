@@ -8,12 +8,12 @@
 import { Controller, Logger } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { providersContract } from "@deployer/fleet-contracts";
+import { providersContract } from "@deployer/api-contracts";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { CloudflareAppService } from "../services/cloudflare-app.service";
 import { CloudflareDnsProviderService } from "../services/cloudflare-dns-provider.service";
 import { CloudflareTunnelService } from "../services/cloudflare-tunnel.service";
-import { CloudflareTunnelEdgeProvider } from "../../../../providers/edge/cloudflare-tunnel/cloudflare-tunnel.edge-provider";
+import { CloudflareTunnelEdgeProvider } from "@/modules/providers/edge/cloudflare-tunnel/cloudflare-tunnel.edge-provider";
 
 /**
  * Normalize a DNS record content value for comparison: trimmed, lowercased,

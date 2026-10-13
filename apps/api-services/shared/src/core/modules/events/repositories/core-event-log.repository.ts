@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { and, desc, eq } from "drizzle-orm";
-import { coreEventLogs } from "@deployer/nest-schema/global/events";
+import { coreEventLogs } from "@deployer/nest-schema/global/platform/events";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 
 export interface CoreEventLogPersistInput {

@@ -14,7 +14,7 @@
 
 import { Injectable, Logger } from "@nestjs/common";
 import { eq } from "drizzle-orm";
-import { clusterNodes } from "@deployer/nest-schema/global/cluster";
+import { clusterNodes } from "@deployer/nest-schema/global/fleet/cluster";
 import { GlobalDatabaseService } from "@/core/modules/database/global/global-database.service";
 import { SystemMeshConfigService } from "@/core/modules/mesh/services/system-mesh-config.service";
 

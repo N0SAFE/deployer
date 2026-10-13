@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
 
-import type { DnsProviderRegistryService } from "../../providers/dns/shared/dns-provider-registry.service";
-import type { DnsProviderRecord } from "../../providers/dns/shared/dns-provider.interface";
+import type { DnsProviderRegistryService } from "@/modules/providers/dns/shared/dns-provider-registry.service";
+import type { DnsProviderRecord } from "@/modules/providers/dns/shared/dns-provider.interface";
 
 import { EdgeDnsService } from "./edge-dns.service";
 import { isPubliclyResolvable, planLaneDnsRecords } from "./lane-dns-plan";

@@ -1,4 +1,6 @@
-import { deploymentLogs, deploymentRollbacks, deploymentStreams } from "@deployer/nest-schema/global/runtime/deployment";
+import { Injectable } from "@nestjs/common";
+import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
+import { deployments, deploymentLogs, deploymentRollbacks, deploymentStreams } from "@deployer/nest-schema/global/runtime/deployment";
 import { previewEnvironments } from "@deployer/nest-schema/global/fleet/deployment";
 import { projects, serviceDependencies, services } from "@deployer/nest-schema/global/project/deployment";
 import { localEventOutbox } from "@deployer/nest-schema/global/runtime/runtime";

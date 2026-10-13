@@ -7,7 +7,7 @@ import {
     type TopologyResolveInput,
     type TopologyServiceRecord,
 } from "./preview-topology.resolver";
-import type { ResolvedPreviewNode } from "@deployer/project-contracts/modules/service/preview-topology/resolve";
+import type { ResolvedPreviewNode } from "@deployer/api-contracts/modules/service/preview-topology/resolve";
 
 /**
  * Preview-topology dry-run service.

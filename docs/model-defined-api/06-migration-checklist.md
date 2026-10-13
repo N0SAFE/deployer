@@ -17,7 +17,7 @@ Deliverable: endpoint-to-model matrix.
 
 ## Phase 1 — Canonical model completion
 
-- [ ] Ensure all first-class models exist in `@repo/contracts-entities`.
+- [ ] Ensure all first-class models exist in `@deployer/contracts-entities`.
 - [ ] Declare relation edges with `z.lazy(() => ...)` wherever they belong in model schemas (top-level or nested).
 - [ ] Define typed include path enums for relation-aware fetch endpoints.
 - [ ] Add/normalize list/entity schemas (`data/meta`, relation-aware entity projections).

@@ -221,15 +221,15 @@ for dep in "@million/lint" "@serwist/turbopack" "esbuild-wasm" "exceljs" "react-
 done
 ```
 
-### Clean Up `@repo/type-guards` Over-Distribution
+### Clean Up `@deployer/type-guards` Over-Distribution
 
-`@repo/type-guards` is in 13 package.json files but many packages don't use it. Verify and remove where unused:
+`@deployer/type-guards` is in 13 package.json files but many packages don't use it. Verify and remove where unused:
 
 ```bash
 for pkg in tooling/vitest packages/contracts/api packages/contracts/common packages/contracts/entities packages/types packages/utils/config-schema packages/config/env packages/infrastructure/logger packages/utils/provider-schema; do
   echo "=== $pkg ==="
   # Check if any source file imports it
-  grep -rn "@repo/type-guards" "$pkg/src/" 2>/dev/null | head -3
+  grep -rn "@deployer/type-guards" "$pkg/src/" 2>/dev/null | head -3
 done
 ```
 

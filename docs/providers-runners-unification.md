@@ -339,7 +339,7 @@ export const dockerfileRuntimeRunnerOptionsSchema = z.object({
 `apps/api/src/modules/runners/runtime-runner.interface.ts` had a hand-written
 loose interface duplicating the schema. Now:
 `export type RuntimeRunnerExecutionOptions = RuntimeRunnerOptions;` (imported
-from `@repo/contracts-entities`). No parallel definition.
+from `@deployer/contracts-entities`). No parallel definition.
 
 ### 7.3 Trigger input `source` → discriminated union on `sourceType` ✅
 

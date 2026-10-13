@@ -28,4 +28,4 @@ const FLEET_SERVICES = [
     providers: [...FLEET_SERVICES, FleetService, FleetRepository],
     exports: [...FLEET_SERVICES, FleetService],
 })
-export class FleetDomainModule {}
+export class FleetModule {}

@@ -28,7 +28,7 @@ All match controller endpoints 1:1 ✅
 - find-by-id lacks explicit .params() declaration
 
 ## Todo List (Contracts Layer ONLY)
-1. [S] Remove stale schemas.ts — use @repo/contracts-entities instead
+1. [S] Remove stale schemas.ts — use @deployer/contracts-entities instead
 2. [M] Add .errors(...) to all 10 contracts for typed error handling
 3. [S] Add explicit .params() to find-by-id contract
 4. [S] Verify createdAt/updatedAt format consistency (string vs Date)

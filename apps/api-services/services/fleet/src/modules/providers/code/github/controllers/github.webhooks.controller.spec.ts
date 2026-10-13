@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GithubWebhooksController } from "./github.webhooks.controller";
-import { githubWebhookAuth } from "../../../../providers/middleware/github-webhook-auth.middleware";
+import { githubWebhookAuth } from "@/modules/providers/middleware/github-webhook-auth.middleware";
 import { ORPCError } from "@orpc/server";
 import type { GithubWebhookDispatchService } from "../services/github-webhook-dispatch.service";
 import type { WebhookIdempotencyService } from "../services/webhook-idempotency.service";
 import type { GithubAppsRepository } from "../repositories/github-apps.repository";
-import type { GithubWebhookInput } from "@deployer/fleet-contracts";
+import type { GithubWebhookInput } from "@deployer/api-contracts";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────
 

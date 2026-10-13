@@ -1,7 +1,7 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { domainContract } from "@deployer/project-contracts";
+import { domainContract } from "@deployer/api-contracts";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { DomainServiceService } from "../services/domain-service.service";
 

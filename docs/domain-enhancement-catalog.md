@@ -139,7 +139,7 @@ hand-written from the plain object schemas.
 **Public Access Point — first-class core feature via the global event system (2026-08-04)**:
 - The node's public access point (IP / hostname / DNS-provider tunnel + live
   availability) is now a **first-class core service** broadcast over the **core event
-  system** (`@repo/nest-events`, the same pooled event infra every domain uses), not a
+  system** (`@deployer/nest-events`, the same pooled event infra every domain uses), not a
   bespoke relay.
 - **Event contracts** (`core/modules/reachability/events/public-access-point-event.contracts.ts`):
   a **Zod discriminated union on `kind`** (`ip | hostname | tunnel | null`) — one perfectly

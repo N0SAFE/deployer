@@ -1,15 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
-// ── WHY `@/e2e/runtime`, NOT `@/e2e-harness/shared-api-runtime` ─────────────
-// The harness is app-agnostic and REQUIRES `nest.rootModuleLoader` — it lives in
-// `shared`, where `@/app.module` resolves to nothing, so it cannot default. The
-// app-local `@/e2e/runtime` wrapper binds this service's root module; importing the
-// harness directly throws
-// `SharedApiRuntimeOptions.nest.rootModuleLoader is required` at boot.
-import {
-	useDescribeSharedApiRuntime,
-	withDeploymentQueueWorkerDisabled,
-} from "@/e2e/runtime";
+import { useDescribeSharedApiRuntime } from "@/e2e-harness/shared-api-runtime";
 import { TraefikService } from "@/core/modules/traefik/services/traefik.service";
 
 import { DeploymentService } from "@/modules/deployment/services/deployment.service";
@@ -38,9 +29,6 @@ describe("Deployment strategy e2e: service, traefik projection and the upload de
 	// job's payload and then drives its lifecycle itself. Leaving it enabled is a
 	// race for the job — which is why the assertion saw `claimed` where it expected
 	// `queued`.
-	//
-	// `withDeploymentQueueWorkerDisabled()` supplies OPTIONS; the wrapper supplies the
-	// root module. Both come from `@/e2e/runtime` so the graph is this app's.
 	const runtimeScope = useDescribeSharedApiRuntime(withDeploymentQueueWorkerDisabled());
 	let context: DeploymentCompleteStrategyContext;
 	let deployment: DeploymentService;
@@ -113,14 +101,7 @@ describe("Deployment strategy e2e: service, traefik projection and the upload de
 							// `Upload source requires valid source with customData.uploadId`
 							// when it is absent. The top-level field alone is not the source of
 							// truth the provider reads.
-							uploadId,
-							// `uploadPath` TOO, for the same reason: the provider branches on
-							// `customData.uploadPath` BEFORE consulting the bundle registry, and
-							// falls through to a not-found error when neither is present. A
-							// top-level `uploadPath` alone is ignored, so the fixture must carry
-							// it here or the suite fails with
-							// "Upload bundle with id '…' was not found".
-							uploadPath: "/tmp/e2e-upload/bundle.zip",							runtimeRunner: "dockerfile",
+							uploadId,						runtimeRunner: "dockerfile",
 						containerImage: `ghcr.io/e2e/deploy-${service.id.slice(0, 8)}:latest`,
 						runtimeRunnerOptions: {								// `runner` is the DISCRIMINANT: `runtimeRunnerOptionsSchema` is a
 								// discriminated union on it, and the members are `.strict()`, so an

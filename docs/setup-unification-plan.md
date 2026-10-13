@@ -1,3 +1,9 @@
+> ⚠️ **SUPERSEDED.** This document describes the setup-app / orchestrator
+> design that has been replaced. See `docs/architecture/` (especially
+> [`01-lifecycle-and-ownership.md`](architecture/01-lifecycle-and-ownership.md)
+> and [`09-implementation-plan.md`](architecture/09-implementation-plan.md))
+> for the current architecture.
+
 # Setup Behavior Unification — Proposal & Enhancement Plan
 
 > **Status:** Partially implemented — see [Implementation status](#implementation-status-) below
@@ -197,7 +203,7 @@ Implementation: `SetupDevService` CASE 0 reuses the same `probe()` throw path as
 4. **One-shot containers.** Either re-add `api-db-migrate-dev` / `api-db-seed-dev` as compose
    profiles driven by the same `DefaultAdminService` + migrator (for ops who want explicit
    jobs), or delete the stale comments — pick one and update `infra/docker/compose` accordingly.
-5. **Env schema.** Centralize every switch in `@repo/env` (`apiEnvSchema`) so Zod validates
+5. **Env schema.** Centralize every switch in `@deployer/env` (`apiEnvSchema`) so Zod validates
    the **whole** policy surface at boot and rejects unknown/conflicting combos
    (e.g. `MANAGED_GLOBAL_DB_ENABLED=true` **and** `SETUP_AUTO_DATABASE_URL` set → warn or
    hard error), instead of silently letting branch order decide.

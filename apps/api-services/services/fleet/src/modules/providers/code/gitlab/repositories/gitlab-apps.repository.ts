@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { and, eq } from "drizzle-orm";
 import { GlobalDatabaseService } from "@/core/modules/database/global/global-database.service";
-import * as globalSchema from "@deployer/nest-schema/global/fleet";
+import { gitlabApps } from "@deployer/nest-schema/global/fleet/gitlab-provider";
 
 /**
  * GitlabAppsRepository — the single data-access layer for GitLab account
@@ -21,23 +21,23 @@ export class GitlabAppsRepository {
     async list() {
         return this.db
             .select({
-                id: globalSchema.gitlabApps.id,
-                name: globalSchema.gitlabApps.name,
-                url: globalSchema.gitlabApps.url,
-                isActive: globalSchema.gitlabApps.isActive,
-                createdAt: globalSchema.gitlabApps.createdAt,
-                updatedAt: globalSchema.gitlabApps.updatedAt,
+                id: gitlabApps.id,
+                name: gitlabApps.name,
+                url: gitlabApps.url,
+                isActive: gitlabApps.isActive,
+                createdAt: gitlabApps.createdAt,
+                updatedAt: gitlabApps.updatedAt,
             })
-            .from(globalSchema.gitlabApps)
-            .orderBy(globalSchema.gitlabApps.createdAt);
+            .from(gitlabApps)
+            .orderBy(gitlabApps.createdAt);
     }
 
     /** Check whether an account with this name already exists. */
     async findByName(name: string) {
         const rows = await this.db
-            .select({ id: globalSchema.gitlabApps.id })
-            .from(globalSchema.gitlabApps)
-            .where(eq(globalSchema.gitlabApps.name, name))
+            .select({ id: gitlabApps.id })
+            .from(gitlabApps)
+            .where(eq(gitlabApps.name, name))
             .limit(1);
         return rows[0] ?? null;
     }
@@ -49,7 +49,7 @@ export class GitlabAppsRepository {
         accessToken: string;
     }) {
         const [row] = await this.db
-            .insert(globalSchema.gitlabApps)
+            .insert(gitlabApps)
             .values({
                 name: input.name,
                 url: input.url,
@@ -63,9 +63,9 @@ export class GitlabAppsRepository {
     /** Delete a GitLab account row by id. Returns the removed id or null. */
     async deleteById(id: string) {
         const removed = await this.db
-            .delete(globalSchema.gitlabApps)
-            .where(eq(globalSchema.gitlabApps.id, id))
-            .returning({ id: globalSchema.gitlabApps.id });
+            .delete(gitlabApps)
+            .where(eq(gitlabApps.id, id))
+            .returning({ id: gitlabApps.id });
         return removed[0] ?? null;
     }
 }

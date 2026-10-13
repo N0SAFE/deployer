@@ -7,7 +7,7 @@
  * @module domain/interfaces/project-domain
  */
 
-import type { projectDomains } from "@deployer/nest-schema/global/domain";
+import type { projectDomains } from "@deployer/nest-schema/global/project/domain";
 
 // ============================================================================
 // DATABASE TYPES (re-exports for convenience)

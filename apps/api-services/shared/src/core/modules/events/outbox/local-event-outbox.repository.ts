@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import { localEventOutbox } from "@deployer/nest-schema/global/runtime";
+import { localEventOutbox } from "@deployer/nest-schema/global/runtime/runtime";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 
 type OutboxRow = typeof localEventOutbox.$inferSelect;

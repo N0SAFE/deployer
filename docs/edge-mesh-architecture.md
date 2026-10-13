@@ -378,7 +378,7 @@ is a host-network container, one per daemon. `mesh-6` shares one agent.
 ## Next steps
 
 1. **Relay-over-session** — UDP↔session bridge so two members behind symmetric
-   NATs connect through a third (`planRelay` stub in `@repo/mesh-network`).
+   NATs connect through a third (`planRelay` stub in `@deployer/mesh-network`).
 2. **`deployer mesh connect`** — operator laptop as a mesh member (CLI stub).
 3. **Replicated platform state** (§5).
 4. **Agent upgrades** pushed through the mesh (today: re-created by setup/API on

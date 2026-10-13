@@ -22,9 +22,7 @@ import type {
 
 // Import inferred types from database schema
 import type { InferSelectModel } from 'drizzle-orm';
-import type {
-  traefikServiceConfigs,
-} from "@deployer/nest-schema/global/traefik";
+import type { traefikServiceConfigs } from "@deployer/nest-schema/global/traefik/index";
 
 // Inferred types from database schema
 type TraefikServiceConfig = InferSelectModel<typeof traefikServiceConfigs>;

@@ -257,7 +257,7 @@ Reports: [API](subagent-reports/05-SERVICE-SUBAGENT-01-API.md) | [Web](subagent-
 | S11 | Delete mock-hooks.ts after migration | S | Web |
 | S12 | Add loading/error/empty states for migrated pages | M | Web |
 | S13 | Add SSE stream consumer hook for real-time updates | M | Web |
-| S14 | Remove stale schemas.ts — use @repo/contracts-entities | S | Contracts |
+| S14 | Remove stale schemas.ts — use @deployer/contracts-entities | S | Contracts |
 | S15 | Add .errors(...) to all 10 contracts | M | Contracts |
 | S16 | Add explicit .params() to find-by-id | S | Contracts |
 | S17 | Verify createdAt/updatedAt format consistency | S | Contracts |

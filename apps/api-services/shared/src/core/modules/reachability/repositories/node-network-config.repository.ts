@@ -1,9 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { eq } from "drizzle-orm";
 import { GlobalDatabaseService } from "@/core/modules/database/global/global-database.service";
-import * as globalSchema from "@deployer/nest-schema/global";
+import { nodeNetworkConfig } from "@deployer/nest-schema/global/fleet/node-network-config";
 
-type NodeNetworkConfigRow = typeof globalSchema.nodeNetworkConfig.$inferSelect;
+type NodeNetworkConfigRow = typeof nodeNetworkConfig.$inferSelect;
 
 /**
  * NodeNetworkConfigRepository — the single data-access layer for the global
@@ -23,8 +23,8 @@ export class NodeNetworkConfigRepository {
     async findByNodeId(nodeId: string): Promise<NodeNetworkConfigRow | null> {
         const rows = await this.db
             .select()
-            .from(globalSchema.nodeNetworkConfig)
-            .where(eq(globalSchema.nodeNetworkConfig.nodeId, nodeId))
+            .from(nodeNetworkConfig)
+            .where(eq(nodeNetworkConfig.nodeId, nodeId))
             .limit(1);
         return rows[0] ?? null;
     }
@@ -33,8 +33,8 @@ export class NodeNetworkConfigRepository {
     async list(): Promise<NodeNetworkConfigRow[]> {
         return this.db
             .select()
-            .from(globalSchema.nodeNetworkConfig)
-            .orderBy(globalSchema.nodeNetworkConfig.updatedAt);
+            .from(nodeNetworkConfig)
+            .orderBy(nodeNetworkConfig.updatedAt);
     }
 
     /** Upsert a node's network config (insert or update on nodeId conflict). */
@@ -50,10 +50,10 @@ export class NodeNetworkConfigRepository {
             updatedAt: new Date(),
         };
         await this.db
-            .insert(globalSchema.nodeNetworkConfig)
+            .insert(nodeNetworkConfig)
             .values(values)
             .onConflictDoUpdate({
-                target: globalSchema.nodeNetworkConfig.nodeId,
+                target: nodeNetworkConfig.nodeId,
                 set: values,
             });
     }

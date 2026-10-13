@@ -1,7 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { and, eq } from "drizzle-orm";
 import { GlobalDatabaseService } from "@/core/modules/database/global/global-database.service";
-import * as globalSchema from "@deployer/nest-schema/global/fleet";
+import { appConfig } from "@deployer/nest-schema/global/platform/app-config";
+import { githubApps, githubRepositoryConfigs, githubWebhookEvents } from "@deployer/nest-schema/global/fleet/github-provider";
+import { services } from "@deployer/nest-schema/global/project/deployment";
 
 /**
  * GithubAppsRepository — the single data-access layer for the GitHub apps +
@@ -23,32 +25,32 @@ export class GithubAppsRepository {
     async list() {
         return this.db
             .select({
-                id: globalSchema.githubApps.id,
-                name: globalSchema.githubApps.name,
-                appId: globalSchema.githubApps.appId,
-                clientId: globalSchema.githubApps.clientId,
-                isActive: globalSchema.githubApps.isActive,
-                createdAt: globalSchema.githubApps.createdAt,
-                updatedAt: globalSchema.githubApps.updatedAt,
+                id: githubApps.id,
+                name: githubApps.name,
+                appId: githubApps.appId,
+                clientId: githubApps.clientId,
+                isActive: githubApps.isActive,
+                createdAt: githubApps.createdAt,
+                updatedAt: githubApps.updatedAt,
             })
-            .from(globalSchema.githubApps)
-            .orderBy(globalSchema.githubApps.createdAt);
+            .from(githubApps)
+            .orderBy(githubApps.createdAt);
     }
 
     /** Select the full app row by DB id (for registration + installation access). */
     async findById(id: string) {
         const rows = await this.db
             .select({
-                id: globalSchema.githubApps.id,
-                appId: globalSchema.githubApps.appId,
-                privateKey: globalSchema.githubApps.privateKey,
-                clientId: globalSchema.githubApps.clientId,
-                clientSecret: globalSchema.githubApps.clientSecret,
-                webhookSecret: globalSchema.githubApps.webhookSecret,
-                installationId: globalSchema.githubApps.installationId,
+                id: githubApps.id,
+                appId: githubApps.appId,
+                privateKey: githubApps.privateKey,
+                clientId: githubApps.clientId,
+                clientSecret: githubApps.clientSecret,
+                webhookSecret: githubApps.webhookSecret,
+                installationId: githubApps.installationId,
             })
-            .from(globalSchema.githubApps)
-            .where(eq(globalSchema.githubApps.id, id))
+            .from(githubApps)
+            .where(eq(githubApps.id, id))
             .limit(1);
         return rows[0] ?? null;
     }
@@ -57,20 +59,20 @@ export class GithubAppsRepository {
     async findProviderApps(providerAppId?: string) {
         const qb = this.db
             .select({
-                id: globalSchema.githubApps.id,
-                name: globalSchema.githubApps.name,
-                appId: globalSchema.githubApps.appId,
-                privateKey: globalSchema.githubApps.privateKey,
-                clientId: globalSchema.githubApps.clientId,
-                clientSecret: globalSchema.githubApps.clientSecret,
-                webhookSecret: globalSchema.githubApps.webhookSecret,
-                installationId: globalSchema.githubApps.installationId,
+                id: githubApps.id,
+                name: githubApps.name,
+                appId: githubApps.appId,
+                privateKey: githubApps.privateKey,
+                clientId: githubApps.clientId,
+                clientSecret: githubApps.clientSecret,
+                webhookSecret: githubApps.webhookSecret,
+                installationId: githubApps.installationId,
             })
-            .from(globalSchema.githubApps);
+            .from(githubApps);
 
         return providerAppId
-            ? qb.where(eq(globalSchema.githubApps.id, providerAppId)).limit(1)
-            : qb.where(eq(globalSchema.githubApps.isActive, true));
+            ? qb.where(eq(githubApps.id, providerAppId)).limit(1)
+            : qb.where(eq(githubApps.isActive, true));
     }
 
     /** Create a GitHub app row. */
@@ -85,7 +87,7 @@ export class GithubAppsRepository {
         isActive?: boolean;
     }) {
         const [row] = await this.db
-            .insert(globalSchema.githubApps)
+            .insert(githubApps)
             .values({
                 name: input.name,
                 appId: input.appId,
@@ -101,11 +103,11 @@ export class GithubAppsRepository {
     }
 
     /** Update a GitHub app row by id. Returns the updated row or null. */
-    async updateById(id: string, values: Partial<typeof globalSchema.githubApps.$inferInsert>) {
+    async updateById(id: string, values: Partial<typeof githubApps.$inferInsert>) {
         const [row] = await this.db
-            .update(globalSchema.githubApps)
+            .update(githubApps)
             .set({ ...values, updatedAt: new Date() })
-            .where(eq(globalSchema.githubApps.id, id))
+            .where(eq(githubApps.id, id))
             .returning();
         return row ?? null;
     }
@@ -113,26 +115,26 @@ export class GithubAppsRepository {
     /** Delete a GitHub app row by id. */
     async deleteById(id: string) {
         await this.db
-            .delete(globalSchema.githubApps)
-            .where(eq(globalSchema.githubApps.id, id));
+            .delete(githubApps)
+            .where(eq(githubApps.id, id));
     }
 
     /** Record the installation id for an app matched by name. Returns the updated row or null. */
     async setInstallationByName(name: string, installationId: string) {
         const [updated] = await this.db
-            .update(globalSchema.githubApps)
+            .update(githubApps)
             .set({ installationId, updatedAt: new Date() })
-            .where(eq(globalSchema.githubApps.name, name))
-            .returning({ id: globalSchema.githubApps.id, appId: globalSchema.githubApps.appId });
+            .where(eq(githubApps.name, name))
+            .returning({ id: githubApps.id, appId: githubApps.appId });
         return updated ?? null;
     }
 
     /** Select the clientId for an app by id (OAuth init). */
     async findClientIdById(id: string) {
         const rows = await this.db
-            .select({ id: globalSchema.githubApps.id, clientId: globalSchema.githubApps.clientId })
-            .from(globalSchema.githubApps)
-            .where(eq(globalSchema.githubApps.id, id))
+            .select({ id: githubApps.id, clientId: githubApps.clientId })
+            .from(githubApps)
+            .where(eq(githubApps.id, id))
             .limit(1);
         return rows[0] ?? null;
     }
@@ -141,12 +143,12 @@ export class GithubAppsRepository {
     async findClientCredentialsById(id: string) {
         const rows = await this.db
             .select({
-                id: globalSchema.githubApps.id,
-                clientId: globalSchema.githubApps.clientId,
-                clientSecret: globalSchema.githubApps.clientSecret,
+                id: githubApps.id,
+                clientId: githubApps.clientId,
+                clientSecret: githubApps.clientSecret,
             })
-            .from(globalSchema.githubApps)
-            .where(eq(globalSchema.githubApps.id, id))
+            .from(githubApps)
+            .where(eq(githubApps.id, id))
             .limit(1);
         return rows[0] ?? null;
     }
@@ -159,10 +161,10 @@ export class GithubAppsRepository {
      */
     async setInstallation(appId: string, installationId: string | null): Promise<boolean> {
         const [updated] = await this.db
-            .update(globalSchema.githubApps)
+            .update(githubApps)
             .set({ installationId, updatedAt: new Date() })
-            .where(eq(globalSchema.githubApps.appId, appId))
-            .returning({ id: globalSchema.githubApps.id });
+            .where(eq(githubApps.appId, appId))
+            .returning({ id: githubApps.id });
         return Boolean(updated);
     }
 
@@ -174,8 +176,8 @@ export class GithubAppsRepository {
         try {
             const rows = await this.db
                 .select()
-                .from(globalSchema.appConfig)
-                .where(eq(globalSchema.appConfig.key, "github_webhook"))
+                .from(appConfig)
+                .where(eq(appConfig.key, "github_webhook"))
                 .limit(1);
             const config = rows[0];
             if (config?.value) {
@@ -194,8 +196,8 @@ export class GithubAppsRepository {
     async findByInstallationId(installationId: string) {
         const rows = await this.db
             .select()
-            .from(globalSchema.githubApps)
-            .where(eq(globalSchema.githubApps.installationId, installationId))
+            .from(githubApps)
+            .where(eq(githubApps.installationId, installationId))
             .limit(1);
         return rows[0] ?? null;
     }
@@ -204,8 +206,8 @@ export class GithubAppsRepository {
     async findPrimaryApp() {
         const rows = await this.db
             .select()
-            .from(globalSchema.githubApps)
-            .where(eq(globalSchema.githubApps.isActive, true))
+            .from(githubApps)
+            .where(eq(githubApps.isActive, true))
             .limit(1);
         return rows[0] ?? null;
     }
@@ -216,9 +218,9 @@ export class GithubAppsRepository {
     async findRepositoryConfigByFullName(repositoryFullName: string) {
         const rows = await this.db
             .select()
-            .from(globalSchema.githubRepositoryConfigs)
+            .from(githubRepositoryConfigs)
             .where(
-                eq(globalSchema.githubRepositoryConfigs.repositoryFullName, repositoryFullName),
+                eq(githubRepositoryConfigs.repositoryFullName, repositoryFullName),
             )
             .limit(1);
         return rows[0] ?? null;
@@ -238,7 +240,7 @@ export class GithubAppsRepository {
         const existing = await this.findRepositoryConfigByFullName(input.repositoryFullName);
         if (existing) return existing;
         const [row] = await this.db
-            .insert(globalSchema.githubRepositoryConfigs)
+            .insert(githubRepositoryConfigs)
             .values(input)
             .returning();
         return row ?? null;
@@ -255,9 +257,9 @@ export class GithubAppsRepository {
         const rows = projectId
             ? await this.db
                   .select()
-                  .from(globalSchema.services)
-                  .where(eq(globalSchema.services.projectId, projectId))
-            : await this.db.select().from(globalSchema.services);
+                  .from(services)
+                  .where(eq(services.projectId, projectId))
+            : await this.db.select().from(services);
         const match = rows.find((row) => {
             const source = (row.providerConfig as { sourceUrl?: string } | null)?.sourceUrl;
             return source !== undefined &&
@@ -278,7 +280,7 @@ export class GithubAppsRepository {
         processed: boolean;
     }) {
         const [row] = await this.db
-            .insert(globalSchema.githubWebhookEvents)
+            .insert(githubWebhookEvents)
             .values({
                 githubAppId: input.githubAppId,
                 event: input.event,
@@ -302,7 +304,7 @@ export class GithubAppsRepository {
         payload: unknown;
     }): Promise<boolean> {
         const [row] = await this.db
-            .insert(globalSchema.githubWebhookEvents)
+            .insert(githubWebhookEvents)
             .values({
                 githubAppId: null,
                 event: input.event,
@@ -310,8 +312,8 @@ export class GithubAppsRepository {
                 payload: input.payload as never,
                 processed: false,
             })
-            .onConflictDoNothing({ target: globalSchema.githubWebhookEvents.deliveryId })
-            .returning({ id: globalSchema.githubWebhookEvents.id });
+            .onConflictDoNothing({ target: githubWebhookEvents.deliveryId })
+            .returning({ id: githubWebhookEvents.id });
         return row !== undefined;
     }
 }

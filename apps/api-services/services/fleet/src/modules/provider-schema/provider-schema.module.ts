@@ -9,4 +9,4 @@ import { ProviderSchemaService } from "./services/provider-schema.service";
     providers: [ProviderSchemaService],
     exports: [ProviderSchemaService],
 })
-export class ProviderSchemaDomainModule {}
+export class ProviderSchemaModule {}

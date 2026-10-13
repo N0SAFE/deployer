@@ -8,7 +8,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
-import * as globalSchema from "@deployer/nest-schema/global";
+import { appConfig } from "@deployer/nest-schema/global/platform/app-config";
 
 export interface GitHubOAuthConfig {
   clientId: string;
@@ -29,8 +29,8 @@ export class AppConfigService {
     try {
       const row = await db
         .select()
-        .from(globalSchema.appConfig)
-        .where(eq(globalSchema.appConfig.key, "github_oauth"))
+        .from(appConfig)
+        .where(eq(appConfig.key, "github_oauth"))
         .limit(1);
 
       const config = row[0];
@@ -50,8 +50,8 @@ export class AppConfigService {
     try {
       const row = await db
         .select()
-        .from(globalSchema.appConfig)
-        .where(eq(globalSchema.appConfig.key, "github_webhook"))
+        .from(appConfig)
+        .where(eq(appConfig.key, "github_webhook"))
         .limit(1);
 
       const config = row[0];

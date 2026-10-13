@@ -1,3 +1,9 @@
+> ⚠️ **SUPERSEDED.** This document describes the setup-app / orchestrator
+> design that has been replaced. See `docs/architecture/` (especially
+> [`01-lifecycle-and-ownership.md`](architecture/01-lifecycle-and-ownership.md)
+> and [`09-implementation-plan.md`](architecture/09-implementation-plan.md))
+> for the current architecture.
+
 # Setup App Refactor — Plan
 
 Status: **implemented** — all phases complete (§14). This document is the design record plus the
@@ -39,7 +45,7 @@ traffic before setup finishes.
 
 ### Non-goals
 
-- Not changing the user-facing wizard (same steps, same shared `@repo/ui` components).
+- Not changing the user-facing wizard (same steps, same shared `@deployer/ui` components).
 - Not changing the setup *contract* semantics (`/setup/*` keeps its shape for the client).
 - Not touching the build pipeline (`turbo prune` + the existing Dockerfiles) beyond the tags needed.
 
@@ -173,8 +179,8 @@ flowchart TB
   end
 
   subgraph SHARED["packages/* (shared core)"]
-    P1["@repo/nest-docker<br/>@repo/nest-swarm<br/>@repo/nest-nodes"]
-    P2["@repo/nest-mesh<br/>@repo/nest-supervisors<br/>@repo/nest-platform-ingress"]
+    P1["@deployer/nest-docker<br/>@deployer/nest-swarm<br/>@deployer/nest-nodes"]
+    P2["@deployer/nest-mesh<br/>@deployer/nest-supervisors<br/>@deployer/nest-platform-ingress"]
   end
 
   CLIENT["Browser"]
@@ -227,19 +233,19 @@ The single most important table in this plan. "Where does this run?"
 
 | Concern | Setup app | Full API | Shared package |
 |---|---|---|---|
-| Wizard UI (React, SSR, Vite) | **yes** | — | `@repo/ui` (components) |
-| **Wizard state (`/setup/state`, `/setup/node-status`)** | **yes** (reads `node_config`) | — | `@repo/nest-nodes` |
-| **Pre-flight probes (`probe/database`, `probe/mesh`)** | **yes** (pure network) | — | `@repo/nest-reachability` |
+| Wizard UI (React, SSR, Vite) | **yes** | — | `@deployer/ui` (components) |
+| **Wizard state (`/setup/state`, `/setup/node-status`)** | **yes** (reads `node_config`) | — | `@deployer/nest-nodes` |
+| **Pre-flight probes (`probe/database`, `probe/mesh`)** | **yes** (pure network) | — | `@deployer/nest-reachability` |
 | Stream SSE to the client | **yes** (forwards) | produces | — |
-| Swarm `init` / `join` | **yes** | — | `@repo/nest-swarm` |
+| Swarm `init` / `join` | **yes** | — | `@deployer/nest-swarm` |
 | WireGuard overlay | — (compose sidecar) | supervises | — |
-| Create the API swarm service | **yes** (prod) | — | `@repo/nest-docker` |
+| Create the API swarm service | **yes** (prod) | — | `@deployer/nest-docker` |
 | Retarget `dynamic-api.yml` (handover) | **yes** | — | — |
 | **Provisioning (`/setup/trigger`, `/setup/stream`)** | — | **yes** | — |
-| Global Postgres provisioning | — | **yes** | `@repo/nest-docker` |
+| Global Postgres provisioning | — | **yes** | `@deployer/nest-docker` |
 | Migrations / seed / admin user | — | **yes** | — |
-| Mesh registration | — | **yes** | `@repo/nest-mesh` |
-| Supervised services (traefik, redis, managed-web) | — | **yes** | `@repo/nest-supervisor-core` |
+| Mesh registration | — | **yes** | `@deployer/nest-mesh` |
+| Supervised services (traefik, redis, managed-web) | — | **yes** | `@deployer/nest-supervisor-core` |
 | Readiness reporting | consumes | **produces** | — |
 
 ### 4.1 The split rule, and the bug it prevents
@@ -294,9 +300,9 @@ setup's own code. Things that look like missing primitives but are correct:
 | Not in setup | Where it lives | Why |
 |---|---|---|
 | `ORPCModule` + an oRPC router | the API | Setup serves **two** JSON reads and a static page; everything else is a byte-for-byte forward. Registering a router with no procedures would load a module whose only effect is to route nothing. The view layer *does* use oRPC — as a typed CLIENT (`@/views/lib/orpc.ts`), which is where the contract value actually is. |
-| `AppLifecycleService` (`@repo/nest-lifecycle`) | the API | Its vocabulary is "one process booting: config → DB probe → mesh → serving". Setup's phase machine answers a different question — "may the API start yet?" — and folding them together would put the API's bootstrap vocabulary inside setup's public readiness contract, which compose parses. |
+| `AppLifecycleService` (`@deployer/nest-lifecycle`) | the API | Its vocabulary is "one process booting: config → DB probe → mesh → serving". Setup's phase machine answers a different question — "may the API start yet?" — and folding them together would put the API's bootstrap vocabulary inside setup's public readiness contract, which compose parses. |
 | `ReadinessStateService` (event-driven aggregation) | the API | Setup's health is a **local phase read** with one input. The API needs event-driven aggregation because it has *multiple* dependencies (database, swarm, 5+ supervisors, mesh) whose probes are expensive and cannot run on the request path. Setup has no such fan-out: its indicator reads `state$.value`, a cache read with no I/O. |
-| `@repo/nest-events` | the API | Provisioning events are produced by the API; setup forwards the SSE frames verbatim, which is cheaper and cannot drift. |
+| `@deployer/nest-events` | the API | Provisioning events are produced by the API; setup forwards the SSE frames verbatim, which is cheaper and cannot drift. |
 | Supervisors | the API | Setup does not converge platform services — it does not exist when most of them are scheduled. |
 
 ---
@@ -321,25 +327,25 @@ and one was **split**, because the audit proved they failed the rule.
 
 | New package | Extracted from | Rough size | Consumers | Verdict |
 |---|---|---|---|---|
-| `@repo/nest-docker` | `core/modules/docker` | ~5.0k | 7 areas, both apps | **extract** (done) |
-| `@repo/nest-swarm` | `core/modules/swarm` | ~2.6k | 6 areas, both apps | **extract** (done) |
-| `@repo/nest-nodes` | `core/modules/node-state` | ~0.6k | 7 areas + `cli`, both apps | **extract** (done) |
-| `@repo/nest-database-local` | `core/modules/database/local` | ~0.5k | both apps | **extract** (done) |
-| `@repo/nest-reachability` | `core/modules/reachability` | ~0.5k | wizard + 3 API modules | **extract** (done) |
-| `@repo/nest-supervisor-core` | `core/modules/supervisors` (framework only) | ~2k | both apps | **extract** (done) |
-| `@repo/nest-mesh` | `core/modules/mesh` | 18k / 120 files | API: 30 files across 6 areas. Setup: **0** | **REJECTED — see below** |
-| `@repo/nest-supervisors` | `core/modules/supervisors` (impls only) | ~4.3k | API: 1 file. Setup: **0** | **REJECTED — see below** |
-| `@repo/nest-platform-ingress` | `core/modules/platform-ingress` + traefik builders | ~1.4k | API: 6 files across 4 areas. Setup: **0** | **REJECTED — see below** |
+| `@deployer/nest-docker` | `core/modules/docker` | ~5.0k | 7 areas, both apps | **extract** (done) |
+| `@deployer/nest-swarm` | `core/modules/swarm` | ~2.6k | 6 areas, both apps | **extract** (done) |
+| `@deployer/nest-nodes` | `core/modules/node-state` | ~0.6k | 7 areas + `cli`, both apps | **extract** (done) |
+| `@deployer/nest-database-local` | `core/modules/database/local` | ~0.5k | both apps | **extract** (done) |
+| `@deployer/nest-reachability` | `core/modules/reachability` | ~0.5k | wizard + 3 API modules | **extract** (done) |
+| `@deployer/nest-supervisor-core` | `core/modules/supervisors` (framework only) | ~2k | both apps | **extract** (done) |
+| `@deployer/nest-mesh` | `core/modules/mesh` | 18k / 120 files | API: 30 files across 6 areas. Setup: **0** | **REJECTED — see below** |
+| `@deployer/nest-supervisors` | `core/modules/supervisors` (impls only) | ~4.3k | API: 1 file. Setup: **0** | **REJECTED — see below** |
+| `@deployer/nest-platform-ingress` | `core/modules/platform-ingress` + traefik builders | ~1.4k | API: 6 files across 4 areas. Setup: **0** | **REJECTED — see below** |
 
-Already shared and unchanged: `@repo/env`, `@repo/errors`, `@repo/logger`, `@repo/types`,
-`@repo/orpc-utils`, `@repo/auth`, `@repo/contracts-*`, `@repo/ui`.
+Already shared and unchanged: `@deployer/env`, `@deployer/errors`, `@deployer/logger`, `@deployer/types`,
+`@deployer/orpc-utils`, `@deployer/auth`, `@deployer/contracts-*`, `@deployer/ui`.
 
 #### Why the three rejected entries fail the rule
 
 The original rationale for each was a **factual error**, and the measured consumer counts
 contradict it:
 
-1. **`@repo/nest-mesh` — "join a remote swarm + WireGuard; needed by setup".**
+1. **`@deployer/nest-mesh` — "join a remote swarm + WireGuard; needed by setup".**
    WireGuard is **not** in `mesh`. It lives in
    `core/modules/supervisors/platform/wireguard-supervisor.service.ts` as a supervisor that runs
    the sidecar container. The `mesh` module is the peer-to-peer *data plane* (topology, topics,
@@ -349,14 +355,14 @@ contradict it:
    Extracting 18k LOC so two apps can share 2 files is exactly the over-extraction the rule
    forbids. **Instead:** the enrolment slice becomes setup's own explicit service (§5.5).
 
-2. **`@repo/nest-supervisors` — "bootstrap ingress/redis as swarm services".**
+2. **`@deployer/nest-supervisors` — "bootstrap ingress/redis as swarm services".**
    Setup consumes **zero** of it. Its 19 files are the platform's concrete supervisors
    (traefik, redis, global-db, local-db, managed-web, wireguard, direct-port-proxy) — the
    onboarding topology. The *framework* (event bus, base class, orchestrator, registry) was
-   already extracted as `@repo/nest-supervisor-core` and is the only genuinely shared part.
+   already extracted as `@deployer/nest-supervisor-core` and is the only genuinely shared part.
    **Instead:** the concrete supervisors stay in `apps/api`.
 
-3. **`@repo/nest-platform-ingress` — "hostname grammar + route config; setup bootstraps ingress".**
+3. **`@deployer/nest-platform-ingress` — "hostname grammar + route config; setup bootstraps ingress".**
    Setup consumes zero of it, and it cannot: every service in it reads the API's global Postgres
    (`PlatformConfigService`, `AppInstanceService`, `PlatformRoutesSourceService`) or imports the
    `traefik` config builders. It is the API's ingress *policy*, not a primitive.
@@ -372,23 +378,23 @@ The wizard surfaces (`sub-apps/setup-wizard`, `sub-apps/mesh-initializer`,
 |---|---|---|
 | `setup` | 5 | The **execution engine stays in the API**. Setup calls it over HTTP; only the *wizard session* moves. |
 | `mesh` | 3 | Only `MeshInitializationService` + `MeshVersionService`. → setup's own `MeshEnrolmentService` (§5.5). |
-| `node-state` | 2 | → `@repo/nest-nodes` (extracted) |
-| `reachability` | 2 | → `@repo/nest-reachability` (extracted) |
+| `node-state` | 2 | → `@deployer/nest-nodes` (extracted) |
+| `reachability` | 2 | → `@deployer/nest-reachability` (extracted) |
 | `sub-app-runner`, `triggers` | 4 | **Deleted** — the sub-app pipeline is what this refactor removes (§7.1). |
 | `auth` | 1 | Setup is pre-auth. The one ref is the ORPC context factory, which setup reimplements without auth. |
 
 So the complete shared-package inventory setup needs is:
-`@repo/nest-docker`, `@repo/nest-swarm`, `@repo/nest-nodes`, `@repo/nest-database-local`,
-`@repo/nest-supervisor-core`, `@repo/nest-reachability` — **all already extracted**.
+`@deployer/nest-docker`, `@deployer/nest-swarm`, `@deployer/nest-nodes`, `@deployer/nest-database-local`,
+`@deployer/nest-supervisor-core`, `@deployer/nest-reachability` — **all already extracted**.
 
 ### 5.4 The env pattern — the shape every shared primitive must follow
 
-`@repo/nest-env` is the reference implementation of the §8.7 rule, and every package listed above
+`@deployer/nest-env` is the reference implementation of the §8.7 rule, and every package listed above
 follows it. The distinction is between **mechanism** (shared) and **contract** (per-app):
 
 | Concern | Where | Why |
 |---|---|---|
-| `EnvService<TSchema>` — reads, parses, caches, redacts | **package** (`@repo/nest-env`) | mechanism; identical in every app |
+| `EnvService<TSchema>` — reads, parses, caches, redacts | **package** (`@deployer/nest-env`) | mechanism; identical in every app |
 | `EnvModule.forRoot({ schema })` | **package** | mechanism; the app supplies the schema |
 | `apiEnvSchema` + `ApiEnvService` | `apps/api` | contract; names THIS app's variables |
 | `setupEnvSchema` + `SetupEnvService` | `apps/setup` | contract; names THIS app's variables |
@@ -400,11 +406,11 @@ The same discipline applies to every primitive, and the wrong/right split is alw
 
 | Wrong | Right | Package |
 |---|---|---|
-| Package defaults to the API's `apiEnvSchema` | `forRoot({ schema })`; each app subclasses | `@repo/nest-env` |
-| `BaseDatabaseService` constrained to the API's two Drizzle schemas | Generic over `AnyDrizzleDatabase`; subclass narrows `db` | `@repo/nest-database-core` |
-| Package reads a hardcoded path / env var for its config | `forRoot({ databasePath, migrationsDir })` | `@repo/nest-database-local` |
-| `@Optional() provider?: SomeInterface` | `@Inject(TOKEN)` — an interface erases at runtime | `@repo/nest-swarm` |
-| Package exports "this platform's boot sequence" | Rename to the storage-level fact; app keeps the policy | `@repo/nest-events` |
+| Package defaults to the API's `apiEnvSchema` | `forRoot({ schema })`; each app subclasses | `@deployer/nest-env` |
+| `BaseDatabaseService` constrained to the API's two Drizzle schemas | Generic over `AnyDrizzleDatabase`; subclass narrows `db` | `@deployer/nest-database-core` |
+| Package reads a hardcoded path / env var for its config | `forRoot({ databasePath, migrationsDir })` | `@deployer/nest-database-local` |
+| `@Optional() provider?: SomeInterface` | `@Inject(TOKEN)` — an interface erases at runtime | `@deployer/nest-swarm` |
+| Package exports "this platform's boot sequence" | Rename to the storage-level fact; app keeps the policy | `@deployer/nest-events` |
 
 **The test, restated:** a shared primitive that needs app-specific data takes it as a **parameter**
 (`forRoot`/`forRootAsync`, a constructor argument, a type parameter) or exposes an **overridable
@@ -417,7 +423,7 @@ seam** (a subclass, a codec registry). It never imports the app's schema and nev
 
 | Check | Result |
 |---|---|
-| What `@repo/nest-env` imports | `@nestjs/common`, `@nestjs/config`, `zod`, `fs`, `path` — **no app code** |
+| What `@deployer/nest-env` imports | `@nestjs/common`, `@nestjs/config`, `zod`, `fs`, `path` — **no app code** |
 | Does the package contain a schema? | No. One JSDoc example mentions `apiEnvSchema`; there is no import |
 | How the schema gets in | `EnvModule.forRoot({ schema })`; `EnvService<TSchema>` is generic with `use()` for a second schema |
 | Where `EnvService` lives | Two subclasses: `apps/api/src/config/env/env.service.ts` (27 LOC) and `apps/setup/src/config/env/env.service.ts` (24 LOC) — same base, different schema |
@@ -463,7 +469,7 @@ an explicit, named service — not in a package.
 |---|---|---|
 | `apps/setup/src/modules/wizard/` | `sub-apps/setup-wizard/*` | the wizard session state machine |
 | ~~`apps/setup/src/modules/cluster/mesh-enrolment.service.ts`~~ | **REJECTED — see §5.5.1** | the API already performs the handshake, and setup reaches it by proxy |
-| `apps/setup/src/modules/cluster/swarm-bootstrap.service.ts` | plan §6 cluster | `@repo/nest-swarm` (`forRoot`) |
+| `apps/setup/src/modules/cluster/swarm-bootstrap.service.ts` | plan §6 cluster | `@deployer/nest-swarm` (`forRoot`) |
 | `apps/setup/src/modules/handover/ingress-handover.service.ts` | plan §9.2 | writes `dynamic-api.yml` + `dynamic-setup.yml`; a three-line file write over a shared volume, not a package |
 | `apps/setup/src/modules/health/` | plan §8.3 | Terminus gate (already implemented) |
 
@@ -508,15 +514,15 @@ All extraction is **complete AND WIRED**. Every package in §5.2 that the audit 
 
 | Package | Tests | Type-check |
 |---|---|---|
-| `@repo/nest-env` | 10 | ✅ |
-| `@repo/nest-schema` | 23 | ✅ |
-| `@repo/nest-database-core` | 2 | ✅ |
-| `@repo/nest-database-local` | 1 | ✅ |
-| `@repo/nest-supervisor-core` | 19 | ✅ |
-| `@repo/nest-nodes` | 25 | ✅ |
-| `@repo/nest-docker` | 29 | ✅ |
-| `@repo/nest-swarm` | 61 | ✅ |
-| `@repo/nest-reachability` | 23 | ✅ |
+| `@deployer/nest-env` | 10 | ✅ |
+| `@deployer/nest-schema` | 23 | ✅ |
+| `@deployer/nest-database-core` | 2 | ✅ |
+| `@deployer/nest-database-local` | 1 | ✅ |
+| `@deployer/nest-supervisor-core` | 19 | ✅ |
+| `@deployer/nest-nodes` | 25 | ✅ |
+| `@deployer/nest-docker` | 29 | ✅ |
+| `@deployer/nest-swarm` | 61 | ✅ |
+| `@deployer/nest-reachability` | 23 | ✅ |
 
 Compound verification gate, all green:
 - `apps/api` type-check **0 errors**; `apps/setup` type-check **0 errors**
@@ -529,7 +535,7 @@ No package in the tree exports business logic: each one is either a framework pr
 
 #### The swarm extraction was HALF-DONE, and the audit caught it
 
-When this phase began, `@repo/nest-swarm` existed with 61 passing tests — but
+When this phase began, `@deployer/nest-swarm` existed with 61 passing tests — but
 `apps/api` imported it **zero** times. All 15 consumer files still pointed at
 `apps/api/src/core/modules/swarm/*`, so two variants of the same code coexisted:
 the package (forRoot-configured, env-free) and the app's local copies (env-reading,
@@ -579,28 +585,28 @@ inside a single module (7 files in `mesh/…/query/`, 3 in `supervisors/*.ts`, 2
 
 | Blocker | What it is | Resolution |
 |---|---|---|
-| `@/config/env/env.service` + `env.module` | 5 target modules import it; it is app-local | **Extract `@repo/nest-env`** (done — see below) |
-| `@/config/drizzle/local/schema` + `global/schema` | 5 target modules import table definitions | **Extract `@repo/nest-schema`** (schemas only, no queries) |
-| `supervisors/*.ts` (the 9-file framework) | `docker` imports `base-supervisor`; `supervisors/platform/*` imports `docker` | **Extract `@repo/nest-supervisor-core`** — the framework has NO docker import, so the cycle is only with the *implementations* |
-| `node-state` providers from `setup/` + `swarm/` | `NodeConfigRepository`, `ClusterNodeRepository`, `ClusterNodeInventoryRepository` | Move the 3 repositories **into** `@repo/nest-nodes`; the module's own docs already say "the module boundary is what matters, not the directory" |
+| `@/config/env/env.service` + `env.module` | 5 target modules import it; it is app-local | **Extract `@deployer/nest-env`** (done — see below) |
+| `@/config/drizzle/local/schema` + `global/schema` | 5 target modules import table definitions | **Extract `@deployer/nest-schema`** (schemas only, no queries) |
+| `supervisors/*.ts` (the 9-file framework) | `docker` imports `base-supervisor`; `supervisors/platform/*` imports `docker` | **Extract `@deployer/nest-supervisor-core`** — the framework has NO docker import, so the cycle is only with the *implementations* |
+| `node-state` providers from `setup/` + `swarm/` | `NodeConfigRepository`, `ClusterNodeRepository`, `ClusterNodeInventoryRepository` | Move the 3 repositories **into** `@deployer/nest-nodes`; the module's own docs already say "the module boundary is what matters, not the directory" |
 
 #### The corrected order
 
 Each step is independently verifiable: build + type-check + test + `DI_GATE=cycles`.
 
 ```
-0. @repo/nest-env              DONE — unblocks 5 of the 8 targets
-1. @repo/nest-schema           drizzle schemas (local + global), zero queries
-2. @repo/nest-database-core    BaseDatabaseService + connection tokens + BaseReachability
-3. @repo/nest-supervisor-core  base-supervisor, orchestrator, event bus, process-info, shared
-4. @repo/nest-nodes            + the 3 repositories moved in from setup/ and swarm/
-5. @repo/nest-docker           depends on nodes, supervisor-core, env
-6. @repo/nest-swarm            depends on docker, nodes, env
-7. @repo/nest-database-local   depends on database-core, schema, nodes
-8. @repo/nest-reachability     depends on nodes, env
-9. @repo/nest-mesh             depends on nodes, swarm, env
-10. @repo/nest-supervisors     depends on docker, swarm, ingress, supervisor-core
-11. @repo/nest-platform-ingress depends on docker, env, schema
+0. @deployer/nest-env              DONE — unblocks 5 of the 8 targets
+1. @deployer/nest-schema           drizzle schemas (local + global), zero queries
+2. @deployer/nest-database-core    BaseDatabaseService + connection tokens + BaseReachability
+3. @deployer/nest-supervisor-core  base-supervisor, orchestrator, event bus, process-info, shared
+4. @deployer/nest-nodes            + the 3 repositories moved in from setup/ and swarm/
+5. @deployer/nest-docker           depends on nodes, supervisor-core, env
+6. @deployer/nest-swarm            depends on docker, nodes, env
+7. @deployer/nest-database-local   depends on database-core, schema, nodes
+8. @deployer/nest-reachability     depends on nodes, env
+9. @deployer/nest-mesh             depends on nodes, swarm, env
+10. @deployer/nest-supervisors     depends on docker, swarm, ingress, supervisor-core
+11. @deployer/nest-platform-ingress depends on docker, env, schema
 ```
 
 Steps 1–3 are **new** (they were not in the original plan) and are what actually unblock the rest.
@@ -640,7 +646,7 @@ apps/setup/
     authz/               nothing — setup is pre-auth by definition
     modules/
       wizard/            session state, step orchestration, stream piping
-      cluster/           swarm init/join + wireguard (uses @repo/nest-swarm|mesh)
+      cluster/           swarm init/join + wireguard (uses @deployer/nest-swarm|mesh)
       handover/          API service creation + dynamic-api.yml retarget + exit
       health/            GET /setup/health (the compose gate)
     views/               SSR Vite app: wizard only (moved from apps/api/src/views)
@@ -651,7 +657,7 @@ apps/setup/
 | From | To | Note |
 |---|---|---|
 | `apps/api/src/sub-apps/setup-wizard/*` (12 files) | `apps/setup/src/modules/wizard/` | controllers + ORPC module, minus the sub-app plumbing |
-| `apps/api/src/views/setup/**` | `apps/setup/src/views/setup/**` | the wizard React tree (already shared from `@repo/ui`) |
+| `apps/api/src/views/setup/**` | `apps/setup/src/views/setup/**` | the wizard React tree (already shared from `@deployer/ui`) |
 | `apps/api/src/views/pages/setup.tsx` | `apps/setup/src/views/pages/setup.tsx` | |
 | `apps/api/src/views/setup-adapters/**` | `apps/setup/src/views/setup-adapters/**` | API-side adapter |
 | `apps/api/src/views/{layout,entry-client,entry-server,index.html,global.css}` | `apps/setup/src/views/` | the setup app gets its own Vite/SSR app |
@@ -663,7 +669,7 @@ apps/setup/
 The setup app gets its **own** `views/` (Vite config, entry points, layout) rather than importing
 the API's. Reason: the API's view entries auto-discover *all* views via
 `import.meta.glob('@/**/views/**/*.tsx')`; sharing them would drag every product page into the
-setup bundle. The **components** stay shared in `@repo/ui` — only the app shell is duplicated,
+setup bundle. The **components** stay shared in `@deployer/ui` — only the app shell is duplicated,
 which is the same pattern `apps/web` already uses.
 
 ---
@@ -956,8 +962,8 @@ Two real cases, both fixed:
 
 | Package | What leaked | Correct shape |
 |---|---|---|
-| `@repo/nest-env` | `EnvService` defaulted to the API's `apiEnvSchema`, and `EnvModule` validated with it. Any other app importing the package silently inherited the API's variables and defaults | The service is **schema-agnostic** (`EnvService<TSchema>`); `EnvModule.forRoot({ schema })` takes the app's schema. Each app subclasses it with its own contract: `apps/api` with `apiEnvSchema`, `apps/setup` with `setupEnvSchema` |
-| `@repo/nest-database-core` | `BaseDatabaseService` was constrained to `NodePgDatabase<typeof globalSchema> \| BunSQLiteDatabase<typeof localSchema>` — the API's two schemas. Only an app with exactly those tables could use it | Generic over `AnyDrizzleDatabase`; a subclass narrows `db` to its own tables. The base only stores a handle and runs `SELECT 1`, so it needs no schema knowledge |
+| `@deployer/nest-env` | `EnvService` defaulted to the API's `apiEnvSchema`, and `EnvModule` validated with it. Any other app importing the package silently inherited the API's variables and defaults | The service is **schema-agnostic** (`EnvService<TSchema>`); `EnvModule.forRoot({ schema })` takes the app's schema. Each app subclasses it with its own contract: `apps/api` with `apiEnvSchema`, `apps/setup` with `setupEnvSchema` |
+| `@deployer/nest-database-core` | `BaseDatabaseService` was constrained to `NodePgDatabase<typeof globalSchema> \| BunSQLiteDatabase<typeof localSchema>` — the API's two schemas. Only an app with exactly those tables could use it | Generic over `AnyDrizzleDatabase`; a subclass narrows `db` to its own tables. The base only stores a handle and runs `SELECT 1`, so it needs no schema knowledge |
 
 **The pattern to follow:** a shared primitive that needs app-specific data takes it as a
 **parameter** (`forRoot`, a constructor argument, a type parameter) or exposes an
@@ -971,7 +977,7 @@ queries are app concerns and must stay in the app, or move behind a repository t
 
 #### Worked example — `db-not-ready`
 
-`@repo/nest-events` exported `isDatabaseNotReadyError` + `DatabaseNotReadyReporter`. The docs on it
+`@deployer/nest-events` exported `isDatabaseNotReadyError` + `DatabaseNotReadyReporter`. The docs on it
 described **this platform's boot sequence** ("the schema is created by migrations that run INSIDE
 the boot flow (orchestrator ready-pipeline / setup wizard)"), and only `apps/api` consumed it.
 That is business logic in a package. The split:
@@ -988,10 +994,10 @@ Not everything platform-flavoured is a violation. These were checked and kept, w
 
 | Package | Platform content | Verdict |
 |---|---|---|
-| `@repo/contracts-*` | deployment/mesh/project/swarm schemas | **Correct.** Contracts ARE the single source of truth — the plan's own goal is one location for them |
-| `@repo/auth` (permissions) | `traefik` resources, project roles | **Correct.** Consumed by BOTH `apps/api` (guards) and `apps/web` (`RequirePlatformRole`, `PLATFORM_ROLES`) — a genuine cross-app contract |
-| `@repo/env` | `MANAGED_TRAEFIK_*`, `MANAGED_GLOBAL_DB_*` defaults | **Correct.** The env contract must be identical for whoever starts the process or the schema drifts. Note the distinction from `@repo/nest-env`: the SCHEMA lives here (data), the SERVICE is schema-agnostic (mechanism) |
-| `@repo/nest-lifecycle` | `AppLifecyclePhase` naming our phases | **Correct.** Both apps report the same phases to the same gate |
+| `@deployer/contracts-*` | deployment/mesh/project/swarm schemas | **Correct.** Contracts ARE the single source of truth — the plan's own goal is one location for them |
+| `@deployer/auth` (permissions) | `traefik` resources, project roles | **Correct.** Consumed by BOTH `apps/api` (guards) and `apps/web` (`RequirePlatformRole`, `PLATFORM_ROLES`) — a genuine cross-app contract |
+| `@deployer/env` | `MANAGED_TRAEFIK_*`, `MANAGED_GLOBAL_DB_*` defaults | **Correct.** The env contract must be identical for whoever starts the process or the schema drifts. Note the distinction from `@deployer/nest-env`: the SCHEMA lives here (data), the SERVICE is schema-agnostic (mechanism) |
+| `@deployer/nest-lifecycle` | `AppLifecyclePhase` naming our phases | **Correct.** Both apps report the same phases to the same gate |
 
 **Versioning rule:** new ORPC/Zod surface pulled from `packages/` needs a `*_CONTRACT_VERSION` bump
 — see `DEPLOYER_VERSION` for the pattern.
@@ -1645,19 +1651,19 @@ task" — which `verifySwarmConvergence()` already detects and reports as DEGRAD
 
 ## Appendix A — Deletion inventory (exact)
 
-**Superseded by the §5.2 audit.** The three `→ @repo/nest-{platform-ingress,mesh,supervisors}`
+**Superseded by the §5.2 audit.** The three `→ @deployer/nest-{platform-ingress,mesh,supervisors}`
 lines were removed: those modules stay in `apps/api` because setup consumes none of them. See §5.2
 for the measured consumer counts.
 
 ```
-DELETE (moved to @repo/nest-*)        [DONE]
-  apps/api/src/core/modules/node-state/          → @repo/nest-nodes
-  apps/api/src/core/modules/docker/              → @repo/nest-docker
-  apps/api/src/core/modules/swarm/               → @repo/nest-swarm
-  apps/api/src/core/modules/reachability/        → @repo/nest-reachability
-  apps/api/src/core/modules/database/local/      → @repo/nest-database-local
+DELETE (moved to @deployer/nest-*)        [DONE]
+  apps/api/src/core/modules/node-state/          → @deployer/nest-nodes
+  apps/api/src/core/modules/docker/              → @deployer/nest-docker
+  apps/api/src/core/modules/swarm/               → @deployer/nest-swarm
+  apps/api/src/core/modules/reachability/        → @deployer/nest-reachability
+  apps/api/src/core/modules/database/local/      → @deployer/nest-database-local
   apps/api/src/core/modules/supervisors/         → framework split out as
-                                                   @repo/nest-supervisor-core; the
+                                                   @deployer/nest-supervisor-core; the
                                                    concrete supervisors REMAIN in apps/api
 
 STAYS in apps/api (audit §5.2 — not extractable)
@@ -1692,6 +1698,6 @@ KEEP in apps/api
 `apps/api/src/core/modules/setup/utils/docker-host.utils.ts` exports `resolveDockerHostIp()`,
 a container-networking primitive (reads `/proc/net/route` for the default gateway). It is the
 **only** thing `supervisors` imports from `setup`, and it describes no platform policy — it is
-generic Docker-host addressing. It stays in `apps/api` for now but must move to `@repo/nest-docker`
+generic Docker-host addressing. It stays in `apps/api` for now but must move to `@deployer/nest-docker`
 (the package both apps already use) before the supervisors are touched, so a primitive is not
 reachable only through the setup module's namespace.

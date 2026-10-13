@@ -14,7 +14,12 @@ import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
 import { standardErrorOptions } from "@deployer/orpc-utils";
 
-import { heartbeatAppInstanceContract, listAppInstancesContract, registerAppInstanceContract, revokeAppInstanceContract } from "@deployer/fleet-contracts";
+import {
+	heartbeatAppInstanceContract,
+	listAppInstancesContract,
+	registerAppInstanceContract,
+	revokeAppInstanceContract,
+} from "@deployer/api-contracts";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { AllowAnonymous } from "@/core/modules/auth/decorators/decorators";
 import { AuthCoreService } from "@/core/modules/auth/services/auth-core.service";

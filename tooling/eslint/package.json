@@ -4,7 +4,6 @@
     "private": true,
     "type": "module",
     "files": [
-        "src",
         "dist"
     ],
     "exports": {
@@ -28,17 +27,13 @@
             "types": "./dist/types/react.d.ts",
             "import": "./dist/react.js"
         },
-        "./test": {
-            "types": "./dist/types/test.d.ts",
-            "import": "./src/test.ts"
-        },
         "./mdx": {
             "types": "./dist/types/mdx.d.ts",
-            "import": "./src/mdx.ts"
+            "import": "./dist/mdx.js"
         }
     },
     "scripts": {
-        "build": "bun --bun build.ts",
+        "build": "bun --bun pkg-build",
         "build:types": "bun --bun pkg-build --types",
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",

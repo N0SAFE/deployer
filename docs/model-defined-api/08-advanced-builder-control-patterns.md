@@ -27,7 +27,7 @@ This proposal must plug into existing modules and conventions:
 - **Controllers**: `v3/apps/api/src/modules/<feature>/controllers/*` using `@Implement(...)` + `implement(...).use(requireAuth())`
 - **Services**: `v3/apps/api/src/modules/<feature>/services/*` as orchestration point
 - **Repositories**: `v3/apps/api/src/modules/<feature>/repositories/*` as Drizzle-only execution point
-- **Auth/roles**: `@/core/modules/auth/orpc/middlewares`, `ProjectAccessService`, `@repo/auth` permission configs
+- **Auth/roles**: `@/core/modules/auth/orpc/middlewares`, `ProjectAccessService`, `@deployer/auth` permission configs
 
 Builder adoption is **opt-in per new feature module** and should coexist with current modules.
 

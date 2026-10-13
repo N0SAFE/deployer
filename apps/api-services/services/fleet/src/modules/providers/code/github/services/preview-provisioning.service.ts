@@ -22,7 +22,7 @@ import { isIP } from "node:net";
 import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
 import { PublicAccessPointService } from "@/core/modules/reachability/services/public-access-point.service";
 import { DomainRoutingService } from "@/core/modules/domain/services/domain-routing.service";
-import { CloudflareDnsProviderService } from "../../../../providers/dns/cloudflare/services/cloudflare-dns-provider.service";
+import { CloudflareDnsProviderService } from "@/modules/providers/dns/cloudflare/services/cloudflare-dns-provider.service";
 import { PreviewEnvironmentRepository } from "../repositories/preview-environment.repository";
 
 export interface PreviewProvisionInput {

@@ -9,15 +9,15 @@
 import { Module } from "@nestjs/common";
 import { CoreReachabilityModule } from "@/core/modules/reachability/core-reachability.module";
 import { CorePlatformIngressModule } from "@/core/modules/platform-ingress/platform-ingress.module";
-import { ProvidersDomainModule } from "../providers/providers.module";
+import { ProvidersModule } from "@/modules/providers/providers.module";
 import { TraefikCoreModule } from "@/core/modules/traefik/traefik.module";
 import { ReachabilityController } from "./controllers/reachability.controller";
 import { EdgeDnsService } from "./services/edge-dns.service";
 import { IngressEdgeService } from "./services/ingress-edge.service";
 
 @Module({
-    imports: [CoreReachabilityModule, CorePlatformIngressModule, ProvidersDomainModule, TraefikCoreModule],
+    imports: [CoreReachabilityModule, CorePlatformIngressModule, ProvidersModule, TraefikCoreModule],
     controllers: [ReachabilityController],
     providers: [IngressEdgeService, EdgeDnsService],
 })
-export class ReachabilityDomainModule {}
+export class ReachabilityModule {}

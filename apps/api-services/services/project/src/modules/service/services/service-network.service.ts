@@ -6,9 +6,13 @@ import {
     projectNetworkConfigSchema,
     type ServiceNetworkConfig,
 } from "@deployer/contracts-entities";
-import type { ServiceNetworkView, ServiceUpdateNetworkInput, ServiceProvisionDnsRecordInput } from "@deployer/project-contracts";
-import { providersContract } from "@deployer/fleet-contracts";
-import { ServiceClient } from "@deployer/shared/server";
+import type {
+    ServiceNetworkView,
+    ServiceUpdateNetworkInput,
+    ServiceProvisionDnsRecordInput,
+} from "@deployer/api-contracts";
+import { CloudflareDnsProviderService } from "@/modules/providers/dns/cloudflare/services/cloudflare-dns-provider.service";
+import { CloudflareAppService } from "@/modules/providers/dns/cloudflare/services/cloudflare-app.service";
 import { ProjectRepository } from "@/modules/project/repositories/project.repository";
 import { ProjectDomainRepository } from "@/core/modules/domain/repositories/project-domain.repository";
 import { ServiceDomainMappingRepository } from "@/core/modules/domain/repositories/service-domain-mapping.repository";
@@ -19,24 +23,16 @@ const recordTypeSchema = z.enum([
     "A", "AAAA", "CAA", "CERT", "CNAME", "DNSKEY", "DS", "HTTPS", "LOC", "MX", "NAPTR", "NS", "OPENPGPKEY", "PTR", "SMIMEA", "SRV", "SVCB", "TLSA", "TXT", "URI",
 ] as const);
 
-const mapRecord = (
-    r: {
-        id: string; name: string; type: string; content: string; ttl: number; proxied?: boolean;
-    },
-    zoneId: string,
-): ServiceNetworkView["records"][number] => ({
+const mapRecord = (r: {
+    id: string; zoneId: string; name: string; type: string; content: string; ttl: number; proxied: boolean;
+}): ServiceNetworkView["records"][number] => ({
     id: r.id,
-    // The provider addresses a record BY PATH and returns no zone, while the view carries one
-    // so a client can tell which zone it belongs to. Supplying it from the request is what
-    // makes the projection self-describing.
-    zoneId,
+    zoneId: r.zoneId,
     name: r.name,
-    type: recordTypeSchema.safeParse(r.type).success ? recordTypeSchema.parse(r.type) : "TXT",
+    type: recordTypeSchema.safeParse(r.type).success ? (recordTypeSchema.parse(r.type)) : "TXT",
     content: r.content,
     ttl: r.ttl,
-    // Optional in the provider's schema, required in the view: absent means the provider
-    // applies its default, which the view cannot represent, so the platform's default is used.
-    proxied: r.proxied ?? true,
+    proxied: r.proxied,
 });
 
 /**
@@ -56,24 +52,11 @@ export class ServiceNetworkService {
     constructor(
         private readonly serviceRepository: ServiceRepository,
         private readonly projectRepository: ProjectRepository,
+        private readonly appService: CloudflareAppService,
+        private readonly dnsService: CloudflareDnsProviderService,
         private readonly projectDomainRepository: ProjectDomainRepository,
         private readonly mappingRepository: ServiceDomainMappingRepository,
-        private readonly services: ServiceClient,
     ) {}
-
-    /**
-     * The fleet-owned DNS surface, reached over its contract.
-     *
-     * ── WHY NOT THE PROVIDER SERVICE DIRECTLY ───────────────────────────────
-     * The provider apps, zones and records are FLEET's state. Importing
-     * `CloudflareDnsProviderService` here made this domain compile against another
-     * domain's implementation — a change to how DNS is modelled then broke the project
-     * build, which is the coupling the split removes. Over the contract, what crosses the
-     * boundary is the answer, not the machinery.
-     */
-    private get dns() {
-        return this.services.clientFor("fleet", providersContract).dns;
-    }
 
     /** Resolve the effective provider/zone for a service (override → project). */
     private async resolveScope(
@@ -109,20 +92,12 @@ export class ServiceNetworkService {
 
         let records: ServiceNetworkView["records"] = [];
         if (scope.providerId && scope.zoneId) {
-            // Hoisted to consts: TypeScript drops the `scope.` narrowing inside the arrow
-            // function below, and a `string | null` cannot satisfy the contract's path
-            // parameter without a non-null assertion.
-            const providerId = scope.providerId;
-            const zoneId = scope.zoneId;
             try {
-                const { records: providerRecords } = await this.dns.cloudflare.listRecords({
-                    params: { providerId, zoneId },
-                });
-                records = providerRecords.map((record) => mapRecord(record, zoneId));
-            } catch (error) {
-                // Degraded, not failed: the service's own config is still answerable without
-                // the live records, so an unreachable provider must not blank the whole view.
-                this.logger.warn(`Failed to fetch zone records for service ${serviceId}: ${(error as Error).message}`);
+                const account = { providerId: scope.providerId, providerType: "cloudflare" };
+                const providerRecords = await this.dnsService.listRecords(account, scope.zoneId);
+                records = providerRecords.map(mapRecord);
+            } catch (err) {
+                this.logger.warn(`Failed to fetch zone records for service ${serviceId}: ${(err as Error).message}`);
             }
         }
 
@@ -216,29 +191,26 @@ export class ServiceNetworkService {
             );
         }
 
+        const account = { providerId: scope.providerId, providerType: "cloudflare" };
         try {
-            const record = await this.dns.cloudflare.createRecord({
-                params: { providerId: scope.providerId, zoneId: scope.zoneId },
-                body: {
-                    type: input.type,
-                    name: input.name,
-                    content: input.content,
-                    ttl: input.ttl,
-                    proxied: input.proxied ?? true,
-                },
+            const record = await this.dnsService.createRecord(account, {
+                zoneId: scope.zoneId,
+                type: input.type,
+                name: input.name,
+                content: input.content,
+                ttl: input.ttl,
+                proxied: input.proxied ?? true,
             });
             return {
                 success: true,
                 record: {
                     id: record.id,
-                    // The provider does not echo the zone it was addressed under, so the one
-                    // from the request is used — the same reason the list projection needs it.
-                    zoneId: scope.zoneId,
+                    zoneId: record.zoneId,
                     name: record.name,
-                    type: recordTypeSchema.safeParse(record.type).success ? recordTypeSchema.parse(record.type) : "TXT",
+                    type: recordTypeSchema.safeParse(record.type).success ? (recordTypeSchema.parse(record.type)) : "TXT",
                     content: record.content,
                     ttl: record.ttl,
-                    proxied: record.proxied ?? true,
+                    proxied: record.proxied,
                 },
                 message: `DNS record created: ${record.name} → ${record.content}`,
             };

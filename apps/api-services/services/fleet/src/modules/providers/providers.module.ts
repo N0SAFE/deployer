@@ -26,6 +26,13 @@ import { DeploymentCoreModule } from "@/core/modules/deployment/deployment-core.
 import { ConfigurationCoreModule } from "@/core/modules/configuration/configuration-core.module";
 import { EventsModule } from "@/core/modules/events/events.module";
 import { TraefikCoreModule } from "@/core/modules/traefik/traefik.module";
+import { CodeProvider } from "./code/shared/code-provider.interface";
+import { CodeProviderRegistryService } from "./code/shared/code-provider-registry.service";
+import { GithubSourceProviderService } from "./code/github/services/github-source-provider.service";
+import { GitlabSourceProviderService } from "./code/gitlab/services/gitlab-source-provider.service";
+import { UploadSourceProviderService } from "./code/upload/services/upload-source-provider.service";
+import { UploadBundleRegistryService } from "./code/upload/services/upload-bundle-registry.service";
+import { CustomSourceProviderService } from "./code/custom/services/custom-source-provider.service";
 import { DnsProviderRegistryService } from "./dns/shared/dns-provider-registry.service";
 import { DnsProvidersRepository } from "./dns/shared/repositories/dns-providers.repository";
 import { CloudflareAppService } from "./dns/cloudflare/services/cloudflare-app.service";
@@ -33,7 +40,6 @@ import { CloudflareTunnelService } from "./dns/cloudflare/services/cloudflare-tu
 import { CloudflareDnsProviderService } from "./dns/cloudflare/services/cloudflare-dns-provider.service";
 import { CloudflareTunnelEdgeProvider } from "./edge/cloudflare-tunnel/cloudflare-tunnel.edge-provider";
 import { CoreEdgeModule } from "@/core/modules/edge/edge.module";
-import { CoreDomainModule } from "@/core/modules/domain/domain.module";
 import { EnvModule } from "@/config/env/env.module";
 import { GitHubAppsController } from "./code/github/controllers/github-account.controller";
 import { GitlabAppsController } from "./code/gitlab/controllers/gitlab-account.controller";
@@ -63,16 +69,6 @@ import { PreviewLifecycleEventService } from "./code/github/events/preview-lifec
         EventsModule,
         TraefikCoreModule,
         CoreEdgeModule,
-        // ── WHY THIS SERVICE MUST IMPORT A MODULE THAT IS @Global ───────────────
-        // `DomainRoutingService` is consumed by the GitHub preview-webhook and
-        // provisioning services. It is provided by `CoreDomainModule`, which is
-        // `@Global()` — but a global module still has to be imported ONCE for its
-        // providers to be registered. The monolith got it transitively through
-        // `ProjectModule`, which this service does not have.
-        //
-        // Without this the boot fails naming `DomainRoutingService` and
-        // `ProvidersDomainModule`, neither of which is the actual problem.
-        CoreDomainModule,
         EnvModule,
     ],
     controllers: [
@@ -83,6 +79,27 @@ import { PreviewLifecycleEventService } from "./code/github/events/preview-lifec
         CloudflareController,
     ],
     providers: [
+        // Code providers — multi-bound via the abstract class token
+        GithubSourceProviderService,
+        GitlabSourceProviderService,
+        UploadSourceProviderService,
+        CustomSourceProviderService,
+        UploadBundleRegistryService,
+        {
+            provide: CodeProvider,
+            useFactory: (
+                github: GithubSourceProviderService,
+                gitlab: GitlabSourceProviderService,
+                upload: UploadSourceProviderService,
+                custom: CustomSourceProviderService,
+            ) => [github, gitlab, upload, custom],
+            inject: [GithubSourceProviderService, GitlabSourceProviderService, UploadSourceProviderService, CustomSourceProviderService],
+        },
+        {
+            provide: CodeProviderRegistryService,
+            useFactory: (providers: CodeProvider[]) => new CodeProviderRegistryService(providers),
+            inject: [CodeProvider],
+        },
         // DNS providers — app model + registry + tunnel/zone services
         DnsProvidersRepository,
         CloudflareAppService,
@@ -109,6 +126,8 @@ import { PreviewLifecycleEventService } from "./code/github/events/preview-lifec
         PreviewLifecycleEventService,
     ],
     exports: [
+        CodeProviderRegistryService,
+        UploadBundleRegistryService,
         DnsProviderRegistryService,
         CloudflareAppService,
         CloudflareTunnelService,
@@ -118,4 +137,4 @@ import { PreviewLifecycleEventService } from "./code/github/events/preview-lifec
         PreviewLifecycleEventService,
     ],
 })
-export class ProvidersDomainModule {}
+export class ProvidersModule {}

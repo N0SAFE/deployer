@@ -1,3 +1,6 @@
+import { Injectable } from "@nestjs/common";
+import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
+import { deployments } from "@deployer/nest-schema/global/runtime/deployment";
 import { projectCollaborators, projects, services } from "@deployer/nest-schema/global/project/deployment";
 import { environments, variableTemplates, serviceEnvironments } from "@deployer/nest-schema/global/project/environment";
 import { user } from "@deployer/nest-schema/global/identity/auth";
@@ -7,7 +10,7 @@ import { listBuilder } from "@/core/utils/drizzle-filter.utils";
 import { randomUUID } from "crypto";
 import { ConflictError } from "@deployer/errors";
 import { environmentRulesSchema, projectNetworkConfigSchema } from "@deployer/contracts-entities";
-import type { ProjectListInput } from "@deployer/project-contracts/modules/project/list";
+import type { ProjectListInput } from "@deployer/api-contracts/modules/project/list";
 
 // ---------------------------------------------------------------------------
 // Input types (derived from Drizzle schema)

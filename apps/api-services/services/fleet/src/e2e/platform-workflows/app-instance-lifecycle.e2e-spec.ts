@@ -16,24 +16,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
 	getSharedApiRuntimeContext,
-	resetSharedRuntimeRequestOverride,
-	setSharedRuntimeAuthHeaders,
 	stopSharedApiRuntime,
 	type SharedApiRuntimeContext,
-} from "@/e2e/runtime";
+} from "../utils/shared-api-runtime";
 import { AppInstanceService } from "@/core/modules/platform-ingress/services/app-instance.service";
-
-// ── WHY THE TOKEN GOES THROUGH THE HARNESS AND NOT SUPERTEST ────────────────
-// The e2e harness replaces Nest's `REQUEST` provider with ONE shared object
-// (`sharedRequestOverride`), because a compiled testing module cannot be given a
-// per-request provider. A header set with `.set(...)` therefore reaches the HTTP
-// server but NOT `context.request`, which is what `requireAppInstance` reads — the
-// middleware sees only the stub's `host`/`x-forwarded-proto` and answers 401.
-//
-// `setSharedRuntimeAuthHeaders` mutates that same shared object, so it is the only
-// channel through which a header can reach a middleware. Body-based inputs are
-// unaffected: they are parsed from the real request, which is why registration
-// (body) worked while heartbeats (header) did not.
 
 const INSTANCE_LABEL = "e2e-byo-web";
 
@@ -142,11 +128,10 @@ describe("Platform: app-instance lifecycle (BYO)", () => {
 	});
 
 	it("accepts heartbeats carrying the instance token", async () => {
-		setSharedRuntimeAuthHeaders({ "x-app-instance-token": appToken });
-
 		const response = await context.http
 			.post("/platform/app-instances/heartbeat")
 			.set("content-type", "application/json")
+			.set("x-app-instance-token", appToken)
 			.send({});
 
 		if (response.status !== 201) {
@@ -161,38 +146,30 @@ describe("Platform: app-instance lifecycle (BYO)", () => {
 	});
 
 	it("rejects heartbeats without or with garbage tokens", async () => {
-		resetSharedRuntimeRequestOverride();
-
 		await context.http
 			.post("/platform/app-instances/heartbeat")
 			.set("content-type", "application/json")
 			.send({})
 			.expect(401);
 
-		setSharedRuntimeAuthHeaders({ "x-app-instance-token": "totally-made-up-token" });
-
 		await context.http
 			.post("/platform/app-instances/heartbeat")
 			.set("content-type", "application/json")
+			.set("x-app-instance-token", "totally-made-up-token")
 			.send({})
 			.expect(401);
-
-		resetSharedRuntimeRequestOverride();
 	});
 
 	it("revocation is immediate: heartbeat dies after operator revoke", async () => {
 		const revoked = await instances.revoke(instanceId);
 		expect(revoked).toBe(true);
 
-		setSharedRuntimeAuthHeaders({ "x-app-instance-token": appToken });
-
 		await context.http
 			.post("/platform/app-instances/heartbeat")
 			.set("content-type", "application/json")
+			.set("x-app-instance-token", appToken)
 			.send({})
 			.expect(401);
-
-		resetSharedRuntimeRequestOverride();
 	});
 
 	it("revoking twice is idempotent", async () => {

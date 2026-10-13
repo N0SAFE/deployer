@@ -11,8 +11,8 @@
 
 import { Injectable, Logger } from "@nestjs/common";
 
-import { DnsProviderRegistryService } from "../../providers/dns/shared/dns-provider-registry.service";
-import type { DnsProviderAccountRef } from "../../providers/dns/shared/dns-provider.interface";
+import { DnsProviderRegistryService } from "@/modules/providers/dns/shared/dns-provider-registry.service";
+import type { DnsProviderAccountRef } from "@/modules/providers/dns/shared/dns-provider.interface";
 
 import type { LaneDnsRecordPlan } from "./lane-dns-plan";
 

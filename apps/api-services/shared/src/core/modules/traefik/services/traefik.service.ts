@@ -21,7 +21,7 @@ import type {
   ValidationResult,
   ValidationError,
 } from '@/core/modules/traefik/interfaces';
-import type { traefikServiceConfigs } from "@deployer/nest-schema/global/traefik";
+import type { traefikServiceConfigs } from "@deployer/nest-schema/global/traefik/index";
 import type { InferSelectModel } from 'drizzle-orm';
 
 type TraefikServiceConfig = InferSelectModel<typeof traefikServiceConfigs>;

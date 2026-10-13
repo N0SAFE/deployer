@@ -127,7 +127,7 @@ A field is considered a relation edge when at least one of these is true:
 ### Field-level validation
 
 - IDs: `z.uuid()` whenever resource IDs are UUID-backed.
-- Role/status/action fields: strict enums (from `@repo/auth` or `@repo/contracts-common`).
+- Role/status/action fields: strict enums (from `@deployer/auth` or `@deployer/contracts-common`).
 - Date/time: normalize format conventions per model (`z.date()` for runtime objects, or `z.string()` where transport format is fixed).
 
 ### Cross-field validation

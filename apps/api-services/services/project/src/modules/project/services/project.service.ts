@@ -17,11 +17,11 @@ import { CoreEventSyncService } from "@/core/modules/events";
 import { RuntimeConfigurationAccessorService } from "@/core/modules/configuration/services/runtime-configuration-accessor.service";
 import { ProjectRepository } from "../repositories/project.repository";
 import { ProjectEventService } from "./project-event.service";
-import type { ProjectListInput } from "@deployer/project-contracts/modules/project/list";
+import type { ProjectListInput } from "@deployer/api-contracts/modules/project/list";
 import type {
     ProjectStreamEvent,
     ProjectStreamQueryInput,
-} from "@deployer/project-contracts/modules/project/stream";
+} from "@deployer/api-contracts/modules/project/stream";
 
 // ---------------------------------------------------------------------------
 // Typed settings stored in project.settings JSONB

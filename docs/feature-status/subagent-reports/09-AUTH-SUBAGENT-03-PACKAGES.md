@@ -26,7 +26,7 @@
 ### Permissions Engine (engine/)
 - 7 source files + 5 spec files = 12 total
 - Provides: `PermissionEngine`, `ForbiddenError`, `ResourceRule`, filter compilation
-- Exported via `@repo/auth/permissions`
+- Exported via `@deployer/auth/permissions`
 - **Verdict: KEEP** — actively consumed by API permission services
 
 ## Auth Contracts (User module — 7 operations)
@@ -45,6 +45,6 @@
 ## Todo List (Packages Layer Only)
 1. [S] Delete packages/nest/auth/ (39 source + 8 spec files) — verify no package.json references
 2. [S] Audit packages/auth/package.json deps — verify @simplewebauthn, cookie, sonner are actually used
-3. [S] Verify permissions engine exports reach consumers via @repo/auth/permissions
+3. [S] Verify permissions engine exports reach consumers via @deployer/auth/permissions
 4. [S] Verify user contracts match user module implementation
 5. [S] Update docs to mark nest/auth as deleted, internal auth as canonical

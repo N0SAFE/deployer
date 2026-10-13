@@ -1,15 +1,34 @@
 {
-  "name": "@deployer/config-eslint-plugins-progress",
-  "module": "index.js",
-  "type": "module",
-  "main": "index.js",
-  "types": "index.d.ts",
-  "private": true,
-  "devDependencies": {
-    "@types/bun": "catalog:build"
-  },
-  "dependencies": {
-    "nanospinner": "^1.2.2",
-    "picocolors": "^1.1.1"
-  }
+    "name": "@deployer/config-eslint-plugins-progress",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/types/index.d.ts",
+            "default": "./dist/index.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "build": "bun --bun pkg-build",
+        "build:types": "bun --bun pkg-build --types",
+        "dev": "bun --bun pkg-build --watch",
+        "type-check": "bun --check"
+    },
+    "dependencies": {
+        "nanospinner": "^1.2.2",
+        "picocolors": "^1.1.1"
+    },
+    "devDependencies": {
+        "@deployer/pkg-build": "*",
+        "@types/bun": "catalog:build",
+        "@types/node": "catalog:build",
+        "eslint": "catalog:linting",
+        "typescript": "catalog:build"
+    }
 }

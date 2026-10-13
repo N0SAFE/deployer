@@ -43,10 +43,10 @@ import type { ORPCError } from "@orpc/server";
 import { verify } from "@octokit/webhooks-methods";
 import { Logger } from "@nestjs/common";
 import { standardErrorOptions, STANDARD_DOMAIN_ERROR_DEFS } from "@deployer/orpc-utils";
-import type { GithubAppsRepository } from "../../providers/code/github/repositories/github-apps.repository";
-import type { WebhookIdempotencyService } from "../../providers/code/github/services/webhook-idempotency.service";
+import type { GithubAppsRepository } from "@/modules/providers/code/github/repositories/github-apps.repository";
+import type { WebhookIdempotencyService } from "@/modules/providers/code/github/services/webhook-idempotency.service";
 import type { ORPCGlobalContext } from "@/core/modules/auth/orpc/orpc-context";
-import { type GithubWebhookInput } from "@deployer/fleet-contracts";
+import { type GithubWebhookInput } from "@deployer/api-contracts";
 
 export interface GithubWebhookContext {
     webhook: {

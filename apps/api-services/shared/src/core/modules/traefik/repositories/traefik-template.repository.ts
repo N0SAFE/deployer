@@ -1,12 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { eq, and } from 'drizzle-orm';
 import { GlobalDatabaseService } from '@/core/modules/database/services/global-database.service';
-import {
-  providerTraefikTemplates,
-  serviceTraefikTemplates,
-  type ProviderTraefikTemplate,
-  type ServiceTraefikTemplate,
-} from "@deployer/nest-schema/global/traefik";
+import { providerTraefikTemplates, serviceTraefikTemplates, type ProviderTraefikTemplate, type ServiceTraefikTemplate } from "@deployer/nest-schema/global/traefik/index";
 
 @Injectable()
 export class TraefikTemplateRepository {

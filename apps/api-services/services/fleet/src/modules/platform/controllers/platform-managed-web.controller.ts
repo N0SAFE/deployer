@@ -13,7 +13,7 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { platformContract } from "@deployer/fleet-contracts";
+import { platformContract } from "@deployer/api-contracts";
 import { PlatformManagedWebService } from "../services/platform-managed-web.service";
 
 @Controller()

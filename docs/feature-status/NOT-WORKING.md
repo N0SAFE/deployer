@@ -177,7 +177,7 @@ All 26 mock imports across 15 files removed. Key pages migrated:
 | `plugin-utils/*` (6 files) | 💀 DEAD |
 | `utils/*` (2 files) | 💀 DEAD |
 
-**Why Dead:** The API (`apps/api`) re-implemented auth internally in `core/modules/auth/`. The shared `@repo/auth` (at `packages/auth/`) IS still used — but the NestJS-specific wrapper (`packages/nest/auth/`) is orphaned.
+**Why Dead:** The API (`apps/api`) re-implemented auth internally in `core/modules/auth/`. The shared `@deployer/auth` (at `packages/auth/`) IS still used — but the NestJS-specific wrapper (`packages/nest/auth/`) is orphaned.
 
 ### 4.2 packages/auth/src/permissions/ (💀 DEAD — 15+ files)
 

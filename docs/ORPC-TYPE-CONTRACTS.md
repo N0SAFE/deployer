@@ -18,7 +18,7 @@ Docker contracts in `packages/contracts/api/modules/docker` are organized by dom
 
 ### Contract design rule
 
-For list-style contracts, schemas are derived from canonical top-level entity schemas in `@repo/contracts-entities` and reduced per use-case via schema derivation (for example `entitySchema.omit({ relations: true })`) rather than redefining ad-hoc contract-only entities.
+For list-style contracts, schemas are derived from canonical top-level entity schemas in `@deployer/contracts-entities` and reduced per use-case via schema derivation (for example `entitySchema.omit({ relations: true })`) rather than redefining ad-hoc contract-only entities.
 
 ### Router shape
 
@@ -36,7 +36,7 @@ For list-style contracts, schemas are derived from canonical top-level entity sc
 - Filesystem operations: `listContainerFiles`, `readContainerFile`, `writeContainerFile`, `deleteContainerPath`, `renameContainerPath`, `createContainerDirectory`
 - Bidirectional terminal session APIs: `openContainerTerminalSession`, `streamContainerTerminalSession`, `sendContainerTerminalInput`, `closeContainerTerminalSession`
 
-These contracts are added via the domain router in `modules/docker/index.ts` and keep the same entity-first approach by reusing canonical schemas from `@repo/contracts-entities` (`dockerContainerLogEntrySchema`, `dockerContainerProcessEntrySchema`, `dockerFileEntrySchema`, `dockerTerminalProfileSchema`).
+These contracts are added via the domain router in `modules/docker/index.ts` and keep the same entity-first approach by reusing canonical schemas from `@deployer/contracts-entities` (`dockerContainerLogEntrySchema`, `dockerContainerProcessEntrySchema`, `dockerFileEntrySchema`, `dockerTerminalProfileSchema`).
 
 ## Docker container lifecycle mutation contract
 
@@ -148,5 +148,5 @@ Collision fixes completed as part of this normalization:
 Validation status:
 
 - Full app contract metadata scan reports `duplicates=0` across method/path pairs.
-- `@repo/api-contracts` type-check passes.
+- `@deployer/contracts-entities` type-check passes.
 - Focused API tests for impacted modules pass (`docker`, `organization`, `deployment`).

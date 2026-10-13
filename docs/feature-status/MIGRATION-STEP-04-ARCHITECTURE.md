@@ -33,7 +33,7 @@ export class GithubWebhookController {
 
 File: `packages/contracts/api/modules/github/webhook.ts`
 ```typescript
-import { standard } from "@repo/orpc-utils"
+import { standard } from "@deployer/orpc-utils"
 import { z } from "zod"
 
 const githubWebhookResponseSchema = z.object({

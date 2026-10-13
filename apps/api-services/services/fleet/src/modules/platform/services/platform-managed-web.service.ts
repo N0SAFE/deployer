@@ -24,9 +24,9 @@ import { platformTraefikContainerName } from "@/core/modules/platform-ingress/se
 import { SupervisorOrchestratorService } from "@deployer/nest-supervisor-core/supervisor-orchestrator.service";
 import { ManagedWebSupervisorService } from "@/core/modules/supervisors/platform/managed-web-supervisor.service";
 import { TraefikConfigRefresher } from "@/core/modules/traefik/services/traefik-config-refresher.service";
-import { CloudflareAppService } from "../../providers/dns/cloudflare/services/cloudflare-app.service";
-import { CloudflareTunnelService } from "../../providers/dns/cloudflare/services/cloudflare-tunnel.service";
-import type { ManagedWebState } from "@deployer/fleet-contracts";
+import { CloudflareAppService } from "@/modules/providers/dns/cloudflare/services/cloudflare-app.service";
+import { CloudflareTunnelService } from "@/modules/providers/dns/cloudflare/services/cloudflare-tunnel.service";
+import type { ManagedWebState } from "@deployer/api-contracts";
 
 /** Identifier of the managed-web supervisor — referenced via the class
  *  static so it can never drift from the registered instance. */

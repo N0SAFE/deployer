@@ -8,7 +8,7 @@
 import { Controller, Logger } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { reachabilityContract } from "@deployer/fleet-contracts";
+import { reachabilityContract } from "@deployer/api-contracts";
 import { requireAuth, requirePlatformRole } from "@/core/modules/auth/orpc/middlewares";
 
 /** Changing how the stack is reached, or who is in the mesh, is a platform-admin act. */

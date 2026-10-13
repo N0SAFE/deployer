@@ -7,8 +7,8 @@
 import { Controller, Logger } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { providersContract } from "@deployer/fleet-contracts";
-import type { RunnerDetectionHints } from "@deployer/fleet-contracts";
+import { providersContract } from "@deployer/api-contracts";
+import type { RunnerDetectionHints } from "@deployer/api-contracts";
 import { standardErrorOptions } from "@deployer/orpc-utils";
 import z from "zod/v4";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
@@ -123,7 +123,7 @@ export class GitHubAppsController {
             .use(requireAuth())
             .handler(async ({ input, errors }) => {
                 const body = input.body;
-                const values: Partial<typeof import("@deployer/nest-schema/global/fleet/github-provider").githubApps.$inferInsert> = {};
+                const values: Partial<typeof import("@deployer/nest-schema/global").githubApps.$inferInsert> = {};
                 if (body?.name) values.name = body.name;
                 if (body?.clientId) values.clientId = body.clientId;
                 if (body?.clientSecret) values.clientSecret = body.clientSecret;

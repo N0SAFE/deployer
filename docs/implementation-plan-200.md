@@ -173,7 +173,7 @@ second type parameter (`TSubRow`) threaded through `SubRowsConfig`, `DataTablePr
 rather than by inference. This is why `data-table.tsx` still carries `any` in that area.
 
 **Gate state after this pass:** type-check **0 errors** (`tc_exit=0`), tests **17/17 green**. One earlier
-full-suite run reported `@repo/runthenkill#test` failing; it passes standalone (2 files / 26 tests, exit 0)
+full-suite run reported `@deployer/runthenkill#test` failing; it passes standalone (2 files / 26 tests, exit 0)
 and the immediate re-run was 17/17, so that was a flake — `runthenkill` is untouched by this work.
 
 ### Phase 1 items completed
@@ -284,16 +284,16 @@ functional bug — but it is a real design smell worth raising rather than silen
    `useSyncExternalStore(undefined.subscribe)` on first paint and throws. **Fixed** (one line plus the
    explanatory comment upstream carries). It was never observable, though: the only `CommandDialog`
    consumer, `components/dashboard/command-palette.tsx`, already imports from
-   `@repo/ui/components/shadcn/command`, not from this copy. The audit's "carries the unfixed
+   `@deployer/ui/components/shadcn/command`, not from this copy. The audit's "carries the unfixed
    `CommandDialog` crash" reads as a live defect; it was a landmine. Still worth fixing, because the local
    copy is reachable the moment anyone imports `@/components/ui/command`.
 2. **Not 12 duplicates — 8 duplicates plus 4 unique files.** `map.tsx` (1535 lines),
    `place-autocomplete.tsx` (393), `spinner.tsx`, and `button-group.tsx` have no counterpart in
-   `@repo/ui`. Of the 8 that do, `separator.tsx` and `command.tsx` differ only by import path, but
+   `@deployer/ui`. Of the 8 that do, `separator.tsx` and `command.tsx` differ only by import path, but
    `button`, `input`, `textarea`, `dialog`, `dropdown-menu`, and `input-group` differ in **design tokens**.
 3. **The token difference is systematic, not drift.** The local copies are consistently one type step
    **larger**: `h-8`/`text-base`/`rounded-lg`/`ring-3`/`gap-1.5` locally versus
-   `h-7`/`text-xs/relaxed`/`rounded-md`/`ring-2`/`gap-2` in `@repo/ui`. All 12 files are reachable from 3
+   `h-7`/`text-xs/relaxed`/`rounded-md`/`ring-2`/`gap-2` in `@deployer/ui`. All 12 files are reachable from 3
    live entry points (`setup/_component/ErrorScreen.tsx` → `button`, `setup/loading.tsx` → `spinner`,
    `dashboard/nodes/_components/fleet-latency-map.tsx` → `map`), so none of it is dead code either.
 
@@ -302,10 +302,10 @@ exactly the failure mode this plan exists to prevent. The real defect underneath
 competing type scales** and nobody decided that. That is a design decision, not a mechanical dedupe, so it
 is recorded as `[needs decision]` rather than guessed at:
 
-- **Option A — adopt `@repo/ui`'s scale.** Delete the 8 duplicates, re-point the 3 consumers, promote
+- **Option A — adopt `@deployer/ui`'s scale.** Delete the 8 duplicates, re-point the 3 consumers, promote
   `spinner`. Git-reversible, but every consumer of the local scale changes look in one commit.
-- **Option B — adopt the larger scale.** Change `@repo/ui`'s tokens instead. Touches the rendering of the
-  ~500 existing `@repo/ui/components/shadcn/*` import sites at once. Highest blast radius.
+- **Option B — adopt the larger scale.** Change `@deployer/ui`'s tokens instead. Touches the rendering of the
+  ~500 existing `@deployer/ui/components/shadcn/*` import sites at once. Highest blast radius.
 - **Option C — keep both, name them.** Leave the scale difference but make it deliberate and discoverable
   (a documented compact vs comfortable variant) instead of accidental. Cheapest, no user-visible change.
 
@@ -314,7 +314,7 @@ authorises an undecided visual restyle of the whole dashboard. Falsifying the pr
 outcome when the premise is wrong — `P0-6`, `P2-13`, `P1-9`, and now `P2-10` are all audit claims that
 dissolved under inspection.
 
-**Verification of what WAS done:** `bun x turbo run type-check --filter=web` → exit 0, **0 errors**.
+**Verification of what WAS done:** `bun x turbo run type-check --filter=@deployer/web` → exit 0, **0 errors**.
 
 ---
 
@@ -420,7 +420,7 @@ would discard any settings a user had already saved. Nor did I implement a trans
 work needing product input on email vs Slack vs webhook. Same reasoning as P2-10: remove the false claim,
 escalate the design decision. **Still needs a decision: implement delivery, or delete the settings?**
 
-**Verification:** `bun x turbo run type-check --filter=web` → exit 0, **0 errors**.
+**Verification:** `bun x turbo run type-check --filter=@deployer/web` → exit 0, **0 errors**.
 
 **P3-6 — confirmed and fixed, and the first clean hit of this pass.** The audit said
 `fleet.service.ts` is untested, and the nuance that makes it a real gap: `modules/fleet/` is not untested
@@ -860,7 +860,7 @@ because testcontainers resolves to `StoppedTestContainer`; a `release` callback 
 `bun install`, which changed `bun.lock` by 17 lines. It was not in the pre-install baseline.
 Reverting the install would clear it but re-break `apps/doc` (6 errors), so the install stays.
 
-**Lint is a genuine body of work, not a config problem.** `@repo/ui`'s 357 errors sit in
+**Lint is a genuine body of work, not a config problem.** `@deployer/ui`'s 357 errors sit in
 **hand-written** components (e.g. `src/components/calendar-date-picker.tsx`), not vendored shadcn, so
 excluding shadcn would not help. Dominant rules repo-wide: `no-unused-vars` 92,
 `prefer-nullish-coalescing` 48, `no-generated-empty-object-type` 40, `no-unnecessary-condition` 39,

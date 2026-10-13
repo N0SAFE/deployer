@@ -1,4 +1,9 @@
-import { clusterServerAllocations, clusterAdmissionRequests } from "@deployer/nest-schema/global/fleet/cluster";
+import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
+import {
+  clusterNodes,
+  clusterServerAllocations,
+  clusterAdmissionRequests,
+} from "@deployer/nest-schema/global";
 import { FleetRepository } from "../repositories/fleet.repository";
 
 type ServerRow = typeof clusterNodes.$inferSelect;

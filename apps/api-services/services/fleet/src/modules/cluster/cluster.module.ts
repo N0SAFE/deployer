@@ -16,4 +16,4 @@ import { ClusterSwarmEventsService } from "./events/cluster-swarm-events.service
     providers: [ClusterService, ClusterSwarmEventsService],
     exports: [ClusterService, ClusterSwarmEventsService],
 })
-export class ClusterDomainModule {}
+export class ClusterModule {}

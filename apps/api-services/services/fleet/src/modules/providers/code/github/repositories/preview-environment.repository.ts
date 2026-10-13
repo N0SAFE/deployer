@@ -1,7 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { and, eq, lt } from "drizzle-orm";
 import { GlobalDatabaseService } from "@/core/modules/database/global/global-database.service";
-import * as globalSchema from "@deployer/nest-schema/global/fleet";
+import { deployments } from "@deployer/nest-schema/global/runtime/deployment";
+import { previewEnvironments } from "@deployer/nest-schema/global/fleet/deployment";
 
 const PREVIEW_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -21,29 +22,29 @@ export class PreviewEnvironmentRepository {
     /** Mark every active preview row matching a full domain inactive. */
     async deactivateByFullDomain(fullDomain: string) {
         return this.db
-            .update(globalSchema.previewEnvironments)
+            .update(previewEnvironments)
             .set({ isActive: false, updatedAt: new Date() })
-            .where(eq(globalSchema.previewEnvironments.fullDomain, fullDomain));
+            .where(eq(previewEnvironments.fullDomain, fullDomain));
     }
 
     /** Active preview environments that have expired (expiresAt < now). */
     async findExpired(now: Date = new Date()) {
         return this.db
             .select({
-                id: globalSchema.previewEnvironments.id,
-                serviceId: globalSchema.deployments.serviceId,
-                subdomain: globalSchema.previewEnvironments.subdomain,
-                fullDomain: globalSchema.previewEnvironments.fullDomain,
+                id: previewEnvironments.id,
+                serviceId: deployments.serviceId,
+                subdomain: previewEnvironments.subdomain,
+                fullDomain: previewEnvironments.fullDomain,
             })
-            .from(globalSchema.previewEnvironments)
+            .from(previewEnvironments)
             .innerJoin(
-                globalSchema.deployments,
-                eq(globalSchema.deployments.id, globalSchema.previewEnvironments.deploymentId),
+                deployments,
+                eq(deployments.id, previewEnvironments.deploymentId),
             )
             .where(
                 and(
-                    eq(globalSchema.previewEnvironments.isActive, true),
-                    lt(globalSchema.previewEnvironments.expiresAt, now),
+                    eq(previewEnvironments.isActive, true),
+                    lt(previewEnvironments.expiresAt, now),
                 ),
             );
     }
@@ -51,10 +52,10 @@ export class PreviewEnvironmentRepository {
     /** Latest deployment for a service (used to attach preview rows). */
     async findLatestDeploymentByService(serviceId: string) {
         const [deployment] = await this.db
-            .select({ id: globalSchema.deployments.id })
-            .from(globalSchema.deployments)
-            .where(eq(globalSchema.deployments.serviceId, serviceId))
-            .orderBy(globalSchema.deployments.createdAt)
+            .select({ id: deployments.id })
+            .from(deployments)
+            .where(eq(deployments.serviceId, serviceId))
+            .orderBy(deployments.createdAt)
             .limit(10);
         return deployment ?? null;
     }
@@ -77,7 +78,7 @@ export class PreviewEnvironmentRepository {
         };
 
         return this.db
-            .insert(globalSchema.previewEnvironments)
+            .insert(previewEnvironments)
             .values({
                 deploymentId: input.deploymentId,
                 subdomain: input.subdomain,
@@ -91,7 +92,7 @@ export class PreviewEnvironmentRepository {
                 updatedAt: now,
             })
             .onConflictDoUpdate({
-                target: globalSchema.previewEnvironments.subdomain,
+                target: previewEnvironments.subdomain,
                 set: {
                     fullDomain: input.fullDomain,
                     sslEnabled: true,

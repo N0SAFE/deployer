@@ -8,7 +8,7 @@ This document defines the contract-level implementation pattern for model-define
 
 Implementation order stays:
 
-1. Model schema (`@repo/contracts-entities`)
+1. Model schema (`@deployer/contracts-entities`)
 2. ORPC contract (`packages/contracts/api/modules/...`)
 3. API controller/service/repository implementation
 4. Web domain endpoints/hooks

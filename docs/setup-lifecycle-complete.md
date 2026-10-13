@@ -1,3 +1,9 @@
+> ⚠️ **SUPERSEDED.** This document describes the setup-app / orchestrator
+> design that has been replaced. See `docs/architecture/` (especially
+> [`01-lifecycle-and-ownership.md`](architecture/01-lifecycle-and-ownership.md)
+> and [`09-implementation-plan.md`](architecture/09-implementation-plan.md))
+> for the current architecture.
+
 # Setup & Boot Lifecycle — Complete Reference
 
 > **Status:** Canonical reference (keep in sync with code changes)

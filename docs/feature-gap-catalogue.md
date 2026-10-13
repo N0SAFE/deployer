@@ -147,7 +147,7 @@ list into a priority order.
 | W-1 | **Route-state coverage is ~8%** | M | *(verified)* 62 `page.tsx`, **5** `loading.tsx`, **4** `error.tsx`, **1** `not-found.tsx`. |
 | W-2 | Move to `error.tsx` per route group | S | Same data as W-1. |
 | W-3 | Empty states for list pages | M | Several pages render nothing when a project/service list is empty. |
-| W-4 | Two competing type scales | M | *(verified)* `apps/web/src/components/ui/*` uses a **larger** scale (`h-8`/`text-base`/`rounded-lg`/`ring-3`) vs `@repo/ui`'s compact (`h-7`/`text-xs/relaxed`/`rounded-md`/`ring-2`). 6 of 12 files differ *systematically*; 4 have no `@repo/ui` counterpart (`map`, `place-autocomplete`, `spinner`, `button-group`). All 12 are reachable from 3 live entry points. **Not dead code** — deleting is unsafe; this needs a deliberate design decision. |
+| W-4 | Two competing type scales | M | *(verified)* `apps/web/src/components/ui/*` uses a **larger** scale (`h-8`/`text-base`/`rounded-lg`/`ring-3`) vs `@deployer/ui`'s compact (`h-7`/`text-xs/relaxed`/`rounded-md`/`ring-2`). 6 of 12 files differ *systematically*; 4 have no `@deployer/ui` counterpart (`map`, `place-autocomplete`, `spinner`, `button-group`). All 12 are reachable from 3 live entry points. **Not dead code** — deleting is unsafe; this needs a deliberate design decision. |
 | W-5 | i18n absent | L | All strings hardcoded; no `next-intl`/`react-intl`. Retrofitting later is far more expensive. |
 | W-6 | Command palette has no action commands | S | `command-palette.tsx` only navigates; no "deploy service", "restart", "open logs" actions. |
 | W-7 | No keyboard-shortcut discoverability | S | `keyboard-shortcuts.tsx` exists; no help overlay affordance beyond it. |
