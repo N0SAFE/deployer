@@ -1,5 +1,5 @@
-import { defineConfig } from '@repo/config-eslint'
-import nestjsConfig from '@repo/config-eslint/nestjs'
+import { defineConfig } from '@deployer/config-eslint'
+import nestjsConfig from '@deployer/config-eslint/nestjs'
 
 export default defineConfig([
     {

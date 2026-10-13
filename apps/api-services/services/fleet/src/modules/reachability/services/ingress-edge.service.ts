@@ -24,7 +24,7 @@
  */
 
 import { BadRequestException, Injectable, Logger, type OnApplicationBootstrap, type OnModuleDestroy } from "@nestjs/common";
-import type { IngressState, UpdateIngressInput } from "@deployer/api-contracts/modules/reachability/contracts";
+import type { IngressState, UpdateIngressInput } from "@deployer/fleet-contracts/modules/reachability/contracts";
 import {
 	ingressExposure,
 	ingressLanesSchema,

@@ -1,4 +1,4 @@
-# AGENTS.md — @repo/config-tailwind
+# AGENTS.md — @deployer/config-tailwind
 
 Shared Tailwind configuration consumed by apps and UI.
 

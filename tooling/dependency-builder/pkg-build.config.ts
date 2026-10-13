@@ -1,4 +1,4 @@
-import { defineConfig } from '@repo/pkg-build/config'
+import { defineConfig } from '@deployer/pkg-build/config'
 
-/** Build configuration for `@repo/dependency-builder` — defaults apply. */
+/** Build configuration for `@deployer/dependency-builder` — defaults apply. */
 export default defineConfig({})

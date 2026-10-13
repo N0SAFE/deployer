@@ -60,7 +60,7 @@ Two halves are easy to get wrong, both found by a mismatched run first:
    `package.json` silently omits the nested one, for every application.
 2. **The root manifest's internal devDependencies always belong.**
    `turbo prune` keeps them for every target. This is why `doc` needs
-   `@repo/env`: nothing in doc's own closure declares it, but the root does.
+   `@deployer/env`: nothing in doc's own closure declares it, but the root does.
 
 The tool's **own** dependencies are added to every union (`SELF_CONTRIBUTOR`), so
 it is never the one consumer missing from the graph it computes.
@@ -91,8 +91,8 @@ it is never the one consumer missing from the graph it computes.
   holding only `dist/`. Every bare import fails:
 
     ```text
-    error: Cannot find module '@repo/type-guards' from
-    '/dep-output/packages/@repo/nest-docker/dist/esm/index-b7a21c1e.mjs'
+    error: Cannot find module '@deployer/type-guards' from
+    '/dep-output/packages/@deployer/nest-docker/dist/esm/index-b7a21c1e.mjs'
     ```
 
     `TurboRunner.publishResolutionContext` therefore places, alongside each
@@ -157,7 +157,7 @@ naming the first missing package.
 ## Boundaries
 
 - Never import from `apps/*`. This tool describes the workspace graph; it is not
-  part of it. Its only internal dependencies are `@repo/logger` and
-  `@repo/type-guards`.
+  part of it. Its only internal dependencies are `@deployer/logger` and
+  `@deployer/type-guards`.
 - Never hardcode a package list. Everything comes from the manifests, which is
   what makes "built once" true by construction rather than by maintenance.

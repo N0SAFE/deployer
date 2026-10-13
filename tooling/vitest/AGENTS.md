@@ -1,4 +1,4 @@
-# AGENTS.md — @repo/config-vitest
+# AGENTS.md — @deployer/config-vitest
 
 Shared Vitest configuration.
 

@@ -16,14 +16,14 @@ import { PreviewTopologyService } from "./preview-topology.service";
 import { defaultProviderConfig, defaultRunnerConfig } from "./service-config-defaults";
 import { emptyEffectiveConfig, foldServiceChain, mergeServiceConfig } from "./service-effective-config";
 import type { ServiceEffectiveConfig, ServiceWithEffectiveConfig } from "@deployer/contracts-entities";
-import type { ServiceListInput } from "@deployer/api-contracts/modules/service/list";
-import type { ServiceCreateInput } from "@deployer/api-contracts/modules/service/crud/create";
-import type { ServiceUpdateInput } from "@deployer/api-contracts/modules/service/crud/update";
+import type { ServiceListInput } from "@deployer/project-contracts/modules/service/list";
+import type { ServiceCreateInput } from "@deployer/project-contracts/modules/service/crud/create";
+import type { ServiceUpdateInput } from "@deployer/project-contracts/modules/service/crud/update";
 import type { ProjectRole } from "@deployer/auth";
 import type {
     ServiceStreamEvent,
     ServiceStreamQueryInput,
-} from "@deployer/api-contracts/modules/service/streams/query";
+} from "@deployer/project-contracts/modules/service/streams/query";
 import type {
     ConfigurationProviderType,
     ConfigurationRunnerType,

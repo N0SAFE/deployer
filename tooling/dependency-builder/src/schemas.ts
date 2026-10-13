@@ -47,7 +47,7 @@ export const rootManifestSchema = zod.object({
 export const workspaceSchema = zod.object({
     name: zod.string(),
     dir: zod.string(),
-    /** Internal workspace dependencies (`@repo/*`) declared by this workspace. */
+    /** Internal workspace dependencies (`@deployer/*`) declared by this workspace. */
     internalDeps: zod.array(zod.string()),
 })
 

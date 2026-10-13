@@ -1,5 +1,5 @@
 {
-    "name": "@repo/cli-declarative-routing",
+    "name": "@deployer/cli-declarative-routing",
     "version": "0.1.20",
     "description": "Declarative routes for React (monorepo fork)",
     "bin": {
@@ -13,14 +13,9 @@
     "exports": {
         ".": {
             "types": "./dist/types/index.d.ts",
-            "import": "./dist/esm/index.mjs",
-            "require": "./dist/cjs/index.js"
+            "default": "./dist/index.js"
         },
-        "./*": {
-            "types": "./dist/types/*.d.ts",
-            "import": "./dist/esm/*.mjs",
-            "require": "./dist/cjs/*.js"
-        }
+        "./package.json": "./package.json"
     },
     "scripts": {
         "prepublish": "bun run build",
@@ -33,7 +28,7 @@
         "test:watch": "vitest",
         "test:ui": "vitest --ui",
         "test:coverage": "vitest run --coverage",
-        "type-check": "tsc --noEmit",
+        "type-check": "bun --check",
         "migrate:unified-info-files": "bun --bun migrations/2026-01-01-unified-info-files.migration.ts",
         "build:types": "bun --bun pkg-build --types"
     },
@@ -48,8 +43,8 @@
     },
     "license": "MIT",
     "devDependencies": {
-        "@repo/config-prettier": "*",
-        "@repo/config-vitest": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-vitest": "*",
         "@types/diff": "catalog:utils",
         "@types/fs-extra": "catalog:utils",
         "@types/prompts": "catalog:utils",
@@ -58,12 +53,12 @@
         "type-fest": "catalog:utils",
         "vitest": "catalog:testing",
         "typescript": "catalog:build",
-        "@repo/pkg-build": "*"
+        "@deployer/pkg-build": "*"
     },
     "dependencies": {
         "@antfu/ni": "catalog:utils",
         "@parcel/watcher": "catalog:build",
-        "@repo/type-guards": "*",
+        "@deployer/type-guards": "*",
         "boxen": "catalog:ui",
         "commander": "catalog:utils",
         "diff": "catalog:utils",
@@ -79,6 +74,5 @@
         "zod": "catalog:utils"
     },
     "types": "./dist/types/index.d.ts",
-    "main": "./dist/cjs/index.js",
-    "module": "./dist/esm/index.mjs"
+    "main": "./dist/index.js"
 }

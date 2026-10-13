@@ -10,7 +10,7 @@ import { listBuilder } from "@/core/utils/drizzle-filter.utils";
 import { randomUUID } from "crypto";
 import { ConflictError } from "@deployer/errors";
 import { environmentRulesSchema, projectNetworkConfigSchema } from "@deployer/contracts-entities";
-import type { ProjectListInput } from "@deployer/api-contracts/modules/project/list";
+import type { ProjectListInput } from "@deployer/project-contracts/modules/project/list";
 
 // ---------------------------------------------------------------------------
 // Input types (derived from Drizzle schema)

@@ -271,7 +271,7 @@ describe('runthenkill Module Integration', () => {
     try {
       // Test that the file exists and can be imported
       // We expect it not to throw during import
-      const module = await import('../index.js')
+      const module = await import('../src/index')
       expect(module).toBeDefined()
     } catch (error) {
       // If there's an error, it should not be from missing the module

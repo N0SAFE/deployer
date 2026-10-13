@@ -29,8 +29,8 @@ import { SwarmClusterService } from "@deployer/nest-swarm";
 import { SwarmFleetService } from "@deployer/nest-swarm";
 import { ClusterNodeInventoryRepository } from "@deployer/nest-nodes/cluster-node-inventory.repository";
 import type { ClusterSnapshot, SwarmServiceRuntime, SwarmTaskRuntime } from "@deployer/contracts-entities";
-import { clusterNodeInventoryRowSchema, type ClusterNodeInventoryRow } from "@deployer/api-contracts";
-import type { ClusterMasterView } from "@deployer/api-contracts";
+import { clusterNodeInventoryRowSchema, type ClusterNodeInventoryRow } from "@deployer/fleet-contracts";
+import { type ClusterMasterView } from "@deployer/fleet-contracts";
 
 /** Docker engine event types relevant to swarm cluster state. */
 const SWARM_EVENT_TYPES = new Set(["node", "service", "task"]);

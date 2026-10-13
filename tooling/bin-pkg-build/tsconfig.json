@@ -19,7 +19,7 @@
         // `rootDir: src` would reject it (TS6059). The declaration pass pins its
         // own `rootDir`, so nothing here needs one.
         "paths": {
-            "@repo/pkg-build/config": ["./src/config.ts"]
+            "@deployer/pkg-build/config": ["./src/config.ts"]
         }
     },
     "include": ["src/**/*.ts", "pkg-build.config.ts"],

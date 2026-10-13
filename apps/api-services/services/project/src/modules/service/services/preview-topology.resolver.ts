@@ -1,4 +1,4 @@
-import type { ResolvedPreviewNode } from "@deployer/api-contracts/modules/service/preview-topology/resolve";
+import type { ResolvedPreviewNode } from "@deployer/project-contracts/modules/service/preview-topology/resolve";
 
 /**
  * PURE preview-topology resolver (dry-run).

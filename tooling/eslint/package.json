@@ -79,7 +79,7 @@
         "rimraf": "catalog:build",
         "@deployer/pkg-build": "*"
     },
-    "main": "./dist/index.js",
+    "main": "./dist/index.mjs",
     "types": "./dist/types/index.d.ts",
     "dependencies": {}
 }

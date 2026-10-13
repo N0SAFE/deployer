@@ -1,4 +1,4 @@
-import { AppLogger } from '@repo/logger'
+import { AppLogger } from '@deployer/logger'
 
 /** Identifies this tool as the source of every log line it writes. */
 const APP_SOURCE_TAG = 'dependency-builder'

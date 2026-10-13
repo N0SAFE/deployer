@@ -13,12 +13,8 @@
 import { Controller, Logger } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { isPullRequestWebhook, isInstallationWebhook, providersContract } from "@deployer/api-contracts";
-import type {
-    PullRequestEvent,
-    InstallationEvent,
-    InstallationRepositoriesEvent,
-} from "@deployer/api-contracts";
+import { isPullRequestWebhook, isInstallationWebhook, providersContract } from "@deployer/fleet-contracts";
+import { type PullRequestEvent, type InstallationEvent, type InstallationRepositoriesEvent } from "@deployer/fleet-contracts";
 import { standardErrorOptions } from "@deployer/orpc-utils";
 import { githubWebhookAuth } from "@/modules/providers/middleware/github-webhook-auth.middleware";
 import { GithubWebhookDispatchService } from "../services/github-webhook-dispatch.service";

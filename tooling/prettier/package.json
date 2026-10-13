@@ -1,5 +1,5 @@
 {
-    "name": "@repo/config-prettier",
+    "name": "@deployer/config-prettier",
     "version": "1.0.0",
     "type": "module",
     "exports": {
@@ -24,7 +24,7 @@
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
         "clean": "rimraf dist",
-        "type-check": "tsc --noEmit",
+        "type-check": "bun --check",
         "dev": "bun --bun pkg-build --watch",
         "build:types": "bun --bun pkg-build --types"
     },
@@ -34,14 +34,14 @@
     "description": "",
     "devDependencies": {
         "@types/node": "catalog:build",
-        "@repo/config-vitest": "*",
+        "@deployer/config-vitest": "*",
         "prettier": "catalog:linting",
         "prettier-plugin-tailwindcss": "catalog:linting",
         "vitest": "catalog:testing",
         "typescript": "catalog:build",
         "chokidar": "catalog:build",
         "rimraf": "catalog:build",
-        "@repo/pkg-build": "*"
+        "@deployer/pkg-build": "*"
     },
     "dependencies": {}
 }

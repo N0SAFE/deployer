@@ -1,6 +1,6 @@
 # Declarative Routing Migrations
 
-This folder contains migration scripts for the `@repo/declarative-routing` package. Migrations help users upgrade their codebase when breaking changes are introduced to the declarative routing system.
+This folder contains migration scripts for the `@deployer/declarative-routing` package. Migrations help users upgrade their codebase when breaking changes are introduced to the declarative routing system.
 
 ## Folder Structure
 
@@ -44,10 +44,10 @@ npx tsx migrations/2026-01-01-unified-info-files.migration.ts --app-dir /path/to
 
 ```bash
 # Using the package script (if configured)
-bun run @repo/declarative-routing migrate:MIGRATION_NAME
+bun run @deployer/declarative-routing migrate:MIGRATION_NAME
 
 # Or directly
-bun run --filter=@repo/declarative-routing tsx migrations/YYYY-MM-DD-migration-name.migration.ts
+bun run --filter=@deployer/declarative-routing tsx migrations/YYYY-MM-DD-migration-name.migration.ts
 ```
 
 ## Common Options

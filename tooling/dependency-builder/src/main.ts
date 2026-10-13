@@ -1,7 +1,7 @@
 import 'reflect-metadata'
 
 import { CommandFactory } from 'nest-commander'
-import { hasProperty, isError, isObjectWithMessage } from '@repo/type-guards'
+import { hasProperty, isError, isObjectWithMessage } from '@deployer/type-guards'
 
 import { DependencyBuilderModule } from './modules/dependency-builder.module'
 import { scopedLogger } from './logger'

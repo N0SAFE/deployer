@@ -1,6 +1,6 @@
-import { defineConfig } from '@repo/pkg-build/config'
+import { defineConfig } from '@deployer/pkg-build/config'
 
-/** Build configuration for `@repo/cli-declarative-routing`. */
+/** Build configuration for `@deployer/cli-declarative-routing`. */
 export default defineConfig({
     root: 'src',
     entries: ['index.ts'],

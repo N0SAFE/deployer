@@ -46,7 +46,7 @@ import { standardErrorOptions, STANDARD_DOMAIN_ERROR_DEFS } from "@deployer/orpc
 import type { GithubAppsRepository } from "@/modules/providers/code/github/repositories/github-apps.repository";
 import type { WebhookIdempotencyService } from "@/modules/providers/code/github/services/webhook-idempotency.service";
 import type { ORPCGlobalContext } from "@/core/modules/auth/orpc/orpc-context";
-import { type GithubWebhookInput } from "@deployer/api-contracts";
+import { type GithubWebhookInput } from "@deployer/fleet-contracts";
 
 export interface GithubWebhookContext {
     webhook: {

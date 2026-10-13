@@ -1,16 +1,19 @@
 {
-    "name": "@repo/runthenkill",
+    "name": "@deployer/runthenkill",
     "version": "1.0.0",
     "description": "CLI tool to run a process and manage port state after termination",
-    "main": "index.ts",
+    "main": "dist/index.js",
     "bin": {
-        "runthenkill": "./index.ts"
+        "runthenkill": "dist/index.js"
     },
     "scripts": {
+        "build": "bun --bun pkg-build",
+        "build:types": "bun --bun pkg-build --types",
+        "dev": "bun --bun pkg-build --watch",
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "type-check": "tsc --noEmit",
+        "type-check": "bun --check",
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage"
@@ -24,12 +27,13 @@
     "author": "",
     "license": "ISC",
     "dependencies": {
-        "@repo/type-guards": "*",
+        "@deployer/type-guards": "*",
         "commander": "catalog:utils"
     },
     "devDependencies": {
-        "@repo/config-prettier": "*",
-        "@repo/config-vitest": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-vitest": "*",
+        "@deployer/pkg-build": "*",
         "vitest": "catalog:testing",
         "@types/node": "catalog:build",
         "typescript": "catalog:build"

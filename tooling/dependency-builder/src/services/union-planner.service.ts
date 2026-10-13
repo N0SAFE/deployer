@@ -9,11 +9,11 @@ import type { UnionMember } from '../schemas'
  * This tool's own workspace name.
  *
  * Its internal dependencies are always part of the union: the tool is started
- * from source but resolves `@repo/*` at runtime, so those packages have to be
+ * from source but resolves `@deployer/*` at runtime, so those packages have to be
  * built and published exactly like the applications' dependencies. Without this
  * the tool would be the one consumer missing from the graph it computes.
  */
-export const SELF_PACKAGE = '@repo/dependency-builder'
+export const SELF_PACKAGE = '@deployer/dependency-builder'
 
 /** How the tool names itself in the union's provenance log. */
 export const SELF_CONTRIBUTOR = 'dependency-builder'
@@ -36,7 +36,7 @@ export const SELF_CONTRIBUTOR = 'dependency-builder'
  *
  *     closure(app) = reachable(app's internal deps) ∪ root internal devDeps
  *
- * Both halves are necessary. Dropping the root half loses `@repo/env`, which
+ * Both halves are necessary. Dropping the root half loses `@deployer/env`, which
  * `doc` needs and nothing in its own closure declares.
  */
 @Injectable()

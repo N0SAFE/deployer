@@ -16,6 +16,11 @@ import { bundleTs6Island } from './src/plugins/bundle-ts6-island'
  * The consumers are ESLint config files loaded by tooling that reads ESM, and
  * the previous build emitted ESM only. Emitting CJS as well would double the
  * bundled TS6 island for a format nothing loads.
+ *
+ * ── WHY NO `sourcemap` KEY ──────────────────────────────────────────────────
+ * The mode rule decides: dev builds link a map, prod builds ship none. Setting
+ * it here would force one value on both, and the production image is exactly
+ * where the bundle's map is dead weight.
  */
 export default defineConfig({
     root: 'src',
@@ -31,6 +36,5 @@ export default defineConfig({
     flat: true,
     target: 'node',
     splitting: false,
-    sourcemap: 'linked',
     plugins: [bundleTs6Island],
 })

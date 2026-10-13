@@ -106,17 +106,17 @@ export class TurboRunner {
     /**
      * Make the published artifacts RESOLVABLE from where they now live.
      *
-     * A package's built `.mjs` contains bare imports (`@repo/type-guards`,
+     * A package's built `.mjs` contains bare imports (`@deployer/type-guards`,
      * `rxjs`, `react`). Node and Bun resolve those by walking UP from the
      * importing file, so once `dist/` is published outside its package the walk
      * starts at `<outputRoot>/packages/<name>/` — which holds only `dist/`.
      * Every bare import then fails:
      *
-     *     error: Cannot find module '@repo/type-guards' from
-     *     '/dep-output/packages/@repo/nest-docker/dist/esm/index-b7a21c1e.mjs'
+     *     error: Cannot find module '@deployer/type-guards' from
+     *     '/dep-output/packages/@deployer/nest-docker/dist/esm/index-b7a21c1e.mjs'
      *
      * Verified in the running stack: symlinked `dist/` gave exactly that error
-     * for `@repo/nest-docker`, `@repo/orpc-utils` and `@repo/ui`, and copying
+     * for `@deployer/nest-docker`, `@deployer/orpc-utils` and `@deployer/ui`, and copying
      * `package.json` next to the published `dist/` plus a `node_modules`
      * symlink at the volume root made all three resolve.
      *

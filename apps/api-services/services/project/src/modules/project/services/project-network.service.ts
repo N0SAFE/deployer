@@ -5,7 +5,7 @@ import {
     projectNetworkConfigSchema,
     type ProjectNetworkConfig,
 } from "@deployer/contracts-entities";
-import type { ProjectNetworkView, ProjectUpdateNetworkInput } from "@deployer/api-contracts";
+import { type ProjectNetworkView, type ProjectUpdateNetworkInput } from "@deployer/project-contracts";
 import { CloudflareAppService } from "@/modules/providers/dns/cloudflare/services/cloudflare-app.service";
 import { CloudflareDnsProviderService } from "@/modules/providers/dns/cloudflare/services/cloudflare-dns-provider.service";
 import { ProjectDomainRepository } from "@/core/modules/domain/repositories/project-domain.repository";

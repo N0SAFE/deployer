@@ -1,4 +1,4 @@
-import { existsSync, writeFileSync } from 'node:fs'
+import { existsSync, rmSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
 
 import { Injectable } from '@nestjs/common'
@@ -82,6 +82,26 @@ export class BuildCommand extends CommandRunner {
         this.logger.info(`repository root: ${root}`)
         this.logger.info(`enabled applications: ${applications.join(', ')}`)
 
+        // ── INVALIDATE THE PREVIOUS RUN'S GATE BEFORE TOUCHING ANYTHING ─────
+        // The marker lives in the SHARED VOLUME, so it survives a `compose up`
+        // that keeps volumes — and a stale marker is worse than no marker: every
+        // application sees the gate already open and starts immediately, reading
+        // a `dist/` tree this run has not finished writing (or has just cleared).
+        //
+        // Measured symptom on a warm restart:
+        //
+        //   error: Cannot find module '@deployer/auth/server' from
+        //   '/app/apps/api-services/shared/src/config/auth/auth.ts'
+        //   error: Cannot find module '../chunks/auth-client-*.mjs' from
+        //   '/dep-output/packages/@deployer/auth/dist/production/esm/index.mjs'
+        //
+        // The second error is the giveaway: the chunk files WERE published, but
+        // the consumer resolved through an index written by a run still in
+        // progress. Removing the marker first makes the existing wait loop in
+        // `entrypoint-app.sh` do its job on every boot, not only the first.
+        const marker = join(outputRoot, BUILD_MARKER)
+        rmSync(marker, { force: true })
+
         // 1 + 2 — the union, and the links that publish its artifacts.
         const union = this.planner.plan(root, applications)
 
@@ -98,8 +118,8 @@ export class BuildCommand extends CommandRunner {
         const cacheDir = cacheDirFor(outputRoot)
         await this.turbo.buildOnce(root, union, cacheDir)
 
-        // 4 — the gate the applications wait on.
-        const marker = join(outputRoot, BUILD_MARKER)
+        // 4 — the gate the applications wait on. Written only now, so its
+        // presence means THIS run published the artifacts.
         writeFileSync(marker, `${new Date().toISOString()}\n`)
         this.logger.info(`initial build complete (${marker})`)
 

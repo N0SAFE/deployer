@@ -18,7 +18,7 @@ import { UnionPlanner } from './union-planner.service'
  *  - a nested workspace (a package that is itself a workspace AND contains one)
  *    must be discovered, or it silently disappears from every union
  *  - the ROOT manifest's internal devDependencies belong to every union, which
- *    is why `doc` needs `@repo/env` although nothing it declares depends on it
+ *    is why `doc` needs `@deployer/env` although nothing it declares depends on it
  */
 
 /** Build a throwaway workspace tree and return its root. */
@@ -60,13 +60,13 @@ describe('UnionPlanner', () => {
             '.': {
                 name: 'root',
                 private: true,
-                devDependencies: { '@repo/tooling': '*' },
+                devDependencies: { '@deployer/tooling': '*' },
             },
-            'apps/api': { name: 'api', dependencies: { '@repo/shared': '*' } },
-            'apps/web': { name: 'web', dependencies: { '@repo/widget': '*' } },
-            'packages/shared': { name: '@repo/shared' },
-            'packages/widget': { name: '@repo/widget' },
-            'packages/tooling': { name: '@repo/tooling' },
+            'apps/api': { name: 'api', dependencies: { '@deployer/shared': '*' } },
+            'apps/web': { name: 'web', dependencies: { '@deployer/widget': '*' } },
+            'packages/shared': { name: '@deployer/shared' },
+            'packages/widget': { name: '@deployer/widget' },
+            'packages/tooling': { name: '@deployer/tooling' },
         })
 
         const union = plan(root, ['api']).map((m) => m.name)
@@ -74,8 +74,8 @@ describe('UnionPlanner', () => {
         // The application runs its own dev server, so it is not in its closure.
         expect(union).not.toContain('api')
         // A package only `web` needs must not leak in.
-        expect(union).not.toContain('@repo/widget')
-        expect(union).toEqual(['@repo/shared', '@repo/tooling'])
+        expect(union).not.toContain('@deployer/widget')
+        expect(union).toEqual(['@deployer/shared', '@deployer/tooling'])
     })
 
     it('descends into a package that is itself a workspace', () => {
@@ -83,28 +83,28 @@ describe('UnionPlanner', () => {
             '.': { name: 'root', private: true },
             'apps/api': {
                 name: 'api',
-                dependencies: { '@repo/nested-parent': '*' },
+                dependencies: { '@deployer/nested-parent': '*' },
             },
             // A workspace, AND the parent of another workspace. This mirrors
             // `tooling/eslint`, which is a workspace and also contains
             // `plugins/progress`. The nested workspace is declared as a
             // dependency, exactly as the real one is.
             'packages/nested-parent': {
-                name: '@repo/nested-parent',
-                dependencies: { '@repo/nested-child': '*' },
+                name: '@deployer/nested-parent',
+                dependencies: { '@deployer/nested-child': '*' },
             },
             'packages/nested-parent/plugins/child': {
-                name: '@repo/nested-child',
-                dependencies: { '@repo/deep': '*' },
+                name: '@deployer/nested-child',
+                dependencies: { '@deployer/deep': '*' },
             },
-            'packages/deep': { name: '@repo/deep' },
+            'packages/deep': { name: '@deployer/deep' },
         })
 
         const union = plan(root, ['api']).map((m) => m.name)
 
         // Reached by descending THROUGH nested-parent rather than stopping at it.
-        expect(union).toContain('@repo/nested-child')
-        expect(union).toContain('@repo/deep')
+        expect(union).toContain('@deployer/nested-child')
+        expect(union).toContain('@deployer/deep')
     })
 
     it("includes the root manifest's internal devDependencies for every application", () => {
@@ -112,21 +112,21 @@ describe('UnionPlanner', () => {
             '.': {
                 name: 'root',
                 private: true,
-                devDependencies: { '@repo/env': '*', typescript: '^5' },
+                devDependencies: { '@deployer/env': '*', typescript: '^5' },
             },
             'apps/doc': {
                 name: 'doc',
-                dependencies: { '@repo/type-guards': '*' },
+                dependencies: { '@deployer/type-guards': '*' },
             },
-            'packages/type-guards': { name: '@repo/type-guards' },
-            'packages/env': { name: '@repo/env' },
+            'packages/type-guards': { name: '@deployer/type-guards' },
+            'packages/env': { name: '@deployer/env' },
         })
 
         const union = plan(root, ['doc']).map((m) => m.name)
 
-        // Nothing doc declares depends on @repo/env; only the root does.
-        expect(union).toContain('@repo/env')
-        expect(union).toContain('@repo/type-guards')
+        // Nothing doc declares depends on @deployer/env; only the root does.
+        expect(union).toContain('@deployer/env')
+        expect(union).toContain('@deployer/type-guards')
         // An external root devDependency is not a workspace, so it is excluded.
         expect(union).not.toContain('typescript')
     })
@@ -134,22 +134,22 @@ describe('UnionPlanner', () => {
     it('lists a shared package once, naming every application that pulled it in', () => {
         const root = repo({
             '.': { name: 'root', private: true },
-            'apps/api': { name: 'api', dependencies: { '@repo/shared': '*' } },
+            'apps/api': { name: 'api', dependencies: { '@deployer/shared': '*' } },
             'apps/web': {
                 name: 'web',
-                dependencies: { '@repo/shared': '*', '@repo/only-web': '*' },
+                dependencies: { '@deployer/shared': '*', '@deployer/only-web': '*' },
             },
-            'packages/shared': { name: '@repo/shared' },
-            'packages/only-web': { name: '@repo/only-web' },
+            'packages/shared': { name: '@deployer/shared' },
+            'packages/only-web': { name: '@deployer/only-web' },
         })
 
         const union = plan(root, ['api', 'web'])
-        const shared = union.filter((m) => m.name === '@repo/shared')
+        const shared = union.filter((m) => m.name === '@deployer/shared')
 
         expect(shared).toHaveLength(1)
         expect(shared[0]?.contributors).toEqual(['api', 'web'])
         expect(
-            union.find((m) => m.name === '@repo/only-web')?.contributors
+            union.find((m) => m.name === '@deployer/only-web')?.contributors
         ).toEqual(['web'])
     })
 
@@ -167,40 +167,40 @@ describe('UnionPlanner', () => {
     it("includes the tool's own internal dependencies", () => {
         const root = repo({
             '.': { name: 'root', private: true },
-            'apps/api': { name: 'api', dependencies: { '@repo/shared': '*' } },
-            'packages/shared': { name: '@repo/shared' },
-            'packages/logger': { name: '@repo/logger' },
+            'apps/api': { name: 'api', dependencies: { '@deployer/shared': '*' } },
+            'packages/shared': { name: '@deployer/shared' },
+            'packages/logger': { name: '@deployer/logger' },
             'tooling/dependency-builder': {
-                name: '@repo/dependency-builder',
-                dependencies: { '@repo/logger': '*' },
+                name: '@deployer/dependency-builder',
+                dependencies: { '@deployer/logger': '*' },
             },
         })
 
         const union = plan(root, ['api'])
 
-        // The tool resolves @repo/* at runtime, so its deps must be built too.
-        const logger = union.find((m) => m.name === '@repo/logger')
+        // The tool resolves @deployer/* at runtime, so its deps must be built too.
+        const logger = union.find((m) => m.name === '@deployer/logger')
         expect(logger).toBeDefined()
         expect(logger?.contributors).toEqual(['dependency-builder'])
         // It is not itself part of the union: it runs from source.
         expect(union.map((m) => m.name)).not.toContain(
-            '@repo/dependency-builder'
+            '@deployer/dependency-builder'
         )
     })
 
     it('marks a package shared by an application and the tool', () => {
         const root = repo({
             '.': { name: 'root', private: true },
-            'apps/api': { name: 'api', dependencies: { '@repo/logger': '*' } },
-            'packages/logger': { name: '@repo/logger' },
+            'apps/api': { name: 'api', dependencies: { '@deployer/logger': '*' } },
+            'packages/logger': { name: '@deployer/logger' },
             'tooling/dependency-builder': {
-                name: '@repo/dependency-builder',
-                dependencies: { '@repo/logger': '*' },
+                name: '@deployer/dependency-builder',
+                dependencies: { '@deployer/logger': '*' },
             },
         })
 
         const union = plan(root, ['api'])
-        const logger = union.filter((m) => m.name === '@repo/logger')
+        const logger = union.filter((m) => m.name === '@deployer/logger')
 
         expect(logger).toHaveLength(1)
         expect(logger[0]?.contributors).toEqual(['api', 'dependency-builder'])

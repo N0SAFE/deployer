@@ -5,7 +5,7 @@ import { ORPCError } from "@orpc/server";
 import type { GithubWebhookDispatchService } from "../services/github-webhook-dispatch.service";
 import type { WebhookIdempotencyService } from "../services/webhook-idempotency.service";
 import type { GithubAppsRepository } from "../repositories/github-apps.repository";
-import type { GithubWebhookInput } from "@deployer/api-contracts";
+import { type GithubWebhookInput } from "@deployer/fleet-contracts";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────
 

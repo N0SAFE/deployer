@@ -60,7 +60,7 @@ app/
 ### Prerequisites
 
 - Node.js 18+ or Bun
-- `glob` package installed (included in `@repo/declarative-routing`)
+- `glob` package installed (included in `@deployer/declarative-routing`)
 
 ### Basic Usage
 
@@ -79,10 +79,10 @@ npx tsx migrations/2026-01-01-unified-info-files.migration.ts --app-dir ../../ap
 
 ```bash
 # Preview changes
-bun run --filter=@repo/declarative-routing tsx migrations/2026-01-01-unified-info-files.migration.ts --dry-run --app-dir ./apps/web/src/app
+bun run --filter=@deployer/declarative-routing tsx migrations/2026-01-01-unified-info-files.migration.ts --dry-run --app-dir ./apps/web/src/app
 
 # Run migration
-bun run --filter=@repo/declarative-routing tsx migrations/2026-01-01-unified-info-files.migration.ts --app-dir ./apps/web/src/app
+bun run --filter=@deployer/declarative-routing tsx migrations/2026-01-01-unified-info-files.migration.ts --app-dir ./apps/web/src/app
 ```
 
 ### Options

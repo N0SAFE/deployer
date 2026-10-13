@@ -168,33 +168,33 @@ describe('TurboRunner', () => {
     describe('linkOutputs publishes a resolvable tree', () => {
         it('puts package.json next to the published dist, so its exports map applies', () => {
             const root = repo({
-                'packages/infrastructure/logger': { name: '@repo/logger' },
+                'packages/infrastructure/logger': { name: '@deployer/logger' },
             })
             const out = join(root, 'out')
             const runner = new TurboRunner()
 
             runner.linkOutputs(
                 root,
-                [member('@repo/logger', 'packages/infrastructure/logger')],
+                [member('@deployer/logger', 'packages/infrastructure/logger')],
                 out
             )
 
             // Without the manifest the published .mjs resolves nothing: the
             // exports map that maps subpaths onto files lives in this file.
             expect(
-                existsSync(join(out, 'packages/@repo/logger/package.json'))
+                existsSync(join(out, 'packages/@deployer/logger/package.json'))
             ).toBe(true)
             // The package's own dist is now a link into the volume. The volume
             // target starts empty — Turbo fills it — so assert the link, not
             // its contents.
-            const published = join(out, 'packages/@repo/logger/dist')
+            const published = join(out, 'packages/@deployer/logger/dist')
             expect(existsSync(published)).toBe(true)
             expect(lstatSync(published).isDirectory()).toBe(true)
         })
 
         it('links the package tree into the volume so bare imports resolve', () => {
             const root = repo({
-                'packages/infrastructure/logger': { name: '@repo/logger' },
+                'packages/infrastructure/logger': { name: '@deployer/logger' },
             })
             mkdirSync(join(root, 'packages/infrastructure/logger/node_modules'), {
                 recursive: true,
@@ -204,26 +204,26 @@ describe('TurboRunner', () => {
 
             runner.linkOutputs(
                 root,
-                [member('@repo/logger', 'packages/infrastructure/logger')],
+                [member('@deployer/logger', 'packages/infrastructure/logger')],
                 out
             )
 
             // A published file importing `rxjs` walks UP from its own directory;
             // this link is what makes that walk find the package's own tree.
-            const linked = join(out, 'packages/@repo/logger/node_modules')
+            const linked = join(out, 'packages/@deployer/logger/node_modules')
             expect(existsSync(linked)).toBe(true)
             expect(
                 readFileSync(
                     join(root, 'packages/infrastructure/logger/package.json'),
                     'utf8'
                 )
-            ).toContain('@repo/logger')
+            ).toContain('@deployer/logger')
         })
 
         it('skips packages with no build script, matching what it links', () => {
             const root = repo({
                 'tooling/typescript': {
-                    name: '@repo/config-typescript',
+                    name: '@deployer/config-typescript',
                     build: false,
                 },
             })
@@ -234,7 +234,7 @@ describe('TurboRunner', () => {
                 root,
                 [
                     member(
-                        '@repo/config-typescript',
+                        '@deployer/config-typescript',
                         'tooling/typescript'
                     ),
                 ],
@@ -242,17 +242,17 @@ describe('TurboRunner', () => {
             )
 
             expect(
-                existsSync(join(out, 'packages/@repo/config-typescript/dist'))
+                existsSync(join(out, 'packages/@deployer/config-typescript/dist'))
             ).toBe(false)
         })
 
         it('keeps dist a symlink into the volume across runs', () => {
             const root = repo({
-                'packages/infrastructure/logger': { name: '@repo/logger' },
+                'packages/infrastructure/logger': { name: '@deployer/logger' },
             })
             const out = join(root, 'out')
             const runner = new TurboRunner()
-            const union = [member('@repo/logger', 'packages/infrastructure/logger')]
+            const union = [member('@deployer/logger', 'packages/infrastructure/logger')]
             const link = join(root, 'packages/infrastructure/logger/dist')
 
             runner.linkOutputs(root, union, out)
@@ -264,7 +264,7 @@ describe('TurboRunner', () => {
             // from the volume and every later write lands in the repo instead.
             expect(lstatSync(link).isSymbolicLink()).toBe(true)
             expect(realpathSync(link)).toBe(
-                realpathSync(join(out, 'packages/@repo/logger/dist'))
+                realpathSync(join(out, 'packages/@deployer/logger/dist'))
             )
         })
     })

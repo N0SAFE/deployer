@@ -17,7 +17,7 @@
     "strict": true,
     "isolatedModules": false,
     "paths": {
-      "@repo/cli-declarative-routing/*": [
+      "@deployer/cli-declarative-routing/*": [
         "./src/*"
       ]
     }

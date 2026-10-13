@@ -9,6 +9,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { getSharedApiRuntimeContext, type SharedApiRuntimeContext } from "@/e2e/runtime";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import { user } from "@deployer/nest-schema/global/identity/auth";
+import { projects, services } from "@deployer/nest-schema/global/project/deployment";
 import { UserService } from "@/modules/user/services/user.service";
 import { AnalyticsService } from "@/modules/analytics/services/analytics.service";
 
@@ -54,6 +55,34 @@ describe("Identity happy-path workflows e2e: the domains this service owns", () 
 
 		userService = runtime.serviceMapper.get(UserService);
 		analyticsService = runtime.serviceMapper.get(AnalyticsService);
+
+		// The realtime assertion below asks for two services BY NAME, so they have to
+		// exist. Seeded directly rather than through the project service: `identity`
+		// reads these tables to aggregate analytics, and a fixture that called the
+		// project service would make this suite depend on another service being up.
+		const [project] = await database.db
+			.insert(projects)
+			.values({
+				name: `e2e-analytics-${randomUUID()}`,
+				description: "E2E analytics fixture",
+				baseDomain: "e2e.example.test",
+				ownerId,
+			})
+			.returning();
+		if (project === undefined) throw new Error("failed to seed the analytics project");
+
+		await database.db.insert(services).values(
+			["api", "cache"].map((name) => ({
+				projectId: project.id,
+				name,
+				description: "E2E analytics fixture",
+				type: "application" as const,
+				providerId: "artifact-bundle",
+				builderId: "manual",
+				port: 3000,
+				healthCheckPath: "/health",
+			})),
+		);
 	});
 
 	it("creates, reads, updates and deletes a user", async () => {

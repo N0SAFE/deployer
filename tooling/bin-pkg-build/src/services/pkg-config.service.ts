@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import type { BunPlugin } from 'bun'
 
 import {
     CONFIG_FILE_NAMES,
@@ -35,6 +36,8 @@ export interface ResolvedPkgBuildConfig {
     sourcemap: SourcemapMode | undefined
     external: string[]
     copy: { from: string; to: string }[]
+    /** Bundler plugins from the config, applied to every `bun build` pass. */
+    plugins: BunPlugin[]
     keepEnv: boolean
     types: boolean
 }
@@ -124,7 +127,7 @@ export class PkgConfigService {
     private async loadAuthoredConfig(): Promise<PkgBuildConfig> {
         if (this.manifest[LEGACY_CONFIG_KEY] !== undefined) {
             die(
-                `${String(this.manifest.name ?? this.pkgRoot)}: move the "pkgBuild" block out of package.json into pkg-build.config.ts (typed as PkgBuildConfig from @repo/pkg-build/config).`
+                `${String(this.manifest.name ?? this.pkgRoot)}: move the "pkgBuild" block out of package.json into pkg-build.config.ts (typed as PkgBuildConfig from @deployer/pkg-build/config).`
             )
         }
 
@@ -281,6 +284,7 @@ export class PkgConfigService {
             sourcemap: authored.sourcemap,
             external: authored.external ?? [],
             copy: authored.copy ?? [],
+            plugins: authored.plugins ?? [],
             keepEnv: authored.keepEnv !== false,
             types: authored.types !== false,
         }
@@ -359,7 +363,7 @@ export class PkgConfigService {
 
     /**
      * Source `.d.ts` files are inputs, not outputs: `tsc` never emits them, yet
-     * consumers must see them. `@repo/ui` declares `exceljs/dist/exceljs.min.js`
+     * consumers must see them. `@deployer/ui` declares `exceljs/dist/exceljs.min.js`
      * this way. Collected from the same root as the JS build, skipping the output
      * tree so a rerun cannot copy generated declarations back onto themselves.
      */

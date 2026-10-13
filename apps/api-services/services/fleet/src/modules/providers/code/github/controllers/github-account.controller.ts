@@ -7,8 +7,8 @@
 import { Controller, Logger } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { providersContract } from "@deployer/api-contracts";
-import type { RunnerDetectionHints } from "@deployer/api-contracts";
+import { providersContract } from "@deployer/fleet-contracts";
+import { type RunnerDetectionHints } from "@deployer/fleet-contracts";
 import { standardErrorOptions } from "@deployer/orpc-utils";
 import z from "zod/v4";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";

@@ -1,10 +1,10 @@
-# AGENTS.md — @repo/bin-runthenkill
+# AGENTS.md — @deployer/bin-runthenkill
 
 CLI tool to run a process and manage port state after termination.
 
 ## Quick Context via MCP
-- `repo://package/@repo/bin-runthenkill/package.json`
-- `repo://package/@repo/bin-runthenkill/dependencies`
+- `repo://package/@deployer/bin-runthenkill/package.json`
+- `repo://package/@deployer/bin-runthenkill/dependencies`
 
 ## Rules
 - Keep the CLI cross-platform compatible (Windows, macOS, Linux)

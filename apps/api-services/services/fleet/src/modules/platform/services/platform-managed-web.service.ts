@@ -26,7 +26,7 @@ import { ManagedWebSupervisorService } from "@/core/modules/supervisors/platform
 import { TraefikConfigRefresher } from "@/core/modules/traefik/services/traefik-config-refresher.service";
 import { CloudflareAppService } from "@/modules/providers/dns/cloudflare/services/cloudflare-app.service";
 import { CloudflareTunnelService } from "@/modules/providers/dns/cloudflare/services/cloudflare-tunnel.service";
-import type { ManagedWebState } from "@deployer/api-contracts";
+import { type ManagedWebState } from "@deployer/fleet-contracts";
 
 /** Identifier of the managed-web supervisor — referenced via the class
  *  static so it can never drift from the registered instance. */

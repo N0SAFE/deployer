@@ -4,5 +4,5 @@ node_modules
 .turbo
 # Tool caches: `eslint --cache` writes a JSON blob prettier would otherwise try
 # to format, and this repo's prettier config resolves a `src/` path that only
-# exists after `@repo/config-prettier` is built.
+# exists after `@deployer/config-prettier` is built.
 .eslintcache

@@ -323,7 +323,7 @@ export class PkgBuilderService {
                 // Workspace + external deps stay external: the consuming app
                 // resolves them, and bundling would duplicate singletons.
                 packages: 'external',
-                // A package that imports itself by name (`@repo/ui/lib/utils`)
+                // A package that imports itself by name (`@deployer/ui/lib/utils`)
                 // must keep those imports external too. Left to resolve, the
                 // bundler inlines the target module into the importer — carrying
                 // that module's `"use client"` directive along, mid-file, where it
@@ -345,6 +345,13 @@ export class PkgBuilderService {
                 // The JSX runtime is chosen by the variant's process env, not here.
                 ...(config.keepEnv
                     ? { define: {}, env: 'disable' as const }
+                    : {}),
+                // The config's own escape hatch, applied per pass. A plugin that
+                // rewrites module resolution (see `plugins` in `config.ts`) must
+                // run for BOTH the server and the client pass, which is why it
+                // travels here rather than being attached once.
+                ...(config.plugins.length > 0
+                    ? { plugins: config.plugins }
                     : {}),
             })
             if (!result.success) {
@@ -475,7 +482,7 @@ export class PkgBuilderService {
      * and `require('<pkg>')` yields an empty object.
      *
      * That is not hypothetical — `next.config.ts` is loaded through CJS `require`,
-     * and `apps/web` imports `envSchema` from `@repo/env`. With the exports empty,
+     * and `apps/web` imports `envSchema` from `@deployer/env`. With the exports empty,
      * `envSchema` was `undefined`, so `next.config.ts` threw
      * `TypeError: Cannot read properties of undefined (reading 'shape')`. The web
      * build then failed *only under turbo* (which runs the real build), and a

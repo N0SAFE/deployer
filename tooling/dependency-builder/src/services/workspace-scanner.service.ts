@@ -60,7 +60,7 @@ const MAX_DEPTH = 6
  *   2. The ROOT manifest's internal devDependencies always belong to the union.
  *      `turbo prune` keeps them regardless of which application is the target,
  *      and a closure walk that starts at the application never sees the root.
- *      In this repository that is why `doc` needs `@repo/env`: nothing in doc's
+ *      In this repository that is why `doc` needs `@deployer/env`: nothing in doc's
  *      own closure declares it, but the root does.
  */
 @Injectable()
@@ -251,7 +251,7 @@ export class WorkspaceScanner {
             if (!parsed.success) return []
 
             return Object.keys(parsed.data.devDependencies ?? {}).filter(
-                (dep) => dep.startsWith('@repo/')
+                (dep) => dep.startsWith('@deployer/')
             )
         } catch {
             return []

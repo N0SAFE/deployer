@@ -2,7 +2,7 @@
 
 One build pipeline for every workspace package. Behaviour is declared in each
 package's own `pkg-build.config.ts`, type-checked through `defineConfig()` from
-`@repo/pkg-build/config`, so a package with unusual needs overrides
+`@deployer/pkg-build/config`, so a package with unusual needs overrides
 configuration instead of forking a script.
 
 ## Why
@@ -28,7 +28,7 @@ package already has) against a generated config.
 ## Usage
 
 Consumers execute the **built CLI**, by its `bin` name, not a path into
-`dist/`. `@repo/pkg-build` is a workspace devDependency, so the bin is linked
+`dist/`. `@deployer/pkg-build` is a workspace devDependency, so the bin is linked
 into the package's `node_modules/.bin` and `bun --bun pkg-build` resolves it —
 no `../../../tooling/bin-pkg-build/dist/cjs/main.js` in any manifest:
 
@@ -56,9 +56,9 @@ cwd-independent.
 
 Ordering is turbo's job, and it is declared, not incidental:
 
-- every consumer lists `@repo/pkg-build` in devDependencies (the normalizer
+- every consumer lists `@deployer/pkg-build` in devDependencies (the normalizer
   enforces it), so `^build` builds the CLI first;
-- the `build:types` task additionally depends on `@repo/pkg-build#build`, because
+- the `build:types` task additionally depends on `@deployer/pkg-build#build`, because
   its own `^build:types` edge only produces declarations.
 
 pkg-build builds itself: its `build`/`build:types`/`dev` scripts run
@@ -67,7 +67,7 @@ pkg-build builds itself: its `build`/`build:types`/`dev` scripts run
 - `build` — JS bundles + declarations.
 - `build:types` — declarations only (`dist/types/**`); the JS output is left
   untouched, which is what makes the task independently watchable. Turbo task is
-  `build:types` (`dependsOn: ["^build:types", "@repo/pkg-build#build"]`, outputs
+  `build:types` (`dependsOn: ["^build:types", "@deployer/pkg-build#build"]`, outputs
   `dist/types/**`).
 - `dev` — watch JS + declarations.
 - Root `watch:types` = `turbo watch build:types` keeps declarations current while
@@ -95,11 +95,13 @@ src/
 a fresh process, but the child only needs one service call. It resolves as a
 sibling of the current module in source and in the built trees.
 
-**Runtime output is ASCII-only.** Bun 1.4.2 mis-decodes non-ASCII string literals
-at runtime for files carrying its `// @bun` internal marker (a built bundle), so
-`▶`/`✔`/`✖` print as mojibake even though the file bytes are correct. Keep CLI
-output ASCII until that upstream behavior is fixed; the colored `>`/`ok`/`x`
-markers are deliberate.
+**Runtime output is ASCII-only.** The CLI's own markers (`>`, `ok`, `x`) are
+deliberate and stay that way: they are stable under any terminal, any locale, and
+any redirection. (The reason this was once mandatory is gone — bun 1.4.2
+mis-decoded non-ASCII string literals in files carrying its `// @bun` internal
+marker, so `▶`/`✔`/`✖` printed as mojibake. Verified fixed in 1.4.3: a minified
+bundle with the marker prints them correctly. ASCII remains a style choice, not a
+constraint.)
 
 ## Config defaults
 
@@ -163,6 +165,7 @@ consumer's mode.
 | `minify`    | `boolean`                                | mode × variant  | Minify output. Default: only prod mode × production variant.                          |
 | `sourcemap` | `"linked"\|"external"\|"inline"\|"none"` | mode × variant  | Sourcemap mode. Default: everything except prod mode × production variant.            |
 | `external`  | `string[]`                               | `[]`            | Extra specifiers to leave unbundled.                                                  |
+| `plugins`   | `BunPlugin[]`                            | `[]`            | Bundler plugins, applied to every `bun build` pass. See "Bundler plugins".            |
 | `copy`      | `{from,to}[]`                            | `[]`            | Extra assets copied into the output.                                                  |
 | `keepEnv`   | `boolean`                                | `true`          | Keep `process.env.X` a runtime lookup.                                                |
 | `types`     | `boolean`                                | `true`          | Emit `dist/types/**`. Set `false` only for a package that must not ship declarations. |
@@ -173,8 +176,8 @@ unrelated root files are not dragged in.
 
 Identifier mangling is deliberately not enabled. Several packages reflect on
 `constructor.name` (NestJS loggers, error classes), and bun's `minify.keepNames`
-does not preserve it under `identifiers` in 1.4.2 — the class name is renamed
-regardless (measured).
+does not preserve it under `identifiers` (measured: the class name is renamed
+regardless, on 1.4.2 and still on 1.4.3).
 
 Every source file is an entry, so `dist/` mirrors the source tree — which is what
 makes subpath exports such as `./react/session/client` resolve to a real file.
@@ -229,10 +232,10 @@ recursion emits as `ZodLazy<ZodType<unknown>>` and degrades the same way.
 value has a type larger than the compiler's serialization cap cannot emit
 declarations from inference. Two fixes, both used in this repo:
 
-- Split the value: `@repo/api-contracts` no longer exports a combined
+- Split the value: `@deployer/contracts-entities` no longer exports a combined
   `appContract`; each app composes the router locally where `declaration` is
   false (`apps/api/src/core/orpc/app-contract.ts`).
-- Annotate the return type: `@repo/auth` annotates plugin wrappers and factories
+- Annotate the return type: `@deployer/auth` annotates plugin wrappers and factories
   with `ReturnType<typeof …>` / `Auth<ReturnType<typeof createAuthConfig<…>>>`
   so declarations reference names instead of expanding the inference.
 
@@ -246,11 +249,11 @@ only when a package genuinely wants build-time substitution.
 
 ## Worked examples
 
-**Nested packages with root export** — `@repo/ui`:
+**Nested packages with root export** — `@deployer/ui`:
 
 ```ts
 // packages/ui/base/pkg-build.config.ts
-import { defineConfig } from '@repo/pkg-build/config'
+import { defineConfig } from '@deployer/pkg-build/config'
 
 export default defineConfig({
     root: 'src',
@@ -261,11 +264,11 @@ export default defineConfig({
 })
 ```
 
-**Bundled CLI** — `@repo/cli-declarative-routing` emits one flat CJS file for Node:
+**Bundled CLI** — `@deployer/cli-declarative-routing` emits one flat CJS file for Node:
 
 ```ts
 // tooling/bin-declarative-routing/pkg-build.config.ts
-import { defineConfig } from '@repo/pkg-build/config'
+import { defineConfig } from '@deployer/pkg-build/config'
 
 export default defineConfig({
     root: 'src',
@@ -279,11 +282,11 @@ export default defineConfig({
 })
 ```
 
-**Root-entry library** — `@repo/api-contracts` has no `src/`, so `root` is `"."`:
+**Root-entry library** — `@deployer/contracts-entities` has no `src/`, so `root` is `"."`:
 
 ```ts
 // packages/contracts/api/pkg-build.config.ts
-import { defineConfig } from '@repo/pkg-build/config'
+import { defineConfig } from '@deployer/pkg-build/config'
 
 export default defineConfig({
     root: '.',
@@ -295,12 +298,12 @@ export default defineConfig({
 })
 ```
 
-**CMS migration assets** — `@repo/nest-schema` copies a tree, and has JSX nowhere,
+**CMS migration assets** — `@deployer/nest-schema` copies a tree, and has JSX nowhere,
 so it ships the `production` variant alone:
 
 ```ts
 // packages/nest/schema/pkg-build.config.ts
-import { defineConfig } from '@repo/pkg-build/config'
+import { defineConfig } from '@deployer/pkg-build/config'
 
 export default defineConfig({
     root: 'src',
@@ -319,23 +322,31 @@ The canonical declarations watcher is the root `watch:types` script
 (`turbo watch build:types`), which only rebuilds packages whose inputs changed.
 
 In dev, packages are built into the image once
-(`turbo run build --filter=api... --filter=!api`), and the container then runs
+(`turbo run build --filter=@deployer/api... --filter=!@deployer/api`), and the container then runs
 `turbo watch dev --filter=<app>`. Watch mode reruns the `build` task of any
 workspace dependency whose sources change, keeping `dist/` current.
 
-Note the filter has **no trailing `...`**: `--filter=api` selects the app alone,
+Note the filter has **no trailing `...`**: `--filter=@deployer/api` selects the app alone,
 so exactly one `dev` process runs. The trailing-dot form would add a `dev`
 watcher inside every dependency instead. Packages therefore do not need to be
 watched individually — `^build` builds them, `turbo watch` keeps them current.
 
-## The one exception
+## Bundler plugins
 
-`@repo/config-eslint` keeps its own `build.ts`. It bundles a **pinned TypeScript 6**
-alongside the ESLint toolchain and redirects every `typescript` /
-`typescript/*` import to that copy via a custom esbuild plugin, so a consumer's
-TypeScript 7 can never be used by the bundled lint toolchain. That redirect is
-plugin logic `pkg-build` does not model; forcing it through the shared pipeline
-would mean adding a plugin-extension point for a single caller.
+`plugins` in the config is the escape hatch for the one thing a declarative
+config cannot express: **rewriting how a module resolves**.
+
+`@deployer/config-eslint` is the only package that needs it. It bundles a pinned
+TypeScript 6 alongside the ESLint toolchain and redirects every `typescript` /
+`typescript/*` import to that copy
+(`tooling/eslint/src/plugins/bundle-ts6-island.ts`), because `typescript-eslint@8`
+peer-requires `typescript <6.1.0` while every app in this repo compiles against
+TypeScript 7. A consumer's TS7 must never reach the bundled lint toolchain.
+
+Plugins are values, so they can only be set from `pkg-build.config.ts` (never
+from data), and they are applied to **every** `bun build` pass — a resolution
+rule that ran for one pass and not another would produce output that resolves two
+different TypeScripts.
 
 ## Conventions
 
@@ -348,7 +359,7 @@ would mean adding a plugin-extension point for a single caller.
 - **`types` must point at emitted declarations that avoid `@/`** in any module
   reachable through `exports` subpaths, because those files become part of the
   consumer's program. Package-internal imports must use the package's own name
-  (`@repo/<pkg>/<path>`) so resolution goes through `exports`, which is
+  (`@deployer/<pkg>/<path>`) so resolution goes through `exports`, which is
   per-package and therefore portable.
 - **Bundled apps/CLIs keep relative imports.** A single-entry bundle that imports
   itself by package name makes every internal module an _external_ dependency,

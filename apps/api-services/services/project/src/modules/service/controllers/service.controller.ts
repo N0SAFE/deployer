@@ -1,7 +1,7 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { serviceContract, servicePreviewTopologyContract } from "@deployer/api-contracts";
+import { serviceContract, servicePreviewTopologyContract } from "@deployer/project-contracts";
 import { ServiceService } from "../services/service.service";
 import { ServiceNetworkService } from "../services/service-network.service";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";

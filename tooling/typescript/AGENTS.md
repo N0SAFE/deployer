@@ -1,4 +1,4 @@
-# AGENTS.md — @repo/config-typescript
+# AGENTS.md — @deployer/config-typescript
 
 Shared TypeScript configurations.
 
@@ -17,7 +17,7 @@ Shared TypeScript configurations.
   `../../../../**/.tmp`, `../../../../**/test-results`,
   `../../../../**/graphify-out`, `../../../../**/.eslintcache`,
   `../../../../**/*.tsbuildinfo`.
-- Every consumer of `@repo/config-typescript/*` inherits the excludes
+- Every consumer of `@deployer/config-typescript/*` inherits the excludes
   **effectively**: TS resolves include/exclude relative to the file that
   declares them, and the `../../../../**/` prefix normalizes to repo-root-
   anchored globs that match every nested occurrence below the root, for any

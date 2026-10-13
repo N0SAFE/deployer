@@ -25,7 +25,7 @@ describe('utils', () => {
   describe('getPackageInfo', () => {
     it('should read package.json from correct path', () => {
       const mockPackageJson = {
-        name: '@repo/cli-declarative-routing',
+        name: '@deployer/cli-declarative-routing',
         version: '0.1.20'
       }
       
@@ -263,7 +263,7 @@ describe('utils', () => {
 
     it('should handle special characters', () => {
       expect(jsClean('test@123#abc')).toBe('test123abc')
-      expect(jsClean('@repo/ui-base')).toBe('repouiBase')
+      expect(jsClean('@deployer/ui-base')).toBe('repouiBase')
     })
 
     it('should preserve numbers', () => {

@@ -7,8 +7,8 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Observable } from "rxjs";
 import type { ClusterPlatformRole, ClusterSnapshot, ClusterNode, SwarmNodeResources, SwarmServiceRuntime, SwarmTaskRuntime, SwarmConfigView, SwarmParticipationInput } from "@deployer/contracts-entities";
-import { clusterNodeInventoryRowSchema } from "@deployer/api-contracts";
-import type { ClusterMasterView } from "@deployer/api-contracts";
+import { clusterNodeInventoryRowSchema } from "@deployer/fleet-contracts";
+import { type ClusterMasterView } from "@deployer/fleet-contracts";
 import { SwarmClusterService } from "@deployer/nest-swarm";
 import { SwarmFleetService } from "@deployer/nest-swarm";
 import { SwarmParticipationService } from "@deployer/nest-swarm";

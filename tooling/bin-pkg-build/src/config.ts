@@ -1,11 +1,11 @@
 /**
- * Public configuration surface for `@repo/pkg-build`.
+ * Public configuration surface for `@deployer/pkg-build`.
  *
  * Every package declares its build in `pkg-build.config.ts` at the package root
  * through the `defineConfig()` helper:
  *
  * ```ts
- * import { defineConfig } from '@repo/pkg-build/config'
+ * import { defineConfig } from '@deployer/pkg-build/config'
  *
  * export default defineConfig({
  *     root: 'src',
@@ -18,13 +18,14 @@
  * derived from it, so they cannot drift.
  *
  * A runtime import is safe even for the builder's own config: from inside this
- * package the `@repo/pkg-build/config` specifier resolves through tsconfig
+ * package the `@deployer/pkg-build/config` specifier resolves through tsconfig
  * `paths` to this file, and from a consuming package it resolves through the
  * installed workspace link to `dist/` — which already has to exist, because the
  * package's `build` script invokes the built CLI.
  */
 
 import zod from 'zod/v4'
+import type { BunPlugin } from 'bun'
 
 /** Emitted module formats. `false` emits no JavaScript at all (types only). */
 export const formatSchema = zod.enum(['esm', 'cjs'])
@@ -164,6 +165,24 @@ export const pkgBuildConfigSchema = zod
          * @default []
          */
         external: zod.array(zod.string().min(1)).optional(),
+
+        /**
+         * Bundler plugins, applied to every `bun build` pass.
+         *
+         * The escape hatch for the one thing a declarative config cannot express:
+         * rewriting how a MODULE resolves. `@deployer/config-eslint` needs it
+         * because `typescript-eslint@8` peer-requires `typescript <6.1.0` while
+         * every app in this repo compiles against TypeScript 7 — so the plugin
+         * redirects `typescript` and `typescript/*` to the workspace's own TS6
+         * copy, which is what keeps the lint toolchain off the app's compiler.
+         *
+         * Functions, so this can only be set from `pkg-build.config.ts` (never
+         * from data). Typed as `BunPlugin` rather than a structural clone so the
+         * `onResolve`/`onLoad` signatures stay the bundler's own.
+         *
+         * @default []
+         */
+        plugins: zod.array(zod.custom<BunPlugin>()).optional(),
 
         /**
          * Asset trees to copy into the output, variant-independent.
