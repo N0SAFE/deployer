@@ -49,16 +49,17 @@ function makeRegistry() {
 	});
 
 	// The link is built inside the registry, so the stub replaces the global fetch it
-	// calls. The link's own signature accepts `RequestInfo | URL`; this narrower one
-	// matches, so no cast is needed.
-	const original = globalThis.fetch;
-	globalThis.fetch = (request: RequestInfo | URL) => {
+	// calls. Cast to `typeof fetch` so the stub keeps the real signature — a narrower
+	// `(RequestInfo | URL) => Promise<Response>` does not satisfy it, because the fetch
+	// type also carries `preconnect`.
+	const original: typeof fetch = globalThis.fetch;
+	globalThis.fetch = ((request: RequestInfo | URL) => {
 		const url = typeof request === "string" ? request : (request as { url: string }).url;
 		requested.push(url);
 		return Promise.resolve(
 			new Response("{}", { status: 200, headers: { "content-type": "application/json" } }),
 		);
-	};
+	}) as typeof fetch;
 
 	return { registry, requested, restore: () => void (globalThis.fetch = original) };
 }
