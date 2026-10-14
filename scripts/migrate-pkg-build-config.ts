@@ -18,7 +18,7 @@ const ROOT = path.resolve(import.meta.dir, '..')
 const CONFIG_FILE = 'pkg-build.config.ts'
 const LEGACY_KEY = 'pkgBuild'
 
-/** Keys in the order `defineConfig()` output reads best. */
+/** Keys in the order `build()` output reads best. */
 const KEY_ORDER = [
     'root',
     'entries',
@@ -85,7 +85,7 @@ function orderKeys(block: Record<string, Json>): Record<string, Json> {
 
 function writeConfig(pkgDir: string, block: Record<string, Json>): void {
     const body = render(orderKeys(block), 0)
-    const file = `import { defineConfig } from '@repo/pkg-build/config'\n\n/** Build configuration for \`${readName(pkgDir)}\`. */\nexport default defineConfig(${body})\n`
+    const file = `import { build } from '@deployer/pkg-build/config'\n\n/** Build configuration for \`${readName(pkgDir)}\`. */\nexport default build(${body})\n`
     fs.writeFileSync(path.join(pkgDir, CONFIG_FILE), file)
 }
 
@@ -99,7 +99,7 @@ function readName(pkgDir: string): string {
 /**
  * Does any script invoke the pkg-build CLI?
  *
- * Any script, not just `build`: `@repo/config-eslint` is a hybrid — its JS build
+ * Any script, not just `build`: `@deployer/config-eslint` is a hybrid — its JS build
  * is a custom bundler (pinned TypeScript 6) but its declarations pass goes
  * through pkg-build, so it still needs a config file.
  */
@@ -120,11 +120,11 @@ function usesPkgBuild(pkgDir: string): boolean {
  *
  * The file is not decoration: it is the only place the build surface is
  * discoverable from the package root, and it is what `type-check` reads to prove
- * the config parses. An empty `defineConfig({})` reproduces exactly what the
- * package got from the implicit defaults.
+ * the config parses. An empty `build({})` reproduces exactly what the package got
+ * from the implicit defaults.
  */
 function scaffoldConfig(pkgDir: string): void {
-    const file = `import { defineConfig } from '@repo/pkg-build/config'\n\n/** Build configuration for \`${readName(pkgDir)}\` — defaults apply. */\nexport default defineConfig({})\n`
+    const file = `import { build } from '@deployer/pkg-build/config'\n\n/** Build configuration for \`${readName(pkgDir)}\` — defaults apply. */\nexport default build({})\n`
     fs.writeFileSync(path.join(pkgDir, CONFIG_FILE), file)
 }
 

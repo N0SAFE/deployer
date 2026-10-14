@@ -1,7 +1,7 @@
-import { defineConfig } from '@repo/pkg-build/config'
+import { build } from '@deployer/pkg-build/config'
 
-/** Build configuration for `@repo/api-contracts`. */
-export default defineConfig({
+/** Build configuration for `@deployer/bff-contracts`. */
+export default build({
     root: '.',
     entries: ['index.ts'],
     formats: ['esm'],

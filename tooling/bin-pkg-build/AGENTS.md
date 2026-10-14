@@ -1,9 +1,10 @@
 # pkg-build — shared configurable package builder
 
 One build pipeline for every workspace package. Behaviour is declared in each
-package's own `pkg-build.config.ts`, type-checked through `defineConfig()` from
-`@deployer/pkg-build/config`, so a package with unusual needs overrides
-configuration instead of forking a script.
+package's own `pkg-build.config.ts`, and that file **is the build's entry point**:
+it calls `build()` from `@deployer/pkg-build/config`, which declares the config and
+runs the pipeline. A package with unusual needs overrides configuration instead of
+forking a script.
 
 ## Why
 
@@ -27,10 +28,9 @@ package already has) against a generated config.
 
 ## Usage
 
-Consumers execute the **built CLI**, by its `bin` name, not a path into
-`dist/`. `@deployer/pkg-build` is a workspace devDependency, so the bin is linked
-into the package's `node_modules/.bin` and `bun --bun pkg-build` resolves it —
-no `../../../tooling/bin-pkg-build/dist/cjs/main.js` in any manifest:
+Consumers run the config, by the builder's `bin` name, not a path into `dist/`.
+`@deployer/pkg-build` is a workspace devDependency, so the bin is linked into the
+package's `node_modules/.bin` and `bun --bun pkg-build` resolves it:
 
 ```json
 {
@@ -46,23 +46,27 @@ The **mode** is inferred from `NODE_ENV`; `--mode=dev|prod` overrides it. An
 unqualified `build` therefore leaves `NODE_ENV` alone, and the prod images get
 minified output because they set `NODE_ENV=production` before `turbo run build`.
 
-Why the built artifact and not `src/main.ts`? Bun resolves `tsconfig.json` from
-the **process cwd**, and the CLI runs with the consuming package as cwd. A
-consumer tsconfig without `experimentalDecorators` makes the CLI's
-`@RootCommand()`/`@Option()` decorators run through the TC39 path
-(`descriptor.value` is `undefined`). `--tsconfig-override` does not fix it
-(measured). The built bundle has the decorators already transformed, so it is
-cwd-independent.
+Why a config entry point and not a bare flag-only CLI? The config is where the
+build is declared, so naming `build()` in it makes the intent explicit and gives
+the builder one execution path — no guessing which files at the package root are
+a build. The bin is a tiny committed launcher (`bin/pkg-build.mjs`, `node:*`
+imports only) so the link always resolves; it lazy-imports the NestJS CLI, which
+reads the config.
 
-Ordering is turbo's job, and it is declared, not incidental:
+Bun resolves `tsconfig.json` from the **process cwd**, and the build target is
+also the cwd, so the launcher passes the builder's own tsconfig with
+`--tsconfig-override` instead of moving the cwd. That gives bun the decorator
+settings and the `paths` map back to `src/config.ts` — without it, a config
+cannot resolve `@deployer/pkg-build/config` before the package is built — while
+leaving the build pointed at the consumer that asked. `--cwd` would hijack the
+target and silently rebuild the builder itself.
 
-- every consumer lists `@deployer/pkg-build` in devDependencies (the normalizer
-  enforces it), so `^build` builds the CLI first;
-- the `build:types` task additionally depends on `@deployer/pkg-build#build`, because
-  its own `^build:types` edge only produces declarations.
+Ordering is turbo's job, and it is declared, not incidental: every consumer lists
+`@deployer/pkg-build` in devDependencies (the normalizer enforces it), so `^build`
+and `^build:types` order the builder ahead of its consumers.
 
-pkg-build builds itself: its `build`/`build:types`/`dev` scripts run
-`src/main.ts` (cwd is the package itself, so its own tsconfig applies).
+pkg-build builds itself through the same path: its `build`/`build:types`/`dev`
+scripts run `pkg-build.config.ts` (cwd is the package itself).
 
 - `build` — JS bundles + declarations.
 - `build:types` — declarations only (`dist/types/**`); the JS output is left
@@ -73,27 +77,56 @@ pkg-build builds itself: its `build`/`build:types`/`dev` scripts run
 - Root `watch:types` = `turbo watch build:types` keeps declarations current while
   editing. It is a root `package.json` script, not a turbo task.
 
-## CLI architecture
+## Structure
 
-NestJS + nest-commander, one root command so call sites stay flag-only:
+The CLI is NestJS + nest-commander, one root command so call sites stay
+flag-only. `main.ts` owns the process and imports the command graph lazily,
+because the same pipeline is reached three ways: from the bin, from a config's
+`build()` call, and from the variant child.
 
 ```
+bin/
+  pkg-build.mjs                  committed launcher: lazy-imports the CLI
 src/
-  main.ts                        bootstrap: CommandFactory.run(AppModule)
-  app.module.ts                  providers: config service, builder, command
+  main.ts                        process entry: main(argv) + `run`
+  app.module.ts                  command graph for the cwd's package
+  cli.ts                         command graph for a config already in hand
+  cli-runtime.ts                 shared options + argv-install-and-run
   commands/
-    pkg-build.command.ts         @RootCommand + -w/--watch, -t/--types
+    pkg-build.command.ts         @RootCommand + -w/--watch, -t/--types, -m/--mode
+  config.ts                      public surface: schema, types, defineConfig, build
   services/
-    pkg-config.service.ts        package.json -> effective config, entries, layout
+    pkg-config.service.ts        package.json + config -> effective config, entries, layout
     pkg-builder.service.ts       bun build passes, tsc declarations, watch
   variant-child.ts               NODE_ENV-specific entry, spawned per JSX variant
   utils/                         colors, die, JSONC reader, fs walker
 ```
 
-`src/variant-child.ts` deliberately does not boot Nest: `bun build` samples
-`NODE_ENV` at process start to pick the React JSX runtime, so each variant needs
-a fresh process, but the child only needs one service call. It resolves as a
-sibling of the current module in source and in the built trees.
+Two modules rather than one with a conditional provider: the two ways to run
+differ only in where the config comes from (this process loaded it, or the cwd is
+named by it), and two providers for one token is the ambiguity NestJS resolves by
+declaration order. `AppModule` builds the config from the cwd; `RunBuildModule`
+receives one already resolved.
+
+`build()` runs only when the config file IS the process entry point, and it
+detects that by comparing `Bun.main` against the config basenames — not
+`import.meta.main`, which reports on the module it is written in (`config.ts`)
+and is therefore always `false` for a config calling it. The check must be
+per-process rather than per-module because the **variant child re-imports the
+config** to read the declaration; an import that re-ran the build would recurse.
+That import is also why `build()` pulls the CLI in with a dynamic `import()`: the
+module every config imports must not drag in NestJS.
+
+`src/variant-child.ts` is a dedicated entry (`bun build` samples `NODE_ENV` at
+process start to pick the React JSX runtime, so each variant needs a fresh
+process) but only needs one service call, so it builds the services directly
+rather than booting Nest. It resolves as a sibling of the current module in
+source and in the built trees.
+
+Why the CLI is built, not run from source: NestJS relies on
+`emitDecoratorMetadata`, which a source file only gets from a tsconfig carrying
+`experimentalDecorators`. The launcher prefers `dist/cjs/main.js` and falls back
+to `src/main.ts` under `--tsconfig-override` so a cold checkout still builds.
 
 **Runtime output is ASCII-only.** The CLI's own markers (`>`, `ok`, `x`) are
 deliberate and stay that way: they are stable under any terminal, any locale, and
@@ -253,9 +286,9 @@ only when a package genuinely wants build-time substitution.
 
 ```ts
 // packages/ui/base/pkg-build.config.ts
-import { defineConfig } from '@deployer/pkg-build/config'
+import { build } from '@deployer/pkg-build/config'
 
-export default defineConfig({
+export default build({
     root: 'src',
     include: ['components', 'hooks', 'lib'],
     entries: ['index.ts'],
@@ -268,9 +301,9 @@ export default defineConfig({
 
 ```ts
 // tooling/bin-declarative-routing/pkg-build.config.ts
-import { defineConfig } from '@deployer/pkg-build/config'
+import { build } from '@deployer/pkg-build/config'
 
-export default defineConfig({
+export default build({
     root: 'src',
     entries: ['index.ts'],
     formats: ['cjs'],
@@ -286,9 +319,9 @@ export default defineConfig({
 
 ```ts
 // packages/contracts/api/pkg-build.config.ts
-import { defineConfig } from '@deployer/pkg-build/config'
+import { build } from '@deployer/pkg-build/config'
 
-export default defineConfig({
+export default build({
     root: '.',
     entries: ['index.ts'],
     formats: ['esm'],
@@ -303,9 +336,9 @@ so it ships the `production` variant alone:
 
 ```ts
 // packages/nest/schema/pkg-build.config.ts
-import { defineConfig } from '@deployer/pkg-build/config'
+import { build } from '@deployer/pkg-build/config'
 
-export default defineConfig({
+export default build({
     root: 'src',
     copy: [{ from: 'migrations', to: 'dist/migrations' }],
 })

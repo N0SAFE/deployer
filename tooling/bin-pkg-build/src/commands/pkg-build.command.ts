@@ -17,6 +17,11 @@ import type { BuildMode } from '../config'
  *     pkg-build --types         declarations only (`build:types`)
  *     pkg-build --watch         rebuild on change (`dev`)
  *     pkg-build --mode=dev      unminified JS + sourcemaps (implied by NODE_ENV)
+ *
+ * The flags stay flags rather than becoming config keys on purpose: the same
+ * config is built three ways (JS+types, `build:types`, `dev` watch), so which
+ * half to run is a property of the *invocation*, not of the package. Moving them
+ * into the config would need three configs per package to express one pipeline.
  */
 @RootCommand({
     name: 'pkg-build',

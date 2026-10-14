@@ -1,7 +1,7 @@
-import { defineConfig } from '@deployer/pkg-build/config'
+import { build } from '@deployer/pkg-build/config'
 
 /** Build configuration for `@deployer/contracts-entities` — defaults apply. */
-export default defineConfig({
+export default build({
     // Node programs load this package's CJS, so the output must be real CJS.
     // The default `bun` target emits an IIFE wrapper that Node evaluates without
     // exporting anything, so every symbol arrives `undefined` instead of failing.

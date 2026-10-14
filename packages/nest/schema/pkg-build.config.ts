@@ -1,7 +1,7 @@
-import { defineConfig } from '@deployer/pkg-build/config'
+import { build } from '@deployer/pkg-build/config'
 
 /** Build configuration for `@deployer/nest-schema`. */
-export default defineConfig({
+export default build({
     target: 'node',
     root: 'src',
     copy: [

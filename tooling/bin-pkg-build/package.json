@@ -8,22 +8,16 @@
         "pkg-build": "./bin/pkg-build.mjs"
     },
     "exports": {
-        ".": {
-            "types": "./dist/types/main.d.ts",
-            "import": "./dist/esm/main.mjs",
-            "require": "./dist/cjs/main.js"
-        },
         "./config": {
             "types": "./dist/types/config.d.ts",
-            "import": "./dist/esm/config.mjs",
-            "require": "./dist/cjs/config.js"
+            "import": "./src/config.ts",
+            "default": "./src/config.ts"
         }
     },
     "scripts": {
-        "build": "bun --bun src/main.ts",
-        "build:types": "bun --bun src/main.ts --types",
-        "dev": "bun --bun src/main.ts --watch",
-        "start": "bun --bun dist/cjs/main.js",
+        "build": "bun --bun pkg-build.config.ts",
+        "build:types": "bun --bun pkg-build.config.ts --types",
+        "dev": "bun --bun pkg-build.config.ts --watch",
         "prettify": "prettier . --write --no-error-on-unmatched-pattern",
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",

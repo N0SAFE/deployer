@@ -1,6 +1,6 @@
 ---
 title: Internal Packages & Monorepo Model
-description: How @repo/* packages map to workspace paths, dependency flow, and safe cross-package change workflow.
+description: How @deployer/* packages map to workspace paths, dependency flow, and safe cross-package change workflow.
 order: 4
 ---
 
@@ -9,7 +9,7 @@ order: 4
 ## The two names model
 
 - **Physical path**: where code lives (example: `packages/contracts/api`).
-- **Import name**: what apps import (example: `@repo/api-contracts`).
+- **Import name**: what apps import (example: `@deployer/contracts-entities`).
 
 Both are expected and intentionally different.
 
@@ -27,24 +27,24 @@ Both are expected and intentionally different.
 
 | Import name | Physical path |
 | --- | --- |
-| `@repo/api-contracts` | `packages/contracts/api` |
-| `@repo/contracts-entities` | `packages/contracts/entities` |
-| `@repo/auth` | `packages/auth` |
-| `@repo/orpc-utils` | `packages/transport/orpc` |
-| `@repo/errors` | `packages/utils/errors` |
-| `@repo/logger` | `packages/infrastructure/logger` |
-| `@repo/declarative-routing` | `packages/routing/declarative` |
-| `@repo/env` | `packages/config/env` |
-| `@repo/ui` | `packages/ui/base` |
-| `@repo/nest-env` | `packages/nest/env` |
-| `@repo/nest-schema` | `packages/nest/schema` |
-| `@repo/nest-database-core` | `packages/nest/database-core` |
-| `@repo/nest-database-local` | `packages/nest/database-local` |
-| `@repo/nest-docker` | `packages/nest/docker` |
-| `@repo/nest-nodes` | `packages/nest/nodes` |
-| `@repo/nest-supervisor-core` | `packages/nest/supervisor-core` |
-| `@repo/nest-lifecycle` | `packages/nest/lifecycle` |
-| `@repo/nest-events` | `packages/nest/events` |
+| `@deployer/contracts-entities` | `packages/contracts/api` |
+| `@deployer/contracts-entities` | `packages/contracts/entities` |
+| `@deployer/auth` | `packages/auth` |
+| `@deployer/orpc-utils` | `packages/transport/orpc` |
+| `@deployer/errors` | `packages/utils/errors` |
+| `@deployer/logger` | `packages/infrastructure/logger` |
+| `@deployer/declarative-routing` | `packages/routing/declarative` |
+| `@deployer/env` | `packages/config/env` |
+| `@deployer/ui` | `packages/ui/base` |
+| `@deployer/nest-env` | `packages/nest/env` |
+| `@deployer/nest-schema` | `packages/nest/schema` |
+| `@deployer/nest-database-core` | `packages/nest/database-core` |
+| `@deployer/nest-database-local` | `packages/nest/database-local` |
+| `@deployer/nest-docker` | `packages/nest/docker` |
+| `@deployer/nest-nodes` | `packages/nest/nodes` |
+| `@deployer/nest-supervisor-core` | `packages/nest/supervisor-core` |
+| `@deployer/nest-lifecycle` | `packages/nest/lifecycle` |
+| `@deployer/nest-events` | `packages/nest/events` |
 
 ## The `packages/nest/*` family
 
@@ -66,7 +66,7 @@ These are pre-wired NestJS building blocks shared between the Nest apps (`api`,
 
 Two consequences worth knowing before you add code:
 
-- **No package names a platform service.** `@repo/nest-docker` knows HOW to schedule
+- **No package names a platform service.** `@deployer/nest-docker` knows HOW to schedule
 a swarm service; the supervisor topology table (which services exist, on how many
 nodes) stays in the app, because naming our ingress/redis/database is a platform
 decision. The same applies to `PLATFORM_SUPERVISOR_TOPOLOGY` versus the generic
@@ -125,20 +125,20 @@ package's `dist/`:
 
 ```ts
 // packages/<name>/pkg-build.config.ts
-import { defineConfig } from '@repo/pkg-build/config'
+import { build } from '@deployer/pkg-build/config'
 
-export default defineConfig({
+export default build({
     root: 'src',
     include: ['components', 'hooks'],
 })
 ```
 
-Every key is optional; `defineConfig({})` means "defaults apply". The config is
+Every key is optional; `build({})` means "defaults apply". The config is
 validated against a Zod schema (unknown keys fail the build) and is part of the
 package's TS program, so a misspelled key fails `type-check` with a suggestion
-rather than being silently ignored. `@repo/pkg-build/config` exports the
-`defineConfig` helper, the `PkgBuildConfig` type, and the schema. See
-`tooling/bin-pkg-build/AGENTS.md` for the full key reference.
+rather than being silently ignored. `@deployer/pkg-build/config` exports the
+`build()` entry point, the `defineConfig()` declarer, the `PkgBuildConfig` type,
+and the schema. See `tooling/bin-pkg-build/AGENTS.md` for the full key reference.
 
 Two declaration-emit rules follow from the above, both documented in
 `tooling/bin-pkg-build/AGENTS.md`:
@@ -146,7 +146,7 @@ Two declaration-emit rules follow from the above, both documented in
 - Recursive Zod schemas must use named recursive interfaces (`z.ZodType<…>`);
   anonymous self-references are emitted as `any`.
 - Values whose inferred type exceeds TypeScript's serialization limit (TS7056)
-  must be split or explicitly annotated. `@repo/api-contracts` exports each
+  must be split or explicitly annotated. `@deployer/contracts-entities` exports each
   module contract and lets each app compose the full router locally
   (`apps/api/src/core/orpc/app-contract.ts`).
 

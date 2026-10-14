@@ -1,4 +1,4 @@
-import { defineConfig } from '@repo/pkg-build/config'
+import { build } from '@deployer/pkg-build/config'
 
-/** Build configuration for `@repo/vite-assets` — defaults apply. */
-export default defineConfig({})
+/** Build configuration for `@deployer/vite-assets` — defaults apply. */
+export default build({})

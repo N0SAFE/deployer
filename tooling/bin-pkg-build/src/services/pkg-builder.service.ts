@@ -15,7 +15,6 @@ export interface PkgBuildRunOptions {
     /** Build target. Defaults to the mode `NODE_ENV` implies. */
     mode?: BuildMode
 }
-
 /**
  * The build mode `NODE_ENV` implies.
  *

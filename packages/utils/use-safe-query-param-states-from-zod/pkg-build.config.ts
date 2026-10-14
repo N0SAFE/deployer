@@ -1,4 +1,4 @@
-import { defineConfig } from '@repo/pkg-build/config'
+import { build } from '@deployer/pkg-build/config'
 
-/** Build configuration for `@repo/use-safe-query-param-states-from-zod` — defaults apply. */
-export default defineConfig({})
+/** Build configuration for `@deployer/use-safe-query-param-states-from-zod` — defaults apply. */
+export default build({})

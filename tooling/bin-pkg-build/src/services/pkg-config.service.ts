@@ -102,16 +102,34 @@ export class PkgConfigService {
         pkgRoot: string = process.cwd()
     ): Promise<PkgConfigService> {
         const service = new PkgConfigService(pkgRoot)
-        const authored = await service.loadAuthoredConfig()
-        service.config = service.resolveConfig(authored)
-        service.rootDir = path.resolve(pkgRoot, service.config.root)
-        service.distDir = path.resolve(pkgRoot, service.config.outDir)
-        service.typesDir = path.join(service.distDir, 'types')
-        service.typesTsconfig = path.join(
-            pkgRoot,
+        return service.init(await service.loadAuthoredConfig())
+    }
+
+    /**
+     * Configuration already in hand.
+     *
+     * Used by `build()`, which IS the config file: it holds the declaration and
+     * must not re-import its own module to read it back. The variant child uses
+     * `create`, because it has to load the file to see the declaration.
+     */
+    static fromAuthored(
+        authored: PkgBuildConfig,
+        pkgRoot: string = process.cwd()
+    ): PkgConfigService {
+        return new PkgConfigService(pkgRoot).init(authored)
+    }
+
+    /** Derive the resolved config and the directory layout from a declaration. */
+    private init(authored: PkgBuildConfig): this {
+        this.config = this.resolveConfig(authored)
+        this.rootDir = path.resolve(this.pkgRoot, this.config.root)
+        this.distDir = path.resolve(this.pkgRoot, this.config.outDir)
+        this.typesDir = path.join(this.distDir, 'types')
+        this.typesTsconfig = path.join(
+            this.pkgRoot,
             '.pkg-build-types.tsconfig.json'
         )
-        return service
+        return this
     }
 
     /**
@@ -182,7 +200,7 @@ export class PkgConfigService {
         }
         if (module.default === undefined) {
             die(
-                `${path.relative(this.pkgRoot, file)} must have a default export (write \`export default defineConfig({ … })\`)`
+                `${path.relative(this.pkgRoot, file)} must have a default export (write \`export default build({ … })\`)`
             )
         }
         return module.default

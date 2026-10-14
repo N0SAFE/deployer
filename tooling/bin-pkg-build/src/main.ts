@@ -1,38 +1,35 @@
 #!/usr/bin/env bun
-import 'reflect-metadata'
-
 import { CommandFactory } from 'nest-commander'
 
 import { AppModule } from './app.module'
+import { run } from './cli-runtime'
 import { c } from './utils/colors'
 
 /**
- * CLI bootstrap.
+ * The `pkg-build` CLI, running from the process cwd.
  *
- * `logger: false` because the builder's own output (colored progress lines and
- * raw compiler output) is the UX; Nest's logger would only prefix it. The
- * explicit `process.exit(0)` is required because the Nest application context
- * can keep handles open after the command resolves.
+ * This is the path that does not already hold a config: the cwd names the
+ * package, and `PkgConfigService` imports the config from it. Exported as
+ * `main(argv)` so the bin can hand the arguments over explicitly — the CLI is a
+ * library entry with a process wrapper around it, not a script that only works
+ * as one.
  */
-async function main(): Promise<void> {
-    await CommandFactory.run(AppModule, {
-        cliName: 'pkg-build',
-        logger: false,
-        errorHandler: (error: Error) => {
-            // commander signals `--help`/`--version` by throwing; that is success.
-            if ('code' in error && error.code === 'commander.helpDisplayed') {
-                process.exit(0)
-            }
-            console.error(`${c.red('x')} ${error.message}`)
-            process.exit(1)
-        },
-    })
-    process.exit(0)
+export async function main(
+    argv: string[] = process.argv.slice(2)
+): Promise<never> {
+    return run(AppModule, argv)
 }
 
-void main().catch((error: unknown) => {
-    console.error(
-        `${c.red('x')} ${error instanceof Error ? error.message : String(error)}`
-    )
-    process.exit(1)
-})
+/**
+ * Run when this file IS the process entry point: the source fallback, which is
+ * also how the package builds itself. When the bin imports the built `main.js`
+ * to call `main` itself, this stays inert.
+ */
+if (import.meta.main) {
+    void main().catch((error: unknown) => {
+        console.error(
+            `${c.red('x')} ${error instanceof Error ? error.message : String(error)}`
+        )
+        process.exit(1)
+    })
+}

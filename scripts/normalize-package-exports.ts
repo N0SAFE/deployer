@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Normalize every package's `exports` to the `@repo/ui` shape, idempotently.
+ * Normalize every package's `exports` to the `@deployer/ui` shape, idempotently.
  *
  * Target shape:
  *   ".":    { types: "./dist/types/index.d.ts",
@@ -43,7 +43,7 @@ const ROOT_ENTRY_PACKAGES = new Set(['packages/contracts/api']);
 const TOOL_PACKAGES = new Set(['tooling/bin-pkg-build']);
 
 /**
- * The CLI's bin name, as declared in `@repo/pkg-build`'s `bin` map.
+ * The CLI's bin name, as declared in `@deployer/pkg-build`'s `bin` map.
  *
  * Invocations are rewritten to call it by name so the caller never encodes the
  * builder's internal `dist/` layout, and the path cannot rot when either package
@@ -63,8 +63,8 @@ const PKG_BUILD_BIN = 'pkg-build';
  * builder's CLI.
  *
  * `src/main.ts` is deliberately NOT matched: several packages have their own
- * `src/main.ts`, and the builder itself must keep running from source (it cannot
- * invoke its own bin before that bin has been built).
+ * `src/main.ts`, and the builder's own entry is now its config like everyone
+ * else's, so there is no source path belonging to the builder alone.
  */
 function rewritePkgBuildInvocation(script: string): string | null {
     if (/bin-pkg-build\//.test(script)) {
@@ -277,7 +277,7 @@ for (const rel of [
 
     // Every package that uses pkg-build gets an explicit workspace dependency on
     // the builder, and its `pkg-build.config.ts` joined to the TS program. The
-    // dependency is what lets turbo order `@repo/pkg-build#build` before any
+    // dependency is what lets turbo order `@deployer/pkg-build#build` before any
     // consumer task — consumers execute the built CLI, because bun resolves
     // tsconfig from the CWD and running the CLI source under a consumer's
     // tsconfig silently drops its decorators.
@@ -289,9 +289,8 @@ for (const rel of [
     //
     // Every such path is rewritten, in every script, unconditionally. Deriving
     // `build:types` is the narrower operation: it is only correct when `build`
-    // itself runs the CLI. `@repo/config-eslint` is the hybrid case — custom
-    // bundler for JS, pkg-build for declarations — so its `build:types` is
-    // authored around its own `build`, not regenerated from it.
+    // itself runs the CLI, so a package that builds some other way keeps its
+    // authored `build:types`.
     const scripts = (manifest.scripts ?? {}) as Record<string, string>;
     for (const [name, script] of Object.entries(scripts)) {
         if (typeof script !== 'string') continue;
@@ -303,7 +302,7 @@ for (const rel of [
     );
     if (usesPkgBuild) {
         // Derived task, regenerated from `build` — but only when `build` is the
-        // CLI itself. A hybrid package authors its own `build:types`.
+        // CLI itself.
         if (
             typeof scripts.build === 'string' &&
             rewritePkgBuildInvocation(scripts.build) !== null
@@ -312,8 +311,8 @@ for (const rel of [
         }
         manifest.scripts = scripts;
         const devDependencies = (manifest.devDependencies ?? {}) as Record<string, string>;
-        if (devDependencies['@repo/pkg-build'] === undefined) {
-            devDependencies['@repo/pkg-build'] = '*';
+        if (devDependencies['@deployer/pkg-build'] === undefined) {
+            devDependencies['@deployer/pkg-build'] = '*';
             manifest.devDependencies = devDependencies;
         }
         // `pkg-build.config.ts` must be part of the package's TS program, or the

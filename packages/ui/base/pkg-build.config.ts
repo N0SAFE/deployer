@@ -1,7 +1,7 @@
-import { defineConfig } from '@repo/pkg-build/config'
+import { build } from '@deployer/pkg-build/config'
 
-/** Build configuration for `@repo/ui`. */
-export default defineConfig({
+/** Build configuration for `@deployer/ui`. */
+export default build({
     root: 'src',
     entries: ['index.ts'],
     include: ['components', 'hooks', 'lib'],

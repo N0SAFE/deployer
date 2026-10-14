@@ -257,6 +257,71 @@ export function defineConfig(config: PkgBuildConfig): PkgBuildConfig {
     return config
 }
 
+/**
+ * Declare a package's build **and run it**.
+ *
+ * The entry point of `pkg-build.config.ts`: the config is not inert data, it is
+ * the program the `pkg-build` bin executes.
+ *
+ * ```ts
+ * import { build } from '@deployer/pkg-build/config'
+ *
+ * export default build({
+ *     root: 'src',
+ *     include: ['components'],
+ * })
+ * ```
+ *
+ * `export default` is what lets a consumer of the file — the variant child, a
+ * test — read the declaration back. The value is the authored config, returned
+ * synchronously, so importing a config stays side-effect free unless the module
+ * is the process entry point.
+ *
+ * The build itself starts only when the file IS that entry point. Both the
+ * builder and the CLI are pulled in with a dynamic `import()` at that moment,
+ * which is what keeps this module — the one every config imports, and the one
+ * the variant child re-imports just to read a declaration — free of the bundler,
+ * the compiler and the NestJS DI graph.
+ *
+ * Run flags (`--watch`, `--types`, `--mode`) are read from the process arguments
+ * by the CLI; see `PkgBuildRunOptions` for why they are not config keys.
+ */
+export function build(config: PkgBuildConfig): PkgBuildConfig {
+    if (isConfigEntryPoint()) {
+        queueMicrotask(() => {
+            void import('./cli')
+                .then(({ runCli }) => runCli(config, process.argv.slice(2)))
+                .catch((error: unknown) => {
+                    // `die` already exits on the expected failures; anything
+                    // reaching here is a bug in the builder.
+                    const message =
+                        error instanceof Error ? error.message : String(error)
+                    process.stderr.write(`x ${message}\n`)
+                    process.exit(1)
+                })
+        })
+    }
+    return config
+}
+
+/**
+ * Is THIS process running a package's config, rather than merely importing one?
+ *
+ * `import.meta.main` cannot answer this: it is a property of the module it is
+ * written in, and `build()` lives here, not in the config file. It would be
+ * `false` for every real build — the config is the entry point, this module is
+ * its import — so a config calling `build()` would silently do nothing.
+ *
+ * The process entry point is the reliable signal. The builder runs a config
+ * (`Bun.main` is `pkg-build.config.ts`); the variant child and any test that
+ * imports a config have an entry point of their own, so `Bun.main` names
+ * something else. A config can therefore be imported freely from anywhere and
+ * only builds when it is what the process actually ran.
+ */
+function isConfigEntryPoint(): boolean {
+    return CONFIG_FILE_NAMES.some((name) => Bun.main.endsWith(name))
+}
+
 /** Config file basenames probed at the package root, in priority order. */
 export const CONFIG_FILE_NAMES = [
     'pkg-build.config.ts',
