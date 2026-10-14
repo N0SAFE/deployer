@@ -153,3 +153,70 @@ Commands and their results are recorded per commit. The invariant used throughou
 `drizzle-kit` must still see the **identical 92-table schema**, and it does.
 
 `bun run check` final result is appended below when the run completes.
+
+---
+
+## 7. State at end of the follow-up session
+
+### Suites
+
+| app | result |
+|---|---|
+| `identity` | **64/64** |
+| `project` | **127/127** |
+| `fleet` | **142/142** (18/18 files) |
+| `health` | **6/6** |
+| `bff` | **36/36** |
+| `runtime` | 273 passing, 2 e2e files blocked (below) |
+
+### Bugs fixed in this session
+
+1. **The e2e harness never forwarded real request headers.** `overrideProvider(REQUEST)`
+   substitutes one static object for the whole test module, so any middleware reading a
+   header off `context.request` saw the synthetic bootstrap request instead of the
+   caller's — a token-authenticated route 401'd while the same call made directly on the
+   service succeeded. Fixed by copying the live request's headers onto the override per
+   request. The set is **replaced, not merged**: merging carried the previous caller's
+   token into the next request, so a "rejects a missing token" case passed when it should
+   have failed.
+2. **The two 401 paths in `requireAppInstance` shared one message.** "Missing or invalid
+   X-App-Instance-Token" made a client that omitted the header indistinguishable from a
+   revoked token — in a log and in an e2e run. Split into "Missing … header" and
+   "Invalid …: no active instance matches it", which is what located bug 1.
+3. **Local SQLite migrations could not survive a concurrent boot.** `isMigrationApplied`
+   then `INSERT` is a check-then-act with no claim, so two suites sharing the default DB
+   path both recorded the same row and the loser threw
+   `UNIQUE constraint failed: local_migrations.name`, aborting its boot with the schema
+   unapplied. The insert is now `INSERT OR IGNORE`, and a transaction that fails on DDL
+   re-checks the state table and skips if the other process won.
+4. **`DatabaseModule` imported the wrong `LocalDatabaseModule`.** It imported
+   `@deployer/nest-database-local`'s class — a bare `@Module({})` that registers nothing —
+   instead of the shared wrapper that calls `forRootAsync` with the path and migrations
+   directory. The file's own comment already warned about exactly this trap for
+   `forRoot`. Nothing migrated, so `LocalDatabaseLifecycleService.onModuleInit` never ran.
+5. **No service root module registered the local database at all.** Shared modules read
+   `node_config` (mesh config, the health disk indicator, `node-status`), so the apps
+   booted and failed at first read from a module naming neither the table nor the missing
+   registration. Added the node-state module to the runtime root.
+
+### Remaining blocker (runtime, 2 e2e files)
+
+`deployment-complete-strategy.e2e-spec.ts` and `deployment-queue-advanced-workflow.e2e-spec.ts`
+fail with `no such table: node_config`. Established by direct inspection:
+
+- The DB file is created and `local_migrations` exists, but **no other table does**, and
+  the file's owners are recorded as applied — the signature of
+  `backfillAppliedMigrationsIfSchemaExists` firing, which requires `node_config` to
+  already exist. It does not, so that path cannot be the one taken.
+- No migration log line appears in the run at all (`Checking local migrations`,
+  `Running local migration`, `Local SQLite schema ready` are all absent), so the loader
+  is not reached — this is not a migration failure but the module never initialising.
+- Ruled out by probe: the `bun:sqlite` shim executes DDL and `BEGIN`/`COMMIT` correctly;
+  `LOCAL_MIGRATIONS_DIR` resolves to a directory with all 13 files; `NodeStateModule` and
+  the corrected `LocalDatabaseModule` are both wired in `RuntimeServiceModule`, which is
+  the module the e2e's `rootModuleLoader` imports.
+
+Next step for whoever picks this up: log the resolved `LocalDatabaseModuleOptions` at
+`LocalDatabaseLifecycleService.onModuleInit`, and confirm the lifecycle service is
+instantiated at all in the e2e's module graph — the evidence points at the local-database
+provider never being constructed rather than at the migration runner.
