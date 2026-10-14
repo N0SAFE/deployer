@@ -14,12 +14,12 @@ import { DatabaseModule } from "@/core/modules/database/database.module";
 import { AuthModule } from "@/core/modules/auth/auth.module";
 import { createBetterAuth } from "@/config/auth/auth";
 
-import { ClusterDomainModule } from "./modules/cluster/cluster.module";
-import { FleetDomainModule } from "./modules/fleet/fleet.module";
-import { PlatformDomainModule } from "./modules/platform/platform.module";
-import { ProvidersDomainModule } from "./modules/providers/providers.module";
-import { ProviderSchemaDomainModule } from "./modules/provider-schema/provider-schema.module";
-import { ReachabilityDomainModule } from "./modules/reachability/reachability.module";
+import { ClusterModule } from "./modules/cluster/cluster.module";
+import { FleetModule } from "./modules/fleet/fleet.module";
+import { PlatformModule } from "./modules/platform/platform.module";
+import { ProvidersModule } from "./modules/providers/providers.module";
+import { ProviderSchemaModule } from "./modules/provider-schema/provider-schema.module";
+import { ReachabilityModule } from "./modules/reachability/reachability.module";
 
 // Module-load, not a lifecycle hook: the column codecs run at QUERY time and the
 // first query can happen during bootstrap — before any `onModuleInit`.
@@ -68,12 +68,12 @@ registerSchemaCodecs();
 		HealthModule.forRoot({ indicators: "database" }),
 		createOrpcModule(),
 
-		ClusterDomainModule,
-		FleetDomainModule,
-		PlatformDomainModule,
-		ProvidersDomainModule,
-		ProviderSchemaDomainModule,
-		ReachabilityDomainModule,
+		ClusterModule,
+		FleetModule,
+		PlatformModule,
+		ProvidersModule,
+		ProviderSchemaModule,
+		ReachabilityModule,
 	],
 })
 export class FleetServiceModule {}
