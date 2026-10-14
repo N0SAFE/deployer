@@ -236,5 +236,20 @@ four independent defects, each of which would have hidden the next:
    naming a field it had supplied. Both copies (runtime and fleet) now prefer the
    nested value and fall back to the root.
 
+5. **Two e2e specs contended for one SQLite file.** Each spec boots a full Nest app,
+   and both resolved `NODE_LOCAL_DB_PATH` to the same `/tmp/deployer-<svc>-e2e-local.db`.
+   SQLite allows one writer, and the losing migration failed with `database is locked` —
+   running the specs serially passed, so the collision was reproducible rather than flaky
+   in the ordinary sense. The harness DOES build an isolated database per runtime, but for
+   SQLite it does so through `NODE_LOCAL_DB_PATH`, and that value is cached when the
+   contract graph is first imported — before the harness runs. The e2e project is now
+   `fileParallelism: false` (the unit project stays parallel, and Postgres is unaffected
+   because the harness creates a database per runtime there). `BEGIN IMMEDIATE` was tried
+   first so the lock is taken up front where `busy_timeout` applies, and the busy timeout
+   raised to 15s; neither is sufficient on its own because a whole app boot can outlast any
+   timeout, so serialising the e2e project is the actual fix.
+
 **Result**: `runtime` **32/32 files, 288/288 tests**, and all six suites green —
-**663 tests**.
+**663 tests**, verified across two consecutive runs (`identity` 64, `project` 127,
+`runtime` 288, `fleet` 142, `health` 6, `bff` 36). Supporting packages: `database-local`
+4, `nest-env` 10, `nest-schema` 36, `config-eslint` 6, plus the shim regression test 4.
