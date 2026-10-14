@@ -14,7 +14,7 @@
 import { Global, Module } from '@nestjs/common'
 import { AppLifecycleModule } from '@deployer/nest-lifecycle'
 import { GlobalDatabaseModule } from '@/core/modules/database/global/global-database.module'
-import { LocalDatabaseModule } from "@deployer/nest-database-local/local-database.module"
+import { LocalDatabaseModule } from "@/core/modules/database/local/local-database.module";
 import { DatabaseProbeService } from '@/core/modules/database/services/database-probe.service'
 import { DatabaseStartupGuard } from '@/core/modules/database/services/database-startup-guard.service'
 import { DatabaseFailureTracker } from '@/core/modules/database/services/database-failure-tracker.service'
@@ -22,6 +22,12 @@ import { DatabaseFailureTracker } from '@/core/modules/database/services/databas
 @Global()
 @Module({
     imports: [
+        // The SHARED wrapper, not `@deployer/nest-database-local`'s class: that one is
+        // a bare `@Module({})` and registers nothing, so importing it left the local
+        // SQLite connection uncreated and `LocalDatabaseLifecycleService.onModuleInit`
+        // (which applies the migrations) never ran — every read then failed with
+        // `no such table: node_config`. The shared wrapper is what calls
+        // `forRootAsync` with the path and the migrations directory.
         LocalDatabaseModule,
         GlobalDatabaseModule,
         // `forRoot()` IS REQUIRED — the class is `@Module({})`, so importing it

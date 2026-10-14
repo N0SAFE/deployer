@@ -11,6 +11,7 @@ import { registerSchemaCodecs } from "@/config/drizzle/schema-codecs";
 import { EnvModule, EnvService } from "@/config/env/env.module";
 import { GLOBAL_DATABASE_CONNECTION } from "@deployer/nest-database-core/database-connection";
 import { DatabaseModule } from "@/core/modules/database/database.module";
+import { NodeStateModule } from "@/core/modules/node-state/node-state.module";
 import { AuthModule } from "@/core/modules/auth/auth.module";
 import { createBetterAuth } from "@/config/auth/auth";
 
@@ -43,6 +44,14 @@ registerSchemaCodecs();
 		EnvModule,
 		AppLifecycleModule.forRoot(),
 		DatabaseModule,
+		// ── WHY THE NODE-STATE MODULE ───────────────────────────────────────────
+		// It is what registers the LOCAL SQLite database (`NODE_LOCAL_DB_PATH` +
+		// migrations) and the node repositories over it. Shared modules read that
+		// database — the mesh config, the health disk indicator, `node-status` — so
+		// without this import the app boots and then fails at first read with
+		// `no such table: node_config`, from a module that names neither the table nor
+		// the missing registration.
+		NodeStateModule,
 		// ── WHY EVERY SERVICE IMPORTS THE AUTH MODULE ────────────────────────────
 		// `createOrpcModule()` injects `AuthCoreService` to build the auth plugin that
 		// populates `context.auth`, so the service it injects has to be in this app's
