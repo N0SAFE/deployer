@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { providersCatalog, buildersCatalog } from '@repo/provider-schema/catalog/index'
+import { providersCatalog, buildersCatalog } from '@deployer/provider-schema/catalog/index'
 import {
   templateVersionSchema,
   templateCreateInputSchema,
@@ -7,7 +7,7 @@ import {
   templateUpdateInputSchema,
   templateMigrationDirectionSchema,
   templateVersionMigrationPreviewInputSchema,
-} from '@repo/contracts-entities/entities/template/index'
+} from '@deployer/contracts-entities/entities/template/index'
 
 const providerId = providersCatalog[0]?.id
 const builderId = buildersCatalog[0]?.id

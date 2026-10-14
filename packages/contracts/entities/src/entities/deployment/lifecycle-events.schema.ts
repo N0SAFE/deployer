@@ -1,11 +1,11 @@
 import z from "zod/v4";
-import { deploymentPhaseSchema } from "@repo/contracts-common";
+import { deploymentPhaseSchema } from "@deployer/contracts-common";
 import {
     deploymentConnectivityStatusSchema,
     deploymentExecutionProgressSchema,
     deploymentObservabilityContextSchema,
-} from "@repo/contracts-entities/entities/deployment/base.schema";
-import { deploymentExecutionStateSchema } from "@repo/contracts-entities/entities/deployment/execution.schema";
+} from "@deployer/contracts-entities/entities/deployment/base.schema";
+import { deploymentExecutionStateSchema } from "@deployer/contracts-entities/entities/deployment/execution.schema";
 
 export const deploymentNodeLifecycleEventTypeSchema = z.enum([
     "start",

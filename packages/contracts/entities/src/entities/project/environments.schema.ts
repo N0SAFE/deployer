@@ -7,7 +7,7 @@ import {
   projectEnvironmentHealthGateSchema,
   projectEnvironmentStartupModeSchema,
   envNameSchema,
-} from '@repo/contracts-common'
+} from '@deployer/contracts-common'
 
 /**
  * LEGACY aliases — the old `environmentTypeSchema` was the built-in env NAME

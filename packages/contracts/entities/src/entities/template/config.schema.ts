@@ -3,7 +3,7 @@ import {
   builderIdSchema,
   nonEmptyString,
   providerIdSchema,
-} from '@repo/contracts-entities/entities/template/vocabulary.schema'
+} from '@deployer/contracts-entities/entities/template/vocabulary.schema'
 
 const retryPolicySchema = z.object({
   maxAttempts: z.number().int().min(0).max(20).default(3),

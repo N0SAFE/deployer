@@ -5,13 +5,13 @@ export {
   templateVersionSchema,
   providerIdSchema,
   builderIdSchema,
-} from '@repo/contracts-entities/entities/template/vocabulary.schema'
+} from '@deployer/contracts-entities/entities/template/vocabulary.schema'
 
 export type {
   TemplateKind,
   TemplateScope,
   TemplateStatus,
-} from '@repo/contracts-entities/entities/template/vocabulary.schema'
+} from '@deployer/contracts-entities/entities/template/vocabulary.schema'
 
 export {
   providerTemplateConfigSchema,
@@ -23,7 +23,7 @@ export {
   previewTemplateConfigSchema,
   dependencyTemplateConfigSchema,
   templateConfigSchema,
-} from '@repo/contracts-entities/entities/template/config.schema'
+} from '@deployer/contracts-entities/entities/template/config.schema'
 
 export type {
   ProviderTemplateConfig,
@@ -35,21 +35,21 @@ export type {
   PreviewTemplateConfig,
   DependencyTemplateConfig,
   TemplateConfig,
-} from '@repo/contracts-entities/entities/template/config.schema'
+} from '@deployer/contracts-entities/entities/template/config.schema'
 
 export {
   templateCompatibilityMatrixItemSchema,
   templateCompatibilityMatrixSchema,
   templateCompatibilityValidationInputSchema,
   templateCompatibilityValidationResultSchema,
-} from '@repo/contracts-entities/entities/template/compatibility.schema'
+} from '@deployer/contracts-entities/entities/template/compatibility.schema'
 
 export type {
   TemplateCompatibilityMatrixItem,
   TemplateCompatibilityMatrix,
   TemplateCompatibilityValidationInput,
   TemplateCompatibilityValidationResult,
-} from '@repo/contracts-entities/entities/template/compatibility.schema'
+} from '@deployer/contracts-entities/entities/template/compatibility.schema'
 
 export {
   deploymentTemplateSchema,
@@ -61,13 +61,13 @@ export {
   dependencyTemplateCreateSchema,
   templateCreateInputSchema,
   templateUpdateInputSchema,
-} from '@repo/contracts-entities/entities/template/templates.schema'
+} from '@deployer/contracts-entities/entities/template/templates.schema'
 
 export type {
   DeploymentTemplate,
   TemplateCreateInput,
   TemplateUpdateInput,
-} from '@repo/contracts-entities/entities/template/templates.schema'
+} from '@deployer/contracts-entities/entities/template/templates.schema'
 
 export {
   templateValidationIssueSeveritySchema,
@@ -77,7 +77,7 @@ export {
   templateValidationResultSchema,
   templateSetValidationInputSchema,
   templateSetValidationResultSchema,
-} from '@repo/contracts-entities/entities/template/validation.schema'
+} from '@deployer/contracts-entities/entities/template/validation.schema'
 
 export type {
   TemplateValidationIssueSeverity,
@@ -87,7 +87,7 @@ export type {
   TemplateValidationResult,
   TemplateSetValidationInput,
   TemplateSetValidationResult,
-} from '@repo/contracts-entities/entities/template/validation.schema'
+} from '@deployer/contracts-entities/entities/template/validation.schema'
 
 export {
   templateResolverLayerSchema,
@@ -98,7 +98,7 @@ export {
   templateResolveResultSchema,
   templateSetResolveInputSchema,
   templateSetResolveResultSchema,
-} from '@repo/contracts-entities/entities/template/resolver.schema'
+} from '@deployer/contracts-entities/entities/template/resolver.schema'
 
 export type {
   TemplateResolverLayer,
@@ -109,7 +109,7 @@ export type {
   TemplateResolveResult,
   TemplateSetResolveInput,
   TemplateSetResolveResult,
-} from '@repo/contracts-entities/entities/template/resolver.schema'
+} from '@deployer/contracts-entities/entities/template/resolver.schema'
 
 export {
   templateMigrationDirectionSchema,
@@ -122,7 +122,7 @@ export {
   templateVersionMigrationApplyResultSchema,
   templateVersionMigrationListInputSchema,
   templateVersionMigrationListResultSchema,
-} from '@repo/contracts-entities/entities/template/migration.schema'
+} from '@deployer/contracts-entities/entities/template/migration.schema'
 
 export type {
   TemplateMigrationDirection,
@@ -135,4 +135,4 @@ export type {
   TemplateVersionMigrationApplyResult,
   TemplateVersionMigrationListInput,
   TemplateVersionMigrationListResult,
-} from '@repo/contracts-entities/entities/template/migration.schema'
+} from '@deployer/contracts-entities/entities/template/migration.schema'

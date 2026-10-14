@@ -102,7 +102,7 @@ export const meshJoinGrantConsumeResultSchema = z.object({
      *
      * Format: `v2.<issuedAtMs>.<expiresAtMs>.<nodeId>.<hmac>`, signed
      * with a node-specific secret derived from the mesh shared secret
-     * and the nodeId. See `@repo/auth/mesh` `signPeerServiceToken` /
+     * and the nodeId. See `@deployer/auth/mesh` `signPeerServiceToken` /
      * `verifyPeerServiceToken` for the full envelope.
      *
      * The token is the only thing the local node needs to call

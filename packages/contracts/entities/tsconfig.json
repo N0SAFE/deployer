@@ -8,7 +8,7 @@
         "skipLibCheck": true,
         "moduleResolution": "bundler",
         "paths": {
-            "@repo/contracts-entities/*": [
+            "@deployer/contracts-entities/*": [
                 "./src/*"
             ]
         }

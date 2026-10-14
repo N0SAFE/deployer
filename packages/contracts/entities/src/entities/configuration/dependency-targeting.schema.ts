@@ -5,8 +5,8 @@ import {
   dependencyRequirementModeSchema,
   dependencyStartupModeSchema,
   envNameSchema,
-} from '@repo/contracts-common'
-import { ALL_FILTER_OPERATORS, type FilterOperator } from '@repo/orpc-utils'
+} from '@deployer/contracts-common'
+import { ALL_FILTER_OPERATORS, type FilterOperator } from '@deployer/orpc-utils'
 
 const serviceEnvironmentDependencyBehaviorSchema = z.object({
   requirement: dependencyRequirementModeSchema,

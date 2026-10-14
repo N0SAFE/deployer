@@ -22,8 +22,17 @@
  *      resolves `tsconfig.json` from the CONSUMER's directory, which lacks the
  *      decorator settings and fails.
  *   2. `src/main.ts` — only when `dist` is absent (a cold checkout before the
- *      first build). Run with `--cwd` set to this package so bun picks up the
- *      right `tsconfig.json`.
+ *      first build). Run with `--tsconfig-override` pointing at this package's
+ *      own `tsconfig.json` so bun compiles the CLI with its decorator settings.
+ *
+ * The `--tsconfig-override` in step 2 is load-bearing and must NOT be a `--cwd`.
+ * Bun resolves `tsconfig.json` from the process cwd, and the CLI must run with
+ * the CONSUMER as cwd (that cwd is what tells it which package to build). A
+ * `--cwd` that pointed bun at this package instead would hijack the build target:
+ * the CLI would happily rebuild `@deployer/pkg-build` and exit 0 while the
+ * consumer's `dist/` was never touched — a silent wrong-package build, worse
+ * than a crash. Overriding the tsconfig alone gives bun the decorator flags
+ * while leaving the cwd alone, so the build lands on the right package.
  *
  * The exit code and stdio are passed through unchanged.
  */
@@ -37,6 +46,8 @@ const packageDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const builtCli = join(packageDir, 'dist/cjs/main.js')
 /** The source CLI, used only when there is no build yet. */
 const sourceCli = join(packageDir, 'src/main.ts')
+/** This package's tsconfig, which carries the decorator settings the CLI needs. */
+const sourceTsconfig = join(packageDir, 'tsconfig.json')
 
 const useBuilt = existsSync(builtCli)
 const entry = useBuilt ? builtCli : sourceCli
@@ -48,11 +59,14 @@ if (!existsSync(entry)) {
     process.exit(1)
 }
 
-// `--cwd` matters only for the source fallback: the built output has no tsconfig
-// to resolve. Passing it always keeps the two paths identical in behaviour.
 const args = useBuilt
     ? [entry, ...process.argv.slice(2)]
-    : ['--cwd', packageDir, entry, ...process.argv.slice(2)]
+    : [
+          '--tsconfig-override',
+          sourceTsconfig,
+          entry,
+          ...process.argv.slice(2),
+      ]
 
 const child = Bun.spawn(['bun', '--bun', ...args], {
     stdin: 'inherit',

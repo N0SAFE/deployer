@@ -1,8 +1,8 @@
 import z from 'zod/v4'
 import {
   projectDeploymentStrategySchema,
-} from '@repo/contracts-common'
-import { serviceContractRegistryMapSchema } from '@repo/contracts-entities/entities/configuration/contract-registry.schema'
+} from '@deployer/contracts-common'
+import { serviceContractRegistryMapSchema } from '@deployer/contracts-entities/entities/configuration/contract-registry.schema'
 
 export const projectBaseEnvironmentSettingsSchema = z.object({
   variables: z.record(z.string(), z.string()),

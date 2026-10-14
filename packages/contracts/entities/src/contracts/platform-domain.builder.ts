@@ -7,7 +7,7 @@ import {
   dependencyRequirementSchema,
   dependencySelectionOrderSchema,
   dependencyStartupModeSchema,
-} from '@repo/contracts-common'
+} from '@deployer/contracts-common'
 import {
   envNameSchema,
   projectEnvironmentDeploymentStrategySchema,
@@ -15,21 +15,21 @@ import {
   serviceHealthStateSchema,
   serviceLifecycleSchema,
   withRequiredEnvironments,
-} from '@repo/contracts-common'
+} from '@deployer/contracts-common'
 import {
   operationsDeploymentStatusSchema,
   incidentSeveritySchema,
   incidentStatusSchema,
   notificationChannelSchema,
   notificationLevelSchema,
-} from '@repo/contracts-common'
+} from '@deployer/contracts-common'
 import {
   runnerNetworkModeSchema,
   serviceDeploymentProfileSchema,
   serviceProviderTypeSchema,
   serviceRunnerStrategySchema,
   serviceRunnerTypeSchema,
-} from '@repo/contracts-common'
+} from '@deployer/contracts-common'
 import {
   projectEnvironmentConfigByNameSchema,
   projectEnvironmentExtensionConfigSchema,
@@ -37,7 +37,7 @@ import {
   serviceEnvironmentExecutionOverrideSchema,
   serviceProviderConfigSchema,
   serviceRunnerConfigSchema,
-} from '@repo/contracts-entities/entities/configuration/index'
+} from '@deployer/contracts-entities/entities/configuration/index'
 
 export type PlatformDomainSchemaDeps = {
   envNameSchema?: typeof envNameSchema

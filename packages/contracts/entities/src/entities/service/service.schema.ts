@@ -4,19 +4,19 @@ import {
   serviceRunnerTypeSchema,
   serviceTypeSchema,
   perEnvironmentStrategySchema,
-} from "@repo/contracts-common";
-import { traefikDynamicConfigSchema } from "@repo/contracts-entities/entities/traefik/index";
+} from "@deployer/contracts-common";
+import { traefikDynamicConfigSchema } from "@deployer/contracts-entities/entities/traefik/index";
 import {
   providerConfigSchemaById,
   serviceProviderConfigUnionSchema,
-} from "@repo/contracts-entities/entities/service/provider-config.schema";
+} from "@deployer/contracts-entities/entities/service/provider-config.schema";
 import {
   runnerConfigSchemaById,
   serviceRunnerConfigUnionSchema,
-} from "@repo/contracts-entities/entities/service/runner-config.schema";
-import { implementedContractSchema } from "@repo/contracts-entities/entities/service/mock-config.schema";
-import { previewSourceTemplateSchema } from "@repo/contracts-entities/entities/configuration/preview-template.schema";
-import { serviceNetworkConfigSchema } from "@repo/contracts-entities/entities/project/network.schema";
+} from "@deployer/contracts-entities/entities/service/runner-config.schema";
+import { implementedContractSchema } from "@deployer/contracts-entities/entities/service/mock-config.schema";
+import { previewSourceTemplateSchema } from "@deployer/contracts-entities/entities/configuration/preview-template.schema";
+import { serviceNetworkConfigSchema } from "@deployer/contracts-entities/entities/project/network.schema";
 
 /**
  * Plain refinement-free object shape (NO superRefine, NO lazy `children`).

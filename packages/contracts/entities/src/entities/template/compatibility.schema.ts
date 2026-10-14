@@ -4,7 +4,7 @@ import {
   deployStrategySchema,
   providerIdSchema,
   templateEnvironmentSchema,
-} from '@repo/contracts-entities/entities/template/config.schema'
+} from '@deployer/contracts-entities/entities/template/config.schema'
 
 export const templateCompatibilityMatrixItemSchema = z.object({
   provider: providerIdSchema,

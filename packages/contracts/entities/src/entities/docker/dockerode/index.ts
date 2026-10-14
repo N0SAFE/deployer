@@ -8,7 +8,7 @@
  *
  * @example
  * ```typescript
- * import { dockerodeContainerListSchema } from "@repo/contracts-entities"
+ * import { dockerodeContainerListSchema } from "@deployer/contracts-entities"
  * import z from "zod/v4"
  *
  * const raw = await docker.listContainers({ all: true })
@@ -33,7 +33,7 @@ export {
   type DockerodeContainerList,
   type DockerodeNetworkAttachment,
   type DockerodePortMap,
-} from "@repo/contracts-entities/entities/docker/dockerode/containers.schema"
+} from "@deployer/contracts-entities/entities/docker/dockerode/containers.schema"
 
 export {
   dockerodeImageSummarySchema,
@@ -41,7 +41,7 @@ export {
   dockerodeImageInspectSchema,
   type DockerodeImageSummary,
   type DockerodeImageInspect,
-} from "@repo/contracts-entities/entities/docker/dockerode/images.schema"
+} from "@deployer/contracts-entities/entities/docker/dockerode/images.schema"
 
 export {
   dockerodeNetworkIpamConfigSchema,
@@ -49,11 +49,11 @@ export {
   dockerodeNetworkContainerAttachmentSchema,
   dockerodeNetworkSummarySchema,
   type DockerodeNetworkSummary,
-} from "@repo/contracts-entities/entities/docker/dockerode/networks.schema"
+} from "@deployer/contracts-entities/entities/docker/dockerode/networks.schema"
 
 export {
   dockerodeVolumeEntrySchema,
   dockerodeVolumeListResponseSchema,
   type DockerodeVolumeEntry,
   type DockerodeVolumeListResponse,
-} from "@repo/contracts-entities/entities/docker/dockerode/volumes.schema"
+} from "@deployer/contracts-entities/entities/docker/dockerode/volumes.schema"

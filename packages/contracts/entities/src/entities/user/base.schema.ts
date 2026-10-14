@@ -1,5 +1,5 @@
 import z from 'zod/v4'
-import { PLATFORM_ROLES } from '@repo/auth/permissions/index'
+import { PLATFORM_ROLES } from '@deployer/auth/permissions/index'
 
 export const userSchema = z.object({
   id: z.string(),

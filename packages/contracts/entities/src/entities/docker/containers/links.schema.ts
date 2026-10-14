@@ -2,9 +2,9 @@ import z from 'zod/v4'
 import {
   deploymentEnvironmentSchema,
   deploymentStatusSchema,
-} from '@repo/contracts-common'
-import { dockerListMetaSchema } from '@repo/contracts-entities/entities/docker/common.schema'
-import { dockerContainerSchema } from '@repo/contracts-entities/entities/docker/containers/base.schema'
+} from '@deployer/contracts-common'
+import { dockerListMetaSchema } from '@deployer/contracts-entities/entities/docker/common.schema'
+import { dockerContainerSchema } from '@deployer/contracts-entities/entities/docker/containers/base.schema'
 
 export const dockerContainerLinkPathSchema = z.enum([
   'deployment',

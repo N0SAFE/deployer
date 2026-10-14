@@ -5,7 +5,7 @@ import {
     dockerodeTaskSummarySchema,
     dockerodeNodeSummarySchema,
     swarmServiceSpecInputSchema,
-} from "@repo/contracts-entities/index";
+} from "@deployer/contracts-entities/index";
 
 const serviceFixture = {
     ID: "abc123serviceid",

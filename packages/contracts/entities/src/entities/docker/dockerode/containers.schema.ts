@@ -16,7 +16,7 @@
  * ## Usage
  *
  * ```typescript
- * import { dockerodeContainerListSchema } from "@repo/contracts-entities"
+ * import { dockerodeContainerListSchema } from "@deployer/contracts-entities"
  *
  * const raw = await docker.listContainers({ all: true })
  * const parsed = z.array(dockerodeContainerListSchema).parse(raw)

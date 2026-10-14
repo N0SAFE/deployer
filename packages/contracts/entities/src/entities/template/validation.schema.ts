@@ -4,10 +4,10 @@ import {
   deployStrategySchema,
   providerIdSchema,
   templateEnvironmentSchema,
-} from '@repo/contracts-entities/entities/template/config.schema'
+} from '@deployer/contracts-entities/entities/template/config.schema'
 import {
   templateCompatibilityValidationResultSchema,
-} from '@repo/contracts-entities/entities/template/compatibility.schema'
+} from '@deployer/contracts-entities/entities/template/compatibility.schema'
 import {
   buildTemplateCreateSchema,
   dependencyTemplateCreateSchema,
@@ -16,8 +16,8 @@ import {
   providerTemplateCreateSchema,
   routeTemplateCreateSchema,
   templateCreateInputSchema,
-} from '@repo/contracts-entities/entities/template/templates.schema'
-import { templateKindSchema } from '@repo/contracts-entities/entities/template/vocabulary.schema'
+} from '@deployer/contracts-entities/entities/template/templates.schema'
+import { templateKindSchema } from '@deployer/contracts-entities/entities/template/vocabulary.schema'
 
 export const templateValidationIssueSeveritySchema = z.enum(['error', 'warning', 'info'])
 export type TemplateValidationIssueSeverity = z.infer<typeof templateValidationIssueSeveritySchema>

@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { swarmFoundingSelectionSchema, swarmJoinSelectionSchema } from "@repo/contracts-entities/entities/swarm/swarm-config.schema";
+import { swarmFoundingSelectionSchema, swarmJoinSelectionSchema } from "@deployer/contracts-entities/entities/swarm/swarm-config.schema";
 
 // ─── States ───────────────────────────────────────────────────────────────────
 

@@ -3,7 +3,7 @@ import {
   projectEnvironmentDeploymentStrategySchema,
   projectEnvironmentHealthGateSchema,
   projectEnvironmentStartupModeSchema,
-} from '@repo/contracts-common'
+} from '@deployer/contracts-common'
 
 export const projectBaseEnvironmentConfigSchema = z.object({
   variables: z.record(z.string(), z.string()),

@@ -1,9 +1,9 @@
 import z from "zod/v4";
-import { deploymentEnvironmentSchema } from "@repo/contracts-common";
+import { deploymentEnvironmentSchema } from "@deployer/contracts-common";
 import {
     deploymentConnectivityStatusSchema,
     deploymentObservabilityContextSchema,
-} from "@repo/contracts-entities/entities/deployment/base.schema";
+} from "@deployer/contracts-entities/entities/deployment/base.schema";
 
 export const deploymentQueueJobTypeSchema = z.enum([
     "deploy",

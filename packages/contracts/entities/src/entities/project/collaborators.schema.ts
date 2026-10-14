@@ -1,5 +1,5 @@
 import z from 'zod/v4'
-import { PROJECT_ROLES } from '@repo/auth'
+import { PROJECT_ROLES } from '@deployer/auth'
 
 export const projectRoleSchema = z.enum(PROJECT_ROLES)
 

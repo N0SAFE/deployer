@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { deploymentPhaseSchema } from "@repo/contracts-common";
+import { deploymentPhaseSchema } from "@deployer/contracts-common";
 
 export const deploymentPhaseGuardSchema = z.enum([
     "requiresCompiledPlan",

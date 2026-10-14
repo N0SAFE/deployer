@@ -1,16 +1,16 @@
 import z from 'zod/v4'
-import { dockerListMetaSchema } from '@repo/contracts-entities/entities/docker/common.schema'
-import { dockerImageSchema } from '@repo/contracts-entities/entities/docker/images/index'
-import { dockerNetworkSchema } from '@repo/contracts-entities/entities/docker/networks/index'
-import { dockerVolumeSchema } from '@repo/contracts-entities/entities/docker/volumes/index'
-import { dockerRegistrySchema } from '@repo/contracts-entities/entities/docker/registries/index'
-import { dockerStackSchema } from '@repo/contracts-entities/entities/docker/stacks/index'
-import { dockerContainerSchema } from '@repo/contracts-entities/entities/docker/containers/base.schema'
+import { dockerListMetaSchema } from '@deployer/contracts-entities/entities/docker/common.schema'
+import { dockerImageSchema } from '@deployer/contracts-entities/entities/docker/images/index'
+import { dockerNetworkSchema } from '@deployer/contracts-entities/entities/docker/networks/index'
+import { dockerVolumeSchema } from '@deployer/contracts-entities/entities/docker/volumes/index'
+import { dockerRegistrySchema } from '@deployer/contracts-entities/entities/docker/registries/index'
+import { dockerStackSchema } from '@deployer/contracts-entities/entities/docker/stacks/index'
+import { dockerContainerSchema } from '@deployer/contracts-entities/entities/docker/containers/base.schema'
 import {
   dockerContainerProjectRefSchema,
   dockerDeploymentSnapshotSchema,
   dockerServiceSnapshotSchema,
-} from '@repo/contracts-entities/entities/docker/containers/snapshots.schema'
+} from '@deployer/contracts-entities/entities/docker/containers/snapshots.schema'
 
 export const dockerContainerListSchema = z.object({
   data: z.array(dockerContainerSchema),

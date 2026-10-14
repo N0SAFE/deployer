@@ -3,7 +3,7 @@ import {
   deploymentEnvironmentSchema,
   deploymentStatusSchema,
   sourceTypeSchema,
-} from '@repo/contracts-common'
+} from '@deployer/contracts-common'
 
 export const dockerServiceSnapshotSchema = z.object({
   id: z.string().min(1),

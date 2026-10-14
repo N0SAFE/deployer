@@ -1,0 +1,13 @@
+/*
+ * apps/api/src/views/global.css — Tailwind entry for the SSR views served by
+ * the API. Reuses the SAME shared theme as the web app: `@repo/ui` globals
+ * (which themselves import `tailwindcss`, `tw-animate-css`, `shadcn/...`
+ * theme tokens + the shadcn component utilities).
+ *
+ * `@source` ensures tailwind also scans THIS app's view components (the ui
+ * globals only scan the ui package's own sources).
+ */
+@import "@repo/ui/styles/globals.css";
+
+/* Scan apps/api/src/** (views + any component used by them). */
+@source "../**/*.{ts,tsx}";

@@ -1,5 +1,5 @@
 {
-    "name": "@repo/contracts-entities",
+    "name": "@deployer/contracts-entities",
     "version": "0.0.0",
     "private": true,
     "type": "module",
@@ -18,7 +18,7 @@
         }
     },
     "scripts": {
-        "type-check": "tsc --noEmit",
+        "type-check": "bun --check",
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
@@ -28,23 +28,23 @@
         "build:types": "bun --bun pkg-build --types"
     },
     "dependencies": {
-        "@repo/auth": "*",
-        "@repo/contracts-common": "*",
-        "@repo/orpc-utils": "*",
-        "@repo/provider-schema": "*",
-        "@repo/type-guards": "*",
+        "@deployer/auth": "*",
+        "@deployer/contracts-common": "*",
+        "@deployer/orpc-utils": "*",
+        "@deployer/provider-schema": "*",
+        "@deployer/type-guards": "*",
         "zod": "catalog:utils"
     },
     "devDependencies": {
         "@types/node": "catalog:build",
-        "@repo/config-vitest": "*",
-        "@repo/config-typescript": "*",
+        "@deployer/config-vitest": "*",
+        "@deployer/config-typescript": "*",
         "@vitest/coverage-v8": "catalog:testing",
         "vitest": "catalog:testing",
         "typescript": "catalog:build",
         "chokidar": "catalog:build",
         "rimraf": "catalog:build",
-        "@repo/pkg-build": "*"
+        "@deployer/pkg-build": "*"
     },
     "module": "./dist/esm/index.mjs"
 }

@@ -1,5 +1,5 @@
 import z from 'zod/v4'
-import { setupStateSnapshotSchema } from '@repo/contracts-entities/entities/setup/state.schema'
+import { setupStateSnapshotSchema } from '@deployer/contracts-entities/entities/setup/state.schema'
 
 export const setupConfigureDatabaseInputSchema = z.object({
   databaseUrl: z.string().min(1, 'Database URL is required'),

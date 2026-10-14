@@ -5,7 +5,7 @@ import {
     deploymentStatusSchema,
     rollbackStatusSchema,
     sourceTypeSchema,
-} from "@repo/contracts-common";
+} from "@deployer/contracts-common";
 
 export {
     deploymentEnvironmentSchema,
@@ -13,14 +13,14 @@ export {
     deploymentStatusSchema,
     rollbackStatusSchema,
     sourceTypeSchema,
-} from "@repo/contracts-common";
+} from "@deployer/contracts-common";
 export type {
     DeploymentEnvironment,
     DeploymentPhase,
     DeploymentStatus,
     RollbackStatus,
     SourceType,
-} from "@repo/contracts-common";
+} from "@deployer/contracts-common";
 
 export const deploymentObservabilityContextSchema = z.object({
     correlationId: z.string().min(1),

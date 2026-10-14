@@ -1,9 +1,9 @@
 import z from 'zod/v4'
-import { deploymentEnvironmentSchema } from '@repo/contracts-common'
+import { deploymentEnvironmentSchema } from '@deployer/contracts-common'
 import {
   dockerContainerHealthSchema,
   dockerContainerStatusSchema,
-} from '@repo/contracts-entities/entities/docker/common.schema'
+} from '@deployer/contracts-entities/entities/docker/common.schema'
 
 export const dockerPortBindingSchema = z.object({
   containerPort: z.number().int().min(1).max(65535),

@@ -1,9 +1,9 @@
 import z from "zod/v4";
-import { deploymentEnvironmentSchema } from "@repo/contracts-common";
+import { deploymentEnvironmentSchema } from "@deployer/contracts-common";
 import {
     deploymentExecutionProgressSchema,
     deploymentObservabilityContextSchema,
-} from "@repo/contracts-entities/entities/deployment/base.schema";
+} from "@deployer/contracts-entities/entities/deployment/base.schema";
 
 export const deploymentPlanNodeSchema = z.object({
     id: z.string().min(1),

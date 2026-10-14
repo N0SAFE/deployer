@@ -9,7 +9,7 @@ import z from "zod/v4";
 import {
     dnsProviderTypeSchema,
     dnsRecordTypeSchema,
-} from "@repo/contracts-common";
+} from "@deployer/contracts-common";
 
 /** Account reference used to pin a specific provider account in dispatch. */
 export const dnsProviderAccountRefSchema = z.object({

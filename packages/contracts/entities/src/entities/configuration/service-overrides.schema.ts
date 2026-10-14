@@ -1,9 +1,9 @@
 import z from 'zod'
-import { serviceRunnerStrategySchema } from '@repo/contracts-common'
+import { serviceRunnerStrategySchema } from '@deployer/contracts-common'
 import {
   serviceEnvironmentDependencyBehaviorSchema,
   serviceDependencyLinkPolicySchema,
-} from '@repo/contracts-entities/entities/configuration/dependency-targeting.schema'
+} from '@deployer/contracts-entities/entities/configuration/dependency-targeting.schema'
 
 const serviceEnvironmentExecutionOverrideBaseSchema = z
   .object({

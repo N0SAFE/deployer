@@ -2,8 +2,8 @@ import z from "zod/v4";
 import {
   runnerNetworkModeSchema,
   serviceRunnerStrategySchema,
-} from "@repo/contracts-common";
-import { mockServiceConfigSchema } from "@repo/contracts-entities/entities/service/mock-config.schema";
+} from "@deployer/contracts-common";
+import { mockServiceConfigSchema } from "@deployer/contracts-entities/entities/service/mock-config.schema";
 
 /**
  * COMPOSE STACK — one service that manages a docker-compose stack as a

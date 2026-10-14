@@ -12,7 +12,7 @@
  * processor and the deployment execution workflow.
  */
 import z from "zod/v4";
-import { runnerNetworkModeSchema } from "@repo/contracts-common";
+import { runnerNetworkModeSchema } from "@deployer/contracts-common";
 
 // ─── Execution-level fields shared by every runner kind ────────────────────
 

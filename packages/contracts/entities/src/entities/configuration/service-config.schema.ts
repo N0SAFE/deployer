@@ -2,7 +2,7 @@ import z from 'zod'
 import {
   runnerNetworkModeSchema,
   serviceRunnerStrategySchema,
-} from '@repo/contracts-common'
+} from '@deployer/contracts-common'
 
 export const serviceProviderConfigSchema = z.object({
   sourceUrl: z.string(),

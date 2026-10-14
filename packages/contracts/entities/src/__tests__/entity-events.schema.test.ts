@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest'
 import {
   buildDockerEntityEventChunk,
   dockerEntityStreamChunkSchema,
-} from '@repo/contracts-entities/entities/docker/entity-events.schema'
-import { dockerContainerSchema } from '@repo/contracts-entities/entities/docker/containers/index'
-import type { DockerContainerEntity } from '@repo/contracts-entities/entities/docker/containers/index'
-import type { DockerImageEntity } from '@repo/contracts-entities/entities/docker/images/index'
-import type { DockerNetworkEntity } from '@repo/contracts-entities/entities/docker/networks/index'
-import type { DockerVolumeEntity } from '@repo/contracts-entities/entities/docker/volumes/index'
+} from '@deployer/contracts-entities/entities/docker/entity-events.schema'
+import { dockerContainerSchema } from '@deployer/contracts-entities/entities/docker/containers/index'
+import type { DockerContainerEntity } from '@deployer/contracts-entities/entities/docker/containers/index'
+import type { DockerImageEntity } from '@deployer/contracts-entities/entities/docker/images/index'
+import type { DockerNetworkEntity } from '@deployer/contracts-entities/entities/docker/networks/index'
+import type { DockerVolumeEntity } from '@deployer/contracts-entities/entities/docker/volumes/index'
 
 const occurredAt = '2026-08-04T13:21:52.655Z'
 

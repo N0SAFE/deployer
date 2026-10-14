@@ -1,29 +1,29 @@
 import z from 'zod/v4'
-import { dockerListMetaSchema } from '@repo/contracts-entities/entities/docker/common.schema'
+import { dockerListMetaSchema } from '@deployer/contracts-entities/entities/docker/common.schema'
 import {
   dockerContainerRuntimeActionSchema,
   dockerContainerRuntimeEventSchema,
   dockerContainerEntitySchema,
   dockerDeploymentSnapshotSchema,
   dockerServiceSnapshotSchema,
-} from '@repo/contracts-entities/entities/docker/containers/index'
+} from '@deployer/contracts-entities/entities/docker/containers/index'
 import {
   dockerImageEntitySchema,
   dockerImageRuntimeActionSchema,
   dockerImageRuntimeEventSchema,
-} from '@repo/contracts-entities/entities/docker/images/index'
+} from '@deployer/contracts-entities/entities/docker/images/index'
 import {
   dockerNetworkEntitySchema,
   dockerNetworkRuntimeActionSchema,
   dockerNetworkRuntimeEventSchema,
-} from '@repo/contracts-entities/entities/docker/networks/index'
+} from '@deployer/contracts-entities/entities/docker/networks/index'
 import {
   dockerVolumeEntitySchema,
   dockerVolumeRuntimeActionSchema,
   dockerVolumeRuntimeEventSchema,
-} from '@repo/contracts-entities/entities/docker/volumes/index'
-import { dockerRegistryEntitySchema } from '@repo/contracts-entities/entities/docker/registries/index'
-import { dockerStackEntitySchema } from '@repo/contracts-entities/entities/docker/stacks/index'
+} from '@deployer/contracts-entities/entities/docker/volumes/index'
+import { dockerRegistryEntitySchema } from '@deployer/contracts-entities/entities/docker/registries/index'
+import { dockerStackEntitySchema } from '@deployer/contracts-entities/entities/docker/stacks/index'
 
 export const dockerRuntimeEventSourceSchema = z.enum([
   'container',
