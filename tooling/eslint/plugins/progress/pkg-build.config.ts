@@ -1,4 +1,4 @@
-import { defineConfig } from '@deployer/pkg-build/config'
+import { build } from '@deployer/pkg-build/config'
 
 /**
  * Build configuration for `@deployer/config-eslint-plugins-progress`.
@@ -9,7 +9,7 @@ import { defineConfig } from '@deployer/pkg-build/config'
  * are the plugin's declared dependencies, resolved from the consumer's install
  * like any other package.
  */
-export default defineConfig({
+export default build({
     root: 'src',
     entries: ['index.ts'],
     formats: ['esm'],

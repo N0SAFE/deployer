@@ -1,4 +1,4 @@
-import { defineConfig } from '@deployer/pkg-build/config'
+import { build } from '@deployer/pkg-build/config'
 
 import { bundleTs6Island } from './src/plugins/bundle-ts6-island'
 
@@ -22,7 +22,7 @@ import { bundleTs6Island } from './src/plugins/bundle-ts6-island'
  * it here would force one value on both, and the production image is exactly
  * where the bundle's map is dead weight.
  */
-export default defineConfig({
+export default build({
     root: 'src',
     entries: [
         'index.ts',

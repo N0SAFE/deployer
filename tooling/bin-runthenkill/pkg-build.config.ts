@@ -1,4 +1,4 @@
-import { defineConfig } from '@deployer/pkg-build/config'
+import { build } from '@deployer/pkg-build/config'
 
 /**
  * Build configuration for `@deployer/runthenkill`.
@@ -11,7 +11,7 @@ import { defineConfig } from '@deployer/pkg-build/config'
  * prod builds none. An explicit value here would defeat it and ship maps in the
  * production image.
  */
-export default defineConfig({
+export default build({
     root: 'src',
     entries: ['index.ts'],
     formats: ['cjs'],
