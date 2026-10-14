@@ -78,7 +78,7 @@ describe("ProjectDomainController", () => {
     });
 
     describe("ORPC implementation methods", () => {
-        const methods: Array<keyof ProjectDomainController> = [
+        const methods: (keyof ProjectDomainController)[] = [
             "listProjectDomains",
             "getAvailableDomains",
             "getAvailableDomainsForService",

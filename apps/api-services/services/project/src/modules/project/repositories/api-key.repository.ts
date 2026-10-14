@@ -10,7 +10,7 @@ import { eq, and } from "drizzle-orm";
 
 type ApiKeyRow = typeof apiKeys.$inferSelect;
 
-export interface ApiKeyCreateInput {
+export type ApiKeyCreateInput = {
     userId: string;
     name: string;
     keyHash: string;

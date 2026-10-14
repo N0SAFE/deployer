@@ -7,7 +7,7 @@ import { ProjectRepository } from "../repositories/project.repository";
 // Types
 // ---------------------------------------------------------------------------
 
-export interface CreateWebhookInput {
+export type CreateWebhookInput = {
     projectId: string;
     requesterId: string;
     sourceType: "github" | "gitlab" | "git" | "upload" | "custom";
@@ -22,7 +22,7 @@ export interface CreateWebhookInput {
     };
 }
 
-export interface RotateWebhookSecretResult {
+export type RotateWebhookSecretResult = {
     webhookId: string;
     /** Raw secret — returned only once; store it securely. Encrypted in the DB. */
     rawSecret: string;

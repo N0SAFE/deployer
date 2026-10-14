@@ -6,7 +6,7 @@ import { user } from "@deployer/nest-schema/global/identity/auth";
 import { userRules, type NewUser, type User, type UserPatch } from "../domain/user.entity";
 
 /** A page of users plus the total, so a client can render pagination. */
-export interface UserPage {
+export type UserPage = {
 	readonly data: User[];
 	readonly total: number;
 }
@@ -19,13 +19,13 @@ export interface UserPage {
  * at once. Translating that syntax into SQL belongs HERE, where the columns are
  * known — the service deals in plain values.
  */
-export interface OperatorFilter {
+export type OperatorFilter = {
 	readonly operator: string;
 	readonly value: unknown;
 }
 
 /** The filters `list` and `count` accept, as the contract's list config declares them. */
-export interface UserListFilter {
+export type UserListFilter = {
 	readonly limit: number;
 	readonly offset: number;
 	readonly sortField: UserSortField;
@@ -305,8 +305,8 @@ function toBounds(value: unknown): [Date, Date] | [Date] | undefined {
 		if (!(item instanceof Date) || Number.isNaN(item.getTime())) return undefined;
 		dates.push(item);
 	}
-	if (dates.length === 1) return [dates[0] as Date];
-	if (dates.length === 2) return [dates[0] as Date, dates[1] as Date];
+	if (dates.length === 1) return [dates[0]!];
+	if (dates.length === 2) return [dates[0]!, dates[1]!];
 	return undefined;
 }
 

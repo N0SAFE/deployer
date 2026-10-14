@@ -59,7 +59,7 @@ const MAX_BUCKETS = 200;
  * a caller receives. Together they are everything needed to place a timestamp in a
  * bucket, which is the one operation every metrics procedure performs.
  */
-export interface BucketPlan {
+export type BucketPlan = {
 	readonly start: Date;
 	readonly end: Date;
 	readonly bucketMs: number;

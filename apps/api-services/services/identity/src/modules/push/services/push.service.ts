@@ -4,18 +4,18 @@ import { generateVAPIDKeys } from "web-push";
 import type { PushRepository, PushStats, PushSubscription } from "../repositories/push.repository";
 
 /** The caller, as resolved by the BFF and forwarded over the boundary. */
-export interface Actor {
+export type Actor = {
 	readonly userId: string;
 	readonly role: string;
 }
 
 /** The VAPID keypair handed to a browser so it can subscribe. */
-export interface PublicKey {
+export type PublicKey = {
 	readonly publicKey: string;
 }
 
 /** A browser's subscription request. */
-export interface SubscribeRequest {
+export type SubscribeRequest = {
 	readonly endpoint: string;
 	readonly keys: { readonly p256dh: string; readonly auth: string };
 	readonly deviceName?: string | undefined;
@@ -23,14 +23,14 @@ export interface SubscribeRequest {
 }
 
 /** The stored subscription, as `subscribe` reports it. */
-export interface SubscribeResult {
+export type SubscribeResult = {
 	readonly id: string;
 	readonly deviceName: string | null;
 	readonly createdAt: Date;
 }
 
 /** What a delivery attempt achieved. */
-export interface DeliveryReport {
+export type DeliveryReport = {
 	readonly success: number;
 	readonly failed: number;
 	readonly total: number;

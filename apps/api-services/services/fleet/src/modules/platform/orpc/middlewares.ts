@@ -69,15 +69,22 @@ export function requireAppInstance(appInstances: AppInstanceService) {
 		.errors(STANDARD_DOMAIN_ERROR_DEFS)
 		.middleware(async ({ context, next, errors }) => {
 			const rawToken = readHeader(context.request, "x-app-instance-token");
+
+			// The two failures mean different things — a client that forgot the header
+			// versus a token that no longer resolves — and a single message makes the
+			// first indistinguishable from a revoked instance in a log or an e2e run.
 			if (rawToken === null || rawToken.length === 0) {
 				throw errors.UNAUTHORIZED(
-					standardErrorOptions("unauthorized", "Missing or invalid X-App-Instance-Token"),
+					standardErrorOptions("unauthorized", "Missing X-App-Instance-Token header"),
 				);
 			}
 			const instance = await appInstances.verifyByToken(rawToken);
 			if (instance === null) {
 				throw errors.UNAUTHORIZED(
-					standardErrorOptions("unauthorized", "Missing or invalid X-App-Instance-Token"),
+					standardErrorOptions(
+						"unauthorized",
+						"Invalid X-App-Instance-Token: no active instance matches it",
+					),
 				);
 			}
 			return next({

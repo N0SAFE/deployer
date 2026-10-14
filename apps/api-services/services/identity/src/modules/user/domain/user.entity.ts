@@ -13,7 +13,7 @@ import { userSchema } from "@deployer/contracts-entities";
 export type User = z.output<typeof userSchema>;
 
 /** What `create` accepts — the entity minus everything the system assigns. */
-export interface NewUser {
+export type NewUser = {
 	readonly name: string;
 	readonly email: string;
 	readonly image?: string | null;
@@ -34,7 +34,7 @@ export interface NewUser {
  * `image` is absent for the same reason the contract omits it: the avatar is set
  * at creation and changed through the auth surface, not here.
  */
-export interface UserPatch {
+export type UserPatch = {
 	name?: string;
 	email?: string;
 	emailVerified?: boolean;
@@ -43,7 +43,7 @@ export interface UserPatch {
 }
 
 /** The caller, as resolved by the BFF and forwarded over the boundary. */
-export interface Actor {
+export type Actor = {
 	readonly userId: string;
 	readonly role: string;
 }

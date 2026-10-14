@@ -24,7 +24,7 @@ import type { ResolvedPreviewNode } from "@deployer/project-contracts/modules/se
  * Cycle guard: a visited service is not re-expanded (returns a terminal node).
  */
 
-export interface TopologyServiceRecord {
+export type TopologyServiceRecord = {
     id: string;
     name: string;
     /** The contract this service implements (DI semantics). */
@@ -40,13 +40,13 @@ export interface TopologyServiceRecord {
     } | null;
 }
 
-export interface TopologyDependencyEdge {
+export type TopologyDependencyEdge = {
     serviceId: string;
     dependsOnServiceId: string;
     isRequired: boolean;
 }
 
-export interface TopologyResolveInput {
+export type TopologyResolveInput = {
     environment: string;
     pullRequestNumber?: number;
     branch?: string;
@@ -55,7 +55,7 @@ export interface TopologyResolveInput {
 /** Project contract registry: contractRef → source/version. */
 export type ContractRegistry = Record<string, unknown>;
 
-export interface TopologyContext {
+export type TopologyContext = {
     /** serviceId → service record. */
     services: Map<string, TopologyServiceRecord>;
     /** serviceId → dependency edges. */
@@ -65,7 +65,7 @@ export interface TopologyContext {
     input: TopologyResolveInput;
 }
 
-export interface ResolveResult {
+export type ResolveResult = {
     nodes: ResolvedPreviewNode[];
     contracts: string[];
 }

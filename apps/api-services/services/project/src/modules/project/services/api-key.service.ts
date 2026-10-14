@@ -7,7 +7,7 @@ import { ProjectRepository } from "../repositories/project.repository";
 // Types
 // ---------------------------------------------------------------------------
 
-export interface CreateApiKeyInput {
+export type CreateApiKeyInput = {
     userId: string;
     name: string;
     /** Optional project-scoped key. If provided, ownership is validated. */
@@ -16,7 +16,7 @@ export interface CreateApiKeyInput {
     expiresAt?: Date;
 }
 
-export interface IssueApiKeyResult {
+export type IssueApiKeyResult = {
     id: string;
     name: string;
     keyPreview: string;
@@ -27,7 +27,7 @@ export interface IssueApiKeyResult {
     rawKey: string;
 }
 
-export interface RotateApiKeyResult {
+export type RotateApiKeyResult = {
     /** The newly issued key record. */
     newKey: IssueApiKeyResult;
     /** ID of the revoked predecessor key. */

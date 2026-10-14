@@ -209,8 +209,8 @@ describe("analyticsRules", () => {
 		it("carries extra fields alongside, so an empty page still reports its shape", () => {
 			const payload = analyticsRules.unavailable<{ value: number }>({ total: 0, limit: 20, offset: 0 });
 
-			expect(payload["total"]).toBe(0);
-			expect(payload["limit"]).toBe(20);
+			expect(payload.total).toBe(0);
+			expect(payload.limit).toBe(20);
 		});
 	});
 });

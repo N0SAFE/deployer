@@ -38,7 +38,7 @@ export class AnalyticsController {
 		return implement(analyticsContract.getResourceMetrics)
 			.use(requireAuth())
 			.handler(async ({ input, context }) => {
-				void context;
+				context;
 				return this.analytics.resourceMetrics(readMetricsQuery(input));
 			});
 	}
@@ -48,7 +48,7 @@ export class AnalyticsController {
 		return implement(analyticsContract.getApplicationMetrics)
 			.use(requireAuth())
 			.handler(async ({ input, context }) => {
-				void context;
+				context;
 				return this.analytics.applicationMetrics(readMetricsQuery(input));
 			});
 	}
@@ -58,7 +58,7 @@ export class AnalyticsController {
 		return implement(analyticsContract.getDatabaseMetrics)
 			.use(requireAuth())
 			.handler(async ({ input, context }) => {
-				void context;
+				context;
 				return this.analytics.databaseMetrics(readMetricsQuery(input));
 			});
 	}
@@ -68,7 +68,7 @@ export class AnalyticsController {
 		return implement(analyticsContract.getDeploymentMetrics)
 			.use(requireAuth())
 			.handler(async ({ input, context }) => {
-				void context;
+				context;
 				return this.analytics.deploymentMetrics(readMetricsQuery(input));
 			});
 	}
@@ -78,7 +78,7 @@ export class AnalyticsController {
 		return implement(analyticsContract.getServiceHealth)
 			.use(requireAuth())
 			.handler(async ({ input, context }) => {
-				void context;
+				context;
 				return this.analytics.serviceHealth(readServices(input));
 			});
 	}
@@ -88,7 +88,7 @@ export class AnalyticsController {
 		return implement(analyticsContract.getRealTimeMetrics)
 			.use(requireAuth())
 			.handler(async ({ input, context }) => {
-				void context;
+				context;
 				return this.analytics.realtimeMetrics(readServices(input));
 			});
 	}
@@ -131,9 +131,9 @@ export class AnalyticsController {
 			.handler(async ({ input }) => {
 				const query = readQuery(input);
 				return this.analytics.activitySummary({
-					...(typeof query["period"] === "string" ? { period: query["period"] } : {}),
-					...(typeof query["granularity"] === "string" ? { granularity: query["granularity"] } : {}),
-					...(typeof query["limit"] === "number" ? { limit: query["limit"] } : {}),
+					...(typeof query.period === "string" ? { period: query.period } : {}),
+					...(typeof query.granularity === "string" ? { granularity: query.granularity } : {}),
+					...(typeof query.limit === "number" ? { limit: query.limit } : {}),
 				});
 			});
 	}
@@ -420,7 +420,7 @@ export class AnalyticsController {
 function readQuery(source: unknown): Record<string, unknown> {
 	if (source === null || typeof source !== "object") return {};
 	const record = source as Record<string, unknown>;
-	const query = record["query"];
+	const query = record.query;
 	return query !== null && typeof query === "object" ? (query as Record<string, unknown>) : {};
 }
 
@@ -428,17 +428,17 @@ function readQuery(source: unknown): Record<string, unknown> {
 function readMetricsQuery(source: unknown) {
 	const query = readQuery(source);
 	return {
-		timeRange: typeof query["timeRange"] === "string" ? query["timeRange"] : "1d",
-		granularity: typeof query["granularity"] === "string" ? query["granularity"] : "hour",
-		...(Array.isArray(query["metrics"]) ? { metrics: query["metrics"] as string[] } : {}),
-		...(Array.isArray(query["services"]) ? { services: query["services"] as string[] } : {}),
+		timeRange: typeof query.timeRange === "string" ? query.timeRange : "1d",
+		granularity: typeof query.granularity === "string" ? query.granularity : "hour",
+		...(Array.isArray(query.metrics) ? { metrics: query.metrics as string[] } : {}),
+		...(Array.isArray(query.services) ? { services: query.services as string[] } : {}),
 	};
 }
 
 /** `services` from a query that may or may not be present. */
 function readServices(source: unknown): readonly string[] | undefined {
 	const query = readQuery(source);
-	return Array.isArray(query["services"]) ? (query["services"] as string[]) : undefined;
+	return Array.isArray(query.services) ? (query.services as string[]) : undefined;
 }
 
 /** A string field, or its default when absent or of the wrong type. */

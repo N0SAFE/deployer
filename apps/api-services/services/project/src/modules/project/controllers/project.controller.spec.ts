@@ -139,7 +139,7 @@ describe('ProjectController', () => {
     });
 
     describe('ORPC implementation methods', () => {
-        const methodsWithHandler: Array<keyof ProjectController> = [
+        const methodsWithHandler: (keyof ProjectController)[] = [
             'list',
             'findById',
             'create',

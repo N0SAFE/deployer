@@ -13,7 +13,7 @@ import {
 import { UserRepository, type UserFilter, type UserPage } from "../repositories/user.repository";
 
 /** The filters `list` and `count` accept, as the contract declares them. */
-export interface UserQuery {
+export type UserQuery = {
 	readonly limit: number;
 	readonly offset: number;
 	readonly sortField: "createdAt" | "name" | "email" | "updatedAt";

@@ -14,7 +14,7 @@ import {
 } from "../repositories/analytics.repository";
 
 /** A live reading of the host, or the fact that there is none. */
-interface ResourceSnapshot {
+type ResourceSnapshot = {
 	readonly available: boolean;
 	readonly cpuPercent: number;
 	readonly cores: number;
@@ -32,7 +32,7 @@ interface ResourceSnapshot {
 const SUCCESS_STATUS = "success";
 
 /** The caller, as resolved by the BFF and forwarded over the boundary. */
-export interface Actor {
+export type Actor = {
 	readonly userId: string;
 	readonly role: string;
 }
@@ -56,7 +56,7 @@ export interface Actor {
  * mismatch that surfaces at the procedure boundary, far from here. Since these types
  * exist to satisfy the contract's shape exactly, they mirror it: mutable.
  */
-export interface ResourceUsagePoint {
+export type ResourceUsagePoint = {
 	readonly timestamp: Date;
 	readonly cpu: { readonly usage: number; readonly cores: number };
 	readonly memory: { readonly used: number; readonly total: number; readonly percentage: number };
@@ -64,7 +64,7 @@ export interface ResourceUsagePoint {
 	readonly network: { readonly inbound: number; readonly outbound: number };
 }
 
-export interface ApplicationMetricsPoint {
+export type ApplicationMetricsPoint = {
 	readonly timestamp: Date;
 	readonly requestCount: number;
 	readonly responseTime: { readonly average: number; readonly p50: number; readonly p95: number; readonly p99: number };
@@ -73,7 +73,7 @@ export interface ApplicationMetricsPoint {
 	readonly throughput: number;
 }
 
-export interface DatabaseMetricsPoint {
+export type DatabaseMetricsPoint = {
 	readonly timestamp: Date;
 	readonly connections: { readonly active: number; readonly idle: number; readonly max: number };
 	readonly queries: { readonly total: number; readonly slow: number; readonly failed: number };
@@ -81,14 +81,14 @@ export interface DatabaseMetricsPoint {
 	readonly storage: { readonly size: number; readonly indexSize: number; readonly growth: number };
 }
 
-export interface UserActivityPoint {
+export type UserActivityPoint = {
 	readonly timestamp: Date;
 	readonly userId: string;
 	readonly action: string;
 	readonly resource: string;
 }
 
-export interface ActivitySummaryPoint {
+export type ActivitySummaryPoint = {
 	readonly period: string;
 	readonly totalActions: number;
 	readonly uniqueUsers: number;
@@ -96,7 +96,7 @@ export interface ActivitySummaryPoint {
 	readonly topResources: { resource: string; count: number }[];
 }
 
-export interface ApiUsageRow {
+export type ApiUsageRow = {
 	readonly key: string;
 	readonly requests: number;
 	readonly errors: number;
@@ -104,7 +104,7 @@ export interface ApiUsageRow {
 	readonly dataTransferred: number;
 }
 
-export interface StorageBreakdownRow {
+export type StorageBreakdownRow = {
 	readonly key: string;
 	readonly used: number;
 	readonly allocated: number;
@@ -113,20 +113,20 @@ export interface StorageBreakdownRow {
 }
 
 /** The inputs the analytics procedures accept, as the contract declares them. */
-export interface MetricsQuery {
+export type MetricsQuery = {
 	readonly timeRange: string;
 	readonly granularity: string;
 	readonly metrics?: readonly string[] | undefined;
 	readonly services?: readonly string[] | undefined;
 }
 
-export interface UsageQuery {
+export type UsageQuery = {
 	readonly timeRange: string;
 	readonly resource: string;
 	readonly aggregation: string;
 }
 
-export interface ActivityQuery {
+export type ActivityQuery = {
 	readonly timeRange: string;
 	readonly userId?: string | undefined;
 	readonly action?: string | undefined;
@@ -135,7 +135,7 @@ export interface ActivityQuery {
 	readonly offset: number;
 }
 
-export interface GenerateReportInput {
+export type GenerateReportInput = {
 	readonly period: { readonly start: Date; readonly end: Date };
 	readonly includeResourceUsage: boolean;
 	readonly includeApplicationMetrics: boolean;
@@ -147,7 +147,7 @@ export interface GenerateReportInput {
 }
 
 /** A report configuration to store. */
-export interface CreateReportConfigInput {
+export type CreateReportConfigInput = {
 	readonly name: string;
 	readonly description?: string | undefined;
 	readonly metrics: readonly string[];
@@ -236,7 +236,7 @@ export class AnalyticsService {
 	 * is expected to say "not instrumented" rather than draw a flat line.
 	 */
 	async applicationMetrics(query: MetricsQuery) {
-		void query;
+		query;
 		return {
 			// The element type is the one this payload WOULD have carried. Naming it keeps
 			// the empty response structurally identical to a populated one, so a caller
@@ -255,7 +255,7 @@ export class AnalyticsService {
 	 * Reporting them as zero would hide a genuinely saturated connection pool.
 	 */
 	async databaseMetrics(query: MetricsQuery) {
-		void query;
+		query;
 		return {
 			...analyticsRules.unavailable<DatabaseMetricsPoint>(),
 			timeRange: query.timeRange,
@@ -469,7 +469,7 @@ export class AnalyticsService {
 
 	/** User activity — no audit log is written, so this is not measured. */
 	async userActivity(query: ActivityQuery) {
-		void query;
+		query;
 		return {
 			...analyticsRules.unavailable<UserActivityPoint>(),
 			total: 0,
@@ -480,7 +480,7 @@ export class AnalyticsService {
 
 	/** Activity summary — same missing source as user activity. */
 	async activitySummary(query: { period?: string; granularity?: string; limit?: number }) {
-		void query;
+		query;
 		return { ...analyticsRules.unavailable<ActivitySummaryPoint>(), totalPeriods: 0 };
 	}
 
@@ -595,7 +595,7 @@ export class AnalyticsService {
 
 	/** Storage usage — a real host reading, presented as a trend. */
 	async storageUsage(query: { timeRange: string; breakdown: string }) {
-		void query;
+		query;
 		const snapshot = await this.takeSnapshot();
 		const plan = analyticsRules.bucketPlan(query.timeRange, "day");
 
@@ -650,36 +650,36 @@ export class AnalyticsService {
 			if (input.includeDeploymentAnalytics) {
 				sections.push("deploymentAnalytics");
 				const metrics = await this.deploymentMetrics(window);
-				content["deploymentAnalytics"] = metrics.data;
+				content.deploymentAnalytics = metrics.data;
 			}
 			if (input.includeServiceHealth) {
 				sections.push("serviceHealth");
 				const health = await this.serviceHealth();
-				content["serviceHealth"] = health.data;
+				content.serviceHealth = health.data;
 			}
 			if (input.includeResourceUsage) {
 				sections.push("resourceUsage");
 				const usage = await this.resourceUsage({ timeRange: "1d", resource: "all", aggregation: "average" });
-				content["resourceUsage"] = usage.data;
+				content.resourceUsage = usage.data;
 			}
 			if (input.includeApplicationMetrics) {
 				sections.push("applicationMetrics");
 				// Recorded as an empty section with its data source, so the report states
 				// which parts are not measured instead of omitting them silently.
 				const metrics = await this.applicationMetrics(window);
-				content["applicationMetrics"] = metrics.data;
-				content["applicationMetricsDataSource"] = metrics.dataSource;
+				content.applicationMetrics = metrics.data;
+				content.applicationMetricsDataSource = metrics.dataSource;
 			}
 			if (input.includeDatabaseMetrics) {
 				sections.push("databaseMetrics");
 				const metrics = await this.databaseMetrics(window);
-				content["databaseMetrics"] = metrics.data;
-				content["databaseMetricsDataSource"] = metrics.dataSource;
+				content.databaseMetrics = metrics.data;
+				content.databaseMetricsDataSource = metrics.dataSource;
 			}
 			if (input.includeUserActivity) {
 				sections.push("userActivity");
 				const activity = await this.activitySummary({});
-				content["userActivity"] = activity.data;
+				content.userActivity = activity.data;
 			}
 
 			const deployments = await this.deploymentUsage({ timeRange: rangeFor(input.period) });

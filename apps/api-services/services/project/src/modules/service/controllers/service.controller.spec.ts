@@ -92,7 +92,7 @@ describe('ServiceController', () => {
     });
 
     describe('ORPC implementation methods', () => {
-        const methods: Array<keyof ServiceController> = [
+        const methods: (keyof ServiceController)[] = [
             'list',
             'findById',
             'create',

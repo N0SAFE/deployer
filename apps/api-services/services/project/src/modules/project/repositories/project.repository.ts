@@ -32,7 +32,7 @@ type ProjectUpdateInput = Partial<
     Pick<ProjectRow, "name" | "description" | "baseDomain" | "network" | "settings">
 >;
 
-interface CollaboratorCreateInput {
+type CollaboratorCreateInput = {
     projectId: string;
     userId: string;
     role: "owner" | "admin" | "developer" | "viewer";
@@ -45,7 +45,7 @@ type CollaboratorUpdateInput = Partial<{
     permissions: CollaboratorRow["permissions"];
 }>;
 
-interface EnvironmentCreateInput {
+type EnvironmentCreateInput = {
     projectId: string;
     name: string;
     /** The primitive KIND: stable | preview | ephemeral. */
@@ -75,7 +75,7 @@ type EnvironmentUpdateInput = Partial<{
     metadata: EnvironmentRow["metadata"];
 }>;
 
-interface TemplateCreateInput {
+type TemplateCreateInput = {
     name: string;
     description?: string | null;
     variables?: TemplateRow["variables"];

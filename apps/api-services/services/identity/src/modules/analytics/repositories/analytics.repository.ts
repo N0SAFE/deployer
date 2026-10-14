@@ -13,7 +13,7 @@ import { projects, services } from "@deployer/nest-schema/global/project/deploym
  * and carrying fields it never uses would mean a schema change here for a column no
  * metric displays.
  */
-export interface DeploymentRow {
+export type DeploymentRow = {
 	readonly id: string;
 	readonly serviceId: string;
 	readonly status: string;
@@ -23,14 +23,14 @@ export interface DeploymentRow {
 }
 
 /** One rollback, timed by when it started. */
-export interface RollbackRow {
+export type RollbackRow = {
 	readonly deploymentId: string;
 	readonly status: string;
 	readonly createdAt: Date;
 }
 
 /** The identity of a service, for joining metric rows back to a name. */
-export interface ServiceRow {
+export type ServiceRow = {
 	readonly id: string;
 	readonly name: string;
 	readonly projectId: string;
@@ -42,7 +42,7 @@ export type ReportFormat = "json" | "pdf" | "csv";
 export type ReportSchedule = "none" | "daily" | "weekly" | "monthly";
 
 /** A persisted report, as the contract declares it. */
-export interface ReportRow {
+export type ReportRow = {
 	readonly id: string;
 	readonly name: string;
 	readonly status: string;
@@ -57,7 +57,7 @@ export interface ReportRow {
 }
 
 /** A stored report definition. */
-export interface ReportConfigRow {
+export type ReportConfigRow = {
 	readonly id: string;
 	readonly name: string;
 	readonly description: string | null;

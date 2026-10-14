@@ -6,7 +6,7 @@ import { allOf, relationPredicates } from "@/core/modules/database/query/relatio
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 
 /** A stored subscription, as the contract declares it. */
-export interface PushSubscription {
+export type PushSubscription = {
 	readonly id: string;
 	readonly userId: string;
 	readonly endpoint: string;
@@ -21,7 +21,7 @@ export interface PushSubscription {
 }
 
 /** What `subscribe` persists. */
-export interface NewSubscription {
+export type NewSubscription = {
 	readonly userId: string;
 	readonly endpoint: string;
 	readonly p256dh: string;
@@ -31,7 +31,7 @@ export interface NewSubscription {
 }
 
 /** VAPID keys, as the contract's `getPublicKey` needs them. */
-export interface VapidKeys {
+export type VapidKeys = {
 	readonly userId: string;
 	readonly publicKey: string;
 	readonly privateKey: string;
@@ -39,12 +39,12 @@ export interface VapidKeys {
 }
 
 /** Per-device usage the stats endpoint reports. */
-export interface DeviceUsage {
+export type DeviceUsage = {
 	readonly deviceName: string;
 	readonly lastUsed: Date;
 }
 
-export interface PushStats {
+export type PushStats = {
 	readonly totalSubscriptions: number;
 	readonly activeSubscriptions: number;
 	readonly devices: DeviceUsage[];

@@ -92,8 +92,8 @@ describe("PushService", () => {
 			// A subscription with no keypair looks live and silently cannot be delivered to,
 			// so the keypair is generated first. Ordering is asserted by call sequence.
 			expect(repository.insertVapidKeys).toHaveBeenCalled();
-			const vapidCall = repository.insertVapidKeys.mock.invocationCallOrder[0] as number;
-			const upsertCall = repository.upsert.mock.invocationCallOrder[0] as number;
+			const vapidCall = repository.insertVapidKeys.mock.invocationCallOrder[0]!;
+			const upsertCall = repository.upsert.mock.invocationCallOrder[0]!;
 			expect(vapidCall).toBeLessThan(upsertCall);
 		});
 

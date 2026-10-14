@@ -78,7 +78,7 @@ describe("ServiceDomainController", () => {
     });
 
     describe("ORPC implementation methods", () => {
-        const methods: Array<keyof ServiceDomainController> = [
+        const methods: (keyof ServiceDomainController)[] = [
             "checkSubdomainAvailability",
             "listServiceDomains",
             "addServiceDomain",
