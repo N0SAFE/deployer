@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
-import { useDescribeSharedApiRuntime } from "@/e2e-harness/shared-api-runtime";
+// The app-local wrapper, not the raw harness: the harness REQUIRES
+// `nest.rootModuleLoader` and lives in `shared`, where `@/app.module` resolves to
+// nothing, so importing it directly throws
+// `SharedApiRuntimeOptions.nest.rootModuleLoader is required` at boot.
+import { useDescribeSharedApiRuntime, withDeploymentQueueWorkerDisabled } from "@/e2e/runtime";
 import { TraefikService } from "@/core/modules/traefik/services/traefik.service";
 
 import { DeploymentService } from "@/modules/deployment/services/deployment.service";

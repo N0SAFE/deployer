@@ -356,8 +356,11 @@ async function configureTraefikPathsForE2E(
     await fs.mkdir(backupPath, { recursive: true })
 
     await Promise.all([
-        Bun.write(join(basePath, '.e2e-writable-check'), ''),
-        Bun.write(join(backupPath, '.e2e-writable-check'), ''),
+        // `fs.writeFile`, not the `Bun` global: this harness runs under vitest on Node
+        // as well as under Bun, and `Bun` is undefined there (the same reason
+        // `bun:sqlite` is aliased to a node:sqlite shim for the same runs).
+        fs.writeFile(join(basePath, '.e2e-writable-check'), ''),
+        fs.writeFile(join(backupPath, '.e2e-writable-check'), ''),
     ])
 
     const mutableService = traefikFileSystemService as unknown as {

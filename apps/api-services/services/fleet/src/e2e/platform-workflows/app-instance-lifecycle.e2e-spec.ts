@@ -14,11 +14,15 @@
  * HTTP auth surface for admin routes is covered by module-http-guards.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+// The app-local harness wrapper, which binds THIS service's root module. The
+// previous `../utils/shared-api-runtime` path does not exist in a service — the
+// harness lives in `shared`, where `@/app.module` resolves to nothing, so it must be
+// reached through the wrapper that supplies `nest.rootModuleLoader`.
 import {
 	getSharedApiRuntimeContext,
 	stopSharedApiRuntime,
 	type SharedApiRuntimeContext,
-} from "../utils/shared-api-runtime";
+} from "@/e2e/runtime";
 import { AppInstanceService } from "@/core/modules/platform-ingress/services/app-instance.service";
 
 const INSTANCE_LABEL = "e2e-byo-web";
