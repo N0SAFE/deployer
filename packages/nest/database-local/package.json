@@ -1,5 +1,5 @@
 {
-    "name": "@repo/nest-database-local",
+    "name": "@deployer/nest-database-local",
     "version": "1.0.0",
     "description": "The local SQLite database: Drizzle connection, lifecycle and the @Global module providing its tokens.",
     "main": "./dist/cjs/index.js",
@@ -36,7 +36,7 @@
         "format": "bun run prettify",
         "format:check": "prettier . --check --no-error-on-unmatched-pattern",
         "lint": "eslint . --fix --cache",
-        "type-check": "tsc --noEmit",
+        "type-check": "bun --check",
         "test": "vitest run",
         "test:watch": "vitest",
         "build": "bun --bun pkg-build",
@@ -46,8 +46,8 @@
     },
     "dependencies": {
         "@nestjs/common": "catalog:api:nest",
-        "@repo/nest-database-core": "*",
-        "@repo/nest-schema": "*",
+        "@deployer/nest-database-core": "*",
+        "@deployer/nest-schema": "*",
         "drizzle-orm": "catalog:database"
     },
     "peerDependencies": {
@@ -55,11 +55,11 @@
     },
     "devDependencies": {
         "@nestjs/testing": "catalog:api:nest",
-        "@repo/config-eslint": "*",
-        "@repo/config-prettier": "*",
-        "@repo/config-typescript": "*",
-        "@repo/config-vitest": "*",
-        "@repo/pkg-build": "*",
+        "@deployer/config-eslint": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-typescript": "*",
+        "@deployer/config-vitest": "*",
+        "@deployer/pkg-build": "*",
         "@types/bun": "catalog:build",
         "@types/node": "catalog:build",
         "chokidar": "catalog:build",

@@ -7,7 +7,7 @@ import type { TestingModule } from "@nestjs/testing";
 import { Test } from "@nestjs/testing";
 import type { Database as BunSqliteDatabase } from "bun:sqlite";
 
-import { LOCAL_DATABASE_CLIENT } from "@repo/nest-database-core/database-connection";
+import { LOCAL_DATABASE_CLIENT } from "@deployer/nest-database-core/database-connection";
 
 import { LocalDatabaseModule } from "./local-database.module";
 import { describe, it, expect, vi, afterEach } from "vitest";

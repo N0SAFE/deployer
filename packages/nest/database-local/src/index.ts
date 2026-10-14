@@ -1,5 +1,5 @@
 /**
- * @repo/nest-database-local — the local SQLite database.
+ * @deployer/nest-database-local — the local SQLite database.
  *
  * WHAT THIS PACKAGE IS
  * The connection to the SQLite file next to the app: the Drizzle handle, the
@@ -32,8 +32,8 @@
  * every consumer's own init hook.
  *
  * WHAT IT IS NOT
- * No table definitions (those are in `@repo/nest-schema/local`), no repositories
- * (those are in `@repo/nest-nodes`), and no migration FILES — the app owns them
+ * No table definitions (those are in `@deployer/nest-schema/local`), no repositories
+ * (those are in `@deployer/nest-nodes`), and no migration FILES — the app owns them
  * so `drizzle-kit` resolves them from its own drizzle config.
  */
 export { LocalDatabaseService } from "./local-database.service";

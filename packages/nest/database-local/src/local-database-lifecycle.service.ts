@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } from "@nestjs/common";
 import type { Database as BunSqliteDatabase } from "bun:sqlite";
 
-import { LOCAL_DATABASE_CLIENT } from "@repo/nest-database-core/database-connection";
+import { LOCAL_DATABASE_CLIENT } from "@deployer/nest-database-core/database-connection";
 
 import { LOCAL_DATABASE_OPTIONS_TOKEN, type LocalDatabaseModuleOptions } from "./local-database.options";
 import { ensureLocalSchemaMigrated } from "./local-migrations";

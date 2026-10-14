@@ -10,7 +10,7 @@
             "bun"
         ],
         "paths": {
-            "@repo/nest-database-local/*": [
+            "@deployer/nest-database-local/*": [
                 "./src/*"
             ]
         }

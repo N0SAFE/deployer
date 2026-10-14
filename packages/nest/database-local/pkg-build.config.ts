@@ -1,4 +1,4 @@
-import { defineConfig } from '@repo/pkg-build/config'
+import { defineConfig } from '@deployer/pkg-build/config'
 
-/** Build configuration for `@repo/nest-database-local` — defaults apply. */
+/** Build configuration for `@deployer/nest-database-local` — defaults apply. */
 export default defineConfig({})

@@ -62,9 +62,14 @@ function isMigrationApplied(sqlite: BunSqliteDatabase, name: string): boolean {
 }
 
 function recordMigrationApplied(sqlite: BunSqliteDatabase, name: string, hash: string): void {
+    // Idempotent on purpose. Two processes can boot against the same SQLite file
+    // (two e2e suites sharing the default path), both pass `isMigrationApplied`,
+    // and both try to record the same row. A plain INSERT makes the loser throw
+    // `UNIQUE constraint failed: local_migrations.name` and abort boot, leaving the
+    // schema unapplied — a race that looks like "no such table" further down.
     sqlite
         .query(
-            `INSERT INTO ${MIGRATION_STATE_TABLE} (name, hash, applied_at) VALUES (?, ?, ?)`,
+            `INSERT OR IGNORE INTO ${MIGRATION_STATE_TABLE} (name, hash, applied_at) VALUES (?, ?, ?)`,
         )
         .run(name, hash, new Date().toISOString());
 }
@@ -183,6 +188,17 @@ function runSqliteMigrations(
         } catch (err: unknown) {
             sqlite.run("ROLLBACK");
             const msg = err instanceof Error ? err.message : String(err);
+            // A concurrent boot may have applied the same migration between our
+            // `isMigrationApplied` check and this transaction, so the DDL conflicts
+            // (`table … already exists`, `duplicate column name`) rather than our own
+            // record insert. Re-check the state table: if the row is there now, the
+            // other process won and this migration IS applied — skip instead of
+            // failing a boot over a migration that succeeded.
+            if (isMigrationApplied(sqlite, file)) {
+                logger.log(`Local migration ${file} was applied concurrently — skipping`);
+                skipped += 1;
+                continue;
+            }
             logger.error(`Migration ${file} FAILED — rolled back, NOT marked applied: ${msg}`);
             throw err;
         }
