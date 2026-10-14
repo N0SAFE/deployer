@@ -40,6 +40,9 @@ import { CloudflareTunnelService } from "./dns/cloudflare/services/cloudflare-tu
 import { CloudflareDnsProviderService } from "./dns/cloudflare/services/cloudflare-dns-provider.service";
 import { CloudflareTunnelEdgeProvider } from "./edge/cloudflare-tunnel/cloudflare-tunnel.edge-provider";
 import { CoreEdgeModule } from "@/core/modules/edge/edge.module";
+// `GithubWebhookDispatchService` injects `DomainRoutingService`, which
+// `CoreDomainModule` owns — without this import the module cannot be constructed.
+import { CoreDomainModule } from "@/core/modules/domain/domain.module";
 import { EnvModule } from "@/config/env/env.module";
 import { GitHubAppsController } from "./code/github/controllers/github-account.controller";
 import { GitlabAppsController } from "./code/gitlab/controllers/gitlab-account.controller";
@@ -69,6 +72,7 @@ import { PreviewLifecycleEventService } from "./code/github/events/preview-lifec
         EventsModule,
         TraefikCoreModule,
         CoreEdgeModule,
+        CoreDomainModule,
         EnvModule,
     ],
     controllers: [
