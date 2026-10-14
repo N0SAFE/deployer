@@ -5,7 +5,7 @@
     "description": "Shared configurable workspace package builder. Bundles package sources to ESM/CJS with bun (resolving tsconfig path aliases and emitting NestJS decorator metadata) and emits declarations to dist/types with tsc. Each package declares its build in a typed pkg-build.config.ts.",
     "type": "module",
     "bin": {
-        "pkg-build": "./dist/cjs/main.js"
+        "pkg-build": "./bin/pkg-build.mjs"
     },
     "exports": {
         ".": {
