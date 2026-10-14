@@ -207,7 +207,15 @@ function runSqliteMigrations(
         // Execute the whole migration atomically. If ANY statement fails,
         // roll back and do NOT record the migration as applied — the schema
         // must never be left in a half-migrated state that is marked done.
-        sqlite.run("BEGIN");
+        //
+        // `BEGIN IMMEDIATE`, not a plain `BEGIN`: a deferred transaction takes its
+        // write lock lazily, on the first write, and SQLite does NOT retry that
+        // upgrade under `busy_timeout` — it returns `SQLITE_BUSY` immediately. Two
+        // processes against the same file therefore failed with `database is
+        // locked` instead of one waiting (two e2e specs share the local DB). An
+        // immediate transaction takes the lock up front, where `busy_timeout` DOES
+        // apply, so the second writer waits its turn.
+        sqlite.run("BEGIN IMMEDIATE");
         try {
             for (const stmt of statements) {
                 sqlite.run(stmt);

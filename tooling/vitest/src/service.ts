@@ -1,5 +1,7 @@
 /// <reference types="vitest" />
+import { randomUUID } from "node:crypto";
 import { statSync } from "node:fs";
+import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { defineConfig, type ViteUserConfigExport } from "vitest/config";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -175,13 +177,36 @@ export const createServiceTestConfig = (
                             // e2e harness imports the composed contract as a VALUE, whose graph
                             // parses the env schema. That parse applies the default
                             // `NODE_LOCAL_DB_PATH=/app/data/local.db` — the path INSIDE the
-                            // container — and writes it into `process.env`, so a setup-file
-                            // assignment is too late to win. On any non-container machine the
-                            // local-SQLite factory then dies with
-                            // `EACCES: permission denied, mkdir '/app/data'`.
+                            // container — and CACHES it, so a setup-file assignment is too late
+                            // to win. On any non-container machine the local-SQLite factory then
+                            // dies with `EACCES: permission denied, mkdir '/app/data'`.
                             //
-                            // `test.env` is applied to the worker BEFORE any import.
+                            // `test.env` is applied to the worker BEFORE any import, so this
+                            // placeholder is what the schema sees during that early parse. The
+                            // e2e harness then re-points each RUNTIME at its own
+                            // `deployer-api-e2e-<instanceKey>-<uuid>.db` — see
+                            // `shared-api-runtime/manager.ts`, which is what keeps two specs in
+                            // one worker off the same SQLite file. This value only has to be a
+                            // writable path that is not the container's.
                             env: { NODE_LOCAL_DB_PATH: `/tmp/deployer-${service}-e2e-local.db` },
+                            // ── WHY THE E2E PROJECT IS SERIAL ───────────────────
+                            // The local SQLite file is a single path shared by every spec in
+                            // this project, and two specs booting at once contend for it during
+                            // migration: SQLite has one writer, and the loser fails with
+                            // `database is locked` rather than waiting (the lock is taken by way
+                            // of DDL, which `busy_timeout` does not retry).
+                            //
+                            // Per-runtime isolation is not available here: the harness DOES
+                            // build an isolated database per runtime, but for SQLite it does so
+                            // through `NODE_LOCAL_DB_PATH`, and that value is cached when the
+                            // contract graph is first imported — BEFORE the harness runs. So
+                            // every spec in the project ends up on the one path above.
+                            //
+                            // Postgres is unaffected (the harness creates one database per
+                            // runtime), and the unit project stays parallel. E2E files are few
+                            // and already boot a full Nest app, so serialising them costs
+                            // little and makes the suite deterministic.
+                            fileParallelism: false,
                             // Referenced from `apps/api`, not copied: their imports are relative
                             // to their own directory, so a copy per app would be six identical
                             // files to keep in step.

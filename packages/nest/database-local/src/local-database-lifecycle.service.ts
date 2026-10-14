@@ -44,7 +44,11 @@ export class LocalDatabaseLifecycleService implements OnModuleInit, OnApplicatio
             return;
         }
         this.client.run("PRAGMA journal_mode = WAL;");
-        this.client.run("PRAGMA busy_timeout = 5000;");
+        // 15s, not 5s: the local DB is a single file that several Nest contexts in
+        // one process (and, under test, several runtimes) open. A migration that
+        // waits behind another writer must outlast the other one's whole run, or
+        // the loser fails with `database is locked` instead of simply being second.
+        this.client.run("PRAGMA busy_timeout = 15000;");
         ensureLocalSchemaMigrated(this.client, this.options.databasePath, this.options.migrationsDir);
     }
 
