@@ -85,28 +85,58 @@ function hashFile(content: string): string {
  * tolerated "already exists" / "duplicate column" errors, so an existing
  * database already has the full schema but no `local_migrations` state.
  *
- * On first boot with the new runner, if the state table is empty but the
- * schema already exists (e.g. `node_config` is present), record every
- * migration file as applied WITHOUT re-executing — otherwise the new
- * transactional runner would fail on `CREATE TABLE node_config` (already
- * exists) and crash the app.
+ * ── WHY THIS ASKS FOR THE WHOLE SCHEMA, NOT ONE TABLE ───────────────────────
+ * It used to check only that `node_config` existed. That is not evidence the
+ * schema is complete: any consumer that creates one table, or a database left
+ * half-migrated by an interrupted boot, passes the check and then has EVERY
+ * migration recorded as applied WITHOUT being executed. The result is a database
+ * that the runner will never migrate again and that fails on the first read of
+ * any other table — reported as `no such table: <x>` from an unrelated module,
+ * with no hint that the cause is a backfill several boots earlier.
+ *
+ * So the backfill now requires every table the migrations create to be present.
+ * A genuinely legacy database has them all (the old runner applied every file);
+ * anything less falls through to the normal runner, which applies what is
+ * missing and is transactional.
  */
 function backfillAppliedMigrationsIfSchemaExists(
     sqlite: BunSqliteDatabase,
     files: string[],
     migrationsDir: string,
 ): boolean {
-    const hasSchema = sqlite
-        .query(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'node_config'`)
-        .get() !== null;
-    if (!hasSchema) {
-        return false;
-    }
-
     const appliedCount = sqlite
         .query(`SELECT COUNT(*) AS count FROM ${MIGRATION_STATE_TABLE}`)
         .get() as { count: number };
     if (appliedCount.count > 0) {
+        return false;
+    }
+
+    const existing = new Set(
+        (
+            sqlite
+                .query(`SELECT name FROM sqlite_master WHERE type = 'table'`)
+                .all() as { name: string }[]
+        ).map((row) => row.name),
+    );
+
+    // Every table the migration set creates must already exist.
+    const created = new Set<string>();
+    for (const file of files) {
+        const sql = fs.readFileSync(path.join(migrationsDir, file), "utf8");
+        for (const match of sql.matchAll(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`"[]?(\w+)/gi)) {
+            const [, table] = match
+            if (table !== undefined) created.add(table)
+        }
+    }
+    if (created.size === 0) {
+        return false;
+    }
+    const missing = [...created].filter((table) => !existing.has(table));
+    if (missing.length > 0) {
+        // Not a legacy database — a partial one. Let the runner migrate it.
+        logger.log(
+            `Local schema is incomplete (${String(missing.length)} table(s) missing) — running migrations instead of backfilling`,
+        );
         return false;
     }
 

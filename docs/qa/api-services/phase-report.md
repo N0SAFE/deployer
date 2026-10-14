@@ -199,24 +199,42 @@ Commands and their results are recorded per commit. The invariant used throughou
    booted and failed at first read from a module naming neither the table nor the missing
    registration. Added the node-state module to the runtime root.
 
-### Remaining blocker (runtime, 2 e2e files)
+### The runtime e2e blocker: resolved, and it was four separate bugs
 
-`deployment-complete-strategy.e2e-spec.ts` and `deployment-queue-advanced-workflow.e2e-spec.ts`
-fail with `no such table: node_config`. Established by direct inspection:
+The two specs failed with `no such table: node_config`. Chasing it properly found
+four independent defects, each of which would have hidden the next:
 
-- The DB file is created and `local_migrations` exists, but **no other table does**, and
-  the file's owners are recorded as applied — the signature of
-  `backfillAppliedMigrationsIfSchemaExists` firing, which requires `node_config` to
-  already exist. It does not, so that path cannot be the one taken.
-- No migration log line appears in the run at all (`Checking local migrations`,
-  `Running local migration`, `Local SQLite schema ready` are all absent), so the loader
-  is not reached — this is not a migration failure but the module never initialising.
-- Ruled out by probe: the `bun:sqlite` shim executes DDL and `BEGIN`/`COMMIT` correctly;
-  `LOCAL_MIGRATIONS_DIR` resolves to a directory with all 13 files; `NodeStateModule` and
-  the corrected `LocalDatabaseModule` are both wired in `RuntimeServiceModule`, which is
-  the module the e2e's `rootModuleLoader` imports.
+1. **The `bun:sqlite` shim was not faithful.** `bun:sqlite`'s `.get()` returns
+   `null` on no match; `node:sqlite`'s returns `undefined`. Since `bun:sqlite` types
+   it `Row | null`, every caller writes `row !== null` — and under `undefined` those
+   checks INVERT. The local-migration state check
+   (`SELECT 1 FROM local_migrations WHERE name = ?`) therefore reported all 13
+   migrations as **already applied against an empty table**, so the schema was never
+   created. This was the root cause of `no such table`.
+   Fixed by making the shim return `null`, plus a regression test
+   (`apps/api/src/vitest-shims/bun-sqlite.spec.ts`) that was verified to FAIL on the
+   buggy version and pass on the fix.
 
-Next step for whoever picks this up: log the resolved `LocalDatabaseModuleOptions` at
-`LocalDatabaseLifecycleService.onModuleInit`, and confirm the lifecycle service is
-instantiated at all in the e2e's module graph — the evidence points at the local-database
-provider never being constructed rather than at the migration runner.
+2. **The legacy backfill fired on one table.** `backfillAppliedMigrationsIfSchemaExists`
+   checked only that `node_config` existed, then recorded every migration as applied
+   **without executing any of them**. Any half-migrated database passed that check and
+   was then permanently un-migratable. It now requires *every* table the migration set
+   creates to be present; anything less falls through to the transactional runner.
+
+3. **Migration `0002` had two `ALTER TABLE` statements with no
+   `--> statement-breakpoint` between them.** The loader splits on that marker, so the
+   whole file was one statement and only the first `ALTER` ran — `mesh_urls_snapshot`
+   was never added, and migration 0004 (which rebuilds `node_config` including that
+   column) then failed with `no such column: "mesh_urls_snapshot"`.
+   `bun:sqlite` tolerated the multi-statement string; `node:sqlite` did not, which is
+   why this only appeared under the shim. Marker added; it is the only file affected.
+
+4. **The upload source provider ignored a root-level `uploadPath`.**
+   `uploadSourceContextSchema` declares `uploadId`/`uploadPath` at BOTH the root and
+   inside `customData`, but the provider read only the nested copies — so a caller
+   following the documented root-level shape was told its bundle "was not found",
+   naming a field it had supplied. Both copies (runtime and fleet) now prefer the
+   nested value and fall back to the root.
+
+**Result**: `runtime` **32/32 files, 288/288 tests**, and all six suites green —
+**663 tests**.

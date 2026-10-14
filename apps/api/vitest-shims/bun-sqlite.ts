@@ -32,7 +32,8 @@ type RunResult = { changes: number | bigint; lastInsertRowid: number | bigint };
 
 interface SqliteStatementLike {
   all(...params: SqlValue[]): Row[];
-  get(...params: SqlValue[]): Row | undefined;
+  /** `bun:sqlite` returns `null` for no row; `node:sqlite` returns `undefined`. */
+  get(...params: SqlValue[]): Row | null | undefined;
   run(...params: SqlValue[]): RunResult;
   columns(): Array<{ name: string }>;
 }
@@ -68,8 +69,19 @@ class Statement {
     return this.raw.all(...params);
   }
 
-  get(...params: SqlValue[]): Row | undefined {
-    return this.raw.get(...params);
+  /**
+   * Returns `null` when there is no row, matching `bun:sqlite`.
+   *
+   * `node:sqlite` returns `undefined` instead, and the two are NOT
+   * interchangeable: `bun:sqlite`'s `.get()` is typed `Row | null`, so every
+   * caller writes `row !== null`. With `undefined` those checks INVERT — a
+   * missing row reads as a present one. That is how the local-migration state
+   * check (`SELECT 1 … WHERE name = ?`) reported all 13 migrations as already
+   * applied against an empty table, leaving the schema uncreated and the app
+   * failing later with `no such table: node_config`.
+   */
+  get(...params: SqlValue[]): Row | null {
+    return this.raw.get(...params) ?? null;
   }
 
   run(...params: SqlValue[]): RunResult {

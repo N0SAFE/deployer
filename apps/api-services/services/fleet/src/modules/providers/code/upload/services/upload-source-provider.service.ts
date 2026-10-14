@@ -93,24 +93,32 @@ export class UploadSourceProviderService extends CodeProvider {
             throw new BadRequestException("Upload source requires valid source with customData.uploadId");
         }
 
+        // `uploadId`/`uploadPath` are declared BOTH at the root of the source and
+        // inside `customData`, and the provider used to read only the nested copies.
+        // A caller that followed the root-level schema — which is the documented
+        // shape this source type validates — was then told its bundle
+        // "was not found", naming a field it had in fact supplied. Prefer the
+        // nested value (the more specific one) and fall back to the root.
         const { customData, fileName, fileSize } = parsed.data;
-        const registryRecord = customData.uploadPath
+        const uploadId = customData.uploadId;
+        const declaredUploadPath = customData.uploadPath ?? parsed.data.uploadPath;
+        const registryRecord = declaredUploadPath
             ? null
-            : this.uploadBundleRegistryService.findByUploadId(customData.uploadId);
+            : this.uploadBundleRegistryService.findByUploadId(uploadId);
 
-        if (!customData.uploadPath && !registryRecord) {
+        if (!declaredUploadPath && !registryRecord) {
             throw new BadRequestException(
-                `Upload bundle with id '${customData.uploadId}' was not found. Upload the archive first via /deployments/upload-bundle.`,
+                `Upload bundle with id '${uploadId}' was not found. Upload the archive first via /deployments/upload-bundle.`,
             );
         }
 
-        const resolvedUploadPath = customData.uploadPath ?? registryRecord?.uploadPath;
+        const resolvedUploadPath = declaredUploadPath ?? registryRecord?.uploadPath;
         const resolvedFileName = fileName ?? registryRecord?.fileName;
         const resolvedFileSize = typeof fileSize === "number" ? fileSize : registryRecord?.fileSize;
 
         if (!resolvedUploadPath) {
             throw new BadRequestException(
-                `Upload source with id '${customData.uploadId}' is missing a resolved upload path`,
+                `Upload source with id '${uploadId}' is missing a resolved upload path`,
             );
         }
 
@@ -127,7 +135,7 @@ export class UploadSourceProviderService extends CodeProvider {
 
         return Promise.resolve(uploadSourceCheckoutContextSchema.parse({
             provider: "upload",
-            uploadId: customData.uploadId,
+            uploadId,
             uploadPath: resolvedUploadPath,
             ...(resolvedFileName ? { fileName: resolvedFileName } : {}),
             ...(typeof resolvedFileSize === "number" ? { fileSize: resolvedFileSize } : {}),
