@@ -17,17 +17,28 @@ vi.mock('./global/global-database.module', () => ({
     exports: ['GLOBAL_DATABASE_POOL', GlobalDatabaseService, GLOBAL_DATABASE_CONNECTION],
   },
 }));
-vi.mock("@deployer/nest-database-local/local-database.module", () => ({
-  LocalDatabaseModule: {
-    global: true,
+vi.mock("@deployer/nest-database-local/local-database.module", () => {
+  const providesLocalDatabase = {
     module: class {},
     providers: [
       { provide: LOCAL_DATABASE_CONNECTION, useValue: {} },
       { provide: LocalDatabaseService, useValue: {} },
     ],
     exports: [LOCAL_DATABASE_CONNECTION, LocalDatabaseService],
-  },
-}));
+  };
+  return {
+    LocalDatabaseModule: {
+      global: true,
+      ...providesLocalDatabase,
+      // `forRootAsync` MUST be present. The app does not import this class bare —
+      // it imports the wrapper (`@/core/modules/database/local/local-database.module`),
+      // whose `localDatabaseRegistration()` calls `forRootAsync` at decoration time.
+      // A stub without it fails the suite at COLLECTION with
+      // "LocalDatabaseModule.forRootAsync is not a function", before any assertion.
+      forRootAsync: vi.fn().mockReturnValue({ global: true, ...providesLocalDatabase }),
+    },
+  };
+});
 vi.mock('@deployer/nest-lifecycle', () => ({
   // `forRoot` MUST be present: `@Global() @Module({})` classes provide NOTHING
   // when imported bare, so `DatabaseModule` imports this module through
