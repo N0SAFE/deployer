@@ -1,6 +1,11 @@
 import { Module, type MiddlewareConsumer, type NestModule } from "@nestjs/common";
 import { AppLifecycleModule } from "@deployer/nest-lifecycle";
-import { createOrpcModule, PreflightModule, DEPENDENCIES } from "@deployer/shared/server";
+import {
+	createOrpcModule,
+	PreflightModule,
+	DEPENDENCIES,
+	ServiceHealthModule,
+} from "@deployer/shared/server";
 import { GLOBAL_DATABASE_CONNECTION } from "@deployer/nest-database-core/database-connection";
 import { registerSchemaCodecs } from "@/config/drizzle/schema-codecs";
 import { EnvModule, EnvService } from "@/config/env/env.module";
@@ -59,6 +64,14 @@ registerSchemaCodecs();
 		// The dependency gate. Binds `SERVICE_READINESS`, so `/health/ready` and
 		// the boot check are the same answer by construction.
 		PreflightModule.forRoot({ dependencies: DEPENDENCIES.platform }),
+		// The TRANSPORT for that verdict. `PreflightModule` binds the port but
+		// registers no route, so without this the BFF answers 404 on
+		// `/health/ready` — while compose probes every app in
+		// `docker-compose.config.services.yml` on that exact path. The BFF would
+		// then be permanently unhealthy and any `depends_on: service_healthy` on
+		// it unsatisfiable. Every service imports this; the BFF is the one app
+		// that answers for the platform, so it needs it most.
+		ServiceHealthModule,
 		createOrpcModule(),
 
 		// ── THE SERVICE CLIENT REGISTRY ──────────────────────────────────────

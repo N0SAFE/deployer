@@ -16,6 +16,7 @@ import { createBetterAuth } from "@/config/auth/auth";
 
 import { ClusterModule } from "./modules/cluster/cluster.module";
 import { FleetModule } from "./modules/fleet/fleet.module";
+import { MeshCoreModule } from "@/core/modules/mesh/mesh-core.module";
 import { PlatformModule } from "./modules/platform/platform.module";
 import { ProvidersModule } from "./modules/providers/providers.module";
 import { ProviderSchemaModule } from "./modules/provider-schema/provider-schema.module";
@@ -70,6 +71,18 @@ registerSchemaCodecs();
 
 		ClusterModule,
 		FleetModule,
+		// ── WHY FLEET HOSTS THE MESH, AND RUNTIME MUST NOT ──────────────────────
+		// `meshContract` is owned by `@deployer/fleet-contracts`, and the BFF
+		// delegates the `mesh` and `meshResource` namespaces to "fleet"
+		// (`clients.for("fleet", meshContract)`). `MeshCoreModule` is what
+		// DECLARES those controllers — so without this import every mesh call
+		// through the BFF 404s, because the delegation target served neither.
+		//
+		// `runtime` also imports it, for the dispatcher its docker stack needs
+		// internally. Both register the controllers in their OWN process, which
+		// is harmless: they are separate deployables, and only the one the BFF
+		// targets is reachable from the public surface.
+		MeshCoreModule,
 		PlatformModule,
 		ProvidersModule,
 		ProviderSchemaModule,
