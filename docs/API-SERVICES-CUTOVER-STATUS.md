@@ -260,7 +260,40 @@ Type-check: **0 errors across 10 projects** (`errors`, `shared`, `bff`, 5 servic
 - Prod image for the BFF/services (blocker 3) and ingress → BFF (blocker 4).
 - `BootstrapModule` + `SwarmInventoryModule` imported by nothing (blocker 5).
 - SSR/`SsrAuthGuardMiddleware` unwired in the BFF (blocker 6).
-- The BFF's 7 `bff.*` orchestration procedures are implemented but **unconsumed** — the front still fans out across the 18 service namespaces itself, so it still knows service topology. Adopting `orpc.bff.*` per screen is incremental.
 - `scripts/check-service-surface-parity.py` is still invoked by nothing, which is why blocker 1 existed undetected.
 - No domain layer yet in `svc-fleet`, `svc-runtime` or `svc-identity` beyond the two existing entities.
+
+### Frontend — the same entity-first pass
+
+The service side had the access policy restated at 32 call sites (and checking two roles that did not exist). The **frontend had the identical defect**:
+
+| Duplication | Where |
+|---|---|
+| `role === 'admin' \|\| role === 'superAdmin'` written out | 5 call sites — two of them (`useCanManageNetwork`, `useIsPlatformAdmin`) byte-identical apart from a doc comment |
+| Front-end policy modules | `use-is-admin.ts`, `use-can-manage-network.ts` — no shared access layer existed |
+
+**Fixed:** `apps/web/src/lib/access/platform-role.rules.ts` (pure, no React/auth, unit-testable) + `platform-role.ts` (hooks). The five sites now call one rule.
+
+**And a second inversion**, this one in `RequirePlatformRole`:
+
+```ts
+roles.indexOf(role) >= roles.indexOf(minimumRole)
+```
+
+`PLATFORM_ROLES` is ordered by **declaration** — `['superAdmin','admin','operator','viewer']`, most privileged **first**. So a higher index meant *less* privilege while the comparison claimed "at least": `isAtLeast('superAdmin')` returned `true` for a **viewer**. The exported `usePlatformRole().isAtLeast` carried it to any caller. The rank table is now stated, not derived, so reordering the builder cannot change what access means — and the test asserts the array order, so a reorder fails loudly instead of inverting the policy.
+
+**Front-end composition.** All seven `bff.*` screen procedures were implemented, contracted and called by **nothing**: every web domain exposed a *service* namespace, so the landing page fanned out across **six domains** and joined them in the browser. `apps/web/src/domains/bff` now exposes the join explicitly, alongside the resource namespaces.
+
+**The dashboard was lying about its own metrics.** `bff.dashboardOverview` hardcoded `system: { available: false, cpu: null, … }` under a comment claiming they were "deliberately reported as unavailable rather than faked from the deployment counts". The reasoning was about the wrong source — they are read from the host by `svc-identity` (`systeminformation`, `dataSource: "docker"`), and `AnalyticsReadService` was **already fetching that snapshot for this very handler and discarding it**. The landing page reported "no data source" on a machine reporting its CPU, disagreeing with the analytics screen beside it.
+
+### Updated totals
+
+| | Count |
+|---|---|
+| api-services suites | 7 green · **1607 tests** |
+| `apps/web` unit | 48 files · **253 tests** |
+| new platform-role tests | 10 |
+| type-check | **0 errors across 10 projects** |
+| package build | **37/37** |
+
 
