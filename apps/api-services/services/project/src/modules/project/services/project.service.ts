@@ -16,6 +16,11 @@ import { filter as rxFilter } from "rxjs/operators";
 import { CoreEventSyncService } from "@/core/modules/events";
 import { RuntimeConfigurationAccessorService } from "@/core/modules/configuration/services/runtime-configuration-accessor.service";
 import { ProjectRepository } from "../repositories/project.repository";
+import {
+    projectRules,
+    type ProjectAccess,
+    type ProjectRole,
+} from "../domain/project.entity";
 import { ProjectEventService } from "./project-event.service";
 import type { ProjectListInput } from "@deployer/project-contracts/modules/project/list";
 import type {
@@ -102,7 +107,7 @@ export class ProjectService {
         baseDomain?: string | null;
         settings?: Record<string, unknown> | null;
     }) {
-        await this.assertProjectAccess(id, requesterId, ["owner", "admin"]);
+        await this.assertProjectAccess(id, requesterId, "admin");
         const updated = await this.projectRepository.update(id, {
             name: data.name,
             description: data.description,
@@ -132,9 +137,9 @@ export class ProjectService {
     async deleteProject(id: string, requesterId: string) {
         const project = await this.projectRepository.findById(id);
         if (!project) throw new NotFoundException(`Project ${id} not found`);
-        if (project.ownerId !== requesterId) {
-            throw new ForbiddenException("Only the project owner can delete the project");
-        }
+        // Ownership is not an access level: `maintainer` is defined as management
+        // WITHOUT deletion, so this cannot be folded into `assertProjectAccess`.
+        projectRules.assertCanDelete(project, requesterId);
         await this.projectRepository.delete(id);
 
         this.projectEventService.emit(
@@ -153,7 +158,7 @@ export class ProjectService {
     // ========================================
 
     async getCollaborators(projectId: string, requesterId: string) {
-        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin", "developer", "viewer"]);
+        await this.assertProjectAccess(projectId, requesterId, "read");
         return this.projectRepository.findCollaboratorsByProject(projectId);
     }
 
@@ -162,7 +167,7 @@ export class ProjectService {
         requesterId: string,
         data: { email: string; role: string; permissions?: CollaboratorPermissions | null },
     ) {
-        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin"]);
+        await this.assertProjectAccess(projectId, requesterId, "admin");
 
         const targetUser = await this.projectRepository.findUserByEmail(data.email);
         if (!targetUser) {
@@ -180,7 +185,7 @@ export class ProjectService {
         const collaborator = await this.projectRepository.createCollaborator({
             projectId,
             userId: targetUser.id,
-            role: data.role as "owner" | "admin" | "developer" | "viewer",
+            role: data.role as ProjectRole,
             permissions: data.permissions,
             invitedBy: requesterId,
         });
@@ -191,7 +196,7 @@ export class ProjectService {
             {
                 projectId,
                 userId: targetUser.id,
-                role: data.role as "owner" | "admin" | "developer" | "viewer",
+                role: data.role as ProjectRole,
                 timestamp: new Date().toISOString(),
             },
         );
@@ -208,7 +213,7 @@ export class ProjectService {
         targetUserId: string,
         data: { role?: string; permissions?: CollaboratorPermissions | null },
     ) {
-        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin"]);
+        await this.assertProjectAccess(projectId, requesterId, "admin");
 
         const collaborator = await this.projectRepository.findCollaboratorByUserAndProject(
             targetUserId,
@@ -216,12 +221,10 @@ export class ProjectService {
         );
         if (!collaborator) throw new NotFoundException("Collaborator not found");
 
-        if (collaborator.role === "owner") {
-            throw new ForbiddenException("Cannot modify the project owner's collaborator record");
-        }
+        projectRules.assertNotOwnerMembership(collaborator, "modify");
 
         const updated = await this.projectRepository.updateCollaborator(collaborator.id, {
-            role: data.role as "owner" | "admin" | "developer" | "viewer" | undefined,
+            role: data.role as ProjectRole | undefined,
             permissions: data.permissions,
         });
         if (!updated) throw new NotFoundException("Collaborator not found");
@@ -229,16 +232,14 @@ export class ProjectService {
     }
 
     async removeCollaborator(projectId: string, requesterId: string, targetUserId: string) {
-        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin"]);
+        await this.assertProjectAccess(projectId, requesterId, "admin");
 
         const collaborator = await this.projectRepository.findCollaboratorByUserAndProject(
             targetUserId,
             projectId,
         );
         if (!collaborator) throw new NotFoundException("Collaborator not found");
-        if (collaborator.role === "owner") {
-            throw new ForbiddenException("Cannot remove the project owner");
-        }
+        projectRules.assertNotOwnerMembership(collaborator, "remove");
 
         await this.projectRepository.deleteCollaboratorByUserAndProject(targetUserId, projectId);
 
@@ -258,12 +259,12 @@ export class ProjectService {
     // ========================================
 
     async listEnvironments(projectId: string, requesterId: string, kind?: string) {
-        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin", "developer", "viewer"]);
+        await this.assertProjectAccess(projectId, requesterId, "read");
         return this.projectRepository.findEnvironmentsByProject(projectId, kind);
     }
 
     async getEnvironment(projectId: string, requesterId: string, environmentId: string) {
-        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin", "developer", "viewer"]);
+        await this.assertProjectAccess(projectId, requesterId, "read");
         const env = await this.projectRepository.findEnvironmentById(environmentId);
         if (env?.projectId !== projectId) {
             throw new NotFoundException(`Environment ${environmentId} not found`);
@@ -285,7 +286,7 @@ export class ProjectService {
             metadata?: unknown;
         },
     ) {
-        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin"]);
+        await this.assertProjectAccess(projectId, requesterId, "admin");
         const created = await this.projectRepository.createEnvironment({
             projectId,
             name: data.name,
@@ -322,7 +323,7 @@ export class ProjectService {
         environmentId: string,
         data: Record<string, unknown>,
     ) {
-        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin"]);
+        await this.assertProjectAccess(projectId, requesterId, "admin");
         const env = await this.projectRepository.findEnvironmentById(environmentId);
         if (env?.projectId !== projectId) {
             throw new NotFoundException(`Environment ${environmentId} not found`);
@@ -333,7 +334,7 @@ export class ProjectService {
     }
 
     async deleteEnvironment(projectId: string, requesterId: string, environmentId: string) {
-        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin"]);
+        await this.assertProjectAccess(projectId, requesterId, "admin");
         const env = await this.projectRepository.findEnvironmentById(environmentId);
         if (env?.projectId !== projectId) {
             throw new NotFoundException(`Environment ${environmentId} not found`);
@@ -357,7 +358,7 @@ export class ProjectService {
         sourceEnvironmentId: string,
         data: { name: string; kind?: "stable" | "preview" | "ephemeral" },
     ) {
-        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin"]);
+        await this.assertProjectAccess(projectId, requesterId, "admin");
 
         const source = await this.projectRepository.findEnvironmentById(sourceEnvironmentId);
         if (source?.projectId !== projectId) {
@@ -384,7 +385,7 @@ export class ProjectService {
     // ========================================
 
     async listServiceEnvironmentLinks(projectId: string, requesterId: string) {
-        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin", "developer", "viewer"]);
+        await this.assertProjectAccess(projectId, requesterId, "read");
         return this.projectRepository.findServiceEnvironmentLinksByProject(projectId);
     }
 
@@ -393,7 +394,7 @@ export class ProjectService {
         requesterId: string,
         data: { serviceId: string; environmentId: string; isEnabled: boolean; overrides?: Record<string, unknown> | null },
     ) {
-        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin"]);
+        await this.assertProjectAccess(projectId, requesterId, "admin");
         const serviceProject = await this.projectRepository.findServiceProjectId(data.serviceId);
         if (serviceProject !== projectId) {
             throw new NotFoundException(`Service ${data.serviceId} not found in project`);
@@ -410,12 +411,12 @@ export class ProjectService {
     // ========================================
 
     async listVariableTemplates(projectId: string, requesterId: string) {
-        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin", "developer", "viewer"]);
+        await this.assertProjectAccess(projectId, requesterId, "read");
         return this.projectRepository.findTemplatesByProject(projectId);
     }
 
     async getVariableTemplate(projectId: string, requesterId: string, templateId: string) {
-        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin", "developer", "viewer"]);
+        await this.assertProjectAccess(projectId, requesterId, "read");
         const template = await this.projectRepository.findTemplateById(templateId);
         if (!template) throw new NotFoundException(`Template ${templateId} not found`);
         return template;
@@ -426,7 +427,7 @@ export class ProjectService {
         requesterId: string,
         data: { name: string; description?: string | null; variables?: unknown[] },
     ) {
-        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin"]);
+        await this.assertProjectAccess(projectId, requesterId, "admin");
         return this.projectRepository.createTemplate({
             name: data.name,
             description: data.description ?? null,
@@ -441,7 +442,7 @@ export class ProjectService {
         templateId: string,
         data: { name?: string; description?: string | null; variables?: unknown[] },
     ) {
-        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin"]);
+        await this.assertProjectAccess(projectId, requesterId, "admin");
         const template = await this.projectRepository.findTemplateById(templateId);
         if (!template) throw new NotFoundException(`Template ${templateId} not found`);
 
@@ -455,7 +456,7 @@ export class ProjectService {
     }
 
     async deleteVariableTemplate(projectId: string, requesterId: string, templateId: string) {
-        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin"]);
+        await this.assertProjectAccess(projectId, requesterId, "admin");
         const template = await this.projectRepository.findTemplateById(templateId);
         if (!template) throw new NotFoundException(`Template ${templateId} not found`);
         if (template.isSystem) throw new BadRequestException("Cannot delete a system template");
@@ -467,7 +468,7 @@ export class ProjectService {
     // ========================================
 
     async getGeneralConfig(projectId: string, requesterId: string) {
-        const project = await this.assertProjectAccess(projectId, requesterId, ["owner", "admin", "developer", "viewer"]);
+        const project = await this.assertProjectAccess(projectId, requesterId, "read");
         const s = (project.settings ?? {}) as ProjectSettings;
         return {
             name: project.name,
@@ -484,7 +485,7 @@ export class ProjectService {
         requesterId: string,
         patch: { name?: string; description?: string | null; baseDomain?: string | null; defaultBranch?: string; autoDeployEnabled?: boolean; enablePreviewEnvironments?: boolean },
     ) {
-        const project = await this.assertProjectAccess(projectId, requesterId, ["owner", "admin"]);
+        const project = await this.assertProjectAccess(projectId, requesterId, "admin");
         const currentSettings = (project.settings ?? {}) as ProjectSettings;
         const settingsPatch: ProjectSettings = {};
         if (patch.defaultBranch !== undefined) settingsPatch.defaultBranch = patch.defaultBranch;
@@ -512,7 +513,7 @@ export class ProjectService {
     }
 
     async getEnvironmentConfig(projectId: string, requesterId: string) {
-        const project = await this.assertProjectAccess(projectId, requesterId, ["owner", "admin", "developer", "viewer"]);
+        const project = await this.assertProjectAccess(projectId, requesterId, "read");
         const s = (project.settings ?? {}) as ProjectSettings;
         return {
             defaultEnvironmentVariables: s.defaultEnvironmentVariables,
@@ -527,7 +528,7 @@ export class ProjectService {
         requesterId: string,
         patch: { defaultEnvironmentVariables?: Record<string, string>; productionEnvironmentVariables?: Record<string, string>; stagingEnvironmentVariables?: Record<string, string>; developmentEnvironmentVariables?: Record<string, string> },
     ) {
-        const project = await this.assertProjectAccess(projectId, requesterId, ["owner", "admin"]);
+        const project = await this.assertProjectAccess(projectId, requesterId, "admin");
         const current = (project.settings ?? {}) as ProjectSettings;
         const merged = { ...current, ...patch };
         const updated = await this.projectRepository.update(projectId, {
@@ -544,7 +545,7 @@ export class ProjectService {
     }
 
     async getDeploymentConfig(projectId: string, requesterId: string) {
-        const project = await this.assertProjectAccess(projectId, requesterId, ["owner", "admin", "developer", "viewer"]);
+        const project = await this.assertProjectAccess(projectId, requesterId, "read");
         const s = (project.settings ?? {}) as ProjectSettings;
         const resolved = this.runtimeConfigurationAccessor.resolveStrict({
             scope: "project",
@@ -570,7 +571,7 @@ export class ProjectService {
         requesterId: string,
         patch: Partial<Pick<ProjectSettings, "autoCleanupDays" | "maxPreviewEnvironments" | "deploymentStrategy" | "healthCheckTimeout" | "deploymentTimeout" | "enableRollback" | "requireApprovalForProduction">>,
     ) {
-        const project = await this.assertProjectAccess(projectId, requesterId, ["owner", "admin"]);
+        const project = await this.assertProjectAccess(projectId, requesterId, "admin");
         const current = (project.settings ?? {}) as ProjectSettings;
         const merged = { ...current, ...patch };
         const updated = await this.projectRepository.update(projectId, {
@@ -590,7 +591,7 @@ export class ProjectService {
     }
 
     async getSecurityConfig(projectId: string, requesterId: string) {
-        const project = await this.assertProjectAccess(projectId, requesterId, ["owner", "admin", "developer", "viewer"]);
+        const project = await this.assertProjectAccess(projectId, requesterId, "read");
         const s = (project.settings ?? {}) as ProjectSettings;
         const resolved = this.runtimeConfigurationAccessor.resolveStrict({
             scope: "project",
@@ -616,7 +617,7 @@ export class ProjectService {
         requesterId: string,
         patch: Partial<Pick<ProjectSettings, "webhookSecret" | "enableHttpsRedirect" | "allowedDomains" | "ipWhitelist" | "enableBasicAuth" | "basicAuthUsername" | "basicAuthPassword">>,
     ) {
-        const project = await this.assertProjectAccess(projectId, requesterId, ["owner", "admin"]);
+        const project = await this.assertProjectAccess(projectId, requesterId, "admin");
         const current = (project.settings ?? {}) as ProjectSettings;
         const merged = { ...current, ...patch };
         const updated = await this.projectRepository.update(projectId, {
@@ -636,7 +637,7 @@ export class ProjectService {
     }
 
     async getResourceConfig(projectId: string, requesterId: string) {
-        const project = await this.assertProjectAccess(projectId, requesterId, ["owner", "admin", "developer", "viewer"]);
+        const project = await this.assertProjectAccess(projectId, requesterId, "read");
         const s = (project.settings ?? {}) as ProjectSettings;
         return {
             defaultCpuLimit: s.defaultCpuLimit ?? "0.5",
@@ -651,7 +652,7 @@ export class ProjectService {
         requesterId: string,
         patch: Partial<Pick<ProjectSettings, "defaultCpuLimit" | "defaultMemoryLimit" | "defaultStorageLimit" | "maxServicesPerProject">>,
     ) {
-        const project = await this.assertProjectAccess(projectId, requesterId, ["owner", "admin"]);
+        const project = await this.assertProjectAccess(projectId, requesterId, "admin");
         const current = (project.settings ?? {}) as ProjectSettings;
         const merged = { ...current, ...patch };
         const updated = await this.projectRepository.update(projectId, {
@@ -668,7 +669,7 @@ export class ProjectService {
     }
 
     async getNotificationConfig(projectId: string, requesterId: string) {
-        const project = await this.assertProjectAccess(projectId, requesterId, ["owner", "admin", "developer", "viewer"]);
+        const project = await this.assertProjectAccess(projectId, requesterId, "read");
         const s = (project.settings ?? {}) as ProjectSettings;
         return {
             enableEmailNotifications: s.enableEmailNotifications ?? true,
@@ -686,7 +687,7 @@ export class ProjectService {
         requesterId: string,
         patch: Partial<Pick<ProjectSettings, "enableEmailNotifications" | "enableSlackNotifications" | "slackWebhookUrl" | "emailRecipients" | "notifyOnDeploymentSuccess" | "notifyOnDeploymentFailure" | "notifyOnServiceDown">>,
     ) {
-        const project = await this.assertProjectAccess(projectId, requesterId, ["owner", "admin"]);
+        const project = await this.assertProjectAccess(projectId, requesterId, "admin");
         const current = (project.settings ?? {}) as ProjectSettings;
         const merged = { ...current, ...patch };
         const updated = await this.projectRepository.update(projectId, {
@@ -707,7 +708,7 @@ export class ProjectService {
 
     /** @deprecated Use typed config methods instead */
     async getProjectSettings(projectId: string, requesterId: string) {
-        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin", "developer", "viewer"]);
+        await this.assertProjectAccess(projectId, requesterId, "read");
         const project = await this.projectRepository.findById(projectId);
         if (!project) throw new NotFoundException(`Project ${projectId} not found`);
         return project.settings ?? {};
@@ -719,7 +720,7 @@ export class ProjectService {
         requesterId: string,
         patch: Record<string, unknown>,
     ) {
-        await this.assertProjectAccess(projectId, requesterId, ["owner", "admin"]);
+        await this.assertProjectAccess(projectId, requesterId, "admin");
         const project = await this.projectRepository.findById(projectId);
         if (!project) throw new NotFoundException(`Project ${projectId} not found`);
 
@@ -904,24 +905,39 @@ export class ProjectService {
     // PRIVATE HELPERS
     // ========================================
 
+    /**
+     * Load a project and prove the caller may act on it at `access` level.
+     *
+     * ── WHY THIS IS NOW A LOOKUP AND NOT A ROLE LIST ────────────────────────
+     * It used to take `allowedRoles: string[]` and test
+     * `allowedRoles.includes(collaborator.role)`. Two things were wrong with that.
+     * The role names were spelled out at 32 call sites, so the policy was stated
+     * 32 times and drifted; and the lists named `"admin"` and `"developer"`, which
+     * the permission builder does not define — so the check never matched and
+     * every non-owner collaborator was denied everything.
+     *
+     * The policy now lives once, in `projectRules`, and this method is the only
+     * place that has to load the rows to apply it.
+     */
     private async assertProjectAccess(
         projectId: string,
         userId: string,
-        allowedRoles: string[],
+        access: ProjectAccess,
     ) {
         const project = await this.projectRepository.findById(projectId);
         if (!project) throw new NotFoundException(`Project ${projectId} not found`);
 
-        // Project owner always has access
-        if (project.ownerId === userId) return project;
+        // The owner is the owner by virtue of the ROW, so a missing collaborator
+        // record must not read as "no access" for them.
+        const collaborator =
+            project.ownerId === userId
+                ? null
+                : await this.projectRepository.findCollaboratorByUserAndProject(
+                      userId,
+                      projectId,
+                  );
 
-        const collaborator = await this.projectRepository.findCollaboratorByUserAndProject(
-            userId,
-            projectId,
-        );
-        if (!collaborator || !allowedRoles.includes(collaborator.role)) {
-            throw new ForbiddenException("You do not have permission to perform this action");
-        }
+        projectRules.assertAccess(project, userId, collaborator, access);
         return project;
     }
 }

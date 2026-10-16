@@ -35,13 +35,13 @@ type ProjectUpdateInput = Partial<
 type CollaboratorCreateInput = {
     projectId: string;
     userId: string;
-    role: "owner" | "admin" | "developer" | "viewer";
+    role: ProjectRole;
     permissions?: CollaboratorRow["permissions"];
     invitedBy: string;
 }
 
 type CollaboratorUpdateInput = Partial<{
-    role: "owner" | "admin" | "developer" | "viewer";
+    role: ProjectRole;
     permissions: CollaboratorRow["permissions"];
 }>;
 
@@ -115,8 +115,7 @@ function transformProject(row: ProjectRow) {
  * stores canonical names; the map preserves any legacy (`admin`, `developer`)
  * rows and guarantees the result is a canonical `ProjectRole`.
  */
-type ProjectRole = import("zod/v4").infer<typeof import("@deployer/contracts-entities").projectRoleSchema>;
-const LEGACY_TO_CANONICAL_ROLE: Partial<Record<CollaboratorRow["role"], ProjectRole>> = {
+type ProjectRole = import("zod/v4").infer<typeof import("@deployer/contracts-entities").projectRoleSchema>;const LEGACY_TO_CANONICAL_ROLE: Partial<Record<CollaboratorRow["role"], ProjectRole>> = {
     admin: "maintainer",
     developer: "deployer",
     owner: "owner",

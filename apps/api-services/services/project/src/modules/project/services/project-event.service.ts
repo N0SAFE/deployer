@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import * as z from "zod";
+import { projectRoleSchema } from "@deployer/contracts-entities";
 import { BasePooledEventService } from "@deployer/nest-events";
 import { contractBuilder } from "@deployer/nest-events";
 import { CoreEventStreamPoolService } from "@deployer/nest-events";
@@ -46,7 +47,12 @@ export const projectEventContracts = {
             z.object({
                 projectId: z.string(),
                 userId: z.string(),
-                role: z.enum(["owner", "admin", "developer", "viewer"]),
+                // The canonical vocabulary from the contract, not a re-typed
+                // literal: this enum had listed `admin`/`developer`, which the
+                // permission builder does not define, while the stored role is
+                // `maintainer`/`deployer` — so the emitted event failed its own
+                // schema on every invite.
+                role: projectRoleSchema,
                 timestamp: z.string(),
             }),
         )

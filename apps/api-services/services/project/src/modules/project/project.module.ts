@@ -1,5 +1,5 @@
 import { Module } from "@nestjs/common";
-import { DatabaseModule } from "../../core/modules/database/database.module";
+import { DatabaseModule } from "@/core/modules/database/database.module";
 import { ProjectController } from "./controllers/project.controller";
 import { ProjectRepository } from "./repositories/project.repository";
 import { WebhookRepository } from "./repositories/webhook.repository";
@@ -30,4 +30,18 @@ import { CoreDomainModule } from "@/core/modules/domain/domain.module";
     ],
     exports: [ProjectService, ProjectRepository, ProjectEventService, ProjectNetworkService, WebhookService, ApiKeyService],
 })
-export class ProjectModule {}
+// ── `ProjectDomainModule`, NOT `ProjectModule` ─────────────────────────────────
+// `app.module.ts` imports this by the `DomainModule` name, and every sibling
+// service already uses that suffix for its domain module
+// (`HealthDomainModule`, `UserDomainModule`, `DeploymentDomainModule`, ...).
+// The mismatch was not a style issue — it failed at boot:
+//
+//   SyntaxError: Export named 'ProjectDomainModule' not found in module
+//   '/app/apps/.../modules/project/project.module.ts'
+//
+// so this service could never start, which is why it alone stayed unready while
+// the other four turned healthy.
+//
+// The doc described the rename; the `export` keyword was never added, so the
+// class stayed module-private and `import { ProjectDomainModule }` kept throwing.
+export class ProjectDomainModule {}

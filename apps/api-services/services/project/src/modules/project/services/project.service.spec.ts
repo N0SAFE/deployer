@@ -1,7 +1,8 @@
 import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ConflictException, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { ForbiddenError } from '@deployer/errors';
 import { EMPTY } from 'rxjs';
 import { ProjectService } from './project.service';
 
@@ -230,11 +231,13 @@ describe('ProjectService', () => {
             );
         });
 
-        it('should update when requester is admin collaborator', async () => {
+        it('should update when requester is a maintainer collaborator', async () => {
             const updated = { ...mockProject, name: 'Renamed' };
-            const adminCollab = { ...mockCollaborator, role: 'admin', userId: 'user-3' };
+            // `maintainer`, not `admin`: `admin` is not a project role, and the
+            // service used to gate on it — which denied every real collaborator.
+            const maintainerCollab = { ...mockCollaborator, role: 'maintainer', userId: 'user-3' };
             mockRepository.findById.mockResolvedValue({ ...mockProject, ownerId: 'owner-x' });
-            mockRepository.findCollaboratorByUserAndProject.mockResolvedValue(adminCollab);
+            mockRepository.findCollaboratorByUserAndProject.mockResolvedValue(maintainerCollab);
             mockRepository.update.mockResolvedValue(updated);
 
             const result = await service.updateProject('proj-1', 'user-3', { name: 'Renamed' });
@@ -242,12 +245,13 @@ describe('ProjectService', () => {
             expect(result).toEqual(updated);
         });
 
-        it('should throw ForbiddenException when requester lacks permission', async () => {
-            const devCollab = { ...mockCollaborator, role: 'developer' };
+        it('should throw ForbiddenError when requester lacks permission', async () => {
+            // A viewer may read but not reconfigure the project.
+            const viewerCollab = { ...mockCollaborator, role: 'viewer' };
             mockRepository.findById.mockResolvedValue({ ...mockProject, ownerId: 'owner-x' });
-            mockRepository.findCollaboratorByUserAndProject.mockResolvedValue(devCollab);
+            mockRepository.findCollaboratorByUserAndProject.mockResolvedValue(viewerCollab);
 
-            await expect(service.updateProject('proj-1', 'user-2', { name: 'Fail' })).rejects.toThrow(ForbiddenException);
+            await expect(service.updateProject('proj-1', 'user-2', { name: 'Fail' })).rejects.toThrow(ForbiddenError);
         });
 
         it('should throw NotFoundException when update returns null', async () => {
@@ -277,10 +281,10 @@ describe('ProjectService', () => {
             await expect(service.deleteProject('missing', 'user-1')).rejects.toThrow(NotFoundException);
         });
 
-        it('should throw ForbiddenException when requester is not owner', async () => {
+        it('should throw ForbiddenError when requester is not owner', async () => {
             mockRepository.findById.mockResolvedValue(mockProject); // ownerId: 'user-1'
 
-            await expect(service.deleteProject('proj-1', 'user-99')).rejects.toThrow(ForbiddenException);
+            await expect(service.deleteProject('proj-1', 'user-99')).rejects.toThrow(ForbiddenError);
         });
     });
 
@@ -371,7 +375,7 @@ describe('ProjectService', () => {
             mockRepository.findById.mockResolvedValue(mockProject);
             mockRepository.findCollaboratorByUserAndProject.mockResolvedValue(ownerCollab);
 
-            await expect(service.removeCollaborator('proj-1', 'user-1', 'user-2')).rejects.toThrow(ForbiddenException);
+            await expect(service.removeCollaborator('proj-1', 'user-1', 'user-2')).rejects.toThrow(ForbiddenError);
         });
     });
 

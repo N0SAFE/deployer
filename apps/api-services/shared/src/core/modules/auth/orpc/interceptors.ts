@@ -8,6 +8,7 @@ import type { ORPCErrorCode } from '@orpc/client'
 import type { Interceptor } from '@orpc/shared'
 import { ValidationError } from '@orpc/contract'
 import zod from 'zod/v4'
+import { AppError } from '@deployer/errors'
 import type { InternalErrorInsightService } from '@/core/middlewares/internal-error/internal-error-insight.service'
 import { MeshBaseDomainError } from '@/core/modules/mesh/shared/domain/mesh-base-error'
 
@@ -129,8 +130,47 @@ export function transformMeshDomainErrorToORPCError(error: unknown): void {
 }
 
 /**
- * ORPC interceptor that transforms NestJS HttpException and
- * MeshBaseDomainError errors to ORPCError
+ * Transforms `@deployer/errors` AppError to ORPCError
+ *
+ * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────
+ * A domain object throws `NotFoundError`/`ForbiddenError`/`ConflictError` rather
+ * than a NestJS `NotFoundException`, because the domain must not import
+ * `@nestjs/common` — it is shared with workers, tests and (increasingly) the
+ * contracts. That leaves the transport with the job of turning it into the right
+ * status. `AppError` carries `httpStatus` and `orpcCode` for exactly this reason.
+ *
+ * Emitting the same `data` shape as the NestJS branch matters: ORPC marks a thrown
+ * error as "defined" (typed on the client) ONLY when its data validates the
+ * contract's declared schema, so a different shape would downgrade every
+ * entity-thrown error to an unknown one on the web app.
+ *
+ * MUST RUN LAST: a `ValidationError` from `@orpc/contract` is unrelated (oRPC's
+ * own input/output validation) and is handled by the NestJS branch, so checking
+ * `AppError` after it keeps the two apart.
+ */
+export function transformAppErrorToORPCError(error: unknown): void {
+    if (error instanceof AppError) {
+        throw new ORPCError(toOrpcErrorCode(error.orpcCode), {
+            message: error.message,
+            data: {
+                statusCode: error.httpStatus,
+                code: error.code,
+                message: error.message,
+                orpcCode: error.orpcCode,
+            },
+            cause: error,
+        })
+    }
+}
+
+/** Narrow an arbitrary `orpcCode` string to the union oRPC accepts. */
+function toOrpcErrorCode(code: string): ORPCErrorCode {
+    return code as ORPCErrorCode
+}
+
+/**
+ * ORPC interceptor that transforms NestJS HttpException, MeshBaseDomainError and
+ * `@deployer/errors` AppError into ORPCError
  * This ensures proper HTTP status codes are returned instead of generic 500 errors
  *
  * @example
@@ -148,6 +188,7 @@ export function transformNestJSErrorToOrpcError(): Interceptor<any, any> {
     return onError((error: unknown) => {
         transformHttpExceptionToORPCError(error)
         transformMeshDomainErrorToORPCError(error)
+        transformAppErrorToORPCError(error)
     })
 }
 
