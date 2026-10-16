@@ -2,13 +2,8 @@
 
 import type { ReactNode } from 'react'
 import { useSession } from '@/lib/auth'
-import type { PlatformRole } from '@repo/auth/permissions'
-import { PLATFORM_ROLES } from '@repo/auth/permissions'
-
-function isPlatformRoleAtLeast(role: PlatformRole, minimumRole: PlatformRole): boolean {
-  const roles = PLATFORM_ROLES as readonly string[]
-  return roles.indexOf(role) >= roles.indexOf(minimumRole)
-}
+import { isPlatformAdminRole, isPlatformRole, isPlatformRoleAtLeast } from '@/lib/access/platform-role.rules'
+import type { PlatformRole } from '@deployer/auth/permissions'
 
 export interface RequirePlatformRoleProps {
   /**
@@ -80,7 +75,7 @@ export function RequirePlatformRole({
     return <>{fallback}</>
   }
 
-  const userRole = session.user.role as PlatformRole | undefined
+  const userRole = isPlatformRole(session.user.role) ? session.user.role : null
 
   // No role = no access
   if (!userRole) {
@@ -110,15 +105,17 @@ export function usePlatformRole(): {
   role: PlatformRole | null
   hasRole: (roles: PlatformRole[]) => boolean
   isAtLeast: (minimumRole: PlatformRole) => boolean
+  isAdmin: boolean
 } {
   const { data: session } = useSession()
   
-  const role = session?.user ? (session.user.role as PlatformRole | undefined) ?? null : null
+  const role = isPlatformRole(session?.user?.role) ? session.user.role : null
 
   return {
     role,
     hasRole: (roles: PlatformRole[]) => role !== null && roles.includes(role),
-    isAtLeast: (minimumRole: PlatformRole) => 
+    isAtLeast: (minimumRole: PlatformRole) =>
       role !== null && isPlatformRoleAtLeast(role, minimumRole),
+    isAdmin: isPlatformAdminRole(role),
   }
 }

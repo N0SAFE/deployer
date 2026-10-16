@@ -1,12 +1,11 @@
 'use client'
 
-import { useSession } from '@/lib/auth'
-
 /**
  * Platform-admin check for hiding settings areas a viewer could not use anyway.
- * The API enforces the real permission on every call; this only keeps the UI honest.
+ *
+ * Re-exported rather than reimplemented: this file used to repeat
+ * `role === 'admin' || role === 'superAdmin'` verbatim, as did
+ * `use-can-manage-network.ts`. The rule now lives once, in `@/lib/access/platform-role`.
+ * The module is kept so existing imports keep working without churn.
  */
-export function useIsPlatformAdmin(): boolean {
-  const { data: session } = useSession()
-  return session?.user.role === 'admin' || session?.user.role === 'superAdmin'
-}
+export { useIsPlatformAdmin } from '@/lib/access/platform-role'

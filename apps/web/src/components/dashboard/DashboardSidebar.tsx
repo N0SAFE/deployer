@@ -10,9 +10,10 @@ import {
 } from './navigation'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
-import ModeToggle from '@repo/ui/components/shadcn/mode-toggle'
+import ModeToggle from '@deployer/ui/components/shadcn/mode-toggle'
 import { useEffect } from 'react'
 import { AuthDashboard } from '@/routes'
+import { useIsPlatformAdmin } from '@/lib/access/platform-role'
 import { useSession } from '@/lib/auth'
 import { SidebarProjectTree } from './SidebarProjectTree'
 import { SidebarUserMenu } from './SidebarUserMenu'
@@ -36,12 +37,12 @@ import {
   SidebarRail,
   SidebarSeparator,
   useSidebar,
-} from '@repo/ui/components/shadcn/sidebar'
+} from '@deployer/ui/components/shadcn/sidebar'
 import {
   Collapsible,
   CollapsibleTrigger,
   CollapsibleContent,
-} from '@repo/ui/components/shadcn/collapsible'
+} from '@deployer/ui/components/shadcn/collapsible'
 
 /**
  * One rail entry, rendered from the shared navigation model.
@@ -130,7 +131,10 @@ function DashboardSidebarInner() {
   const { state, isMobile, setOpenMobile } = useSidebar()
   const [collapsedGroups, setCollapsedGroups] = useStoredStringList(COLLAPSED_GROUPS_KEY)
 
-  const isAdmin = session?.user.role === 'admin' || session?.user.role === 'superAdmin'
+  // The gate for the Admin Panel. The rule lives in `@/lib/access/platform-role`
+  // rather than inline: the same `role === 'admin' || role === 'superAdmin'`
+  // comparison was written out at five call sites.
+  const isAdmin = useIsPlatformAdmin()
   const visibleGroups = visibleNavGroups(isAdmin)
   const iconRail = state === 'collapsed' && !isMobile
 

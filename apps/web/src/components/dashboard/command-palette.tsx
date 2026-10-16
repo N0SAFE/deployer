@@ -17,11 +17,12 @@ import {
   CommandList,
   CommandSeparator,
   CommandShortcut,
-} from '@repo/ui/components/shadcn/command'
+} from '@deployer/ui/components/shadcn/command'
 import { FolderKanban, Server, type LucideIcon } from 'lucide-react'
 import { useProjectList } from '@/domains/project/hooks'
 import { useServiceList } from '@/domains/service/hooks'
-import { useSession } from '@/lib/auth'
+import { useIsPlatformAdmin } from '@/lib/access/platform-role'
+// `useSession` is no longer needed here: the admin gate moved to the shared hook.
 import { visibleNavGroups } from './navigation'
 import { subscribeCommandPalette } from './command-palette-store'
 import { fuzzyMatch } from './fuzzy'
@@ -87,10 +88,10 @@ export function CommandPalette() {
   const [query, setQuery] = useState('')
   const [recent, setRecent] = useState<string[]>([])
 
-  const { data: session } = useSession()
   // Mirrors the rail's gate: someone who cannot see the Admin Panel in the
-  // sidebar should not be offered its pages by search either.
-  const isAdmin = session?.user.role === 'admin' || session?.user.role === 'superAdmin'
+  // sidebar should not be offered its pages by search either. Both call the one
+  // rule in `@/lib/access/platform-role`, so they cannot disagree.
+  const isAdmin = useIsPlatformAdmin()
   const navEntries = useMemo(() => navigationEntries(isAdmin), [isAdmin])
 
   const { data: projectsData } = useProjectList({ query: { limit: 100, offset: 0 } })
