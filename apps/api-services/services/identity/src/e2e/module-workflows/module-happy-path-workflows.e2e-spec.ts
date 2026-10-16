@@ -77,8 +77,12 @@ describe("Identity happy-path workflows e2e: the domains this service owns", () 
 				name,
 				description: "E2E analytics fixture",
 				type: "application" as const,
-				providerId: "artifact-bundle",
-				builderId: "manual",
+				providerId: "artifact-bundle" as const,
+				// `as const`, not a widened `string`: both columns are enums
+				// (`compose | kubernetes | manual | …`, `github | gitlab | …`), so a
+				// plain literal widens to `string` and the insert stops type-checking
+				// against the table.
+				builderId: "manual" as const,
 				port: 3000,
 				healthCheckPath: "/health",
 			})),
