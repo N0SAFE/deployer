@@ -75,6 +75,31 @@ export class OrchestrationController {
 					.then((page) => page.data)
 					.catch(() => []);
 
+				// ── THE HOST METRICS COME FROM ANALYTICS, NOT FROM NOWHERE ─────────
+				// This used to be a hardcoded `{ available: false, cpu: null, … }` with a
+				// comment claiming system metrics were "deliberately reported as unavailable
+				// rather than faked from the deployment counts". That reasoning was about
+				// the WRONG SOURCE — the values are not derived from deployment counts, they
+				// are read from the host by `svc-identity` (`systeminformation`, reported
+				// with `dataSource: "docker"`), and the front already renders them.
+				//
+				// Declaring them unavailable made the landing page disagree with the very
+				// data it could reach, so the panel read "no data source" on a machine that
+				// was reporting its CPU.
+				const realtime = await this.analytics
+					.overview("1h")
+					.then((data) => data.realtime)
+					.catch(() => null);
+				const hostMetrics =
+					realtime?.dataSource === "docker"
+						? {
+								available: true,
+								cpu: realtime.system.cpu,
+								memory: realtime.system.memory,
+								disk: realtime.system.disk,
+							}
+						: { available: false, cpu: null, memory: null, disk: null };
+
 				const recentActivity = deploymentRows.map((deployment) => ({
 					id: deployment.id,
 					kind: "deployment" as const,
@@ -106,10 +131,7 @@ export class OrchestrationController {
 						lastDeployedAt: row.lastDeployedAt,
 						healthRatio: row.healthRatio,
 					})),
-					// System metrics are deliberately reported as unavailable rather than
-					// faked from the deployment counts: a green CPU bar that is really a
-					// deployment count is worse than an honest "unavailable".
-					system: { available: false, cpu: null, memory: null, disk: null },
+					system: hostMetrics,
 					sections: [...sections, ...(projects?.sections ?? [])],
 					generatedAt: new Date().toISOString(),
 				};
