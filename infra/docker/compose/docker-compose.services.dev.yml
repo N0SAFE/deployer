@@ -1,0 +1,384 @@
+# =====================================================================
+# NEW ARCHITECTURE — dev profile: BFF + services, no monolith.
+#
+# ── WHAT THIS FILE IS FOR ───────────────────────────────────────────────
+# `docker-compose.dev.yml` runs the MONOLITH (`api-dev`). This one runs the
+# architecture the monolith is being migrated TO: the `bff` and the five services
+# (`svc-health`, `svc-identity`, `svc-project`, `svc-runtime`, `svc-fleet`).
+#
+# Both exist on purpose while the migration is in progress: the monolith keeps
+# serving until every service is verified, and this file is how the replacement is
+# exercised before anything is switched over. Nothing here is included BY the
+# monolith's compose, so `bun run dev` is unchanged.
+#
+# ── WHY IT INCLUDES RATHER THAN REDECLARES ──────────────────────────────
+# Every app's definition already lives in
+# `common/api/docker-compose.config.services.yml` (build, env, healthcheck). This
+# file adds only what is PROJECT-specific and must be declared once: the networks,
+# the volumes, and the start order. Redeclaring an app here would be a second
+# definition of the same container.
+#
+# ── THE START ORDER ─────────────────────────────────────────────────────
+# Each app refuses to serve without its dependencies (`PreflightModule` → exit 5),
+# so compose does not restate what an app needs — it waits for the app's own honest
+# answer:
+#
+#     redis ─┐
+#            ├─▶ svc-* (health/ready = "database reachable AND migrated")
+#     db ────┘        │
+#                     ▼
+#                    bff (health/ready = "…and Redis")
+#
+# `service_healthy` on `/health/ready` IS the mechanism: readiness is 503 until
+# preflight passes, so "healthy" already means "its dependencies were usable".
+# =====================================================================
+
+# ── WHY THERE IS NO `name:` HERE ────────────────────────────────────────
+# The project name was set to a `-services` suffix so this stack's containers could
+# not collide with the monolith's. That was wrong, and silently so: every volume
+# and network below is named `${COMPOSE_PROJECT_NAME:-…}_x`, so overriding the
+# project name re-prefixed ALL of them — `dep_output_dev` became
+# `nextjs-nestjs-services_dep_output_dev`, a DIFFERENT volume from the one the
+# builder writes. The apps would then start against an empty `dep-output` and fail
+# to resolve `@deployer/*`, which looks like a build bug rather than a naming one.
+#
+# The project name is therefore left alone, and the containers get distinct names
+# instead — which is the thing that actually needed to differ.
+
+# `include` (not `extends`) so the app definitions are used VERBATIM: `extends` would
+# need one entry per app and would let this file drift from the definitions the swarm
+# path uses.
+include:
+  - path: ./common/api/docker-compose.config.services.yml
+
+services:
+  # ── The internal-package builder ───────────────────────────────────────
+  # Every app mounts `dep-output` READ-ONLY and imports its `@deployer/*` packages
+  # from there, so this container must build them BEFORE any app starts. It is the
+  # same builder the monolith profile uses, and the same reason: one build of the
+  # shared packages instead of one per image.
+  dependency-builder:
+    extends:
+      file: ./common/dependency-builder/docker-compose.config.dev.yml
+      service: dependency-builder
+    networks:
+      - app_network_dev
+
+  # ── The BFF: the only public HTTP surface ──────────────────────────────
+  bff:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-bff-dev
+    # `all` is the default. `services` selects the whole replacement architecture
+    # (BFF + the five services) without the monolith.
+    #
+    # There is deliberately NO `bff`-only profile: the BFF depends on all five
+    # services, so a profile that selected it alone would depend on services whose
+    # own profile was inactive — which compose rejects outright (`service "bff"
+    # depends on undefined service "svc-identity"`), not a softer failure. A
+    # profile is only offered where the set it names is self-sufficient.
+    profiles: ["all", "services", "api"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      dependency-builder:
+        condition: service_healthy
+      # The services, gated on their OWN readiness. Listed explicitly rather than
+      # relying on `depends_on` inside the included file, because the order is a
+      # property of THIS composition.
+      svc-health:
+        condition: service_healthy
+      svc-identity:
+        condition: service_healthy
+      svc-project:
+        condition: service_healthy
+      svc-runtime:
+        condition: service_healthy
+      svc-fleet:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${API_PORT:-3005}:${API_PORT:-3005}"
+    networks:
+      - deployer_platform
+      - app_network_dev
+      - shared
+
+  # ── The five services ──────────────────────────────────────────────────
+  # Identical wiring by design: each waits on the builder (its packages) and Redis,
+  # and publishes its port on the platform network where the BFF reaches it by
+  # service name. A per-service difference here would be a difference the BFF
+  # cannot see, which is how one service ends up unreachable.
+  svc-health:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-svc-health-dev
+    profiles: ["all", "services", "api"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      dependency-builder:
+        condition: service_healthy
+    networks:
+      - deployer_platform
+      - app_network_dev
+
+  svc-identity:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-svc-identity-dev
+    profiles: ["all", "services", "api"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      dependency-builder:
+        condition: service_healthy
+    networks:
+      - deployer_platform
+      - app_network_dev
+
+  svc-project:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-svc-project-dev
+    profiles: ["all", "services", "api"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      dependency-builder:
+        condition: service_healthy
+    networks:
+      - deployer_platform
+      - app_network_dev
+
+  svc-runtime:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-svc-runtime-dev
+    profiles: ["all", "services", "api"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      dependency-builder:
+        condition: service_healthy
+    networks:
+      - deployer_platform
+      - app_network_dev
+
+  svc-fleet:
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-svc-fleet-dev
+    profiles: ["all", "services", "api"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      dependency-builder:
+        condition: service_healthy
+    networks:
+      - deployer_platform
+      - app_network_dev
+
+  # ── Redis ──────────────────────────────────────────────────────────────
+  # The BFF and the services declare Redis as a dependency, so it is part of THIS
+  # composition and not borrowed from the monolith's.
+  redis:
+    extends:
+      file: ./common/redis/docker-compose.config.yml
+      service: redis
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-services-redis
+    networks:
+      - deployer_platform
+      - shared
+
+  # ── The ingress ────────────────────────────────────────────────────────
+  #
+  # ── WHY THIS PROFILE NEEDS ONE AT ALL ───────────────────────────────────
+  # `web.deployer.localhost` (and `api.`/`docs.`) are HOSTNAMES, and a hostname
+  # only resolves to a container if something routes on it. Traefik is that
+  # something, and this profile previously had none — so the browser reached
+  # nothing and reported a 404 from the ingress while every app behind it was
+  # healthy. The monolith profile has always carried this service; the services
+  # profile must carry it too, or the two are not interchangeable.
+  traefik:
+    extends:
+      file: ./common/traefik/docker-compose.config.yml
+      service: traefik
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-traefik
+    # Transitive, exactly like the monolith's: `web` and `setup` cannot be
+    # reached without the entry point, so any profile naming them gets this too.
+    profiles: ["all", "services", "api", "web", "setup"]
+    networks:
+      - deployer_platform
+
+  # ── Setup: THE GATE ────────────────────────────────────────────────────
+  #
+  # ── WHY THE SERVICES PROFILE CANNOT OMIT IT ─────────────────────────────
+  # Setup is what PROVISIONS the platform: it writes the `node_config` row (the
+  # database URL among it) and the Traefik dynamic config. Without it the
+  # services come up with an EMPTY database URL and sit in preflight forever:
+  #
+  #   ⚠️  No database URL yet — the pool will connect once onboarding provisions one
+  #   [preflight] preflight attempt 27 not ready — retrying in 2000ms
+  #
+  # `/health/ready` therefore never turns green, and the BFF — which gates on all
+  # five services — never starts. That is the "bff-dev stuck at Created" this
+  # profile produced. The monolith profile has this service for the same reason.
+  setup-dev:
+    extends:
+      file: ./common/setup/docker-compose.config.dev.yml
+      service: setup
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-setup-dev
+    profiles: ["all", "setup", "services", "api", "web"]
+    depends_on:
+      redis:
+        condition: service_started
+      dependency-builder:
+        condition: service_healthy
+    environment:
+      # Compose owns the API in this profile, so the wizard's DRIVE phase talks
+      # to `bff` — the service that replaced the monolith's `api`.
+      SETUP_MODE: ${SETUP_MODE:-dev}
+      SETUP_API_URL: http://bff:${API_PORT:-3005}
+      SETUP_API_PORT: ${API_PORT:-3005}
+      # Compose owns the ingress here (`traefik:` above publishes :80), so setup
+      # must not start one of its own — the entry port is exclusively bound. It
+      # still ROUTES through it by writing `dynamic-setup.yml` into the shared
+      # config volume.
+      MANAGED_TRAEFIK_ENABLED: "true"
+      DEPLOYER_PREFIX: ${DEPLOYER_PREFIX:-}
+      MESH_AGENT_DATAPLANE: ${MESH_AGENT_DATAPLANE:-observe}
+    volumes:
+      # The SAME SQLite file the BFF and the services read: setup WRITES the node
+      # config, and they read it. A different file means they never see the row.
+      - api_local_db_data_dev:/app/data
+    networks:
+      app_network_dev:
+        aliases:
+          - setup-dev
+          - setup
+      deployer_platform:
+        aliases:
+          - setup-dev
+          - setup
+      shared: {}
+
+  # ── The web app ────────────────────────────────────────────────────────
+  # The user-facing surface. Gated on the BFF rather than the monolith's
+  # `api-dev`, because `bff` is what serves the API in this architecture.
+  web-dev:
+    extends:
+      file: ./common/web/docker-compose.config.dev.yml
+      service: web
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-web-dev
+    profiles: ["all", "web", "services"]
+    depends_on:
+      bff:
+        condition: service_healthy
+      dependency-builder:
+        condition: service_healthy
+    environment:
+      # ── THE CUTOVER, IN ONE LINE ─────────────────────────────────────
+      # Server-side (Next SSR) reaches the BFF by its compose service name. The
+      # browser origin (`NEXT_PUBLIC_API_URL`) is deliberately NOT overridden: the
+      # BFF inherits the monolith's public role, so the public name still routes to
+      # whatever sits behind Traefik, and `NEXT_PUBLIC_*` is inlined at build time
+      # — overriding it here would change nothing an already-built bundle reads.
+      #
+      # This is the only web-side difference from the monolith profile, because the
+      # front is already typed against `@deployer/bff-contracts`.
+      API_URL: http://bff:${API_PORT:-3005}
+    networks:
+      app_network_dev: {}
+      deployer_platform: {}
+      shared: {}
+
+  # ── The docs app ───────────────────────────────────────────────────────
+  # Independent of every other application: only the builder is a prerequisite.
+  doc-dev:
+    extends:
+      file: ./common/doc/docker-compose.config.dev.yml
+      service: doc
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-doc-dev
+    profiles: ["all", "doc", "services"]
+    depends_on:
+      dependency-builder:
+        condition: service_healthy
+    networks:
+      app_network_dev: {}
+
+  # ── The database gateway ───────────────────────────────────────────────
+  # The operator's SQL surface onto the global Postgres. Reached through
+  # `global-db`, the alias the `deployer-postgres` container carries on the
+  # platform network.
+  drizzle-gateway:
+    extends:
+      file: ./common/drizzle-gateway/docker-compose.config.yml
+      service: drizzle-gateway
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-drizzle-gateway
+    environment:
+      DATABASE_URL_Deployer: postgresql://${MANAGED_GLOBAL_DB_USER:-deployer}:${MANAGED_GLOBAL_DB_PASSWORD:-deployer}@global-db:5432/${MANAGED_GLOBAL_DB_NAME:-deployer}
+    networks:
+      shared: {}
+
+# ---------------------------------------------------------------------
+# SHARED NETWORKS — declared ONCE, as every other profile does.
+#
+# `shared` and `deployer_platform` use the SAME names as the monolith profile, so
+# this stack can talk to the swarm-scheduled global database (which the platform
+# owns) without a second network. `app_network_dev` is project-scoped because it
+# carries the builder and the apps, which are per-project.
+# ---------------------------------------------------------------------
+networks:
+  shared:
+    name: shared
+    driver: bridge
+  deployer_platform:
+    name: deployer-platform
+    driver: bridge
+  app_network_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_app_network_dev
+    driver: bridge
+
+# ---------------------------------------------------------------------
+# SHARED VOLUMES — declared ONCE.
+#
+# `dep_output_dev` is the builder's output, mounted read-only by every app.
+# `api_local_db_data_dev` holds each app's local SQLite (`node_config`), and
+# `api_uploads_dev` the BFF's uploads — the same volumes the monolith profile uses,
+# because they carry node-level state that must survive a profile switch.
+# ---------------------------------------------------------------------
+volumes:
+  dep_output_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_dep_output_dev
+  api_local_db_data_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_local_db_data_dev
+  api_uploads_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_dev
+  # ── Volumes the ingress + web apps mount ───────────────────────────────
+  # Declared here because THIS file composes them; a service that mounts a volume
+  # this file does not declare makes compose reject the whole project with
+  # `refers to undefined volume`.
+  #
+  # `deployer-traefik-config` is where the platform's dynamic routing is written
+  # (setup writes `dynamic-setup.yml`, the API writes the app routes). It is named
+  # literally, matching every other profile, so the ingress sees ONE config
+  # regardless of which profile started it.
+  deployer-traefik-config:
+    name: ${TRAEFIK_CONFIG_VOLUME:-deployer-traefik-config}
+  # Turbopack's filesystem cache, one per app: web and doc have different graph
+  # roots (`web/` vs `doc/`), so sharing one directory would be wrong.
+  web_next_cache_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_web_next_cache_dev
+  doc_next_cache_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_doc_next_cache_dev
+  # The package-manager and task caches the web app mounts. Same names as the
+  # monolith profile's, so the two share one warm cache instead of each
+  # downloading and rebuilding from cold.
+  bun_cache_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_bun_cache_dev
+  turbo_cache_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_turbo_cache_dev
+  # The web app's app-instance token, which it registers with the API at boot.
+  web_instance_token_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_web_instance_token_dev
+  # The mesh agent's control socket. NAMED LITERALLY, never project-prefixed: the
+  # agent container and the API service mount it by this exact name.
+  deployer-mesh-run:
+    name: deployer-mesh-run
+  # The operator's database gateway state.
+  drizzle-gateway:
+    name: drizzle-gateway
+  # Named EXACTLY as the monolith profile names it, and with the same prefix, so the
+  # two profiles share one Redis dataset rather than each keeping its own. Two
+  # caches for one platform is how a service reads a value the BFF just wrote and
+  # does not see it.
+  redis_data_dev:
+    name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-redis-data
