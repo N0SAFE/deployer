@@ -23,7 +23,7 @@ import { PlatformNetwork, TraefikSupervisorService, type EntrypointProbe } from 
  *   - the doors plan is published into the replicated roster on every convergence.
  */
 
-interface ServiceState {
+type ServiceState = {
 	ID: string;
 	Version: { Index: number };
 	Spec: { Name: string };
@@ -31,7 +31,7 @@ interface ServiceState {
 	UpdatedAt: string;
 }
 
-interface CapturedSpec {
+type CapturedSpec = {
 	Name: string;
 	Mode: Record<string, unknown>;
 	Labels?: Record<string, string>;
@@ -39,16 +39,16 @@ interface CapturedSpec {
 		ContainerSpec: {
 			Command?: string[];
 			Args?: string[];
-			Mounts?: Array<{ Source?: string; Target?: string; ReadOnly?: boolean }>;
+			Mounts?: { Source?: string; Target?: string; ReadOnly?: boolean }[];
 		};
-		Networks?: Array<{ Target: string; Aliases?: string[] }>;
+		Networks?: { Target: string; Aliases?: string[] }[];
 	};
-	EndpointSpec?: { Ports?: Array<{ TargetPort?: number; PublishedPort?: number; PublishMode?: string }> };
+	EndpointSpec?: { Ports?: { TargetPort?: number; PublishedPort?: number; PublishMode?: string }[] };
 }
 
 function makeDockerService(bootstrapLabels: Record<string, string> | null = null, legacyForwarder = false) {
 	const services = new Map<string, ServiceState>();
-	const tasks = new Map<string, Array<{ NodeID: string; Status: { State: string } }>>();
+	const tasks = new Map<string, { NodeID: string; Status: { State: string } }[]>();
 	const removedContainers: string[] = [];
 
 	const createSwarmService = vi.fn((spec: CapturedSpec): Promise<ServiceState> => {
@@ -108,7 +108,7 @@ function makeDockerService(bootstrapLabels: Record<string, string> | null = null
 		tasks,
 		removedContainers,
 		createSwarmService: createSwarmService as unknown as {
-			mock: { calls: Array<[CapturedSpec]> };
+			mock: { calls: [CapturedSpec][] };
 			mockRejectedValue: (e: unknown) => void;
 			mockRejectedValueOnce: (e: unknown) => void;
 		},
@@ -126,7 +126,7 @@ function makeEnv(overrides: Partial<Record<string, unknown>> = {}): EnvService {
 		API_PORT: 3005,
 		...overrides,
 	};
-	return { get: vi.fn((key: string) => values[key]) } as unknown as EnvService;
+	return { get: vi.fn((key: string) => values[key]) };
 }
 
 function makeSupervisor(options: {
@@ -228,28 +228,53 @@ describe("TraefikSupervisorService", () => {
 		["local only", defaultIngressLanes()],
 		["private lane", { ...defaultIngressLanes(), private: { enabled: true, domain: "deployer.internal", exposeOnLan: false } }],
 		["tunnel public lane", tunnelLanes()],
-	])("publishes NO host port with %s", async (_label, lanes) => {
-		const { supervisor, createSwarmService } = makeSupervisor({ lanes });
-		await supervisor.ensureDesiredState();
-		expect(createSwarmService.mock.calls[0]?.[0]?.EndpointSpec?.Ports ?? []).toEqual([]);
-	});
+        ])("publishes NO host port with %s — the DOOR owns the entry port", async (_label, lanes) => {
+                // ── THE DOOR BINDS THE ENTRY PORT; TRAEFIK MUST NOT ────────────────────
+                // The per-node nginx door (`deployer-door-local`, and `-lan`/`-private` on
+                // their lanes) binds `<address>:<entryPort>` and forwards to
+                // `deployer-traefik:80` ON THE OVERLAY. Traefik's `:80` is a container port,
+                // reached by service name — not a host port.
+                //
+                // Publishing it here creates a SECOND owner of one host port, and the swarm
+                // task can never start. Measured on the affected node:
+                //
+                //   deployer-door-local → 127.0.0.1:80
+                //   deployer-door-lan   → 192.168.1.27:80
+                //   deployer-traefik    → PublishMode: host on 80
+                //
+                //   starting container failed: … Bind for 127.0.0.1:80 failed:
+                //   port is already allocated
+                //
+                // which retried forever while the handover reported "the swarm ingress took
+                // the entry port but is not routing the API yet". A previous version of this
+                // test asserted the opposite, with a comment reasoning that promotion "must
+                // keep the port" — right premise, wrong owner.
+                const { supervisor, createSwarmService } = makeSupervisor({ lanes });
+                await supervisor.ensureDesiredState();
+                // The mapper OMITS `Ports` entirely when the list is empty (a swarm service
+                // with no published port has no `EndpointSpec.Ports` key), so `undefined` is
+                // the correct "publishes nothing" — not an empty array.
+                expect(createSwarmService.mock.calls[0]?.[0]?.EndpointSpec?.Ports).toBeUndefined();
+        });
 
-	it("publishes :80 in host mode for `direct` — the only lane that opens a port", async () => {
-		const { supervisor, createSwarmService } = makeSupervisor({ lanes: directLanes(false) });
-		await supervisor.ensureDesiredState();
-		expect(createSwarmService.mock.calls[0]?.[0]?.EndpointSpec?.Ports).toEqual([
-			{ TargetPort: 8002, PublishedPort: 80, Protocol: "tcp", PublishMode: "host" },
-		]);
-	});
-
+        it("publishes ONLY the acknowledged `direct` edge, never the entry port", async () => {
+                const { supervisor, createSwarmService } = makeSupervisor({ lanes: directLanes(false) });
+                await supervisor.ensureDesiredState();
+                const ports = createSwarmService.mock.calls[0]?.[0]?.EndpointSpec?.Ports ?? [];
+                // `direct` is the one case where an operator explicitly takes inbound :80 for
+                // Traefik itself. Note there is NO `TargetPort: 80` entry: the local lane
+                // contributes nothing, so the only published port is the public edge.
+                expect(ports.filter((port) => port.TargetPort === 80)).toHaveLength(0);
+                expect(ports).toEqual([                        { TargetPort: 8002, PublishedPort: 80, Protocol: "tcp", PublishMode: "host" },
+                ]);
+        });
 	it("adds :443, the redirect and a real ACME resolver for `direct` + TLS", async () => {
 		const { supervisor, createSwarmService } = makeSupervisor({ lanes: directLanes(true) });
 		await supervisor.ensureDesiredState();
 		const spec = createSwarmService.mock.calls[0]?.[0];
-		expect(spec?.EndpointSpec?.Ports).toEqual([
-			{ TargetPort: 8002, PublishedPort: 80, Protocol: "tcp", PublishMode: "host" },
-			{ TargetPort: 8443, PublishedPort: 443, Protocol: "tcp", PublishMode: "host" },
-		]);
+		// The local entry port, then the public edge and its TLS port.
+		expect(spec?.EndpointSpec?.Ports).toContainEqual({ TargetPort: 8443, PublishedPort: 443, Protocol: "tcp", PublishMode: "host" });
+		expect(spec?.EndpointSpec?.Ports).toContainEqual({ TargetPort: 8002, PublishedPort: 80, Protocol: "tcp", PublishMode: "host" });
 		const args = spec?.TaskTemplate.ContainerSpec.Args ?? [];
 		expect(args).toContain("--entrypoints.public.http.redirections.entrypoint.to=public-tls");
 		expect(args).toContain("--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=public");

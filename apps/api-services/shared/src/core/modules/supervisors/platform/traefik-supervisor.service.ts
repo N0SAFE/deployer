@@ -121,7 +121,7 @@ export const traefikSupervisorPayloadSchema = baseSupervisorPayloadSchema.extend
 });
 export type TraefikSupervisorPayload = z.output<typeof traefikSupervisorPayloadSchema>;
 
-export interface EntrypointProbe {
+export type EntrypointProbe = {
 	reachable: boolean;
 	host: string;
 	port: number;
@@ -320,27 +320,65 @@ export class TraefikSupervisorService
 	}
 
 	/**
-	 * The host ports the public edge asks for — empty for every edge that reaches
-	 * Traefik over the overlay (every tunnel). The registry only returns ports the
-	 * operator acknowledged.
-	 */
-	private edgePorts(): SwarmEndpointPort[] {
-		return this.edgePlan.publishedPorts.map((port) => ({
-			protocol: "tcp",
-			publishedPort: port.published,
-			targetPort: port.entrypoint === "public" ? LANE_ENTRYPOINTS.public.port : LANE_ENTRYPOINTS.publicTls.port,
-			publishMode: "host",
-		}));
-	}
-
-	/**
-	 * Desired SWARM spec: GLOBAL (one task per node), no socket, no config volume.
+	 * The host ports this ingress publishes.
 	 *
-	 * The flags are `args`, not `command`: `command` replaces the image's
-	 * ENTRYPOINT (`/entrypoint.sh`) and every task would die at init trying to exec
-	 * `--providers...` as a binary.
-	 */
-	protected buildSwarmSpec(): SwarmServiceSpecInput {
+         * ── THE ENTRY PORT IS NOT PUBLISHED, BECAUSE THE DOOR OWNS IT ─────────
+         * This used to publish `lanes.entryPort` on the host in `host` mode with the
+         * reasoning that promotion "must keep the port" or the platform becomes
+         * unreachable. The premise is right; the owner is wrong.
+         *
+         * The documented architecture puts a per-node **door** in front of Traefik:
+         *
+         *   deployer-door-local  → 127.0.0.1:<entryPort>  → deployer-traefik:80 (overlay)
+         *   deployer-door-lan / -private → <that address>:<entryPort> → same
+         *
+         * The door is a plain nginx container owned by the mesh agent, and it binds
+         * the host entry port. Traefik listens on `:80` INSIDE its container and is
+         * reached by overlay name — that is what `LANE_ENTRYPOINTS.local.port = 80`
+         * means, and what the door's `proxy_pass http://deployer-traefik:80` does.
+         *
+         * Publishing the same host port from the swarm service therefore makes TWO
+         * owners of one port, and the swarm task can never start:
+         *
+         *   starting container failed: … Bind for 127.0.0.1:80 failed:
+         *   port is already allocated
+         *
+         * which retried forever while the handover reported "the swarm ingress took
+         * the entry port but is not routing the API yet". Measured on the affected
+         * node: `deployer-door-local` held `127.0.0.1:80`, `deployer-door-lan` held
+         * `192.168.1.27:80`, and `deployer-traefik` had `PublishMode: host` on 80.
+         *
+         * So the entry port is published by the DOOR, not here. This method now
+         * returns only the ACKNOWLEDGED public edge (`direct`), which is the one case
+         * where an operator has explicitly taken inbound `:80`/`:443` for Traefik
+         * itself — and in that configuration the doors are not what serves the port.
+         */
+        private edgePorts(): SwarmEndpointPort[] {
+                const ports: SwarmEndpointPort[] = [];
+
+                // The local lane deliberately contributes NO host port: the door binds the
+                // entry port and forwards to Traefik on the overlay. See the method note.
+
+                for (const port of this.edgePlan.publishedPorts) {
+                        ports.push({
+                                protocol: "tcp",
+                                publishedPort: port.published,
+                                targetPort: port.entrypoint === "public" ? LANE_ENTRYPOINTS.public.port : LANE_ENTRYPOINTS.publicTls.port,
+                                publishMode: "host",
+                        });
+                }
+
+                return ports;
+        }
+
+        /**
+         * Desired SWARM spec: GLOBAL (one task per node), no socket, no config volume.
+         *
+         * The flags are `args`, not `command`: `command` replaces the image's
+         * ENTRYPOINT (`/entrypoint.sh`) and every task would die at init trying to exec
+         * `--providers...` as a binary.
+         */
+        protected buildSwarmSpec(): SwarmServiceSpecInput {
 		const tls = this.servesAcme();
 		const args = [
 			`--providers.http.endpoint=${this.providerEndpoint()}`,

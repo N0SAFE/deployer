@@ -208,7 +208,7 @@ not the API. Each supervisor honors its `MANAGED_<SERVICE>_ENABLED` flag: when
 `true`, the supervisor **skips registration entirely** (no container spawn, no
 convergence) and all consumers reach the compose-owned service through the
 matching nested `managed.<service>.<key>` configuration (split from the flat
-`MANAGED_<SERVICE>_<KEY>` env by `splitManagedEnv` in `@repo/env`):
+`MANAGED_<SERVICE>_<KEY>` env by `splitManagedEnv` in `@deployer/env`):
 
 | Service | Compose-owned flag | Reach-config (nested) |
 |---|---|---|
@@ -259,11 +259,18 @@ infra/docker/compose/
 │   ├── traefik/      docker-compose.config.yml
 │   └── drizzle-gateway/docker-compose.config.yml
 ├── docker-compose.dev.yml                 # dev (compose-managed)
+├── docker-compose.services.dev.yml        # microservices tier (compose-managed)
 ├── docker-compose.dev-supervised.yml      # dev (API-managed)
+├── docker-compose.services.dev-supervised.yml  # microservices tier (API-managed)
 ├── docker-compose.prod.yml                # prod (API-managed)
 ├── docker-compose.mesh-6.dev.yml          # 6-node mesh (compose-managed)
 └── docker-compose.mesh-6.dev-supervised.yml  # 6-node mesh (API-managed)
 ```
+
+The microservices counterpart of every supervised profile exists because the
+question "does the BFF converge when the PLATFORM supervises it" cannot be
+answered by a compose-owned stack — see
+[Services, supervised by the swarm](./services-supervised.mdx).
 
 The orchestrators **`extends` the common bases** (chained: orchestrator →
 variant → shared base) and add only per-project wiring: container_name,
@@ -344,6 +351,22 @@ another process already holds `:80`/`:443` for a `direct` edge, the ingress goes
 **DEGRADED** (`EntryPortConflictError`, fatal — no retry) with its service
 removed, instead of silently running headless.
 
+> **The entry port has exactly ONE owner: the door.** Traefik listens on `:80`
+> *inside* its container and is reached by overlay name (`deployer-traefik:80`);
+> the door publishes `<address>:<entryPort>` on the host and forwards there. If
+> the swarm service also published `entryPort` in `host` mode, two owners would
+> claim one port and the Traefik task could never start:
+>
+> ```
+> starting container failed: … Bind for 127.0.0.1:80 failed: port is already allocated
+> ```
+>
+> which retries forever while the handover reports "the swarm ingress took the
+> entry port but is not routing the API yet". Measured on an affected node:
+> `deployer-door-local` held `127.0.0.1:80`, `deployer-door-lan` held
+> `192.168.1.27:80`, and `deployer-traefik` had `PublishMode: host` on 80. Only
+> an acknowledged `direct` public edge publishes a host port from Traefik itself.
+
 **Doors (owned by the mesh agent, not the API)** — Swarm's port spec cannot bind
 a single host address, so the address-scoped listeners are plain nginx
 containers the node's `deployer-mesh-agent` converges from the replicated
@@ -354,8 +377,7 @@ address when "allow same-network join" is on. The entry port (default 80, seeded
 once from `DEPLOYER_TRAEFIK_HTTP_PORT`) lives in the `ingress.lanes` cluster
 setting and is changed on **Network → Ingress & edge**.
 
-**The local door's rescue route** replaces the old direct-port failover proxy.
-When the door's own upstream call to Traefik fails (502/503/504 from nginx
+**The local door's rescue route** replaces the old direct-port failover proxy.When the door's own upstream call to Traefik fails (502/503/504 from nginx
 itself — a 502 Traefik returns for an app passes through untouched), it serves
 the platform's own hostnames straight from their containers: `api.*` → this API
 (`API_PORT`), `web.*` → the resolved web target. It exists only on loopback, so
@@ -538,7 +560,7 @@ The platform supervisors are owned by the **API** (`AppModule`, i.e. the one gra
 6. If the service already exists and is healthy → no-op (idempotent boot).
 7. If it is unhealthy → recreate with exponential backoff, surfaced in logs and via `/health/detailed`.
 
-The supervisor framework providers (`SupervisorOrchestratorService`, `SupervisorEventBus`) are backed by **process-wide singletons** (`supervisor-shared.ts`) — one registry per process, so health aggregation and convergence observe the same state.
+The supervisor framework providers (`SupervisorOrchestratorService`, `SupervisorEventBus`) are provided by `SupervisorsModule.forRoot()` and are **singletons per Nest container**. One registry per container means health aggregation and convergence observe the same state within an application, while two applications booted in the same process (an e2e harness, for example) keep separate registries and cannot collide on a shared `supervisorId`.
 
 <DocCallout title="Traefik must be v3.6+, and the platform ingress uses no Docker provider" tone="warning">
 The swarm ingress reads only the HTTP provider — it has neither the `docker` nor the `swarm` provider, so the v2 option `--providers.docker.swarmMode=true` (removed in v3, and fatal at start-up if left in place) cannot reach it. Keep the image at v3.6 or newer all the same (`DEPLOYER_TRAEFIK_IMAGE`): earlier v3 releases do not negotiate the Docker Engine API version, which still matters for setup's bootstrap Traefik.
@@ -769,7 +791,7 @@ Contract sketch (illustrative, final shapes land with the implementation PR):
 
 ```ts
 // packages/contracts/api/modules/platform/register-app-instance.ts — SKETCH
-import { standard } from "@repo/orpc-utils"
+import { standard } from "@deployer/orpc-utils"
 import z from "zod/v4"
 
 const registerInputSchema = z.object({
@@ -957,11 +979,11 @@ Atomic phases; every phase type-checks, tests green, docs updated, conventional 
 
 The API serves its own management pages (`/manage/web-app`, `/manage/login`) as
 server-rendered React views with `@nestjs-ssr/react` — the same Tailwind theme,
-`@repo/ui` components and Better Auth as the web app:
+`@deployer/ui` components and Better Auth as the web app:
 
 - `RenderModule.forRoot({ project: "api", viewsDir: "src/views", vite: { port: 5173 } })` in `AppModule` (main-app). Dev proxies to the `dev:vite` dev server (port from `vite.config.ts`); production builds `dist/api/client` + `dist/api/server` via `bun scripts/build.ts`.
-- Views live in `apps/api/src/views/` (layout, global.css importing `@repo/ui/styles/globals.css`, pages). The web app's own UI shares the same Tailwind tokens.
-- **Fully dynamic**: views call the API through typed ORPC ops (React Query + TanStack Form + `@repo/ui` components) — no HTTP form POSTs / redirects. `PlatformConsoleController` only renders via `@Render`; every action is an ORPC implementation in `PlatformManagedWebController` (toggle/restart/origin/tunnel), backed by `PlatformManagedWebService`.
+- Views live in `apps/api/src/views/` (layout, global.css importing `@deployer/ui/styles/globals.css`, pages). The web app's own UI shares the same Tailwind tokens.
+- **Fully dynamic**: views call the API through typed ORPC ops (React Query + TanStack Form + `@deployer/ui` components) — no HTTP form POSTs / redirects. `PlatformConsoleController` only renders via `@Render`; every action is an ORPC implementation in `PlatformManagedWebController` (toggle/restart/origin/tunnel), backed by `PlatformManagedWebService`.
 - Auth: `SsrAuthGuardMiddleware` (AppModule `configure`) checks the Better Auth session server-side for every `/manage/*` route except `/manage/login`, which renders the shared login screen.
 - `@Render` is imported from `@nestjs-ssr/react` (aliased `SsrRender`) — never the `Render` template decorator from `@nestjs/common`.
 | **4 — Hardening + docs** | E2E for the three flows (prod-boot, side-by-side, BYO registration), security tests (revocation, rate-limit, stale sweep), docs app updates (deployment + architecture sections, this page finalized from *design* to *current*). | Leftover dead flags/utils from the old CORS path (`knip` clean). |
