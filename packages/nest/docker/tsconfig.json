@@ -5,8 +5,28 @@
         "pkg-build.config.ts", "src/**/*"
     ],
     "compilerOptions": {
+        // `bun` is REQUIRED, not optional: this package uses the `Bun` global
+        // (`Bun.file`, `Bun.write`, `Bun.spawn`) as a normal runtime API. Without
+        // it, `pkg-build`'s TYPE-EMIT pass fails with
+        //
+        //   error TS2868: Cannot find name 'Bun'. Do you need to install type
+        //   definitions for Bun?
+        //
+        // and because `pkg-build` runs the types pass as part of `build`, one
+        // missing lib entry fails the WHOLE package build — which in turn fails
+        // every Docker image that bakes internal packages
+        // (`turbo run build --filter="@deployer/svc-*..."`), even though the
+        // runtime is Bun and the code is correct.
+        //
+        // `node` is kept alongside it: this package also uses `node:fs`/`node:path`
+        // and consumes `dockerode`, whose types are Node-shaped. Same combination as
+        // `@deployer/nest-database-local`.
+        "types": [
+            "node",
+            "bun"
+        ],
         "paths": {
-            "@repo/nest-docker/*": [
+            "@/*": [
                 "./src/*"
             ]
         }

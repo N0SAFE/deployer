@@ -10,10 +10,13 @@ import Docker from "dockerode";
 import * as fs from "fs";
 import * as path from "path";
 import { PassThrough } from "stream";
-import { execFile } from "node:child_process";
 import { Observable } from "rxjs";
+// `DockerConnectionConfig` is a TYPE-ONLY export. Importing it as a value makes
+// `bun build` fail with "No matching export in src/docker-config.ts", which is
+// reported as `AggregateError: Bundle failed` with exit code 0 and NO dist/types
+// written — silently breaking every downstream package that needs this one's types.
 import type { DockerConnectionConfig } from "../docker-config";
-import { isRecord } from "@repo/type-guards";
+import { isRecord } from "@deployer/type-guards";
 import z from "zod/v4";
 import {
     dockerodeSwarmInfoSchema,
@@ -27,7 +30,7 @@ import {
     dockerodeNetworkSummarySchema,
     dockerodeVolumeListResponseSchema,
     dockerodeSwarmInitResponseSchema,
-} from "@repo/contracts-entities";
+} from "@deployer/contracts-entities";
 import type {
     DockerodeSwarmInitResponse,
     DockerodeSwarmInfo,
@@ -43,7 +46,7 @@ import type {
     SwarmInitOptions,
     SwarmJoinOptions,
     SwarmOverlayNetworkRequest,
-} from "@repo/contracts-entities";
+} from "@deployer/contracts-entities";
 
 /**
  * The engine's OWN swarm vocabulary, kept inside this boundary: business code
@@ -62,7 +65,7 @@ export type SwarmNodeAvailability = "active" | "pause" | "drain";
  * omits fields it considers default, and echoing an omitted field as `""` is
  * exactly what produced `400 invalid Role: ""` on every node update.
  */
-export interface SwarmNodeSpecSource {
+export type SwarmNodeSpecSource = {
     Spec?: {
         Name?: string;
         Role?: string;
@@ -75,7 +78,7 @@ export interface SwarmNodeSpecSource {
  * The FLAT `NodeSpec` body of `POST /nodes/{id}/update`. A nested `Spec`
  * wrapper makes the daemon read an empty top-level `Role` and reject the call.
  */
-export interface SwarmNodeSpecPayload {
+export type SwarmNodeSpecPayload = {
     /** Left out entirely when the engine reported no name — never sent as `""`. */
     Name?: string;
     Role: SwarmNodeRole;
@@ -84,7 +87,7 @@ export interface SwarmNodeSpecPayload {
 }
 
 /** A partial change applied over the node's CURRENT spec. */
-export interface SwarmNodeSpecChange {
+export type SwarmNodeSpecChange = {
     role?: SwarmNodeRole;
     availability?: SwarmNodeAvailability;
     /** COMPLETE desired label map — see `buildSwarmNodeSpecPayload`. */
@@ -413,9 +416,14 @@ export class DockerService {
         // real one was missing (e.g. a wrong path), masking the real error and
         // producing images that don't match the intended runtime.
         const autoCreateDockerfile = options?.autoCreateDockerfile ?? false;
-        // Check if Dockerfile exists
+        // Check if Dockerfile exists.
+        //
+        // `Bun.file().exists()` needs no import and is the natural call in a Bun
+        // runtime; `buildImage` is already async, so there is no sync/async boundary
+        // to cross here.
         const dockerfilePath = path.join(sourcePath, dockerfileName);
-        if (autoCreateDockerfile && !fs.existsSync(dockerfilePath)) {
+        const dockerfile = Bun.file(dockerfilePath);
+        if (autoCreateDockerfile && !(await dockerfile.exists())) {
             // Create a basic Dockerfile if none exists
             const basicDockerfile = `
 FROM node:18-alpine
@@ -426,9 +434,9 @@ COPY . .
 EXPOSE 3000
 CMD ["npm", "start"]
       `.trim();
-            fs.writeFileSync(dockerfilePath, basicDockerfile);
+            await Bun.write(dockerfilePath, basicDockerfile);
         }
-        if (!fs.existsSync(dockerfilePath)) {
+        if (!(await Bun.file(dockerfilePath).exists())) {
             throw new NotFoundException(
                 `Dockerfile not found at ${dockerfilePath} (context=${sourcePath}, dockerfile=${dockerfileName})`,
             );
@@ -466,7 +474,7 @@ CMD ["npm", "start"]
     ): Promise<{ projectName: string; services: string[] }> {
         const composeFileName = options?.composeFileName ?? "docker-compose.yml";
         const composeFilePath = path.join(sourcePath, composeFileName);
-        if (!fs.existsSync(composeFilePath)) {
+        if (!(await Bun.file(composeFilePath).exists())) {
             throw new NotFoundException(`Docker compose file not found at ${composeFilePath}`);
         }
         const projectName = options?.projectName ?? `deployer-${String(Date.now())}`;
@@ -480,21 +488,30 @@ CMD ["npm", "start"]
 
     /**
      * Run a `docker compose ...` CLI command and await completion.
+     *
+     * Uses `Bun.spawn` rather than `node:child_process.execFile`: this is a Bun
+     * application, and `Bun.spawn` gives the exit code and the pipes directly
+     * without the callback-to-promise wrapper. stderr is still surfaced verbatim,
+     * because that is where compose puts the actionable reason for a failed build.
      */
-    private runComposeCli(args: string[], cwd: string): Promise<void> {
-        return new Promise((resolve, reject) => {
-            execFile("docker", args, { cwd }, (error, _stdout, stderr) => {
-                if (error) {
-                    reject(
-                        new Error(
-                            `docker compose failed (${args.join(" ")}): ${stderr || error.message}`,
-                        ),
-                    );
-                    return;
-                }
-                resolve();
-            });
+    private async runComposeCli(args: string[], cwd: string): Promise<void> {
+        const proc = Bun.spawn(["docker", ...args], {
+            cwd,
+            stdout: "pipe",
+            stderr: "pipe",
         });
+
+        const [, stderr] = await Promise.all([
+            new Response(proc.stdout).text(),
+            new Response(proc.stderr).text(),
+        ]);
+        const exitCode = await proc.exited;
+
+        if (exitCode !== 0) {
+            throw new Error(
+                `docker compose failed (${args.join(" ")}): ${stderr.trim() || `exited with code ${String(exitCode)}`}`,
+            );
+        }
     }
 
     async createAndStartContainer(options: {
@@ -747,13 +764,13 @@ CMD ["npm", "start"]
 
             const uptime = containerInfo.State.StartedAt ? Date.now() - new Date(containerInfo.State.StartedAt).getTime() : 0;
 
-            interface HealthCheckLogEntry {
+            type HealthCheckLogEntry = {
                 start: string;
                 end: string;
                 exitCode: number;
                 output: string;
             }
-            interface DetailedHealth {
+            type DetailedHealth = {
                 isHealthy: boolean;
                 status: string;
                 uptime: number;
@@ -3201,9 +3218,9 @@ CMD ["npm", "start"]
 }
 
 // Stronger create container options combining dockerode types with our custom fields
-export interface CreateContainerOptions extends Docker.ContainerCreateOptions {
+export type CreateContainerOptions = {
     // backward compatibility: allow lowercase 'image' property
     image?: string;
     imagePullPolicy?: "IfNotPresent" | "Always" | "Never";
     registryAuth?: Docker.AuthConfig;
-}
+} & Docker.ContainerCreateOptions

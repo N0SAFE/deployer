@@ -1,13 +1,69 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
-import { parseArgs } from 'node:util'
-import { spawn } from 'node:child_process'
+import { $ } from 'bun'
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { config as dotenvConfig } from 'dotenv'
 import zod from 'zod/v4'
-import { apiEnvSchema, webEnvSchema, docEnvSchema } from '@repo/env/index'
-import { getMockEnv, getAllMockEnv } from '@repo/env/mock'
+import { apiEnvSchema, webEnvSchema, docEnvSchema } from '@deployer/env/index'
+import { getMockEnv, getAllMockEnv } from '@deployer/env/mock'
+
+/**
+ * Quote one shell word so a value containing spaces, quotes or `;` survives.
+ *
+ * ── WHY THIS EXISTS AT ALL ────────────────────────────────────────────────────
+ * The obvious translation of `spawn(cmd, args, { shell: true })` is
+ * `command.join(" ")`, and that is WRONG: the join discards the argument
+ * boundary, so
+ *
+ *   load api --command bash -c 'exit 7'
+ *
+ * became the single shell word `bash -c exit 7`, which bash reads as "run the
+ * script named `exit`, with `$0` = 7" — it exits 0 and silently does nothing.
+ * Measured: `["bash","-c","exit 7"].join(" ")` → exit 0, while the same command
+ * with the argument preserved exits 7. A user's `--command` is passed straight
+ * through, so mis-quoting it changes what their command MEANS.
+ *
+ * Single-quoting is the POSIX form that disables every metacharacter; an embedded
+ * single quote is closed, escaped and reopened (`'\''`).
+ */
+export function shellQuote(word: string): string {
+    if (word === '') return "''"
+    if (/^[A-Za-z0-9_@%+=:,./-]+$/.test(word)) return word
+    // `replaceAll` is ES2021 and this package compiles against an older lib;
+    // a global regex is the equivalent and needs no config change.
+    return `'${word.replace(/'/g, `'\\''`)}'`
+}
+
+/**
+ * Run a user-supplied command with the validated environment.
+ *
+ * ── WHY `Bun.$` AND NOT `node:child_process.spawn` ────────────────────────────
+ * This CLI is executed by Bun (the shebang above says so), and the previous
+ * implementation was a thin wrapper over `spawn(cmd, args, { shell: true,
+ * stdio: 'inherit' })` plus two event listeners to translate `exit`/`error` into
+ * `process.exit`. `Bun.$` IS the shell primitive here: it takes the command as a
+ * tagged template, inherits stdio, and reports `exitCode` directly.
+ */
+async function runWithEnvironment(command: readonly string[], envVars: Record<string, string>): Promise<void> {
+    const [cmd, ...rest] = command
+    if (!cmd) {
+        console.error('❌ No command specified')
+        process.exit(1)
+    }
+
+    // Arguments are quoted individually, then joined: the shell must see the same
+    // word boundaries `spawn(..., { shell: true })` would have given it.
+    const shellCommand = [cmd, ...rest].map(shellQuote).join(' ')
+
+    try {
+        const result = await $`${{ raw: shellCommand }}`.env({ ...process.env, ...envVars }).nothrow()
+        process.exit(result.exitCode ?? 0)
+    } catch (err: unknown) {
+        console.error('❌ Failed to run command:', err instanceof Error ? err.message : err)
+        process.exit(1)
+    }
+}
 
 type AppName = 'api' | 'web' | 'doc'
 
@@ -91,7 +147,7 @@ function checkEnv(appName?: AppName, envVars: Record<string, string> = process.e
 /**
  * Load and validate environment variables, optionally running a command
  */
-function loadEnv(appName?: AppName, envFiles?: string[], command?: string[]): void {
+async function loadEnv(appName?: AppName, envFiles?: string[], command?: string[]): Promise<void> {
     let envVars: Record<string, string> = { ...process.env } as any
 
     // Load .env files if provided
@@ -120,32 +176,13 @@ function loadEnv(appName?: AppName, envFiles?: string[], command?: string[]): vo
     // Run the command with validated environment
     console.log(`\n🚀 Running command: ${command.join(' ')}`)
     
-    const cmd = command[0]
-    if (!cmd) {
-        console.error('❌ No command specified')
-        process.exit(1)
-    }
-    
-    const child = spawn(cmd, command.slice(1), {
-        stdio: 'inherit',
-        env: envVars,
-        shell: true,
-    })
-
-    child.on('exit', (code: number | null) => {
-        process.exit(code ?? 0)
-    })
-
-    child.on('error', (err: Error) => {
-        console.error('❌ Failed to run command:', err)
-        process.exit(1)
-    })
+    await runWithEnvironment(command, envVars)
 }
 
 /**
  * Main CLI entry point
  */
-function main() {
+async function main(): Promise<void> {
     const args = process.argv.slice(2)
 
     // Parse command: checkbun packages/env/src/cli.ts check-env or load
@@ -205,7 +242,7 @@ Examples:
         const commandIndex = args.findIndex(arg => arg === '--command')
         const commandToRun = commandIndex !== -1 ? args.slice(commandIndex + 1) : undefined
 
-        loadEnv(appName, envFiles.length > 0 ? envFiles : undefined, commandToRun)
+        await loadEnv(appName, envFiles.length > 0 ? envFiles : undefined, commandToRun)
     }
 
     if (command === 'mock') {
@@ -213,14 +250,14 @@ Examples:
         const commandIndex = args.findIndex(arg => arg === '--command')
         const commandToRun = commandIndex !== -1 ? args.slice(commandIndex + 1) : undefined
 
-        mockEnv(appName, commandToRun)
+        await mockEnv(appName, commandToRun)
     }
 }
 
 /**
  * Load mock environment variables and optionally run a command
  */
-function mockEnv(appName?: AppName, command?: string[]): void {
+async function mockEnv(appName?: AppName, command?: string[]): Promise<void> {
     console.log('🎭 Loading mock environment variables...')
 
     // Get mock environment
@@ -250,26 +287,7 @@ function mockEnv(appName?: AppName, command?: string[]): void {
     // Run the command with mock environment
     console.log(`\n🚀 Running command: ${command.join(' ')}`)
     
-    const cmd = command[0]
-    if (!cmd) {
-        console.error('❌ No command specified')
-        process.exit(1)
-    }
-    
-    const child = spawn(cmd, command.slice(1), {
-        stdio: 'inherit',
-        env: envVars,
-        shell: true,
-    })
-
-    child.on('exit', (code: number | null) => {
-        process.exit(code ?? 0)
-    })
-
-    child.on('error', (err: Error) => {
-        console.error('❌ Failed to run command:', err)
-        process.exit(1)
-    })
+    await runWithEnvironment(command, envVars)
 }
 
-main()
+void main()

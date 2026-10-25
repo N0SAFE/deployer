@@ -1,5 +1,5 @@
 {
-    "name": "@repo/nest-docker",
+    "name": "@deployer/nest-docker",
     "version": "1.0.0",
     "description": "Docker engine primitives: containers, swarm services, networks, volumes, and the swarm-spec translation. Knows how to drive Docker, never what to run.",
     "main": "./dist/cjs/index.js",
@@ -65,6 +65,11 @@
             "import": "./dist/esm/containers/postgres/postgres-service.provisioner.mjs",
             "require": "./dist/cjs/containers/postgres/postgres-service.provisioner.js"
         },
+        "./containers/bff/bff-service.provisioner": {
+            "types": "./dist/types/containers/bff/bff-service.provisioner.d.ts",
+            "import": "./dist/esm/containers/bff/bff-service.provisioner.mjs",
+            "require": "./dist/cjs/containers/bff/bff-service.provisioner.js"
+        },
         "./docker.module": {
             "types": "./dist/types/docker.module.d.ts",
             "import": "./dist/esm/docker.module.mjs",
@@ -72,11 +77,12 @@
         }
     },
     "scripts": {
-        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "prettify": "bun fmt .",
         "format": "bun run prettify",
-        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "lint": "eslint . --fix --cache",
-        "type-check": "tsc --noEmit",
+        "format:check": "bun fmt --check .",
+        "lint": "bun lint --fix",
+        "lint:check": "bun lint",
+        "type-check": "bun --check",
         "test": "vitest run",
         "test:watch": "vitest",
         "build": "bun --bun pkg-build",
@@ -86,10 +92,10 @@
     },
     "dependencies": {
         "@nestjs/common": "catalog:api:nest",
-        "@repo/contracts-entities": "*",
-        "@repo/errors": "*",
-        "@repo/nest-supervisor-core": "*",
-        "@repo/type-guards": "*",
+        "@deployer/contracts-entities": "*",
+        "@deployer/errors": "*",
+        "@deployer/nest-supervisor-core": "*",
+        "@deployer/type-guards": "*",
         "dockerode": "catalog:utils",
         "rxjs": "catalog:api:nest",
         "zod": "catalog:utils"
@@ -98,14 +104,16 @@
         "@nestjs/common": "catalog:api:nest"
     },
     "devDependencies": {
-        "@repo/config-eslint": "*",
-        "@repo/config-prettier": "*",
-        "@repo/config-typescript": "*",
-        "@repo/config-vitest": "*",
-        "@repo/pkg-build": "*",
+        "@deployer/config-eslint": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-typescript": "*",
+        "@deployer/config-vitest": "*",
+        "@deployer/pkg-build": "*",
+        "@types/bun": "catalog:build",
         "@types/dockerode": "*",
         "@types/node": "catalog:build",
         "chokidar": "catalog:build",
+        "class-transformer": "^0.5.1",
         "eslint": "catalog:linting",
         "rimraf": "catalog:build",
         "typescript": "catalog:build",

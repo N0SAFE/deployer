@@ -1,12 +1,21 @@
 {
     "extends": "../../../tooling/typescript/config/base.json",
     "compilerOptions": {
+        // `bun` is REQUIRED: `src/cli.ts` uses the `Bun` global (`Bun.$` for command
+        // execution). Without the lib entry the TYPE-EMIT pass fails with
+        // `TS2868: Cannot find name 'Bun'`, which fails the whole `pkg-build` —
+        // and therefore every Docker image that bakes this package.
+        //
+        // Declaring it explicitly (rather than relying on the hoisted
+        // `node_modules/@types/bun` at the repo root) is what makes the pruned
+        // install inside Docker behave the same as a local checkout.
+        "types": ["node", "bun"],
         "outDir": "dist",
         "module": "ESNext",
         "moduleResolution": "bundler",
         "noEmit": true,
         "paths": {
-            "@repo/env/*": [
+            "@deployer/env/*": [
                 "./src/*"
             ]
         }

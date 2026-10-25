@@ -1,5 +1,5 @@
 {
-    "name": "@repo/env",
+    "name": "@deployer/env",
     "version": "0.0.0",
     "private": true,
     "type": "module",
@@ -46,10 +46,10 @@
         "mock": "./src/cli.ts"
     },
     "scripts": {
-        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "prettify": "bun fmt .",
         "format": "bun run prettify",
-        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "type-check": "tsc --noEmit",
+        "format:check": "bun fmt --check .",
+        "type-check": "bun --check",
         "check": "bun src/cli.ts check",
         "load": "bun src/cli.ts load",
         "mock": "bun src/cli.ts mock",
@@ -60,18 +60,19 @@
         "build:types": "bun --bun pkg-build --types"
     },
     "dependencies": {
-        "@repo/type-guards": "*",
+        "@deployer/type-guards": "*",
         "dotenv": "catalog:dev",
         "zod": "catalog:utils"
     },
     "devDependencies": {
+        "@deployer/config-prettier": "*",
+        "@deployer/config-typescript": "*",
+        "@deployer/pkg-build": "*",
+        "@types/bun": "catalog:build",
         "@types/node": "catalog:build",
-        "@repo/config-prettier": "*",
-        "@repo/config-typescript": "*",
-        "vitest": "catalog:testing",
         "@vitest/coverage-v8": "catalog:testing",
         "typescript": "catalog:build",
-        "@repo/pkg-build": "*"
+        "vitest": "catalog:testing"
     },
     "main": "./dist/cjs/index.js",
     "module": "./dist/esm/index.mjs",
