@@ -96,7 +96,7 @@ Docker must be reachable (Testcontainers starts one shared Postgres per run). En
 |----------|--------|
 | `E2E_SHARED_RUNTIME_LOGS=true` | show the harness and Nest logs (silenced by default) |
 | `E2E_SHARED_RUNTIME_MAX_CONCURRENCY` | how many runtimes may run at once (default 4) |
-| `E2E_DOCKER_CLEANUP` | default `true`: at teardown, **force-removes every container whose name contains `deployer`** (a safety net for orphaned test containers). Set `false` to keep them, and always when a real stack runs on the same Docker host |
+| `E2E_DOCKER_CLEANUP` | default `true`: at teardown, force-removes orphaned containers that Testcontainers started AND that are named `deployer*` (label `org.testcontainers=true`). A real stack's containers do not carry that label, so they are never touched. Set `false` to keep the orphans for inspection |
 
 `E2E_SHARED_POSTGRES_CONNECTION_URI` is not a setting: the harness sets it for the runtimes it starts so they share one Postgres in namespace mode.
 

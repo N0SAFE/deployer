@@ -38,6 +38,18 @@ bun run test --filter=@repo/ui
 ```
 
 ## Coverage workflow
+## API tier: unit and e2e
+
+Each API app (`apps/api-services/bff` and `services/*`) has two Vitest projects: `<app>-unit` (`*.spec.ts`) and `<app>-e2e` (`*.e2e-spec.ts`). An e2e spec boots the app's real root module against a Testcontainers Postgres and drives it through the typed oRPC client:
+
+```bash
+cd apps/api-services/services/identity
+bunx vitest run --project '*e2e*'   # e2e only
+bunx vitest run --project '*unit*'  # unit only
+```
+
+Docker must be reachable. The harness lives in `apps/api-services/shared/src/e2e-harness`; the full guide (writing a spec, the per-app `@/e2e/runtime` binding, environment flags, troubleshooting) is `apps/api-services/docs/e2e-testing.md`. The default `E2E_DOCKER_CLEANUP=true` removes only orphaned containers that Testcontainers started and that are named `deployer*`; a real stack on the same Docker host is not affected.
+
 
 For local confidence:
 
