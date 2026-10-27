@@ -8,6 +8,7 @@ import {
 } from "@deployer/contracts-entities";
 import { type ProjectNetworkView } from "@deployer/project-contracts";
 import { Context, Effect } from "effect";
+import { layerOfClass, type Discharged } from "@deployer/effect-core";
 import { attempt } from "../project-effects";
 import { DnsProvider } from "@project/core/ports/dns-provider.port";
 import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
@@ -207,10 +208,13 @@ export class ProjectNetworkServiceImpl {
 }
 
 /** The service's public surface is exactly the implementation's methods. */
-export type ProjectNetworkServiceShape = ProjectNetworkServiceImpl;
+export type ProjectNetworkServiceShape = Discharged<ProjectNetworkServiceImpl>;
 
 /** Effect key = NestJS token. */
 export class ProjectNetworkService extends Context.Service<
 	ProjectNetworkService,
 	ProjectNetworkServiceShape
->()("project/ProjectNetworkService") {}
+>()("project/ProjectNetworkService") {
+	/** Resolves the requirements the methods name when the layer is built. */
+	static readonly Live = layerOfClass(ProjectNetworkService, () => new ProjectNetworkServiceImpl());
+}

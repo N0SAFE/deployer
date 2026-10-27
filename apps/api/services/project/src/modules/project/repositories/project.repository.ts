@@ -8,6 +8,7 @@ import { and, asc, count, desc, eq, ilike, inArray } from "drizzle-orm";
 import { listBuilder } from "@deployer/shared/core/utils/drizzle-filter.utils";
 import { randomUUID } from "crypto";
 import { Context, Effect } from "effect";
+import { layerOfClass, type Discharged } from "@deployer/effect-core";
 import type { ProjectListInput } from "@deployer/project-contracts/modules/project/list";
 import { DatabasePort } from "@project/core/database/database.port";
 import { attempt } from "../project-effects";
@@ -741,9 +742,12 @@ export class ProjectStoreImpl {
 }
 
 /** The store's public surface is exactly the implementation's methods. */
-export type ProjectStoreShape = ProjectStoreImpl;
+export type ProjectStoreShape = Discharged<ProjectStoreImpl>;
 
 /** Effect key = NestJS token. */
 export class ProjectStore extends Context.Service<ProjectStore, ProjectStoreShape>()(
 	"project/ProjectStore",
-) {}
+) {
+	/** Resolves the requirements the methods name when the layer is built. */
+	static readonly Live = layerOfClass(ProjectStore, () => new ProjectStoreImpl());
+}

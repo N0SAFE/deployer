@@ -2,6 +2,7 @@ import { ProjectConflict } from "../domain/project.errors";
 import { webhooks } from "@deployer/nest-schema/global/project/deployment";
 import { eq, and } from "drizzle-orm";
 import { Context, Effect } from "effect";
+import { layerOfClass, type Discharged } from "@deployer/effect-core";
 import { DatabasePort } from "@project/core/database/database.port";
 import { attempt } from "../project-effects";
 
@@ -118,9 +119,12 @@ export class WebhookStoreImpl {
 }
 
 /** The store's public surface is exactly the implementation's methods. */
-export type WebhookStoreShape = WebhookStoreImpl;
+export type WebhookStoreShape = Discharged<WebhookStoreImpl>;
 
 /** Effect key = NestJS token. */
 export class WebhookStore extends Context.Service<WebhookStore, WebhookStoreShape>()(
 	"project/WebhookStore",
-) {}
+) {
+	/** Resolves the requirements the methods name when the layer is built. */
+	static readonly Live = layerOfClass(WebhookStore, () => new WebhookStoreImpl());
+}

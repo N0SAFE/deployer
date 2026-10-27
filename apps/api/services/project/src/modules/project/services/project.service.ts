@@ -4,6 +4,7 @@ import { environmentRulesSchema } from "@deployer/contracts-entities";
 import { environmentTriggerSchema } from "@deployer/contracts-common";
 import type { Observable } from "rxjs";
 import { Context, Effect } from "effect";
+import { layerOfClass, type Discharged } from "@deployer/effect-core";
 import type { ProjectListInput } from "@deployer/project-contracts/modules/project/list";
 import type {
 	ProjectStreamEvent,
@@ -926,9 +927,12 @@ export class ProjectServiceImpl {
 }
 
 /** The service's public surface is exactly the implementation's methods. */
-export type ProjectServiceShape = ProjectServiceImpl;
+export type ProjectServiceShape = Discharged<ProjectServiceImpl>;
 
 /** Effect key = NestJS token. */
 export class ProjectService extends Context.Service<ProjectService, ProjectServiceShape>()(
 	"project/ProjectService",
-) {}
+) {
+	/** Resolves the requirements the methods name when the layer is built. */
+	static readonly Live = layerOfClass(ProjectService, () => new ProjectServiceImpl());
+}

@@ -17,32 +17,24 @@ import { DatabasePort } from "@project/core/database/database.port";
 import { DnsProviderGateway } from "@/modules/network/dns-provider.gateway";
 
 import { ProjectController } from "./controllers/project.controller";
-import { ApiKeyStore, ApiKeyStoreImpl } from "./repositories/api-key.repository";
-import {
-	ProjectStore,
-	ProjectStoreImpl,
-} from "./repositories/project.repository";
-import {
-	WebhookStore,
-	WebhookStoreImpl,
-} from "./repositories/webhook.repository";
-import { ApiKeyService, ApiKeyServiceImpl } from "./services/api-key.service";
+import { ApiKeyStore } from "./repositories/api-key.repository";
+import { ProjectStore } from "./repositories/project.repository";
+import { WebhookStore } from "./repositories/webhook.repository";
+import { ApiKeyService } from "./services/api-key.service";
 import { ProjectEventAdapter } from "./services/project-event-adapter";
 import { ProjectEventService } from "./services/project-event.service";
-import {
-	ProjectNetworkService,
-	ProjectNetworkServiceImpl,
-} from "./services/project-network.service";
-import { ProjectService, ProjectServiceImpl } from "./services/project.service";
-import { WebhookService, WebhookServiceImpl } from "./services/webhook.service";
+import { ProjectNetworkService } from "./services/project-network.service";
+import { ProjectService } from "./services/project.service";
+import { WebhookService } from "./services/webhook.service";
 
 /**
  * Projects: the aggregate an operator creates first — its collaborators,
  * environments and settings, plus its DNS-backed network view.
  *
- * Shared core services stay as they are; each one is exposed to the Effect layer
- * through a port so the services above can `yield*` them. The module's Effect
- * context is derived from these providers by `createModuleContext`.
+ * Shared core services stay Nest providers; each one is exposed to the Effect layer through a
+ * port so the services can `yield*` them. The stores and use cases are Layers (`ProjectLive`, see
+ * `project.layers.ts`) built by the app's Effect runtime, and are declared here as the services
+ * this module's handlers (and the modules that import it) may use.
  */
 export class ProjectDomainModule extends createModuleContext({
 	imports: [DatabaseModule, ConfigurationCoreModule, EventsModule, CoreDomainModule],
@@ -55,25 +47,12 @@ export class ProjectDomainModule extends createModuleContext({
 			useExisting: RuntimeConfigurationAccessorService,
 		},
 		{ provide: CoreEventSync, useExisting: CoreEventSyncService },
-		{ provide: ProjectStore, useClass: ProjectStoreImpl },
-		{ provide: ApiKeyStore, useClass: ApiKeyStoreImpl },
-		{ provide: WebhookStore, useClass: WebhookStoreImpl },
 		ProjectEventAdapter,
 		DnsProviderGateway,
-		{ provide: ProjectService, useClass: ProjectServiceImpl },
-		{ provide: ProjectNetworkService, useClass: ProjectNetworkServiceImpl },
-		{ provide: WebhookService, useClass: WebhookServiceImpl },
-		{ provide: ApiKeyService, useClass: ApiKeyServiceImpl },
 			{ provide: CoreEventStreamPool, useExisting: CoreEventStreamPoolService },
 	],
-	exports: [
-		ProjectService,
-		ProjectNetworkService,
-		WebhookService,
-		ApiKeyService,
-		DnsProviderGateway,
-	],
-}, DatabasePort, ProjectEventService) {}
+	exports: [DnsProviderGateway],
+}, DatabasePort, ProjectEventService, ProjectStore, ApiKeyStore, WebhookStore, ProjectService, ProjectNetworkService, WebhookService, ApiKeyService) {}
 
 // ── `ProjectDomainModule`, NOT `ProjectModule` ─────────────────────────────────
 // `app.module.ts` imports this by the `DomainModule` name, and every sibling
