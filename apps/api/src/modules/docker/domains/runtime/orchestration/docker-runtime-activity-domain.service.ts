@@ -3,10 +3,10 @@ import { filter, from, map, mergeMap } from "rxjs";
 import type {
   DockerRuntimeActivityDetailQueryInput,
   DockerRuntimeActivityListInput,
-} from "@repo/api-contracts/modules/docker/runtime/activity";
-import type { DockerRuntimeActivityStreamInput } from "@repo/api-contracts/modules/docker/runtime/activity-stream";
-import type { DockerRuntimeEventsStreamQueryInput } from "@repo/api-contracts/modules/docker/runtime/shared";
-import { dockerRuntimeEventSourceSchema, type DockerRuntimeActivityEntity } from "@repo/contracts-entities";
+} from "@deployer/runtime-contracts/modules/docker/runtime/activity";
+import type { DockerRuntimeActivityStreamInput } from "@deployer/runtime-contracts/modules/docker/runtime/activity-stream";
+import type { DockerRuntimeEventsStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/runtime/shared";
+import { dockerRuntimeEventSourceSchema, type DockerRuntimeActivityEntity } from "@deployer/contracts-entities";
 import { DockerContainerResolutionService } from "../../containers/orchestration/docker-container-resolution.service";
 import { DockerRuntimeStreamOrchestratorService } from "../../../common/runtime/docker-runtime-stream-orchestrator.service";
 import { DockerRuntimeActivityProjectorService } from "../../../common/events/docker-runtime-activity-projector.service";

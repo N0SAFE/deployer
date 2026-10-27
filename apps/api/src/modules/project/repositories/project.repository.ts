@@ -5,16 +5,16 @@ import {
     projectCollaborators,
     projects,
     services,
-} from "@repo/nest-schema/global/deployment";
-import { environments, variableTemplates, serviceEnvironments } from "@repo/nest-schema/global/environment";
-import { user } from "@repo/nest-schema/global/auth";
-import { localEventOutbox } from "@repo/nest-schema/global/runtime";
+} from "@deployer/nest-schema/global";
+import { environments, variableTemplates, serviceEnvironments } from "@deployer/nest-schema/global";
+import { user } from "@deployer/nest-schema/global";
+import { localEventOutbox } from "@deployer/nest-schema/global/runtime/index";
 import { and, asc, count, desc, eq, ilike, inArray } from "drizzle-orm";
 import { listBuilder } from "@/core/utils/drizzle-filter.utils";
 import { randomUUID } from "crypto";
-import { ConflictError } from "@repo/errors";
-import { environmentRulesSchema, projectNetworkConfigSchema } from "@repo/contracts-entities";
-import type { ProjectListInput } from "@repo/api-contracts/modules/project/list";
+import { ConflictError } from "@deployer/errors";
+import { environmentRulesSchema, projectNetworkConfigSchema } from "@deployer/contracts-entities";
+import type { ProjectListInput } from "@deployer/project-contracts/modules/project/list";
 
 // ---------------------------------------------------------------------------
 // Input types (derived from Drizzle schema)
@@ -115,11 +115,11 @@ function transformProject(row: ProjectRow) {
 
 /**
  * Map legacy DB role names to the canonical project roles (SSOT:
- * `PROJECT_ROLES` from `@repo/auth` → `projectRoleSchema`). The DB enum now
+ * `PROJECT_ROLES` from `@deployer/auth` → `projectRoleSchema`). The DB enum now
  * stores canonical names; the map preserves any legacy (`admin`, `developer`)
  * rows and guarantees the result is a canonical `ProjectRole`.
  */
-type ProjectRole = import("zod/v4").infer<typeof import("@repo/contracts-entities").projectRoleSchema>;
+type ProjectRole = import("zod/v4").infer<typeof import("@deployer/contracts-entities").projectRoleSchema>;
 const LEGACY_TO_CANONICAL_ROLE: Partial<Record<CollaboratorRow["role"], ProjectRole>> = {
     admin: "maintainer",
     developer: "deployer",
@@ -132,7 +132,7 @@ const LEGACY_TO_CANONICAL_ROLE: Partial<Record<CollaboratorRow["role"], ProjectR
 function transformCollaborator(row: CollaboratorRow) {
     return {
         ...row,
-        role: LEGACY_TO_CANONICAL_ROLE[row.role] ?? (row.role as ProjectRole),
+        role: LEGACY_TO_CANONICAL_ROLE[row.role] ?? (row.role),
         invitedAt: row.invitedAt.toISOString(),
         acceptedAt: row.acceptedAt?.toISOString() ?? null,
         createdAt: row.createdAt.toISOString(),
@@ -728,7 +728,7 @@ export class ProjectRepository {
                 id: randomUUID(),
                 name: data.name,
                 description: data.description ?? null,
-                variables: (data.variables ?? []) as typeof variableTemplates.$inferInsert["variables"],
+                variables: (data.variables ?? []),
                 isSystem: false,
                 usageCount: 0,
                 createdBy: data.createdBy,

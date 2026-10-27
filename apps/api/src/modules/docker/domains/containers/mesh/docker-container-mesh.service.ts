@@ -1,6 +1,6 @@
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import z from "zod/v4";
-import type { DockerContainerInspectQueryInput, DockerContainerListInput } from "@repo/api-contracts/modules/docker/containers/shared";
+import type { DockerContainerInspectQueryInput, DockerContainerListInput } from "@deployer/runtime-contracts/modules/docker/containers/shared";
 import {
     dockerContainerInspectDetailSchema,
     dockerRuntimeCatalogSchema,
@@ -8,8 +8,8 @@ import {
     type DockerContainer,
     type DockerContainerInspectDetail,
     type DockerRuntimeCatalog,
-} from "@repo/contracts-entities";
-import { contractBuilder } from "@repo/nest-events";
+} from "@deployer/contracts-entities";
+import { contractBuilder } from "@deployer/nest-events";
 import { InternalBaseMeshService, type MeshCallManyResult } from "@/core/modules/mesh/services/base-mesh.service";
 import { SystemMeshTopicService } from "@/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
 import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";

@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DeploymentsMeshService } from "./deployments.mesh.service";
 import { deploymentResourceEntity } from "../entities/deployment-resource.entity";
-import { MeshResourceDispatcher } from "@/core/modules/mesh/dispatcher/mesh-resource-dispatcher.service";
+import type { MeshResourceDispatcher } from "@/core/modules/mesh/dispatcher/mesh-resource-dispatcher.service";
 import type { MeshQueryExecutor } from "@/core/modules/mesh/services/system-mesh-resource-discovery/query/mesh-query-executor";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────

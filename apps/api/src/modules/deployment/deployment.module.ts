@@ -1,5 +1,5 @@
-import { Module } from "@nestjs/common";
-import { DatabaseModule } from "../../core/modules/database/database.module";
+import { Module, type FactoryProvider } from "@nestjs/common";
+import { DatabaseModule } from "@/core/modules/database/database.module";
 import { ConfigurationCoreModule } from "@/core/modules/configuration/configuration-core.module";
 import { DeploymentCoreModule } from "@/core/modules/deployment/deployment-core.module";
 import { MeshCoreModule } from "@/core/modules/mesh/mesh-core.module";
@@ -26,9 +26,22 @@ import { PreviewEnvOverlayService } from "./preview/preview-env-overlay.service"
 import { DeploymentStorageProvidersModule } from "./storage/storage-providers.module";
 import { GitModule } from "@/core/modules/git/git/git.module";
 import { TraefikCoreModule } from "@/core/modules/traefik/traefik.module";
-import { CONTAINER_LINK_RESOLVER } from "@repo/nest-docker/services/container-link-resolver.interface";
+import { CONTAINER_LINK_RESOLVER } from "@deployer/nest-docker/services/container-link-resolver.interface";
 import { DeploymentContainerLinkService } from "./services/container-link.service";
 import { DeploymentArtifactBuilderService } from "./builders/deployment-artifact-builder.service";
+import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { BUILDER_STRATEGIES, BuilderRegistryService } from "./builders/builder-registry.service";
+import { DockerfileBuilderStrategy } from "./builders/strategies/dockerfile-builder.strategy";
+import { DockerComposeBuilderStrategy } from "./builders/strategies/docker-compose-builder.strategy";
+import { BuildpackFamilyBuilderStrategy } from "./builders/strategies/buildpack-family-builder.strategy";
+import type { BuilderStrategy } from "./builders/base/builder-strategy.interface";
+import {
+    DEPLOYMENT_TRIGGER_SOURCES,
+    DeploymentTriggerRegistryService,
+} from "./triggers/deployment-trigger-registry.service";
+import { ApiTriggerSource } from "./triggers/api-trigger.source";
+import { GithubPushTriggerSource } from "./triggers/github-push-trigger.source";
+import type { DeploymentTriggerSource } from "./triggers/base/deployment-trigger-source.interface";
 import { EventsModule } from "@/core/modules/events/events.module";
 
 @Module({
@@ -65,6 +78,62 @@ import { EventsModule } from "@/core/modules/events/events.module";
         DeploymentStreamOrchestratorService,
         DeploymentMeshHandlerRegistrar,
         DeploymentArtifactBuilderService,
+        // ── BUILDER STRATEGIES: ONE ARRAY UNDER ONE TOKEN ───────────────────
+        // Adding a builder (a remote builder, a future "buildkit-remote") is: write a
+        // class implementing `BuilderStrategy`, then add it to this factory's return
+        // array and its `inject` list. The registry, the artifact-builder service and
+        // every caller stay untouched.
+        //
+        // This is what replaces the old inline `if (builder === …)` chain — the one
+        // whose trailing comment ("nixpacks/buildpack/railpack remain containerized via
+        // docker image build") described three builders that could never succeed.
+        DockerfileBuilderStrategy,
+        DockerComposeBuilderStrategy,
+        {
+            provide: BUILDER_STRATEGIES,
+            useFactory: (
+                dockerfile: DockerfileBuilderStrategy,
+                compose: DockerComposeBuilderStrategy,
+                dockerService: DockerService,
+            ): BuilderStrategy[] => [
+                dockerfile,
+                compose,
+                // The buildpack family produces its artifact from the GENERATED
+                // Dockerfile, so it needs the same Docker service the dockerfile
+                // strategy uses. Without custom commands it rejects with an
+                // actionable message instead of "Dockerfile not found".
+                new BuildpackFamilyBuilderStrategy("nixpacks", dockerService),
+                new BuildpackFamilyBuilderStrategy("buildpack", dockerService),
+                new BuildpackFamilyBuilderStrategy("railpack", dockerService),
+            ],
+            inject: [DockerfileBuilderStrategy, DockerComposeBuilderStrategy, DockerService],
+        } satisfies FactoryProvider,
+        {
+            provide: BuilderRegistryService,
+            useFactory: (strategies: BuilderStrategy[]) => new BuilderRegistryService(strategies),
+            inject: [BUILDER_STRATEGIES],
+        } satisfies FactoryProvider,
+        // ── DEPLOYMENT TRIGGER SOURCES: ONE ARRAY UNDER ONE TOKEN ────────────
+        // What can START a deployment. Adding "deploy on a schedule", a Docker Hub
+        // webhook, or a GitLab push is: write a `DeploymentTriggerSource`, add it here.
+        // No caller changes — which is the whole point, since these origins previously
+        // lived inline in the webhook controller (where `push` was explicitly skipped)
+        // and in `triggerDeployment`.
+        ApiTriggerSource,
+        GithubPushTriggerSource,
+        {
+            provide: DEPLOYMENT_TRIGGER_SOURCES,
+            useFactory: (api: ApiTriggerSource, githubPush: GithubPushTriggerSource): DeploymentTriggerSource[] => [
+                api,
+                githubPush,
+            ],
+            inject: [ApiTriggerSource, GithubPushTriggerSource],
+        } satisfies FactoryProvider,
+        {
+            provide: DeploymentTriggerRegistryService,
+            useFactory: (sources: DeploymentTriggerSource[]) => new DeploymentTriggerRegistryService(sources),
+            inject: [DEPLOYMENT_TRIGGER_SOURCES],
+        } satisfies FactoryProvider,
         PreviewEnvOverlayService,
         DeploymentContainerLinkService,
         DeploymentsMeshService,

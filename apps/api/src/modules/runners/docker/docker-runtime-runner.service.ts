@@ -2,9 +2,9 @@ import { Injectable } from "@nestjs/common";
 import type Docker from "dockerode";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { DockerService } from "@repo/nest-docker/services/docker.service";
+import { DockerService } from "@deployer/nest-docker/services/docker.service";
 import { ConfigNotFoundError } from "@/core/modules/traefik/errors";
-import { BadRequestError } from "@repo/errors";
+import { BadRequestError } from "@deployer/errors";
 import { TraefikService } from "@/core/modules/traefik/services/traefik.service";
 import type {
     DeploymentRuntimeRunner,

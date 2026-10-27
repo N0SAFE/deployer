@@ -5,7 +5,7 @@ import {
     foldServiceChain,
     mergeServiceConfig,
 } from "./service-effective-config";
-import type { Service } from "@repo/contracts-entities";
+import type { Service } from "@deployer/contracts-entities";
 
 /** Build a minimal flat service DTO for testing config merging. */
 function makeService(overrides: Partial<Service> = {}): Service {

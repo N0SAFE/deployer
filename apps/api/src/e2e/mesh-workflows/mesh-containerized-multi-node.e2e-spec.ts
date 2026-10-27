@@ -38,7 +38,7 @@ describe('shared-runtime multi-port mesh e2e', () => {
 
     const responses = await Promise.all(
       runtimes.map(async ({ context }) => {
-        const response = await fetch(new URL('/setup/status', context.runtime.baseUrl))
+        const response = await fetch(new URL('/setup/state', context.runtime.baseUrl))
         expect(response.status).toBe(200)
 
         const body = (await response.json()) as { needsSetup: boolean }
@@ -86,9 +86,12 @@ describe('shared-runtime multi-port mesh e2e', () => {
 
     expect(firstMeta?.status).toBe(200)
     expect(secondMeta?.status).toBe(200)
-    expect(firstMeta?.requestUrl).toContain('/getState')
-    expect(secondMeta?.requestUrl).toContain('/getState')
-    expect(firstMeta?.requestUrl).not.toBe(secondMeta?.requestUrl)
+    expect(firstMeta?.requestUrl).toContain("/setup/state")
+    expect(secondMeta?.requestUrl).toContain("/setup/state")
+    // `requestUrl` is path-only, so isolation is proven by each tracker seeing exactly its own call.
+    expect(first.context.orpcTracker).not.toBe(second.context.orpcTracker)
+    expect(first.context.orpcTracker.getAll()).toHaveLength(1)
+    expect(second.context.orpcTracker.getAll()).toHaveLength(1)
   }, 120_000)
 
   it('keeps the Bun fetch path and ORPC path aligned for the same runtime', async () => {
@@ -99,7 +102,7 @@ describe('shared-runtime multi-port mesh e2e', () => {
     }
 
     const [httpResponse, orpcResponse] = await Promise.all([
-      fetch(new URL('/setup/status', runtime.context.runtime.baseUrl)),
+      fetch(new URL('/setup/state', runtime.context.runtime.baseUrl)),
       runtime.context.orpc.setup.getState(),
     ])
 

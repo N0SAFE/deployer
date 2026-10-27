@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common"
 import { Observable, type Subscriber } from "rxjs"
-import type { DockerEntityListInput } from "@repo/api-contracts/modules/docker/entity/shared"
-import type { DockerEntityInspectInput } from "@repo/api-contracts/modules/docker/entity/shared"
+import type { DockerEntityListInput } from "@deployer/runtime-contracts/modules/docker/entity/shared"
+import type { DockerEntityInspectInput } from "@deployer/runtime-contracts/modules/docker/entity/shared"
 import {
   dockerEntityStreamChunkSchema,
   type DockerContainer,
@@ -15,16 +15,16 @@ import {
   type DockerRuntimeEvent,
   type DockerVolume,
   type DockerVolumeEntity,
-} from "@repo/contracts-entities"
-import { AppLogger } from "@repo/logger"
-import { DockerContainerResolutionService } from "../../containers/orchestration/docker-container-resolution.service"
-import { DockerImagesOrchestratorService } from "../../images/orchestration/docker-images-orchestrator.service"
-import { DockerVolumesOrchestratorService } from "../../volumes/orchestration/docker-volumes-orchestrator.service"
-import { DockerNetworksOrchestratorService } from "../../networks/orchestration/docker-networks-orchestrator.service"
-import { DockerRuntimeEventsStreamService } from "../../../common/events/docker-runtime-events-stream.service"
-import { CoreEventStreamPoolService } from "@repo/nest-events"
-import { DockerEntityCacheService } from "./docker-entity-cache.service"
-import { isRecord, isObjectLike } from "@repo/type-guards"
+} from "@deployer/contracts-entities"
+import { AppLogger } from "@deployer/logger"
+import { DockerContainerResolutionService } from "../../containers/orchestration/docker-container-resolution.service";
+import { DockerImagesOrchestratorService } from "../../images/orchestration/docker-images-orchestrator.service";
+import { DockerVolumesOrchestratorService } from "../../volumes/orchestration/docker-volumes-orchestrator.service";
+import { DockerNetworksOrchestratorService } from "../../networks/orchestration/docker-networks-orchestrator.service";
+import { DockerRuntimeEventsStreamService } from "../../../common/events/docker-runtime-events-stream.service";
+import { CoreEventStreamPoolService } from "@deployer/nest-events";
+import { DockerEntityCacheService } from "./docker-entity-cache.service";
+import { isRecord, isObjectLike } from "@deployer/type-guards"
 
 
 
@@ -87,8 +87,8 @@ export class DockerEntityDomainService {
       const result = await this.dockerContainerResolutionService.listContainers({
         limit: input.limit,
         offset: input.offset,
-      } as Parameters<typeof this.dockerContainerResolutionService.listContainers>[0])
-      return result.data as DockerContainer[]
+      })
+      return result.data
     })
   }
 
@@ -99,8 +99,8 @@ export class DockerEntityDomainService {
       const result = await this.dockerImagesOrchestratorService.listImages({
         limit: input.limit,
         offset: input.offset,
-      } as Parameters<typeof this.dockerImagesOrchestratorService.listImages>[0])
-      return result.data as DockerImage[]
+      })
+      return result.data
     })
   }
 
@@ -111,8 +111,8 @@ export class DockerEntityDomainService {
       const result = await this.dockerNetworksOrchestratorService.listNetworks({
         limit: input.limit,
         offset: input.offset,
-      } as Parameters<typeof this.dockerNetworksOrchestratorService.listNetworks>[0])
-      return result.data as DockerNetwork[]
+      })
+      return result.data
     })
   }
 
@@ -123,8 +123,8 @@ export class DockerEntityDomainService {
       const result = await this.dockerVolumesOrchestratorService.listVolumes({
         limit: input.limit,
         offset: input.offset,
-      } as Parameters<typeof this.dockerVolumesOrchestratorService.listVolumes>[0])
-      return result.data as DockerVolume[]
+      })
+      return result.data
     })
   }
 
@@ -170,7 +170,7 @@ export class DockerEntityDomainService {
       })
       const found = list.data.find((network) => network.id === input.id)
       if (!found) return null
-      return { ...found, relations: undefined } as DockerNetworkEntity
+      return { ...found, relations: undefined }
     })
   }
 
@@ -184,7 +184,7 @@ export class DockerEntityDomainService {
       })
       const found = list.data.find((volume) => volume.name === input.id)
       if (!found) return null
-      return { ...found, relations: undefined } as DockerVolumeEntity
+      return { ...found, relations: undefined }
     })
   }
 
@@ -280,10 +280,10 @@ export class DockerEntityDomainService {
                   })
                 })
             },
-            error: (error) => subscriber.error(error),
-            complete: () => subscriber.complete(),
+            error: (error) => { subscriber.error(error); },
+            complete: () => { subscriber.complete(); },
           })
-        return () => subscription.unsubscribe()
+        return () => { subscription.unsubscribe(); }
       },
     )
   }
@@ -292,7 +292,7 @@ export class DockerEntityDomainService {
     if (!filter) return true
     const node = isRecord(filter) ? filter : {}
     const sourceClause = node.source as { value?: string } | undefined
-    if (sourceClause && sourceClause.value && sourceClause.value !== event.source) {
+    if (sourceClause?.value && sourceClause.value !== event.source) {
       return false
     }
     const actionClause = node.action as { value?: string[] } | undefined

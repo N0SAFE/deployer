@@ -131,9 +131,9 @@ Each feature module can depend on core modules, never on another feature moduleâ
 
 ### Layer C: External contracts/packages
 
-- API contracts from `@repo/api-contracts`
+- API contracts from `@deployer/contracts-entities`
 - Shared entities/types from contracts/types packages
-- Shared auth/permissions utilities from `@repo/auth`
+- Shared auth/permissions utilities from `@deployer/auth`
 
 ### Dependency direction matrix (must follow)
 

@@ -2,13 +2,14 @@ import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { HealthService } from './health.service';
-import { AppLifecycleService } from '@repo/nest-lifecycle';
+import { AppLifecycleService } from '@deployer/nest-lifecycle';
 
 describe('HealthService', () => {
   let service: HealthService;
   let mockRepository: any;
   let mockLifecycle: any;
   let mockSupervisors: any;
+  let mockReadiness: any;
 
   beforeEach(async () => {
     mockRepository = {
@@ -30,11 +31,25 @@ describe('HealthService', () => {
       getHealthOfAll: vi.fn().mockResolvedValue([]),
     };
 
+    // The readiness probe's RESULT shape (statusCode + body), not a raw Terminus
+    // result: `getDetailedHealth` reads `info`/`error` off the body, which is what the
+    // 503-vs-200 wrapper produces.
+    mockReadiness = {
+      probe: vi.fn().mockResolvedValue({
+        statusCode: 200,
+        body: {
+          status: 'ok',
+          info: { database: { status: 'up' } },
+          checkedAt: new Date().toISOString(),
+        },
+      }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         {
           provide: HealthService,
-          useFactory: () => new HealthService(mockRepository, mockLifecycle, mockSupervisors),
+          useFactory: () => new HealthService(mockRepository, mockLifecycle, mockSupervisors, mockReadiness),
         },
       ],
     }).compile();
@@ -114,22 +129,24 @@ describe('HealthService', () => {
   });
 
   describe('getDetailedHealth', () => {
-    it('should return detailed health when all systems are healthy', async () => {
-      const mockDbHealth = {
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-        responseTime: 15,
-      };
-      const mockMemory = { used: 1000, free: 2000, total: 3000 };
+    /**
+     * The contract's report shape.
+     *
+     * `info` / `error` / `details` are Terminus' OWN payload fields, and `indicators` is the
+     * flattened list a UI renders. The probe is what produces them, so the assertion is about
+     * the TRANSLATION (probe result -> contract report) rather than about SQL.
+     */
+    it('reports ok with the indicators the probe found, when everything is up', async () => {
       const mockUptime = 123.45;
-
-      const mockCheckHealth = mockRepository.checkDatabaseHealth;
-      const mockGetMemory = mockRepository.getMemoryInfo;
-      const mockGetUptime = mockRepository.getUptime;
-
-      mockCheckHealth.mockResolvedValue(mockDbHealth);
-      mockGetMemory.mockReturnValue(mockMemory);
-      mockGetUptime.mockReturnValue(mockUptime);
+      mockRepository.getUptime.mockReturnValue(mockUptime);
+      mockReadiness.probe.mockResolvedValue({
+        statusCode: 200,
+        body: {
+          status: 'ok',
+          info: { database: { status: 'up' }, swarm: { status: 'up' } },
+          checkedAt: new Date().toISOString(),
+        },
+      });
 
       const result = await service.getDetailedHealth();
 
@@ -137,43 +154,49 @@ describe('HealthService', () => {
         status: 'ok',
         service: 'nestjs-api',
         uptime: mockUptime,
-        memory: mockMemory,
-        database: mockDbHealth,
       });
       expect(result.timestamp).toBeDefined();
-      expect(mockCheckHealth).toHaveBeenCalledOnce();
-      expect(mockGetMemory).toHaveBeenCalledOnce();
-      expect(mockGetUptime).toHaveBeenCalledOnce();
+      expect(result.info).toEqual({ database: { status: 'up' }, swarm: { status: 'up' } });
+      // `error` is an empty record rather than absent: the contract declares it required, and
+      // a client reading `error` should not have to guard for undefined.
+      expect(result.error).toEqual({});
+      // The flattened list is narrowed to the contract's enum, which is what lets a UI render
+      // one of two dots instead of inventing a third state.
+      expect(result.indicators).toEqual([
+        { name: 'database', status: 'up', latencyMs: 0, detail: { status: 'up' } },
+        { name: 'swarm', status: 'up', latencyMs: 0, detail: { status: 'up' } },
+      ]);
+      expect(mockReadiness.probe).toHaveBeenCalledOnce();
+      expect(mockRepository.getUptime).toHaveBeenCalledOnce();
     });
 
-    it('should return degraded status when database is unhealthy', async () => {
-      const mockDbHealth = {
-        status: 'error',
-        timestamp: new Date().toISOString(),
-        responseTime: 5000,
-        error: 'Connection timeout',
-      };
-      const mockMemory = { used: 1000, free: 2000, total: 3000 };
-      const mockUptime = 123.45;
-
-      const mockCheckHealth = mockRepository.checkDatabaseHealth;
-      const mockGetMemory = mockRepository.getMemoryInfo;
-      const mockGetUptime = mockRepository.getUptime;
-
-      mockCheckHealth.mockResolvedValue(mockDbHealth);
-      mockGetMemory.mockReturnValue(mockMemory);
-      mockGetUptime.mockReturnValue(mockUptime);
+    it('reports degraded and carries the failing indicator when a dependency is down', async () => {
+      mockRepository.getUptime.mockReturnValue(1);
+      mockReadiness.probe.mockResolvedValue({
+        statusCode: 503,
+        body: {
+          status: 'error',
+          info: {},
+          error: { database: { status: 'down', message: 'Connection timeout' } },
+          checkedAt: new Date().toISOString(),
+        },
+      });
 
       const result = await service.getDetailedHealth();
 
-      expect(result).toMatchObject({
-        status: 'degraded',
-        service: 'nestjs-api',
-        uptime: mockUptime,
-        memory: mockMemory,
-        database: mockDbHealth,
-      });
-      expect(result.timestamp).toBeDefined();
+      expect(result.status).toBe('degraded');
+      // A down indicator must appear with its reason: "something is wrong" without the
+      // component is not actionable.
+      expect(result.indicators).toEqual([
+        {
+          name: 'database',
+          status: 'down',
+          latencyMs: 0,
+          message: 'Connection timeout',
+          detail: { status: 'down', message: 'Connection timeout' },
+        },
+      ]);
+      expect(result.details).toMatchObject({ database: { status: 'down' } });
     });
   });
 });

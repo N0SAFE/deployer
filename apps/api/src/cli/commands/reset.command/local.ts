@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite';
-import type * as localSchema from '@repo/nest-schema/local';
+import type * as localSchema from '@deployer/nest-schema/local';
 
 /**
  * Drop every table in the local SQLite file.
@@ -11,7 +11,7 @@ import type * as localSchema from '@repo/nest-schema/local';
  *
  *  - `__drizzle_migrations` is DRIZZLE'S GLOBAL POSTGRES TABLE. It has never
  *    existed in this file, so the state table was never dropped.
- *  - The real state table is `local_migrations` (see `@repo/nest-database-local`),
+ *  - The real state table is `local_migrations` (see `@deployer/nest-database-local`),
  *    so a reset left it FULL while emptying the schema: the next boot saw every
  *    migration as already applied, skipped them all, and started with no tables
  *    at all. A silent success that breaks the app one boot later.

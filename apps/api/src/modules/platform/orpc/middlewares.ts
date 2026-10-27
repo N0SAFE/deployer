@@ -18,7 +18,7 @@ import {
     standardDomainErrorPayloadSchema,
     standardErrorOptions,
     STANDARD_DOMAIN_ERROR_DEFS,
-} from "@repo/orpc-utils";
+} from "@deployer/orpc-utils";
 
 import type { AppInstanceService } from "@/core/modules/platform-ingress/services/app-instance.service";
 

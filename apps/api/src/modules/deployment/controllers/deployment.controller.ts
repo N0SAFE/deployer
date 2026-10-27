@@ -1,8 +1,8 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { deploymentContract } from "@repo/api-contracts";
-import type { PlatformRole } from "@repo/auth";
+import { deploymentContract } from "@deployer/runtime-contracts";
+import type { PlatformRole } from "@deployer/auth";
 import { DeploymentService } from "../services/deployment.service";
 import { authMiddleware, requireAuth, requireMesh, requirePlatformRole } from "@/core/modules/auth/orpc/middlewares";
 import { DeploymentStreamOrchestratorService } from "../mesh/services/deployment-stream-orchestrator.service";

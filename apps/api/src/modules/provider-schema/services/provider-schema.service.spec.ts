@@ -28,13 +28,18 @@ describe("ProviderSchemaService", () => {
     it("returns compatible builders for provider", () => {
         const builders = service.getCompatibleBuilders("github");
         expect(builders.length).toBeGreaterThan(0);
-        expect(builders.every((builder) => ["dockerfile", "nixpacks", "static"].includes(builder.id))).toBe(
-            true,
-        );
+        // Every builder offered for GitHub must be one the deploy path accepts.
+        expect(
+            builders.every((builder) =>
+                ["dockerfile", "docker_compose", "nixpacks", "buildpack", "railpack", "external"].includes(
+                    builder.id,
+                ),
+            ),
+        ).toBe(true);
     });
 
     it("returns compatible providers for builder", () => {
-        const providers = service.getCompatibleProviders("static");
+        const providers = service.getCompatibleProviders("dockerfile");
         expect(providers.some((provider) => provider.id === "github")).toBe(true);
     });
 

@@ -18,8 +18,8 @@
 import { Command, CommandRunner, Option } from "nest-commander";
 import { Injectable, Logger } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
-import type { SetupState } from "@repo/nest-schema/local/node-config";
+import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository";
+import type { SetupState } from "@deployer/nest-schema/local/node-config";
 
 interface SetupDbOptions {
   url?: string;
@@ -66,7 +66,7 @@ export class SetupDbCommand extends CommandRunner {
     const updated = this.nodeConfigRepository.upsert({
       nodeId: existing?.nodeId ?? randomUUID(),
       strategy: existing?.strategy ?? "local",
-      setupState: (existing?.setupState ?? "not_started") as SetupState,
+      setupState: (existing?.setupState ?? "not_started"),
       databaseUrl,
       // CLI-supplied URL — externally managed, NOT supervised by the API.
       databaseProvisioning: "external" as const,

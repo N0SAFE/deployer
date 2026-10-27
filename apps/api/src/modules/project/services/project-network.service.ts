@@ -4,10 +4,10 @@ import {
     defaultProjectNetworkConfig,
     projectNetworkConfigSchema,
     type ProjectNetworkConfig,
-} from "@repo/contracts-entities";
-import type { ProjectNetworkView, ProjectUpdateNetworkInput } from "@repo/api-contracts";
+} from "@deployer/contracts-entities";
+import type { ProjectNetworkView, ProjectUpdateNetworkInput } from "@deployer/project-contracts";
 import { CloudflareAppService } from "@/modules/providers/dns/cloudflare/services/cloudflare-app.service";
-import { CloudflareDnsProviderService } from "@/modules/providers/dns/cloudflare/services/cloudflare-dns-provider.service";
+import { DnsProviderRegistryService } from "@/modules/providers/dns/shared/dns-provider-registry.service";
 import { ProjectDomainRepository } from "@/core/modules/domain/repositories/project-domain.repository";
 import { ProjectRepository } from "../repositories/project.repository";
 
@@ -44,7 +44,7 @@ export class ProjectNetworkService {
     constructor(
         private readonly projectRepository: ProjectRepository,
         private readonly appService: CloudflareAppService,
-        private readonly dnsService: CloudflareDnsProviderService,
+        private readonly dnsRegistry: DnsProviderRegistryService,
         private readonly projectDomainRepository: ProjectDomainRepository,
     ) {}
 
@@ -70,16 +70,18 @@ export class ProjectNetworkService {
 
         if (network?.dnsProviderId && network.zoneId) {
             try {
-                const account = { providerId: network.dnsProviderId, providerType: "cloudflare" };
-                const providerZones = await this.dnsService.listZones(account);
-                zones = providerZones.map((z) => ({
-                    id: z.id,
-                    name: z.name,
-                    status: z.status,
-                    nameServers: z.nameServers,
-                }));
-                const providerRecords = await this.dnsService.listRecords(account, network.zoneId);
-                records = providerRecords.map(mapRecord);
+                const account = await this.dnsRegistry.resolveAccount(network.dnsProviderId);
+                if (account) {
+                    const providerZones = await this.dnsRegistry.listZones(account);
+                    zones = providerZones.map((z) => ({
+                        id: z.id,
+                        name: z.name,
+                        status: z.status,
+                        nameServers: z.nameServers,
+                    }));
+                    const providerRecords = await this.dnsRegistry.listRecords(account, network.zoneId);
+                    records = providerRecords.map(mapRecord);
+                }
             } catch (err) {
                 this.logger.warn(`Failed to fetch zones/records for project ${projectId}: ${(err as Error).message}`);
             }
@@ -155,11 +157,13 @@ export class ProjectNetworkService {
         // Resolve the zone name from the provider when a zone id is selected.
         if (next.zoneId && next.dnsProviderId) {
             try {
-                const account = { providerId: next.dnsProviderId, providerType: "cloudflare" };
-                const zones = await this.dnsService.listZones(account);
-                const zone = zones.find((z) => z.id === next.zoneId);
-                if (zone) {
-                    next.zoneName = zone.name;
+                const account = await this.dnsRegistry.resolveAccount(next.dnsProviderId);
+                if (account) {
+                    const zones = await this.dnsRegistry.listZones(account);
+                    const zone = zones.find((z) => z.id === next.zoneId);
+                    if (zone) {
+                        next.zoneName = zone.name;
+                    }
                 }
             } catch (err) {
                 this.logger.warn(`Failed to resolve zone name for ${projectId}: ${(err as Error).message}`);

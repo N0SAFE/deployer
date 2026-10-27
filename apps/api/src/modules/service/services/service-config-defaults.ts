@@ -1,5 +1,5 @@
-import type { ServiceProviderType, ServiceRunnerType } from "@repo/contracts-common";
-import {
+import type { ServiceProviderType, ServiceRunnerType } from "@deployer/contracts-common";
+import type {
   githubProviderConfigSchema,
   gitlabProviderConfigSchema,
   bitbucketProviderConfigSchema,
@@ -12,8 +12,8 @@ import {
   workerRuntimeRunnerConfigSchema,
   nomadRunnerConfigSchema,
   staticRunnerConfigSchema,
-} from "@repo/contracts-entities";
-import z from "zod/v4";
+} from "@deployer/contracts-entities";
+import type z from "zod/v4";
 
 type GithubProviderConfig = z.infer<typeof githubProviderConfigSchema>;
 type GitlabProviderConfig = z.infer<typeof gitlabProviderConfigSchema>;

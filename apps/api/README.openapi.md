@@ -14,5 +14,5 @@ bun --bun --cwd=apps/api run openapi:print
 This writes `apps/api/openapi.json`.
 
 Notes:
-- Spec is generated from `@repo/api-contracts` using Zod v4 converter.
+- Spec is generated from `@deployer/contracts-entities` using Zod v4 converter.
 - When behind Next.js (`/api/nest` rewrite), the relative server URL in the spec ensures links stay valid.

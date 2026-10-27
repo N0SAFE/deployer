@@ -1,7 +1,7 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { providerSchemaContract } from "@repo/api-contracts";
+import { providerSchemaContract } from "@deployer/fleet-contracts";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { ProviderSchemaService } from "../services/provider-schema.service";
 

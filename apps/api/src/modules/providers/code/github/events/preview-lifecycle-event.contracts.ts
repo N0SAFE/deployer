@@ -1,5 +1,5 @@
 import * as z from "zod/v4";
-import { contractBuilder } from "@repo/nest-events";
+import { contractBuilder } from "@deployer/nest-events";
 
 // T037: Preview lifecycle audit trail event contracts.
 

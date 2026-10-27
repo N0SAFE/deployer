@@ -1,8 +1,8 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { dockerContract } from "@repo/api-contracts";
-import { standardErrorOptions } from "@repo/orpc-utils";
+import { dockerContract } from "@deployer/runtime-contracts";
+import { standardErrorOptions } from "@deployer/orpc-utils";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { MeshInternalRequestService } from "@/core/modules/mesh/services/mesh-internal-request.service";
 import { DockerContainersOrchestratorService } from "../domains/containers/orchestration/docker-containers-orchestrator.service";

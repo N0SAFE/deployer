@@ -8,8 +8,8 @@
 import { Controller, Logger } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { providersContract } from "@repo/api-contracts";
-import { standardErrorOptions } from "@repo/orpc-utils";
+import { providersContract } from "@deployer/fleet-contracts";
+import { standardErrorOptions } from "@deployer/orpc-utils";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { GitlabAppsRepository } from "../repositories/gitlab-apps.repository";
 import z from "zod/v4";

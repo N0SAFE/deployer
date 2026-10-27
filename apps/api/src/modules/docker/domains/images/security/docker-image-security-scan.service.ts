@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { Observable, ReplaySubject } from "rxjs";
-import type { DockerImageSecurityScanStreamQueryInput } from "@repo/api-contracts/modules/docker/security/scanning/images/stream";
-import type { DockerImageSecurityScanEvent, DockerRuntimeEvent } from "@repo/contracts-entities";
+import type { DockerImageSecurityScanStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/security/scanning/images/stream";
+import type { DockerImageSecurityScanEvent, DockerRuntimeEvent } from "@deployer/contracts-entities";
 import { DockerRuntimeMeshRelayService } from "../../../common/mesh/docker-runtime-mesh-relay.service";
 import { DockerImageSecurityRepository } from "../../../repositories/images/security/docker-image-security.repository";
 
@@ -149,7 +149,7 @@ export class DockerImageSecurityScanService {
             return;
           }
 
-          if (persisted && persisted.scanSummary) {
+          if (persisted?.scanSummary) {
             subscriber.next({
               imageId,
               timestamp: new Date().toISOString(),
@@ -266,7 +266,7 @@ export class DockerImageSecurityScanService {
           maxAgeMs: maxCacheAgeMs,
         });
 
-        if (persisted && persisted.scanSummary) {
+        if (persisted?.scanSummary) {
           emitEvent({
             imageId,
             timestamp: new Date().toISOString(),

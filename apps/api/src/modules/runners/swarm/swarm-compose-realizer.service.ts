@@ -24,7 +24,7 @@
 
 import { Injectable, Logger } from "@nestjs/common";
 import { parse } from "yaml";
-import { AppError, BadRequestError } from "@repo/errors";
+import { AppError, BadRequestError } from "@deployer/errors";
 import type {
     ComposeCompatibilityIssue,
     ComposeCompatibilityReport,
@@ -36,10 +36,10 @@ import type {
     ComposeServiceModel,
     ComposeCompatibilitySeverity,
     SwarmServiceSpecInput,
-} from "@repo/contracts-entities";
-import { composeModelSchema, composeServiceModelSchema } from "@repo/contracts-entities";
-import { DockerService } from "@repo/nest-docker/services/docker.service";
-import { toDockerServiceSpec } from "@repo/nest-docker/services/swarm-spec.mapper";
+} from "@deployer/contracts-entities";
+import { composeModelSchema, composeServiceModelSchema } from "@deployer/contracts-entities";
+import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { toDockerServiceSpec } from "@deployer/nest-docker/services/swarm-spec.mapper";
 
 // ─── Compose value normalizers (string forms → typed values) ────────────────
 

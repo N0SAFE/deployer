@@ -3,8 +3,8 @@ import type { NestApplicationOptions } from "@nestjs/common";
 import { ExpressAdapter } from "@nestjs/platform-express";
 import express from "express";
 
-import { buildAllowedOrigins, resolveCorsDecision, CORS_ALLOWED_HEADERS } from "./core/utils/cors.utils";
-import { createViteAssetsMiddleware } from "@repo/vite-assets";
+import { buildAllowedOrigins, resolveCorsDecision, CORS_ALLOWED_HEADERS } from "@/core/utils/cors.utils";
+import { createViteAssetsMiddleware } from "@deployer/vite-assets";
 import { AppModule } from "./app.module";
 
 /**

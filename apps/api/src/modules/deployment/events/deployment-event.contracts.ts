@@ -1,11 +1,11 @@
 import * as z from "zod";
-import { contractBuilder } from "@repo/nest-events";
+import { contractBuilder } from "@deployer/nest-events";
 import {
     deploymentStatusSchema,
     deploymentPhaseSchema,
     deploymentLogSchema,
     deploymentSchema,
-} from "@repo/contracts-entities";
+} from "@deployer/contracts-entities";
 
 export const deploymentEventContracts = {
     deploymentTriggered: contractBuilder()

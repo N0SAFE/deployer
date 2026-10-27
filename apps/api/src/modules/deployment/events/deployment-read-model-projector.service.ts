@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common";
-import { coreDomainEventEnvelopeSchema } from "@repo/contracts-entities";
+import { coreDomainEventEnvelopeSchema } from "@deployer/contracts-entities";
 import { LocalEventOutboxRepository } from "@/core/modules/events/outbox/local-event-outbox.repository";
 import { DeploymentRepository } from "../repositories/deployment.repository";
-import { isRecord, isObjectLike } from "@repo/type-guards"
+import { isRecord, isObjectLike } from "@deployer/type-guards"
 
 export interface DeploymentReadModelProjection {
     deploymentId: string;

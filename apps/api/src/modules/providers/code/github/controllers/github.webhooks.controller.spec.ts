@@ -5,7 +5,8 @@ import { ORPCError } from "@orpc/server";
 import type { GithubWebhookDispatchService } from "../services/github-webhook-dispatch.service";
 import type { WebhookIdempotencyService } from "../services/webhook-idempotency.service";
 import type { GithubAppsRepository } from "../repositories/github-apps.repository";
-import type { GithubWebhookInput } from "@repo/api-contracts";
+import type { ModuleRef } from "@nestjs/core";
+import type { GithubWebhookInput } from "@deployer/fleet-contracts";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────
 
@@ -24,7 +25,19 @@ const makeMockRepo = (): GithubAppsRepository =>
     ({
         setInstallation: vi.fn().mockResolvedValue(true),
         getWebhookSecret: vi.fn().mockResolvedValue(null),
+        // The PR path now resolves the real service from the repository via this
+        // method (it used to pass `repository.full_name` as a service id).
+        findServiceBySourceUrl: vi.fn().mockResolvedValue({ id: "svc-1" }),
     }) as unknown as GithubAppsRepository;
+
+// `ModuleRef` is only used to reach the optional trigger registry. Absent it, the
+// controller degrades to "no source matched".
+const makeMockModuleRef = () =>
+    ({
+        get: vi.fn(() => {
+            throw new Error("not provided in this test");
+        }),
+    }) as unknown as ModuleRef;
 
 const prPayload = {
     action: "opened",
@@ -96,7 +109,7 @@ describe("GithubWebhooksController", () => {
     beforeEach(() => {
         dispatch = makeMockDispatch();
         idempotency = makeMockIdempotency();
-        controller = new GithubWebhooksController(idempotency, dispatch, makeMockRepo());
+        controller = new GithubWebhooksController(idempotency, dispatch, makeMockRepo(), makeMockModuleRef());
     });
 
     it("returns received=true for a valid pull_request event", async () => {
@@ -107,7 +120,7 @@ describe("GithubWebhooksController", () => {
         });
         expect(result.received).toBe(true);
         expect(result.deliveryId).toBe("delivery-1");
-        expect(result.action).toBe("created");
+        expect(result.action).toBe("opened");
     });
 
     it("skips duplicate deliveries (middleware short-circuit) without re-dispatching", async () => {

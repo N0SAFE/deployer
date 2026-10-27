@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { defaultIngressLanes, type IngressLanes } from "@repo/contracts-entities/entities/ingress/index";
+import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
 
 import type { DnsProviderRegistryService } from "@/modules/providers/dns/shared/dns-provider-registry.service";
 import type { DnsProviderRecord } from "@/modules/providers/dns/shared/dns-provider.interface";

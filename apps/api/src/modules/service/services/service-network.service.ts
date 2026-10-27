@@ -5,14 +5,9 @@ import {
     serviceNetworkConfigSchema,
     projectNetworkConfigSchema,
     type ServiceNetworkConfig,
-} from "@repo/contracts-entities";
-import type {
-    ServiceNetworkView,
-    ServiceUpdateNetworkInput,
-    ServiceProvisionDnsRecordInput,
-} from "@repo/api-contracts";
-import { CloudflareDnsProviderService } from "@/modules/providers/dns/cloudflare/services/cloudflare-dns-provider.service";
-import { CloudflareAppService } from "@/modules/providers/dns/cloudflare/services/cloudflare-app.service";
+} from "@deployer/contracts-entities";
+import type { ServiceNetworkView, ServiceUpdateNetworkInput, ServiceProvisionDnsRecordInput } from "@deployer/project-contracts";
+import { DnsProviderRegistryService } from "@/modules/providers/dns/shared/dns-provider-registry.service";
 import { ProjectRepository } from "@/modules/project/repositories/project.repository";
 import { ProjectDomainRepository } from "@/core/modules/domain/repositories/project-domain.repository";
 import { ServiceDomainMappingRepository } from "@/core/modules/domain/repositories/service-domain-mapping.repository";
@@ -52,8 +47,7 @@ export class ServiceNetworkService {
     constructor(
         private readonly serviceRepository: ServiceRepository,
         private readonly projectRepository: ProjectRepository,
-        private readonly appService: CloudflareAppService,
-        private readonly dnsService: CloudflareDnsProviderService,
+        private readonly dnsRegistry: DnsProviderRegistryService,
         private readonly projectDomainRepository: ProjectDomainRepository,
         private readonly mappingRepository: ServiceDomainMappingRepository,
     ) {}
@@ -93,9 +87,11 @@ export class ServiceNetworkService {
         let records: ServiceNetworkView["records"] = [];
         if (scope.providerId && scope.zoneId) {
             try {
-                const account = { providerId: scope.providerId, providerType: "cloudflare" };
-                const providerRecords = await this.dnsService.listRecords(account, scope.zoneId);
-                records = providerRecords.map(mapRecord);
+                const account = await this.dnsRegistry.resolveAccount(scope.providerId);
+                if (account) {
+                    const providerRecords = await this.dnsRegistry.listRecords(account, scope.zoneId);
+                    records = providerRecords.map(mapRecord);
+                }
             } catch (err) {
                 this.logger.warn(`Failed to fetch zone records for service ${serviceId}: ${(err as Error).message}`);
             }
@@ -191,9 +187,12 @@ export class ServiceNetworkService {
             );
         }
 
-        const account = { providerId: scope.providerId, providerType: "cloudflare" };
+        const account = await this.dnsRegistry.resolveAccount(scope.providerId);
+        if (!account) {
+            throw new BadRequestException(`DNS provider not found: ${scope.providerId}`);
+        }
         try {
-            const record = await this.dnsService.createRecord(account, {
+            const record = await this.dnsRegistry.createRecord(account, {
                 zoneId: scope.zoneId,
                 type: input.type,
                 name: input.name,

@@ -2,8 +2,8 @@ import { Controller, Logger } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
 import { ORPCError } from "@orpc/server";
-import { setupContract } from "@repo/api-contracts";
-import { domainErrorOptions, standardErrorOptions } from "@repo/orpc-utils";
+import { setupContract } from "@deployer/bff-contracts";
+import { domainErrorOptions, standardErrorOptions } from "@deployer/orpc-utils";
 import { publicAccess } from "@/core/modules/auth/orpc/middlewares";
 import { AllowAnonymous } from "@/core/modules/auth/decorators/decorators";
 import { Pool } from "pg";
@@ -11,7 +11,7 @@ import { InitializationService } from "@/core/modules/setup/services/initializat
 import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
 import { PostSetupDestinationService } from "../services/post-setup-destination.service";
 import { PostSetupVerificationService } from "../services/post-setup-verification.service";
-import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
+import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository";
 
 /**
  * Setup wizard surface — intentionally PRE-AUTH by design (the wizard runs

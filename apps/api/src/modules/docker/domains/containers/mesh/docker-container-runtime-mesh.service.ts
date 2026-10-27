@@ -13,8 +13,8 @@ import type {
     DockerContainerTerminalInputBodyInput,
     DockerContainerTerminalOpenBodyInput,
     DockerContainerWriteFileBodyInput,
-} from "@repo/api-contracts/modules/docker/containers/shared";
-import type { DockerImageInspectQueryInput } from "@repo/api-contracts/modules/docker/images/inspect";
+} from "@deployer/runtime-contracts/modules/docker/containers/shared";
+import type { DockerImageInspectQueryInput } from "@deployer/runtime-contracts/modules/docker/images/inspect";
 import {
     dockerContainerLogEntrySchema,
     dockerContainerProcessEntrySchema,
@@ -26,8 +26,8 @@ import {
     type DockerFileEntry,
     type DockerImageInspectDetail,
     type DockerTerminalProfile,
-} from "@repo/contracts-entities";
-import { contractBuilder } from "@repo/nest-events";
+} from "@deployer/contracts-entities";
+import { contractBuilder } from "@deployer/nest-events";
 import { BaseMeshService, InternalBaseMeshService, type MeshCallManyResult, type MeshCallManyOptions } from "@/core/modules/mesh/services/base-mesh.service";
 import { SystemMeshTopicService } from "@/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
 import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";

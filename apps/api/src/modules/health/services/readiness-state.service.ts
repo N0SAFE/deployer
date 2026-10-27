@@ -1,19 +1,21 @@
 import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
+import type {
+	Observable} from "rxjs";
 import {
 	BehaviorSubject,
-	Observable,
 	Subject,
 	debounceTime,
 	merge,
 	type Subscription,
 } from "rxjs";
-import z from "zod/v4";
+import type z from "zod/v4";
 
-import { AppLifecyclePhase, AppLifecycleService } from "@repo/nest-lifecycle";
+import { AppLifecycleService } from "@deployer/nest-lifecycle";
+import type { AppLifecyclePhase } from "@deployer/nest-lifecycle";
 
-import { SupervisorOrchestratorService } from "@repo/nest-supervisor-core/supervisor-orchestrator.service";
-import { SupervisorEventBus } from "@repo/nest-supervisor-core/supervisor-event.bus";
-import type { SupervisorHealthSnapshot } from "@repo/nest-supervisor-core/base-supervisor.service";
+import { SupervisorOrchestratorService } from "@deployer/nest-supervisor-core/supervisor-orchestrator.service";
+import { SupervisorEventBus } from "@deployer/nest-supervisor-core/supervisor-event.bus";
+import type { SupervisorHealthSnapshot } from "@deployer/nest-supervisor-core/base-supervisor.service";
 
 /** The cached platform readiness picture. */
 export interface ReadinessSnapshot {
@@ -224,7 +226,7 @@ export class ReadinessStateService implements OnModuleInit, OnModuleDestroy {
 		eventMetadata: Record<string, unknown>,
 		fallback: boolean | null,
 	): boolean | null {
-		if (typeof eventMetadata[key] === "boolean") return eventMetadata[key] as boolean;
+		if (typeof eventMetadata[key] === "boolean") return eventMetadata[key];
 		return this.readLifecycleFlag(key, fallback);
 	}
 

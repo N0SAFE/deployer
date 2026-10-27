@@ -1,11 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import type { ClusterSnapshot } from "@repo/contracts-entities";
-import { SwarmClusterService } from "@repo/nest-swarm";
-import { SwarmFleetService } from "@repo/nest-swarm";
-import { SwarmParticipationService } from "@repo/nest-swarm";
-import { ClusterNodeRepository } from "@repo/nest-nodes/cluster-node.repository";
-import { ClusterNodeInventoryRepository } from "@repo/nest-nodes/cluster-node-inventory.repository";
-import { EnvService } from "@/config/env/env.module";
+import type { ClusterSnapshot } from "@deployer/contracts-entities";
+import type { SwarmClusterService } from "@deployer/nest-swarm";
+import type { SwarmFleetService } from "@deployer/nest-swarm";
+import type { SwarmParticipationService } from "@deployer/nest-swarm";
+import type { ClusterNodeRepository } from "@deployer/nest-nodes/cluster-node.repository";
+import type { ClusterNodeInventoryRepository } from "@deployer/nest-nodes/cluster-node-inventory.repository";
+import type { EnvService } from "@/config/env/env.module";
 import { ClusterService } from "./cluster.service";
 
 const snapshot: ClusterSnapshot = {
@@ -144,12 +144,12 @@ describe("ClusterService", () => {
             applyConfig: vi.fn().mockResolvedValue({}),
         };
         service = new ClusterService(
-            swarm as unknown as SwarmClusterService,
-            fleet as unknown as SwarmFleetService,
-            participation as unknown as SwarmParticipationService,
-            nodeRepo as unknown as ClusterNodeRepository,
-            inventoryRepo as unknown as ClusterNodeInventoryRepository,
-            env as unknown as EnvService,
+            swarm,
+            fleet,
+            participation,
+            nodeRepo,
+            inventoryRepo,
+            env,
         );
     });
 

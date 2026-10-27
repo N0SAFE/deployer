@@ -1,6 +1,6 @@
 import {
 } from "@nestjs/common";
-import { isRecord } from "@repo/type-guards";
+import { isRecord } from "@deployer/type-guards";
 import {
     BadRequestException,
     ConflictException,
@@ -9,19 +9,19 @@ import {
     Injectable,
     NotFoundException,
 } from "@nestjs/common";
-import { environmentRulesSchema } from "@repo/contracts-entities";
-import { environmentTriggerSchema } from "@repo/contracts-common";
+import { environmentRulesSchema } from "@deployer/contracts-entities";
+import { environmentTriggerSchema } from "@deployer/contracts-common";
 import { EMPTY, type Observable, concat, defer, from, map, mergeMap } from "rxjs";
 import { filter as rxFilter } from "rxjs/operators";
 import { CoreEventSyncService } from "@/core/modules/events";
 import { RuntimeConfigurationAccessorService } from "@/core/modules/configuration/services/runtime-configuration-accessor.service";
 import { ProjectRepository } from "../repositories/project.repository";
 import { ProjectEventService } from "./project-event.service";
-import type { ProjectListInput } from "@repo/api-contracts/modules/project/list";
+import type { ProjectListInput } from "@deployer/project-contracts/modules/project/list";
 import type {
     ProjectStreamEvent,
     ProjectStreamQueryInput,
-} from "@repo/api-contracts/modules/project/stream";
+} from "@deployer/project-contracts/modules/project/stream";
 
 // ---------------------------------------------------------------------------
 // Typed settings stored in project.settings JSONB
@@ -29,11 +29,11 @@ import type {
 // The FLAT storage shape — sourced from the contract package (single source of
 // truth) so the DB/API shape and the contract output schema can never drift.
 
-type ProjectSettings = import("@repo/contracts-entities").ProjectSettings;
+type ProjectSettings = import("@deployer/contracts-entities").ProjectSettings;
 
 /** Collaborator permissions — SSOT is the `collaboratorSchema` (contracts-entities). */
 type CollaboratorPermissions = import("zod/v4").infer<
-    typeof import("@repo/contracts-entities").collaboratorSchema
+    typeof import("@deployer/contracts-entities").collaboratorSchema
 >["permissions"];
 
 @Injectable()

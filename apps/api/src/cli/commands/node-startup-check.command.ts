@@ -22,8 +22,8 @@ import { Injectable, Logger } from "@nestjs/common";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
-import type { SetupState } from "@repo/nest-schema/local/node-config";
+import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository";
+import type { SetupState } from "@deployer/nest-schema/local/node-config";
 
 // ─── Resolve version from package.json ─────────────────────────────────────────
 const __filename = fileURLToPath(import.meta.url);
@@ -104,7 +104,7 @@ export class NodeStartupCheckCommand extends CommandRunner {
         };
       }
 
-      const setupState = (config.setupState ?? "not_started") as SetupState;
+      const setupState = (config.setupState ?? "not_started");
       const configuredAt = config.configuredAt ?? null;
 
       switch (setupState) {

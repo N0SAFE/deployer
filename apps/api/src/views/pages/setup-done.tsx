@@ -2,14 +2,14 @@
 
 import React from "react";
 import { ArrowRight, CheckCircle2, ExternalLink } from "lucide-react";
-import { Button } from "@repo/ui/components/shadcn/button";
+import { Button } from "@deployer/ui/components/shadcn/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@repo/ui/components/shadcn/card";
+} from "@deployer/ui/components/shadcn/card";
 
 /**
  * The page `setup.<host>` serves once onboarding is finished.
@@ -35,14 +35,14 @@ import {
  * Both targets already exist in the platform (`dynamic-web.yml` routes the web
  * host and the console path), so neither button introduces a new surface.
  */
-export type SetupDoneViewProps = {
+export interface SetupDoneViewProps {
   /** Where the primary button goes. */
   primaryHref: string;
   /** Label for the primary button (names the actual destination). */
   primaryLabel: string;
   /** True when the primary target is the managed web app rather than the console. */
   webAppEnabled: boolean;
-};
+}
 
 export default function SetupDoneView({
   primaryHref,

@@ -74,8 +74,8 @@ describe("Auth patterns API e2e: anonymous and protected boundaries", () => {
     const meta = context.orpcTracker.getLast();
     expect(meta).not.toBeNull();
     expect(meta?.status).toBe(200);
-    // ORPC OpenAPILink resolves method paths directly (e.g. /getState)
-    expect(meta?.requestUrl).toContain("/getState");
+    // ORPC OpenAPILink resolves the contract route (/setup/state)
+    expect(meta?.requestUrl).toContain("/setup/state");
     expect(meta?.headers["content-type"]).toContain("application/json");
   });
 
@@ -90,8 +90,8 @@ describe("Auth patterns API e2e: anonymous and protected boundaries", () => {
     expect(history.length).toBe(2);
     expect(history[0]?.status).toBe(200);
     expect(history[1]?.status).toBe(200);
-    expect(history[0]?.requestUrl).toContain("/getState");
-    expect(history[1]?.requestUrl).toContain("/getState");
+    expect(history[0]?.requestUrl).toContain("/setup/state");
+    expect(history[1]?.requestUrl).toContain("/setup/state");
 
     context.orpcTracker.clear();
     expect(context.orpcTracker.getAll()).toHaveLength(0);
@@ -101,7 +101,7 @@ describe("Auth patterns API e2e: anonymous and protected boundaries", () => {
   it("HTTP and ORPC setup status stay in sync for needsSetup", async () => {
     const context = await getSharedApiRuntimeContext();
     const [httpResponse, orpcResponse] = await Promise.all([
-      context.http.get("/setup/status").expect(200),
+      context.http.get("/setup/state").expect(200),
       context.orpc.setup.getState(),
     ]);
 
@@ -148,6 +148,6 @@ describe("Auth patterns API e2e: anonymous and protected boundaries", () => {
     expect(typeof result.needsSetup).toBe("boolean");
     expect(history.length).toBe(1);
     expect(history[0]?.status).toBe(200);
-    expect(history[0]?.requestUrl).toContain("/getState");
+    expect(history[0]?.requestUrl).toContain("/setup/state");
   });
 });

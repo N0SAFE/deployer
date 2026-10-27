@@ -1,10 +1,10 @@
 /**
- * Source Checkout Context Schemas — SSOT lives in @repo/contracts-entities
+ * Source Checkout Context Schemas — SSOT lives in @deployer/contracts-entities
  * (entities/deployment/source-checkout.schema.ts). This file re-exports the
  * schemas + keeps the API-side DeploymentSourceProvider contract.
  */
-import type { DeploymentTriggerInput } from "@repo/api-contracts/modules/deployment/crud";
-import type { DeploymentSourceCheckoutContext } from "@repo/contracts-entities";
+import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
+import type { DeploymentSourceCheckoutContext } from "@deployer/contracts-entities";
 
 export {
     githubSourceCheckoutContextSchema,
@@ -16,8 +16,8 @@ export {
     type GitlabSourceCheckoutContext,
     type UploadSourceCheckoutContext,
     type CustomSourceCheckoutContext,
-} from "@repo/contracts-entities";
-export type { DeploymentSourceCheckoutContext } from "@repo/contracts-entities";
+} from "@deployer/contracts-entities";
+export type { DeploymentSourceCheckoutContext } from "@deployer/contracts-entities";
 
 export interface DeploymentSourceProvider {
     readonly sourceType: string;

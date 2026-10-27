@@ -21,7 +21,7 @@ import type {
 	EdgeStatus,
 	PublicJoinPath,
 	PublicLane,
-} from "@repo/contracts-entities/entities/ingress/index";
+} from "@deployer/contracts-entities/entities/ingress/index";
 import z from "zod/v4";
 
 import { EnvService } from "@/config/env/env.module";

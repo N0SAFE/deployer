@@ -1,5 +1,5 @@
 import { Injectable, Optional } from "@nestjs/common";
-import type { GithubAppsRepository } from "../repositories/github-apps.repository";
+import { GithubAppsRepository } from "../repositories/github-apps.repository";
 
 /**
  * W-P2 (durable idempotency) — replaces the in-memory-only LRU.

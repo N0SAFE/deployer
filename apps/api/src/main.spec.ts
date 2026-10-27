@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeUrl, buildAllowedOrigins, isLocalhostOrigin } from './core/utils/cors.utils';
+import { normalizeUrl, buildAllowedOrigins, isLocalhostOrigin } from '@/core/utils/cors.utils';
 
 describe('CORS URL Normalization', () => {
   it('should remove trailing slash from URLs', () => {

@@ -1,6 +1,6 @@
 import { BadRequestException } from "@nestjs/common";
 import { describe, expect, it } from "vitest";
-import type { DeploymentTriggerInput } from "@repo/api-contracts/modules/deployment/crud";
+import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import { LocalStorageProviderService } from "./local/local-storage-provider.service";
 import { NfsStorageProviderService } from "./nfs/nfs-storage-provider.service";
 import { S3StorageProviderService } from "./s3/s3-storage-provider.service";

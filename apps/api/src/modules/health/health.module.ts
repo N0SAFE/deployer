@@ -7,7 +7,7 @@ import { HealthRepository } from './repositories/health.repository';
 import { ReadinessService } from './services/readiness.service';
 import { ReadinessStateService } from './services/readiness-state.service';
 import { ReadinessIndicators } from './indicators/readiness.indicators';
-import { DatabaseModule } from '../../core/modules/database/database.module';
+import { DatabaseModule } from '@/core/modules/database/database.module';
 import { ConfigurationCoreModule } from '@/core/modules/configuration/configuration-core.module';
 import { MeshCoreModule } from '@/core/modules/mesh/mesh-core.module';
 import { SwarmCoreModule } from "@/core/modules/swarm/swarm.module";

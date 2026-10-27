@@ -1,11 +1,11 @@
 import * as z from "zod";
-import { contractBuilder } from "@repo/nest-events";
+import { contractBuilder } from "@deployer/nest-events";
 import {
     deploymentQueueJobSchema,
     deploymentDeadLetterJobSchema,
     deploymentQueueJobTypeSchema,
     deploymentQueueJobStatusSchema,
-} from "@repo/contracts-entities";
+} from "@deployer/contracts-entities";
 
 export const deploymentQueueEventFilterSchema = z.object({
     queue: z.literal("deployment").default("deployment"),

@@ -1,7 +1,7 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { nodesContract } from "@repo/api-contracts";
+import { nodesContract } from "@deployer/fleet-contracts";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { FleetService } from "../services/fleet.service";
 

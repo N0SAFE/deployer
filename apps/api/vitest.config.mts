@@ -1,6 +1,6 @@
 import { defineConfig, ViteUserConfigExport } from "vitest/config";
 import * as path from "path";
-import { createNodeConfig } from "@repo/config-vitest/node";
+import { createNodeConfig } from "@deployer/config-vitest/node";
 import swc from "unplugin-swc";
 
 const E2E_MAX_CONCURRENCY = Number.parseInt(
@@ -126,6 +126,26 @@ export default defineConfig(
           test: {
             name: "e2e",
             environment: "node",
+            // ── WHY `env` AND NOT ONLY THE SETUP FILE ───────────────────────
+            // The env schema defaults `NODE_LOCAL_DB_PATH` to `/app/data/local.db`,
+            // the path INSIDE the container. `vitest.setup.e2e.ts` does override it,
+            // but `setupFiles` runs AFTER vitest has loaded the spec's imports, and
+            // those imports reach `@/core/orpc/app-contract`, whose module graph
+            // parses the env schema and writes the container path into
+            // `process.env`. The later assignment then has nothing to correct.
+            //
+            // On any machine that is not the container, the local-SQLite factory
+            // tries to create `/app/data` and dies with
+            // `EACCES: permission denied, mkdir '/app/data'`, failing the suite at
+            // collection time rather than at the assertion that matters.
+            //
+            // `test.env` is applied to the worker BEFORE any import, so the correct
+            // path is in place when the schema is first parsed. The setup file keeps
+            // its own assignment as a second line of defence for a direct vitest
+            // invocation that bypasses this config.
+            env: {
+              NODE_LOCAL_DB_PATH: "/tmp/deployer-api-e2e-local.db",
+            },
             globalSetup: DISABLE_GLOBAL_POSTGRES
               ? ["./vitest.global-setup.noop.e2e.ts"]
               : ["./vitest.global-setup.e2e.ts"],
@@ -139,42 +159,83 @@ export default defineConfig(
             testTimeout: 120000,
             hookTimeout: 120000,
             maxConcurrency: RESOLVED_E2E_MAX_CONCURRENCY,
+            // Every e2e file imports and compiles the full AppModule (~1.5 GB each),
+            // so a worker per core exhausts memory and the 45s import watchdog trips
+            // on swap thrash rather than on a real hang. Override with E2E_MAX_WORKERS.
+            maxWorkers: Number.parseInt(process.env.E2E_MAX_WORKERS ?? "3", 10) || 3,
+            // Vitest requires projects with different `maxWorkers` to run in separate groups.
+            sequence: { groupOrder: 1 },
           },
         },
       ],
     },
     resolve: {
       alias: {
+
+        // ── MOST SPECIFIC ALIASES FIRST ───────────────────────────────
+        // Vite resolves aliases in DECLARATION order and takes the first PREFIX
+        // match, so the bare `@` below would swallow every `@/…` path and rewrite
+        // it into THIS app's `src`. These three therefore MUST precede it.
+        //
+        // `@deployer/contracts-entities` resolves to that package's `src`
+        // DIRECTORY (further down), so its files are transpiled by THIS app's
+        // vitest. Its sources import `@/entities/…`, `@/contracts/…` and
+        // `@/types/…` — aliases only that package's own tsconfig defines.
+        // Unmapped, any spec that reaches the package fails at LOAD time with
+        //
+        //   Error: Cannot find package '@/entities/configuration/index'
+        //     imported from …/packages/contracts/entities/src/index.ts
+        //
+        // — a module-resolution failure, so the file reports FAIL with ZERO tests
+        // run and nothing inside it executes. Three provider specs were failing
+        // this way before these entries existed.
+        "@/entities": path.resolve(__dirname, "../../packages/contracts/entities/src/entities"),
+        "@/contracts": path.resolve(__dirname, "../../packages/contracts/entities/src/contracts"),
+        "@/types": path.resolve(__dirname, "../../packages/contracts/entities/src/types"),
         "@": path.resolve(__dirname, "./src"),
         "~": path.resolve(__dirname, "./"),
         // Workspace packages resolve to their `src` **directory**. Code imports
-        // deep subpaths (e.g. `@repo/orpc-utils/builder/core/route-builder`), so
+        // deep subpaths (e.g. `@deployer/orpc-utils/builder/core/route-builder`), so
         // the alias must map the package name to a directory — mapping to
         // `${pkg}/src/index.ts` leaves subpaths to fall through to `dist/`,
         // which tests must not load.
-        "@repo/auth": path.resolve(__dirname, "../../packages/auth/src"),
-        "@repo/api-contracts": path.resolve(__dirname, "../../packages/contracts/api"),
-        "@repo/contracts-common": path.resolve(__dirname, "../../packages/contracts/common/src"),
-        "@repo/contracts-entities": path.resolve(__dirname, "../../packages/contracts/entities/src"),
-        "@repo/env": path.resolve(__dirname, "../../packages/config/env/src"),
-        "@repo/errors": path.resolve(__dirname, "../../packages/utils/errors/src"),
-        "@repo/logger": path.resolve(__dirname, "../../packages/infrastructure/logger/src"),
-        "@repo/nest-events": path.resolve(__dirname, "../../packages/nest/events/src"),
-        "@repo/nest-env": path.resolve(__dirname, "../../packages/nest/env/src"),
-        "@repo/nest-database-core": path.resolve(__dirname, "../../packages/nest/database-core/src"),
-        "@repo/nest-docker": path.resolve(__dirname, "../../packages/nest/docker/src"),
-        "@repo/nest-supervisor-core": path.resolve(__dirname, "../../packages/nest/supervisor-core/src"),
-        "@repo/nest-swarm": path.resolve(__dirname, "../../packages/nest/swarm/src"),
-        "@repo/nest-database-local": path.resolve(__dirname, "../../packages/nest/database-local/src"),
-        "@repo/nest-nodes": path.resolve(__dirname, "../../packages/nest/nodes/src"),
-        "@repo/nest-reachability": path.resolve(__dirname, "../../packages/nest/reachability/src"),
-        "@repo/nest-schema": path.resolve(__dirname, "../../packages/nest/schema/src"),
-        "@repo/nest-lifecycle": path.resolve(__dirname, "../../packages/nest/lifecycle/src"),
-        "@repo/orpc-utils": path.resolve(__dirname, "../../packages/transport/orpc/src"),
-        "@repo/provider-schema": path.resolve(__dirname, "../../packages/utils/provider-schema/src"),
-        "@repo/type-guards": path.resolve(__dirname, "../../packages/utils/type-guards/src"),
-        "@repo/types": path.resolve(__dirname, "../../packages/types/src"),
-        "@repo/ui": path.resolve(__dirname, "../../packages/ui/base/src"),
+        //
+        // GENERATED from this app's `package.json`. Do not hand-edit: run
+        // `python3 scripts/sync-api-vitest-aliases.py` after adding a dependency.
+        "@deployer/auth": path.resolve(__dirname, "../../packages/auth/src"),
+        "@deployer/bff-contracts": path.resolve(__dirname, "../../packages/contracts/bff"),
+        "@deployer/config-eslint": path.resolve(__dirname, "../../tooling/eslint/src"),
+        "@deployer/config-prettier": path.resolve(__dirname, "../../tooling/prettier/src"),
+        "@deployer/config-tailwind": path.resolve(__dirname, "../../tooling/tailwind"),
+        "@deployer/config-typescript": path.resolve(__dirname, "../../tooling/typescript"),
+        "@deployer/config-vitest": path.resolve(__dirname, "../../tooling/vitest/src"),
+        "@deployer/contracts-common": path.resolve(__dirname, "../../packages/contracts/common/src"),
+        "@deployer/contracts-entities": path.resolve(__dirname, "../../packages/contracts/entities/src"),
+        "@deployer/env": path.resolve(__dirname, "../../packages/config/env/src"),
+        "@deployer/errors": path.resolve(__dirname, "../../packages/utils/errors/src"),
+        "@deployer/fleet-contracts": path.resolve(__dirname, "../../packages/contracts/fleet"),
+        "@deployer/health-contracts": path.resolve(__dirname, "../../packages/contracts/health"),
+        "@deployer/identity-contracts": path.resolve(__dirname, "../../packages/contracts/identity"),
+        "@deployer/logger": path.resolve(__dirname, "../../packages/infrastructure/logger/src"),
+        "@deployer/mesh-network": path.resolve(__dirname, "../../packages/infrastructure/mesh-network/src"),
+        "@deployer/nest-database-core": path.resolve(__dirname, "../../packages/nest/database-core/src"),
+        "@deployer/nest-database-local": path.resolve(__dirname, "../../packages/nest/database-local/src"),
+        "@deployer/nest-docker": path.resolve(__dirname, "../../packages/nest/docker/src"),
+        "@deployer/nest-env": path.resolve(__dirname, "../../packages/nest/env/src"),
+        "@deployer/nest-events": path.resolve(__dirname, "../../packages/nest/events/src"),
+        "@deployer/nest-lifecycle": path.resolve(__dirname, "../../packages/nest/lifecycle/src"),
+        "@deployer/nest-nodes": path.resolve(__dirname, "../../packages/nest/nodes/src"),
+        "@deployer/nest-reachability": path.resolve(__dirname, "../../packages/nest/reachability/src"),
+        "@deployer/nest-schema": path.resolve(__dirname, "../../packages/nest/schema/src"),
+        "@deployer/nest-supervisor-core": path.resolve(__dirname, "../../packages/nest/supervisor-core/src"),
+        "@deployer/nest-swarm": path.resolve(__dirname, "../../packages/nest/swarm/src"),
+        "@deployer/orpc-utils": path.resolve(__dirname, "../../packages/transport/orpc/src"),
+        "@deployer/project-contracts": path.resolve(__dirname, "../../packages/contracts/project"),
+        "@deployer/provider-schema": path.resolve(__dirname, "../../packages/utils/provider-schema/src"),
+        "@deployer/runtime-contracts": path.resolve(__dirname, "../../packages/contracts/runtime"),
+        "@deployer/type-guards": path.resolve(__dirname, "../../packages/utils/type-guards/src"),
+        "@deployer/ui": path.resolve(__dirname, "../../packages/ui/base/src"),
+        "@deployer/vite-assets": path.resolve(__dirname, "../../packages/utils/vite-assets/src"),
         // When vitest runs under Node (VS Code extension), bun: protocol imports
         // cannot resolve. Alias bun:sqlite to our node:sqlite-backed shim so
         // drizzle-orm/bun-sqlite and local-db-supervisor tests work in Node.

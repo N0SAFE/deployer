@@ -21,11 +21,11 @@
 
 import { Injectable, Logger, Optional } from "@nestjs/common";
 import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
-import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from "@repo/errors";
-import type { AppError } from "@repo/errors";
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from "@deployer/errors";
+import type { AppError } from "@deployer/errors";
 import { randomUUID } from "crypto";
 import type { Subscription } from "rxjs";
-import type { DeploymentQueueJob } from "@repo/contracts-entities";
+import type { DeploymentQueueJob } from "@deployer/contracts-entities";
 import { DeploymentService } from "../services/deployment.service";
 import {
     deploymentStorageBindingSchema,
@@ -37,8 +37,8 @@ import {
     type RuntimeRunnerOptions,
 } from "@/modules/providers/base/runtime-runner-options.schema";
 import z from "zod/v4";
+import { DeploymentArtifactBuilderService } from "../builders/deployment-artifact-builder.service";
 import {
-    DeploymentArtifactBuilderService,
     type DeploymentBuilderKind,
 } from "../builders/deployment-artifact-builder.service";
 import { DeploymentQueueLifecycleService } from "./deployment-queue-lifecycle.service";
@@ -186,6 +186,28 @@ export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestr
             const executionPlan = this.extractExecutionPlanFromPayload(job.payload);
             const buildHealthPolicy = this.resolvePhaseRetryPolicy(executionPlan?.healthChecks?.build);
             const parsedSourceCheckout = this.extractSourceCheckoutFromPayload(job.payload);
+
+            // ── Rollback: NO BUILD ────────────────────────────────────────────
+            // A rollback redeploys an image that already built successfully, so running
+            // the build pipeline here would be wrong twice over: it re-runs a build that
+            // can fail for reasons unrelated to the rollback (deleted branch, moved
+            // tag), and it costs minutes to reproduce an artifact we already have.
+            // `completeQueueJob` performs the actual revert.
+            if (job.type === "rollback") {
+                const completedAt = new Date();
+                await this.deploymentService.completeQueueJob(claimed.id, {
+                    workerId: this.workerId,
+                    lockToken,
+                    result: {
+                        queueSource: QUEUE_SOURCE,
+                        jobType: job.type,
+                        rollbackCompletedAt: completedAt.toISOString(),
+                        ...(executionPlan?.runner ? { runtimeRunner: executionPlan.runner } : {}),
+                    },
+                });
+                return;
+            }
+
             const runtimeRunner =
                 (typeof executionPlan?.runner === "string" && executionPlan.runner.trim().length > 0
                     ? executionPlan.runner
@@ -310,7 +332,7 @@ export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestr
         return this.deploymentArtifactBuilderService.buildContainerizedArtifact({
             deploymentId: input.deploymentId,
             serviceId: input.serviceId,
-            builder: (input.executionPlan?.builder ?? null) as DeploymentBuilderKind | null,
+            builder: (input.executionPlan?.builder ?? null),
             sourceCheckout: input.sourceCheckout,
             fallbackContainerImage: input.fallbackContainerImage,
             customCommands: input.executionPlan?.customCommands ?? null,

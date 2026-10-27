@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
-import type { DeploymentTriggerInput } from "@repo/api-contracts/modules/deployment/crud";
-import type { DeploymentStorageBinding, DeploymentStorageProvider } from "./base/storage-provider.interface";
+import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
+import { DeploymentStorageProvider } from "./base/storage-provider.interface";
+import type { DeploymentStorageBinding } from "./base/storage-provider.interface";
 import type { DeploymentStoragePolicy } from "./base/storage-policy.schema";
 import { resolveRequestedStorageType } from "./base/storage-provider.utils";
 

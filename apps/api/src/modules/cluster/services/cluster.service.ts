@@ -6,21 +6,21 @@
 
 import { Injectable, Logger } from "@nestjs/common";
 import { Observable } from "rxjs";
-import type { ClusterPlatformRole, ClusterSnapshot, ClusterNode, SwarmNodeResources, SwarmServiceRuntime, SwarmTaskRuntime, SwarmConfigView, SwarmParticipationInput } from "@repo/contracts-entities";
-import { clusterNodeInventoryRowSchema } from "@repo/api-contracts";
-import type { ClusterMasterView } from "@repo/api-contracts";
-import { SwarmClusterService } from "@repo/nest-swarm";
-import { SwarmFleetService } from "@repo/nest-swarm";
-import { SwarmParticipationService } from "@repo/nest-swarm";
-import { DockerService } from "@repo/nest-docker/services/docker.service";
+import type { ClusterPlatformRole, ClusterSnapshot, ClusterNode, SwarmNodeResources, SwarmServiceRuntime, SwarmTaskRuntime, SwarmConfigView, SwarmParticipationInput } from "@deployer/contracts-entities";
+import { clusterNodeInventoryRowSchema } from "@deployer/fleet-contracts";
+import type { ClusterMasterView } from "@deployer/fleet-contracts";
+import { SwarmClusterService } from "@deployer/nest-swarm";
+import { SwarmFleetService } from "@deployer/nest-swarm";
+import { SwarmParticipationService } from "@deployer/nest-swarm";
+import { DockerService } from "@deployer/nest-docker/services/docker.service";
 import {
     ingressFromLabels,
     platformRoleFromLabels,
     withIngress,
     withPlatformRole,
-} from "@repo/nest-nodes/swarm-node-labels";
-import { ClusterNodeRepository } from "@repo/nest-nodes/cluster-node.repository";
-import { ClusterNodeInventoryRepository } from "@repo/nest-nodes/cluster-node-inventory.repository";
+} from "@deployer/nest-nodes/swarm-node-labels";
+import { ClusterNodeRepository } from "@deployer/nest-nodes/cluster-node.repository";
+import { ClusterNodeInventoryRepository } from "@deployer/nest-nodes/cluster-node-inventory.repository";
 import { EnvService } from "@/config/env/env.module";
 
 @Injectable()
@@ -57,12 +57,12 @@ export class ClusterService {
             const push = () => {
                 this.swarmFleetService
                     .getNodeResources(nodeId)
-                    .then((resources) => subscriber.next(resources))
-                    .catch((err) => this.logger.warn(`Node resources stream error: ${err}`));
+                    .then((resources) => { subscriber.next(resources); })
+                    .catch((err) => { this.logger.warn(`Node resources stream error: ${err}`); });
             };
             push();
             const timer = setInterval(push, 10_000);
-            return () => clearInterval(timer);
+            return () => { clearInterval(timer); };
         });
     }
 

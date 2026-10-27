@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import type { DockerNetworkListInput } from "@repo/api-contracts/modules/docker/networks/list";
-import { AppLogger } from "@repo/logger";
+import type { DockerNetworkListInput } from "@deployer/runtime-contracts/modules/docker/networks/list";
+import { AppLogger } from "@deployer/logger";
 import { DockerNetworksDomainService } from "../runtime/docker-networks-domain.service";
 
 @Injectable()

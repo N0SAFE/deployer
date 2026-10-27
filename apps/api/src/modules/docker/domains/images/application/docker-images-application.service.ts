@@ -1,21 +1,21 @@
 import { Injectable } from "@nestjs/common";
-import { Observable } from "rxjs";
+import type { Observable } from "rxjs";
 import type {
   DockerImageListInput,
-} from "@repo/api-contracts/modules/docker/images/list";
-import type { DockerImageInspectQueryInput } from "@repo/api-contracts/modules/docker/images/inspect";
-import type { DockerImageInspectStreamQueryInput } from "@repo/api-contracts/modules/docker/images/stream-inspect";
+} from "@deployer/runtime-contracts/modules/docker/images/list";
+import type { DockerImageInspectQueryInput } from "@deployer/runtime-contracts/modules/docker/images/inspect";
+import type { DockerImageInspectStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/images/stream-inspect";
 import type {
   DockerImageSecurityScanStreamQueryInput,
-} from "@repo/api-contracts/modules/docker/security/scanning/images/stream";
+} from "@deployer/runtime-contracts/modules/docker/security/scanning/images/stream";
 import type {
   DockerImageInspectDetail,
   DockerImageSecurityScanEvent,
-} from "@repo/contracts-entities";
+} from "@deployer/contracts-entities";
 import { DockerImageCatalogRepository } from "../../../repositories/images/catalog/docker-image-catalog.repository";
 import { DockerRuntimeStreamOrchestratorService } from "../../../common/runtime/docker-runtime-stream-orchestrator.service";
+import { DockerImageSecurityScanService } from "../security/docker-image-security-scan.service";
 import {
-  DockerImageSecurityScanService,
   type EnsureImageSecurityScanOptions,
   type EnsureImageSecurityScanResult,
 } from "../security/docker-image-security-scan.service";

@@ -2,12 +2,12 @@
 
 import React, { useState } from "react";
 import { useForm } from "@tanstack/react-form";
-import { createAuthClientFactory } from "@repo/auth/client";
-import { Button } from "@repo/ui/components/shadcn/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@repo/ui/components/shadcn/card";
-import { Input } from "@repo/ui/components/shadcn/input";
-import { Label } from "@repo/ui/components/shadcn/label";
-import { Alert, AlertDescription } from "@repo/ui/components/shadcn/alert";
+import { createAuthClientFactory } from "@deployer/auth/client";
+import { Button } from "@deployer/ui/components/shadcn/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@deployer/ui/components/shadcn/card";
+import { Input } from "@deployer/ui/components/shadcn/input";
+import { Label } from "@deployer/ui/components/shadcn/label";
+import { Alert, AlertDescription } from "@deployer/ui/components/shadcn/alert";
 import { AlertCircle, Loader2, Shield } from "lucide-react";
 
 /**
@@ -15,14 +15,14 @@ import { AlertCircle, Loader2, Shield } from "lucide-react";
  * the manage-auth middleware). Signs in through the SAME Better Auth server
  * the web app uses (`/api/auth`), then navigates to the console.
  *
- * TanStack Form + @repo/ui — same stack as the web app's sign-in page.
+ * TanStack Form + @deployer/ui — same stack as the web app's sign-in page.
  */
 const auth = createAuthClientFactory({ basePath: "/api/auth" });
 
-type LoginViewProps = {
+interface LoginViewProps {
 	redirect?: string;
 	error?: string | null;
-};
+}
 
 export default function LoginView({ redirect = "/manage/web-app", error }: LoginViewProps) {
 	const [message, setMessage] = useState<string | null>(error ?? null);
@@ -95,7 +95,7 @@ export default function LoginView({ redirect = "/manage/web-app", error }: Login
 											autoComplete="username"
 											value={field.state.value}
 											onBlur={field.handleBlur}
-											onChange={(e) => field.handleChange(e.target.value)}
+											onChange={(e) => { field.handleChange(e.target.value); }}
 											aria-invalid={field.state.meta.errors.length > 0}
 											aria-describedby={field.state.meta.errors.length > 0 ? "login-email-error" : undefined}
 										/>
@@ -119,7 +119,7 @@ export default function LoginView({ redirect = "/manage/web-app", error }: Login
 											autoComplete="current-password"
 											value={field.state.value}
 											onBlur={field.handleBlur}
-											onChange={(e) => field.handleChange(e.target.value)}
+											onChange={(e) => { field.handleChange(e.target.value); }}
 											aria-invalid={field.state.meta.errors.length > 0}
 											aria-describedby={field.state.meta.errors.length > 0 ? "login-password-error" : undefined}
 										/>

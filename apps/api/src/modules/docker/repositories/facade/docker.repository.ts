@@ -1,32 +1,33 @@
 import { Injectable, Inject, Optional, Logger, NotFoundException } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { and, desc, eq, inArray } from "drizzle-orm";
-import { DockerService } from "@repo/nest-docker/services/docker.service";
-import { ScannerContainerManagerService } from "@repo/nest-docker/services/scanner-container-manager.service";
+import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { ScannerContainerManagerService } from "@deployer/nest-docker/services/scanner-container-manager.service";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import { ContainerDockerodeNormalizer } from "../../shared/container-dockerode-normalizer.service";
-import { CONTAINER_LINK_RESOLVER } from "@repo/nest-docker/services/container-link-resolver.interface";
-import type { IContainerLinkResolver } from "@repo/nest-docker/services/container-link-resolver.interface";
+import { CONTAINER_LINK_RESOLVER } from "@deployer/nest-docker/services/container-link-resolver.interface";
+import { IContainerLinkResolver } from "@deployer/nest-docker/services/container-link-resolver.interface";
 import {
   dockerImageSecurityLifecycle,
   dockerImageSecurityScanHistory,
   dockerImageSecurityScans,
-} from "@repo/nest-schema/global/docker-security-scan";
-import { dockerRuntimeActivities } from "@repo/nest-schema/global/docker-runtime-activity";
-import { deployments, projects, services } from "@repo/nest-schema/global/deployment";
-import type { DockerContainerListInput } from "@repo/api-contracts/modules/docker/containers/shared";
-import type { DockerImageListInput } from "@repo/api-contracts/modules/docker/images/list";
-import { dockerodeContainerListSchema, dockerodeImageSummarySchema, dockerodeImageInspectSchema, dockerodeNetworkSummarySchema, dockerodeVolumeListResponseSchema, type DockerodeContainerList, type DockerodeImageSummary, type DockerodeImageInspect, type DockerodeNetworkSummary, type DockerodeVolumeEntry } from "@repo/contracts-entities";
+} from "@deployer/nest-schema/global/runtime/docker-security-scan";
+import { dockerRuntimeActivities } from "@deployer/nest-schema/global/runtime/docker-runtime-activity";
+import { deployments } from "@deployer/nest-schema/global/runtime/deployment";
+import { projects, services } from "@deployer/nest-schema/global/project/deployment";
+import type { DockerContainerListInput } from "@deployer/runtime-contracts/modules/docker/containers/shared";
+import type { DockerImageListInput } from "@deployer/runtime-contracts/modules/docker/images/list";
+import { dockerodeContainerListSchema, dockerodeImageSummarySchema, dockerodeImageInspectSchema, dockerodeNetworkSummarySchema, dockerodeVolumeListResponseSchema, type DockerodeContainerList, type DockerodeImageSummary, type DockerodeImageInspect, type DockerodeNetworkSummary, type DockerodeVolumeEntry } from "@deployer/contracts-entities";
 import z from "zod/v4"
-import { isRecord } from "@repo/type-guards"
-import type { DockerNetworkListInput } from "@repo/api-contracts/modules/docker/networks/list";
-import type { DockerRegistryListInput } from "@repo/api-contracts/modules/docker/registries/list";
-import type { DockerStackListInput } from "@repo/api-contracts/modules/docker/stacks/list";
-import type { DockerVolumeListInput } from "@repo/api-contracts/modules/docker/volumes/list";
+import { isRecord } from "@deployer/type-guards"
+import type { DockerNetworkListInput } from "@deployer/runtime-contracts/modules/docker/networks/list";
+import type { DockerRegistryListInput } from "@deployer/runtime-contracts/modules/docker/registries/list";
+import type { DockerStackListInput } from "@deployer/runtime-contracts/modules/docker/stacks/list";
+import type { DockerVolumeListInput } from "@deployer/runtime-contracts/modules/docker/volumes/list";
 import type {
   DockerRuntimeActivityDetailQueryInput,
   DockerRuntimeActivityListInput,
-} from "@repo/api-contracts/modules/docker/runtime/activity";
+} from "@deployer/runtime-contracts/modules/docker/runtime/activity";
 import {
   dockerContainerLinkedDeploymentSchema,
   dockerContainerLinkedProjectSchema,
@@ -59,7 +60,7 @@ import {
   type DockerStack,
   type DockerVulnerabilityEntry,
   type DockerVolume,
-} from "@repo/contracts-entities";
+} from "@deployer/contracts-entities";
 
 interface ParsedFilterEntry { operator: string; value: unknown }
 
@@ -868,7 +869,7 @@ export class DockerRepository {
         logsStreamId: null,
       };
 
-      return this.normalizer.normalizeContainer(container as DockerodeContainerList, enrichment);
+      return this.normalizer.normalizeContainer(container, enrichment);
     });
 
     const filtered = mapped.filter((item) => {
@@ -1232,7 +1233,7 @@ export class DockerRepository {
     const repoTags = this
       .toStringArray(inspect.RepoTags as string | string[] | undefined)
       .filter((tag) => tag !== "<none>:<none>");
-    const repoDigests = this.toStringArray(inspect.RepoDigests as string | string[] | undefined);
+    const repoDigests = this.toStringArray(inspect.RepoDigests);
     const resolvedPrimaryTag = this.resolvePrimaryImageTag(repoTags, repoDigests);
     const fallbackRepository = this.buildFallbackImageRepository(inspectId);
     const fallbackRegistry = "local";
@@ -1317,15 +1318,15 @@ export class DockerRepository {
       scanSummary: securityScan.scanSummary ?? null,
       usedByContainerIds: [...new Set(usedByContainerIds)],
       runtimeConfig: {
-        env: this.toStringArray(config.Env as string | string[] | undefined),
+        env: this.toStringArray(config.Env),
         exposedPorts:
           typeof config.ExposedPorts === "object" && config.ExposedPorts !== null
             ? Object.keys(config.ExposedPorts)
             : [],
         workingDir: typeof config.WorkingDir === "string" ? config.WorkingDir : null,
         user: typeof config.User === "string" && config.User.length > 0 ? config.User : null,
-        entrypoint: this.toStringArray(config.Entrypoint as string | string[] | undefined),
-        command: this.toStringArray(config.Cmd as string | string[] | undefined),
+        entrypoint: this.toStringArray(config.Entrypoint),
+        command: this.toStringArray(config.Cmd),
       },
     });
   }
@@ -3115,7 +3116,7 @@ export class DockerRepository {
     progressOptions: ScannerExecutionProgressOptions = {},
   ): Promise<ScannerExecutionResult> {
     const startedAt = Date.now();
-    const scannerType = scanner as "trivy" | "grype" | "dive";
+    const scannerType = scanner;
 
     // Try shared container first
     const ready = await this.scannerContainerManager.ensureContainerRunning(scannerType);

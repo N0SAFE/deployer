@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { DockerRuntimeEvent } from "@repo/contracts-entities";
-import type { DockerService } from "@repo/nest-docker/services/docker.service";
+import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
+import type { DockerService } from "@deployer/nest-docker/services/docker.service";
 
 import { SwarmActivityEnricherService } from "./swarm-activity-enricher.service";
 
@@ -135,7 +135,7 @@ describe("SwarmActivityEnricherService", () => {
 		// returning empty — that must not swallow the event itself.
 		dockerService.listAllSwarmTasks = vi.fn(async () => {
 			throw new Error("This node is not a swarm manager");
-		}) as never;
+		});
 		const enricher = new SwarmActivityEnricherService(dockerService);
 
 		const result = await enricher.enrichEvent(serviceEvent());

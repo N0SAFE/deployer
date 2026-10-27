@@ -28,9 +28,9 @@ function createCleanupHarness(params: {
   };
 
   const repository = new DockerRepository(
-    dockerService as never,
-    scannerContainerManager as never,
-    {} as never,
+    dockerService,
+    scannerContainerManager,
+    {},
     {} as never,
   );
 

@@ -1,9 +1,10 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 import * as systeminformation from "systeminformation";
-import { NotFoundError } from "@repo/errors";
-import { analyticsReportSchema } from "@repo/api-contracts/modules/analytics/schemas";
+import { NotFoundError } from "@deployer/errors";
+import { analyticsReportSchema } from "@deployer/identity-contracts/modules/analytics/schemas";
+import { AnalyticsRepository } from "../repositories/analytics.repository";
 import {
-    AnalyticsRepository,
     type AnalyticsDeploymentRow,
 } from "../repositories/analytics.repository";
 
@@ -116,7 +117,7 @@ export class AnalyticsService {
             deploymentsCount: 0,
             successRate: 0,
             averageDeployTime: 0,
-            failureReasons: [] as Array<{ reason: string; count: number }>,
+            failureReasons: [] as { reason: string; count: number }[],
             rollbackCount: 0,
         }));
 
@@ -288,7 +289,7 @@ export class AnalyticsService {
     }
 
     async getDeploymentUsage(timeRange: string, projectId?: string, userId?: string) {
-        void userId;
+        userId;
         const { start, end, bucketMs, bucketCount } = this.bucketPlan(timeRange, "day");
         const serviceIds = projectId ? await this.serviceIdsByProject(projectId) : undefined;
         const deployments = await this.repository.deploymentsInRange(start, end, serviceIds);
@@ -398,8 +399,11 @@ export class AnalyticsService {
 
         const totalDeployments = deploymentAnalytics?.data.reduce((sum: number, d: { deploymentsCount: number }) => sum + d.deploymentsCount, 0) ?? 0;
 
+        // Minted up front so the persisted JSON carries its own id: assigning it after the
+        // insert left `content.id` empty in the stored row, and `getReport` returned "".
+        const reportId = randomUUID();
         const content = {
-            id: "",
+            id: reportId,
             name: `Analytics report — ${formatTime(start)} → ${formatTime(end)}`,
             generatedAt: new Date(),
             period: { start, end },
@@ -428,6 +432,7 @@ export class AnalyticsService {
 
         const sizeBytes = format === "json" ? Buffer.byteLength(JSON.stringify(content), "utf8") : 0;
         const { id } = await this.repository.createReport({
+            id: reportId,
             name: content.name,
             format,
             periodStart: start,
@@ -437,7 +442,6 @@ export class AnalyticsService {
             sizeBytes,
             status: "completed",
         });
-        content.id = id;
 
         return {
             reportId: id,
@@ -449,7 +453,7 @@ export class AnalyticsService {
 
     async getReport(reportId: string) {
         const report = await this.repository.getReport(reportId);
-        if (!report || report.content == null) {
+        if (report?.content == null) {
             throw new NotFoundError(`Report ${reportId} not found`);
         }
         // The persisted JSON is validated against the contract schema at the

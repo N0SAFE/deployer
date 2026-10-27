@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Subject, filter } from "rxjs";
 
 import { ReadinessStateService } from "./readiness-state.service";
-import { AppLifecyclePhase, type AppLifecycleEvent } from "@repo/nest-lifecycle";
-import type { AppLifecycleService } from "@repo/nest-lifecycle";
-import type { SupervisorOrchestratorService } from "@repo/nest-supervisor-core/supervisor-orchestrator.service";
-import type { SupervisorEventBus, SupervisorEvent } from "@repo/nest-supervisor-core/supervisor-event.bus";
+import { AppLifecyclePhase, type AppLifecycleEvent } from "@deployer/nest-lifecycle";
+import type { AppLifecycleService } from "@deployer/nest-lifecycle";
+import type { SupervisorOrchestratorService } from "@deployer/nest-supervisor-core/supervisor-orchestrator.service";
+import type { SupervisorEventBus, SupervisorEvent } from "@deployer/nest-supervisor-core/supervisor-event.bus";
 
 /**
  * This service is what makes the readiness endpoint I/O-free: the work happens
@@ -175,7 +175,7 @@ describe("ReadinessStateService", () => {
       supervisorId: "s1",
       type: "registered",
       at: "2026-01-01T00:00:00.000Z",
-    } as never);
+    });
     await vi.advanceTimersByTimeAsync(300);
 
     expect(harness.getHealthOfAll.mock.calls.length).toBe(before);

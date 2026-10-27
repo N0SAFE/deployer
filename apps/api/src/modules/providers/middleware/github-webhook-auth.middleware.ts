@@ -42,11 +42,11 @@ import { os } from "@orpc/server";
 import type { ORPCError } from "@orpc/server";
 import { verify } from "@octokit/webhooks-methods";
 import { Logger } from "@nestjs/common";
-import { standardErrorOptions, STANDARD_DOMAIN_ERROR_DEFS } from "@repo/orpc-utils";
+import { standardErrorOptions, STANDARD_DOMAIN_ERROR_DEFS } from "@deployer/orpc-utils";
 import type { GithubAppsRepository } from "@/modules/providers/code/github/repositories/github-apps.repository";
 import type { WebhookIdempotencyService } from "@/modules/providers/code/github/services/webhook-idempotency.service";
 import type { ORPCGlobalContext } from "@/core/modules/auth/orpc/orpc-context";
-import { type GithubWebhookInput } from "@repo/api-contracts";
+import { type GithubWebhookInput } from "@deployer/fleet-contracts";
 
 export interface GithubWebhookContext {
     webhook: {
@@ -146,7 +146,7 @@ export async function resolveGithubWebhookAuth(
  */
 export function githubWebhookAuth(deps: GithubWebhookAuthDeps) {
     return os
-        .$context<ORPCGlobalContext>()
+        .$context()
         .errors(STANDARD_DOMAIN_ERROR_DEFS)
         .middleware(async ({ context, next, errors }, input: GithubWebhookInput) => {
             // Bind the contract-defined UNAUTHORIZED thrower for the pure

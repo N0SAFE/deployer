@@ -4,14 +4,14 @@ import type {
     ResolveDeploymentStoragePolicyInput,
 } from "../base/storage-policy-resolver.interface";
 import { deploymentStoragePolicySchema } from "../base/storage-policy.schema";
-import { isRecord, isObjectLike } from "@repo/type-guards"
+import { isRecord, isObjectLike } from "@deployer/type-guards"
 
 @Injectable()
 
 /**
  * Resolves the deployment storage policy from the service's custom data
  * (when set via the service metadata). Uses runtime type guards from
- * @repo/type-guards in place of `as Record<string, unknown>` casts to
+ * @deployer/type-guards in place of `as Record<string, unknown>` casts to
  * avoid the runtime lie.
  */
 export class ServiceCustomDataStoragePolicyResolverService implements DeploymentStoragePolicyResolver {

@@ -65,7 +65,7 @@ describe('UserRepository', () => {
       providers: [
         {
           provide: UserRepository,
-          useFactory: () => new UserRepository(mockDatabaseService as any),
+          useFactory: () => new UserRepository(mockDatabaseService),
         },
       ],
     }).compile();

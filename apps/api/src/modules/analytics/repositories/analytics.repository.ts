@@ -1,17 +1,17 @@
 import { Injectable } from "@nestjs/common";
-import { ConflictError } from "@repo/errors";
+import { ConflictError } from "@deployer/errors";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
 import {
     deployments,
     deploymentRollbacks,
     services,
     projects,
-} from "@repo/nest-schema/global/deployment";
-import { user } from "@repo/nest-schema/global/auth";
+} from "@deployer/nest-schema/global";
+import { user } from "@deployer/nest-schema/global";
 import {
     analyticsReports,
     analyticsReportConfigs,
-} from "@repo/nest-schema/global/analytics";
+} from "@deployer/nest-schema/global";
 import { and, asc, count, desc, eq, gte, inArray, lte, type SQL } from "drizzle-orm";
 
 /** A deployment row projected to the fields analytics needs (dates coerced). */
@@ -153,6 +153,7 @@ export class AnalyticsRepository {
     // ─── Reports ────────────────────────────────────────────────────────────
 
     async createReport(input: {
+        id?: string;
         name: string;
         format: "json" | "pdf" | "csv";
         periodStart: Date;
@@ -166,6 +167,7 @@ export class AnalyticsRepository {
         const [row] = await db
             .insert(analyticsReports)
             .values({
+                id: input.id,
                 name: input.name,
                 format: input.format,
                 periodStart: input.periodStart,
@@ -184,7 +186,7 @@ export class AnalyticsRepository {
     }
 
     async listReports(limit: number, offset: number, status?: string): Promise<{
-        data: Array<{
+        data: {
             id: string;
             name: string;
             status: string;
@@ -193,7 +195,7 @@ export class AnalyticsRepository {
             periodEnd: Date;
             format: string;
             size: number;
-        }>;
+        }[];
         total: number;
     }> {
         const db = this.databaseService.db;
@@ -280,7 +282,7 @@ export class AnalyticsRepository {
     }
 
     async listReportConfigs(limit: number, offset: number): Promise<{
-        data: Array<{
+        data: {
             id: string;
             name: string;
             description: string | null;
@@ -290,7 +292,7 @@ export class AnalyticsRepository {
             recipients: string[];
             createdAt: Date;
             updatedAt: Date;
-        }>;
+        }[];
         total: number;
     }> {
         const db = this.databaseService.db;

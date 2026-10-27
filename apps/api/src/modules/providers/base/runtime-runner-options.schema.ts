@@ -1,5 +1,5 @@
 /**
- * Runtime Runner Options Schema — SSOT lives in @repo/contracts-entities
+ * Runtime Runner Options Schema — SSOT lives in @deployer/contracts-entities
  * (entities/deployment/runtime-runner-options.schema.ts) as a discriminated
  * union on `runner`. This file re-exports it for local consumers.
  */
@@ -15,4 +15,4 @@ export {
     RUNTIME_RUNNER_KINDS,
     type RuntimeRunnerKind,
     type RuntimeRunnerOptions,
-} from "@repo/contracts-entities";
+} from "@deployer/contracts-entities";

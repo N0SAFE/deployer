@@ -1,7 +1,7 @@
 import { createORPCClient } from '@orpc/client'
 import type { RouterContract } from '@orpc/contract'
 import { OpenAPILink } from '@orpc/openapi/fetch'
-import { ObservableLinkPlugin } from '@repo/orpc-utils'
+import { ObservableLinkPlugin } from '@deployer/orpc-utils'
 import type {
     SharedOrpcResponseMeta,
     SharedOrpcResponseTracker,

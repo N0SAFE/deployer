@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { DeploymentTriggerInput } from "@repo/api-contracts/modules/deployment/crud";
+import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import z from "zod/v4";
 import {
     deploymentStorageBindingSchema,

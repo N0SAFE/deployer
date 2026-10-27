@@ -1,17 +1,17 @@
 import React, { useEffect, useState } from "react";
-import type { ManagedWebState } from "@repo/api-contracts";
+import type { ManagedWebState } from "@deployer/fleet-contracts";
 import type { PageProps } from "@nestjs-ssr/react";
 import { useForm } from "@tanstack/react-form";
 import { toast } from "sonner";
 import { Activity, Cable, Globe, Loader2, Plug, Power, RefreshCw, ShieldAlert, Trash2 } from "lucide-react";
-import { Badge } from "@repo/ui/components/shadcn/badge";
-import { Button } from "@repo/ui/components/shadcn/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@repo/ui/components/shadcn/card";
-import { Input } from "@repo/ui/components/shadcn/input";
-import { Label } from "@repo/ui/components/shadcn/label";
-import { Separator } from "@repo/ui/components/shadcn/separator";
-import { Skeleton } from "@repo/ui/components/shadcn/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@repo/ui/components/shadcn/alert";
+import { Badge } from "@deployer/ui/components/shadcn/badge";
+import { Button } from "@deployer/ui/components/shadcn/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@deployer/ui/components/shadcn/card";
+import { Input } from "@deployer/ui/components/shadcn/input";
+import { Label } from "@deployer/ui/components/shadcn/label";
+import { Separator } from "@deployer/ui/components/shadcn/separator";
+import { Skeleton } from "@deployer/ui/components/shadcn/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@deployer/ui/components/shadcn/alert";
 import { getErrorMessage } from "../lib/errors";
 import {
   useDisableManagedWebTunnel,
@@ -22,10 +22,10 @@ import {
   useToggleManagedWeb,
 } from "../lib/managed-web-hooks";
 
-export type ManagedWebAppViewProps = {
+export interface ManagedWebAppViewProps {
   /** SSR-seeded state (the @Render controller fetches it server-side). */
   state: ManagedWebState;
-};
+}
 
 type LedTone = "green" | "amber" | "red" | "gray";
 
@@ -286,7 +286,7 @@ export default function ManagedWebAppView({ state: ssrState }: PageProps<Managed
                         className="font-mono"
                         value={field.state.value}
                         onBlur={field.handleBlur}
-                        onChange={(e) => field.handleChange(e.target.value)}
+                        onChange={(e) => { field.handleChange(e.target.value); }}
                       />
                     )}
                   </originForm.Field>
@@ -329,7 +329,7 @@ export default function ManagedWebAppView({ state: ssrState }: PageProps<Managed
                             className="font-mono"
                             value={field.state.value}
                             onBlur={field.handleBlur}
-                            onChange={(e) => field.handleChange(e.target.value)}
+                            onChange={(e) => { field.handleChange(e.target.value); }}
                           />
                         )}
                       </tunnelForm.Field>
@@ -358,7 +358,7 @@ export default function ManagedWebAppView({ state: ssrState }: PageProps<Managed
                       onClick={() => {
                         if (!confirmRemoveTunnel) {
                           setConfirmRemoveTunnel(true);
-                          setTimeout(() => setConfirmRemoveTunnel(false), 3000);
+                          setTimeout(() => { setConfirmRemoveTunnel(false); }, 3000);
                           return;
                         }
                         setConfirmRemoveTunnel(false);

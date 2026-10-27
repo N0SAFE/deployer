@@ -1,6 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { request as httpRequest } from "node:http";
-import type { SetupPostSetupVerification, SetupVerificationTarget } from "@repo/contracts-entities";
+import type { SetupPostSetupVerification, SetupVerificationTarget } from "@deployer/contracts-entities";
 
 import { EnvService } from "@/config/env/env.module";
 import { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";

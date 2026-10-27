@@ -6,7 +6,7 @@ import {
     providersCatalog,
     providerConfigValidators,
     providerSchemasCatalog,
-} from "@repo/provider-schema";
+} from "@deployer/provider-schema";
 
 @Injectable()
 export class ProviderSchemaService {

@@ -11,10 +11,10 @@ import {
   resolveViewComponent,
 } from '@nestjs-ssr/react/client';
 
-// Shared Tailwind v4 theme (same as the web app): @repo/ui globals.
+// Shared Tailwind v4 theme (same as the web app): @deployer/ui globals.
 import './global.css';
 import { viewQueryClient } from './lib/query-client';
-import ThemeProvider from '@repo/ui/components/theme-provider';
+import ThemeProvider from '@deployer/ui/components/theme-provider';
 
 const componentName = window.__COMPONENT_NAME__;
 const initialProps = window.__INITIAL_STATE__ || {};
@@ -96,7 +96,7 @@ function composeWithLayout(
   ViewComponent: React.ComponentType<any>,
   props: any,
   context?: any,
-  layouts: Array<{ layout: React.ComponentType<any>; props?: any }> = [],
+  layouts: { layout: React.ComponentType<any>; props?: any }[] = [],
 ): React.ReactElement {
   // Start with the page component
   let result = <ViewComponent {...props} />;
@@ -150,7 +150,7 @@ function composeWithLayout(
 //
 // The server's array is the whole truth; this loop only maps names to components.
 const layoutsData = window.__LAYOUTS__ ?? [];
-const layouts: Array<{ layout: React.ComponentType<any>; props?: any }> = [];
+const layouts: { layout: React.ComponentType<any>; props?: any }[] = [];
 
 for (const { name: layoutName, props: layoutProps } of layoutsData) {
   const layoutEntry = componentMap.find(

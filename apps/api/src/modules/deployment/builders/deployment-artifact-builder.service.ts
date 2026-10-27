@@ -4,8 +4,9 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import type { DeploymentSourceCheckoutContext } from "@/modules/providers/base/source-provider.interface";
 import { GitService } from "@/core/modules/git/git/services/git.service";
-import { DockerService } from "@repo/nest-docker/services/docker.service";
+import { DockerService } from "@deployer/nest-docker/services/docker.service";
 import { DeploymentProviderBuilderRunnerStateMachineService } from "@/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
+import { BuilderRegistryService } from "./builder-registry.service";
 
 export type DeploymentBuilderKind =
     | "dockerfile"
@@ -44,6 +45,7 @@ export class DeploymentArtifactBuilderService {
         private readonly gitService: GitService,
         private readonly dockerService: DockerService,
         private readonly deploymentStateMachineService: DeploymentProviderBuilderRunnerStateMachineService,
+        private readonly builderRegistry: BuilderRegistryService,
     ) {}
 
     async buildContainerizedArtifact(input: BuildArtifactInput): Promise<string | null> {
@@ -126,45 +128,38 @@ export class DeploymentArtifactBuilderService {
             customCommands: input.customCommands ?? null,
         });
 
-        const imageTag = this.createImageTag({
-            serviceId: input.serviceId,
+        // ── DISPATCH GOES THROUGH THE REGISTRY, NOT AN if-CHAIN ──────────────
+        // The inline chain this replaces ended with the comment "nixpacks/buildpack/
+        // railpack remain containerized via docker image build", which then called
+        // `buildImage` with no `dockerfileName` and threw "Dockerfile not found". The
+        // registry now refuses an unavailable strategy with a precise reason instead,
+        // and `supportedBuilders()` is what the catalog should be rendered from.
+        //
+        // Everything above this line is builder-INDEPENDENT (checkout, extraction,
+        // guard, custom-command Dockerfile); only the artifact production moves into a
+        // strategy. That split is deliberate — the shared prologue stays in one place.
+        const strategy = this.builderRegistry.resolve(effectiveBuilder);
+
+        const result = await strategy.build({
+            buildContextPath,
             deploymentId: input.deploymentId,
-            builder: effectiveBuilder,
+            serviceId: input.serviceId,
+            dockerfileName: customDockerfileName,
+            imageTag: this.createImageTag({
+                serviceId: input.serviceId,
+                deploymentId: input.deploymentId,
+                builder: effectiveBuilder,
+            }),
         });
 
-        // For the docker_compose builder, build every image declared in the
-        // compose file (instead of a single `docker build` of the repo root).
-        if (effectiveBuilder === "docker_compose") {
-            const composeFile = this.findComposeFile(buildContextPath);
-            if (!composeFile) {
-                // Guard already validated one exists, but be defensive.
-                throw new BadRequestException(
-                    "Builder 'docker_compose' requires a compose file in the source context",
-                );
-            }
-            const { projectName } = await this.dockerService.buildCompose(buildContextPath, {
-                composeFileName: composeFile,
-                projectName: `deployer-${input.deploymentId.slice(0, 12)}`,
-            });
-            // Defer to the compose project for the runtime, not a single tag.
-            return null;
-        }
-
-        await this.dockerService.buildImage(buildContextPath, imageTag, {
-            ...(customDockerfileName ? { dockerfileName: customDockerfileName, autoCreateDockerfile: false } : {}),
-        });
-        return imageTag;
+        // `null` image is a legitimate result for compose: the runtime is addressed by
+        // project name, not by a tag.
+        return result.image;
     }
 
-    private findComposeFile(contextPath: string): string | null {
-        const candidates = [
-            "docker-compose.yml",
-            "docker-compose.yaml",
-            "compose.yml",
-            "compose.yaml",
-        ];
-        return candidates.find((candidate) => existsSync(path.join(contextPath, candidate))) ?? null;
-    }
+    // `findComposeFile` moved into `DockerComposeBuilderStrategy` — the compose-file
+    // probe is that strategy's precondition, and keeping a copy here would let the two
+    // disagree about which filenames count.
 
     private hasCustomCommands(customCommands: CustomCommandsConfig | null): boolean {
         const buildCommand = customCommands?.buildCommand?.trim() ?? null;
@@ -322,10 +317,22 @@ export class DeploymentArtifactBuilderService {
             return;
         }
 
-        // nixpacks/buildpack/railpack remain containerized via docker image build.
+        // nixpacks/buildpack/railpack have no context guard here on purpose: they
+        // produce their own build plan from the source tree, so "is there a compose
+        // file / Dockerfile" is not a precondition. Their availability is answered by
+        // `BuilderRegistryService` (`isAvailable()`), which is the honest place for it.
     }
 
-    private createImageTag(input: {
+    /**
+     * Tag for the artifact.
+     *
+     * Kept on the service (not in each strategy) so the tag SCHEME stays uniform across
+     * builders — two strategies inventing their own tag shape would make cleanup,
+     * pruning and cache tagging impossible to implement once, later.
+     *
+     * Public so a strategy can ask for the same tag without re-deriving the format.
+     */
+    createImageTag(input: {
         serviceId: string;
         deploymentId: string;
         builder: DeploymentBuilderKind;

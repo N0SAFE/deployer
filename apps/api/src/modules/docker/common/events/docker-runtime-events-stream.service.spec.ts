@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { Subject } from "rxjs";
-import { dockerContainerRuntimeEventSchema } from "@repo/contracts-entities";
+import { dockerContainerRuntimeEventSchema } from "@deployer/contracts-entities";
 import { DockerRuntimeEventsStreamService } from "./docker-runtime-events-stream.service";
 
 describe("DockerRuntimeEventsStreamService", () => {

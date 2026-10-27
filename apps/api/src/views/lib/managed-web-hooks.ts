@@ -5,7 +5,7 @@
  *  ORPC + RQ invalidation, exactly like the web app). */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ManagedWebState } from "@repo/api-contracts";
+import type { ManagedWebState } from "@deployer/fleet-contracts";
 import { orpc } from "./orpc";
 
 /** The getState query options (key reused for invalidation). */

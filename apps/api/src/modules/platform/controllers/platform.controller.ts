@@ -12,19 +12,14 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { standardErrorOptions } from "@repo/orpc-utils";
+import { standardErrorOptions } from "@deployer/orpc-utils";
 
-import {
-	heartbeatAppInstanceContract,
-	listAppInstancesContract,
-	registerAppInstanceContract,
-	revokeAppInstanceContract,
-} from "@repo/api-contracts";
+import { heartbeatAppInstanceContract, listAppInstancesContract, registerAppInstanceContract, revokeAppInstanceContract } from "@deployer/fleet-contracts";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { AllowAnonymous } from "@/core/modules/auth/decorators/decorators";
 import { AuthCoreService } from "@/core/modules/auth/services/auth-core.service";
+import { AppInstanceService } from "@/core/modules/platform-ingress/services/app-instance.service";
 import {
-	AppInstanceService,
 	STALE_AFTER_MS,
 } from "@/core/modules/platform-ingress/services/app-instance.service";
 import { rateLimit, requireAppInstance } from "../orpc/middlewares";

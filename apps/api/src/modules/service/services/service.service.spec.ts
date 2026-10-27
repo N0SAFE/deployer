@@ -4,8 +4,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { EMPTY } from 'rxjs';
 import { ServiceService } from './service.service';
-import { PreviewTopologyService } from './preview-topology.service';
-import { RuntimeConfigurationAccessorService } from '@/core/modules/configuration/services/runtime-configuration-accessor.service';
+import type { PreviewTopologyService } from './preview-topology.service';
+import type { RuntimeConfigurationAccessorService } from '@/core/modules/configuration/services/runtime-configuration-accessor.service';
 
 describe('ServiceService', () => {
     let service: ServiceService;
@@ -202,7 +202,7 @@ describe('ServiceService', () => {
         it('should create a service and return it', async () => {
             mockRepository.create.mockResolvedValue(mockService);
 
-            const result = await service.createService({ name: 'My Service', projectId: 'proj-1', type: 'web' } as any, 'requester-1');
+            const result = await service.createService({ name: 'My Service', projectId: 'proj-1', type: 'web' }, 'requester-1');
 
             expect(result).toEqual(mockService);
             expect(mockRepository.create).toHaveBeenCalledWith(expect.objectContaining({ name: 'My Service' }));

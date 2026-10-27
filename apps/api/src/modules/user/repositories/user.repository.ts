@@ -1,15 +1,18 @@
 import { Injectable } from "@nestjs/common";
-import { GlobalDatabaseService } from "../../../core/modules/database/services/global-database.service";
-import { user } from "@repo/nest-schema/global/auth";
+import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
+import { user } from "@deployer/nest-schema/global";
 import { eq, and, count, gte, lte, gt, lt } from "drizzle-orm";
 import { listBuilder } from "@/core/utils/drizzle-filter.utils";
 import { randomUUID } from "crypto";
+// The user DTOs belong to the IDENTITY contract package. They previously came from the
+// monolith-wide `@deployer/contracts-entities/types`, which was split per owner — a `bff` import here
+// resolved nothing because the BFF does not own the user domain.
 import type {
   UserCreateInput,
   UserUpdateInput,
   User,
-} from "@repo/api-contracts/types";
-import type { UserListInput } from "@repo/api-contracts/modules/user/list";
+} from "@deployer/identity-contracts/types";
+import type { UserListInput } from "@deployer/identity-contracts/modules/user/list";
 
 // Re-export types for repository use
 export type CreateUserInput = UserCreateInput;

@@ -5,7 +5,7 @@ import type {
   DockerContainerTerminalInputBodyInput,
   DockerContainerTerminalOpenBodyInput,
   DockerContainerTerminalStreamQueryInput,
-} from "@repo/api-contracts/modules/docker/containers/shared";
+} from "@deployer/runtime-contracts/modules/docker/containers/shared";
 import { DockerContainerRuntimeMeshService } from "../mesh/docker-container-runtime-mesh.service";
 import { DockerContainerRuntimeService } from "../runtime/docker-container-runtime.service";
 

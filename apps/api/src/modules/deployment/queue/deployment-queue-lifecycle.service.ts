@@ -18,7 +18,7 @@ import type {
     DeploymentQueueHeartbeatResult,
     DeploymentQueueJob,
     DeploymentQueueTransitionResult,
-} from "@repo/contracts-entities";
+} from "@deployer/contracts-entities";
 import { MeshQueueTransitionService } from "@/core/modules/mesh/services/mesh-queue-transition.service";
 import { DeploymentQueueEventService } from "./deployment-queue-event.service";
 

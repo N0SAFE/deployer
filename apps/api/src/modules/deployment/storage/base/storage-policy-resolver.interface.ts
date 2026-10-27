@@ -1,4 +1,4 @@
-import type { DeploymentTriggerInput } from "@repo/api-contracts/modules/deployment/crud";
+import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import type { ResolvedRuntimeConfiguration } from "@/core/modules/configuration/schemas/runtime-configuration.schema";
 import type { DeploymentStoragePolicy } from "./storage-policy.schema";
 

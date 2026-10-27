@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { DependencyTemplateConfig } from "@repo/contracts-entities";
+import type { DependencyTemplateConfig } from "@deployer/contracts-entities";
 import type { ServiceDag } from "./service-dag.service";
 
 export type FleetRollbackScope = "local" | "full";

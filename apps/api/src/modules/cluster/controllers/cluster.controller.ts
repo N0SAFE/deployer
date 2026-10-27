@@ -1,7 +1,7 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { clusterContract } from "@repo/api-contracts";
+import { clusterContract } from "@deployer/fleet-contracts";
 import { ClusterService } from "../services/cluster.service";
 import { ClusterSwarmEventsService } from "../events/cluster-swarm-events.service";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";

@@ -7,7 +7,7 @@ import {
     dockerContainerRuntimeEventSchema,
     dockerImageRuntimeEventSchema,
     dockerUnknownRuntimeEventSchema,
-} from "@repo/contracts-entities";
+} from "@deployer/contracts-entities";
 import { DockerRuntimeStreamOrchestratorService } from "./docker-runtime-stream-orchestrator.service";
 
 describe("DockerRuntimeStreamOrchestratorService", () => {

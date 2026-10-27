@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { HealthIndicatorService } from "@nestjs/terminus";
 
-import { AppLifecyclePhase } from "@repo/nest-lifecycle";
+import { AppLifecyclePhase } from "@deployer/nest-lifecycle";
 
 import { ReadinessStateService } from "../services/readiness-state.service";
 

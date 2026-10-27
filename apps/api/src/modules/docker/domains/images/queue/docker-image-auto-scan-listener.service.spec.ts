@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { Subject } from "rxjs";
-import { dockerContainerRuntimeEventSchema, dockerImageRuntimeEventSchema } from "@repo/contracts-entities";
+import { dockerContainerRuntimeEventSchema, dockerImageRuntimeEventSchema } from "@deployer/contracts-entities";
 import { DockerImageAutoScanListenerService } from "./docker-image-auto-scan-listener.service";
 
 async function flushAsyncWork(): Promise<void> {
@@ -63,7 +63,7 @@ function createServiceHarness(options?: {
     dockerRuntimeMeshRelayService as never,
     dockerImagesApplicationService as never,
     dockerImageSecurityRepository as never,
-    envService as never,
+    envService,
   );
 
   return {
@@ -135,7 +135,7 @@ describe("DockerImageAutoScanListenerService", () => {
       { relayRuntimeEvent: vi.fn() } as never,
       dockerImagesApplicationService as never,
       dockerImageSecurityRepository as never,
-      envService as never,
+      envService,
     );
 
     serviceWithCustomStream.onModuleInit();

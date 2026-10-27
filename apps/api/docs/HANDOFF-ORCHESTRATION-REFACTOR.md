@@ -534,7 +534,7 @@ import { ExpressAdapter } from '@nestjs/platform-express'
 import express from 'express'
 import { OrchestrationModule } from './core/orchestrator/orchestrator.module'
 import { buildAllowedOrigins, normalizeUrl, isLocalhostOrigin } from './core/utils/cors.utils'
-import { logger } from '@repo/logger'
+import { logger } from '@deployer/logger'
 
 const GATEWAY_PORT = Number(process.env.API_PORT ?? 3005)
 const log = logger.scope('GatewayOrchestrator')

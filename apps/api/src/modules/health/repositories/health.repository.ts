@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { GlobalDatabaseService } from '../../../core/modules/database/services/global-database.service';
+import { GlobalDatabaseService } from '@/core/modules/database/services/global-database.service';
 
 @Injectable()
 export class HealthRepository {

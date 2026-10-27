@@ -10,7 +10,7 @@ import type {
   DockerVolume,
   DockerVolumeEntity,
   DockerEntityKind,
-} from "@repo/contracts-entities"
+} from "@deployer/contracts-entities"
 
 /**
  * Tiny TTL-bounded cache used by the unified `docker.entity` list endpoint.

@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { Observable } from "rxjs";
+import type { Observable } from "rxjs";
 import type {
   DockerContainerCreateDirectoryBodyInput,
   DockerContainerDeletePathBodyInput,
@@ -20,15 +20,15 @@ import type {
   DockerContainerTerminalOpenBodyInput,
   DockerContainerTerminalStreamQueryInput,
   DockerContainerWriteFileBodyInput,
-} from "@repo/api-contracts/modules/docker/containers/shared";
+} from "@deployer/runtime-contracts/modules/docker/containers/shared";
 import {
   dockerContainerLinkPathSchema,
   type DockerContainerLinkPath,
   type DockerContainerLogEntry,
   type DockerContainerProcessEntry,
-} from "@repo/contracts-entities";
-import { AppLogger } from "@repo/logger";
-import { DockerService as CoreDockerService } from "@repo/nest-docker/services/docker.service";
+} from "@deployer/contracts-entities";
+import { AppLogger } from "@deployer/logger";
+import { DockerService as CoreDockerService } from "@deployer/nest-docker/services/docker.service";
 import { DockerContainerLinksRepository } from "../../../repositories/containers/links/docker-container-links.repository";
 import { DockerContainerRuntimeMeshService } from "../mesh/docker-container-runtime-mesh.service";
 import { DockerContainerLogsDomainService } from "../runtime/docker-container-logs-domain.service";
@@ -36,7 +36,7 @@ import { DockerContainerRuntimeService } from "../runtime/docker-container-runti
 import { DockerContainerShellDomainService } from "../runtime/docker-container-shell-domain.service";
 import { DockerContainerResolutionService } from "./docker-container-resolution.service";
 
-import { AppError } from "@repo/errors";
+import { AppError } from "@deployer/errors";
 interface DockerTerminalStreamEvent {
   sessionId: string;
   timestamp: Date;

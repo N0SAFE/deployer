@@ -1,9 +1,9 @@
 import { Injectable, Logger, Optional } from "@nestjs/common";
 import type { OnModuleInit } from "@nestjs/common";
 import type { OnModuleDestroy } from "@nestjs/common";
-import { SwarmClusterService } from "@repo/nest-swarm";
+import { SwarmClusterService } from "@deployer/nest-swarm";
 import { DeploymentRepository } from "./../repositories/deployment.repository";
-import type { DeploymentQueueLifecycleService } from "./deployment-queue-lifecycle.service";
+import { DeploymentQueueLifecycleService } from "./deployment-queue-lifecycle.service";
 import type { DeploymentRow } from "./../repositories/deployment.repository";
 
 /**

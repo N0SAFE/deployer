@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { UserRepository, type CreateUserInput, type UpdateUserInput, type GetUsersInput } from '../repositories/user.repository';
+import { UserRepository } from '../repositories/user.repository';
+import { type CreateUserInput, type UpdateUserInput, type GetUsersInput } from '../repositories/user.repository';
 
 @Injectable()
 export class UserService {

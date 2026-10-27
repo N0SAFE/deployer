@@ -2,9 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { nanoid } from 'nanoid';
 import { eq } from 'drizzle-orm';
-import { Roles } from '@repo/auth/permissions';
-import * as schema from '@repo/nest-schema/global';
-import { AuthCoreService } from '../../core/modules/auth/services/auth-core.service';
+import { Roles } from '@deployer/auth/permissions';
+import * as schema from '@deployer/nest-schema/global';
+import { AuthCoreService } from '@/core/modules/auth/services/auth-core.service';
 import { GlobalDatabaseService } from '@/core/modules/database/global/global-database.service';
 
 // Temporary seed user email for when other auth methods fail

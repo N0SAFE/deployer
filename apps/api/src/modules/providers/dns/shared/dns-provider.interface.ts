@@ -1,4 +1,4 @@
-import type { DnsRecordType } from "@repo/contracts-common";
+import type { DnsRecordType } from "@deployer/contracts-common";
 
 /**
  * DNS Provider Interface — abstract contract every DNS provider adapter

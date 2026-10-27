@@ -1,7 +1,7 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { analyticsContract } from "@repo/api-contracts";
+import { analyticsContract } from "@deployer/identity-contracts";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { AnalyticsService } from "../services/analytics.service";
 

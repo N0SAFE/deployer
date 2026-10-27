@@ -132,7 +132,7 @@ Maximum parallel runtimes is controlled by `E2E_MAX_CONCURRENCY` env var (defaul
 3. Plugin hook: onDatabaseCreated()
 
 4. Apply runtime environment variables
-   - mock env from @repo/env/mock
+   - mock env from @deployer/env/mock
    - DATABASE_URL, AUTH_SECRET, TRAEFIK paths, NODE_LOCAL_DB_PATH
    - saves snapshot for later restore
 
@@ -309,7 +309,7 @@ it("validates HTTP metadata via oRPC tracker", async () => {
 
   const meta = context.orpcTracker.getLast();
   expect(meta?.status).toBe(200);
-  expect(meta?.requestUrl).toContain("/setup/status");
+  expect(meta?.requestUrl).toContain("/setup/state");
   expect(meta?.headers["content-type"]).toContain("application/json");
 });
 ```
@@ -335,7 +335,7 @@ it("rejects malformed JSON", async () => {
 it("HTTP and oRPC return consistent setup status", async () => {
   const context = await getSharedApiRuntimeContext();
   const [httpRes, orpcRes] = await Promise.all([
-    context.http.get("/setup/status").expect(200),
+    context.http.get("/setup/state").expect(200),
     context.orpc.setup.getStatus(),
   ]);
   expect(orpcRes.needsSetup).toBe(httpRes.body.needsSetup);

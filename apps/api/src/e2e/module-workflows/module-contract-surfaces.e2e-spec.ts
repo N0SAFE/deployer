@@ -97,7 +97,7 @@ describe("Module contract surfaces e2e: public + auth boundaries", () => {
         context.orpc.domain.listProjectDomains({
           params: { projectId: randomUUID() },
         }),
-      "/domains/projects",
+      "/domains/",
     );
   });
 

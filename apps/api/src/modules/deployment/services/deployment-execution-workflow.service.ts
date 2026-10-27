@@ -1,8 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import type { DeploymentObservabilityContext } from "@repo/contracts-entities";
+import { AppError } from "@deployer/errors";
+import type { DeploymentObservabilityContext } from "@deployer/contracts-entities";
 import { DeploymentRepository } from "../repositories/deployment.repository";
 import { RuntimeRunnerRegistryService } from "@/modules/runners/runtime-runner-registry.service";
-import { DomainRoutingService, type RouteSyncResult } from "@/core/modules/domain/services/domain-routing.service";
+import { DomainRoutingService } from "@/core/modules/domain/services/domain-routing.service";
+import { type RouteSyncResult } from "@/core/modules/domain/services/domain-routing.service";
 import type {
     BuildArtifactResult,
     HealthGateConfig,
@@ -15,7 +17,7 @@ import {
     type DeploymentStorageBinding,
 } from "../storage/base/storage-provider.interface";
 import { runtimeRunnerOptionsSchema } from "@/modules/providers/base/runtime-runner-options.schema";
-import { isRecord, isObjectLike } from "@repo/type-guards"
+import { isRecord, isObjectLike } from "@deployer/type-guards"
 
 
 
@@ -196,14 +198,123 @@ export class DeploymentExecutionWorkflowService {
         });
     }
 
+    /**
+     * Actually REVERT a service to a previously-successful deployment.
+     *
+     * ── WHAT WAS BROKEN ────────────────────────────────────────────────────────
+     * Rollback was a status machine, not an operation. The flow was:
+     *
+     *   rollbackDeployment()      → create a row, enqueue a `rollback` job
+     *   handleClaimedQueueJob()   → mark it `in_progress` (metadata only)
+     *   completeQueueJob()        → persistRollbackExecutionResult() → status "success"
+     *
+     * Nothing between those steps touched the running system. A user could "roll back",
+     * get a green checkmark, and remain on the broken version — the worst possible
+     * failure mode for a deploy platform, because it removes the operator's assumption
+     * that recovery worked. `SwarmRuntimeRunnerService.rollbackService()` existed the
+     * whole time and was never called.
+     *
+     * ── WHY RE-DEPLOY THE TARGET'S ARTIFACT INSTEAD OF CALLING `rollbackService` ──
+     * `rollbackService()` asks the swarm engine to apply the service's own
+     * `RollbackConfig` — i.e. "the previous stable spec". That is a different contract
+     * from "go back to THIS deployment": it is undefined how many deploys it steps back,
+     * and it cannot target a deployment three versions ago. The user picks a specific
+     * target deployment, so we deploy that deployment's exact image. That is deterministic
+     * and matches what the UI promises.
+     *
+     * ── WHY NO BUILD ───────────────────────────────────────────────────────────
+     * The target already built successfully, so its image exists. Rebuilding would
+     * re-run a build that can fail for reasons unrelated to the rollback (a deleted
+     * branch, a moved tag), and would take minutes. `buildArtifact` is therefore bypassed
+     * and `executeRuntime` is called with the known image.
+     */
+    async executeRollbackDeployment(input: {
+        rollbackDeploymentId: string;
+        targetDeploymentId: string;
+        rollbackId: string | null;
+        fromDeploymentId: string | null;
+        runtimeRunnerKind?: string | null;
+        observability?: DeploymentObservabilityContext | null;
+    }): Promise<{ containerImage: string }> {        const { rollbackDeploymentId, targetDeploymentId, rollbackId, fromDeploymentId, observability } = input;
+
+        const [rollbackDeployment, targetDeployment] = await Promise.all([
+            this.getDeploymentById(rollbackDeploymentId),
+            this.getDeploymentById(targetDeploymentId),
+        ]);
+
+        const image = targetDeployment.containerImage;
+        if (!image) {
+            // Fail loudly and precisely: without the target's image there is nothing to
+            // revert TO, and silently reporting success is exactly the bug being fixed.
+            throw new AppError(
+                `Deployment '${targetDeploymentId}' has no container image recorded, so there is nothing to roll back to. ` +
+                    `Its build may have been external or pruned.`,
+                "ROLLBACK_TARGET_HAS_NO_IMAGE",
+            );
+        }
+
+        await this.deploymentRepository.insertLog(rollbackDeploymentId, {
+            level: "info",
+            message: `Rolling back to deployment ${targetDeploymentId} (image ${image})`,
+            phase: "deploying",
+            stage: "rollback",
+            step: "rollback_redeploy",
+            correlationId: observability?.correlationId ?? rollbackDeploymentId,
+            metadata: {
+                rollbackId,
+                fromDeploymentId,
+                targetDeploymentId,
+                image,
+                structured: true,
+            },
+        });
+
+        // `runnerType` is not a deployment column — a normal deploy reads it from the
+        // queue job's execution plan. A rollback job carries it too; absent that, the
+        // registry defaults to `docker`, which is the same default a deploy gets.
+        const runtimeRunnerKind = input.runtimeRunnerKind ?? null;
+        const projectId = await this.deploymentRepository.getServiceProjectId(rollbackDeployment.serviceId);
+
+        await this.runtimeRunnerRegistryService.execute(runtimeRunnerKind, {
+            deployment: {
+                deploymentId: rollbackDeploymentId,
+                serviceId: rollbackDeployment.serviceId,
+                projectId,
+                deploymentContainerName: targetDeployment.containerName,
+                deploymentContainerImage: image,
+                healthCheckUrl: targetDeployment.healthCheckUrl ?? null,
+            },
+            // Reuse the target's artifact verbatim — this is a redeploy of a known-good
+            // build, not a new build.
+            artifact: {
+                containerImage: image,
+                containerName: targetDeployment.containerName,
+                artifactDigest: null,
+                artifactSizeBytes: null,
+                buildLogsUrl: null,
+            },
+            healthGateConfig: {
+                maxRetries: this.ROLLBACK_HEALTH_MAX_RETRIES,
+                retryIntervalMs: this.ROLLBACK_HEALTH_RETRY_INTERVAL_MS,
+            },
+            observability: observability ?? null,
+        });
+
+        return { containerImage: image };
+    }
+
+    /** Rollback health gate. Deliberately generous: a revert should not fail because
+     *  the service is slow to converge, and the caller can always retry. */
+    private readonly ROLLBACK_HEALTH_MAX_RETRIES = 10;
+    private readonly ROLLBACK_HEALTH_RETRY_INTERVAL_MS = 5_000;
+
     async persistRollbackExecutionResult(
         rollbackDeploymentId: string,
         rollbackId: string | null,
         fromDeploymentId: string | null,
         observability?: DeploymentObservabilityContext | null,
         result?: Record<string, unknown>,
-    ) {
-        const completedAt = this.getResultDate(result, "rollbackCompletedAt") ?? new Date();
+    ) {        const completedAt = this.getResultDate(result, "rollbackCompletedAt") ?? new Date();
         const rollbackDeployment = await this.getDeploymentById(rollbackDeploymentId);
         const metadata = this.mergeMetadata(rollbackDeployment.metadata, {
             rollbackExecution: {

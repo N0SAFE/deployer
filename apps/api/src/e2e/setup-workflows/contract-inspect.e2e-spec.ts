@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 // These procedures belong to the SETUP APP, not the API, and live on
 // `setupAppContract`: the setup app is what runs and reports the startup steps.
-import { setupAppContract } from "@repo/api-contracts";
+import { setupAppContract } from "@deployer/bff-contracts";
 // oRPC v2 renamed both helpers:
 //   `isContractProcedure`             -> the contract check is now a brand test
 //   `getEventIteratorSchemaDetails`   -> `getAsyncIteratorObjectSchemaDetails`
@@ -41,7 +41,7 @@ describe("contract observable detection", () => {
     // The two markings ObservableLinkPlugin accepts as "observable".
     const standard = Reflect.get(outputSchema, "~standard");
     expect(standard).toBeDefined();
-    const hasObsSymbol = Object.getOwnPropertySymbols(standard!).some((s) =>
+    const hasObsSymbol = Object.getOwnPropertySymbols(standard).some((s) =>
       s.toString().includes("OBSERVABLE"),
     );
     const hasEventIterator = getAsyncIteratorObjectSchemaDetails(outputSchema) !== undefined;

@@ -1,23 +1,24 @@
 import { Logger, Module } from '@nestjs/common';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import * as globalSchema from '@repo/nest-schema/global';
+import * as globalSchema from '@deployer/nest-schema/global';
 import { EnvModule } from "@/config/env/env.module";
-import { LocalDatabaseModule } from "@repo/nest-database-local/local-database.module";
-import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from "@repo/nest-database-core/database-connection";
-import { GlobalDatabaseService } from '../core/modules/database/global/global-database.service';
-import { AuthModule } from '../core/modules/auth/auth.module';
+import { LocalDatabaseModule } from "@deployer/nest-database-local/local-database.module";
+import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from "@deployer/nest-database-core/database-connection";
+import { GlobalDatabaseService } from '@/core/modules/database/global/global-database.service';
+import { AuthModule } from '@/core/modules/auth/auth.module';
 import { EnvService } from "@/config/env/env.module";
 import { createBetterAuth } from '@/config/auth/auth';
 import { CliAuthService } from './services/cli-auth.service';
 import { SeedCommand } from './commands/seed.command/index';
 import { MigrateCommand } from './commands/migrate.command';
+import { BackfillEnvSecretsCommand } from './commands/backfill-env-secrets.command';
 import { ResetCommand } from './commands/reset.command/index';
 import { CreateDefaultAdminCommand } from './commands/create-default-admin.command';
 import { NodeStartupCheckCommand } from './commands/node-startup-check.command';
 import { SetupDbCommand } from './commands/setup-db.command';
 import { MigrationJournalService } from '@/core/utils/migration-journal.service';
-import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
+import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository";
 import { NodeStateModule } from '@/core/modules/node-state/node-state.module';
 
 const logger = new Logger('CLIModule');
@@ -99,6 +100,7 @@ function resolveCliDatabaseUrl(envService: EnvService, nodeConfig: NodeConfigRep
     SetupDbCommand,
     SeedCommand,
     MigrateCommand,
+    BackfillEnvSecretsCommand,
     ResetCommand,
     CreateDefaultAdminCommand,
     NodeStartupCheckCommand,

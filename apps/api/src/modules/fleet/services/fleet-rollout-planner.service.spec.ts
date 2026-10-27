@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { ServiceDagService } from "./service-dag.service";
 import { FleetRolloutPlannerService } from "./fleet-rollout-planner.service";
-import type { DependencyTemplateConfig } from "@repo/contracts-entities";
+import type { DependencyTemplateConfig } from "@deployer/contracts-entities";
 
 const mkConfig = (rolloutMode: DependencyTemplateConfig["rolloutMode"]): Pick<DependencyTemplateConfig, "rolloutMode" | "retryPolicy"> => ({
     rolloutMode,

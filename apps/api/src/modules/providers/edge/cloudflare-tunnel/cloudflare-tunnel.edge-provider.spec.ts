@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { PublicLane } from "@repo/contracts-entities/entities/ingress/index";
+import type { PublicLane } from "@deployer/contracts-entities/entities/ingress/index";
 
 import type { EnvService } from "@/config/env/env.module";
 import type { EdgeContext } from "@/core/modules/edge/edge-provider";

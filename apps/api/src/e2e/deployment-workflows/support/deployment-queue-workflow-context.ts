@@ -13,7 +13,7 @@ import type {
   DeploymentQueueHeartbeatInput,
   DeploymentQueueJob,
   DeploymentQueueTransitionResult,
-} from "@repo/contracts-entities";
+} from "@deployer/contracts-entities";
 import { DeploymentQueueLifecycleService } from "@/modules/deployment/queue/deployment-queue-lifecycle.service";
 import { getSharedApiRuntimeContext } from "@/e2e/utils/shared-api-runtime";
 

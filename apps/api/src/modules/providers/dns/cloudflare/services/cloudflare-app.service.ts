@@ -21,10 +21,10 @@ import { IngressLanesService } from "@/core/modules/platform-ingress/services/in
 import { EdgeProviderRegistry } from "@/core/modules/edge/edge-provider.registry";
 import { toCloudflareErrorMessage } from "./cloudflare.helpers";
 
-import { AppError } from "@repo/errors";
-type DnsProviderRow = typeof import("@repo/nest-schema/global").dnsProviders.$inferSelect;
-export type DnsProviderRuntimeState = import("@repo/nest-schema/global").DnsProviderRuntimeState;
-export type DnsProviderFeatures = import("@repo/nest-schema/global").DnsProviderFeatures;
+import { AppError } from "@deployer/errors";
+type DnsProviderRow = typeof import("@deployer/nest-schema/global").dnsProviders.$inferSelect;
+export type DnsProviderRuntimeState = import("@deployer/nest-schema/global").DnsProviderRuntimeState;
+export type DnsProviderFeatures = import("@deployer/nest-schema/global").DnsProviderFeatures;
 
 const cloudflareCredentialsSchema = z.object({
     apiToken: z.string().min(1),

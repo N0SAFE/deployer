@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException, type OnModuleInit } from "@nestjs/common";
-import type { DeploymentListInput } from "@repo/api-contracts/modules/deployment/list";
+import type { DeploymentListInput } from "@deployer/runtime-contracts/modules/deployment/list";
 import type { DeploymentSummary } from "../services/deployment-mesh.service";
 import { DeploymentMeshService } from "../services/deployment-mesh.service";
 import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
@@ -129,7 +129,7 @@ export class DeploymentMeshHandlerRegistrar implements OnModuleInit {
                 ...(input.status ? { status: { operator: "eq", value: input.status } } : {}),
                 ...(input.environment ? { environment: { operator: "eq", value: input.environment } } : {}),
             },
-        } as DeploymentListInput;
+        };
     }
 
     private toSummary(deployment: {

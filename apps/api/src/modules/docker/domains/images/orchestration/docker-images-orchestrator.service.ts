@@ -1,13 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import type {
   DockerImageListInput,
-} from "@repo/api-contracts/modules/docker/images/list";
-import type { DockerImageInspectQueryInput } from "@repo/api-contracts/modules/docker/images/inspect";
-import type { DockerImageInspectStreamQueryInput } from "@repo/api-contracts/modules/docker/images/stream-inspect";
+} from "@deployer/runtime-contracts/modules/docker/images/list";
+import type { DockerImageInspectQueryInput } from "@deployer/runtime-contracts/modules/docker/images/inspect";
+import type { DockerImageInspectStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/images/stream-inspect";
 import type {
   DockerImageSecurityScanStreamQueryInput,
-} from "@repo/api-contracts/modules/docker/security/scanning/images/stream";
-import { AppLogger } from "@repo/logger";
+} from "@deployer/runtime-contracts/modules/docker/security/scanning/images/stream";
+import { AppLogger } from "@deployer/logger";
 import { DockerImagesApplicationService } from "../application/docker-images-application.service";
 import type { EnsureImageSecurityScanOptions } from "../security/docker-image-security-scan.service";
 

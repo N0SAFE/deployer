@@ -22,15 +22,15 @@ import {
     timer,
 } from "rxjs";
 import { map } from "rxjs/operators";
-import { CoreEventStreamPoolService } from "@repo/nest-events";
-import { AbstractDomainEventStreamService } from "@repo/nest-events";
-import { DockerService } from "@repo/nest-docker/services/docker.service";
-import { SwarmClusterService } from "@repo/nest-swarm";
-import { SwarmFleetService } from "@repo/nest-swarm";
-import { ClusterNodeInventoryRepository } from "@repo/nest-nodes/cluster-node-inventory.repository";
-import type { ClusterSnapshot, SwarmServiceRuntime, SwarmTaskRuntime } from "@repo/contracts-entities";
-import { clusterNodeInventoryRowSchema, type ClusterNodeInventoryRow } from "@repo/api-contracts";
-import type { ClusterMasterView } from "@repo/api-contracts";
+import { CoreEventStreamPoolService } from "@deployer/nest-events";
+import { AbstractDomainEventStreamService } from "@deployer/nest-events";
+import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { SwarmClusterService } from "@deployer/nest-swarm";
+import { SwarmFleetService } from "@deployer/nest-swarm";
+import { ClusterNodeInventoryRepository } from "@deployer/nest-nodes/cluster-node-inventory.repository";
+import type { ClusterSnapshot, SwarmServiceRuntime, SwarmTaskRuntime } from "@deployer/contracts-entities";
+import { clusterNodeInventoryRowSchema, type ClusterNodeInventoryRow } from "@deployer/fleet-contracts";
+import type { ClusterMasterView } from "@deployer/fleet-contracts";
 
 /** Docker engine event types relevant to swarm cluster state. */
 const SWARM_EVENT_TYPES = new Set(["node", "service", "task"]);
@@ -128,7 +128,7 @@ export class ClusterSwarmEventsService
             "master",
             () => this.masterSubject.pipe(
                 filter((m): m is NonNullable<ClusterMasterView> => m !== null),
-            ) as Observable<ClusterMasterView>,
+            ),
         );
     }
 
@@ -136,7 +136,7 @@ export class ClusterSwarmEventsService
     observeServices(): Observable<SwarmServiceRuntime[]> {
         return this.observeDomainPooledStream<SwarmServiceRuntime[]>(
             "services",
-            () => this.servicesSubject.asObservable() as Observable<SwarmServiceRuntime[]>,
+            () => this.servicesSubject.asObservable(),
         );
     }
 
@@ -147,7 +147,7 @@ export class ClusterSwarmEventsService
             key,
             () => this.tasksSubject.pipe(
                 map((tasks) => {
-                    let filtered = tasks as SwarmTaskRuntime[];
+                    let filtered = tasks;
                     if (serviceId) filtered = filtered.filter((t) => t.serviceId === serviceId);
                     if (nodeId) filtered = filtered.filter((t) => t.nodeId === nodeId);
                     return filtered;
@@ -168,11 +168,11 @@ export class ClusterSwarmEventsService
 
         // Subscribe and dispatch swarm events with reconnection
         this.dockerEvents$?.subscribe({
-            next: (event) => this.handleDockerEvent(event),
+            next: (event) => { this.handleDockerEvent(event); },
             error: (err) => {
                 this.logger.error(`Docker event stream error: ${err}`);
                 // Reconnect after delay
-                setTimeout(() => this.startDockerEventStream(), 5_000);
+                setTimeout(() => { this.startDockerEventStream(); }, 5_000);
             },
         });
 
@@ -206,8 +206,8 @@ export class ClusterSwarmEventsService
                 };
 
                 stream.on("data", onData);
-                stream.on("error", (err: Error) => subscriber.error(err));
-                stream.on("end", () => subscriber.complete());
+                stream.on("error", (err: Error) => { subscriber.error(err); });
+                stream.on("end", () => { subscriber.complete(); });
 
                 return () => {
                     stream.removeListener("data", onData);

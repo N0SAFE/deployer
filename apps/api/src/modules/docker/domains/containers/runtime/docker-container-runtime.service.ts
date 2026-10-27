@@ -18,7 +18,7 @@ import type {
   DockerContainerTerminalOpenBodyInput,
   DockerContainerTerminalStreamQueryInput,
   DockerContainerWriteFileBodyInput,
-} from "@repo/api-contracts/modules/docker/containers/shared";
+} from "@deployer/runtime-contracts/modules/docker/containers/shared";
 import {
   dockerContainerLogEntrySchema,
   dockerContainerProcessEntrySchema,
@@ -29,9 +29,9 @@ import {
   type DockerContainerProcessEntry,
   type DockerFileEntry,
   type DockerTerminalProfile,
-} from "@repo/contracts-entities";
-import { DockerService as CoreDockerService } from "@repo/nest-docker/services/docker.service";
-import { isRecord, isObjectLike } from "@repo/type-guards"
+} from "@deployer/contracts-entities";
+import { DockerService as CoreDockerService } from "@deployer/nest-docker/services/docker.service";
+import { isRecord, isObjectLike } from "@deployer/type-guards"
 
 
 

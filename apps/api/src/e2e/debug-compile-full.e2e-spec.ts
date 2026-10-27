@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { Test } from '@nestjs/testing'
-import { getMockEnv } from '@repo/env/mock'
+import { getMockEnv } from '@deployer/env/mock'
 import { InitializationService } from '@/core/modules/setup/services/initialization.service'
 
 describe('debug appmodule compile', () => {

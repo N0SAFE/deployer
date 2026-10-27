@@ -2,9 +2,9 @@ import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/com
 import type { Subscription } from "rxjs";
 import { Observable } from "rxjs";
 import z from "zod/v4";
-import { dockerRuntimeEventSchema, type DockerRuntimeEvent } from "@repo/contracts-entities";
-import { AppLogger } from "@repo/logger";
-import { contractBuilder } from "@repo/nest-events";
+import { dockerRuntimeEventSchema, type DockerRuntimeEvent } from "@deployer/contracts-entities";
+import { AppLogger } from "@deployer/logger";
+import { contractBuilder } from "@deployer/nest-events";
 import { BaseMeshService, InternalBaseMeshService } from "@/core/modules/mesh/services/base-mesh.service";
 import { SystemMeshTopicService } from "@/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
 import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";

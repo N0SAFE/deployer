@@ -80,7 +80,7 @@ import { requireAuth, publicAccess } from "@/core/modules/auth/orpc/middlewares"
 import { assertAuthenticated } from "@/core/modules/auth/orpc/types";
 
 // Types
-import type { RoleName } from "@repo/auth/permissions";
+import type { RoleName } from "@deployer/auth/permissions";
 import type { UserSession } from "@/core/modules/auth/utils/auth-utils";
 
 // =============================================================================

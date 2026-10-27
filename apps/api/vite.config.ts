@@ -76,7 +76,7 @@ export default defineConfig(({ isSsrBuild }) => ({
       '@': resolve(__dirname, 'src'),
     },
     // Dedupe is REQUIRED, not an optimisation: this is a monorepo whose
-    // workspace packages (e.g. @repo/orpc-utils) carry their own nested
+    // workspace packages (e.g. @deployer/orpc-utils) carry their own nested
     // react-query. Without dedupe the SSR bundle gets TWO react-query
     // instances, so a component reading a provider set by the other instance
     // throws "No QueryClient set" — which is exactly how the setup wizard
@@ -92,17 +92,17 @@ export default defineConfig(({ isSsrBuild }) => ({
     ],
   },
   ssr: {
-    // @repo/ui, lucide-react, sonner etc are workspace/local deps the SSR
+    // @deployer/ui, lucide-react, sonner etc are workspace/local deps the SSR
     // bundle must inline (vite would externalize node_modules otherwise).
     noExternal: [
       '@nestjs-ssr/react',
-      '@repo/ui',
+      '@deployer/ui',
       // Workspace ORPC helpers must be inlined too: loaded externally, they
       // resolve their OWN @tanstack/react-query (see the dedupe note above).
-      '@repo/orpc-utils',
-      '@repo/api-contracts',
-      '@repo/contracts-entities',
-      '@repo/errors',
+      '@deployer/orpc-utils',
+      '@deployer/bff-contracts',
+      '@deployer/contracts-entities',
+      '@deployer/errors',
       '@tanstack/react-query',
       '@tanstack/react-form',
       'next-themes',

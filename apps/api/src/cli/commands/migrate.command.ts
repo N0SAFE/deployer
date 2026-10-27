@@ -2,8 +2,8 @@ import { Command, CommandRunner } from 'nest-commander'
 import { Injectable, Logger } from '@nestjs/common'
 import { migrate as migratePg } from 'drizzle-orm/node-postgres/migrator'
 import { sql } from 'drizzle-orm'
-import { fileURLToPath } from 'url'
-import { LocalDatabaseService } from "@repo/nest-database-local/local-database.service";
+import { GLOBAL_MIGRATIONS_DIR } from '@deployer/nest-schema'
+import { LocalDatabaseService } from "@deployer/nest-database-local/local-database.service";
 import { GlobalDatabaseService } from '@/core/modules/database/global/global-database.service';
 
 /*
@@ -32,7 +32,7 @@ export class MigrateCommand extends CommandRunner {
     async run(): Promise<void> {
         // ── Phase 1: Local (SQLite) verification ─────────────────────────────
         // SQLite tables are created by `LocalDatabaseMigrationService` in
-        // `@repo/nest-database-local`, which runs from its `onModuleInit` — BEFORE
+        // `@deployer/nest-database-local`, which runs from its `onModuleInit` — BEFORE
         // this command executes. Here we just verify the result for observability.
         this.logger.log(`🚀 Verifying local (SQLite) database...`);
         try {
@@ -59,9 +59,12 @@ export class MigrateCommand extends CommandRunner {
 
         // ── Phase 3: Apply migrations ──────────────────────────────────────
         this.logger.log(`🚀 Running global (Postgres) database migrations...`);
-        const migrationsFolder = fileURLToPath(
-            new URL("../../config/drizzle/global/migrations", import.meta.url),
-        );
+        // Resolved by `@deployer/nest-schema`, NOT by a `../..` count from this file:
+        // the migrations live at `packages/nest/schema/migrations/global`. A
+        // hardcoded depth here kept pointing at the old `apps/api/src/config`
+        // location, so the migrator reported `Can't find meta/_journal.json file`
+        // and applied nothing. See `resolveGlobalMigrationsDir` for the full story.
+        const migrationsFolder = GLOBAL_MIGRATIONS_DIR;
 
         try {
             await migratePg(this.globalDatabaseService.db, { migrationsFolder });

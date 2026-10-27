@@ -3,7 +3,7 @@
 import { existsSync, readFileSync } from 'fs'
 import { execSync, spawn, spawnSync } from 'child_process'
 import http from 'http'
-import { apiEnvIsValid, validateApiEnvSafe } from '@repo/env'
+import { apiEnvIsValid, validateApiEnvSafe } from '@deployer/env'
 import zod from 'zod/v4'
 import figlet from 'figlet'
 

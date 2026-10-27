@@ -1,5 +1,5 @@
 /**
- * Runner Option Policies — SSOT lives in @repo/contracts-entities
+ * Runner Option Policies — SSOT lives in @deployer/contracts-entities
  * (entities/deployment/runtime-runner-options.schema.ts), a discriminated
  * union on `runner`. This file re-exports the per-runner member schemas so
  * the runner services keep their precise per-runner validation.
@@ -13,7 +13,7 @@ import {
     railpackRuntimeRunnerOptionsSchema,
     runtimeRunnerOptionsSchema,
     type RuntimeRunnerOptions,
-} from "@repo/contracts-entities";
+} from "@deployer/contracts-entities";
 
 export {
     dockerRuntimeRunnerOptionsSchema,

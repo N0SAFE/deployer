@@ -1,7 +1,8 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { BadRequestError } from "@repo/errors";
+import { BadRequestError } from "@deployer/errors";
+import type {
+  Observable} from "rxjs";
 import {
-  Observable,
   defer,
   finalize,
   filter,
@@ -16,7 +17,7 @@ import {
   takeUntil,
   timer,
 } from "rxjs";
-import type { DockerRuntimeEventsStreamQueryInput } from "@repo/api-contracts/modules/docker/runtime/shared";
+import type { DockerRuntimeEventsStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/runtime/shared";
 import {
   dockerBuilderRuntimeEventSchema,
   dockerConfigRuntimeEventSchema,
@@ -31,11 +32,11 @@ import {
   dockerUnknownRuntimeEventSchema,
   dockerVolumeRuntimeEventSchema,
   type DockerRuntimeEvent,
-} from "@repo/contracts-entities";
-import { DockerService as CoreDockerService } from "@repo/nest-docker/services/docker.service";
-import { AbstractDomainEventStreamService } from "@repo/nest-events";
-import { CoreEventStreamPoolService } from "@repo/nest-events";
-import { isRecord, isObjectLike } from "@repo/type-guards"
+} from "@deployer/contracts-entities";
+import { DockerService as CoreDockerService } from "@deployer/nest-docker/services/docker.service";
+import { AbstractDomainEventStreamService } from "@deployer/nest-events";
+import { CoreEventStreamPoolService } from "@deployer/nest-events";
+import { isRecord, isObjectLike } from "@deployer/type-guards"
 
 type DockerKnownSource = Exclude<DockerRuntimeEvent["source"], "unknown">;
 interface StreamQuery {

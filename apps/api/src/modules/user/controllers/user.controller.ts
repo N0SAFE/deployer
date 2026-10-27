@@ -1,12 +1,12 @@
 import { Controller } from "@nestjs/common";
-import { BadRequestError, NotFoundError, ConflictError } from "@repo/errors";
+import { BadRequestError, NotFoundError, ConflictError } from "@deployer/errors";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { userContract } from "@repo/api-contracts";
-import { standardErrorOptions } from "@repo/orpc-utils";
+import { userContract } from "@deployer/identity-contracts";
+import { standardErrorOptions } from "@deployer/orpc-utils";
 import { UserService } from "../services/user.service";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
-import { PLATFORM_ROLES } from "@repo/auth/permissions";
+import { PLATFORM_ROLES } from "@deployer/auth/permissions";
 
 @Controller()
 export class UserController {
@@ -55,7 +55,7 @@ export class UserController {
                 image: user.image,
                 createdAt: this.toDate(user.createdAt),
                 updatedAt: this.toDate(user.updatedAt),
-                role: user.role as typeof PLATFORM_ROLES[number],
+                role: user.role,
                 banned: user.banned ?? undefined,
             };
         });

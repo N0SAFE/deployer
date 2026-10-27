@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { PreviewTemplateConfig } from "@repo/contracts-entities";
+import type { PreviewTemplateConfig } from "@deployer/contracts-entities";
 
 /**
  * T033 — Preview environment overlays and secret scoping.

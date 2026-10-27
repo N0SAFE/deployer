@@ -1,5 +1,5 @@
 import { Module } from "@nestjs/common";
-import { DatabaseModule } from "../../core/modules/database/database.module";
+import { DatabaseModule } from "@/core/modules/database/database.module";
 import { ProjectController } from "./controllers/project.controller";
 import { ProjectRepository } from "./repositories/project.repository";
 import { WebhookRepository } from "./repositories/webhook.repository";

@@ -15,18 +15,18 @@
  */
 
 import { Injectable, Logger } from "@nestjs/common";
-import { BadRequestError, ServiceUnavailableError } from "@repo/errors";
+import { BadRequestError, ServiceUnavailableError } from "@deployer/errors";
 
 import { EnvService } from "@/config/env/env.module";
 import { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
 import { PlatformConfigService } from "@/core/modules/platform-ingress/services/platform-config.service";
 import { platformTraefikContainerName } from "@/core/modules/platform-ingress/services/platform-names";
-import { SupervisorOrchestratorService } from "@repo/nest-supervisor-core/supervisor-orchestrator.service";
+import { SupervisorOrchestratorService } from "@deployer/nest-supervisor-core/supervisor-orchestrator.service";
 import { ManagedWebSupervisorService } from "@/core/modules/supervisors/platform/managed-web-supervisor.service";
 import { TraefikConfigRefresher } from "@/core/modules/traefik/services/traefik-config-refresher.service";
 import { CloudflareAppService } from "@/modules/providers/dns/cloudflare/services/cloudflare-app.service";
 import { CloudflareTunnelService } from "@/modules/providers/dns/cloudflare/services/cloudflare-tunnel.service";
-import type { ManagedWebState } from "@repo/api-contracts";
+import type { ManagedWebState } from "@deployer/fleet-contracts";
 
 /** Identifier of the managed-web supervisor — referenced via the class
  *  static so it can never drift from the registered instance. */

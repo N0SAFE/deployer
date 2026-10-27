@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import type { DockerService } from "@repo/nest-docker/services/docker.service";
+import type { DockerService } from "@deployer/nest-docker/services/docker.service";
 import { SwarmComposeRealizerService } from "./swarm-compose-realizer.service";
 
 const FULL_COMPOSE = `
@@ -83,7 +83,9 @@ describe("SwarmComposeRealizerService", () => {
             createSwarmService: vi.fn().mockResolvedValue({ ID: "svc-1" }),
             updateSwarmService: vi.fn().mockResolvedValue(undefined),
         };
-        realizer = new SwarmComposeRealizerService(dockerService as unknown as DockerService);
+        // `as never` at the boundary: the spec supplies the Docker methods under test,
+        // while the constructor takes the full `DockerService`.
+        realizer = new SwarmComposeRealizerService(dockerService as never);
     });
 
     describe("parseComposeYaml", () => {

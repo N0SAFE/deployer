@@ -14,19 +14,19 @@
  */
 
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
-import { AppError, BadRequestError, ConflictError, TimeoutError } from "@repo/errors";
+import { AppError, BadRequestError, ConflictError, TimeoutError } from "@deployer/errors";
 import type {
     DockerodeServiceSummary,
     DockerodeTaskSummary,
     SwarmHealthcheckConfig,
     SwarmServiceSpecInput,
     SwarmTaskStateCheck,
-} from "@repo/contracts-entities";
-import { SwarmClusterService } from "@repo/nest-swarm";
+} from "@deployer/contracts-entities";
+import { SwarmClusterService } from "@deployer/nest-swarm";
 import { verifySwarmRouteAgainstTraefik } from "@/core/modules/traefik/services/swarm-route-verifier";
-import { parsePlacementPolicyLabel, toSwarmPlacement } from "@repo/nest-swarm";
-import { DockerService } from "@repo/nest-docker/services/docker.service";
-import { platformOverlayForPrefix } from "@repo/nest-docker/services/docker-supervisor-runtime";
+import { parsePlacementPolicyLabel, toSwarmPlacement } from "@deployer/nest-swarm";
+import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { platformOverlayForPrefix } from "@deployer/nest-docker/services/docker-supervisor-runtime";
 import { EnvService } from "@/config/env/env.module";
 import {
     type DeploymentRuntimeRunner,
@@ -34,7 +34,7 @@ import {
     type RuntimeExecutionInput,
     type RuntimeExecutionResult,
 } from "../runtime-runner.interface";
-import { toDockerServiceSpec } from "@repo/nest-docker/services/swarm-spec.mapper";
+import { toDockerServiceSpec } from "@deployer/nest-docker/services/swarm-spec.mapper";
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 

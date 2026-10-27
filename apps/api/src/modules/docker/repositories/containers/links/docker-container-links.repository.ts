@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { DockerContainerLinkPath } from "@repo/contracts-entities";
+import type { DockerContainerLinkPath } from "@deployer/contracts-entities";
 import { DockerRepository } from "../../facade/docker.repository";
 
 @Injectable()

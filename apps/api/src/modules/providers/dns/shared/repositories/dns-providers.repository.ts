@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { eq } from "drizzle-orm";
 import { GlobalDatabaseService } from "@/core/modules/database/global/global-database.service";
-import * as globalSchema from "@repo/nest-schema/global";
+import * as globalSchema from "@deployer/nest-schema/global";
 
 type DnsProviderRow = typeof globalSchema.dnsProviders.$inferSelect;
 type DnsProviderInsert = typeof globalSchema.dnsProviders.$inferInsert;

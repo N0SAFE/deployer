@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ForbiddenError } from "@repo/auth/permissions";
+import { ForbiddenError } from "@deployer/auth/permissions";
 import { PermissionService } from "./permission.service";
 
 // ---------------------------------------------------------------------------
@@ -199,7 +199,7 @@ describe("PermissionService", () => {
   // static ForbiddenError
   // ─────────────────────────────────────────────────────────────────────────
   describe("ForbiddenError static re-export", () => {
-    it("should expose ForbiddenError from @repo/auth/permissions", () => {
+    it("should expose ForbiddenError from @deployer/auth/permissions", () => {
       expect(PermissionService.ForbiddenError).toBe(ForbiddenError);
     });
   });

@@ -9,7 +9,7 @@ import { UserRepository } from '@/modules/user/repositories/user.repository';
 vi.mock('@/core/modules/database/database.module', () => ({
   DatabaseModule: { global: true, module: class {} },
 }));
-vi.mock("@repo/nest-database-core/database-connection", () => ({
+vi.mock("@deployer/nest-database-core/database-connection", () => ({
   GLOBAL_DATABASE_CONNECTION: 'GLOBAL_DATABASE_CONNECTION',
   LOCAL_DATABASE_CONNECTION: 'LOCAL_DATABASE_CONNECTION',
 }));

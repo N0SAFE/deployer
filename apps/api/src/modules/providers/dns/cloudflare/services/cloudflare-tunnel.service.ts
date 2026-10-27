@@ -6,10 +6,11 @@
  * account id is resolved at runtime (never from env vars).
  */
 import { BadGatewayException, BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
-import { Cloudflare } from "cloudflare";
+import type { Cloudflare } from "cloudflare";
 import type { Client } from "cloudflare/resources/zero-trust/tunnels/cloudflared/connections";
 import type { ConfigurationUpdateParams } from "cloudflare/resources/zero-trust/tunnels/cloudflared/configurations";
-import { CloudflareAppService, type DnsProviderAppView } from "./cloudflare-app.service";
+import { CloudflareAppService } from "./cloudflare-app.service";
+import { type DnsProviderAppView } from "./cloudflare-app.service";
 import { CloudflareDnsProviderService } from "./cloudflare-dns-provider.service";
 import { toCloudflareErrorMessage, toTunnelConnectionShape, toTunnelShape, type TunnelConnectionShape, type TunnelShape } from "./cloudflare.helpers";
 

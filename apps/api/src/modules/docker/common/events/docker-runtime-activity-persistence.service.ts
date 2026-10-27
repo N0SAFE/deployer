@@ -1,6 +1,6 @@
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import { type Subscription, concatMap, from, EMPTY, catchError } from "rxjs";
-import { AppLogger } from "@repo/logger";
+import { AppLogger } from "@deployer/logger";
 import { DockerRuntimeEventsStreamService } from "./docker-runtime-events-stream.service";
 import { DockerRuntimeActivityRepository } from "../../repositories/runtime/docker-runtime-activity.repository";
 

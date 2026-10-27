@@ -1,7 +1,8 @@
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
-import { Observable, ReplaySubject, type Subscription } from "rxjs";
-import type { DockerRuntimeEvent } from "@repo/contracts-entities";
-import { AppLogger } from "@repo/logger";
+import type { Observable} from "rxjs";
+import { ReplaySubject, type Subscription } from "rxjs";
+import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
+import { AppLogger } from "@deployer/logger";
 import { DockerRuntimeMeshRelayService } from "../mesh/docker-runtime-mesh-relay.service";
 
 @Injectable()

@@ -1,23 +1,23 @@
 import { Injectable } from "@nestjs/common";
-import { ConflictError } from "@repo/errors";
+import { ConflictError } from "@deployer/errors";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
-import { services, serviceDependencies, projects } from "@repo/nest-schema/global/deployment";
-import { localEventOutbox } from "@repo/nest-schema/global/runtime";
+import { services, serviceDependencies, projects } from "@deployer/nest-schema/global";
+import { localEventOutbox } from "@deployer/nest-schema/global/runtime/index";
 import { and, eq, ilike, asc, isNull, inArray } from "drizzle-orm";
 import type { PgTransaction } from "drizzle-orm/pg-core";
 import type { NodePgQueryResultHKT } from "drizzle-orm/node-postgres";
 import type { ExtractTablesWithRelations } from "drizzle-orm";
-import type * as globalSchema from "@repo/nest-schema/global";
+import type * as globalSchema from "@deployer/nest-schema/global";
 import { listBuilder } from "@/core/utils/drizzle-filter.utils";
 import { TraefikConfigBuilder } from "@/core/modules/traefik/config-builder/builders";
-import type { ServiceListInput } from "@repo/api-contracts/modules/service/list";
-import type { ServiceCreateInput } from "@repo/api-contracts/modules/service/crud/create";
-import type { ServiceUpdateInput } from "@repo/api-contracts/modules/service/crud/update";
-import { serviceNetworkConfigSchema } from "@repo/contracts-entities";
-import { serviceProviderConfigUnionSchema, serviceRunnerConfigUnionSchema, implementedContractSchema, previewSourceTemplateSchema } from "@repo/contracts-entities";
+import type { ServiceListInput } from "@deployer/project-contracts/modules/service/list";
+import type { ServiceCreateInput } from "@deployer/project-contracts/modules/service/crud/create";
+import type { ServiceUpdateInput } from "@deployer/project-contracts/modules/service/crud/update";
+import { serviceNetworkConfigSchema } from "@deployer/contracts-entities";
+import { serviceProviderConfigUnionSchema, serviceRunnerConfigUnionSchema, implementedContractSchema, previewSourceTemplateSchema } from "@deployer/contracts-entities";
 import * as crypto from "node:crypto";
-import { isRecord } from "@repo/type-guards"
-import { readTraefikConfig } from "@repo/nest-schema/codecs/codec-registry";
+import { isRecord } from "@deployer/type-guards"
+import { readTraefikConfig } from "@deployer/nest-schema/codecs/codec-registry";
 
 
 
@@ -236,7 +236,7 @@ export class ServiceRepository {
                     parentId: input.parentId ?? null,
                     parentPath,
                     depth,
-                    metadata: input.metadata as ServiceRow["metadata"] ?? null,
+                    metadata: input.metadata ?? null,
                 })
                 .returning();
 
@@ -306,7 +306,7 @@ export class ServiceRepository {
                     parentId: parent.id,
                     parentPath: childPath,
                     depth: childDepth,
-                    metadata: child.metadata as ServiceRow["metadata"] ?? null,
+                    metadata: child.metadata ?? null,
                 })
                 .returning();
 

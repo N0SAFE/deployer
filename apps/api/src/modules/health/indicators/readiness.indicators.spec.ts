@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { HealthIndicatorService } from "@nestjs/terminus";
 
 import { ReadinessIndicators } from "../indicators/readiness.indicators";
-import { AppLifecyclePhase } from "@repo/nest-lifecycle";
+import { AppLifecyclePhase } from "@deployer/nest-lifecycle";
 import type { ReadinessSnapshot, ReadinessStateService } from "../services/readiness-state.service";
 
 /**

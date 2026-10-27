@@ -40,7 +40,7 @@ function emitStartupCheckErrorPayload(err: unknown): void {
 async function bootstrap() {
     try {
         await CommandFactory.run(CLIModule, {
-            debug: (...params: unknown[]) => logger.debug(JSON.stringify(params)),
+            debug: (...params: unknown[]) => { logger.debug(JSON.stringify(params)); },
             logger: ["error", "warn"],
             errorHandler: (err: unknown) => {
                 // Don't show error for help command exit

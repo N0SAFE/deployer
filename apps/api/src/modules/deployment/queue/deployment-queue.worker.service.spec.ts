@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BadRequestError } from "@repo/errors";
+import { BadRequestError } from "@deployer/errors";
 import { DeploymentQueueWorkerService } from "./deployment-queue.worker.service";
 import { mkdtempSync } from "node:fs";
 import path from "node:path";
-import type { DeploymentQueueJob } from "@repo/contracts-entities";
+import type { DeploymentQueueJob } from "@deployer/contracts-entities";
 
 describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
     const claimedJob = {
@@ -53,7 +53,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
     it("claims the matching lifecycle job by idempotency key and completes it", async () => {
         deploymentService.claimQueueJobByIdempotencyKey.mockResolvedValue(claimedJob);
 
-        await worker.processQueueJob(createQueueJob("job-1", "deploy:job:1") as never);
+        await worker.processQueueJob(createQueueJob("job-1", "deploy:job:1"));
 
         expect(deploymentService.claimQueueJobByIdempotencyKey).toHaveBeenCalledWith(
             "deploy:job:1",
@@ -79,7 +79,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
     it("does nothing when no lifecycle job matches the typed delivery", async () => {
         deploymentService.claimQueueJobByIdempotencyKey.mockResolvedValue(null);
 
-        await worker.processQueueJob(createQueueJob("job-2", "deploy:job:2") as never);
+        await worker.processQueueJob(createQueueJob("job-2", "deploy:job:2"));
 
         expect(deploymentService.completeQueueJob).not.toHaveBeenCalled();
         expect(deploymentService.failQueueJob).not.toHaveBeenCalled();
@@ -95,7 +95,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
         });
         deploymentService.completeQueueJob.mockReturnValue(completionPromise);
 
-        const processing = worker.processQueueJob(createQueueJob("job-3", "deploy:job:1") as never);
+        const processing = worker.processQueueJob(createQueueJob("job-3", "deploy:job:1"));
 
         await vi.advanceTimersByTimeAsync(30_000);
 
@@ -167,7 +167,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
                         },
                     },
                 },
-            }) as never,
+            }),
         );
 
         expect(deploymentService.completeQueueJob).toHaveBeenCalledWith(
@@ -207,7 +207,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
                         },
                     },
                 },
-            }) as never,
+            }),
         );
 
         expect(deploymentService.completeQueueJob).toHaveBeenCalledWith(
@@ -248,7 +248,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
                         },
                     },
                 },
-            }) as never,
+            }),
         );
 
         expect(deploymentService.completeQueueJob).toHaveBeenCalledWith(
@@ -281,7 +281,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
                         },
                     },
                 },
-            }) as never,
+            }),
         );
 
         expect(deploymentService.completeQueueJob).toHaveBeenCalledWith(
@@ -323,7 +323,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
                         },
                     },
                 },
-            }) as never,
+            }),
         );
 
         await vi.runAllTimersAsync();
@@ -358,7 +358,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
                         },
                     },
                 },
-            }) as never,
+            }),
         );
 
         const rejectionAssertion = expect(processing).rejects.toThrow("build failed permanently");
@@ -392,7 +392,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
                         runtimeRunner: "dockerfile",
                     },
                 },
-            }) as never,
+            }),
         );
 
         expect(deploymentService.completeQueueJob).toHaveBeenCalledWith(
@@ -451,7 +451,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
                         },
                     },
                 },
-            }) as never,
+            }),
         );
 
         expect(deploymentService.completeQueueJob).toHaveBeenCalledWith(
@@ -510,7 +510,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
                         },
                     },
                 },
-            }) as never,
+            }),
         );
 
         expect(deploymentArtifactBuilderService.buildContainerizedArtifact).toHaveBeenCalledWith(

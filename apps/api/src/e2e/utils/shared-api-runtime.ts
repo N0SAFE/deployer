@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import request from 'supertest'
 import { afterAll, beforeAll } from 'vitest'
-import { setupContract } from '@repo/api-contracts'
+import { setupContract } from '@deployer/bff-contracts'
 import { appContract } from '@/core/orpc/app-contract'
 import type { AnyContractRouter } from '@orpc/contract'
 import type { Auth } from '@/auth'

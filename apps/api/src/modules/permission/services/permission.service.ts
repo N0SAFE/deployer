@@ -8,7 +8,7 @@ import {
   type PermissionCheckResult,
   type ColumnResolver,
   type FilterableScalar,
-} from "@repo/auth/permissions";
+} from "@deployer/auth/permissions";
 import type { SQL } from "drizzle-orm";
 import { PermissionRepository } from "../repositories/permission.repository";
 

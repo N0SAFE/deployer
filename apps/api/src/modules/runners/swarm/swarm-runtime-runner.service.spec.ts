@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NotFoundException } from "@nestjs/common";
-import { BadRequestError, ConflictError, TimeoutError } from "@repo/errors";
+import { BadRequestError, ConflictError, TimeoutError } from "@deployer/errors";
 import type { RuntimeExecutionInput } from "../runtime-runner.interface";
 import { SwarmRuntimeRunnerService, computeTaskStateCheck } from "./swarm-runtime-runner.service";
 
@@ -111,12 +111,17 @@ describe("SwarmRuntimeRunnerService", () => {
             assertClusterReady: vi.fn().mockResolvedValue(undefined),
         };
         service = new SwarmRuntimeRunnerService(
+            // `as never` at the boundary: the spec supplies the Docker methods under test,
+            // while the constructor takes the full `DockerService`.
             dockerService as never,
+            // Same reasoning as `dockerService`: only `assertClusterReady` is exercised.
             clusterService as never,
             // The runner resolves the PLATFORM OVERLAY name through `EnvService`
             // (it attaches every workload to that overlay so the ingress can
             // reach it). Only `DEPLOYER_PREFIX` is read, and "" is the default
-            // unprefixed install.
+            // unprefixed install. Widened for the same reason as the two above:
+            // `EnvService.get` is generic over ~120 keys, which a bare mock cannot
+            // satisfy without recreating that union here.
             { get: vi.fn(() => "") } as never,
         );
     });

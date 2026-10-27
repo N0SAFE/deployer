@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { DeploymentQueueJob } from "@repo/contracts-entities";
+import type { DeploymentQueueJob } from "@deployer/contracts-entities";
 import { DeploymentQueueLifecycleService } from "./deployment-queue-lifecycle.service";
 
 describe("DeploymentQueueLifecycleService", () => {
@@ -23,7 +23,7 @@ describe("DeploymentQueueLifecycleService", () => {
             appendAndReplicate: vi.fn().mockResolvedValue({ appended: true }),
         };
         service = new DeploymentQueueLifecycleService(
-            eventService as never,
+            eventService,
             meshQueueTransitionService as never,
         );
         vi.clearAllMocks();

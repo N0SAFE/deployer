@@ -17,7 +17,7 @@
  *       cloudflare-tunnel/  registers itself into the core EdgeProviderRegistry
  *                           (the account-free `direct` edge is built into core/modules/edge)
  */
-import { Module } from "@nestjs/common";
+import { Module, type ClassProvider, type FactoryProvider } from "@nestjs/common";
 import { GlobalDatabaseModule } from "@/core/modules/database/global/global-database.module";
 import { GitHubModule } from "@/core/modules/git/github/github.module";
 import { CoreReachabilityModule } from "@/core/modules/reachability/core-reachability.module";
@@ -33,7 +33,8 @@ import { GitlabSourceProviderService } from "./code/gitlab/services/gitlab-sourc
 import { UploadSourceProviderService } from "./code/upload/services/upload-source-provider.service";
 import { UploadBundleRegistryService } from "./code/upload/services/upload-bundle-registry.service";
 import { CustomSourceProviderService } from "./code/custom/services/custom-source-provider.service";
-import { DnsProviderRegistryService } from "./dns/shared/dns-provider-registry.service";
+import { DNS_PROVIDERS, DnsProviderRegistryService } from "./dns/shared/dns-provider-registry.service";
+import type { DnsProvider } from "./dns/shared/dns-provider.interface";
 import { DnsProvidersRepository } from "./dns/shared/repositories/dns-providers.repository";
 import { CloudflareAppService } from "./dns/cloudflare/services/cloudflare-app.service";
 import { CloudflareTunnelService } from "./dns/cloudflare/services/cloudflare-tunnel.service";
@@ -105,12 +106,54 @@ import { PreviewLifecycleEventService } from "./code/github/events/preview-lifec
         CloudflareAppService,
         CloudflareTunnelService,
         CloudflareDnsProviderService,
+        // ── MULTI-TOKEN, SO A SECOND DNS PROVIDER IS ONE LINE ───────────────
+        // This used to be a `useFactory` naming Cloudflare in both the body and
+        // the `inject` list:
+        //
+        //   useFactory: (cloudflare) => new DnsProviderRegistryService([cloudflare]),
+        //   inject: [CloudflareDnsProviderService],
+        //
+        // so adding Route53/Google DNS meant editing this module twice. The
+        // registry was already a plain `Map` built from an array, and
+        // `DNS_PROVIDERS` was already exported (and unused) — the seam existed and
+        // was never connected.
+        //
+        // `multi: true` accumulates: a new provider adds ONE entry here and touches
+        // nothing else. The registry still fails loudly for an unknown type, and the
+        // contract enum still gates what the API accepts, so this widens
+        // extensibility without widening the accepted surface.
+        // ── ONE ARRAY, BUILT FROM A SINGLE TOKEN ────────────────────────────
+        // This used to name Cloudflare in both the factory body and the `inject`
+        // list, so a second DNS provider meant editing this module twice.
+        //
+        // `DNS_PROVIDERS` is now the multi-token and the registry receives the
+        // collection, exactly like `CodeProvider` above. Adding Route53/Google DNS
+        // becomes: implement `DnsProvider`, add it to this factory's return array
+        // and its `inject` list — the registry, its dispatch methods, and every
+        // caller stay untouched.
+        //
+        // ── WHY A FACTORY ARRAY AND NOT `multi: true` ───────────────────────
+        // Nest's runtime honours `multi`, but `@nestjs/common@11.2.7` does not
+        // declare it on `ValueProvider` / `FactoryProvider` / `Provider` at all
+        // (verified in `interfaces/modules/provider.interface.d.ts`), so
+        // `{ …, multi: true }` fails `tsc` with "Object literal may only specify
+        // known properties". The factory array is the type-safe equivalent, and it
+        // is the convention already established by `CodeProvider`. Do not "fix"
+        // this to `multi: true` without first checking that the installed Nest types
+        // gained the property.
+        {
+            provide: DNS_PROVIDERS,
+            useFactory: (cloudflare: CloudflareDnsProviderService): DnsProvider[] => [cloudflare],
+            inject: [CloudflareDnsProviderService],
+        } satisfies FactoryProvider,
         {
             provide: DnsProviderRegistryService,
-            useFactory: (cloudflare: CloudflareDnsProviderService) =>
-                new DnsProviderRegistryService([cloudflare]),
-            inject: [CloudflareDnsProviderService],
-        },
+            useFactory: (
+                providers: DnsProvider[],
+                repository: DnsProvidersRepository,
+            ) => new DnsProviderRegistryService(providers, repository),
+            inject: [DNS_PROVIDERS, DnsProvidersRepository],
+        } satisfies FactoryProvider,
         // Edge providers — register themselves into the core EdgeProviderRegistry
         CloudflareTunnelEdgeProvider,
         // GitHub webhook / preview stack
@@ -133,6 +176,7 @@ import { PreviewLifecycleEventService } from "./code/github/events/preview-lifec
         CloudflareTunnelService,
         CloudflareDnsProviderService,
         GithubWebhookDispatchService,
+        GithubAppsRepository,
         PreviewProvisioningService,
         PreviewLifecycleEventService,
     ],

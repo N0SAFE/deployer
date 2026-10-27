@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { and, eq } from "drizzle-orm";
 import { GlobalDatabaseService } from "@/core/modules/database/global/global-database.service";
-import * as globalSchema from "@repo/nest-schema/global";
+import * as globalSchema from "@deployer/nest-schema/global";
 
 /**
  * GithubAppsRepository — the single data-access layer for the GitHub apps +
@@ -283,7 +283,7 @@ export class GithubAppsRepository {
                 githubAppId: input.githubAppId,
                 event: input.event,
                 deliveryId: input.deliveryId,
-                payload: input.payload as never,
+                payload: input.payload,
                 processed: input.processed,
             })
             .returning();
@@ -307,7 +307,7 @@ export class GithubAppsRepository {
                 githubAppId: null,
                 event: input.event,
                 deliveryId: input.deliveryId,
-                payload: input.payload as never,
+                payload: input.payload,
                 processed: false,
             })
             .onConflictDoNothing({ target: globalSchema.githubWebhookEvents.deliveryId })

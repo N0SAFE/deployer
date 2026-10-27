@@ -30,7 +30,7 @@ import { NixpacksRuntimeRunnerService } from "@/modules/runners/nixpacks/nixpack
 import { BuildpackRuntimeRunnerService } from "@/modules/runners/buildpack/buildpack-runtime-runner.service";
 import { RailpackRuntimeRunnerService } from "@/modules/runners/railpack/railpack-runtime-runner.service";
 import { SwarmRuntimeRunnerService } from "@/modules/runners/swarm/swarm-runtime-runner.service";
-import { SwarmClusterService } from "@repo/nest-swarm";
+import type { SwarmClusterService } from "@deployer/nest-swarm";
 import { DeploymentExecutionWorkflowService } from './deployment-execution-workflow.service';
 import { DeploymentQueueLifecycleService } from '../queue/deployment-queue-lifecycle.service';
 import { DeploymentQueueEventService } from '../queue/deployment-queue-event.service';
@@ -470,7 +470,7 @@ describe('DeploymentService', () => {
                     // cluster service, mocked here because this suite never
                     // exercises the swarm path.
                     useFactory: (dockerRuntimeRunnerService: DockerRuntimeRunnerService) =>
-                        new RuntimeRunnerRegistryService(
+                        new RuntimeRunnerRegistryService([
                             dockerRuntimeRunnerService,
                             new DockerfileRuntimeRunnerService(dockerRuntimeRunnerService),
                             new DockerComposeRuntimeRunnerService(dockerRuntimeRunnerService),
@@ -479,11 +479,11 @@ describe('DeploymentService', () => {
                             new RailpackRuntimeRunnerService(dockerRuntimeRunnerService),
                             new SwarmRuntimeRunnerService(mockDockerService, {
                                 getSwarmState: vi.fn().mockResolvedValue({ active: false }),
-                            } as unknown as SwarmClusterService,
+                            },
                             // `DEPLOYER_PREFIX` is the only key read; "" is the
                             // unprefixed default install.
-                            { get: vi.fn(() => "") } as unknown as EnvService),
-                        ),
+                            { get: vi.fn(() => "") }),
+                        ]),
                     inject: [DockerRuntimeRunnerService],
                 },
                 {
@@ -1952,12 +1952,28 @@ describe('DeploymentService', () => {
                     context: {
                         rollbackId: 'rb-complete-1',
                         fromDeploymentId: 'deploy-1',
+                        // Required: the revert needs to know WHICH deployment to go back
+                        // to. The rollback row's own deploymentId is the NEW row, not the
+                        // target, so without this the operation cannot be performed.
+                        targetDeploymentId: 'deploy-2',
                     },
                 },
                 maxAttempts: 3,
             } as any);
 
-            mockRepository.findById.mockResolvedValue(rollbackDeployment);
+            // The target deployment must exist AND carry an image: rollback redeploys
+            // that exact image rather than rebuilding.
+            mockRepository.findById.mockImplementation(async (id: string) =>
+                id === 'deploy-2'
+                    ? {
+                          ...mockDeployment,
+                          id: 'deploy-2',
+                          status: 'success',
+                          containerImage: 'registry.example.com/app:good',
+                          containerName: 'app-good',
+                      }
+                    : rollbackDeployment,
+            );
 
             const claimed = await service.claimQueueJobs({
                 workerId: 'worker-rb-2',
@@ -1983,6 +1999,19 @@ describe('DeploymentService', () => {
                 'completed',
                 expect.objectContaining({ completedAt: expect.any(Date) }),
             );
+            // The revert must actually run. `deploy-2` is the target and its image is
+            // what gets redeployed — this is the assertion that would have caught the
+            // original bug, where "completed" was written without touching the runtime.
+            // Asserted via the appended log line rather than the runner mock: the
+            // workflow gets a DI-provided registry, so the honest observable here is the
+            // "Rolling back to deployment …" entry that precedes the runtime call.
+            expect(mockRepository.insertLog).toHaveBeenCalledWith(
+                'deploy-rollback-complete',
+                expect.objectContaining({
+                    message: expect.stringContaining('Rolling back to deployment deploy-2'),
+                    step: 'rollback_redeploy',
+                }),
+            );
             expect(mockDeploymentEventService.emit).toHaveBeenCalledWith(
                 'rollbackCompleted',
                 { serviceId: 'service-1' },
@@ -1991,6 +2020,67 @@ describe('DeploymentService', () => {
                     toDeploymentId: 'deploy-rollback-complete',
                     success: true,
                 }),
+            );
+        });
+
+        /**
+         * The bug this guards against: rollback reported success without reverting.
+         * If the target has no image there is nothing to revert to, and the operation
+         * MUST fail loudly rather than claim a green result.
+         */
+        it('fails the rollback job when the target deployment has no image to revert to', async () => {
+            const rollbackDeployment = {
+                ...mockDeployment,
+                id: 'deploy-rollback-noimage',
+                metadata: { rollbackFrom: 'deploy-1', targetDeploymentId: 'deploy-2' },
+            };
+
+            const enqueued = service.enqueueQueueJob({
+                type: 'rollback',
+                idempotencyKey: 'rollback:test:noimage',
+                payload: {
+                    deploymentId: 'deploy-rollback-noimage',
+                    serviceId: 'service-1',
+                    environment: 'production',
+                    context: {
+                        rollbackId: 'rb-noimage-1',
+                        fromDeploymentId: 'deploy-1',
+                        targetDeploymentId: 'deploy-2',
+                    },
+                },
+                maxAttempts: 3,
+            } as any);
+
+            mockRepository.findById.mockImplementation(async (id: string) =>
+                id === 'deploy-2'
+                    ? { ...mockDeployment, id: 'deploy-2', status: 'success', containerImage: null }
+                    : rollbackDeployment,
+            );
+
+            const claimed = await service.claimQueueJobs({
+                workerId: 'worker-rb-3',
+                limit: 1,
+                leaseDurationSec: 120,
+            });
+            const lockToken = claimed.claimed[0]?.lockToken;
+            if (!lockToken) {
+                throw new Error('Expected rollback claimed queue job lock token');
+            }
+
+            // Must reject, not silently succeed.
+            await expect(
+                service.completeQueueJob(enqueued.job.id, {
+                    workerId: 'worker-rb-3',
+                    lockToken,
+                    result: { rollbackCompletedAt: now },
+                }),
+            ).rejects.toThrow(/no container image recorded/);
+
+            // And it must NOT have been recorded as completed.
+            expect(mockRepository.updateRollbackStatus).not.toHaveBeenCalledWith(
+                'rb-noimage-1',
+                'completed',
+                expect.anything(),
             );
         });
     });

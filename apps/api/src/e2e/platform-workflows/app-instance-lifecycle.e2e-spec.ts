@@ -19,6 +19,10 @@ import {
 	stopSharedApiRuntime,
 	type SharedApiRuntimeContext,
 } from "../utils/shared-api-runtime";
+import {
+	resetSharedRuntimeRequestOverride,
+	setSharedRuntimeAuthHeaders,
+} from "../utils/shared-api-runtime/request-override";
 import { AppInstanceService } from "@/core/modules/platform-ingress/services/app-instance.service";
 
 const INSTANCE_LABEL = "e2e-byo-web";
@@ -128,11 +132,20 @@ describe("Platform: app-instance lifecycle (BYO)", () => {
 	});
 
 	it("accepts heartbeats carrying the instance token", async () => {
-		const response = await context.http
-			.post("/platform/app-instances/heartbeat")
-			.set("content-type", "application/json")
-			.set("x-app-instance-token", appToken)
-			.send({});
+		// The e2e runtime pins ORPC's `request` to a shared stub (see
+		// `request-override.ts`), so the token must be set there too: the header on
+		// the HTTP call alone never reaches `requireAppInstance`.
+		setSharedRuntimeAuthHeaders({ "x-app-instance-token": appToken });
+		let response;
+		try {
+			response = await context.http
+				.post("/platform/app-instances/heartbeat")
+				.set("content-type", "application/json")
+				.set("x-app-instance-token", appToken)
+				.send({});
+		} finally {
+			resetSharedRuntimeRequestOverride();
+		}
 
 		if (response.status !== 201) {
 			console.error(

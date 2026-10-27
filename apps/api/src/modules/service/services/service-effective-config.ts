@@ -1,4 +1,4 @@
-import type { Service, ServiceEffectiveConfig } from "@repo/contracts-entities";
+import type { Service, ServiceEffectiveConfig } from "@deployer/contracts-entities";
 
 /**
  * Effective-config resolution for the sub-services (hierarchy) system.

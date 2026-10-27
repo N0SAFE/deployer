@@ -44,6 +44,10 @@ describe("DockerRuntimeRunnerService", () => {
         };
 
         service = new DockerRuntimeRunnerService(
+            // `as never` at the boundary: the spec supplies the handful of Docker methods
+            // under test, while the constructor takes the full `DockerService`. Narrowing
+            // the production parameter type to suit a test would weaken the real contract;
+            // widening here is the honest, local option.
             dockerService as never,
             traefikService as never,
         );

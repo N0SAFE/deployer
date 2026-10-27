@@ -9,22 +9,22 @@ import {
     projects,
     serviceDependencies,
     services,
-} from "@repo/nest-schema/global/deployment";
-import { localEventOutbox } from "@repo/nest-schema/global/runtime";
-import { environments } from "@repo/nest-schema/global/environment";
-import { resourceOwnershipIndex } from "@repo/nest-schema/global/cluster";
+} from "@deployer/nest-schema/global";
+import { localEventOutbox } from "@deployer/nest-schema/global/runtime/index";
+import { environments } from "@deployer/nest-schema/global";
+import { resourceOwnershipIndex } from "@deployer/nest-schema/global";
 import { and, asc, count, desc, eq, sql, type SQL } from "drizzle-orm";
 import { listBuilder } from "@/core/utils/drizzle-filter.utils";
 import { randomUUID } from "crypto";
-import type { DeploymentListInput } from "@repo/api-contracts/modules/deployment/list";
-import type { DeploymentTriggerInput } from "@repo/api-contracts/modules/deployment/crud";
-import { deploymentTriggerSourceSchema } from "@repo/api-contracts/modules/deployment/crud";
+import type { DeploymentListInput } from "@deployer/runtime-contracts/modules/deployment/list";
+import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
+import { deploymentTriggerSourceSchema } from "@deployer/runtime-contracts/modules/deployment/crud";
 import type {
     DeploymentStreamListInput,
-} from "@repo/api-contracts/modules/deployment/stream";
-import { deploymentStreamSchema, type DeploymentStream } from "@repo/contracts-entities";
-import { isRecord, isObjectLike } from "@repo/type-guards"
-import { ConflictError } from "@repo/errors";
+} from "@deployer/runtime-contracts/modules/deployment/stream";
+import { deploymentStreamSchema, type DeploymentStream } from "@deployer/contracts-entities";
+import { isRecord, isObjectLike } from "@deployer/type-guards"
+import { ConflictError } from "@deployer/errors";
 
 const DEFAULT_NODE_ID = "00000000-0000-4000-8000-000000000000";
 

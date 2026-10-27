@@ -1,8 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import type {
-    DeploymentStoragePolicyResolver,
-    ResolveDeploymentStoragePolicyInput,
-} from "../base/storage-policy-resolver.interface";
+import { DeploymentStoragePolicyResolver } from "../base/storage-policy-resolver.interface";
+import type { ResolveDeploymentStoragePolicyInput } from "../base/storage-policy-resolver.interface";
 import type { DeploymentStoragePolicy } from "../base/storage-policy.schema";
 
 @Injectable()

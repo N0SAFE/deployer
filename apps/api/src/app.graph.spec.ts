@@ -1,6 +1,6 @@
 import { Test } from "@nestjs/testing";
 import { Database } from "bun:sqlite";
-import { LOCAL_DATABASE_CLIENT } from "@repo/nest-database-core/database-connection";
+import { LOCAL_DATABASE_CLIENT } from "@deployer/nest-database-core/database-connection";
 import { describe, it, vi } from "vitest";
 
 // The SSR module resolves a client bundle on disk (its RenderService reads

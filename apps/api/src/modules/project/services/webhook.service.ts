@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from "@nestjs/common";
 import { randomBytes } from "crypto";
-import { WebhookRepository, type WebhookCreateInput } from "../repositories/webhook.repository";
+import { WebhookRepository } from "../repositories/webhook.repository";
+import { type WebhookCreateInput } from "../repositories/webhook.repository";
 import { ProjectRepository } from "../repositories/project.repository";
 
 // ---------------------------------------------------------------------------

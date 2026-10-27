@@ -10,7 +10,7 @@
  * the right origin (and stay correct behind Traefik).
  */
 
-import { createAuthClientFactory } from "@repo/auth/client";
+import { createAuthClientFactory } from "@deployer/auth/client";
 
 export const auth = createAuthClientFactory({
 	basePath: "/api/auth",

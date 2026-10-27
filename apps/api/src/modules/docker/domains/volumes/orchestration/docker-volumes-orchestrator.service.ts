@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import type { DockerVolumeListInput } from "@repo/api-contracts/modules/docker/volumes/list";
-import { AppLogger } from "@repo/logger";
+import type { DockerVolumeListInput } from "@deployer/runtime-contracts/modules/docker/volumes/list";
+import { AppLogger } from "@deployer/logger";
 import { DockerVolumesDomainService } from "../runtime/docker-volumes-domain.service";
 
 @Injectable()

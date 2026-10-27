@@ -6,24 +6,20 @@ import { Test, type TestingModule } from '@nestjs/testing';
 vi.mock('@/core/modules/database/database.module', () => ({
   DatabaseModule: { global: true, module: class {} },
 }));
-vi.mock("@repo/nest-database-core/database-connection", () => ({
+vi.mock("@deployer/nest-database-core/database-connection", () => ({
   GLOBAL_DATABASE_CONNECTION: 'GLOBAL_DATABASE_CONNECTION',
   LOCAL_DATABASE_CONNECTION: 'LOCAL_DATABASE_CONNECTION',
 }));
 vi.mock('@/core/modules/database/services/global-database.service', () => ({
   GlobalDatabaseService: class {},
 }));
-vi.mock("@repo/nest-supervisor-core/supervisors.module", () => ({
+vi.mock("@deployer/nest-supervisor-core/supervisors.module", () => ({
   SupervisorsModule: { module: class {} },
 }));
-vi.mock("@repo/nest-supervisor-core/supervisor-shared", () => ({
-  getSharedSupervisorEventBus: () => ({ on: vi.fn(), emit: vi.fn() }),
-  getSharedSupervisorRegistry: () => ({ register: vi.fn(), get: vi.fn() }),
-}));
-vi.mock("@repo/nest-supervisor-core/supervisor-orchestrator.service", () => ({
+vi.mock("@deployer/nest-supervisor-core/supervisor-orchestrator.service", () => ({
   SupervisorOrchestratorService: class {},
 }));
-vi.mock('@repo/nest-lifecycle', () => ({
+vi.mock('@deployer/nest-lifecycle', () => ({
   AppLifecycleService: class { getSnapshot() { return { phase: 'running', step: null, message: '' }; } },
   AppLifecycleModule: { module: class {} },
 }));
@@ -31,8 +27,9 @@ vi.mock('@repo/nest-lifecycle', () => ({
 import { HealthController } from '@/modules/health/controllers/health.controller';
 import { HealthService } from '@/modules/health/services/health.service';
 import { HealthRepository } from '@/modules/health/repositories/health.repository';
-import { AppLifecycleService } from '@repo/nest-lifecycle';
-import { SupervisorOrchestratorService } from "@repo/nest-supervisor-core/supervisor-orchestrator.service";
+import { ReadinessService } from '@/modules/health/services/readiness.service';
+import { AppLifecycleService } from '@deployer/nest-lifecycle';
+import { SupervisorOrchestratorService } from "@deployer/nest-supervisor-core/supervisor-orchestrator.service";
 
 describe('HealthModule', () => {
   let module: TestingModule;
@@ -53,6 +50,10 @@ describe('HealthModule', () => {
         {
           provide: SupervisorOrchestratorService,
           useValue: {},
+        },
+        {
+          provide: ReadinessService,
+          useValue: { probe: vi.fn().mockResolvedValue({ statusCode: 200, body: { status: 'ok', info: {}, checkedAt: new Date().toISOString() } }) },
         },
       ],
     }).compile();

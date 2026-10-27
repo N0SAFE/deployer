@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
+import { GLOBAL_MIGRATIONS_DIR } from '@deployer/nest-schema'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { Logger, type INestApplication } from '@nestjs/common'
 import { REQUEST } from '@nestjs/core'
 import { Test, type TestingModule } from '@nestjs/testing'
@@ -12,13 +12,13 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { Pool } from 'pg'
 import { Wait } from 'testcontainers'
-import { getMockEnv } from '@repo/env/mock'
-import * as schema from '@repo/nest-schema/global'
+import { getMockEnv } from '@deployer/env/mock'
+import * as schema from '@deployer/nest-schema/global'
 import { GlobalDatabaseService } from '@/core/modules/database/global/global-database.service'
 import {
     GLOBAL_DATABASE_CONNECTION,
     GLOBAL_DATABASE_POOL,
-} from "@repo/nest-database-core/database-connection"
+} from "@deployer/nest-database-core/database-connection"
 import { TraefikFileSystemService } from '@/core/modules/traefik/services/traefik-file-system.service'
 import { sharedRequestOverride } from './request-override'
 import {
@@ -232,9 +232,8 @@ async function waitForDatabaseReady(databaseUrl: string): Promise<void> {
 }
 
 async function migrateDatabaseSchema(databaseUrl: string): Promise<void> {
-    const migrationsFolder = fileURLToPath(
-        new URL('../../../config/drizzle/global/migrations', import.meta.url)
-    )
+    // The schema package owns the migrations; a relative path into `apps/api` went stale.
+    const migrationsFolder = GLOBAL_MIGRATIONS_DIR
     const pool = new Pool({ connectionString: databaseUrl })
 
     try {
@@ -916,7 +915,7 @@ export class SharedApiRuntimeManager {
             logStep(`loading AppModule (${instanceKey})`)
             const { AppModule } = await withWatchdog(
                 `AppModule import (${instanceKey})`,
-                45_000,
+                120_000,
                 async () => await import('@/app.module')
             )
 
@@ -1006,7 +1005,7 @@ export class SharedApiRuntimeManager {
                 moduleBuilder: this.requireValue(
                     // TS narrows `moduleBuilder` to its `null` initialiser by this
                     // point; widen back to the builder type it was assigned.
-                    moduleBuilder as ReturnType<typeof Test.createTestingModule> | null,
+                    moduleBuilder,
                     'moduleBuilder missing for onAppInit'
                 ),
             }

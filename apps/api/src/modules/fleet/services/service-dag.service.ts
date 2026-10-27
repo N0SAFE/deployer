@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import { BadRequestError } from "@repo/errors";
-import type { DependencyTemplateConfig } from "@repo/contracts-entities";
+import { BadRequestError } from "@deployer/errors";
+import type { DependencyTemplateConfig } from "@deployer/contracts-entities";
 
 export interface ServiceDagEdge {
     from: string;

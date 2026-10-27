@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { NotFoundException } from "@nestjs/common";
-import type { DockerContainerListInput } from "@repo/api-contracts/modules/docker/containers/shared";
-import type { DockerImageListInput } from "@repo/api-contracts/modules/docker/images/list";
-import type { DockerContainer } from "@repo/contracts-entities";
+import type { DockerContainerListInput } from "@deployer/runtime-contracts/modules/docker/containers/shared";
+import type { DockerImageListInput } from "@deployer/runtime-contracts/modules/docker/images/list";
+import type { DockerContainer } from "@deployer/contracts-entities";
 import { DockerContainerResolutionService } from "./docker-container-resolution.service";
 
 function createMeshListResult(

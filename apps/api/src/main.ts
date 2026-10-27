@@ -8,8 +8,8 @@ import type { INestApplication } from "@nestjs/common";
 import http from "node:http";
 import type express from "express";
 
-import { logger } from "@repo/logger";
-import { READINESS_PROBE, type IReadinessProbe } from "./core/readiness/readiness.port";
+import { logger } from "@deployer/logger";
+import { READINESS_PROBE, type IReadinessProbe } from "@/core/readiness/readiness.port";
 import {
   API_PORT,
   createApiApp,
@@ -142,11 +142,11 @@ async function bootstrap(): Promise<void> {
  * still bounds the total wait with the global shutdown timeout.
  */
 async function drainHttpServer(server: http.Server | undefined): Promise<void> {
-  if (server === undefined || !server.listening) {
+  if (!server?.listening) {
     return;
   }
   await new Promise<void>((resolve) => {
-    server.close(() => resolve());
+    server.close(() => { resolve(); });
     // Drop idle keep-alive sockets; active requests are left to finish.
     server.closeIdleConnections?.();
   });

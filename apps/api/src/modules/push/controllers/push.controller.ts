@@ -1,7 +1,7 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { pushContract } from "@repo/api-contracts";
+import { pushContract } from "@deployer/identity-contracts";
 import { PushService } from "../services/push.service";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 

@@ -1,15 +1,15 @@
 import { Injectable } from "@nestjs/common";
 import type {
   DockerContainerInspectStreamQueryInput,
-} from "@repo/api-contracts/modules/docker/containers/shared";
+} from "@deployer/runtime-contracts/modules/docker/containers/shared";
 import type {
   DockerRuntimeActivityDetailQueryInput,
   DockerRuntimeActivityListInput,
-} from "@repo/api-contracts/modules/docker/runtime/activity";
-import type { DockerImageInspectStreamQueryInput } from "@repo/api-contracts/modules/docker/images/stream-inspect";
-import type { DockerRuntimeActivityStreamInput } from "@repo/api-contracts/modules/docker/runtime/activity-stream";
-import type { DockerRuntimeEventsStreamQueryInput } from "@repo/api-contracts/modules/docker/runtime/shared";
-import { AppLogger } from "@repo/logger";
+} from "@deployer/runtime-contracts/modules/docker/runtime/activity";
+import type { DockerImageInspectStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/images/stream-inspect";
+import type { DockerRuntimeActivityStreamInput } from "@deployer/runtime-contracts/modules/docker/runtime/activity-stream";
+import type { DockerRuntimeEventsStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/runtime/shared";
+import { AppLogger } from "@deployer/logger";
 import { DockerRuntimeActivityDomainService } from "./docker-runtime-activity-domain.service";
 import { DockerRuntimeStreamOrchestratorService } from "../../../common/runtime/docker-runtime-stream-orchestrator.service";
 

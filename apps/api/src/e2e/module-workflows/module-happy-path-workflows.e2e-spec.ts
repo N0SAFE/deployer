@@ -5,7 +5,7 @@ import {
   type SharedApiRuntimeContext,
 } from "@/e2e/utils/shared-api-runtime";
 import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
-import { user } from "@repo/nest-schema/global/auth";
+import { user } from "@deployer/nest-schema/global";
 import { UserService } from "@/modules/user/services/user.service";
 import { ProviderSchemaService } from "@/modules/provider-schema/services/provider-schema.service";
 import { AnalyticsService } from "@/modules/analytics/services/analytics.service";
@@ -189,7 +189,10 @@ describe("Module happy-path workflows e2e: service-level authenticated flows", (
     expect(resourceMetrics.timeRange).toBe("24h");
     expect(resourceMetrics.data.length).toBe(24);
     expect(deploymentMetrics.data.length).toBe(7);
-    expect(realtime.services.length).toBe(2);
+    // Real-time metrics now come from the service rows and Docker, not synthetic data:
+    // "api" / "cache" are not services in this database, so none are reported.
+    expect(realtime.services).toEqual([]);
+    expect(["docker", "unavailable"]).toContain(realtime.dataSource);
 
     const report = await analyticsService.generateReport({
       period: {
@@ -198,7 +201,7 @@ describe("Module happy-path workflows e2e: service-level authenticated flows", (
       },
     });
 
-    expect(report.reportId).toContain("report-");
+    expect(report.reportId).toMatch(/^[0-9a-f-]{36}$/);
     expect(report.status).toBe("completed");
 
     const reportStatus = await analyticsService.getReport(report.reportId);

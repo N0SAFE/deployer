@@ -3,7 +3,7 @@
  * managed web app (concept doc: "Management console page").
  *
  * Server-rendered with `@nestjs-ssr/react` (@Render + React views that use
- * the SAME Tailwind theme + @repo/ui as the web app). This is the FALLBACK
+ * the SAME Tailwind theme + @deployer/ui as the web app). This is the FALLBACK
  * visual of the single console URL (`/manage/web-app`): rendered by the API
  * itself — works when NO web app is running at all. When the web app IS
  * running, Traefik's `PathPrefix(/manage/web-app)` rule routes the SAME URL

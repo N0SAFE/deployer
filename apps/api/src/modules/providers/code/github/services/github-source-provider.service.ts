@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { GitService } from "@/core/modules/git";
-import type { DeploymentTriggerInput } from "@repo/api-contracts/modules/deployment/crud";
+import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import z from "zod/v4";
 import type { DeploymentSourceCheckoutContext } from "../../../base/source-provider.interface";
 import { githubSourceCheckoutContextSchema } from "../../../base/source-provider.interface";

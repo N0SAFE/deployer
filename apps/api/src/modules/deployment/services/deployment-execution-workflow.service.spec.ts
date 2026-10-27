@@ -104,7 +104,7 @@ describe("DeploymentExecutionWorkflowService", () => {
         service = new DeploymentExecutionWorkflowService(
             deploymentRepository as never,
             runtimeRunnerRegistryService as never,
-            deploymentEventService as never,
+            deploymentEventService,
             domainRoutingService as never,
         );
     });

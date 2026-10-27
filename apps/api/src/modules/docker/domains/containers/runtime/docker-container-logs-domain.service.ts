@@ -5,8 +5,8 @@ import type {
   DockerContainerProcessLogsStreamQueryInput,
   DockerContainerProcessesQueryInput,
   DockerContainerProcessesStreamQueryInput,
-} from "@repo/api-contracts/modules/docker/containers/shared";
-import type { DockerContainerLogEntry, DockerContainerProcessEntry } from "@repo/contracts-entities";
+} from "@deployer/runtime-contracts/modules/docker/containers/shared";
+import type { DockerContainerLogEntry, DockerContainerProcessEntry } from "@deployer/contracts-entities";
 import { DockerContainerRuntimeMeshService } from "../mesh/docker-container-runtime-mesh.service";
 import { DockerContainerRuntimeService } from "../runtime/docker-container-runtime.service";
 

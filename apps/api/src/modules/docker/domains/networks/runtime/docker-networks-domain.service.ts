@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { DockerNetworkListInput } from "@repo/api-contracts/modules/docker/networks/list";
+import type { DockerNetworkListInput } from "@deployer/runtime-contracts/modules/docker/networks/list";
 import { DockerContainerResolutionService } from "../../containers/orchestration/docker-container-resolution.service";
 
 @Injectable()

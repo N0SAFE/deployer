@@ -16,7 +16,7 @@
  * it on the mesh instead.
  */
 
-import type { IngressLanes } from "@repo/contracts-entities/entities/ingress/index";
+import type { IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
 
 import type { EdgeDnsRecord } from "@/core/modules/edge/edge-provider";
 

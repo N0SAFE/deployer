@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common"
 import { createHash } from "node:crypto"
-import type { DockerContainer, DockerPortBinding, DockerodeContainerList } from "@repo/contracts-entities"
-import { dockerContainerSchema } from "@repo/contracts-entities"
-import { isRecord } from "@repo/type-guards"
+import type { DockerContainer, DockerPortBinding, DockerodeContainerList } from "@deployer/contracts-entities"
+import { dockerContainerSchema } from "@deployer/contracts-entities"
+import { isRecord } from "@deployer/type-guards"
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -104,7 +104,7 @@ export class ContainerDockerodeNormalizer {
 
     const volumeIds = raw.Mounts
       .filter((mount) => typeof mount.Name === "string" && mount.Name.length > 0)
-      .map((mount) => (mount.Name as string))
+      .map((mount) => (mount.Name!))
 
     const stateText = typeof raw.State === "string" ? raw.State : undefined
 

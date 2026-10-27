@@ -7,15 +7,16 @@
 import { Controller, Logger } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { providersContract } from "@repo/api-contracts";
-import type { RunnerDetectionHints } from "@repo/api-contracts";
-import { standardErrorOptions } from "@repo/orpc-utils";
+import { providersContract } from "@deployer/fleet-contracts";
+import type { RunnerDetectionHints } from "@deployer/fleet-contracts";
+import { standardErrorOptions } from "@deployer/orpc-utils";
 import z from "zod/v4";
 import { requireAuth } from "@/core/modules/auth/orpc/middlewares";
 import { GitHubService } from "@/core/modules/git/github/services/github.service";
 import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
 import { PublicAccessPointService } from "@/core/modules/reachability/services/public-access-point.service";
 import { parseComposeServices } from "@/core/modules/git/github/services/compose-parser";
+import { deploymentBuilderKindSchema } from "@/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
 import { GithubAppsRepository } from "../repositories/github-apps.repository";
 
 @Controller()
@@ -123,7 +124,7 @@ export class GitHubAppsController {
             .use(requireAuth())
             .handler(async ({ input, errors }) => {
                 const body = input.body;
-                const values: Partial<typeof import("@repo/nest-schema/global").githubApps.$inferInsert> = {};
+                const values: Partial<typeof import("@deployer/nest-schema/global").githubApps.$inferInsert> = {};
                 if (body?.name) values.name = body.name;
                 if (body?.clientId) values.clientId = body.clientId;
                 if (body?.clientSecret) values.clientSecret = body.clientSecret;
@@ -616,7 +617,10 @@ export class GitHubAppsController {
 
                     if (composeName) {
                         const text = await readFile(composeName);
-                        builder = "docker-compose";
+                        // Must be the schema's spelling (`docker_compose`, underscore):
+                        // `deploymentBuilderKindSchema` is what the deploy path parses,
+                        // and `"docker-compose"` is not a member of it.
+                        builder = "docker_compose";
                         hints.composeFile = composeName;
                         hints.dockerfilePath = dockerfileName ?? undefined;
                         hints.composeCandidates = composeCandidates.map((c) => ({
@@ -684,12 +688,18 @@ export class GitHubAppsController {
                         hints.language = "rust";
                         hints.startCommand = "cargo run";
                     } else if (rootFiles.has("index.html")) {
-                        builder = "static";
+                        // A static site has no builder in the deploy path. Report the
+                        // Dockerfile builder (a generated one is the supported route)
+                        // rather than the invented `"static"`, which no strategy
+                        // registers and which `deploymentBuilderKindSchema` rejects.
+                        builder = "dockerfile";
                         hints.outputDir = ".";
                         hints.indexFile = "index.html";
                         hints.startCommand = undefined;
                     } else if (rootFiles.has("worker.js") || rootFiles.has("queue.yml")) {
-                        builder = "worker-runtime";
+                        // Same reasoning: `"worker-runtime"` is not a builder kind.
+                        // A Node worker without a Dockerfile is a nixpacks build.
+                        builder = "nixpacks";
                         hints.language = "node";
                     }
 
@@ -704,6 +714,23 @@ export class GitHubAppsController {
                     // fall through to default
                 }
 
+                // ── Validate the heuristic's answer against the deploy path ──
+                // The detection above is file-pattern matching, so it can drift from
+                // what the deployment pipeline actually accepts. `deploymentBuilderKind
+                // Schema` is the exact enum the deploy request is parsed with, so a
+                // builder that fails here would have failed later, at deploy time,
+                // with a much worse error. Validating here keeps the wizard honest:
+                // an unrecognised repo yields "no suggestion" instead of a suggestion
+                // that cannot be deployed. (This is the bug class that let detection
+                // return `"static"`, `"docker-compose"` and `"worker-runtime"`, none of
+                // which are builder kinds.)
+                if (builder !== null && !deploymentBuilderKindSchema.safeParse(builder).success) {
+                    this.logger.warn(
+                        `Build detection produced '${builder}' for ${owner}/${repo}, which is not a deployment builder kind — ignoring the suggestion`,
+                    );
+                    builder = null;
+                }
+
                 const detected = builder
                     ? [{
                         builderId: builder,
@@ -713,8 +740,7 @@ export class GitHubAppsController {
                         config: hints,
                     }]
                     : [];
-                return { detected, defaultBuilder: builder };
-            });
+                return { detected, defaultBuilder: builder };            });
     }
 }
 

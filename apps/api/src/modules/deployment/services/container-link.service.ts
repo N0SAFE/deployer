@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common"
-import type { DockerContainer } from "@repo/contracts-entities"
-import type { ContainerEnrichment, IContainerLinkResolver } from "@repo/nest-docker/services/container-link-resolver.interface"
+import type { DockerContainer } from "@deployer/contracts-entities"
+import type { ContainerEnrichment, IContainerLinkResolver } from "@deployer/nest-docker/services/container-link-resolver.interface"
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 

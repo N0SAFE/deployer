@@ -1,11 +1,11 @@
 import { Injectable } from "@nestjs/common"
-import { Observable } from "rxjs"
+import type { Observable } from "rxjs"
 import { map, filter } from "rxjs/operators"
 import type {
   DockerEntityListInput,
   DockerEntityInspectInput,
   DockerEntityStreamInput,
-} from "@repo/api-contracts/modules/docker/entity/shared"
+} from "@deployer/runtime-contracts/modules/docker/entity/shared"
 import {
   type DockerEntityKind,
   type DockerEntityStreamChunk,
@@ -19,11 +19,11 @@ import {
   type DockerImage,
   type DockerNetwork,
   type DockerVolume,
-} from "@repo/contracts-entities"
-import { AppLogger } from "@repo/logger"
-import { DockerEntityDomainService } from "./docker-entity-domain.service"
+} from "@deployer/contracts-entities"
+import { AppLogger } from "@deployer/logger"
+import { DockerEntityDomainService } from "./docker-entity-domain.service";
 
-export type DockerEntityListResult<TKind extends DockerEntityKind> = {
+export interface DockerEntityListResult<TKind extends DockerEntityKind> {
   kind: TKind
   data: DockerEntityStreamChunk[]
   etag: string
@@ -156,7 +156,7 @@ export class DockerEntityOrchestratorService {
           occurredAt,
           eventId: null,
         })
-        data.push(chunk as DockerEntityStreamChunk)
+        data.push(chunk)
       } catch (error) {
         this.scopedLogger.debug(
           "[docker-entity-orchestrator] dropping unconstructible entity in runList",
@@ -191,7 +191,7 @@ export class DockerEntityOrchestratorService {
         action: "snapshot",
         occurredAt: new Date().toISOString(),
         eventId: null,
-      }) as DockerEntityStreamChunk
+      })
     } catch (error) {
       this.scopedLogger.debug(
         "[docker-entity-orchestrator] dropping unconstructible entity in runInspect",

@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { and, eq, inArray } from "drizzle-orm";
-import { GlobalDatabaseService } from "../../../core/modules/database/services/global-database.service";
-import { roleRules } from "@repo/nest-schema/global/permissions";
-import type { ResourceRule } from "@repo/auth/permissions";
+import { GlobalDatabaseService } from "@/core/modules/database/services/global-database.service";
+import { roleRules } from "@deployer/nest-schema/global";
+import type { ResourceRule } from "@deployer/auth/permissions";
 
 /**
  * Handles raw DB queries for the PermissionEngine loaders.

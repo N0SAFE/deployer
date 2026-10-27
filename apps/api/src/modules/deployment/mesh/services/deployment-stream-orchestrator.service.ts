@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import { Observable } from "rxjs";
-import type { DeploymentProgressEvent } from "@repo/api-contracts/modules/deployment/stream";
+import type { Observable } from "rxjs";
+import type { DeploymentProgressEvent } from "@deployer/runtime-contracts/modules/deployment/stream";
 import { DeploymentService } from "../../services/deployment.service";
 import { DeploymentStreamBridgeService } from "./deployment-stream-bridge.service";
 

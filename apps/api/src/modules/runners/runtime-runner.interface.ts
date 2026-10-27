@@ -1,4 +1,4 @@
-import type { DeploymentObservabilityContext, RuntimeRunnerOptions } from "@repo/contracts-entities";
+import type { DeploymentObservabilityContext, RuntimeRunnerOptions } from "@deployer/contracts-entities";
 import type { DeploymentStorageBinding } from "../deployment/storage/base/storage-provider.interface";
 
 export interface BuildArtifactResult {

@@ -3,9 +3,10 @@ import type { OnModuleInit } from "@nestjs/common";
 import { DeploymentRepository } from "../repositories/deployment.repository";
 import { ProjectAccessService } from "@/core/modules/project/services/project-access.service";
 import { DeploymentEventService } from "../events/deployment-event.service";
+import type {
+    Observable} from "rxjs";
 import {
     EMPTY,
-    Observable,
     concat,
     defer,
     filter as rxFilter,
@@ -31,16 +32,16 @@ import type { DeploymentStateMachineScopeConfigInput } from "@/core/modules/depl
 import { deploymentRunnerKindSchema } from "@/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
 import type { ResolvedRuntimeConfiguration } from "@/core/modules/configuration/schemas/runtime-configuration.schema";
 import { UploadBundleRegistryService } from "@/modules/providers/code/upload/services/upload-bundle-registry.service";
-import { isRecord } from "@repo/type-guards"
-import type { DeploymentListInput } from "@repo/api-contracts/modules/deployment/list";
-import type { DeploymentTriggerInput } from "@repo/api-contracts/modules/deployment/crud";
-import type { PlatformRole, ProjectRole } from "@repo/auth";
+import { isRecord } from "@deployer/type-guards"
+import type { DeploymentListInput } from "@deployer/runtime-contracts/modules/deployment/list";
+import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
+import type { PlatformRole, ProjectRole } from "@deployer/auth";
 import type {
     DeploymentProgressEvent,
     DeploymentQueryEvent,
     DeploymentStreamListInput,
     ServiceDeploymentEvent,
-} from "@repo/api-contracts/modules/deployment/stream";
+} from "@deployer/runtime-contracts/modules/deployment/stream";
 import type {
     DeploymentStatus,
     DeploymentLog,
@@ -97,7 +98,7 @@ import type {
     DeploymentListCompiledPlanSnapshotsResult,
     DeploymentPhaseTransitionsCatalog,
     DeploymentStreamEventType,
-} from "@repo/contracts-entities";
+} from "@deployer/contracts-entities";
 
 
 const CANCELLABLE_STATUSES = ["pending", "queued", "building", "deploying"] as const;
@@ -268,9 +269,9 @@ export class DeploymentService implements OnModuleInit {
                 id: r.id,
                 subdomain: r.subdomain,
                 fullDomain: r.fullDomain,
-                sslEnabled: r.sslEnabled !== false,
-                isActive: r.isActive !== false,
-                webhookTriggered: r.webhookTriggered !== false,
+                sslEnabled: r.sslEnabled,
+                isActive: r.isActive,
+                webhookTriggered: r.webhookTriggered,
                 expiresAt: r.expiresAt ? r.expiresAt.toISOString() : null,
                 deploymentId: r.deploymentId,
                 metadata: r.metadata
@@ -903,7 +904,7 @@ export class DeploymentService implements OnModuleInit {
         );
         const correlationId = randomUUID();
 
-        const retrySource = deployment.sourceConfig as DeploymentTriggerInput["source"] | null;
+        const retrySource = deployment.sourceConfig;
         const sourceCheckout =
             retrySource && "sourceType" in retrySource && retrySource.sourceType
                 ? await this.sourceProviderRegistryService.resolveSourceCheckout({
@@ -1397,6 +1398,34 @@ export class DeploymentService implements OnModuleInit {
         }
 
         if (existing.type === "rollback" && existing.payload.deploymentId) {
+            // ── EXECUTE THE REVERT, THEN RECORD IT ─────────────────────────────
+            // This used to record success unconditionally:
+            //
+            //   persistRollbackExecutionResult(...)   // writes status:"success"
+            //
+            // with nothing in between touching the running system, so a rollback could
+            // report success while the broken version stayed live. The retry (below) uses
+            // the same ordering. `targetDeploymentId` comes from the job context because
+            // the rollback row stores the *new* deployment id, not the one to revert to.
+            const targetDeploymentId = this.getResultString(
+                existing.payload.context,
+                "targetDeploymentId",
+            );
+            if (!targetDeploymentId) {
+                throw new BadRequestException(
+                    `Rollback job '${existing.id}' has no targetDeploymentId in its context — cannot determine what to roll back to`,
+                );
+            }
+
+            await this.deploymentExecutionWorkflowService.executeRollbackDeployment({
+                rollbackDeploymentId: existing.payload.deploymentId,
+                targetDeploymentId,
+                rollbackId: this.getResultString(existing.payload.context, "rollbackId"),
+                fromDeploymentId: this.getResultString(existing.payload.context, "fromDeploymentId"),
+                runtimeRunnerKind: this.getResultString(input.result, "runtimeRunner"),
+                observability: existing.payload.observability ?? null,
+            });
+
             await this.deploymentExecutionWorkflowService.persistRollbackExecutionResult(
                 existing.payload.deploymentId,
                 this.getResultString(existing.payload.context, "rollbackId"),

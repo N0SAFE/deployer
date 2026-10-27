@@ -24,7 +24,7 @@ function makeService(options: {
 	const getManagedWebOrigin = vi.fn(async () => options.origin ?? null);
 
 	const service = new PostSetupDestinationService(
-		{ get: vi.fn() } as unknown as EnvService,
+		{ get: vi.fn() },
 		{
 			webOrigin: () => "http://web.deployer.localhost",
 			apiOrigin: () => "http://api.deployer.localhost",

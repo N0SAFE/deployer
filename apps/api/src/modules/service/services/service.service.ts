@@ -15,20 +15,20 @@ import { ServiceEventService } from "./service-event.service";
 import { PreviewTopologyService } from "./preview-topology.service";
 import { defaultProviderConfig, defaultRunnerConfig } from "./service-config-defaults";
 import { emptyEffectiveConfig, foldServiceChain, mergeServiceConfig } from "./service-effective-config";
-import type { ServiceEffectiveConfig, ServiceWithEffectiveConfig } from "@repo/contracts-entities";
-import type { ServiceListInput } from "@repo/api-contracts/modules/service/list";
-import type { ServiceCreateInput } from "@repo/api-contracts/modules/service/crud/create";
-import type { ServiceUpdateInput } from "@repo/api-contracts/modules/service/crud/update";
-import type { ProjectRole } from "@repo/auth";
+import type { ServiceEffectiveConfig, ServiceWithEffectiveConfig } from "@deployer/contracts-entities";
+import type { ServiceListInput } from "@deployer/project-contracts/modules/service/list";
+import type { ServiceCreateInput } from "@deployer/project-contracts/modules/service/crud/create";
+import type { ServiceUpdateInput } from "@deployer/project-contracts/modules/service/crud/update";
+import type { ProjectRole } from "@deployer/auth";
 import type {
     ServiceStreamEvent,
     ServiceStreamQueryInput,
-} from "@repo/api-contracts/modules/service/streams/query";
+} from "@deployer/project-contracts/modules/service/streams/query";
 import type {
     ConfigurationProviderType,
     ConfigurationRunnerType,
 } from "@/core/modules/configuration/schemas/runtime-configuration.schema";
-import type { ServiceProviderType, ServiceRunnerType } from "@repo/contracts-common";
+import type { ServiceProviderType, ServiceRunnerType } from "@deployer/contracts-common";
 
 type StreamEventWithMeta<T extends object> = T & {
     sequence: number;
@@ -418,13 +418,13 @@ export class ServiceService implements OnModuleInit {
 
     private async buildSubServiceDependenciesTree(parentId: string) {
         type Dependency = Awaited<ReturnType<ServiceRepository["getDependencies"]>>[number];
-        type SubServiceNode = {
+        interface SubServiceNode {
             serviceId: string;
             serviceName: string;
             serviceType: string;
             dependencies: Dependency[];
             children?: SubServiceNode[];
-        };
+        }
         const children = await this.serviceRepository.listChildren(parentId);
         const nodes: SubServiceNode[] = [];
         for (const child of children) {

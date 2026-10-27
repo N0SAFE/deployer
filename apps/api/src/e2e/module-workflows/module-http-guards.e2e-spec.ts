@@ -31,7 +31,11 @@ describe("Module HTTP guard matrix e2e", () => {
     await context.http.get("/analytics/metrics/deployments").expect(401);
     await context.http.get("/providers").expect(401);
     await context.http.get("/push/subscriptions").expect(401);
-    await context.http.get("/core/fleet/servers").expect(401);
+    // `nodesContract` carries the `/nodes` prefix and lists this procedure at
+    // `/servers`, so the mounted path is `/nodes/servers`. The old
+    // `/core/fleet/servers` was the pre-split internal grouping, which no route
+    // ever served.
+    await context.http.get("/nodes/servers").expect(401);
   });
 
   it("reports template list route as not yet mounted", async () => {

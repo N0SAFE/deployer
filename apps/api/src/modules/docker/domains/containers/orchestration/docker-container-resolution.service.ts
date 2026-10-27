@@ -1,21 +1,21 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { BadRequestError } from "@repo/errors";
+import { BadRequestError } from "@deployer/errors";
 import { createHash } from "node:crypto";
 import type {
     DockerContainerGroupedListInput,
     DockerContainerGroupedListItem,
     DockerContainerGroupedListResult,
     DockerContainerListInput,
-} from "@repo/api-contracts/modules/docker/containers/shared";
+} from "@deployer/runtime-contracts/modules/docker/containers/shared";
 import type {
     DockerImageListInput,
-} from "@repo/api-contracts/modules/docker/images/list";
+} from "@deployer/runtime-contracts/modules/docker/images/list";
 import type {
     DockerNetworkListInput,
-} from "@repo/api-contracts/modules/docker/networks/list";
+} from "@deployer/runtime-contracts/modules/docker/networks/list";
 import type {
     DockerVolumeListInput,
-} from "@repo/api-contracts/modules/docker/volumes/list";
+} from "@deployer/runtime-contracts/modules/docker/volumes/list";
 import {
     dockerContainerInspectDetailSchema,
     dockerContainerSchema,
@@ -33,7 +33,7 @@ import {
     type DockerRuntimeCatalog,
     type DockerStack,
     type DockerVolume,
-} from "@repo/contracts-entities";
+} from "@deployer/contracts-entities";
 import { SystemMeshTopologyService } from "@/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { MeshInternalRequestService } from "@/core/modules/mesh/services/mesh-internal-request.service";
 import { DockerRepository } from "../../../repositories/facade/docker.repository";
@@ -46,7 +46,7 @@ import type {
     DockerRuntimeCatalogResponsePayload,
 } from "../mesh/docker-container-mesh.service";
 import { DockerContainerMeshService } from "../mesh/docker-container-mesh.service";
-import { isRecord, isObjectLike } from "@repo/type-guards"
+import { isRecord, isObjectLike } from "@deployer/type-guards"
 
 const MESH_FANOUT_LIMIT = 500;
 const PEER_FALLBACK_TIMEOUT_MS = 1_750;

@@ -1,12 +1,36 @@
 import { describe, expect, it, vi } from "vitest";
 import { DeploymentArtifactBuilderService } from "./deployment-artifact-builder.service";
+import { BuilderRegistryService } from "./builder-registry.service";
+import { DockerfileBuilderStrategy } from "./strategies/dockerfile-builder.strategy";
+import { DockerComposeBuilderStrategy } from "./strategies/docker-compose-builder.strategy";
+import { BuildpackFamilyBuilderStrategy } from "./strategies/buildpack-family-builder.strategy";
 import { mkdtempSync } from "node:fs";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { DeploymentProviderBuilderRunnerStateMachineService } from "@/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
 
+/**
+ * The builder registry the real module wires, assembled here with the same shape.
+ *
+ * Built from the real strategy classes rather than mocks so these tests exercise the
+ * actual dispatch — including the fact that the three buildpack-family builders are
+ * registered but UNAVAILABLE, which is the behaviour that replaces the old
+ * "Dockerfile not found" failure.
+ */
+const createRegistry = (dockerService: { buildImage: ReturnType<typeof vi.fn>; buildCompose?: ReturnType<typeof vi.fn> }) =>
+    new BuilderRegistryService([
+        // `as never` at the boundary only: the strategies take the real `DockerService`,
+        // and this spec supplies the two methods it actually calls. A narrower
+        // constructor type would weaken the production contract to suit a test.
+        new DockerfileBuilderStrategy(dockerService as never),
+        new DockerComposeBuilderStrategy(dockerService as never),
+        new BuildpackFamilyBuilderStrategy("nixpacks", dockerService as never),
+        new BuildpackFamilyBuilderStrategy("buildpack", dockerService as never),
+        new BuildpackFamilyBuilderStrategy("railpack", dockerService as never),
+    ]);
+
 const createService = (
-    dockerService: { buildImage: ReturnType<typeof vi.fn> },
+    dockerService: { buildImage: ReturnType<typeof vi.fn>; buildCompose?: ReturnType<typeof vi.fn> },
     gitServiceOverrides?: Partial<{ extractUploadedFile: ReturnType<typeof vi.fn> }>,
 ) =>
     new DeploymentArtifactBuilderService(
@@ -14,8 +38,11 @@ const createService = (
             extractUploadedFile: vi.fn(),
             ...(gitServiceOverrides ?? {}),
         } as never,
+        // See `createRegistry`: the spec supplies only the two Docker methods under
+        // test, so the widening stays at this boundary.
         dockerService as never,
         new DeploymentProviderBuilderRunnerStateMachineService(),
+        createRegistry(dockerService),
     );
 
 describe("DeploymentArtifactBuilderService", () => {

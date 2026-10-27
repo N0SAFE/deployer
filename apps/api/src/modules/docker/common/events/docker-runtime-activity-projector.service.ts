@@ -1,12 +1,12 @@
 import { Injectable } from "@nestjs/common"
-import { isRecord } from "@repo/type-guards";
+import { isRecord } from "@deployer/type-guards";
 import type {
   DockerRuntimeEvent,
   DockerRuntimeActivityEntity,
   DockerRuntimeActivityStatus,
   DockerRuntimeActivitySeverity,
   DockerRuntimeActivityCategory,
-} from "@repo/contracts-entities"
+} from "@deployer/contracts-entities"
 import type { SwarmActivityEnrichment } from "./swarm-activity-enricher.service"
 
 /**
@@ -177,14 +177,14 @@ export class DockerRuntimeActivityProjectorService {
   private resolveMessage(event: DockerRuntimeEvent): string | null {
     const payload = isRecord(event.payload) ? event.payload : {}
     const candidates = [
-      payload["containerName"],
-      payload["imageName"],
-      payload["repository"],
-      payload["networkName"],
-      payload["volumeName"],
-      payload["serviceName"],
-      payload["daemonName"],
-      payload["builderName"],
+      payload.containerName,
+      payload.imageName,
+      payload.repository,
+      payload.networkName,
+      payload.volumeName,
+      payload.serviceName,
+      payload.daemonName,
+      payload.builderName,
     ]
     for (const candidate of candidates) {
       if (typeof candidate === "string" && candidate.trim().length > 0) {

@@ -1,11 +1,12 @@
 import { Injectable } from "@nestjs/common";
-import { EMPTY, Observable, defer, from, interval, merge, of } from "rxjs";
+import type { Observable} from "rxjs";
+import { EMPTY, defer, from, interval, merge, of } from "rxjs";
 import { catchError, distinctUntilChanged, filter, finalize, map, mergeWith, switchMap, tap } from "rxjs/operators";
 import type {
     DockerContainerInspectStreamQueryInput,
-} from "@repo/api-contracts/modules/docker/containers/shared";
-import type { DockerImageInspectStreamQueryInput } from "@repo/api-contracts/modules/docker/images/stream-inspect";
-import type { DockerRuntimeEventsStreamQueryInput } from "@repo/api-contracts/modules/docker/runtime/shared";
+} from "@deployer/runtime-contracts/modules/docker/containers/shared";
+import type { DockerImageInspectStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/images/stream-inspect";
+import type { DockerRuntimeEventsStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/runtime/shared";
 import {
     dockerContainerInspectDetailSchema,
     dockerImageInspectDetailSchema,
@@ -13,13 +14,13 @@ import {
     type DockerContainerRuntimeEvent,
     type DockerImageInspectDetail,
     type DockerRuntimeEvent,
-} from "@repo/contracts-entities";
+} from "@deployer/contracts-entities";
 import { DockerContainerResolutionService } from "../../domains/containers/orchestration/docker-container-resolution.service";
 import { DockerContainerMetricsStreamService } from "../../domains/containers/events/docker-container-metrics-stream.service";
 import { DockerRepository } from "../../repositories/facade/docker.repository";
-import { AppLogger } from "@repo/logger";
+import { AppLogger } from "@deployer/logger";
 import { DockerRuntimeEventsStreamService } from "../events/docker-runtime-events-stream.service";
-import { isRecord, isObjectLike } from "@repo/type-guards"
+import { isRecord, isObjectLike } from "@deployer/type-guards"
 
 type DockerKnownSource = Exclude<DockerRuntimeEvent["source"], "unknown">;
 
@@ -317,7 +318,7 @@ export class DockerRuntimeStreamOrchestratorService {
 
         if (query.sources && query.sources.length > 0) {
             const sourceSet = new Set(query.sources);
-            stream$ = stream$.pipe(filter((event) => sourceSet.has(event.source as DockerKnownSource)));
+            stream$ = stream$.pipe(filter((event) => sourceSet.has(event.source)));
         }
 
         if (query.scopes && query.scopes.length > 0) {

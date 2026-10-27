@@ -48,7 +48,7 @@ edge connector, DB service primitive, managed web) are
 **API-supervised as SWARM SERVICES** (the default) or **deployment-managed**
 (`MANAGED_<SERVICE>_ENABLED=true` — compose/operator owns the process and the
 supervisor only wires networks). The `MANAGED_<SERVICE>_ENABLED` env flags +
-`MANAGED_<SERVICE>_<KEY>` reach-config live in the shared `@repo/env` schema
+`MANAGED_<SERVICE>_<KEY>` reach-config live in the shared `@deployer/env` schema
 (`packages/config/env/src/index.ts`); `splitManagedEnv` splits the flat vars
 into the nested `managed[service].key` / `.enabled` shape.
 

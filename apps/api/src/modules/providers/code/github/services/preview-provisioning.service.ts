@@ -22,7 +22,7 @@ import { isIP } from "node:net";
 import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
 import { PublicAccessPointService } from "@/core/modules/reachability/services/public-access-point.service";
 import { DomainRoutingService } from "@/core/modules/domain/services/domain-routing.service";
-import { CloudflareDnsProviderService } from "@/modules/providers/dns/cloudflare/services/cloudflare-dns-provider.service";
+import { DnsProviderRegistryService } from "@/modules/providers/dns/shared/dns-provider-registry.service";
 import { PreviewEnvironmentRepository } from "../repositories/preview-environment.repository";
 
 export interface PreviewProvisionInput {
@@ -56,7 +56,7 @@ export class PreviewProvisioningService {
         private readonly previewEnvironmentRepository: PreviewEnvironmentRepository,
         private readonly reachabilityService: ReachabilityService,
         private readonly domainRoutingService: DomainRoutingService,
-        private readonly dnsProvidersService: CloudflareDnsProviderService,
+        private readonly dnsRegistry: DnsProviderRegistryService,
         private readonly publicAccessPointService: PublicAccessPointService,
     ) {}
 
@@ -81,14 +81,14 @@ export class PreviewProvisioningService {
         let dnsRecord: { name: string; type: string; content: string } | null = null;
         let providerId: string | null = null;
         try {
-            const provider = await this.dnsProvidersService.findFirstActiveProvider();
+            const provider = await this.dnsRegistry.findFirstActiveAccount();
             if (provider) {
                 providerId = provider.providerId;
-                const zone = await this.dnsProvidersService.findZoneForHostname(provider, host);
+                const zone = await this.dnsRegistry.findZoneForHostname(provider, host);
                 if (zone) {
                     const target = await this.resolveDnsTarget();
                     if (target) {
-                        const created = await this.dnsProvidersService.createRecord(provider, {
+                        const created = await this.dnsRegistry.createRecord(provider, {
                             zoneId: zone.zoneId,
                             type: target.kind === "hostname" ? "CNAME" : "A",
                             name: host,
@@ -147,15 +147,15 @@ export class PreviewProvisioningService {
         // Remove the DNS record if a provider covers the zone.
         let dnsRecord: { name: string; type: string; content: string } | null = null;
         try {
-            const provider = await this.dnsProvidersService.findFirstActiveProvider();
+            const provider = await this.dnsRegistry.findFirstActiveAccount();
             if (provider) {
-                const zone = await this.dnsProvidersService.findZoneForHostname(provider, host);
+                const zone = await this.dnsRegistry.findZoneForHostname(provider, host);
                 if (zone) {
-                    const records = await this.dnsProvidersService.listRecords(provider, zone.zoneId);
+                    const records = await this.dnsRegistry.listRecords(provider, zone.zoneId);
                     const target = records.find((r) => r.name === host);
                     if (target) {
                         dnsRecord = { name: target.name, type: target.type, content: target.content };
-                        await this.dnsProvidersService.deleteRecord(provider, zone.zoneId, target.id);
+                        await this.dnsRegistry.deleteRecord(provider, zone.zoneId, target.id);
                     }
                 }
             }
@@ -199,7 +199,7 @@ export class PreviewProvisioningService {
      * Active preview environments that have expired (expiresAt < now).
      * Used by the TTL cleanup scheduler.
      */
-    async findExpiredPreviews(now: Date = new Date()): Promise<Array<{ id: string; serviceId: string; previewName: string; fullDomain: string }>> {
+    async findExpiredPreviews(now: Date = new Date()): Promise<{ id: string; serviceId: string; previewName: string; fullDomain: string }[]> {
         const rows = await this.previewEnvironmentRepository.findExpired(now);
 
         return rows.map((r) => ({

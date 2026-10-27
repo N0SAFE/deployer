@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { filter, type Observable } from "rxjs";
-import type { DockerRuntimeEventsStreamQueryInput } from "@repo/api-contracts/modules/docker/runtime/shared";
-import type { DockerServiceRuntimeEvent } from "@repo/contracts-entities";
+import type { DockerRuntimeEventsStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/runtime/shared";
+import type { DockerServiceRuntimeEvent } from "@deployer/contracts-entities";
 import { DockerRuntimeEventsSourceService } from "../docker-runtime-events-source.service";
 
 @Injectable()

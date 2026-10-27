@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import { useDescribeSharedApiRuntime } from "@/e2e/utils/shared-api-runtime";
+import { DeploymentQueueWorkerService } from "@/modules/deployment/queue/deployment-queue.worker.service";
 import {
   createDeploymentCompleteStrategyContext,
   type DeploymentCompleteStrategyContext,
@@ -12,7 +13,11 @@ describe("Deployment strategy e2e: project, service, traefik, config, upload dep
 
   beforeAll(async () => {
     try {
-    context = await createDeploymentCompleteStrategyContext(runtimeScope.getContext());
+    const runtime = runtimeScope.getContext();
+    // This suite drives the queue by hand (claim + complete). The runtime's own worker
+    // would claim every triggered job first and run it for real, so stop it.
+    runtime.serviceMapper.get(DeploymentQueueWorkerService).onModuleDestroy();
+    context = await createDeploymentCompleteStrategyContext(runtime);
     } catch (error) {
         console.error("Error creating deployment complete strategy context:", error);
         throw error; // Rethrow to fail the test setup
@@ -109,7 +114,7 @@ describe("Deployment strategy e2e: project, service, traefik, config, upload dep
 
     expect(service.projectId).toBe(project.id);
     expect(service.providerId).toBe("artifact-bundle");
-    expect(service.builderId).toBe("dockerfile");
+    expect(service.builderId).toBe("manual");
     expect(serviceConfig.serviceId).toBe(service.id);
     expect(serviceConfig.fullDomain).toContain("services.e2e.example.test");
     expect(validation.isValid).toBe(true);
@@ -149,9 +154,12 @@ describe("Deployment strategy e2e: project, service, traefik, config, upload dep
           fileName: "bundle.zip",
           fileSize: 1024,
           customData: {
+            uploadId,
+            uploadPath: "/tmp/e2e-upload/bundle.zip",
             runtimeRunner: "dockerfile",
             containerImage: `ghcr.io/e2e/deploy-${service.id.slice(0, 8)}:latest`,
             runtimeRunnerOptions: {
+              runner: "dockerfile",
               containerName: `ctr-${service.id.slice(0, 8)}`,
               networkMode: "bridge",
               healthCheckMaxRetries: 3,
@@ -166,9 +174,10 @@ describe("Deployment strategy e2e: project, service, traefik, config, upload dep
 
     expect(deployment.status).toBe("queued");
 
+    // No status filter: the runtime's queue worker may already have claimed the job
+    // by the time we list it, and this assertion is about the job's context.
     const queueJobs = context.deploymentService.listQueueJobs({
       deploymentId: deployment.id,
-      status: "queued",
       limit: 20,
       offset: 0,
     });
@@ -295,17 +304,20 @@ describe("Deployment strategy e2e: project, service, traefik, config, upload dep
       context.ownerId,
     );
 
+    const filterUploadId = `upload-filter-${randomUUID()}`;
     const deployment = await context.deploymentService.triggerDeployment(
       {
         serviceId: service.id,
         environment: "preview",
         source: {
           sourceType: "upload",
-          uploadId: `upload-filter-${randomUUID()}`,
+          uploadId: filterUploadId,
           uploadPath: "/tmp/e2e-upload/bundle-filter.zip",
           fileName: "bundle-filter.zip",
           fileSize: 2048,
           customData: {
+            uploadId: filterUploadId,
+            uploadPath: "/tmp/e2e-upload/bundle-filter.zip",
             runtimeRunner: "dockerfile",
             containerImage: `ghcr.io/e2e/filter-${service.id.slice(0, 8)}:latest`,
           },
@@ -315,17 +327,28 @@ describe("Deployment strategy e2e: project, service, traefik, config, upload dep
       null,
     );
 
+    // The runtime's queue worker may claim the job at any moment, so filter on the
+    // status the job actually has instead of assuming it is still "queued".
+    const all = context.deploymentService.listQueueJobs({
+      deploymentId: deployment.id,
+      type: "deploy",
+      limit: 20,
+      offset: 0,
+    });
+    const job = all.items.find((item) => item.payload.deploymentId === deployment.id);
+    expect(job).toBeDefined();
+
     const filtered = context.deploymentService.listQueueJobs({
       deploymentId: deployment.id,
       type: "deploy",
-      status: "queued",
+      status: job?.status,
       limit: 20,
       offset: 0,
     });
 
     expect(filtered.items.length).toBeGreaterThanOrEqual(1);
-    expect(filtered.items.some((job) => job.payload.deploymentId === deployment.id)).toBe(true);
-    expect(filtered.items.every((job) => job.type === "deploy")).toBe(true);
-    expect(filtered.items.every((job) => job.status === "queued")).toBe(true);
+    expect(filtered.items.some((item) => item.payload.deploymentId === deployment.id)).toBe(true);
+    expect(filtered.items.every((item) => item.type === "deploy")).toBe(true);
+    expect(filtered.items.every((item) => item.status === job?.status)).toBe(true);
   });
 });

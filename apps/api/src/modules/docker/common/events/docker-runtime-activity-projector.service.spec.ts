@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DockerRuntimeActivityProjectorService } from "./docker-runtime-activity-projector.service";
-import type { DockerRuntimeEvent } from "@repo/contracts-entities";
+import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
 
 function makeEvent(overrides: Partial<DockerRuntimeEvent> = {}): DockerRuntimeEvent {
   const base = {

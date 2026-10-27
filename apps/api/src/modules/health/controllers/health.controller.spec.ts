@@ -2,7 +2,7 @@ import { Test, type TestingModule } from "@nestjs/testing";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { HealthController } from "./health.controller";
 import { HealthService } from "../services/health.service";
-import { AppLifecyclePhase } from "@repo/nest-lifecycle";
+import { AppLifecyclePhase } from "@deployer/nest-lifecycle";
 
 // Mock auth user for requireAuth middleware
 const mockAuthUser = {
@@ -128,31 +128,18 @@ describe("HealthController", () => {
                 timestamp: new Date(),
                 service: "nestjs-api",
                 uptime: 123,
-                memory: { used: 1000, free: 2000, total: 3000 },
-                database: { status: "ok" as const, timestamp: new Date("2023-01-01T00:00:00Z"), responseTime: 100 },
-                supervisors: [
-                    {
-                        supervisorId: "platform-ingress-traefik",
-                        description: "Platform Traefik ingress",
-                        healthy: true,
-                        state: "converged" as const,
-                        detail: null,
-                        warnings: [],
-                        checkedAt: "2023-01-01T00:00:00Z",
-                        payload: {
-                            checkedAt: "2023-01-01T00:00:00Z",
-                            latencyMs: 1,
-                            container: null,
-                            entrypoint: null,
-                            config: {
-                                apiHostname: "api.deployer.localhost",
-                                configDir: "/tmp/config",
-                                dynamicApiFile: "/tmp/config/dynamic-api.yml",
-                                fileSizeBytes: null,
-                            },
-                        },
-                    },
+                // The contract's report shape: Terminus' own `info`/`error`/`details`
+                // passed through, plus the flattened list a UI renders.
+                info: { database: { status: "up" } },
+                error: {},
+                details: { database: { status: "up" } },
+                // Both literals need `as const`: the service narrows `name` to the readiness
+                // indicator union and `status` to the contract's up/down enum, so a widened
+                // `string` would not be assignable back into its own return type.
+                indicators: [
+                    { name: "database" as const, status: "up" as const, latencyMs: 0, detail: {} },
                 ],
+                supervisors: [],
             };
             vi.mocked(service.getDetailedHealth).mockResolvedValue(mockDetailedHealth);
 
