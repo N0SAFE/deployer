@@ -1,6 +1,7 @@
 import { Controller } from '@nestjs/common'
 import { Implement } from '@orpc/nest'
 import { implement } from '@orpc/server'
+import { catchDomainErrors } from '@deployer/effect-orpc'
 import { EffectContextOf } from '@deployer/nest-effect'
 
 import { UserDomainModule } from '../user.module'
@@ -11,7 +12,6 @@ import { actorFromContext } from '@identity/core/utils/actor.utils'
 
 import type { UserPatch } from '../domain/user.types'
 import { UserService } from '../services/user.service'
-import { mapUserFailures } from './user.error-mapper'
 import { readFilter, readSortField } from './user.filters'
 
 /**
@@ -42,7 +42,7 @@ export class UserController {
                         sortDirection: input.query?.sortDirection ?? 'desc',
                         filter: readFilter(input.query?.filter),
                     })
-                    .pipe(mapUserFailures)
+                    .pipe(catchDomainErrors)
 
                 return {
                     data: page.data,
@@ -65,7 +65,7 @@ export class UserController {
                 const users = yield* UserService
                 return yield* users
                     .findById(actorFromContext(context), input.params.id)
-                    .pipe(mapUserFailures)
+                    .pipe(catchDomainErrors)
             })
     }
 
@@ -83,7 +83,7 @@ export class UserController {
                         email: input.email,
                         image: input.image ?? null,
                     })
-                    .pipe(mapUserFailures)
+                    .pipe(catchDomainErrors)
 
                 return { status: 201 as const, headers: {}, body: created }
             })
@@ -112,7 +112,7 @@ export class UserController {
 
                 return yield* users
                     .update(actorFromContext(context), id, patch, rest)
-                    .pipe(mapUserFailures)
+                    .pipe(catchDomainErrors)
             })
     }
 
@@ -125,7 +125,7 @@ export class UserController {
                 const users = yield* UserService
                 yield* users
                     .delete(actorFromContext(context), input.params.id)
-                    .pipe(mapUserFailures)
+                    .pipe(catchDomainErrors)
 
                 return { success: true, message: undefined }
             })
@@ -140,7 +140,7 @@ export class UserController {
                 const users = yield* UserService
                 const exists = yield* users
                     .checkEmail(input.email)
-                    .pipe(mapUserFailures)
+                    .pipe(catchDomainErrors)
                 return { exists }
             })
     }
@@ -163,7 +163,7 @@ export class UserController {
 
                 const count = yield* users
                     .count(actorFromContext(context), readFilter(filter))
-                    .pipe(mapUserFailures)
+                    .pipe(catchDomainErrors)
                 return { count }
             })
     }

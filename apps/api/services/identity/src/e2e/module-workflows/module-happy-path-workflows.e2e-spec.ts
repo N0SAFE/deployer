@@ -17,14 +17,14 @@ import {
 	type UserRepositoryShape,
 } from "@/modules/user/repositories/user.repository";
 import { DatabasePort, type DatabaseShape } from "@identity/core/database/database.port";
-import type { UserServiceFailure } from "@/modules/user/user.failures";
+import type { UserFailure } from "@/modules/user/services/user.service";
 import { AnalyticsService } from "@/modules/analytics/services/analytics.service";
 
 /** Run a user use case with the real repository, outside the oRPC context. */
 function run<T>(
 	repository: UserRepositoryShape,
 	database: DatabaseShape,
-	effect: Effect.Effect<T, UserServiceFailure, UserRepository | DatabasePort>,
+	effect: Effect.Effect<T, UserFailure, UserRepository | DatabasePort>,
 ): Promise<T> {
 	return Effect.runPromise(
 		effect.pipe(

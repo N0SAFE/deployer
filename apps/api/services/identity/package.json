@@ -44,6 +44,8 @@
         "web-push": "^3.6.7",
         "zod": "catalog:utils",
         "@orpc/effect": "catalog:orpc",
+        "@deployer/effect-core": "*",
+        "@deployer/effect-orpc": "*",
         "@deployer/nest-effect": "*",
         "effect": "catalog:effect",
         "@deployer/orpc-utils": "*"

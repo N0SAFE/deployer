@@ -1,11 +1,11 @@
-import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@deployer/errors";
 import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DatabasePort, type DatabaseShape } from "@identity/core/database/database.port";
 import type { User } from "../domain/user.types";
 import { UserRepository, type UserRepositoryShape } from "../repositories/user.repository";
-import type { UserServiceFailure } from "../user.failures";
+import { EmailTaken, UserForbidden, UserInvalid, UserNotFound } from "../domain/user.errors";
+import type { UserFailure } from "./user.service";
 import { UserServiceImpl } from "./user.service";
 
 const admin = { userId: "admin-1", role: "admin" };
@@ -50,15 +50,15 @@ describe("UserServiceImpl", () => {
 		);
 
 	/** The domain error a use case failed with. */
-	const failureOf = (effect: Effect.Effect<unknown, UserServiceFailure, UserRepository | DatabasePort>) =>
-		run(Effect.flip(effect)).then((failure) => failure.cause);
+	const failureOf = (effect: Effect.Effect<unknown, UserFailure, UserRepository | DatabasePort>) =>
+		run(Effect.flip(effect));
 
 	describe("list / count", () => {
 		it("forbids an ordinary user", async () => {
 			const query = { limit: 10, offset: 0, sortField: "createdAt", sortDirection: "desc", filter: {} } as const;
 
-			await expect(failureOf(service.list(member, query))).resolves.toBeInstanceOf(ForbiddenError);
-			await expect(failureOf(service.count(member, {}))).resolves.toBeInstanceOf(ForbiddenError);
+			await expect(failureOf(service.list(member, query))).resolves.toBeInstanceOf(UserForbidden);
+			await expect(failureOf(service.count(member, {}))).resolves.toBeInstanceOf(UserForbidden);
 			expect(repo.list).not.toHaveBeenCalled();
 		});
 
@@ -94,7 +94,7 @@ describe("UserServiceImpl", () => {
 		});
 
 		it("forbids a user reading someone else, without touching the database", async () => {
-			await expect(failureOf(service.findById(member, "user-2"))).resolves.toBeInstanceOf(ForbiddenError);
+			await expect(failureOf(service.findById(member, "user-2"))).resolves.toBeInstanceOf(UserForbidden);
 			expect(repo.findById).not.toHaveBeenCalled();
 		});
 
@@ -135,7 +135,7 @@ describe("UserServiceImpl", () => {
 
 		it("forbids a non-administrator", async () => {
 			await expect(failureOf(service.create(member, { name: "A", email: "a@b.co" }))).resolves.toBeInstanceOf(
-				ForbiddenError,
+				UserForbidden,
 			);
 		});
 
@@ -144,16 +144,16 @@ describe("UserServiceImpl", () => {
 			repo.insert.mockImplementation((input: unknown) => Effect.succeed(input));
 			const input = { name: "Root", email: "r@b.co", role: "superAdmin" } as const;
 
-			await expect(failureOf(service.create(admin, input))).resolves.toBeInstanceOf(ForbiddenError);
+			await expect(failureOf(service.create(admin, input))).resolves.toBeInstanceOf(UserForbidden);
 			await expect(run(service.create(root, input))).resolves.toMatchObject({ role: "superAdmin" });
 		});
 
 		it("rejects an unusable email or a blank name before the database", async () => {
 			await expect(failureOf(service.create(admin, { name: "A", email: "nope" }))).resolves.toBeInstanceOf(
-				ValidationError,
+				UserInvalid,
 			);
 			await expect(failureOf(service.create(admin, { name: " ", email: "a@b.co" }))).resolves.toBeInstanceOf(
-				ValidationError,
+				UserInvalid,
 			);
 			expect(repo.emailExists).not.toHaveBeenCalled();
 		});
@@ -162,7 +162,7 @@ describe("UserServiceImpl", () => {
 			repo.emailExists.mockReturnValue(Effect.succeed(true));
 
 			await expect(failureOf(service.create(admin, { name: "A", email: "a@b.co" }))).resolves.toBeInstanceOf(
-				ConflictError,
+				EmailTaken,
 			);
 			expect(repo.insert).not.toHaveBeenCalled();
 		});
@@ -178,7 +178,7 @@ describe("UserServiceImpl", () => {
 		it("refuses client-supplied audit timestamps before anything else", async () => {
 			await expect(
 				failureOf(service.update(admin, "user-1", { name: "X" }, { createdAt: "2026-01-01" })),
-			).resolves.toBeInstanceOf(ValidationError);
+			).resolves.toBeInstanceOf(UserInvalid);
 			expect(repo.findById).not.toHaveBeenCalled();
 		});
 
@@ -186,13 +186,13 @@ describe("UserServiceImpl", () => {
 			repo.findById.mockReturnValue(Effect.succeed(null));
 
 			await expect(failureOf(service.update(admin, "ghost", { name: "X" }, {}))).resolves.toBeInstanceOf(
-				NotFoundError,
+				UserNotFound,
 			);
 		});
 
 		it("forbids changing someone else's account without administration", async () => {
 			await expect(failureOf(service.update(member, "user-2", { name: "X" }, {}))).resolves.toBeInstanceOf(
-				ForbiddenError,
+				UserForbidden,
 			);
 		});
 
@@ -205,7 +205,7 @@ describe("UserServiceImpl", () => {
 
 		it("refuses a user who asks to change their own role", async () => {
 			await expect(failureOf(service.update(member, "user-1", { role: "admin" }, {}))).resolves.toBeInstanceOf(
-				ForbiddenError,
+				UserForbidden,
 			);
 			expect(repo.update).not.toHaveBeenCalled();
 		});
@@ -216,7 +216,7 @@ describe("UserServiceImpl", () => {
 
 			await expect(
 				failureOf(service.update(admin, "user-1", { role: "superAdmin" }, {})),
-			).resolves.toBeInstanceOf(ForbiddenError);
+			).resolves.toBeInstanceOf(UserForbidden);
 		});
 
 		it("conflicts on an email another account holds, checking it excluding this user", async () => {
@@ -224,7 +224,7 @@ describe("UserServiceImpl", () => {
 
 			await expect(
 				failureOf(service.update(admin, "user-1", { email: "Taken@Example.com" }, {})),
-			).resolves.toBeInstanceOf(ConflictError);
+			).resolves.toBeInstanceOf(EmailTaken);
 			expect(repo.emailExists).toHaveBeenCalledWith("taken@example.com", "user-1");
 		});
 
@@ -255,14 +255,14 @@ describe("UserServiceImpl", () => {
 		});
 
 		it("forbids an admin banning themselves and a user banning anyone", async () => {
-			await expect(failureOf(service.setBanned(admin, "admin-1", true))).resolves.toBeInstanceOf(ForbiddenError);
-			await expect(failureOf(service.setBanned(member, "user-2", true))).resolves.toBeInstanceOf(ForbiddenError);
+			await expect(failureOf(service.setBanned(admin, "admin-1", true))).resolves.toBeInstanceOf(UserForbidden);
+			await expect(failureOf(service.setBanned(member, "user-2", true))).resolves.toBeInstanceOf(UserForbidden);
 		});
 
 		it("answers not found for an unknown user", async () => {
 			repo.findById.mockReturnValue(Effect.succeed(null));
 
-			await expect(failureOf(service.setBanned(admin, "ghost", true))).resolves.toBeInstanceOf(NotFoundError);
+			await expect(failureOf(service.setBanned(admin, "ghost", true))).resolves.toBeInstanceOf(UserNotFound);
 		});
 	});
 
@@ -277,22 +277,35 @@ describe("UserServiceImpl", () => {
 		});
 
 		it("forbids deleting one's own account and answers not found for an unknown one", async () => {
-			await expect(failureOf(service.delete(admin, "admin-1"))).resolves.toBeInstanceOf(ForbiddenError);
+			await expect(failureOf(service.delete(admin, "admin-1"))).resolves.toBeInstanceOf(UserForbidden);
 
 			repo.findById.mockReturnValue(Effect.succeed(null));
-			await expect(failureOf(service.delete(admin, "ghost"))).resolves.toBeInstanceOf(NotFoundError);
+			await expect(failureOf(service.delete(admin, "ghost"))).resolves.toBeInstanceOf(UserNotFound);
 			expect(repo.delete).not.toHaveBeenCalled();
 		});
 
 		it("forbids a non-administrator", async () => {
-			await expect(failureOf(service.delete(member, "user-2"))).resolves.toBeInstanceOf(ForbiddenError);
+			await expect(failureOf(service.delete(member, "user-2"))).resolves.toBeInstanceOf(UserForbidden);
 		});
 	});
 
-	it("collapses a repository failure into the service failure, keeping the cause", async () => {
+	it("lets a repository failure through unmapped, so the boundary answers it as internal", async () => {
 		const cause = new Error("db down");
 		repo.findById.mockReturnValue(Effect.fail({ _tag: "UserRepositoryFailure", cause }));
 
-		await expect(failureOf(service.findById(admin, "user-1"))).resolves.toBe(cause);
+		await expect(failureOf(service.findById(admin, "user-1"))).resolves.toMatchObject({
+			_tag: "UserRepositoryFailure",
+			cause,
+		});
+	});
+
+	it("words each refusal for the client, by kind", async () => {
+		const forbidden = await failureOf(service.delete(admin, "admin-1"));
+		expect(forbidden).toMatchObject({ kind: "forbidden" });
+		expect((forbidden as UserForbidden).publicMessage()).toContain("may not delete their own account");
+
+		repo.findById.mockReturnValue(Effect.succeed(null));
+		const missing = await failureOf(service.delete(admin, "ghost"));
+		expect(missing).toMatchObject({ kind: "not_found", id: "ghost" });
 	});
 });
