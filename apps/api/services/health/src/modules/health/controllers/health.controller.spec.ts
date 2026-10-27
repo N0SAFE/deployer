@@ -42,6 +42,12 @@ describe("HealthController", () => {
 	}
 
 	describe("check", () => {
+		it("surfaces a registry failure as the declared FAILED_DEPENDENCY error", async () => {
+			runOnce.mockRejectedValue(new Error("registry exploded"));
+
+			await expect(call(controller.check())).rejects.toMatchObject({ code: "FAILED_DEPENDENCY" });
+		});
+
 		it("runs a REAL pass rather than reading a cache", async () => {
 			await call(controller.check());
 

@@ -1,5 +1,5 @@
 import { Controller } from "@nestjs/common";
-import { standardErrorActions } from "@deployer/orpc-utils";
+import { catchDomainErrors } from "@deployer/effect-orpc";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
 import { EffectContextOf } from "@deployer/nest-effect";
@@ -13,8 +13,8 @@ import { HealthService } from "../services/health.service";
 
 /**
  * One pass through the Effect service, translated to the typed contract
- * boundary. `HealthCheckFailed` is the ONLY domain error: it becomes the
- * declared `FAILED_DEPENDENCY`, so the client sees it as a defined error.
+ * boundary. `HealthCheckFailed` is the ONLY domain error: its kind
+ * (`dependency_missing`) maps to the declared `FAILED_DEPENDENCY`, so the client sees it as a defined error.
  * A DOWN indicator is not an error — it is the report.
  */
 function snapshot() {
@@ -22,9 +22,7 @@ function snapshot() {
     const health = yield* HealthService;
     return yield* health.check();
   }).pipe(
-    Effect.catchTag("HealthCheckFailed", (error) =>
-      Effect.fail(standardErrorActions.FAILED_DEPENDENCY(error.message)),
-    ),
+    catchDomainErrors,
   );
 }
 
