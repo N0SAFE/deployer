@@ -8,6 +8,7 @@ import { useDeploymentList } from '@/domains/deployment/hooks'
 import { serviceEndpoints } from '@/domains/service/endpoints'
 import { filterProjectTopLevelServices } from '@/domains/service/hierarchy'
 import { useMemo } from 'react'
+import { useCallback } from 'react'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -22,8 +23,8 @@ export function useProjectDetail() {
   const projectId = params.projectId
 
   // Core data queries
-  const { data: projectData, isLoading: projectLoading, error: projectError } = useProject(projectId)
-  const { data: servicesData, isLoading: servicesLoading } = useServiceList({
+  const { data: projectData, isLoading: projectLoading, error: projectError, refetch: refetchProject } = useProject(projectId)
+  const { data: servicesData, isLoading: servicesLoading, refetch: refetchServices } = useServiceList({
     query: { limit: 100, offset: 0 },
   })
 
@@ -84,6 +85,14 @@ export function useProjectDetail() {
     return { dependencies: deps, subServiceNodes: nodes }
   }, [dependencyQueries])
 
+  // The page's inline error retry has to retry the reads that actually failed.
+  // `refetchProject` is what carries `error`, but services feed every graph on
+  // the page, so a retry that skipped them would show a stale, half-empty view.
+  const refetch = useCallback(
+    () => Promise.all([refetchProject(), refetchServices()]),
+    [refetchProject, refetchServices],
+  )
+
   return {
     projectId,
     project,
@@ -93,6 +102,7 @@ export function useProjectDetail() {
     dependencies,
     isLoading: projectLoading || servicesLoading,
     error: projectError,
+    refetch,
     refetchDeployments,
   }
 }

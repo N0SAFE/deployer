@@ -2,6 +2,8 @@
 
 import { useQuery } from '@tanstack/react-query'
 
+import type { TimeRange } from '@/domains/analytics/types'
+
 import { bffEndpoints } from './endpoints'
 
 /**
@@ -37,7 +39,7 @@ export function useBffServiceDetail(serviceId: string) {
 	})
 }
 
-export function useAnalyticsOverview(timeRange: string) {
+export function useAnalyticsOverview(timeRange: TimeRange) {
 	return useQuery(
 		bffEndpoints.analyticsOverview.queryOptions({ input: { query: { timeRange } } }),
 	)
