@@ -4,6 +4,17 @@ import {
     ValidationError,
 } from '@deployer/errors'
 import { HttpException } from '@nestjs/common'
+import {
+    DomainAlreadyExistsError,
+    DomainNotVerifiedError,
+    InvalidBasePathFormatError,
+    InvalidSubdomainFormatError,
+    ProjectDomainNotFoundError,
+    ServiceDomainMappingNotFoundError,
+    ServiceMappingMismatchError,
+    SubdomainConflictError,
+    SubdomainNotAllowedError,
+} from '@deployer/shared/core/modules/domain/errors/index'
 import { Effect } from 'effect'
 import { ZodError } from 'zod/v4'
 
@@ -21,7 +32,7 @@ export type AttemptFailure = ProjectInfraFailure | ResourceMissing | ProjectForb
 /**
  * Lift a Promise-returning call.
  *
- * Shared platform services are still promise-shaped and refuse with Nest exceptions (`ProjectAccessService`
+ * Shared platform services are still promise-shaped and refuse with Nest exceptions or their own domain error classes (`ProjectAccessService`
  * throws `NotFoundException` for a missing project): the four statuses a client can act on become the matching
  * domain failure. Any other rejection is an infrastructure failure.
  */
@@ -29,7 +40,33 @@ export function attempt<A>(run: () => Promise<A>): Effect.Effect<A, AttemptFailu
 	return Effect.tryPromise({ try: run, catch: (cause): AttemptFailure => toFailure(cause) });
 }
 
-function toFailure(cause: unknown): AttemptFailure {
+/**
+ * Translate a refusal from a promise-shaped collaborator (a Nest exception, or one of the shared
+ * domain error classes) into this service's domain failure; anything else is infrastructure.
+ */
+export function toFailure(cause: unknown): AttemptFailure {
+    // The shared domain services refuse with their own error classes.
+    if (
+        cause instanceof ProjectDomainNotFoundError ||
+        cause instanceof ServiceDomainMappingNotFoundError
+    ) {
+        return new ResourceMissing({ reason: cause.message })
+    }
+    if (
+        cause instanceof DomainAlreadyExistsError ||
+        cause instanceof SubdomainConflictError
+    ) {
+        return new ProjectConflict({ reason: cause.message })
+    }
+    if (
+        cause instanceof DomainNotVerifiedError ||
+        cause instanceof ServiceMappingMismatchError ||
+        cause instanceof SubdomainNotAllowedError ||
+        cause instanceof InvalidSubdomainFormatError ||
+        cause instanceof InvalidBasePathFormatError
+    ) {
+        return new ProjectInvalid({ reason: cause.message })
+    }
 	if (cause instanceof HttpException) {
 		const reason = cause.message;
 		switch (cause.getStatus()) {

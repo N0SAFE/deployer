@@ -5,11 +5,11 @@ import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
 
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
+import { serve } from "@project/core/orpc/serve";
 import { actorFromContext } from "@project/core/utils/actor.utils";
 
 import { DomainModule } from "../domain.module";
 import { DomainServiceService } from "../services/domain-service.service";
-import { mapDomainFailures } from "./domain.error-mapper";
 
 /** Service-domain mapping procedures. Rules live in the service. */
 @Controller()
@@ -19,11 +19,11 @@ export class ServiceDomainController {
 		return implement(domainContract.checkSubdomainAvailability)
 			.use(requireAuth())
 			.use(DomainModule[EffectContextOf])
-			.effect(function* ({ input }) {
+			.effect(function* ({ input, context }) {
 				const domains = yield* DomainServiceService;
 				return yield* domains
 					.checkSubdomainAvailability(input)
-					.pipe(mapDomainFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -32,11 +32,11 @@ export class ServiceDomainController {
 		return implement(domainContract.listServiceDomains)
 			.use(requireAuth())
 			.use(DomainModule[EffectContextOf])
-			.effect(function* ({ input }) {
+			.effect(function* ({ input, context }) {
 				const domains = yield* DomainServiceService;
 				return yield* domains
 					.listServiceDomains(input.params)
-					.pipe(mapDomainFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -52,7 +52,7 @@ export class ServiceDomainController {
 						{ ...input.params, ...input.body },
 						actorFromContext(context).userId,
 					)
-					.pipe(mapDomainFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -68,7 +68,7 @@ export class ServiceDomainController {
 						{ ...input.params, ...input.body },
 						actorFromContext(context).userId,
 					)
-					.pipe(mapDomainFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -84,7 +84,7 @@ export class ServiceDomainController {
 						...input.params,
 						requesterId: actorFromContext(context).userId,
 					})
-					.pipe(mapDomainFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -100,7 +100,7 @@ export class ServiceDomainController {
 						...input.params,
 						requesterId: actorFromContext(context).userId,
 					})
-					.pipe(mapDomainFailures);
+					.pipe(serve(context));
 			});
 	}
 }

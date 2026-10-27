@@ -16,22 +16,16 @@ import { createModuleContext } from "@deployer/nest-effect";
 
 import { ProjectDomainController } from "./controllers/project-domain.controller";
 import { ServiceDomainController } from "./controllers/service-domain.controller";
-import {
-	DomainProjectService,
-	DomainProjectServiceImpl,
-} from "./services/domain-project.service";
-import {
-	DomainServiceService,
-	DomainServiceServiceImpl,
-} from "./services/domain-service.service";
+import { DomainProjectService } from "./services/domain-project.service";
+import { DomainServiceService } from "./services/domain-service.service";
 
 /**
  * Domain assignment: which domains a project owns, and which of them a service
  * is reachable on.
  *
- * The shared core services stay as they are; each one is exposed to the Effect
- * layer through a port so the services above can `yield*` them. The module's
- * Effect context is derived from these providers by `createModuleContext`.
+ * The shared core services stay Nest providers; each one is exposed to the Effect layer through a
+ * port so the services can `yield*` them. The use cases are Layers (`DomainLive`, see
+ * `domain.layers.ts`) built by the app's Effect runtime.
  */
 export class DomainModule extends createModuleContext({
 	imports: [
@@ -50,8 +44,6 @@ export class DomainModule extends createModuleContext({
 			provide: ServiceDomainMappingRepo,
 			useExisting: ServiceDomainMappingRepository,
 		},
-		{ provide: DomainProjectService, useClass: DomainProjectServiceImpl },
-		{ provide: DomainServiceService, useClass: DomainServiceServiceImpl },
 	],
-	exports: [DomainProjectService, DomainServiceService],
-}) {}
+	exports: [],
+}, DomainProjectService, DomainServiceService) {}

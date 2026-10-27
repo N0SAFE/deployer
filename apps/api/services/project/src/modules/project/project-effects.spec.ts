@@ -6,7 +6,13 @@ import { describe, expect, it } from "vitest";
 
 import { ProjectConflict, ProjectForbidden, ProjectInvalid, ResourceMissing } from "./domain/project.errors";
 import { ProjectInfraFailure } from "./project.failures";
-import { attempt, rule } from "./project-effects";
+import {
+	DomainAlreadyExistsError,
+	ProjectDomainNotFoundError,
+	ServiceDomainMappingDeletionError,
+	SubdomainNotAllowedError,
+} from "@deployer/shared/core/modules/domain/errors/index";
+import { attempt, rule, toFailure } from "./project-effects";
 
 const failure = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(Effect.flip(effect));
 
@@ -59,5 +65,19 @@ describe("attempt and Nest exceptions", () => {
 		const error = await failure(attempt(() => Promise.reject(exception)));
 		expect(error).toBeInstanceOf(Expected);
 		expect((error as ResourceMissing).publicMessage()).toBe(exception.message);
+	});
+});
+
+describe("toFailure and the shared domain errors", () => {
+	it("maps each family to its kind, keeping the shared message", () => {
+		const missing = toFailure(new ProjectDomainNotFoundError("d1"));
+		expect(missing).toBeInstanceOf(ResourceMissing);
+		expect((missing as ResourceMissing).publicMessage()).toContain("d1");
+		expect(toFailure(new DomainAlreadyExistsError("p1", "a.test"))).toBeInstanceOf(ProjectConflict);
+		expect(toFailure(new SubdomainNotAllowedError("www", ["blog"]))).toBeInstanceOf(ProjectInvalid);
+	});
+
+	it("leaves a shared internal failure as infrastructure, not a client refusal", () => {
+		expect(toFailure(new ServiceDomainMappingDeletionError("m1"))).toBeInstanceOf(ProjectInfraFailure);
 	});
 });

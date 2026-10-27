@@ -1,3 +1,4 @@
+import { layerOfClass, type Discharged } from "@deployer/effect-core";
 import { DomainAdapter } from "@deployer/shared/core/modules/domain/adapters/domain.adapter";
 import {
 	ProjectDomainNotFoundError,
@@ -8,7 +9,7 @@ import {
 	SetPrimaryDomainError,
 	SubdomainConflictError,
 } from "@deployer/shared/core/modules/domain/errors/index";
-import { attempt } from "@project/core/effect/attempt";
+import { attempt, toFailure } from "@/modules/project/project-effects";
 import { DomainConflict } from "@project/core/ports/domain-conflict.port";
 import { ProjectAccess } from "@project/core/ports/project-access.port";
 import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
@@ -88,9 +89,7 @@ export class DomainServiceServiceImpl {
 							domains.findById(mapping.projectDomainId),
 						);
 						if (!projectDomain) {
-							return yield* Effect.fail(
-								new ProjectDomainNotFoundError(mapping.projectDomainId),
-							);
+							return yield* Effect.fail(toFailure(new ProjectDomainNotFoundError(mapping.projectDomainId)));
 						}
 
 						return {
@@ -116,9 +115,7 @@ export class DomainServiceServiceImpl {
 				domains.findById(input.projectDomainId),
 			);
 			if (!projectDomain) {
-				return yield* Effect.fail(
-					new ProjectDomainNotFoundError(input.projectDomainId),
-				);
+				return yield* Effect.fail(toFailure(new ProjectDomainNotFoundError(input.projectDomainId)));
 			}
 
 			yield* assertAccess(projectDomain.projectId, requesterId);
@@ -136,14 +133,12 @@ export class DomainServiceServiceImpl {
 					(conflict) =>
 						`${conflict.subdomain ?? "root"}.domain${conflict.basePath ?? "/"} (${conflict.serviceName})`,
 				);
-				return yield* Effect.fail(
-					new SubdomainConflictError(
+				return yield* Effect.fail(toFailure(new SubdomainConflictError(
 						input.subdomain,
 						input.basePath,
 						taken,
 						availability.suggestions.availableBasePaths,
-					),
-				);
+					)));
 			}
 
 			const mapping = yield* attempt(() =>
@@ -160,9 +155,7 @@ export class DomainServiceServiceImpl {
 
 			const fullUrl = yield* attempt(() => mappings.getFullUrl(mapping.id));
 			if (!fullUrl) {
-				return yield* Effect.fail(
-					new ServiceDomainMappingNotFoundError(mapping.id),
-				);
+				return yield* Effect.fail(toFailure(new ServiceDomainMappingNotFoundError(mapping.id)));
 			}
 
 			const sharedMappings = yield* attempt(() =>
@@ -199,18 +192,14 @@ export class DomainServiceServiceImpl {
 
 			const mapping = yield* attempt(() => mappings.findById(input.mappingId));
 			if (!mapping) {
-				return yield* Effect.fail(
-					new ServiceDomainMappingNotFoundError(input.mappingId),
-				);
+				return yield* Effect.fail(toFailure(new ServiceDomainMappingNotFoundError(input.mappingId)));
 			}
 
 			const projectDomain = yield* attempt(() =>
 				domains.findById(mapping.projectDomainId),
 			);
 			if (!projectDomain) {
-				return yield* Effect.fail(
-					new ProjectDomainNotFoundError(mapping.projectDomainId),
-				);
+				return yield* Effect.fail(toFailure(new ProjectDomainNotFoundError(mapping.projectDomainId)));
 			}
 
 			yield* assertAccess(projectDomain.projectId, requesterId);
@@ -229,14 +218,12 @@ export class DomainServiceServiceImpl {
 						(conflict) =>
 							`${conflict.subdomain ?? "root"}.domain${conflict.basePath ?? "/"} (${conflict.serviceName})`,
 					);
-					return yield* Effect.fail(
-						new SubdomainConflictError(
+					return yield* Effect.fail(toFailure(new SubdomainConflictError(
 							input.subdomain ?? mapping.subdomain,
 							input.basePath ?? mapping.basePath,
 							taken,
 							availability.suggestions.availableBasePaths,
-						),
-					);
+						)));
 				}
 			}
 
@@ -260,16 +247,12 @@ export class DomainServiceServiceImpl {
 				}),
 			);
 			if (!updated) {
-				return yield* Effect.fail(
-					new ServiceDomainMappingUpdateError(input.mappingId),
-				);
+				return yield* Effect.fail(toFailure(new ServiceDomainMappingUpdateError(input.mappingId)));
 			}
 
 			const fullUrl = yield* attempt(() => mappings.getFullUrl(updated.id));
 			if (!fullUrl) {
-				return yield* Effect.fail(
-					new ServiceDomainMappingNotFoundError(updated.id),
-				);
+				return yield* Effect.fail(toFailure(new ServiceDomainMappingNotFoundError(updated.id)));
 			}
 
 			return {
@@ -290,23 +273,17 @@ export class DomainServiceServiceImpl {
 
 			const mapping = yield* attempt(() => mappings.findById(input.mappingId));
 			if (!mapping) {
-				return yield* Effect.fail(
-					new ServiceDomainMappingNotFoundError(input.mappingId),
-				);
+				return yield* Effect.fail(toFailure(new ServiceDomainMappingNotFoundError(input.mappingId)));
 			}
 			if (mapping.serviceId !== input.serviceId) {
-				return yield* Effect.fail(
-					new ServiceMappingMismatchError(input.mappingId, input.serviceId),
-				);
+				return yield* Effect.fail(toFailure(new ServiceMappingMismatchError(input.mappingId, input.serviceId)));
 			}
 
 			const projectDomain = yield* attempt(() =>
 				domains.findById(mapping.projectDomainId),
 			);
 			if (!projectDomain) {
-				return yield* Effect.fail(
-					new ProjectDomainNotFoundError(mapping.projectDomainId),
-				);
+				return yield* Effect.fail(toFailure(new ProjectDomainNotFoundError(mapping.projectDomainId)));
 			}
 
 			yield* assertAccess(projectDomain.projectId, input.requesterId);
@@ -332,25 +309,19 @@ export class DomainServiceServiceImpl {
 				mappings.update(input.mappingId, { isPrimary: true }),
 			);
 			if (!updated) {
-				return yield* Effect.fail(
-					new SetPrimaryDomainError(input.serviceId, input.mappingId),
-				);
+				return yield* Effect.fail(toFailure(new SetPrimaryDomainError(input.serviceId, input.mappingId)));
 			}
 
 			const fullUrl = yield* attempt(() => mappings.getFullUrl(updated.id));
 			if (!fullUrl) {
-				return yield* Effect.fail(
-					new ServiceDomainMappingNotFoundError(updated.id),
-				);
+				return yield* Effect.fail(toFailure(new ServiceDomainMappingNotFoundError(updated.id)));
 			}
 
 			const domain = yield* attempt(() =>
 				domains.findById(updated.projectDomainId),
 			);
 			if (!domain) {
-				return yield* Effect.fail(
-					new ProjectDomainNotFoundError(updated.projectDomainId),
-				);
+				return yield* Effect.fail(toFailure(new ProjectDomainNotFoundError(updated.projectDomainId)));
 			}
 
 			return {
@@ -371,32 +342,24 @@ export class DomainServiceServiceImpl {
 
 			const mapping = yield* attempt(() => mappings.findById(input.mappingId));
 			if (!mapping) {
-				return yield* Effect.fail(
-					new ServiceDomainMappingNotFoundError(input.mappingId),
-				);
+				return yield* Effect.fail(toFailure(new ServiceDomainMappingNotFoundError(input.mappingId)));
 			}
 			if (mapping.serviceId !== input.serviceId) {
-				return yield* Effect.fail(
-					new ServiceMappingMismatchError(input.mappingId, input.serviceId),
-				);
+				return yield* Effect.fail(toFailure(new ServiceMappingMismatchError(input.mappingId, input.serviceId)));
 			}
 
 			const projectDomain = yield* attempt(() =>
 				domains.findById(mapping.projectDomainId),
 			);
 			if (!projectDomain) {
-				return yield* Effect.fail(
-					new ProjectDomainNotFoundError(mapping.projectDomainId),
-				);
+				return yield* Effect.fail(toFailure(new ProjectDomainNotFoundError(mapping.projectDomainId)));
 			}
 
 			yield* assertAccess(projectDomain.projectId, input.requesterId);
 
 			const deleted = yield* attempt(() => mappings.delete(input.mappingId));
 			if (!deleted) {
-				return yield* Effect.fail(
-					new ServiceDomainMappingDeletionError(input.mappingId),
-				);
+				return yield* Effect.fail(toFailure(new ServiceDomainMappingDeletionError(input.mappingId)));
 			}
 
 			return {
@@ -408,9 +371,12 @@ export class DomainServiceServiceImpl {
 }
 
 /** The service's public surface is exactly the implementation's methods. */
-export type DomainServiceServiceShape = DomainServiceServiceImpl;
+export type DomainServiceServiceShape = Discharged<DomainServiceServiceImpl>;
 
 /** Effect key = NestJS token. */
 export class DomainServiceService extends Context.Service<DomainServiceService, DomainServiceServiceShape>()(
 	"project/DomainServiceService",
-) {}
+) {
+	/** Resolves the requirements the methods name when the layer is built. */
+	static readonly Live = layerOfClass(DomainServiceService, () => new DomainServiceServiceImpl());
+}

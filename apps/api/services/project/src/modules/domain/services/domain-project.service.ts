@@ -1,3 +1,4 @@
+import { layerOfClass, type Discharged } from "@deployer/effect-core";
 import { DomainAdapter } from "@deployer/shared/core/modules/domain/adapters/domain.adapter";
 import {
 	ProjectDomainDeletionError,
@@ -5,7 +6,7 @@ import {
 	ProjectDomainUpdateError,
 } from "@deployer/shared/core/modules/domain/errors/index";
 import { DomainAlreadyExistsError } from "@deployer/shared/core/modules/domain/errors/domain-errors";
-import { attempt } from "@project/core/effect/attempt";
+import { attempt, toFailure } from "@/modules/project/project-effects";
 import { DomainVerification } from "@project/core/ports/domain-verification.port";
 import { ProjectAccess } from "@project/core/ports/project-access.port";
 import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
@@ -52,9 +53,7 @@ export class DomainProjectServiceImpl {
 				domains.findByProjectAndDomain(input.projectId, input.domain),
 			);
 			if (existing) {
-				return yield* Effect.fail(
-					new DomainAlreadyExistsError(input.projectId, input.domain),
-				);
+				return yield* Effect.fail(toFailure(new DomainAlreadyExistsError(input.projectId, input.domain)));
 			}
 
 			const verificationToken = crypto.randomUUID().replace(/-/g, "");
@@ -201,7 +200,7 @@ export class DomainProjectServiceImpl {
 				domains.findById(input.domainId),
 			);
 			if (!projectDomain) {
-				return yield* Effect.fail(new ProjectDomainNotFoundError(input.domainId));
+				return yield* Effect.fail(toFailure(new ProjectDomainNotFoundError(input.domainId)));
 			}
 
 			yield* assertAccess(projectDomain.projectId, requesterId);
@@ -215,7 +214,7 @@ export class DomainProjectServiceImpl {
 				}),
 			);
 			if (!updated) {
-				return yield* Effect.fail(new ProjectDomainUpdateError(input.domainId));
+				return yield* Effect.fail(toFailure(new ProjectDomainUpdateError(input.domainId)));
 			}
 
 			return DomainAdapter.toProjectDomainContract(updated);
@@ -249,7 +248,7 @@ export class DomainProjectServiceImpl {
 				domains.findById(input.domainId),
 			);
 			if (!projectDomain) {
-				return yield* Effect.fail(new ProjectDomainNotFoundError(input.domainId));
+				return yield* Effect.fail(toFailure(new ProjectDomainNotFoundError(input.domainId)));
 			}
 
 			yield* assertAccess(projectDomain.projectId, input.requesterId);
@@ -259,7 +258,7 @@ export class DomainProjectServiceImpl {
 			);
 			const deleted = yield* attempt(() => domains.delete(input.domainId));
 			if (!deleted) {
-				return yield* Effect.fail(new ProjectDomainDeletionError(input.domainId));
+				return yield* Effect.fail(toFailure(new ProjectDomainDeletionError(input.domainId)));
 			}
 
 			return {
@@ -272,9 +271,12 @@ export class DomainProjectServiceImpl {
 }
 
 /** The service's public surface is exactly the implementation's methods. */
-export type DomainProjectServiceShape = DomainProjectServiceImpl;
+export type DomainProjectServiceShape = Discharged<DomainProjectServiceImpl>;
 
 /** Effect key = NestJS token. */
 export class DomainProjectService extends Context.Service<DomainProjectService, DomainProjectServiceShape>()(
 	"project/DomainProjectService",
-) {}
+) {
+	/** Resolves the requirements the methods name when the layer is built. */
+	static readonly Live = layerOfClass(DomainProjectService, () => new DomainProjectServiceImpl());
+}
