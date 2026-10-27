@@ -356,6 +356,17 @@ describe('StandardOperations - Type Inference', () => {
         expect((input as z.ZodType).safeParse({}).success).toBe(true);
       });
 
+      it('input schema — an ABSENT query still receives its defaults', () => {
+        // Regression: with `query: inputSchema.optional()` a bare `GET /` reached the handler with
+        // `query === undefined`, so the repository read limit/offset from nothing and the response's
+        // `meta` failed output validation (a 500 on every list called without `?query=`).
+        const { input } = schemas(userOps.list(paginationConfig));
+        const parsed = (input as z.ZodType).safeParse({});
+
+        expect(parsed.success).toBe(true);
+        expect(parsed.data).toMatchObject({ query: { limit: 20 } });
+      });
+
       it('input schema — rejects limit exceeding maxLimit', () => {
         const { input } = schemas(userOps.list(paginationConfig));
         expect((input as z.ZodType).safeParse({ query: { limit: 200 } }).success).toBe(false);

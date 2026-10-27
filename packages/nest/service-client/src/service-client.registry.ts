@@ -1,6 +1,8 @@
 import type { ContractRouterClient, RouterContract } from "@orpc/contract";
 import { createORPCClient } from "@orpc/client";
 import { OpenAPILink } from "@orpc/openapi/fetch";
+import { normalizeErrorResponse } from "./normalize-error-response";
+import { reviveDates } from "./revive-dates";
 
 import type { ServiceClient, ServiceClientBinder } from "./types";
 
@@ -127,8 +129,17 @@ export class ServiceClientRegistry implements ServiceClientBinder {
 						...init,
 						headers: { ...(init?.headers as Record<string, string>), ...extra },
 					});
+					// A non-oRPC error (a guard's plain-text 401) would otherwise be undecodable.
+					return normalizeErrorResponse(response);
 				},
 			}),
+			{
+				interceptors: [
+					// The service answered JSON, so a date arrives as an ISO string; the contract
+					// (which the BFF handler is validated against) says `Date`. Revive by schema.
+					async (options) => reviveDates(outputSchemaAt(contract, options.path), await options.next()),
+				],
+			},
 		);
 
 		byContract.set(contract, client);
@@ -143,4 +154,20 @@ export class ServiceClientRegistry implements ServiceClientBinder {
 		this.origins.set(service, resolved);
 		return resolved;
 	}
+}
+
+/**
+ * The output schema of the procedure at `path` in `contract`, or `undefined`.
+ *
+ * oRPC v2 keeps schemas as ARRAYS on the `~orpc` descriptor and a procedure applies exactly one
+ * output schema, so index 0 is it.
+ */
+function outputSchemaAt(contract: unknown, path: readonly string[]): unknown {
+	let node: unknown = contract;
+	for (const key of path) {
+		if (node === null || typeof node !== "object") return undefined;
+		node = (node as Record<string, unknown>)[key];
+	}
+	const descriptor = (node as { "~orpc"?: { outputSchemas?: unknown[] } } | undefined)?.["~orpc"];
+	return descriptor?.outputSchemas?.[0];
 }

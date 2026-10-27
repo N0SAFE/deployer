@@ -424,11 +424,9 @@ export class ZodStandardOperations<
      */
     list<TConfig extends ZodListOperationOptions>(options: TConfig): RouteBuilder<
         z.ZodObject<{
-            query: z.ZodOptional<
-                z.ZodType<
-                    ComputeInputSchema<QueryConfigFromOptions<TConfig>>,
-                    ComputeInputSchema<QueryConfigFromOptions<TConfig>>
-                >
+            query: z.ZodType<
+                ComputeInputSchema<QueryConfigFromOptions<TConfig>>,
+                ComputeInputSchema<QueryConfigFromOptions<TConfig>> | undefined
             >;
         }>,
         z.ZodType<ComputeOutputSchema<QueryConfigFromOptions<TConfig>, z.infer<TEntity>>>,
@@ -481,7 +479,11 @@ export class ZodStandardOperations<
             description: `Retrieve a paginated list of ${this.entityName}s with optional filtering and sorting`,
         })
             .path("/")
-            .input(z.object({ query: inputSchema.optional() }))
+            // `prefault({})`, NOT `optional()`: an absent `query` must still go through the schema so
+            // its defaults (limit, offset, sort) apply. With `optional()` a caller that sent no
+            // `?query=` reached the handler as `undefined`, the repository read `limit`/`offset` from
+            // nothing, and the response's `meta` failed output validation (a 500 on every bare list).
+            .input(z.object({ query: inputSchema.prefault({} as never) }))
             .output(outputSchema);
     }
 

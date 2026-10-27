@@ -55,5 +55,6 @@
         "eslint": "catalog:linting",
         "rimraf": "catalog:build",
         "typescript": "catalog:build"
+        "zod": "catalog:utils",
     }
 }
