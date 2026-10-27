@@ -35,7 +35,9 @@
         "@deployer/effect-core": "*",
         "@deployer/orpc-utils": "*",
         "@orpc/client": "catalog:orpc",
-        "effect": "catalog:effect"
+        "effect": "catalog:effect",
+        "@orpc/server": "catalog:orpc",
+        "@orpc/shared": "catalog:orpc"
     },
     "devDependencies": {
         "@deployer/config-eslint": "*",

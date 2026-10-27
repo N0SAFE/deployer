@@ -1,3 +1,4 @@
+import { domainErrorInterceptor } from "@deployer/effect-orpc";
 import { Logger } from "@nestjs/common";
 import { REQUEST } from "@nestjs/core";
 import { ORPCModule } from "@orpc/nest";
@@ -102,6 +103,9 @@ export function createOrpcModule<ExtraD extends ExtraTokens = []>(
 
 			return {
 				interceptors: [
+					// A thrown `DomainError` (Promise-based services) becomes its oRPC error by kind,
+					// before the legacy Nest/AppError translation sees it.
+					domainErrorInterceptor(),
 					transformNestJSErrorToOrpcError(),
 					logOrpcErrors(new Logger("ORPC Errors"), internalErrorInsightService),
 				],
