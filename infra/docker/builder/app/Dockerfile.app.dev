@@ -60,7 +60,7 @@
 # pruned package's `dist/` at that volume and waits for the builder's first build.
 #
 # Build:
-#   docker build -f docker/builder/app/Dockerfile.app.dev --build-arg APP=api .
+#   docker build -f docker/builder/app/Dockerfile.app.dev --build-arg APP=@deployer/bff .
 
 ARG APP
 ARG BUN_VERSION=1.4.2

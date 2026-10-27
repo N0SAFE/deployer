@@ -269,7 +269,7 @@
         "docker:prod": "bun --bun run start",
         "docker:build": "docker compose -f ./infra/docker/compose/docker-compose.mesh-6.dev-supervised.yml build",
         "docker:build:web": "docker build -f infra/docker/builder/web/Dockerfile.web.build-time.prod . -t nextjs-directus-web:latest",
-        "docker:build:api": "docker build -f infra/docker/builder/api/Dockerfile.api.prod . -t directus-api:latest",
+        "docker:build:bff": "docker build -f infra/docker/builder/api/Dockerfile.api.prod --build-arg PRUNE_SCOPE=@deployer/bff --build-arg APP_DIR=apps/api-services/bff --build-arg APP_PORT=3005 --secret id=turbo_token,env=TURBO_TOKEN --secret id=turbo_team,env=TURBO_TEAM --secret id=turbo_api,env=TURBO_API . -t deployer-bff:latest",
         "docker:build:scanner-runner": "docker build -t deployer-scanner-runner:latest -f infra/docker/scanner-runner/Dockerfile infra/docker/scanner-runner/",
         "docker:cleanup:cache": "docker builder prune -f",
         "docker:cleanup:all": "docker system prune -a -f",

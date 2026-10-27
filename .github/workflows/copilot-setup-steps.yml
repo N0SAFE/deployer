@@ -202,7 +202,7 @@ jobs:
           # Check workspace structure
           echo "📦 Workspace structure:"
           echo "- apps/web: $([ -d apps/web ] && echo '✅ exists' || echo '❌ missing')"
-          echo "- apps/api: $([ -d apps/api ] && echo '✅ exists' || echo '❌ missing')"
+          echo "- apps/api-services: $([ -d apps/api-services ] && echo '✅ exists' || echo '❌ missing')"
           echo "- packages: $([ -d packages ] && echo '✅ exists' || echo '❌ missing')"
           
           # Check if services are accessible

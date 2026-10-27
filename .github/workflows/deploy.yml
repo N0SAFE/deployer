@@ -1,18 +1,20 @@
-# Deploy Pipeline - Build & Push Unified Docker Image
+# Deploy Pipeline - Build & Push the API tier images
 #
-# Builds the unified production Docker image (API + Web in one container)
-# and pushes it to GitHub Container Registry. Designed to work alongside
-# the CI pipeline: CI validates code quality, this builds and publishes
-# the deployable artifact.
+# Builds the six production tier images (BFF + five services) from
+# infra/docker/builder/api/Dockerfile.api.prod and pushes them to GitHub
+# Container Registry. `apps/setup` schedules them on the swarm from the
+# DEPLOYER_BFF_IMAGE / DEPLOYER_SVC_*_IMAGE tags.
 #
 # Triggers:
-#   - Push to main with version tag (v*)
+#   - Push of a version tag (v*)
 #   - Manual trigger via workflow_dispatch
 #
-# Image tagging scheme:
-#   ghcr.io/<owner>/<repo>/deployer:latest      — latest main build
-#   ghcr.io/<owner>/<repo>/deployer:<version>   — semantic version (e.g., 1.2.3)
-#   ghcr.io/<owner>/<repo>/deployer:<sha>       — git commit SHA
+# Image tagging scheme (one repository per tier app):
+#   ghcr.io/<owner>/<repo>/<app>:latest      — latest build
+#   ghcr.io/<owner>/<repo>/<app>:<version>   — semantic version (e.g., 1.2.3)
+#   ghcr.io/<owner>/<repo>/<app>:<sha>       — git commit SHA
+# where <app> is one of svc-bff, svc-health, svc-identity, svc-project,
+# svc-fleet, svc-runtime.
 
 name: Deploy
 
@@ -30,10 +32,8 @@ on:
 env:
   # GitHub Container Registry settings
   REGISTRY: ghcr.io
-  IMAGE_NAME: deployer
-
   # Bun version must match the Dockerfile base image
-  BUN_VERSION: "1.4.2"
+  BUN_VERSION: "1.4.3"
 
 jobs:
   # ── Job 1: Extract version from package.json ──────────────────────────────
@@ -50,11 +50,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 🏷️ Extract version from API package.json
+      - name: 🏷️ Extract version from the BFF package.json
         id: extract-version
         run: |
-          # Read version from API app
-          VERSION=$(jq -r '.version' apps/api/package.json)
+          # The BFF is the platform's public API surface and carries its release version
+          VERSION=$(jq -r '.version' apps/api-services/bff/package.json)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
           # Determine if this is a release (tag matches version)
@@ -78,19 +78,24 @@ jobs:
           echo "Is Release: ${{ steps.extract-version.outputs.is_release }}"
           echo "Git SHA: ${{ github.sha }}"
 
-  # ── Job 2: Build and push Docker image ────────────────────────────────────
+  # ── Job 2: Build and push the six tier images ────────────────────────────
   build-and-push:
-    name: 🐳 Build & Push Image
+    name: 🐳 Build & Push ${{ matrix.app }}
     runs-on: ubuntu-latest
     needs: [version]
     permissions:
       contents: read
       packages: write  # Needed to push to GHCR
-    outputs:
-      # Exposed so the `release` job can read the pushed image. Step outputs are
-      # NOT visible across jobs, so `release` reading `steps.meta.outputs.base`
-      # silently interpolated an empty string into the release notes.
-      image_base: ${{ steps.meta.outputs.base }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { app: svc-bff, scope: "@deployer/bff", dir: apps/api-services/bff, port: "3005" }
+          - { app: svc-health, scope: "@deployer/svc-health", dir: apps/api-services/services/health, port: "3101" }
+          - { app: svc-identity, scope: "@deployer/svc-identity", dir: apps/api-services/services/identity, port: "3102" }
+          - { app: svc-project, scope: "@deployer/svc-project", dir: apps/api-services/services/project, port: "3103" }
+          - { app: svc-fleet, scope: "@deployer/svc-fleet", dir: apps/api-services/services/fleet, port: "3104" }
+          - { app: svc-runtime, scope: "@deployer/svc-runtime", dir: apps/api-services/services/runtime, port: "3105" }
 
     steps:
       - name: 📚 Checkout repository
@@ -113,7 +118,7 @@ jobs:
         run: |
           OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           REPO=$(echo "${{ github.repository }}" | cut -d'/' -f2)
-          BASE="${{ env.REGISTRY }}/$OWNER/$REPO/${{ env.IMAGE_NAME }}"
+          BASE="${{ env.REGISTRY }}/$OWNER/$REPO/${{ matrix.app }}"
           VERSION="${{ needs.version.outputs.version }}"
           SHA="${{ needs.version.outputs.git_sha }}"
 
@@ -127,35 +132,37 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./infra/docker/builder/deployer/Dockerfile.prod
+          file: ./infra/docker/builder/api/Dockerfile.api.prod
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # One cache scope per app: the six builds share the base layers but
+          # diverge at the pruned workspace, and a shared scope would thrash.
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
           build-args: |
             BUILDKIT_INLINE_CACHE=1
+            PRUNE_SCOPE=${{ matrix.scope }}
+            APP_DIR=${{ matrix.dir }}
+            APP_PORT=${{ matrix.port }}
+          secrets: |
+            turbo_token=${{ secrets.TURBO_TOKEN }}
+            turbo_team=${{ vars.TURBO_TEAM }}
+            turbo_api=${{ vars.TURBO_API }}
 
       - name: 📋 Generate deployment summary
         run: |
-          echo "## 🐳 Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Image** | ${{ steps.meta.outputs.base }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Tags** | ${{ steps.meta.outputs.tags }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **App Version** | ${{ needs.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Git SHA** | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Trigger** | ${{ github.event_name }} (${{ github.ref_name }}) |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📦 How to deploy" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```bash' >> $GITHUB_STEP_SUMMARY
-          echo "# On your VPS, pull the new image:" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ${{ steps.meta.outputs.base }}:latest" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "# Recreate the container with the new image:" >> $GITHUB_STEP_SUMMARY
-          echo "docker compose -f infra/infra/docker/compose/deployer/docker-compose.deployer.yml up -d" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          {
+            echo "### 🐳 ${{ matrix.app }}"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| **Image** | ${{ steps.meta.outputs.base }} |"
+            echo "| **Tags** | ${{ steps.meta.outputs.tags }} |"
+            echo "| **App Version** | ${{ needs.version.outputs.version }} |"
+            echo "| **Git SHA** | ${{ github.sha }} |"
+            echo "| **Trigger** | ${{ github.event_name }} (${{ github.ref_name }}) |"
+            echo ""
+          } >> $GITHUB_STEP_SUMMARY
 
   # ── Job 3: Create GitHub Release (only for version tags) ──────────────────
   release:
@@ -178,10 +185,14 @@ jobs:
           VERSION="${{ needs.version.outputs.version }}"
           echo "## 🚀 Deployer v$VERSION" > /tmp/release-notes.md
           echo "" >> /tmp/release-notes.md
-          echo "### 📦 Docker Image" >> /tmp/release-notes.md
+          echo "### 📦 Docker Images" >> /tmp/release-notes.md
           echo "" >> /tmp/release-notes.md
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          REPO=$(echo "${{ github.repository }}" | cut -d'/' -f2)
           echo '```bash' >> /tmp/release-notes.md
-          echo "docker pull ${{ needs.build-and-push.outputs.image_base }}:$VERSION" >> /tmp/release-notes.md
+          for APP in svc-bff svc-health svc-identity svc-project svc-fleet svc-runtime; do
+            echo "docker pull ${{ env.REGISTRY }}/$OWNER/$REPO/$APP:$VERSION" >> /tmp/release-notes.md
+          done
           echo '```' >> /tmp/release-notes.md
           echo "" >> /tmp/release-notes.md
           echo "### 📋 Changes" >> /tmp/release-notes.md
