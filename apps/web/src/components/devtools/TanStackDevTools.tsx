@@ -8,26 +8,27 @@ import {
 } from "@tanstack/react-devtools";
 import { ReactQueryDevtoolsPanel } from "@tanstack/react-query-devtools";
 import { orpc } from "@/lib/orpc";
-import { isRecord } from "@repo/type-guards";
+import { isRecord } from "@deployer/type-guards";
 import { useQuery } from "@tanstack/react-query";
 import { authClient, signOut, useSession } from "@/lib/auth";
-import { logger } from "@repo/logger";
+import { logger } from "@deployer/logger";
+import { useDevtoolsResource } from "./use-devtools-resource";
 import {
   hasMasterTokenPlugin,
   MasterTokenProvider,
   useMasterToken,
-} from "@repo/auth/client";
+} from "@deployer/auth/client";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-} from "@repo/ui/components/shadcn/dropdown-menu";
+} from "@deployer/ui/components/shadcn/dropdown-menu";
 import {
   Popover,
   PopoverTrigger,
   PopoverContent,
-} from "@repo/ui/components/shadcn/popover";
+} from "@deployer/ui/components/shadcn/popover";
 import {
   Command,
   CommandInput,
@@ -35,10 +36,10 @@ import {
   CommandEmpty,
   CommandGroup,
   CommandItem,
-} from "@repo/ui/components/shadcn/command";
-import { Button } from "@repo/ui/components/shadcn/button";
+} from "@deployer/ui/components/shadcn/command";
+import { Button } from "@deployer/ui/components/shadcn/button";
 import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
-import { Switch } from "@repo/ui/components/shadcn/switch";
+import { Switch } from "@deployer/ui/components/shadcn/switch";
 import z from "zod/v4";
 import { useDevtoolsApiKey } from "./use-devtools-api-key";
 import { AgentAuthPanel } from "./plugins/agent-auth-panel";
@@ -61,40 +62,42 @@ const ReactQueryPlugin: TanStackDevtoolsReactPlugin = {
   ),
 };
 
-// Routes Plugin Component
-const RoutesPluginComponent = () => {
-  const [loading, setLoading] = useState(false);
-  const [routesList, setRoutesList] = useState<
-    {
-      path: string;
-      name: string;
-      type: "API" | "Page" | "Layout" | "Unknown";
-      link?: React.ReactNode;
-      hasParams: boolean;
-      hasLayout: boolean;
-      hasPage: boolean;
-      isStatic: boolean;
-      paramsList: string[];
-    }[]
-  >([]);
-  const [routeStats, setRouteStats] = useState<{
-    totalRoutes: number;
-    apiRoutes: number;
-    pageRoutes: number;
-    layoutOnlyRoutes: number;
-    staticRoutes: number;
-    dynamicRoutes: number;
-  }>({
-    totalRoutes: 0,
-    apiRoutes: 0,
-    pageRoutes: 0,
-    layoutOnlyRoutes: 0,
-    staticRoutes: 0,
-    dynamicRoutes: 0,
-  });
+interface RouteRow {
+  path: string;
+  name: string;
+  type: "API" | "Page" | "Layout" | "Unknown";
+  link?: React.ReactNode;
+  hasParams: boolean;
+  hasLayout: boolean;
+  hasPage: boolean;
+  isStatic: boolean;
+  paramsList: string[];
+}
 
-  const fetchRoutesData = async () => {
-    setLoading(true);
+interface RouteStats {
+  totalRoutes: number;
+  apiRoutes: number;
+  pageRoutes: number;
+  layoutOnlyRoutes: number;
+  staticRoutes: number;
+  dynamicRoutes: number;
+}
+
+interface RoutesSnapshot {
+  list: RouteRow[];
+  stats: RouteStats;
+}
+
+const EMPTY_ROUTE_STATS: RouteStats = {
+  totalRoutes: 0,
+  apiRoutes: 0,
+  pageRoutes: 0,
+  layoutOnlyRoutes: 0,
+  staticRoutes: 0,
+  dynamicRoutes: 0,
+};
+
+async function loadRoutes(): Promise<RoutesSnapshot> {
     try {
       const routesModule = await import("@/routes");
 
@@ -305,18 +308,20 @@ const RoutesPluginComponent = () => {
         dynamicRoutes: filtered.filter((r) => r.hasParams).length,
       };
 
-      setRoutesList(filtered);
-      setRouteStats(stats);
+      return { list: filtered, stats };
     } catch (error) {
       logger.error("Failed to load routes module", { error });
-    } finally {
-      setLoading(false);
+      return { list: [], stats: EMPTY_ROUTE_STATS };
     }
-  };
+}
 
-  React.useEffect(() => {
-    void fetchRoutesData();
-  }, []);
+
+// Routes Plugin Component
+const RoutesPluginComponent = () => {
+  const { data, loading, reload } = useDevtoolsResource(loadRoutes);
+  const routesList = data?.list ?? [];
+  const routeStats = data?.stats ?? EMPTY_ROUTE_STATS;
+
 
   return (
     <div className="space-y-4 p-4">
@@ -461,9 +466,7 @@ const RoutesPluginComponent = () => {
       </div>
 
       <button
-        onClick={() => {
-          void fetchRoutesData();
-        }}
+        onClick={reload}
         className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
         disabled={loading}
       >
@@ -480,44 +483,28 @@ const RoutesPlugin: TanStackDevtoolsReactPlugin = {
 };
 
 // Bundles Plugin Component
-const BundlesPluginComponent = () => {
-  const [bundleInfo, setBundleInfo] = useState<{
-    buildTime: string;
-    environment: "development" | "production" | "test";
-    nextjsVersion: string;
-    nodeVersion: string;
-  }>({
-    buildTime: "",
-    environment: "development",
-    nextjsVersion: "",
-    nodeVersion: "",
+interface BundleInfo {
+  buildTime: string;
+  environment: string;
+  nextjsVersion: string;
+  nodeVersion: string;
+}
+
+// Mock data for now - will be replaced with actual API calls
+async function loadBundleInfo(): Promise<BundleInfo> {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, 800);
   });
-  const [loading, setLoading] = useState(false);
-
-  const fetchBundleInfo = () => {
-    setLoading(true);
-    try {
-      // Mock data for now - will be replaced with actual API calls
-      const mockBundleInfo = {
-        buildTime: new Date().toISOString(),
-        environment: process.env.NODE_ENV || "development",
-        nextjsVersion: "15.4.0",
-        nodeVersion: process.version || "18.0.0",
-      };
-
-      setTimeout(() => {
-        setBundleInfo(mockBundleInfo);
-        setLoading(false);
-      }, 800);
-    } catch (error) {
-      logger.error("Failed to fetch bundle info", { error });
-      setLoading(false);
-    }
+  return {
+    buildTime: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+    nextjsVersion: "15.4.0",
+    nodeVersion: process.version || "18.0.0",
   };
+}
 
-  React.useEffect(() => {
-    fetchBundleInfo();
-  }, []);
+const BundlesPluginComponent = () => {
+  const { data: bundleInfo, loading, reload } = useDevtoolsResource(loadBundleInfo);
 
   return (
     <div className="space-y-4 p-4">
@@ -552,9 +539,7 @@ const BundlesPluginComponent = () => {
       </div>
 
       <button
-        onClick={() => {
-          fetchBundleInfo();
-        }}
+        onClick={reload}
         className="rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600"
         disabled={loading}
       >
@@ -571,47 +556,30 @@ const BundlesPlugin: TanStackDevtoolsReactPlugin = {
 };
 
 // CLI Plugin Component
-const CLIPluginComponent = () => {
-  const [envInfo, setEnvInfo] = useState<{
-    platform: "MacIntel" | "Win32" | "Linux x86_64";
-    arch: string;
-    nodeVersion: string;
-    cpuUsage: number;
-    uptime: number;
-  }>({
-    platform: "MacIntel",
-    arch: "x64",
-    nodeVersion: "14.17.0",
-    cpuUsage: 0,
-    uptime: 0,
+interface EnvInfo {
+  platform: string;
+  arch: string;
+  nodeVersion: string;
+  cpuUsage: number;
+  uptime: number;
+}
+
+// Real browser environment info; CPU usage is a mock.
+async function loadEnvInfo(): Promise<EnvInfo> {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, 600);
   });
-  const [loading, setLoading] = useState(false);
-
-  const fetchEnvInfo = () => {
-    setLoading(true);
-    try {
-      // Get actual browser environment info
-      const mockEnvInfo = {
-        platform: navigator.platform || "Unknown",
-        arch: "Browser",
-        nodeVersion: "N/A (Browser)",
-        cpuUsage: Math.random() * 20, // Mock CPU usage
-        uptime: performance.now() / 1000, // Uptime in seconds
-      };
-
-      setTimeout(() => {
-        setEnvInfo(mockEnvInfo);
-        setLoading(false);
-      }, 600);
-    } catch (error) {
-      logger.error("Failed to fetch environment info", { error });
-      setLoading(false);
-    }
+  return {
+    platform: navigator.platform || "Unknown",
+    arch: "Browser",
+    nodeVersion: "N/A (Browser)",
+    cpuUsage: Math.random() * 20, // Mock CPU usage
+    uptime: performance.now() / 1000, // Uptime in seconds
   };
+}
 
-  React.useEffect(() => {
-    fetchEnvInfo();
-  }, []);
+const CLIPluginComponent = () => {
+  const { data: envInfo, loading, reload } = useDevtoolsResource(loadEnvInfo);
 
   return (
     <div className="space-y-4 p-4">
@@ -635,7 +603,7 @@ const CLIPluginComponent = () => {
             </div>
             <div>
               <span className="text-sm font-medium">CPU Usage:</span>
-              <span className="ml-2">{envInfo.cpuUsage?.toFixed(2)}%</span>
+              <span className="ml-2">{envInfo.cpuUsage.toFixed(2)}%</span>
             </div>
             <div>
               <span className="text-sm font-medium">Uptime:</span>
@@ -650,9 +618,7 @@ const CLIPluginComponent = () => {
       </div>
 
       <button
-        onClick={() => {
-          fetchEnvInfo();
-        }}
+        onClick={reload}
         className="rounded bg-yellow-500 px-4 py-2 text-white hover:bg-yellow-600"
         disabled={loading}
       >
@@ -763,7 +729,8 @@ const ConfiguredAuth = () => {
     try {
       // Mock auth configuration
       const mockAuthConfig = {
-        databaseUrl: process.env.DATABASE_URL ?? "Not configured",
+        // The database URL is a server-only secret and is never inlined into the client bundle.
+        databaseUrl: "Not configured",
         baseUrl:
           typeof window !== "undefined"
             ? window.location.origin
@@ -1113,12 +1080,15 @@ function UserSelector({
   onSearchChange?: (v: string) => void;
 }) {
   const [open, setOpen] = React.useState(false);
-  const [value, setValue] = React.useState("");
+  const [value, setValue] = React.useState(selectedUserId ?? "");
   const [query, setQuery] = React.useState("");
 
-  React.useEffect(() => {
+  // Follow the externally selected user: adjust during render when the prop changes.
+  const [prevSelectedUserId, setPrevSelectedUserId] = React.useState(selectedUserId);
+  if (selectedUserId !== prevSelectedUserId) {
+    setPrevSelectedUserId(selectedUserId);
     if (selectedUserId) setValue(selectedUserId);
-  }, [selectedUserId]);
+  }
 
   const frameworks = users.map((u) => ({
     value: u.id,
@@ -1288,11 +1258,27 @@ const DrizzleStudioPlugin: TanStackDevtoolsReactPlugin = {
 };
 
 // API URL Reference Plugin Component
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? process.env.API_URL ?? "";
+
+async function checkApiHealth(): Promise<string> {
+  if (!API_URL) return "unknown";
+  try {
+    const resp = await fetch(API_URL + "/health", { method: "GET" });
+    return resp.ok
+      ? `OK (${String(resp.status)})`
+      : `Error (${String(resp.status)})`;
+  } catch (err) {
+    logger.error("Health check error", { error: err });
+    return "unreachable";
+  }
+}
+
 const ApiUrlPluginComponent = () => {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? process.env.API_URL ?? "";
+  const apiUrl = API_URL;
   const referenceUrl = apiUrl ? `${apiUrl.replace(/\/$/, "")}/reference` : "";
-  const [status, setStatus] = useState<string>("unknown");
-  const [checking, setChecking] = useState(false);
+  const { data: healthStatus, loading: checking, reload: checkHealth } =
+    useDevtoolsResource(checkApiHealth);
+  const status = healthStatus ?? "unknown";
 
   const copyApiUrl = async () => {
     try {
@@ -1312,28 +1298,6 @@ const ApiUrlPluginComponent = () => {
     // eslint-disable-next-line no-self-assign
     if (el) el.src = el.src;
   };
-
-  const checkHealth = React.useCallback(async () => {
-    if (!apiUrl) return;
-    setChecking(true);
-    try {
-      const resp = await fetch(apiUrl + "/health", { method: "GET" });
-      setStatus(
-        resp.ok
-          ? `OK (${String(resp.status)})`
-          : `Error (${String(resp.status)})`,
-      );
-    } catch (err) {
-      logger.error("Health check error", { error: err });
-      setStatus("unreachable");
-    } finally {
-      setChecking(false);
-    }
-  }, [apiUrl]);
-
-  React.useEffect(() => {
-    if (apiUrl) void checkHealth();
-  }, [apiUrl, checkHealth]);
 
   return (
     <div className="flex h-full flex-col">
@@ -1372,7 +1336,7 @@ const ApiUrlPluginComponent = () => {
               >
                 Reload Reference
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void checkHealth()}>
+              <DropdownMenuItem onClick={checkHealth}>
                 {checking ? "Checking..." : "Check Health"}
               </DropdownMenuItem>
             </DropdownMenuContent>

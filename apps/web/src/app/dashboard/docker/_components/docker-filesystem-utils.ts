@@ -1,6 +1,6 @@
 'use client'
 
-import type { DockerFileEntry } from '@repo/contracts-entities'
+import type { DockerFileEntry } from '@deployer/contracts-entities'
 
 export interface DockerDirectoryEntryView {
   name: string

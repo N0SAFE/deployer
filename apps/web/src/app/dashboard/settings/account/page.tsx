@@ -2,8 +2,8 @@ import { AuthDashboardSettingsAccount } from '@/routes'
 import { ProfileForm } from './profile-form'
 import { PageTimingLogger } from '@/lib/timing'
 import { PageHeader } from '@/components/dashboard'
-import ModeToggle from '@repo/ui/components/shadcn/mode-toggle'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
+import ModeToggle from '@deployer/ui/components/shadcn/mode-toggle'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import {
   ActiveSessionsCard,
   ApiKeysCard,

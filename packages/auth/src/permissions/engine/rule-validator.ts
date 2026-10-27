@@ -13,9 +13,9 @@
  */
 
 import z from "zod/v4";
-import { MAX_FILTER_DEPTH } from "@repo/auth/permissions/engine/filter-matcher";
-import { Variable } from "@repo/auth/permissions/engine/types";
-import type { ProjectResource, ResourceRule } from "@repo/auth/permissions/engine/types";
+import { MAX_FILTER_DEPTH } from "@deployer/auth/permissions/engine/filter-matcher";
+import { Variable } from "@deployer/auth/permissions/engine/types";
+import type { ProjectResource, ResourceRule } from "@deployer/auth/permissions/engine/types";
 
 // ---------------------------------------------------------------------------
 // Resource & action schemas

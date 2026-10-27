@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import {
   Command,
   CommandEmpty,
@@ -9,10 +9,10 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from '@repo/ui/components/shadcn/command'
-import { Popover, PopoverContent, PopoverTrigger } from '@repo/ui/components/shadcn/popover'
+} from '@deployer/ui/components/shadcn/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@deployer/ui/components/shadcn/popover'
 import { Check, ChevronsUpDown, PencilLine } from 'lucide-react'
-import { cn } from '@repo/ui/lib/utils'
+import { cn } from '@deployer/ui/lib/utils'
 
 /**
  * Combobox-style field: pick a preset OR type a custom value.
@@ -29,6 +29,7 @@ export function AutocompleteField({
   allowCustom = true,
   detected,
   className,
+  onClose,
 }: {
   value: string
   onChange: (next: string) => void
@@ -41,6 +42,8 @@ export function AutocompleteField({
   /** A suggested value (e.g. from auto-detection) highlighted in the list. */
   detected?: string
   className?: string
+  /** Called when the popover closes — wire to the field's blur so required errors can show. */
+  onClose?: () => void
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -56,7 +59,7 @@ export function AutocompleteField({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(next) => { setOpen(next); if (!next) onClose?.() }}>
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -87,7 +90,7 @@ export function AutocompleteField({
                   >
                     <span className="truncate">{o}</span>
                     <span className="flex shrink-0 items-center gap-1.5">
-                      {detected === o && <span className="text-[10px] text-primary">detected</span>}
+                      {detected === o && <span className="text-xs text-primary">detected</span>}
                       {value === o && <Check className="size-3.5 text-primary" />}
                     </span>
                   </CommandItem>

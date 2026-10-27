@@ -1,0 +1,486 @@
+# =====================================================================
+# Deployer API services + BFF — the split's compose entries.
+#
+# ── INCLUDE-ONLY ────────────────────────────────────────────────────────
+# This file declares no services an orchestrator would override; the orchestrators
+# (docker-compose.services.dev.yml, …services.dev-supervised.yml) include it and add only per-project
+# wiring (container_name, networks).
+#
+# ── THE START ORDER, AND WHY IT IS A CHAIN AND NOT A LIST ───────────────
+# Every app in `apps/api/` declares its dependencies and REFUSES to serve without
+# them (`PreflightModule` → exit 5). So compose does not need to *know* what each app
+# needs; it only needs to wait for the app's own honest answer before starting the
+# next one:
+#
+#     redis ─┐
+#            ├─▶ svc-* (health/ready, i.e. "database reachable AND migrated")
+#     db ────┘        │
+#                     ▼
+#                    bff (health/ready, i.e. "…and Redis")
+#                     │
+#                     ▼
+#                    web
+#
+# A `service_healthy` gate on `/health/ready` is therefore the whole mechanism:
+# readiness is 503 until preflight passes, so "healthy" already means "its
+# dependencies were usable", with no duplicated knowledge here.
+#
+# ── WHY `start_period` IS GENEROUS ──────────────────────────────────────
+# A cold database means migrations run on first boot, and a swarm service's DNS name
+# only appears once its task is running. Preflight WAITS for that (60s by default), so
+# the container is legitimately unhealthy-but-alive for a while — `start_period`
+# covers the process boot, and the retry budget covers the wait.
+# =====================================================================
+
+x-api-service-common: &api-service-common
+  # ── WHY `on-failure` AND NOT `unless-stopped` ─────────────────────────────
+  # Every app here exits **5** when a declared dependency is not usable yet
+  # (`PreflightModule` → `DependencyNotReadyError` → `process.exit(5)`). That is
+  # a clean, diagnosed refusal — not a crash — and in a SWARM the orchestrator
+  # reads the code and waits for the dependency instead of treating it as fatal.
+  #
+  # Compose has no such notion, so `unless-stopped` restarted the process on
+  # that clean exit, forever: preflight retried the database for its full 60s
+  # `waitMs`, exited 5, and Docker immediately started it again. Before the
+  # global database exists (the setup wizard creates it as a swarm service) that
+  # ran 68 times in one session per service, and the restart counter made a
+  # correctly-refusing service look like a crash loop.
+  #
+  # `on-failure` with a bounded retry keeps the useful half — a genuine crash is
+  # still retried five times — while a dependency the platform has not
+  # provisioned yet stops after the budget instead of pinning a CPU core.
+  # `docker compose up` re-runs it, and compose restarts it once the setup gate
+  # opens and the database is reachable.
+  restart: on-failure:5
+  dns:
+    - 8.8.8.8
+    - 8.8.4.4
+  environment: &api-service-env
+    NODE_ENV: ${NODE_ENV:-development}
+    LOG_LEVEL: ${LOG_LEVEL:-debug}
+    APP_DIR: /app
+    DEP_OUTPUT_ROOT: /app/dep-output
+    WAIT_FOR_DEPS: ${WAIT_FOR_DEPS:-1}
+    # ── HOW LONG PREFLIGHT WAITS, AND WHY IT IS LONGER HERE ─────────────────
+    # Every app in this profile declares `DEPENDENCIES.database` and exits 5 when
+    # it is not usable (`PreflightModule` → `DependencyNotReadyError`). The 60s
+    # default is the right budget for a dependency that is *starting*; it is the
+    # wrong budget for one that has not been *created* yet, which is this profile:
+    #
+    #   MANAGED_GLOBAL_DB_ENABLED=true  → the URL comes from env (no DB lookup)
+    #                                   AND `GlobalDbSupervisorService` is SKIPPED
+    #   deployer-postgres               → does not exist here; this file declares
+    #                                   no Postgres, and the alias `global-db` is
+    #                                   carried by the SWARM service the setup
+    #                                   wizard creates
+    #
+    # So at `up` time `global-db` legitimately does not resolve yet:
+    #
+    #   [Preflight] ✗ database  getaddrinfo ENOTFOUND global-db   (61s, then exit 5)
+    #
+    # Under the old policy that repeated until the retry budget was spent, and the
+    # stack stayed dead — the profile became unusable until someone re-ran it BY
+    # HAND after finishing the wizard. Waiting past onboarding is what makes
+    # `up -d` sufficient on its own: the apps hold their port (readiness 503,
+    # liveness 200) while the user completes setup, and turn ready as soon as the
+    # database service they are already pointed at exists.
+    #
+    # 30 min covers a cold `turbo` build, the wizard, and the swarm task being
+    # placed. A genuinely broken stack still fails — just once, at the deadline,
+    # with `DependencyNotReadyError` naming the dependency instead of a loop.
+    PREFLIGHT_WAIT_MS: ${PREFLIGHT_WAIT_MS:-1800000}
+    # ── THE DATABASE URL, FROM THE COMPOSE-MANAGED DB ───────────────────────
+    # This profile runs the services WITHOUT the setup wizard, so nothing ever
+    # writes `node_config.databaseUrl` and the pool came up with an EMPTY URL.
+    # Every service then sat in preflight forever:
+    #
+    #   ⚠️  No database URL yet — the pool will connect once onboarding provisions one.
+    #   [preflight] preflight attempt 27 not ready — retrying in 2000ms
+    #   (DatabaseHealthIndicator) database check failed:      <- empty message
+    #
+    # `/health/ready` stayed 503, so `bff` — which gates on all five services —
+    # never started and the stack came up with a `Created` container.
+    #
+    # ── WHY `MANAGED_GLOBAL_DB_ENABLED=true` IS THE RIGHT LEVER ─────────────
+    # The pool resolves its URL from one of two sources, and only these:
+    #
+    #   1. `MANAGED_GLOBAL_DB_ENABLED=true` → a URL DERIVED FROM ENV, no database
+    #      lookup at all (`resolveManagedGlobalDbUrl`)
+    #   2. otherwise → `node_config.databaseUrl`, the row the setup WIZARD writes
+    #
+    # This profile has no wizard, so option 2 is empty by construction. Option 1
+    # is the compose-managed path, and the `deployer-postgres` container IS
+    # compose-managed in every dev profile — `.env.example` documents exactly
+    # this ("the global Postgres is COMPOSE-MANAGED"). Every other dev profile
+    # sets it true for this reason.
+    #
+    # The URL is therefore deterministic — BUT NOT VIA THE ALIAS `global-db`.
+    #
+    # ── WHY THE ALIAS IS THE BUG, NOT THE FIX ─────────────────────────────
+    # `global-db` is carried by TWO different containers on TWO different
+    # networks, and which one answers depends on which network the CALLER joined:
+    #
+    #   network                     `global-db` resolves to        tables
+    #   deployer-platform           nextjs-nestjs-global-db  172.27.0.2   0  (compose)
+    #   deployer-platform-overlay   deployer-postgres.1.<id>  10.0.1.2   91  (swarm, migrated)
+    #
+    # The BFF joins BOTH — it self-attaches to the overlay through
+    # `swarm-app-wiring.supervisor` — so it resolved the SWARM database, ran the
+    # migrations there, and served correctly:
+    #
+    #   [BootstrapOrchestratorService] 🔄 Running global Postgres migrations
+    #     (postgresql://deployer:***@global-db:5432/deployer)…
+    #   [BootstrapOrchestratorService] ✅ Global Postgres migrations applied
+    #   [Preflight] ✓ migrations 39
+    #
+    # The five `svc-*` are BRIDGE-ONLY. The identical URL sent them to the EMPTY
+    # compose database, so they never left preflight:
+    #
+    #   error: relation "session" does not exist
+    #   [preflight] preflight attempt 250 not ready — retrying in 2000ms
+    #
+    # → every authenticated analytics call became
+    #   500 {"code":"INTERNAL_SERVER_ERROR"} through the BFF.
+    #
+    # ── WHY NOT PUT THE SERVICES ON THE OVERLAY ───────────────────────────
+    # Tried. It fixed the database and broke SERVICE DISCOVERY: on the overlay
+    # the BFF then resolved `svc-identity` to an address nothing listens on,
+    #
+    #   svc-identity on overlay  10.0.1.20   → ECONNREFUSED
+    #   svc-identity on bridge   172.27.0.5  → the real listener
+    #
+    # The network is not the lever; the CONNECTION STRING is. Naming the compose
+    # container directly gives EVERY app here the same database regardless of
+    # which networks it joins — one URL, one schema, one answer. The BFF then
+    # migrates that database on boot, which is the same self-healing path it
+    # already uses for the swarm one.
+    MANAGED_GLOBAL_DB_ENABLED: "true"
+    MANAGED_GLOBAL_DB_HOST: ${MANAGED_GLOBAL_DB_HOST:-nextjs-nestjs-global-db}
+    MANAGED_GLOBAL_DB_PORT: ${MANAGED_GLOBAL_DB_PORT:-5432}
+    MANAGED_GLOBAL_DB_USER: ${MANAGED_GLOBAL_DB_USER:-deployer}
+    MANAGED_GLOBAL_DB_PASSWORD: ${MANAGED_GLOBAL_DB_PASSWORD:-deployer}
+    MANAGED_GLOBAL_DB_NAME: ${MANAGED_GLOBAL_DB_NAME:-deployer}
+    # Redis: the services declare it as a dependency, and compose owns it here.
+    MANAGED_REDIS_ENABLED: "true"
+    MANAGED_REDIS_HOST: redis
+    MANAGED_REDIS_PORT: "6379"
+    MANAGED_LOCAL_DB_ENABLED: "true"
+    MANAGED_LOCAL_DB_PATH: /app/data/local.db
+    DEPLOYER_REDIS_URL: ${DEPLOYER_REDIS_URL:-redis://redis:6379}
+    # ── THE SESSION SIGNING SECRET — EVERY APP THAT VALIDATES A COOKIE ─────
+    # The `svc-*` never received these, and the consequence was a 500 on every
+    # authenticated call through the BFF:
+    #
+    #   GET /analytics/metrics/realtime → 500 MALFORMED_ORPC_RESPONSE
+    #   data.status: 401  data.body: {code: UNAUTHORIZED}
+    #
+    # Measured: the SAME signed cookie was accepted by the BFF and rejected by
+    # `svc-identity`.
+    #
+    #   bff          BETTER_AUTH_SECRET sha16 = 8ead3117e1d07d5d   get-session → session
+    #   svc-identity BETTER_AUTH_SECRET sha16 = e3b0c44298fc1c14   get-session → null
+    #
+    # `e3b0c44298fc1c14` is the SHA-256 of the EMPTY STRING — the variable was
+    # simply absent in the services, so `betterAuthFactory` fell back to
+    # `undefined`. A cookie signed with one secret cannot be verified with
+    # another, so `auth.api.getSession()` returned null, `requireAuth()` threw
+    # UNAUTHORIZED, and the BFF wrapped that bare 401 as a malformed ORPC
+    # response — surfacing as a 500 in the browser.
+    #
+    # `AUTH_BASE_DOMAIN` matters for the same reason: it is what makes the plugin
+    # derive the platform origins the browser sends (`web.`, `api.`, `setup.`).
+    # These belong on the SHARED anchor, not on `bff` alone: every app that reads
+    # a session cookie must agree on the secret and the domain, and duplicating the
+    # values per service is how they drift.
+    BETTER_AUTH_SECRET: ${AUTH_SECRET:-fallback-auth-secret}
+    AUTH_SECRET: ${AUTH_SECRET:-fallback-auth-secret}
+    AUTH_BASE_DOMAIN: ${AUTH_BASE_DOMAIN:-.deployer.localhost}
+    DEV_AUTH_KEY: ${DEV_AUTH_KEY:-dev-fallback-key}
+    # ── WHICH CONTAINER SERVES `web.deployer.localhost` ────────────────────
+    # Without this the web app is UNREACHABLE from a browser, even though the
+    # container is healthy and serves 200 on its own port. Measured:
+    #
+    #   docker port nextjs-nestjs-web-dev        → (nothing: no published port)
+    #   traefik /config                          → dynamic-api.yml, dynamic-setup.yml
+    #   Host: web.deployer.localhost             → 404
+    #   Host: setup.deployer.localhost           → 200
+    #
+    # The route is written by the Traefik supervisor, but only when
+    # `PlatformWebTargetService.resolveWebTarget()` returns a name. That resolver
+    # returns `null` unless `DEPLOYER_WEB_TARGET` is set or managed-web is
+    # enabled, and this profile sets NEITHER — so `web.<host>` had no router at
+    # all and Traefik answered its own 404.
+    #
+    # The monolith profile already declares exactly this
+    # (`common/api/docker-compose.config.dev.yml`: `DEPLOYER_WEB_TARGET: web-dev`).
+    # It was simply never carried over when the services profile was created.
+    # `web-dev` is the compose SERVICE name, which is the name the platform
+    # network resolves — the same way `global-db` and `redis` are addressed.
+    MANAGED_WEB_APP_EXTERNAL: ${MANAGED_WEB_APP_EXTERNAL:-true}
+    DEPLOYER_WEB_TARGET: ${DEPLOYER_WEB_TARGET:-web-dev}
+    # ── Cross-service addressing ──────────────────────────────────────────
+    # NOT declared here. A service is reached by its COMPOSE SERVICE NAME
+    # (`http://svc-project:3103`), which `apiServiceUrl` derives from `API_SERVICES`
+    # — there is nothing to configure for the default layout, so an operator only
+    # sets these to OVERRIDE it.
+    #
+    # Declaring them as `${API_SERVICE_URLS:-}` would set them to `""`, and the
+    # readers (`readUrlOverride` / `readPortOverride`) treat an empty string as
+    # absent — so it would be a key that exists only to be ignored.
+  # NOTE: no `volumes: &anchor` here on purpose. An anchored LIST cannot be extended
+  # by a service: `- *anchor` nests the list inside itself, and compose rejects it
+  # with "volumes.N must be a string". YAML merge keys do not help — they merge
+  # mappings, and `volumes` is a sequence. Each service lists its own entries.
+  healthcheck: &api-service-healthcheck
+    # READINESS, not liveness. `/health/ready` is 503 until the app's OWN preflight
+    # passes (database reachable + migrated; Redis where declared), so
+    # `service_healthy` means "this app can serve" and nothing here has to restate
+    # what it needs.
+    #
+    # `/health` is deliberately NOT used: it answers 200 the moment the port is
+    # bound — before preflight has run — which would report a dependency-starved
+    # process as ready.
+    test: wget --no-verbose --tries=1 --spider http://127.0.0.1:$${APP_PORT}/health/ready || exit 1
+    start_period: 60s
+    interval: 15s
+    timeout: 15s
+    # 40 × 15s ≈ 10 min: enough for a cold database's first migrations plus a swarm
+    # task being scheduled, which is the slowest legitimate first boot.
+    retries: 40
+
+# ── THE BUILD FOR EVERY APP IN THIS FILE ──────────────────────────────────
+# One Dockerfile, parameterised per app. Two args are needed because a workspace has
+# two facts about an app and they stopped agreeing when services arrived:
+#
+#   APP          the PACKAGE NAME, which is what `turbo prune` and
+#                `turbo run --filter` accept — neither takes a directory.
+#   APP_SRC_DIR  the source DIRECTORY, which the runner stage `WORKDIR`s into.
+#
+# For the four original apps they coincide (`api` → `api`); for a service they do not
+# (`@deployer/svc-health` → `api/services/health`). Deriving one from the other produced
+# `/app/apps/@deployer/svc-health`, a directory that never exists.
+#
+# The arg NAMES and their ORDER match `common/{api,web,doc,setup}/docker-compose.config.dev.yml`,
+# deliberately: a bug in the image definition then shows up in all eight apps at once
+# instead of living only in the newer half.
+#
+# `APP_DEPS_MODE=volume` is the compose-managed default: internal packages come from
+# the `dependency-builder` container through the shared `dep-output` volume, so this
+# image does not rebuild them. A swarm spec overrides it to `baked`, because a
+# scheduled task cannot be handed a compose volume.
+x-api-service-build: &api-service-build
+  context: ../../../../..
+  dockerfile: ./infra/docker/builder/app/Dockerfile.app.dev
+
+services:
+  # ─── The BFF: the ONLY public HTTP surface ──────────────────────────────
+  bff:
+    <<: *api-service-common
+    build:
+      <<: *api-service-build
+      args:
+        - APP=@deployer/bff
+        - APP_SRC_DIR=api/bff
+        - APP_DEPS_MODE=${APP_DEPS_MODE:-volume}
+        - BUILDKIT_INLINE_CACHE=1
+      tags:
+        - "${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-bff:latest"
+    environment:
+      <<: *api-service-env
+      # ── BOTH NAMES, AND THEY MUST STAY EQUAL ────────────────────────────────
+      # The healthcheck above probes `127.0.0.1:$APP_PORT`, while
+      # `apps/api/bff/src/main.ts` binds `API_PORT` (it kept the
+      # monolith's variable because the BFF inherited the monolith's public role).
+      # Setting only `APP_PORT` made the process bind 3005 while the probe asked a
+      # different port — the BFF booted, served nothing on the probe's port, and
+      # the stack stopped at "container bff-dev is unhealthy".
+      #
+      # Two variables for one port is the defect; they are set from the same
+      # expression so they cannot disagree, and `API_PORT` is what a host-side run
+      # (`API_PORT=3015 bun run dev:services`) already controls.
+      APP_PORT: ${API_PORT:-3005}
+      API_PORT: ${API_PORT:-3005}
+      # Session/auth. Only the BFF parses a cookie, so these live here and nowhere
+      # else.
+      AUTH_SECRET: ${AUTH_SECRET:-fallback-auth-secret}
+      BETTER_AUTH_SECRET: ${AUTH_SECRET:-fallback-auth-secret}
+      DEV_AUTH_KEY: ${DEV_AUTH_KEY:-dev-fallback-key}
+      # ── THE PLATFORM'S PARENT DOMAIN ──────────────────────────────────
+      # The browser sends `Origin: http://<service>.deployer.localhost`, but
+      # `TRUSTED_ORIGINS` defaults to plain `http://localhost:3000`, so every
+      # sign-in was refused before a credential was read:
+      #
+      #   POST http://setup.deployer.localhost/api/auth/sign-in/email
+      #   → 403 {"message":"Invalid origin","code":"INVALID_ORIGIN"}
+      #
+      # `AUTH_BASE_DOMAIN` is what states the parent domain, and the auth factory
+      # now derives the platform hostnames from it (`web.`, `api.`, `setup.`,
+      # `docs.`, and the bare parent) — the SAME fact that already justifies the
+      # cross-subdomain session cookie. It was declared in the monolith's compose
+      # (`common/api/docker-compose.config.yml`) but never carried into THIS
+      # profile, so the derivation had nothing to work from and the 403
+      # persisted after the code fix.
+      AUTH_BASE_DOMAIN: ${AUTH_BASE_DOMAIN:-.deployer.localhost}
+      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-http://localhost:3000}
+      PASSKEY_RPID: ${PASSKEY_RPID:-localhost}
+      PASSKEY_ORIGIN: ${PASSKEY_ORIGIN:-http://localhost:3000}
+      DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@admin.com}
+      DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-adminadmin}
+    volumes:
+      # The shared internal-package output, written by `dependency-builder`.
+      # READ-ONLY: a stray build here must not corrupt the tree for other apps.
+      - dep_output_dev:/app/dep-output:ro
+      # The local SQLite database (node_config).
+      - api_local_db_data_dev:/app/data
+      # ── THE DOCKER SOCKET ───────────────────────────────────────────────────
+      # The BFF is the app that EXECUTES the setup wizard's provisioning steps
+      # (`@deployer/shared`'s `LocalInitializationService` is imported by
+      # `SetupDomainModule` here). "Create the Swarm cluster" calls
+      # `swarmBootstrap.converge()`, which drives the daemon directly, so without
+      # this mount the wizard failed at step 4 with:
+      #
+      #   ❌ Failed to read Swarm info: connect ENOENT /var/run/docker.sock
+      #
+      # The monolith's `api-dev` has always mounted it for exactly this reason
+      # (see `common/api/docker-compose.config.yml`); the BFF inherited the
+      # monolith's ROLE but not its mount, which is why only this profile broke.
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  # ─── svc-health: probes and the supervisor roll-up ──────────────────────
+  svc-health:
+    <<: *api-service-common
+    build:
+      <<: *api-service-build
+      args:
+        - APP=@deployer/svc-health
+        - APP_SRC_DIR=api/services/health
+        - APP_DEPS_MODE=${APP_DEPS_MODE:-volume}
+        - BUILDKIT_INLINE_CACHE=1
+      tags:
+        - "${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-svc-health:latest"
+    environment:
+      <<: *api-service-env
+      APP_PORT: "3101"
+    volumes:
+      # The shared internal-package output, written by `dependency-builder`.
+      # READ-ONLY: a stray build here must not corrupt the tree for other apps.
+      - dep_output_dev:/app/dep-output:ro
+      - api_local_db_data_dev:/app/data
+
+  # ─── svc-identity: users, permissions, push, analytics ──────────────────
+  #
+  # ── WHY EACH SERVICE NEEDS ITS OWN ENTRY AND NOT JUST A PORT ─────────────
+  # A service is reached by its COMPOSE SERVICE NAME (`http://svc-identity:3102`),
+  # which is also how the orchestrator schedules it — see `apiServiceUrl` in
+  # `@deployer/shared/server`. Without an entry here the name does not resolve, so the
+  # BFF's client for it fails at the first call rather than at boot, and the failure
+  # looks like a bug in the caller.
+  #
+  # `APP_PORT` must match the port in `API_SERVICES`; the healthcheck probes
+  # `127.0.0.1:$APP_PORT/health/ready`, so a mismatch makes a WORKING service report
+  # unhealthy forever.
+  svc-identity:
+    <<: *api-service-common
+    build:
+      <<: *api-service-build
+      args:
+        - APP=@deployer/svc-identity
+        - APP_SRC_DIR=api/services/identity
+        - APP_DEPS_MODE=${APP_DEPS_MODE:-volume}
+        - BUILDKIT_INLINE_CACHE=1
+      tags:
+        - "${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-svc-identity:latest"
+    environment:
+      <<: *api-service-env
+      APP_PORT: "3102"
+    volumes:
+      # The shared internal-package output, written by `dependency-builder`.
+      # READ-ONLY: a stray build here must not corrupt the tree for other apps.
+      - dep_output_dev:/app/dep-output:ro
+      - api_local_db_data_dev:/app/data
+
+  # ─── svc-project: projects, services, domains ───────────────────────────
+  svc-project:
+    <<: *api-service-common
+    build:
+      <<: *api-service-build
+      args:
+        - APP=@deployer/svc-project
+        - APP_SRC_DIR=api/services/project
+        - APP_DEPS_MODE=${APP_DEPS_MODE:-volume}
+        - BUILDKIT_INLINE_CACHE=1
+      tags:
+        - "${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-svc-project:latest"
+    environment:
+      <<: *api-service-env
+      APP_PORT: "3103"
+    volumes:
+      # The shared internal-package output, written by `dependency-builder`.
+      # READ-ONLY: a stray build here must not corrupt the tree for other apps.
+      - dep_output_dev:/app/dep-output:ro
+      - api_local_db_data_dev:/app/data
+
+  # ─── svc-runtime: docker, deployments, runners ──────────────────────────
+  #
+  # The docker socket is mounted because this service IS the one that talks to the
+  # daemon — no other service needs it, which is the point of the split. Mounted
+  # read-write since it creates containers, and only here.
+  svc-runtime:
+    <<: *api-service-common
+    build:
+      <<: *api-service-build
+      args:
+        - APP=@deployer/svc-runtime
+        - APP_SRC_DIR=api/services/runtime
+        - APP_DEPS_MODE=${APP_DEPS_MODE:-volume}
+        - BUILDKIT_INLINE_CACHE=1
+      tags:
+        - "${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-svc-runtime:latest"
+    environment:
+      <<: *api-service-env
+      APP_PORT: "3105"
+      # Where `deployment.uploadBundle` stores uploaded bundles. It used to default to a path under
+      # `/tmp` inside this container, so an uploaded bundle was lost on restart; the uploads
+      # volume below is what makes it durable.
+      DEPLOYMENT_UPLOAD_DIR: /app/uploads
+    volumes:
+      # The shared internal-package output, written by `dependency-builder`.
+      # READ-ONLY: a stray build here must not corrupt the tree for other apps.
+      - dep_output_dev:/app/dep-output:ro
+      - api_local_db_data_dev:/app/data
+      - api_uploads_dev:/app/uploads
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  # ─── svc-fleet: cluster, nodes, providers, reachability ─────────────────
+  #
+  # The docker socket is mounted here for the SAME reason as `svc-runtime`:
+  # this service owns the CLUSTER surface. `ClusterSwarmEventsService` streams
+  # daemon events and `SwarmLeadershipService` participates in the election, so
+  # both must reach the engine. Without the mount, `svc-fleet` logged
+  #
+  #   ERROR [ClusterSwarmEventsService] Failed to read Swarm info:
+  #         connect ENOENT /var/run/docker.sock
+  #
+  # every interval and restarted 62 times in one session — healthy enough to
+  # pass `/health/ready` (the database was fine) but never able to answer for
+  # the cluster it exists to report on.
+  svc-fleet:
+    <<: *api-service-common
+    build:
+      <<: *api-service-build
+      args:
+        - APP=@deployer/svc-fleet
+        - APP_SRC_DIR=api/services/fleet
+        - APP_DEPS_MODE=${APP_DEPS_MODE:-volume}
+        - BUILDKIT_INLINE_CACHE=1
+      tags:
+        - "${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-svc-fleet:latest"
+    environment:
+      <<: *api-service-env
+      APP_PORT: "3104"
+    volumes:
+      # The shared internal-package output, written by `dependency-builder`.
+      # READ-ONLY: a stray build here must not corrupt the tree for other apps.
+      - dep_output_dev:/app/dep-output:ro
+      - api_local_db_data_dev:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock

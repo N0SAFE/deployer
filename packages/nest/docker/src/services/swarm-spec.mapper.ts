@@ -15,7 +15,7 @@
  */
 
 import type Docker from "dockerode";
-import type { SwarmHealthcheckConfig, SwarmServiceSpecInput, SwarmUpdateConfig } from "@repo/contracts-entities";
+import type { SwarmHealthcheckConfig, SwarmServiceSpecInput, SwarmUpdateConfig } from "@deployer/contracts-entities";
 /** dockerode health/update/rollback intervals are expressed in nanoseconds. */
 const NANOS_PER_MS = 1_000_000;
 

@@ -10,17 +10,17 @@ import type {
   AnyContractProcedureOrBuilder,
   InferInputSchema,
   InferOutputSchema,
-} from '@repo/orpc-utils/types/type-helpers';
+} from '@deployer/orpc-utils/types/type-helpers';
 import type {
   ExtractOutput,
   LiveQueryOptions,
   StreamedQueryOptions,
-} from '@repo/orpc-utils/hooks/core/hook-factories';
-import type { InvalidationConfig } from '@repo/orpc-utils/hooks/types/invalidation.types';
+} from '@deployer/orpc-utils/hooks/core/hook-factories';
+import type { InvalidationConfig } from '@deployer/orpc-utils/hooks/types/invalidation.types';
 import type {
   IsGetMethod,
   IsNonGetMethod,
-} from '@repo/orpc-utils/hooks/types/route-method.types';
+} from '@deployer/orpc-utils/hooks/types/route-method.types';
 
 type IsStreamingProcedure<TContractProc, TRouterProc = TContractProc> =
   TRouterProc extends { queryOptions: unknown }

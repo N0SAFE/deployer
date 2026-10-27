@@ -380,13 +380,13 @@ jose
 
 **Package to MOVE to devDependencies** (1 package):
 ```bash
-# Move @repo/declarative-routing from dependencies to devDependencies
-@repo/declarative-routing
+# Move @deployer/declarative-routing from dependencies to devDependencies
+@deployer/declarative-routing
 ```
 
 **Packages to KEEP** (3 packages):
 - `@serwist/turbopack` - PWA support, not yet implemented but will be used
-- `@repo/orpc-utils` - Actually in use (false positive)
+- `@deployer/orpc-utils` - Actually in use (false positive)
 - `@tanstack/react-query-devtools` - Actually in use (false positive)
 
 **Reason**: **USER DECISION: REMOVE unused packages, MOVE CLI tool to devDependencies, KEEP PWA and false positives. Need to remove all @million/lint code references.**
@@ -448,8 +448,8 @@ tsx                     # Using Bun directly (remove from apps/api only)
 ```
 
 **Config Packages** - Keep at package level AND root (if root uses them):
-- `@repo/config-typescript` - KEEP in both packages and root
-- `@repo/config-prettier` - KEEP in both packages and root
+- `@deployer/config-typescript` - KEEP in both packages and root
+- `@deployer/config-prettier` - KEEP in both packages and root
 
 **Reason**: **USER DECISION: Remove legacy TS tools (using Bun), keep config packages at both levels**
 
@@ -511,15 +511,15 @@ dotenv-expand
 
 **Packages to REMOVE** (if confirmed unused):
 ```bash
-@repo/env               # From root (used in apps, not root)
+@deployer/env               # From root (used in apps, not root)
 zod                     # From types package (workspace has it)
 drizzle-orm             # From types package (used in api only)
 ```
 
 **Other Cleanup**:
 ```bash
-@repo/config-tailwind  # Remove from web if workspace config used
-@repo/config-vitest    # Remove from packages if centralized in root
+@deployer/config-tailwind  # Remove from web if workspace config used
+@deployer/config-vitest    # Remove from packages if centralized in root
 prettier-plugin-tailwindcss  # Remove duplicates (keep in root + packages that use it)
 tailwind-variants       # Remove if not using variant system
 @asteasolutions/zod-to-openapi  # Remove if OpenAPI not generated
@@ -541,12 +541,12 @@ chokidar                # Bundler handles watching
 
 **Packages to KEEP**:
 ```bash
-@repo/config-typescript    # Keep in packages + root
-@repo/config-tailwind      # Keep where used
-@repo/config-prettier      # Keep in packages + root
+@deployer/config-typescript    # Keep in packages + root
+@deployer/config-tailwind      # Keep where used
+@deployer/config-prettier      # Keep in packages + root
 @eslint/eslintrc            # Keep in types (legacy bridge)
 @eslint/js                  # Keep in types (base rules)
-@repo/types                 # Keep in ui/base
+@deployer/types                 # Keep in ui/base
 ```
 
 **Reason**: Actually used but Knip doesn't detect properly
@@ -586,7 +586,7 @@ rm apps/web/src/domains/health/*.ts
 bun remove @thallesp/nestjs-better-auth bcrypt express-list-routes nestjs-flub
 
 # Remove from apps/web/package.json
-bun remove @million/lint @repo/declarative-routing @repo/orpc-utils
+bun remove @million/lint @deployer/declarative-routing @deployer/orpc-utils
 bun remove @serwist/turbopack @types/circular-json circular-json
 bun remove esbuild-wasm react-use yaml
 
@@ -634,12 +634,12 @@ rm -rf apps/web/src/utils/useSafeQueryStatesFromZod
 ```bash
 # Clean API devDeps
 cd apps/api
-bun remove @repo/config-prettier @repo/config-typescript
+bun remove @deployer/config-prettier @deployer/config-typescript
 bun remove source-map-support ts-loader ts-node tsconfig-paths tsx
 
 # Clean Web devDeps
 cd apps/web
-bun remove @asteasolutions/zod-to-openapi @repo/config-tailwind
+bun remove @asteasolutions/zod-to-openapi @deployer/config-tailwind
 bun remove @tanstack/eslint-plugin-query @testing-library/user-event
 bun remove @types/mdx @typescript/native-preview
 bun remove dotenv dotenv-expand estree-walker
@@ -647,7 +647,7 @@ bun remove prettier-plugin-tailwindcss tailwind-variants
 bun remove wait-on wait-port
 
 # Clean package devDeps
-cd tooling/bin-declarative-routing && bun remove @repo/config-vitest @types/diff
+cd tooling/bin-declarative-routing && bun remove @deployer/config-vitest @types/diff
 cd tooling/eslint && bun remove @eslint/compat @typescript-eslint/eslint-plugin
 cd tooling/eslint && bun remove @vercel/style-guide babel-plugin-macros chokidar
 cd tooling/eslint && bun remove eslint-config-nestjs eslint-config-prettier
@@ -833,11 +833,11 @@ export default {
     '@vitest/coverage-v8',
     
     // Shared workspace configs
-    '@repo/config-typescript',
-    '@repo/config-eslint',
-    '@repo/config-prettier',
-    '@repo/config-tailwind',
-    '@repo/config-vitest',
+    '@deployer/config-typescript',
+    '@deployer/config-eslint',
+    '@deployer/config-prettier',
+    '@deployer/config-tailwind',
+    '@deployer/config-vitest',
     
     // Platform-specific (native modules)
     'detect-libc',
@@ -1079,8 +1079,8 @@ bun remove jose
 bun remove @million/lint
 
 # Move to devDependencies
-bun remove @repo/declarative-routing
-bun add -D @repo/declarative-routing
+bun remove @deployer/declarative-routing
+bun add -D @deployer/declarative-routing
 ```
 
 #### Package Dependencies (7 packages)
@@ -1110,7 +1110,7 @@ bun remove -D ts-node
 bun remove -D tsconfig-paths
 bun remove -D tsx  # Using bun instead
 
-# Note: Keep @repo/config-typescript and @repo/config-prettier at package level
+# Note: Keep @deployer/config-typescript and @deployer/config-prettier at package level
 ```
 
 #### ESLint Config Duplicates
@@ -1171,7 +1171,7 @@ bun remove -D dotenv-expand
 ```bash
 # From root
 cd /home/sebille/Bureau/projects/tests/nextjs-nestjs-turborepo-template
-bun remove -D @repo/env  # Used in apps, not root
+bun remove -D @deployer/env  # Used in apps, not root
 
 # From packages/types
 cd packages/types
@@ -1180,8 +1180,8 @@ bun remove -D drizzle-orm  # Used in api only
 
 # From apps/web
 cd apps/web
-bun remove -D @repo/config-tailwind  # If workspace config used
-bun remove -D @repo/config-vitest  # If centralized in root
+bun remove -D @deployer/config-tailwind  # If workspace config used
+bun remove -D @deployer/config-vitest  # If centralized in root
 bun remove -D prettier-plugin-tailwindcss  # Root has it
 bun remove -D tailwind-variants  # Not using variant system
 bun remove -D @asteasolutions/zod-to-openapi  # OpenAPI not generated
@@ -1230,7 +1230,7 @@ git commit -m "chore: remove unused files and dependencies per Knip analysis
 - Removed 40 unused files (legacy components, barrel exports, test files)
 - Removed 18 unused dependencies
 - Removed ~50 unused devDependencies
-- Moved @repo/declarative-routing to devDeps
+- Moved @deployer/declarative-routing to devDeps
 - Kept configs at package level per architecture
 - Consolidated ESLint plugins to shared config
 - Verified @orpc packages are in-use (Knip false positive)"
@@ -1342,7 +1342,7 @@ This Knip analysis has been completed with user decisions on all 157 items:
 3. **Legacy Tools**: Remove ts-node, tsx, ts-loader (using Bun)
 4. **Testing Libraries**: Remove @testing-library/* (using Vitest native)
 5. **Wait/Env Tools**: Remove wait-on, wait-port, dotenv* (Docker/Next.js handle)
-6. **Workspace Deps**: Remove duplicates (zod from types, drizzle-orm from types, @repo/env from root)
+6. **Workspace Deps**: Remove duplicates (zod from types, drizzle-orm from types, @deployer/env from root)
 
 ### 📦 Verified False Positives
 
@@ -1351,7 +1351,7 @@ This Knip analysis has been completed with user decisions on all 157 items:
 - **@orpc/tanstack-query**: Actually imported in 3 files (query utils)
 - **@serwist/turbopack**: PWA implementation files exist
 - **@tanstack/react-query-devtools**: Actually used in dev mode
-- **@repo/orpc-utils**: Actually imported in web app
+- **@deployer/orpc-utils**: Actually imported in web app
 - **pino-pretty**: Dev logging pair with pino
 
 ### 🚀 Next Steps

@@ -9,17 +9,17 @@ const mocks = vi.hoisted(() => ({
   useSetupState: vi.fn(),
 }));
 
-vi.mock("@repo/ui/components/shadcn/button", () => ({
+vi.mock("@deployer/ui/components/shadcn/button", () => ({
   Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
     <button {...props}>{children}</button>
   ),
 }));
 
-vi.mock("@repo/ui/components/shadcn/input", () => ({
+vi.mock("@deployer/ui/components/shadcn/input", () => ({
   Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
 }));
 
-vi.mock("@repo/ui/components/shadcn/card", () => ({
+vi.mock("@deployer/ui/components/shadcn/card", () => ({
   Card: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   CardHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   CardTitle: ({ children }: { children: React.ReactNode }) => <h1>{children}</h1>,
@@ -27,19 +27,19 @@ vi.mock("@repo/ui/components/shadcn/card", () => ({
   CardContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock("@repo/ui/components/shadcn/alert", () => ({
+vi.mock("@deployer/ui/components/shadcn/alert", () => ({
   Alert: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   AlertDescription: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock("@repo/ui/components/shadcn/label", () => ({
+vi.mock("@deployer/ui/components/shadcn/label", () => ({
   Label: ({ children, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) => (
     <label {...props}>{children}</label>
   ),
 }));
 
 
-vi.mock("@repo/ui/components/atomics/atoms/Icon", () => ({
+vi.mock("@deployer/ui/components/atomics/atoms/Icon", () => ({
   Spinner: () => <span>spinner</span>,
   AlertCircle: () => <span>alert</span>,
 }));

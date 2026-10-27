@@ -1,4 +1,4 @@
-import type { DockerFileEntry, DockerTerminalProfile } from '@repo/contracts-entities'
+import type { DockerFileEntry, DockerTerminalProfile } from '@deployer/contracts-entities'
 import { getParentPath } from '../_components/docker-filesystem-utils'
 
 export interface DockerTerminalSessionState {

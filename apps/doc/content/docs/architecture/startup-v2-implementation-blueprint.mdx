@@ -478,12 +478,12 @@ rm -f apps/api/src/core/modules/startup/startup-orchestrator.service.ts
 rm -f apps/api/src/core/modules/startup/feature-module-loader.ts
 rm -f apps/api/src/core/modules/startup/feature-module.factory.ts
 rm -f apps/api/src/core/modules/startup/interfaces/core-startup.interface.ts
-rm -f apps/api/src/core/modules/startup/mesh-version.service.ts
+rm -f apps/api/shared/src/core/modules/mesh/version/mesh-version.service.ts
 rm -rf apps/api/src/core/modules/startup/interfaces/
 
 # Old setup module (HTTP surface)
-rm -f apps/api/src/modules/setup/setup.module.ts
-rm -f apps/api/src/modules/setup/controllers/setup.controller.ts
+rm -f apps/api/bff/src/domains/setup/setup.module.ts
+rm -f apps/api/bff/src/domains/setup/controllers/setup.controller.ts
 rm -rf apps/api/src/modules/setup/
 
 # Old per-module startup services

@@ -16,8 +16,8 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-} from '@repo/ui/components/shadcn/sidebar'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@repo/ui/components/shadcn/collapsible'
+} from '@deployer/ui/components/shadcn/sidebar'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@deployer/ui/components/shadcn/collapsible'
 import { fuzzyMatch } from './fuzzy'
 
 interface NamedRow {

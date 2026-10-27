@@ -25,7 +25,9 @@ This file defines how AI coding agents must operate in this repository. It exist
 - When creating apps/packages, use the provided tools: `create-app`, `create-package`.
 
 4) Validate changes
-- Run type-checks and tests before concluding work on a change.
+- Run `bun check --no-script` before concluding work on a change (compile → lint → type-check → test), and `bun lint` to lint/auto-fix.
+- **Use `bun lint` and `bun check --no-script` — never invoke `eslint` or `tsc` directly** (not `bunx eslint`, `npx tsc`, `bunx tsc --noEmit`). The scripts carry the right memory flags, build order (`build:types` first) and per-workspace config; raw CLIs skip those and give misleading or out-of-memory results.
+- Scoped to one workspace: `cd apps/<name> && bun lint` / `bun run type-check`, or `bun run <app> -- lint`.
 - For graph-impacting changes (dependencies, versions), also check reverse dependents via `repo://graph/used-by/{name}`.
 
 5) Documentation is mandatory
@@ -82,6 +84,34 @@ Execution:
 
 This repository expects disciplined, tool-driven changes to maintain consistency and reliability.
 
+## Lint and format entry points
+
+Both run Bun's built-in tools; no workspace invokes the ESLint or Prettier CLI.
+
+| Command | What it does | Mutates files |
+|---|---|---|
+| `bun run lint` | `bun lint --no-script --type-aware` in every workspace | no — CI and `check` use this |
+| `bun run lint:fix` | `bun lint --no-script --fix --type-aware` in every workspace | yes |
+| `bun run lint:fix+` | `bun lint --no-script --fix-suggestions --type-aware` in every workspace | yes |
+| `bun run format` | `bun fmt` in every workspace | yes |
+| `bun run format:check` | `bun fmt --check` in every workspace | no |
+
+- **Per workspace**: `bun run lint`, `bun run lint:fix`, `bun run lint:fix+`,
+  `bun run prettify`, `bun run format`, `bun run format:check`. Turbo tasks are
+  `lint`, `lint:fix`, `lint:fix+`, `prettify`, `format:check`.
+- **Lint policy** lives in each workspace's `eslint.config.ts`; the shared rules
+  are in `tooling/eslint` (`@deployer/config-eslint`). `bunfig.toml` holds only
+  repo-wide lint defaults (`allowUnsupported`, ignore patterns) — never a rule
+  that duplicates a config file.
+- **Format policy** lives in `tooling/prettier` plus each workspace's
+  `.prettierrc.ts`; `bun fmt` reads that chain directly. Do not add a `[fmt]`
+  section to `bunfig.toml` — it would override those files.
+- **Never name a script `fmt`** (or `lint`), because `bun fmt` / `bun lint`
+  delegate to a script with that name and would run it instead of the tool.
+- `tooling/eslint` and `tooling/prettier` must be built (`build:types`) before
+  lint or format: their configs are imported from `dist/`, which `turbo.json`
+  encodes as `dependsOn`.
+
 ## Mandatory MCP Tools by Area
 
 Repo-wide (always):
@@ -90,7 +120,7 @@ Repo-wide (always):
 - Docker orchestration: `docker-up { mode: dev|prod, target: api|web|all }` (do not use `docker compose down`)
 - Utilities: `list-agents`, `list-internal-dependencies`, `run-script`, `add-script`, `add-dependency`, `remove-dependency`, `bump-version`
 
-API (apps/api):
+API tier (apps/api):
 - `auth-generate` — regenerate auth schema/types after any auth configuration changes
 - `api-db { action: generate|push|migrate|seed|reset|studio }` — database lifecycle
 

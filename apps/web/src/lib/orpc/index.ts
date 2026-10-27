@@ -3,7 +3,7 @@ import type { ClientContext } from "@orpc/client";
 import { type AppContract, appContract } from "./app-contract";
 import { RouterContractClient } from "@orpc/contract";import { validateEnvPath } from "#/env";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
-import { createObservableQueryUtils, type ObservableQueryUtils } from "@repo/orpc-utils";
+import { createObservableQueryUtils, type ObservableQueryUtils } from "@deployer/orpc-utils";
 import { ContextPlugin } from "./plugins/context-plugin";
 import { MasterTokenPlugin } from "./plugins/masterTokenClient";
 import { CookieHeadersPlugin } from "./plugins/cookie-headers-plugin";
@@ -11,7 +11,7 @@ import { RedirectOnUnauthorizedPlugin } from "./plugins/redirect-on-unauthorized
 import { AppInstancePlugin } from "./plugins/app-instance-plugin";
 import { StandardLinkPlugin } from "@orpc/client/standard";
 import { RequestCompressionLinkPlugin } from "@orpc/client/plugins";
-import { ObservableLinkPlugin } from "@repo/orpc-utils";
+import { ObservableLinkPlugin } from "@deployer/orpc-utils";
 import { FileUploadOpenAPILink } from "./links/file-upload-link";
 import { addCacheOperations } from "@/domains/shared/cache-operations";
 

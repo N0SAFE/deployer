@@ -1,4 +1,4 @@
-import type { DockerVolume } from '@repo/contracts-entities'
+import type { DockerVolume } from '@deployer/contracts-entities'
 
 export type VolumeView = 'all' | 'active' | 'inactive'
 export type VolumeSortKey = 'name' | 'updated' | 'state' | 'size'

@@ -1,5 +1,5 @@
 /**
- * @repo/nest-lifecycle — NestJS application lifecycle tracking
+ * @deployer/nest-lifecycle — NestJS application lifecycle tracking
  *
  * Provides AppLifecycleService for tracking bootstrap phases and
  * AppLifecycleModule for wiring it into your NestJS application.
@@ -8,13 +8,13 @@
  *
  * ```typescript
  * // In your root module
- * import { AppLifecycleModule } from "@repo/nest-lifecycle"
+ * import { AppLifecycleModule } from "@deployer/nest-lifecycle"
  *
  * @Module({ imports: [AppLifecycleModule] })
  * export class AppModule {}
  *
  * // In any service
- * import { AppLifecycleService, AppLifecyclePhase } from "@repo/nest-lifecycle"
+ * import { AppLifecycleService, AppLifecyclePhase } from "@deployer/nest-lifecycle"
  *
  * @Injectable()
  * class MyService {
@@ -29,10 +29,10 @@
  * ```
  */
 
-export { AppLifecycleModule } from '@repo/nest-lifecycle/app-lifecycle.module';
+export { AppLifecycleModule } from '@deployer/nest-lifecycle/app-lifecycle.module';
 export {
   AppLifecycleService,
   AppLifecyclePhase,
   BootstrapStep,
-} from '@repo/nest-lifecycle/app-lifecycle.service';
-export type { AppLifecycleEvent } from '@repo/nest-lifecycle/app-lifecycle.service';
+} from '@deployer/nest-lifecycle/app-lifecycle.service';
+export type { AppLifecycleEvent } from '@deployer/nest-lifecycle/app-lifecycle.service';

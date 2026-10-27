@@ -14,7 +14,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { DockerodeNodeSummary } from "@repo/contracts-entities";
+import type { DockerodeNodeSummary } from "@deployer/contracts-entities";
 import { DockerService } from "./docker.service";
 
 /** The node's current labels, as every caller reads them to build the desired set. */

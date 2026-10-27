@@ -1,0 +1,18 @@
+import z from "zod/v4";
+import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { projectResourceConfigSchema } from "@deployer/contracts-entities";
+ 
+const projectResourceConfigOps = standard.zod(projectResourceConfigSchema, "projectResourceConfig");
+
+const projectResourceConfigUpdateInputSchema = z.object(projectResourceConfigSchema.shape).partial();
+
+export const projectUpdateResourceConfigContract = projectResourceConfigOps
+    .update({ idFieldName: "id", idSchema: z.uuid() })
+    .input((b) =>
+        b
+            .params((p) => p`/${p("id", z.uuid())}/config/resource`)
+            .body(projectResourceConfigUpdateInputSchema),
+    )
+    .output(projectResourceConfigSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .build();

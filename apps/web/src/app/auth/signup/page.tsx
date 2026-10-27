@@ -2,21 +2,21 @@
 'use client'
 
 import { getErrorMessage } from "@/lib/orpc/typed-errors";
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Label } from '@repo/ui/components/shadcn/label'
-import { Alert, AlertDescription } from '@repo/ui/components/shadcn/alert'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Label } from '@deployer/ui/components/shadcn/label'
+import { Alert, AlertDescription } from '@deployer/ui/components/shadcn/alert'
 import {
     Card,
     CardContent,
     CardDescription,
     CardHeader,
     CardTitle,
-} from '@repo/ui/components/shadcn/card'
+} from '@deployer/ui/components/shadcn/card'
 import { useForm } from '@tanstack/react-form'
 import React from 'react'
 import redirect from '@/actions/redirect'
-import { AlertCircle, Spinner } from '@repo/ui/components/atomics/atoms/Icon'
+import { AlertCircle, Spinner } from '@deployer/ui/components/atomics/atoms/Icon'
 import { signupSchema } from './schema'
 import { AuthSignup, AuthSignin } from '@/routes'
 import { UserPlus } from 'lucide-react'
@@ -171,7 +171,7 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
                                                 autoComplete="name"
                                                 value={field.state.value}
                                                 onBlur={field.handleBlur}
-                                                onChange={(event) => field.handleChange(event.target.value)}
+                                                onChange={(event) => { field.handleChange(event.target.value); }}
                                                 aria-invalid={field.state.meta.errors.length > 0}
                                                 aria-describedby={field.state.meta.errors.length > 0 ? 'name-error' : undefined}
                                             />
@@ -196,7 +196,7 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
                                                 autoComplete="email"
                                                 value={field.state.value}
                                                 onBlur={field.handleBlur}
-                                                onChange={(event) => field.handleChange(event.target.value)}
+                                                onChange={(event) => { field.handleChange(event.target.value); }}
                                                 aria-invalid={field.state.meta.errors.length > 0}
                                                 aria-describedby={field.state.meta.errors.length > 0 ? 'email-error' : undefined}
                                             />
@@ -219,7 +219,7 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
                                                 autoComplete="new-password"
                                                 value={field.state.value}
                                                 onBlur={field.handleBlur}
-                                                onChange={(event) => field.handleChange(event.target.value)}
+                                                onChange={(event) => { field.handleChange(event.target.value); }}
                                                 aria-invalid={field.state.meta.errors.length > 0}
                                                 aria-describedby={field.state.meta.errors.length > 0 ? 'password-error' : undefined}
                                             />
@@ -242,7 +242,7 @@ getErrorMessage(error, 'Unable to reach the authentication service'),
                                                 autoComplete="new-password"
                                                 value={field.state.value}
                                                 onBlur={field.handleBlur}
-                                                onChange={(event) => field.handleChange(event.target.value)}
+                                                onChange={(event) => { field.handleChange(event.target.value); }}
                                                 aria-invalid={field.state.meta.errors.length > 0}
                                                 aria-describedby={field.state.meta.errors.length > 0 ? 'confirmPassword-error' : undefined}
                                             />

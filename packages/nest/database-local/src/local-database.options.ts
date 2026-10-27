@@ -1,5 +1,5 @@
 /** What `LocalDatabaseModule.forRoot` needs from the consuming app. */
-export interface LocalDatabaseModuleOptions {
+export type LocalDatabaseModuleOptions = {
     /**
      * Where the SQLite file lives.
      *

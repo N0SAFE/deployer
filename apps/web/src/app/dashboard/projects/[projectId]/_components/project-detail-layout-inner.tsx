@@ -7,9 +7,9 @@ import { AuthDashboardProjects, AuthDashboardProjectsProjectIdConfiguration } fr
 import { useProject } from '@/domains/project/hooks'
 import { ProjectSectionNav } from './project-section-nav'
 import { ProjectDetailSkeleton } from './project-detail-skeleton'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
+import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { Siren, ArrowLeft, Settings } from 'lucide-react'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import { PageHeader } from '@/components/dashboard'
 import type { ReactNode } from 'react'
 

@@ -1,9 +1,9 @@
 'use client'
 
 import { Loader2, Play } from 'lucide-react'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@deployer/ui/components/shadcn/dialog'
 import { DockerNodeBadge, useDockerNode } from './docker-node-context'
 import { ContainerConfigStage } from './create-container-modal/container-config-stage'
 import { ImageStage, PullStage, ScanStage } from './create-container-modal/image-stages'

@@ -1,10 +1,10 @@
 'use client'
 
 import { Boxes, GitBranch, Network, Search } from 'lucide-react'
-import { ENV_NAMES } from '@repo/contracts-common'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@repo/ui/components/shadcn/select'
+import { ENV_NAMES } from '@deployer/contracts-common'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
 import { cn } from '@/lib/utils'
 
 export type DependencyMode = 'expected' | 'real'

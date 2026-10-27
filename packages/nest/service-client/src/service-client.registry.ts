@@ -123,9 +123,9 @@ export class ServiceClientRegistry implements ServiceClientBinder {
 				// first, and every later caller would be served as that user. Reading the
 				// headers inside `fetch` keeps one client per service while making the
 				// CREDENTIALS per request.
-				fetch: (request: RequestInfo | URL, init?: RequestInit) => {
+				fetch: async (request: RequestInfo | URL, init?: RequestInit) => {
 					const extra = this.options.headers?.() ?? {};
-					return fetch(request, {
+					const response = await fetch(request, {
 						...init,
 						headers: { ...(init?.headers as Record<string, string>), ...extra },
 					});

@@ -1,5 +1,5 @@
 {
-    "name": "@repo/auth",
+    "name": "@deployer/auth",
     "version": "1.0.0",
     "description": "Shared authentication configuration for Better Auth",
     "main": "./dist/production/cjs/index.js",
@@ -189,11 +189,13 @@
         }
     },
     "scripts": {
-        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "prettify": "bun fmt .",
         "format": "bun run prettify",
-        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "lint": "eslint . --fix --cache",
-        "type-check": "tsc --noEmit",
+        "format:check": "bun fmt --check .",
+        "lint": "bun lint --no-script --type-aware",
+        "lint:fix": "bun lint --no-script --fix --type-aware",
+        "lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
+        "type-check": "bun check --no-script",
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
@@ -207,7 +209,7 @@
         "@better-auth/api-key": "catalog:auth",
         "@better-auth/core": "catalog:auth",
         "@better-auth/passkey": "catalog:auth",
-        "@repo/type-guards": "*",
+        "@deployer/type-guards": "*",
         "@simplewebauthn/server": "^13.2.2",
         "better-auth": "catalog:auth",
         "better-call": "catalog:auth",
@@ -219,15 +221,15 @@
     "devDependencies": {
         "@types/node": "catalog:build",
         "eslint": "catalog:linting",
-        "@repo/config-eslint": "*",
-        "@repo/config-prettier": "*",
-        "@repo/config-typescript": "*",
+        "@deployer/config-eslint": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-typescript": "*",
         "@types/react": "catalog:react",
         "vitest": "catalog:testing",
         "@vitest/coverage-v8": "catalog:testing",
         "server-only": "catalog:utils",
         "typescript": "catalog:build",
-        "@repo/pkg-build": "*"
+        "@deployer/pkg-build": "*"
     },
     "peerDependencies": {
         "drizzle-orm": "catalog:database",

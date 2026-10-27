@@ -1,17 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Badge } from "@repo/ui/components/shadcn/badge";
-import { Button } from "@repo/ui/components/shadcn/button";
+import { Badge } from "@deployer/ui/components/shadcn/badge";
+import { Button } from "@deployer/ui/components/shadcn/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@repo/ui/components/shadcn/card";
-import { Skeleton } from "@repo/ui/components/shadcn/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@repo/ui/components/shadcn/alert";
+} from "@deployer/ui/components/shadcn/card";
+import { Skeleton } from "@deployer/ui/components/shadcn/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@deployer/ui/components/shadcn/alert";
 import {
   Table,
   TableBody,
@@ -19,7 +19,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@repo/ui/components/shadcn/table";
+} from "@deployer/ui/components/shadcn/table";
 import {
   AgentConnectionsCard,
   ConnectedAccountsCard,

@@ -94,7 +94,7 @@ exists solely there is destroyed by the next sweep — the labels are the source
 Vocabulary note: the participation **policy** (`auto` / `manager` / `worker`) describes how a node
 *joins*; the **role** label describes what a node *is*. The mapping is
 `auto → both`, `manager → control`, `worker → worker`
-(`platformRoleForPolicy` in `apps/api/src/core/modules/swarm/swarm-node-labels.ts`, the SSOT for
+(`platformRoleForPolicy` in `packages/nest/nodes/src/swarm-node-labels.ts`, the SSOT for
 every label key and reader).
 
 Two placement constraints derive from these labels: the ingress uses

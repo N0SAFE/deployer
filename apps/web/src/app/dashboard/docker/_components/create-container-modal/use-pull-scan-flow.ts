@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useOnDepsChange } from '../../_hooks/use-on-deps-change'
 import { mergeByKey } from '../../_utils/scan-events'
-import { dockerImageInspectDetailSchema } from '@repo/contracts-entities'
+import { dockerImageInspectDetailSchema } from '@deployer/contracts-entities'
 import { getErrorMessage, isDefinedORPCError } from '@/lib/orpc/typed-errors'
 import { useDockerImageEventsStream, useDockerImageInspect, useDockerImageSecurityScanStream } from '@/domains/docker/hooks'
 import {

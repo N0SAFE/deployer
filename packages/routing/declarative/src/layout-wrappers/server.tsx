@@ -13,7 +13,7 @@ import 'server-only'
 
 import React from 'react'
 import { unstable_rethrow } from 'next/navigation'
-import type { Session, ServerAuthAdapter } from '@repo/declarative-routing/types'
+import type { Session, ServerAuthAdapter } from '@deployer/declarative-routing/types'
 
 // Session constants - must match page-wrappers
 const SESSION_QUERY_KEY = ['session']
@@ -35,7 +35,7 @@ let checkAuthCookieFn: (() => Promise<boolean>) | null = null
  * @example
  * ```tsx
  * // In your app's route setup (e.g., @/routes/configure-auth.ts)
- * import { configureLayoutAuth } from '@repo/declarative-routing/layout-wrappers/server'
+ * import { configureLayoutAuth } from '@deployer/declarative-routing/layout-wrappers/server'
  * import { getSession } from '../../../../lib/auth'
  * import { QueryClient, HydrationBoundary, dehydrate } from '@tanstack/react-query'
  * import { cookies } from 'next/headers'
@@ -149,7 +149,7 @@ export type SessionLayoutOptions = {
  * @example
  * ```tsx
  * // apps/web/src/app/dashboard/layout.tsx
- * import { createSessionLayout } from '@repo/declarative-routing/layout-wrappers/server'
+ * import { createSessionLayout } from '@deployer/declarative-routing/layout-wrappers/server'
  * 
  * export default createSessionLayout(({ children, session }) => {
  *   return (
@@ -281,7 +281,7 @@ export type SessionHydratorProps = {
  * @example
  * ```tsx
  * // apps/web/src/app/layout.tsx
- * import { SessionHydrator } from '@repo/declarative-routing/layout-wrappers/server'
+ * import { SessionHydrator } from '@deployer/declarative-routing/layout-wrappers/server'
  * 
  * export default function RootLayout({ children }) {
  *   return (
@@ -350,4 +350,4 @@ export async function SessionHydrator({ children }: SessionHydratorProps): Promi
 // Re-export types
 // ============================================================================
 
-export type { Session, ServerAuthAdapter } from '@repo/declarative-routing/types'
+export type { Session, ServerAuthAdapter } from '@deployer/declarative-routing/types'

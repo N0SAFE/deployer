@@ -46,7 +46,7 @@ Filters in `_data-table/filter-config.ts`, columns in `_data-table/columns.tsx`,
 
 ### State Management
 
-- **URL state** (filters, pagination, sort): use `useSafeQueryStatesFromZod` from `@repo/use-safe-query-param-states-from-zod`. Schema in `_models/`.
+- **URL state** (filters, pagination, sort): use `useSafeQueryStatesFromZod` from `@deployer/use-safe-query-param-states-from-zod`. Schema in `_models/`.
 - **Local state**: `useState`.
 - **Global state**: Zustand stores in `src/state/`.
 - **Server state**: React Query via `useQuery` / `useMutation` from ORPC contracts. Never fetch manually.

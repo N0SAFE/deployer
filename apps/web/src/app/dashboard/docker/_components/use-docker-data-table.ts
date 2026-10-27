@@ -1,14 +1,6 @@
 'use client'
 
 import { useMemo } from 'react'
-import {
-  getCoreRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  type ColumnDef,
-  type SortingState,
-  useReactTable,
-} from '@tanstack/react-table'
 
 export type DockerListSortDirection = 'asc' | 'desc'
 
@@ -30,6 +22,30 @@ function normalizeSortValue(value: SortValue): string | number {
   }
 
   return value ?? ''
+}
+
+const collator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' })
+
+function compareSortValues(left: string | number, right: string | number): number {
+  if (typeof left === 'number' && typeof right === 'number') return left - right
+  return collator.compare(String(left), String(right))
+}
+
+/** Stable sort by one accessor, then slice out one 1-based page. Pure, so it is unit-tested. */
+export function sortAndPage<TData>(
+  data: readonly TData[],
+  accessor: SortAccessor<TData>,
+  direction: DockerListSortDirection,
+  page: number,
+  pageSize: number,
+): TData[] {
+  const factor = direction === 'desc' ? -1 : 1
+  const sorted = data
+    .map((row, index) => ({ row, index, value: normalizeSortValue(accessor(row)) }))
+    .sort((a, b) => compareSortValues(a.value, b.value) * factor || a.index - b.index)
+    .map((entry) => entry.row)
+  const start = (page - 1) * pageSize
+  return sorted.slice(start, start + pageSize)
 }
 
 export interface UseDockerDataTableOptions<TData, TSortKey extends string> {
@@ -64,34 +80,10 @@ export function useDockerDataTable<TData, TSortKey extends string>({
   const totalPages = Math.max(1, Math.ceil(totalRows / normalizedPageSize))
   const normalizedPage = Math.min(Math.max(page, 1), totalPages)
 
-  const columns = useMemo<ColumnDef<TData>[]>(() => {
-    return (Object.entries(sorters) as [TSortKey, SortAccessor<TData>][]).map(([columnId, accessor]) => ({
-      id: columnId,
-      accessorFn: (row) => normalizeSortValue(accessor(row)),
-    }))
-  }, [sorters])
-
-  const sorting = useMemo<SortingState>(
-    () => [{ id: sortBy, desc: sortDirection === 'desc' }],
-    [sortBy, sortDirection],
+  const rows = useMemo(
+    () => sortAndPage(data, sorters[sortBy], sortDirection, normalizedPage, normalizedPageSize),
+    [data, sorters, sortBy, sortDirection, normalizedPage, normalizedPageSize],
   )
-
-  const table = useReactTable({
-    data,
-    columns,
-    state: {
-      sorting,
-      pagination: {
-        pageIndex: normalizedPage - 1,
-        pageSize: normalizedPageSize,
-      },
-    },
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-  })
-
-  const rows = table.getRowModel().rows.map((row) => row.original)
 
   const from = totalRows === 0 ? 0 : (normalizedPage - 1) * normalizedPageSize + 1
   const to = totalRows === 0 ? 0 : Math.min(normalizedPage * normalizedPageSize, totalRows)

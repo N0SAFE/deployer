@@ -9,6 +9,7 @@ import type { EnvironmentRules, EnvironmentTrigger } from "@deployer/contracts-e
 import { zodEnumToPgEnumValues } from "@deployer/nest-schema/global/utils/zod-enum";
 import { user } from "@deployer/nest-schema/global/identity/auth";
 import { projects, services } from "@deployer/nest-schema/global/project/deployment";
+import { encryptedText } from "../../codecs/codec-registry";
 // Environment kinds (the primitive TYPE: stable | preview | ephemeral)
 export const environmentKindEnum = pgEnum('environment_kind', [
     ...zodEnumToPgEnumValues(environmentKindSchema),
@@ -205,7 +206,13 @@ export const environmentVariables = pgTable("environment_variables", {
         .notNull()
         .references(() => environments.id, { onDelete: "cascade" }),
     key: text("key").notNull(),
-    value: text("value").notNull(),
+    // Encrypted at rest. This was `text("value")` — the highest-volume secret
+    // store in the product, and the one place encryption was not applied, while
+    // DNS/GitHub/GitLab credentials and cluster keys all used `encryptedText`.
+    // A DB backup, a log line, or a read-only grant leaked every user's
+    // credentials. `is_secret` only labels a row; encryption is unconditional so
+    // the guarantee does not depend on a form setting the flag correctly.
+    value: encryptedText("value").notNull(),
     isSecret: boolean("is_secret").default(false).notNull(),
     description: text("description"),
     category: text("category"), // for grouping in UI

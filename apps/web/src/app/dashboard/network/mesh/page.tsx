@@ -1,15 +1,18 @@
 'use client'
 
 import { Cable, CircleAlert, ListOrdered, Server, Users, Waypoints } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
+import { useRouter } from 'next/navigation'
+import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { EmptyState, PageHeader, StatStrip, StatStripItem } from '@/components/dashboard'
-import type { IngressState } from '@repo/api-contracts/modules/reachability/index'
+import type { IngressState } from '@deployer/fleet-contracts/modules/reachability/index'
 import { WithIngress } from '../_components/ingress-query-state'
 import { JoinPathsCard } from '../_components/join-paths-card'
 import { MeshMembersTable } from '../_components/mesh-members-table'
 import { Age, LinkPathLegend, Mono } from '../_components/network-copy'
 import { useCanManageNetwork } from '../_components/use-can-manage-network'
+import { AuthDashboardSettingsNode } from '@/routes'
 
 /**
  * Mesh — the WireGuard network every node (and operator machine) is a member of.
@@ -20,6 +23,7 @@ import { useCanManageNetwork } from '../_components/use-can-manage-network'
  */
 export default function NetworkMeshPage() {
   const canRevoke = useCanManageNetwork()
+  const router = useRouter()
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -28,7 +32,7 @@ export default function NetworkMeshPage() {
         description="The private WireGuard network under everything: Swarm, the private lane and the node doors use these addresses. No member is in charge — each one holds the whole roster."
       />
       <WithIngress>
-        {(ingress) =>
+        {(ingress, refetch) =>
           !ingress.mesh.available ? (
             <Alert variant="destructive">
               <CircleAlert className="size-4" />
@@ -37,12 +41,14 @@ export default function NetworkMeshPage() {
                 {ingress.mesh.lastError ?? 'The agent does not answer on its socket.'} Setup starts the agent on a fresh node;
                 on an upgraded node the API starts it at boot. Check the <Mono>deployer-mesh-agent</Mono> container.
               </AlertDescription>
+              <Button size="sm" variant="outline" className="mt-3" onClick={refetch}>Retry</Button>
             </Alert>
           ) : ingress.mesh.clusterId === null ? (
             <EmptyState
               icon={Waypoints}
               title="This node is in no mesh yet"
               description="A lone node founds its own mesh when setup completes; a node joining a cluster is admitted by a member during the join."
+              action={{ label: 'Open this node’s settings', onClick: () => { router.push(AuthDashboardSettingsNode()) } }}
             />
           ) : (
             <MeshContent ingress={ingress} canRevoke={canRevoke} />

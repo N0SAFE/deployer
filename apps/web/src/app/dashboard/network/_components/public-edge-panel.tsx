@@ -2,11 +2,11 @@
 
 import { useMemo, useState } from 'react'
 import { Globe, Pencil, Power, Trash2, TriangleAlert } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Checkbox } from '@repo/ui/components/shadcn/checkbox'
+import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Checkbox } from '@deployer/ui/components/shadcn/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -14,18 +14,18 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@repo/ui/components/shadcn/dialog'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Label } from '@repo/ui/components/shadcn/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@repo/ui/components/shadcn/select'
-import { Switch } from '@repo/ui/components/shadcn/switch'
-import { cn } from '@repo/ui/lib/utils'
+} from '@deployer/ui/components/shadcn/dialog'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Label } from '@deployer/ui/components/shadcn/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
+import { Switch } from '@deployer/ui/components/shadcn/switch'
+import { cn } from '@deployer/ui/lib/utils'
 import type {
   EdgeOptionField,
   EdgeOptions,
   EdgeProviderDescriptor,
   IngressState,
-} from '@repo/api-contracts/modules/reachability/index'
+} from '@deployer/fleet-contracts/modules/reachability/index'
 import { useDNSProviders } from '@/domains/dns-providers/hooks'
 import { useTeardownPublicEdge, useUpdateIngress } from '@/domains/reachability/hooks'
 import { AuthDashboardAdminProvidersDns } from '@/routes'

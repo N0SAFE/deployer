@@ -5,7 +5,7 @@ import {
     CardDescription,
     CardHeader,
     CardTitle,
-} from '@repo/ui/components/shadcn/card'
+} from '@deployer/ui/components/shadcn/card'
 import { validateEnvSafe } from '#/env'
 import RedirectAfterDelay from './RedirectAfterDelay'
 

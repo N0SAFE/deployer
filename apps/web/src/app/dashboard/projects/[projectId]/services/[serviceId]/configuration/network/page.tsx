@@ -1,44 +1,29 @@
 'use client'
 
-import type { RouteVisibility } from '@repo/contracts-entities/entities/ingress/index'
+import type { RouteVisibility } from '@deployer/contracts-entities/entities/ingress/index'
 import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
-import {
-  useServiceNetwork,
-  useUpdateServiceNetwork,
-  useProvisionServiceDnsRecord,
-} from '@/domains/service/hooks'
+import { useServiceNetwork, useUpdateServiceNetwork } from '@/domains/service/hooks'
 import { useDNSProviders, useCloudflareZones } from '@/domains/dns-providers/hooks'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Label } from '@repo/ui/components/shadcn/label'
-import { Switch } from '@repo/ui/components/shadcn/switch'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@repo/ui/components/shadcn/select'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
-import {
-  Siren, Save, Network, Globe, Lock, Plus, Cloud, ShieldCheck, ArrowRight, Loader2,
-} from 'lucide-react'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Label } from '@deployer/ui/components/shadcn/label'
+import { Switch } from '@deployer/ui/components/shadcn/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
+import { Save, Network, Lock, Plus, Cloud, ShieldCheck, ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
+import { PageSkeleton } from '@/components/dashboard'
 import { AuthDashboardNetworkDns, AuthDashboardNetworkIngress } from '@/routes'
 import { ServiceConfigSubNav } from '../../_components/service-config-subnav'
 import { ServiceDomainConfig } from '@/app/dashboard/projects/_components/ServiceDomainConfig'
 import { AutocompleteField } from '@/app/dashboard/projects/_components/steps/autocomplete-field'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@repo/ui/components/shadcn/dialog'
+import { InlineError } from '@/app/dashboard/projects/_components/workload/WorkloadStates'
+import { DnsRecordsCard } from '@/app/dashboard/projects/_components/service-network/DnsRecordsCard'
+import { RECORD_TYPES, isRecordType, type RecordType } from '@/app/dashboard/projects/_components/service-network/ProvisionRecordDialog'
 
-const RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'TXT'] as const
+type NetworkView = NonNullable<ReturnType<typeof useServiceNetwork>['data']>
 
 /**
  * Service Network — "How this service is reached": 1. visibility, 2. domains, 3. DNS.
@@ -52,98 +37,56 @@ const RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'TXT'] as const
  *    with autocomplete for this service's bindings.
  */
 export default function DashboardServiceConfigurationNetworkPage() {
-  const params = useParams<{ projectId: string; serviceId: string }>()
-  const projectId = params.projectId
-  const serviceId = params.serviceId
+  const { projectId, serviceId } = useParams<{ projectId: string; serviceId: string }>()
+  const query = useServiceNetwork(serviceId)
 
-  const { data: view, isLoading: networkLoading } = useServiceNetwork(serviceId)
+  if (query.isLoading) return <PageSkeleton blocks={3} withStrip={false} label="Loading network configuration" />
+  if (query.error) return <InlineError title="Could not load the network configuration" error={query.error} onRetry={() => { void query.refetch() }} />
+  if (!query.data) return <InlineError title="Service not found" error={new Error('This service does not exist or was deleted.')} />
+  // Keyed so the form seeds once per service; a refetch never overwrites what is being edited.
+  return <NetworkForm key={serviceId} projectId={projectId} serviceId={serviceId} view={query.data} />
+}
+
+function NetworkForm({ projectId, serviceId, view }: { projectId: string; serviceId: string; view: NetworkView }) {
   const updateNetwork = useUpdateServiceNetwork()
-  const provision = useProvisionServiceDnsRecord()
   const { data: providersData } = useDNSProviders()
 
-  const providers = useMemo(() => {
-    const d = providersData as unknown as { data?: { id: string; name: string; providerType: string; isActive: boolean }[] } | undefined
-    return (d?.data ?? []).filter((p) => p.isActive)
-  }, [providersData])
+  const providers = useMemo(() => (providersData?.providers ?? []).filter((p) => p.isActive), [providersData])
 
-  // ── Local form state (seeded from the network view) ──────────────
-  const [providerId, setProviderId] = useState<string>('')
-  const [zoneId, setZoneId] = useState<string>('')
-  const [zoneName, setZoneName] = useState<string>('')
-  const [recordType, setRecordType] = useState<'A' | 'AAAA' | 'CNAME' | 'TXT'>('CNAME')
-  const [recordContent, setRecordContent] = useState('')
-  const [proxied, setProxied] = useState(true)
-  const [autoProvision, setAutoProvision] = useState(false)
-  const [visibility, setVisibility] = useState<RouteVisibility>('public')
-  const [tlsEnabled, setTlsEnabled] = useState(false)
-  const [loaded, setLoaded] = useState(false)
+  const network = view.network
+  const resolvedProviderId = view.dnsProviderId
+  const resolvedZoneName = view.zoneName
 
-  const network = (view as { network?: Record<string, unknown> | null } | undefined)?.network ?? null
-  const resolvedProviderId = (view as { dnsProviderId?: string | null } | undefined)?.dnsProviderId ?? null
-  const resolvedZoneId = (view as { zoneId?: string | null } | undefined)?.zoneId ?? null
-  const resolvedZoneName = (view as { zoneName?: string | null } | undefined)?.zoneName ?? null
+  // Seed with the service's OWN overrides only. With no override the selects
+  // show the "Inherit (project default)" marker, so state must be '' —
+  // otherwise saving would pin the resolved value as an accidental override.
+  // `proxied` defaults to false: `?? true` asserted a setting never made.
+  const [providerId, setProviderId] = useState(network?.dnsProviderId ?? '')
+  const [zoneId, setZoneId] = useState(network?.zoneId ?? '')
+  const [zoneName, setZoneName] = useState(network?.zoneName ?? '')
+  const [recordType, setRecordType] = useState<RecordType>(network?.recordType ?? 'CNAME')
+  const [recordContent, setRecordContent] = useState(network?.recordContent ?? '')
+  const [proxied, setProxied] = useState(network?.proxied ?? false)
+  const [autoProvision, setAutoProvision] = useState(network?.autoProvision ?? false)
+  const [visibility, setVisibility] = useState<RouteVisibility>(network?.visibility ?? 'public')
+  const [tlsEnabled, setTlsEnabled] = useState(network?.tls.enabled === true)
 
   // Overrides are active when the service's OWN network config pins a provider/zone.
-  const overridesProvider = Boolean((network as { dnsProviderId?: string | null } | undefined)?.dnsProviderId)
-  const overridesZone = Boolean((network as { zoneId?: string | null } | undefined)?.zoneId)
-
-  useEffect(() => {
-    if (!loaded && view) {
-      const n = network as {
-        dnsProviderId?: string | null
-        zoneId?: string | null
-        zoneName?: string | null
-        recordType?: 'A' | 'AAAA' | 'CNAME' | 'TXT'
-        recordContent?: string | null
-        proxied?: boolean
-        autoProvision?: boolean
-        visibility?: RouteVisibility
-        tls?: { enabled?: boolean }
-      } | null
-      // Seed with the service's OWN overrides only. When there is no override
-      // the selects show the "Inherit (project default)" marker (computed from
-      // overridesProvider/overridesZone), so state must be '' here — otherwise
-      // saving would pin the resolved value as an accidental override.
-      setProviderId(n?.dnsProviderId ?? '')
-      setZoneId(n?.zoneId ?? '')
-      setZoneName(n?.zoneName ?? '')
-      setRecordType(n?.recordType ?? 'CNAME')
-      setRecordContent(n?.recordContent ?? '')
-      // `?? true` rendered Cloudflare proxying as ON for a service with no
-      // network config, i.e. it asserted a setting that had never been made.
-      setProxied(n?.proxied ?? false)
-      setAutoProvision(n?.autoProvision ?? false)
-      setVisibility(n?.visibility ?? 'public')
-      setTlsEnabled(Boolean(n?.tls?.enabled))
-      setLoaded(true)
-    }
-  }, [view, loaded, network, resolvedProviderId, resolvedZoneId, resolvedZoneName])
+  const overridesProvider = Boolean(network?.dnsProviderId)
+  const overridesZone = Boolean(network?.zoneId)
 
   // Zones for the currently-selected provider (override selection).
   const { data: zonesData, isLoading: zonesLoading } = useCloudflareZones(providerId || undefined)
-  const zones = useMemo(() => {
-    const d = zonesData as unknown as { zones?: { id: string; name: string; status?: string }[] } | null | undefined
-    return d?.zones ?? []
-  }, [zonesData])
+  const zones = useMemo(() => zonesData?.zones ?? [], [zonesData])
 
-  const records = (view as { records?: Array<{ id: string; name: string; type: string; content: string; ttl: number; proxied: boolean }> } | undefined)?.records ?? []
-  const projectDomains = (view as { projectDomains?: Array<{ id: string; domain: string; allowedSubdomains: string[]; isPrimary: boolean; existingMappings: Array<{ serviceId: string; serviceName: string; subdomain: string | null; basePath: string | null; fullUrl: string }> }> } | undefined)?.projectDomains ?? []
+  const records = view.records
+  const projectDomains = view.projectDomains
 
   const providerName = (id: string) => providers.find((p) => p.id === id)?.name ?? id
 
   // "Inherit (project default)" marker — selecting it clears the override so
   // the service inherits the project-level provider/zone on save.
   const INHERIT = '__inherit__'
-
-  if (networkLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-10 w-56" />
-        <Skeleton className="h-40 w-full rounded-xl" />
-        <Skeleton className="h-64 w-full rounded-xl" />
-      </div>
-    )
-  }
 
   const handleSave = async () => {
     try {
@@ -191,14 +134,14 @@ export default function DashboardServiceConfigurationNetworkPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Visibility</Label>
-              <Select value={visibility} onValueChange={(v) => setVisibility(v as RouteVisibility)}>
+              <Select value={visibility} onValueChange={(v) => { setVisibility(v as RouteVisibility) }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="public">Public — also reachable from the internet</SelectItem>
                   <SelectItem value="private">Private — this machine and the mesh</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 Private: reachable from this machine and mesh members only. Public: also served on the public lane. Neither
                 option publishes a host port. Stack-wide lanes are managed under Network → Ingress &amp; edge.
               </p>
@@ -206,7 +149,7 @@ export default function DashboardServiceConfigurationNetworkPage() {
             <div className={`flex items-center justify-between rounded-lg border p-3 ${visibility === 'public' ? '' : 'opacity-50'}`}>
               <div>
                 <p className="flex items-center gap-1.5 text-sm font-medium"><Lock className="size-3.5" /> TLS termination</p>
-                <p className="text-xs text-muted-foreground">Terminate HTTPS at the edge. Public services only.</p>
+                <p className="text-sm text-muted-foreground">Terminate HTTPS at the edge. Public services only.</p>
               </div>
               <Switch checked={visibility === 'public' && tlsEnabled} onCheckedChange={(v) => { setTlsEnabled(v); if (v) setVisibility('public') }} disabled={visibility !== 'public'} />
             </div>
@@ -234,19 +177,19 @@ export default function DashboardServiceConfigurationNetworkPage() {
                 <div key={pd.id} className="rounded-lg border bg-background/40 p-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-sm font-medium">{pd.domain}</span>
-                    {pd.isPrimary ? <Badge variant="secondary" className="text-[10px]">primary</Badge> : null}
+                    {pd.isPrimary ? <Badge variant="secondary" className="text-xs">primary</Badge> : null}
                     <div className="ml-auto flex flex-wrap gap-1">
                       {pd.allowedSubdomains.map((s) => (
-                        <Badge key={s} variant="outline" className="font-mono text-[10px]">{s}</Badge>
+                        <Badge key={s} variant="outline" className="font-mono text-xs">{s}</Badge>
                       ))}
                     </div>
                   </div>
                   {pd.existingMappings.length > 0 ? (
                     <div className="mt-2 space-y-1 border-t pt-2">
-                      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Existing bindings</p>
-                      {pd.existingMappings.map((m, i) => (
-                        <div key={i} className="flex items-center gap-2 text-xs">
-                          <Badge variant="outline" className="text-[10px]">{m.serviceName}</Badge>
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Existing bindings</p>
+                      {pd.existingMappings.map((m) => (
+                        <div key={`${m.serviceId}-${m.fullUrl}`} className="flex items-center gap-2 text-xs">
+                          <Badge variant="outline" className="text-xs">{m.serviceName}</Badge>
                           <ArrowRight className="size-3 text-muted-foreground" />
                           <span className="font-mono text-muted-foreground">{m.fullUrl}</span>
                         </div>
@@ -308,7 +251,7 @@ export default function DashboardServiceConfigurationNetworkPage() {
                   )}
                 </SelectContent>
               </Select>
-              {overridesProvider ? <Badge variant="secondary" className="text-[10px]">overriding project</Badge> : null}
+              {overridesProvider ? <Badge variant="secondary" className="text-xs">overriding project</Badge> : null}
             </div>
             <div className="space-y-1.5">
               <Label>Zone</Label>
@@ -337,73 +280,13 @@ export default function DashboardServiceConfigurationNetworkPage() {
                   )}
                 </SelectContent>
               </Select>
-              {overridesZone ? <Badge variant="secondary" className="text-[10px]">overriding project</Badge> : null}
+              {overridesZone ? <Badge variant="secondary" className="text-xs">overriding project</Badge> : null}
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* ── Zone DNS Records ── */}
-      <Card className="border-border/60 bg-card/40 backdrop-blur-xl">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Globe className="size-4 text-muted-foreground" /> DNS records
-            </CardTitle>
-            <CardDescription className="text-xs">
-              {zoneName ? `Live records in zone ${zoneName}.` : 'Select a zone above to see its DNS records.'}
-            </CardDescription>
-          </div>
-          {zoneId ? (
-            <ProvisionRecordDialog
-              zoneName={zoneName}
-              onProvision={async (payload) => {
-                try {
-                  const res = await provision.mutateAsync({ params: { id: serviceId }, body: payload })
-                  toast.success(res.message ?? 'Record provisioned')
-                  return true
-                } catch (err) {
-                  toast.error('Failed to provision record', { description: isDefinedORPCError(err) ? getErrorMessage(err, 'Unknown error') : UNKNOWN_ORPC_ERROR_MESSAGE })
-                  return false
-                }
-              }}
-              pending={provision.isPending}
-            />
-          ) : null}
-        </CardHeader>
-        <CardContent>
-          {records.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              {zoneId ? 'No records found in this zone, or the provider is unreachable. Check the provider account under Network → DNS.' : 'No zone resolved yet. Pick a provider and zone above (or set them on the project) to see records.'}
-            </p>
-          ) : (
-            <div className="overflow-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Content</TableHead>
-                    <TableHead>TTL</TableHead>
-                    <TableHead>Proxy</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {records.map((r) => (
-                    <TableRow key={r.id}>
-                      <TableCell className="font-mono text-xs">{r.name}</TableCell>
-                      <TableCell><Badge variant="outline">{r.type}</Badge></TableCell>
-                      <TableCell className="max-w-64 truncate font-mono text-xs text-muted-foreground">{r.content}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{r.ttl}</TableCell>
-                      <TableCell>{r.proxied ? <Badge variant="secondary">proxied</Badge> : <Badge variant="outline">DNS only</Badge>}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <DnsRecordsCard serviceId={serviceId} zoneId={zoneId} zoneName={zoneName} records={records} />
 
       {/* ── DNS record defaults ── */}
       <Card className="border-border/60 bg-card/40 backdrop-blur-xl">
@@ -417,7 +300,7 @@ export default function DashboardServiceConfigurationNetworkPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
               <Label>Record type</Label>
-              <Select value={recordType} onValueChange={(v) => setRecordType(v as 'A' | 'AAAA' | 'CNAME' | 'TXT')}>
+              <Select value={recordType} onValueChange={(v) => { if (isRecordType(v)) setRecordType(v) }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {RECORD_TYPES.map((t) => (<SelectItem key={t} value={t}>{t}</SelectItem>))}
@@ -439,14 +322,14 @@ export default function DashboardServiceConfigurationNetworkPage() {
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div>
                 <p className="text-sm font-medium">Proxy through provider</p>
-                <p className="text-xs text-muted-foreground">Cloudflare orange-cloud on provisioned records.</p>
+                <p className="text-sm text-muted-foreground">Cloudflare orange-cloud on provisioned records.</p>
               </div>
               <Switch checked={proxied} onCheckedChange={setProxied} />
             </div>
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div>
                 <p className="text-sm font-medium">Auto-provision DNS</p>
-                <p className="text-xs text-muted-foreground">Create the record automatically when a binding is saved.</p>
+                <p className="text-sm text-muted-foreground">Create the record automatically when a binding is saved.</p>
               </div>
               <Switch checked={autoProvision} onCheckedChange={setAutoProvision} />
             </div>
@@ -457,7 +340,7 @@ export default function DashboardServiceConfigurationNetworkPage() {
 
       <Card className="border-dashed border-border/60 bg-card/20">
         <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
-          <p className="max-w-2xl text-xs text-muted-foreground">
+          <p className="max-w-2xl text-sm text-muted-foreground">
             Public lanes, tunnels and entry ports apply to the whole stack, not to this service. Manage them under Network →
             Ingress &amp; edge; DNS provider accounts live under Network → DNS.
           </p>
@@ -478,104 +361,5 @@ export default function DashboardServiceConfigurationNetworkPage() {
         </Button>
       </div>
     </div>
-  )
-}
-
-/** Dialog to auto-provision a DNS record in the resolved zone. */
-function ProvisionRecordDialog({
-  zoneName,
-  onProvision,
-  pending,
-}: {
-  zoneName: string
-  onProvision: (payload: { name: string; type: 'A' | 'AAAA' | 'CNAME' | 'TXT'; content: string; ttl?: number; proxied?: boolean }) => Promise<boolean>
-  pending: boolean
-}) {
-  const [open, setOpen] = useState(false)
-  const [name, setName] = useState('')
-  const [type, setType] = useState<'A' | 'AAAA' | 'CNAME' | 'TXT'>('CNAME')
-  const [content, setContent] = useState('')
-  const [ttl, setTtl] = useState('')
-  const [proxied, setProxied] = useState(true)
-
-  // Autocomplete presets: `sub.zone`, `@` (zone root), `*` (wildcard).
-  const presets = useMemo(() => ['@', '*', `www.${zoneName}`], [zoneName])
-
-  const handleProvision = async () => {
-    if (!name.trim() || !content.trim()) {
-      toast.error('Record name and content are required')
-      return
-    }
-    const ok = await onProvision({
-      name: name.trim(),
-      type,
-      content: content.trim(),
-      ttl: ttl.trim() ? Number(ttl) : undefined,
-      proxied,
-    })
-    if (ok) {
-      setOpen(false)
-      setName(''); setContent(''); setTtl('')
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm"><Plus className="mr-1.5 size-3.5" />Provision record</Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Provision DNS record</DialogTitle>
-          <DialogDescription>Create a record in zone <code className="font-mono">{zoneName}</code> via the DNS provider.</DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="space-y-1.5">
-            <Label>Record name</Label>
-            <AutocompleteField
-              value={name}
-              onChange={setName}
-              options={presets}
-              placeholder={`e.g. api or api.${zoneName}`}
-              searchPlaceholder="Type a subdomain or full name…"
-              allowCustom
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Type</Label>
-              <Select value={type} onValueChange={(v) => setType(v as 'A' | 'AAAA' | 'CNAME' | 'TXT')}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {RECORD_TYPES.map((t) => (<SelectItem key={t} value={t}>{t}</SelectItem>))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>TTL (seconds)</Label>
-              <Input type="number" value={ttl} onChange={(e) => setTtl(e.target.value)} placeholder="Auto" />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Content</Label>
-            <Input value={content} onChange={(e) => setContent(e.target.value)} placeholder={type === 'CNAME' ? 'target.example.com' : type === 'A' ? '1.2.3.4' : 'text value'} className="font-mono text-xs" />
-          </div>
-          <div className="flex items-center justify-between rounded-lg border p-3">
-            <div>
-              <p className="text-sm font-medium">Proxy through provider</p>
-              <p className="text-xs text-muted-foreground">Cloudflare orange-cloud.</p>
-            </div>
-            <Switch checked={proxied} onCheckedChange={setProxied} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={() => { void handleProvision() }} disabled={pending}>
-            {pending ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <Plus className="mr-1.5 size-3.5" />}
-            Provision
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }

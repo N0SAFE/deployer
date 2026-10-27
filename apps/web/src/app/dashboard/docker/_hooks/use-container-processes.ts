@@ -1,13 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useDockerContainerProcessLogsStream, useDockerContainerProcessesStream } from '@/domains/docker/hooks'
 import {
   dockerContainerProcessEntrySchema,
   type DockerContainerLogEntry,
   type DockerContainerProcessEntry,
   type DockerContainerInspectDetail,
-} from '@repo/contracts-entities'
+} from '@deployer/contracts-entities'
 import {
   explodeCompositeLogEntry,
   extractContainerLogEntries,

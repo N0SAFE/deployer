@@ -1,5 +1,5 @@
 /**
- * @repo/nest-swarm — swarm cluster primitives, driven through the Docker
+ * @deployer/nest-swarm — swarm cluster primitives, driven through the Docker
  * engine API (never the CLI).
  *
  * WHAT THIS PACKAGE IS

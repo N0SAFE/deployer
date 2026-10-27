@@ -3,7 +3,7 @@
 import React from 'react'
 import { useSession } from '@/lib/auth'
 // Use explicit client path to avoid conditional export resolution issues with TypeScript
-import { configureClientAuth } from '@repo/declarative-routing/page-wrappers/client'
+import { configureClientAuth } from '@deployer/declarative-routing/page-wrappers/client'
 
 // Configure the client auth adapter for declarative routing ClientSessionPage wrappers
 // The useSession function is passed as a reference and will be called inside components

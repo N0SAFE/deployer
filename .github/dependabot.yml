@@ -45,9 +45,9 @@ updates:
   # API dependencies (Bun managed): the BFF, the shared base and the five services
   - package-ecosystem: "npm"
     directories:
-      - "/apps/api-services/bff"
-      - "/apps/api-services/shared"
-      - "/apps/api-services/services/*"
+      - "/apps/api/bff"
+      - "/apps/api/shared"
+      - "/apps/api/services/*"
     schedule:
       interval: "weekly"
       day: "monday"

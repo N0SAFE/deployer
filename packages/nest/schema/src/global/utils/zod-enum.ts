@@ -1,5 +1,5 @@
 import { AppError } from "@deployer/errors";
-interface EnumLike<T extends string> {
+type EnumLike<T extends string> = {
   options: readonly T[] | T[]
 }
 

@@ -8,10 +8,10 @@ import React from "react"
 import { GripVertical } from "lucide-react"
 
 // ** import components
-import { Separator } from "@repo/ui/components/shadcn/separator"
+import { Separator } from "@deployer/ui/components/shadcn/separator"
 
 // ** import utils
-import { cn } from "@repo/ui/lib/utils"
+import { cn } from "@deployer/ui/lib/utils"
 
 export function DataTableResizer<TData>({
   header,

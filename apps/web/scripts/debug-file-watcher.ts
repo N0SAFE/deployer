@@ -17,8 +17,8 @@ const ROOT = resolve(import.meta.dir, "..");
 // Directories to watch (relative to apps/web/)
 const WATCH_DIRS = [
   "src", // Next.js app source
-  "../../packages/ui/base/src", // @repo/ui source
-  "../../packages/ui/base/dist", // @repo/ui output
+  "../../packages/ui/base/src", // @deployer/ui source
+  "../../packages/ui/base/dist", // @deployer/ui output
   "../../packages/contracts/api/modules", // API contracts
   "../../packages/contracts/api/common", // API contract commons
   "../../packages/contracts/api/scripts", // contracts build scripts

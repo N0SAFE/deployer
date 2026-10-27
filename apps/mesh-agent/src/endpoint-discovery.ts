@@ -14,7 +14,7 @@
 import { createSocket } from "node:dgram";
 import { randomBytes } from "node:crypto";
 import type { NetworkInterfaceInfo } from "node:os";
-import { decodeBindingResponse, encodeBindingRequest, STUN_TRANSACTION_ID_LENGTH, type EndpointCandidate } from "@repo/mesh-network";
+import { decodeBindingResponse, encodeBindingRequest, STUN_TRANSACTION_ID_LENGTH, type EndpointCandidate } from "@deployer/mesh-network";
 
 /**
  * Interfaces that never carry a peer's traffic. Docker bridges and veths are

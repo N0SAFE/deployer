@@ -25,7 +25,7 @@ import {
     getZodKind,
     isZodInteger,
     unwrapZodSchema,
-} from '@repo/use-safe-query-param-states-from-zod/schema'
+} from '@deployer/use-safe-query-param-states-from-zod/schema'
 
 /**
  * Structural shape every `nuqs` parser builder satisfies. Keeping it

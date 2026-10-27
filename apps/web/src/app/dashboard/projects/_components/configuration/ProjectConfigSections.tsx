@@ -1,10 +1,10 @@
 'use client'
 
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Label } from '@repo/ui/components/shadcn/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@repo/ui/components/shadcn/select'
-import { Switch } from '@repo/ui/components/shadcn/switch'
-import { projectDeploymentStrategySchema } from '@repo/contracts-common'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Label } from '@deployer/ui/components/shadcn/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
+import { Switch } from '@deployer/ui/components/shadcn/switch'
+import { projectDeploymentStrategySchema } from '@deployer/contracts-common'
 import {
   useProjectDeploymentConfig,
   useProjectNotificationConfig,

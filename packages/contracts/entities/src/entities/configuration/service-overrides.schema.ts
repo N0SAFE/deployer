@@ -3,7 +3,7 @@ import { serviceRunnerStrategySchema } from '@deployer/contracts-common'
 import {
   serviceEnvironmentDependencyBehaviorSchema,
   serviceDependencyLinkPolicySchema,
-} from '@deployer/contracts-entities/entities/configuration/dependency-targeting.schema'
+} from './dependency-targeting.schema'
 
 const serviceEnvironmentExecutionOverrideBaseSchema = z
   .object({

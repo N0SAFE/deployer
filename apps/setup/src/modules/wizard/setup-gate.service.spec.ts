@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { SetupGateService } from "./setup-gate.service";
 import { SetupPhaseService } from "@/modules/health/setup-phase.service";
-import type { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
+import type { NodeConfigRow } from "@deployer/nest-nodes/node-config.repository";
+import type { NodeConfigStore } from "./node-config.port";
 import type { ClusterOrchestratorService } from "@/modules/cluster/services/cluster-orchestrator.service";
 import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";
 import { makeEnvService } from "@/test-support/env";
@@ -21,17 +22,24 @@ import { makeEnvService } from "@/test-support/env";
  * restart overwrites). The stub records what the gate wrote, which is exactly
  * the contract the API depends on.
  */
-function makeRepository(initial: Record<string, unknown> | null = null) {
-  let store: Record<string, unknown> | null = initial;
-  return {
-    find: vi.fn(() => store),
-    upsert: vi.fn((data: Record<string, unknown>) => {
-      store = { ...(store ?? {}), ...data };
-      return store;
-    }),
+function makeRepository(initial: Partial<NodeConfigRow> | null = null) {
+  let store: NodeConfigRow | null = initial === null ? null : ({ ...initial } as NodeConfigRow);
+  const upsert = vi.fn((data: Parameters<NodeConfigStore["upsert"]>[0]): NodeConfigRow => {
+    store = { ...(store ?? ({} as NodeConfigRow)), ...data };
+    return store;
+  });
+  const api: NodeConfigStore = {
+    // The row type is the REAL `NodeConfigRow`, not a loose record: the port is a
+    // `Pick` of the repository, so a stub returning the wrong shape is exactly the
+    // mismatch the old `as unknown as` casts were hiding.
+    find: () => store,
+    upsert,
+  };
+  return Object.assign(api, {
+    upsert,
     /** The persisted row, as the API would read it. */
     _row: () => store,
-  };
+  });
 }
 
 describe("SetupGateService", () => {
@@ -62,7 +70,7 @@ describe("SetupGateService", () => {
     const orchestration = new OrchestrationStreamService(envService);
     const gate = new SetupGateService(
       phases,
-      repo as unknown as NodeConfigRepository,
+      repo,
       envService,
       cluster as unknown as ClusterOrchestratorService,
       orchestration,
@@ -71,14 +79,14 @@ describe("SetupGateService", () => {
   }
 
   /** A gate whose repository already holds a row (a restart). */
-  function makeRestartGate(row: Record<string, unknown>) {
+  function makeRestartGate(row: Partial<NodeConfigRow>) {
     const phases = new SetupPhaseService();
-    const repo = makeRepository({ ...defaults, ...row });
+    const repo = makeRepository({ ...defaults, ...row } as Partial<NodeConfigRow>);
     const cluster = { start: vi.fn() };
     const envService = makeEnvService({ SETUP_MODE: "prod" });
     const gate = new SetupGateService(
       phases,
-      repo as unknown as NodeConfigRepository,
+      repo,
       envService,
       cluster as unknown as ClusterOrchestratorService,
       new OrchestrationStreamService(envService),
@@ -247,7 +255,9 @@ describe("SetupGateService", () => {
         nodeId: "22222222-2222-4222-8222-222222222222",
         setupState: "setup_done",
         databaseUrl: "postgresql://u:p@db:5432/deployer",
-        swarmConfig: { mode: "create" },
+        // `swarmConfig` is a JSON column on the row; the stub only has to carry it
+        // through, and `NodeConfigRow` types it as the serialized shape.
+        swarmConfig: { mode: "create" } as unknown as NodeConfigRow["swarmConfig"],
       });
 
       gate.onApplicationBootstrap();
@@ -284,7 +294,7 @@ describe("SetupGateService", () => {
       const envService = makeEnvService({ SETUP_MODE: "prod" });
       const gate = new SetupGateService(
         phases,
-        repo as unknown as NodeConfigRepository,
+        repo,
         envService,
         cluster as unknown as ClusterOrchestratorService,
         new OrchestrationStreamService(envService),

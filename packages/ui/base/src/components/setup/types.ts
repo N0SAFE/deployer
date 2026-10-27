@@ -5,12 +5,12 @@ import type {
 	SetupPostSetupDestination,
 	SetupPostSetupVerification,
 	SetupStreamEvent,
-} from "@repo/contracts-entities";
+} from "@deployer/contracts-entities";
 
 /**
  * The wizard's DATA seam.
  *
- * `@repo/ui` owns the presentation; each host app owns how it talks to the
+ * `@deployer/ui` owns the presentation; each host app owns how it talks to the
  * platform. The API and the web app use different ORPC clients (different
  * origins, different plugins), so passing behaviour in — rather than importing
  * a client — is what lets ONE wizard implementation serve both without

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import type { ClusterSnapshot } from "@repo/contracts-entities";
-import { ConflictError } from "@repo/errors";
-import type { LocalDatabaseService } from "@repo/nest-database-local/local-database.service";
+import type { ClusterSnapshot } from "@deployer/contracts-entities";
+import { ConflictError } from "@deployer/errors";
+import type { LocalDatabaseService } from "@deployer/nest-database-local/local-database.service";
 import { ClusterNodeRepository } from "./cluster-node.repository";
 
 const snapshotFixture: ClusterSnapshot = {

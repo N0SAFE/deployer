@@ -12,7 +12,7 @@ import { validateEnvSafe } from "#/env";
 import { AuthSignin } from "@/routes/index";
 import { createContextFilterDebugLogger } from "@/lib/logging/context-filter-debug";
 import { getCookieCache, getSessionCookie } from "better-auth/cookies";
-import type { Session } from "@repo/auth";
+import type { Session } from "@deployer/auth";
 
 const debugAuth = createContextFilterDebugLogger("WithAuth", "middleware:[WithAuth]");
 const debugAuthError = createContextFilterDebugLogger("WithAuth", "middleware:[WithAuth]:error");

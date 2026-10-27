@@ -39,7 +39,7 @@ async function moduleWithKey(key = KEY_A): Promise<CodecModule> {
 }
 
 /** A minimal stand-in for the app's traefik builder. */
-interface FakeBuilder {
+type FakeBuilder = {
 	routes: { rule: string }[];
 }
 
@@ -254,6 +254,99 @@ describe("configureSchemaCodecs", () => {
 		expect(mod.readTraefikConfig<FakeBuilder>('{"routes":[{"rule":"x"}]}')).toEqual({
 			routes: [{ rule: "x" }],
 		});
+	});
+});
+
+/** A deterministic stand-in for the app's sealer: the routing is under test here, the crypto is not. */
+function fakeSealer(overrides: Partial<{ seal: (p: string) => string; open: (s: string) => string }> = {}) {
+	return {
+		seal: overrides.seal ?? ((plaintext: string) => `enc:v1:${Buffer.from(plaintext).toString("base64")}`),
+		open: overrides.open ?? ((stored: string) => Buffer.from(stored.slice("enc:v1:".length), "base64").toString("utf8")),
+	};
+}
+
+describe("sealing codec — the current form, with the legacy form still readable", () => {
+	it("writes the sealed form and never touches the legacy key once a sealer is configured", async () => {
+		const mod = await freshModule();
+		const resolveKey = vi.fn(() => KEY_A);
+		mod.configureSchemaCodecs({ encryption: { resolveKey }, sealing: fakeSealer() });
+
+		const stored = mod.encryptSecret("api-token");
+
+		expect(stored.startsWith(mod.SEALED_VALUE_PREFIX)).toBe(true);
+		expect(stored).not.toContain("api-token");
+		expect(resolveKey).not.toHaveBeenCalled();
+		expect(mod.decryptSecret(stored)).toBe("api-token");
+		expect(resolveKey).not.toHaveBeenCalled();
+	});
+
+	it("still reads legacy rows written before the sealer existed, and new writes are sealed", async () => {
+		const mod = await moduleWithKey(KEY_A);
+		const legacy = mod.encryptSecret("old-secret"); // no sealer yet: legacy form
+		expect(mod.isSealedValue(legacy)).toBe(false);
+
+		mod.configureSealing(fakeSealer());
+
+		expect(mod.decryptSecret(legacy)).toBe("old-secret");
+		expect(mod.isSealedValue(mod.encryptSecret("new-secret"))).toBe(true);
+	});
+
+	it("fails loudly when a sealed value is read before the sealer is configured", async () => {
+		const mod = await moduleWithKey(KEY_A);
+
+		expect(() => mod.decryptSecret("enc:v1:eyJ2IjoxfQ")).toThrowError(
+			expect.objectContaining({ code: "SCHEMA_CODEC_NOT_CONFIGURED", message: expect.stringContaining("sealing") }),
+		);
+	});
+
+	it("keeps legacy writes when no sealer is configured (the frozen monolith)", async () => {
+		const mod = await moduleWithKey(KEY_A);
+
+		const stored = mod.encryptSecret("legacy-write");
+
+		expect(mod.isSealedValue(stored)).toBe(false);
+		expect(stored.split(":")).toHaveLength(4);
+		expect(mod.decryptSecret(stored)).toBe("legacy-write");
+	});
+
+	it("short-circuits empty values with a sealer too", async () => {
+		const mod = await freshModule();
+		mod.configureSealing(fakeSealer());
+
+		expect(mod.encryptSecret("")).toBe("");
+		expect(mod.decryptSecret("")).toBe("");
+	});
+
+	it("wraps a sealer failure as a generic crypto error without leaking details", async () => {
+		const mod = await freshModule();
+		mod.configureSealing(
+			fakeSealer({
+				seal: () => {
+					throw new Error("key material: hunter2");
+				},
+				open: () => {
+					throw new Error("key material: hunter2");
+				},
+			}),
+		);
+
+		expect(() => mod.encryptSecret("x")).toThrowError(expect.objectContaining({ code: "ENCRYPTION_ERROR", message: "Failed to encrypt data" }));
+		expect(() => mod.decryptSecret("enc:v1:abc")).toThrowError(expect.objectContaining({ code: "ENCRYPTION_ERROR", message: "Failed to decrypt data" }));
+	});
+
+	it("configureSchemaCodecs accepts the sealer alongside the others", async () => {
+		const mod = await freshModule();
+		mod.configureSchemaCodecs({ sealing: fakeSealer(), traefik: fakeTraefikCodec() });
+
+		expect(mod.decryptSecret(mod.encryptSecret("via-bundle"))).toBe("via-bundle");
+	});
+
+	it("never mistakes a legacy value for a sealed one", async () => {
+		const mod = await moduleWithKey(KEY_A);
+
+		expect(mod.isSealedValue(mod.encryptSecret("x"))).toBe(false);
+		expect(mod.isSealedValue("")).toBe(false);
+		expect(mod.isSealedValue("enc:v1:{}")).toBe(true);
 	});
 });
 

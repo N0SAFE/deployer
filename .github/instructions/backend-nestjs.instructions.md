@@ -166,7 +166,7 @@ Standard subclasses: `NotFoundError`, `ValidationError`, `ConflictError`, `Unaut
 Define errors per-contract using the fluent `ErrorDefinitionBuilder`:
 
 ```typescript
-import { error, meshDomainErrorContracts } from "@repo/orpc-utils"
+import { error, meshDomainErrorContracts } from "@deployer/orpc-utils"
 
 const contract = xxxContract.errors({
   ...meshDomainErrorContracts(error),  // 6 canonical mesh errors
@@ -181,7 +181,7 @@ DEFINED (typed) error when its code exists in the contract's errorMap AND its
 data validates against the declared data schema:
 
 ```typescript
-import { domainErrorOptions, standardErrorOptions } from "@repo/orpc-utils"
+import { domainErrorOptions, standardErrorOptions } from "@deployer/orpc-utils"
 
 .handler(async ({ input, errors }) => {
     if (!row) {
@@ -198,7 +198,7 @@ contract-compatible payloads (`{ statusCode, code, message, orpcCode }`).
 
 ### Layer 3: Global Filter
 
-`InternalErrorExceptionFilter` (in `apps/api/src/core/middlewares/internal-error/`) handles three branches:
+`InternalErrorExceptionFilter` (in `apps/api/shared/src/core/middlewares/internal-error/`) handles three branches:
 
 1. **`MeshBaseDomainError`** → 4xx/5xx with `{ statusCode, code, message, orpcCode, requestId, traceId? }`
 2. **`HttpException`** → uses its own status, attaches `requestId`
@@ -232,7 +232,7 @@ The filter is wired in `apps/api/src/main.ts` via `app.useGlobalFilters(...)`.
 The single logging primitive for the codebase (both backend and frontend):
 
 ```typescript
-import { AppLogger } from "@repo/logger"
+import { AppLogger } from "@deployer/logger"
 
 const logger = new AppLogger("api").scope(MyService.name)
 const debugLogger = logger.createContextFilterLogger({

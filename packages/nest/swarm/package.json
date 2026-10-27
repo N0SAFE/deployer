@@ -1,5 +1,5 @@
 {
-    "name": "@repo/nest-swarm",
+    "name": "@deployer/nest-swarm",
     "version": "1.0.0",
     "description": "Swarm cluster primitives: init/join, participation policy, master election, fleet read-models. Drives the Docker engine API; reads no environment and ships no platform defaults.",
     "main": "./dist/cjs/index.js",
@@ -73,11 +73,13 @@
         }
     },
     "scripts": {
-        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "prettify": "bun fmt .",
         "format": "bun run prettify",
-        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "lint": "eslint . --fix --cache",
-        "type-check": "tsc --noEmit",
+        "format:check": "bun fmt --check .",
+        "lint": "bun lint --no-script --type-aware",
+        "lint:fix": "bun lint --no-script --fix --type-aware",
+        "lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
+        "type-check": "bun check --no-script",
         "test": "vitest run",
         "test:watch": "vitest",
         "build": "bun --bun pkg-build",
@@ -87,10 +89,10 @@
     },
     "dependencies": {
         "@nestjs/common": "catalog:api:nest",
-        "@repo/contracts-entities": "*",
-        "@repo/errors": "*",
-        "@repo/nest-docker": "*",
-        "@repo/nest-nodes": "*",
+        "@deployer/contracts-entities": "*",
+        "@deployer/errors": "*",
+        "@deployer/nest-docker": "*",
+        "@deployer/nest-nodes": "*",
         "zod": "catalog:utils"
     },
     "peerDependencies": {
@@ -98,12 +100,12 @@
     },
     "devDependencies": {
         "@nestjs/testing": "catalog:api:nest",
-        "@repo/config-eslint": "*",
-        "@repo/config-prettier": "*",
-        "@repo/config-typescript": "*",
-        "@repo/config-vitest": "*",
-        "@repo/nest-schema": "*",
-        "@repo/pkg-build": "*",
+        "@deployer/config-eslint": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-typescript": "*",
+        "@deployer/config-vitest": "*",
+        "@deployer/nest-schema": "*",
+        "@deployer/pkg-build": "*",
         "@types/node": "catalog:build",
         "chokidar": "catalog:build",
         "eslint": "catalog:linting",

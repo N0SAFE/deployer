@@ -4,13 +4,13 @@ import { getErrorMessage } from "@/lib/orpc/typed-errors";
 import { useState, useEffect } from 'react'
 import { useForm } from '@tanstack/react-form'
 import { useSession, authClient } from '@/lib/auth'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Label } from '@repo/ui/components/shadcn/label'
-import { Avatar, AvatarFallback, AvatarImage } from '@repo/ui/components/shadcn/avatar'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Separator } from '@repo/ui/components/shadcn/separator'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Label } from '@deployer/ui/components/shadcn/label'
+import { Avatar, AvatarFallback, AvatarImage } from '@deployer/ui/components/shadcn/avatar'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Separator } from '@deployer/ui/components/shadcn/separator'
 import { 
   User, 
   Mail, 
@@ -20,7 +20,7 @@ import {
   CheckCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Session } from '@repo/auth'
+import type { Session } from '@deployer/auth'
 import { formatDateTime } from '@/lib/format/date'
 
 function getInitials(name: string | null | undefined): string {

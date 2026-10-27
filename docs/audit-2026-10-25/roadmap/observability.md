@@ -1,0 +1,519 @@
+# OBSERVABILITY & NOTIFICATIONS roadmap
+> Owner prefix: OBS · Sources: observability.md, journeys.md (J4 walk, J6 audit/approvals rows, §7 quick wins), parity.md (§1.1, §1.5, §1.6, §3-4), bench-coolify.md, bench-dokploy-dockhand.md, bench-market.md, monolith-cutover.md (§ outbox consumers, SLO), architecture.md (outbox finding #12) · Last verified: 2026-10-26
+
+## Summary
+Observability is a mix of real read-only plumbing (health probes, health registry + SSE, deployment analytics, container logs/metrics streams, deployment logs) and inert or misleading write-side features. Nothing in the platform ever sends a notification: project notification settings are decorative, the web-push service worker is never built or registered, identity `sendTestNotification` fabricates a delivery report, health `changes$` and the event outbox have no consumers, and there is no audit log, no alerting, no uptime monitoring, no metrics history, no log retention, no Prometheus/OTel export. Several honest-looking surfaces lie (service logs tab, service status badge always "unknown", identity host metrics, svc-health uptime 1000x off, dead report download link). Read endpoints (analytics, logs, node metrics, health `detailed`) are `requireAuth()` only, so any viewer sees platform-wide data. Everything lands twice (monolith `apps/api` and the `apps/api-services` tier) until the cutover finishes.
+Biggest risks: fake "sent" test report (P0), decorative notification toggles (P0), unscoped reads of logs/metrics plus their 403 tests (P0). SUB-C (event bus with real consumers) is the keystone: notifications, audit, SLOs and alerts all hang off OBS-001.
+Counts (89 items incl. test-coverage): P0 4 · P1 45 · P2 31 · P3 9; FIX 18 · ENHANCE 17 · NEW 54.
+> Coverage pass: 2026-10-26 — 2 items added, 17 deps resolved
+
+## Items
+
+### Event bus with real consumers (SUB-C)
+- [ ] `OBS-001` **Make the event outbox dispatcher publish to named consumers (SUB-C)** · FIX · P1 · L · Deps: none (this IS `SUB-C`)
+  - Why/Problem: `LocalEventOutboxDispatcherService.dispatchClaimed` only calls `markSent`; there is no publisher, so the outbox is an append-only log read back inside runtime only (`apps/api-services/.../local-event-outbox-dispatcher.service.ts:125-148`). No cross-service bus exists; streams are in-process (replicas > 1 break SSE). `claimDue` and `eventId` dedup already exist.
+  - Do: add a subscriber registry plus named consumers (identity: notifications/push; health: SLO feed; audit writer); publish via LISTEN/NOTIFY or Redis (gives the phantom Redis dependency a purpose, or drop Redis, see ARCH); keep `eventId` dedup; at-least-once with idempotent consumers.
+  - Done when: an event written by runtime (e.g. deployment failed) is delivered exactly once per named consumer in another process; a consumer that is down catches up from its cursor after restart.
+  - Status: todo · Verified-in-code: unverified · Source: architecture.md#10-12, monolith-cutover.md#capabilities-3, observability.md#§1 (event bus row) · See also: `ARCH-062`, `ARCH-067`
+  - Effect-impact (2026-10-26): approach set (SUB-C): keep the Postgres outbox + local dispatcher, consumers as Effect `Stream` pollers with per-consumer cursor tables (no Redis); `PersistedQueue` SQL store only as an option for notification delivery (unstable, extra migration system). Consumers will live in identity, which is mixed-idiom today. Effort L unchanged; needs ruling D5. Deps: `EFF-127`, `EFF-022`. Evidence: `effect-ecosystem-research.md` §2.7, §5.
+- [ ] `OBS-002` **Durable consumer cursors; remove the in-memory projector cursor in runtime** · ENHANCE · P1 · M · Deps: `OBS-001`
+  - Why/Problem: runtime's projector uses an in-memory `Map` and in-memory cursor; restart loses position (architecture.md #12).
+  - Do: persist per-consumer cursors (table keyed by consumer name + stream); migrate the runtime projector to it.
+  - Done when: restarting runtime neither replays nor skips events (test).
+  - Status: todo · Verified-in-code: unverified · Source: monolith-cutover.md#capabilities-3
+  - Effect-impact (2026-10-26): cursor table + Effect worker (`Schedule.spaced`) fits; lease/cursor expiry tests become deterministic with `TestClock` (`effect/testing`). Deps: `EFF-127`, `EFF-030`, `EFF-038`.
+- [ ] `OBS-003` **Give health registry `changes$` real subscribers (log, persist, emit)** · FIX · P1 · S · Deps: `OBS-001`
+  - Why/Problem: only the SSE controller subscribes to `changes$`, so down/up transitions are never logged, persisted or alerted. Only the monolith `ReadinessService` logs transitions (`apps/api-services/shared/src/server/health/health-registry.service.ts:140`; test at `__tests__/health-registry.stream.test.ts:147`).
+  - Do: add a subscriber that logs transitions with the logger, writes a transition row, and emits `service.down`/`service.up` events onto the bus.
+  - Done when: killing a dependency (db/redis) produces one log line, one persisted transition and one bus event; recovery produces the inverse.
+  - Status: todo · Verified-in-code: partial (only SSE + test subscribe) · Source: observability.md#§1,§3.9
+  - Effect-impact (2026-10-26): still open (only `HealthStreamController` subscribes to `changes$`; monolith `ReadinessService` logged each transition, now regressed). Natural home: a `Layer`/fiber subscribing to `registry.changes$` via the one-method registry port in svc-health. Same shared code has dead `heartbeats` and a duplicate first emit (`shared/.../health.module.ts:58,67`) and inert `requestRefresh/pushRefreshRequests/refreshStream`: no roadmap item covers D-1..D-3 yet. Deps: `EFF-054`, `EFF-057`, `EFF-066`. Evidence: `effect-health-identity.md` §1 rows 12-13, D-1..D-3.
+- [ ] `OBS-004` **Emit the platform's notification-grade domain events** · NEW · P1 · M · Deps: `OBS-001`
+  - Why/Problem: nothing emits to any channel on platform events. Event taxonomy to cover (Coolify/Dokploy/Komodo matrices): deployment success/failure/cancelled, service status change, service down/up, container restarted/stopped, restart-limit reached, node reachable/unreachable/down, quorum risk/task flapping, disk usage over threshold, docker cleanup success/failure, backup success/failure/S3 warning (FEAT backups), scheduled task success/failure (FEAT cron), cert expiring, API token expiring, traefik outdated, node patch available, approval requested/decided (AUTH/DEPLOY W6.7), preview created/expired, webhook delivery failure.
+  - Do: runtime emits deployment lifecycle (build on `deployment-event.service`, `deployment-queue-event`), fleet emits node events, health registry emits via OBS-003; define one typed event catalogue in a shared package with Zod schemas.
+  - Done when: each listed event type has an emitter, a schema, and a test asserting it fires.
+  - Status: todo · Verified-in-code: no · Source: observability.md#§4.4, bench-coolify.md#notifications, bench-dokploy-dockhand.md#notifications, parity.md#§4.2
+- [ ] `OBS-005` **Correlation/request-id propagation BFF -> service -> runtime, plus logger remote transport and trace ids** · ENHANCE · P2 · M · Deps: none
+  - Why/Problem: logger package (pino, redaction, context filter) has no correlation or trace ids, no remote transport, no metrics.
+  - Do: request-id generated at BFF, forwarded through service-client, bound in logger context; optional OTLP/HTTP transport.
+  - Done when: one request's id appears in BFF, service and runtime logs; a log line can be traced across services.
+  - Status: todo · Verified-in-code: unverified · Source: observability.md#§5, monolith-cutover.md#capabilities-6 · See also: `ARCH-066`, `IDEA-067`
+  - Effect-impact (2026-10-26): hook is `@orpc/effect` `effect/wrap` (unused); OTel: `@effect/opentelemetry` `OtelTracer.layerGlobal` nests Effect spans under `ORPCInstrumentation`; nothing in the repo uses OTel today and `sdk-logs <0.300` peer conflicts with `sdk-node 0.300` (unverified, traces-only is fine). Deps: `EFF-014`, `EFF-026`.
+
+### Web push and service worker
+- [ ] `OBS-006` **Stop fabricating the push delivery report; make `sendTestNotification` actually send** · FIX · P0 · S · Deps: `OBS-008`
+  - Why/Problem: identity `sendTestNotification` returns `{success: min(total, deliverable), failed, total}` without sending anything; UI shows "sent" when nothing was (`apps/api-services/services/identity/src/modules/push/controllers/push.controller.ts:104-131`).
+  - Do: until OBS-008 lands, return an explicit "not delivered / transport not configured" result; then replace with a real send via `webpush.sendNotification` and honest counts.
+  - Done when: test notification on a real subscription shows a browser notification; with no transport the UI says so.
+  - Status: todo · Verified-in-code: yes (fabrication comment at push.controller.ts:104-131) · Source: observability.md#§1,§3.2,§4.5
+  - Effect-impact (2026-10-26): scope check first: `PushService` has no `@Injectable()` and imports `PushRepository` with `import type` (`apps/api-services/services/identity/src/modules/push/services/push.service.ts:1-4`, verified), so under Nest push may not work at all, not just fake the report (unit tests construct it by hand, no e2e). Add a DI smoke test before the fix. Push is untouched classic Nest (not Effect). Deps: `EFF-104`, `EFF-047`, `EFF-085`.
+- [ ] `OBS-007` **Build and register the service worker with `push` and `notificationclick` handlers; fix the manifest** · FIX · P1 · M · Deps: none
+  - Why/Problem: `apps/web/src/app/sw.ts` is a bare Serwist precache with no push handler; no serwist hit in `next.config.ts` (`@serwist/turbopack` and `serwist` are in package.json but unused), no `serviceWorker.register`, no `/sw.js` in `public/` (only icons, robots, sitemap, `site.webmanifest`). `subscribe()` throws "Service worker not registered"; `navigator.serviceWorker.ready` (line ~88) never resolves.
+  - Do: wire the Serwist Next integration (or a `/sw.js` route), register in the root layout, add `push` + `notificationclick` (deep-link to deployment/service), correct `site.webmanifest`.
+  - Done when: a browser can subscribe, receives a pushed notification with the app closed, and clicking opens the right page.
+  - Status: todo · Verified-in-code: yes (no register, no sw.js in public) · Source: observability.md#§3.1,§4.1, journeys.md#J4-step1, parity.md#§1.1 · See also: `WEB-099`
+- [ ] `OBS-008` **Real web-push sending in identity with 404/410 pruning** · FIX · P1 · M · Deps: `OBS-007`, `OBS-009`
+  - Why/Problem: identity never imports `webpush.sendNotification`; `recordDelivery` has zero non-spec callers (`identity/.../push.service.ts:223`). The monolith has a real `sendToUser` that only the test endpoint calls.
+  - Do: implement `sendToUser/sendToUsers` using web-push, call `recordDelivery` for every attempt, delete/mark gone subscriptions on 404/410, expose as the `web-push` channel adapter for OBS-012.
+  - Done when: integration test with mocked web-push proves delivery, failure and gone-pruning paths.
+  - Status: todo · Verified-in-code: yes (only spec calls recordDelivery) · Source: observability.md#§1,§4.3
+  - Effect-impact (2026-10-26): recommended order when porting push: DI fix -> VAPID decision (DEC-OBS-1) -> real send with 404/410 pruning -> stop fake report (OBS-006) -> endpoint-rebind (OBS-010); the real send can be written Effect-style (`Effect.tryPromise` with the `AbortSignal`, `Schedule` retry) if identity push is ported in the same change. Effort M unchanged. Evidence: `effect-health-identity.md` §7.7.
+- [ ] `OBS-009` **Use one server-wide VAPID identity with a real contact subject, or encrypt stored private keys** · FIX · P1 · M · Deps: `DEC-OBS-1`
+  - Why/Problem: per-user VAPID keypairs stored with plaintext private keys; subject is fake `mailto:user-<id>@notifications.local` which Apple/Mozilla may reject.
+  - Do: env `VAPID_PUBLIC/PRIVATE/SUBJECT` (configurable contact), drop per-user key storage (migration), or encrypt with the platform secret codec.
+  - Done when: no private key is stored in plaintext; pushes to Apple/Mozilla endpoints succeed with the configured subject.
+  - Status: todo · Verified-in-code: unverified · Source: observability.md#§3.4,§4.2
+  - Effect-impact (2026-10-26): if the server-wide VAPID keypair is chosen, read it via `Config.redacted` (fail fast, no secret in logs); per-user plaintext keys remain at `push.repository.ts:260`. Deps: `EFF-028`.
+- [ ] `OBS-010` **Stop `upsert`/`updateSubscription` from re-binding an existing endpoint to another user** · FIX · P1 · S · Deps: none
+  - Why/Problem: a stolen endpoint can hijack a device row; identity `upsert` and monolith `updateSubscription` re-bind to whichever user submits it.
+  - Do: reject (or require same user / re-auth) when the endpoint already belongs to another user; add a test.
+  - Done when: user B submitting user A's endpoint gets a conflict and A's row is unchanged.
+  - Status: todo · Verified-in-code: unverified · Source: observability.md#§3.5
+
+### Notification engine and channels
+- [ ] `OBS-011` **Retire or share the duplicated monolith/identity analytics, push and health implementations** · ENHANCE · P2 · S · Deps: `ARCH-031`
+  - Why/Problem: two copies already diverged: uptime computation, report download route, `sendToUser`. Every OBS fix must land twice otherwise.
+  - Do: apply OBS fixes to the surviving copy only once the ingress/cutover decision is made; delete the other, or move shared logic into a package.
+  - Done when: one implementation each of analytics, push, health.
+  - Status: todo · Verified-in-code: unverified · Source: observability.md#§3.11,§4.10, parity.md#structural-facts
+  - Effect-impact (2026-10-26): Status -> partial: health contract is now shared (`@deployer/health-contracts`, untracked) and the monolith health module imports it (uncommitted); user/push/analytics implementations still exist in both backends (identity user is Effect, monolith user unchanged); stray `apps/api/services/identity/*` copy deleted in the working tree.
+- [ ] `OBS-012` **Build the NotificationService: channel adapter registry plus event dispatcher** · NEW · P1 · L · Deps: `OBS-001`,`OBS-004`
+  - Why/Problem: no mailer, Slack/Discord or dispatcher code anywhere; settings (`slackWebhookUrl`, `emailRecipients`, `notifyOnDeploymentFailure`, `notifyOnServiceDown`) are persisted by `project.service.ts` and shown in `ProjectConfigSections.tsx` but no consumer reads them.
+  - Do: new module (identity or a `notify` module, see DEC-OBS-2) subscribing to the bus; adapter interface `send(target, event)`; fan-out from project/platform/user rules; adapters in OBS-014..018.
+  - Done when: a deployment failure produces deliveries on every enabled channel for that project and none for disabled ones.
+  - Status: todo · Verified-in-code: no · Source: observability.md#§4.3-4.4, parity.md#§4.2, bench-*#notifications · See also: `FEAT-120`, `IDEA-071`
+  - Effect-impact (2026-10-26): build the NotificationService in the Effect style from the start: channel adapters as `Context.Service` ports, `Schedule.exponential` retry/backoff, `Redacted` channel secrets, delivery via the Stream consumer (OBS-001). Deps: `EFF-127`, `EFF-035`.
+- [ ] `OBS-013` **Channel configuration store (encrypted), CRUD contract and settings UI with a "Send test" button** · NEW · P1 · M · Deps: `OBS-012`, `SEC-019`
+  - Why/Problem: webhook URLs/SMTP creds are secrets; today they sit in plain project settings fields. Competitors use a channel x event toggle grid with test button.
+  - Do: platform- and project-scoped channel table (encrypted credentials, masked on read), contract via `standard.zod`, UI grid, real test send reporting actual delivery result.
+  - Done when: channel can be created, tested, edited without re-exposing the secret.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#ux-8, journeys.md#J4-ux, observability.md#§4.3
+- [ ] `OBS-014` **Generic signed webhook channel plus outbound event webhooks with retry/backoff** · NEW · P1 · M · Deps: `OBS-012`,`OBS-019`
+  - Why/Problem: outbound event webhooks (Komodo alerters, Heroku) and a generic channel cover ntfy/Apprise-style targets; also needed for J4 acceptance (signed JSON within 30 s).
+  - Do: HMAC-signed JSON payload with timestamp, retry with exponential backoff + dead-letter, per-endpoint secret, delivery log.
+  - Done when: a webhook sink receives a signed payload within 30 s of `service.down`, signature verifies, failed deliveries retry.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#I-outbound-webhooks, journeys.md#J4-acceptance-5
+- [ ] `OBS-015` **Slack and Discord channel adapters** · NEW · P1 · S · Deps: `OBS-012`,`OBS-019`
+  - Why/Problem: first two chat channels operators expect; project settings already collect a Slack webhook URL.
+  - Do: Slack incoming-webhook and Discord webhook adapters with rich formatting (project, service, commit, link).
+  - Done when: both deliver a deploy-failed message in a sandbox workspace/mock.
+  - Status: todo · Verified-in-code: no · Source: observability.md#§4.3, bench-coolify.md#notifications
+- [ ] `OBS-016` **SMTP/Resend email channel adapter with "not configured" mode** · NEW · P1 · M · Deps: `OBS-012`, `AUTH-015`
+  - Why/Problem: no mail transport anywhere; `emailRecipients` and `alertEmail` have no sender.
+  - Do: share the mailer with AUTH; templates for deploy/alert events; when SMTP is missing, surface that in UI instead of silently dropping.
+  - Done when: mailpit receives the alert email in e2e.
+  - Status: todo · Verified-in-code: no · Source: observability.md#§4.3, journeys.md#W6.3
+- [ ] `OBS-017` **Additional adapters: Telegram, ntfy, Gotify, Pushover, Mattermost, Teams, Lark** · NEW · P2 · M · Deps: `OBS-012`,`OBS-019`
+  - Why/Problem: Coolify ships Telegram/Pushover/Resend, Dokploy ships gotify/ntfy/mattermost/teams/lark; generic webhook + ntfy covers most self-hosters.
+  - Do: one small adapter each behind the registry; ntfy first.
+  - Done when: each adapter has a unit test with a mocked HTTP target.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#notifications, bench-coolify.md#notifications, bench-market.md#quick-wins-11
+- [ ] `OBS-018` **Apprise bridge as optional catch-all channel** · NEW · P3 · S · Deps: `OBS-012`,`DEC-OBS-3`
+  - Why/Problem: Dockhand's Apprise bridge gives ~90 targets cheaply; could replace hand-written adapters.
+  - Do: optional adapter calling an Apprise API sidecar; document as extension point.
+  - Done when: an Apprise-backed channel delivers a test event.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#dockhand-notifications
+- [ ] `OBS-019` **SSRF-safe validation of notification/webhook target URLs** · NEW · P1 · S · Deps: `SEC-013`
+  - Why/Problem: user-supplied Slack/webhook URLs fetched server-side are an SSRF vector once delivery exists (observability.md §4.3 requires it).
+  - Do: block private/link-local/loopback/mesh ranges after DNS resolution, enforce https where possible, limit redirects and response size, timeout.
+  - Done when: tests prove `169.254.169.254`, `127.0.0.1`, mesh addresses and DNS-rebinding hosts are refused.
+  - Status: todo · Verified-in-code: no · Source: observability.md#§4.3, bench-market.md#H-signed-webhooks-SSRF
+- [ ] `OBS-020` **Stop the UI lying: hide or label inert notification and retention-adjacent settings until delivery exists** · FIX · P0 · S · Deps: none
+  - Why/Problem: "most misleading gap in the area": toggles in `ProjectConfigSections.tsx` (notifyOnDeploymentFailure, notifyOnServiceDown, slackWebhookUrl, emailRecipients) imply behaviour that does not exist; `serviceHealthConfigs.alertWebhookUrl/alertEmail` and `alertOnFailure` unused.
+  - Do: remove or mark "not delivering yet" (disabled state with explanation) until OBS-022 wires them; same for health alert fields.
+  - Done when: no notification control is enabled that has no backend consumer.
+  - Status: todo · Verified-in-code: partial (settings persisted, no consumer found) · Source: observability.md#§3.3, bench-market.md#quick-wins-9, parity.md#§1.2
+- [ ] `OBS-021` **Event x channel toggle matrix with per-project, per-environment and per-service rules** · NEW · P1 · M · Deps: `OBS-012`,`OBS-013`
+  - Why/Problem: Coolify's 14 per-channel toggles and Komodo's whitelist/blacklist/type filters are the benchmark; our settings are four booleans.
+  - Do: rule model (scope, event types, severity, channels, filters), UI grid; defaults sane (failure events on).
+  - Done when: a rule scoped to project X/environment production fires only for it.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#notifications, bench-market.md#F-alerts, observability.md#§6
+- [ ] `OBS-022` **Wire existing project notification settings into the dispatcher** · ENHANCE · P1 · S · Deps: `OBS-012`
+  - Why/Problem: persisted `notifyOnDeploymentFailure`, `notifyOnServiceDown`, `slackWebhookUrl`, `emailRecipients` should act.
+  - Do: migrate these settings into channel + rule rows (OBS-013/021) or read them directly in the dispatcher.
+  - Done when: toggling `notifyOnDeploymentFailure` off stops the Slack message for that project.
+  - Status: todo · Verified-in-code: no · Source: parity.md#§1.2, observability.md#§4.4
+- [ ] `OBS-023` **Alert deduplication, hysteresis, escalation and "resolved" notifications** · NEW · P1 · M · Deps: `OBS-012`
+  - Why/Problem: J4 requires one delivery per incident and a resolved delivery; flapping services would spam otherwise.
+  - Do: incident model keyed by (rule, resource), cooldown, repeat/escalation interval and secondary channel, resolved message on recovery.
+  - Done when: a service staying down yields exactly one alert; recovery yields one "resolved".
+  - Status: todo · Verified-in-code: no · Source: observability.md#§6, journeys.md#J4-acceptance-5-and-e2e-6-7
+- [ ] `OBS-024` **Delivery log with retry/dead-letter and per-rule "last fired / last delivery result"** · NEW · P2 · M · Deps: `OBS-012`
+  - Why/Problem: operators need to know whether alerts are working; J4 UX requires last-delivery status per rule.
+  - Do: delivery attempt table, retention, UI list with error text, manual re-send.
+  - Done when: failed deliveries are visible and retried N times.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#J4-ux, bench-coolify.md#notifications
+- [ ] `OBS-025` **Notification centre: in-app inbox and header bell** · NEW · P2 · M · Deps: `OBS-012`
+  - Why/Problem: no in-app inbox; the header "Live" chip reflects control-plane reachability only (`HeaderLiveStatus.tsx`).
+  - Do: `notifications` table per user, unread counts, SSE push, mark read, deep links; also the in-app channel adapter.
+  - Done when: a deploy failure shows in the bell with a link.
+  - Status: todo · Verified-in-code: no · Source: observability.md#§6, journeys.md#W4.10, parity.md#§4 · See also: `WEB-076`
+- [ ] `OBS-026` **Per-user notification preferences, quiet hours and alert mute with expiry** · NEW · P2 · M · Deps: `OBS-025`
+  - Why/Problem: per-user and per-project rules, quiet hours and mute-with-auto-expiry are named in the audits.
+  - Do: preference model, quiet-hour windows (timezone-aware), mute with expiry on rules/services.
+  - Done when: events in quiet hours are batched or suppressed per preference; mute auto-expires.
+  - Status: todo · Verified-in-code: no · Source: observability.md#§6, journeys.md#J4-ux
+- [ ] `OBS-027` **Weekly digest emails using the report scheduler** · NEW · P3 · M · Deps: `OBS-016`,`OBS-056`
+  - Why/Problem: listed as a recommended feature; report-config `schedule`/`recipients` exist but never execute.
+  - Do: scheduled digest (deploys, failures, uptime, disk) per recipient.
+  - Done when: scheduled digest arrives in mailpit.
+  - Status: todo · Verified-in-code: no · Source: observability.md#§6
+
+### Health monitoring and service status
+- [ ] `OBS-028` **Fix `svc-health` `uptime` (reports 1000x too small)** · FIX · P1 · S · Deps: none
+  - Why/Problem: `process.uptime() / 1000` but `process.uptime()` is already seconds (`apps/api-services/services/health/src/modules/health/controllers/health.controller.ts:64`).
+  - Do: remove the division; add a unit test.
+  - Done when: `detailed` uptime equals process seconds.
+  - Status: todo · Verified-in-code: yes · Source: observability.md#§1,§3.8,§5
+  - Effect-impact (2026-10-26): Effect-rewrite did not fix it: line moved `:64` -> `:72` (`health.controller.ts:72`, verified `process.uptime() / 1000`); the new spec 'reports uptime in seconds' asserts only `> 0` (passes with the bug), so the test must fail on the bug (stubbed clock). Fix in `HealthService.report()` (domain report), not the controller. Verified-in-code: yes (updated line). Deps: `EFF-054`, `EFF-057`, `EFF-066`.
+- [ ] `OBS-029` **Populate `supervisors` in `svc-health.detailed` or drop the field** · FIX · P2 · S · Deps: none (see also `ARCH-065`)
+  - Why/Problem: `supervisors: []` hardcoded.
+  - Do: report real supervisor state (monolith already has supervisor health) or remove from the contract.
+  - Done when: field reflects reality or is gone.
+  - Status: todo · Verified-in-code: unverified · Source: observability.md#§1,§5, monolith-cutover.md#capabilities-6
+  - Effect-impact (2026-10-26): re-scoped (line now `:77`): svc-health cannot reach `SupervisorOrchestratorService` (supervisors live in the BFF process), so the choice is BFF-side join, service token (`ARCH-056`), or dropping the field; effort S only for 'drop', M for a roll-up. Evidence: `effect-health-identity.md` N-3.
+- [ ] `OBS-030` **Active per-service health probe scheduler (http/tcp/docker/command) with stored history** · NEW · P1 · L · Deps: `DEC-OBS-4`, `OBS-001`
+  - Why/Problem: `healthChecks`, `serviceHealthConfigs`, `healthCheckJobs` tables have no reader/writer (`packages/nest/schema/src/global/health/health.ts`); "service health" is derived from the latest deployment; the deploy gate hardcodes `/health` (`deployment-execution-workflow.service.ts:491`) and ignores stored `healthCheck*` fields.
+  - Do: scheduler honouring service `healthCheck*` fields, executed on the node that owns the service (via mesh, no inbound ports), writing `healthChecks` rows with retention and transitions (emit `service.down/up`); also make the deploy gate use the same config (cross-ref DEPLOY).
+  - Done when: a service that stops answering flips to down within the configured interval, history is queryable, retention prunes old rows.
+  - Status: todo · Verified-in-code: partial (schema-only confirmed by audit; gate hardcode unverified) · Source: observability.md#§1,§4.6, journeys.md#W4.9, parity.md#§1.5, bench-coolify.md#healthchecks
+  - Effect-impact (2026-10-26): scheduler primitives are stable Effect: `Schedule.spaced`/`Cron`, `Effect.forEach` with concurrency, `Effect.timeout`; leader-only via advisory-lock helper (ARCH-042). Existing registry already does a 15 s chained `setTimeout` pass (hardcoded, no env knobs, `timeoutAfter` leaks 5 s timers): decide extend registry vs new Effect fiber. Effort L unchanged. Deps: `EFF-129`, `EFF-054`, `EFF-057`, `EFF-066`.
+- [ ] `OBS-031` **Service status model: running / degraded / crash-looping / stopped / deploying / failed** · NEW · P1 · M · Deps: `OBS-030`
+  - Why/Problem: no honest status; service header should derive from tasks/containers + last deployment.
+  - Do: derive in the BFF `serviceDetail` composer (`apps/api-services/bff/src/modules/shared/services/overview-composer.service.ts`); web adopts the written-but-unused `domains/bff/hooks.ts`.
+  - Done when: a service that prints to stderr and exits 1 shows "Crash-looping" within 60 s.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#W4.4, journeys.md#J4-acceptance-1
+- [ ] `OBS-032` **Fix the service overview status badge (reads phantom fields, always "unknown")** · FIX · P1 · S · Deps: none (interim until OBS-031)
+  - Why/Problem: `const serviceStatus = s.status ?? s.state ?? 'unknown'` — those fields do not exist on the entity (`apps/web/src/app/dashboard/projects/[projectId]/services/[serviceId]/page.tsx:150`).
+  - Do: derive from the latest deployment (quick win) or BFF `serviceDetail`.
+  - Done when: badge shows real status for a deployed service.
+  - Status: todo · Verified-in-code: yes · Source: journeys.md#J4-step2, journeys.md#§7-quick-win-12 · See also: `WEB-051`
+- [ ] `OBS-033` **Failure explainer: persist failure reason and render a "What's wrong" card** · NEW · P1 · M · Deps: `OBS-031`, `DEPLOY-003`
+  - Why/Problem: deployment row stores a message string only (`persistDeploymentExecutionFailure`, `deployment-execution-workflow.service.ts:333-`); no `failureKind`, exit code, OOM flag, last health response or last log lines.
+  - Do: persist `failureKind`, exit code, OOM, last health response, last N log lines per deployment/replica; card with actions [View logs] [Open shell] [Rollback] [Edit env]; lead with cause ("exit code 137, out of memory, limit 256 MB").
+  - Done when: card quotes the `BOOM` line and exit code from a crashing fixture.
+  - Status: todo · Verified-in-code: unverified · Source: journeys.md#W4.5,#J4-step3, journeys.md#J4-ux
+- [ ] `OBS-034` **Analytics "Service health" card driven by real probes; fix identity uptime hardcoded 0** · ENHANCE · P1 · S · Deps: `OBS-030`
+  - Why/Problem: identity `analytics.service.ts` derives status from the latest deployment row; uptime hardcoded 0 (computed in monolith only); `getServiceHealth` at `analytics.service.ts:179-190`.
+  - Do: read latest probe + uptime % from `healthChecks`.
+  - Done when: card shows probe-based status and non-zero uptime.
+  - Status: todo · Verified-in-code: unverified · Source: observability.md#§1, parity.md#§1.5
+- [ ] `OBS-035` **Decide and execute: wire or delete `healthCheckJobs`, `alertOnFailure`, `alertWebhookUrl`, `alertEmail`** · ENHANCE · P2 · S · Deps: `DEC-OBS-5`
+  - Why/Problem: schema-only columns/tables mislead ("stored but ignored").
+  - Do: either feed them from OBS-030/OBS-021 or remove with a migration.
+  - Done when: no unused health/alert schema remains.
+  - Status: todo · Verified-in-code: unverified · Source: parity.md#§2.2,§4.12, observability.md#§1
+- [ ] `OBS-036` **Restart-loop / max-restart detection and container restarted/stopped events** · NEW · P2 · M · Deps: `OBS-004`
+  - Why/Problem: Coolify alerts on restart-limit reached and container restarted/stopped; we only have raw docker events and `restart policy` is stored-but-ignored (see CLUSTER/DEPLOY).
+  - Do: detect >N restarts in window from docker events/swarm tasks, mark service crash-looping, emit event.
+  - Done when: a crashing fixture triggers one alert and the crash-looping status.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#resource-limits-and-notifications, journeys.md#J4-ideal
+- [ ] `OBS-037` **Platform health page surfacing Terminus/registry `detailed` indicators** · ENHANCE · P2 · M · Deps: `OBS-052`
+  - Why/Problem: only web middleware and one route call `health.check`; db/migrations/redis/memory/disk/swarm/mesh indicators are invisible.
+  - Do: page with per-indicator status, supervisors, versions, migrations state, plus self-check ("fail loudly" honesty page).
+  - Done when: an admin sees every indicator and its last transition.
+  - Status: todo · Verified-in-code: unverified · Source: observability.md#§5, bench-coolify.md#leapfrog-8
+  - Effect-impact (2026-10-26): re-scoped: svc-health `check` output now carries optional `indicators[]` (`packages/contracts/health`), and the BFF has an explicit anonymous `GET /health/platform/ready` gate (uncommitted); page can use `check` + `detailed`. `detailed` still has no `requireAuth()`/role stance (N-5, verified no auth call in `health.controller.ts`). Deps: `EFF-054`, `EFF-057`, `EFF-066`.
+- [ ] `OBS-038` **Make the header "Live" chip honest (services and node health, reconnect state)** · ENHANCE · P2 · S · Deps: `OBS-030`
+  - Why/Problem: chip reflects control-plane reachability, not services (`HeaderLiveStatus.tsx`); streams need a "reconnecting... last line 12:04:11" indicator.
+  - Do: aggregate service/node health into the chip; per-stream reconnect indicator.
+  - Done when: a down service changes the chip; dropped stream shows reconnecting state.
+  - Status: todo · Verified-in-code: unverified · Source: journeys.md#J4-step1,#J4-ux
+- [ ] `OBS-039` **Public/private status page per project with uptime history and incident notes** · NEW · P2 · L · Deps: `OBS-030`, `DEC-OBS-7`
+  - Why/Problem: missing; neither Coolify nor Dokploy has one, a leapfrog item.
+  - Do: status page route (public/private, custom domain via NET), component status, 90-day uptime, manual incident posts.
+  - Done when: a public URL shows live component status from probe history.
+  - Status: todo · Verified-in-code: no · Source: observability.md#§6, bench-market.md#F, bench-coolify.md#healthchecks · See also: `FEAT-130`, `IDEA-075`
+- [ ] `OBS-040` **Synthetic uptime checks from multiple mesh nodes** · NEW · P3 · L · Deps: `OBS-030`
+  - Why/Problem: single-origin probes miss regional/edge issues; mesh nodes are natural vantage points.
+  - Do: probe public URLs from N nodes, quorum for "down".
+  - Done when: a route broken only from one node is reported as partial outage.
+  - Status: todo · Verified-in-code: no · Source: observability.md#§6, bench-dokploy-dockhand.md#25
+- [ ] `OBS-041` **Certificate and domain-expiry checks with alerts** · NEW · P2 · M · Deps: `OBS-012`, `NET-032`
+  - Why/Problem: Coolify has SslExpirationNotification and token-expiry warnings; v1 had ssl-certificate cron renewal tracking; v3 has no cert status UI.
+  - Do: scheduled TLS expiry probe on served hosts and domain-registration expiry check where possible; emit `cert.expiring` at 30/14/7 days; API token expiry warnings.
+  - Done when: a cert within 14 days of expiry yields one alert.
+  - Status: todo · Verified-in-code: no · Source: observability.md#§6, bench-coolify.md#ssl, bench-market.md#quick-wins-11 · See also: `NET-032`, `FEAT-124`
+- [ ] `OBS-042` **Per-service SLO aggregation in `svc-health` (latency and error budget per procedure)** · NEW · P3 · L · Deps: `OBS-001`,`OBS-005`
+  - Why/Problem: monolith-cutover proposal: svc-health consumes outbox/metrics events and stores latency/error budget; BFF rollup already probes `/health/ready`.
+  - Do: consume service-client metrics, store per-procedure percentiles and budgets, dashboard.
+  - Done when: a degraded procedure burns budget visibly.
+  - Status: todo · Verified-in-code: no · Source: monolith-cutover.md#capabilities-6
+
+### Metrics
+- [ ] `OBS-043` **Fix identity host-metrics: measures the identity container, flat series, wrong network field** · FIX · P1 · M · Deps: `OBS-044`
+  - Why/Problem: `takeSnapshot()` runs systeminformation inside the identity container yet is labelled `dataSource:"docker"`; network is `rx_sec` of the first interface; `networkOutbound` ternary tests `primaryDisk`; one sample is copied across every bucket (no history). Monolith `cpuPercent` is averaged across containers and needs the docker socket.
+  - Do: label sources truthfully now; source real node data from the agent (OBS-044); fix the ternary; fix or retire the monolith copy (OBS-011).
+  - Done when: values match `top`/`docker stats` on the node and series are not flat copies.
+  - Status: todo · Verified-in-code: unverified · Source: observability.md#§1,§3.7 · See also: `CLUSTER-012`
+  - Effect-impact (2026-10-26): fix belongs in the analytics port: `analytics.service.ts` (934 lines, `systeminformation` + direct Drizzle) must be split into repositories + a host-metrics adapter before an honest Effect port; `takeSnapshot()` still measures the identity container. Evidence: `effect-health-identity.md` §4.5. Deps: `EFF-104`.
+- [ ] `OBS-044` **Collect node metrics via the mesh agent (sentinel) instead of the identity container** · NEW · P1 · L · Deps: `DEC-OBS-3`
+  - Why/Problem: node system metrics (`meshContract.getNodeMetrics`, 15 s cache) exist but have no web caller; push over mesh avoids inbound ports (Coolify Sentinel equivalent).
+  - Do: agent samples CPU/mem/disk/net/process every 15 s and pushes to the store.
+  - Done when: metrics for every node arrive without inbound ports.
+  - Status: todo · Verified-in-code: no · Source: observability.md#§4.8, bench-coolify.md#metrics, bench-coolify.md#25-23
+- [ ] `OBS-045` **Metrics time-series store with retention and downsampling** · NEW · P1 · L · Deps: `OBS-044`,`DEC-OBS-3`
+  - Why/Problem: no history; "trend" is visually flat (observability.md §3.7). J4 wants 1 h at 15 s and 24 h at 1 min, and a "metrics history days" setting.
+  - Do: ring buffer / table with downsample job, retention setting, query contract.
+  - Done when: reload shows >= 15 min of history; old points are downsampled/pruned.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#W4.6, observability.md#§4.8, bench-coolify.md#metrics · See also: `CLUSTER-080`, `CLUSTER-011`, `IDEA-068`
+- [ ] `OBS-046` **Service Metrics tab with history and limits drawn (wire container metrics stream / `useRealtimeMetrics`)** · NEW · P1 · M · Deps: `OBS-045`
+  - Why/Problem: monitoring page is a one-shot `docker.container.list` snapshot; `useRealtimeMetrics` (`apps/web/src/domains/docker/hooks.ts:703`) is used nowhere; backend stream polls docker stats at 400 ms (`docker-container-metrics-stream.service.ts`).
+  - Do: per-service Metrics tab (CPU/mem/net, 1 h/24 h) with cpu/mem limits as reference lines; project-level monitoring tab.
+  - Done when: service page shows live + historical charts.
+  - Status: todo · Verified-in-code: partial · Source: observability.md#§5, journeys.md#J4-step7, parity.md#§1.5 · See also: `WEB-078`
+- [ ] `OBS-047` **Node metrics page/UI and `getNodeMetrics` caller** · ENHANCE · P2 · M · Deps: `OBS-052`
+  - Why/Problem: node metrics have no web caller; Dokploy/Dockhand dashboards show CPU/mem history and disk usage.
+  - Do: node detail charts, disk usage (`docker system df`-style), dashboard tiles.
+  - Done when: node page shows real metrics for any node.
+  - Status: todo · Verified-in-code: unverified · Source: observability.md#§1, bench-dokploy-dockhand.md#dashboard, docker-cluster.md#node-detail
+- [ ] `OBS-048` **Threshold alert rules (CPU/mem/disk, deploy failure rate, node unreachable) with dedupe and escalation** · NEW · P1 · L · Deps: `OBS-045`,`OBS-023`
+  - Why/Problem: no alerting on metrics; includes disk-usage-threshold alerts that gate cleanup (Coolify `server disk usage`, Dockhand disk warning policy; disks fill on every VPS).
+  - Do: rule engine over metric history and events; disk-pressure rule; deploy-failure-rate rule; cordon hook is a CLUSTER item.
+  - Done when: disk >90% fires one alert and resolves when freed.
+  - Status: todo · Verified-in-code: no · Source: observability.md#§6, bench-coolify.md#servers, bench-dokploy-dockhand.md#monitoring, docker-cluster.md#future · See also: `CLUSTER-060`, `CLUSTER-080`, `WEB-077`
+- [ ] `OBS-049` **Prometheus and OpenTelemetry export endpoint (and optional Loki shipping)** · NEW · P2 · M · Deps: `OBS-045`
+  - Why/Problem: no metrics endpoint; P1/P2 in market parity.
+  - Do: `/metrics` (authenticated) for platform and node metrics, OTLP exporter option.
+  - Done when: Prometheus scrapes and a Grafana panel renders.
+  - Status: todo · Verified-in-code: no · Source: observability.md#§6, bench-market.md#F
+  - Effect-impact (2026-10-26): traces: `@effect/opentelemetry` + keep `ORPCInstrumentation`; Effect `Metric` is stable (Otlp module is unstable). Deps: `EFF-026`.
+- [ ] `OBS-050` **Decide per stub analytics procedure: implement or remove (application, database, API-usage, user-activity, activity-summary)** · ENHANCE · P2 · M · Deps: none
+  - Why/Problem: all return `dataSource:"unavailable"` with empty data in both backends; no APM, pg_stat collector or request logging; the web page uses 4 of 19 procedures.
+  - Do: implement via pg_stat collector / request-log middleware, or remove from the contract and drop dead hooks.
+  - Done when: no contract procedure permanently returns "unavailable".
+  - Status: todo · Verified-in-code: unverified · Source: observability.md#§1, parity.md#§1.5
+- [ ] `OBS-051` **Request analytics from the Traefik access log** · NEW · P3 · M · Deps: none
+  - Why/Problem: Dokploy "Requests" page (status distribution, table) from the access log; feeds API-usage stub.
+  - Do: enable access-log JSON, aggregate per service/status, UI page.
+  - Done when: requests per service/status visible.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#requests-page
+- [ ] `OBS-052` **Scope analytics, deployment logs, node metrics and health `detailed` by role and project membership** · FIX · P0 · M · Deps: `SEC-001`
+  - Why/Problem: these check only `requireAuth()`; any viewer sees platform-wide data; QA doc asked for "project admin with node affinity" (unimplemented).
+  - Do: platform-admin for node/platform metrics and `detailed`; project membership for project analytics/logs/streams; stop trusting client `projectId`.
+  - Done when: non-member gets 403/404 on every listed endpoint (test per controller).
+  - Status: todo · Verified-in-code: unverified · Source: observability.md#§3.10,§4.9, journeys.md#J4-step9
+  - Effect-impact (2026-10-26): Effect makes this cheaper: policy as one oRPC middleware providing `Actor`; today svc-health has no `requireAuth()`/role at all (verified) and analytics has 21 procedures with `requireAuth()` only. Add explicit stance per procedure (public `check` with rate limit, gated `detailed`). Deps: `EFF-014`.
+
+### Reports
+- [ ] `OBS-053` **Serve the report download (dead `downloadUrl` on the BFF/identity path)** · FIX · P1 · S · Deps: none
+  - Why/Problem: identity returns `/analytics/reports/:id/content`; no route serves it in bff or identity; the monolith's `AnalyticsDownloadController` uses a different URL.
+  - Do: add a content route on the BFF (authz-checked), align URL.
+  - Done when: the link downloads the report.
+  - Status: todo · Verified-in-code: unverified · Source: observability.md#§1,§3.6,§4.7 · See also: `ARCH-016`
+  - Effect-impact (2026-10-26): still dangling (`analytics.controller.ts:310`); build as part of the analytics split/port, not before.
+- [ ] `OBS-054` **Real CSV output; PDF either real or removed from the contract** · FIX · P1 · M · Deps: `DEC-OBS-6`
+  - Why/Problem: format `pdf`/`csv` accepted but content is always JSON.
+  - Do: generate CSV; decide on PDF; reject unsupported formats.
+  - Done when: CSV opens in a spreadsheet; contract matches behaviour.
+  - Status: todo · Verified-in-code: unverified · Source: observability.md#§1,§3.6
+- [ ] `OBS-055` **Report window must honour `period.start`** · FIX · P1 · S · Deps: none
+  - Why/Problem: identity `rangeFor` anchors the window at now.
+  - Do: use requested period; test.
+  - Done when: a past-period report differs from "now".
+  - Status: todo · Verified-in-code: unverified · Source: observability.md#§1,§3.6
+- [ ] `OBS-056` **Execute report `schedule` and `recipients`** · FIX · P2 · M · Deps: `OBS-016`,`OBS-054`
+  - Why/Problem: columns stored and never run.
+  - Do: scheduler job generating and mailing reports.
+  - Done when: scheduled report arrives at recipients.
+  - Status: todo · Verified-in-code: unverified · Source: observability.md#§1,§4.7
+- [ ] `OBS-057` **Reports UI (hooks exist, no page)** · NEW · P2 · M · Deps: `OBS-053`
+  - Why/Problem: `domains/analytics/hooks.ts` defines hooks; no page uses them.
+  - Do: reports list/config/generate/download page.
+  - Done when: a user can create a config, generate and download.
+  - Status: todo · Verified-in-code: unverified · Source: observability.md#§1, parity.md#§1.5
+- [ ] `OBS-058` **Apply the `dataSource` honesty badge to reports** · ENHANCE · P3 · S · Deps: `OBS-057`
+  - Why/Problem: analytics page states plainly when a source is unavailable; reports do not.
+  - Do: carry `dataSource` into report content and UI.
+  - Done when: reports show per-section source/unavailable markers.
+  - Status: todo · Verified-in-code: no · Source: observability.md#§5
+
+### Logs and events
+- [ ] `OBS-059` **Real service Logs tab (stdout/stderr per replica, live tail) replacing synthesized sentences** · FIX · P1 · M · Deps: none (build output capture is `DEPLOY-044`)
+  - Why/Problem: tab renders `projectServiceActivity`; code says "KNOWN GAP — these are not log lines" (`.../services/[serviceId]/logs/_utils/service-activity.ts:44-55`, `logs/page.tsx:73-95`). Real hooks `useDockerContainerLogsStream/Snapshot` (`domains/docker/hooks.ts:1030,1044`) are unwired.
+  - Do: first cut: compose the existing hooks per replica merged with `useDeploymentLogs`, with follow/pause, search, level colouring, download; label as local node until OBS-061.
+  - Done when: stderr `BOOM` appears in the Logs tab.
+  - Status: todo · Verified-in-code: yes (KNOWN GAP comment) · Source: journeys.md#W4.1,§7-quick-win-10, parity.md#§1.6, bench-market.md#F
+- [ ] `OBS-060` **Keep logs after the container dies (per-replica ring `service_logs`)** · NEW · P1 · M · Deps: `DEC-OBS-8`
+  - Why/Problem: a crashed replica's output vanishes on `docker rm`.
+  - Do: capture last N MB per replica into a ring store; show "last 200 lines from the previous container (exited 2 min ago, code 1)".
+  - Done when: line still present after `docker rm -f` and reload.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#W4.2,#J4-acceptance-1
+- [ ] `OBS-061` **Logs/inspect/metrics for replicas on other nodes render from any node's UI** · ENHANCE · P1 · M · Deps: `CLUSTER-035`
+  - Why/Problem: UI shows only the API-hosting node's containers; replicas elsewhere read as "no containers" (`docker-node-context.tsx:12-16`). Logs have mesh handlers; actions do not.
+  - Do: carry `nodeId` through the logs/metrics hooks; "Logs unavailable: node n2 is unreachable" state.
+  - Done when: replica on node 2 logs render from node 1.
+  - Status: todo · Verified-in-code: unverified · Source: journeys.md#W4.3,#J4-step14,#J4-acceptance-2
+- [ ] `OBS-062` **Deployment log viewer: stream and tail instead of 4 s polling of first 500 lines** · ENHANCE · P1 · S · Deps: `DEPLOY-044`
+  - Why/Problem: `deployment-logs-viewer.tsx:37-41` polls every 4 s and shows the first 500 lines, so the tail of long runs is invisible; live SSE silent during build.
+  - Do: consume deployment log stream with paging from the tail; auto-follow; reconnect.
+  - Done when: a 5000-line build shows the tail live.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#logs, journeys.md#J4-step6
+  - Effect-impact (2026-10-26): stream transport: keep oRPC `eventIterator`; RxJS vs Effect `Stream` ruling (D5) first, and reconcile the sample's RxJS bridge with `packages/transport/orpc/src/observable/*` instead of adding a third. Deps: `EFF-022`.
+- [ ] `OBS-063` **Log viewer UX: honest empty states, search, time range, download, ANSI, reconnect** · ENHANCE · P2 · M · Deps: `OBS-059`
+  - Why/Problem: never show an empty pane without explanation ("Container has not started yet" vs "No running replica" vs "node unreachable").
+  - Do: states, search, time range, download, ANSI colours, level colouring.
+  - Done when: each state has a distinct message; download works.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#J4-ux, bench-dokploy-dockhand.md#logs
+- [ ] `OBS-064` **Log aggregation with persistent store, retention policy and cross-service search** · NEW · P2 · L · Deps: `OBS-060`,`DEC-OBS-8`
+  - Why/Problem: no persistent app-log store; per-container docker logs only; no retention/pruning anywhere.
+  - Do: store/ship logs with retention settings and search UI filterable by node/service/project.
+  - Done when: a week-old log line is searchable; old lines are pruned by policy.
+  - Status: todo · Verified-in-code: no · Source: observability.md#§1,§5,§6, parity.md#§1.5
+- [ ] `OBS-065` **Log drains / forwarding (syslog, HTTP, Loki, OTLP; Axiom/New Relic style targets)** · NEW · P2 · M · Deps: `OBS-064`,`OBS-019`
+  - Why/Problem: Netlify/Vercel log drains, Coolify Axiom/New Relic/Highlight/Fluent Bit.
+  - Do: drain definitions per project/node, backpressure-safe forwarder, SSRF validation.
+  - Done when: logs appear in a Loki test instance.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#F, bench-coolify.md#log-drains, observability.md#§6
+- [ ] `OBS-066` **Merged multi-container / project-level logs and favorites** · NEW · P2 · S · Deps: `OBS-059`
+  - Why/Problem: Dockhand merged logs; v1 project `activity` and monitoring tabs.
+  - Do: project-level merged stream, saved filters/favorites.
+  - Done when: project logs page interleaves services by timestamp.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#logs, parity.md#§1.5
+- [ ] `OBS-067` **Per-service Events timeline (docker events, deployments, health transitions, config changes with actor)** · NEW · P1 · M · Deps: `OBS-001`,`OBS-072`
+  - Why/Problem: `/dashboard/docker/activity` is node-local and not service-scoped; `deployment.stream*` and `service.streams.query` are consumed by nothing.
+  - Do: merge docker events, deployment events, health transitions and `core_event_logs` config changes into one timeline.
+  - Done when: restart, deploy and env change appear in order with actor.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#W4.7,#J4-step8
+- [ ] `OBS-068` **Project-level activity feed and monitoring tab** · NEW · P2 · M · Deps: `OBS-067`
+  - Why/Problem: v1 project activity/monitoring tabs missing; only `docker/activity` and service-level monitoring exist.
+  - Do: project tabs built on OBS-066/067/046.
+  - Done when: project page shows activity and aggregate monitoring.
+  - Status: todo · Verified-in-code: no · Source: parity.md#§1.5
+- [ ] `OBS-069` **Live updates: subscribe lists/overview to `deployment.streamQuery` and `service.streams.query` instead of focus refetch** · ENHANCE · P2 · M · Deps: none
+  - Why/Problem: no live updates outside Docker pages; streams defined but unused; deployment events emitted only for queued/cancel/rollback-created and metrics events are fake zeros.
+  - Do: workflow emits `logAppended/statusChanged/phaseUpdated` (cross-ref DEPLOY); web subscribes.
+  - Done when: deploy list updates without refresh.
+  - Status: todo · Verified-in-code: unverified · Source: journeys.md#W4.13, deployments.md#observability
+- [ ] `OBS-070` **Log and deployment-log retention/pruning plus download** · ENHANCE · P2 · S · Deps: `OBS-064`
+  - Why/Problem: no log retention/pruning; build logs download/retention listed as a feature gap.
+  - Do: retention setting per project/platform, prune job, "download logs".
+  - Done when: old deployment logs are pruned by policy.
+  - Status: todo · Verified-in-code: no · Source: parity.md#§1.5, deployments.md#enhancements
+
+### Audit log (user-facing; tamper-evident signed variant is an IDEA item)
+- [ ] `OBS-071` **Audit log core: append-only `audit_events` fed by an ORPC middleware (every mutation) and Better Auth hooks** · NEW · P1 · M · Deps: `SEC-001`, `OBS-001`
+  - Why/Problem: no table, writer or UI; `deployments.triggeredBy` is the only actor record; `getUserActivity` is an empty stub; `core_event_logs` (`packages/nest/schema/src/global/platform/events.ts:37-72`) has typed events but no audit contract. Competitors paywall this (Dokploy Enterprise, Dockhand Enterprise).
+  - Do: one middleware at the ORPC point recording actor, IP, procedure, resource id, outcome; auth hooks for sign-in/role/ban; do it before more mutations exist.
+  - Done when: every mutation produces exactly one row.
+  - Status: todo · Verified-in-code: no · Source: parity.md#§1.1,§4.11, journeys.md#W4.11,#W6.8, bench-market.md#quick-wins-3, bench-dokploy-dockhand.md#audit · See also: `FEAT-110`, `IDEA-014`, `PROJ-115`
+  - Effect-impact (2026-10-26): implement as an oRPC middleware writing through `Effect.fn`-named code, annotated with actor + trace id from the Actor service/OTel span (`effect-ecosystem-research.md` §5). Deps: `EFF-014`.
+- [ ] `OBS-072` **Field-level redacted diffs for config entities** · NEW · P1 · M · Deps: `OBS-071`, `PROJ-021`
+  - Why/Problem: audit rows must read as sentences with an expandable diff, never showing secret values ("Alice changed env var X on api (production)").
+  - Do: diff computation per entity with secret redaction.
+  - Done when: History shows env var changes with no values.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#J4-acceptance-6,#J6-ux
+- [ ] `OBS-073` **Audit UI: `/dashboard/settings/audit` and per-resource History tab with filters** · NEW · P1 · M · Deps: `OBS-071`,`OBS-052`
+  - Why/Problem: missing pages: audit log; J4 History tab "who changed what".
+  - Do: filterable list (actor, project, resource, time), sentence rendering, History tab on service/project.
+  - Done when: filtering by project shows invite, role change, deploy, approval rows.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#W6.8,#J4-ideal, parity.md#§3-10
+- [ ] `OBS-074` **Audit export (CSV/JSON/MD), live stream (SSE) and retention setting** · NEW · P2 · S · Deps: `OBS-071`
+  - Why/Problem: Dockhand exports JSON/CSV/MD with live SSE; retention per policy required.
+  - Do: export matching the on-screen filter, SSE tail, retention prune job; audit itself immutable.
+  - Done when: exported row count equals filtered view.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#audit-log, journeys.md#J6-acceptance-6
+- [ ] `OBS-075` **Audit exec/terminal sessions (who, container, start/end) and show a "session recorded" banner** · NEW · P1 · M · Deps: `OBS-071`, `SEC-003`
+  - Why/Problem: exec is real but unaudited; Coolify terminal also has no audit trail; role gating is a SEC item.
+  - Do: session start/end records with actor and container, idle timeout metadata, banner in the terminal.
+  - Done when: a maintainer shell session produces an audit entry.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#W4.8,#J4-acceptance-4, bench-dokploy-dockhand.md#enhancements · See also: `CLUSTER-065`
+- [ ] `OBS-076` **Audit inbound webhook failures (signature failures, rejected deliveries)** · NEW · P2 · S · Deps: `OBS-071`
+  - Why/Problem: Coolify's `auditLogWebhookFailure` is its only audit stream; ours should record failed HMAC/secret checks.
+  - Do: audit write on webhook rejection.
+  - Done when: a bad-signature request yields an audit row.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#webhooks, bench-coolify.md#audit-log · See also: `DEPLOY-101`
+- [ ] `OBS-077` **Implement per-user activity (`getUserActivity` stub) on top of the audit log** · NEW · P2 · S · Deps: `OBS-071`
+  - Why/Problem: `getUserActivity` returns empty with `dataSource:"unavailable"`.
+  - Do: query audit_events by actor; expose in user profile/admin.
+  - Done when: a user's recent actions are listed.
+  - Status: todo · Verified-in-code: unverified · Source: observability.md#§1, parity.md#§3-10
+
+### AI-assisted diagnosis (optional)
+- [ ] `OBS-078` **"Diagnose failed deploy" button (bundle build/container logs, health result, config diff; advice only)** · NEW · P3 · M · Deps: `OBS-033`, `DEPLOY-044`
+  - Why/Problem: Vercel Agent/Dokploy AI assistant parity; log content is attacker-controlled data, so output is advice only and no autonomous remediation.
+  - Do: assemble context bundle, send to model with injection-safe framing, show suggestion.
+  - Done when: button returns a likely cause for a crashing fixture, with no write actions.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#ai-ops-tier-2 · See also: `FEAT-097`, `IDEA-078`
+- [ ] `OBS-079` **Alert-burst triage summary** · NEW · P3 · S · Deps: `OBS-048`
+  - Why/Problem: summarise bursts and correlate node-down with deploy failures.
+  - Do: optional summarisation over incident groups.
+  - Done when: a burst of alerts yields one summary.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#ai-ops-tier-5
+
+## Test coverage to add
+- [ ] `OBS-080` **Web-push integration tests (mock web-push) and service-worker registration test** · NEW · P1 · M · Deps: `OBS-007`,`OBS-008`
+  - Why/Problem: identity `sendTestNotification` path is untested against a transport; SW never exercised.
+  - Do: tests for send, 404/410 pruning, `recordDelivery`, endpoint-rebind rejection, SW registration/push handler.
+  - Done when: tests fail if transport or SW wiring is removed.
+  - Status: todo · Verified-in-code: no · Source: observability.md#§3.12,§5
+  - Effect-impact (2026-10-26): add a DI smoke test for `PushService` (missing `@Injectable()`, `import type`) in addition to the mock web-push tests. Deps: `EFF-047`, `EFF-085`.
+- [ ] `OBS-081` **Dispatcher and channel adapter tests (signed payloads, SSRF, dedupe, retry/backoff, quiet hours)** · NEW · P1 · M · Deps: `OBS-012`,`OBS-014`,`OBS-019`,`OBS-023`
+  - Why/Problem: integration tests for the dispatcher are named in the audit.
+  - Do: unit/integration specs per adapter with mocked HTTP; dedupe test (second delivery not sent while still down).
+  - Done when: all behaviours above covered.
+  - Status: todo · Verified-in-code: no · Source: observability.md#§5, journeys.md#J4-acceptance-5
+- [ ] `OBS-082` **Health probe scheduler, retention job, outbox dispatch and consumer-cursor tests** · NEW · P1 · M · Deps: `OBS-001`,`OBS-030`
+  - Why/Problem: retention job and dispatcher listed as needing integration tests.
+  - Do: tests for probe timing/transition, retention pruning, exactly-once outbox delivery, cursor resume.
+  - Done when: covered with deterministic clocks.
+  - Status: todo · Verified-in-code: no · Source: observability.md#§5, monolith-cutover.md#capabilities-3
+  - Effect-impact (2026-10-26): deterministic scheduler/lease/backoff tests need `TestClock`: `@effect/vitest` requires Vitest >=5 (repo `^4.1.9`, `package.json:91`); interim plain Vitest + `Effect.runPromise` + `TestClock` from `effect/testing`. Deps: `EFF-030`, `EFF-038`.
+- [ ] `OBS-083` **403 tests per controller for analytics, deployment logs, node metrics, health `detailed`, logs streams** · NEW · P0 · S · Deps: `OBS-052`
+  - Why/Problem: authorization gaps must be locked by tests.
+  - Do: viewer/non-member/admin matrix per procedure.
+  - Done when: matrix passes.
+  - Status: todo · Verified-in-code: no · Source: observability.md#§3.10, journeys.md#J4-acceptance-4
+  - Effect-impact (2026-10-26): 403 tests must go through middleware: `callProcedure` skips validation and middleware (`packages/transport/orpc/src/testing/index.ts:29-35`), so the current health controller spec never exercises auth; use oRPC `call()` or HTTP. Add anonymous/authenticated cases for svc-health `check`/`detailed`. Deps: `EFF-030`, `EFF-038`.
+- [ ] `OBS-084` **Replace the generic `analytics.states.test.tsx` harness with real analytics/report tests (CSV, period window, download route, honest `dataSource`)** · NEW · P2 · M · Deps: `OBS-053`..`OBS-055`
+  - Why/Problem: current page test is a generic states harness.
+  - Do: service tests for report generation and the page's data-source states.
+  - Done when: period and format regressions are caught.
+  - Status: todo · Verified-in-code: unverified · Source: observability.md#§3.12
+- [ ] `OBS-085` **Audit coverage guard: test that every mutating ORPC procedure writes exactly one audit row with redacted diff** · NEW · P1 · M · Deps: `OBS-071`,`OBS-072`
+  - Why/Problem: J6 acceptance "every mutation produces exactly one audit row".
+  - Do: contract-walking test failing on unaudited mutations; secret-redaction assertions.
+  - Done when: adding an unaudited mutation fails CI.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#J6-acceptance-6 · See also: `FEAT-156`
+- [ ] `OBS-086` **Metrics history tests (ring buffer, downsampling, retention) and `uptime` regression test** · NEW · P2 · S · Deps: `OBS-045`,`OBS-028`
+  - Why/Problem: needed for the new store and the 1000x uptime bug.
+  - Do: unit tests with fake time.
+  - Done when: boundaries (1 h/24 h) verified.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#J4-acceptance-3, observability.md#§3.8
+  - Effect-impact (2026-10-26): the uptime regression test must use a stubbed clock and fail on the current bug; existing 'reports uptime in seconds' spec (`health.controller.spec.ts`) passes with it. Closes with OBS-028.
+- [ ] `OBS-087` **E2E `debug-failing-service.spec.ts` (crashing fixture, explainer card, logs after `docker rm`, metrics history, webhook sink alert + dedupe + resolved, history entry, viewer 403, cross-node logs)** · NEW · P1 · L · Deps: `OBS-031`,`OBS-033`,`OBS-060`,`OBS-045`,`OBS-014`,`OBS-071`,`OBS-061`, `JRN-001`
+  - Why/Problem: J4 has an outline but no Playwright exists anywhere in the repo.
+  - Do: implement the 10-step outline with `crashingApp`, `webhookSink`, `mesh6` fixtures.
+  - Done when: spec passes nightly.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#J4-e2e · See also: `JRN-006`
+
+### Coverage-pass additions
+- [ ] `OBS-088` **Outbox backlog and dead-letter visibility (depth, oldest-unsent age, replay) with an alert** · NEW · P2 · S · Deps: `OBS-001`,`OBS-002`
+  - Why/Problem: outbox already has claim/retry/dead-letter, but once consumers exist (OBS-001) nobody can see a stuck consumer; a silent backlog would re-create the "nothing notifies" failure.
+  - Do: expose per-consumer lag, oldest unsent age and dead-letter list/replay via a health indicator and an admin view; feed a threshold rule (OBS-048).
+  - Done when: a stopped consumer shows growing lag and raises one alert; a dead-lettered event can be replayed.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai.md#outbox, monolith-cutover.md#capabilities-3
+- [ ] `OBS-089` **J4 pages: remove `as any` mutation casts and polling where a stream exists** · ENHANCE · P3 · S · Deps: `OBS-069`
+  - Why/Problem: J4 acceptance 7 requires no page in the debug journey to use `as any` for mutations or poll when a stream is available.
+  - Do: audit the service/logs/metrics/events pages; type the mutations via ORPC hooks; swap polling for streams.
+  - Done when: grep for `as any` and `refetchInterval` on the J4 pages is empty or justified.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#J4-acceptance-7
+
+## Decisions needed
+- [ ] DEC-OBS-1 Push identity: one server-wide VAPID keypair vs keep per-user keys encrypted at rest — options: (a) server-wide env keys + configurable contact, (b) per-user encrypted — recommendation: (a), standard design and removes plaintext-key storage.
+- [ ] DEC-OBS-2 Where does the notification engine live — options: (a) in `svc-identity`, (b) new `svc-notify` service, (c) in the BFF — recommendation: (b) if the tier survives (ARCH), otherwise (a); it needs outbox consumer isolation.
+- [ ] DEC-OBS-3 Metrics/log storage and transport under "mesh first, no source of truth" — options: (a) central Postgres time-series, (b) per-node ring buffers queried over the mesh, (c) embedded Prometheus/Loki — recommendation: (b) for recent history with (a)/(c) as an opt-in aggregator, consistent with no inbound ports; also decide Apprise bridge vs native adapters.
+- [ ] DEC-OBS-4 Where health probes run — options: (a) central scheduler probing over mesh, (b) node-local scheduler owning its services — recommendation: (b) (probe on the owning node, report transitions).
+- [ ] DEC-OBS-5 `healthCheckJobs`, `alertOnFailure/alertWebhookUrl/alertEmail` — options: wire into OBS-030/021 or delete — recommendation: delete the table, keep the columns only if they map to rules.
+- [ ] DEC-OBS-6 Report formats — options: keep PDF (needs renderer) vs CSV+JSON only — recommendation: CSV+JSON now, drop PDF from the contract.
+- [ ] DEC-OBS-7 Status page exposure — options: public per project, private only, none — recommendation: private by default, explicit per-project public toggle, served via the edge provider.
+- [ ] DEC-OBS-8 Persistent log store — options: Postgres ring (bounded), local files per node, Loki — recommendation: bounded per-node ring for crash logs (OBS-060), pluggable Loki drain for long retention.
+- [ ] DEC-OBS-9 Implement or remove stub analytics procedures (application/database/API-usage) — recommendation: remove application/DB-APM stubs, implement API-usage from the Traefik access log.
+- [ ] DEC-OBS-10 Which backend's analytics/push/health copy survives (depends on ARCH monolith cutover) — recommendation: services tier (identity/health), delete monolith copies.
+
+## Count table
+| | P0 | P1 | P2 | P3 | Total |
+|---|---|---|---|---|---|
+| Items | 4 | 45 | 31 | 9 | 89 (OBS-001..OBS-089) |
+
+> Effect-impact pass: 2026-10-26 — 23 items annotated

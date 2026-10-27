@@ -68,7 +68,7 @@ services:
       <<: *tier-build
       args:
         PRUNE_SCOPE: "@deployer/bff"
-        APP_DIR: apps/api-services/bff
+        APP_DIR: apps/api/bff
         APP_PORT: "3005"
     image: ${DEPLOYER_BFF_IMAGE:-deployer-svc-bff:local}
     command: ["echo", "bff image built: ${DEPLOYER_BFF_IMAGE:-deployer-svc-bff:local}"]
@@ -79,7 +79,7 @@ services:
       <<: *tier-build
       args:
         PRUNE_SCOPE: "@deployer/svc-health"
-        APP_DIR: apps/api-services/services/health
+        APP_DIR: apps/api/services/health
         APP_PORT: "3101"
     image: ${DEPLOYER_SVC_HEALTH_IMAGE:-deployer-svc-health:local}
     command: ["echo", "health image built: ${DEPLOYER_SVC_HEALTH_IMAGE:-deployer-svc-health:local}"]
@@ -90,7 +90,7 @@ services:
       <<: *tier-build
       args:
         PRUNE_SCOPE: "@deployer/svc-identity"
-        APP_DIR: apps/api-services/services/identity
+        APP_DIR: apps/api/services/identity
         APP_PORT: "3102"
     image: ${DEPLOYER_SVC_IDENTITY_IMAGE:-deployer-svc-identity:local}
     command: ["echo", "identity image built: ${DEPLOYER_SVC_IDENTITY_IMAGE:-deployer-svc-identity:local}"]
@@ -101,7 +101,7 @@ services:
       <<: *tier-build
       args:
         PRUNE_SCOPE: "@deployer/svc-project"
-        APP_DIR: apps/api-services/services/project
+        APP_DIR: apps/api/services/project
         APP_PORT: "3103"
     image: ${DEPLOYER_SVC_PROJECT_IMAGE:-deployer-svc-project:local}
     command: ["echo", "project image built: ${DEPLOYER_SVC_PROJECT_IMAGE:-deployer-svc-project:local}"]
@@ -112,7 +112,7 @@ services:
       <<: *tier-build
       args:
         PRUNE_SCOPE: "@deployer/svc-fleet"
-        APP_DIR: apps/api-services/services/fleet
+        APP_DIR: apps/api/services/fleet
         APP_PORT: "3104"
     image: ${DEPLOYER_SVC_FLEET_IMAGE:-deployer-svc-fleet:local}
     command: ["echo", "fleet image built: ${DEPLOYER_SVC_FLEET_IMAGE:-deployer-svc-fleet:local}"]
@@ -123,7 +123,7 @@ services:
       <<: *tier-build
       args:
         PRUNE_SCOPE: "@deployer/svc-runtime"
-        APP_DIR: apps/api-services/services/runtime
+        APP_DIR: apps/api/services/runtime
         APP_PORT: "3105"
     image: ${DEPLOYER_SVC_RUNTIME_IMAGE:-deployer-svc-runtime:local}
     command: ["echo", "runtime image built: ${DEPLOYER_SVC_RUNTIME_IMAGE:-deployer-svc-runtime:local}"]

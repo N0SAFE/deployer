@@ -1,0 +1,198 @@
+---
+title: Image Size and Disk Usage — Measured
+---
+
+Why every app image is ~2.8 GB, why `docker build` feels expensive, and what
+actually fills the host disk. All numbers below were measured on this repository,
+not estimated.
+
+## 1. The host disk, which is the real "tens of gigabytes"
+
+```text
+$ df -h /
+/dev/nvme0n1p7   517G   477G   13G   98%   /
+```
+
+98% full. That is what made swarm tasks sit in `Pending` and what made every
+build feel like it was fighting for space.
+
+```text
+$ docker system df
+TYPE            TOTAL   ACTIVE   SIZE       RECLAIMABLE
+Images          22      22       18.32GB    0B (0%)
+Containers      60      35       44.94GB    21.4GB (47%)
+Local Volumes   39      7        2.755GB    1.194GB (43%)
+```
+
+- **Containers: 44.9 GB**, because every swarm task that exits leaves its writable
+  layer behind — and the service supervisors restart tasks constantly while
+  converging. 26 exited containers had accumulated.
+- **Images: 18.3 GB** across 22 images, of which seven are this repo's app images
+  at 2.8–3.1 GB each.
+
+### The fix, and the measured result
+
+```bash
+docker container prune -f
+```
+
+```text
+Total reclaimed space: 51.13GB
+$ df -h /
+/dev/nvme0n1p7   517G   433G   58G   89%   /
+```
+
+**13 GB free → 58 GB free.** Every `Pending` task scheduled immediately after,
+which is how the disk was identified as the cause rather than a symptom:
+
+```text
+before:  deployer-redis 0/1, svc-health 0/1
+after:   all services 1/1
+```
+
+**Run `docker container prune -f` whenever `docker ps -a` shows many exited
+swarm tasks.** `docker service update --force` does not remove the old tasks.
+
+### Timings that also work but delete your images
+
+```bash
+docker builder prune -f     # 12.93 GB — safe, only rebuild cache
+docker image prune -f       # ← DO NOT run this here
+```
+
+`docker image prune -f` removes **dangling** images, and `deployer-svc-*:dev` is
+dangling by definition: nothing references it until a container starts. Measured
+on this repo — it left exactly one image (`deployer-mesh-agent:dev`) and the next
+`up` failed with:
+
+```text
+Error response from daemon: No such image: deployer-svc-bff:dev
+```
+
+The rebuild is correct and recovers, but it costs ~10 minutes. Use
+`docker image prune -a --filter "until=168h"` if you genuinely need image space,
+or just `docker builder prune -f`, which gives most of it back without touching a
+tag you rely on.
+
+## 2. Where 2.8 GB per image comes from
+
+`docker history` on a service image:
+
+```text
+   1.14GB  RUN cd /mnt/installer && tar … node_modules …     ← the bulk
+    330MB  RUN apk add bash curl wget git tar jq python3 make g++ …
+    323MB  RUN turbo run build --filter=…                     (baked packages)
+    157MB  COPY --from=node:22-alpine /usr/local /usr/local
+    109MB  RUN bun install -g turbo @nestjs/cli node-gyp
+     27MB  COPY /app/out/full/ .                              (app source)
+```
+
+The 1.14 GB is `node_modules`, and its content is the finding:
+
+```text
+$ du -sm /app/node_modules/.bun/*   (deployer-svc-bff)
+109  next@16.4.0
+ 97  @next/swc-linux-x64-gnu@16.4.0
+ 94  @next/swc-linux-x64-musl@16.4.0
+ 50  @tsc-rs-linux-x64@0.6.0
+ 40  @turbo/linux-64@2.11.7
+ 28  date-fns@4.4.0
+ 27  lucide-react@1.56.0
+ 27  @typescript/typescript-linux-x64@7.0.2
+ 24  typescript@6.0.3
+ 24  effect@3.22.2
+ 23  typescript@5.9.3
+```
+
+**Every image carries the whole build toolchain — including `svc-health`, whose
+entire job is a liveness probe:**
+
+```text
+deployer-svc-health    .bun 1082 MB   next ✓  eslint ✓  typescript ✓
+deployer-svc-identity  .bun 1083 MB   next ✓  eslint ✓  typescript ✓
+deployer-svc-bff       .bun 1343 MB   next ✓  eslint ✓  typescript ✓
+```
+
+### Why Next.js is in a NestJS image
+
+Not because anything imports it. `@deployer/ui` — a *shared* package — lists
+`next`, `react` and `tailwindcss` in its `devDependencies`, and this repo uses
+bun's **isolated** linker (`linker = "isolated"`), so installing a workspace
+dependency also installs that workspace's devDependencies. `svc-health` does not
+prune `ui/base` at all (`ui/base pruned in: no`) and still gets Next.
+
+`typescript`, `eslint`, `prettier` and `vitest` are similarly universal: they
+appear in **every** workspace's `devDependencies` (57 manifests declare
+`typescript`, 29 declare `eslint`), and `bun ci` installs devDependencies.
+
+### What the apps actually need at runtime
+
+```text
+dev:    bun --bun --watch src/main.ts
+start:  bun --bun src/main.ts
+```
+
+Bun transpiles TypeScript itself, so `typescript` is only ever invoked by
+`type-check`. ESLint and Vitest are only invoked by the repo's own scripts.
+
+## 3. What has been done
+
+`APP_INSTALL_PRODUCTION=1` removes the toolchain **after** the bake, and every
+image producer in `docker-compose.services.dev-supervised.yml` sets it.
+
+Measured inside the resulting container:
+
+```text
+production image: removing the build toolchain
+toolchain removed — .bun is now 507 MB      (was 1082 MB)
+```
+
+**It shrinks the filesystem, not the image.** The 1.14 GB layer is written by the
+`COPY` before the deletion, so `docker images` still reports 2.8 GB — deleting in a
+later layer only adds a whiteout. Verified: `.bun` 1082 → 507 MB while the reported
+image size did not move.
+
+What it buys today: a smaller writable layer, faster `docker cp`/`export`, and a
+smaller CVE-scan surface.
+
+**Why `bun ci --production` is not used at install time:** the `baked` build runs
+`turbo run build` over the internal packages, and those build scripts need
+`@deployer/pkg-build`, `typescript` and `tsup`. Installing production-only first
+fails the bake:
+
+```text
+@deployer/pkg-build:build: error: script "build" exited with code 1
+ERROR run failed: command exited (1)
+```
+
+The order must be: install everything → bake → drop what only the build needed.
+
+## 4. What would actually shrink the image
+
+A multi-stage split, which does not exist yet:
+
+1. A **build stage** installs everything and runs the bake.
+2. The **final stage** copies only the app's runtime dependency closure out of it
+   — not `node_modules` wholesale.
+
+The toolchain then never enters a layer, so the image is genuinely smaller
+(estimated 2.8 GB → under 800 MB given the ~575 MB of pure toolchain above).
+
+A cheaper intermediate step: move `next`, `react` and `tailwindcss` out of
+`@deployer/ui`'s `devDependencies` into `peerDependencies` only. They are already
+listed as peers, so consumers supply them; that alone removes ~300 MB from every
+service image without a Dockerfile change.
+
+## 5. Build time
+
+The build context is 2.8 GB on disk, but `.dockerignore` already excludes
+`node_modules`, `.git`, `.turbo`, `dist` and `.next`. The per-image cost is
+therefore dominated by two things:
+
+- the shared base layers (apk 330 MB, Node 157 MB, global install 109 MB), which
+  BuildKit caches across all eight images;
+- `bun ci` in the installer stage and `turbo run build` in the runner, neither of
+  which is cached between images because their inputs differ per `APP`.
+
+Building all eight images at once shares the base once; building them one at a
+time rebuilds nothing but still re-runs both heavy steps per image.

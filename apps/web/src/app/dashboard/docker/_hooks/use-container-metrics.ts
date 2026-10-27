@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useDockerContainerEventsStream } from '@/domains/docker/hooks'
-import type { DockerContainer } from '@repo/contracts-entities'
+import type { DockerContainer } from '@deployer/contracts-entities'
 import {
   buildBaseMetrics,
   buildMetricChartData,

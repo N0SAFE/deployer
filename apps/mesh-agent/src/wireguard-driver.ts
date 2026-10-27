@@ -9,7 +9,7 @@
  */
 
 import { writeFile } from "node:fs/promises";
-import { MESH_INTERFACE_MTU, parseWireguardDump, type WireguardDump } from "@repo/mesh-network";
+import { MESH_INTERFACE_MTU, parseWireguardDump, type WireguardDump } from "@deployer/mesh-network";
 
 import type { CommandRunner } from "./command-runner";
 

@@ -1,14 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@repo/ui/components/shadcn/select'
-import { Field, FieldLabel } from '@repo/ui/components/shadcn/field'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@repo/ui/components/shadcn/collapsible'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
+import { Field, FieldLabel } from '@deployer/ui/components/shadcn/field'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@deployer/ui/components/shadcn/collapsible'
 import { Plus, X, ChevronDown, ChevronRight, KeyRound, Layers, Boxes, Cpu, MemoryStick } from 'lucide-react'
 import type { CreateServiceFormApi, OrchestratorSubService } from '../CreateService.hook'
+import { Section } from './step-section'
 
 /* ─── Key/value editor (advanced env vars) ─────────────────────────── */
 
@@ -52,7 +53,7 @@ function EnvRowEditor({ items, onChange }: {
           </Button>
         </div>
       ))}
-      <Button type="button" variant="outline" size="sm" className="h-6 w-fit gap-1 text-[11px]" onClick={() => { update([...items, { key: '', value: '' }]) }}>
+      <Button type="button" variant="outline" size="sm" className="h-6 w-fit gap-1 text-xs" onClick={() => { update([...items, { key: '', value: '' }]) }}>
         <Plus className="size-3" /> Add variable
       </Button>
     </div>
@@ -80,26 +81,26 @@ function SubServiceEnvCard({ svc, mainEnv }: {
             <Layers className="size-3.5 shrink-0 text-muted-foreground" />
             <span className="truncate text-xs font-medium">{svc.name}</span>
             <span className="ml-auto flex shrink-0 items-center gap-1">
-              {overrideKeys.length > 0 && <Badge variant="outline" className="text-[9px] text-primary">{String(overrideKeys.length)} override</Badge>}
-              {cascadedKeys.length > 0 && <Badge variant="secondary" className="text-[9px]">{String(cascadedKeys.length)} cascaded</Badge>}
-              <span className="text-[10px] tabular-nums text-muted-foreground">{String(total)} total</span>
+              {overrideKeys.length > 0 && <Badge variant="outline" className="text-xs text-primary">{String(overrideKeys.length)} override</Badge>}
+              {cascadedKeys.length > 0 && <Badge variant="secondary" className="text-xs">{String(cascadedKeys.length)} cascaded</Badge>}
+              <span className="text-xs tabular-nums text-muted-foreground">{String(total)} total</span>
             </span>
           </button>
         </CollapsibleTrigger>
         <CollapsibleContent className="border-t px-2.5 py-2">
           {total === 0 ? (
-            <p className="text-[11px] text-muted-foreground">No environment variables.</p>
+            <p className="text-xs text-muted-foreground">No environment variables.</p>
           ) : (
             <div className="space-y-0.5">
               {Object.entries(effective).map(([k, v]) => {
                 const isOverride = k in svc.environment
                 return (
-                  <div key={k} className="flex items-center gap-2 text-[11px] font-mono">
+                  <div key={k} className="flex items-center gap-2 text-xs font-mono">
                     <span className="truncate">{k}</span>
                     <span className="flex-1 truncate text-muted-foreground">{v || '\u2014'}</span>
                     {isOverride
-                      ? <Badge variant="outline" className="shrink-0 text-[8px] text-primary">override</Badge>
-                      : <Badge variant="secondary" className="shrink-0 text-[8px]">cascade</Badge>}
+                      ? <Badge variant="outline" className="shrink-0 text-xs text-primary">override</Badge>
+                      : <Badge variant="secondary" className="shrink-0 text-xs">cascade</Badge>}
                   </div>
                 )
               })}
@@ -111,26 +112,6 @@ function SubServiceEnvCard({ svc, mainEnv }: {
   )
 }
 
-/* ─── Section wrapper ──────────────────────────────────────────────── */
-
-function Section({ title, description, icon, children }: {
-  title: string
-  description?: string
-  icon?: React.ReactNode
-  children: React.ReactNode
-}) {
-  return (
-    <div className="space-y-3 rounded-lg border bg-background/40 p-4">
-      <div>
-        <h4 className="flex items-center gap-1.5 text-sm font-semibold">
-          {icon}{title}
-        </h4>
-        {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
-      </div>
-      {children}
-    </div>
-  )
-}
 
 /* ─── Main step ────────────────────────────────────────────────────── */
 
@@ -161,16 +142,16 @@ export function StepAdvanced({ form }: { form: CreateServiceFormApi }) {
               {/* Orchestrator main env (cascades to all sub-services) */}
               <div className="rounded-md border bg-background/40 p-2.5">
                 <div className="mb-1.5 flex items-center justify-between">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Orchestrator main (cascades)
                   </p>
                   {Object.keys(mainEnv).length > 0 && (
-                    <Badge variant="outline" className="text-[9px]">{String(Object.keys(mainEnv).length)} vars → all sub-services</Badge>
+                    <Badge variant="outline" className="text-xs">{String(Object.keys(mainEnv).length)} vars → all sub-services</Badge>
                   )}
                 </div>
                 <form.Field name="runner.config.environment" children={(f) => (
                   <EnvRowEditor
-                    items={Object.entries((f.state.value as Record<string, string> | undefined) ?? {}).map(([key, value]) => ({ key, value }))}
+                    items={Object.entries(f.state.value ?? {}).map(([key, value]) => ({ key, value }))}
                     onChange={(rows) => {
                       const next: Record<string, string> = {}
                       for (const r of rows) { if (r.key) next[r.key] = r.value }
@@ -183,7 +164,7 @@ export function StepAdvanced({ form }: { form: CreateServiceFormApi }) {
               {/* Per-sub-service effective env */}
               <div className="space-y-1.5">
                 {subServices.length === 0 ? (
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     No sub-services yet — import them in the Runner step to see per-service variables.
                   </p>
                 ) : (
@@ -243,18 +224,18 @@ export function StepAdvanced({ form }: { form: CreateServiceFormApi }) {
             {/* Per-sub-service resource summary */}
             {isOrchestrator && subServices.length > 0 && (
               <div className="mt-3 space-y-1 border-t pt-3">
-                <p className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+                <p className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
                   <Boxes className="size-3" /> Per sub-service resources
                 </p>
                 {subServices.map((svc) => {
                   const r = svc.resources
                   return (
-                    <div key={svc.name || 'svc'} className="flex items-center gap-2 rounded-md border bg-background/40 px-2.5 py-1.5 text-[11px]">
+                    <div key={svc.name || 'svc'} className="flex items-center gap-2 rounded-md border bg-background/40 px-2.5 py-1.5 text-xs">
                       <span className="truncate font-medium">{svc.name}</span>
                       <span className="flex-1" />
-                      {r?.cpus ? <Badge variant="secondary" className="gap-1 text-[9px]"><Cpu className="size-2.5" /> {String(r.cpus)} CPU</Badge> : null}
-                      {r?.memory ? <Badge variant="secondary" className="gap-1 text-[9px]"><MemoryStick className="size-2.5" /> {r.memory}</Badge> : null}
-                      {!r?.cpus && !r?.memory ? <span className="text-[10px] text-muted-foreground">no limits</span> : null}
+                      {r?.cpus ? <Badge variant="secondary" className="gap-1 text-xs"><Cpu className="size-2.5" /> {String(r.cpus)} CPU</Badge> : null}
+                      {r?.memory ? <Badge variant="secondary" className="gap-1 text-xs"><MemoryStick className="size-2.5" /> {r.memory}</Badge> : null}
+                      {!r?.cpus && !r?.memory ? <span className="text-xs text-muted-foreground">no limits</span> : null}
                     </div>
                   )
                 })}

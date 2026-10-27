@@ -16,7 +16,7 @@ import React from 'react'
 import queryString from 'query-string'
 import { z } from 'zod'
 import type {
-} from "@repo/declarative-routing/types";
+} from "@deployer/declarative-routing/types";
 import type {
     Session,
     ServerAuthAdapter,
@@ -29,8 +29,8 @@ import type {
     RouteRuntimeConfig,
     PageRouteHelpers,
     RouteSearchPatch,
-} from '@repo/declarative-routing/types'
-import { isObjectLike } from "@repo/type-guards"
+} from '@deployer/declarative-routing/types'
+import { isObjectLike } from "@deployer/type-guards"
 
 // ============================================================================
 // Configuration - Must be set before using session wrappers
@@ -48,7 +48,7 @@ let dehydrateQueryClient: ((client: unknown) => unknown) | null = null
  * @example
  * ```tsx
  * // In your app's route setup
- * import { configureServerAuth } from '@repo/declarative-routing/page-wrappers'
+ * import { configureServerAuth } from '@deployer/declarative-routing/page-wrappers'
  * import { getSession } from '../../../../lib/auth'
  * import { QueryClient, HydrationBoundary, dehydrate } from '@tanstack/react-query'
  * 
@@ -265,7 +265,7 @@ function createServerRouteHelpers<
  * @example
  * ```tsx
  * // page.tsx (Server Component)
- * import { createPage } from '@repo/declarative-routing/page-wrappers'
+ * import { createPage } from '@deployer/declarative-routing/page-wrappers'
  * 
  * export default createPage(
  *   { params: z.object({ id: z.string() }), search: z.object({}) },
@@ -348,7 +348,7 @@ const DEFAULT_SESSION_COOKIE = 'better-auth.session_token'
  * 
  * @example
  * ```tsx
- * import { createSessionPage } from '@repo/declarative-routing/page-wrappers'
+ * import { createSessionPage } from '@deployer/declarative-routing/page-wrappers'
  * 
  * export default createSessionPage(
  *   { params: z.object({ id: z.string() }), search: z.object({}) },
@@ -486,7 +486,7 @@ export type CreatePageWrappersConfig<S extends Session = Session> = {
  * @example
  * ```tsx
  * // apps/web/src/routes/makeRoute.tsx
- * import { createPageWrappers } from '@repo/declarative-routing/page-wrappers/server'
+ * import { createPageWrappers } from '@deployer/declarative-routing/page-wrappers/server'
  * import { getSession } from '../../../../lib/auth'
  * import { QueryClient, HydrationBoundary, dehydrate } from '@tanstack/react-query'
  * import { cookies } from 'next/headers'
@@ -557,7 +557,7 @@ export function createPageWrappers<S extends Session = Session>(
  * @example Client-side usage (via conditional exports):
  * ```tsx
  * 'use client'
- * import { withClientSession } from '@repo/declarative-routing/page-wrappers'
+ * import { withClientSession } from '@deployer/declarative-routing/page-wrappers'
  * 
  * function MyComponent({ session }: { session: Session }) {
  *   return <div>{session.user.name}</div>
@@ -595,4 +595,4 @@ export type {
     RouteNavigationInput,
     RouteNavigationOptions,
     RouteSearchPatch,
-} from '@repo/declarative-routing/types'
+} from '@deployer/declarative-routing/types'

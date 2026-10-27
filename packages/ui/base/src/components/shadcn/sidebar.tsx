@@ -4,25 +4,25 @@ import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { Slot } from "radix-ui"
 
-import { useIsMobile } from "@repo/ui/hooks/use-mobile"
-import { cn } from "@repo/ui/lib/utils"
-import { Button } from "@repo/ui/components/shadcn/button"
-import { Input } from "@repo/ui/components/shadcn/input"
-import { Separator } from "@repo/ui/components/shadcn/separator"
+import { useIsMobile } from "@deployer/ui/hooks/use-mobile"
+import { cn } from "@deployer/ui/lib/utils"
+import { Button } from "@deployer/ui/components/shadcn/button"
+import { Input } from "@deployer/ui/components/shadcn/input"
+import { Separator } from "@deployer/ui/components/shadcn/separator"
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@repo/ui/components/shadcn/sheet"
-import { Skeleton } from "@repo/ui/components/shadcn/skeleton"
+} from "@deployer/ui/components/shadcn/sheet"
+import { Skeleton } from "@deployer/ui/components/shadcn/skeleton"
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@repo/ui/components/shadcn/tooltip"
+} from "@deployer/ui/components/shadcn/tooltip"
 import { PanelLeftIcon } from "lucide-react"
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"

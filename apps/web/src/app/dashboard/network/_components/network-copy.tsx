@@ -2,10 +2,10 @@
 
 import { formatDistanceToNowStrict } from 'date-fns'
 import { Globe, Lock, Waypoints, type LucideIcon } from 'lucide-react'
-import { Badge } from '@repo/ui/components/shadcn/badge'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { StatusBadge } from '@/components/dashboard'
 import { formatDateTime } from '@/lib/format/date'
-import type { EdgeHealth, IngressState } from '@repo/api-contracts/modules/reachability/index'
+import type { EdgeHealth, IngressState } from '@deployer/fleet-contracts/modules/reachability/index'
 
 /**
  * Words and small badges every Network page shares, so the same thing is never

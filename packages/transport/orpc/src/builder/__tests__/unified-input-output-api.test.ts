@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from 'vitest';
 import z from 'zod';
-import { RouteBuilder } from '@repo/orpc-utils/builder/core/route-builder';
+import { RouteBuilder } from '@deployer/orpc-utils/builder/core/route-builder';
 
 describe('Unified Input/Output API', () => {
   const userSchema = z.object({

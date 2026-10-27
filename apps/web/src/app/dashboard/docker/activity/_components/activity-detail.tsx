@@ -1,8 +1,8 @@
 'use client'
 
-import type { DockerRuntimeActivityEntity } from '@repo/contracts-entities'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
+import type { DockerRuntimeActivityEntity } from '@deployer/contracts-entities'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import { StatusBadge } from '@/components/dashboard'
 import { formatDateTime } from '@/lib/format/date'
 import { DockerContainerDetailModalTrigger } from '../../_components/container-detail-modal'

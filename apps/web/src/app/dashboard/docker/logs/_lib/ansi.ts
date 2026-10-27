@@ -104,8 +104,13 @@ function styleEquals(a: AnsiStyle, b: AnsiStyle): boolean {
 
 /** Remove C0 control characters other than tab (e.g. stray BEL / backspace / NUL). */
 function stripControls(text: string): string {
-  // eslint-disable-next-line no-control-regex
-  return text.replace(/[\u0000-\u0008\u000b-\u001f\u007f]/gu, '')
+  let out = ''
+  for (const char of text) {
+    const code = char.charCodeAt(0)
+    const isControl = code <= 0x08 || (code >= 0x0b && code <= 0x1f) || code === 0x7f
+    if (!isControl) out += char
+  }
+  return out
 }
 
 /** Parse a line into styled segments. Adjacent segments with equal style are merged. */

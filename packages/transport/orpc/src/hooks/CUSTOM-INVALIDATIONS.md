@@ -13,7 +13,7 @@ When you create custom mutation hooks that modify data, you need to invalidate r
 First, define your custom hooks using `defineCustomHooks`:
 
 ```typescript
-import { defineCustomHooks, defineCustomInvalidations, mergeHooks } from '@repo/orpc-utils/hooks'
+import { defineCustomHooks, defineCustomInvalidations, mergeHooks } from '@deployer/orpc-utils/hooks'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
 const customUserHooks = defineCustomHooks({
@@ -101,7 +101,7 @@ import {
   defineCustomHooks,
   defineCustomInvalidations,
   mergeHooks
-} from '@repo/orpc-utils/hooks'
+} from '@deployer/orpc-utils/hooks'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { orpc, appContract } from '@/lib/orpc'
 

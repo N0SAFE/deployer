@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import { Eye, EyeOff, Settings, Sliders } from 'lucide-react'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { QueryError } from '../../_components/query-error'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 import { useNodeStatus } from '@/domains/setup/hooks'
 import { useMeshNodeConfig, useMeshSseState } from '@/domains/mesh/hooks'
 import { formatDateTime } from '@/lib/format/date'
@@ -19,7 +20,7 @@ import { useNodeConfigForm } from './use-node-config-form'
  * values until it restarts.
  */
 export function NodeConfigCard() {
-  const { data: nodeConfig, isLoading } = useMeshNodeConfig()
+  const { data: nodeConfig, isLoading, error: configError, refetch: refetchConfig } = useMeshNodeConfig()
   const { data: nodeStatus, isLoading: statusLoading } = useNodeStatus()
   const { state: meshState } = useMeshSseState()
   const localNode = meshState?.localNode
@@ -76,6 +77,8 @@ export function NodeConfigCard() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
           </div>
+        ) : configError ? (
+          <QueryError what="this node's configuration" onRetry={() => { void refetchConfig() }} />
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             <ValueTile label="Node ID" hint="Identity in the mesh"><span className="break-all font-mono">{nodeConfig?.nodeId ?? nodeStatus?.nodeId ?? localNode?.nodeId ?? '—'}</span></ValueTile>

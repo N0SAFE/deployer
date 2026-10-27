@@ -15,20 +15,20 @@ import {
   createStreamedQueryHook,
   type ExtractMutationInput,
   type ExtractMutationOutput,
-} from '@repo/orpc-utils/hooks/core/hook-factories';
+} from '@deployer/orpc-utils/hooks/core/hook-factories';
 import {
   detectOperationType,
   inferInvalidations,
-} from '@repo/orpc-utils/hooks/core/operation-detection';
+} from '@deployer/orpc-utils/hooks/core/operation-detection';
 import type {
-} from "@repo/orpc-utils/hooks/types/index";
-import { isObjectLike } from "@repo/type-guards";
+} from "@deployer/orpc-utils/hooks/types/index";
+import { isObjectLike } from "@deployer/type-guards";
 import type {
   InvalidationConfig,
   MutationProcedureNames,
   RouterHooks,
   RouterHooksOptions,
-} from '@repo/orpc-utils/hooks/types/index';
+} from '@deployer/orpc-utils/hooks/types/index';
 
 // Re-export runtime helpers/types for stable public API
 export {
@@ -36,7 +36,7 @@ export {
   createMutationHook,
   createStreamedQueryHook,
   createLiveQueryHook,
-} from '@repo/orpc-utils/hooks/core/hook-factories';
+} from '@deployer/orpc-utils/hooks/core/hook-factories';
 export type {
   ExtractInput,
   ExtractOutput,
@@ -44,14 +44,14 @@ export type {
   ExtractMutationOutput,
   StreamedQueryOptions,
   LiveQueryOptions,
-} from '@repo/orpc-utils/hooks/core/hook-factories';
+} from '@deployer/orpc-utils/hooks/core/hook-factories';
 
 export {
   detectOperationType,
   inferInvalidations,
   isEventIteratorOutput,
-} from '@repo/orpc-utils/hooks/core/operation-detection';
-export type { OperationType } from '@repo/orpc-utils/hooks/core/operation-detection';
+} from '@deployer/orpc-utils/hooks/core/operation-detection';
+export type { OperationType } from '@deployer/orpc-utils/hooks/core/operation-detection';
 
 // Re-export all generate-hooks public types from dedicated type module
 export type {
@@ -73,7 +73,7 @@ export type {
   ExtractCustomHookInput,
   ExtractCustomHookOutput,
   CustomInvalidationContext,
-} from '@repo/orpc-utils/hooks/types/index';
+} from '@deployer/orpc-utils/hooks/types/index';
 
 /**
  * Generate all hooks for an ORPC router with automatic cache invalidation.

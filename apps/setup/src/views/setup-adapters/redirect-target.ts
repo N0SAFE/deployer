@@ -44,7 +44,7 @@ export function resolvePostSetupRedirect(search?: string): string {
 
 	// Already on the web surface (or a single-origin deployment): the dashboard
 	// is on THIS origin, so stay relative.
-	if (!/^setup\./.test(hostname)) return target;
+	if (!hostname.startsWith("setup.")) return target;
 
 	// Cross-origin hand-off: the wizard is on `setup.<domain>` and the dashboard
 	// on `web.<domain>`. This is the ONLY case needing an absolute URL, and the

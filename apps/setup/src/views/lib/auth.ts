@@ -19,7 +19,7 @@
  * every surface.
  */
 
-import { createAuthClientFactory } from "@repo/auth/client";
+import { createAuthClientFactory } from "@deployer/auth/client";
 
 // Explicit `ReturnType` annotation matches the web app: it pins the client
 // type to the factory's declared return, which keeps plugin inference stable

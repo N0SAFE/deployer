@@ -1,9 +1,10 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useOnDepsChange } from '../../_hooks/use-on-deps-change'
 import {
-  CONFIG_PRESETS, createInitialState, emptyRow, validateForm,
-  type ContainerFormState, type FormErrors, type ListKey,
+  CONFIG_PRESETS, createInitialState, emptyRow,
+  type ContainerFormState, type ListKey,
 } from './container-form.model'
+import { validateForm, type FormErrors } from './container-form.validation'
 
 export interface FieldProps {
   id: string

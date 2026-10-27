@@ -1,5 +1,5 @@
-import { existsSync, rmSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import Dockerode from "dockerode";
 
@@ -14,7 +14,7 @@ import Dockerode from "dockerode";
  * The container runs the PRODUCTION build produced by `bun --bun run build`
  * (the package.json `test:e2e` script chains it before the tests):
  *
- *   - Image:    oven/bun:1.4.2 (Debian/glibc — same bun version as the repo's
+ *   - Image:    oven/bun:1.4.3 (Debian/glibc — same bun version as the repo's
  *               Dockerfiles; glibc so host-built native binaries stay loadable)
  *   - Mount:    the whole monorepo, read-only, at /app (hoisted node_modules
  *               symlinks resolve identically inside the container)
@@ -29,7 +29,7 @@ export const WEB_E2E_BASE_URL_FILE = resolve(
   "deployer-e2e-web-base-url.txt",
 );
 
-const WEB_E2E_IMAGE = "oven/bun:1.4.2";
+const WEB_E2E_IMAGE = "oven/bun:1.4.3";
 const CONTAINER_PORT = "3000";
 /**
  * Preferred host port — only used when free. Like apps/api's shared Postgres
@@ -148,6 +148,27 @@ async function waitForServerReady(baseUrl: string): Promise<void> {
   );
 }
 
+/**
+ * With `[install] globalStore = true` (bunfig.toml) the repo's `node_modules/.bun/*`
+ * entries are symlinks into `~/.bun/install/cache`, outside the bind-mounted repo,
+ * so every dependency would dangle inside the container. Mount that cache at the
+ * SAME absolute path (the symlinks are absolute) so they resolve. Empty when the
+ * install is self-contained.
+ */
+function globalStoreBinds(repoRoot: string): string[] {
+  try {
+    const real = realpathSync(resolve(repoRoot, "node_modules/.bun/node_modules/react"));
+    if (!relative(repoRoot, real).startsWith("..")) return [];
+    const marker = `${sep}install${sep}cache${sep}`;
+    const at = real.indexOf(marker);
+    if (at === -1) return [];
+    const store = real.slice(0, at + marker.length - 1);
+    return [`${store}:${store}:ro`];
+  } catch {
+    return [];
+  }
+}
+
 export async function startSharedWebContainer(): Promise<string> {
   if (sharedWebContainer) {
     writeBaseUrlToFile(sharedWebContainer.baseUrl);
@@ -184,7 +205,11 @@ export async function startSharedWebContainer(): Promise<string> {
       // Repo read-only; apps/web writable so `next start` can write its
       // compiled config and .next/cache at runtime (runs as host UID, so
       // writes land as the invoking user).
-      Binds: [`${repoRoot}:/app:ro`, `${cwd}:/app/apps/web`],
+      Binds: [
+        `${repoRoot}:/app:ro`,
+        `${cwd}:/app/apps/web`,
+        ...globalStoreBinds(repoRoot),
+      ],
       // Random free host port — no conflicts with orphans/parallel runs
       // (same approach as apps/api's shared Postgres container).
       PublishAllPorts: true,

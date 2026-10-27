@@ -1,7 +1,7 @@
 .vscode
 .tsbuildinfo
 *.tsbuildinfo
-.pkg-build-types.tsconfig.json
+.pkg-build-types.*
 
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
@@ -37,6 +37,14 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+# Per-environment deployment config. These describe a REAL deployment (hostnames,
+# compose project name, seeding flags) and must not be committed — cloning the repo
+# should never hand someone a production-shaped config pointing at a live domain.
+# Use the committed `.env.prod.example` as the template.
+.env.prod
+.env.staging
+.env.dev
+
 # turbo
 .turbo
 
@@ -56,4 +64,28 @@ graphify-out/
 # ESLint cache (generated, per-package)
 .eslintcache
 **/.eslintcache
+
+# Type-check / test output dumps (the writing script varies the name)
+type-check-output.txt
+type_check_output.txt
+full-type-check-output.txt
+*-check-output.txt
+
+# Scratch probes and debug helpers
+probe-cold.*
+tmp-sc9-*.ts
+tmp-probe/
 /tmp
+# python bytecode (scripts/*.py helpers)
+__pycache__/
+*.pyc
+
+# stray curl cookie jars / scratch logs used while debugging the API tier
+/200
+/300
+/800
+/PG
+/api.log
+/test.txt
+/temp.txt
+/ts-output.txt

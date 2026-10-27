@@ -8,9 +8,9 @@
 set -euo pipefail
 
 paths=(
-  "apps/api-services/shared/src/core/modules/swarm"
+  "apps/api/shared/src/core/modules/swarm"
   "packages/nest/swarm/src"
-  "apps/api-services/services/runtime/src/modules/runners/swarm"
+  "apps/api/services/runtime/src/modules/runners/swarm"
 )
 
 # A path that no longer exists must FAIL the guard: grep's errors are swallowed below, so a

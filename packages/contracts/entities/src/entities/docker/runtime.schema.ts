@@ -1,29 +1,29 @@
 import z from 'zod/v4'
-import { dockerListMetaSchema } from '@deployer/contracts-entities/entities/docker/common.schema'
+import { dockerListMetaSchema } from './common.schema'
 import {
   dockerContainerRuntimeActionSchema,
   dockerContainerRuntimeEventSchema,
   dockerContainerEntitySchema,
   dockerDeploymentSnapshotSchema,
   dockerServiceSnapshotSchema,
-} from '@deployer/contracts-entities/entities/docker/containers/index'
+} from './containers/index'
 import {
   dockerImageEntitySchema,
   dockerImageRuntimeActionSchema,
   dockerImageRuntimeEventSchema,
-} from '@deployer/contracts-entities/entities/docker/images/index'
+} from './images/index'
 import {
   dockerNetworkEntitySchema,
   dockerNetworkRuntimeActionSchema,
   dockerNetworkRuntimeEventSchema,
-} from '@deployer/contracts-entities/entities/docker/networks/index'
+} from './networks/index'
 import {
   dockerVolumeEntitySchema,
   dockerVolumeRuntimeActionSchema,
   dockerVolumeRuntimeEventSchema,
-} from '@deployer/contracts-entities/entities/docker/volumes/index'
-import { dockerRegistryEntitySchema } from '@deployer/contracts-entities/entities/docker/registries/index'
-import { dockerStackEntitySchema } from '@deployer/contracts-entities/entities/docker/stacks/index'
+} from './volumes/index'
+import { dockerRegistryEntitySchema } from './registries/index'
+import { dockerStackEntitySchema } from './stacks/index'
 
 export const dockerRuntimeEventSourceSchema = z.enum([
   'container',

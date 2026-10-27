@@ -1,7 +1,7 @@
 import { Suspense, type JSX } from 'react'
 import MainNavigation from '@/components/navigation/MainNavigation'
 import { SessionHydrationProvider } from '@/utils/providers/SessionHydrationProvider'
-import Loader from '@repo/ui/components/atomics/atoms/Loader'
+import Loader from '@deployer/ui/components/atomics/atoms/Loader'
 
 /**
  * App Route Group Layout

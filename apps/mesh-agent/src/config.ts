@@ -8,7 +8,7 @@
  */
 
 import { hostname } from "node:os";
-import { AGENT_SOCKET_DIR, DEFAULT_MESH_LISTEN_PORT, DEFAULT_STUN_SERVERS, isIpv4, MESH_GOSSIP_PORT, MESH_INTERFACE_NAME } from "@repo/mesh-network";
+import { AGENT_SOCKET_DIR, DEFAULT_MESH_LISTEN_PORT, DEFAULT_STUN_SERVERS, isIpv4, MESH_GOSSIP_PORT, MESH_INTERFACE_NAME } from "@deployer/mesh-network";
 import z from "zod/v4";
 
 const listSchema = z

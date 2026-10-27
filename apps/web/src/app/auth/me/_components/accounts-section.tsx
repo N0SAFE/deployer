@@ -17,16 +17,16 @@ import {
     UserPlus,
     Users,
 } from 'lucide-react'
-import { Avatar, AvatarFallback } from '@repo/ui/components/shadcn/avatar'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button, buttonVariants } from '@repo/ui/components/shadcn/button'
+import { Avatar, AvatarFallback } from '@deployer/ui/components/shadcn/avatar'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button, buttonVariants } from '@deployer/ui/components/shadcn/button'
 import {
     Card,
     CardContent,
     CardDescription,
     CardHeader,
     CardTitle,
-} from '@repo/ui/components/shadcn/card'
+} from '@deployer/ui/components/shadcn/card'
 import {
     Dialog,
     DialogContent,
@@ -34,9 +34,9 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from '@repo/ui/components/shadcn/dialog'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
-import { Spinner } from '@repo/ui/components/atomics/atoms/Icon'
+} from '@deployer/ui/components/shadcn/dialog'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
+import { Spinner } from '@deployer/ui/components/atomics/atoms/Icon'
 import { AuthMe, AuthSignin } from '@/routes'
 import { useSession } from '@/lib/auth'
 import { cn } from '@/lib/utils'

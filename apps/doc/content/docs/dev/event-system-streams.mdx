@@ -80,7 +80,7 @@ flowchart LR
 
 ### 1) Base typed event bus (`BaseEventService`)
 
-File: `apps/api/src/core/modules/events/base-event.service.ts`
+File: `packages/nest/events/src/base-event.service.ts`
 
 - In-memory event channels keyed by `eventPrefix:eventName:firstInputValue`
 - Type-safe `subscribe(...)` and `emit(...)` with Zod validation
@@ -94,7 +94,7 @@ This is the low-level primitive used by feature event services like deployment.
 
 ### 2) Deployment event contracts
 
-File: `apps/api/src/modules/deployment/services/deployment-event.service.ts`
+File: `apps/api/services/runtime/src/modules/deployment/events/deployment-event.service.ts`
 
 Deployment defines strongly typed events (`deploymentTriggered`, `statusChanged`, `logAppended`, etc.) via `contractBuilder()` and extends `BaseEventService`.
 
@@ -102,7 +102,7 @@ So producers/consumers are validated at runtime and typed at compile-time.
 
 ### 3) Replay + live stream composition
 
-File: `apps/api/src/modules/deployment/services/deployment.service.ts`
+File: `apps/api/services/runtime/src/modules/deployment/services/deployment.service.ts`
 
 Each stream endpoint composes:
 
@@ -117,7 +117,7 @@ via `toSequencedAsyncIterable(...)`.
 
 ### 4) Core sync service (namespace adapters)
 
-File: `apps/api/src/core/modules/events/services/core-event-sync.service.ts`
+File: `apps/api/shared/src/core/modules/events/services/core-event-sync.service.ts`
 
 Core sync stores stream definitions in `core_event_streams`, then streams through a namespace adapter:
 
@@ -134,7 +134,7 @@ Core sync stores stream definitions in `core_event_streams`, then streams throug
 
 ### 5) Auto-mirroring from deployment stream definitions to core stream definitions
 
-File: `apps/api/src/modules/deployment/services/deployment.service.ts`
+File: `apps/api/services/runtime/src/modules/deployment/services/deployment.service.ts`
 
 When deployment stream definitions are managed:
 
@@ -191,7 +191,7 @@ Also in `packages/contracts/api/common/event-stream.ts`:
 ### A) User/business stream endpoints
 
 Contracts file: `packages/contracts/api/modules/deployment/stream.ts`  
-Controller: `apps/api/src/modules/deployment/controllers/deployment.controller.ts`
+Controller: `apps/api/services/runtime/src/modules/deployment/controllers/deployment.controller.ts`
 
 - `GET /deployments/{id}/stream`
 - `GET /deployments/services/{serviceId}/stream`
@@ -221,7 +221,7 @@ Stores business-oriented stream definitions and references core with `core_strea
 
 ### `core_event_streams`
 
-File: `apps/api/src/config/drizzle/schema/events.ts`
+File: `packages/nest/schema/src/global/platform/events.ts`
 
 Stores generic sync definitions independent of any business module internals.
 
@@ -274,14 +274,14 @@ The mesh transport uses the same ORPC contract system as the public API. Interna
 
 ## Relevant source files
 
-- `apps/api/src/core/modules/events/base-event.service.ts`
-- `apps/api/src/core/modules/events/event-contract.builder.ts`
-- `apps/api/src/core/modules/events/services/core-event-sync.service.ts`
+- `packages/nest/events/src/base-event.service.ts`
+- `packages/nest/events/src/event-contract.builder.ts`
+- `apps/api/shared/src/core/modules/events/services/core-event-sync.service.ts`
 - `apps/api/src/core/modules/events/controllers/core-event-sync.controller.ts`
-- `apps/api/src/core/modules/events/repositories/core-event-stream.repository.ts`
-- `apps/api/src/modules/deployment/services/deployment-event.service.ts`
-- `apps/api/src/modules/deployment/services/deployment.service.ts`
-- `apps/api/src/modules/deployment/controllers/deployment.controller.ts`
+- `apps/api/shared/src/core/modules/events/repositories/core-event-stream.repository.ts`
+- `apps/api/services/runtime/src/modules/deployment/events/deployment-event.service.ts`
+- `apps/api/services/runtime/src/modules/deployment/services/deployment.service.ts`
+- `apps/api/services/runtime/src/modules/deployment/controllers/deployment.controller.ts`
 - `packages/contracts/api/common/deployment.ts`
 - `packages/contracts/api/common/event-stream.ts`
 - `packages/contracts/api/modules/deployment/stream.ts`

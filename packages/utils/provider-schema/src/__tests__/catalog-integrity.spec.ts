@@ -6,7 +6,7 @@ import {
     providersCatalog,
     providerConfigValidators,
     providerSchemasCatalog,
-} from "@repo/provider-schema/index";
+} from "@deployer/provider-schema/index";
 
 describe("provider-schema catalog integrity", () => {
     it("keeps provider catalogs, schemas, and validators aligned", () => {
@@ -24,6 +24,43 @@ describe("provider-schema catalog integrity", () => {
         for (const id of builderIds) {
             expect(builderSchemasCatalog[id]).toBeDefined();
             expect(builderConfigValidators[id]).toBeDefined();
+        }
+    });
+
+    /**
+     * The catalog MUST agree with the builders the deployment pipeline accepts.
+     *
+     * This assertion was missing, and its absence is why the catalog drifted: it listed
+     * `"static"` — a builder with no strategy and no member in
+     * `deploymentBuilderKindSchema` — while omitting `docker_compose`, `buildpack`,
+     * `railpack` and `external`. Self-consistency (the test above) cannot catch that:
+     * a catalog can be internally consistent and still describe features that do not
+     * exist. Comparing against the deployment enum is the only check that ties the UI's
+     * options to reality.
+     */
+    it("lists exactly the builders the deployment pipeline accepts", () => {
+        const deploymentBuilderKinds = [
+            "dockerfile",
+            "docker_compose",
+            "nixpacks",
+            "buildpack",
+            "railpack",
+            "external",
+        ];
+
+        expect(buildersCatalog.map((builder) => builder.id).sort()).toEqual(
+            [...deploymentBuilderKinds].sort(),
+        );
+    });
+
+    it("has no builder config schema for a builder that does not exist", () => {
+        const catalogIds = new Set(buildersCatalog.map((builder) => builder.id));
+
+        for (const id of Object.keys(builderSchemasCatalog)) {
+            expect(catalogIds.has(id)).toBe(true);
+        }
+        for (const id of Object.keys(builderConfigValidators)) {
+            expect(catalogIds.has(id)).toBe(true);
         }
     });
 

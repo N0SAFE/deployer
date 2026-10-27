@@ -4,7 +4,7 @@ import type { LayoutProps } from "@nestjs-ssr/react";
 /**
  * Root layout shared by every SSR page served from the API (the
  * `@nestjs-ssr/react` page system). Renders the same design language as the
- * web app via `@repo/ui` + the shared Tailwind globals.
+ * web app via `@deployer/ui` + the shared Tailwind globals.
  */
 export default function RootLayout({ children, layoutProps }: LayoutProps<{ title?: string }>) {
 	return (

@@ -1,0 +1,453 @@
+---
+title: Services, Supervised by the Swarm
+---
+
+`bun run dev:services:supervised` runs the **microservices tier** the way
+`bun run dev:supervised` runs the monolith: compose builds images and gets out of
+the way, and the **platform** schedules and supervises everything else.
+
+## What compose does, and what it does not
+
+| Compose does | Compose does NOT do |
+|---|---|
+| Build the seven app images (`build-svc-*`, `build-mesh-agent`) | Run the BFF |
+| Run `setup-dev` — the only long-lived service | Run any `svc-*` |
+| Exit each producer with `restart: "no"` | Run the global database, Redis or Traefik |
+
+Everything in the right-hand column is a **swarm service** created during
+onboarding. Confirmed on a live run:
+
+```text
+$ docker service ls
+deployer-redis   1/1   redis:7-alpine
+svc-bff          1/1   deployer-svc-bff:dev
+svc-fleet        1/1   deployer-svc-fleet:dev
+svc-health       1/1   deployer-svc-health:dev
+svc-identity     1/1   deployer-svc-identity:dev
+svc-project      1/1   deployer-svc-project:dev
+svc-runtime      1/1   deployer-svc-runtime:dev
+```
+
+## Why compose cannot own the apps
+
+A compose container belongs to no cluster: no placement, no restart policy
+across nodes, no `docker service ls` visibility. Letting compose run `svc-*`
+would produce a stack that *looks* supervised while exercising none of it.
+
+## The handover, in order
+
+1. **compose** builds the images and starts `setup-dev`.
+2. **setup** founds the swarm and opens the wizard.
+3. The operator completes onboarding; the gate opens.
+4. **`ServicesTierProvisioner`** (`apps/setup/src/modules/handover/services/`)
+   creates `svc-bff` and the five services on the platform overlay, then attaches
+   **setup itself** to that overlay.
+5. **`ApiServiceProvisioner`** hands over to `svc-bff`.
+6. The BFF's own supervisors take over the continuous work — database, Redis,
+   ingress.
+
+Steps 4–6 are one-shot; step 6 is what "supervised" means over time.
+
+## Which architecture a node runs
+
+One variable decides it:
+
+| `DEPLOYER_BFF_IMAGE` | Scheduled |
+|---|---|
+| unset | the monolith, from `DEPLOYER_API_IMAGE` |
+| set | the BFF plus the five services, each from `DEPLOYER_SVC_<NAME>_IMAGE` |
+
+Setting the BFF tag is the switch because the BFF is what replaced the monolith
+as the public surface — scheduling `DEPLOYER_API_IMAGE` on a microservices node
+would put the wrong application behind `api.<host>`.
+
+## Things that are load-bearing, and why
+
+Each of these was a real failure on a live run.
+
+**Setup must join the overlay.** A swarm service's name resolves *only* on a
+swarm-scoped network. Setup creates the tier and then could not dial it:
+
+```text
+Upstream http://svc-bff:3005/setup/stream unreachable: getaddrinfo ENOTFOUND svc-bff
+```
+
+while `docker service ls` reported `svc-bff 1/1`. The attach happens **after**
+`ensureTier()` — the tier creates the overlay, so attaching first targets a
+network that does not exist yet.
+
+**The address comes from config, not a hardcoded name.** `resolveApiBaseUrl`
+used to replace the host with `deployer-api`, which is only correct when the
+public app *is* the monolith. It now keeps the configured host
+(`http://svc-bff:3005` here), so "where setup dials" and "where the ingress
+routes" are one value.
+
+**The profile has its own `node_config` volume.** `node_config.database_url` is
+the single row that decides which database every app uses, and it is written by
+whichever profile onboarded the node. Sharing it with `dev:services` imports a
+URL that is wrong here:
+
+```text
+database_url          = postgresql://deployer:***@nextjs-nestjs-global-db:5432/deployer
+database_provisioning = external
+```
+
+`nextjs-nestjs-global-db` is the *compose* database from the other profile.
+Nothing runs it here, so the BFF crash-looped:
+
+```text
+getaddrinfo ENOTFOUND nextjs-nestjs-global-db
+task: non-zero exit (1)     → svc-bff 0/N, restarting
+```
+
+`nextjs-nestjs_supervised_local_db` makes the two profiles independent. On a
+fresh volume setup correctly reports *"No previous setup found — the wizard will
+collect the details"*.
+
+**`MANAGED_GLOBAL_DB_ENABLED=false`** — the opposite of the compose-owned
+profile. There, compose ran the database and every app derived its URL from env.
+Here the platform provisions it, and the URL comes from `node_config`.
+
+**The BFF must import the supervisors.** They shipped in `api` but were
+imported by **no app**, so a scheduled BFF booted with no registry and nothing
+converged the platform's own infrastructure — `deployer-postgres` and
+`deployer-traefik` stayed at 0/1. The monolith has always imported them, which is
+why the supervised monolith profile worked and this one could not.
+
+**The ingress needs `DEPLOYER_API_TARGET=svc-bff`.** Traefik polls the public app
+for its routing table, and the default host is `deployer-api` — the monolith's
+name. On this tier that resolves to nothing, so the provider loops and the
+ingress serves its own 404 for every hostname while all seven services report
+1/1:
+
+```text
+ERR Provider error, retrying: cannot fetch configuration data:
+  Get "http://deployer-api:3005/internal/ingress/traefik-config":
+  dial tcp: lookup deployer-api ... no such host
+```
+
+The tier sets the override, and `TraefikCoreModule` on the BFF is what answers
+the provider at all.
+
+**Setup is the one image that keeps its `devDependencies`.** Every `svc-*` builds
+with `APP_INSTALL_PRODUCTION=1`, because each starts with `bun --bun src/main.ts`
+and bun transpiles TS itself — the toolchain is build-time only, and dropping it
+takes `node_modules/.bun` from 1082 MB to 507 MB.
+
+Setup does not work that way. Its image CMD is `bun run dev`
+(`Dockerfile.app.dev`), which runs `scripts/entrypoint.dev.ts` and spawns **both**
+`dev:vite` and `dev:nest`. It is a Vite SSR app: `@deployer/vite-assets` proxies
+`/vite/` to a listener on 5174, and with nothing bound there the wizard renders
+inert HTML with every asset 404ing. So stripping devDependencies deletes `vite`
+and the container crash-loops forever:
+
+```text
+error: script "dev:vite" exited with code 127
+error: script "dev" exited with code 127 (restarting)
+```
+
+127 is *command not found*, and nothing in the log says "vite is missing" — the
+failure reads like a setup bug rather than a packaging one. `setup-dev` therefore
+passes `APP_INSTALL_PRODUCTION=0`.
+
+**`SETUP_MODE=prod` is not a build mode.** It describes *ownership* (who
+schedules the apps), not how the app is built. Treating it as licence to strip
+the wizard's toolchain is what produced the 127 loop above.
+
+**`build-web` needs `APP_SRC_DIR=web` and its toolchain.** Two omissions, one
+crash. The Dockerfile WORKDIRs into `/app/apps/${APP_SRC_DIR}`; omitting the arg
+made it `/app/apps` — a directory that exists, so the build succeeded and
+`bun run dev` then walked up to the monorepo ROOT `package.json`:
+
+```text
+$ dotenv -e .env -e .env.local -- bun scripts/compose.ts --file docker-compose.dev.yml
+error: Module not found "scripts/compose.ts"
+error: script "dev" exited with code 1        (deployer-managed-web 0/1, forever)
+```
+
+The exit code named a missing *module*, not a missing *workdir*, so the crash
+read as a broken script. `APP_INSTALL_PRODUCTION=1` compounded it: Next.js is a
+runtime dependency of this image (its CMD is `bun run dev`), unlike the `svc-*`
+images that start with `bun --bun src/main.ts`. Both flags now match setup's.
+
+**`MANAGED_WEB_APP_EXTERNAL` must be forwarded with `ENABLED`.** The BFF's
+resolver checks `EXTERNAL` **first** and returns `null` immediately when truthy;
+`ENABLED` is only consulted when `EXTERNAL` is falsy. The tier forwarded `ENABLED`
+alone, and the BFF's schema defaults `EXTERNAL` to `true` (right for every profile
+where compose runs the web). Result: the supervisor still created
+`deployer-managed-web` — it reads `ENABLED`, which did arrive — so the service sat
+1/1 while `resolveWebTarget()` returned `null` and **no** `platform-web` router was
+written. Measured: `docker service inspect svc-bff` showed
+`MANAGED_WEB_APP_ENABLED=true` and no `EXTERNAL` entry at all, while
+`web.deployer.localhost` returned 502 with every service 1/1.
+
+Both flags are now forwarded together from `ServicesTierProvisioner`, and
+`MANAGED_WEB_APP_EXTERNAL` was added to the setup env schema so the read
+type-checks.
+
+**The ingress is HTTP-provider-based, not file-based.** Traefik polls
+`http://svc-bff:3005/internal/ingress/traefik-config` every 5s and pulls routes
+from there (`--providers.http.endpoint`). The `deployer-traefik-config` volume is
+what *setup* writes its bootstrap routes into; once the BFF owns the ingress, the
+authoritative config is the HTTP response. Checking the volume for
+`dynamic-web.yml` therefore proves nothing about whether `web.<host>` is routed —
+query the endpoint instead.
+
+**The tier readiness gate.** On the microservices tier "is the API ready?" is two
+questions, and setup asks both:
+| Probe | Question | Prevents |
+|---|---|---|
+| BFF `/health/ready` | is the BFF itself up? | swapping the ingress onto a dead process |
+| BFF `/health/platform/ready` | is the whole tier behind it green? | a 200 from a BFF with nothing behind it |
+
+`/health/ready` is bound by the shared server's preflight and knows only that
+process's own dependencies — it cannot see `svc-project`, `svc-fleet`, or anything
+the BFF merely calls. So a tier whose backends are all still starting reported
+200, the handover swapped the ingress, and the operator landed on a console whose
+every request failed while setup declared success and exited.
+
+`/health/platform/ready` (new) fans out to every service's `/health/ready` and
+returns **503 until all are green**, naming the ones still down —
+`"2 service(s) not ready — project (…), fleet (fetch failed)"`. A monolith has no
+such endpoint; its 404 is read as "no tier to wait for" so onboarding still works.
+`/health/platform` (diagnostic, always 200) and the roll-up both need
+`@AllowAnonymous()` — the auth guard is global, so the note "public by design" in
+the old comment was not enough and the endpoint answered `401` to every probe.
+
+## "Stuck on the last screen": the entry port was never handed over
+
+The wizard's final screen appeared to hang. There were two independent causes, and
+the first one is a platform outage rather than a UI problem.
+
+**1. Promotion dropped the entry port.** `TraefikSupervisorService.edgePorts()`
+returned only the operator-ACKNOWLEDGED public edge. On a workstation that list is
+empty, so the promoted swarm ingress asked for **no host port at all**:
+
+```text
+docker service inspect deployer-traefik → Endpoint.Ports: null
+tcp connect 127.0.0.1:80                → connection refused
+```
+
+`releaseEntryPort()` had already removed the bootstrap container that held `:80`,
+so nothing ever bound it again. Every hostname answered `000` — including
+`/health`, which had been `200` minutes earlier — and the wizard waited on requests
+that could not be answered, with the setup app already exited.
+
+It is invisible when it happens: `docker service ls` shows `deployer-traefik 1/1`,
+the task is `Running`, and the supervisor logs a normal reconcile every 60s. Only
+the host is unreachable. Publishing the entry port restores the invariant the
+handover exists to keep — **same port, new owner**:
+
+```text
+Endpoint.Ports = [{ TargetPort: 80, PublishedPort: 80, PublishMode: host }]
+```
+
+A manual `docker service update --publish-add` fixes it for under a minute and is
+then **stripped by the supervisor's reconcile**, because the spec is derived from
+code. Only the code change persists.
+
+**2. Client calls had no deadline.** A `fetch` with no timeout, on a request in
+flight when the entry port changes owner, leaves a socket that is neither answered
+nor closed. TanStack Query keeps it `pending` forever, so the screen spins with no
+error and no retry. `fetchWithTimeout` (in `@deployer/orpc-utils`) now bounds every
+oRPC call and **exempts the SSE stream**, which is meant to stay open and enforces
+its own `inactivityTimeoutMs` instead. Setup's own upstream `forward()` got the same
+treatment, exempting `/setup/stream`.
+
+**3. The done page 500'd on a fresh browser.** `/setup/done` is
+`@AllowAnonymous()`, but it read the managed web app's state through a client bound
+to the CALLER's credentials — and a browser that just finished onboarding has no
+session for fleet:
+
+```text
+{"statusCode":500,"message":"Internal server error"}
+ERROR [ExceptionsHandler] ORPCError: Unauthorized
+```
+
+The one page whose job is "where do I go next" failed instead of answering. The
+verdict it could not compute is now a fallback to the console link, not a 500.
+
+Net effect on the final screen: while the swap runs, requests fail with a bounded,
+retryable error instead of hanging; once it finishes, the page answers — and the
+host is reachable at all because the ingress kept its port.
+
+## Verified
+
+Live run of `bun run dev:services:supervised`, after completing the wizard:
+
+```text
+$ docker service ls
+deployer-managed-web  1/1   ← the BFF schedules it; the resolver then routes web.<host> to it
+deployer-postgres     1/1   ← provisioned BY the platform
+deployer-redis        1/1
+deployer-traefik      1/1
+svc-bff               1/1
+svc-fleet             1/1
+svc-health            1/1
+svc-identity          1/1
+svc-project           1/1
+svc-runtime           1/1
+```
+
+All ten 1/1, and the ingress answers on all three hostnames:
+
+```text
+GET http://127.0.0.1/       Host: web.deployer.localhost     → 200
+GET http://127.0.0.1/       Host: api.deployer.localhost     → 404 (no route at "/")
+GET http://127.0.0.1/       Host: setup.deployer.localhost   → 301 (→ /manage/web-app)
+```
+
+`/health/platform` — the roll-up the readiness gate reads:
+
+```json
+{"state":"healthy","services":[
+  {"name":"health",  "healthy":true,"url":"http://svc-health:3101",  "latencyMs":13},
+  {"name":"identity","healthy":true,"url":"http://svc-identity:3102","latencyMs":15},
+  {"name":"project", "healthy":true,"url":"http://svc-project:3103", "latencyMs":15},
+  {"name":"fleet",   "healthy":true,"url":"http://svc-fleet:3104",   "latencyMs":12},
+  {"name":"runtime", "healthy":true,"url":"http://svc-runtime:3105", "latencyMs":10}
+]}
+```
+
+Through the ingress, on `api.deployer.localhost`:
+
+| Request | Result |
+|---|---|
+| `/health` | 200 |
+| `/health/ready` | 200 |
+| `/openapi.json` | 200 |
+| `/reference` | 200 |
+| `POST /api/auth/sign-in/email` | 200, session cookie issued |
+| `/gitlab/apps` | 200 |
+| `/nodes/servers` | 200, node enrolled |
+| `/analytics/metrics/realtime` | 200 |
+| `/analytics/overview` | 200, families populated |
+| any of the above, no cookie | 401 |
+
+Measured image sizes on that run (`APP_INSTALL_PRODUCTION=1` for the `svc-*`
+image only — setup and web keep their toolchain, see above):
+
+```text
+deployer-svc-bff       3.13 GB     deployer-svc-runtime   2.80 GB
+deployer-svc-fleet     2.89 GB     deployer-svc-health    2.80 GB
+deployer-svc-project   2.80 GB     deployer-svc-identity  2.80 GB
+deployer-mesh-agent    145 MB
+```
+
+Seven images is roughly **20 GB** on disk, with the build layer cache on top of
+that. Check `df -h /` before starting — a full host disk leaves swarm tasks
+`Pending` with no error on the service. See
+[Image size and disk](./image-size-and-disk.mdx).
+
+## Re-running: the wizard will NOT appear again
+
+`nextjs-nestjs_supervised_local_db` holds ONE `node_config` row per node, written
+by setup and **surviving** `docker compose down`. `SetupGateService` reads
+`setup_state` at boot and, when it is `setup_done`, logs
+
+```text
+Setup already completed on this node — converging without the wizard
+```
+
+and converges straight through. That is correct for a restart — but it means a
+second `bun run dev:services:supervised` silently skips onboarding. Nothing looks
+broken: setup exits 0 and every service reports 1/1, so "I never got the wizard"
+has no error to point at.
+
+Use the reset when you want onboarding again:
+
+```bash
+bun run dev:services:supervised:reset
+```
+
+It removes the three things compose does not own or does not remove:
+
+| Resource | Why compose misses it |
+|---|---|
+| `svc-*`, `deployer-*` services | scheduled by SETUP, so compose has no record |
+| the runtime overlay | created at runtime, invisible to `compose down` |
+| `…_supervised_local_db` | `down -v` reports `Resource is still in use` **and still exits 0** |
+
+That last row is why the script VERIFIES instead of trusting the exit code: a
+surviving volume keeps `setup_done` and the wizard is skipped again. It exits
+non-zero and names the container still mounting the volume.
+
+Swarm membership is deliberately kept — setup re-converges an existing cluster
+idempotently, and leaving would orphan the node's identity.
+
+## Requirements
+
+- The node must be a swarm manager (`setup` founds it in `prod` mode).
+- Compose profiles: `--profile all` (default) or `--profile services`, plus
+  `--profile web` for the dashboard image.
+
+## What the deployment pipeline actually does
+
+This page covers getting the platform up. For the deployment path itself — trigger,
+build, run, rollback — and an honest per-capability status table (which parts work,
+which write a row and stop, and which are extension points versus hardcoded), see
+[Deployment capabilities](./deployment-capabilities.mdx).
+
+That page is worth reading before promising a feature to a user: several capabilities
+that appear in the UI are structurally present but do not change the running system —
+rollback and cancel are the two that matter most.
+
+## Disk: check it before you blame the stack
+
+If services sit at `0/1` with `Pending` tasks and nothing in the logs, look at
+the host disk first:
+
+```bash
+df -h /
+docker system df
+```
+
+**A full disk makes swarm tasks pend without an error.** Measured on this
+repository's own workstation:
+
+```text
+/dev/nvme0n1p7   517G   477G   13G   98%   /      ← every task Pending
+
+$ docker container prune -f
+Total reclaimed space: 51.13GB
+
+/dev/nvme0n1p7   517G   433G   58G   89%   /      ← same services, 1/1
+```
+
+Exited swarm tasks are the usual culprit: the supervisors restart tasks while
+converging, and `docker service update --force` does NOT remove the old ones. The
+build cache is the other:
+
+```bash
+docker builder prune -f     # reclaimed 12.93GB here
+docker container prune -f   # reclaimed 14.89GB here
+```
+
+See [Image size and disk usage](./image-size-and-disk.mdx) for where the
+gigabytes go — every app image is ~2.8 GB, and `svc-health` (a liveness probe)
+carries 1082 MB of `node_modules`, including Next.js and ESLint that it never
+imports.
+
+## Commands
+
+```bash
+bun run dev:services:supervised          # up -d
+bun run dev:services:supervised:logs     # follow
+bun run dev:services:supervised:ps       # status
+bun run dev:services:supervised:down     # stop
+```
+
+Equivalent raw compose (the script only wraps `dotenv` + profile resolution):
+
+```bash
+cd infra/docker/compose
+docker compose -f docker-compose.services.dev-supervised.yml \
+  --profile all --project-name nextjs-nestjs --project-directory . up -d --build
+```
+
+## Not yet covered
+
+Nothing schedules the tier **across nodes**: `ServicesTierProvisioner` creates
+one replica per app on the local manager, and each app holds SSE streams and an
+in-memory event bus that would need sticky routing for more. `DEPLOYER_SVC_REPLICAS`
+raises the count; the tier is correct at 1.

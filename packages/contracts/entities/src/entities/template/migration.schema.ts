@@ -1,10 +1,10 @@
 import z from 'zod/v4'
-import { templateConfigSchema } from '@deployer/contracts-entities/entities/template/config.schema'
-import { templateValidationIssueSchema } from '@deployer/contracts-entities/entities/template/validation.schema'
+import { templateConfigSchema } from './config.schema'
+import { templateValidationIssueSchema } from './validation.schema'
 import {
   templateKindSchema,
   templateVersionSchema,
-} from '@deployer/contracts-entities/entities/template/vocabulary.schema'
+} from './vocabulary.schema'
 
 export const templateMigrationDirectionSchema = z.enum(['up', 'down'])
 export type TemplateMigrationDirection = z.infer<typeof templateMigrationDirectionSchema>

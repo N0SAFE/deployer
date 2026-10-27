@@ -1,12 +1,12 @@
 import React from 'react'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import {
     Card,
     CardContent,
     CardDescription,
     CardHeader,
     CardTitle,
-} from '@repo/ui/components/shadcn/card'
+} from '@deployer/ui/components/shadcn/card'
 import { AuthSignin, AuthDashboard } from '@/routes'
 import {
     ArrowRight,

@@ -13,22 +13,20 @@ import { cn } from '@/lib/utils'
 export function Sparkline({
   data,
   dataKey = 'value',
-  width = '100%',
   height = 32,
   color = 'var(--primary)',
   fill = true,
   className,
 }: {
-  data: Array<{ value: number }> | number[]
+  data: { value: number }[] | number[]
   dataKey?: string
-  width?: string | number
   height?: number
   color?: string
   fill?: boolean
   className?: string
 }) {
   const gradientId = useId()
-  const points = data.map((d, i) => (typeof d === 'number' ? { value: d } : d))
+  const points = data.map((d) => (typeof d === 'number' ? { value: d } : d))
 
   if (points.length === 0) {
     return <div className={cn('w-full rounded bg-muted/40', className)} style={{ height }} aria-hidden />
@@ -61,10 +59,10 @@ export function Sparkline({
 
 /** Build a rolling-window series from a stream of numbers (bounded memory). */
 export function pushPoint(
-  series: Array<{ value: number }>,
+  series: { value: number }[],
   value: number,
   maxPoints = 40,
-): Array<{ value: number }> {
+): { value: number }[] {
   const next = [...series, { value }]
   return next.length > maxPoints ? next.slice(next.length - maxPoints) : next
 }

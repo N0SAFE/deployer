@@ -1,73 +1,47 @@
 /**
- * SupervisorsModule — global home of the supervisor FRAMEWORK.
+ * SupervisorsModule — the global home of the supervisor FRAMEWORK.
  *
- * Exports the SupervisorOrchestratorService globally so that:
+ * Exports `SupervisorOrchestratorService` globally so that:
  *   - supervisor classes anywhere can self-register via constructor injection,
  *   - the health module can aggregate health without import wiring.
  *
- * This module is deliberately a LEAF (no heavy imports) so any module that
- * imports it — including unit-test harnesses — does not pull in Docker / Env /
- * Platform dependencies. Concrete supervisor implementations are registered by
- * folder-scoped modules in the same directory:
+ * A LEAF on purpose (no heavy imports), so a module that imports it — including a unit-test
+ * harness — does not drag in Docker / Env / Platform. Concrete supervisor implementations are
+ * registered by the folder-scoped modules beside it:
  *
  *   - `SupervisorsDatabaseModule`  → database/ (global Postgres + local SQLite)
- *   - `SupervisorsPlatformModule`  → platform/ (Traefik + managed web)
- *
- * Of those, ONLY the gateway app (main.ts → OrchestrationModule) imports the
- * concrete modules — the supervisors must be alive BEFORE and WHILE the setup
- * wizard runs (the only way into the platform now that no service ports are
- * published). Sub-apps import nothing but this framework module.
- *
- * Both providers are backed by the PROCESS-WIDE singletons in
- * `supervisor-shared.ts`: every bootstrapped app (gateway + main sub-app)
- * shares ONE registry + ONE event bus, so the sub-app's health aggregation
- * observes the gateway-owned supervisors without booting a second copy.
+ *   - `SupervisorsPlatformModule`  → platform/ (Traefik, managed web, redis, edge connector)
  */
 
 import { Global, Module, type DynamicModule } from "@nestjs/common";
 
 import { SupervisorOrchestratorService } from "./supervisor-orchestrator.service";
 import { SupervisorEventBus } from "./supervisor-event.bus";
-import { getSharedSupervisorEventBus, getSharedSupervisorRegistry } from "./supervisor-shared";
 
-/**
- * SupervisorsModule — global home of the supervisor FRAMEWORK.
- *
- * REGISTER WITH `forRoot()`, NOT A BARE IMPORT.
- * It takes no options: the framework is process-wide and its two providers come
- * from the shared singletons below, so there is nothing to configure. The
- * method exists so EVERY shared NestJS module in this repo is registered the
- * same way (`DockerModule.forRoot(…)`, `SwarmModule.forRootAsync(…)`,
- * `NodesModule.forRoot()`, …). A mixed vocabulary — some packages imported
- * directly and others configured — is what makes a wiring mistake hard to spot.
- *
- * Concrete supervisor implementations are registered by folder-scoped modules
- * in the app:
- *   - database supervisors (global Postgres + local SQLite)
- *   - platform supervisors (Traefik, managed web, redis, WireGuard)
- *
- * Of those, ONLY the gateway app imports the concrete modules — the supervisors
- * must be alive BEFORE and WHILE the setup wizard runs (the only way into the
- * platform now that no service ports are published). Sub-apps import nothing but
- * this framework module.
- *
- * Both providers are backed by the PROCESS-WIDE singletons in
- * `supervisor-shared.ts`: every bootstrapped app (gateway + main sub-app)
- * shares ONE registry + ONE event bus, so the sub-app's health aggregation
- * observes the gateway-owned supervisors without booting a second copy.
- */
 @Global()
 @Module({})
 export class SupervisorsModule {
 	static forRoot(): DynamicModule {
 		return {
 			module: SupervisorsModule,
+			// ── WHY THE REGISTRY IS PER-CONTAINER, NOT PROCESS-WIDE ──────────────
+			// It used to come from `supervisor-shared.ts`, so every Nest application booted in
+			// the process shared ONE registry. That existed for a model this tree no longer has:
+			// a gateway app spawning setup-wizard / mesh-initializer / main SUB-APPS, which had
+			// to observe the gateway's supervisors without booting their own. `main.ts` states
+			// the current shape — "ONE graph (AppModule): there is no sub-app pipeline" — so the
+			// only thing the shared singleton still did was make a SECOND boot collide:
+			//
+			//   Duplicate supervisorId "platform-managed-web" registered by both
+			//   ManagedWebSupervisorService and ManagedWebSupervisorService
+			//
+			// The ids match but the instances do not, because each container instantiates its own
+			// providers. Scoping the registry to the module gives each application its own
+			// supervisors — which is what a Nest module is supposed to mean — and makes booting
+			// the same app twice (an e2e suite running several nodes) work instead of throwing.
 			providers: [
-				{ provide: SupervisorEventBus, useFactory: getSharedSupervisorEventBus },
-				{
-					provide: SupervisorOrchestratorService,
-					useFactory: () => new SupervisorOrchestratorService(getSharedSupervisorRegistry()),
-				},
+				SupervisorEventBus,
+				SupervisorOrchestratorService,
 			],
 			exports: [SupervisorOrchestratorService, SupervisorEventBus],
 		};

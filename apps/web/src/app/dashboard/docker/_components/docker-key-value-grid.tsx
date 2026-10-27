@@ -21,7 +21,7 @@ interface DockerKeyValueGridProps {
 
 export function DockerKeyValueGrid({ items, keyCellClassName, valueCellClassName }: DockerKeyValueGridProps) {
   return (
-    <div className="overflow-hidden rounded border">
+    <div className="overflow-x-auto rounded border">
       <table className="w-full text-sm">
         <tbody>
           {items.map((item) => (

@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { PlugZap } from 'lucide-react'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Label } from '@repo/ui/components/shadcn/label'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Label } from '@deployer/ui/components/shadcn/label'
 import { useConnectMeshPeer } from '@/domains/mesh/hooks'
 import {
   buildMeshEndpointUrl,

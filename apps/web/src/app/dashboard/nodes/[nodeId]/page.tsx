@@ -4,8 +4,8 @@ import { useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { AuthDashboardNodes } from '@/routes'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/components/shadcn/tabs'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@deployer/ui/components/shadcn/tabs'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 import { PageHeader, PageErrorState, ScopeLabel } from '@/components/dashboard'
 import { useFleetServers, useFleetAllocations } from '@/domains/fleet/hooks'
 import { useDeploymentList } from '@/domains/deployment/hooks'
@@ -100,6 +100,11 @@ export default function DashboardNodeDetailPage() {
       <PageErrorState
         title="Node not found"
         message={`No node with id ${nodeId} is registered in this mesh. It may have been revoked, or the link is stale.`}
+        secondaryAction={
+          <AuthDashboardNodes.Link className="inline-flex h-8 items-center gap-1 rounded-md border px-3 text-sm hover:bg-accent">
+            <ArrowLeft className="size-3.5" /> All nodes
+          </AuthDashboardNodes.Link>
+        }
       />
     )
   }

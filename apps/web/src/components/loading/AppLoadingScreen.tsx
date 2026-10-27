@@ -18,7 +18,7 @@
  * Pure server component with CSS animations only.
  */
 
-import { cn } from '@repo/ui/lib/utils'
+import { cn } from '@deployer/ui/lib/utils'
 
 // ============================================================================
 // Logo Component

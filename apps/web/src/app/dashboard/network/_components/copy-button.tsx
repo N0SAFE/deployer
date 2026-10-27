@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Check, Copy } from 'lucide-react'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Button } from '@deployer/ui/components/shadcn/button'
 
 /** Icon-only copy button for ids, addresses and hostnames. */
 export function CopyButton({ value, label = 'Copy' }: { value: string; label?: string }) {

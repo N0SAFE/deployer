@@ -1,8 +1,8 @@
 'use client'
 
 import { getErrorMessage, isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE } from '@/lib/orpc/typed-errors'
-import type { DockerContainer, DockerContainerInspectDetail } from '@repo/contracts-entities'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/components/shadcn/tabs'
+import type { DockerContainer, DockerContainerInspectDetail } from '@deployer/contracts-entities'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@deployer/ui/components/shadcn/tabs'
 import { DockerContainerLogsTab } from '../../containers/_components/container-detail-modal/logs-tab'
 import { DockerDetailLoadingState } from '../docker-loading-states'
 import { DockerEngineError } from '../docker-engine-error'

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import z from 'zod/v4';
-import { createRouterHooks } from '@repo/orpc-utils/hooks/generate-hooks';
-import { RouteBuilder } from '@repo/orpc-utils/builder/core/route-builder';
+import { createRouterHooks } from '@deployer/orpc-utils/hooks/generate-hooks';
+import { RouteBuilder } from '@deployer/orpc-utils/builder/core/route-builder';
 
 describe('Hook Generation - Edge Cases & Error Handling', () => {
   // Mock query client for tests

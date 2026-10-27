@@ -133,14 +133,14 @@ registerInstance<T>(instance: T): this {
 ### 3.1.6 Remaining Files (~50 violations)
 
 **File list:**
-- `apps/api/src/config/env/env.service.ts`
-- `apps/api/src/core/modules/auth/` (guards, middlewares, services)
-- `apps/api/src/core/modules/database/` (global-database.service.ts)
-- `apps/api/src/core/modules/mesh/` (mesh-entity.ts, mesh-type-utils.ts, query files)
-- `apps/api/src/core/modules/traefik/` (service-builder.ts, variable.types.ts)
-- `apps/api/src/core/utils/drizzle-filter.utils.ts`
+- `apps/api/shared/src/config/env/env.service.ts`
+- `apps/api/shared/src/core/modules/auth/` (guards, middlewares, services)
+- `apps/api/shared/src/core/modules/database/` (global-database.service.ts)
+- `apps/api/shared/src/core/modules/mesh/` (mesh-entity.ts, mesh-type-utils.ts, query files)
+- `apps/api/shared/src/core/modules/traefik/` (service-builder.ts, variable.types.ts)
+- `apps/api/shared/src/core/utils/drizzle-filter.utils.ts`
 - `apps/api/src/e2e/` (shared-api-runtime/manager.ts)
-- `apps/api/src/modules/deployment/repositories/deployment.repository.ts`
+- `apps/api/services/runtime/src/modules/deployment/repositories/deployment.repository.ts`
 - `apps/web/src/utils/tanstack-query.ts`
 - `apps/doc/src/app/docs/[...slug]/page.tsx`
 
@@ -224,8 +224,8 @@ requestId: (req as RequestWithId).requestId,
 
 **Check these for the same pattern:**
 - `apps/api/src/core/sub-app/express-route-extractor.ts` — NestJS internals access
-- `apps/api/src/core/modules/triggers/base-bridge.service.ts` — `(this.constructor as any).bridgeId`
-- `apps/api/src/core/modules/auth/plugin-utils/middleware/` — role/org checks
+- `apps/api/shared/src/core/modules/triggers/base-bridge.service.ts` — `(this.constructor as any).bridgeId`
+- `apps/api/shared/src/core/modules/auth/plugin-utils/middleware/` — role/org checks
 - `apps/web/src/components/auth/RequireOrganizationRole.tsx` — already in DELETE list
 - `apps/web/src/lib/auth/Components.tsx` — `Link component as any`
 
@@ -236,10 +236,10 @@ requestId: (req as RequestWithId).requestId,
 ### Files to fix:
 
 **Production code (NOT debug-cli or examples):**
-- `apps/api/src/e2e/utils/shared-api-runtime/manager.ts` — 1 instance
+- `apps/api/shared/src/e2e-harness/shared-api-runtime/manager.ts` — 1 instance
 - `apps/api/src/e2e/utils/test-interceptor.ts` — 2 instances
 - `apps/api/src/modules/github/controllers/github-webhook.controller.ts` — uses `new Logger()` from NestJS, should use AppLogger
-- `apps/api/src/core/modules/traefik/events/traefik-event.service.ts` — console.log in JSDoc (fix docs)
+- `apps/api/shared/src/core/modules/traefik/events/traefik-event.service.ts` — console.log in JSDoc (fix docs)
 
 **✅ Fix pattern:**
 ```typescript

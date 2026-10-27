@@ -1,15 +1,16 @@
 import { Logger, type OnModuleDestroy } from '@nestjs/common';
+import { Effect, Stream } from 'effect';
 import { EMPTY, merge, Observable, Subject } from 'rxjs';
 import { filter as rxFilter, map } from 'rxjs/operators';
-import { observableToAsyncIterable } from '@repo/nest-events/observable.utils';
-import { isTransientDatabaseError } from '@repo/nest-events/db-not-ready';
+import { observableToAsyncIterable } from '@deployer/nest-events/observable.utils';
+import { isTransientDatabaseError } from '@deployer/nest-events/db-not-ready';
 import type {
   EventContracts,
   EventContract,
   EventInput,
   EventOutput,
-} from '@repo/nest-events/event-contract.builder';
-import { isRecord } from '@repo/type-guards';
+} from '@deployer/nest-events/event-contract.builder';
+import { isRecord } from '@deployer/type-guards';
 
 export const BASE_EVENT_SERVICE_SYMBOL = Symbol.for('core.events.base-service');
 
@@ -480,6 +481,45 @@ export abstract class BaseEventService<
         subscription.unsubscribe();
       };
     });
+  }
+
+  /**
+   * Effect view of {@link emit}.
+   *
+   * `emit` is synchronous: it validates against the contract, bumps the
+   * sequence and buffers the record; persistence drains on the ticker. Wrapping
+   * it keeps that behaviour and moves the synchronous validation throw into the
+   * error channel — an Effect caller must never guard a throw that is really a
+   * contract violation.
+   */
+  emitEffect<K extends keyof TContracts>(
+    eventName: K,
+    input: EventInput<TContracts[K]>,
+    output: EventOutput<TContracts[K]>,
+  ): Effect.Effect<void, Error> {
+    return Effect.try({
+      try: () => {
+        this.emit(eventName, input, output);
+      },
+      catch: (cause: unknown) =>
+        cause instanceof Error ? cause : new Error(String(cause)),
+    });
+  }
+
+  /**
+   * Effect view of {@link subscribe}: the same async iterator, as a Stream.
+   *
+   * Use this instead of calling `subscribe` inside `Stream.fromAsyncIterable`
+   * in every consumer; the conversion lives next to the iterator it adapts.
+   */
+  subscribeEffect<K extends keyof TContracts>(
+    eventName: K,
+    input: EventInput<TContracts[K]>,
+    options?: ReplayOptions,
+  ): Stream.Stream<EventOutput<TContracts[K]>, Error> {
+    return Stream.fromAsyncIterable(this.subscribe(eventName, input, options), (cause: unknown) =>
+      cause instanceof Error ? cause : new Error(String(cause)),
+    );
   }
 
   /**

@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { deploymentQueueJobTypeSchema } from "@deployer/contracts-entities/entities/deployment/queue.schema";
+import { deploymentQueueJobTypeSchema } from "./queue.schema";
 
 export const deploymentRetryNodeTypeSchema = z.enum([
     "source",

@@ -1,5 +1,5 @@
-import type { LogData, Logger } from "@repo/logger/index";
-import { isRecord } from "@repo/type-guards"
+import type { LogData, Logger } from "@deployer/logger/index";
+import { isRecord } from "@deployer/type-guards"
 
 
 /**
@@ -47,7 +47,7 @@ export type ContextFilterLoggerOptions = {
    */
   appSourceEnvVar?: string;
   /**
-   * Sink logger implementation (typically from `@repo/logger`).
+   * Sink logger implementation (typically from `@deployer/logger`).
    */
   sink: Pick<Logger, "debug">;
 };

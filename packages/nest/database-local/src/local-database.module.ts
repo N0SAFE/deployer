@@ -22,7 +22,7 @@ export type { LocalDatabaseModuleOptions };
 
 const logger = new Logger("LocalDatabaseModule");
 
-export interface LocalDatabaseModuleAsyncOptions {
+export type LocalDatabaseModuleAsyncOptions = {
     /** Modules whose exports the factory injects. */
     imports?: NonNullable<ModuleMetadata["imports"]>;
     /** Tokens the factory's parameters are injected from, in order. */

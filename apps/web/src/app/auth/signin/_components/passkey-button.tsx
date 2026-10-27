@@ -2,11 +2,24 @@
 
 import * as React from 'react'
 import { Fingerprint } from 'lucide-react'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Spinner } from '@repo/ui/components/atomics/atoms/Icon'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Spinner } from '@deployer/ui/components/atomics/atoms/Icon'
 import { authClient } from '@/lib/auth'
 import { getPostSignInTarget } from '../_utils/url'
+
+function subscribeNoop(): () => void {
+  return () => undefined
+}
+
+function readIsLastUsed(method: string): boolean {
+  try {
+    return authClient.isLastUsedLoginMethod(method)
+  } catch {
+    // The helper is absent when the plugin is not registered.
+    return false
+  }
+}
 
 /**
  * "Last used" badge, driven by the Last Login Method plugin (a cookie read, no
@@ -14,16 +27,11 @@ import { getPostSignInTarget } from '../_utils/url'
  * reading during render would diverge between server and client HTML.
  */
 export function LastUsedBadge({ method }: { method: string }) {
-  const [isLast, setIsLast] = React.useState(false)
-
-  React.useEffect(() => {
-    try {
-      setIsLast(authClient.isLastUsedLoginMethod(method))
-    } catch {
-      // The helper is absent when the plugin is not registered.
-      setIsLast(false)
-    }
-  }, [method])
+  const isLast = React.useSyncExternalStore(
+    subscribeNoop,
+    () => readIsLastUsed(method),
+    () => false,
+  )
 
   if (!isLast) return null
 
@@ -57,7 +65,7 @@ export function PasskeySignInButton() {
     setError(null)
     try {
       const result = await authClient.signIn.passkey({ autoFill: false })
-      if (result?.error) {
+      if (result.error) {
         fail(result.error.message ?? 'Passkey sign-in failed')
         return
       }

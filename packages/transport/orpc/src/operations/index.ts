@@ -6,7 +6,7 @@
  * 
  * @example
  * ```typescript
- * import { standard } from '@repo/orpc-utils';
+ * import { standard } from '@deployer/orpc-utils';
  * import z from 'zod/v4';
  * 
  * const userSchema = z.object({
@@ -30,7 +30,7 @@ import {
     createZodStandardOperations,
     type ZodEntitySchema,
     type ZodEntityOperationOptions,
-} from "@repo/orpc-utils/operations/zod/standard-operations";
+} from "@deployer/orpc-utils/operations/zod/standard-operations";
 
 /**
  * Standard operations factory object
@@ -68,7 +68,7 @@ export {
 };
 
 // Re-export list builder
-export { ListOperationBuilder, createListConfig, createFilterConfig, type BuilderFilterField } from "@repo/orpc-utils/operations/zod/list-builder";
+export { ListOperationBuilder, createListConfig, createFilterConfig, type BuilderFilterField } from "@deployer/orpc-utils/operations/zod/list-builder";
 
 // Re-export base types
 export {
@@ -76,9 +76,9 @@ export {
     type EntityOperationOptions,
     type ListOperationOptions,
     type ListPlainOptions,
-} from "@repo/orpc-utils/operations/base/standard-operations";
+} from "@deployer/orpc-utils/operations/base/standard-operations";
 
 // Re-export utilities
-export * from "@repo/orpc-utils/operations/zod/utils/index";
+export * from "@deployer/orpc-utils/operations/zod/utils/index";
 // Note: ./base/types and ./base/schema are not re-exported here to avoid conflicts
-// They can be imported directly if needed from "@repo/orpc-utils/operations/base/types" or "./base/schema"
+// They can be imported directly if needed from "@deployer/orpc-utils/operations/base/types" or "./base/schema"

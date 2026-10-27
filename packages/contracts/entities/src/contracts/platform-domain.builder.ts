@@ -37,7 +37,7 @@ import {
   serviceEnvironmentExecutionOverrideSchema,
   serviceProviderConfigSchema,
   serviceRunnerConfigSchema,
-} from '@deployer/contracts-entities/entities/configuration/index'
+} from '../entities/configuration/index'
 
 export type PlatformDomainSchemaDeps = {
   envNameSchema?: typeof envNameSchema

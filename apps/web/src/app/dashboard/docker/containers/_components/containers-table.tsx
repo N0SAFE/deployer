@@ -1,8 +1,8 @@
 'use client'
 
-import type { DockerContainer } from '@repo/contracts-entities'
-import { Checkbox } from '@repo/ui/components/shadcn/checkbox'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
+import type { DockerContainer } from '@deployer/contracts-entities'
+import { Checkbox } from '@deployer/ui/components/shadcn/checkbox'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { EnvironmentBadge, FilteredEmptyState } from '@/components/dashboard'
 import { cn } from '@/lib/utils'

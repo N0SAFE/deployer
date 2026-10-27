@@ -2,15 +2,15 @@
 
 import React from "react";
 import Image from "next/image";
-import { Button } from "@repo/ui/components/shadcn/button";
+import { Button } from "@deployer/ui/components/shadcn/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@repo/ui/components/shadcn/card";
-import { Alert, AlertDescription } from "@repo/ui/components/shadcn/alert";
+} from "@deployer/ui/components/shadcn/card";
+import { Alert, AlertDescription } from "@deployer/ui/components/shadcn/alert";
 import {
   Dialog,
   DialogContent,
@@ -18,15 +18,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@repo/ui/components/shadcn/dialog";
-import { Badge } from "@repo/ui/components/shadcn/badge";
-import { Separator } from "@repo/ui/components/shadcn/separator";
+} from "@deployer/ui/components/shadcn/dialog";
+import { Badge } from "@deployer/ui/components/shadcn/badge";
+import { Separator } from "@deployer/ui/components/shadcn/separator";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from "@repo/ui/components/shadcn/tabs";
+} from "@deployer/ui/components/shadcn/tabs";
 import {
   ArrowLeftRight,
   Trash2,
@@ -54,8 +54,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { authClient, useSession } from "@/lib/auth";
-import { logger } from "@repo/logger";
-import { Spinner } from "@repo/ui/components/atomics/atoms/Icon";
+import { logger } from "@deployer/logger";
+import { Spinner } from "@deployer/ui/components/atomics/atoms/Icon";
 import { Session } from "better-auth";
 import { PushNotificationSettings } from "@/components/push-notifications/PushNotificationSettings";
 import { usePushStats } from "@/domains/push/hooks";
@@ -88,32 +88,44 @@ const ProfilePage: React.FC = () => {
   const [error, setError] = React.useState<string>("");
   const [success, setSuccess] = React.useState<string>("");
 
-  // Load user's sessions
-  const loadSessions = React.useCallback(async () => {
-    if (!session?.user) {
-      return;
-    }
-
-    try {
-      setSessionLoading(true);
-      setError("");
-      const result = await authClient.listSessions();
-      if (result.error) {
-        setError(result.error.message ?? "Failed to load sessions");
-      } else {
-        setSessions(result.data);
-      }
-    } catch (err) {
-      logger.error("Error loading sessions", { error: err });
-      setError("Failed to load sessions");
-    } finally {
-      setSessionLoading(false);
-    }
-  }, [session?.user]);
+  // Load user's sessions. Bumping `sessionsVersion` re-runs the fetch (after a revoke).
+  const [sessionsVersion, setSessionsVersion] = React.useState(0);
+  const sessionUser = session?.user;
 
   React.useEffect(() => {
-    void loadSessions();
-  }, [loadSessions]);
+    if (!sessionUser) {
+      return;
+    }
+    let cancelled = false;
+    authClient
+      .listSessions()
+      .then((result) => {
+        if (cancelled) return;
+        if (result.error) {
+          setError(result.error.message ?? "Failed to load sessions");
+        } else {
+          setSessions(result.data);
+        }
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        logger.error("Error loading sessions", { error: err });
+        setError("Failed to load sessions");
+      })
+      .finally(() => {
+        if (!cancelled) setSessionLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionUser, sessionsVersion]);
+
+  // Re-fetch on demand: show the spinner and clear stale errors first.
+  const reloadSessions = React.useCallback(() => {
+    setSessionLoading(true);
+    setError("");
+    setSessionsVersion((v) => v + 1);
+  }, []);
 
   const handleRevokeSession = async () => {
     if (!selectedSession) {
@@ -131,7 +143,7 @@ const ProfilePage: React.FC = () => {
         setError(result.error.message ?? "Failed to revoke session");
       } else {
         setSuccess("Session revoked successfully!");
-        await loadSessions();
+        reloadSessions();
       }
     } catch (err) {
       logger.error("Error revoking session", { error: err });
@@ -152,7 +164,7 @@ const ProfilePage: React.FC = () => {
         setError(result.error.message ?? "Failed to revoke other sessions");
       } else {
         setSuccess("All other sessions revoked successfully!");
-        await loadSessions();
+        reloadSessions();
       }
     } catch (err) {
       logger.error("Error revoking other sessions", { error: err });

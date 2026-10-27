@@ -7,6 +7,7 @@ import {
 	probePeer,
 	toOrigin,
 } from "./network-probe";
+import type { ProbeHttp, ProbeResponse } from "./network-probe";
 
 /**
  * These primitives decide whether an address belongs to a live process, and
@@ -15,43 +16,43 @@ import {
  * whether a scheme fallback rescues a host without a certificate, and that a
  * failure is a RESULT rather than a thrown exception.
  *
- * `fetch` is stubbed globally — no network in unit tests — so the assertions
+ * The HTTP client is injected — no network in unit tests — so the assertions
  * describe the exact request sequence the caller depends on.
  */
 
-type FetchArgs = [string, RequestInit | undefined];
+type FetchArgs = [string, { readonly timeoutMs: number }];
+
+/** The injected HTTP client of the test in progress: records calls, answers via `handler`. */
+let http: ProbeHttp = () => Promise.reject(new Error("stubFetch was not called"));
 
 function stubFetch(
-	handler: (url: string, init?: RequestInit) => Promise<Response> | Response,
+	handler: (url: string, init: { readonly timeoutMs: number }) => Promise<ProbeResponse> | ProbeResponse,
 ): FetchArgs[] {
 	const calls: FetchArgs[] = [];
-	vi.stubGlobal("fetch", (url: string, init?: RequestInit) => {
+	http = (url, init) => {
 		calls.push([url, init]);
 		return Promise.resolve().then(() => handler(url, init));
-	});
+	};
 	return calls;
 }
 
-function ok(body = "{}"): Response {
+function ok(body = "{}"): ProbeResponse {
 	return {
 		ok: true,
 		status: 200,
-		text: () => Promise.resolve(body),
 		json: () => Promise.resolve(JSON.parse(body) as unknown),
-	} as unknown as Response;
+	};
 }
 
-function status(code: number): Response {
+function status(code: number): ProbeResponse {
 	return {
 		ok: code >= 200 && code < 300,
 		status: code,
-		text: () => Promise.resolve(""),
 		json: () => Promise.resolve({}),
-	} as unknown as Response;
+	};
 }
 
 afterEach(() => {
-	vi.unstubAllGlobals();
 	vi.restoreAllMocks();
 });
 
@@ -111,7 +112,7 @@ describe("probeAddress", () => {
 	it("returns the first path that answers 2xx", async () => {
 		const calls = stubFetch((url) => (url.endsWith("/mesh/ping") ? ok() : status(500)));
 
-		const result = await probeAddress("example.com", { paths: ["/mesh/ping", "/health"] });
+		const result = await probeAddress("example.com", { http, paths: ["/mesh/ping", "/health"] });
 
 		expect(result.valid).toBe(true);
 		expect(result.statusCode).toBe(200);
@@ -122,7 +123,7 @@ describe("probeAddress", () => {
 	it("falls through to later paths before giving up", async () => {
 		const calls = stubFetch((url) => (url.endsWith("/health") ? ok() : status(503)));
 
-		const result = await probeAddress("example.com", { paths: ["/mesh/ping", "/health"] });
+		const result = await probeAddress("example.com", { http, paths: ["/mesh/ping", "/health"] });
 
 		expect(result.valid).toBe(true);
 		expect(result.probeUrl).toBe("https://example.com/health");
@@ -133,6 +134,7 @@ describe("probeAddress", () => {
 		const calls = stubFetch((url) => (url.startsWith("http://") ? ok() : status(502)));
 
 		const result = await probeAddress("example.com", {
+			http,
 			paths: ["/mesh/ping"],
 			tryBothSchemes: true,
 		});
@@ -148,7 +150,7 @@ describe("probeAddress", () => {
 	it("does not try the http fallback unless asked", async () => {
 		const calls = stubFetch(() => status(502));
 
-		const result = await probeAddress("example.com", { paths: ["/mesh/ping"] });
+		const result = await probeAddress("example.com", { http, paths: ["/mesh/ping"] });
 
 		expect(result.valid).toBe(false);
 		expect(calls.map(([u]) => u)).toEqual(["https://example.com/mesh/ping"]);
@@ -159,7 +161,7 @@ describe("probeAddress", () => {
 			throw new Error("ECONNREFUSED");
 		});
 
-		const result = await probeAddress("example.com", { paths: ["/health"] });
+		const result = await probeAddress("example.com", { http, paths: ["/health"] });
 
 		expect(result.valid).toBe(false);
 		expect(result.reason).toBeTruthy();
@@ -169,6 +171,7 @@ describe("probeAddress", () => {
 		stubFetch(() => status(500));
 
 		const result = await probeAddress("example.com", {
+			http,
 			paths: ["/health"],
 			failureReason: (address) => `DNS may still be propagating for ${address}`,
 		});
@@ -179,7 +182,7 @@ describe("probeAddress", () => {
 	it("rejects an empty address without touching the network", async () => {
 		const calls = stubFetch(() => ok());
 
-		const result = await probeAddress("   ", { paths: ["/health"] });
+		const result = await probeAddress("   ", { http, paths: ["/health"] });
 
 		expect(result.valid).toBe(false);
 		expect(result.reason).toBe("Address is empty");
@@ -193,7 +196,7 @@ describe("probePeer", () => {
 			ok(JSON.stringify({ advertisedHost: "10.0.0.5", version: "1.2.3", extra: "ignored" })),
 		);
 
-		const result = await probePeer("http://10.0.0.5:3005", { primaryPath: "/mesh/ping" });
+		const result = await probePeer("http://10.0.0.5:3005", { http, primaryPath: "/mesh/ping" });
 
 		expect(result.reachable).toBe(true);
 		expect(result.identity).toEqual({ advertisedHost: "10.0.0.5", version: "1.2.3" });
@@ -203,7 +206,7 @@ describe("probePeer", () => {
 	it("normalizes the URL to its origin before probing", async () => {
 		const calls = stubFetch(() => ok());
 
-		await probePeer("http://10.0.0.5:3005/some/path?x=1", { primaryPath: "/mesh/ping" });
+		await probePeer("http://10.0.0.5:3005/some/path?x=1", { http, primaryPath: "/mesh/ping" });
 
 		expect(calls[0]?.[0]).toBe("http://10.0.0.5:3005/mesh/ping");
 	});
@@ -212,6 +215,7 @@ describe("probePeer", () => {
 		const calls = stubFetch((url) => (url.endsWith("/health") ? ok() : status(503)));
 
 		const result = await probePeer("http://10.0.0.5:3005", {
+			http,
 			primaryPath: "/mesh/ping",
 			fallbackPath: "/health",
 		});
@@ -225,6 +229,7 @@ describe("probePeer", () => {
 		stubFetch(() => status(503));
 
 		const result = await probePeer("http://10.0.0.5:3005", {
+			http,
 			primaryPath: "/mesh/ping",
 			fallbackPath: "/health",
 		});
@@ -237,7 +242,7 @@ describe("probePeer", () => {
 	it("does not attempt a fallback when none was configured", async () => {
 		const calls = stubFetch(() => status(503));
 
-		const result = await probePeer("http://10.0.0.5:3005", { primaryPath: "/mesh/ping" });
+		const result = await probePeer("http://10.0.0.5:3005", { http, primaryPath: "/mesh/ping" });
 
 		expect(result.reachable).toBe(false);
 		expect(calls).toHaveLength(1);
@@ -246,7 +251,7 @@ describe("probePeer", () => {
 	it("rejects a malformed URL without touching the network", async () => {
 		const calls = stubFetch(() => ok());
 
-		const result = await probePeer("not a url", { primaryPath: "/mesh/ping" });
+		const result = await probePeer("not a url", { http, primaryPath: "/mesh/ping" });
 
 		expect(result.reachable).toBe(false);
 		expect(result.error).toBe("Invalid URL format");
@@ -260,13 +265,36 @@ describe("probePeer", () => {
 					ok: true,
 					status: 200,
 					json: () => Promise.reject(new Error("invalid json")),
-				}) as unknown as Response,
+				}),
 		);
 
-		const result = await probePeer("http://10.0.0.5:3005", { primaryPath: "/mesh/ping" });
+		const result = await probePeer("http://10.0.0.5:3005", { http, primaryPath: "/mesh/ping" });
 
 		// The probe's job is reachability; an unparseable identity is not a failure.
 		expect(result.reachable).toBe(true);
 		expect(result.identity).toEqual({});
+	});
+});
+
+describe("probes honour the injected client's refusals", () => {
+	const refuse: ProbeHttp = () => Promise.reject(new Error("Target not allowed by the network policy"));
+
+	it("probeAddress reports a refused target as not valid, with no address in the reason", async () => {
+		const result = await probeAddress("169.254.169.254", { http: refuse, paths: ["/latest/meta-data/"] });
+		expect(result.valid).toBe(false);
+		expect(result.reason).not.toContain("meta-data/\"");
+	});
+
+	it("probePeer reports the refusal message, not a transport detail", async () => {
+		const result = await probePeer("http://169.254.169.254", { http: refuse, primaryPath: "/mesh/ping" });
+		expect(result.reachable).toBe(false);
+		expect(result.error).toBe("Target not allowed by the network policy");
+	});
+
+	it("probePeer asks the client with the caller's timeout and never falls back after a refusal", async () => {
+		const calls = stubFetch(() => Promise.reject(new Error("Target not allowed by the network policy")));
+		await probePeer("http://10.0.0.5:3005", { http, primaryPath: "/mesh/ping", fallbackPath: "/health", timeoutMs: 1234 });
+		expect(calls).toHaveLength(1);
+		expect(calls[0]?.[1]).toEqual({ timeoutMs: 1234 });
 	});
 });

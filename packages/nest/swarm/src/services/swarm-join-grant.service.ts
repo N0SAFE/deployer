@@ -53,7 +53,7 @@
  */
 
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import type { MeshSwarmJoinGrant, SwarmNodePolicy } from "@repo/contracts-entities";
+import type { MeshSwarmJoinGrant, SwarmNodePolicy } from "@deployer/contracts-entities";
 import {
     SWARM_JOIN_CONFIG,
     SWARM_PARTICIPATION_DEFAULTS,

@@ -2,7 +2,7 @@ import {
     platformSchemas,
     type PlatformRole,
     platformRoles,
-} from "@repo/auth/permissions/config";
+} from "@deployer/auth/permissions/config";
 
 /**
  * Common Permission Definitions

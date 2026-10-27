@@ -1,0 +1,181 @@
+import * as z from "zod";
+import {
+  createFilterConfig,
+  standard,
+  createPaginationConfigSchema,
+  createSortingConfigSchema,
+  type ComputeInputSchema,
+  type ComputeOutputSchema,
+  standardDomainErrorContracts,} from "@deployer/orpc-utils";
+import { testEntitySchema, testEntityInputSchema } from "./entity";
+
+// ============================================================================
+// Test Entity Standard Operations using ORPC Contract Builder
+// ============================================================================
+
+// Define sorting fields available for list/search operations
+const sortingFieldsArray = ["createdAt", "updatedAt", "name", "priority", "status"] as const;
+
+// Create pagination config schema for search and streaming operations
+const paginationConfigSchema = createPaginationConfigSchema({
+  defaultLimit: 10,
+  maxLimit: 50,
+  includeOffset: true,
+} as const);
+
+// Create sorting config schema for streaming operations
+const sortingConfigSchema = createSortingConfigSchema(sortingFieldsArray, {
+  defaultField: "createdAt",
+  defaultDirection: "desc",
+});
+
+// Create standard operations builder for test entities
+const testOps = standard.zod(testEntitySchema, "testEntity");
+
+// ============================================================================
+// Standard CRUD Operations
+// ============================================================================
+
+/**
+ * List test entities with pagination, sorting, and filtering
+ */
+const listConfigSchemas = createFilterConfig(testOps)
+  .withPagination({
+    defaultLimit: 10,
+    maxLimit: 50,
+    includeOffset: true,
+  })
+  .withSorting(sortingFieldsArray, {
+    defaultField: "createdAt",
+    defaultDirection: "desc",
+  })
+  .withFiltering({
+    id: testEntitySchema.shape.id,
+    name: {
+      schema: testEntitySchema.shape.name,
+      operators: ["eq", "like", "ilike"] as const,
+    },
+    status: {
+      schema: testEntitySchema.shape.status,
+      operators: ["eq", "in"] as const,
+    },
+    priority: {
+      schema: testEntitySchema.shape.priority,
+      operators: ["eq", "gt", "gte", "lt", "lte"] as const,
+    },
+    createdAt: {
+      schema: testEntitySchema.shape.createdAt,
+      operators: ["gt", "gte", "lt", "lte", "between"] as const,
+    },
+  })
+  .buildConfig();
+
+export const testEntityListContract = testOps.list(listConfigSchemas).errors((e) => [...standardDomainErrorContracts(e)]).build();
+export type TestEntityListInput = ComputeInputSchema<typeof listConfigSchemas>;
+export type TestEntityListOutput = ComputeOutputSchema<typeof listConfigSchemas, typeof testEntitySchema>;
+
+/**
+ * Find a single test entity by ID
+ * Uses the `read()` method which creates a GET /{id} endpoint
+ */
+export const testEntityFindByIdContract = testOps.read().errors((e) => [...standardDomainErrorContracts(e)]).build();
+export type TestEntityFindByIdInput = { id: string };
+export type TestEntityFindByIdOutput = z.infer<typeof testEntitySchema>;
+
+/**
+ * Create a new test entity
+ * Uses the entity schema as input, customize with inputBuilder if needed
+ */
+export const testEntityCreateContract = testOps
+  .create()
+  .input(testEntityInputSchema)
+  .errors((e) => [...standardDomainErrorContracts(e)])
+  .build();
+export type TestEntityCreateInput = z.infer<typeof testEntityInputSchema>;
+export type TestEntityCreateOutput = z.infer<typeof testEntitySchema>;
+
+/**
+ * Update an existing test entity
+ * Uses partial entity schema for updates
+ */
+export const testEntityUpdateContract = testOps
+  .update()
+  .input(testEntityInputSchema.partial())
+  .errors((e) => [...standardDomainErrorContracts(e)])
+  .build();
+export type TestEntityUpdateInput = Partial<z.infer<typeof testEntityInputSchema>>;
+export type TestEntityUpdateOutput = z.infer<typeof testEntitySchema>;
+
+/**
+ * Delete a test entity by ID
+ */
+export const testEntityDeleteContract = testOps.delete().errors((e) => [...standardDomainErrorContracts(e)]).build();
+export type TestEntityDeleteInput = { id: string };
+export type TestEntityDeleteOutput = { success: boolean };
+
+/**
+ * Count test entities (with optional filtering)
+ */
+export const testEntityCountContract = testOps.count().errors((e) => [...standardDomainErrorContracts(e)]).build();
+export type TestEntityCountOutput = { count: number };
+
+// ============================================================================
+// Streaming Operations (demonstrating the new RouteBuilder wrapper feature)
+// ============================================================================
+
+/**
+ * Streaming list of test entities
+ * Uses the new RouteBuilder.wrapOutput(eventIterator) pattern
+ * Supports both live (replace) and streamed (accumulate) consumption modes
+ */
+export const testEntityStreamingListContract = testOps
+  .streamingList({
+    pagination: paginationConfigSchema,
+    sorting: sortingConfigSchema,
+    path: "/streaming",
+  })
+  .errors((e) => [...standardDomainErrorContracts(e)])
+  .build();
+
+/**
+ * Streaming read of a single test entity by ID
+ * Real-time updates for a specific entity via EventIterator
+ * - Live mode: Always shows the current state of the entity
+ * - Streamed mode: Accumulates history of entity states/changes
+ */
+export const testEntityStreamingReadContract = testOps
+  .streamingRead()
+  .input(b => b.params(p => p`/${p("id", z.string())}/streaming`))
+  .errors((e) => [...standardDomainErrorContracts(e)])
+  .build();
+export type TestEntityStreamingReadInput = { id: string };
+export type TestEntityStreamingReadOutput = z.infer<typeof testEntitySchema>;
+
+// ============================================================================
+// Check Operation (demonstrating field validation)
+// ============================================================================
+
+/**
+ * Check if a test entity name exists
+ */
+export const testEntityCheckNameContract = testOps
+  .check("name", z.string().min(1))
+  .errors((e) => [...standardDomainErrorContracts(e)])
+  .build();
+export type TestEntityCheckNameInput = { name: string };
+export type TestEntityCheckNameOutput = { exists: boolean };
+
+// ============================================================================
+// Search Operation
+// ============================================================================
+
+/**
+ * Search test entities by name and description
+ */
+export const testEntitySearchContract = testOps
+  .search({
+    searchFields: ["name", "description"] as const,
+    pagination: paginationConfigSchema,
+  })
+  .errors((e) => [...standardDomainErrorContracts(e)])
+  .build();

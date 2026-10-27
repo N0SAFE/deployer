@@ -49,7 +49,7 @@ import { ClusterNodeInventoryRepository } from "./cluster-node-inventory.reposit
  */
 
 /** What `NodesModule.forRoot` needs from the consuming app. */
-export interface NodesModuleOptions {
+export type NodesModuleOptions = {
     /**
      * The already-configured local-database registration.
      *

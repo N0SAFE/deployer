@@ -11,7 +11,7 @@ import React, { ReactNode } from 'react'
 import { QueryErrorResetBoundary } from '@tanstack/react-query'
 import { ErrorBoundary } from './ErrorBoundary'
 import { QueryErrorFallback } from './QueryErrorFallback'
-import { logger } from '@repo/logger'
+import { logger } from '@deployer/logger'
 
 interface QueryErrorBoundaryProps {
   /** Child components to render */

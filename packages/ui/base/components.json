@@ -10,10 +10,10 @@
         "cssVariables": true
     },
     "aliases": {
-        "components": "@repo/ui/components",
-        "utils": "@repo/ui/lib/utils",
-        "ui": "@repo/ui/components/shadcn",
-        "lib": "@repo/ui/lib",
-        "hooks": "@repo/ui/hooks"
+        "components": "@deployer/ui/components",
+        "utils": "@deployer/ui/lib/utils",
+        "ui": "@deployer/ui/components/shadcn",
+        "lib": "@deployer/ui/lib",
+        "hooks": "@deployer/ui/hooks"
     }
 }

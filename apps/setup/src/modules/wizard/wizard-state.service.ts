@@ -1,6 +1,6 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
-import type { SetupStateSnapshot, SetupBootstrapStrategy } from "@repo/contracts-entities";
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { NODE_CONFIG_READER, type NodeConfigReader } from "./node-config.port";
+import type { SetupStateSnapshot, SetupBootstrapStrategy } from "@deployer/contracts-entities";
 
 /**
  * The wizard's PRE-GATE state, answered locally.
@@ -44,7 +44,7 @@ import type { SetupStateSnapshot, SetupBootstrapStrategy } from "@repo/contracts
 export class WizardStateService {
   private readonly logger = new Logger(WizardStateService.name);
 
-  constructor(private readonly nodeConfig: NodeConfigRepository) {}
+  constructor(@Inject(NODE_CONFIG_READER) private readonly nodeConfig: NodeConfigReader) {}
 
   /**
    * Whether this node has a COMPLETED platform.

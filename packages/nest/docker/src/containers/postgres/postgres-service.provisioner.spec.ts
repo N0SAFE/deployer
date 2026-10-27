@@ -14,26 +14,24 @@ function buildSpec() {
 
 describe("PostgresServiceProvisioner.buildSpec", () => {
     /**
-     * REGRESSION GUARD: the port below is published in `host` mode, so only one
-     * task on the node can ever hold it. `start-first` starts the replacement
-     * BEFORE the old task releases the port, which the scheduler cannot satisfy:
-     *
-     *   "no suitable node (host-mode port already in use on 1 node)"
-     *
-     * and the service sits at 0/1 forever — the database becomes unreachable and
-     * the API cannot boot. `stop-first` releases the port first.
+     * REGRESSION GUARD: the data directory is exclusive, so a replacement task can
+     * never run alongside the old one. `start-first` would start the new task before
+     * the old one released the data directory and leave the service at 0/1 forever
+     * (database unreachable, API cannot boot). `stop-first` releases it first.
      */
-    it("uses stop-first, because its port is published in host mode", () => {
+    it("uses stop-first, because its data directory is exclusive", () => {
         const spec = buildSpec();
-        expect(spec.endpointPorts.map((p) => p.publishMode)).toContain("host");
         expect(spec.updateConfig.order).toBe("stop-first");
     });
 
-    it("publishes the database port in host mode and keeps the stable alias", () => {
+    /**
+     * SECURITY GUARD: no host-published port. A publish bound 0.0.0.0:5432 on the
+     * node put the platform's state store on every interface; consumers reach the
+     * database on the platform overlay by its alias instead.
+     */
+    it("publishes no port and relies on the overlay alias", () => {
         const spec = buildSpec();
-        expect(spec.endpointPorts).toEqual([
-            { protocol: "tcp", publishedPort: 5432, targetPort: 5432, publishMode: "host" },
-        ]);
+        expect(spec.endpointPorts).toEqual([]);
         // `networks` stays empty here: the caller attaches the resolved overlay.
         expect(spec.networks).toEqual([]);
     });

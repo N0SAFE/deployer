@@ -1,6 +1,4 @@
-import { authClient } from '@/lib/auth/index';
 import { orpc } from '@/lib/orpc'
-import { custom } from '../shared/helpers';
 
 /**
  * User domain endpoints

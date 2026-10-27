@@ -1,5 +1,5 @@
 /**
- * @repo/nest-env — validated, typed environment for any NestJS app.
+ * @deployer/nest-env — validated, typed environment for any NestJS app.
  *
  * WHAT THIS PACKAGE IS
  * The MECHANISM: load `.env`, validate once through a schema, expose a typed
@@ -16,6 +16,6 @@
  * That is what makes the package reusable by a second Nest app: importing it
  * does not impose another app's variables.
  */
-export { EnvModule } from "./env.module";
-export type { EnvModuleOptions } from "./env.module";
-export { EnvService } from "./env.service";
+export { EnvModule } from './env.module'
+export type { EnvModuleOptions } from './env.module'
+export { EnvService } from './env.service'

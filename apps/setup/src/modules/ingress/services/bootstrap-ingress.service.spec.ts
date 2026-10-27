@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { BootstrapIngressService } from "./bootstrap-ingress.service";
 import type { EnvService } from "@/config/env/env.module";
-import type { DockerService } from "@repo/nest-docker/services/docker.service";
+import type { DockerService } from "@deployer/nest-docker/services/docker.service";
 
 /**
  * `releaseEntryPort` is the handover of the host port from setup's bootstrap

@@ -64,13 +64,13 @@ description: "Core engineering principles, workflow/process, code-review catalog
 | Zod entity schema | `packages/contracts/entities/` | Re-import, never re-declare |
 | Zod input/output schema for a contract | `packages/contracts/api/modules/<domain>/` | Re-import in the contract, never re-declare in handler |
 | ORPC error definition | `packages/transport/orpc` (`error()` builder) | Re-import, never redefine inline |
-| ORPC mesh error contracts | `meshDomainErrorContracts(error)` from `@repo/utils-orpc` | Always spread into contract `.errors(...)` |
-| Shadcn component | `packages/ui/base/` | `ui-add { components: [...] }` to add, then re-import via `@repo/ui` |
+| ORPC mesh error contracts | `meshDomainErrorContracts(error)` from `@deployer/utils-orpc` | Always spread into contract `.errors(...)` |
+| Shadcn component | `packages/ui/base/` | `ui-add { components: [...] }` to add, then re-import via `@deployer/ui` |
 | Custom hook | `apps/web/src/hooks/` (app-specific) or `packages/utils/` (shared) | Re-import |
 | Service / Repository | `apps/api/src/modules/<domain>/services/`, `repositories/` | Re-import via NestJS module exports |
-| Logger | `AppLogger` from `@repo/utils-logger` | Re-import, never use `console.log` |
+| Logger | `AppLogger` from `@deployer/utils-logger` | Re-import, never use `console.log` |
 | Auth helper | `packages/auth/` (Better Auth factories) | Re-import |
-| Env var access | `apps/api/src/config/`, `apps/web/src/lib/config.ts` | Re-import the parsed config, never `process.env.X` scattered |
+| Env var access | `apps/api/shared/src/config/`, `apps/web/src/lib/config.ts` | Re-import the parsed config, never `process.env.X` scattered |
 | Route | `apps/web/src/routes/index.ts` (auto-generated) | Use the typed `<Route>.Link` and `<Route>.fetch` |
 | Magic number / string | `packages/types/` or `_constants.ts` in the feature | Extract to a named constant |
 
@@ -160,12 +160,12 @@ description: "Core engineering principles, workflow/process, code-review catalog
 |---------|-----------------|------------------------|
 | Zod entity schemas | `packages/contracts/entities/src/entities/<domain>/` | Re-declaring in `apps/` or `packages/contracts/api/` |
 | ORPC contract definitions | `packages/contracts/api/modules/<domain>/<op>.ts` | Inlining into a controller |
-| Env vars | `apps/api/src/config/`, `apps/web/src/lib/config.ts` | `process.env.X` in business code |
+| Env vars | `apps/api/shared/src/config/`, `apps/web/src/lib/config.ts` | `process.env.X` in business code |
 | App config | `bunfig.toml`, `turbo.json`, per-app `package.json` | Re-declaring in code |
 | Routes | `apps/web/src/routes/index.ts` (auto-generated) | Hardcoded `href="/foo"` strings |
 | Database schema | `apps/api/src/db/drizzle/schema/` | Re-declaring column types in TS |
-| Auth | `apps/api/src/auth.ts` | Re-implementing auth checks in handlers |
-| Logger | `AppLogger` from `@repo/utils-logger` | `console.log` |
+| Auth | `apps/api/shared/src/auth.ts` | Re-implementing auth checks in handlers |
+| Logger | `AppLogger` from `@deployer/utils-logger` | `console.log` |
 | ORPC client | `apps/web/src/lib/orpc.ts` | Re-creating the client per request |
 
 ### Anti-Patterns
@@ -421,7 +421,7 @@ When you touch a file for **any reason**:
 
 - **Bundle cleanup with the task.** A PR that adds a feature AND removes 3 dead-code instances AND extracts 1 utility is a **good** PR. A separate "cleanup PR" is fine if the cleanup is large, but most cleanup should ride along with the work that touched the file.
 - **Don't expand scope beyond what's necessary.** If a file has 10 smells and you only need to fix 1 for the task, fix 1, but mention the others so the user knows. Don't fix all 10 silently.
-- **Don't fix things in unrelated files.** Stay focused. A bug fix in `apps/api/src/modules/docker/` shouldn't also touch `apps/web/src/app/dashboard/projects/`.
+- **Don't fix things in unrelated files.** Stay focused. A bug fix in `apps/api/services/runtime/src/modules/docker/` shouldn't also touch `apps/web/src/app/dashboard/projects/`.
 
 ### Anti-Patterns
 
@@ -554,7 +554,7 @@ If you're replacing `oldThing` with `newThing`:
 
 ### Application
 
-- `apps/api/src/modules/docker/` is obviously about docker.
+- `apps/api/services/runtime/src/modules/docker/` is obviously about docker.
 - `apps/api/src/modules/mesh/` is obviously about mesh networking.
 - `apps/web/src/app/dashboard/docker/containers/` is obviously about docker containers in the dashboard.
 - `packages/contracts/entities/src/entities/docker/` is obviously the docker entity schemas.
@@ -744,6 +744,7 @@ When changing a contract or its consumer, work in this order:
    - Update this file if the rules change
    - Update the architecture docs if the structure changes
 6. **Validation** (before commit):
+   - `bun lint` and `bun check --no-script` (never raw `eslint` / `tsc`)
    - `bun --bun run web -- type-check`
    - `bun --bun run api -- type-check`
    - `bun --bun run test`
@@ -822,7 +823,7 @@ When changing a contract or its consumer, work in this order:
 
 Run this checklist mentally (or write it down for non-trivial changes):
 
-- [ ] **Does the code compile?** `bun --bun run type-check` on both `apps/web` and `apps/api`. Zero errors.
+- [ ] **Does the code compile and lint?** `bun check --no-script` (and `bun lint` while iterating) — never raw `eslint` or `tsc`. Zero errors.
 - [ ] **Do the tests pass?** `bun --bun run test` for unit, `bun --bun run test:e2e` for e2e (when applicable).
 - [ ] **Did I introduce type assertions?** `grep -rn "as unknown as\|as Record<string" apps/ packages/`. Should be **zero** in new code.
 - [ ] **Did I introduce `@ts-ignore` or `@ts-expect-error`?** `grep -rn "@ts-ignore\|@ts-expect-error" apps/ packages/`. Should be **zero**.
@@ -1032,7 +1033,7 @@ When an MCP action returns an error:
 | API | `auth-generate` | Regenerate auth schema/types after `src/auth.ts` change |
 | API | `api-db { action: "generate"\|"push"\|"migrate"\|"seed"\|"reset"\|"studio" }` | DB lifecycle |
 | Web | `run-script` for `dr:build`/`dr:build:watch` | Regenerate declarative routes |
-| UI | `ui-add { components: [...] }` | Add Shadcn components to `@repo/ui` |
+| UI | `ui-add { components: [...] }` | Add Shadcn components to `@deployer/ui` |
 | Packages | `run-script`, `bump-version`, `list-internal-dependencies` | Impact analysis |
 
 ### Local vs Docker Execution
@@ -1095,7 +1096,7 @@ bun test
 | `create-package` | Create a new package |
 | `auth-generate` | Regenerate auth schema/types (api) |
 | `api-db { action: "generate"\|"push"\|"migrate"\|"seed"\|"reset"\|"studio" }` | DB lifecycle |
-| `ui-add { components: [...] }` | Add Shadcn components to `@repo/ui` |
+| `ui-add { components: [...] }` | Add Shadcn components to `@deployer/ui` |
 | `docker-up { mode: "dev"\|"prod", target: "api"\|"web"\|"all" }` | Start dev stack |
 
 ---
@@ -1294,7 +1295,7 @@ docker exec -it <container> sh        # Shell into container
 
 - ❌ **README points to a nonexistent directory** — if the root `README.md` references `.docs/` or `docs/README.md` as a documentation hub, that directory must exist. Broken doc links are worse than no links.
 - ❌ **AGENTS.md file that doesn't reflect `.github/copilot-instructions.md` rules** — every AGENTS.md must at minimum reference the relevant CI sections. Key rules (type assertions ban, Zod-as-truth, error handling, Bun runtime, self-review checklist) must be repeated or linked.
-- ❌ **Embedded documentation islands in source code** — a `docs/` folder inside `apps/api/src/core/modules/domain/` is invisible to readers. If documentation belongs inside the module, link it from the main docs index. Otherwise, keep it in `docs/` or `apps/doc/`.
+- ❌ **Embedded documentation islands in source code** — a `docs/` folder inside `apps/api/shared/src/core/modules/domain/` is invisible to readers. If documentation belongs inside the module, link it from the main docs index. Otherwise, keep it in `docs/` or `apps/doc/`.
 - ❌ **AGENTS.md with inconsistent structure** — all app-level AGENTS.md files should follow the same template (Scope Rules, Quick Context, Workflows, Boundaries, Rules). Config package stubs can be compact, but must at least state their purpose and key constraints.
 - ❌ **Design docs tagged as "finalized" with no implementation** — a design doc marked "Design finalized, implementation pending" that has been pending for months is stale. Either implement it, re-scope it, or mark it as deprecated.
 - ❌ **Documentation hub duality** — two places claiming to be "the canonical documentation source" (`apps/doc/content/docs/` and `docs/`) creates confusion. Either merge them or establish a clear priority rule with cross-references.
@@ -1359,15 +1360,15 @@ Every package and app has path aliases. **Use them, never use `../../../`**:
 | `apps/web` | `@/*` → `src/*` |
 | `apps/api` | `@/*` → `src/*` |
 | `apps/doc` | `@/*` → `src/*` |
-| `packages/ui` | `@repo/ui` |
-| `packages/contracts/entities` | `@repo/contracts-entities` |
-| `packages/contracts/api` | `@repo/contracts-api` |
-| `packages/transport/orpc` | `@repo/utils-orpc` |
-| `packages/infrastructure/logger` | `@repo/utils-logger` |
-| `packages/auth` | `@repo/utils-auth` |
-| `packages/utils/use-safe-query-param-states-from-zod` | `@repo/use-safe-query-param-states-from-zod` |
-| `packages/nest` | `@repo/nest` |
-| `packages/types` | `@repo/types` |
+| `packages/ui` | `@deployer/ui` |
+| `packages/contracts/entities` | `@deployer/contracts-entities` |
+| `packages/contracts/api` | `@deployer/contracts-api` |
+| `packages/transport/orpc` | `@deployer/utils-orpc` |
+| `packages/infrastructure/logger` | `@deployer/utils-logger` |
+| `packages/auth` | `@deployer/utils-auth` |
+| `packages/utils/use-safe-query-param-states-from-zod` | `@deployer/use-safe-query-param-states-from-zod` |
+| `packages/nest` | `@deployer/nest` |
+| `packages/types` | `@deployer/types` |
 
 ### Common Dev Workflows
 
@@ -1610,9 +1611,9 @@ bun --bun run test:e2e
 
 | Layer | Pattern | Example |
 |-------|---------|---------|
-| App (`apps/api`, `apps/web`) | `*.spec.ts` colocated with source | `apps/api/src/core/utils/context-filter-logger.spec.ts` |
+| App (`apps/api/*`, `apps/web`) | `*.spec.ts` colocated with source | `apps/api/shared/src/core/utils/context-filter-logger.spec.ts` |
 | Shared package (`packages/*`) | `__tests__/*.test.ts` colocated with source module | `packages/transport/orpc/src/builder/__tests__/error-builder.test.ts` |
-| E2E | `*.e2e.spec.ts` with shared Postgres testcontainer setup | `apps/api/vitest.shared-postgres.e2e.ts` |
+| E2E | `*.e2e.spec.ts` with shared Postgres testcontainer setup | `apps/api/shared/src/e2e-harness/vitest/shared-postgres.ts` |
 
 **Both patterns are intentional.** Do not force one over the other.
 
@@ -1637,10 +1638,8 @@ const module = await Test.createTestingModule({
 
 ### Per-App Setup Files
 
-- `apps/api/vitest.setup.ts` — NestJS test bootstrapping
-- `apps/api/vitest.setup.e2e.ts` — e2e setup
-- `apps/api/vitest.global-setup.e2e.ts` + `vitest.shared-postgres.e2e.ts` — e2e with shared Postgres container (testcontainers)
-- `apps/api/vitest.teardown.e2e.ts` — e2e teardown
+- Each API app's `vitest.config.mts` calls `createServiceTestConfig` (`tooling/vitest/src/service.ts`), which defines the `<app>-unit` and `<app>-e2e` projects
+- `apps/api/shared/src/e2e-harness/vitest/` — e2e setup, global setup (shared Postgres container via testcontainers) and teardown; guide: `apps/api/docs/e2e-testing.md`
 
 ### Coverage
 

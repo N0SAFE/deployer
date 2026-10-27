@@ -78,7 +78,7 @@ function run(cmd: string[], label: string): number {
 const args = parseArgs(process.argv.slice(2));
 
 if (args.build) {
-  const code = run(['bun', '--bun', 'x', 'turbo', 'run', 'build', '--filter=doc'], 'Building the export…');
+  const code = run(['bun', '--bun', 'x', 'turbo', 'run', 'build', '--filter=@deployer/doc'], 'Building the export…');
   if (code !== 0) process.exit(code);
 }
 

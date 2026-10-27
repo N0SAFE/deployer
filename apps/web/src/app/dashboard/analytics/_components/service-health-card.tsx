@@ -1,8 +1,10 @@
 'use client'
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { StatusBadge } from '@/components/dashboard'
 import { CardBody, DataSourceBadge } from './card-states'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { AuthDashboardProjects } from '@/routes'
 
 export interface ServiceHealthRow { serviceName: string; status: string; uptime: number }
 
@@ -25,7 +27,8 @@ export function ServiceHealthCard({ rows, source, loading, error, onRetry }: { r
 			</CardHeader>
 			<CardContent>
 				<CardBody loading={loading} error={error} onRetry={onRetry} empty={rows.length === 0} height="h-64"
-					emptyText="No services are registered yet, so there is no health to report.">
+					emptyText="No services are registered yet, so there is no health to report."
+					emptyAction={<Button asChild size="sm" variant="outline"><AuthDashboardProjects.Link>Go to projects</AuthDashboardProjects.Link></Button>}>
 					<ul className="max-h-64 divide-y divide-border/50 overflow-y-auto">
 						{rows.map((row) => (
 							<li key={row.serviceName} className="flex items-center justify-between gap-3 py-2">

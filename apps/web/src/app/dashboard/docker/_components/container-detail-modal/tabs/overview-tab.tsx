@@ -1,5 +1,5 @@
-import type { DockerContainerInspectDetail } from '@repo/contracts-entities'
-import { Badge } from '@repo/ui/components/shadcn/badge'
+import type { DockerContainerInspectDetail } from '@deployer/contracts-entities'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
 import {
   ChartContainer,
   ChartLegend,
@@ -7,7 +7,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
-} from '@repo/ui/components/shadcn/chart'
+} from '@deployer/ui/components/shadcn/chart'
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts'
 
 const overviewChartConfig = {

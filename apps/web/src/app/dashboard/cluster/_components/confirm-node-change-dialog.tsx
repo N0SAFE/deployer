@@ -1,7 +1,7 @@
 'use client'
 
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@deployer/ui/components/shadcn/dialog'
 import type { Confirmation } from '../_utils/node-change-guard'
 
 /** Confirms a node change that can reduce quorum or leave the cluster without ingress; shows the consequence. */

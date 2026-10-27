@@ -1,5 +1,5 @@
 {
-    "name": "@repo/nest-supervisor-core",
+    "name": "@deployer/nest-supervisor-core",
     "version": "1.0.0",
     "description": "Supervisor framework: converge/probe lifecycle, registry, orchestrator and RxJS event bus. Knows how to supervise, never what.",
     "main": "./dist/cjs/index.js",
@@ -40,11 +40,6 @@
             "import": "./dist/esm/supervisor-process-info.mjs",
             "require": "./dist/cjs/supervisor-process-info.js"
         },
-        "./supervisor-shared": {
-            "types": "./dist/types/supervisor-shared.d.ts",
-            "import": "./dist/esm/supervisor-shared.mjs",
-            "require": "./dist/cjs/supervisor-shared.js"
-        },
         "./supervisors.module": {
             "types": "./dist/types/supervisors.module.d.ts",
             "import": "./dist/esm/supervisors.module.mjs",
@@ -52,11 +47,13 @@
         }
     },
     "scripts": {
-        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "prettify": "bun fmt .",
         "format": "bun run prettify",
-        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "lint": "eslint . --fix --cache",
-        "type-check": "tsc --noEmit",
+        "format:check": "bun fmt --check .",
+        "lint": "bun lint --no-script --type-aware",
+        "lint:fix": "bun lint --no-script --fix --type-aware",
+        "lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
+        "type-check": "bun check --no-script",
         "test": "vitest run",
         "test:watch": "vitest",
         "build": "bun --bun pkg-build",
@@ -73,11 +70,11 @@
         "@nestjs/common": "catalog:api:nest"
     },
     "devDependencies": {
-        "@repo/config-eslint": "*",
-        "@repo/config-prettier": "*",
-        "@repo/config-typescript": "*",
-        "@repo/config-vitest": "*",
-        "@repo/pkg-build": "*",
+        "@deployer/config-eslint": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-typescript": "*",
+        "@deployer/config-vitest": "*",
+        "@deployer/pkg-build": "*",
         "@types/node": "catalog:build",
         "chokidar": "catalog:build",
         "eslint": "catalog:linting",

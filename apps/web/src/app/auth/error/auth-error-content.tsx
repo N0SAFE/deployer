@@ -3,7 +3,7 @@
 import { useSearchParams } from 'next/navigation'
 import { AlertCircle } from 'lucide-react'
 import { AuthSignin } from '@/routes'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Button } from '@deployer/ui/components/shadcn/button'
 
 interface AuthErrorCopy {
     title: string

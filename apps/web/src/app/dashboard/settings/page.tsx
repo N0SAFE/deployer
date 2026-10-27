@@ -36,7 +36,7 @@ export default function SettingsPage() {
   const isAdmin = useIsPlatformAdmin()
   const integrations = useIntegrationSummary()
   const { data: readiness, isLoading: readinessLoading } = useMeshTrustStrictReadiness({ enabled: isAdmin })
-  const integrationsStatus = integrations.loading
+  const integrationsStatus = integrations.loading || integrations.failed
     ? null
     : `${String(integrations.connected)} of ${String(integrations.total)} connected${integrations.attention > 0 ? ` · ${String(integrations.attention)} need a look` : ''}`
   const securityStatus = !isAdmin || readinessLoading || !readiness ? null : readiness.strictEnforced ? 'Strict mode is on' : 'Strict mode is off'

@@ -6,7 +6,7 @@
     ],
     "compilerOptions": {
         "paths": {
-            "@repo/nest-swarm/*": [
+            "@deployer/nest-swarm/*": [
                 "./src/*"
             ]
         }

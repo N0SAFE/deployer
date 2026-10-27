@@ -3140,6 +3140,93 @@ CMD ["npm", "start"]
         }
     }
 
+    private static readonly VXLAN_ID_OPTION = "com.docker.network.driver.overlay.vxlanid_list";
+
+    /**
+     * Rebuild an overlay whose VXLAN datapath the engine can no longer join, on a
+     * VNI it has not poisoned.
+     *
+     * The engine can keep a stale vxlan device for a VNI (`error creating vxlan
+     * interface: file exists`) in a namespace nothing but a daemon restart clears.
+     * Every join on that VNI then times out, whoever asks. The VNI is the poisoned
+     * part, not the name or the subnet, so the repair that needs no host access is
+     * to recreate the network on another one.
+     *
+     * Services attached to the network are REMOVED first (a network in use cannot
+     * be removed); the caller re-creates what it owns, which its own ensure-style
+     * methods already do idempotently. `detachContainerIds` are force-disconnected
+     * for the same reason. Any other endpoint still holding the network makes the
+     * removal fail with the engine's own message rather than being evicted.
+     */
+    async recreateOverlayNetwork(
+        request: SwarmOverlayNetworkRequest,
+        options: { detachContainerIds?: string[]; avoidVxlanIds?: number[] } = {},
+    ): Promise<{ vxlanId: number; avoidedVxlanIds: number[]; removedServices: string[] }> {
+        const network = this.docker.getNetwork(request.name);
+        const poisoned = new Set(options.avoidVxlanIds ?? []);
+        let networkId: string | undefined;
+        try {
+            const info = await network.inspect();
+            networkId = info.Id;
+            for (const id of DockerService.vxlanIdsOf(info.Options)) poisoned.add(id);
+        } catch (error: unknown) {
+            if (!this.isDockerNotFoundError(error)) throw error;
+        }
+
+        const removedServices: string[] = [];
+        if (networkId !== undefined) {
+            for (const service of await this.listSwarmServices()) {
+                const attached = service.Spec?.TaskTemplate?.Networks?.some(
+                    (n) => n.Target === networkId || n.Target === request.name,
+                );
+                const name = service.Spec?.Name;
+                if (attached === true && name !== undefined) {
+                    await this.removeSwarmService(name);
+                    removedServices.push(name);
+                }
+            }
+            for (const containerId of options.detachContainerIds ?? []) {
+                await network.disconnect({ Container: containerId, Force: true }).catch(() => undefined);
+            }
+            await this.removeNetworkWhenReleased(request.name);
+        }
+
+        const used = new Set<number>();
+        for (const net of await this.docker.listNetworks()) {
+            for (const id of DockerService.vxlanIdsOf(net.Options)) used.add(id);
+        }
+        let vxlanId = Math.max(4096, ...poisoned) + 1;
+        while (used.has(vxlanId) || poisoned.has(vxlanId)) vxlanId += 1;
+
+        await this.ensureOverlayNetwork({ ...request, vxlanId });
+        this.logger.warn(
+            `Recreated overlay ${request.name} on VXLAN id ${String(vxlanId)} ` +
+            `(avoiding ${[...poisoned].join(", ") || "none"}); removed services: ${removedServices.join(", ") || "none"}`,
+        );
+        return { vxlanId, avoidedVxlanIds: [...poisoned], removedServices };
+    }
+
+    private static vxlanIdsOf(options: Record<string, string> | undefined): number[] {
+        const raw = options?.[DockerService.VXLAN_ID_OPTION];
+        if (raw === undefined) return [];
+        return raw.split(",").map(Number).filter((n) => Number.isInteger(n));
+    }
+
+    /** Service removal is asynchronous: the engine releases the network once the last task is gone. */
+    private async removeNetworkWhenReleased(name: string, budgetMs = 60_000): Promise<void> {
+        const deadline = Date.now() + budgetMs;
+        for (;;) {
+            try {
+                await this.docker.getNetwork(name).remove();
+                return;
+            } catch (error: unknown) {
+                if (this.isDockerNotFoundError(error)) return;
+                if (Date.now() >= deadline) throw error;
+                await new Promise((resolve) => setTimeout(resolve, 2_000));
+            }
+        }
+    }
+
     /**
      * Idempotently ensure an overlay network exists (create once, reuse by
      * name). Concurrent creation is tolerated: a 409 race resolves by
@@ -3189,6 +3276,9 @@ CMD ["npm", "start"]
                 Ingress: request.ingress,
                 EnableIPv6: request.enableIpv6,
                 Labels: request.labels,
+                ...(request.vxlanId === undefined
+                    ? {}
+                    : { Options: { [DockerService.VXLAN_ID_OPTION]: String(request.vxlanId) } }),
             });
             this.logger.log(`Created overlay network ${request.name}`);
         } catch (error: unknown) {

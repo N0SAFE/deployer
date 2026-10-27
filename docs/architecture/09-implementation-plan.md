@@ -10,11 +10,11 @@ Atomic steps, type-check green at each. No step leaves a bridge behind
 
 ## Phase 0 — Cleared (already done)
 
-- [x] `apps/api-services/shared` extracted (`@deployer/shared`): `core/`, `config/`,
+- [x] `apps/api/shared` extracted (`@deployer/shared`): `core/`, `config/`,
       `auth.ts`, `server/`. 868 imports rewired across 282 files by the
       `@/core/*` · `@/config/*` · `@/auth` alias remap. **Type-check green.**
 - [x] Orchestrator scaffold deleted (rejected design).
-- [x] Old `api-services-bff-orchestrator.md` draft deleted.
+- [x] Old `api-bff-orchestrator.md` draft deleted.
 - [x] This documentation series written.
 
 ---
@@ -42,7 +42,7 @@ Everything below is a prerequisite for any service or the BFF.
 - [ ] **Shared build script**: the 1:1 transpile + alias rewrite, extracted so
       every app reuses it (`apps/api/scripts/build.ts` is monolith-only today).
 
-**Verified:** `apps/api-services/shared` type-check 0 errors; 33 tests green, including a
+**Verified:** `apps/api/shared` type-check 0 errors; 33 tests green, including a
 boot-gating **integration** test that starts a real app and asserts the port
 binds before the checks run and that a missing dependency refuses to serve.
 

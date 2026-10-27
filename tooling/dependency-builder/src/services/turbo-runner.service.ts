@@ -1,8 +1,10 @@
 import { spawn } from 'node:child_process'
 import {
     copyFileSync,
+    cpSync,
     existsSync,
     mkdirSync,
+    readdirSync,
     rmSync,
     symlinkSync,
     lstatSync,
@@ -17,27 +19,83 @@ import type { UnionMember } from '../schemas'
 import { BuildFailedError } from '../errors'
 import { scopedLogger } from '../logger'
 
-/** Where built artifacts are published for the application containers. */
-export const DEFAULT_OUTPUT_ROOT = '/dep-output'
+/**
+ * Where built artifacts are published for the application containers.
+ *
+ * ── INSIDE THE WORKSPACE ROOT, AND THAT IS LOAD-BEARING ─────────────────
+ * This path must resolve BELOW the repository root (`/app` in a container).
+ * Turbo refuses to package a cache entry whose declared `outputs` resolve
+ * outside the workspace root, and says so once per package:
+ *
+ *     WARNING  tar attempts to write outside of directory:
+ *              /dep-output/packages/@deployer/pkg-build/dist
+ *
+ * The result is not a partial cache but NO cache: measured 2 entries written for
+ * 38 packages, so every run rebuilt everything and `cache hit` never appeared.
+ *
+ * The `dist/` symlinks this class creates are what make that happen — each one
+ * points at this root, and Turbo follows it to decide where the output lives.
+ * Pointing the root at `/app/dep-output` instead removed every warning and
+ * produced `Cached: 1 cached, 1 total >>> FULL TURBO` on the second run.
+ *
+ * It was `/dep-output` (a SIBLING of `/app`), which is exactly the shape Turbo
+ * rejects. Compose must mount the shared volume at this same path.
+ */
+export const DEFAULT_OUTPUT_ROOT = '/app/dep-output'
 
 /**
  * Turbo's cache directory, as a child of the output root.
  *
- * Deliberately not the repository's `.turbo/cache`: a populated cache lets
- * Turbo replay a task by unpacking into `outputs`, which replaces the `dist/`
- * symlinks and detaches the packages from the shared volume.
+ * Deliberately not the repository's `.turbo/cache`, so a build never unpacks
+ * into the same tree the editor and the dev server are reading.
  *
- * It lives under the output root rather than at a fixed absolute path because
- * that root is the one writable location both environments agree on — a mounted
- * volume in the container, a caller-chosen directory on the host. A hardcoded
- * path failed on the host with `Permission denied` before the build even ran.
+ * ── WHERE IT ACTUALLY LIVES ─────────────────────────────────────────────
+ * The image's cache when one was baked ({@link BAKED_CACHE_DIR}), so the runtime
+ * REUSES builds the Dockerfile already paid for. The volume is only the fallback
+ * for a host run, where no image was involved.
+ *
+ * ── WHAT THE CACHE MUST NOT DO ─────────────────────────────────────────
+ * Turbo's restore follows a symlinked `outputs` entry rather than replacing it:
+ * verified that a `dist/` symlinked into the shared volume receives the restored
+ * files THROUGH the link and stays a link. So a cache hit publishes artifacts
+ * instead of detaching the package — which is what makes a warm cache safe here.
  */
 export function cacheDirFor(outputRoot: string): string {
+    // ── PREFER THE CACHE THE IMAGE BUILT ────────────────────────────────────
+    // Present from the first container start, and warm with every internal
+    // package the Dockerfile built. Falling back to the volume keeps the tool
+    // usable on a host, where no image was involved and `/app` does not exist.
+    if (existsSync(BAKED_CACHE_DIR)) return BAKED_CACHE_DIR
     return join(outputRoot, '.turbo-cache')
 }
 
 /** Written once the first build succeeds; the applications gate on it. */
 export const BUILD_MARKER = '.initial-build-complete'
+
+/**
+ * Turbo's cache directory as BAKED INTO THE IMAGE by the Dockerfile.
+ *
+ * ── WHY THE CACHE IS BAKED, NOT CREATED AT RUNTIME ───────────────────────
+ * The Dockerfile builds every internal package, so this directory is already
+ * populated before the container starts. Reusing it saves rebuilding whatever
+ * the volume does not already hold.
+ *
+ * ── WHY IT IS NOT ON THE OUTPUT VOLUME ──────────────────────────────────
+ * {@link cacheDirFor} originally returned a path under `outputRoot`, which is a
+ * freshly-created volume on a first run — and therefore EMPTY. A cache that
+ * does not exist cannot be hit.
+ *
+ * ── WHY IT IS OUTSIDE `/app` ────────────────────────────────────────────
+ * `develop.watch` syncs the HOST tree into `/app`, and a directory under `/app`
+ * is therefore subject to that sync — a path the host does not have is one the
+ * sync may remove. `/opt` is outside the synced tree, so the baked cache is
+ * untouched for the life of the container.
+ *
+ * Verified that a cache seeded WITHOUT `.env` is still reused WITH `.env`
+ * loaded (`FULL TURBO`), so the image-build and runtime environments do not
+ * invalidate each other's entries.
+ */
+export const BAKED_CACHE_DIR = '/opt/turbo-cache'
 
 /**
  * Points each union package's `dist/` at the shared output volume, builds, then
@@ -61,17 +119,24 @@ export class TurboRunner {
      *  - the existing `dist/` is removed only when it is not already the link
      *  - `rm -rf` is applied to the TARGET, never to the symlink, or the link is
      *    destroyed and later writes land in the package directory instead
+     *
+     * @returns `true` when EVERY union member already had published artifacts —
+     *   which is the case on a first run from the baked image, where the
+     *   Dockerfile built them. The caller uses it to skip a build that would be
+     *   entirely a cache hit.
      */
     linkOutputs(
         root: string,
         union: readonly UnionMember[],
         outputRoot: string
-    ): void {
+    ): boolean {
         // Refuse before touching any `dist/`. On the host this root is not
         // creatable without root, and replacing real build output with symlinks
         // into a directory that does not exist would leave the repository broken.
         // In the container the root is a mounted volume and already exists.
         mkdirSync(outputRoot, { recursive: true })
+
+        let allPublished = true
 
         for (const member of union) {
             const pkgPath = join(root, member.dir)
@@ -91,6 +156,35 @@ export class TurboRunner {
 
             const link = join(pkgPath, 'dist')
             const existing = lstatSync(link, { throwIfNoEntry: false })
+
+            // ── PRESERVE AN IMAGE-BUILT `dist` ─────────────────────────────────
+            // The Dockerfile builds every internal package, so on the FIRST run
+            // `dist/` is a real directory holding finished output. Removing it
+            // would discard work the image already did and force a rebuild at
+            // exactly the moment the operator is waiting on the stack.
+            //
+            // Copying it into the volume first makes the image's build the only
+            // one: the artifacts are published, the symlink is created over the
+            // now-redundant directory, and no build is needed at all.
+            //
+            // Only into an EMPTY target, so a re-run never overwrites artifacts
+            // a previous run published (the volume outlives the container).
+            if (
+                existing?.isDirectory() === true &&
+                !existing.isSymbolicLink() &&
+                this.isDirEmpty(target)
+            ) {
+                cpSync(link, target, { recursive: true })
+                this.logger.info(
+                    `adopted image-built output for ${member.name} into the volume`
+                )
+            }
+
+            // Judged AFTER the adoption above, which is what makes a first run
+            // from the baked image report COMPLETE: the image's output moved into
+            // the volume, so nothing is left to build.
+            if (this.isDirEmpty(target)) allPublished = false
+
             if (existing?.isSymbolicLink() || existing?.isDirectory()) {
                 rmSync(link, { recursive: true, force: true })
             }
@@ -101,6 +195,8 @@ export class TurboRunner {
         }
 
         this.publishResolutionContext(root, union, outputRoot)
+
+        return allPublished
     }
 
     /**
@@ -206,6 +302,25 @@ export class TurboRunner {
     }
 
     /**
+     * Is `dir` empty?
+     *
+     * Used to decide whether an image-built `dist` may be copied over a
+     * published one: a NON-empty target means a previous run already published
+     * artifacts into this volume, and those must not be overwritten by an older
+     * image's output.
+     *
+     * A directory that cannot be read counts as non-empty, so the copy is
+     * skipped rather than attempted on a wrong guess.
+     */
+    private isDirEmpty(dir: string): boolean {
+        try {
+            return readdirSync(dir).length === 0
+        } catch {
+            return false
+        }
+    }
+
+    /**
      * Run the union's build once.
      *
      * `PKG_BUILD_KEEP_DIST=1` is set by {@link run}; it must also be declared in
@@ -217,13 +332,11 @@ export class TurboRunner {
         union: readonly UnionMember[],
         cacheDir: string
     ): Promise<void> {
-        this.excludeApplicationsFromGraph(root)
-
         const args = [
             'run',
             'build',
             ...this.cacheFlags(cacheDir),
-            ...this.scopeFlags(union),
+            ...this.scopeFlags(),
         ]
         this.logger.info(`building the union: turbo ${args.join(' ')}`)
 
@@ -256,8 +369,50 @@ export class TurboRunner {
      * The edit is to THIS CONTAINER's manifest only: the builder has its own copy
      * of the repository, and writing it there cannot affect the host or the
      * application containers.
+     *
+     * ── WHY THIS IS SAFE FOR DISCOVERY ──────────────────────────────────────
+     * `WorkspaceScanner` reads the SAME `workspaces.packages` list to decide
+     * where workspaces live, so stripping `apps/**` looks like it would make the
+     * applications undiscoverable — and it did: a build that applied this edit
+     * BEFORE discovery resolved `COMPOSE_PROFILES=all` to nothing and died with
+     * `Workspace "(none)" is not part of the repository`.
+     *
+     * The ordering here is what makes it safe: discovery runs BEFORE this is
+     * called, and the scan is cached per root. The scanner also treats the
+     * conventional trees as always-scanned, so discovery no longer depends on
+     * this list at all — see `WorkspaceScanner.workspaceRoots`.
+     *
+     * ── WHY IT IS PUBLIC, AND WHY IT RUNS EXACTLY ONCE ──────────────────────
+     * This used to be called twice: once from `buildOnce`, and again from
+     * `watch`. On a cold stack the two runs are MUTUALLY EXCLUSIVE — the initial
+     * build is skipped when the image already published everything — so on a
+     * cold start the only call was `watch`'s, which happens AFTER the build
+     * marker is written. The applications were therefore already compiling when
+     * the first call rewrote the manifest.
+     *
+     * That rewrite is not cosmetic: `package.json` is part of Turbo's global
+     * hash, so changing it after the marker invalidated EVERY entry the image
+     * had baked and the watch phase rebuilt all 40 packages from scratch, into
+     * the same volume the applications were resolving through:
+     *
+     *   initial build complete (...)            ← gate opens, apps start
+     *   excluded applications from the build graph: apps/**
+     *   entering watch mode
+     *   · Running build in 40 packages
+     *   @deployer/pkg-build:build: cache miss, executing 9f4839ced0cfb079
+     *
+     * The apps then failed with `Module not found` for eight packages and a
+     * Turbopack error naming a file that existed:
+     *
+     *   Path packages/transport/orpc/dist/esm/index.mjs could not be resolved
+     *   because a component does not exist
+     *
+     * Moving the call to a single explicit step BEFORE the build makes the
+     * manifest constant for the rest of the container's life: `buildOnce` and
+     * `watch` now see identical workspace sets, so watch starts warm instead of
+     * redoing the build, and nothing rewrites the tree under a compiling app.
      */
-    private excludeApplicationsFromGraph(root: string): void {
+    excludeApplicationsFromGraph(root: string): void {
         const manifestPath = join(root, 'package.json')
 
         let raw: {
@@ -316,15 +471,11 @@ export class TurboRunner {
         union: readonly UnionMember[],
         cacheDir: string
     ): Promise<never> {
-        // Guard here too: `watch` is a separate process from the initial build,
-        // so the graph must be correct before it starts.
-        this.excludeApplicationsFromGraph(root)
-
         const args = [
             'watch',
             'build',
             ...this.cacheFlags(cacheDir),
-            ...this.scopeFlags(union),
+            ...this.scopeFlags(),
         ]
         this.logger.info(`entering watch mode: turbo ${args.join(' ')}`)
 
@@ -360,8 +511,31 @@ export class TurboRunner {
      * without it, Turbo would build every workspace, including packages belonging
      * only to applications that are not enabled.
      */
-    private scopeFlags(union: readonly UnionMember[]): string[] {
-        return union.map((member) => `--filter=./${member.dir}`)
+    private scopeFlags(): string[] {
+        // ── ONE FILTER, MATCHING WHAT THE IMAGE BAKED ────────────────────────
+        // This used to emit one `--filter=./<dir>` per union member (~40 of
+        // them). The Dockerfile's bake uses a single
+        // `--filter='!./apps/**'`, and Turbo's task hash includes the resolved
+        // task graph — so the two selections produced DIFFERENT hashes for the
+        // same packages and `watch` could never reuse the baked entries:
+        //
+        //   initial build complete (...)          ← gate opened here (before this fix)
+        //   entering watch mode
+        //   • Running build in 40 packages
+        //   38 × "cache miss, executing …"
+        //
+        // Those 38 rebuilds rewrote the shared volume while the application
+        // containers were compiling against it, which is what produced ~1400
+        // `Module not found` errors on a cold start and a dev server stuck on
+        // 500 until it was restarted.
+        //
+        // The union is "every workspace that is not an application", and the
+        // applications are already stripped from the workspace graph by
+        // `excludeApplicationsFromGraph`, so `!./apps/**` selects exactly the
+        // same set — with the hash the bake already cached. The union parameter
+        // was dropped rather than kept unused: the membership decision belongs to
+        // the caller, and the FILTER form is what has to agree with the image.
+        return ["--filter=!./apps/**"];
     }
 
     /**

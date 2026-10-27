@@ -18,7 +18,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@repo/ui/components/shadcn/dialog'
+} from '@deployer/ui/components/shadcn/dialog'
 import { openCommandPalette } from './command-palette-store'
 
 /** go-to bindings: press `g`, then a letter within the window. */
@@ -33,7 +33,7 @@ const GO_TO_BINDINGS: Record<string, { label: string; href: string }> = {
   u: { label: 'Account', href: AuthDashboardSettingsAccount() },
 }
 
-const SHORTCUT_ROWS: Array<{ keys: string; action: string }> = [
+const SHORTCUT_ROWS: { keys: string; action: string }[] = [
   { keys: '⌘K / Ctrl K', action: 'Open command palette' },
   { keys: 'g, then o', action: 'Go to command center' },
   { keys: 'g, then p', action: 'Go to projects' },

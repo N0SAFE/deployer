@@ -3,12 +3,12 @@
 /**
  * Supplies the shared setup wizard with THIS app's data access.
  *
- * The wizard UI lives in `@repo/ui` (one implementation, no duplication); what
+ * The wizard UI lives in `@deployer/ui` (one implementation, no duplication); what
  * differs per host is how it reaches the platform. The API serves the page, so
  * it talks to its own origin.
  */
 
-import type { SetupWizardApi } from "@repo/ui/components/setup/types";
+import type { SetupWizardApi } from "@deployer/ui/components/setup/types";
 import {
 	useInitializeStream,
 	usePostSetupDestination,

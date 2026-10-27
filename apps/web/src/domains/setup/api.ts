@@ -3,12 +3,12 @@
 /**
  * Supplies the shared setup wizard with the WEB app's data access.
  *
- * The UI lives in `@repo/ui` (one implementation, no duplication); the web app
+ * The UI lives in `@deployer/ui` (one implementation, no duplication); the web app
  * differs from the API only in transport: it must address the API explicitly
  * (its own origin serves the dashboard, not the setup ORPC surface).
  */
 
-import type { SetupWizardApi } from "@repo/ui/components/setup/types";
+import type { SetupWizardApi } from "@deployer/ui/components/setup/types";
 import {
 	useInitializeStream,
 	useProbeDatabase,

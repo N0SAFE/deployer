@@ -1,8 +1,8 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@deployer/ui/components/shadcn/dialog'
 
 /**
  * Confirmation for destructive Docker actions. Name the object and state the

@@ -1,9 +1,9 @@
 'use client'
 
 import { Rocket } from 'lucide-react'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 import { EmptyState, EnvironmentBadge, PageErrorState, StatusBadge } from '@/components/dashboard'
 import {
 	AuthDashboardDeployments,

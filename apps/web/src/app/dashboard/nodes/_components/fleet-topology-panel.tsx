@@ -3,8 +3,8 @@
 import { useMemo, useState } from 'react'
 import { useMeshSseState } from '@/domains/mesh/hooks'
 import { useFleetServers } from '@/domains/fleet/hooks'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { isRecord } from '@repo/type-guards'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { isRecord } from '@deployer/type-guards'
 import { formatTime } from '@/lib/format/date'
 import {
   Card,
@@ -12,14 +12,14 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@repo/ui/components/shadcn/card'
+} from '@deployer/ui/components/shadcn/card'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@repo/ui/components/shadcn/dialog'
+} from '@deployer/ui/components/shadcn/dialog'
 import { Activity, Network, Timer, TriangleAlert } from 'lucide-react'
 import {
   FleetLatencyMap,

@@ -28,11 +28,11 @@ import type { MasterCandidateMetrics } from "./master-scorer";
 import { isEligibleAsMaster, scoreCandidate, selectMasterWinner } from "./master-scorer";
 import { planQuorum, isQuorumIntact } from "./quorum-planner";
 import { SwarmClusterService } from "../services/swarm-cluster.service";
-import { ClusterNodeRepository } from "@repo/nest-nodes/cluster-node.repository";
+import { ClusterNodeRepository } from "@deployer/nest-nodes/cluster-node.repository";
 
 export const MASTER_CHANGED_EVENT = "cluster.master-changed";
 
-export interface MasterChangedEvent {
+export type MasterChangedEvent = {
     nodeId: string;
     term: number;
     electedAt: string;
@@ -40,12 +40,12 @@ export interface MasterChangedEvent {
 }
 
 /** Seam for pushing leadership changes to consumers (mesh stream, UI, …). */
-export interface LeadershipEventSink {
+export type LeadershipEventSink = {
     notifyMasterChanged(event: MasterChangedEvent): void;
 }
 
 /** Provider of candidate metrics for scoring. Real impl maps engine probes. */
-export interface ClusterMetricsProvider {
+export type ClusterMetricsProvider = {
     getCandidateMetrics(): Promise<MasterCandidateMetrics[]>;
 }
 

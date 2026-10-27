@@ -1,23 +1,24 @@
 // import { Monitoring } from 'react-scan/monitoring/next'
-import '@repo/ui/styles/globals.css'
-// No map CSS here: the mapcn map component imports
-// `maplibre-gl/dist/maplibre-gl.css` itself, so every consumer of `<Map>` loads
-// exactly the styles it needs. The leaflet stylesheets that used to live here
-// belonged to the leaflet-based map this replaced.
+import '@deployer/ui/styles/globals.css'
+import 'leaflet/dist/leaflet.css'
+import 'leaflet-draw/dist/leaflet.draw.css'
+import 'leaflet.fullscreen/dist/Control.FullScreen.css'
+import 'leaflet.markercluster/dist/MarkerCluster.css'
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 // Configure server auth for declarative routing SessionPage wrappers
 // This must be imported before any SessionPage is used
 import '@/routes/configure-auth'
 import type { Metadata } from 'next'
 import { Geist, Space_Grotesk, JetBrains_Mono } from 'next/font/google'
 import { type JSX } from 'react'
-import { cn } from '@repo/ui/lib/utils'
-import ThemeProvider from '@repo/ui/components/theme-provider'
+import { cn } from '@deployer/ui/lib/utils'
+import ThemeProvider from '@deployer/ui/components/theme-provider'
 import ReactQueryProviders from '@/utils/providers/ReactQueryProviders'
 import AuthProviders from '@/utils/providers/AuthProviders/index'
 import NextTopLoader from 'nextjs-toploader'
 import Script from 'next/script'
 import { validateEnvSafe } from '#/env'
-import { Toaster } from '@repo/ui/components/shadcn/sonner'
+import { Toaster } from '@deployer/ui/components/shadcn/sonner'
 import { PostSetupHints } from '@/components/setup/post-setup-hints'
 import { NuqsAdapter } from '@/utils/providers/NuqsProvider'
 import { TanStackDevTools } from '@/components/devtools/TanStackDevTools'

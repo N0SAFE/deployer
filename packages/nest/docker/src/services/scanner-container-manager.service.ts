@@ -1,8 +1,10 @@
 import { Injectable, type OnModuleDestroy, Logger } from "@nestjs/common";
+// Type-only export: a value import makes `bun build` fail with
+// "No matching export in src/docker-config.ts".
 import type { ScannerConfig } from "../docker-config";
 import { DockerService } from "./docker.service";
-import { AppError } from "@repo/errors";
-import { isRecord, isObjectLike } from "@repo/type-guards"
+import { AppError } from "@deployer/errors";
+import { isRecord, isObjectLike } from "@deployer/type-guards"
 import fs from "node:fs";
 import path from "node:path";
 
@@ -14,7 +16,7 @@ import path from "node:path";
 
 export type ScannerType = "trivy" | "grype" | "dive";
 
-export interface ScannerExecResult {
+export type ScannerExecResult = {
   exitCode: number;
   output: string;
   durationMs: number;
@@ -24,7 +26,7 @@ export interface ScannerExecResult {
 // Per-scanner container metadata
 // ============================================================================
 
-interface ScannerContainerState {
+type ScannerContainerState = {
   /** Docker container ID once running. */
   containerId: string | null;
   /** Timestamp of the last command executed (epoch ms). */

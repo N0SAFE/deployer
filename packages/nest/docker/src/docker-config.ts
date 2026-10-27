@@ -14,7 +14,7 @@
  */
 
 /** How to reach the Docker engine. */
-export interface DockerConnectionConfig {
+export type DockerConnectionConfig = {
   /** `DOCKER_HOST`, e.g. `unix:///var/run/docker.sock` or `tcp://host:2375`. */
   readonly host: string | undefined;
   /** `DOCKER_PORT` — only meaningful when `host` is a TCP address. */
@@ -27,7 +27,7 @@ export interface DockerConnectionConfig {
  * Defaults live with the CALLER (the app decides what a sensible default image
  * is for its deployment); the package only uses what it is given.
  */
-export interface ScannerConfig {
+export type ScannerConfig = {
   /** Image to run scans with. */
   readonly image: string;
   /** Build context used to build the image when it is missing. */
@@ -43,7 +43,7 @@ export interface ScannerConfig {
  *
  * Data only — the package does not decide where these come from.
  */
-export interface PostgresIdentityConfig {
+export type PostgresIdentityConfig = {
   readonly databaseName: string;
   readonly username: string;
   readonly password: string;

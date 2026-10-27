@@ -2,13 +2,13 @@ export {
 	dockerContainerStatusSchema,
 	dockerContainerHealthSchema,
 	dockerListMetaSchema,
-} from '@deployer/contracts-entities/entities/docker/common.schema'
+} from './common.schema'
 
 export type {
 	DockerContainerStatus,
 	DockerContainerHealth,
 	DockerListMeta,
-} from '@deployer/contracts-entities/entities/docker/common.schema'
+} from './common.schema'
 
 export {
 	dockerPortBindingSchema,
@@ -52,7 +52,7 @@ export {
 	dockerContainerLinksSchema,
 	dockerContainerWithLinksSchema,
 	dockerContainerLinkedListSchema,
-} from '@deployer/contracts-entities/entities/docker/containers/index'
+} from './containers/index'
 
 export type {
 	DockerPortBinding,
@@ -96,7 +96,7 @@ export type {
 	DockerContainerLinks,
 	DockerContainerWithLinks,
 	DockerContainerLinkedList,
-} from '@deployer/contracts-entities/entities/docker/containers/index'
+} from './containers/index'
 
 export {
 	dockerImageSchema,
@@ -111,7 +111,7 @@ export {
 	dockerImageRuntimeActionSchema,
 	dockerImageRuntimeEventPayloadSchema,
 	dockerImageRuntimeEventSchema,
-} from '@deployer/contracts-entities/entities/docker/images/index'
+} from './images/index'
 
 export type {
 	DockerImage,
@@ -126,7 +126,7 @@ export type {
 	DockerImageRuntimeAction,
 	DockerImageRuntimeEventPayload,
 	DockerImageRuntimeEvent,
-} from '@deployer/contracts-entities/entities/docker/images/index'
+} from './images/index'
 
 export {
 	dockerNetworkDriverSchema,
@@ -141,7 +141,7 @@ export {
 	dockerNetworkRuntimeActionSchema,
 	dockerNetworkRuntimeEventPayloadSchema,
 	dockerNetworkRuntimeEventSchema,
-} from '@deployer/contracts-entities/entities/docker/networks/index'
+} from './networks/index'
 
 export type {
 	DockerNetworkDriver,
@@ -156,7 +156,7 @@ export type {
 	DockerNetworkRuntimeAction,
 	DockerNetworkRuntimeEventPayload,
 	DockerNetworkRuntimeEvent,
-} from '@deployer/contracts-entities/entities/docker/networks/index'
+} from './networks/index'
 
 export {
 	dockerVolumeDriverSchema,
@@ -169,7 +169,7 @@ export {
 	dockerVolumeRuntimeActionSchema,
 	dockerVolumeRuntimeEventPayloadSchema,
 	dockerVolumeRuntimeEventSchema,
-} from '@deployer/contracts-entities/entities/docker/volumes/index'
+} from './volumes/index'
 
 export type {
 	DockerVolumeDriver,
@@ -182,7 +182,7 @@ export type {
 	DockerVolumeRuntimeAction,
 	DockerVolumeRuntimeEventPayload,
 	DockerVolumeRuntimeEvent,
-} from '@deployer/contracts-entities/entities/docker/volumes/index'
+} from './volumes/index'
 
 export {
 	dockerRegistryAuthModeSchema,
@@ -195,7 +195,7 @@ export {
 	dockerRegistrySummarySchema,
 	dockerRegistryTagDetailSchema,
 	dockerRegistryRepositoryDetailSchema,
-} from '@deployer/contracts-entities/entities/docker/registries/index'
+} from './registries/index'
 
 export type {
 	DockerRegistryAuthMode,
@@ -208,7 +208,7 @@ export type {
 	DockerRegistrySummary,
 	DockerRegistryTagDetail,
 	DockerRegistryRepositoryDetail,
-} from '@deployer/contracts-entities/entities/docker/registries/index'
+} from './registries/index'
 
 export {
 	dockerStackStatusSchema,
@@ -228,7 +228,7 @@ export {
 	dockerStackLogEntrySchema,
 	dockerStackGitWebhookStatusSchema,
 	dockerStackGitSyncStateSchema,
-} from '@deployer/contracts-entities/entities/docker/stacks/index'
+} from './stacks/index'
 
 export type {
 	DockerStackStatus,
@@ -248,7 +248,7 @@ export type {
 	DockerStackLogEntry,
 	DockerStackGitWebhookStatus,
 	DockerStackGitSyncState,
-} from '@deployer/contracts-entities/entities/docker/stacks/index'
+} from './stacks/index'
 
 export {
 	dockerRuntimeEventSourceSchema,
@@ -298,7 +298,7 @@ export {
 	dockerRuntimeActivityEntitySchema,
 	dockerRuntimeActivityEntityListSchema,
 	dockerRuntimeCatalogSchema,
-} from '@deployer/contracts-entities/entities/docker/runtime.schema'
+} from './runtime.schema'
 
 export {
 	dockerEntityKindSchema,
@@ -307,7 +307,7 @@ export {
 	dockerEntityStreamChunkSchema,
 	dockerEntityStreamQuerySchema,
 	buildDockerEntityEventChunk,
-} from '@deployer/contracts-entities/entities/docker/entity-events.schema'
+} from './entity-events.schema'
 
 export type {
 	DockerRuntimeEventSource,
@@ -354,7 +354,7 @@ export type {
 	DockerRuntimeActivityEntity,
 	DockerRuntimeActivityEntityList,
 	DockerRuntimeCatalog,
-} from '@deployer/contracts-entities/entities/docker/runtime.schema'
+} from './runtime.schema'
 
 export type {
 	DockerEntityKind,
@@ -362,7 +362,7 @@ export type {
 	DockerEntityEvent,
 	DockerEntityStreamChunk,
 	DockerEntityStreamQuery,
-} from '@deployer/contracts-entities/entities/docker/entity-events.schema'
+} from './entity-events.schema'
 
 export {
 	dockerVulnerabilitySeveritySchema,
@@ -375,7 +375,7 @@ export {
 	dockerImageSecurityScanStageSchema,
 	dockerImageSecurityScanEventTypeSchema,
 	dockerImageSecurityScanEventSchema,
-} from '@deployer/contracts-entities/entities/docker/security/index'
+} from './security/index'
 
 export type {
 	DockerVulnerabilitySeverity,
@@ -388,9 +388,9 @@ export type {
 	DockerImageSecurityScanStage,
 	DockerImageSecurityScanEventType,
 	DockerImageSecurityScanEvent,
-} from '@deployer/contracts-entities/entities/docker/security/index'
+} from './security/index'
 
-export { dockerodeContainerListSchema, dockerodeContainerInspectSchema } from '@deployer/contracts-entities/entities/docker/dockerode/index'
-export { dockerodeImageSummarySchema, dockerodeImageInspectSchema } from '@deployer/contracts-entities/entities/docker/dockerode/index'
-export { dockerodeNetworkSummarySchema } from '@deployer/contracts-entities/entities/docker/dockerode/index'
-export { dockerodeVolumeEntrySchema, dockerodeVolumeListResponseSchema } from '@deployer/contracts-entities/entities/docker/dockerode/index'
+export { dockerodeContainerListSchema, dockerodeContainerInspectSchema } from './dockerode/index'
+export { dockerodeImageSummarySchema, dockerodeImageInspectSchema } from './dockerode/index'
+export { dockerodeNetworkSummarySchema } from './dockerode/index'
+export { dockerodeVolumeEntrySchema, dockerodeVolumeListResponseSchema } from './dockerode/index'

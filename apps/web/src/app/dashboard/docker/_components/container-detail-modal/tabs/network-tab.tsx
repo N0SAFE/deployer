@@ -1,4 +1,4 @@
-import { Badge } from '@repo/ui/components/shadcn/badge'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
 
 interface NetworkItem {
   networkId: string
@@ -28,8 +28,8 @@ export function DockerContainerNetworkTab({ networks, portMappings }: DockerCont
         <p className="text-xs text-muted-foreground">Port mappings</p>
         <div className="mt-2 flex flex-wrap gap-2">
           {portMappings.map((port) => (
-            <Badge key={`${port.containerPort}-${port.protocol}-${String(port.hostPort)}`} variant="outline">
-              {port.hostIp}:{port.hostPort === undefined || port.hostPort === null ? '—' : String(port.hostPort)} → {String(port.containerPort)}/{port.protocol}
+            <Badge key={`${String(port.containerPort)}-${port.protocol}-${String(port.hostPort)}`} variant="outline">
+              {port.hostIp}:{port.hostPort === null ? '—' : String(port.hostPort)} → {String(port.containerPort)}/{port.protocol}
             </Badge>
           ))}
         </div>

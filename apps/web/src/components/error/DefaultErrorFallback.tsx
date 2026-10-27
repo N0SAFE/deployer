@@ -9,7 +9,7 @@
 
 import React from 'react'
 import { AlertCircle, RotateCcw } from 'lucide-react'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import { ErrorDetails } from './ErrorDetails'
 
 interface DefaultErrorFallbackProps {

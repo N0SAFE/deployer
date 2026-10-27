@@ -136,7 +136,7 @@ It derives the application's name from the working directory
 environment beyond `APP_DIR` and `DEP_OUTPUT_ROOT`.
 
 **The volume path is keyed by NPM NAME, not directory name.** The builder
-publishes `@repo/logger` at `packages/@repo/logger/dist`; using the directory
+publishes `@deployer/logger` at `packages/@deployer/logger/dist`; using the directory
 (`logger`) would point the symlink at a directory nothing writes to.
 
 ### Why the builder image is NOT pruned
@@ -144,8 +144,9 @@ publishes `@repo/logger` at `packages/@repo/logger/dist`; using the directory
 Every other image prunes. The builder must not: it computes the union of the
 enabled applications' packages AT RUNTIME from the manifests on disk, so pruning
 to any one application would remove exactly the manifests it reads. It learns
-which applications are enabled from `DEP_BUILDER_APPS` on its command line, and
-the applications' prune volumes are not mounted into it at all.
+which applications are enabled by reading `COMPOSE_PROFILES` from its own
+environment — the same value compose used to select the application containers —
+and the applications' prune volumes are not mounted into it at all.
 
 ## Stage Details
 
@@ -154,9 +155,10 @@ the applications' prune volumes are not mounted into it at all.
 Common system dependencies for all subsequent stages.
 
 ```dockerfile
-FROM oven/bun:1.4.2-alpine AS base
+FROM oven/bun:1.4.3-alpine AS base
 RUN apk add --no-cache libc6-compat curl bash python3 make g++ gcc musl-dev tar
-RUN --mount=type=cache,target=/root/.bun bun install -g turbo@^2
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
+    bun install -g turbo@^2
 WORKDIR /app
 ```
 
@@ -182,7 +184,8 @@ COPY bun.lock* ./
 COPY --parents **/package.json ./
 
 # Produce the pruned dependency graph from manifests only
-RUN --mount=type=cache,target=/root/.bun,sharing=locked \
+# `{app}` is the WORKSPACE PACKAGE NAME (`@deployer/bff`), not the directory.
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
     bun x turbo prune {app} --docker
 ```
 
@@ -193,7 +196,7 @@ Source code edits in any app or package have **zero impact** on this stage's cac
 
 **Why `--parents **/package.json`?** The `1-labs` syntax allows glob patterns
 in `COPY --parents`. We copy every `package.json` in the monorepo while
-preserving the directory structure (`apps/api/package.json`, `packages/ui/package.json`, …).
+preserving the directory structure (`apps/api/bff/package.json`, `packages/ui/package.json`, …).
 This is enough for `turbo prune` to compute the dependency graph.
 
 ---
@@ -219,7 +222,7 @@ COPY --from=pruner-json /app/out/json/ ./
 # find them — turbo prune reads from the CWD, not from the bind-mount path.
 # (turbo prune will then filter to only the workspaces needed for the target app)
 RUN --mount=type=bind,target=/src \
-    --mount=type=cache,target=/root/.bun,sharing=locked \
+    --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
     cp /src/turbo.json . && \
     cp /src/bun.lock* . 2>/dev/null || true ; \
     tar -C /src -cf - apps packages 2>/dev/null | tar -xf - 2>/dev/null || true ; \
@@ -262,6 +265,219 @@ shipped in the final image (the runner only copies from `out/full/`).
 contain `bun.lock`, `bun.lockb`, or no lockfile. The glob + fallback
 handles all three cases without breaking the build.
 
+### The prune scope is the WORKSPACE PACKAGE NAME, not the directory
+
+`turbo prune` takes a package name. Every application in this repository is
+scoped (`@deployer/bff`), so the bare directory name fails outright:
+
+```text
+$ turbo prune api --docker
+x Invalid scope. Package with name api in `package.json` not found.
+```
+
+Every prod pruner used the directory name — `api`, `web`, `setup`, `doc`,
+`mesh-agent`, and `api web` for the unified image — so **no prod image could
+build**. The dev images (`Dockerfile.app.dev`) were already correct because
+compose passes `APP=@deployer/<name>` as a build arg; the prod files had the
+name hardcoded and had drifted.
+
+| Correct scope | Rejected scope |
+|---|---|
+| `@deployer/bff` | `bff` |
+| `@deployer/web` | `web` |
+| `@deployer/setup` | `setup` |
+| `@deployer/doc` | `doc` |
+| `@deployer/mesh-agent` | `mesh-agent` |
+| `@deployer/bff @deployer/web` | `bff web` |
+
+`turbo prune` accepts several scopes in one invocation, which is what the
+unified `Dockerfile.prod` relies on.
+
+### The root `scripts/` directory must be copied into every installer
+
+`bun ci` runs the root `postinstall`,
+`scripts/link-workspace-self-references.ts`, which creates the
+`node_modules/<own-name> -> ../..` self-link that `bun install` never makes (see
+that file's header for what breaks without it). A root script is not a
+dependency of anything, so `turbo prune` drops it, and the install dies with:
+
+```text
+error: Module not found "scripts/link-workspace-self-references.ts"
+error: postinstall script from "deployer" exited with 1
+```
+
+The error names the script but not the pruning decision behind its absence.
+**Every installer stage needs `COPY scripts ./scripts`** — the dev images had
+it, the prod ones did not.
+
+### The pruning turbo writes the `turbo.json` the build parses
+
+`turbo prune` does not copy `turbo.json` — it **re-serialises** it, filling in a
+`futureFlags` snapshot taken from the version doing the pruning. Two different
+turbo versions therefore write two different files from the same input:
+
+| Written by | `futureFlags` contains |
+|---|---|
+| `turbo@2.11.9` (the `turbo@^2` global install in `base`) | `experimentalSetup`, … |
+| `turbo@2.11.7` (the version `bun.lock` pins, used for the build) | no `experimentalSetup` |
+
+A file written by 2.11.9 and parsed by 2.11.7 fails:
+
+```text
+x Failed to parse turbo.json.
+`->   x Found an unknown key `experimentalSetup`.
+```
+
+This is the same class as the lockfile problem: **two turbo versions, one
+artifact, and the prune runs the wrong one.** The pruner stages install
+`turbo@^2` globally while the builds run the lockfile-pinned turbo from
+`node_modules`, so the version that writes the config is not the version that
+reads it. A prune NEWER than the pin also drops `remoteCache` that
+`--remote-only` needs.
+
+Every `pruner-full` therefore restores the repository's own file after pruning:
+
+```dockerfile
+turbo prune <pkg> --docker && \
+cp /app/turbo.json /app/out/full/turbo.json
+```
+
+`/app/turbo.json` at that point is a verbatim copy of the bind-mounted source
+(`cp /src/turbo.json .` at the top of the same `RUN`), so this makes the prune
+binary's version irrelevant instead of relying on which turbo happens to win.
+
+### Discover `node_modules` with `find`, never a glob list
+
+The runner/builder copies `node_modules` from the installer. That path list used
+to be enumerated by hand:
+
+```dockerfile
+apps/*/node_modules packages/*/node_modules packages/*/*/node_modules \
+tooling/*/node_modules tooling/*/*/node_modules
+```
+
+**A hand-written glob list cannot stay correct.** It silently misses any
+workspace deeper than its last pattern, and the failure does not name the
+missing COPY. Measured: the workspace at `tooling/eslint/plugins/progress`
+(one level past `tooling/*/*/`) was skipped, and the build died with
+
+```text
+@deployer/config-eslint-plugins-progress:build: error TS2307:
+  Cannot find module 'nanospinner'
+```
+
+— which reads like a missing dependency, not a missing copy, since the package
+was installed the whole time in the installer stage.
+
+Use a depth-agnostic discovery instead:
+
+```dockerfile
+PATHS="node_modules $(find apps packages tooling -type d -name node_modules -prune -print | tr '\n' ' ')"
+```
+
+`-prune` stops `find` descending INTO a matched `node_modules` (so nested
+`node_modules` inside packages are not listed separately) while still finding
+every workspace depth. Measured: 37 directories, against 36 for the glob list,
+with the missing one being exactly the workspace above.
+
+### Prune devDependencies in the BUILDER, with `bun prune --production`
+
+The prod images drop devDependencies (type defs, build tools, test runners) so
+the runtime ships only what it uses. Where that runs is not a style choice.
+
+**In the runner it cannot work at all.** The runner receives each workspace's
+`node_modules` by having it COPIED out of the builder, and it never receives the
+three things `bun install` reads first:
+
+| Needed by the install | In the runner? |
+|---|---|
+| `bun.lock` | no — only the builder/installer get it |
+| `tooling/*/package.json` (the root manifest lists them as workspaces) | no — only `apps/` and `packages/` are materialised |
+| `scripts/link-workspace-self-references.ts` (the root postinstall) | no |
+
+so the step died on the first:
+
+```text
+error: Workspace not found "tooling/eslint"      (x7, measured)
+```
+
+**And it is not even a no-op when it does run.** `bun install --production` on
+an already-populated tree removes nothing, because it treats the existing tree
+as already resolved:
+
+| Tree | Before | After `--production` |
+|---|---|---|
+| populated (the old runner step) | 1855 pkgs / 1777 MB | **1855 pkgs / 1777 MB** |
+| clean (`rm -rf node_modules` first) | — | **1271 pkgs / 1463 MB** |
+
+The old runner step was therefore **both broken and pointless**: it could not
+run, and if it had, it would have changed nothing.
+
+So the prune belongs in the builder, immediately after the build, where
+`bun.lock`, every manifest, and the source are all present.
+
+**Use `bun prune --production`, not `rm -rf node_modules && bun install --production`.**
+Both reach the same tree (1462 MB, verified), but the two differ by 20x in time
+because prune deletes what `bun.lock` does not need instead of re-resolving the
+whole graph:
+
+| Strategy | Time | Size | Self-links |
+|---|---|---|---|
+| `rm -rf node_modules && bun install --production` | 18s | 1462 MB | present |
+| `bun prune --production` | **0.9s** | 1462 MB | **removed** |
+| `bun prune --production` + re-link | 1s | 1462 MB | present |
+
+Prune is also purely local — verified to run with `--network=none`. Note the
+command is **top-level `bun prune`**; `bun pm prune` does not exist (it is not
+in the `bun pm` command list).
+
+**The re-link is not optional.** `bun prune` DELETES the self-links, because
+`node_modules/<own-name> -> ../..` is not an entry in `bun.lock`. Measured: the
+link is present before the prune and ABSENT after. Without it, node fails to
+load any dist barrel that re-imports its own package by name:
+
+```text
+node -e 'require("./dist/cjs/index.js")'   # FAIL: Cannot find module
+                                           # '@deployer/contracts-common/…'
+```
+
+bun resolves a package's own name through `exports` natively, so it is OK either
+way — node is not. Hence:
+
+```dockerfile
+COPY scripts ./scripts
+RUN bun prune --production && \
+    bun --bun run scripts/link-workspace-self-references.ts
+```
+
+Both halves need `scripts/`, and for **two different reasons**: the installer's
+`bun ci` needs it for the install-time postinstall, and this builder step needs
+it because prune removes the links that postinstall created. `turbo prune`
+brings neither, because a root script is not a dependency of any workspace.
+
+No cache mount is needed: prune never resolves, so there is nothing to fetch.
+
+Verified safe for the `api` runtime after pruning: `pg`, `drizzle-orm`,
+`drizzle-kit`, `@nestjs/core`, `reflect-metadata`, `@deployer/logger` and
+`drizzle-orm/node-postgres/migrator` all still resolve, `dist/main` is present,
+and the image has **0 dangling symlinks**. Resolution parity with the
+`rm -rf` + install arm was checked for both `node` and `bun`.
+
+The unified `Dockerfile.prod` (api + web in one image) had the same two
+problems in its runner, plus a third:
+
+1. `bun --bun install` in the runner — same `Workspace not found` failure.
+2. `node_modules` copied from the ROOT ONLY. Under the isolated linker a
+   workspace does not resolve through the root tree, so this was fatal on its
+   own:
+   ```text
+   error: Cannot find module '@nestjs/core' from '/app/apps/api/bff'
+   ```
+3. The hand-enumerated `node_modules/*/` glob list, missing deeper workspaces.
+
+Its runner now copies `find`-discovered paths for every workspace, and the prune
+runs in the builder like the others.
+
 ---
 
 ### Stage 3: INSTALLER
@@ -275,12 +491,13 @@ WORKDIR /app
 
 # Copy ONLY the pruned package.json structure (not all workspaces)
 COPY --from=pruner-json /app/out/json/ .
+# The root postinstall script is NOT a dependency of anything, so prune drops it.
+COPY scripts ./scripts
 # Use the ORIGINAL bun.lock from pruner-full (not the corrupted out/bun.lock
 # produced by turbo prune — see turborepo#10783, #11074).
 COPY --from=pruner-full /app/bun.lock ./bun.lock
 
-# Install with fallback (frozen-lockfile may fail on pruned structure)
-RUN --mount=type=cache,target=/root/.bun \
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
     --mount=type=cache,target=/root/.cache \
     bun install --frozen-lockfile || bun install
 ```
@@ -359,7 +576,7 @@ when downstream build steps change the local filesystem.
 
 ## Cache Behavior by Change Type
 
-### Scenario 1: Source Code Change in the Target App (e.g., edit `apps/api/src/foo.ts`)
+### Scenario 1: Source Code Change in the Target App (e.g., edit `apps/api/bff/src/foo.ts`)
 
 | Stage | Status | Time |
 |-------|--------|------|
@@ -512,7 +729,7 @@ Docker does NOT support importing stages from external Dockerfiles. Each Dockerf
 
 1. **Keep postinstall scripts minimal** - Only depend on small config files
 2. **Don't edit `source.config.ts` frequently** - It invalidates doc's installer cache
-3. **Use BuildKit cache mounts** - `--mount=type=cache,target=/root/.bun`
+3. **Use BuildKit cache mounts** - `--mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared` (never mount `/root/.bun` itself — see "One bun download cache")
 4. **Preserve symlinks with tar** - Never use plain `COPY` for `node_modules`
 5. **Use original `bun.lock`** - The pruned one is buggy; always copy from `pruner-full`'s root
 6. **Use single-tar pattern** - See below
@@ -564,7 +781,7 @@ RUN --mount=type=bind,from=installer,source=/app,target=/mnt/installer \
 ### Why 3 globs for packages
 
 The project has nested package directories:
-- `apps/*/node_modules` (1 level deep — `apps/api/node_modules`, `apps/web/node_modules`, …)
+- `apps/*/node_modules` (1 level deep — `apps/web/node_modules`, `apps/setup/node_modules`, …)
 - `packages/*/node_modules` (1 level deep — `packages/types/node_modules`, …)
 - `packages/*/*/node_modules` (2 levels deep — `tooling/vitest/node_modules`, `packages/transport/orpc/node_modules`, …)
 
@@ -603,10 +820,10 @@ COPY --from=pruner-full /app/turbo.json ./turbo.json
 
 # .env files aren't in out/full/ (typically gitignored); restore via bind mount
 RUN --mount=type=bind,from=pruner-full,source=/app,target=/mnt/pruner-full \
-    mkdir -p /app/apps/api && \
-    for f in /mnt/pruner-full/apps/api/.env*; do \
+    mkdir -p /app/apps/api/bff && \
+    for f in /mnt/pruner-full/apps/api/bff/.env*; do \
         [ -f "$f" ] || continue; \
-        cp "$f" /app/apps/api/; \
+        cp "$f" /app/apps/api/bff/; \
     done
 ````
 
@@ -646,8 +863,8 @@ in completely unrelated apps. With the two-stage pattern:
 |---|---|---|
 | Files snapshotted into the build | ALL files in the repo | Only manifests |
 | Cache key for prune stage | All files (huge) | Manifests only (tiny) |
-| Source-only change in `apps/web/` (when building `api`) | Invalidates `api` pruner | **Cached** ✅ |
-| Source change in `apps/api/src/...` (when building `api`) | Invalidates `api` pruner | Stale `out/full/` (trade-off, see Scenario 1) |
+| Source-only change in `apps/web/` (when building `api`) | Invalidates `bff` pruner | **Cached** ✅ |
+| Source change in `apps/api/bff/src/...` (when building `bff`) | Invalidates `bff` pruner | Stale `out/full/` (trade-off, see Scenario 1) |
 | `bun install` cache invalidation on source change | Yes | **No** ✅ |
 
 The trade-off is that source changes inside the target app do not
@@ -662,13 +879,124 @@ hit the cache (the main win). To force a rebuild, use
 The `bun x turbo run build` step in the runner writes to `/app/.turbo/`. To make the turbo cache survive between builds (and across services), wrap the build step with a BuildKit cache mount keyed on a service id:
 
 ````dockerfile
-RUN --mount=type=cache,target=/app/.turbo,sharing=locked,id=turbo-api-dev \
-    --mount=type=cache,target=/app/apps/api/.turbo,sharing=locked,id=turbo-api-dev \
-    --mount=type=cache,target=/root/.bun,sharing=locked \
-    bun x turbo run build --filter=api... --filter=!api
-````
+RUN --mount=type=cache,target=/app/.turbo,sharing=locked,id=turbo-bff-dev \
+    --mount=type=cache,target=/app/apps/api/bff/.turbo,sharing=locked,id=turbo-bff-dev \
+    --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
+    bun x turbo run build --filter=@deployer/bff... --filter=!@deployer/bff
+```
 
-Use a distinct `id` per service (`turbo-api-dev`, `turbo-web-dev`, `turbo-doc-dev`) so each service has its own persistent cache.
+Use a distinct `id` per service (`turbo-bff-dev`, `turbo-web-dev`, `turbo-doc-dev`) so each service has its own persistent cache.
+
+## `sharing`: `shared` for bun, `locked` for everything else
+
+A cache mount's `sharing` mode decides whether concurrent builds run in
+parallel or queue behind each other.
+
+| Cache | Mode | Why |
+|-------|------|-----|
+| `/root/.bun/install/cache` | **`shared`** | Bun's download cache is content-addressed and written with atomic renames, so concurrent installs add new entries safely. |
+| `/root/.cache` | **`shared`** | Same reasoning; not a bun-owned path but equally append-only in practice. |
+| `/var/cache/apk` | `locked` | apk's database is mutable state; concurrent writers corrupt the index. |
+| `/tmp/turbo-restore` | `locked` | Extracted in place and read back by the same build. |
+| `apps/*/.next/cache` | `locked` | Turbopack mutates its cache in place. |
+
+**`sharing=locked` holds an exclusive lock for the WHOLE `RUN`**, not just the
+write. Measured consequence: every image that shared the bun cache built
+serially — the dependency-builder could not install while an application was
+installing, and the four application images queued behind one another at each
+bun step. Builds that should have run in parallel ran one after another.
+
+Omitting `sharing` entirely gives `shared`, but the **`id` is still required**
+(see below), so every bun mount states both explicitly.
+
+**Do not "fix" this by dropping the cache mount.** The cache mount is what
+keeps `bun install` from re-downloading every package on every build; removing
+it trades a serialization bug for a far worse download bug.
+
+---
+
+## One bun download cache: the `id`, the target, and `globalStore`
+
+Three separate defects live in this one area. All three were measured, not
+inferred.
+
+### 1. The cache `id` must be explicit, because it DEFAULTS TO THE TARGET
+
+BuildKit derives a cache mount's id from its `target` when no `id` is given. So
+`target=/root/.bun` and `target=/root/.bun/install/cache` are **two different
+caches**, not one. Dockerfiles that used the former silently got a second,
+independent download cache and shared nothing with the rest of the repository.
+
+Every bun mount in this directory therefore names the cache:
+
+```dockerfile
+--mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared
+```
+
+That single id is what makes the packages downloadable once for the whole
+repository instead of once per image.
+
+### 2. Never mount `/root/.bun` — it hides the global tools it installs
+
+Bun's global bin directory is `/root/.bun/install/global`, and
+`/usr/local/bin/<tool>` is a **symlink into it**:
+
+```text
+/usr/local/bin/turbo -> ../../../../root/.bun/install/global/node_modules/turbo/bin/turbo
+```
+
+Mount a cache over the whole `/root/.bun` and the symlink dangles as far as the
+**image layer** is concerned — the mount is not committed to it. Measured:
+
+```text
+WHOLE-mount turbo:  NONE          # --mount=target=/root/.bun
+CACHEONLY-mount turbo: /usr/local/bin/turbo
+```
+
+So the mount that "looks like it caches bun's cache" actually discards the very
+tool it just installed. Mount `/root/.bun/install/cache` and leave the rest of
+`/root/.bun` in the layer, where the symlink resolves.
+
+### 3. `install.globalStore = true` cannot survive a BuildKit cache mount
+
+`bunfig.toml` sets `globalStore = true`, which links
+`node_modules/.bun/<pkg>` at an **absolute** path inside the same cache mount:
+
+```text
+node_modules/.bun/zod@4.6.7 -> /root/.bun/install/cache/links/zod@4.6.7-34ecec2bd54c0415
+```
+
+`symlink()` resolves each of those links to whichever `bunfig.toml` is found
+from that directory upward, and `turbo prune` copies `bunfig.toml` into both
+`out/json/` and `out/full/` — so **every pruned image build inherits the
+setting** whether or not anyone intended it. The links then ship without their
+targets, because the cache mount is not in the layer. Measured in a built
+image:
+
+```text
+$ test -d node_modules/.bun/zod@4.6.7    # with globalStore on
+NO
+$ ls node_modules/.bun/is-odd@3.0.1/
+ls: ... No such file or directory
+$ bun -e 'require("is-odd")'
+error: ENOENT reading "/app/node_modules/is-odd"
+```
+
+Every Dockerfile in this directory therefore opts out for the build:
+
+```dockerfile
+ENV BUN_INSTALL_GLOBAL_STORE=0
+```
+
+The env var overrides `bunfig.toml`, so the HOST keeps the fast store (a warm
+`rm -rf node_modules && bun install` is an order of magnitude faster) while the
+IMAGE gets real directories. Verified on the `api` installer stage: **0 dangling
+symlinks, 1855 real directories in `node_modules/.bun`**, and the remaining
+intra-store links relative and resolving.
+
+**The store is not a caching win inside a Docker build anyway** — the build's
+win comes from the download cache in point 1, and the installed tree has to be
+materialised into the image regardless, because a cache mount cannot be.
 
 ---
 
@@ -684,7 +1012,7 @@ build step in a BuildKit cache mount:
 
 ```dockerfile
 RUN --mount=type=cache,target=/app/apps/web/.next/cache,sharing=locked,id=turbopack-web-prod-build \
-    bunx turbo run build --filter=web... --remote-only
+    bunx turbo run build --filter=@deployer/web... --remote-only
 ```
 
 `sharing=locked` prevents concurrent builds from corrupting the same cache; the
@@ -717,9 +1045,7 @@ writing one cache directory would corrupt it.
 infra/docker/builder/
 ├── AGENTS.md                                # This file
 ├── api/
-│   ├── Dockerfile.api.cli.dev               # API one-shot CLI (migrate/seed/reset)
-│   ├── Dockerfile.api.dev                   # API development build
-│   └── Dockerfile.api.prod                  # API production build
+│   └── Dockerfile.api.prod                  # API tier production build (one image per app: BFF + 5 services)
 ├── web/
 │   ├── Dockerfile.web.dev                   # Web dev build
 │   ├── Dockerfile.web.build-time.prod       # Web prod, build at build-time

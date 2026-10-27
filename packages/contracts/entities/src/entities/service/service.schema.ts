@@ -5,18 +5,18 @@ import {
   serviceTypeSchema,
   perEnvironmentStrategySchema,
 } from "@deployer/contracts-common";
-import { traefikDynamicConfigSchema } from "@deployer/contracts-entities/entities/traefik/index";
+import { traefikDynamicConfigSchema } from "../traefik/index";
 import {
   providerConfigSchemaById,
   serviceProviderConfigUnionSchema,
-} from "@deployer/contracts-entities/entities/service/provider-config.schema";
+} from "./provider-config.schema";
 import {
   runnerConfigSchemaById,
   serviceRunnerConfigUnionSchema,
-} from "@deployer/contracts-entities/entities/service/runner-config.schema";
-import { implementedContractSchema } from "@deployer/contracts-entities/entities/service/mock-config.schema";
-import { previewSourceTemplateSchema } from "@deployer/contracts-entities/entities/configuration/preview-template.schema";
-import { serviceNetworkConfigSchema } from "@deployer/contracts-entities/entities/project/network.schema";
+} from "./runner-config.schema";
+import { implementedContractSchema } from "./mock-config.schema";
+import { previewSourceTemplateSchema } from "../configuration/preview-template.schema";
+import { serviceNetworkConfigSchema } from "../project/network.schema";
 
 /**
  * Plain refinement-free object shape (NO superRefine, NO lazy `children`).

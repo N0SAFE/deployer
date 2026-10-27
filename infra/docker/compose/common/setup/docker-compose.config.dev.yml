@@ -26,7 +26,10 @@ services:
       tags:
         - "${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-setup-dev:latest"
       args:
-        - APP=setup
+        - APP=@deployer/setup
+        # See the api variant: the package name and the source directory are
+        # separate facts, and they only coincide for the four original apps.
+        - APP_SRC_DIR=setup
         - APP_DEPS_MODE=${APP_DEPS_MODE:-volume}
         - BUILDKIT_INLINE_CACHE=1
     environment:
@@ -35,7 +38,7 @@ services:
       # Read by the shared entrypoint; `APP_NAME` is derived from the image's
       # WORKDIR (`/app/apps/setup`).
       APP_DIR: /app
-      DEP_OUTPUT_ROOT: /dep-output
+      DEP_OUTPUT_ROOT: /app/dep-output
       WAIT_FOR_DEPS: ${WAIT_FOR_DEPS:-1}
       # Dev: compose owns the API, so setup resolves the address compose fills
       # in. It is stable and known, which is why prod is the mode that creates
@@ -45,13 +48,13 @@ services:
       CHOKIDAR_USEPOLLING: "true"
     # ── NO `command:` OVERRIDE ────────────────────────────────────────────────
     # The image's CMD (infra/docker/builder/setup/Dockerfile.setup.dev) owns how this
-    # app starts: `turbo watch dev --filter=setup`, with the workspace packages
+    # app starts: `turbo watch dev --filter=@deployer/setup`, with the workspace packages
     # already built into the image so the app's imports resolve on the first try.
     #
     # A compose `command:` is a full REPLACEMENT, not a patch. An earlier version
-    # of this file set one to a plain `turbo run dev --filter=setup...`, which
+    # of this file set one to a plain `turbo run dev --filter=@deployer/setup...`, which
     # silently discarded the image's ordering and made setup die on
-    #   Cannot find module '@repo/ui/components/setup/setup-wizard'
+    #   Cannot find module '@deployer/ui/components/setup/setup-wizard'
     #   from '/app/apps/setup/src/views/pages/setup.tsx'
     # If the startup sequence ever needs to change, change the Dockerfile CMD.
     #
@@ -66,7 +69,7 @@ services:
     volumes:
       # The shared internal-package output, written by `dependency-builder`.
       # READ-ONLY: a stray build here cannot corrupt the tree for other apps.
-      - dep_output_dev:/dep-output:ro
+      - dep_output_dev:/app/dep-output:ro
     healthcheck:
       # THE GATE. Terminus emits a real status code, so `wget --spider` is a
       # correct probe: 503 while the wizard is still collecting, 200 once the

@@ -64,11 +64,11 @@ export function buildDockerEntityEventChunk(input: {
 
 | Setting | Value | Source |
 |---------|-------|--------|
-| `strict` | `true` | `@repo/config-typescript/config/base.json` |
-| `noUncheckedIndexedAccess` | `true` | `@repo/config-typescript/config/base.json` |
-| `verbatimModuleSyntax` | `true` (nestjs preset) | `@repo/config-typescript/config/nestjs.json` |
-| `noFallthroughCasesInSwitch` | `false` (relaxed for nestjs) | `@repo/config-typescript/config/nestjs.json` |
-| `noImplicitAny` | `false` (relaxed for nestjs) | `@repo/config-typescript/config/nestjs.json` |
+| `strict` | `true` | `@deployer/config-typescript/config/base.json` |
+| `noUncheckedIndexedAccess` | `true` | `@deployer/config-typescript/config/base.json` |
+| `verbatimModuleSyntax` | `true` (nestjs preset) | `@deployer/config-typescript/config/nestjs.json` |
+| `noFallthroughCasesInSwitch` | `false` (relaxed for nestjs) | `@deployer/config-typescript/config/nestjs.json` |
+| `noImplicitAny` | `false` (relaxed for nestjs) | `@deployer/config-typescript/config/nestjs.json` |
 
 > **Do not weaken these** without team discussion. If a library forces you to, wrap it in a typed adapter instead.
 
@@ -153,8 +153,8 @@ private coerceStreamChunk(chunk: unknown): DockerEntityStreamChunk | null {
 
 ```typescript
 // packages/contracts/api/modules/<domain>/<operation>.ts
-import { standard } from "@repo/orpc-utils"
-import { xxxEntitySchema } from "@repo/contracts-entities"
+import { standard } from "@deployer/orpc-utils"
+import { xxxEntitySchema } from "@deployer/contracts-entities"
 import { xxxInputSchema } from "./shared"
 import z from "zod/v4"
 

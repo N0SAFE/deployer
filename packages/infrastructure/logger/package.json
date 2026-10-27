@@ -1,5 +1,5 @@
 {
-    "name": "@repo/logger",
+    "name": "@deployer/logger",
     "version": "1.0.0",
     "description": "Pino-based logger for Next.js and NestJS applications",
     "main": "./dist/cjs/index.js",
@@ -17,31 +17,33 @@
         }
     },
     "scripts": {
-        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "prettify": "bun fmt .",
         "format": "bun run prettify",
-        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "lint": "eslint . --fix --cache",
-        "type-check": "tsc --noEmit",
+        "format:check": "bun fmt --check .",
+        "lint": "bun lint --no-script --type-aware",
+        "lint:fix": "bun lint --no-script --fix --type-aware",
+        "lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
+        "type-check": "bun check --no-script",
         "build": "bun --bun pkg-build",
         "dev": "bun --bun pkg-build --watch",
         "clean": "rimraf dist",
         "build:types": "bun --bun pkg-build --types"
     },
     "dependencies": {
-        "@repo/type-guards": "*",
+        "@deployer/type-guards": "*",
         "pino": "^10.2.0",
         "pino-pretty": "^13.0.0"
     },
     "devDependencies": {
         "@types/node": "catalog:build",
-        "@repo/config-eslint": "*",
-        "@repo/config-prettier": "*",
-        "@repo/config-typescript": "*",
+        "@deployer/config-eslint": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-typescript": "*",
         "eslint": "catalog:linting",
         "typescript": "catalog:build",
         "chokidar": "catalog:build",
         "rimraf": "catalog:build",
-        "@repo/pkg-build": "*"
+        "@deployer/pkg-build": "*"
     },
     "module": "./dist/esm/index.mjs"
 }

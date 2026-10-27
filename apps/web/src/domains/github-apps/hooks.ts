@@ -26,7 +26,7 @@ export function useGitHubOAuthInit() {
 export function useGitHubRepos(providerAppId?: string) {
   return useQuery({
     ...githubAppEndpoints.listRepos.queryOptions({
-      input: providerAppId ? { query: { providerAppId } } : ({} as never),
+      input: providerAppId ? { query: { providerAppId } } : ({}),
     }),
     enabled: !!providerAppId,
   })

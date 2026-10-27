@@ -51,7 +51,7 @@ export function normalizeIdentifierSegment(input: string): string {
  * Check if a dependency is reachable for a given environment scope.
  */
 export function isDependencyEnabledInScope(
-  _dependency: any,
+  _dependency: unknown,
   _scope: string,
 ): boolean {
   // Placeholder — actual logic depends on service config data
@@ -61,7 +61,7 @@ export function isDependencyEnabledInScope(
 /**
  * Resolve which target scope a dependency routes to.
  */
-export function resolveDependencyTargetScope(_input: any): string {
+export function resolveDependencyTargetScope(_input: unknown): string {
   // Placeholder — actual logic depends on dependency policy
   return 'production'
 }

@@ -1,9 +1,9 @@
 'use client'
 
 import { RefreshCw, Siren } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 
 /** Skeleton shaped like a provider page: header, one banner, one table/card block. */
 export function ProviderPageSkeleton({ label = 'Loading accounts' }: { label?: string }) {

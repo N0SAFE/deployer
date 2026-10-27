@@ -15,7 +15,7 @@ Supply it from one of:
 | Context | Source of `API_URL` |
 | --- | --- |
 | CI | `env:` block in the workflow |
-| Docker | `infra/docker/compose/common/web/docker-compose.config.*.yml` |
+| Docker | `docker/compose/common/web/docker-compose.config.*.yml` |
 | Local | `bun run local:build` (wraps the build in `@repo/env mock`) |
 
 So `cd apps/web && bun run build` is *expected* to fail — use `bun run local:build`
@@ -97,14 +97,14 @@ bunx turbo run build --filter=web --output-logs=full --log-order=stream
 ## 1. `Export <name> doesn't exist in target module`
 
 Example: `Export hasMasterTokenPlugin doesn't exist in target module`, pointing at
-`packages/auth/dist/**/client/index.mjs`.
+`packages/utils/auth/dist/**/client/index.mjs`.
 
 **Cause.** `pkg-build` marks a package's own name external (`@repo/auth`,
 `@repo/auth/*`) so self-imports stay runtime re-exports. `bun build` then **silently
 drops `export *` wildcard statements** in any module that also declares other
 exports. Named re-exports survive; wildcards vanish with no warning.
 
-In `packages/auth/src/client/plugins/index.ts` this module had two
+In `packages/utils/auth/src/client/plugins/index.ts` this module had two
 `export * from "@repo/auth/..."` lines alongside named exports. The emitted
 `dist/**/plugins/index.mjs` contained only the named ones, so `hasMasterTokenPlugin`,
 `getMasterTokenEnabled` and `setDevtoolsApiKeyProvider` were missing at runtime.
@@ -113,11 +113,11 @@ In `packages/auth/src/client/plugins/index.ts` this module had two
 
 ```bash
 # source
-grep -n "^export" packages/auth/src/client/plugins/index.ts
+grep -n "^export" packages/utils/auth/src/client/plugins/index.ts
 # built
-grep -c "export \* from" packages/auth/dist/production/esm/client/plugins/index.mjs
+grep -c "export \* from" packages/utils/auth/dist/production/esm/client/plugins/index.mjs
 # then check for the specific missing symbol
-grep -c hasMasterTokenPlugin packages/auth/dist/production/esm/client/plugins/index.mjs
+grep -c hasMasterTokenPlugin packages/utils/auth/dist/production/esm/client/plugins/index.mjs
 ```
 
 **Fix.** Replace `export *` with explicit named re-exports in any module that also
@@ -125,7 +125,7 @@ has other exports, and rebuild the package. Keep the list in sync with the modul
 it mirrors — the compiler will not tell you when it drifts.
 
 ```bash
-cd packages/auth && bun --bun run build
+cd packages/utils/auth && bun --bun run build
 ```
 
 **Related trap.** A stale `dist/` can hide a source fix. `@repo/auth` resolves to
@@ -290,7 +290,7 @@ export default AuthSignin.Route(function SignInPage() { ... })
 ```
 
 `Route` delegates to `createPage`
-(`packages/routing/declarative/src/page-wrappers/server.tsx`), which awaits the
+(`packages/utils/declarative-routing/src/page-wrappers/server.tsx`), which awaits the
 request-time props **before** rendering:
 
 ```ts
@@ -366,8 +366,8 @@ rather than queuing when persistent tasks outnumber that limit.
 zero config errors.
 
 **Related warning, harmless:** `Unable to calculate transitive closures: Workspace
-'packages/infrastructure/logger' not found in lockfile.` The lockfile *does* reference it
-(2 occurrences — identical to `packages/config/env`, `errors` and `type-guards`,
+'packages/utils/logger' not found in lockfile.` The lockfile *does* reference it
+(2 occurrences — identical to `packages/utils/env`, `errors` and `type-guards`,
 which do not warn). It appears only in the `doc` container, whose scope excludes
 that package, so turbo cannot compute a closure through a workspace it did not
 load. No action needed; it is noise, not a missing dependency.

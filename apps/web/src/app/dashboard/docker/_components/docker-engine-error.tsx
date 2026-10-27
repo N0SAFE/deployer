@@ -1,7 +1,7 @@
 'use client'
 
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import { RefreshCw } from 'lucide-react'
 import { AuthDashboardNodes } from '@/routes'
 import { useDockerNode } from './docker-node-context'

@@ -35,7 +35,7 @@ export type DockerSupervisorRuntime =
 export type SupervisorScope = "node-local" | "mesh-wide";
 
 /** Why a supervisor is node-local vs mesh-wide (documented rationale). */
-export interface SupervisorTopology {
+export type SupervisorTopology = {
   /** Stable supervisor identifier (matches the service's static identifier). */
   readonly supervisorId: string;
   /** What the process actually does (drives the scope decision). */
@@ -92,7 +92,7 @@ export type SupervisorRuntimeRaw = (typeof SUPERVISOR_RUNTIME_RAW)[number];
  *      never on a normal boot, because `SwarmBootstrapService` converges the
  *      engine before the supervisors.
  */
-export interface ResolvedSupervisorRuntime {
+export type ResolvedSupervisorRuntime = {
   readonly runtime: DockerSupervisorRuntime;
   /** Why this decision was made (drives logs + operator messages). */
   readonly reason: string;

@@ -18,7 +18,7 @@ import type { SetupPhase, SetupPhaseEvent, SetupPhaseSnapshot } from "./setup-ph
  * The phase is only ever moved by the service that does the work; nothing here
  * guesses or infers.
  *
- * WHY NOT `@repo/nest-lifecycle`'s `AppLifecycleService`
+ * WHY NOT `@deployer/nest-lifecycle`'s `AppLifecycleService`
  * Both are RxJS phase state machines, but they answer different questions and
  * must not be merged:
  *

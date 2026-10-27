@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BadRequestError, getErrorMessage } from "@repo/errors/index";
+import { BadRequestError, getErrorMessage } from "@deployer/errors/index";
 
 describe("getErrorMessage", () => {
   it("returns the message of an Error instance", () => {

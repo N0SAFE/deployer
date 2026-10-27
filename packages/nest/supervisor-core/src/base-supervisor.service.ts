@@ -63,7 +63,7 @@ export const baseSupervisorPayloadSchema = supervisorProbeMetaSchema;
 export type BaseSupervisorPayload = z.infer<typeof baseSupervisorPayloadSchema>;
 
 /** Result of a supervisor-specific health probe (rich + typed). */
-export interface SupervisorProbeResult<TSchema extends z.ZodType> {
+export type SupervisorProbeResult<TSchema extends z.ZodType> = {
 	healthy: boolean;
 	/** Human-readable context — what is wrong, or notable status. */
 	detail?: string;
@@ -72,7 +72,7 @@ export interface SupervisorProbeResult<TSchema extends z.ZodType> {
 }
 
 /** Full health snapshot exposed through the orchestrator / health module. */
-export interface SupervisorHealthSnapshot<TSchema extends z.ZodType> {
+export type SupervisorHealthSnapshot<TSchema extends z.ZodType> = {
 	supervisorId: string;
 	description: string;
 	healthy: boolean;
@@ -90,7 +90,7 @@ export interface SupervisorHealthSnapshot<TSchema extends z.ZodType> {
 	payload: z.output<TSchema>;
 }
 
-export interface BackoffOptions {
+export type BackoffOptions = {
 	maxAttempts?: number;
 	baseDelayMs?: number;
 	maxDelayMs?: number;

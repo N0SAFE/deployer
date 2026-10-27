@@ -1,6 +1,6 @@
 import { relations } from "drizzle-orm";
 import { boolean, index, integer, jsonb, pgEnum, pgTable, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { encryptedText } from "@deployer/nest-schema/codecs/codec-registry";
+import { encryptedText } from "../../codecs/codec-registry";
 import { user } from "@deployer/nest-schema/global/identity/auth";
 
 /**

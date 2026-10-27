@@ -6,7 +6,7 @@
     ],
     "compilerOptions": {
         "paths": {
-            "@repo/nest-reachability/*": [
+            "@deployer/nest-reachability/*": [
                 "./src/*"
             ]
         }

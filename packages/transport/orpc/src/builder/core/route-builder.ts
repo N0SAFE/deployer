@@ -9,12 +9,12 @@ import { oc } from "@orpc/contract";
 import type { ProcedureContract } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
 import type { OpenAPIMeta } from "@orpc/openapi";
-import type { HTTPPath, AnySchema } from "@repo/orpc-utils/types/types";
+import type { HTTPPath, AnySchema } from "@deployer/orpc-utils/types/types";
 import type { 
     RouteMetadata, 
     HTTPMethod, 
     ErrorMap,
-} from "@repo/orpc-utils/types/types";
+} from "@deployer/orpc-utils/types/types";
 import type { 
     SchemaShape, 
     ObjectSchema, 
@@ -22,13 +22,13 @@ import type {
     VoidSchema,
     NeverSchema,
     ShouldBeOptional,
-} from "@repo/orpc-utils/types/standard-schema-helpers";
+} from "@deployer/orpc-utils/types/standard-schema-helpers";
 import {
     voidSchema,
     objectSchema,
     optionalSchema,
     literalSchema,
-} from "@repo/orpc-utils/types/standard-schema-helpers";
+} from "@deployer/orpc-utils/types/standard-schema-helpers";
 import {
     BasePluginTransformer,
     StandardPluginTransformer,
@@ -38,11 +38,11 @@ import {
     type PluginBrandedInputParts,
     type PluginBuildInput,
     type PluginBuildOutput,
-} from "@repo/orpc-utils/builder/plugin/index";
-import { type DetailedInputBuilderSchema, DetailedInputBuilder } from "@repo/orpc-utils/builder/input/builder";
-import { InputSchemaProxy } from "@repo/orpc-utils/builder/input/proxy";
-import { createOutputSchemaProxy, type OutputSchemaProxy, type OutputSchemaProxySchema } from "@repo/orpc-utils/builder/output/proxy";
-import { error, type ErrorDefinitionBuilder, type ExtractErrorsFromBuilders } from "@repo/orpc-utils/builder/core/error-builder";
+} from "@deployer/orpc-utils/builder/plugin/index";
+import { type DetailedInputBuilderSchema, DetailedInputBuilder } from "@deployer/orpc-utils/builder/input/builder";
+import { InputSchemaProxy } from "@deployer/orpc-utils/builder/input/proxy";
+import { createOutputSchemaProxy, type OutputSchemaProxy, type OutputSchemaProxySchema } from "@deployer/orpc-utils/builder/output/proxy";
+import { error, type ErrorDefinitionBuilder, type ExtractErrorsFromBuilders } from "@deployer/orpc-utils/builder/core/error-builder";
 
 // ============================================================================
 // DETAILED INPUT TYPE (for requests: params, query, body, headers)

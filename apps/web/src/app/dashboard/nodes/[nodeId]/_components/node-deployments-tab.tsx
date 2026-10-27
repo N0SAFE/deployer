@@ -2,8 +2,8 @@
 
 import { ArrowRight, Rocket } from 'lucide-react'
 import { AuthDashboardDeployments } from '@/routes'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
 import { EmptyState, StatusBadge } from '@/components/dashboard'
 import { Age } from '../../../network/_components/network-copy'
 import { CopyButton } from '../../../network/_components/copy-button'

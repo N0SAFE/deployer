@@ -1,0 +1,596 @@
+# DIFFERENTIATING IDEAS roadmap
+> Owner prefix: IDEA · Sources: ideas-deploy.md, ideas-dx-ai.md, ideas-security-resilience.md, ROADMAP-AND-IDEAS.md · Last verified: 2026-10-26
+
+## Summary
+This area holds every differentiating idea from the three idea reports plus the four cross-cutting substrates (SUB-A authz, SUB-B release manifest, SUB-C event bus, SUB-D signed-roster extensions). The substrates are P1 because they are also the right way to do audit P0/P1 work; every other idea is P2/P3 and must not start before its substrate dependency lands. Nothing in this file was run; spot-checks done: roster flat authority (`packages/infrastructure/mesh-network/src/roster.ts:609,625`), outbox dispatcher only `markSent` (`apps/api-services/shared/src/core/modules/events/outbox/local-event-outbox-dispatcher.service.ts:143-148`), `.catch(() => [])` in permission loader (`apps/api-services/services/identity/src/modules/permission/services/permission.service.ts:36`), trust-gate spec has zero TS references, fleet services only registered in `fleet.module.ts` (injected nowhere), `environment_promotions` only in schema.
+Original "best 8 in build order" per track are tagged `Build-order: deploy#n | dx#n | sec#n` in the Why line. Mesh-specific ideas (ideas-mesh.md) are owned by NET and only referenced as `NET-*`. Competitor claims are only as reliable as the bench reports (some are `[mem]`/`[search]`); re-verify before marketing use.
+Counts are given at the end of the file (see "Counts"). Items marked **SUBSTRATE** are the only P1s (plus wire-ups/tests listed in Counts). `See also:` after Deps points at the same work owned by another area file; mesh ideas point at their `NET-*` owners (e.g. `IDEA-004`->`NET-069`, `IDEA-014/015`->`NET-078`, `IDEA-027`->`NET-077`, `IDEA-029`->`NET-091`, `IDEA-034`->`NET-082`, `IDEA-051`->`NET-093`, `IDEA-058/066`->`NET-092`, `IDEA-075`->`NET-087`).
+> Coverage pass: 2026-10-26 — 1 items added, 118 deps resolved
+> Authz design pass: 2026-10-26 — 0 items added (the concrete authN/authZ design is itemised in `roadmap/auth-security.md`: `SEC-048..102`, `AUTH-051..073`, `DEC-AUTH-9..26`); 21 existing items annotated with `Design-impact (2026-10-26)` pointing to the new IDs (IDEA-001, 004, 006-013, 014, 023-026, 036, 042, 062, 085, 094, 103). Item counts unchanged: 115 (P1=10, P2=64, P3=41).
+
+## Items
+### Substrates (build first; P1)
+- [ ] `IDEA-001` **SUBSTRATE SUB-A: policy-gated authorization on every ORPC procedure (Action Gate Layer A)** · NEW · P1 · L · Deps: none (this is audit P0 authz; same work as `SEC-001`, tracked here as the substrate); See also: `SEC-001`, `SEC-033`, `SEC-038`, `AUTH-025`
+  - Why/Problem: authz is `requireAuth()` only; the permission engine (`packages/auth/src/permissions/engine/permission-engine.ts:92`) and `role_rules` table have no consumer; loader swallows errors (`apps/api-services/services/identity/src/modules/permission/services/permission.service.ts:36`); empty rules = DENY (`permission-engine.ts:106`) so naive wiring locks everyone out. Competitor gap: Dokploy/Dockhand paywall RBAC+audit, Coolify policies return `true` [bench]. Build-order: sec#1, dx#1 (ideas 2+3).
+  - Do: add `meta.access = {resource, action, risk, platform?, project?, approval?}` to the `standard.zod` builder; one generic middleware reads it and calls the engine with `(actor, resource, action, target attrs)`; seed `role_rules` from `packages/auth/src/permissions/config.ts`; run SHADOW mode first (evaluate engine beside legacy, log disagreements, still enforce legacy) then flip; make `loadRoleRules` fail loud; TTL cache + event invalidation; audited `superAdmin` break-glass; every decision (allow/deny) emits an audit event (`IDEA-014`); build-time test fails if a procedure lacks metadata or explicit `publicAccess()`.
+  - Done when: no procedure ships without access meta (CI fails otherwise); shadow-mode disagreement report is empty for one release; Viewer cannot exec/read env/list other projects' deployments; empty `role_rules` cannot lock out a fresh install.
+  - Status: todo · Verified-in-code: partial (engine unused: confirmed; shadow mode not present) · Source: ideas-security-resilience#I-01,§3.1-2; ideas-dx-ai#2; ROADMAP-AND-IDEAS#1-A
+  - Effect-impact (2026-10-26): implementation approach is on `SEC-001` (Effect Actor + Authz middleware, shadow mode, typed `R` default-deny, usable from classic `.handler` services via a plain oRPC middleware). Deps: `EFF-014`.
+  - Design-impact (2026-10-26): SUB-A now has a concrete target design ("Grants + Guardrails", `authz-authn-design.md`), itemised in `roadmap/auth-security.md` as `SEC-048..SEC-102` / `AUTH-051..073` and decisions `DEC-AUTH-9..26`; `SEC-001` remains the canonical item. Layer A = typed catalog (`SEC-048`) + `.access()` metadata (`SEC-061`) + global default-deny gate (`SEC-062`) + `Authz` service (`SEC-057`) + annotation/CI/generators (`SEC-064..066`) + shadow-then-enforce rollout (`SEC-082..084`); the `superAdmin` bypass is deleted (`DEC-AUTH-10`). Gate mechanics unverified: spike `SEC-063` (`DEC-AUTH-26`).
+- [ ] `IDEA-002` **SUBSTRATE SUB-B: release manifest (sealed, content-addressed record persisted per deployment) + replay + deterministic rollback** · NEW · P1 · L · Deps: `DEPLOY-001`, `DEPLOY-003`, `DEPLOY-014`, `DEPLOY-051`, `IDEA-001`; See also: `DEPLOY-003`, `DEPLOY-005`, `DEPLOY-006`
+  - Why/Problem: plan snapshots/provenance/checkpoints are in-memory `Map`s (`apps/api-services/services/runtime/src/modules/deployment/services/deployment.service.ts:176-186`); `deployments` table has `containerImage` but no digest/plan/config column (`packages/nest/schema/src/global/runtime/deployment.ts:38-114`); `artifactDigest` exists in `runtime-runner.interface.ts:7`. Queue payload already carries ~90% of a manifest (`deployment.service.ts:~536-555`). Competitors: Dokploy `fullContext`, Coolify `configuration_snapshot`, neither sealed/hashed/scan-linked/config-replaying [bench]. Build-order: deploy#1.
+  - Do: `release_manifests` table (id = sha256 of canonical JSON): `{schema, serviceId, envId, source{repo,sha}, artifact{digest,builder,runner}, effectiveConfig (secret refs+hash, never values), planHash, scan{digest,summary,at}, policyDecision{gates,appliedRuleIds}, parent, actor}`; builder in `triggerDeployment`, persist-before-enqueue; add `deployments.manifest_id` + `image_digest`; worker entrypoint `deploy(manifestId)` as the ONLY thing the executor accepts (skips source/build on replay); rollback = replay previous manifest with `--keep-config|--current-config`; image GC pinned by manifest references; replay of a pruned digest fails loudly (never silently rebuild); content-addressed + signable with actor mesh identity so later replication needs no redesign.
+  - Done when: every deployment row has manifest_id + digest; retry/rollback/cancel never read "latest config"; rollback test restores previous digest+config; GC never deletes a referenced digest.
+  - Status: todo · Verified-in-code: partial (payload fields exist; table/columns absent) · Source: ideas-deploy#1,§0,§3; ROADMAP-AND-IDEAS#1-B
+  - Effect-impact (2026-10-26): worker/queue side of SUB-B: SQL `deployment_jobs` + Effect worker (fiber per job, interrupt-based cancel); `effect/workflow` prototype in parallel, not committed (unstable). See DEPLOY-014/017. Deps: `EFF-122`.
+- [ ] `IDEA-003` **SUBSTRATE SUB-C: event bus with real consumers (outbox dispatch)** · FIX · P1 · M · Deps: `ARCH-062`, `ARCH-041`, `OBS-001`, `OBS-003`; See also: `OBS-001`, `ARCH-062`
+  - Why/Problem: `dispatchClaimed` only calls `markSent` ("Dispatch bridge placeholder", `local-event-outbox-dispatcher.service.ts:143-148`); health registry `changes$` has no subscriber; `service.deleted`/`project.deleted` events have no consumers. It is a log, not a bus. Build-order: dx#6.
+  - Do: real publisher/consumer registry behind the dispatcher; consumers: notifications, audit log, incident timeline, status page, ChatOps, teardown-on-delete, SLO rollback; subscribe to health `changes$`; deployment lifecycle events (status/phase/log) emitted through the outbox projector so live view and replay share one source; idempotent consumers, dead-letter visibility.
+  - Done when: a deployment failure produces a delivered notification and an audit/timeline row via the bus; deleting a service triggers consumer teardown; dead letters visible.
+  - Status: todo · Verified-in-code: yes (placeholder confirmed) · Source: ideas-dx-ai#§0,§2-6; ROADMAP-AND-IDEAS#1-C
+  - Effect-impact (2026-10-26): SUB-C approach: keep Postgres outbox, Effect `Stream` pollers with per-consumer cursors; `PersistedQueue` optional for notification delivery only; ruling D5 (RxJS vs `Stream`) first. See OBS-001. Deps: `EFF-127`, `EFF-022`.
+- [ ] `IDEA-004` **SUBSTRATE SUB-D: capability-scoped roster authority + quorum for catastrophic operations** · FIX · P1 · L · Deps: `NET-069`, `NET-076`, `IDEA-014` (witnesses help); See also: `NET-069`
+  - Why/Problem: any active member may revoke any member and write any setting (`roster.ts:609-610,625`): one stolen node can revoke the cluster or repoint `ingress.lanes`; timestamps self-asserted (`roster.ts:21-24`). Every roster-anchored idea (audit anchors, release ledger, policy bundle, scoped secrets) is only as trustworthy as this. Build-order: sec#3.
+  - Do: `capabilities` in admission record (`admit`, `revoke`, `settings:<prefix>`), delegation can only narrow, evaluated against the CURRENT admission set (not time-travelled); quorum records (`SignedSetting.cosigners[]`) so revoke of an `admit`-holder needs 2, `policy.*`/`release.*` need k of an admin set, `edge.*`/`ingress.*` need prefix capability; operator-kind members get `settings` by default; wire-format version bump + grandfather existing members; documented recovery path; keep merge a pure function.
+  - Done when: property tests prove CRDT convergence with capability records; a single non-capable node cannot revoke an admitter or write `policy.*`; legacy rosters migrate.
+  - Status: todo · Verified-in-code: yes (flat authority confirmed) · Source: ideas-security-resilience#I-02; ROADMAP-AND-IDEAS#3-14
+  - Design-impact (2026-10-26): authz-authn design consumes this substrate in two places: the BFF actor-claim signer key is admitted in the roster as a `service` member with capability `sign-actor` (`AUTH-057`), and mesh-member Actors derive `mesh:*` permissions from roster capabilities with 2-signer revoke of admit-capable members (`SEC-076`, `DEC-AUTH-12`).
+- [ ] `IDEA-005` **Roster record framework for new signed kinds (anchors, secret grants, policy/release/backup pointers)** · NEW · P1 · M · Deps: `IDEA-004`, `NET-076`, `NET-066`
+  - Why/Problem: the roster is the only signed owner-less replicated state; pattern is "hash+signature+grant lists in roster, bulk data in PG/volumes/mesh blob transfer". Roster is gossiped every 5 s so must stay O(members).
+  - Do: add versioned union-map record kinds (e.g. `anchors`, `secretGrants`/wrapsHash, `policy.bundle`, `release.target`, `backup.latest`) with size budgets and per-kind validation/merge rules; schema-version bump.
+  - Done when: new record kinds merge deterministically, are size-capped, and have convergence property tests.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#§0 observation 1, I-03, I-05, I-01
+
+### Authorization best-in-class (beyond audit P0)
+- [ ] `IDEA-006` **Guardrail rule layer (Action Gate Layer B): DENY/REQUIRE expression policies** · NEW · P2 · L · Deps: `IDEA-001`; See also: `SEC-037`
+  - Why/Problem: no competitor has an expression-level policy language [bench]. Examples: "production deploys need signed image", "no exec on nodes labelled pci", "no `traefik.*` labels from deployments". Build-order: sec#1 (+M).
+  - Do: extend the engine filter DSL (CEL-like: `in`, `matches`, `time`, attribute paths: project labels, environment, node labels, image digest, scan result, approval state); guardrails can only DENY or REQUIRE (`approval(n)`, `fresh-passkey`, `trust-passport`), never grant; decision log; policy test harness with table-driven fixtures run in CI; dry-run mode.
+  - Done when: a guardrail denies a signed-image-less production deploy with a readable reason and the decision is audited.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#I-01
+  - Design-impact (2026-10-26): concrete design: `Policy` engine with combination law Deny > Require > Limit > Pass, shadow-mode policies, presets solo/team/strict (`SEC-069`), built-in pack (`SEC-070`), quotas (`SEC-071`); conditions stay `DFilter` (`DEC-AUTH-21`). Owner of the work is `SEC-037` → `SEC-069`.
+- [ ] `IDEA-007` **Signed policy bundle published in the roster; services verify and fail closed** · NEW · P2 · M · Deps: `IDEA-001`, `IDEA-004`, `IDEA-005`; See also: `SEC-036`
+  - Why/Problem: `role_rules` is a Postgres table = a source of truth a DB intruder can edit; conflicts with "no central source of truth".
+  - Do: compile bundle, sign with admin member key, publish `policy.bundle` (hash+version) as roster setting; every service verifies bundle hash before use; mismatch = fail closed + alert; PG remains the editing store.
+  - Done when: editing `role_rules` directly in PG without re-signing makes services deny and alert.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#I-01,§3.10
+  - Design-impact (2026-10-26): explicitly deferred to Phase 6 (`SEC-101`): Postgres hosts human/API authz now (`DEC-AUTH-12`); node-local enforcement and the signed bundle come after enforcement is stable.
+- [ ] `IDEA-008` **SQL pushdown + per-event stream filters on list/stream endpoints** · ENHANCE · P2 · M · Deps: `IDEA-001`; See also: `SEC-034`, `SEC-006`
+  - Why/Problem: any user can list any project's deployments and subscribe to streams (`deployments.md:106` per report).
+  - Do: use `compileDFilter` so list/count/search never fetch invisible rows; `matchFilter` per stream event.
+  - Done when: user A cannot list/stream project B's deployments (test).
+  - Status: todo · Verified-in-code: unverified · Source: ideas-security-resilience#§3.4
+  - Design-impact (2026-10-26): engine side is `Authz.filter` (`SEC-058`: deny → NOT, real cascade, stream re-validation), verified by P-FILTER (`SEC-096`); rollout over endpoints stays `SEC-034`.
+- [ ] `IDEA-009` **Permission explain/simulate + effective-permissions UI + policy fixture tests** · NEW · P3 · M · Deps: `IDEA-001`; See also: `SEC-035`
+  - Do: `permissions.explain(actor, action, target)` returning matched rules and reason; UI "effective permissions" and "what would change if I edit this rule"; table-driven policy tests in CI.
+  - Done when: explain endpoint returns rule ids + reasons; UI diff works.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#§3.5
+  - Design-impact (2026-10-26): `Authz.explain`/`simulate` (`SEC-060`) + "Access explorer" UI and shadow-disagreement view (`SEC-090`) + table-driven fixtures (`SEC-092`); `simulate` replays logged decisions (tiered log, 30 d summaries, `SEC-068`).
+- [ ] `IDEA-010` **Project-role context in engine + role hierarchy/delegation rules as guardrails + immediate privilege revocation** · ENHANCE · P2 · M · Deps: `IDEA-001`, `IDEA-006`, `AUTH-006`, `AUTH-013`; See also: `AUTH-013`, `SEC-007`, `PROJ-006`
+  - Do: pass project membership as pre-resolved `EngineContext` vars (engine supports it, `permission-engine.ts:86`) so one decision combines platform role, project role, ownership (no org layer unless operator decides); admin cannot grant/act on >= own role expressed as deny guardrails, not scattered hooks; revoke sessions/API keys on ban/role change in Better Auth AND identity service; bypass 5-min cookie cache for decisions tagged `sensitive`.
+  - Done when: demoting a user invalidates their session/keys immediately; admin cannot elevate to own role.
+  - Status: todo · Verified-in-code: unverified · Source: ideas-security-resilience#§3.3,3.6,3.7
+  - Design-impact (2026-10-26): project roles are grants at `project:<id>` (no pre-resolved vars); role hierarchy/delegation is the `Grants.assertGrantable` subset + strictly-lower-rank rule (`SEC-054`), NOT a guardrail; immediate revocation = per-user epoch + NOTIFY, `risk>=high` bypasses the cache (`SEC-055`).
+- [ ] `IDEA-011` **Signed short-lived actor claim between services (replace raw cookie forwarding)** · ENHANCE · P2 · M · Deps: `IDEA-001`, `ARCH-054`, `ARCH-056`, `EFF-226`, `EFF-191` (decided 2026-10-26: EdDSA claim via KeyRing, BFF serves /.well-known/keys, trust pinned in the roster at setup — no mesh-agent signing socket needed); See also: `SEC-030`, `AUTH-057`
+  - Do: BFF signs claim `{sub, role snapshot, session id, approval refs}` with its member key via agent socket; services verify against roster and authorise the actor (not the BFF); doubles as audit actor; system actor for background triggers (webhook/schedule/reconcile).
+  - Done when: services reject unsigned/expired claims; fleet<->runtime<->project saga calls carry the claim.
+  - Status: todo · Verified-in-code: unverified · Source: ideas-security-resilience#§3.8; ideas-deploy#§3.7
+  - Effect-impact (2026-10-26): same decision as ARCH-054/D3 (Effect `CurrentActor` populated from the verified claim vs forwarded cookie); `createEffectClient` can forward it. Deps: `EFF-014`.
+  - Design-impact (2026-10-26): decided and itemised: EdDSA claim, 30 s TTL, aud-bound, jti replay-checked, no permissions inside the claim; service tokens (60 s) for background calls; signer key in the roster; deputy rule (`AUTH-057`, `SEC-074`, `AUTH-060`; `DEC-AUTH-11`).
+- [ ] `IDEA-012` **Scoped, expiring tokens that compile to ResourceRules (deploy keys, CI tokens, agent tokens) with approval tier** · NEW · P2 · M · Deps: `IDEA-001`, `AUTH-019` (API-key header mismatch fix, BFF forwarding); See also: `AUTH-022`, `FEAT-080`
+  - Why/Problem: Vercel/Coolify have scoped tokens; differentiator is binding to procedure risk + passkey approval. Build-order: dx#1 (idea 3). Today `useApiKey()` header mismatch and BFF does not forward it.
+  - Do: scope grammar (`deploy:service/x`, 30-day expiry), keys carry metadata mapped to `ResourceRule[]` enforced by the same engine; CI gets deploy-only; agent gets read-only + "propose"; UI; fix header + BFF forwarding first.
+  - Done when: CI token deploys only its service/env; token expiry enforced; passkey-required procedures refuse tokens lacking approval.
+  - Status: todo · Verified-in-code: partial · Source: ideas-dx-ai#3; ideas-security-resilience#§3.9
+  - Design-impact (2026-10-26): re-scoped: tokens do NOT compile to `ResourceRule[]`; effective permission = owner grants ∩ token ceiling evaluated live (`token_constraints`: kind, scopes, `maxRisk`, `readOnly`, IP allowlist, mandatory expiry, overlap rotation); mint capped by `assertGrantable`; approval tier = `APPROVAL_REQUIRED` via `SEC-072`. See `AUTH-061`, agent variant `AUTH-069`.
+- [ ] `IDEA-013` **Setup claim bound to a passkey + recovery kit** · ENHANCE · P2 · M · Deps: `SETUP-003`, `AUTH-016`, `AUTH-018`, `IDEA-030` (recovery kit); See also: `AUTH-016`
+  - Do: replace default-admin/password bootstrap with one-time claim token printed in operator terminal (consumed at first superadmin creation), enrol passkey immediately, then show the recovery kit.
+  - Done when: no default credentials exist; first superadmin requires claim token + passkey.
+  - Status: todo · Verified-in-code: unverified · Source: ideas-security-resilience#§3.12
+  - Design-impact (2026-10-26): the claim becomes the `SetupClaim` principal and `SetupClaimVerifier` (`AUTH-059`); lock-out recovery is the host CLI `deployer authz recover` (`SEC-081`), distinct from the Shamir recovery kit (`IDEA-030`).
+
+### Audit, evidence and trust
+- [ ] `IDEA-014` **Audit log from one middleware (hash-chained per node)** · NEW · P2 · M · Deps: `IDEA-001`, `IDEA-003`; See also: `OBS-071`, `FEAT-110`, `NET-078`
+  - Why/Problem: Coolify none, Dokploy/Dockhand paywalled [bench]; `system:audit` permission defined with no producer. Build-order: dx#2, sec#2.
+  - Do: separate append-only `audit_log` table (not `coreEventLogs`): actor, actor kind, session id, procedure, resource, decision, diff hash, request id, node id, device/agent id; chain `h_n = H(h_{n-1} || canonical(entry))`; emit from ORPC middleware, agent-auth `onEvent`, terminal sessions; store hashes of large bodies; query/export/UI/retention with chain-preserving compaction; ids not PII.
+  - Done when: every mutating procedure writes an entry; chain verifies; UI lists/filters/exports.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai#14; ideas-security-resilience#I-03
+  - Effect-impact (2026-10-26): single audit middleware annotated with Actor + trace id (`Effect.fn`); depends on the per-request Actor service. Deps: `EFF-014`.
+  - Design-impact (2026-10-26): the decision log is one event per `Authz` decision (fixed shape, tiered volume: always deny/challenge/mutating/`risk>=high`, 1% sampled low-risk reads; bounded async queue; hash-chained per `OBS-071`; 30 d summaries for simulate) = `SEC-068` (`DEC-AUTH-20`); coverage guard `OBS-085` is satisfied by the gate.
+- [ ] `IDEA-015` **Roster-anchored audit checkpoints + peer witnessing + `deployer audit verify`** · NEW · P2 · M · Deps: `IDEA-014`, `IDEA-005`, `IDEA-004`, `NET-076`, `NET-078`; See also: `NET-078`
+  - Do: signed checkpoint `{nodeId, seq, headHash, at}` as new roster record kind `anchors` (last per node, O(members)); peers countersign head (non-backdatable ordering); verifier CLI + UI badge; revoked node's pre-revocation anchors remain valid; document tail-truncation RPO.
+  - Done when: deleting/editing rows breaks verification against a gossiped anchor.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#I-03; ROADMAP-AND-IDEAS#4
+- [ ] `IDEA-016` **Deployment passport + trust gate (scan-gate, digest, plan hash, signature, SBOM)** · NEW · P2 · L · Deps: `IDEA-002`, `IDEA-001`, `IDEA-014`, `DEPLOY-051` (registry push/digest pull); See also: `CLUSTER-066`, `FEAT-067`
+  - Why/Problem: `apps/doc/content/docs/deployment/deployment-trust-gate.mdx` (modes off/warn/enforce, failure taxonomy) has zero TS references; Dockhand gates updates only [bench]. Build-order: sec#4.
+  - Do: `trust_gate` preflight step computing `{imageDigest, planHash, scanSummary(db version,counts), sbomRef, signature, attestations[], actor, policyVersion, decision}`; run Action Gate `deployment.create`; executing node signs with member key; store with deployment, hash into audit chain; policy knobs (max severity, allowed signers/registries, max age), expiring signed waivers; default `warn`, enforce per env; offline scanner DB cache shared over mesh; continuous rescan of running digests ("became vulnerable after deploy").
+  - Done when: enforce mode blocks an unsigned/critical image in production; passport visible per deployment.
+  - Status: todo · Verified-in-code: partial (spec docs-only confirmed) · Source: ideas-security-resilience#I-04; ROADMAP-AND-IDEAS#13
+- [ ] `IDEA-017` **Supply-chain verification: cosign verify/attestations, CycloneDX SBOM per digest** · NEW · P3 · M · Deps: `IDEA-016`; See also: `FEAT-068`, `CLUSTER-066`
+  - Do: ephemeral verifier container (same pattern as trivy) for `cosign verify`/`verify-attestation`; key-based and trusted-identity modes (offline-first; keyless needs egress); trivy/grype `--format cyclonedx` stored by digest; policy chooses union or primary scanner on disagreement.
+  - Done when: signed vs unsigned image yields different gate decisions; SBOM retrievable by digest.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#I-04
+- [ ] `IDEA-018` **Scan-gated deploys with provenance receipts (quick win)** · NEW · P2 · S · Deps: `IDEA-002`; See also: `FEAT-067`, `CLUSTER-066`, `WEB-047`
+  - Why/Problem: each deployment stores `{plan hash, image digest, scan result, who approved}`; policy "block on new critical CVE vs previous deploy"; rollback replays the receipt. Scanner is real and cached (`ensureImageSecurityScan({waitForCompletion})`) but not wired to deploy. Build-order: dx quick win (25).
+  - Do: call `ensureImageSecurityScan` in the deploy pipeline pre-flip, persist result on manifest, scan chip on deploy card and rollback targets, severity threshold with per-service override.
+  - Done when: a deploy with a critical CVE above threshold is blocked/warned with reason; scan visible on deploy card.
+  - Status: todo · Verified-in-code: partial (scanner real, not wired) · Source: ideas-dx-ai#25; ideas-deploy#4 §enh 29
+- [ ] `IDEA-019` **CVE blast radius + scan-triggered gated rebuild** · NEW · P2 · M · Deps: `IDEA-002` (image_digest column), `IDEA-003`, `CLUSTER-036`, `SEC-027` (scanner Docker-socket mount); See also: `FEAT-068`, `FEAT-069`
+  - Why/Problem: "which running deployments are exposed to CVE-X?" unoccupied by competitors (Dockhand gates updates only, Dokploy/Coolify no scanning) [bench]. Build-order: deploy#4.
+  - Do: deployment→digest→scan join query with severity and fixed-in; "rebuild with latest base"/"redeploy from patched manifest" through normal gated pipeline; scheduled rescans (cache max-age exists); optional policy auto-opens rebuild on criticals; waivers with expiry; notification delivery; fix scanner Docker-socket mount first.
+  - Done when: entering a CVE id lists exposed envs/services/deployments; one click starts a gated rebuild.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy#16
+- [ ] `IDEA-020` **Compliance evidence export (signed bundle, verifiable offline)** · NEW · P3 · M · Deps: `IDEA-014`, `IDEA-015`, `IDEA-016`, `IDEA-025`, `IDEA-032`
+  - Do: collectors (access reviews, change log with passports, privileged-access log, restore attestations, vuln posture, rotation ledger, game-day results); signed `manifest.json` + files + audit proofs; verifier tool; control-mapping docs; explicitly "evidence generation, not certification"; redaction profile.
+  - Done when: bundle verifies offline.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#I-15
+- [ ] `IDEA-021` **Exec/file anomaly detection + honeytokens** · NEW · P3 · M · Deps: `IDEA-014`, `IDEA-003`, `OBS-012`
+  - Do: rule-based per-actor baselines (first-time exec on node, odd hours, mass file download); decoy env vars/files and canary URL; auto-response ladder (alert, force step-up, suspend session, revoke API key); label decoys for admins; state scope (host activity outside platform not visible).
+  - Done when: reading a decoy secret raises a high-severity alert.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#I-16
+- [ ] `IDEA-022` **Exposure attestation: continuously prove "no inbound port" invariant** · NEW · P2 · S · Deps: `NET-065`, `NET-046`, `IDEA-014`
+  - Why/Problem: headline invariant is asserted not checked; Dokploy only has one-shot ufw/ssh audit [bench]. Quick win.
+  - Do: agent derives expected sockets from roster settings+doors+Swarm, reads `/proc/net` (read-only), signs `{nodeId, expectedHash, observedHash, at}` chained; UI green/red per node; alert/auto-quarantine; allow-list host-network services by label; include Docker-socket exposure check; optional peer/STUN self-probe (not mandatory third party).
+  - Done when: opening an unexpected listener flips the node to red and alerts.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#I-17
+- [ ] `IDEA-023` **Step-up and signed approvals with passkeys (`require: fresh-passkey`)** · NEW · P2 · S · Deps: `IDEA-001`, `AUTH-018` (passkey rpID/origin fix), `AUTH-030` (session `freshAge`); See also: `AUTH-030`
+  - Do: `freshAge` policy, `require: fresh-passkey` primitive in guardrails, assertion hash stored in audit entry, UI prompt, backup methods against lockout.
+  - Done when: dangerous action refuses without assertion newer than N minutes; assertion hash in audit entry.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#I-18
+  - Design-impact (2026-10-26): concrete design: `StepUp` requirement satisfied by `step_up_events` for the CURRENT session via `POST /authz/step-up` wrapping BA passkey verify (`AUTH-062`; `session.freshAge` is not used); signed approvals = `access_requests` + `access_request_votes` with `assertionHash`, action-hash binding, atomic single-use consume, solo-mode degradation to step-up + reason + 60 s cooldown (`SEC-072`, `DEC-AUTH-16`); property test `SEC-097`.
+- [ ] `IDEA-024` **Secret/config reveal discipline: shown-once, reveal logging, step-up** · ENHANCE · P2 · S · Deps: `IDEA-001`, `IDEA-014`, `IDEA-023`, `PROJ-020`, `PROJ-021` (encrypted env table has no consumer); See also: `WEB-054`
+  - Do: mask on read; reveal needs permission, audited, optional step-up; optional watermark; fixes "viewer can read env".
+  - Done when: Viewer cannot reveal; reveals logged.
+  - Status: todo · Verified-in-code: unverified · Source: ideas-security-resilience#I-21
+  - Design-impact (2026-10-26): concrete design: verbs split `secret:list` / `secret:write` / `secret:reveal` (critical, step-up, audited by secret id), values returned only by the explicit reveal procedure, production reveal needs approval (`SEC-077`).
+- [ ] `IDEA-025` **Break-glass / just-in-time access with approvals (exec, file writes, secret reveal, elevation)** · NEW · P3 · L · Deps: `IDEA-001`, `IDEA-006`, `IDEA-014`, `IDEA-023`, `OBS-012` (notifications), `OBS-007` (push SW), `CLUSTER-004`; See also: `CLUSTER-065`, `SEC-003`
+  - Why/Problem: Coolify/Dokploy/Dockhand terminals have no approval/audit [bench]; Viewer can exec today. Choke point is `docker-container-shell-domain.service.ts:28,57,75,104`. Build-order: sec#6.
+  - Do: access-request object (who, scope, reason, TTL, approvers); policy `container.exec on env=production requires approval(1 other admin) and fresh-passkey`; default TTL 30 min, auto-expire open sessions; kill switch; view-only shadow session; emergency self-approve with reason + loud alert + review task; `solo` mode for one-person homelabs.
+  - Done when: prod exec without approved grant is denied; grant expires session.
+  - Status: todo · Verified-in-code: partial (choke point exists) · Source: ideas-security-resilience#I-06; ROADMAP-AND-IDEAS#15
+  - Design-impact (2026-10-26): concrete design in `SEC-073` (elevation = grant `source='elevation'` with `expires_at` enforced by the same query, default 30 min / owner 15 min, mandatory reason, owner notifications, emergency owner self-elevation with step-up + loud notification, disabled by `strict`) on top of approvals (`SEC-072`); priority P3 → P2 for the elevation core.
+- [ ] `IDEA-026` **Session recording for exec (node-side, envelope-encrypted, hash-chained)** · NEW · P3 · M · Deps: `IDEA-025`, `IDEA-027`, `IDEA-014`; See also: `CLUSTER-065`
+  - Do: asciicast-style frames captured by node hosting the container (not API), local blob store with hash chain, head hash is an audit entry, encrypted to auditor role keys, redaction patterns, retention.
+  - Done when: auditor can replay; DB reader cannot.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#I-06
+  - Design-impact (2026-10-26): exec sessions run under elevation are recorded by the executing node (`OBS-075`, `SEC-073`); exec itself is `container:exec` (critical, owner-only by default, production approval via `SEC-072`).
+- [ ] `IDEA-027` **Node-scoped secrets (envelope encryption to member keys) + AAD/key-ring codec** · NEW · P2 · L · Deps: `IDEA-004`, `IDEA-005`, `SEC-016`, `SEC-019` (key ring/`AUTH_SECRET` fix P0), `NET-007` (tunnel token in roster); See also: `NET-077`, `SEC-019`, `SEC-022`
+  - Why/Problem: one key (`AUTH_SECRET`) decrypts everything; roster tunnel token is gossiped in clear (`networking.md:106` per report); codec has no key id/AAD and `scryptSync` per read (`packages/nest/schema/src/codecs/codec-registry.ts:41-110`). Dokploy plaintext env, Coolify single app key [bench]. Build-order: sec#5.
+  - Do: HPKE-style hybrid helper in `mesh-network` (ephemeral x25519 + HKDF domain-separated + AES-GCM; AAD = secretId,version,column/`table.column.rowId`); DEK wrapped to the allowed set (nodes the placement policy may use, computed from labels); revocation triggers re-key; node-side resolver unwraps via agent socket and hands runner swarm secret/tmpfs; key ring ids `v2:kid:`; HKDF once instead of scrypt per read; migrate roster-resident `edge.*` tokens first; surface missing wrap as placement-blocking reason.
+  - Done when: an unrelated node/DB dump cannot decrypt a service secret; ciphertext swapped between rows fails.
+  - Status: todo · Verified-in-code: partial (codec limits confirmed per report) · Source: ideas-security-resilience#I-05,§3.11; ROADMAP-AND-IDEAS#9
+- [ ] `IDEA-028` **Rotation registry + rotation-on-revocation** · NEW · P2 · M · Deps: `IDEA-027`, `IDEA-014`, `SEC-019`, `SEC-022`, `CLUSTER-003`, `NET-068`
+  - Why/Problem: static credentials: `AUTH_SECRET`, DB/Redis passwords, join tokens, tunnel token, mesh shared secret, VAPID, webhook secrets. Build-order: sec#5.
+  - Do: registry of `{id, ageLimit, rotate(), consumers[], verify()}`; supervisor schedules; revocation record fans out rotations for everything the revoked member could unwrap; dual-key overlap windows; first consumers (join tokens, tunnel token, mesh secret, key ring); shared ACME cert store or single issuer; rotation ledger in audit log; DB password rotation (second role + swarm secret rollout) later (L).
+  - Done when: revoking a member rotates its readable secrets with zero downtime.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#I-11
+- [ ] `IDEA-029` **Platform DR: mesh-replicated encrypted snapshots with signed manifest** · NEW · P2 · XL · Deps: `IDEA-027`, `IDEA-005`, `OPS-013`, `OPS-015` (basic backups P0 first), `NET-091`; See also: `OPS-013`, `FEAT-010`, `NET-091`
+  - Why/Problem: no backup at all today; Coolify/Dokploy depend on external S3 + surviving server [bench]. Build-order: sec#7. Phase 1 plain local+S3 (owned by OPS), phase 2 this.
+  - Do: logical `pg_dump` + node SQLite + mesh identity/roster + acme.json; encrypt with cluster backup key (DEK wrapped to every active member + recovery kit); signed manifest `{id, at, sizes, chunkHashes, schemaVersion}` in roster `backup.latest`; <=3 nodes full copies, larger Reed-Solomon shards by label diversity; `deployer restore` on any surviving member/new machine; S3/SFTP as pluggable shard holder; rollback detection via manifest seq + audit anchors; state RPO honestly (no PITR).
+  - Done when: control plane rebuilt from one surviving member + manifest in a drill.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#I-07; ROADMAP-AND-IDEAS#17
+- [ ] `IDEA-030` **Restore-verified backups (drills) + Shamir recovery kit** · NEW · P2 · M · Deps: `IDEA-029`, `OPS-016`, `OBS-012`; See also: `OPS-016`, `FEAT-013`
+  - Why/Problem: Coolify has no restore verification/PITR [bench]. Build-order: sec#7.
+  - Do: drill job on a different node than producer: throwaway Postgres, restore, integrity checks (row counts, canary queries, schema version, known-plaintext decrypt probe), teardown, signed restore attestation into audit chain+roster; dashboard "age of last PROVEN backup"; same loop for user databases via template verify query; Shamir (k-of-n) recovery kit at setup handover (`handover-orchestrator.service.ts`), shown once, rehearsal by challenge; resource caps + off-peak.
+  - Done when: each backup has a verification attestation; kit can unwrap DEK in rehearsal.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#I-08
+- [ ] `IDEA-031` **Zero-downtime platform self-upgrade with canary + auto-rollback (pull-by-agent)** · NEW · P3 · XL · Deps: `IDEA-004`, `IDEA-016`, `IDEA-029`, `IDEA-030`, `IDEA-033`, `IDEA-002`, `ARCH-041`, `ARCH-042` (migrations), `OPS-018`, `OPS-019`, `DEPLOY-051`; See also: `OPS-018`, `FEAT-131`, `ARCH-072`
+  - Why/Problem: Coolify no self-upgrade rollback, Dokploy manual script [bench/mem]. Build-order: sec#8.
+  - Do: roster setting `release.target={version, manifestHash}` written by k admins; each agent converges itself (no coordinator); order: preflight (fresh backup attestation, quorum, skew policy), canary node/replica, soak against SLO gates, roll rest start-first, migrations only after canary and expand-style under lock, mesh agents last one at a time; failure flips target back under pre-authorised rollback capability; release key pinned at setup; keep previous agent container until new is healthy; never upgrade Traefik and doors in the same wave; BFF/service version-skew policy; CI enforces expand/contract.
+  - Done when: simulated bad release auto-rolls back without downtime in Game Day.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#I-09; ROADMAP-AND-IDEAS#17
+- [ ] `IDEA-032` **Platform supply-chain self-attestation (signed images, SBOM, digests pinned)** · NEW · P2 · M · Deps: `OPS-004`, `OPS-030`; See also: `OPS-030`
+  - Do: CI builds, SBOM, cosign-signs platform images, digests pinned in compose + release manifest; setup verifies before run; Dependabot/SHA pinning.
+  - Done when: setup refuses unsigned platform images.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#I-22
+- [ ] `IDEA-033` **Game Day: failure drills as a button (harness for DR and upgrade)** · NEW · P3 · M · Deps: `IDEA-030`, `NET-083`, `OBS-030`; See also: `OPS-022`
+  - Why/Problem: proves resilience claims; none in benches. Build-order: sec#8 (ships first as harness).
+  - Do: drill catalogue (stop replica, drop WG for peer pair via agent, block API door, expired cert in staging route, kill Postgres task, revoke a TEST member) as declarative scenarios run via mesh agent; dry-run mode; preconditions (not single-node, fresh backup attestation, quorum margin >=1, blast-radius cap, auto-abort on real SLO trip, "drillable" labels first); assertions on user-visible endpoints; signed RTO/resilience report; quarterly reminder; partition/DB-failover later (relay still stub).
+  - Done when: a node-loss drill passes and produces a signed report.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#I-10; ROADMAP-AND-IDEAS#17
+- [ ] `IDEA-034` **Per-project microsegmentation with egress allow-lists derived from dependency graph** · NEW · P3 · L · Deps: `DEPLOY-058`, `PROJ-090`, `NET-082`; See also: `NET-082`
+  - Do: one internal overlay per project; allowed edges from dependency graph; ingress only via Traefik; egress policy (DOCKER-USER/nft or per-node egress proxy; build sandbox only git host + registries); `network.attach` in Action Gate; UI graph of allowed/blocked edges; `observe` mode first; do NOT use WG AllowedIPs as ACL.
+  - Done when: cross-project traffic blocked by default and logged in observe mode before enforce.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#I-12; ROADMAP-AND-IDEAS#12
+- [ ] `IDEA-035` **Edge protection presets (WAF, rate limits, headers, bot rules) per route** · NEW · P2 · M · Deps: `NET-022`, `IDEA-001` (platform routes), `SEC-025`; See also: `NET-022`, `SEC-024`
+  - Why/Problem: also fixes audit R-09/R-10 for platform routes; `traefik-middleware-library.service.ts` exists but unused for platform routes.
+  - Do: preset catalogue (`web-app`, `api`, `login`, `webhook-receiver`, `admin-console`) bundling security headers, rate limit (per-node acceptable), in-flight limits, IP allowlist/geo, body-size caps, optional Coraza/CrowdSec pinned by digest; per-route assignment in UI; edge-provider `capabilities` in descriptor so presets degrade honestly; log-only mode; trusted-proxy config.
+  - Done when: enabling "login" preset adds rate limit + headers to the route on Traefik and reports "handled by Cloudflare" on CF edge.
+  - Status: todo · Verified-in-code: partial · Source: ideas-security-resilience#I-13
+- [ ] `IDEA-036` **Quota, budget, change-rate guards and freeze windows (as guardrail rules)** · NEW · P2 · M · Deps: `IDEA-006`, `IDEA-014`, `PROJ-082`, `DEPLOY-024`; See also: `PROJ-082`
+  - Do: counters (deploys/hour, concurrent builds, exec sessions, storage), enforcement hook, `require` reasons, apply resource limits to platform services (`resourcesLimits` currently `{}`); makes inert quota settings real; dry-run first.
+  - Done when: runaway deploy loop is rate-limited with a readable denial.
+  - Status: todo · Verified-in-code: partial · Source: ideas-security-resilience#I-14
+  - Design-impact (2026-10-26): quotas = `Limit` verdicts keyed actor|token|project|ip via `QuotaStore` (Redis, Postgres unlogged fallback, `DEC-AUTH-19`) = `SEC-071`; freeze windows, protected-environment flag and production-deploy approval are policies in the built-in pack `SEC-070`.
+- [ ] `IDEA-037` **Isolated build sandbox pool (`builder` member kind) + Docker-API capability broker** · NEW · P3 · L · Deps: `IDEA-034`, `IDEA-016`, `NET-093`, `DEPLOY-051` (registry), `SEC-027`; See also: `CLUSTER-077`, `DEPLOY-053`
+  - Do: add `builder` member kind + admission policy; build job dispatch over mesh; artifact/digest return with build-node-signed attestation (feeds passport); rootless BuildKit; socket proxy for remaining consumers; fallback to local rootless build on single-node installs. Addresses R-06/R-07.
+  - Done when: untrusted repo builds on a node without control-plane credentials or Docker socket exposure to API.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#I-19
+- [ ] `IDEA-038` **Key-compromise recovery: signed epoch transition (research)** · NEW · P3 · XL · Deps: `IDEA-004`, `IDEA-015`
+  - Do: `epoch` record co-signed by k members listing accepted admission set and cutoff witness hash; later records chain through it; agent migration; formal-ish review + property tests.
+  - Done when: backdated records from a compromised key are rejected after epoch.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#I-20
+
+### Deploy pipeline ideas
+- [ ] `IDEA-039` **Deploy dry-run (`plan`) with diff and planHash-guarded apply** · NEW · P2 · M · Deps: `IDEA-002`, `DEPLOY-002` (server-side resolution from saved service, audit P0 #7); See also: `WEB-041`
+  - Why/Problem: Railway plan/apply is config-only, Komodo diffs resources not deploys; Terraform-style plan for an app deploy with image/scan/route effects is unoccupied [bench]. Without server-side resolution the dry-run would show fiction. Build-order: deploy#2.
+  - Do: `deployment.plan({serviceId, env, ref?}) -> {manifestPreview, diff:[{path,from,to,risk}], gates, cascade waves, routeChanges, warnings}`; same `triggerDeployment` code with `effects:false` (no parallel implementation); manifest differ with secret masking; route-diff via pure `PlatformRoutesSource` over current rows + hypothetical row; risk tags (breaking: port/volume; safe: env add); apply takes planHash and refuses if world changed; backs CLI `plan/apply` and UI "what will happen".
+  - Done when: apply with stale planHash is refused; plan output matches executed manifest.
+  - Status: todo · Verified-in-code: partial (`/compile-plan/preview` contract exists) · Source: ideas-deploy#2
+- [ ] `IDEA-040` **Unified gate engine: scan, approval, window/freeze, soak gates; promote by digest (`awaiting_gate` state)** · NEW · P2 · L · Deps: `IDEA-002`, `IDEA-001`, `IDEA-018`, `IDEA-003`, `PROJ-024` (per-env variables), `DEPLOY-009`; See also: `PROJ-089`, `PROJ-067`, `WEB-046`
+  - Why/Problem: `requireApprovalForProduction` is unenforced (resolver `~:654`); `environment_promotions` table unused (`packages/nest/schema/src/global/project/environment.ts:343-368`); dispatch rules have no producer/store. Vercel/Heroku promote but hosted; nobody combines scan+approval+window+soak on a digest on self-hosted [bench]. Build-order: deploy#3.
+  - Do: `Gate={id, kind: scan|approval|soak|window|rule, params}` ordered by priority → `GateResult[] {status pass|fail|pending|waived, reason, evidence}` stored on manifest; `pending` parks deployment in resumable `awaiting_gate` state on the row; reuse dispatch-rule syntax; enforce in API path (not only UI); promotion service copies manifest into target env with env-scoped config; approvals inbox + notification.
+  - Done when: a production deploy with failing gate parks/blocks with reason; promotion moves same digest and records approver.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy#3; ROADMAP-AND-IDEAS#5
+- [ ] `IDEA-041` **Deploy freezes, maintenance windows, scheduled deploys (enforced without central scheduler)** · NEW · P3 · S · Deps: `IDEA-040`, `IDEA-004`/`IDEA-005` for mesh-first variant; See also: `DEPLOY-082`
+  - Do: policy store (LWW-map entry per scope with HLC), timezone-aware window evaluator, emergency override requiring role + reason + audit, freeze shown in plan output; schedule trigger source in `SH/triggers` (fills "no schedule trigger").
+  - Done when: deploy during freeze is denied with reason; override audited.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy#12
+- [ ] `IDEA-042` **Approvals bound to sealed manifest + plan diff ("approve this exact diff")** · NEW · P2 · S · Deps: `IDEA-040`, `IDEA-039`, `IDEA-023`; See also: `DEPLOY-009`, `PROJ-089`, `WEB-045`
+  - Do: approval record references manifestId+planHash to prevent TOCTOU; approvals must come from an authenticated user action, never observed content; wire `requireApprovalForProduction`.
+  - Done when: changing the plan after approval invalidates the approval.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy#13
+  - Design-impact (2026-10-26): the generic approval mechanism (action hash = sha256(procedure, resource, input digest), single use, TTL 15 min) is `SEC-072`; binding to a sealed manifest/plan diff extends the same hash to `planHash`/manifest digest.
+- [ ] `IDEA-043` **Graph-deploy saga: ordered waves, readiness gates, whole-graph rollback** · NEW · P2 · L · Deps: `IDEA-002`, `IDEA-011`, `DEPLOY-058`, `PROJ-090`; See also: `DEPLOY-080`, `PROJ-091`, `CLUSTER-047`
+  - Why/Problem: v1/v2 had cascade and v3 lost it; Coolify/Dokploy/Kamal/Railway/Render have no dependency-aware cascade+rollback [bench]. Five written-but-dead services in `FL/fleet/services/*`. Build-order: deploy#5.
+  - Do: orchestrator connecting `ServiceDagService`, `FleetRolloutPlannerService`, `FleetReadinessGateService`, `FleetFailureContainmentService`, `FleetRollbackService.decide`; `deployment_run` row (one run → N deployments) with per-wave DB checkpoint/resume (replace in-memory `executionCheckpoints`); idempotent by `runId`; on failure decide scope (service/project/fleet) and replay last-good manifests in reverse order; mark stateful nodes "never auto-roll-back"; per-wave timeouts; `isRequired` semantics; cross-service call fleet↔runtime with signed actor claim; graph UI with waves + failure-isolation policy.
+  - Done when: a failing wave-2 service rolls back wave-1 services to previous manifests in reverse order, resumable after restart.
+  - Status: todo · Verified-in-code: partial (services registered, injected nowhere) · Source: ideas-deploy#4,§enh 15
+  - Effect-impact (2026-10-26): saga waves map to `withCompensation` after the workflow prototype; keep activities idempotent. Deps: `EFF-122`.
+- [ ] `IDEA-044` **Canary / weighted rollout at Traefik with header/cookie cohorts and auto-abort** · NEW · P2 · L · Deps: `IDEA-002`, `IDEA-045`, `DEPLOY-058`, `NET-015` (routes), `OBS-051` (error-rate abort; was wrongly `IDEA-052`); See also: `FEAT-071`, `DEPLOY-065`
+  - Why/Problem: Vercel Rolling Releases hosted-only; none self-hosted [bench]. Routes are single-target (`platform-routes-source.service.ts:~213-277`, `lane-traefik-config.ts:93,138`). Build-order: deploy#6.
+  - Do: route model `targets:[{container,port,weight,match?}]`; Traefik `weighted` service + header-matched router renderer; stable swarm service name per (service,env) + candidate service with reaping rules; stage plan `[5%,25%,100%]` with `hold` and `abortIf{errorRate,p95,healthGate}`; start with health-gate abort + cohort header, add error-rate later; sticky cookie; rollback = weight reset; document expand/contract DB migrations; wire `deploymentStrategy` rolling/blue_green/canary (currently unconsumed) and planner's `canaryWeight/promotionWindowMinutes`.
+  - Done when: 5% weighted route rendered and aborts on failed health gate in test.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy#5
+- [ ] `IDEA-045` **Verify-before-flip: user-defined smoke gate on private lane + optional traffic shadowing** · NEW · P2 · M · Deps: `IDEA-002`, `DEPLOY-069`, `DEPLOY-070` (real health gate; stop unconditional "Readiness health gate passed" at `workflow:694`), `NET-015`; See also: `DEPLOY-072`
+  - Why/Problem: nobody runs a user-defined smoke suite through real ingress before flip [bench]. Today flip is implicit in "success".
+  - Do: per-service `verify` block (HTTP assertions first, container command second); candidate-only route (preview-style host); explicit `flip` plan node; optional Traefik mirroring (opt-in, GET-only default); document read-only smoke tests.
+  - Done when: failing smoke test prevents route flip and triggers rollback.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy#17
+- [ ] `IDEA-046` **Ephemeral full-stack preview environments with link/mock/fixed topology and contract-validated mocks** · NEW · P2 · L · Deps: `IDEA-043`, `DEPLOY-103`, `DEPLOY-104` (real PR build, webhooks, teardown), `PROJ-070`, `PROJ-071` (preview config), `NET-036` (wildcard DNS/preview networking); See also: `PROJ-070`, `DEPLOY-105`
+  - Why/Problem: Render copies whole env, Dokploy single-app max 3, Coolify per-app; none has per-dependency policy with contract check [bench]. Resolver is pure/tested (`apps/api-services/services/project/src/modules/service/services/preview-topology.resolver.ts:113-222`), consumed by nothing; `PreviewEnvOverlayService` unwired. Build-order: deploy#8.
+  - Do: topology executor turning resolver output into N deployments under a `previewRun`; mock runner (start with "mock = another service in project", later contract-mock container from OpenAPI/ORPC); per-preview env overlay (preview-scoped secrets); one DNS wildcard label per run; teardown by run not orphan GC; quota via `maxPreviewEnvironments` (inert today); fork-PR guard; URL comment on PR; naming parity create/cleanup.
+  - Done when: PR creates changed service + linked/mocked deps and tears all down on close/TTL.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy#6
+- [ ] `IDEA-047` **Per-preview database branches / seeded data (deferred)** · NEW · P3 · XL · Deps: `FEAT-006`, `FEAT-012` (managed databases + backups), `IDEA-046`, `CLUSTER-043` (stable volumes); See also: `FEAT-009`
+  - Do: once DB service kind + backups exist: "restore latest backup into preview DB" or `CREATE DATABASE ... TEMPLATE`/`pg_dump|pg_restore`; volume snapshot needs LVM/ZFS/btrfs; stable per-service volume naming first.
+  - Done when: preview gets seeded DB isolated from staging.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy#7
+- [ ] `IDEA-048` **Project time machine: restore project state at time T (+ config_revisions)** · NEW · P2 · M · Deps: `IDEA-002`, `IDEA-039`, `IDEA-043`, `IDEA-003`; See also: `PROJ-029`
+  - Why/Problem: none self-hosted [bench]. Config is overwritten in place today. Build-order: deploy#7.
+  - Do: append-only `config_revisions` written by project service on every mutation (same canonical JSON as manifest) plus route/domain history; `projectSnapshot(T)`; read-only "what was running at T" view; restore = compile run from snapshot with plan diff first; fail clearly if secret deleted/image pruned/irreversible migration; state "code+config, not data".
+  - Done when: restoring yesterday 14:00 shows a diff then redeploys each service from its manifest in dependency order.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy#8
+- [ ] `IDEA-049` **Drift detection with optional auto-reconcile (desired = manifest, actual = engine)** · NEW · P2 · M · Deps: `IDEA-002`, `IDEA-003`, `CLUSTER-009` (honest node data), `OBS-012`; See also: `CLUSTER-046`
+  - Why/Problem: none of Coolify/Dokploy/CapRover/Dokku/Dockhand reconcile; Komodo only config-sync diffs [bench]. `DriftReconciliationService` is pure and unused. Build-order: deploy#7.
+  - Do: actual-state collector (`docker service ls/ps` by `deployer.*` labels across nodes via mesh) → diff with `DriftReconciliationService` → policy per environment `drift: alert|reconcile|ignore`; reconcile = ordinary gated `deploy(manifest)` run; rate limit (no loops on crash-looping services); "pause reconcile" lease with TTL (LWW-map).
+  - Done when: `docker rm` of a managed service raises drift and (policy reconcile) redeploys via a visible run.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy#9
+- [ ] `IDEA-050` **Build cache sharing across mesh nodes (registry-backed BuildKit cache)** · NEW · P3 · L · Deps: `DEPLOY-051` (registry push/digest pull), `NET-093` (mesh overlay); See also: `DEPLOY-050`, `FEAT-044`
+  - Do: BuildKit `--cache-to/--cache-from type=registry`, cache key policy per service/branch, scope per project (no cross-tenant poisoning), pruning; `buildArgs` support in `docker.service.ts:402-457` is unused.
+  - Done when: second build on another node reuses layers.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy#10
+- [ ] `IDEA-051` **Distributed builds on idle mesh nodes (build-worker role)** · NEW · P3 · XL · Deps: `IDEA-037`, `IDEA-050`, `CLUSTER-012` (honest node CPU/mem metrics), `DEPLOY-014`, `DEPLOY-051`, `NET-093`; See also: `DEPLOY-053`, `CLUSTER-077`, `FEAT-044`
+  - Why/Problem: Dokploy build server single manual, Komodo hosted builders; automatic live-load selection over a mesh unoffered [bench]. Build queue in-memory serial today.
+  - Do: builds claimed by workers on other nodes via queue lease model (`workerId/lockToken`); remote log streaming over mesh; scoring using real CPU/mem (not mislabelled packet-loss numbers); dedicated rootless builder container with no socket; concurrency per node.
+  - Done when: a build runs on a chosen idle node and deploys by digest.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy#11
+- [ ] `IDEA-052` **Per-deployment cost / resource attribution** · NEW · P3 · M · Deps: `OBS-045` (metrics history), decision DEC-IDEA-5
+  - Do: rollup CPU-seconds, memory GB-hours, network, disk per service/env/deployment/preview via `deployer.*` labels; per-node cost-per-hour setting; flags forgotten previews; attribution of shared overhead.
+  - Done when: preview page shows resource/cost chip.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy#14
+- [ ] `IDEA-053` **Right-sizing recommendations from metrics (apply via plan, never silent)** · NEW · P3 · S · Deps: `IDEA-052`, `IDEA-039`, `CLUSTER-038`, `CLUSTER-039` (swarm reservations currently `{}`)
+  - Do: p99 + headroom suggestions vs resolver `resources` and project limit constraints; one-click apply as dry-run plan.
+  - Done when: suggestion appears with evidence and applies through plan.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy#15
+- [ ] `IDEA-054` **Contract-compatibility gate between dependent services** · NEW · P3 · L · Deps: `IDEA-040`, `IDEA-039`, UNRESOLVED: versioned contract schema for `implementsContract` (no PROJ item)
+  - Do: turn `implementsContract.contractRef` string into versioned schema; diff engine; block/warn listing broken consumers in plan output.
+  - Done when: provider change breaking a consumer is blocked in plan.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy#18
+- [ ] `IDEA-055` **Rollback compensation / migration awareness (release-phase hook)** · ENHANCE · P2 · S · Deps: `IDEA-002`, `DEPLOY-054`, `FEAT-066` (pre-deploy command); See also: `PROJ-046`
+  - Do: release-phase (migrate) marks manifest `schemaMigrated:true` with optional `down`; rollback planning flags "irreversible" and needs explicit confirmation; rollback edges' `compensationNodeId` become real nodes.
+  - Done when: rolling back past an irreversible migration requires confirmation.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy#19
+- [ ] `IDEA-056` **Preview/stack sleep (autostop idle) and wake on request** · NEW · P3 · M · Deps: `DEPLOY-058`, `NET-015` (door/ingress), `OBS-051` (idleness metrics); See also: `FEAT-035`
+  - Do: `scaleService(…,0)` after idle; waker via Traefik forward-auth in door/ingress; request buffering during cold start.
+  - Done when: idle preview scales to zero and wakes on first request.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy#20
+- [ ] `IDEA-057` **Signed, replicated release ledger (mesh-native deployment audit)** · NEW · P3 · M · Deps: `IDEA-002`, `IDEA-005`, `IDEA-015`, `NET-076`
+  - Do: each manifest/promotion/approval/rollback signed with actor mesh identity, appended to replicated bounded log (`or-set`, `bounded-event-log`, `fencing-token`); any node verifies without Postgres; manage key custody/rotation and log growth.
+  - Done when: a node verifies "who deployed what, approved by whom" offline.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy#21
+- [ ] `IDEA-058` **Offline-tolerant node-local convergence (nodes pull own placement from replicated manifests)** · NEW · P3 · XL · Deps: `IDEA-049`, `IDEA-057`, `IDEA-002`, `NET-092`, decision DEC-IDEA-4; See also: `NET-092`
+  - Do: placement as data, manifests replicated, node reconciles own slice; decide swarm vs not (raft is a control plane). Not before 1, 9, 21 proven.
+  - Done when: an offline node catches up alone after a week.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy#22
+- [ ] `IDEA-059` **Manifest consumers: "redeploy needed" badge, deploy diff view, rollback picker, plan-timeline** · ENHANCE · P2 · M · Deps: `IDEA-002`, `IDEA-003`, `WEB-042`, `WEB-040`; See also: `DEPLOY-083`, `DEPLOY-084`, `PROJ-030`
+  - Do: hash resolved config vs in-force manifest and show banner (Coolify ConfigurationChecker pattern); deploy diff (commit range, env keys, config, image size/digest, scan delta); rollback picker listing manifests (digest, date, who, scan, "config differs") — today UI omits `targetDeploymentId`; deployment detail renders compiled plan DAG with per-node status/duration/logs fed by outbox events.
+  - Done when: changing a port shows "redeploy needed"; rollback picker works end-to-end.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy#§4 items 3,6,7,9
+- [ ] `IDEA-060` **Persist dispatch-rule/gate store and UI (feed the unfed config-resolver engine)** · NEW · P2 · M · Deps: `IDEA-040`, `PROJ-052`; See also: `PROJ-052`
+  - Why/Problem: resolver dispatch rules (`when`→`apply`) have no producer; unlocks config-by-branch.
+  - Do: DB table + contract + UI for dispatch rules; confirm with author whether a store was planned; `dispatchAudit.appliedRuleIds` stored on manifest.
+  - Done when: a branch-scoped rule changes effective config and appears in `dispatchAudit`.
+  - Status: todo · Verified-in-code: partial (no producer found per report) · Source: ideas-deploy#§0.2,§3,§5
+
+### DX, declarative, automation
+- [ ] `IDEA-061` **Contract-derived surfaces: generated CLI + TS SDK (+ stable versioned public spec, parity CI job)** · NEW · P2 · M · Deps: `IDEA-001`, `IDEA-012`; See also: `FEAT-083`, `FEAT-084`, `FEAT-085`, `ARCH-017`
+  - Why/Problem: no one generates CLI+MCP+Terraform from one typed source [bench/mem]. `GET /openapi.json` (`apps/api-services/bff/src/modules/docs/openapi-docs.controller.ts:64`) is anonymous and exposes internal surfaces. Build-order: dx#3.
+  - Do: builder meta (`x-cli-name`, risk, `x-requires-approval`, `x-streaming`, stable/internal split); build script emits CLI manifest; CLI (citty/oclif) uses ORPC client directly (`deploy|logs|rollback|exec|mesh connect|plan|apply`), streams via SSE procedures; scrub `test.*`, `setup.*`, `meshInternal`; gate `/openapi.json`; CI surface-parity job; breaking-change policy. Resolves `apps/setup` vs CLI decision partially.
+  - Done when: a new procedure appears in CLI and spec in the same commit; parity job fails on drift.
+  - Status: todo · Verified-in-code: partial · Source: ideas-dx-ai#1,§2-3
+- [ ] `IDEA-062` **First-class MCP server with prompt-injection-safe tool design** · NEW · P2 · S · Deps: `IDEA-001`, `IDEA-061`, `AUTH-035` (agent-auth fixes), `IDEA-014`; See also: `FEAT-095`, `FEAT-096`
+  - Why/Problem: MCP is table stakes (Vercel, Fly, Netlify, Render, Coolify read-only); differentiate via gating model, not "we have MCP". Build-order: dx#3. Agent-auth pinned 0.6.2 unstable (`packages/auth/src/server/plugins/agentAuth.ts`).
+  - Do: streamable-HTTP MCP in front of agent-auth capabilities or contract manifest; curated tools (`diagnose_deployment`, `plan_change`) beside raw; resource templates (`deployer://service/{id}/logs`); log content returned as typed data with "untrusted" marker + truncation; plan/approve for mutations; audit per call; keep agent-auth isolated behind one wrapper.
+  - Done when: an agent reads logs but a write needs passkey approval and is audited.
+  - Status: todo · Verified-in-code: partial · Source: ideas-dx-ai#20
+  - Design-impact (2026-10-26): agent credential design: `agent` token kind, read-only default scope set (non-mutating, `risk <= medium`, minus `secret:*`, `container:*`, `audit:export`, `token:*`), propose/dispose via `APPROVAL_REQUIRED` with a human-readable plan, default TTL 8 h, MCP tool list generated from the contract manifest so an agent cannot see tools its token cannot call (`AUTH-069`, `SEC-066`, `FEAT-095`); delete `agentAuth.ts` (`DEC-AUTH-18`).
+- [ ] `IDEA-063` **Terraform provider generated from the contract** · NEW · P3 · L · Deps: `IDEA-061`; See also: `FEAT-086`
+  - Do: openapi → tfplugingen-framework; stable public spec required.
+  - Done when: provider can create project/service/env.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai#1
+- [ ] `IDEA-064` **`deployer.yaml` with `config.plan`/`config.apply` + drift view (single reader of service config)** · NEW · P2 · L · Deps: `IDEA-039`, `IDEA-001`, `PROJ-053`, decision DEC-IDEA-6; See also: `PROJ-053`, `FEAT-087`
+  - Why/Problem: ends the "stored but ignored" bug class (README cross-cutting #4); Render/Railway have plan/apply but not mesh placement or live drift [bench/search]; don't claim first. Build-order: dx#5.
+  - Do: file schema generated from the same zod/provider-schema used by UI forms; `diff(desired, actual)` over entities; idempotent `config.plan({yaml,scope}) -> {changes:[{op,resource,before,after,destructive}], planHash}` + `config.apply({planHash, confirmDestructive})`; secrets as `sync:false` references; `generate` from existing state (removal never deletes); drift badge via timer; decide UI vs file ownership ("managed by file").
+  - Done when: UI/CLI/MCP share plan/apply; inert settings now read from the one resolver.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai#4
+- [ ] `IDEA-065` **Import/migrate wizard (compose, Coolify, Dokploy, Heroku app.json, render.yaml)** · NEW · P2 · M · Deps: `IDEA-064`; See also: `FEAT-088`
+  - Do: parsers (compose first, S), mapping report ("imported 11/13; ignored X,Y"), dry-run via `config.plan`; handle Coolify `SERVICE_*` magic vars; verify competitor-template licensing.
+  - Done when: a compose file imports with report.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai#6
+- [ ] `IDEA-066` **GitOps with no central controller (each node reconciles its slice from signed desired-state head)** · NEW · P3 · XL · Deps: `IDEA-064`, `IDEA-005`, `IDEA-058`, `NET-092`; See also: `NET-092`
+  - Do: member publishes `{repo, sha, planHash, sig}` to roster; owners apply placement slice; per-node status gossiped; UI "5/6 nodes at sha"; conflict semantics for two publishers; signed commit trust policy.
+  - Done when: offline node converges on return.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai#5; ROADMAP-AND-IDEAS#19
+- [ ] `IDEA-067` **Universal correlation id: deploy → build → container → request → alert** · NEW · P2 · M · Deps: `IDEA-002`, `OBS-005`, `DEPLOY-044` (build logs); See also: `OBS-005`, `ARCH-066`
+  - Why/Problem: schema exists (`deploymentObservabilityContextSchema`, `packages/contracts/entities/src/entities/deployment/base.schema.ts:25`) but nothing propagates it BFF→service→docker. Build-order: dx#4.
+  - Do: generate/propagate `x-request-id`/`traceparent` (generate at edge, strip inbound); logger pino context; BFF AsyncLocalStorage (`bff/src/clients/service-auth-context.ts`); container labels `deployer.deployment-id`/`plan-hash`; tail Traefik JSON access log with deployment label and index it.
+  - Done when: from a failing request you can navigate to the deployment and build log.
+  - Status: todo · Verified-in-code: partial · Source: ideas-dx-ai#7
+- [ ] `IDEA-068` **Local-first telemetry store per node, queryable over the mesh** · NEW · P3 · L · Deps: `ARCH-088` (`MeshNodeCaller` stub returns `[]`), `NET-073` (relay), `NET-061`, `OBS-045`; See also: `OBS-064`
+  - Do: embedded SQLite/duckdb ring tables with downsampling; `telemetry.query` contract with mesh fan-out; retention; optional OTLP/Prometheus sink; honest "node-c unreachable, showing cached".
+  - Done when: UI queries logs/metrics across nodes with no central collector.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai#8
+- [ ] `IDEA-069` **Honest deployment timeline with diff vs previous (config, digest, env keys, scan)** · ENHANCE · P2 · M · Deps: `IDEA-002`, `IDEA-003`; See also: `FEAT-099`, `DEPLOY-114`, `WEB-040`
+  - Do: stage timing events from lifecycle events (`lifecycle-events.ts`), structural diff over plan nodes + env key set (keys+hash only) + digest; replace 4 s polling with `deployment.stream`. (Overlaps `IDEA-059`; implement together.) Build-order: dx#4.
+  - Done when: deploy detail shows stages with durations and "what changed since last good".
+  - Status: todo · Verified-in-code: partial · Source: ideas-dx-ai#9,§4.8
+- [ ] `IDEA-070` **Incident timeline auto-assembled from events** · NEW · P2 · M · Deps: `IDEA-003`, `IDEA-067`; See also: `OBS-067`, `OBS-068`, `WEB-080`
+  - Do: append-only `platform_events` (the outbox with real dispatcher) correlating deploy, health gate, restarts, node loss, route flips (grouping by time window + shared resource ids); exportable post-mortem draft; also audit backbone. Build-order: dx#6.
+  - Done when: one page shows the chain for a failed deploy + node drop.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai#10
+- [ ] `IDEA-071` **Notifications + ChatOps outbound consumers on the bus (webhook/Slack/Discord/email/push)** · NEW · P2 · M · Deps: `IDEA-003`, `OBS-012` (owner of dispatcher; referenced here as dx#6 build step); See also: `OBS-012`, `FEAT-120`
+  - Do: deliver bus events to channels; per-user VAPID with real subject; per-project rules. Build-order: dx#6.
+  - Done when: failed deploy delivers a message to configured channel.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai#§2-6
+- [ ] `IDEA-072` **SLOs, error budgets and deterministic auto-rollback on burn** · NEW · P3 · L · Deps: `IDEA-002` (honest rollback), `IDEA-067`, `IDEA-068` or Traefik SLI ring buffer (`OBS-051`), `OBS-042`, `DEPLOY-071`
+  - Why/Problem: none in self-host PaaS; Argo Rollouts needs k8s [bench]. Deterministic, not LLM (bench-market §7). Build-order: dx#8.
+  - Do: SLO model in `deployer.yaml` (availability from synthetic + Traefik status codes, p95); burn-rate evaluator with cooldown and max 1 auto-rollback per deploy and min request count; rollback executor via manifest replay.
+  - Done when: a bad deploy burning budget auto-rolls back once.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai#11
+- [ ] `IDEA-073` **Anomaly detection on metrics and deploy behavior (EWMA/MAD baselines)** · NEW · P3 · M · Deps: `IDEA-068`, `OBS-045` (metrics history), `OBS-048`
+  - Do: per-service baselines and deploy-relative windows ("memory grew 4x since deploy abc", restart loops, build time doubled); opt-in, explainable (show baseline).
+  - Done when: card appears on service page with baseline.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai#12
+- [ ] `IDEA-074` **Live topology map (projects, services, nodes, networks, traffic, health)** · NEW · P3 · M · Deps: `IDEA-067`, `WEB-083`; See also: `WEB-083`
+  - Do: unified `topology.get` + stream; merge existing fleet topology map and `ServiceDependencyGraphPanel.tsx`; edge traffic from access log/conntrack; honest "unknown" for edges without data; Cytoscape scale test.
+  - Done when: one live map shows health overlay.
+  - Status: todo · Verified-in-code: partial · Source: ideas-dx-ai#13
+- [ ] `IDEA-075` **Auto-generated status page + synthetic multi-vantage checks** · NEW · P3 · M · Deps: `IDEA-070`, `OBS-035` (health schema tables unused), `OBS-040`, `NET-087`; See also: `OBS-039`, `FEAT-130`, `WEB-082`
+  - Why/Problem: Coolify/Dokploy none; status page must not depend on platform it reports on. Build-order: dx#8.
+  - Do: probe scheduler/runner on nodes (mesh nodes as vantages), result store, public static cached render route, incident notes, cert/domain expiry; serve from node-local static snapshot replicated by gossip; publish via tunnel without a new port.
+  - Done when: status page stays up with control plane down.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai#15
+- [ ] `IDEA-076` **ChatOps with passkey-bound approvals (two-way Slack/Discord/Telegram)** · NEW · P3 · L · Deps: `IDEA-071`, `IDEA-064`, `IDEA-023`, `IDEA-012`; See also: `FEAT-125`
+  - Do: fixed command grammar (no free text to LLM), plan card, approval opens passkey link, signed inbound webhook receiver (SSRF-safe), chat identity linking via device flow, failure cards with explain summary.
+  - Done when: "deploy api prod" returns a plan card, approval requires passkey.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai#16
+- [ ] `IDEA-077` **Mobile PWA for on-call (push actions, `/oncall`)** · NEW · P3 · M · Deps: `IDEA-071`, `WEB-099`, `OBS-007`; See also: `WEB-099`, `WEB-100`
+  - Do: serwist build + register `apps/web/src/app/sw.ts`, push + notificationclick handlers with approve/rollback/ack, fix manifest ("Next.js NestJS Turborepo Template"), robots/sitemap disallow, compact `/oncall` route, per-user VAPID with real subject, iOS constraints.
+  - Done when: one-thumb rollback with passkey from phone.
+  - Status: todo · Verified-in-code: partial (sw.ts exists unregistered) · Source: ideas-dx-ai#17,§4.6
+- [ ] `IDEA-078` **Explain failed deploy (injection-safe structured AI analysis)** · NEW · P3 · M · Deps: `IDEA-069`, `DEPLOY-044` (build logs), `IDEA-064`, `IDEA-001`, decision DEC-IDEA-8; See also: `FEAT-097`, `OBS-078`, `WEB-116`
+  - Why/Problem: competitor Vercel Agent/Dokploy AI unverified (title/nav only). Build-order: dx#7. Off by default.
+  - Do: context packer (plan, diff vs last green, health, sanitized logs); BYO key or local Ollama provider setting; model has NO tools, returns zod-validated `{causes:[{summary,evidence:[logRef],confidence}], suggestedPatch}`; logs in nonce-delimited data blocks; server verifies cited log line ids exist, drops uncited claims; redact secrets (logger redaction paths); strip ANSI/control chars, cap line length; render as text only; patch applied only via `config.plan` + human approval.
+  - Done when: injection fixture logs cannot cause tool calls/links; every cause cites a verified line.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai#18
+- [ ] `IDEA-079` **Natural-language ops with plan/approve gate** · NEW · P3 · L · Deps: `IDEA-078`, `IDEA-061`, `IDEA-064`, `IDEA-062`, `IDEA-014`; See also: `FEAT-096`, `WEB-117`
+  - Do: planner endpoint (LLM emits JSON `{procedure,input}[]` validated against zod; server re-validates, authorises as user's role, computes dry-run); approval token bound to `planHash`; read tools free in planning, writes only proposed; rate limits; no autonomous remediation.
+  - Done when: executed plan cannot differ from shown plan.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai#19
+- [ ] `IDEA-080` **Per-service runbooks attached to alerts, executable as guarded steps** · NEW · P3 · S · Deps: `IDEA-064`, `IDEA-070`, `IDEA-079` (plan/approve)
+  - Do: runbook schema (markdown + contract-call steps → "Run" buttons through plan/approve + audit); optional LLM draft from last 5 incidents via explain pipeline.
+  - Done when: incident card shows runbook with guarded Run.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai#21
+- [ ] `IDEA-081` **"First deploy in 60 seconds" onboarding: detect + generate + preview** · NEW · P3 · M · Deps: `IDEA-064`, `DEPLOY-010` (honest builders), `SETUP-021` (URL minting); See also: `WEB-029`, `WEB-028`, `SETUP-022`
+  - Do: paste repo URL/drop folder → detect stack (reuse `StepProvider.tsx:134-208`), propose `deployer.yaml` (port, healthcheck, env keys from `.env.example`), plan, deploy, URL; checklist on command-center verdict.
+  - Done when: demo from repo URL to live URL in minutes.
+  - Status: todo · Verified-in-code: partial · Source: ideas-dx-ai#22,§4.11
+- [ ] `IDEA-082` **Command palette that acts + global entity/log search** · NEW · P3 · S · Deps: `IDEA-061` (action list with risk); See also: `WEB-094`, `FEAT-135`
+  - Why/Problem: Coolify Cmd-K search/Dockhand palette exist; none runs contract-derived confirmed actions. Quick win.
+  - Do: action registry from contract manifest (confirm if destructive), `search.query` across projects/services/domains/nodes, recent items, parameter prompts; extend `apps/web/src/components/dashboard/navigation.ts`.
+  - Done when: Cmd-K "roll back last deploy" prompts and executes with confirmation.
+  - Status: todo · Verified-in-code: partial (nav model exists) · Source: ideas-dx-ai#23,§4.10
+- [ ] `IDEA-083` **Capacity, cost and energy planner for self-hosters** · NEW · P3 · M · Deps: `OBS-045`, `IDEA-073`, `IDEA-052`, `CLUSTER-078` (capacity)
+  - Do: placement what-if/bin-packing via `config.plan` on real telemetry and declared capacity; user-entered kWh price and per-node watt profile (estimates, say so).
+  - Done when: planner suggests a move that fits capacity.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai#24
+- [ ] `IDEA-084` **Mesh-native moat features (reference only)** · NEW · P2 · XL · Deps: `NET-073`, `NET-074`, `NET-075`, `NET-079`, `NET-080`, `NET-081`, `NET-082`, `IDEA-004`, `IDEA-027`
+  - Why/Problem: tier-2 of ROADMAP-AND-IDEAS (relay-by-any-member, P2P image distribution, mesh DNS split-horizon, node-scoped sealed secrets (=`IDEA-027`), mesh-gateway edge + leaderless failover, operator member + expiring admissions + `deployer proxy`, microsegmentation (=`IDEA-034`)) are owned by NET from ideas-mesh.md. Not duplicated here.
+  - Do: track via NET ids; this item only records the dependency edges (P2P image distribution unblocks registry-less deploys and `IDEA-002` digest pulls; relay unblocks `IDEA-068`, `IDEA-033`).
+  - Done when: NET items referenced exist.
+  - Status: todo · Verified-in-code: n/a · Source: ROADMAP-AND-IDEAS#2 tier 2
+
+## Hidden assets already in code (wire-up)
+These are existing, tested or near-complete units with no consumer; each idea should wire them instead of rewriting.
+- [ ] `IDEA-085` **wire-up: permission engine + `role_rules` + filter compiler + resource graph → SUB-A** · ENHANCE · P1 · M · Deps: `IDEA-001`; See also: `SEC-033`
+  - Why/Problem: ~1.9k LOC library with specs (`packages/auth/src/permissions/engine/*`, `filter-compiler.ts`, `resource-graph.ts`), table `packages/nest/schema/src/global/identity/permissions.ts`; no consumer.
+  - Do: consumed by `IDEA-001`, `IDEA-006`, `IDEA-008`, `IDEA-009`, `IDEA-012`.
+  - Done when: engine called by the ORPC middleware.
+  - Status: todo · Verified-in-code: yes (no consumer) · Source: ROADMAP-AND-IDEAS#3; ideas-security-resilience#§0
+  - Effect-impact (2026-10-26): permission engine + `role_rules` is the next natural Effect port in identity and becomes the SUB-A policy service (`permission.service.ts:35` swallows loader errors). Deps: `EFF-104`.
+  - Design-impact (2026-10-26): the engine is rewritten, not wired as is: keep `filter-matcher`, `filter-compiler`, `resource-graph`, `rule-validator`; delete the `superAdmin` bypass, the cascade stub and the fail-open loader; DROP `role_rules` (replaced by `authz_roles` + `authz_grants`) (`SEC-053`, `SEC-050`, `SEC-086`).
+- [ ] `IDEA-086` **wire-up: config resolver dispatch-rule engine + `constraints.reasons` + `dispatchAudit`** · ENHANCE · P2 · M · Deps: `IDEA-060`, `IDEA-040`, `IDEA-039`; See also: `PROJ-052`
+  - Why/Problem: `apps/api-services/shared/src/core/modules/configuration/services/configuration-resolver.service.ts:623` (resolve), `:217-300`, `:304`, `~:900`; powerful but unfed.
+  - Do: feed from persisted rules; plan output uses `constraints.reasons`; manifest stores `appliedRuleIds`.
+  - Done when: plan shows constraint reasons and applied rule ids.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy#§0.2
+- [ ] `IDEA-087` **wire-up: `compilePlan` + plan snapshot/provenance/lifecycle-event contracts → persisted plan** · ENHANCE · P1 · M · Deps: `IDEA-002`; See also: `DEPLOY-026`, `DEPLOY-003`
+  - Why/Problem: `deployment.service.ts:1194-1290` builds DAG + `planHash`; `packages/contracts/entities/src/entities/deployment/plan.schema.ts`, `plan-snapshot.ts`, `provenance.ts`, `lifecycle-events.ts` define API but no producer; executor never reads plan.
+  - Do: persist plan per run in manifest; executor consumes plan; emit node lifecycle events.
+  - Done when: executor reads persisted plan; snapshot API returns real data.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy#§0.2; ideas-dx-ai#§0
+- [ ] `IDEA-088` **wire-up: queue payload (`executionPlan`, effective config, `dependencyGraph`) → manifest builder** · ENHANCE · P1 · S · Deps: `IDEA-002`; See also: `DEPLOY-003`
+  - Do: reuse payload assembly (`deployment.service.ts:~536-555`) as the manifest builder input; persist instead of discarding.
+  - Done when: payload and manifest share one builder.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy#§0.2
+- [ ] `IDEA-089` **wire-up: five fleet services + `DriftReconciliationService` → saga/drift** · ENHANCE · P2 · L · Deps: `IDEA-043`, `IDEA-049`; See also: `CLUSTER-047`, `CLUSTER-046`
+  - Why/Problem: `ServiceDagService`, `FleetRolloutPlannerService`, `FleetReadinessGateService`, `FleetFailureContainmentService`, `FleetRollbackService`, `DriftReconciliationService` under `apps/api-services/services/fleet/src/modules/fleet/services/*`; registered in module, injected nowhere. `cross-project-gate.service.ts` exists alongside (check).
+  - Do: inject into the saga orchestrator and drift loop.
+  - Done when: graph deploy runs through these services.
+  - Status: todo · Verified-in-code: yes · Source: ideas-deploy#§0.2; ROADMAP-AND-IDEAS#3
+- [ ] `IDEA-090` **wire-up: preview-topology resolver + `PreviewEnvOverlayService` + preview TTL cleanup** · ENHANCE · P2 · M · Deps: `IDEA-046`; See also: `PROJ-070`, `DEPLOY-105`
+  - Why/Problem: resolver `preview-topology.resolver.ts:113-222` pure/tested, consumed by nothing; `RT/deployment/preview/preview-env-overlay.service.ts` unwired; `preview-ttl-cleanup.service.ts` exists.
+  - Do: executor consumes resolver; overlay applied per preview.
+  - Done when: preview deploy uses resolver output.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy#§0.2,#6
+- [ ] `IDEA-091` **wire-up: `environment_promotions` table + `github_deployment_rules` + `requireApprovalForProduction`** · ENHANCE · P2 · M · Deps: `IDEA-040`, `IDEA-042`; See also: `PROJ-067`, `DEPLOY-097`, `DEPLOY-009`
+  - Why/Problem: schema only (`packages/nest/schema/src/global/project/environment.ts:343-368`: `metadata.approvedBy/approvalRequired/rollbackPlan`); `github_deployment_rules` (`fleet/github-provider.ts:123`) stores per-project rules with priority.
+  - Do: promotion service writes these rows; gates read them.
+  - Done when: promotion creates `environment_promotions` row with approver.
+  - Status: todo · Verified-in-code: yes (schema only) · Source: ideas-deploy#3
+- [ ] `IDEA-092` **wire-up: image scanner (`ensureImageSecurityScan`, auto-scan listener, scanConfig) → deploy gate/blast radius** · ENHANCE · P2 · S · Deps: `IDEA-018`, `IDEA-019`, `CLUSTER-036`; See also: `FEAT-067`
+  - Do: call from pipeline; reuse `DEFAULT_IMAGE_SCAN_CACHE_AGE_MS`; fix scanner Docker-socket mount.
+  - Done when: scan result on manifest.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy#0.2,#16
+- [ ] `IDEA-093` **wire-up: deployment-trust-gate spec (docs) → implementation** · ENHANCE · P2 · M · Deps: `IDEA-016`
+  - Why/Problem: `apps/doc/content/docs/deployment/deployment-trust-gate.mdx` has no TS references (verified by grep).
+  - Do: implement modes off/warn/enforce and failure taxonomy as-is.
+  - Done when: spec reason codes appear in gate results.
+  - Status: todo · Verified-in-code: yes · Source: ideas-security-resilience#I-04
+- [ ] `IDEA-094` **wire-up: Agent Auth plugin + device-code login + API keys → scoped tokens, CLI login, MCP** · ENHANCE · P2 · M · Deps: `IDEA-012`, `IDEA-061`, `IDEA-062`, `AUTH-035`, `AUTH-023`; See also: `AUTH-023`, `FEAT-083`
+  - Why/Problem: `packages/auth/src/server/plugins/agentAuth.ts` derives per-operationId capabilities, passkey-gated writes; `useDeviceAuthorization()` (RFC 8628) unused by any client; `apps/web/src/app/.well-known/agent-configuration/route.ts` serves discovery.
+  - Do: CLI uses device flow; agent `onEvent` feeds audit.
+  - Done when: CLI login via device flow works.
+  - Status: todo · Verified-in-code: partial · Source: ideas-dx-ai#§0; ROADMAP-AND-IDEAS#3
+  - Design-impact (2026-10-26): resolved as: delete the Agent Auth plugin; keep device-code login (scoped CLI credential, `AUTH-068`) and API keys (scoped tokens, `AUTH-061`); agent tokens + MCP in `AUTH-069` (`DEC-AUTH-18`).
+- [ ] `IDEA-095` **wire-up: correlation-id schema → propagation** · ENHANCE · P2 · S · Deps: `IDEA-067`; See also: `OBS-005`
+  - Why/Problem: `deploymentObservabilityContextSchema` on deployment entity, nothing populates it.
+  - Do: populate in triggerDeployment and propagate.
+  - Done when: field non-empty on new deployments.
+  - Status: todo · Verified-in-code: partial · Source: ideas-dx-ai#§0
+- [ ] `IDEA-096` **wire-up: web log hooks / metrics hook / `bff.*` screen procedures / defined-but-unconsumed streams** · ENHANCE · P2 · M · Deps: `WEB-031`, `WEB-032`, `WEB-033`, `IDEA-003`; See also: `OBS-069`
+  - Why/Problem: `deployment.streamQuery`, `service.streams.query`, `project.streamQuery` defined, none consumed; `domains/bff/hooks.ts` has no importers; log hooks exist.
+  - Do: consume for live invalidation/timeline/service logs.
+  - Done when: deployment detail live without polling.
+  - Status: todo · Verified-in-code: unverified · Source: ideas-dx-ai#§4.7,§4.9; ROADMAP-AND-IDEAS#3
+- [ ] `IDEA-097` **wire-up: `followStream` per-line callback → build log capture** · ENHANCE · P2 · S · Deps: `DEPLOY-044`; See also: `DEPLOY-044`
+  - Why/Problem: `packages/nest/docker/src/services/docker.service.ts:455` `followStream` called without callback; build output lost.
+  - Do: pass callback and emit `logAppended`; prerequisite for explain/timeline.
+  - Done when: build logs appear in deployment logs.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy#§4.4; ROADMAP-AND-IDEAS#3
+- [ ] `IDEA-098` **wire-up: quorum-guarded cluster table + `node-change-guard.ts`** · ENHANCE · P3 · S · Deps: `WEB-004`, `CLUSTER-023`; See also: `WEB-004`
+  - Do: use `apps/web/src/app/dashboard/cluster/_utils/node-change-guard.ts` for typed confirmation of last-manager demotion, or delete.
+  - Done when: guard enforced in UI.
+  - Status: todo · Verified-in-code: partial · Source: ideas-dx-ai#§4.3; ROADMAP-AND-IDEAS#3
+- [ ] `IDEA-099` **wire-up: mesh CRDT primitives (`lww-map`, `or-set`, HLC, `fencing-token`, `bounded-event-log`) + queue lifecycle replication** · ENHANCE · P3 · M · Deps: `IDEA-005`, `IDEA-041`, `IDEA-057`, `NET-076`; See also: `DEPLOY-025`
+  - Why/Problem: `SH/mesh/shared/primitives/`; queue transitions already best-effort replicated (`deployment-queue-lifecycle.service.ts:~449-467`).
+  - Do: reuse for freezes, pause-reconcile leases, release ledger.
+  - Done when: a freeze set on one node enforced on all.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy#§0.2,#12,#21
+- [ ] `IDEA-100` **wire-up: swarm runner `scaleService/rollbackService/removeService` + `deployer.placement` + `NodePlacementService`** · ENHANCE · P2 · M · Deps: `DEPLOY-058`, `IDEA-002`, `IDEA-044`, `IDEA-056`, `CLUSTER-037`, `CLUSTER-042`; See also: `CLUSTER-037`, `CLUSTER-038`
+  - Why/Problem: real methods at `swarm-runtime-runner.service.ts:69-95`; service name embeds deployment id (`:100-102`) and replicas hardcoded to 1.
+  - Do: stable service names per (service,env), replicas from config; used by rollback, canary, sleep.
+  - Done when: rollback/scale invoked from manifest replay.
+  - Status: todo · Verified-in-code: yes · Source: ideas-deploy#§0.2
+- [ ] `IDEA-101` **wire-up: pure `PlatformRoutesSource` + Traefik middleware library + lanes** · ENHANCE · P2 · M · Deps: `IDEA-039`, `IDEA-044`, `IDEA-035`
+  - Why/Problem: `platform-routes-source.service.ts:~213-277` pure; `traefik-middleware-library.service.ts` unused for platform routes.
+  - Do: compute hypothetical routes for plan; presets use middleware library.
+  - Done when: plan shows route diff; presets render middleware.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy#2,#5; ideas-security-resilience#I-13
+- [ ] `IDEA-102` **wire-up: provider-schema forms, health-monitoring tables, supervisors, terminal choke point, health registry `changes$`, `core-event-log`, node-config `scanConfig`** · ENHANCE · P3 · M · Deps: `IDEA-064`, `IDEA-075`, `IDEA-030`, `IDEA-025`, `IDEA-003`, `OBS-003`, `OBS-030`
+  - Do: `packages/utils/provider-schema/src/{catalog,domain}` → `deployer.yaml` schema/template validation; `healthChecks`/`serviceHealthConfigs` tables → status page; supervisors (`packages/nest/supervisor-core`) → backup/drill/rotation jobs; `docker-container-shell-domain.service.ts` → JIT/recording; health `changes$` → bus subscriber; `core-event-log` as model for audit; `packages/nest/schema/src/local/node-config.ts:127-135`.
+  - Done when: each listed unit has at least one consumer.
+  - Status: todo · Verified-in-code: partial · Source: ideas-dx-ai#§0; ideas-security-resilience#§0
+  - Effect-impact (2026-10-26): health registry `changes$` still has only the SSE controller as subscriber after the rewrite; wire a Layer/fiber subscriber (OBS-003). Deps: `EFF-054`, `EFF-057`, `EFF-066`.
+
+## Decisions needed
+- [ ] DEC-IDEA-1 Which backend survives (affects where every idea is implemented; ideas-deploy §3.8 says implement in `apps/api-services/*` only, port monolith builder/trigger registries first) — `api-services`+BFF / monolith — recommend `api-services`+BFF, delete `apps/api`.
+- [ ] DEC-IDEA-2 Postgres remains manifest/audit/policy source of truth in v1 with signing+replication deferred? — yes (content-addressed, signed format from day one) / no (roster-first) — recommend yes.
+- [ ] DEC-IDEA-3 Swarm as the only runner? — yes / keep docker runner — recommend yes (otherwise canary/saga/previews need two implementations).
+- [ ] DEC-IDEA-4 Where network state, secrets, audit live: mesh roster vs Postgres (conflicts with Postgres-replica plan in `docs/edge-mesh-architecture.md`) — roster pointers+PG bulk / PG only — recommend hash/grants in roster, bulk in PG.
+- [ ] DEC-IDEA-5 Single- vs multi-tenant (drives cost attribution, quotas, tenant-dedicated placement) — single / multi — operator decision, recommend single for now.
+- [ ] DEC-IDEA-6 Where `deployer.yaml` lives (repo vs roster) and whether UI may edit file-managed resources — repo+mark managed / roster — recommend repo, UI read-only for file-managed.
+- [ ] DEC-IDEA-7 Organizations in or out (affects authz layering, `IDEA-010`) — recommend out unless needed.
+- [ ] DEC-IDEA-8 Which LLM providers acceptable for AI ops, if any — none / BYO key / local only — recommend BYO/local, off by default.
+- [ ] DEC-IDEA-9 Installer: CLI (via `IDEA-061` generation) or `apps/setup` — recommend CLI.
+- [ ] DEC-IDEA-10 NAT peers: build relay vs document limitation (gates `IDEA-068`, `IDEA-033`) — recommend relay (NET-owned).
+- [ ] DEC-IDEA-11 Redis keep or drop (rate limits, quota counters in `IDEA-036`) — operator decision.
+- [ ] DEC-IDEA-12 Roster authority changes: OK to bump wire format and grandfather existing members (`IDEA-004`)? — yes / new cluster — recommend yes with migration.
+
+## Test coverage to add
+- [ ] `IDEA-103` **Generated permission-matrix test + 403 tests per procedure** · NEW · P1 · M · Deps: `IDEA-001`; See also: `SEC-038`
+  - Do: from access meta generate Viewer/User/Developer/Admin matrix tests and the permission docs page in `apps/doc`; in-memory Better Auth integration tests (current auth specs mock all plugins); shadow-mode disagreement test.
+  - Done when: CI fails when a procedure lacks meta or role matrix regresses.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#§3.1,3.13
+  - Effect-impact (2026-10-26): run the generated matrix through middleware (`call()`/HTTP): `callProcedure` skips middleware, so svc-health's current controller spec cannot catch a missing `requireAuth()`. Deps: `EFF-030`, `EFF-038`.
+  - Design-impact (2026-10-26): implemented by `SEC-066` (generator, oracle independent of `evaluate`), run via full `call()`/HTTP, with mutation test `SEC-100` and the property suites `SEC-092..098`.
+- [ ] `IDEA-104` **Roster property tests: capability + quorum CRDT convergence, backdating, grandfathering, epoch** · NEW · P1 · M · Deps: `IDEA-004`; See also: `NET-102`
+  - Done when: merge commutative/associative/idempotent with capability/cosigner records; legacy roster migrates.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#I-02,I-20
+- [ ] `IDEA-105` **Manifest/replay/rollback tests (replay pruned digest fails loudly, config choice, GC pin, secret masking)** · NEW · P2 · M · Deps: `IDEA-002`
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy#1 risks
+  - Do: unit+integration tests for manifest canonicalisation/hash stability, schema versioning, replay.
+  - Done when: tests green and cover the listed failure modes.
+- [ ] `IDEA-106` **Plan/apply race test (stale planHash refused; same code path with effects off)** · NEW · P2 · S · Deps: `IDEA-039`
+  - Do: test plan output equals executed manifest; refuse apply when world changed.
+  - Done when: both tests pass.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy#2 risks
+- [ ] `IDEA-107` **Saga/rollback tests (failure isolation scopes, reverse order, stateful nodes, resume after restart)** · NEW · P2 · M · Deps: `IDEA-043`
+  - Do: reuse existing fleet specs plus integration with `deployment_run` checkpoints.
+  - Done when: resume-after-restart test passes.
+  - Status: todo · Verified-in-code: partial (pure-service specs exist) · Source: ideas-deploy#4
+- [ ] `IDEA-108` **Canary route rendering + abort tests; Traefik weighted/mirror golden files** · NEW · P2 · S · Deps: `IDEA-044`, `IDEA-045`
+  - Do: golden-file tests of rendered Traefik config for weighted, header-matched, mirrored routes.
+  - Done when: goldens committed and abort path covered.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy#5,#17
+- [ ] `IDEA-109` **Audit hash-chain/anchor verification tests (truncation, edit, revoked-node anchors)** · NEW · P2 · S · Deps: `IDEA-014`, `IDEA-015`
+  - Done when: tampering/deletion detected in tests.
+  - Do: tests for chain continuity, witness countersign, revoked-member anchors.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#I-03
+- [ ] `IDEA-110` **Crypto tests for envelope encryption (wrap/unwrap, AAD row-swap, key-ring rotation, revoke re-key)** · NEW · P2 · M · Deps: `IDEA-027`, `IDEA-028`; See also: `SEC-039`
+  - Done when: swapped ciphertext rejected; rotation overlap has zero failed reads.
+  - Do: unit tests for HPKE helper, AAD binding, HKDF, rotation.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#I-05,I-11,§3.11
+- [ ] `IDEA-111` **Prompt-injection evaluation fixtures for explain/NL-ops/MCP** · NEW · P3 · M · Deps: `IDEA-078`, `IDEA-079`, `IDEA-062`
+  - Do: hostile log/commit/env-key fixtures; assert no tool calls, uncited claims dropped, secrets redacted, no HTML/links rendered, approval token bound to planHash.
+  - Done when: fixture suite passes in CI.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai#18,#19,§5
+- [ ] `IDEA-112` **Surface-parity CI job (contract ↔ CLI ↔ MCP ↔ spec) and public spec leak test** · NEW · P2 · S · Deps: `IDEA-061`
+  - Do: fail when a procedure lacks CLI/MCP mapping or when `test.*`/`setup.*`/`meshInternal` appear in public spec.
+  - Done when: job active in CI.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai#1
+- [ ] `IDEA-113` **Restore-drill and Game Day self-tests (backup verification false-assurance checks, quorum preconditions)** · NEW · P3 · M · Deps: `IDEA-030`, `IDEA-033`; See also: `OPS-041`, `OPS-022`
+  - Do: tests that weak checks are detected (corrupted snapshot fails drill), single-node cluster refuses drills.
+  - Done when: both negative tests pass.
+  - Status: todo · Verified-in-code: no · Source: ideas-security-resilience#I-08,I-10
+- [ ] `IDEA-114` **Gate engine / outbox consumer / drift reconcile tests (awaiting_gate resume, idempotent consumers, no reconcile loops)** · NEW · P2 · M · Deps: `IDEA-040`, `IDEA-003`, `IDEA-049`; See also: `OBS-082`
+  - Done when: restart mid-gate resumes; dead-letter path covered; crash-loop rate limit holds.
+  - Do: integration tests for these three behaviours.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy#3,#9; ideas-dx-ai§0
+
+### Coverage-pass additions
+- [ ] `IDEA-115` **Gate anonymous `/openapi.json` and scrub internal surfaces from the public spec (quick win)** · FIX · P2 · S · Deps: none; See also: `IDEA-061`, `IDEA-112`, `SEC-011`, `ARCH-084`
+  - Why/Problem: `GET /openapi.json` (`apps/api-services/bff/src/modules/docs/openapi-docs.controller.ts:64`) is anonymous and exposes `test.*`, `setup.*`, `meshInternal`; ideas-dx-ai lists "gating anonymous `/openapi.json`" as a days-sized quick win independent of the CLI work.
+  - Do: require auth (or a stable/internal split) on `/openapi.json` and `/reference` now; drop internal groups from the public document.
+  - Done when: unauthenticated request to `/openapi.json` returns 401 and the spec contains no internal groups.
+  - Status: todo · Verified-in-code: partial (anonymous per ideas-dx-ai, not re-run) · Source: ideas-dx-ai#§2 quick wins
+
+## Notes on exclusions and cross-references
+- ideas-deploy §4 (30 enhancements to existing deploy/project/docker features) and ideas-dx-ai §4 (18 DX/UX enhancements) are existing-feature fixes owned by DEPLOY/PROJ/WEB/CLUSTER/OBS; only the idea-coupled ones are captured here (`IDEA-059`, `IDEA-069`, `IDEA-077`, `IDEA-081`, `IDEA-082`, `IDEA-096`, `IDEA-097`, `IDEA-098`).
+- Mesh-specific ideas (ideas-mesh.md) are NET-owned; `IDEA-084` is only a dependency pointer.
+- Secondary notes in sources absorbed: ideas-dx-ai idea 26 merged into 5 (`IDEA-066`); ideas-deploy 13 folded into `IDEA-042`; 19 into `IDEA-055`; 12 into `IDEA-041`.
+
+## Counts
+Total 115 items. Priority: P1=10, P2=64, P3=41. Type: NEW=86, ENHANCE=26, FIX=3. (P1 = substrates IDEA-001..005, wire-up IDEA-085/087/088 and priority tests IDEA-103/104; all other ideas P2/P3.)
+
+> Effect-impact pass: 2026-10-26 — 9 items annotated

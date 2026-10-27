@@ -18,7 +18,7 @@
  * this package is entitled to guess, because the right cadence depends on the
  * fleet's size and network. The app resolves them from its own environment.
  */
-export interface SwarmElectionConfig {
+export type SwarmElectionConfig = {
 	/** Evaluation cadence while the cluster looks stable (ms). */
 	readonly evalStableMs: number;
 	/** Evaluation cadence while a quorum problem or flap is suspected (ms). */
@@ -40,7 +40,7 @@ export interface SwarmElectionConfig {
  * MANAGERS advertise (read from the engine), which is the only set guaranteed to
  * be where the control plane actually listens.
  */
-export interface SwarmJoinConfig {
+export type SwarmJoinConfig = {
 	/**
 	 * Target/maximum number of managers. `1` is refused by the package (it is
 	 * not a quorum); an even value is rounded up to the next odd number.
@@ -62,7 +62,7 @@ export interface SwarmJoinConfig {
  * control plane (2377, 7946) and the overlay data path (4789) never touch a public
  * interface. When it is not (a lone node with no mesh yet), Swarm binds loopback.
  */
-export interface SwarmParticipationDefaults {
+export type SwarmParticipationDefaults = {
 	readonly mode?: "create" | "join";
 	readonly policy?: "auto" | "manager" | "worker";
 	readonly advertiseAddr?: string | null;

@@ -2,9 +2,9 @@
 
 import { useCallback, useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { DataTableColumnHeader } from '@repo/ui/components/data-table/column-header'
-import { DataTable } from '@repo/ui/components/data-table/data-table'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { DataTableColumnHeader } from '@deployer/ui/components/data-table/column-header'
+import { DataTable } from '@deployer/ui/components/data-table/data-table'
 
 export interface DockerScanFindingRow {
   id: string
@@ -114,19 +114,19 @@ export function DockerScanFindingsDataTable({ findings }: DockerScanFindingsData
         {
           accessorKey: 'currentVersion',
           header: ({ column }) => <DataTableColumnHeader column={column} title='Installed' />,
-          cell: ({ row }) => <code className='text-[11px]'>{row.original.currentVersion}</code>,
+          cell: ({ row }) => <code className='text-xs'>{row.original.currentVersion}</code>,
           size: 130,
         },
         {
           accessorKey: 'fixedVersion',
           header: ({ column }) => <DataTableColumnHeader column={column} title='Fixed' />,
-          cell: ({ row }) => <code className='text-[11px]'>{row.original.fixedVersion ?? '—'}</code>,
+          cell: ({ row }) => <code className='text-xs'>{row.original.fixedVersion ?? '—'}</code>,
           size: 130,
         },
         {
           accessorKey: 'id',
           header: ({ column }) => <DataTableColumnHeader column={column} title='CVE' />,
-          cell: ({ row }) => <code className='text-[11px]'>{row.original.id}</code>,
+          cell: ({ row }) => <code className='text-xs'>{row.original.id}</code>,
           size: 170,
         },
       ]

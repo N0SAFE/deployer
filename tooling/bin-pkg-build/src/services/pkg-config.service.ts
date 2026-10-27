@@ -15,6 +15,7 @@ import {
     type Variant,
 } from '../config'
 import { die } from '../utils/errors'
+import type { SourceAlias } from '../utils/declaration-aliases'
 import { walkFiles } from '../utils/glob'
 import { readJson } from '../utils/json'
 
@@ -127,7 +128,10 @@ export class PkgConfigService {
         this.typesDir = path.join(this.distDir, 'types')
         this.typesTsconfig = path.join(
             this.pkgRoot,
-            '.pkg-build-types.tsconfig.json'
+            // Per process: turbo runs `compile` and `build:types` of one package
+            // at the same time, and a shared name let one's cleanup delete the
+            // file the other's `tsc -p` was about to read (TS5058).
+            `.pkg-build-types.${String(process.pid)}.tsconfig.json`
         )
         return this
     }
@@ -414,6 +418,69 @@ export class PkgConfigService {
         const parts: string[] = this.config.flat ? [] : [format]
         if (this.config.variants.length > 1) parts.unshift(variant)
         return path.join(this.distDir, ...parts)
+    }
+
+    /**
+     * Path aliases whose `*` maps inside this package's own source root.
+     *
+     * Read from the package's `tsconfig.json`, because that is the file the
+     * declaration pass extends — an alias absent from it cannot appear in a
+     * declaration either. Two shapes are collected:
+     *
+     * - a `*` wildcard (`"@/*": ["./src/*"]`) — the common internal alias;
+     * - a self-name mapping (`"@deployer/auth/*": ["./src/*"]`), which is how a
+     *   package imports its own subpaths so resolution goes through `exports`.
+     *
+     * Aliases that point outside the package are dropped: a consumer resolves
+     * those through `exports`, and rewriting them would invent a relative path
+     * into another package's tree.
+     */
+    sourceAliases(): SourceAlias[] {
+        const tsconfigPath = path.join(this.pkgRoot, 'tsconfig.json')
+        if (!fs.existsSync(tsconfigPath)) return []
+
+        let paths: Record<string, unknown> | undefined
+        try {
+            const parsed = readJson(tsconfigPath)
+            const compilerOptions = parsed['compilerOptions']
+            if (typeof compilerOptions !== 'object' || compilerOptions === null)
+                return []
+            paths = (compilerOptions as Record<string, unknown>)['paths'] as
+                | Record<string, unknown>
+                | undefined
+        } catch {
+            // A malformed tsconfig is `type-check`'s problem, not the build's.
+            return []
+        }
+        if (paths === undefined) return []
+
+        const aliases: SourceAlias[] = []
+        for (const [pattern, targets] of Object.entries(paths)) {
+            const star = pattern.indexOf('*')
+            // Only a `*` alias can be rewritten by string substitution; an exact
+            // alias names one module and would need its own resolution pass.
+            if (star === -1) continue
+            if (!Array.isArray(targets)) continue
+
+            for (const target of targets) {
+                if (typeof target !== 'string') continue
+                const targetStar = target.indexOf('*')
+                if (targetStar === -1) continue
+
+                const targetDir = path.resolve(
+                    this.pkgRoot,
+                    target.slice(0, targetStar)
+                )
+                // Inside this package's source tree? (`path.relative` yields a
+                // `..` segment when it escapes.)
+                const relToRoot = path.relative(this.rootDir, targetDir)
+                if (relToRoot.startsWith('..') || path.isAbsolute(relToRoot))
+                    continue
+
+                aliases.push({ prefix: pattern.slice(0, star), target: targetDir })
+            }
+        }
+        return aliases
     }
 
     /** The file `bun build` writes for an entry, given the naming template. */

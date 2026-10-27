@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@deployer/ui/components/shadcn/dialog'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useCreateServiceForm } from './CreateService.hook'
 import { RunnerDetectionProvider } from './steps/runner-detection-context'
@@ -39,7 +39,7 @@ const ALL_STEPS: StepDef[] = [
   { id: 6, label: 'Network', render: ({ form }) => <StepNetwork form={form} /> },
   { id: 7, label: 'Domains', render: ({ form, projectId }) => <StepDomains form={form} projectId={projectId} /> },
   { id: 8, label: 'Advanced', render: ({ form }) => <StepAdvanced form={form} /> },
-  { id: 9, label: 'Review', render: ({ form }) => <StepReview form={form} /> },
+  { id: 9, label: 'Review', render: ({ form, projectId }) => <StepReview form={form} projectId={projectId} /> },
 ]
 
 /**

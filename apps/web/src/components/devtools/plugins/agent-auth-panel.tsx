@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useDevtoolsResource } from "../use-devtools-resource";
 import { authClient } from "@/lib/auth";
-import { Badge } from "@repo/ui/components/shadcn/badge";
-import { Button } from "@repo/ui/components/shadcn/button";
+import { Badge } from "@deployer/ui/components/shadcn/badge";
+import { Button } from "@deployer/ui/components/shadcn/button";
 import {
   Table,
   TableBody,
@@ -11,10 +12,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@repo/ui/components/shadcn/table";
-import { Skeleton } from "@repo/ui/components/shadcn/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@repo/ui/components/shadcn/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui/components/shadcn/tabs";
+} from "@deployer/ui/components/shadcn/table";
+import { Skeleton } from "@deployer/ui/components/shadcn/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@deployer/ui/components/shadcn/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@deployer/ui/components/shadcn/tabs";
 
 /**
  * DevTools panel: Agent Auth.
@@ -167,36 +168,21 @@ function PanelState({
 // Agents tab
 // ---------------------------------------------------------------------------
 
+async function fetchAgents(): Promise<AgentRow[]> {
+  const result = await authClient.$fetch<{ agents?: AgentRow[] } | AgentRow[]>(
+    "/agent/list",
+    { method: "GET" },
+  );
+  if (result.error) {
+    throw new Error(result.error.message ?? "Failed to list agents");
+  }
+  const data = result.data;
+  return Array.isArray(data) ? data : (data.agents ?? []);
+}
+
 function AgentsTab() {
-  const [rows, setRows] = useState<AgentRow[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: rows, error, loading, reload: load } = useDevtoolsResource(fetchAgents);
   const [revoking, setRevoking] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await authClient.$fetch<{ agents?: AgentRow[] } | AgentRow[]>(
-        "/agent/list",
-        { method: "GET" },
-      );
-      if (result.error) {
-        setError(result.error.message ?? "Failed to list agents");
-        return;
-      }
-      const data = result.data;
-      setRows(Array.isArray(data) ? data : (data?.agents ?? []));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to list agents");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   const handleRevoke = async (agentId: string) => {
     setRevoking(agentId);
@@ -205,7 +191,7 @@ function AgentsTab() {
         method: "POST",
         body: { agentId },
       });
-      await load();
+      load();
     } finally {
       setRevoking(null);
     }
@@ -217,7 +203,7 @@ function AgentsTab() {
         loading={loading}
         error={error}
         empty={!loading && !error ? "No agents have registered with this platform." : undefined}
-        onRetry={() => void load()}
+        onRetry={load}
       />
     );
   }
@@ -231,8 +217,8 @@ function AgentsTab() {
           <span className="font-medium">{agents.length}</span>
           <span className="text-muted-foreground"> agent(s)</span>
         </div>
-        <Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}>
-          {loading ? "Refreshing…" : "Refresh"}
+        <Button size="sm" variant="outline" onClick={load}>
+          Refresh
         </Button>
       </div>
 
@@ -260,7 +246,7 @@ function AgentsTab() {
                   <Badge variant="outline">{agent.mode}</Badge>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={AGENT_STATUS_VARIANT[agent.status] ?? "outline"}>
+                  <Badge variant={AGENT_STATUS_VARIANT[agent.status]}>
                     {agent.status}
                   </Badge>
                 </TableCell>
@@ -297,35 +283,20 @@ function AgentsTab() {
 // Hosts tab
 // ---------------------------------------------------------------------------
 
+async function fetchHosts(): Promise<HostRow[]> {
+  const result = await authClient.$fetch<{ hosts?: HostRow[] } | HostRow[]>(
+    "/host/list",
+    { method: "GET" },
+  );
+  if (result.error) {
+    throw new Error(result.error.message ?? "Failed to list hosts");
+  }
+  const data = result.data;
+  return Array.isArray(data) ? data : (data.hosts ?? []);
+}
+
 function HostsTab() {
-  const [rows, setRows] = useState<HostRow[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await authClient.$fetch<{ hosts?: HostRow[] } | HostRow[]>(
-        "/host/list",
-        { method: "GET" },
-      );
-      if (result.error) {
-        setError(result.error.message ?? "Failed to list hosts");
-        return;
-      }
-      const data = result.data;
-      setRows(Array.isArray(data) ? data : (data?.hosts ?? []));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to list hosts");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const { data: rows, error, loading, reload: load } = useDevtoolsResource(fetchHosts);
 
   if (loading || error || (rows?.length ?? 0) === 0) {
     return (
@@ -337,7 +308,7 @@ function HostsTab() {
             ? "No hosts are enrolled. A host is a machine that can run agents."
             : undefined
         }
-        onRetry={() => void load()}
+        onRetry={load}
       />
     );
   }
@@ -351,8 +322,8 @@ function HostsTab() {
           <span className="font-medium">{hosts.length}</span>
           <span className="text-muted-foreground"> host(s)</span>
         </div>
-        <Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}>
-          {loading ? "Refreshing…" : "Refresh"}
+        <Button size="sm" variant="outline" onClick={load}>
+          Refresh
         </Button>
       </div>
 
@@ -375,7 +346,7 @@ function HostsTab() {
                   <div className="text-muted-foreground font-mono text-[10px]">{host.id}</div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={HOST_STATUS_VARIANT[host.status] ?? "outline"}>
+                  <Badge variant={HOST_STATUS_VARIANT[host.status]}>
                     {host.status}
                   </Badge>
                 </TableCell>
@@ -429,36 +400,22 @@ interface AgentSessionInfo {
   host?: { id: string; name?: string | null };
 }
 
+async function fetchAgentSession(): Promise<AgentSessionInfo | null> {
+  try {
+    const result = await authClient.$fetch<AgentSessionInfo>("/agent/session", {
+      method: "GET",
+    });
+    // A 401 here is the NORMAL case for a human browsing the dashboard:
+    // there is no agent JWT on the request. Report it as "no session"
+    // rather than an error, or the panel looks broken by default.
+    return result.error ? null : result.data;
+  } catch {
+    return null;
+  }
+}
+
 function SessionTab() {
-  const [session, setSession] = useState<AgentSessionInfo | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await authClient.$fetch<AgentSessionInfo>("/agent/session", {
-        method: "GET",
-      });
-      if (result.error) {
-        // A 401 here is the NORMAL case for a human browsing the dashboard:
-        // there is no agent JWT on the request. Report it as "no session"
-        // rather than an error, or the panel looks broken by default.
-        setSession(null);
-        return;
-      }
-      setSession(result.data ?? null);
-    } catch {
-      setSession(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const { data: session, error, loading, reload: load } = useDevtoolsResource(fetchAgentSession);
 
   if (loading) {
     return (
@@ -471,7 +428,7 @@ function SessionTab() {
   }
 
   if (error) {
-    return <PanelState loading={false} error={error} onRetry={() => void load()} />;
+    return <PanelState loading={false} error={error} onRetry={load} />;
   }
 
   if (!session?.agent) {
@@ -486,7 +443,7 @@ function SessionTab() {
           </AlertDescription>
         </Alert>
         <div className="mt-3">
-          <Button size="sm" variant="outline" onClick={() => void load()}>
+          <Button size="sm" variant="outline" onClick={load}>
             Recheck
           </Button>
         </div>
@@ -549,7 +506,7 @@ function SessionTab() {
         )}
       </div>
 
-      <Button size="sm" variant="outline" onClick={() => void load()}>
+      <Button size="sm" variant="outline" onClick={load}>
         Refresh session
       </Button>
     </div>

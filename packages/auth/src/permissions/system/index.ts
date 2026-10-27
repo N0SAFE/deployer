@@ -1,18 +1,18 @@
 // Export core builder
-export { PermissionBuilder, RoleBuilder } from '@repo/auth/permissions/system/builder/builder';
+export { PermissionBuilder, RoleBuilder } from '@deployer/auth/permissions/system/builder/builder';
 
 // Export base configuration class
-export { BaseConfig } from '@repo/auth/permissions/system/builder/shared/base-config';
+export { BaseConfig } from '@deployer/auth/permissions/system/builder/shared/base-config';
 
 // Export statement configuration classes
-export { StatementConfig } from '@repo/auth/permissions/system/builder/statements/single-statement-config';
-export { StatementsConfig } from '@repo/auth/permissions/system/builder/statements/statements-config';
-export { StatementConfigCollection } from '@repo/auth/permissions/system/builder/statements/statement-config-collection';
+export { StatementConfig } from '@deployer/auth/permissions/system/builder/statements/single-statement-config';
+export { StatementsConfig } from '@deployer/auth/permissions/system/builder/statements/statements-config';
+export { StatementConfigCollection } from '@deployer/auth/permissions/system/builder/statements/statement-config-collection';
 
 // Export role configuration classes
-export { RoleConfig } from '@repo/auth/permissions/system/builder/roles/single-role-config';
-export { RolesConfig } from '@repo/auth/permissions/system/builder/roles/roles-config';
-export { RoleConfigCollection } from '@repo/auth/permissions/system/builder/roles/role-config-collection';
+export { RoleConfig } from '@deployer/auth/permissions/system/builder/roles/single-role-config';
+export { RolesConfig } from '@deployer/auth/permissions/system/builder/roles/roles-config';
+export { RoleConfigCollection } from '@deployer/auth/permissions/system/builder/roles/role-config-collection';
 
 // Export types
 export type {
@@ -28,4 +28,4 @@ export type {
   AllRoleNames,
   PermissionTypes,
   AccessControlInstance,
-} from '@repo/auth/permissions/system/types';
+} from '@deployer/auth/permissions/system/types';

@@ -3,7 +3,7 @@ import { deploymentEnvironmentSchema } from '@deployer/contracts-common'
 import {
   dockerContainerHealthSchema,
   dockerContainerStatusSchema,
-} from '@deployer/contracts-entities/entities/docker/common.schema'
+} from '../common.schema'
 
 export const dockerPortBindingSchema = z.object({
   containerPort: z.number().int().min(1).max(65535),

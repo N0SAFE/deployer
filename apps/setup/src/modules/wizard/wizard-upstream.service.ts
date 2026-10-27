@@ -1,7 +1,16 @@
 import { Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
 
 import { EnvService } from "@/config/env/env.module";
-import { resolveApiBaseUrl, apiServiceName } from "@/config/api-address";
+import { resolveApiBaseUrl } from "@/config/api-address";
+
+/**
+ * Deadline for one forward to the platform API.
+ *
+ * Long enough for a cold route + a provisioning call, short enough that the
+ * operator sees a retryable error instead of a spinner that never resolves when
+ * the ingress swap strands a socket. The stream is exempt — see `forward`.
+ */
+const UPSTREAM_TIMEOUT_MS = 30_000;
 
 /**
  * Resolves where the full API answers, and forwards requests to it.
@@ -35,10 +44,10 @@ export class WizardUpstreamService {
    * Using `SETUP_API_URL` verbatim in prod meant every forward went to the
    * compose-only name:
    *
-   *   Upstream http://api-dev:3005/setup/trigger unreachable:
-   *   getaddrinfo ENOTFOUND api-dev
+   *   Upstream http://bff:3005/setup/trigger unreachable:
+   *   getaddrinfo ENOTFOUND bff
    *
-   * Nothing runs `api-dev` in that profile (compose starts no API there), so the
+   * Nothing runs `bff` in that profile (compose starts no API there), so the
    * trigger was never delivered, the API never provisioned, and the handover
    * stalled in `provisioning` until it timed out.
    */
@@ -56,17 +65,6 @@ export class WizardUpstreamService {
     return resolved;
   }
 
-  /**
-   * The API's swarm service name on the overlay.
-   *
-   * Kept as a thin delegation so the ONE derivation stays in `api-address.ts`,
-   * which the auth proxy also uses — a second copy here is how the two callers
-   * drifted apart in the first place.
-   */
-  private apiServiceName(): string {
-    return apiServiceName(this.env.get("DEPLOYER_PREFIX"));
-  }
-
   /** Absolute URL for an API path. */
   urlFor(path: string): string {
     return this.baseUrl() + (path.startsWith("/") ? path : "/" + path);
@@ -78,11 +76,31 @@ export class WizardUpstreamService {
    * The caller decides what to do with it (status, headers, body) rather than
    * this service re-encoding: the wizard contract already defines the payload,
    * so re-serializing would be a second place to get it wrong.
+   *
+   * ── WHY A DEADLINE, AND WHY IT IS SKIPPED FOR THE STREAM ──────────────────
+   * `fetch` has no timeout. During the ingress swap the upstream address changes
+   * owner, and a request that was in flight is neither answered nor closed — so
+   * the forward never settles, the wizard's request hangs, and the browser shows a
+   * spinner for a promise that can no longer resolve. The deadline turns that into
+   * a 503, which the wizard already renders as "the API is not reachable yet" and
+   * retries.
+   *
+   * `/setup/stream` is EXEMPT: it is meant to stay open for the whole
+   * provisioning run, so a deadline there would abort every healthy run. Its
+   * liveness is the heartbeat plus the client's own inactivity timeout.
    */
   async forward(path: string, init: RequestInit): Promise<Response> {
     const url = this.urlFor(path);
+    const streaming = path === "/setup/stream" || new Headers(init.headers).get("accept")?.includes("text/event-stream") === true;
     try {
-      return await fetch(url, init);
+      if (streaming) return await fetch(url, init);
+      return await fetch(url, {
+        ...init,
+        signal:
+          init.signal !== undefined && init.signal !== null
+            ? AbortSignal.any([init.signal, AbortSignal.timeout(UPSTREAM_TIMEOUT_MS)])
+            : AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+      });
     } catch (error: unknown) {
       // A connection failure is reported as 503, not 500: the API simply is not
       // up yet, which during onboarding is a NORMAL state the wizard renders —

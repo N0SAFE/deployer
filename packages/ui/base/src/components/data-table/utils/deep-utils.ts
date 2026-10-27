@@ -1,5 +1,5 @@
-import { ensureUrlStateHistoryPatched } from "@repo/ui/components/data-table/utils/history-sync";
-import { isRecord } from "@repo/type-guards"
+import { ensureUrlStateHistoryPatched } from "@deployer/ui/components/data-table/utils/history-sync";
+import { isRecord } from "@deployer/type-guards"
 
 
 /**

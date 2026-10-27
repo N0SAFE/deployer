@@ -20,7 +20,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs"
 import { join, relative, resolve } from "node:path"
 
-const SCAN = ["apps/api-services", "apps/setup/src"]
+const SCAN = ["apps/api", "apps/setup/src"]
 const SKIP = new Set(["node_modules", "dist", ".turbo", ".next"])
 
 function walk(dir: string, out: string[] = []): string[] {

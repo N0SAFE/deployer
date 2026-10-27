@@ -11,8 +11,18 @@
 # ===================================
 # Stage 1: Base - Install global dependencies and set environment
 # ===================================
-FROM oven/bun:1.4.2-alpine AS base
+FROM oven/bun:1.4.3-alpine AS base
 ENV NODE_ENV=production
+
+# ── BUILDKIT CACHE MOUNTS BREAK `install.globalStore` — TURN IT OFF ──────────
+# `bunfig.toml` sets `globalStore = true`, which points every
+# `node_modules/.bun/<pkg>` at an absolute path UNDER the bun cache mount used
+# below. A BuildKit cache mount is not committed to the image layer, so those
+# links would ship without their targets and every runtime import would fail
+# with ENOENT. Measured in a built image: with the store on, `test -d
+# node_modules/.bun/zod@4.6.7` is false. The env var overrides bunfig.toml.
+# Full reasoning: AGENTS.md → "One bun download cache".
+ENV BUN_INSTALL_GLOBAL_STORE=0
 
 # Set build-time environment variables for Next.js
 ARG API_URL=http://localhost:3001
@@ -38,7 +48,11 @@ ENV AUTH_SECRET=$AUTH_SECRET
 RUN apk add --no-cache libc6-compat dumb-init tar jq
 
 # Install global tools with cache mount
-RUN --mount=type=cache,target=/root/.bun/install/cache bun install -g turbo@^2 node-gyp
+# The explicit `id` matters because the cache id DEFAULTS TO THE MOUNT TARGET:
+# a different target would be a second download cache instead of the one shared
+# with every other Dockerfile here. See AGENTS.md → "One bun download cache".
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
+    bun install -g turbo@^2 node-gyp
 WORKDIR /app
 
 # ===================================
@@ -53,8 +67,11 @@ COPY bun.lock* ./
 # All package.json files across the monorepo (preserves directory structure)
 COPY --parents **/package.json ./
 
+# `@deployer/web`, NOT `web`: the scope is a WORKSPACE PACKAGE NAME, and every
+# application here is scoped. `turbo prune web` fails with
+# "Invalid scope. Package with name web in `package.json` not found."
 RUN --mount=type=cache,target=/root/.cache/turbo \
-  turbo prune web --docker
+  turbo prune @deployer/web --docker
 
 # ===================================
 # Stage 2b: pruner-full — sources via bind mount
@@ -69,7 +86,14 @@ RUN --mount=type=bind,target=/src \
   cp /src/turbo.json . && \
   cp /src/bun.lock* . 2>/dev/null || true ; \
   tar -C /src -cf - apps packages tooling 2>/dev/null | tar -xf - 2>/dev/null || true ; \
-  turbo prune web --docker
+  turbo prune @deployer/web --docker && \
+  # THE PRUNING TURBO IS NOT THE BUILDING TURBO — see AGENTS.md, "The pruning
+  # turbo writes the turbo.json the build parses". `turbo prune` re-serialises
+  # turbo.json from ITS OWN version, and this stage runs the `turbo@^2` global
+  # install while the build runs the LOCKFILE-PINNED turbo from node_modules.
+  # A newer prune writes futureFlags an older build rejects outright, and drops
+  # `remoteCache` that the `--remote-only` build below requires.
+  cp /app/turbo.json /app/out/full/turbo.json
 
 # ===================================
 # Stage 3: Installer - Install dependencies for pruned workspaces only
@@ -107,7 +131,16 @@ COPY --from=pruner-json /app/out/json/ .
 # fallback never fires and the wrong tree installs silently.
 COPY --from=pruner-full /app/bun.lock ./bun.lock
 
-RUN --mount=type=cache,target=/root/.bun/install/cache \
+# ── WHY THE ROOT `scripts/` DIRECTORY ───────────────────────────────────────
+# `bun ci` runs the root `postinstall`,
+# `scripts/link-workspace-self-references.ts`, which creates the
+# `node_modules/<own-name> -> ../..` self-link that `bun install` never makes.
+# `turbo prune` keeps only what the pruned TARGET needs and a root script is not
+# one of its dependencies, so without this COPY the install dies with
+# `Module not found "scripts/link-workspace-self-references.ts"`.
+COPY scripts ./scripts
+
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
   bun ci
 
 # ===================================
@@ -140,10 +173,9 @@ RUN mkdir -p /app/apps/web/routes && chmod -R 755 /app/apps/web/routes
 # skipped and never copied, breaking module resolution at runtime.
 RUN --mount=type=bind,from=installer,source=/app,target=/mnt/installer \
     cd /mnt/installer && \
-    PATHS="node_modules"; \
-    for d in apps/*/node_modules packages/*/node_modules packages/*/*/node_modules tooling/*/node_modules tooling/*/*/node_modules; do \
-        if [ -d "$d" ]; then PATHS="$PATHS $d"; fi; \
-    done && \
+    # Depth-agnostic discovery — see AGENTS.md, "Discover node_modules with
+    # find, never a glob list".
+    PATHS="node_modules $(find apps packages tooling -type d -name node_modules -prune -print | tr '\n' ' ')"; \
     # cp -a merges into existing dirs (nested workspaces may appear in several
     # PATHS entries); tar -xf would abort on such overlaps.
     for d in $PATHS; do \
@@ -162,14 +194,18 @@ RUN --mount=type=bind,from=installer,source=/app,target=/mnt/installer \
 COPY --parents --chmod=a+w **/.turbo/ ./
 
 # Build declarative-routing CLI first (required by web's generate task)
-RUN --mount=type=cache,target=/root/.bun/install/cache \
+RUN --mount=type=cache,id=deployer-turbo-cache,target=/turbo-cache,sharing=shared \
+    --mount=type=secret,id=turbo_token,env=TURBO_TOKEN,required=false \
+    --mount=type=secret,id=turbo_team,env=TURBO_TEAM,required=false \
+    --mount=type=secret,id=turbo_api,env=TURBO_API,required=false \
+    --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
     --mount=type=cache,target=/root/.cache \
     --mount=type=cache,target=/tmp/turbo-restore,id=turbo-web-prod-cli,sharing=locked \
     set -eux; \
     if [ -d /tmp/turbo-restore/wt ]; then \
       cp -an /tmp/turbo-restore/wt/. /app/ 2>/dev/null || true; \
     fi; \
-    bunx turbo run build --filter=@repo/cli-declarative-routing; \
+    bunx turbo run build --cache-dir=/turbo-cache --filter=@deployer/cli-declarative-routing; \
     rm -rf /tmp/turbo-restore/wt; \
     mkdir -p /tmp/turbo-restore/wt; \
     cd /app; \
@@ -181,14 +217,18 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
       done
 
 # Generate routes
-RUN --mount=type=cache,target=/root/.bun/install/cache \
+RUN --mount=type=cache,id=deployer-turbo-cache,target=/turbo-cache,sharing=shared \
+    --mount=type=secret,id=turbo_token,env=TURBO_TOKEN,required=false \
+    --mount=type=secret,id=turbo_team,env=TURBO_TEAM,required=false \
+    --mount=type=secret,id=turbo_api,env=TURBO_API,required=false \
+    --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
     --mount=type=cache,target=/root/.cache \
     --mount=type=cache,target=/tmp/turbo-restore,id=turbo-web-prod-generate,sharing=locked \
     set -eux; \
     if [ -d /tmp/turbo-restore/wt ]; then \
       cp -an /tmp/turbo-restore/wt/. /app/ 2>/dev/null || true; \
     fi; \
-    bunx turbo run generate --filter=web...; \
+    bunx turbo run generate --cache-dir=/turbo-cache --filter=@deployer/web...; \
     rm -rf /tmp/turbo-restore/wt; \
     mkdir -p /tmp/turbo-restore/wt; \
     cd /app; \
@@ -205,7 +245,11 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
 # build cache is written into a layer that is discarded. With it, Turbopack's
 # cache survives between builds. `sharing=locked` keeps concurrent builds from
 # corrupting the same cache.
-RUN --mount=type=cache,target=/root/.bun/install/cache \
+RUN --mount=type=cache,id=deployer-turbo-cache,target=/turbo-cache,sharing=shared \
+    --mount=type=secret,id=turbo_token,env=TURBO_TOKEN,required=false \
+    --mount=type=secret,id=turbo_team,env=TURBO_TEAM,required=false \
+    --mount=type=secret,id=turbo_api,env=TURBO_API,required=false \
+    --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
     --mount=type=cache,target=/root/.cache \
     --mount=type=cache,target=/app/apps/web/.next/cache,sharing=locked,id=turbopack-web-prod-build \
     --mount=type=cache,target=/tmp/turbo-restore,id=turbo-web-prod-build,sharing=locked \
@@ -213,7 +257,7 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
     if [ -d /tmp/turbo-restore/wt ]; then \
       cp -an /tmp/turbo-restore/wt/. /app/ 2>/dev/null || true; \
     fi; \
-    bunx turbo run build --filter=web... --remote-only; \
+    bunx turbo run build --cache-dir=/turbo-cache --filter=@deployer/web...; \
     rm -rf /tmp/turbo-restore/wt; \
     mkdir -p /tmp/turbo-restore/wt; \
     cd /app; \
@@ -223,6 +267,34 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
         mkdir -p "/tmp/turbo-restore/wt/$parent"; \
         cp -r "$d" "/tmp/turbo-restore/wt/$parent/"; \
       done
+
+# ── PRUNE devDependencies HERE, WHERE THE TREE IS COMPLETE ──────────────────
+# MUST run in the builder: the runtime receives each workspace's `node_modules`
+# by having it COPIED out of this stage, so pruning here is what makes the
+# runtime image smaller. The same work in the runner is impossible — it never
+# receives `bun.lock`, the `tooling/*` manifests, or `scripts/`, and the
+# install that used to sit there died with
+# `error: Workspace not found "tooling/eslint"` (x7, measured).
+#
+# `bun prune` and NOT `rm -rf node_modules && bun install --production`: same
+# final tree (1462 MB, verified), but 0.9s against 18s, and purely local
+# (verified with `--network=none`). `bun pm prune` is a different, non-existent
+# command — `bun prune` is top-level.
+#
+# ── WHY `scripts/` IS STILL NEEDED, AND WHY THE RE-LINK IS NOT OPTIONAL ────
+# The root `postinstall` is `scripts/link-workspace-self-references.ts`, and
+# `turbo prune` does not bring it: a root script is not a dependency of any
+# workspace, so the pruner drops it.
+#
+# The installer already needs it for the install-time postinstall. Here the
+# reason is narrower: **`bun prune` DELETES the self-links it created**, because
+# `node_modules/<own-name> -> ../..` is not an entry in `bun.lock`. Measured:
+# present before the prune, ABSENT after. So the prune must be followed by an
+# explicit re-link, or node fails to load any dist barrel that re-imports its
+# own package by name.
+COPY scripts ./scripts
+RUN bun prune --production && \
+    bun --bun run scripts/link-workspace-self-references.ts
 
 # ===================================
 # Stage 6: Runner - Production runtime
@@ -283,10 +355,7 @@ RUN --mount=type=bind,from=builder,source=/app,target=/mnt/builder \
     # — and apps/<app>/node_modules is NOT part of the source, so it would be
     # silently skipped and never copied, breaking module resolution at runtime.
     cd /mnt/builder && \
-    PATHS="node_modules"; \
-    for d in apps/*/node_modules packages/*/node_modules packages/*/*/node_modules tooling/*/node_modules tooling/*/*/node_modules; do \
-        if [ -d "$d" ]; then PATHS="$PATHS $d"; fi; \
-    done && \
+    PATHS="node_modules $(find apps packages tooling -type d -name node_modules -prune -print | tr '\n' ' ')"; \
     # cp -a merges into existing dirs (nested workspaces may appear in several
     # PATHS entries); tar -xf would abort on such overlaps.
     for d in $PATHS; do \
@@ -306,14 +375,10 @@ RUN --mount=type=bind,from=builder,source=/app,target=/mnt/builder \
     mkdir -p /app/apps/web/.next/cache && \
     chown -R nextjs:nodejs /app/apps/web/.next
 
-# Prune devDependencies from node_modules for the final production image.
-# We installed ALL deps (dev + prod) in the installer stage so the builder
-# could compile TypeScript. Now that the build is done, remove devDeps
-# (type defs, build tools, test runners, etc.) to keep the image minimal
-# and reduce attack surface. `bun pm prune` reads each workspace's
-# package.json devDependencies and removes them from node_modules.
-RUN --mount=type=cache,target=/root/.bun/install/cache,sharing=locked \
-    bun install --frozen-lockfile --production
+# devDependencies were already dropped in the BUILDER stage (see the prune
+# there). Nothing to re-install here: the runner does not even have `bun.lock`
+# or the `tooling/*` manifests this install would need, which is why the
+# install that used to sit here failed with `Workspace not found`.
 
 # Switch to nextjs user
 USER nextjs

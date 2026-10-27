@@ -1,5 +1,5 @@
 /**
- * @repo/declarative-routing
+ * @deployer/declarative-routing
  * 
  * Type-safe declarative routing for Next.js applications.
  * 
@@ -12,8 +12,8 @@
  * @example Basic Usage
  * ```tsx
  * // 1. Configure the route factory (apps/web/src/routes/configure.ts)
- * import { createRouteFactory } from '@repo/declarative-routing'
- * import { createPage, createSessionPage } from '@repo/declarative-routing/page-wrappers'
+ * import { createRouteFactory } from '@deployer/declarative-routing'
+ * import { createPage, createSessionPage } from '@deployer/declarative-routing/page-wrappers'
  * import { withClientSession } from '../../../lib/auth/with-client-session'
  * 
  * export const { makeRoute, makeGetRoute } = createRouteFactory({
@@ -55,7 +55,7 @@ export {
     createRouteFactory,
     emptySchema,
     z,
-} from '@repo/declarative-routing/make-route'
+} from '@deployer/declarative-routing/make-route'
 
 export type {
     RouteBuilder,
@@ -69,7 +69,7 @@ export type {
     PageWrapperFactory,
     SessionHOCFactory,
     RouteFactoryConfig,
-} from '@repo/declarative-routing/make-route'
+} from '@deployer/declarative-routing/make-route'
 
 // ============================================================================
 // Types (shared between server and client)
@@ -109,7 +109,7 @@ export type {
     RouteSearchPatch,
     RouteRuntimeConfig,
     PageRouteHelpers,
-} from '@repo/declarative-routing/types'
+} from '@deployer/declarative-routing/types'
 
 // ============================================================================
 // Utilities (isomorphic)
@@ -119,4 +119,4 @@ export {
     safeParseSearchParams,
     safeParseSearchParamsSync,
     safeTryParseSearchParams,
-} from '@repo/declarative-routing/utils'
+} from '@deployer/declarative-routing/utils'

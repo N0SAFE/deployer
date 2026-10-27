@@ -1,5 +1,5 @@
 {
-    "name": "@repo/nest-reachability",
+    "name": "@deployer/nest-reachability",
     "version": "1.0.0",
     "description": "Generic network probing: address normalization, address/peer reachability probes. No platform policy, no node model.",
     "main": "./dist/cjs/index.js",
@@ -23,11 +23,13 @@
         }
     },
     "scripts": {
-        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "prettify": "bun fmt .",
         "format": "bun run prettify",
-        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "lint": "eslint . --fix --cache",
-        "type-check": "tsc --noEmit",
+        "format:check": "bun fmt --check .",
+        "lint": "bun lint --no-script --type-aware",
+        "lint:fix": "bun lint --no-script --fix --type-aware",
+        "lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
+        "type-check": "bun check --no-script",
         "test": "vitest run",
         "test:watch": "vitest",
         "build": "bun --bun pkg-build",
@@ -36,11 +38,11 @@
         "build:types": "bun --bun pkg-build --types"
     },
     "devDependencies": {
-        "@repo/config-eslint": "*",
-        "@repo/config-prettier": "*",
-        "@repo/config-typescript": "*",
-        "@repo/config-vitest": "*",
-        "@repo/pkg-build": "*",
+        "@deployer/config-eslint": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-typescript": "*",
+        "@deployer/config-vitest": "*",
+        "@deployer/pkg-build": "*",
         "@types/node": "catalog:build",
         "chokidar": "catalog:build",
         "eslint": "catalog:linting",

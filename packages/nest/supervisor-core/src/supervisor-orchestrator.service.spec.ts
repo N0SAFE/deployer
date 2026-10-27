@@ -76,7 +76,7 @@ describe("BaseSupervisorService auto-registration", () => {
 		const orchestrator = new SupervisorOrchestratorService();
 		const supervisor = new FakeSupervisor("manual");
 
-		expect(() => supervisor.onModuleInit()).not.toThrow();
+		expect(() => { supervisor.onModuleInit(); }).not.toThrow();
 		expect(orchestrator.has("manual")).toBe(false);
 	});
 });
@@ -91,7 +91,7 @@ describe("SupervisorOrchestratorService", () => {
 	it("rejects two different supervisors sharing a supervisorId", () => {
 		const orchestrator = new SupervisorOrchestratorService();
 		orchestrator.register(new FakeSupervisor("dup"));
-		expect(() => orchestrator.register(new FakeSupervisor("dup"))).toThrow(/Duplicate supervisorId/);
+		expect(() => { orchestrator.register(new FakeSupervisor("dup")); }).toThrow(/Duplicate supervisorId/);
 	});
 
 	it("accepts re-registration of the same instance idempotently", () => {

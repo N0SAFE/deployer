@@ -8,14 +8,14 @@
 import { 
   type PlatformRole as RoleName, 
   type PlatformResource as ResourceName,
-} from "@repo/auth/permissions/config";
+} from "@deployer/auth/permissions/config";
 import { 
   PermissionChecker, 
   hasPermission, 
   hasAllPermissions, 
   hasAnyPermission,
   type ResourcePermission,
-} from "@repo/auth/permissions/utils";
+} from "@deployer/auth/permissions/utils";
 
 /**
  * User type for access control - must have a role property

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import type { DockerImageLayerEntry } from '@repo/contracts-entities'
-import { Badge } from '@repo/ui/components/shadcn/badge'
+import type { DockerImageLayerEntry } from '@deployer/contracts-entities'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { DockerRelativeTime } from '../docker-relative-time'
 import { DockerCopyableId } from '../docker-copy-button'

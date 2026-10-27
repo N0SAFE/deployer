@@ -17,7 +17,7 @@ Used for setup wizard, health checks, and any endpoint that should be accessible
 ```typescript
 import { Controller } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
-import { setupContract } from '@repo/api-contracts';
+import { setupContract } from '@deployer/bff-contracts';
 import { InitializationService } from '@/core/modules/setup/services/initialization.service';
 
 @Controller()
@@ -46,7 +46,7 @@ Used for any endpoint that needs a logged-in user.
 ```typescript
 import { Controller } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
-import { userContract } from '@repo/api-contracts';
+import { userContract } from '@deployer/identity-contracts';
 import { createAuthMiddleware } from '@/core/modules/auth/orpc/middlewares';
 import { requireAuth } from '@/core/modules/auth/orpc/middlewares';
 import { AuthCoreService } from '@/core/modules/auth/services/auth-core.service';
@@ -135,10 +135,10 @@ The `/setup/*` endpoints use NO auth middleware — they are public by necessity
 the wizard runs before any account exists.
 
 ```typescript
-// apps/api/src/modules/setup/controllers/setup.controller.ts
+// apps/api/bff/src/domains/setup/controllers/setup.controller.ts
 import { Controller } from '@nestjs/common';
 import { Implement, implement } from '@orpc/nest';
-import { setupContract } from '@repo/api-contracts';
+import { setupContract } from '@deployer/bff-contracts';
 import { AllowAnonymous } from '@/core/modules/auth/decorators/decorators';
 
 // `@AllowAnonymous()` is REQUIRED at the Nest layer: the global AuthGuard runs

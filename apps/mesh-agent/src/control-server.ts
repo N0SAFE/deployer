@@ -18,7 +18,7 @@ import {
 	labelsWriteSchema,
 	revokeRequestSchema,
 	settingWriteSchema,
-} from "@repo/mesh-network";
+} from "@deployer/mesh-network";
 import z from "zod/v4";
 
 import { AgentError, type MeshAgent } from "./agent";

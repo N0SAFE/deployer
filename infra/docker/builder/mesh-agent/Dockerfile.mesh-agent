@@ -11,16 +11,28 @@
 # The pruner/installer/builder stages mirror the other app images (see
 # infra/docker/builder/AGENTS.md) so the cache strategy is reviewed the same way.
 
-FROM oven/bun:1.4.2-alpine AS base
+FROM oven/bun:1.4.3-alpine AS base
+# ── BUILDKIT CACHE MOUNTS BREAK `install.globalStore` — TURN IT OFF ──────────
+# `bunfig.toml` sets `globalStore = true`, so `node_modules/.bun/<pkg>` would
+# point at an absolute path UNDER the bun cache mount. A BuildKit cache mount is
+# not committed to the image layer, so those links ship without their targets.
+# The env var overrides bunfig.toml. See AGENTS.md → "One bun download cache".
+ENV BUN_INSTALL_GLOBAL_STORE=0
 RUN apk add --no-cache libc6-compat
-RUN --mount=type=cache,target=/root/.bun/install/cache bun install -g turbo@^2
+# The explicit `id` matters because the cache id DEFAULTS TO THE MOUNT TARGET:
+# without it this file gets its own download cache instead of the shared one.
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
+    bun install -g turbo@^2
 WORKDIR /app
 
 FROM base AS pruner-json
 COPY turbo.json package.json ./
 COPY bun.lock* ./
 COPY --parents **/package.json ./
-RUN --mount=type=cache,target=/root/.cache/turbo turbo prune mesh-agent --docker
+# `@deployer/mesh-agent`, NOT `mesh-agent`: the scope is a WORKSPACE PACKAGE
+# NAME. `turbo prune mesh-agent` fails with "Invalid scope. Package with name
+# mesh-agent in `package.json` not found."
+RUN --mount=type=cache,target=/root/.cache/turbo turbo prune @deployer/mesh-agent --docker
 
 FROM base AS pruner-full
 COPY --from=pruner-json /app/out/json/ ./
@@ -29,16 +41,35 @@ RUN --mount=type=bind,target=/src \
   cp /src/turbo.json . && \
   cp /src/bun.lock* . 2>/dev/null || true ; \
   tar -C /src -cf - apps packages tooling 2>/dev/null | tar -xf - 2>/dev/null || true ; \
-  turbo prune mesh-agent --docker
+  turbo prune @deployer/mesh-agent --docker && \
+  # THE PRUNING TURBO IS NOT THE BUILDING TURBO — see AGENTS.md, "The pruning
+  # turbo write the turbo.json the build parses". `turbo prune` re-serialises
+  # turbo.json with a `futureFlags` snapshot taken from ITS OWN version, and this
+  # stage runs the `turbo@^2` global install while the build runs the
+  # LOCKFILE-PINNED turbo from node_modules. A newer prune writes flags an older
+  # build rejects outright, and drops `remoteCache` that `--remote-only` needs.
+  cp /app/turbo.json /app/out/full/turbo.json
 
 FROM base AS builder
 COPY --from=pruner-full /app/out/full/ .
 # The ORIGINAL lockfile, not the pruned one — `turbo prune` corrupts nested
 # resolutions (see Dockerfile.setup.prod for the measured failure).
 COPY --from=pruner-full /app/bun.lock ./bun.lock
-RUN --mount=type=cache,target=/root/.bun/install/cache bun ci
+# ── WHY THE ROOT `scripts/` DIRECTORY ───────────────────────────────────────
+# `bun ci` runs the root `postinstall`,
+# `scripts/link-workspace-self-references.ts`, which creates the
+# `node_modules/<own-name> -> ../..` self-link that `bun install` never makes.
+# `turbo prune` keeps only what the target needs and a root script is not one of
+# its dependencies, so without this COPY the install dies with
+# `Module not found "scripts/link-workspace-self-references.ts"`.
+COPY scripts ./scripts
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared bun ci
 # `mesh-agent...` builds the protocol package's dist first, then compiles the agent.
-RUN --mount=type=cache,target=/root/.cache bunx turbo run build --filter=mesh-agent...
+RUN --mount=type=cache,id=deployer-turbo-cache,target=/turbo-cache,sharing=shared \
+    --mount=type=secret,id=turbo_token,env=TURBO_TOKEN,required=false \
+    --mount=type=secret,id=turbo_team,env=TURBO_TEAM,required=false \
+    --mount=type=secret,id=turbo_api,env=TURBO_API,required=false \
+    --mount=type=cache,target=/root/.cache bunx turbo run build --cache-dir=/turbo-cache --filter=@deployer/mesh-agent...
 
 FROM alpine:3.22 AS runner
 RUN apk add --no-cache wireguard-tools-wg iproute2 libstdc++ libgcc

@@ -23,7 +23,7 @@ export interface PushNotificationsPluginOptions {
  * 
  * @example
  * ```typescript
- * import { pushNotificationsPlugin } from '@repo/auth/server/plugins/pushNotifications'
+ * import { pushNotificationsPlugin } from '@deployer/auth/server/plugins/pushNotifications'
  * 
  * betterAuth({
  *   plugins: [

@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { AuthDashboardDeployments, AuthDashboardDockerActivity, AuthDashboardDockerShell } from '@/routes'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import { useDockerNode } from '../../_components/docker-node-context'
 import { useLogFollow } from '../_hooks/use-log-follow'
 import { useLogsLines, type LogsSource } from '../_hooks/use-logs-lines'

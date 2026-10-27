@@ -2,8 +2,8 @@
 
 import type { RefObject } from 'react'
 import { ArrowDown, ScrollText } from 'lucide-react'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 import { EmptyState } from '@/components/dashboard'
 import type { MatchRange } from '../_lib/highlight'
 import type { PreparedLine } from '../_lib/prepare-lines'

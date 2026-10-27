@@ -1,18 +1,19 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Building2, Globe, Plus, Siren } from 'lucide-react'
 import { toast } from 'sonner'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Label } from '@repo/ui/components/shadcn/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@repo/ui/components/shadcn/select'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Label } from '@deployer/ui/components/shadcn/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 import { EmptyState, PageErrorState, PageHeader } from '@/components/dashboard'
 import { useProjectDomains, useRemoveProjectDomain, useVerifyProjectDomain } from '@/domains/domain/hooks'
 import { useProjectList } from '@/domains/project/hooks'
 import { useCheckDomainGate } from '@/domains/reachability/hooks'
-import { AuthDashboardNetworkIngress } from '@/routes'
+import { AuthDashboardNetworkIngress, AuthDashboardProjects } from '@/routes'
 import { isDefinedORPCError, getErrorMessage, UNKNOWN_ORPC_ERROR_MESSAGE } from '@/lib/orpc/typed-errors'
 import { AddDomainDialog } from './_components/add-domain-dialog'
 import { DnsCheckDialog, RemoveDomainDialog } from './_components/dialogs'
@@ -29,6 +30,7 @@ function errorDescription(err: unknown, fallback: string): string {
  * DNS record; reachability says whether the name actually lands on this stack.
  */
 export default function NetworkDomainsPage() {
+  const router = useRouter()
   const { data: projectsData, isLoading: projectsLoading, error: projectsError, refetch: refetchProjects } = useProjectList({
     query: { limit: 100, offset: 0 },
   })
@@ -109,7 +111,12 @@ export default function NetworkDomainsPage() {
     return (
       <div className="space-y-6">
         {header}
-        <EmptyState icon={Building2} title="No projects yet" description="Domains belong to a project — create a project first, then add its domains here." />
+        <EmptyState
+          icon={Building2}
+          title="No projects yet"
+          description="Domains belong to a project — create a project first, then add its domains here."
+          action={{ label: 'Create a project', onClick: () => { router.push(AuthDashboardProjects()) } }}
+        />
       </div>
     )
   }

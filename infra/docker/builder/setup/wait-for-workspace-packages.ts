@@ -9,9 +9,9 @@
  * that boots at the same moment resolves its imports against a partially empty
  * tree. Observed in order as the app got further before dying:
  *
- *   Cannot find module '@repo/ui/components/setup/setup-wizard'
- *   Cannot find module '@repo/nest-schema/migrations'
- *   Cannot find module '@repo/orpc-utils'
+ *   Cannot find module '@deployer/ui/components/setup/setup-wizard'
+ *   Cannot find module '@deployer/nest-schema/migrations'
+ *   Cannot find module '@deployer/orpc-utils'
  *
  * Building the packages in the image does NOT remove the race: the watcher wipes
  * that output as soon as it starts. The app must WAIT.
@@ -22,13 +22,13 @@
  *   1. `[ -f .../setup-wizard.mjs ]` — FILE EXISTENCE. The image had already
  *      built that file, so the test passed instantly and waited for nothing.
  *   2. `Bun.resolveSync` on ONE package — real, but the packages rebuild in
- *      PARALLEL and finish at different times. `@repo/ui` being ready said
- *      nothing about `@repo/orpc-utils`, and the app died on the next import.
- *   3. Every `@repo/*` DEPENDENCY — but some are config-only
- *      (`@repo/config-typescript`), have no `exports`, and can never resolve.
+ *      PARALLEL and finish at different times. `@deployer/ui` being ready said
+ *      nothing about `@deployer/orpc-utils`, and the app died on the next import.
+ *   3. Every `@deployer/*` DEPENDENCY — but some are config-only
+ *      (`@deployer/config-typescript`), have no `exports`, and can never resolve.
  *      Waiting on them would time out on a package that was never importable.
  *
- * The invariant is: **every `@repo/*` specifier the app's SOURCE actually
+ * The invariant is: **every `@deployer/*` specifier the app's SOURCE actually
  * imports must resolve.** So that is exactly what this checks — by scanning the
  * source, not by guessing from the manifest. A dependency the app does not import
  * cannot block startup, and a package the app newly starts importing is picked up
@@ -117,7 +117,7 @@ function importedSpecifiers(): string[] {
 /**
  * Reduce a specifier to the package that must be resolvable.
  *
- * `@repo/ui/components/setup/setup-wizard` → `@repo/ui`. Resolving the FULL
+ * `@deployer/ui/components/setup/setup-wizard` → `@deployer/ui`. Resolving the FULL
  * specifier is stronger, but it would fail for a subpath a package exports lazily;
  * the package root is the right granularity — if the package resolves at all, its
  * watcher has finished writing.
@@ -129,7 +129,7 @@ function packageOf(specifier: string): string | null {
 
   const parts = specifier.split("/");
   const name = specifier.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0];
-  return name.startsWith("@repo/") ? name : null;
+  return name.startsWith("@deployer/") ? name : null;
 }
 
 const required = [

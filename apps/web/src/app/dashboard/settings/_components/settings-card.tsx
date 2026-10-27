@@ -1,6 +1,6 @@
 import type { ComponentType, ReactNode } from 'react'
 import { ArrowRight } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 
 /** A typed route builder as `@/routes` generates them. */
 export interface SettingsRoute {
@@ -42,7 +42,8 @@ export function SettingsCard({
         {status ? <p role="status" className="text-sm font-medium">{status}</p> : null}
         {why ? <p className="text-sm text-muted-foreground">Lives there because: {why}</p> : null}
         <RouteLink className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
-          {cta} <ArrowRight className="size-3.5" />
+          {cta} <ArrowRight className="size-3.5" aria-hidden />
+          <span className="sr-only"> {title}</span>
         </RouteLink>
       </CardContent>
     </Card>

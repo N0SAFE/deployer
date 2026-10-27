@@ -6,7 +6,7 @@
     ],
     "compilerOptions": {
         "paths": {
-            "@repo/mesh-network/*": [
+            "@deployer/mesh-network/*": [
                 "./src/*"
             ]
         }

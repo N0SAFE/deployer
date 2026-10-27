@@ -4,6 +4,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import { c } from '../utils/colors'
+import { rewriteDeclarationAliases } from '../utils/declaration-aliases'
 import { die } from '../utils/errors'
 import { walkFiles } from '../utils/glob'
 import { PkgConfigService } from './pkg-config.service'
@@ -178,7 +179,7 @@ export class PkgBuilderService {
                 // into the published tree. Pin it beside the generated config,
                 // which is deleted when the compiler exits.
                 tsBuildInfoFile: rel(
-                    path.join(pkgRoot, '.pkg-build-types.tsbuildinfo')
+                    path.join(pkgRoot, `.pkg-build-types.${String(process.pid)}.tsbuildinfo`)
                 ),
             },
             // `files` is the same entry set as the JS build plus authored `.d.ts`
@@ -205,7 +206,7 @@ export class PkgBuilderService {
             if (result.exitCode !== 0) die('types build failed')
         } finally {
             fs.rmSync(typesTsconfig, { force: true })
-            fs.rmSync(path.join(pkgRoot, '.pkg-build-types.tsbuildinfo'), {
+            fs.rmSync(path.join(pkgRoot, `.pkg-build-types.${String(process.pid)}.tsbuildinfo`), {
                 force: true,
             })
         }
@@ -216,11 +217,36 @@ export class PkgBuilderService {
             fs.copyFileSync(path.join(rootDir, ambientRel), dest)
         }
 
+        // `tsc` writes import specifiers verbatim, so a `@/x` alias that resolves
+        // in source lands in `dist/types` as a specifier no consumer can resolve.
+        // Runs after the ambient copy so the authored `.d.ts` files are covered
+        // too, and before the summary line so the count it reports is final.
+        const aliases = this.pkg.sourceAliases()
+        const rewritten = rewriteDeclarationAliases(typesDir, rootDir, aliases)
+        if (rewritten.unresolved.length > 0) {
+            // Not fatal: an alias naming something outside the emitted tree (a
+            // type-only helper, a package subpath) is a real specifier, and
+            // failing here would break a build that used to succeed.
+            console.warn(
+                `${c.yellow('warn')} ${String(
+                    this.pkg.manifest.name ?? pkgRoot
+                )}: ${String(
+                    rewritten.unresolved.length
+                )} alias specifier(s) in declarations resolved to no emitted file: ${rewritten.unresolved
+                    .slice(0, 5)
+                    .join(', ')}${rewritten.unresolved.length > 5 ? ' …' : ''}`
+            )
+        }
+
         console.log(
             `${c.green('ok')} types ${c.dim(
                 `${entries.length} entries -> ${path.relative(pkgRoot, typesDir)}${
                     ambientDeclarations.length > 0
                         ? ` (+${ambientDeclarations.length} source .d.ts)`
+                        : ''
+                }${
+                    rewritten.specifiers > 0
+                        ? ` (${String(rewritten.specifiers)} alias specifiers made relative)`
                         : ''
                 }`
             )}`

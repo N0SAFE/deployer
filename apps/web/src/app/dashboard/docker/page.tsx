@@ -21,9 +21,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@repo/ui/components/shadcn/table'
+} from '@deployer/ui/components/shadcn/table'
 import { Boxes, Server } from 'lucide-react'
-import type { DockerContainer } from '@repo/contracts-entities'
+import type { DockerContainer } from '@deployer/contracts-entities'
 import { EmptyState, EnvironmentBadge, StatStrip, StatStripItem, StatusBadge, type StatusTone } from '@/components/dashboard'
 import type { DockerRuntimeSseState } from '@/domains/docker/hooks'
 

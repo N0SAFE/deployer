@@ -1,5 +1,5 @@
-import type { Resource, Permission } from "@repo/auth/permissions/system/types";
-import { platformPermissionConfig, platformSchemas, PLATFORM_ROLES, PLATFORM_RESOURCES, type PlatformRole, type PlatformResource, type PlatformActionsForResource } from "@repo/auth/permissions/config";
+import type { Resource, Permission } from "@deployer/auth/permissions/system/types";
+import { platformPermissionConfig, platformSchemas, PLATFORM_ROLES, PLATFORM_RESOURCES, type PlatformRole, type PlatformResource, type PlatformActionsForResource } from "@deployer/auth/permissions/config";
 
 const statement = platformPermissionConfig.statement;
 const roles = platformPermissionConfig.roles;

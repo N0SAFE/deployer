@@ -3,8 +3,8 @@ import {
   deploymentEnvironmentSchema,
   deploymentStatusSchema,
 } from '@deployer/contracts-common'
-import { dockerListMetaSchema } from '@deployer/contracts-entities/entities/docker/common.schema'
-import { dockerContainerSchema } from '@deployer/contracts-entities/entities/docker/containers/base.schema'
+import { dockerListMetaSchema } from '../common.schema'
+import { dockerContainerSchema } from './base.schema'
 
 export const dockerContainerLinkPathSchema = z.enum([
   'deployment',

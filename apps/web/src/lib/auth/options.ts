@@ -1,4 +1,4 @@
-import { createAuthClientFactory } from '@repo/auth/client'
+import { createAuthClientFactory } from '@deployer/auth/client'
 import { getBaseApiUrl } from '../api-url'
 
 // Explicit `ReturnType` annotation: the factory's inferred return type

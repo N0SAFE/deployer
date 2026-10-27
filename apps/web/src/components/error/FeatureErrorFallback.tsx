@@ -9,7 +9,7 @@
 
 import React from 'react'
 import { AlertCircle, RotateCcw, LayoutDashboard } from 'lucide-react'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import { AuthDashboard } from '@/routes'
 import { ErrorDetails } from './ErrorDetails'
 

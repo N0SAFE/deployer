@@ -1,4 +1,4 @@
-import { AppLogger } from '@repo/logger'
+import { AppLogger } from '@deployer/logger'
 
 /**
  * Page Performance Timing Utilities

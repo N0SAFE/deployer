@@ -1,14 +1,10 @@
 {
     "$schema": "https://json.schemastore.org/tsconfig",
     "extends": "../../../tooling/typescript/config/nestjs.json",
-    "include": [
-        "pkg-build.config.ts", "src/**/*"
-    ],
+    "include": ["pkg-build.config.ts", "src/**/*"],
     "compilerOptions": {
         "paths": {
-            "@repo/nest-env/*": [
-                "./src/*"
-            ]
+            "@deployer/nest-env/*": ["./src/*"]
         }
     }
 }

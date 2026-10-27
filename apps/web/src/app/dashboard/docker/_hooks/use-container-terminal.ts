@@ -9,7 +9,7 @@ import {
   useDockerSendContainerTerminalInput,
 } from '@/domains/docker/hooks'
 import { getErrorMessage, isDefinedORPCError } from '@/lib/orpc/typed-errors'
-import type { DockerContainerInspectDetail, DockerFileEntry, DockerTerminalProfile } from '@repo/contracts-entities'
+import type { DockerContainerInspectDetail, DockerFileEntry, DockerTerminalProfile } from '@deployer/contracts-entities'
 import {
   appendTerminalOutput,
   escapeShellPath,

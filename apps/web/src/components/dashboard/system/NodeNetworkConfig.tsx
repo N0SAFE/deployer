@@ -2,19 +2,19 @@
 
 import { isDefinedORPCError, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { useMemo, useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Label } from '@repo/ui/components/shadcn/label'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Label } from '@deployer/ui/components/shadcn/label'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@repo/ui/components/shadcn/select'
+} from '@deployer/ui/components/shadcn/select'
 import { Siren, Globe, Network, Save, Server } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -26,7 +26,7 @@ import {
 } from '@/domains/reachability/hooks'
 import { useFleetServers } from '@/domains/fleet/hooks'
 import { useMeshSseState } from '@/domains/mesh/hooks'
-import { z } from 'zod/v4'
+import z from 'zod/v4'
 
 const addressSchema = z.object({ publicAddress: z.string().optional() })
 
@@ -45,7 +45,7 @@ interface NodeNetworkView {
 }
 
 export function NodeNetworkConfig() {
-  const { data: allConfigsData } = useListNodeNetworkConfigs()
+  const { data: allConfigsData, error: listError, refetch: refetchList } = useListNodeNetworkConfigs()
   const { data: fleetData } = useFleetServers()
   const { state: meshState } = useMeshSseState()
   const { data: gate } = useCheckDomainGate()
@@ -69,7 +69,7 @@ export function NodeNetworkConfig() {
   const [chosenNodeId, setSelectedNodeId] = useState<string | null>(null)
   const selectedNodeId = chosenNodeId ?? currentNodeId
 
-  const { data: nodeConfigData } = useNodeNetworkConfig(selectedNodeId || undefined)
+  const { data: nodeConfigData, error: nodeError, refetch: refetchNode } = useNodeNetworkConfig(selectedNodeId || undefined)
   const config: NodeNetworkView | undefined = nodeConfigData
   const updateConfig = useUpdateNodeNetworkConfig()
 
@@ -115,6 +115,17 @@ export function NodeNetworkConfig() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {listError || nodeError ? (
+          <Alert variant="destructive">
+            <Siren className="size-4" />
+            <AlertTitle>Could not load this node&apos;s network config</AlertTitle>
+            <AlertDescription className="space-y-3">
+              <p>The saved address below may be missing or out of date. The API did not return it.</p>
+              <Button size="sm" variant="outline" onClick={() => { void refetchList(); void refetchNode() }}>Retry</Button>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
         {/* Node selector */}
         <div className="space-y-1.5">
           <Label className="text-sm font-medium">Node</Label>

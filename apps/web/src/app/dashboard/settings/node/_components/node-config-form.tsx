@@ -1,9 +1,9 @@
 'use client'
 
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Label } from '@repo/ui/components/shadcn/label'
-import { Textarea } from '@repo/ui/components/shadcn/textarea'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Label } from '@deployer/ui/components/shadcn/label'
+import { Textarea } from '@deployer/ui/components/shadcn/textarea'
 import type { useNodeConfigForm } from './use-node-config-form'
 
 const SELECT_CLASS = 'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors'

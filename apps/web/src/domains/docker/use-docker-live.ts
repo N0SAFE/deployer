@@ -5,8 +5,8 @@ import { useQuery } from '@tanstack/react-query'
 import { dockerEndpoints } from './endpoints'
 import { orpcClient } from '@/lib/orpc'
 import type {
-} from "@repo/contracts-entities";
-import { isRecord, isObjectLike } from "@repo/type-guards";
+} from "@deployer/contracts-entities";
+import { isRecord } from "@deployer/type-guards";
 import type {
   DockerContainer,
   DockerImage,
@@ -15,7 +15,7 @@ import type {
   DockerEntityKind,
   DockerEntityStreamChunk,
   DockerEntityRemovedEvent,
-} from '@repo/contracts-entities'
+} from '@deployer/contracts-entities'
 
 // ============================================================================
 // Public types
@@ -41,7 +41,7 @@ export type DockerLiveEntityStatus =
  * the per-kind action enums so callers don't have to deal with discriminated
  * union gymnastics; the underlying stream still validates the values.
  */
-export type DockerLiveOnMap = {
+export interface DockerLiveOnMap {
   container?: readonly string[]
   image?: readonly string[]
   network?: readonly string[]
@@ -60,7 +60,7 @@ export type DockerLiveApplyFn<TEntity> = (
   events: readonly DockerEntityStreamChunk[],
 ) => TEntity[]
 
-export type DockerLiveEntitiesOptions = {
+export interface DockerLiveEntitiesOptions {
   /**
    * Declarative event subscription. Each kind's action array is type-checked
    * against the matching docker runtime action.
@@ -88,12 +88,14 @@ export type DockerLiveEntitiesOptions = {
   enabled?: boolean
 }
 
-export type DockerLiveEntitiesResult<TKind extends DockerEntityKind, TEntity> = {
+export interface DockerLiveEntitiesResult<TKind extends DockerEntityKind, TEntity> {
   kind: TKind
   data: TEntity[]
   byId: Map<string, TEntity>
   lastSyncedAt: Date | null
   status: DockerLiveEntityStatus
+  /** Why the last sync failed (null while healthy). */
+  error: Error | null
   refetch: () => Promise<void>
 }
 
@@ -112,7 +114,7 @@ function chunkToEntity<T>(chunk: DockerEntityStreamChunk): T {
   return chunk as unknown as T
 }
 
-type KindConfig<TEntity> = {
+interface KindConfig<TEntity> {
   fetchList: () => Promise<TEntity[]>
   fetchOne: (id: string) => Promise<TEntity | null>
   getId: (item: TEntity) => string
@@ -128,7 +130,7 @@ const kindConfigs = {
     fetchOne: async (id) => {
       const chunk = await orpcClient.docker.entity.inspect({ kind: 'container', id })
       if (!chunk) return null
-      return chunkToEntity<DockerContainer>(chunk as DockerEntityStreamChunk)
+      return chunkToEntity<DockerContainer>(chunk)
     },
     getId: (c) => (c as DockerContainer).id,
   },
@@ -141,7 +143,7 @@ const kindConfigs = {
     fetchOne: async (id) => {
       const chunk = await orpcClient.docker.entity.inspect({ kind: 'image', id })
       if (!chunk) return null
-      return chunkToEntity<DockerImage>(chunk as DockerEntityStreamChunk)
+      return chunkToEntity<DockerImage>(chunk)
     },
     getId: (i) => (i as DockerImage).id,
   },
@@ -154,7 +156,7 @@ const kindConfigs = {
     fetchOne: async (id) => {
       const chunk = await orpcClient.docker.entity.inspect({ kind: 'network', id })
       if (!chunk) return null
-      return chunkToEntity<DockerNetwork>(chunk as DockerEntityStreamChunk)
+      return chunkToEntity<DockerNetwork>(chunk)
     },
     getId: (n) => (n as DockerNetwork).id,
   },
@@ -167,7 +169,7 @@ const kindConfigs = {
     fetchOne: async (id) => {
       const chunk = await orpcClient.docker.entity.inspect({ kind: 'volume', id })
       if (!chunk) return null
-      return chunkToEntity<DockerVolume>(chunk as DockerEntityStreamChunk)
+      return chunkToEntity<DockerVolume>(chunk)
     },
     getId: (v) => (v as DockerVolume).name,
   },
@@ -182,9 +184,7 @@ function buildEntityStreamFilter(
 ): { kinds: DockerEntityKind[]; actions: Record<string, readonly string[]> } | undefined {
   const kinds: DockerEntityKind[] = []
   const actions: Record<string, readonly string[]> = {}
-  for (const [scope, scopeActions] of Object.entries(on) as Array<
-    [DockerEntityKind, readonly string[] | undefined]
-  >) {
+  for (const [scope, scopeActions] of Object.entries(on) as [DockerEntityKind, readonly string[] | undefined][]) {
     if (scopeActions && scopeActions.length > 0) {
       kinds.push(scope)
       actions[scope] = scopeActions
@@ -200,7 +200,27 @@ function buildEntityStreamFilter(
 // Default reducer
 // ============================================================================
 
-const REMOVAL_ACTIONS = new Set(['destroy', 'die', 'delete'])
+const REMOVAL_ACTIONS = new Set(['destroy', 'delete'])
+
+/** An id-only chunk (`DockerEntityRemovedEvent`): carries no entity fields. */
+function isIdOnlyChunk(chunk: DockerEntityStreamChunk): chunk is DockerEntityRemovedEvent {
+  return (
+    'id' in chunk &&
+    typeof (chunk as { id?: unknown }).id === 'string' &&
+    !('name' in chunk) &&
+    !('createdAt' in chunk) &&
+    !('updatedAt' in chunk)
+  )
+}
+
+/**
+ * A `die` is not a removal: it fires on every stop/restart and the entity still
+ * exists. The stream sends it id-only, so the entity must be re-read instead of
+ * being dropped from the list until the next reconcile.
+ */
+function isRefreshEvent(chunk: DockerEntityStreamChunk): boolean {
+  return isIdOnlyChunk(chunk) && (chunk as { action?: string }).action === 'die'
+}
 
 function isRemovalEvent(chunk: DockerEntityStreamChunk): chunk is DockerEntityRemovedEvent {
   return (
@@ -214,6 +234,7 @@ function applyDefaultEvent<TEntity>(
   state: TEntity[],
   events: readonly DockerEntityStreamChunk[],
   config: KindConfig<TEntity>,
+  kind: DockerEntityKind,
 ): TEntity[] {
   const byIdIndex = new Map<string, TEntity>()
   for (const item of state) {
@@ -222,6 +243,10 @@ function applyDefaultEvent<TEntity>(
   }
 
   for (const chunk of events) {
+    // The stream can be shared between kinds (no `kinds` filter): a chunk of
+    // another kind must never land in this kind's list.
+    if (chunk.kind !== kind) continue
+    if (isRefreshEvent(chunk)) continue
     if (isRemovalEvent(chunk)) {
       byIdIndex.delete(chunk.id)
       continue
@@ -291,7 +316,7 @@ export function useDockerLiveEntityKind<TKind extends DockerEntityKind, TEntity>
 
   const config = kindConfigs[kind] as unknown as KindConfig<TEntity>
   const onMap: DockerLiveOnMap = actionsForKind
-    ? ({ [kind]: actionsForKind } as DockerLiveOnMap)
+    ? ({ [kind]: actionsForKind })
     : {}
 
   return useDockerLiveEntitiesInner<TKind, TEntity>({
@@ -333,64 +358,68 @@ export function useDockerLiveEntities(on: DockerLiveEntitiesOptions): {
   const networkConfig = kindConfigs.network
   const volumeConfig = kindConfigs.volume
 
-  const container = on.on.container
-    ? useDockerLiveEntitiesInner<'container', DockerContainer>({
-        kind: 'container',
-        on: { container: on.on.container },
-        config: containerConfig as unknown as KindConfig<DockerContainer>,
-        debounceMs: on.debounceMs,
-        reconcileIntervalMs: on.reconcileIntervalMs,
-        customReducer: on.applyEvents as DockerLiveApplyFn<DockerContainer> | undefined,
-        enabled: on.enabled,
-      })
-    : undefined
+  const containerResult = useDockerLiveEntitiesInner<'container', DockerContainer>({
+    kind: 'container',
+    on: { container: on.on.container },
+    config: containerConfig,
+    debounceMs: on.debounceMs,
+    reconcileIntervalMs: on.reconcileIntervalMs,
+    customReducer: on.applyEvents as DockerLiveApplyFn<DockerContainer> | undefined,
+    // Hooks cannot be conditional: a kind the caller did not ask for runs
+    // disabled (idle, no stream, no reconcile) and is dropped from the result.
+    enabled: (on.enabled ?? true) && on.on.container !== undefined,
+  })
+  const container = on.on.container ? containerResult : undefined
 
-  const image = on.on.image
-    ? useDockerLiveEntitiesInner<'image', DockerImage>({
-        kind: 'image',
-        on: { image: on.on.image },
-        config: imageConfig as unknown as KindConfig<DockerImage>,
-        debounceMs: on.debounceMs,
-        reconcileIntervalMs: on.reconcileIntervalMs,
-        customReducer: on.applyEvents as DockerLiveApplyFn<DockerImage> | undefined,
-        enabled: on.enabled,
-      })
-    : undefined
+  const imageResult = useDockerLiveEntitiesInner<'image', DockerImage>({
+    kind: 'image',
+    on: { image: on.on.image },
+    config: imageConfig,
+    debounceMs: on.debounceMs,
+    reconcileIntervalMs: on.reconcileIntervalMs,
+    customReducer: on.applyEvents as DockerLiveApplyFn<DockerImage> | undefined,
+    // Hooks cannot be conditional: a kind the caller did not ask for runs
+    // disabled (idle, no stream, no reconcile) and is dropped from the result.
+    enabled: (on.enabled ?? true) && on.on.image !== undefined,
+  })
+  const image = on.on.image ? imageResult : undefined
 
-  const network = on.on.network
-    ? useDockerLiveEntitiesInner<'network', DockerNetwork>({
-        kind: 'network',
-        on: { network: on.on.network },
-        config: networkConfig as unknown as KindConfig<DockerNetwork>,
-        debounceMs: on.debounceMs,
-        reconcileIntervalMs: on.reconcileIntervalMs,
-        customReducer: on.applyEvents as DockerLiveApplyFn<DockerNetwork> | undefined,
-        enabled: on.enabled,
-      })
-    : undefined
+  const networkResult = useDockerLiveEntitiesInner<'network', DockerNetwork>({
+    kind: 'network',
+    on: { network: on.on.network },
+    config: networkConfig,
+    debounceMs: on.debounceMs,
+    reconcileIntervalMs: on.reconcileIntervalMs,
+    customReducer: on.applyEvents as DockerLiveApplyFn<DockerNetwork> | undefined,
+    // Hooks cannot be conditional: a kind the caller did not ask for runs
+    // disabled (idle, no stream, no reconcile) and is dropped from the result.
+    enabled: (on.enabled ?? true) && on.on.network !== undefined,
+  })
+  const network = on.on.network ? networkResult : undefined
 
-  const volume = on.on.volume
-    ? useDockerLiveEntitiesInner<'volume', DockerVolume>({
-        kind: 'volume',
-        on: { volume: on.on.volume },
-        config: volumeConfig as unknown as KindConfig<DockerVolume>,
-        debounceMs: on.debounceMs,
-        reconcileIntervalMs: on.reconcileIntervalMs,
-        customReducer: on.applyEvents as DockerLiveApplyFn<DockerVolume> | undefined,
-        enabled: on.enabled,
-      })
-    : undefined
+  const volumeResult = useDockerLiveEntitiesInner<'volume', DockerVolume>({
+    kind: 'volume',
+    on: { volume: on.on.volume },
+    config: volumeConfig,
+    debounceMs: on.debounceMs,
+    reconcileIntervalMs: on.reconcileIntervalMs,
+    customReducer: on.applyEvents as DockerLiveApplyFn<DockerVolume> | undefined,
+    // Hooks cannot be conditional: a kind the caller did not ask for runs
+    // disabled (idle, no stream, no reconcile) and is dropped from the result.
+    enabled: (on.enabled ?? true) && on.on.volume !== undefined,
+  })
+  const volume = on.on.volume ? volumeResult : undefined
 
   return {
     ...(container
-      ? { container: container as DockerLiveEntitiesResult<'container', DockerContainer> }
+      ? { container: container }
       : {}),
-    ...(image ? { image: image as DockerLiveEntitiesResult<'image', DockerImage> } : {}),
+    ...(image ? { image: image } : {}),
     ...(network
-      ? { network: network as DockerLiveEntitiesResult<'network', DockerNetwork> }
+      ? { network: network }
       : {}),
     ...(volume
-      ? { volume: volume as DockerLiveEntitiesResult<'volume', DockerVolume> }
+      ? { volume: volume }
       : {}),
   }
 }
@@ -425,7 +454,8 @@ function useDockerLiveEntitiesInner<TKind extends DockerEntityKind, TEntity>(
   // -------------------------------------------------------------------------
   const [data, setData] = useState<TEntity[]>([])
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null)
-  const [status, setStatus] = useState<DockerLiveEntityStatus>('idle')
+  const [reconcileStatus, setReconcileStatus] = useState<DockerLiveEntityStatus | null>(enabled ? 'reconciling' : null)
+  const [error, setError] = useState<Error | null>(null)
 
   const dataRef = useRef<TEntity[]>(data)
   const customReducerRef = useRef(customReducer)
@@ -458,6 +488,17 @@ function useDockerLiveEntitiesInner<TKind extends DockerEntityKind, TEntity>(
   // -------------------------------------------------------------------------
   const eventBufferRef = useRef<DockerEntityStreamChunk[]>([])
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+        debounceTimerRef.current = null
+      }
+    }
+  }, [])
 
   const flushBuffer = useCallback(() => {
     const events = eventBufferRef.current
@@ -469,6 +510,22 @@ function useDockerLiveEntitiesInner<TKind extends DockerEntityKind, TEntity>(
     const reducer = customReducerRef.current
     const currentData = dataRef.current
 
+    // `die` arrives id-only: re-read those entities and patch the result in.
+    const refreshIds = new Set<string>()
+    for (const chunk of reducer ? [] : events) {
+      if (chunk.kind === kind && isRefreshEvent(chunk)) refreshIds.add((chunk as DockerEntityRemovedEvent).id)
+    }
+    for (const id of refreshIds) {
+      void config.fetchOne(id).then((fresh) => {
+        if (!mountedRef.current) return
+        const next = fresh
+          ? applyDefaultEvent(dataRef.current, [{ ...(fresh as object), kind } as unknown as DockerEntityStreamChunk], config, kind)
+          : dataRef.current.filter((item) => config.getId(item) !== id)
+        setData(next)
+        dataRef.current = next
+      }).catch(() => undefined) // the periodic reconcile heals a failed re-read
+    }
+
     if (reducer) {
       const next = reducer(currentData, events)
       setData(next)
@@ -479,10 +536,10 @@ function useDockerLiveEntitiesInner<TKind extends DockerEntityKind, TEntity>(
     // Default reducer path: every chunk is a `DockerEntityEvent` (full
     // payload) or `DockerEntityRemovedEvent` (id-only). The default
     // reducer patches/inserts on the former and removes on the latter.
-    const next = applyDefaultEvent(currentData, events, config)
+    const next = applyDefaultEvent(currentData, events, config, kind)
     setData(next)
     dataRef.current = next
-  }, [config])
+  }, [config, kind])
 
   // -------------------------------------------------------------------------
   // Subscribe to the unified docker entity stream
@@ -499,60 +556,74 @@ function useDockerLiveEntitiesInner<TKind extends DockerEntityKind, TEntity>(
       return
     }
 
-    eventBufferRef.current.push(streamQuery.data as DockerEntityStreamChunk)
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current)
-    }
-    debounceTimerRef.current = setTimeout(flushBuffer, debounceMs)
-
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current)
-        debounceTimerRef.current = null
-      }
-    }
+    eventBufferRef.current.push(streamQuery.data)
+    // Throttle, not debounce: the timer is NOT reset by later events. A debounce
+    // never fires while events keep arriving faster than `debounceMs`, so a busy
+    // engine froze the list and then applied one giant batch.
+    debounceTimerRef.current ??= setTimeout(() => {
+      debounceTimerRef.current = null
+      flushBuffer()
+    }, debounceMs)
   }, [streamQuery.data, debounceMs, flushBuffer, enabled, streamQuery.isError])
 
   // -------------------------------------------------------------------------
   // Connection status
   // -------------------------------------------------------------------------
-  useEffect(() => {
-    if (!enabled) {
-      setStatus('idle')
-      return
-    }
-    if (streamQuery.isError) {
-      setStatus('error')
-    } else if (streamQuery.fetchStatus === 'fetching') {
-      setStatus('connected')
-    } else if (streamQuery.isLoading) {
-      setStatus('connecting')
-    } else {
-      setStatus('disconnected')
-    }
-  }, [enabled, streamQuery.isError, streamQuery.fetchStatus, streamQuery.isLoading])
+  // Status is derived from the stream; a reconcile result overrides it until the
+  // stream's own state next changes (tracked while rendering, not in an effect).
+  const streamStatus: DockerLiveEntityStatus = !enabled
+    ? 'idle'
+    : streamQuery.isError
+      ? 'error'
+      : streamQuery.fetchStatus === 'fetching'
+        ? 'connected'
+        : streamQuery.isLoading
+          ? 'connecting'
+          : 'disconnected'
+  const streamKey = `${String(enabled)}|${String(streamQuery.isError)}|${streamQuery.fetchStatus}|${String(streamQuery.isLoading)}`
+  const [tracked, setTracked] = useState({ key: streamKey, enabled })
+  if (tracked.key !== streamKey) {
+    setTracked({ key: streamKey, enabled })
+    setReconcileStatus(enabled && !tracked.enabled ? 'reconciling' : null)
+  }
+  const status = reconcileStatus ?? streamStatus
 
   // -------------------------------------------------------------------------
   // Reconciliation (initial + periodic)
   // -------------------------------------------------------------------------
+  // A promise chain (not async/await): the callbacks run after the fetch
+  // settles, so state is never set synchronously from the effect that kicks the
+  // first reconcile off.
+  const runReconcile = useCallback(
+    () =>
+      config
+        .fetchList()
+        .then((fresh) => {
+          setData(fresh)
+          dataRef.current = fresh
+          setLastSyncedAt(new Date())
+          setError(null)
+          setReconcileStatus('connected')
+        })
+        .catch((caught: unknown) => {
+          setError(caught instanceof Error ? caught : new Error('The Docker engine did not answer.'))
+          setReconcileStatus('error')
+        }),
+    [config],
+  )
+
   const reconcile = useCallback(async () => {
-    setStatus('reconciling')
-    try {
-      const fresh = await config.fetchList()
-      setData(fresh)
-      dataRef.current = fresh
-      setLastSyncedAt(new Date())
-      setStatus('connected')
-    } catch {
-      setStatus('error')
-    }
-  }, [config])
+    setReconcileStatus('reconciling')
+    await runReconcile()
+  }, [runReconcile])
 
   useEffect(() => {
+    // The 'reconciling' status for this first run is already set by the state
+    // initialiser / render-time tracking above, so it is not set here.
     if (enabled) {
-      void reconcile()
+      void runReconcile()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run only when `enabled` flips, not on every config/reconcile identity change
   }, [enabled])
 
   useEffect(() => {
@@ -573,6 +644,8 @@ function useDockerLiveEntitiesInner<TKind extends DockerEntityKind, TEntity>(
     byId,
     lastSyncedAt,
     status,
+    /** The reason the last reconcile failed (null while healthy). */
+    error: error ?? (streamQuery.isError ? streamQuery.error : null),
     refetch: reconcile,
   }
 }

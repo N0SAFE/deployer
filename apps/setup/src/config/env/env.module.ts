@@ -1,5 +1,5 @@
 import { Module } from "@nestjs/common";
-import { EnvModule as NestEnvModule } from "@repo/nest-env";
+import { EnvModule as NestEnvModule } from "@deployer/nest-env";
 
 import { setupEnvSchema } from "./env.schema";
 import { EnvService } from "./env.service";

@@ -1,5 +1,5 @@
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
 
 interface ComposeConfig {
   serviceName: string | null
@@ -50,7 +50,7 @@ export function DockerContainerComposeTab({
         </div>
       </div>
 
-      <div className="rounded border overflow-hidden">
+      <div className="rounded border overflow-x-auto">
         <table className="w-full text-xs">
           <tbody>
             {composeRows.map((row) => (

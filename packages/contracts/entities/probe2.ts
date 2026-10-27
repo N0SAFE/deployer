@@ -1,6 +1,6 @@
 // Hypothesis: a module that is BOTH an entrypoint AND reachable from another entry
 // gets hoisted, and bun drops its re-exports. Test: build ONLY the public entry.
-const name = '@deployer/contracts-entities'
+const name = '@/'
 const full = '/home/sebille/Bureau/projects/tests/deployer/v3/packages/contracts/entities'
 const srcDir = full + '/src'
 const PROBES = ['clusterPlatformRoleSchema', 'dockerodeSwarmInfoSchema']

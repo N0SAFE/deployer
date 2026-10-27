@@ -1,11 +1,11 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { TableCell, TableRow } from '@repo/ui/components/shadcn/table'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { TableCell, TableRow } from '@deployer/ui/components/shadcn/table'
 import { Check, ChevronDown, ChevronRight, Download, Minus } from 'lucide-react'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@repo/ui/components/shadcn/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@deployer/ui/components/shadcn/dropdown-menu'
 import type { ReactNode } from 'react'
 
 export interface FilterChip {

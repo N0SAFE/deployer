@@ -4,9 +4,9 @@ import { isDefinedORPCError, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { Suspense, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { CheckCircle2, GitFork, Loader2, XCircle, ArrowLeft } from 'lucide-react'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { AuthDashboardAdminProvidersCodeGithub } from '@/routes'
 import { useGitHubInstallCallback } from '@/domains/github-apps/hooks'
 
@@ -24,7 +24,6 @@ function InstallCallbackContent() {
 
   const appName = useMemo(() => search.get('appName') ?? '', [search])
   const installationId = useMemo(() => search.get('installation_id') ?? '', [search])
-  const setupAction = useMemo(() => search.get('setup_action') ?? '', [search])
   const missing = !appName || !installationId
 
   useEffect(() => {

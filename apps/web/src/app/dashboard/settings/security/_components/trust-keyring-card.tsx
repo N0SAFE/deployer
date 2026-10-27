@@ -3,14 +3,14 @@
 import { useState } from 'react'
 import { AlertCircle, CheckCircle2, Copy, Eye, EyeOff, Key, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Label } from '@repo/ui/components/shadcn/label'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@deployer/ui/components/shadcn/dialog'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Label } from '@deployer/ui/components/shadcn/label'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
 import { getErrorMessage, isDefinedORPCError } from '@/lib/orpc/typed-errors'
 import {
   useMeshTrustKeyringConvergenceStatus,
@@ -19,6 +19,7 @@ import {
   useMeshTrustKeyringStatus,
 } from '@/domains/mesh/hooks'
 import { formatDateTime } from '@/lib/format/date'
+import { QueryError } from '../../_components/query-error'
 
 const shortId = (id: string, len = 8) => (id.length > len ? id.slice(0, len) : id)
 
@@ -30,10 +31,10 @@ export function TrustKeyringCard() {
   const [keyId, setKeyId] = useState('')
   const [secret, setSecret] = useState('')
 
-  const { data: keyring, isLoading } = useMeshTrustKeyringStatus()
+  const { data: keyring, isLoading, error: keyringError, refetch: refetchKeyring } = useMeshTrustKeyringStatus()
   // Secrets are only fetched once the operator asks to see them.
   const { data: secrets, isLoading: secretsLoading } = useMeshTrustKeyringSecrets({ enabled: showSecrets })
-  const { data: convergence, isLoading: convergenceLoading } = useMeshTrustKeyringConvergenceStatus()
+  const { data: convergence, isLoading: convergenceLoading, error: convergenceError, refetch: refetchConvergence } = useMeshTrustKeyringConvergenceStatus()
   const rotate = useMeshTrustKeyringRotate()
 
   const runRotate = async () => {
@@ -77,6 +78,10 @@ export function TrustKeyringCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {keyringError || convergenceError ? (
+          <QueryError what="the trust keyring" onRetry={() => { void refetchKeyring(); void refetchConvergence() }} />
+        ) : null}
+        {keyringError || convergenceError ? null : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="space-y-1 rounded-lg border bg-card p-3">
             <p className="text-xs text-muted-foreground">Active key</p>
@@ -98,7 +103,9 @@ export function TrustKeyringCard() {
           </div>
         </div>
 
-        {showRotate ? (
+        )}
+
+        {showRotate && !keyringError ? (
           <div className="space-y-3 rounded-lg border bg-card p-4">
             <div>
               <p className="text-sm font-semibold">Rotate the trust key</p>
@@ -121,7 +128,7 @@ export function TrustKeyringCard() {
           </div>
         ) : null}
 
-        {rows.length > 0 ? (
+        {keyringError ? null : rows.length > 0 ? (
           <div className="overflow-hidden rounded-lg border">
             <Table>
               <TableHeader>
@@ -162,7 +169,7 @@ export function TrustKeyringCard() {
           <p className="text-sm text-muted-foreground">No trust keys yet. Rotate to create the first one.</p>
         ) : null}
 
-        {convergence && !convergence.converged ? (
+        {convergence && !convergence.converged && !convergenceError ? (
           <div className="rounded-lg border bg-amber-50 p-3 dark:bg-amber-950/20">
             <div className="flex items-center gap-2 text-sm">
               <AlertCircle className="size-4 text-amber-500" />

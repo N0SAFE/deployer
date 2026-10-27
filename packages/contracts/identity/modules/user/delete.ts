@@ -1,0 +1,14 @@
+import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { userSchema } from "@deployer/contracts-entities";
+
+// Create standard operations builder for users
+const userOps = standard.zod(userSchema, "user");
+
+// Create delete contract using builder
+export const userDeleteContract = userOps
+    .delete()
+    .errors((e) => [
+        // 404 for unknown user id.
+        ...standardDomainErrorContracts(e),
+    ])
+    .build();

@@ -8,7 +8,7 @@ on:
         branches: ["**"]
 
 env:
-    BUN_VERSION: "1.3.3"
+    BUN_VERSION: "1.4.3"
     NODE_VERSION: "22"
     TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
     TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
@@ -95,7 +95,7 @@ jobs:
             - name: 🛤️ Generate declarative routes
               if: steps.cache-declarative-routes.outputs.cache-hit != 'true'
               run: |
-                bun --bun run @repo/cli-declarative-routing build
+                bun --bun run @deployer/cli-declarative-routing build
                 bun --bun run web dr:build
 
             - name: 📝 Generate OpenAPI documentation
@@ -187,7 +187,9 @@ jobs:
                   restore-keys: |
                       declarative-routes-${{ runner.os }}-
 
-            - name: �🔍 Run ESLint
+            - name: 🔍 Run linter
+              # `lint` is non-mutating (`--no-script --type-aware`), so CI never
+              # rewrites the checkout. `lint:fix`/`lint:fix+` are the mutating forms.
               run: bun x turbo run lint --affected --concurrency=75%
 
             - name: 🔎 Run TypeScript type-check
@@ -203,13 +205,13 @@ jobs:
                   DI_GATE: cycles
               run: bun --bun run check:di-graph
 
-    # Job 3: Build
-    build:
             - name: 💉 Injected classes are value imports
               # `import type` of a class a Nest constructor injects erases it at runtime and the app
               # dies at boot under bun (the SWC-based e2e does not see it). Static, no Docker.
               run: bun --bun run check:di-imports
 
+    # Job 3: Build
+    build:
         name: 🏗️ Build
         runs-on: ubuntu-latest
         timeout-minutes: 12

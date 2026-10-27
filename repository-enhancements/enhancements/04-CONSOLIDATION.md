@@ -23,7 +23,7 @@ diff apps/web/src/components/shared/RequirePermission.tsx \
 
 **Step 2: Merge into package**
 
-Keep the version in `@repo/auth-utils` as the canonical implementation since it's a shared utility.
+Keep the version in `@deployer/auth-utils` as the canonical implementation since it's a shared utility.
 
 **Location:** `packages/auth/src/components/RequirePermission.tsx`
 
@@ -73,7 +73,7 @@ grep -r "RequirePermission" apps/web/src --include="*.tsx"
 
 # Replace imports
 # FROM: import { RequirePermission } from '@/components/shared/RequirePermission'
-# TO:   import { RequirePermission } from '@repo/auth-utils'
+# TO:   import { RequirePermission } from '@deployer/auth-utils'
 ```
 
 **Step 4: Remove duplicate**
@@ -227,7 +227,7 @@ export const reactConfig = defineConfig({
 
 ```typescript
 import { mergeConfig } from 'vitest/config'
-import { reactConfig } from '@repo/config-vitest'
+import { reactConfig } from '@deployer/config-vitest'
 
 export default mergeConfig(reactConfig, {
   test: {
@@ -258,7 +258,7 @@ import { getApiUrl } from '@/lib/api-url'
 import { makeRoute } from '@/lib/routes'
 
 // After  
-import { getApiUrl, makeRoute } from '@repo/declarative-routing-utils'
+import { getApiUrl, makeRoute } from '@deployer/declarative-routing-utils'
 ```
 
 ---
@@ -335,7 +335,7 @@ export function validateEnv<T extends z.ZodSchema>(
 **Web app:** `apps/web/env.ts`
 
 ```typescript
-import { webEnvSchema, validateEnv } from '@repo/env-utils'
+import { webEnvSchema, validateEnv } from '@deployer/env-utils'
 
 // Extend with app-specific vars if needed
 const schema = webEnvSchema.extend({

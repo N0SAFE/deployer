@@ -1,33 +1,35 @@
 {
-    "name": "mesh-agent",
-    "version": "1.0.0",
-    "description": "Per-node mesh agent: owns the node's WireGuard identity and link, replicates the roster by gossip, and converges the node's ingress doors. Runs below Swarm, one per node.",
-    "private": true,
-    "scripts": {
-        "build": "bun build src/main.ts --compile --outfile dist/mesh-agent",
-        "clean": "rimraf dist",
-        "dev": "bun --watch src/main.ts",
-        "start": "bun src/main.ts",
-        "format": "bun run prettify",
-        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
-        "lint": "eslint . --fix --cache",
-        "test": "vitest run",
-        "test:watch": "vitest",
-        "type-check": "tsc --noEmit"
-    },
-    "dependencies": {
-        "@repo/mesh-network": "*",
-        "zod": "catalog:utils"
-    },
-    "devDependencies": {
-        "@repo/config-eslint": "*",
-        "@repo/config-prettier": "*",
-        "@repo/config-typescript": "*",
-        "@types/bun": "catalog:build",
-        "eslint": "catalog:linting",
-        "rimraf": "catalog:build",
-        "typescript": "catalog:build",
-        "vitest": "catalog:testing"
-    }
+  "name": "@deployer/mesh-agent",
+  "version": "1.0.0",
+  "description": "Per-node mesh agent: owns the node's WireGuard identity and link, replicates the roster by gossip, and converges the node's ingress doors. Runs below Swarm, one per node.",
+  "private": true,
+  "scripts": {
+    "build": "bun build src/main.ts --compile --outfile dist/mesh-agent",
+    "clean": "rimraf dist",
+    "dev": "bun --watch src/main.ts",
+    "start": "bun src/main.ts",
+    "format": "bun run prettify",
+    "format:check": "bun fmt --check .",
+    "prettify": "bun fmt .",
+    "lint": "bun lint --no-script --type-aware",
+    "lint:fix": "bun lint --no-script --fix --type-aware",
+    "lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "type-check": "bun check --no-script"
+  },
+  "dependencies": {
+    "@deployer/mesh-network": "*",
+    "zod": "catalog:utils"
+  },
+  "devDependencies": {
+    "@deployer/config-eslint": "*",
+    "@deployer/config-prettier": "*",
+    "@deployer/config-typescript": "*",
+    "@types/bun": "catalog:build",
+    "eslint": "catalog:linting",
+    "rimraf": "catalog:build",
+    "typescript": "catalog:build",
+    "vitest": "catalog:testing"
+  }
 }

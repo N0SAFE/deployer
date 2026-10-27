@@ -9,8 +9,8 @@ import {
   MarkerTooltip,
   type MapArcDatum,
 } from '@/components/ui/map'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { cn } from '@repo/ui/lib/utils'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { cn } from '@deployer/ui/lib/utils'
 import { CircleDot } from 'lucide-react'
 import { useTheme } from 'next-themes'
 

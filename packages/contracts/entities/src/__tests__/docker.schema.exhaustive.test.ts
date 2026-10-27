@@ -7,7 +7,7 @@ import {
   dockerContainerRuntimeConfigSchema,
   dockerOperationProgressItemSchema,
   dockerContainerInspectDetailSchema,
-} from '@deployer/contracts-entities/entities/docker.schema'
+} from '@/entities/docker.schema'
 
 describe('docker schema exhaustive validation', () => {
   describe('dockerPortBindingSchema bounds', () => {

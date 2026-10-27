@@ -1,5 +1,5 @@
 /**
- * @repo/declarative-routing - Types and Interfaces
+ * @deployer/declarative-routing - Types and Interfaces
  * 
  * This file defines all the types used by the declarative routing system,
  * including the auth adapter interfaces for dependency injection.
@@ -7,9 +7,9 @@
 import * as React from 'react'
 import { z } from 'zod'
 
-// Re-export Session type from @repo/auth for consistency across the monorepo
-export type { Session, User } from '@repo/auth'
-import type { Session } from '@repo/auth'
+// Re-export Session type from @deployer/auth for consistency across the monorepo
+export type { Session, User } from '@deployer/auth'
+import type { Session } from '@deployer/auth'
 
 // ============================================================================
 // Auth Adapter Interfaces (Dependency Injection)

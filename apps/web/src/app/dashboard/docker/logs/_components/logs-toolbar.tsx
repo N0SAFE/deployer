@@ -1,9 +1,9 @@
 'use client'
 
-import type { DockerContainer } from '@repo/contracts-entities'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Toggle } from '@repo/ui/components/shadcn/toggle'
+import type { DockerContainer } from '@deployer/contracts-entities'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Toggle } from '@deployer/ui/components/shadcn/toggle'
 import { Clock, Download, Eraser, Pause, Play, Search, WrapText } from 'lucide-react'
 import { DockerCopyButton } from '../../_components/docker-copy-button'
 import type { LogsSource } from '../_hooks/use-logs-lines'

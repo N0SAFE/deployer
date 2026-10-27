@@ -1,15 +1,11 @@
 # =====================================================================
-# NEW ARCHITECTURE — dev profile: BFF + services, no monolith.
+# DEV profile (compose-managed) — `bun run dev`: BFF + services.
 #
 # ── WHAT THIS FILE IS FOR ───────────────────────────────────────────────
-# `docker-compose.dev.yml` runs the MONOLITH (`api-dev`). This one runs the
-# architecture the monolith is being migrated TO: the `bff` and the five services
-# (`svc-health`, `svc-identity`, `svc-project`, `svc-runtime`, `svc-fleet`).
-#
-# Both exist on purpose while the migration is in progress: the monolith keeps
-# serving until every service is verified, and this file is how the replacement is
-# exercised before anything is switched over. Nothing here is included BY the
-# monolith's compose, so `bun run dev` is unchanged.
+# The platform's one topology: the `bff` and the five services (`svc-health`,
+# `svc-identity`, `svc-project`, `svc-runtime`, `svc-fleet`). It is the root
+# `docker-compose.yml`'s default; the monolith's compose profile is gone (decision
+# in `docs/qa/api/topology.md`).
 #
 # ── WHY IT INCLUDES RATHER THAN REDECLARES ──────────────────────────────
 # Every app's definition already lives in
@@ -50,6 +46,55 @@
 # path uses.
 include:
   - path: ./common/api/docker-compose.config.services.yml
+  # ── THE GLOBAL DATABASE, COMPOSE-OWNED ──────────────────────────────
+  # Included because every app in this profile sets
+  # `MANAGED_GLOBAL_DB_ENABLED=true` — "compose owns the global database, do not
+  # supervise one". The flag is only honest if compose runs it.
+  #
+  # Paired with `MANAGED_GLOBAL_DB_URL` on `setup-dev`: running the database is
+  # not enough, setup must also be TOLD it exists, or it provisions a second one
+  # (see the block on `setup-dev`).
+  - path: ./common/database/global/docker-compose.config.yml
+
+# ══ THE ONBOARDING GATE, DEFINED ONCE ══════════════════════════════════
+# Every `svc-*` and `web-dev` waits for this URL before starting its dev server.
+# Two things about it were wrong, and together they made a RESTARTED service hang
+# FOREVER:
+#
+# ── 1. IT POINTED AT A PROCESS THAT EXITS ──────────────────────────────
+# The URL was `http://setup:3016/setup/health`. But `apps/setup` is a ONE-SHOT
+# app: on a successful handover it deliberately stops itself —
+#
+#   [IngressHandoverService] Ingress retargeted: setup → http://bff:3005/setup/done
+#   [SetupExitService]      Handover complete — stopping in 2000ms
+#   [SetupApp]              ✅ Handover complete — shutting down the setup app
+#
+# So `setup:3016` answers only DURING onboarding and is gone afterwards. The
+# gate's real condition was therefore "setup is running", not "onboarding is
+# done". A service that starts BEFORE handover waits correctly; one that restarts
+# AFTER it waits forever:
+#
+#   [entrypoint:svc-fleet] waiting for onboarding to complete: http://setup:3016/setup/health
+#   (never proceeds → container sits at "Up (health: starting)" indefinitely)
+#
+# That is exactly what `up -d --build <one-service>` produces, because the other
+# five are already past the gate while the rebuilt one re-enters it.
+#
+# ── 2. THE RIGHT SIGNAL IS THE BFF'S READINESS ─────────────────────────
+# `bff` is the app that REPLACED the monolith's provisioning entry point, it
+# outlives handover, and its `/health/ready` answers 200 only after preflight
+# passed — database reachable AND migrated. It means "onboarding is done" both
+# during and after the wizard, and it fails CLOSED before that (a 503 and a
+# connection refusal both read as "not open yet", which the entrypoint's
+# `--spider` check already treats identically).
+#
+# One definition for all six apps, so "the platform is ready" cannot drift.
+# `x-` must be TOP LEVEL: compose only permits extension fields there, and
+# nesting it under `services:` fails with
+# `services.x-onboarding-gate.WAIT_FOR_SETUP_URL false schema`.
+x-onboarding-gate: &onboarding-gate
+  WAIT_FOR_SETUP_URL: ${WAIT_FOR_SETUP_URL:-http://bff:3005/health/ready}
+  WAIT_FOR_SETUP_TIMEOUT: ${WAIT_FOR_SETUP_TIMEOUT:-1800}
 
 services:
   # ── The internal-package builder ───────────────────────────────────────
@@ -64,35 +109,98 @@ services:
     networks:
       - app_network_dev
 
+  # ── The global Postgres ────────────────────────────────────────────────
+  # The database every app above derives its URL from. Its definition is
+  # included; this block adds only what is PROJECT-specific: the alias consumers
+  # resolve and the networks it must be reachable on.
+  global-db:
+    extends:
+      file: ./common/database/global/docker-compose.config.yml
+      service: global-db
+    container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-global-db
+    profiles: ["all", "services", "api", "web", "setup"]
+    networks:
+      # `aliases` is the contract: apps address the database as `global-db`
+      # (`MANAGED_GLOBAL_DB_HOST`), which is the alias the SWARM service carries
+      # in every other profile. Carrying the same alias here means one URL
+      # resolves in both stacks and no app knows which kind of database it has.
+      deployer_platform:
+        aliases:
+          - global-db
+      # `drizzle-gateway` reaches it on `shared`.
+      shared: {}
+
   # ── The BFF: the only public HTTP surface ──────────────────────────────
   bff:
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-bff-dev
     # `all` is the default. `services` selects the whole replacement architecture
     # (BFF + the five services) without the monolith.
     #
-    # There is deliberately NO `bff`-only profile: the BFF depends on all five
-    # services, so a profile that selected it alone would depend on services whose
-    # own profile was inactive — which compose rejects outright (`service "bff"
-    # depends on undefined service "svc-identity"`), not a softer failure. A
-    # profile is only offered where the set it names is self-sufficient.
-    profiles: ["all", "services", "api"]
+    # There is deliberately NO `bff`-only profile: the services gate on `setup-dev`
+    # and `web-dev` gates on this service, so a profile naming the BFF alone would
+    # depend on containers with an inactive profile — which compose rejects
+    # outright (`service "bff" depends on undefined service "svc-identity"`), not
+    # a softer failure. A profile is only offered where the set it names is
+    # self-sufficient.
+    #
+    # `web` IS listed because `web-dev` depends on this service: a profile list
+    # must be TRANSITIVE (`COMPOSE_PROFILES=web` has to activate everything the
+    # selected service needs). Leaving it out made that selection invalid:
+    #   service "web-dev" depends on undefined service "bff": invalid compose project
+    profiles: ["all", "services", "api", "web"]
+    # ── THE BFF WAITS FOR NOTHING BUT ITS OWN INFRASTRUCTURE ────────────
+    # Not the database, not `setup`, not the five services. Deliberate: it is the
+    # whole start order.
+    #
+    # WHY NOT THE DATABASE: the BFF's own preflight proves Postgres reachable AND
+    # migrated (`DEPENDENCIES.platform`), and on a fresh platform that database
+    # does not exist yet — the wizard creates it. A compose gate would wait for
+    # something that cannot exist until this container has served the wizard.
+    #
+    # WHY NOT `setup-dev`: the wizard FORWARDS every provisioning call here
+    # (`WizardUpstreamService` → `SETUP_API_URL=http://bff:3005`), because
+    # ── THE BFF STARTS BEHIND SETUP — MONOLITH PARITY ────────────────────
+    # Same edge the monolith has (`api-dev: depends_on: setup-dev:
+    # service_healthy`), for the same reason, and `apps/api/shared/AGENTS.md` states the
+    # rule plainly:
+    #
+    #   "The API starts BEHIND setup, not before it. `GET /setup/health` means
+    #    'the API may start' — it is an input to the API's existence, never a
+    #    report about it. There is no cycle to work around, because neither
+    #    process waits on the other."
+    #
+    # ── WHY THERE IS NO CYCLE (this was wrong before) ────────────────────
+    # Setup DOES forward provisioning to the API, so `setup calls bff` looks like
+    # the other side of a cycle. It is not, because that forward is BEST-EFFORT
+    # and retried out of band: `SetupGateService.open()` persists the operator's
+    # choices, and `HandoverOrchestrator` keeps retrying `deliverTrigger()` until
+    # an API accepts it. The wizard's own log says so:
+    #
+    #   [SetupGateService] 🚀 Setup trigger accepted — converging the swarm
+    #   [WizardUpstreamService] Upstream …/setup/trigger unreachable: ENOTFOUND  ← fast path failed, fine
+    #   [HandoverOrchestrator]  Setup trigger delivered — the API is provisioning ← real delivery
+    #
+    # The direct forward is a FAST PATH for the profile where the API is already
+    # up, not a dependency. So setup never needs the BFF, and gating the BFF on
+    # setup is one-directional.
+    #
+    # The earlier "deadlock" was diagnosed from a single symptom (`bff` stuck in
+    # `Created`) and the wrong edge removed. The actual cycle was `bff → svc-*`
+    # plus `svc-* → database` plus `database → setup → bff`; removing the
+    # svc-* edge fixed it, and this edge is then free to express the real order:
+    #
+    #   global-db → setup → { bff → svc-* } → web
+    #
+    # What this buys: the BFF no longer boots against a platform that does not
+    # exist. Before, it came up pre-onboarding and its readiness sat 503 — real,
+    # but it also meant swarm-aware modules ran before there was a cluster, and
+    # the process burned its preflight budget for nothing.
     depends_on:
       redis:
         condition: service_healthy
       dependency-builder:
         condition: service_healthy
-      # The services, gated on their OWN readiness. Listed explicitly rather than
-      # relying on `depends_on` inside the included file, because the order is a
-      # property of THIS composition.
-      svc-health:
-        condition: service_healthy
-      svc-identity:
-        condition: service_healthy
-      svc-project:
-        condition: service_healthy
-      svc-runtime:
-        condition: service_healthy
-      svc-fleet:
+      setup-dev:
         condition: service_healthy
     ports:
       - "127.0.0.1:${API_PORT:-3005}:${API_PORT:-3005}"
@@ -102,66 +210,96 @@ services:
       - shared
 
   # ── The five services ──────────────────────────────────────────────────
-  # Identical wiring by design: each waits on the builder (its packages) and Redis,
-  # and publishes its port on the platform network where the BFF reaches it by
-  # service name. A per-service difference here would be a difference the BFF
+  # Identical wiring by design: each waits on the builder (its packages), Redis,
+  # and ONBOARDING. A per-service difference here would be a difference the BFF
   # cannot see, which is how one service ends up unreachable.
+  #
+  # ── WHY THEY DO *NOT* JOIN THE OVERLAY ────────────────────────────────
+  # They used to be attached to `deployer-platform-overlay` so they would resolve
+  # `global-db` to the migrated swarm service instead of the empty compose one.
+  # That fixed the database and BROKE SERVICE-TO-SERVICE CALLS, because the
+  # overlay carries the SWARM service names too:
+  #
+  #   svc-identity resolved from the BFF → 10.0.1.20 (the overlay)
+  #   the dev container's real address    → 172.27.0.5
+  #   wget http://svc-identity:3102        → ECONNREFUSED
+  #
+  # → every analytics call became
+  #   500 {"code":"MALFORMED_ORPC_RESPONSE"..} then "INTERNAL_SERVER_ERROR"
+  #
+  # The overlay is a different DNS zone; joining it made the BFF resolve service
+  # names to addresses nothing listens on. Compose services talk over the BRIDGE,
+  # and this profile is compose-owned — so the bridge is correct, and the database
+  # question is settled by the connection URL instead (see the `setup-dev`
+  # `MANAGED_GLOBAL_DB_URL`, which is what pins the app pool to one database).
+  #
+  # ── WHY THEY DO NOT WAIT ON THE DATABASE ─────────────────────────────
   svc-health:
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-svc-health-dev
-    profiles: ["all", "services", "api"]
+    profiles: ["all", "services", "api", "web"]
     depends_on:
       redis:
         condition: service_healthy
       dependency-builder:
         condition: service_healthy
+    environment:
+      <<: *onboarding-gate
     networks:
       - deployer_platform
       - app_network_dev
 
   svc-identity:
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-svc-identity-dev
-    profiles: ["all", "services", "api"]
+    profiles: ["all", "services", "api", "web"]
     depends_on:
       redis:
         condition: service_healthy
       dependency-builder:
         condition: service_healthy
+    environment:
+      <<: *onboarding-gate
     networks:
       - deployer_platform
       - app_network_dev
 
   svc-project:
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-svc-project-dev
-    profiles: ["all", "services", "api"]
+    profiles: ["all", "services", "api", "web"]
     depends_on:
       redis:
         condition: service_healthy
       dependency-builder:
         condition: service_healthy
+    environment:
+      <<: *onboarding-gate
     networks:
       - deployer_platform
       - app_network_dev
 
   svc-runtime:
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-svc-runtime-dev
-    profiles: ["all", "services", "api"]
+    profiles: ["all", "services", "api", "web"]
     depends_on:
       redis:
         condition: service_healthy
       dependency-builder:
         condition: service_healthy
+    environment:
+      <<: *onboarding-gate
     networks:
       - deployer_platform
       - app_network_dev
 
   svc-fleet:
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-svc-fleet-dev
-    profiles: ["all", "services", "api"]
+    profiles: ["all", "services", "api", "web"]
     depends_on:
       redis:
         condition: service_healthy
       dependency-builder:
         condition: service_healthy
+    environment:
+      <<: *onboarding-gate
     networks:
       - deployer_platform
       - app_network_dev
@@ -222,12 +360,52 @@ services:
         condition: service_started
       dependency-builder:
         condition: service_healthy
+      # The wizard PROBES the database to build the URL it persists, so it must
+      # exist first. `service_healthy` and not `started`: Postgres accepts no
+      # connections while `initdb` runs, so a `started` gate would let the wizard
+      # probe a server that is not listening and record a URL it could not verify.
     environment:
       # Compose owns the API in this profile, so the wizard's DRIVE phase talks
       # to `bff` — the service that replaced the monolith's `api`.
       SETUP_MODE: ${SETUP_MODE:-dev}
       SETUP_API_URL: http://bff:${API_PORT:-3005}
       SETUP_API_PORT: ${API_PORT:-3005}
+      # ── TELL SETUP THE DATABASE ALREADY EXISTS ─────────────────────────
+      # This is the half that is easy to miss, and omitting it is what made the
+      # platform query an EMPTY database.
+      #
+      # `SetupGateService.managedDatabaseUrl()` is the ONE place that decides
+      # "the operator provided nothing, but the deployment did": if
+      # `MANAGED_GLOBAL_DB_URL` is set it is persisted as the node's
+      # `databaseUrl` with `databaseProvisioning: "external"`, so the API targets
+      # that database instead of provisioning its own.
+      #
+      # With it unset, setup creates its own `deployer-postgres` swarm task and
+      # TWO databases answer to the alias `global-db`:
+      #
+      #   nextjs-nestjs-global-db    172.27.0.4   ← compose, 0 tables, WINS
+      #   deployer-postgres.1.<id>   10.0.1.2     ← swarm, migrated, unreachable
+      #
+      # Services then resolved the empty one and produced ~3.5k
+      # `relation "docker_runtime_activities" does not exist`. The compose
+      # database must exist AND be the one setup migrates — one fix, two halves.
+      MANAGED_GLOBAL_DB_URL: postgresql://${MANAGED_GLOBAL_DB_USER:-deployer}:${MANAGED_GLOBAL_DB_PASSWORD:-deployer}@${MANAGED_GLOBAL_DB_HOST:-nextjs-nestjs-global-db}:5432/${MANAGED_GLOBAL_DB_NAME:-deployer}
+      # ── THE DASHBOARD'S INGRESS ROUTE ──────────────────────────────────
+      # Setup publishes `web.<host>` into the shared Traefik config volume at
+      # boot, and it needs the target to write. Nothing else writes that file —
+      # `PlatformPaths.webConfigFile()` is declared and called from nowhere — so
+      # without this the dashboard is unreachable from a browser while serving
+      # 200 on its own port:
+      #
+      #   docker port web-dev          → (no published port)
+      #   Host: web.deployer.localhost → 404
+      #   Host: setup.deployer.localhost → 200
+      #
+      # `web-dev` is the compose SERVICE name, which is what resolves on the
+      # platform network. The BFF already gets this (via the api-service anchor,
+      # where the API's own config service uses it after handover); setup needs
+      # its own copy because it writes the route BEFORE any handover runs.
+      DEPLOYER_WEB_TARGET: ${DEPLOYER_WEB_TARGET:-web-dev}
       # Compose owns the ingress here (`traefik:` above publishes :80), so setup
       # must not start one of its own — the entry port is exclusively bound. It
       # still ROUTES through it by writing `dynamic-setup.yml` into the shared
@@ -275,6 +453,22 @@ services:
       # This is the only web-side difference from the monolith profile, because the
       # front is already typed against `@deployer/bff-contracts`.
       API_URL: http://bff:${API_PORT:-3005}
+      # ── WEB DOES NOT BOOT BEFORE ONBOARDING ─────────────────────────────
+      # The entrypoint polls this until it answers 200, then starts the dev
+      # server. Before onboarding there is no database and no instance row, so a
+      # web server that started first only produced errors while the operator was
+      # still in the wizard.
+      #
+      # NOT a `depends_on`: that blocks `docker compose up -d` for the entire
+      # stack until a human finishes the form — measured, `up` timed out at 180s
+      # with every dependent service Waiting. The wait therefore lives in the
+      # entrypoint, where it delays only this app's dev server.
+      #
+      # The URL is the BFF's `/health/ready`, NOT `setup:3016/setup/health` — see
+      # the `x-onboarding-gate` definition at the top of this file. Setup is a
+      # ONE-SHOT app that stops itself after handover, so polling it meant a
+      # restarted `web-dev` waited on a process that no longer existed.
+      <<: *onboarding-gate
     networks:
       app_network_dev: {}
       deployer_platform: {}
@@ -304,7 +498,7 @@ services:
       service: drizzle-gateway
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-drizzle-gateway
     environment:
-      DATABASE_URL_Deployer: postgresql://${MANAGED_GLOBAL_DB_USER:-deployer}:${MANAGED_GLOBAL_DB_PASSWORD:-deployer}@global-db:5432/${MANAGED_GLOBAL_DB_NAME:-deployer}
+      DATABASE_URL_Deployer: postgresql://${MANAGED_GLOBAL_DB_USER:-deployer}:${MANAGED_GLOBAL_DB_PASSWORD:-deployer}@${MANAGED_GLOBAL_DB_HOST:-nextjs-nestjs-global-db}:5432/${MANAGED_GLOBAL_DB_NAME:-deployer}
     networks:
       shared: {}
 
@@ -323,6 +517,17 @@ networks:
   deployer_platform:
     name: deployer-platform
     driver: bridge
+  # ── THE SWARM OVERLAY, WHERE THE REAL DATABASE LIVES ───────────────────
+  # `external: true` because SWARM creates and owns this network, not compose.
+  # It matters here because the alias `global-db` resolves DIFFERENTLY per
+  # network: on the overlay it is the migrated swarm service (91 tables), on the
+  # bridge it is the compose container (0 tables). Attaching the services to the
+  # overlay is what makes every app address the same database the BFF uses,
+  # instead of the empty one they were flooding with `relation ... does not
+  # exist` queries.
+  #
+  # On a node with no swarm this network does not exist and compose refuses the
+  # whole project, so it is declared optional through the profile: the services
   app_network_dev:
     name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_app_network_dev
     driver: bridge
@@ -342,6 +547,17 @@ volumes:
     name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_local_db_data_dev
   api_uploads_dev:
     name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_api_uploads_dev
+  # ── The global Postgres data (COMPOSE-OWNED CLUSTER ONLY) ──────────────
+  # Its own volume, NOT `deployer_postgres_data`. Sharing that name with the
+  # swarm `deployer-postgres` service put two Postgres clusters on one data
+  # directory, which corrupted the WAL:
+  #
+  #   ERROR: xlog flush request 0/3372648 is not satisfied
+  #   FATAL: checkpoint request failed → global-db "Restarting (1)"
+  #
+  # See the volume comment in `common/database/global/docker-compose.config.yml`.
+  deployer_global_db_data:
+    name: deployer_global_db_data
   # ── Volumes the ingress + web apps mount ───────────────────────────────
   # Declared here because THIS file composes them; a service that mounts a volume
   # this file does not declare makes compose reject the whole project with

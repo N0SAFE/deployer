@@ -4,8 +4,8 @@ import {
     deploymentConnectivityStatusSchema,
     deploymentExecutionProgressSchema,
     deploymentObservabilityContextSchema,
-} from "@deployer/contracts-entities/entities/deployment/base.schema";
-import { deploymentExecutionStateSchema } from "@deployer/contracts-entities/entities/deployment/execution.schema";
+} from "./base.schema";
+import { deploymentExecutionStateSchema } from "./execution.schema";
 
 export const deploymentNodeLifecycleEventTypeSchema = z.enum([
     "start",

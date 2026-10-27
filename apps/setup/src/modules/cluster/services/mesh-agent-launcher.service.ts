@@ -7,8 +7,8 @@ import {
   meshAgentContainerEnv,
   type AgentStatus,
   type DockerodeLike,
-} from "@repo/mesh-network";
-import { DockerService } from "@repo/nest-docker/services/docker.service";
+} from "@deployer/mesh-network";
+import { DockerService } from "@deployer/nest-docker/services/docker.service";
 
 import { EnvService } from "@/config/env/env.module";
 
@@ -43,7 +43,7 @@ export class MeshAgentLauncherService {
   /** Ensure the agent container runs and answers on its socket. */
   async ensureRunning(): Promise<AgentStatus> {
     const outcome = await ensureMeshAgentContainer(
-      dockerodeAgentEngine(this.docker.getDockerClient() as unknown as DockerodeLike),
+      dockerodeAgentEngine(this.docker.getDockerClient()),
       { image: this.env.get("MESH_AGENT_IMAGE"), env: meshAgentContainerEnv({ dataplane: this.env.get("MESH_AGENT_DATAPLANE") }) },
     );
     if (outcome !== "running") this.logger.log(`Mesh agent ${outcome}`);

@@ -1,0 +1,51 @@
+{
+    "name": "@deployer/effect-core",
+    "version": "1.0.0",
+    "description": "Effect core primitives shared by every Effect-native service: Promise lifting that honours AbortSignal. Pure, runtime-agnostic.",
+    "main": "./dist/cjs/index.js",
+    "types": "./dist/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/types/index.d.ts",
+            "import": "./dist/esm/index.mjs",
+            "require": "./dist/cjs/index.js"
+        },
+        "./*": {
+            "types": "./dist/types/*.d.ts",
+            "import": "./dist/esm/*.mjs",
+            "require": "./dist/cjs/*.js"
+        }
+    },
+    "scripts": {
+        "prettify": "bun fmt .",
+        "format": "bun run prettify",
+        "format:check": "bun fmt --check .",
+        "lint": "bun lint --no-script --type-aware",
+        "lint:fix": "bun lint --no-script --fix --type-aware",
+        "lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
+        "type-check": "bun check --no-script",
+        "test": "bun --bun vitest run",
+        "test:watch": "bun --bun vitest",
+        "build": "bun --bun pkg-build",
+        "dev": "bun --bun pkg-build --watch",
+        "clean": "rimraf dist",
+        "build:types": "bun --bun pkg-build --types"
+    },
+    "dependencies": {
+        "effect": "catalog:effect"
+    },
+    "devDependencies": {
+        "@deployer/config-eslint": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-typescript": "*",
+        "@deployer/pkg-build": "*",
+        "@types/bun": "catalog:build",
+        "@types/node": "catalog:build",
+        "chokidar": "catalog:build",
+        "eslint": "catalog:linting",
+        "rimraf": "catalog:build",
+        "typescript": "catalog:build",
+        "vitest": "catalog:testing"
+    },
+    "module": "./dist/esm/index.mjs"
+}

@@ -1,5 +1,5 @@
 {
-    "name": "@repo/use-safe-query-param-states-from-zod",
+    "name": "@deployer/use-safe-query-param-states-from-zod",
     "version": "0.1.0",
     "private": true,
     "sideEffects": false,
@@ -34,11 +34,13 @@
         }
     },
     "scripts": {
-        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "prettify": "bun fmt .",
         "format": "bun run prettify",
-        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "lint": "eslint . --fix --cache",
-        "type-check": "tsc --noEmit",
+        "format:check": "bun fmt --check .",
+        "lint": "bun lint --no-script --type-aware",
+        "lint:fix": "bun lint --no-script --fix --type-aware",
+        "lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
+        "type-check": "bun check --no-script",
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
@@ -48,15 +50,15 @@
         "build:types": "bun --bun pkg-build --types"
     },
     "dependencies": {
-        "@repo/type-guards": "*",
+        "@deployer/type-guards": "*",
         "nuqs": "catalog:web",
         "zod": "catalog:utils"
     },
     "devDependencies": {
-        "@repo/config-eslint": "*",
-        "@repo/config-prettier": "*",
-        "@repo/config-typescript": "*",
-        "@repo/config-vitest": "*",
+        "@deployer/config-eslint": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-typescript": "*",
+        "@deployer/config-vitest": "*",
         "@types/node": "catalog:build",
         "@types/react": "catalog:react",
         "@vitest/coverage-v8": "catalog:testing",
@@ -65,7 +67,7 @@
         "react": "catalog:react",
         "vitest": "catalog:testing",
         "typescript": "catalog:build",
-        "@repo/pkg-build": "*"
+        "@deployer/pkg-build": "*"
     },
     "peerDependencies": {
         "next": ">=15.0.0",

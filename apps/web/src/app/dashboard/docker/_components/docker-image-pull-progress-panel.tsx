@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef } from 'react'
-import { Badge } from '@repo/ui/components/shadcn/badge'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { AlertCircle, CheckCircle2, Download, Loader2, XCircle } from 'lucide-react'
 
 export interface DockerPullLayerRow {
@@ -76,7 +76,7 @@ export function DockerImagePullProgressPanel({
       return 'text-indigo-400'
     }
 
-    return 'text-zinc-500'
+    return 'text-zinc-400'
   }
 
   function shouldSpin(status: DockerPullLayerRow['status']): boolean {
@@ -123,12 +123,12 @@ export function DockerImagePullProgressPanel({
           <div className="flex items-center justify-between gap-2">
             <div className="inline-flex items-center gap-2">{statusNode}</div>
             {totalLayers > 0 ? (
-              <Badge variant="secondary" className="text-[10px]">{completedLayers}/{totalLayers}</Badge>
+              <Badge variant="secondary" className="text-xs">{completedLayers}/{totalLayers}</Badge>
             ) : null}
           </div>
 
           <div className="space-y-1">
-            <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
               <span>Overall progress</span>
               <span>{pullProgress}%</span>
             </div>
@@ -141,11 +141,11 @@ export function DockerImagePullProgressPanel({
           </div>
 
           {statusMessage ? (
-            <p className="text-[11px] text-muted-foreground truncate">{statusMessage}</p>
+            <p className="text-xs text-muted-foreground truncate">{statusMessage}</p>
           ) : null}
 
           {pullErrorMessage ? (
-            <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-[11px] text-destructive inline-flex items-start gap-2">
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive inline-flex items-start gap-2">
               <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
               <span className="break-all">{pullErrorMessage}</span>
             </div>
@@ -166,9 +166,9 @@ export function DockerImagePullProgressPanel({
                       ) : (
                         <Loader2 className={`h-3.5 w-3.5 shrink-0 ${layerTone(layer.status)} ${shouldSpin(layer.status) ? 'animate-spin' : ''}`} />
                       )}
-                      <code className="w-20 shrink-0 font-mono text-[10px]">{layer.digest.slice(0, 12)}</code>
-                      <span className={`min-w-0 truncate text-[11px] ${layerTone(layer.status)}`}>{layer.status}</span>
-                      <span className="ml-auto text-[10px] text-muted-foreground">{layer.progress}%</span>
+                      <code className="w-20 shrink-0 font-mono text-xs">{layer.digest.slice(0, 12)}</code>
+                      <span className={`min-w-0 truncate text-xs ${layerTone(layer.status)}`}>{layer.status}</span>
+                      <span className="ml-auto text-xs text-muted-foreground">{layer.progress}%</span>
                     </div>
 
                     {(layer.status === 'downloading' || layer.status === 'extracting') ? (
@@ -180,7 +180,7 @@ export function DockerImagePullProgressPanel({
                       </div>
                     ) : null}
 
-                    <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+                    <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
                       <span className="truncate">{layer.instruction}</span>
                       <span className="shrink-0">{layer.size}</span>
                     </div>
@@ -197,17 +197,17 @@ export function DockerImagePullProgressPanel({
       <div className="rounded-xl border overflow-hidden min-h-0 flex flex-col bg-background">
         <div className="shrink-0 border-b px-3 py-2 flex items-center justify-between">
           <p className="text-xs font-medium">Pull activity</p>
-          <Badge variant="outline" className="text-[10px]">{pullRuntimeEventCount} pull lines</Badge>
+          <Badge variant="outline" className="text-xs">{pullRuntimeEventCount} pull lines</Badge>
         </div>
         <div ref={activityViewportRef} className="flex-1 min-h-0 overflow-auto bg-black/85 p-2 space-y-1">
           {pullTimelineRows.length > 0 ? pullTimelineRows.map((row, index) => (
-            <div key={`${row.at}-${row.type}-${String(index)}`} className="font-mono text-[11px] leading-5 text-emerald-300">
+            <div key={`${row.at}-${row.type}-${String(index)}`} className="font-mono text-xs leading-5 text-emerald-300">
               <span className="text-emerald-500">[{toClock(row.at)}]</span>{' '}
               <span className="text-amber-300">{row.type}</span>{' '}
               {row.message}
             </div>
           )) : (
-            <p className="font-mono text-[11px] text-zinc-500">Waiting for pull activity…</p>
+            <p className="font-mono text-xs text-zinc-400">Waiting for pull activity…</p>
           )}
         </div>
       </div>

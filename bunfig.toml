@@ -7,3 +7,32 @@ bun = true
 # Explicitly set the linker to isolated
 linker = "isolated"
 prefere = "offline"
+globalStore = true
+
+
+[lint]
+# Nearest `bunfig.toml` with a `[lint]` section wins, so every workspace under this
+# repo inherits these defaults while keeping its own `eslint.config.ts` policy.
+# A workspace that needs something different adds its own `bunfig.toml`; the
+# per-workspace ESLint config still takes precedence over `[lint.rules]` here.
+#
+# `@darraghor/nestjs-typed` ships two rules that call `getTypeAtLocation`, and a
+# rule that runs in JavaScript cannot reach Bun's type information. Without this
+# key Bun exits 2 on every NestJS workspace ("2 rules did not run because rules
+# that run in JavaScript cannot use type information"), which would turn a green
+# lint into a hard failure. Both rules report ZERO problems across the whole repo
+# under ESLint 10 with full type information, so the downgrade costs nothing
+# today; the warning stays visible in every run. Remove this key if the plugin
+# ever gains type information access, i.e. when Bun can pass types to plugins.
+allowUnsupported = true
+
+# Ignore build output that a workspace may not have listed itself. `bun lint`
+# already skips `node_modules` and everything in `.gitignore` (which covers
+# `dist/`), so this only guards the cases where a workspace lints its own
+# generated directories.
+ignorePatterns = [
+    "**/dist/**",
+    "**/.next/**",
+    "**/.source/**",
+    "**/coverage/**",
+]

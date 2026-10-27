@@ -2,7 +2,7 @@ import React from 'react';
 import { renderToString, renderToPipeableStream } from 'react-dom/server';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PageContextProvider, NavigationProvider } from '@nestjs-ssr/react/client';
-import ThemeProvider from '@repo/ui/components/theme-provider';
+import ThemeProvider from '@deployer/ui/components/theme-provider';
 
 /** Fresh React Query client per SSR render (no cross-request cache). */
 function createSsrQueryClient(): QueryClient {
@@ -51,7 +51,7 @@ export function getRootLayout(): React.ComponentType<any> | null {
 function composeWithLayouts(
   ViewComponent: React.ComponentType<any>,
   props: any,
-  layouts: Array<{ layout: React.ComponentType<any>; props?: any }> = [],
+  layouts: { layout: React.ComponentType<any>; props?: any }[] = [],
   context?: any,
 ): React.ReactElement {
   // Start with the page component

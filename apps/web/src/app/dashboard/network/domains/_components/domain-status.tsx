@@ -1,5 +1,5 @@
 import { CheckCircle2, Clock, Loader2, XCircle } from 'lucide-react'
-import { Badge } from '@repo/ui/components/shadcn/badge'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
 import type { ReachabilityState } from './domain-types'
 
 /** Ownership verification as a badge: colour, icon and text. */

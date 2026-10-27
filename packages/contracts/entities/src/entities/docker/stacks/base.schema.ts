@@ -1,5 +1,5 @@
 import z from 'zod/v4'
-import { dockerContainerStatusSchema } from '@deployer/contracts-entities/entities/docker/common.schema'
+import { dockerContainerStatusSchema } from '../common.schema'
 
 export const dockerStackStatusSchema = z.enum(['healthy', 'degraded', 'failed', 'provisioning', 'paused', 'unknown'])
 export type DockerStackStatus = z.infer<typeof dockerStackStatusSchema>

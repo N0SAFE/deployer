@@ -110,7 +110,7 @@ function testProjectStructure(): void {
     'turbo.json',
     'docker-compose.yml',
     'apps/web/package.json',
-    'apps/api/package.json',
+    'apps/api/bff/package.json',
     '.github/workflows/copilot-setup-steps.yml',
   ]
 

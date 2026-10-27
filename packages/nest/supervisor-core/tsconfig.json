@@ -6,7 +6,7 @@
     ],
     "compilerOptions": {
         "paths": {
-            "@repo/nest-supervisor-core/*": [
+            "@deployer/nest-supervisor-core/*": [
                 "./src/*"
             ]
         }

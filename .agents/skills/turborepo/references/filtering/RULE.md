@@ -16,7 +16,7 @@ This compares your current branch to the default branch (usually `main` or `mast
 
 ### Why Include Dependents?
 
-If you change `@repo/ui`, packages that import `@repo/ui` (like `apps/web`) need to re-run their tasks to verify they still work with the changes.
+If you change `@deployer/ui`, packages that import `@deployer/ui` (like `apps/web`) need to re-run their tasks to verify they still work with the changes.
 
 ### Customizing --affected
 

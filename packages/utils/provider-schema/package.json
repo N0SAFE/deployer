@@ -1,5 +1,5 @@
 {
-    "name": "@repo/provider-schema",
+    "name": "@deployer/provider-schema",
     "version": "0.0.0",
     "private": true,
     "type": "module",
@@ -33,23 +33,26 @@
         }
     },
     "scripts": {
-        "type-check": "tsc --noEmit",
+        "type-check": "bun check --no-script",
         "test": "vitest run",
+        "prettify": "bun fmt .",
+        "format": "bun run prettify",
+        "format:check": "bun fmt --check .",
         "build": "bun --bun pkg-build",
         "dev": "bun --bun pkg-build --watch",
         "clean": "rimraf dist",
         "build:types": "bun --bun pkg-build --types"
     },
     "dependencies": {
-        "@repo/type-guards": "*",
+        "@deployer/type-guards": "*",
         "zod": "catalog:utils"
     },
     "devDependencies": {
-        "@repo/config-typescript": "*",
+        "@deployer/config-typescript": "*",
         "vitest": "catalog:testing",
         "@vitest/coverage-v8": "catalog:testing",
         "typescript": "catalog:build",
-        "@repo/pkg-build": "*"
+        "@deployer/pkg-build": "*"
     },
     "module": "./dist/esm/index.mjs"
 }

@@ -1,6 +1,6 @@
 import z from "zod/v4";
 
-import { routeVisibilitySchema } from "@deployer/contracts-entities/entities/ingress/lanes.schema";
+import { routeVisibilitySchema } from "../ingress/lanes.schema";
 
 /**
  * Network Configuration — provider-backed networking for projects & services.

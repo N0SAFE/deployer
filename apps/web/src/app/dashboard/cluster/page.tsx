@@ -3,23 +3,23 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AuthDashboardNodesNodeId } from '@/routes'
-import { Badge } from '@repo/ui/components/shadcn/badge'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@repo/ui/components/shadcn/card'
+} from '@deployer/ui/components/shadcn/card'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@repo/ui/components/shadcn/select'
-import { Switch } from '@repo/ui/components/shadcn/switch'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
+} from '@deployer/ui/components/shadcn/select'
+import { Switch } from '@deployer/ui/components/shadcn/switch'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
 import { Crown, Globe, HardDrive, Info, Network, Server, ShieldCheck } from 'lucide-react'
 import { PageHeader, PageLoadingState, PageErrorState, StatStrip, StatStripItem, StatusBadge } from '@/components/dashboard'
 import { MeshPulse } from '@/components/dashboard/MeshPulse'

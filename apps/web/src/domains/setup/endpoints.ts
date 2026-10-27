@@ -1,7 +1,7 @@
 import { orpc } from "@/lib/orpc";
 
 /**
- * Setup contract endpoints — matches the canonical setupContract from @repo/api-contracts.
+ * Setup contract endpoints — matches the canonical setupContract from @deployer/bff-contracts.
  *
  * Available endpoints:
  * - getState              → SetupStateSnapshot (check if setup is needed)

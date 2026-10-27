@@ -41,7 +41,7 @@ export {
     type RouteMetadata,
     type InferSchemaInput,
     type InferSchemaOutput,
-} from "@repo/orpc-utils/operations/base/types";
+} from "@deployer/orpc-utils/operations/base/types";
 
 // Schema factory functions
 export {
@@ -72,10 +72,10 @@ export {
     coerceNumber,
     coerceBoolean,
     isoDatetime,
-} from "@repo/orpc-utils/operations/base/schema";
+} from "@deployer/orpc-utils/operations/base/schema";
 
 // Query utilities
-export * from "@repo/orpc-utils/operations/base/utils/index";
+export * from "@deployer/orpc-utils/operations/base/utils/index";
 
 // Standard operations
-export type { EntityOperationOptions, ListOperationOptions, ListPlainOptions } from "@repo/orpc-utils/operations/base/standard-operations";
+export type { EntityOperationOptions, ListOperationOptions, ListPlainOptions } from "@deployer/orpc-utils/operations/base/standard-operations";

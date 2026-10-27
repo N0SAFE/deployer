@@ -1,8 +1,8 @@
 'use client'
 
-import type { DockerRuntimeActivityEntity } from '@repo/contracts-entities'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
+import type { DockerRuntimeActivityEntity } from '@deployer/contracts-entities'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
 import { StatusBadge } from '@/components/dashboard'
 import { cn } from '@/lib/utils'
 import { DockerRelativeTime } from '../../_components/docker-relative-time'

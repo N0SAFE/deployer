@@ -22,8 +22,8 @@ import {
   SidebarMenuItem,
   SidebarRail,
   SidebarSeparator,
-} from '@repo/ui/components/shadcn/sidebar'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+} from '@deployer/ui/components/shadcn/sidebar'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 
 /**
  * DashboardSidebarSkeleton - Static skeleton for the dashboard sidebar

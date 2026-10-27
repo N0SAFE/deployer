@@ -9,7 +9,7 @@ import type {
   DockerImageInspectDetail,
   DockerImageSecurityScanEvent,
   DockerVulnerabilityEntry,
-} from '@repo/contracts-entities'
+} from '@deployer/contracts-entities'
 import {
   SECURITY_SCAN_EVENT_LIMIT,
   SECURITY_SCAN_SCANNERS,

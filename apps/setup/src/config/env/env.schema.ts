@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { booleanEnv } from "@repo/env";
+import { booleanEnv } from "@deployer/env";
 
 /**
  * The setup app's OWN environment contract.
@@ -10,7 +10,7 @@ import { booleanEnv } from "@repo/env";
  * one schema between the two apps would mean each one validating (and
  * requiring defaults for) variables it never uses.
  *
- * This file is the reason `@repo/nest-env` takes a schema instead of shipping
+ * This file is the reason `@deployer/nest-env` takes a schema instead of shipping
  * one: the mechanism is shared, the contract is not.
  */
 export const setupEnvSchema = z.object({
@@ -169,8 +169,39 @@ export const setupEnvSchema = z.object({
    */
   MANAGED_GLOBAL_DB_URL: z.string().optional(),
 
-  /** The image tag setup schedules on the swarm in prod mode. */
-  DEPLOYER_API_IMAGE: z.string().optional(),
+  /**
+   * ── THE MICROSERVICES TIER ────────────────────────────────────────────────
+   * In prod, onboarding schedules the BFF plus the five services and hands over to
+   * the BFF. `DEPLOYER_BFF_IMAGE` is REQUIRED then (`ApiServiceProvisioner` refuses
+   * to hand over without it); the schema keeps it optional so a dev stack, where
+   * compose owns the tier, need not set it. The per-service tags are separate so one service
+   * can be pinned without rebuilding the other five (`DEPLOYER_SVC_FLEET_IMAGE`,
+   * …). They are produced by the compose `build-svc-*` services in
+   * `docker-compose.services.dev-supervised.yml`.
+   */
+  DEPLOYER_BFF_IMAGE: z.string().optional(),
+  DEPLOYER_SVC_HEALTH_IMAGE: z.string().optional(),
+  DEPLOYER_SVC_IDENTITY_IMAGE: z.string().optional(),
+  DEPLOYER_SVC_PROJECT_IMAGE: z.string().optional(),
+  DEPLOYER_SVC_FLEET_IMAGE: z.string().optional(),
+  DEPLOYER_SVC_RUNTIME_IMAGE: z.string().optional(),
+  /**
+   * Replica count for every scheduled service in the tier.
+   *
+   * Default 1: each app holds SSE streams and an in-memory event bus, so more
+   * replicas need sticky routing that does not exist yet. The operator can raise
+   * it; the tier stays CORRECT at 1, which is the property that matters.
+   */
+  DEPLOYER_SVC_REPLICAS: z.coerce.number().int().positive().default(1),
+  /**
+   * Per-service port overrides, as a JSON map (`{"project":3203}`).
+   *
+   * Read by BOTH sides from this one value: the port setup passes to the service
+   * it schedules, and the port the BFF dials (`apiServicePort()` reads the same
+   * variable). Two independent defaults would let a service bind 3102 while the
+   * BFF dialled something else.
+   */
+  API_SERVICE_PORTS: z.string().optional(),
 
   /**
    * The images for the services the API CONVERGES once it is running.
@@ -191,14 +222,57 @@ export const setupEnvSchema = z.object({
    * "the image compose built" and "the image the platform runs" the same thing.
    */
   MANAGED_WEB_APP_IMAGE: z.string().optional(),
+  /**
+   * Whether the platform runs its own dashboard as a supervised service.
+   *
+   * Forwarded by `ServicesTierProvisioner` into the tier it schedules. Optional
+   * because "unset" is a real answer — it means "leave the deployment's own
+   * default alone", which is what a compose-owned dashboard wants.
+   */
+  MANAGED_WEB_APP_ENABLED: booleanEnv().optional(),
+  /**
+   * Whether the dashboard is served by somebody OTHER than the platform.
+   *
+   * Forwarded beside `MANAGED_WEB_APP_ENABLED` because the BFF's resolver reads the
+   * two in a fixed order: `EXTERNAL` is checked FIRST and a truthy value returns
+   * `null` immediately, so `ENABLED` is only consulted when `EXTERNAL` is falsy.
+   *
+   * The BFF's own schema DEFAULTS this to true (correct everywhere compose runs the
+   * web itself). So a supervised run that forwarded `ENABLED` alone got
+   * `resolveWebTarget() === null` from the unforwarded default: the managed-web
+   * supervisor still created the service — it reads `ENABLED`, which did arrive —
+   * but no `dynamic-web.yml` was ever written and `web.<host>` answered 000/502
+   * while every service reported 1/1.
+   */
+  MANAGED_WEB_APP_EXTERNAL: booleanEnv().optional(),
   DEPLOYER_REDIS_IMAGE: z.string().optional(),
   DEPLOYER_DIRECT_PROXY_IMAGE: z.string().optional(),
 
-  /** How many API replicas to schedule. */
-  DEPLOYER_API_REPLICAS: z.coerce.number().int().positive().default(1),
-
   /** Tenant prefix for hostname and network naming. */
   DEPLOYER_PREFIX: z.string().default(""),
+  /**
+   * Which bootstrap an admin gets on a supervised node (`auto`, `true`, `false`).
+   *
+   * Forwarded by `ServicesTierProvisioner` into the tier it schedules: a swarm
+   * task inherits nothing, so an unset value would fall back to the app's own
+   * default and quietly ignore the operator's choice.
+   */
+  ADMIN_BOOTSTRAP: z.string().optional(),
+  /** The seeded admin, forwarded to the scheduled tier for the same reason. */
+  DEFAULT_ADMIN_EMAIL: z.string().optional(),
+  DEFAULT_ADMIN_PASSWORD: z.string().optional(),
+
+  /**
+   * The container that serves the dashboard, on the platform network.
+   *
+   * Compose-owned deployments set this to the compose service name (`web-dev`);
+   * a managed-web deployment leaves it empty and the API supervises one instead.
+   * The setup app reads it to publish the `web.<host>` ingress route — nothing
+   * else writes that file (`PlatformPaths.webConfigFile()` is declared but
+   * called from nowhere), so without this key the dashboard has no router at all
+   * and the browser gets a Traefik 404 while the container serves 200 happily.
+   */
+  DEPLOYER_WEB_TARGET: z.string().optional(),
 
   /**
    * The volume holding the shared SQLite node state, mounted into the API task.

@@ -8,9 +8,9 @@
  * - `cluster.schema.ts` — platform cluster state (inventory/election/membership)
  */
 
-export * from '@deployer/contracts-entities/entities/swarm/dockerode.schema'
-export * from '@deployer/contracts-entities/entities/swarm/service.spec.schema'
-export * from '@deployer/contracts-entities/entities/swarm/inspect.schema'
-export * from '@deployer/contracts-entities/entities/swarm/cluster.schema'
-export * from '@deployer/contracts-entities/entities/swarm/swarm-config.schema'
-export * from '@deployer/contracts-entities/entities/swarm/compose-model.schema'
+export * from './dockerode.schema'
+export * from './service.spec.schema'
+export * from './inspect.schema'
+export * from './cluster.schema'
+export * from './swarm-config.schema'
+export * from './compose-model.schema'

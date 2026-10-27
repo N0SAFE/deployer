@@ -7,7 +7,7 @@ import {
   templateUpdateInputSchema,
   templateMigrationDirectionSchema,
   templateVersionMigrationPreviewInputSchema,
-} from '@deployer/contracts-entities/entities/template/index'
+} from '@/entities/template/index'
 
 const providerId = providersCatalog[0]?.id
 const builderId = buildersCatalog[0]?.id

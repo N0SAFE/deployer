@@ -234,7 +234,7 @@ export function mergeByEventKeys<const K extends readonly MeshEventKey[]>(
 ### 5) Base service for all mesh actions
 
 ```ts
-// apps/api/src/core/modules/mesh/services/base-mesh.service.ts
+// apps/api/shared/src/core/modules/mesh/services/base-mesh.service.ts
 import { Injectable } from "@nestjs/common";
 import type { Observable } from "rxjs";
 import { map } from "rxjs/operators";
@@ -264,7 +264,7 @@ export abstract class BaseMeshService {
 ### 6) Feature service extends base service (business aware)
 
 ```ts
-// apps/api/src/modules/deployment/mesh/deployment-mesh.service.ts
+// apps/api/services/runtime/src/modules/deployment/mesh/services/deployment-mesh.service.ts
 @Injectable()
 export class DeploymentMeshService extends BaseMeshService {
   streamDeploymentSignals(input: { deploymentId: string; headers: Headers }) {
@@ -329,8 +329,8 @@ The example below shows the exact boundary split:
 ```ts
 // packages/contracts/api/modules/deployment/stream.ts
 import { z } from "zod/v4";
-import { standard } from "@repo/orpc-utils";
-import { deploymentEventSchema } from "@repo/api-contracts/common/deployment";
+import { standard } from "@deployer/orpc-utils";
+import { deploymentEventSchema } from "@deployer/contracts-common/common/deployment";
 
 const deploymentOps = standard.zod(z.object({ id: z.string() }), "deployment");
 
@@ -374,7 +374,7 @@ export type MeshOpenBridgeInput = z.infer<typeof meshOpenBridgeInputSchema>;
 ### 3) Mesh runtime service (core transport concern only)
 
 ```ts
-// apps/api/src/core/modules/mesh/services/mesh-stream-runtime.service.ts
+// apps/api/shared/src/core/modules/mesh/services/mesh-stream-runtime.service.ts
 import { Injectable } from "@nestjs/common";
 import { Observable } from "rxjs";
 
@@ -453,7 +453,7 @@ export class DeploymentStreamOrchestrator {
 ### 5) Thin controller (no mesh transport implementation details)
 
 ```ts
-// apps/api/src/modules/deployment/controllers/deployment.controller.ts
+// apps/api/services/runtime/src/modules/deployment/controllers/deployment.controller.ts
 @Implement(appContract.deployment.stream)
 stream() {
   return implement(appContract.deployment.stream)

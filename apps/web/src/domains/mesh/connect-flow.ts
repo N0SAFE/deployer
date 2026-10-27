@@ -1,6 +1,6 @@
 "use client";
 
-import { isRecord, isObjectLike } from "@repo/type-guards"
+import { isRecord } from "@deployer/type-guards"
 
 export interface MeshRemoteSessionPayload {
   serverUrl: string;

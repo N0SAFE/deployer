@@ -61,18 +61,18 @@ describe("IngressHandoverService", () => {
 
   describe("pointApiAt", () => {
     it("creates the api router pointing at the backend", async () => {
-      await ingress.pointApiAt("http://api-dev:3005");
+      await ingress.pointApiAt("http://bff:3005");
 
       const yaml = await read("dynamic-api.yml");
 
       expect(yaml).toContain("platform-api:");
-      expect(yaml).toContain("http://api-dev:3005");
+      expect(yaml).toContain("http://bff:3005");
       expect(yaml).toContain("Host(`api.deployer.localhost`)");
     });
 
     it("RETARGETS rather than appending, keeping one router per name", async () => {
-      await ingress.pointApiAt("http://api-dev:3005");
-      await ingress.pointApiAt("http://deployer-api:3005");
+      await ingress.pointApiAt("http://bff:3005");
+      await ingress.pointApiAt("http://svc-bff:3005");
 
       const yaml = await read("dynamic-api.yml");
 
@@ -80,12 +80,12 @@ describe("IngressHandoverService", () => {
       // NEW backend. Two `platform-api` routers would be a Traefik config error,
       // and the old backend would keep winning on reload order.
       expect(yaml?.match(/platform-api:/g)).toHaveLength(1);
-      expect(yaml).toContain("http://deployer-api:3005");
-      expect(yaml).not.toContain("http://api-dev:3005");
+      expect(yaml).toContain("http://svc-bff:3005");
+      expect(yaml).not.toContain("http://bff:3005");
     });
 
     it("leaves no temp file behind", async () => {
-      await ingress.pointApiAt("http://api-dev:3005");
+      await ingress.pointApiAt("http://bff:3005");
 
       // The write is temp-file + rename for atomicity; a leftover `.tmp` would
       // be a file Traefik's watcher might read and fail on.
@@ -120,7 +120,7 @@ describe("IngressHandoverService", () => {
 
     it("is superseded by the done-page write rather than leaving two routers", async () => {
       await ingress.pointSetupAtSelf();
-      await ingress.pointSetupAtDonePage("http://deployer-api:3005");
+      await ingress.pointSetupAtDonePage("http://svc-bff:3005");
 
       const yaml = await read("dynamic-setup.yml");
 
@@ -145,7 +145,7 @@ describe("IngressHandoverService", () => {
 
   describe("pointSetupAtDonePage", () => {
     it("points the setup host at the API's done page", async () => {
-      await ingress.pointSetupAtDonePage("http://deployer-api:3005");
+      await ingress.pointSetupAtDonePage("http://svc-bff:3005");
 
       const yaml = await read("dynamic-setup.yml");
 
@@ -153,11 +153,11 @@ describe("IngressHandoverService", () => {
       expect(yaml).toContain("Host(`setup.deployer.localhost`)");
       // The path matters as much as the host: this is the ROUTE the redirect
       // sends the operator to, so it must be the controller's actual path.
-      expect(yaml).toContain("http://deployer-api:3005/setup/done");
+      expect(yaml).toContain("http://svc-bff:3005/setup/done");
     });
 
     it("gives the setup router a priority above the API console router", async () => {
-      await ingress.pointSetupAtDonePage("http://deployer-api:3005");
+      await ingress.pointSetupAtDonePage("http://svc-bff:3005");
 
       const yaml = await read("dynamic-setup.yml");
 
@@ -171,9 +171,9 @@ describe("IngressHandoverService", () => {
 
   describe("document shape", () => {
     it("declares exactly one http root, which Traefik requires", async () => {
-      await ingress.pointApiAt("http://api-dev:3005");
+      await ingress.pointApiAt("http://bff:3005");
       const api = await read("dynamic-api.yml");
-      await ingress.pointSetupAtDonePage("http://api-dev:3005");
+      await ingress.pointSetupAtDonePage("http://bff:3005");
       const setup = await read("dynamic-setup.yml");
 
       // Traefik's file provider rejects a document with two `http:` keys, so a
@@ -183,7 +183,7 @@ describe("IngressHandoverService", () => {
     });
 
     it("emits a service for every router, so no rule dangles", async () => {
-      await ingress.pointApiAt("http://api-dev:3005");
+      await ingress.pointApiAt("http://bff:3005");
       const yaml = await read("dynamic-api.yml");
 
       // A router naming a service that does not exist is a Traefik error that

@@ -4,9 +4,8 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { clusterEndpoints } from "./endpoints";
 import { clusterInvalidations } from "./invalidations";
 import { wrapWithInvalidations } from "@/domains/shared/helpers";
-import type { ClusterMasterView, ClusterNodeInventoryRow } from "@repo/api-contracts";
-import type { ClusterSnapshot, SwarmConfigView, SwarmNodeResources, SwarmServiceRuntime, SwarmTaskRuntime } from "@repo/contracts-entities";
-import type { SwarmParticipationInput } from "@repo/contracts-entities";
+import type { SwarmConfigView } from "@deployer/contracts-entities";
+import type { SwarmParticipationInput } from "@deployer/contracts-entities";
 
 const enhancedCluster = wrapWithInvalidations(clusterEndpoints, clusterInvalidations);
 
@@ -35,7 +34,7 @@ export function useClusterSnapshot(options?: { enabled?: boolean }) {
   )
 
   // Use stream data when available, fall back to REST query data
-  const streamData = streamResult.data as ClusterSnapshot | undefined
+  const streamData = streamResult.data
   const data = streamData ?? queryResult.data
 
   return {
@@ -68,7 +67,7 @@ export function useClusterNodes(
     }),
   )
 
-  const streamData = streamResult.data as ClusterNodeInventoryRow[] | undefined
+  const streamData = streamResult.data
   const data = streamData ?? queryResult.data
 
   return {
@@ -97,7 +96,7 @@ export function useClusterMaster(options?: { enabled?: boolean }) {
     }),
   )
 
-  const streamData = streamResult.data as ClusterMasterView | undefined
+  const streamData = streamResult.data
   const data = streamData ?? queryResult.data
 
   return {
@@ -157,7 +156,7 @@ export function useClusterServices(options?: { enabled?: boolean }) {
     }),
   )
 
-  const streamData = streamResult.data as SwarmServiceRuntime[] | undefined
+  const streamData = streamResult.data
   const data = streamData ?? queryResult.data
 
   return {
@@ -200,7 +199,7 @@ export function useClusterTasks(
     }),
   )
 
-  const streamData = streamResult.data as SwarmTaskRuntime[] | undefined
+  const streamData = streamResult.data
   const data = streamData ?? queryResult.data
 
   return {
@@ -230,7 +229,7 @@ export function useNodeResources(nodeId: string, options?: { enabled?: boolean }
     }),
   )
 
-  const streamData = streamResult.data as SwarmNodeResources | undefined
+  const streamData = streamResult.data
   const data = streamData ?? queryResult.data
 
   return {

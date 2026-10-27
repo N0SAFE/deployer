@@ -5,7 +5,7 @@
  * zero behavior change when used (it is the default).
  */
 
-import type { AnySchema } from "@repo/orpc-utils/types/types";
+import type { AnySchema } from "@deployer/orpc-utils/types/types";
 import type {
     ObjectSchema,
     OptionalSchema,
@@ -14,7 +14,7 @@ import type {
     NeverSchema,
     SchemaShape,
     ShouldBeOptional,
-} from "@repo/orpc-utils/types/standard-schema-helpers";
+} from "@deployer/orpc-utils/types/standard-schema-helpers";
 import {
     objectSchema,
     emptyObjectSchema,
@@ -28,9 +28,9 @@ import {
     isVoidSchema,
     isNeverSchema,
     getSchemaShape,
-} from "@repo/orpc-utils/types/standard-schema-helpers";
-import { BasePluginTransformer, type PluginInfer } from "@repo/orpc-utils/builder/plugin/base";
-import { DetailedInputBrand, DetailedOutputBrand } from "@repo/orpc-utils/builder/core/route-builder";
+} from "@deployer/orpc-utils/types/standard-schema-helpers";
+import { BasePluginTransformer, type PluginInfer } from "@deployer/orpc-utils/builder/plugin/base";
+import { DetailedInputBrand, DetailedOutputBrand } from "@deployer/orpc-utils/builder/core/route-builder";
 
 /**
  * Standard plugin type-level schema ops (today's behavior).

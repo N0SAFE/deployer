@@ -303,7 +303,7 @@ Heaviest concentrations:
 
 Knip `--production` flagged **150 unused dependencies** across all packages. Key patterns:
 
-### 5.1 `@repo/type-guards` Listed but Not Used
+### 5.1 `@deployer/type-guards` Listed but Not Used
 
 Present in **13 package.json files** as a dependency but not directly imported in several:
 - `tooling/vitest/`, `packages/contracts/api/`, `packages/contracts/common/`, `packages/contracts/entities/`, `packages/types/`, `packages/utils/config-schema/`, `packages/config/env/`, `packages/infrastructure/logger/`, `packages/utils/provider-schema/`, `tooling/bin-declarative-routing/`, `tooling/bin-runthenkill/`, etc.
@@ -355,7 +355,7 @@ Present in **13 package.json files** as a dependency but not directly imported i
 - Uses bare `nest build` without `bun --bun`
 - Not referenced in any docker-compose file
 - Not in turbo.json pipeline
-- Package name: not in `@repo/` namespace
+- Package name: not in `@deployer/` namespace
 - Its `test/app.e2e-spec.ts` is flagged as unused by knip
 
 ### 6.2 `apps/observable-poc/` — Standalone POC
@@ -368,7 +368,7 @@ Present in **13 package.json files** as a dependency but not directly imported i
 
 ### 6.3 `packages/poc/core-sync-system/` — Standalone POC Package
 
-- Has a consumer: `@repo/type-guards` dependency but is itself never imported
+- Has a consumer: `@deployer/type-guards` dependency but is itself never imported
 - No evidence it's used in any app
 
 ### 6.4 Load Balancer Status
@@ -450,7 +450,7 @@ Knip found **16 duplicate export names** across schemas, including:
     - `packages/auth/` (auth utilities)
     - These should be consolidated into ONE source of truth.
 
-21. **Clean unused type-guards deps** — `@repo/type-guards` is in 13 package.json files. Several packages list it but don't use it. Audit and remove where unnecessary.
+21. **Clean unused type-guards deps** — `@deployer/type-guards` is in 13 package.json files. Several packages list it but don't use it. Audit and remove where unnecessary.
 
 22. **Run Knip pre-commit** — Add knip to CI to prevent dead code accumulation.
 
@@ -481,7 +481,7 @@ Knip found **16 duplicate export names** across schemas, including:
 - **Confidence: HIGH** — Knip is a mature static analysis tool with high accuracy. All grep results are direct matches.
 - **Gaps requiring manual verification:**
   - Some knip-flagged files may be loaded dynamically (reflection, DI containers) — but this is rare.
-  - The `@repo/type-guards` false positives need per-package verification.
+  - The `@deployer/type-guards` false positives need per-package verification.
   - The load-balancer's actual production usage needs runtime verification.
   - Docker SDK deps (`dockerode`) are likely false positives since they're used dynamically.
   - Some "unused" Radix UI components may be used in Shadcn components registered elsewhere.

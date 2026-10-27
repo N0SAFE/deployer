@@ -29,7 +29,7 @@ bun --bun run web -- type-check
 ### 1.1.1 `core/modules/context/` — 🟢 SAFE DELETE
 
 **Files:**
-- `apps/api/src/core/modules/context/types/index.ts` — `ServiceContextBuilder` class, zero importers
+- `apps/api/shared/src/core/modules/context/types/index.ts` — `ServiceContextBuilder` class, zero importers
 - `apps/api/src/core/modules/context/docs/README.md` — Describes a module that was never built
 
 **Verification (confirmed):**
@@ -329,7 +329,7 @@ rm apps/web/src/middlewares/WithRedirect.ts
 rm apps/web/src/middlewares/WithTiming.ts
 ```
 
-### 1.4.4 Dead Auth/Permission Components — 🟢 SAFE DELETE
+### 1.4.3 Dead Auth/Permission Components — 🟢 SAFE DELETE
 
 ```bash
 rm apps/web/src/components/auth/RequireOrganizationRole.tsx

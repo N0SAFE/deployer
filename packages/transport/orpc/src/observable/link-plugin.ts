@@ -1,10 +1,10 @@
 import { get } from "@orpc/shared";
-import { getAsyncIteratorObjectSchemaDetails } from "@orpc/contract";
-import { isContractProcedure } from "@repo/orpc-utils/types/type-helpers";
+import { getAsyncIteratorObjectSchemasDetails, type AnySchema } from "@orpc/contract";
+import { isContractProcedure } from "@deployer/orpc-utils/types/type-helpers";
 import type { StandardLinkPlugin, StandardLinkOptions, StandardLinkInterceptorOptions } from "@orpc/client/standard";
 import type { ClientContext } from "@orpc/client";
-import { OBSERVABLE_DETAILS_SYMBOL, toAsyncIteratorFromObservable, type Observable } from "@repo/orpc-utils/observable/contract";
-import { reconstructObservableFromEventIterator } from "@repo/orpc-utils/observable/event-iterator";
+import { OBSERVABLE_DETAILS_SYMBOL, toAsyncIteratorFromObservable, type Observable } from "@deployer/orpc-utils/observable/contract";
+import { reconstructObservableFromEventIterator } from "@deployer/orpc-utils/observable/event-iterator";
 
 /**
  * StandardLinkPlugin that reconciles Observable ↔ AsyncIterable at the transport boundary.
@@ -78,7 +78,7 @@ export class ObservableLinkPlugin<T extends ClientContext> implements StandardLi
         const outputHasObservableSymbol =
           outputSchema?.["~standard"]?.[OBSERVABLE_DETAILS_SYMBOL] !== undefined;
         const outputHasEventIterator =
-          getAsyncIteratorObjectSchemaDetails(outputSchema as Parameters<typeof getAsyncIteratorObjectSchemaDetails>[0]) !== undefined;
+          getAsyncIteratorObjectSchemasDetails(outputSchema ? [outputSchema as unknown as AnySchema] : undefined) !== undefined;
         const outputIsObservable =
           outputHasObservableSymbol || outputHasEventIterator;
 

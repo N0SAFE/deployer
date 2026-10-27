@@ -1,0 +1,467 @@
+# SETUP + OPS roadmap
+> Owner prefix: SETUP, OPS · Sources: setup.md, ops.md, journeys.md (J1, J5 installer/join, quick wins, e2e harness), ideas-security-resilience.md (I-07..I-10), bench-coolify.md, bench-dokploy-dockhand.md, bench-market.md · Last verified: 2026-10-26
+
+## Summary
+Setup (`apps/setup` + API `/setup/*`) is a coherent, well-commented onboarding pipeline for the dev profile, but it is unsafe and unfinished for a real VPS: restart re-creates a known-password super-admin, `/setup/*` stays anonymous after completion (re-init + SSRF), there is no operator claim token, hostnames are `deployer.localhost` over HTTP only, failure retry cannot re-run the cluster stage, and the only "installer" (`deploy.sh`) belongs to another product. Ops has strong runtime hygiene (probes, graceful shutdown, non-root images, BuildKit secrets, ~4k green unit tests) but no backups at all, no reproducible production path (prod compose builds the monolith from source, no BFF/service/mesh-agent images, `deploy.yml` publishes a stale unified image un-gated by CI), a red and partly mutating quality gate, ineffective coverage thresholds, committed credentials/junk in git, and docs that contradict the code. P0 spot-verified in code today: default admin policy `always` + `adminadmin` fallback, tracked `200`/`.env.prod`/`PG`/`api.log`/`temp.txt`/`test.txt`/`ts-output.txt`/`300`/`800`, `deploy.sh` for "The Gossip Club", `build-api` in prod compose, coverage `global:` key shape, `prefere` typo, `ignoreBuildErrors` default true, Directus env in ci.yml, `deploy.yml` version read from `apps/api/package.json` with no CI gate.
+Counts: 82 items (SETUP 38, OPS 44): P0 14, P1 32, P2 27, P3 9; FIX 33, ENHANCE 16, NEW 33.
+> Coverage pass: 2026-10-26 — 1 item added (SETUP-038), 5 deps resolved (SUB-C -> OBS-001, NET-* -> NET-028/029/030, DEC/ARCH links, SEC prose -> SEC-012/SEC-017), 4 wrong in-body refs fixed (OPS-021, OPS-013, SETUP-035, SETUP-034), 0 unresolved; duplicates listed under "Cross-file duplicates".
+Security-only items owned by SEC are referenced, not duplicated (encryption-key derivation, open sign-up, master token, archive extraction, docker socket exposure, swarm secrets, rate limiting, security headers).
+
+## Items
+
+### SETUP: security and first-run safety
+- [ ] `SETUP-001` **Close the default super-admin backdoor on restart** · FIX · P0 · S · Deps: none
+  - Why/Problem: `resolveAdminBootstrapDecision` returns `always` by default even in prod (`apps/api/src/core/admin-bootstrap/admin-bootstrap-policy.ts:~101-104`); `ensureDefaultAdmin` falls back to `admin@admin.com`/`adminadmin` (`apps/api-services/shared/src/core/admin-bootstrap/default-admin.bootstrap.ts:48,50`); setup does not forward `DEFAULT_ADMIN_*`/`ADMIN_BOOTSTRAP` to the API task, so first restart adds a second super-admin with a public password. `.env.example:178-179`, `.env.prod.example:68-69` ship the values.
+  - Do: default `ADMIN_BOOTSTRAP` to `never` (or `when_empty`); delete built-in credential fallbacks in BOTH trees (`apps/api/src/core/admin-bootstrap/`, `apps/api-services/shared/src/core/admin-bootstrap/`); fail boot rather than create a known-password admin in production; strip the example values.
+  - Done when: after `docker restart` of every platform container the `user` table still has exactly one admin; unit test for policy default; boot refuses `adminadmin` in `NODE_ENV=production`.
+  - Status: todo · Verified-in-code: yes · Source: setup.md#3.1, journeys.md#J1 W1.6 / quick win 4, README#P0-2
+- [ ] `SETUP-002` **Lock `/setup/*` after setup_done and add SSRF rules to probes** · FIX · P0 · M · Deps: none (coordinate with `SEC-012`)
+  - Why/Problem: every `/setup/*` procedure is `@AllowAnonymous()` (`apps/api/src/modules/setup/controllers/setup.controller.ts:27-28`; BFF `apps/api-services/bff/src/domains/setup/controllers/setup.controller.ts`). `triggerInitialize` only guards concurrency (`initialization.service.ts:254-258`): a POST on a finished node regenerates `nodeId`/`meshSharedSecret`, can repoint `databaseUrl`, or join an attacker mesh (`local-initialization.service.ts:343-380`, `remote-initialization.service.ts:171-215`). `probeDatabase`/`probeMesh`/`remoteAuth` (`:61-277`) are an SSRF/port-scan primitive. `dismissPostSetupHint` writes anonymously (`:328-364`).
+  - Do: return 404/409 for trigger, probes, remoteAuth and hint dismissal once `setupState==="setup_done"`; keep only `state`/`node-status`/`done` anonymous; block private ranges, loopback and the platform overlay in probe targets; require auth for hint dismiss.
+  - Done when: `POST /setup/trigger` on a configured node returns 409/404; probe to `http://169.254.169.254` and to the overlay is refused; security spec exists (see SETUP-036).
+  - Status: todo · Verified-in-code: unverified · Source: setup.md#3.2, journeys.md#J1 W1.5
+- [ ] `SETUP-003` **Add a one-time operator claim token to the pre-auth wizard** · NEW · P0 · M · Deps: `SETUP-002`
+  - Why/Problem: the wizard mints the first super-admin and holds docker.sock, with no token/PIN/first-visitor binding; only mitigation is bootstrap Traefik on 127.0.0.1 (`bootstrap-ingress.service.ts:73,693-699`). grep for `claim|setupToken` in `apps/setup/src` finds nothing relevant.
+  - Do: installer/setup generates a token printed in setup logs/installer output, wizard requires it (header or first-load cookie) before `/setup/trigger` and the probe forwards are accepted; token invalidated at `setup_done`.
+  - Done when: `/setup/trigger` without token returns 401; claim URL `https://<host>/setup?claim=<token>` works; token cannot be reused after completion.
+  - Status: todo · Verified-in-code: yes (absence) · Source: setup.md#3.5, journeys.md#J1 step 5 / W1.5
+- [ ] `SETUP-004` **Document and support the remote-VPS wizard access path** · ENHANCE · P1 · S · Deps: `SETUP-003`
+  - Why/Problem: wizard is only reachable via loopback :80 and `*.localhost` resolution; remote operators must SSH-tunnel with no docs or UI hint (setup.md#3.5).
+  - Do: installer prints SSH-tunnel form and claim URL; wizard/docs explain the window of exposure if :80 is later bound publicly.
+  - Done when: a fresh-VPS operator can reach the wizard following printed instructions alone.
+  - Status: todo · Verified-in-code: unverified · Source: setup.md#3.5
+- [ ] `SETUP-005` **Require AUTH_SECRET in the setup schema and drop the shipped example secret** · FIX · P1 · S · Deps: none (cross `SEC-017`)
+  - Why/Problem: `AUTH_SECRET` defaults to `"fallback-auth-secret"` (`apps/setup/src/config/env/env.schema.ts:149`) and is forwarded into API/web tasks (`api-service-provisioner.service.ts:494-496`); only the prod compose variant enforces `:?`. `.env.example:174` contains what looks like a real base64 secret.
+  - Do: no default; min length (>=32 random bytes); remove the example secret; enforce in all profiles.
+  - Done when: setup refuses to start without a strong `AUTH_SECRET`; `.env.example` has a placeholder only.
+  - Status: todo · Verified-in-code: unverified · Source: setup.md#3.10
+- [ ] `SETUP-006` **Stop passing the admin password / remote session token in clear HTTP bodies and browser memory** · ENHANCE · P2 · M · Deps: none
+  - Why/Problem: password and (remote) session token travel as plain HTTP on the overlay from setup to API (`handover-orchestrator.service.ts:606-610`) and stay in `ProgressStepContext` browser memory.
+  - Do: hand over via a short-lived sealed token or mTLS/overlay encryption; clear client memory after submit.
+  - Done when: no plaintext password in the setup→API request body (verified by test) and sealed token expires in minutes.
+  - Status: todo · Verified-in-code: unverified · Source: setup.md#3.10, §5
+
+### SETUP: state machine, failure recovery, correctness
+- [ ] `SETUP-007` **Fix `GET /setup/state` route collision between health controller and oRPC `getState`** · FIX · P1 · S · Deps: none
+  - Why/Problem: `SetupHealthController` `@Get("state")` (`modules/health/setup-health.controller.ts:57-62`) collides with oRPC `getState` GET `/setup/state` (`packages/contracts/bff/modules/setup/app.contract.ts:133-139`); `SetupHealthModule` registered before `WizardModule` (`app.module.ts:36-44`). Winner unknown (not run).
+  - Do: rename the health snapshot route (e.g. `/setup/phase`) and update consumers; add supertest routing spec (SETUP-034).
+  - Done when: wizard's first call returns `{needsSetup,...}`; routing spec passes.
+  - Status: todo · Verified-in-code: unverified · Source: setup.md#3.3, §4#6
+- [ ] `SETUP-008` **Make retry re-run the failed stage and let `gate.open()` clear sticky `failed`** · FIX · P1 · M · Deps: none
+  - Why/Problem: `SetupPhaseService.record()` ignores all updates while `failed` (`setup-phase.service.ts:106-116`); only `retryHandover` resets, jumping to `launching` and skipping cluster (`wizard.controller.ts:295-307`). Cluster failure (`cluster-orchestrator.service.ts:121`) retry fails again; "Start over" + new trigger never opens the gate (`setup-gate.service.ts:232-233`); only a container restart recovers.
+  - Do: track the failed stage; retry re-runs cluster or handover as appropriate; explicit `gate.open()`/new trigger clears `failed`.
+  - Done when: injected failure at cluster stage then Retry succeeds without container restart; failure injection per stage tested (SETUP-035).
+  - Status: todo · Verified-in-code: unverified · Source: setup.md#3.4, journeys.md#J1 W1.8
+- [ ] `SETUP-009` **Persist the full wizard payload and honour swarm choices** · FIX · P1 · M · Deps: none
+  - Why/Problem: `SetupGateService.persist` omits `swarmConfig`, forces `strategy:"local"` even for remote, and cluster step ignores operator `advertiseAddr`/`policy` (`setup-gate.service.ts:316-353`, `swarm-bootstrap.service.ts:52-63`); `participation.converge()` runs on defaults.
+  - Do: persist swarm policy/advertiseAddr/strategy before converging; honour `advertiseAddr` in `swarmInitOptions`.
+  - Done when: wizard-chosen policy/advertise address visible in `node_config` and used by swarm init (spec).
+  - Status: todo · Verified-in-code: unverified · Source: setup.md#3.9, §4#9
+- [ ] `SETUP-010` **Fix or remove the unreachable swarm-join branch and tear down the throwaway mesh/swarm on the remote path** · FIX · P1 · M · Deps: `SETUP-009`
+  - Why/Problem: `entryModeFrom` joins only if payload has `swarm.joinToken`+`joinAddrs`, never true from UI (remote schema has no `joinAddrs`) (`setup-gate.service.ts:277-297`); remote-join nodes first found their own mesh+swarm which the API later abandons (`mesh-agent-launcher.service.ts:59-64`, `setup-gate.service.ts:259-275`); teardown not found.
+  - Do: implement join-from-wizard properly (or delete the branch), and teardown throwaway mesh/swarm; ideally do not found before the grant is applied.
+  - Done when: remote-join leaves exactly one mesh identity/swarm membership; test covers it.
+  - Status: todo · Verified-in-code: unverified · Source: setup.md#3.9, §1#14, journeys.md#J5 step 4
+- [ ] `SETUP-011` **Ensure `/setup/done` exists on whichever API is the handover target; fix wizard layout link** · FIX · P1 · S · Deps: `DEC-OPS-1`,`ARCH-031`
+  - Why/Problem: handover points `setup.<host>` at `${apiBackend}/setup/done` (`ingress-handover.service.ts:300-315`, `wizard.controller.ts:253-257`) but only the BFF has the controller (`apps/api-services/bff/.../setup-done.controller.ts:35`); the monolith (what prod compose builds) 404s. `apps/setup/src/views/layout.tsx:14` links to `/manage/web-app` served only by web.
+  - Do: moot if monolith is deleted; otherwise add the controller; point `setup.<host>` somewhere that always answers; fix link.
+  - Done when: bookmarked wizard URL after handover lands on a 200 done page.
+  - Status: todo · Verified-in-code: unverified · Source: setup.md#3.7, §4#8
+- [ ] `SETUP-012` **Remove competing API names/paths and set the ingress backend switch consistently** · FIX · P1 · S · Deps: `DEC-OPS-1`
+  - Why/Problem: setup.md#3.8 describes `deployer-api` vs `svc-bff`+`svc-*` vs `deployer-bff` (journeys.md#9 says the `provision_api`/`deployer-bff` provisioning was removed: re-verify); `DEPLOYER_INGRESS_BACKEND` defaults to monolith and no compose sets it; `resolveApiBaseUrl` trusts `SETUP_API_URL` verbatim in prod (`api-address.ts:69-106`); image fallbacks `deployer-svc-bff:dev` are dev-only.
+  - Do: one name per component, one ingress switch set by the prod compose/installer; validate `SETUP_API_URL`; remove dev-only image fallbacks from prod path.
+  - Done when: grep shows no duplicate BFF provisioning; wrong `SETUP_API_URL` fails fast.
+  - Status: todo · Verified-in-code: partial (journeys says stale) · Source: setup.md#3.8, journeys.md#9
+- [ ] `SETUP-013` **Collapse the duplicated setup/admin-bootstrap code trees** · ENHANCE · P1 · L · Deps: `DEC-OPS-1`
+  - Why/Problem: `apps/api/src/core/modules/setup/**` and `apps/api-services/shared/src/core/modules/setup/**` (and `admin-bootstrap`) diverged (e.g. `MANAGED_GLOBAL_DB_*` only in shared); fixes land twice (setup.md#3.11, ops R-13).
+  - Do: delete the monolith copy (preferred) or move to one package; same for admin-bootstrap.
+  - Done when: exactly one `core/modules/setup` and one `admin-bootstrap` tree remain.
+  - Status: todo · Verified-in-code: unverified · Source: setup.md#3.11, §4#4, ops.md#R-13
+- [ ] `SETUP-014` **Make handover budgets configurable per stage and stream image pre-pull progress** · ENHANCE · P2 · M · Deps: none
+  - Why/Problem: 300 s handover budget doubles as trigger-retry bound and covers cold DB provisioning + migrations; image pulls on a fresh VPS can exceed it (`handover-orchestrator.service.ts:669-671`).
+  - Do: per-stage env-configurable timeouts; pre-pull step emitting progress into the SSE stream.
+  - Done when: a slow-pull simulation completes with visible progress rather than `failed`.
+  - Status: todo · Verified-in-code: unverified · Source: setup.md#3.11, §5, journeys.md#J1 W1.14
+- [ ] `SETUP-015` **Persist trigger payload (minus password) so setup can resume after a crash** · ENHANCE · P2 · M · Deps: `SETUP-006`
+  - Why/Problem: trigger payload is retained only in memory (`setup-gate.service.ts:74-79,190`); `managedWebEnabled()` loses the dashboard choice after crash (`:94-101`).
+  - Do: persist non-secret choices; hand over the password by sealed token.
+  - Done when: killing the setup container mid-run and restarting resumes with same choices.
+  - Status: todo · Verified-in-code: unverified · Source: setup.md#3.11, §5
+- [ ] `SETUP-016` **Report real `hasUsers`/`hasAdmin` and honest `needsSetup`** · FIX · P2 · S · Deps: none
+  - Why/Problem: `wizard-state.service.ts:74-79` hard-codes `true`; wizard SSR `GET /` always returns `needsSetup:true` even when configured (`wizard-page.controller.ts:37-41`).
+  - Do: derive from `node_config`/DB.
+  - Done when: configured node shows done state; spec added.
+  - Status: todo · Verified-in-code: unverified · Source: setup.md#1#4, §5
+- [ ] `SETUP-017` **Replace regex-on-error-message handling with structured error codes** · ENHANCE · P2 · S · Deps: none
+  - Why/Problem: `/already (exists|connected|attached)/`, `isPortTakenError` regexes in setup (setup.md §5).
+  - Do: typed error codes from cluster/ingress services.
+  - Done when: no message-regex branching in setup handlers.
+  - Status: todo · Verified-in-code: unverified · Source: setup.md#5
+- [ ] `SETUP-018` **Remove dead duplicate setup schemas and stale constants** · FIX · P2 · S · Deps: none
+  - Why/Problem: `entities/setup/state.schema.ts`, `database.schema.ts`, `initialize.schema.ts` define different enums with the same exported names next to the live ones (wrong-import risk); contract enum has `domain`/`fleet` hints never emitted.
+  - Do: delete dead schemas, update imports (no compat shims per v3 rule).
+  - Done when: single definition per exported name; type-check green.
+  - Status: todo · Verified-in-code: unverified · Source: setup.md#3.11
+- [ ] `SETUP-019` **Wizard polish: dynamic version, header label, docker.sock/overlay disclosure** · ENHANCE · P3 · S · Deps: none
+  - Why/Problem: header hardcodes `v1.0.0` (`setup-wizard.tsx:306`) and "Mesh node"; wizard summary does not surface that API gets docker.sock rw (`api-service-provisioner.service.ts:321-326`) or overlay choices.
+  - Do: show real version; add privilege/overlay disclosure to the summary step.
+  - Done when: version matches build; summary lists docker.sock and overlay.
+  - Status: todo · Verified-in-code: unverified · Source: setup.md#3.11, §5
+- [ ] `SETUP-020` **Decide the single wizard host (setup app vs `apps/web/src/app/setup`)** · FIX · P2 · S · Deps: `DEC-SETUP-1`
+  - Why/Problem: `apps/web/src/app/setup/page.tsx:12-33` is a second wizard host contradicting `apps/setup/src/views/pages/setup.tsx:20-27` comment.
+  - Do: delete one or mark intentionally sole page once API stops serving onboarding.
+  - Done when: one wizard surface.
+  - Status: todo · Verified-in-code: unverified · Source: setup.md#1#34, §5
+
+### SETUP: public address, onboarding UX, joining nodes
+- [ ] `SETUP-021` **Wizard "Address" step: sslip.io / own domain / Cloudflare tunnel, with HTTPS + required ACME email** · NEW · P1 · L · Deps: `NET-028`,`NET-029`,`NET-030`,`OPS-006`
+  - Why/Problem: hostnames only `<svc>.[prefix.]deployer.localhost` over HTTP (`ingress-handover.service.ts:106-110`, `api-service-provisioner.service.ts:575-583,598-600`); bootstrap Traefik has only `:80` (`bootstrap-ingress.service.ts:665-673`); `NEXT_PUBLIC_*`/`AUTH_BASE_DOMAIN`/`TRUSTED_ORIGINS` forced to `http://*.deployer.localhost`. A remote VPS dashboard is unreachable from a laptop.
+  - Do: one-page address choice (sslip.io default, own domain with optional DNS token, Cloudflare tunnel); derive web/API origins, cookie domain, trusted origins; add 443 + ACME to bootstrap Traefik and handover; DNS/edge-provider choice so first public URL is correct on day one.
+  - Done when: displayed dashboard URL loads from another machine over HTTPS; no `deployer.localhost` in prod.
+  - Status: todo · Verified-in-code: unverified · Source: setup.md#3.6, §6, journeys.md#J1 W1.7, bench-coolify.md#3 enhancements
+- [ ] `SETUP-022` **Post-setup onboarding checklist replacing the constant hints list** · ENHANCE · P1 · M · Deps: none
+  - Why/Problem: `listPostSetupHints` returns a constant list ignoring dismissal (`setup.controller.ts:316-323`); dismissal written to `node_config.postSetupFlags` never read back; contract enum `domain`/`fleet` never emitted; `/dashboard` hints stub.
+  - Do: compute checklist (Connect Git -> Deploy -> Add domain) from queries the dashboard already makes; honour persisted dismissal; emit domain/fleet hints.
+  - Done when: checklist reflects real state and dismissal persists across reload.
+  - Status: todo · Verified-in-code: unverified · Source: setup.md#1#28-29, #3.11, journeys.md#J1 W1.10
+- [ ] `SETUP-023` **Pre-flight checks in the wizard (ports, WireGuard, Docker version, disk)** · NEW · P1 · M · Deps: none (shared lib with `OPS-006`)
+  - Why/Problem: no preflight in setup; one exists for the API (`shared/server/preflight`). Needed ports 80/443/2377/7946/4789/UDP 51820, kernel WireGuard, docker >= 24, RAM/disk.
+  - Do: shared preflight module run before the cluster step with actionable messages ("UDP 51820 blocked (ufw active): `ufw allow 51820/udp`"); dry-run mode.
+  - Done when: each failed check names the cause and exact fix; used by both wizard and installer.
+  - Status: todo · Verified-in-code: yes (absence) · Source: setup.md#5, journeys.md#J1 W1.9 / UX details
+- [ ] `SETUP-024` **Setup audit log (who, from which IP, which choices)** · NEW · P2 · M · Deps: `OBS-001`
+  - Why/Problem: no record of who ran setup (setup.md §6).
+  - Do: persist into platform DB once available; include claim-token use.
+  - Done when: audit row per setup run visible to admins.
+  - Status: todo · Verified-in-code: yes (absence) · Source: setup.md#6
+- [ ] `SETUP-025` **Post-setup health report page with re-run** · NEW · P2 · M · Deps: none
+  - Why/Problem: verification (server ingress probe + browser probe) is real but one-shot (`post-setup-verification.service.ts:84-173`); no page of what was checked.
+  - Do: persistent report page with re-run; include link to backup status (`OPS-013`).
+  - Done when: operator can re-run verification and see per-check result.
+  - Status: todo · Verified-in-code: unverified · Source: setup.md#6
+- [ ] `SETUP-026` **CLI onboarding: `deployer start | status | join | doctor`** · NEW · P2 · L · Deps: `DEC-SETUP-1`, `OPS-006`
+  - Why/Problem: planned (`docs/architecture/09-implementation-plan.md:149-157`, unchecked) but only dev nest-commander commands exist (`apps/api-services/bff/src/cli/commands/`).
+  - Do: wrap the installer; one-time configurator URL/token; `doctor` reuses preflight (see `OPS-021`). Ship installer first, CLI later (journeys decision).
+  - Done when: `deployer start` on a clean host reaches the claim URL.
+  - Status: todo · Verified-in-code: yes (absence) · Source: setup.md#1#39, §6, bench-coolify.md#17, bench-dokploy-dockhand.md#19
+- [ ] `SETUP-027` **Single-token "join this node" flow** · NEW · P2 · M · Deps: `SETUP-010`
+  - Why/Problem: remote join needs separate remote-auth + join-cluster steps; want one code containing mesh URL + swarm token + admission.
+  - Do: join code issued from existing cluster; consumed by wizard and installer `--join`.
+  - Done when: a node joins with one pasted code.
+  - Status: todo · Verified-in-code: unverified · Source: setup.md#6, journeys.md#J5 W5.4
+- [ ] `SETUP-028` **Server onboarding wizard (OS/Docker validation, cloud-init, provider provisioning, patch check)** · NEW · P2 · L · Deps: `SETUP-023`, `SETUP-027`
+  - Why/Problem: bench #24: Coolify validates OS/docker, cloud-init, Hetzner/DO provisioning; we use mesh token not SSH.
+  - Do: validate target, emit cloud-init/one-liner, optional provider provisioning, post-join patch check; drain/remove handled by `CLUSTER`.
+  - Done when: a new VM goes from provider API call to admitted node without manual steps.
+  - Status: todo · Verified-in-code: yes (absence) · Source: bench-coolify.md#24, bench-dokploy-dockhand.md#21
+- [ ] `SETUP-029` **Device-code CLI login client and missing `/device/capabilities` route** · NEW · P3 · M · Deps: `SETUP-026`
+  - Why/Problem: `/device` approval UI + Better Auth plugin real, no client; agent-capability path has no route (`apps/web/src/app/device/page.tsx`, `securityPlugins.ts:121-149`, `agentAuth.ts:88`). (AUTH may also track.)
+  - Do: CLI login consuming device flow; add route.
+  - Done when: `deployer login` completes via `/device`.
+  - Status: todo · Verified-in-code: yes · Source: setup.md#1#35, §6
+
+### SETUP: docs and records
+- [ ] `SETUP-030` **Record Q&A for setup per root AGENTS protocol** · NEW · P2 · S · Deps: none
+  - Why/Problem: `docs/qa/` has no `setup/` (setup.md#1#41).
+  - Do: create `docs/qa/setup/{business-logic,security,integrations,...}.md` with decisions from `DEC-SETUP-*`.
+  - Done when: files exist and referenced by setup work.
+  - Status: todo · Verified-in-code: yes · Source: setup.md#1#41
+- [ ] `SETUP-031` **Fix stale setup comments/docs** · FIX · P2 · S · Deps: none (DOC may overlap)
+  - Why/Problem: `docs/INITIALIZATION_PLAN.md` describes deleted pre-setup API with no banner; `apps/api/src/modules/setup/setup.module.ts` header says plain `@Get/@Post`, "ORPC lazy-loaded" (code uses `@Implement`); `core/readiness/readiness.port.ts` docstring stale.
+  - Do: update or delete; add SUPERSEDED banner where kept.
+  - Done when: no setup doc contradicts code.
+  - Status: todo · Verified-in-code: unverified · Source: setup.md#1#33,#40, §5
+- [ ] `SETUP-032` **Investigate `apps/setup` `test:unit` runtime (>170 s)** · FIX · P3 · S · Deps: none
+  - Why/Problem: auditor's run exceeded the budget and was killed (no verdict); cached log shows 13 files / 141 pass.
+  - Do: profile slow specs, add timeouts/mocks.
+  - Done when: unit suite finishes in a bounded, documented time.
+  - Status: todo · Verified-in-code: no · Source: setup.md (method)
+
+### OPS: secrets in git and repo hygiene
+- [ ] `OPS-001` **Purge committed credentials and junk from git tracking; scan history** · FIX · P0 · S · Deps: none
+  - Why/Problem: `git ls-files` today still lists `200` (curl cookie jar with live-format Better Auth session for `admin@admin.com` superAdmin, expiry 2026-10-29), `.env.prod` (names a real domain, `ENABLE_SEEDING=true`), `PG`, `api.log`, `temp.txt`, `test.txt`, `ts-output.txt`, `300`, `800` (verified). Deletions exist in the working tree but are uncommitted.
+  - Do: revoke the session token / rotate; `git rm` the files, `git rm --cached .env.prod`; add `.gitignore` entries; run gitleaks over history and in CI.
+  - Done when: `git ls-files` lists none of them; gitleaks CI job green; session invalidated.
+  - Status: todo · Verified-in-code: yes · Source: ops.md#R-12, §4#15, README#P0-1
+- [ ] `OPS-002` **Remove remaining tracked junk and backup dirs** · FIX · P2 · S · Deps: `OPS-001`
+  - Why/Problem: tracked `tmp/*` (18 files), `.tmp/local.db*`, `FULL_MESH_HISTORY.md` (548 KB), `apps/doc/CPU-*.cpuprofile.txt`, `apps/web/animate-pulse`, `check-manifest4.py`, `list-shells.py`, `apps/web/redoc-static.html`, `apps/api/*-output.txt`, `graphify-out/.graphify_uncached.txt`, `.github/instructions.backup-20260825/`, stale `dead-code-audit-report.md` (2026-07-17); untracked `scripts/__pycache__/`.
+  - Do: delete/ignore; add `.gitignore`; refresh or delete the dead-code report.
+  - Done when: repo has no tracked junk; `git status` clean of caches.
+  - Status: todo · Verified-in-code: partial (`.tmp/local.db*` confirmed) · Source: ops.md#R-12, #LOW
+- [ ] `OPS-003` **Commit the monolith-to-tier migration in coherent chunks** · ENHANCE · P1 · M · Deps: none
+  - Why/Problem: ~2861 changed entries (1677 M, 1060 D, 124 untracked incl. new `packages/contracts/{bff,fleet,health,identity,project,runtime}`) in one uncommitted diff: no rollback point.
+  - Do: split into logical conventional commits (moves, deletions, new packages, fixes).
+  - Done when: clean working tree with reviewable history.
+  - Status: todo · Verified-in-code: yes (git status) · Source: ops.md#R-12, §0
+  - Effect-impact (2026-10-26): commit grouping now includes the Effect work: untracked `packages/nest/effect`, `packages/contracts/{health,identity}`, `samples/api-sample` (own `bun.lock`, outside the workspace globs `apps/** packages/** tooling/** infra/**`) plus the svc-health/identity rewrites; commit them as separate chunks from the cutover.
+
+### OPS: reproducible production path, images, installer
+- [ ] `OPS-004` **Publish all platform images from CI (versioned, multi-arch, digest-pinned)** · FIX · P0 · L · Deps: none
+  - Why/Problem: CI/CD builds one stale "unified" image (`infra/docker/builder/deployer/Dockerfile.prod`); the swarm flow needs web, BFF, svc-health/identity/project/fleet/runtime, setup, mesh-agent, door, scanner-runner; only dev-supervised compose builds most of them.
+  - Do: release workflow builds and pushes each image to GHCR with immutable tags + digests (multi-arch); retire or make real the unified image.
+  - Done when: tag push produces all images with digests recorded in a release manifest (`SUB-B` style for platform releases) and a fresh VPS pulls only (no source build).
+  - Status: todo · Verified-in-code: yes · Source: ops.md#R-04, §4#5, journeys.md#J1 W1.1
+  - Effect-impact (2026-10-26): image build path to verify: all six api-services apps build with `bun build --packages=external` (package.json:18), contradicting ARCHITECTURE.md:196-197 'never bun build an app'; confirm Nest metadata survives in the published images. Deps: `EFF-043`.
+- [ ] `OPS-005` **Rewrite the production compose for the BFF tier; drop `build-api`** · FIX · P0 · M · Deps: `OPS-004`, `DEC-OPS-1`
+  - Why/Problem: `infra/docker/compose/docker-compose.prod.yml:40` builds the monolith (`Dockerfile.api.prod:35-36` PRUNE_SCOPE `@deployer/api`) which cannot compile (`apps/api/src/app.module.ts:18` imports `@repo/nest-*`, packages are `@deployer/nest-*`); no `mesh-agent` image although setup defaults `MESH_AGENT_IMAGE=deployer-mesh-agent:latest`; `DEPLOYER_BFF_IMAGE` and five `DEPLOYER_SVC_*_IMAGE`, `MANAGED_WEB_APP_IMAGE` set nowhere in prod (`apps/setup/src/config/env/env.schema.ts:176-186`); no `.env` validation, no registry push; root `docker-compose.yml` includes dev only.
+  - Do: image-only prod compose referencing published digests; set all image env vars; include mesh-agent; `.env` validation; nothing in prod path references the monolith.
+  - Done when: `docker compose -f ... config` passes in CI and a clean VM boots to readiness.
+  - Status: todo · Verified-in-code: yes · Source: ops.md#R-04, journeys.md#J1 steps 2-3 / W1.3
+- [ ] `OPS-006` **Write a real installer (`install.sh`): preflight, secrets, pull, up, claim URL, idempotent** · NEW · P0 · M · Deps: `OPS-004`, `OPS-005`, `SETUP-023`
+  - Why/Problem: no installer exists; ideal: `curl -fsSL https://<release host>/install | sh`, Docker check, `.env` with generated >=32-byte `AUTH_SECRET`/DB password/claim token (nothing defaulted), images pulled by digest in parallel with progress, firewall guidance, backup of `node_config` volume, prints claim URL or SSH-tunnel form, safe re-run.
+  - Do: script (checksum-verified downloads, no `apt-get upgrade`), `--join` reserved for `OPS-007`; ship before CLI wrap.
+  - Done when: on clean Ubuntu 24.04 with only Docker, install reaches signed-in dashboard in <= 3:00 (warm cache) with no prompts beside the wizard; re-run is idempotent; no operator-unchosen credential.
+  - Status: todo · Verified-in-code: yes (absence) · Source: setup.md#4#10, §6, journeys.md#J1 W1.2, bench-coolify.md#17, bench-dokploy-dockhand.md (installer row)
+- [ ] `OPS-007` **Installer join mode (`install.sh --join <bundle>`)** · NEW · P2 · M · Deps: `OPS-006`, `SETUP-027`
+  - Why/Problem: adding a node today needs the full wizard on the new machine (journeys J5 steps 1-2, W5.4).
+  - Do: bundle = mesh URL + grant + swarm hint; preflight; pull mesh-agent + setup; no wizard.
+  - Done when: node 2 joins in <= 3 minutes from running the one-liner.
+  - Status: todo · Verified-in-code: yes (absence) · Source: journeys.md#J5 W5.4
+- [ ] `OPS-008` **Delete `deploy.sh` and `docker-compose.deployer.yml`** · FIX · P0 · S · Deps: `OPS-006`
+  - Why/Problem: `deploy.sh` (584 lines) is for "The Gossip Club" (nginx, certbot, sed placeholders into `.env.prod`, `apt-get upgrade -y`, docker-compose curl without checksum) (verified header); `docker-compose.deployer.yml` references removed Phase-0 sub-app and "tgclub" names, hard-coded `CLOUDFLARE_TUNNEL_ID`, hostname `deployer.sebille.net`, `cloudflared:latest`, tunnel token heredoc into a container file.
+  - Do: remove both; fix references (`deploy.sh:504`); no compat shims.
+  - Done when: files gone and no doc/script references them.
+  - Status: todo · Verified-in-code: yes · Source: ops.md#R-18, setup.md#1#36,#38
+- [ ] `OPS-009` **Fix per-image hardening: USER, HEALTHCHECK, healthcheck port** · FIX · P1 · S · Deps: none
+  - Why/Problem: setup image has no USER/HEALTHCHECK in Dockerfile (compose has one); unified image none (`builder/deployer/Dockerfile.prod:303-306`); mesh agent none; Traefik service spec `healthcheck: null`; image healthchecks hard-code port 3001 (README P0#8).
+  - Do: add non-root USER and HEALTHCHECK to setup/mesh-agent (unified if kept); Traefik healthcheck; port from env.
+  - Done when: `docker inspect` shows user + health for every platform image.
+  - Status: todo · Verified-in-code: no · Source: ops.md#1 inventory/#5, README#P0-8
+- [ ] `OPS-010` **Verify non-root API image against docker.sock access and `/app/data` ownership** · FIX · P1 · S · Deps: none
+  - Why/Problem: `USER nestjs` (uid 1001) with host socket bind-mounted; no `user`/`groups` in service specs (grep of both provisioners found none); unless socket world-writable calls fail EACCES; `/app/data` volume ownership not prepared (only `uploads` chowned). UNVERIFIED at runtime.
+  - Do: runtime check; add socket group (`groups`) or documented mechanism; chown data dir.
+  - Done when: container can call docker and write `/app/data` as non-root on a clean host (e2e).
+  - Status: todo · Verified-in-code: no · Source: ops.md#R-17
+- [ ] `OPS-011` **Wire resource limits/reservations on platform services** · ENHANCE · P1 · S · Deps: none
+  - Why/Problem: platform service specs have `resourcesLimits/Reservations` `{}` so a runaway build can starve Postgres/API.
+  - Do: sane defaults (configurable) for Postgres, API/BFF, services, Traefik.
+  - Done when: `docker service inspect` shows limits.
+  - Status: todo · Verified-in-code: no · Source: ops.md#5
+- [ ] `OPS-012` **Retire or fix the unified deployer image and its start-time Next build** · FIX · P3 · S · Deps: `DEC-OPS-1`
+  - Why/Problem: entrypoint builds Next.js at container start (`entrypoint.prod.ts`), slow/fragile; image not consumed by swarm flow.
+  - Do: delete image/workflow or build at image time.
+  - Done when: no start-time build.
+  - Status: todo · Verified-in-code: no · Source: ops.md#LOW, R-04
+
+### OPS: backup, restore, data tier
+- [ ] `OPS-013` **Backup/restore subsystem phase 1: scheduled dumps + state snapshot + `deployer backup|restore`** · NEW · P0 · XL · Deps: none
+  - Why/Problem: zero hits for `pg_dump|pg_restore|wal-g|pgbackrest`; Postgres (global state), node SQLite `local.db`, Redis AOF, `acme.json`, mesh identity/roster (`/var/lib/deployer-mesh`), uploads, `node_config` all unbacked; only Traefik config file backups exist.
+  - Do: supervisor-scheduled logical `pg_dump` of global DB + SQLite + acme.json + mesh identity/roster + node_config; `deployer backup create|list|restore|verify`; restore into a fresh single node; documented RPO.
+  - Done when: restore of a snapshot onto an empty node reproduces a working platform (drill in CI/e2e).
+  - Status: todo · Verified-in-code: yes (grep) · Source: ops.md#R-03, §4#4, §6#1, ideas-security-resilience.md#I-07 phase 1, bench-market.md (platform self-backup), bench-dokploy-dockhand.md (self-backup row)
+- [ ] `OPS-014` **Pin Postgres placement and volume strategy to stop silent empty-DB reschedules** · FIX · P0 · M · Deps: none
+  - Why/Problem: Postgres single replica, empty `placementConstraints`, node-local named volume (`postgres-service.provisioner.ts:133-160`): reschedule onto another node starts an empty database with no error.
+  - Do: node label placement constraint (or replicated storage) and refuse start-on-empty volume when state exists elsewhere; health surfacing.
+  - Done when: Postgres task cannot start on a node without the labelled volume; test covers constraint.
+  - Status: todo · Verified-in-code: unverified · Source: ops.md#R-03, §4#4
+- [ ] `OPS-015` **Backup destinations (S3/SFTP), archive encryption, retention** · NEW · P1 · M · Deps: `OPS-013`
+  - Why/Problem: external off-node storage needed; S3 destination model (Coolify/Dokploy) with retention by count/days/size, executions with size/status, "backup now" UI, notifications.
+  - Do: pluggable destination registry; encrypt archives; retention policy; backup executions table; platform backups UI (user-DB/volume backups are `FEAT`).
+  - Done when: scheduled backup lands encrypted in S3 and old ones are pruned per policy.
+  - Status: todo · Verified-in-code: yes (absence) · Source: ops.md#§6#1, bench-coolify.md#8, bench-dokploy-dockhand.md#5, bench-market.md (backups rows)
+- [ ] `OPS-016` **Restore-verified backups (restore drill job + attestation)** · NEW · P2 · M · Deps: `OPS-013`
+  - Why/Problem: "a backup never restored is a hope"; Coolify has no restore verification (bench-coolify.md:115).
+  - Do: scheduled job restoring latest snapshot into throwaway Postgres on a different node than the producer; integrity checks (row counts, canary query, schema version, encrypted-column decrypt probe); record attestation; dashboard shows age of last proven backup.
+  - Done when: dashboard answers "how old is my last proven backup" and a failing drill alerts.
+  - Status: todo · Verified-in-code: yes (absence) · Source: ideas-security-resilience.md#I-08, ops.md#4#4
+- [ ] `OPS-017` **HA data tier (replicated Postgres or managed DB integration, Redis durability, documented RPO/RTO)** · NEW · P2 · XL · Deps: `OPS-013`
+  - Why/Problem: HA does not exist; single replica; Redis AOF unexported.
+  - Do: Patroni/repmgr-style replication or external DB option; Redis Sentinel or AOF+snapshot export; publish RPO/RTO. (Mesh-replicated shards and Shamir recovery kit are IDEA-level, covered by IDEA.)
+  - Done when: losing the Postgres node loses no committed data in a documented drill.
+  - Status: todo · Verified-in-code: yes (absence) · Source: ops.md#§6#2, ideas-security-resilience.md#I-07 (risks: not HA)
+
+### OPS: upgrade path and versioning
+- [ ] `OPS-018` **Upgrade orchestrator with backup gate and automatic rollback (phase 1: `deployer upgrade`)** · NEW · P1 · XL · Deps: `OPS-013`, `OPS-004`, `OPS-019`
+  - Why/Problem: no documented rolling upgrade, no pre-upgrade backup, no skew policy; migration `0040` needs manual backfill (`db:backfill:env-secrets`) or all environments become unreadable (`migrations/global/0040_...sql`).
+  - Do: staged health-gated rollout (setup -> migrations under lock -> services -> BFF -> web -> mesh agents last, previous container kept until healthy), automatic pre-upgrade snapshot, migration dry-run, automatic rollback via Swarm rollback; release-channel manifest. Migration discipline/lock belongs to `ARCH`. (Canary-across-nodes with signed roster release target is IDEA-level.)
+  - Done when: an upgrade with an injected failing service rolls back with zero downtime and the DB restored/unchanged.
+  - Status: todo · Verified-in-code: no · Source: ops.md#1 upgrade row, §6#3, bench-coolify.md#16, ideas-security-resilience.md#I-09
+- [ ] `OPS-019` **Version policy: stamp images with SHA+semver, expose `/version`, enforce BFF/service skew at startup** · NEW · P1 · M · Deps: none
+  - Why/Problem: `deployer-version.ts` has a range parser whose usage is unverified; no version-skew policy between monolith/BFF/services images.
+  - Do: build-arg stamp, `/version` endpoint on every service, startup skew check failing readiness.
+  - Done when: mismatched BFF/service versions fail readiness with a clear message.
+  - Status: todo · Verified-in-code: partial · Source: ops.md#1, §5
+- [ ] `OPS-020` **Platform update check, release channels and version pinning** · NEW · P2 · M · Deps: `OPS-018`
+  - Why/Problem: Coolify has `CheckForUpdatesJob`, channels, `auto_update_frequency`, pinning via `versions.json`; we have none (bench-coolify.md#41).
+  - Do: periodic update check against release manifest; stable/next channels; pin option; UI banner; opt-in auto-update.
+  - Done when: dashboard shows "update available" and pinned versions are not upgraded.
+  - Status: todo · Verified-in-code: yes (absence) · Source: bench-coolify.md#16, bench-market.md (container auto-update row)
+- [ ] `OPS-021` **`deployer doctor` operator checks** · NEW · P2 · M · Deps: `SETUP-023`
+  - Why/Problem: no single command to check secret strength, open ports, cert expiry, disk, swarm quorum, mesh health, backup recency.
+  - Do: CLI + UI report reusing preflight; exit non-zero on failures.
+  - Done when: doctor flags a weak secret, a missing backup and a closed port in a test stack.
+  - Status: todo · Verified-in-code: yes (absence) · Source: ops.md#6#8, setup.md#6
+- [ ] `OPS-022` **Game Day drill catalogue (safe reversible faults + RTO report)** · NEW · P3 · M · Deps: `OPS-013`, `OPS-016`
+  - Why/Problem: resilience claims are unproven; also regression harness for backup/upgrade (I-10).
+  - Do: declarative drills (stop replica, kill Postgres task, drop WireGuard for a pair, block API door); preconditions (not single-node, fresh backup attestation, blast-radius cap, abort); report. Partition/DB-failover drills follow relay/HA work.
+  - Done when: `deployer drill run <name> --dry-run` and live run produce a report on a 3-node test cluster.
+  - Status: todo · Verified-in-code: yes (absence) · Source: ideas-security-resilience.md#I-10
+
+### OPS: CI/CD and quality gate
+- [ ] `OPS-023` **Gate `deploy.yml` on CI success and fix its version source and paths** · FIX · P0 · S · Deps: none
+  - Why/Problem: `deploy.yml` takes version from `apps/api/package.json` (the monolith, `deploy.yml:57`), has no `needs:` on CI, prints wrong compose path `infra/infra/docker/...`, builds one stale unified image.
+  - Do: require green CI (workflow_run/reusable job), derive version from tag/root package, fix paths; branch protection.
+  - Done when: a tag on a red commit does not publish.
+  - Status: todo · Verified-in-code: yes · Source: ops.md#1 CD row, §4#7
+- [ ] `OPS-024` **Get type-check and lint to zero and enforce them** · FIX · P0 · XL · Deps: none
+  - Why/Problem: `.turbo` logs 2026-10-18: `bun check --no-script` errors api 95, bff 65, shared 50, runtime 43, fleet 26, project 20, setup 19, identity 13, health 13; lint 1180 errors in `apps/api`, others exit 1; bff `lint:check` still exits 1 today. Remaining errors mostly in `*.spec.ts` mocks (cutover doc).
+  - Do: burn down per package; add to branch protection; remove monolith error mass via cutover.
+  - Done when: `bun check --no-script` green locally and in CI.
+  - Status: todo · Verified-in-code: no (stale logs) · Source: ops.md#R-11, README#P0-12
+  - Effect-impact (2026-10-26): baseline changes: new untracked packages (`@deployer/nest-effect`, `@deployer/health-contracts`, `@deployer/identity-contracts`) were type-check/lint green in `.turbo` logs (not re-run here); `samples/api-sample` is outside CI (Nest 12.2 / TS 5.9 vs repo Nest 11.1 / TS 7.0) and must be folded in, promoted or deleted (D10); `@effect/vitest` is blocked on Vitest 5. Do not count the sample in the zero-error target. Deps: `EFF-030`, `EFF-038`, `EFF-035`.
+- [ ] `OPS-025` **Make `lint:check` non-mutating** · FIX · P0 · S · Deps: none
+  - Why/Problem: `bun lint` auto-fixes; `lint:check` rewrote 6 bff files (`export interface X extends FlatLeaves<..> {}` -> `type X = {} & ...`, conflicting with same-named `@Injectable() class X`); AGENTS.md claim that `lint:check` is read-only is false.
+  - Do: define `lint:check` without `--fix`; CI fails on diff; fix AGENTS.md wording.
+  - Done when: `bun run lint:check` leaves `git status` unchanged.
+  - Status: todo · Verified-in-code: no (observed by auditor) · Source: ops.md#R-14
+- [ ] `OPS-026` **Fix Vitest coverage thresholds and run coverage in CI** · FIX · P1 · S · Deps: none
+  - Why/Problem: thresholds under a `global:` key (`vitest.config.mts:28`, `apps/api/vitest.config.mts:83`) are treated as a glob; no CI step runs coverage.
+  - Do: `thresholds: { lines: 75, ... }`, per-package floors starting with auth, secret codec, webhook, git, docker repository; add `test:coverage` job.
+  - Done when: lowering coverage below the floor fails CI.
+  - Status: todo · Verified-in-code: yes · Source: ops.md#1 coverage row, §4#18
+- [ ] `OPS-027` **Fix stale CI env and add missing CI checks** · FIX · P1 · M · Deps: none
+  - Why/Problem: Directus-era env block (`DIRECTUS_*`, `API_PING_PATH: /server/health`) at `ci.yml:122-129, 237-239, 341-343` (verified lines 122,127); no coverage, knip, `bun audit`, image build/scan, compose validation or `check-env`; actions pinned by tag; local Bun 1.4.4 vs CI 1.4.3.
+  - Do: remove stale env; add compose `config` validation, `check-env`, `bun audit`, gitleaks, image build; align Bun version.
+  - Done when: CI runs each new check and passes on main.
+  - Status: todo · Verified-in-code: yes · Source: ops.md#1 CI row, §4#13/17
+- [ ] `OPS-028` **Stop shipping web builds with type errors (`ignoreBuildErrors`)** · FIX · P1 · S · Deps: `OPS-024`
+  - Why/Problem: `apps/web/next.config.ts:105,139` default `ignoreBuildErrors` true unless `CHECK_ON_BUILD=true` (verified).
+  - Do: default false for production builds; remove flag once gate is green.
+  - Done when: production web build fails on a type error.
+  - Status: todo · Verified-in-code: yes · Source: ops.md#R-10, §4#8
+- [ ] `OPS-029` **Harden env schema: required-in-production secrets, reject placeholders** · FIX · P1 · M · Deps: none (cross `SEC-017`,`NET-028`)
+  - Why/Problem: `AUTH_SECRET`, `BETTER_AUTH_SECRET`, `DEV_AUTH_KEY`, `DEFAULT_ADMIN_PASSWORD` all `optional()` in `packages/config/env/src/index.ts:188-193`; no min length/format/production refinement; `MANAGED_GLOBAL_DB_PASSWORD` defaults `deployer` (`:340`); ACME email default `admin@example.com` (`:255`, NET also tracks); `DEV_AUTH_KEY` must be forbidden in production.
+  - Do: Zod refinements for NODE_ENV=production (min length, not placeholder, not `adminadmin`), run `check-env` in CI.
+  - Done when: boot with placeholder values in production fails with a clear message.
+  - Status: todo · Verified-in-code: partial · Source: ops.md#1 env row, §4#13
+- [ ] `OPS-030` **Supply chain: pin actions by SHA, base images by digest, pin turbo; scan, SBOM, sign** · ENHANCE · P2 · M · Deps: `OPS-004`
+  - Why/Problem: actions pinned by tag; `oven/bun:1.4.3-alpine`, `redis:7-alpine`, `postgres:16-alpine`, `nginx:alpine`, `cloudflare/cloudflared:latest` floating; `bun install -g turbo@^2` unpinned in Dockerfiles; no Trivy/Grype, SBOM, cosign; Dependabot grouping/Renovate.
+  - Do: pin all; add Trivy/Grype + SBOM + cosign to release workflow; group Dependabot.
+  - Done when: release produces signed images with SBOM; no floating tags.
+  - Status: todo · Verified-in-code: partial · Source: ops.md#1 dep row, §4#17
+- [ ] `OPS-031` **Dependency/config hygiene fixes** · FIX · P3 · S · Deps: none
+  - Why/Problem: `bunfig.toml:9` typo `prefere = "offline"` (verified); `globalStore = true` with Docker `BUN_INSTALL_GLOBAL_STORE=0` workaround; `apps/web/next.config.ts:100` `console.log(workspaceTranspilePackages)` and filter on `@repo/*` though packages are `@deployer/*` (returns empty silently).
+  - Do: fix typo, remove log, fix scope filter.
+  - Done when: next config logs nothing and transpiles the intended packages.
+  - Status: todo · Verified-in-code: partial · Source: ops.md#LOW, §1 dep row
+- [ ] `OPS-032` **CI restructure: reusable jobs, Turbo remote cache, nightly full run, prod-compose smoke** · ENHANCE · P2 · M · Deps: `OPS-005`
+  - Why/Problem: single affected-only pipeline; no nightly full run; no compose boot smoke test.
+  - Do: reusable workflows; nightly non-affected run; matrix smoke: `docker compose config` + boot + `/health/ready`.
+  - Done when: nightly workflow green and smoke job gates releases.
+  - Status: todo · Verified-in-code: no · Source: ops.md#5
+- [ ] `OPS-033` **Add knip and `check:di-graph` to CI (non-blocking first)** · NEW · P2 · S · Deps: none
+  - Why/Problem: `knip.config.ts` exists, scripts present but not in CI or `bun check --no-script`.
+  - Do: add non-blocking jobs, promote to blocking.
+  - Done when: reports on every PR.
+  - Status: todo · Verified-in-code: yes · Source: ops.md#1 knip row, §5
+  - Effect-impact (2026-10-26): re-scope: `check:di-graph` analyses `@Module` imports only and cannot see Effect `yield*` dependencies or `{ provide: Key, useClass }` registrations; pair it with a boot-time/Nest-testing-module check that every `EffectServices` key resolves. knip already picks up `packages/**` including nest-effect. Deps: `EFF-047`, `EFF-085`.
+- [ ] `OPS-034` **Split oversized files** · ENHANCE · P3 · L · Deps: `DEC-OPS-1`
+  - Why/Problem: `docker.repository.ts` 4290 lines (monolith) / 4286 (runtime), `docker.service.ts` ~3.3k, `deployment.service.ts` 2508/2479.
+  - Do: split by responsibility after the monolith is deleted.
+  - Done when: no file > ~1000 lines in these modules.
+  - Status: todo · Verified-in-code: partial · Source: ops.md#4#22
+  - Effect-impact (2026-10-26): add `analytics.service.ts` (934 lines, identity) to the split list; it blocks an honest Effect port of analytics. Evidence: `effect-health-identity.md` §4.5.
+- [ ] `OPS-035` **Health endpoint follow-through on tier services** · ENHANCE · P2 · S · Deps: `OPS-019`
+  - Why/Problem: liveness/readiness are REAL in the monolith (`apps/api/src/main.ts:51-100`) but ops.md verified only that; ensure BFF + five services each expose dependency-free `/health` and `/health/ready` and compose/swarm healthchecks use them (README P0#8 healthcheck port 3001 hard-coded). `[unverified]`
+  - Do: audit each tier app's `main.ts`; align healthchecks.
+  - Done when: each tier container reports healthy via its own probe.
+  - Status: todo · Verified-in-code: no · Source: ops.md#1, README#P0-8
+  - Effect-impact (2026-10-26): Status -> partial: svc-health exposes `/health` and `/health/ready` through the shared `ServiceHealthController` and compose healthchecks use `/health/ready` (`infra/docker/compose/common/api/docker-compose.config.services.yml:234`); swarm tier still `healthcheck: null` (`apps/setup/src/modules/handover/services/services-tier-provisioner.service.ts:220`) and image HEALTHCHECK probes `:3001` (`Dockerfile.api.prod:380`). Verified-in-code: partial.
+
+### OPS: documentation of operations
+- [ ] `OPS-036` **Replace the root README (still the "Next.js + NestJS Turborepo Template")** · FIX · P1 · S · Deps: `OPS-006`
+  - Why/Problem: README quick start says clone + `bun run init`; template text.
+  - Do: describe the product, install path, architecture links.
+  - Done when: README matches the actual install flow.
+  - Status: todo · Verified-in-code: yes · Source: ops.md#R-19, §4#20, journeys.md#J1 step 1
+- [ ] `OPS-037` **Operator runbooks on the docs site** · NEW · P1 · M · Deps: `OPS-013`, `OPS-018`
+  - Why/Problem: `apps/doc` has 91 MDX pages (mostly design specs/plans), none on backup/restore, upgrade, troubleshooting, runbooks, hardening, operator API reference.
+  - Do: install, backup/restore, upgrade, secret rotation, node join/leave, disaster recovery, troubleshooting, hardening.
+  - Done when: each runbook exists and was executed once against a test stack.
+  - Status: todo · Verified-in-code: yes · Source: ops.md#1 docs row, §4#20
+- [ ] `OPS-038` **Fix `production-deployment.mdx` and `infra/infra/...` paths; archive plan docs from the published site** · FIX · P1 · S · Deps: none
+  - Why/Problem: says platform services are "NOT scheduled on Swarm" (contradicts setup scheduling api/bff/services/Postgres/Redis/Traefik as swarm services); `infra/infra/docker` paths in docs and `deploy.yml` summary; plan documents published as docs.
+  - Do: rewrite; move design specs out of published nav.
+  - Done when: doc statements match code; no `infra/infra`.
+  - Status: todo · Verified-in-code: partial · Source: ops.md#R-19
+- [ ] `OPS-039` **Add tests for the docs site and sync AGENTS.md claims with tooling** · ENHANCE · P3 · S · Deps: none
+  - Why/Problem: `apps/doc` has 0 tests; AGENTS.md claims (lint:check non-mutating) are false.
+  - Do: link/build check test; correct AGENTS.md.
+  - Done when: docs build/link test in CI.
+  - Status: todo · Verified-in-code: yes · Source: ops.md#1 docs row, §5
+
+### Coverage-pass additions
+- [ ] `SETUP-038` **Wizard "Start over" resets cleanly (volumes preserved only on request)** · ENHANCE · P3 · S · Deps: `SETUP-008`
+  - Why/Problem: journeys J1 UX: Start over must reset the wizard without leaving half-created swarm/mesh state; today recovery needs a container restart (SETUP-008).
+  - Do: explicit reset action clearing persisted choices, optional "keep volumes" checkbox, confirmation naming what is removed.
+  - Done when: Start over after a failed run returns to step 1 with no stale state; volumes kept only when requested.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#J1 UX details (Undo)
+
+### Cross-file duplicates (See also)
+- SETUP-001 ~ `AUTH-005`,`JRN-013` · SETUP-002 ~ `SEC-012` · SETUP-003 ~ `AUTH-016`,`IDEA-013` · SETUP-005 ~ `SEC-017` · SETUP-012 ~ `ARCH-002`,`ARCH-003`,`ARCH-004` · SETUP-013 ~ `ARCH-031` · SETUP-021 ~ `JRN-033` · SETUP-023 ~ `NET-046`,`NET-065`,`CLUSTER-076` · SETUP-024 ~ `OBS-071` · SETUP-026 ~ `FEAT-083` · SETUP-027 ~ `CLUSTER-019`,`NET-088` · SETUP-028 ~ `CLUSTER-076`,`FEAT-138` · SETUP-029 ~ `AUTH-023`,`FEAT-083` · SETUP-030 ~ `DOC-030` · SETUP-031 ~ `DOC-016`,`DOC-028` · SETUP-037 ~ `JRN-003`
+- OPS-001 ~ `SEC-023` · OPS-002 ~ `DOC-029` · OPS-003 ~ `ARCH-032` · OPS-004 ~ `ARCH-050`,`IDEA-032` · OPS-005 ~ `ARCH-021`,`ARCH-050`,`JRN-043` · OPS-008 ~ `ARCH-053` · OPS-009 ~ `ARCH-051` · OPS-010 ~ `ARCH-052`,`SEC-027` · OPS-011 ~ `CLUSTER-039` · OPS-012 ~ `ARCH-024` · OPS-013 ~ `FEAT-010`,`IDEA-029`,`NET-091` · OPS-014 ~ `ARCH-068` · OPS-015 ~ `FEAT-011`,`FEAT-012` · OPS-016 ~ `FEAT-013`,`IDEA-030` · OPS-018 ~ `IDEA-031`,`FEAT-131`,`ARCH-042` · OPS-019 ~ `ARCH-077` · OPS-020 ~ `FEAT-131` · OPS-021 ~ `CLUSTER-075` · OPS-022 ~ `IDEA-033` · OPS-023 ~ `ARCH-023` · OPS-025 ~ `DOC-010` · OPS-026 ~ `OPS-043` · OPS-028 ~ `SEC-025` · OPS-029 ~ `SEC-017`,`NET-028` · OPS-030 ~ `IDEA-032`,`NET-045` · OPS-033 ~ `ARCH-027` · OPS-035 ~ `ARCH-051`,`OBS-037` · OPS-036 ~ `DOC-011` · OPS-037 ~ `DOC-033` · OPS-038 ~ `DOC-025` · OPS-039 ~ `DOC-010` · OPS-040 ~ `JRN-001` · OPS-042 ~ `ARCH-102`,`SEC-043` · OPS-044 ~ `ARCH-105`
+- Conflict note: OPS-012 (retire unified image) and ARCH-024 both touch `builder/deployer/Dockerfile.prod`; keep one owner (OPS-004 publishes, ARCH-024 prunes).
+
+## Decisions needed
+- [ ] DEC-OPS-1 Which backend survives (`apps/api` monolith vs `apps/api-services` BFF+5 services)? — options: delete monolith; repair monolith imports; keep both — recommendation: BFF tier, delete `apps/api` (affects `SETUP-011`,`SETUP-012`,`SETUP-013`,`OPS-005`,`OPS-012`,`OPS-034`).
+- [ ] DEC-SETUP-1 `apps/setup` wizard vs CLI configurator (`deployer start`)? — options: keep setup + ship installer; delete setup for CLI — recommendation: ship `install.sh` + keep setup for now, wrap in CLI later (journeys decision 1).
+- [ ] DEC-OPS-2 Installer script vs CLI first? — options: script first; CLI first — recommendation: script first (cheaper), CLI wraps it.
+- [ ] DEC-OPS-3 Postgres HA vs backup-only for v1? — options: single replica + pinned placement + backups; replicated Postgres; managed DB — recommendation: pinned placement + tested backups now, HA later (`OPS-017`).
+- [ ] DEC-OPS-4 Keep Redis or drop? — options: keep (what for?); drop — recommendation: confirm consumers before backup/HA design (README decision 6).
+- [ ] DEC-OPS-5 Image registry and release policy — options: GHCR only; self-hosted registry also; versioning semver vs date — recommendation: GHCR with digest pinning and SHA+semver stamps.
+- [ ] DEC-OPS-6 Purge secrets from git history (rewrite) vs just rotate and untrack? — options: rewrite history; rotate+untrack only — recommendation: rotate + untrack now, rewrite only if real secrets found by gitleaks.
+
+## Test coverage to add
+- [ ] `SETUP-033` **Unit specs for missing setup services** · NEW · P1 · M · Deps: none
+  - Why/Problem: none exist for `WizardController` (trigger, retry, forwards, error mapping), `SwarmBootstrapService`, `ClusterOrchestratorService`, `MeshAgentLauncherService`, `ServicesTierProvisioner`, `setup-auth-proxy`, `WizardStreamService` (the old `trigger-wizard.spec.ts` is deleted).
+  - Do: add specs per service covering failure paths.
+  - Done when: each listed class has a spec with happy + failure cases.
+  - Status: todo · Verified-in-code: yes (setup.md#3.12) · Source: setup.md#3.12
+- [ ] `SETUP-034` **Routing spec for `/setup/state` (supertest-level)** · NEW · P1 · S · Deps: `SETUP-007`
+  - Why/Problem: `app.module.spec.ts` only compiles the graph.
+  - Do: request-level test proving the wizard route wins.
+  - Done when: spec fails on collision.
+  - Status: todo · Verified-in-code: yes · Source: setup.md#3.3, §3.12
+- [ ] `SETUP-035` **Failure-injection tests per setup stage (retry re-runs correct stage)** · NEW · P1 · M · Deps: `SETUP-008`
+  - Why/Problem: no test covers cluster-failure retry or "Start over" after failure.
+  - Do: tests injecting failure at cluster, ingress, handover, readiness.
+  - Done when: each stage recovers without container restart.
+  - Status: todo · Verified-in-code: yes (absence) · Source: setup.md#3.4, §4#12
+- [ ] `SETUP-036` **Security tests for post-setup `/setup/trigger`, probes, hint dismissal** · NEW · P0 · S · Deps: `SETUP-002`, `SETUP-003`
+  - Why/Problem: no tests assert 404/409/401 after completion or probe SSRF refusal.
+  - Do: specs on BFF and (if kept) monolith controllers; admin-bootstrap policy default spec (`SETUP-001`).
+  - Done when: tests fail if anonymous re-init becomes possible.
+  - Status: todo · Verified-in-code: yes (absence) · Source: setup.md#3.12
+- [ ] `SETUP-037` **E2E of full prod-profile handover on a clean VPS/VM** · NEW · P1 · M · Deps: `OPS-040`, `OPS-006`
+  - Why/Problem: only dev compose rehearsal exists; need single node, restart after install, failure injection at each step. First-run Playwright spec `first-run.spec.ts`: install < 180 s, trigger without token 401, wizard -> dashboard, restart -> still one admin, negative repo without Dockerfile fails.
+  - Do: nightly job (VM or DinD, local registry, Gitea fixture).
+  - Done when: nightly passes with install-to-dashboard <= 3:00.
+  - Status: todo · Verified-in-code: yes (absence) · Source: setup.md#3.12, §4#12, journeys.md#J1 W1.15 / E2E outline
+- [ ] `OPS-040` **Playwright e2e harness (`apps/e2e`) with support containers** · NEW · P2 · L · Deps: none
+  - Why/Problem: no Playwright/Cypress config or dependency anywhere (journeys new finding 10); API e2e are Vitest + testcontainers (27 specs in `apps/api/src/e2e` + service dirs).
+  - Do: workspace with per-journey projects (`@pr`, `@nightly`), `stack` fixture, support containers (gitea, pebble, scriptable DNS, mailpit, mock-cloudflare, webhook-sink), role/label selectors, traces on retry, per-journey time budget asserted.
+  - Done when: `first-run` and one PR-tagged journey run in CI.
+  - Status: todo · Verified-in-code: yes · Source: journeys.md#10, ops.md#4#19
+- [ ] `OPS-041` **Backup/restore and upgrade-rollback tests** · NEW · P1 · M · Deps: `OPS-013`, `OPS-018`
+  - Why/Problem: nothing tests these flows (none exist).
+  - Do: e2e restore onto empty node; upgrade with injected failing service asserts rollback and zero downtime.
+  - Done when: both run in nightly.
+  - Status: todo · Verified-in-code: yes (absence) · Source: ops.md#4#4, ideas-security-resilience.md#I-08/I-09
+- [ ] `OPS-042` **Contract tests between BFF and services** · NEW · P2 · M · Deps: none
+  - Why/Problem: ops checklist item 19; boundary currently only covered by unit mocks.
+  - Do: consumer-driven contract tests per service client.
+  - Done when: breaking a service contract fails BFF tests.
+  - Status: todo · Verified-in-code: no · Source: ops.md#4#19
+  - Effect-impact (2026-10-26): BFF -> service contract tests must go over HTTP or oRPC `call()`; `callProcedure` skips middleware and validation. Deps: `EFF-030`, `EFF-038`.
+- [ ] `OPS-043` **Per-package coverage floors on security-critical modules** · NEW · P2 · M · Deps: `OPS-026`
+  - Why/Problem: floors for auth, secret codec, webhook, git, docker repository (ops.md#4#18).
+  - Do: add package-level thresholds; targeted tests.
+  - Done when: floors enforced in CI.
+  - Status: todo · Verified-in-code: no · Source: ops.md#4#18
+- [ ] `OPS-044` **Docker-socket/non-root runtime check and prod-compose boot smoke test** · NEW · P1 · S · Deps: `OPS-005`, `OPS-010`
+  - Why/Problem: EACCES risk and prod compose breakage are unverified without runtime tests.
+  - Do: CI smoke: boot compose, assert `/health/ready`, docker call from non-root API.
+  - Done when: smoke job gates merges touching infra.
+  - Status: todo · Verified-in-code: no · Source: ops.md#R-17, §5
+
+> Effect-impact pass: 2026-10-26 — 7 items annotated

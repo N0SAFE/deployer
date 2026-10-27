@@ -1,14 +1,14 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
 import {
   usePushActions,
   usePushNotifications,
 } from '@/domains/push/hooks'
-import { logger } from '@repo/logger'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
+import { logger } from '@deployer/logger'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { Bell, BellOff, Send } from 'lucide-react'
 import { usePushNotificationSupport } from '@/domains/push/utils'
 
@@ -27,6 +27,14 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 }
 
 // Helper to get device name from user agent
+function subscribeNoop(): () => void {
+  return () => undefined
+}
+
+function getBrowserPermission(): NotificationPermission {
+  return 'Notification' in window ? Notification.permission : 'default'
+}
+
 function getDeviceName(): string {
   const ua = navigator.userAgent
   if (ua.includes('Chrome')) return 'Chrome'
@@ -46,20 +54,20 @@ export function PushNotificationSettings() {
   const actions = usePushActions()
   const isSupported = usePushNotificationSupport()
   
-  // Track notification permission state
-  const [permission, setPermission] = useState<NotificationPermission>('default')
-
-  // Update permission state on mount and when it changes
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setPermission(Notification.permission)
-    }
-  }, [])
+  // Notification permission: read from the browser (server snapshot is 'default'),
+  // overridden by the answer to our own request so the UI updates immediately.
+  const browserPermission = useSyncExternalStore(
+    subscribeNoop,
+    getBrowserPermission,
+    () => 'default',
+  )
+  const [requestedPermission, setRequestedPermission] = useState<NotificationPermission | null>(null)
+  const permission = requestedPermission ?? browserPermission
 
   const requestPermission = useCallback(async () => {
     if ('Notification' in window) {
       const result = await Notification.requestPermission()
-      setPermission(result)
+      setRequestedPermission(result)
       return result
     }
     return 'denied'

@@ -729,10 +729,10 @@ mock-api:                               # §3.4 flavor A — spec-driven mock (P
 | 1 | Add `mock` runner type + `mockServiceConfigSchema` (both flavors) + `implementsContract` on the service entity | `packages/contracts/common/src/provider-runner.schema.ts`, `packages/contracts/entities/src/entities/service/runner-config.schema.ts`, `service.schema.ts` |
 | 2 | Add `serviceContractRegistrySchema` (contract registry) + `previewSourceTemplateSchema` + extend `projectEnvironmentConfigSchema` (profiles, TTL, destroyOnMerge) | `packages/contracts/entities/src/entities/configuration/` |
 | 3 | Add `autoDeploySubtree` + `previewScope` to orchestrator runner config | `packages/contracts/entities/src/entities/service/runner-config.schema.ts` |
-| 4 | Webhook receiver service: GitHub push/PR event → match services → order → trigger | `apps/api/src/modules/deployment/` |
+| 4 | Webhook receiver service: GitHub push/PR event → match services → order → trigger | `apps/api/services/runtime/src/modules/deployment/` |
 | 5 | Preview topology planner: **recursive** resolution (walk dep graph bottom-up, apply each hop's policy, contract-validate mocks) | `apps/api/src/modules/preview/` (new) |
 | 6 | Preview URL registry: after each preview deploy, record `serviceId → envKey → URL`; computed env injection | `apps/api/src/modules/preview/registry.ts` (new) |
-| 7 | Mock runner executor: run prism/wiremock/json-server (flavor A) + docker/static builds (flavor B) from `mockServiceConfigSchema` | `apps/api/src/modules/runners/` |
+| 7 | Mock runner executor: run prism/wiremock/json-server (flavor A) + docker/static builds (flavor B) from `mockServiceConfigSchema` | `apps/api/services/runtime/src/modules/runners/` |
 | 8 | Web: preview tab shows the resolved **chain** (web→api→db, with per-hop resolution labels + mock badges) + live URLs + TTL countdown | `apps/web/src/app/dashboard/.../previews/` |
 | 9 | Docs: extend this POC + `environment-linked-service-dependencies.mdx` | `apps/doc/content/docs/deployment/` |
 

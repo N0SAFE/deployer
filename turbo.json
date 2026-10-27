@@ -7,7 +7,6 @@
   "futureFlags": {
     "watchUsingTaskInputs": true
   },
-  "concurrency": "40",
   "globalDependencies": [
     "**/.env.*local",
     "**/.env",
@@ -15,6 +14,8 @@
   ],
   "globalPassThroughEnv": [
     ".env.local",
+    ".env",
+    "HOSTNAME",
     "TURBO_TOKEN",
     "TURBO_TEAM",
     "MANAGED_*",
@@ -24,22 +25,27 @@
     "CHOKIDAR_*",
     "NEXT_WEBPACK_*",
     "DEPLOYER_INSTANCE_*",
-    "APP_INSTANCE_TOKEN_PATH"
+    "APP_INSTANCE_TOKEN",
+    "APP_INSTANCE_TOKEN_PATH",
+    "PKG_BUILD_KEEP_DIST",
+    "PREFLIGHT_WAIT_MS"
   ],
   "globalEnv": [
     "API_PORT",
+    "API_SERVICE_PORTS",
+    "API_SERVICE_URLS",
     "API_URL",
     "APP_URL",
     "AUTH_BASE_DOMAIN",
     "AUTH_SECRET",
-    "API_SERVICE_PORTS",
-    "API_SERVICE_URLS",
     "BETTER_AUTH_SECRET",
     "CHOKIDAR_USEPOLLING",
     "CORS_ORIGIN",
     "DEFAULT_ADMIN_EMAIL",
     "DEFAULT_ADMIN_PASSWORD",
+    "DEPLOYER_ALLOW_PRIVATE_PROBES",
     "DEPLOYER_PREFIX",
+    "DEPLOYER_ROOT_SECRET",
     "DEPLOYER_TRAEFIK_IMAGE",
     "DEPLOYER_TRAEFIK_HTTP_PORT",
     "DEPLOYER_TRAEFIK_TLS_ENABLED",
@@ -62,7 +68,6 @@
     "TRAEFIK_STARTUP_SYNC_ENABLED",
     "TRAEFIK_FAIL_ON_STARTUP_ERROR",
     "TRAEFIK_CLEANUP_ON_STARTUP",
-    "HOSTNAME",
     "DEV_AUTH_KEY",
     "ENABLE_DEV_BOOTSTRAP",
     "ENABLE_SEEDING",
@@ -130,7 +135,7 @@
     "build:types": {
       "dependsOn": [
         "^build:types",
-        "@repo/pkg-build#build"
+        "@deployer/pkg-build#build"
       ],
       "outputs": [
         "dist/types/**"
@@ -199,7 +204,7 @@
     },
     "test": {
       "dependsOn": [
-        "@repo/config-vitest#build"
+        "@deployer/config-vitest#build"
       ],
       "inputs": [
         "src/**",
@@ -213,7 +218,7 @@
     },
     "test:e2e": {
       "dependsOn": [
-        "@repo/config-vitest#build"
+        "@deployer/config-vitest#build"
       ],
       "cache": false
     },
@@ -222,9 +227,9 @@
       "persistent": true,
       "dependsOn": [
         "^build",
-        "@repo/config-eslint#build",
-        "@repo/config-prettier#build",
-        "@repo/config-vitest#build"
+        "@deployer/config-eslint#build",
+        "@deployer/config-prettier#build",
+        "@deployer/config-vitest#build"
       ]
     },
     "test:ui": {
@@ -232,17 +237,17 @@
       "persistent": true,
       "dependsOn": [
         "^build",
-        "@repo/config-eslint#build",
-        "@repo/config-prettier#build",
-        "@repo/config-vitest#build"
+        "@deployer/config-eslint#build",
+        "@deployer/config-prettier#build",
+        "@deployer/config-vitest#build"
       ]
     },
     "test:coverage": {
       "dependsOn": [
         "^build",
-        "@repo/config-eslint#build",
-        "@repo/config-prettier#build",
-        "@repo/config-vitest#build"
+        "@deployer/config-eslint#build",
+        "@deployer/config-prettier#build",
+        "@deployer/config-vitest#build"
       ],
       "outputs": [
         "coverage/**"
@@ -260,8 +265,31 @@
     "lint": {
       "dependsOn": [
         "^build:types",
-        "@repo/config-eslint#build",
-        "doc#compile"
+        "@deployer/config-eslint#build"
+      ],
+      "inputs": [
+        "src/**",
+        "*.config.*",
+        "package.json"
+      ]
+    },
+    "lint:fix": {
+      "cache": false,
+      "dependsOn": [
+        "^build:types",
+        "@deployer/config-eslint#build"
+      ],
+      "inputs": [
+        "src/**",
+        "*.config.*",
+        "package.json"
+      ]
+    },
+    "lint:fix+": {
+      "cache": false,
+      "dependsOn": [
+        "^build:types",
+        "@deployer/config-eslint#build"
       ],
       "inputs": [
         "src/**",
@@ -272,19 +300,19 @@
     "prettify": {
       "dependsOn": [
         "^lint",
-        "@repo/config-prettier#build"
+        "@deployer/config-prettier#build"
       ]
     },
     "format:check": {
       "dependsOn": [
         "^lint",
-        "@repo/config-prettier#build"
+        "@deployer/config-prettier#build"
       ]
     },
     "clean": {
       "cache": false
     },
-    "doc#build": {
+    "@deployer/doc#build": {
       "dependsOn": [
         "^build"
       ],
@@ -302,10 +330,7 @@
         "package.json"
       ]
     },
-    "doc#type-check": {
-      "dependsOn": [
-        "doc#compile"
-      ],
+    "@deployer/doc#type-check": {
       "inputs": [
         "**/*.ts",
         "**/*.tsx",

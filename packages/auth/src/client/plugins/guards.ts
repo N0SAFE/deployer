@@ -1,1 +1,1 @@
-export * from '@repo/auth/client/plugins/masterToken/guard'
+export * from '@deployer/auth/client/plugins/masterToken/guard'

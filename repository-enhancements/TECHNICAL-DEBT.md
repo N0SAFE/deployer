@@ -6,7 +6,7 @@
 
 ## 🔴 Critical: Test Failures
 
-### @repo/orpc-utils Test Suite
+### @deployer/orpc-utils Test Suite
 **Status:** 45/54 tests failing  
 **Root Cause:** Zod 4 import issue - `z.object` is undefined in vitest environment
 

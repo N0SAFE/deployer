@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { AlertCircle, Check, Copy, LayoutDashboard, RotateCcw } from 'lucide-react'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import { getErrorMessage, isDefinedORPCError } from '@/lib/orpc/typed-errors'
 import { AuthDashboard } from '@/routes'
 import { ErrorDetails } from './ErrorDetails'

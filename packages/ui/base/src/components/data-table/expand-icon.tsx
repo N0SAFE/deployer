@@ -7,7 +7,7 @@ import type { Row } from "@tanstack/react-table";
 import { ChevronRight } from "lucide-react";
 
 // ** import utils
-import { cn } from "@repo/ui/lib/utils";
+import { cn } from "@deployer/ui/lib/utils";
 
 interface ExpandIconProps<TData> {
   row: Row<TData>;

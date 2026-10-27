@@ -1,10 +1,11 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Observable, from, interval, map, merge, takeUntil, Subject, share, concat, type Subscription } from "rxjs";
-import type { SetupStreamEvent } from "@repo/contracts-entities";
+import type { SetupStreamEvent } from "@deployer/contracts-entities";
 
 import { WizardUpstreamService } from "./wizard-upstream.service";
 import {
   OrchestrationStreamService,
+  isOrchestrationStepId,
   type OrchestrationStepId,
 } from "@/modules/progress/services/orchestration-stream.service";
 import { SetupPhaseService } from "@/modules/health/setup-phase.service";
@@ -143,7 +144,7 @@ export class WizardStreamService {
   ): Promise<void> {
     this.phase.record("provisioning", "Receiving provisioning progress from the platform API");
 
-    return await new Promise<void>((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       this.stream(lastEventId)
         .pipe(takeUntil(clientGone))
         .subscribe({
@@ -187,8 +188,8 @@ export class WizardStreamService {
    * ── WHY THE UPSTREAM IS POLLED RATHER THAN ASSUMED ──────────────────────────
    * Connecting immediately is what produced the original failure:
    *
-   *   WARN  Upstream http://api-dev:3005/setup/stream unreachable:
-   *         getaddrinfo ENOTFOUND api-dev
+   *   WARN  Upstream http://bff:3005/setup/stream unreachable:
+   *         getaddrinfo ENOTFOUND bff
    *   ERROR Setup stream failed: The platform API is not reachable yet
    *
    * The API is STARTED BEHIND THE GATE, so at the moment the wizard subscribes
@@ -205,8 +206,12 @@ export class WizardStreamService {
     // gets the SAME definitions rather than a second set appended to the replay
     // buffer — which is what made a reconnect rebuild the list from duplicates.
     const details = orchestration.stepDetails();
+    // Narrowed, not cast: `step_detail.stepId` is `z.string()` on the wire, and an
+    // `as OrchestrationStepId[]` would assert that EVERY incoming id is one of the
+    // orchestration steps — including any a future flow adds, which would then be
+    // logged against a step that does not exist. Unknown ids are dropped instead.
     const stepIds: OrchestrationStepId[] = details.flatMap((event) =>
-      event.type === "step_detail" ? [event.stepId as OrchestrationStepId] : [],
+      event.type === "step_detail" && isOrchestrationStepId(event.stepId) ? [event.stepId] : [],
     );
 
     // ── THE RE-SYNC IS ATOMIC: COUNT, SNAPSHOT, THEN LIVE TAIL ────────────────

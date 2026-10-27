@@ -3,7 +3,7 @@
 import { spawn, spawnSync } from 'child_process'
 import { existsSync } from 'fs'
 import { join } from 'path'
-import { validateWebEnvSafe, webEnvIsValid } from '@repo/env'
+import { validateWebEnvSafe, webEnvIsValid } from '@deployer/env'
 import zod from 'zod/v4'
 
 const DECLARATIVE_ROUTING_PKG_DIR = join(process.cwd(), '../../tooling/bin-declarative-routing')
@@ -14,7 +14,7 @@ const DECLARATIVE_ROUTING_DIST = join(DECLARATIVE_ROUTING_PKG_DIR, 'dist/index.j
  * Required in container startup to guarantee dr:build/watch use local package only.
  *
  * Skips the rebuild when dist/index.js already exists (the Dockerfile's
- * `turbo run build --filter=web...` stage builds it at image build time).
+ * `turbo run build --filter=@deployer/web...` stage builds it at image build time).
  * This avoids a redundant synchronous build on every container start.
  */
 function ensureLocalDeclarativeRoutingBuilt(): void {
@@ -32,7 +32,7 @@ function ensureLocalDeclarativeRoutingBuilt(): void {
     return
   }
 
-  console.log('🔨 Building local @repo/cli-declarative-routing package...')
+  console.log('🔨 Building local @deployer/cli-declarative-routing package...')
 
   const result = spawnSync('bun', ['run', '--cwd', DECLARATIVE_ROUTING_PKG_DIR, 'build'], {
     stdio: 'inherit',
@@ -40,7 +40,7 @@ function ensureLocalDeclarativeRoutingBuilt(): void {
   })
 
   if (result.status !== 0) {
-    console.error('❌ Failed to build local @repo/cli-declarative-routing package')
+    console.error('❌ Failed to build local @deployer/cli-declarative-routing package')
     process.exit(1)
   }
 

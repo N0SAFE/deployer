@@ -1,5 +1,5 @@
 import { defineConfig } from 'vitest/config'
-import { workspaceSourceAliases } from '@repo/config-vitest'
+import { workspaceSourceAliases } from '@deployer/config-vitest'
 
 export default defineConfig({
   test: {
@@ -17,7 +17,7 @@ export default defineConfig({
       ],
     },
   },
-  // Resolve workspace packages to source. Without this, `@repo/env/utils`
+  // Resolve workspace packages to source. Without this, `@deployer/env/utils`
   // loads the built copy while the test exercises the source.
   resolve: {
     alias: {

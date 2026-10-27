@@ -1,5 +1,5 @@
-import reactConfig from "@repo/config-eslint/react";
-import { defineConfig } from "@repo/config-eslint";
+import reactConfig from "@deployer/config-eslint/react";
+import { defineConfig } from "@deployer/config-eslint";
 
 export default defineConfig([
     { extends: [reactConfig.configs.base()], files: ["src/**/*.{ts,tsx}"] },

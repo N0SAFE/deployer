@@ -1,8 +1,8 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Textarea } from '@repo/ui/components/shadcn/textarea'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Textarea } from '@deployer/ui/components/shadcn/textarea'
 import { cn } from '@/lib/utils'
 import { SecretInput } from './secret-input'
 

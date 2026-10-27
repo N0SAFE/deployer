@@ -7,14 +7,14 @@
  */
 
 import * as z from "zod";
-import type { HTTPPath } from "@repo/orpc-utils/types/types";
+import type { HTTPPath } from "@deployer/orpc-utils/types/types";
 import {
     BaseStandardOperations,
     type EntityOperationOptions as BaseEntityOperationOptions,
     type ListPlainOptions as BaseListPlainOptions,
-} from "@repo/orpc-utils/operations/base/standard-operations";
-import type { SchemaWithConfig } from "@repo/orpc-utils/operations/base/types";
-import { CONFIG_SYMBOL } from "@repo/orpc-utils/operations/base/types";
+} from "@deployer/orpc-utils/operations/base/standard-operations";
+import type { SchemaWithConfig } from "@deployer/orpc-utils/operations/base/types";
+import { CONFIG_SYMBOL } from "@deployer/orpc-utils/operations/base/types";
 import {
     createPaginationConfigSchema,
     createSortingConfigSchema,
@@ -30,10 +30,10 @@ import {
     type ComputeInputSchema,
     type ComputeOutputSchema,
     type QueryBuilder,
-} from "@repo/orpc-utils/operations/zod/utils/index";
+} from "@deployer/orpc-utils/operations/zod/utils/index";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- DetailedOutputBrand/DetailedInputBrand are imported so inferred declaration types can name them (TS4053)
-import { RouteBuilder, DetailedOutputBrand, DetailedInputBrand } from "@repo/orpc-utils/builder/core/route-builder";
-import { ZodPluginTransformer } from "@repo/orpc-utils/builder/index";
+import { RouteBuilder, DetailedOutputBrand, DetailedInputBrand } from "@deployer/orpc-utils/builder/core/route-builder";
+import { ZodPluginTransformer } from "@deployer/orpc-utils/builder/index";
 
 /**
  * Zod entity schema type - requires ZodObject for schema manipulation
@@ -658,6 +658,43 @@ export class ZodStandardOperations<
 
     // ==================== Utility Operations ====================
 
+    /**
+     * Count rows, optionally under the SAME filters `list` accepts.
+     *
+     * ── WHY THIS TAKES A FILTERING CONFIG AND NOT A FREE-FORM FILTER ────────
+     * The abstract signature in `@deployer/orpc-utils/operations/base` has always
+     * declared `count(options?: { filtering?: SchemaWithConfig<unknown> })`, but this
+     * implementation ignored it and emitted `filter: z.any()`. The consequence was a
+     * count that could not be typed at all: a caller passing
+     * `ops.count(userListConfigSchemas)` got `unknown` for every filter field, so a
+     * typo in a filter name produced a query that silently counted everything.
+     *
+     * ── WHY `TFiltering` IS A GENERIC ───────────────────────────────────────
+     * The config's TYPE has to survive into the emitted input schema, because that is
+     * what makes each filter field's operator set known to the caller. Passing it
+     * through a cast (`as unknown as ZodSchemaWithConfig<Partial<FilteringConfig>>`)
+     * discards the specific shape and `createFilteringSchema` then resolves its
+     * fields to `never` — an input where no filter can be expressed. The generic
+     * keeps the caller's config intact, which is exactly how `list` behaves.
+     */
+    /**
+     * Count rows.
+     *
+     * ── THE FILTER HERE IS DELIBERATELY UNTYPED ─────────────────────────────────
+     * `filter: z.any()` accepts anything and narrows to nothing. That is the
+     * long-standing behaviour, and an attempt to make it take a `filtering` config
+     * was reverted: the emitted contract could be made to say
+     * `ZodType<never>` (an endpoint that accepts NO filter) or to lose the filter
+     * entirely as `ZodObject<{}>`, depending on whether the config was narrowed by a
+     * type guard or by a cast. The one form that produced a good filter type
+     * (`FilteringSchemaOutput<…>`) changed the accepted request shape and failed the
+     * existing type test.
+     *
+     * An untyped filter that works beats a typed one that does not, so the original
+     * is restored and the typing is left as a separate, properly-scoped change: it
+     * needs `createFilteringSchema` to be reachable without passing through
+     * `isConfigSchema`, which narrows to `unknown` and collapses the field map.
+     */
     count() {
         const builder = this.createBuilder({
             method: "GET",

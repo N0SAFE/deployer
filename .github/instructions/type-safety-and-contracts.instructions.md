@@ -64,11 +64,11 @@ export function buildDockerEntityEventChunk(input: {
 
 | Setting | Value | Source |
 |---------|-------|--------|
-| `strict` | `true` | `@repo/config-typescript/config/base.json` |
-| `noUncheckedIndexedAccess` | `true` | `@repo/config-typescript/config/base.json` |
-| `verbatimModuleSyntax` | `true` (nestjs preset) | `@repo/config-typescript/config/nestjs.json` |
-| `noFallthroughCasesInSwitch` | `false` (relaxed for nestjs) | `@repo/config-typescript/config/nestjs.json` |
-| `noImplicitAny` | `false` (relaxed for nestjs) | `@repo/config-typescript/config/nestjs.json` |
+| `strict` | `true` | `@deployer/config-typescript/config/base.json` |
+| `noUncheckedIndexedAccess` | `true` | `@deployer/config-typescript/config/base.json` |
+| `verbatimModuleSyntax` | `true` (nestjs preset) | `@deployer/config-typescript/config/nestjs.json` |
+| `noFallthroughCasesInSwitch` | `false` (relaxed for nestjs) | `@deployer/config-typescript/config/nestjs.json` |
+| `noImplicitAny` | `false` (relaxed for nestjs) | `@deployer/config-typescript/config/nestjs.json` |
 
 > **Do not weaken these** without team discussion. If a library forces you to, wrap it in a typed adapter instead.
 
@@ -97,7 +97,7 @@ Any result is a candidate for cleanup. New code MUST have zero occurrences.
 | SSE/Observable emission | `experimental_liveObservableOptions` | Output schema in contract — **but ORPC does NOT auto-validate per emission**; validate server-side in the stream producer |
 | SSE chunk construction | API stream handler | `dockerEntityStreamChunkSchema.safeParse(chunk)` — return the **parsed** result, not the original |
 | Database row | Drizzle query | Zod parse if shape isn't already Zod-derived |
-| Environment variables | `process.env` | `envSchema.parse(process.env)` (see `apps/api/src/config/`) |
+| Environment variables | `process.env` | `envSchema.parse(process.env)` (see `apps/api/shared/src/config/`) |
 | User input | Form / query string | Zod schema in `_models/` |
 | Docker socket response | `dockerode` library | Zod parse at the facade boundary |
 | Mesh peer response | `MeshClient` | Zod parse at the receive boundary |
@@ -153,8 +153,8 @@ private coerceStreamChunk(chunk: unknown): DockerEntityStreamChunk | null {
 
 ```typescript
 // packages/contracts/api/modules/<domain>/<operation>.ts
-import { standard } from "@repo/orpc-utils"
-import { xxxEntitySchema } from "@repo/contracts-entities"
+import { standard } from "@deployer/orpc-utils"
+import { xxxEntitySchema } from "@deployer/contracts-entities"
 import { xxxInputSchema } from "./shared"
 import z from "zod/v4"
 
@@ -189,7 +189,7 @@ Every endpoint-bearing contract MUST declare its errors so the typed client
 gets a typed catch path (`isDefinedError`, `error.code`, typed `error.data`):
 
 ```typescript
-import { standard, standardDomainErrorContracts, standardDomainErrorPayloadSchema } from "@repo/orpc-utils";
+import { standard, standardDomainErrorContracts, standardDomainErrorPayloadSchema } from "@deployer/orpc-utils";
 
 export const xxxContract = xxxOps
   .read()

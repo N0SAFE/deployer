@@ -3,13 +3,13 @@
 import { useEffect, useRef, useState } from "react"
 import { useForm, useStore } from "@tanstack/react-form"
 import { ArrowLeft, ArrowRight, Database, Sparkles, Lock, Server, HardDrive, Check } from "lucide-react"
-import { Button } from "@repo/ui/components/shadcn/button"
-import { Input } from "@repo/ui/components/shadcn/input"
-import { Label } from "@repo/ui/components/shadcn/label"
-import { Checkbox } from "@repo/ui/components/shadcn/checkbox"
-import { ConnectionStatus, type ConnectionState } from "@repo/ui/components/setup/connection-status"
-import { cn } from "@repo/ui/lib/utils"
-import type { SetupWizardApi } from "@repo/ui/components/setup/types"
+import { Button } from "@deployer/ui/components/shadcn/button"
+import { Input } from "@deployer/ui/components/shadcn/input"
+import { Label } from "@deployer/ui/components/shadcn/label"
+import { Checkbox } from "@deployer/ui/components/shadcn/checkbox"
+import { ConnectionStatus, type ConnectionState } from "@deployer/ui/components/setup/connection-status"
+import { cn } from "@deployer/ui/lib/utils"
+import type { SetupWizardApi } from "@deployer/ui/components/setup/types"
 
 type Props = {
   api: SetupWizardApi

@@ -14,14 +14,14 @@ export interface RunnerMeta {
 }
 
 export const RUNNER_META: RunnerMeta[] = [
-  { value: 'manual', label: 'Manual container', description: 'Run a single container with an explicit start command.', icon: Container },
-  { value: 'compose', label: 'Compose stack', description: 'One service managing a docker-compose stack as a single unit (up/down/logs on the whole stack).', icon: ShipWheel },
-  { value: 'orchestrator', label: 'Sub-services', description: 'Orchestrator — every service inside the manifest is individually managed with a dependency graph.', icon: Layers },
-  { value: 'kubernetes', label: 'Kubernetes', description: 'Deploy as a Kubernetes workload (Deployment).', icon: Box },
-  { value: 'nomad', label: 'Nomad', description: 'Schedule a Nomad job on the cluster.', icon: Server },
-  { value: 'worker-runtime', label: 'Worker Runtime', description: 'Consume a queue with N concurrent workers.', icon: Cog },
-  { value: 'static', label: 'Static', description: 'Serve static files (SPA / JAMstack output).', icon: Globe },
-  { value: 'mock', label: 'Mock API', description: 'Replacement implementation of a contract (Prism/WireMock/json-server) — for previews.', icon: FlaskConical },
+  { value: 'manual', label: 'Manual container', description: 'One container started with a command you provide. The simplest choice.', icon: Container },
+  { value: 'compose', label: 'Compose stack', description: 'Your docker-compose file deployed as one service — started, stopped and logged together.', icon: ShipWheel },
+  { value: 'orchestrator', label: 'Sub-services', description: 'Each service in your compose file is managed on its own, with dependencies between them.', icon: Layers },
+  { value: 'kubernetes', label: 'Kubernetes', description: 'Deploy to a Kubernetes cluster as a Deployment.', icon: Box },
+  { value: 'nomad', label: 'Nomad', description: 'Run as a HashiCorp Nomad job on your cluster.', icon: Server },
+  { value: 'worker-runtime', label: 'Worker Runtime', description: 'A background worker that processes a job queue, with a set number of parallel workers.', icon: Cog },
+  { value: 'static', label: 'Static', description: 'Serve built files (HTML/JS/CSS) from a folder, e.g. a single-page app or static site.', icon: Globe },
+  { value: 'mock', label: 'Mock API', description: 'A fake API generated from a spec (Prism, WireMock, json-server), used in previews instead of the real service.', icon: FlaskConical },
 ]
 
 export const RUNNER_META_BY_ID = Object.fromEntries(RUNNER_META.map((r) => [r.value, r])) as Record<RunnerFormData['runnerId'], RunnerMeta>
@@ -38,12 +38,12 @@ export interface BuildMethodMeta {
 }
 
 export const BUILD_METHOD_META: BuildMethodMeta[] = [
-  { value: 'auto', label: 'Auto-detect', description: 'Detect the best build method from your code.', icon: Sparkles },
-  { value: 'dockerfile', label: 'Dockerfile', description: 'Build with the Dockerfile in your repository.', icon: FileCode2 },
-  { value: 'nixpacks', label: 'Nixpacks', description: 'Zero-config containerization for your stack.', icon: Package },
-  { value: 'buildpack', label: 'Buildpack', description: 'Cloud Native Buildpacks (Heroku-style).', icon: Layers },
-  { value: 'railpack', label: 'Railpack', description: 'Railpack runtime detection & builds.', icon: TrainFront },
-  { value: 'external', label: 'Prebuilt image', description: 'Use an existing container image — no build.', icon: Container },
+  { value: 'auto', label: 'Auto-detect', description: 'The platform picks the best build method for your code.', icon: Sparkles },
+  { value: 'dockerfile', label: 'Dockerfile', description: 'Build the image from a Dockerfile in your repository.', icon: FileCode2 },
+  { value: 'nixpacks', label: 'Nixpacks', description: 'Builds an image automatically from your language and framework, no Dockerfile needed.', icon: Package },
+  { value: 'buildpack', label: 'Buildpack', description: 'Cloud Native Buildpacks: Heroku-style builds without a Dockerfile.', icon: Layers },
+  { value: 'railpack', label: 'Railpack', description: 'Railpack: automatic language detection and builds, no Dockerfile needed.', icon: TrainFront },
+  { value: 'external', label: 'Prebuilt image', description: 'Use an image that already exists in a registry. Nothing is built.', icon: Container },
 ]
 
 export const BUILD_METHOD_META_BY_ID = Object.fromEntries(BUILD_METHOD_META.map((m) => [m.value, m])) as Record<BuildMethod, BuildMethodMeta>

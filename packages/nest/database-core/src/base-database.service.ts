@@ -1,4 +1,4 @@
-import { AppError } from "@repo/errors";
+import { AppError } from "@deployer/errors";
 import { Logger } from '@nestjs/common'
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
 import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
@@ -20,8 +20,8 @@ import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
  *   class ProjectDatabase extends BaseDatabaseService<NodePgDatabase<typeof mySchema>> {}
  */
 export type AnyDrizzleDatabase =
-    | NodePgDatabase<Record<string, never>>
-    | BunSQLiteDatabase<Record<string, never>>
+    | NodePgDatabase
+    | BunSQLiteDatabase
     | NodePgDatabase<Record<string, unknown>>
     | BunSQLiteDatabase<Record<string, unknown>>;
 

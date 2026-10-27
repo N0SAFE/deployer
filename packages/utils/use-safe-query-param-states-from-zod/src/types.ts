@@ -1,5 +1,5 @@
 /**
- * Public type surface for `@repo/use-safe-query-param-states-from-zod`.
+ * Public type surface for `@deployer/use-safe-query-param-states-from-zod`.
  *
  * The module re-exports the strongly-typed `Options` from `nuqs` so consumers
  * do not have to import the `nuqs` types directly. It also exposes a small

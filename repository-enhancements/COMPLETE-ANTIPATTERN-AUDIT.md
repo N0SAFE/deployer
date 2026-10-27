@@ -17,7 +17,7 @@ This audit discovered **52 distinct anti-patterns** across 7 categories in the c
 5. 🔴 **`bun --bun` flag violation** in 10+ scripts — contradicts core runtime rule
 6. 🔴 **Duplicate mesh contracts** in 2 locations with drifted error definitions
 7. 🔴 **`process.env.*` scattered** across 40+ files outside the config service
-8. 🔴 **4 zero-consumer packages** (`@repo/nest-auth`, `runthenkill`, `config-schema`, `poc-core-sync-system`)
+8. 🔴 **4 zero-consumer packages** (`@deployer/nest-auth`, `runthenkill`, `config-schema`, `poc-core-sync-system`)
 
 All findings have been reviewed, cross-referenced, and codified into the copilot-instructions.md Anti-Pattern Catalog (Section 36 added 7 new sub-sections) and Self-Review Checklist (Section 35 expanded with 10 new checks).
 
@@ -65,10 +65,10 @@ All findings have been reviewed, cross-referenced, and codified into the copilot
 
 | Package | Consumer Count | Issue |
 |---------|---------------|-------|
-| `@repo/nest-auth` | **0** | No consumer — exists but unused |
-| `@repo/runthenkill` | **0** | ZERO consumer imports — may be CLI-only, should confirm |
-| `@repo/poc-core-sync-system` | **0** | Standalone POC not wired anywhere |
-| `@repo/config-schema` | **0** | Exists but depends on nothing |
+| `@deployer/nest-auth` | **0** | No consumer — exists but unused |
+| `@deployer/runthenkill` | **0** | ZERO consumer imports — may be CLI-only, should confirm |
+| `@deployer/poc-core-sync-system` | **0** | Standalone POC not wired anywhere |
+| `@deployer/config-schema` | **0** | Exists but depends on nothing |
 | `packages/contracts/api` | ~10 | Wildcard export `"./*" exposes internals; duplicate deps+peerDeps |
 | `packages/contracts/common` | ~2 | Wildcard export bypasses public API |
 

@@ -24,7 +24,7 @@
 
 import * as React from 'react'
 import { authClient } from '@/lib/auth'
-import { logger } from '@repo/logger'
+import { logger } from '@deployer/logger'
 
 // ---------------------------------------------------------------------------
 // Shared shapes
@@ -104,26 +104,46 @@ function useAccountResource<T>(
     const [error, setError] = React.useState<string | null>(null)
     const [isLoading, setIsLoading] = React.useState(true)
 
+    // A promise chain (not async/await): the callbacks run after the loader
+    // settles, so the effect below never sets state synchronously.
+    const load = React.useCallback(
+        () =>
+            loader()
+                .then((result) => {
+                    setData(result.data)
+                    setError(result.error)
+                })
+                .catch((err: unknown) => {
+                    // A thrown error and a returned error mean the same thing to the
+                    // caller, so normalise here rather than at every call site.
+                    logger.error(`Failed to load ${label}`, { error: err })
+                    setError(err instanceof Error ? err.message : `Failed to load ${label}`)
+                })
+                .finally(() => {
+                    setIsLoading(false)
+                }),
+        [loader, label],
+    )
+
     const run = React.useCallback(async () => {
         setIsLoading(true)
         setError(null)
-        try {
-            const result = await loader()
-            setData(result.data)
-            setError(result.error)
-        } catch (err) {
-            // A thrown error and a returned error mean the same thing to the
-            // caller, so normalise here rather than at every call site.
-            logger.error(`Failed to load ${label}`, { error: err })
-            setError(err instanceof Error ? err.message : `Failed to load ${label}`)
-        } finally {
-            setIsLoading(false)
-        }
-    }, [loader, label])
+        await load()
+    }, [load])
+
+    // The initial load must not set state synchronously inside the effect (the
+    // state already starts as loading); when `loader`/`label` change, flip back
+    // to loading while rendering, then let the effect fetch.
+    const [loadKey, setLoadKey] = React.useState({ load })
+    if (loadKey.load !== load) {
+        setLoadKey({ load })
+        setIsLoading(true)
+        setError(null)
+    }
 
     React.useEffect(() => {
-        void run()
-    }, [run])
+        void load()
+    }, [load])
 
     return { data, error, isLoading, reload: run }
 }
@@ -208,7 +228,7 @@ export interface TwoFactorActions {
  * fields in the auth factory include the ban-related columns — the same
  * mechanism carries this one.
  */
-export function useTwoFactor(enabledFromSession: boolean): TwoFactorActions {
+export function useTwoFactor(_enabledFromSession: boolean): TwoFactorActions {
     const [backupCodes, setBackupCodes] = React.useState<string[]>([])
     const [isBusy, setIsBusy] = React.useState(false)
     const [error, setError] = React.useState<string | null>(null)
@@ -253,7 +273,7 @@ export function useTwoFactor(enabledFromSession: boolean): TwoFactorActions {
         () =>
             run(
                 () => authClient.twoFactor.disable({}),
-                () => setBackupCodes([]),
+                () => { setBackupCodes([]); },
             ),
         [run],
     )
@@ -270,12 +290,10 @@ export function useTwoFactor(enabledFromSession: boolean): TwoFactorActions {
         [run],
     )
 
-    const clearBackupCodes = React.useCallback(() => setBackupCodes([]), [])
+    const clearBackupCodes = React.useCallback(() => { setBackupCodes([]); }, [])
 
-    // `enabledFromSession` is passed in rather than re-read here: the session is
-    // already fetched by the caller, and a second subscription would double the
-    // requests for one boolean.
-    void enabledFromSession
+    // `_enabledFromSession` is accepted but unused here: the caller already holds
+    // the session, so reading it again would double the requests for one boolean.
 
     return { backupCodes, isBusy, error, enable, disable, regenerateBackupCodes, clearBackupCodes }
 }
@@ -425,7 +443,7 @@ export function relativeTime(
     fallback = 'never',
 ): string {
     if (!value) return fallback
-    const date = value instanceof Date ? value : new Date(String(value))
+    const date = value instanceof Date ? value : new Date(value)
     if (Number.isNaN(date.getTime())) return fallback
 
     const diffMs = date.getTime() - Date.now()
@@ -444,7 +462,7 @@ export function relativeTime(
 /** True when the value is a date in the past. */
 export function isExpired(value: Date | string | null | undefined): boolean {
     if (!value) return false
-    const date = value instanceof Date ? value : new Date(String(value))
+    const date = value instanceof Date ? value : new Date(value)
     if (Number.isNaN(date.getTime())) return false
     return date.getTime() <= Date.now()
 }

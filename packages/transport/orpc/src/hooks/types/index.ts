@@ -4,7 +4,7 @@ export type {
   IsNonGetMethod,
   QueryProcedureNames,
   MutationProcedureNames,
-} from '@repo/orpc-utils/hooks/types/route-method.types';
+} from '@deployer/orpc-utils/hooks/types/route-method.types';
 
 export type {
   InvalidationConfig,
@@ -12,7 +12,7 @@ export type {
   ExtractCustomHookInput,
   ExtractCustomHookOutput,
   CustomInvalidationContext,
-} from '@repo/orpc-utils/hooks/types/invalidation.types';
+} from '@deployer/orpc-utils/hooks/types/invalidation.types';
 
 export type {
   ExtractContractInput,
@@ -24,4 +24,4 @@ export type {
   GeneratedStreamedQueryHook,
   RouterHooks,
   HookNames,
-} from '@repo/orpc-utils/hooks/types/router-hooks.types';
+} from '@deployer/orpc-utils/hooks/types/router-hooks.types';

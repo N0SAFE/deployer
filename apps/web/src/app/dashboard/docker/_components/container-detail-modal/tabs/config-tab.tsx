@@ -1,4 +1,4 @@
-import { Badge } from '@repo/ui/components/shadcn/badge'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
 
 interface RuntimeConfig {
   watchMode: string | null
@@ -41,7 +41,7 @@ export function DockerContainerConfigTab({ runtimeConfig }: DockerContainerConfi
           <p className="mt-1 font-medium">{runtimeConfig?.networkMode ?? 'bridge'}</p>
         </div>
       </div>
-      <div className="rounded border overflow-hidden">
+      <div className="rounded border overflow-x-auto">
         <table className="w-full text-xs">
           <tbody>
             {[

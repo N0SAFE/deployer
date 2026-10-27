@@ -1,27 +1,17 @@
 'use client'
 
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Switch } from '@repo/ui/components/shadcn/switch'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@repo/ui/components/shadcn/select'
-import { Checkbox } from '@repo/ui/components/shadcn/checkbox'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
-import { Field, FieldLabel, FieldDescription } from '@repo/ui/components/shadcn/field'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Switch } from '@deployer/ui/components/shadcn/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
+import { Checkbox } from '@deployer/ui/components/shadcn/checkbox'
+import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
+import { Field, FieldLabel, FieldDescription } from '@deployer/ui/components/shadcn/field'
 import { Check, Lock, Globe } from 'lucide-react'
-import { cn } from '@repo/ui/lib/utils'
+import { cn } from '@deployer/ui/lib/utils'
 import type { CreateServiceFormApi } from '../CreateService.hook'
 import { AutocompleteField } from './autocomplete-field'
+import { Section } from './step-section'
 
-function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-3 rounded-lg border bg-background/40 p-4">
-      <div>
-        <h4 className="text-sm font-semibold">{title}</h4>
-        {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
-      </div>
-      {children}
-    </div>
-  )
-}
 
 function NumberField({ value, onChange, options, placeholder }: {
   value: number
@@ -65,7 +55,7 @@ function HealthTypePicker({ value, onChange }: { value: string; onChange: (v: 'h
           >
             {selected && <Check className="absolute right-1.5 top-1.5 size-3 text-primary" />}
             <span className="text-xs font-medium">{o.label}</span>
-            <span className="text-[10px] leading-snug text-muted-foreground">{o.description}</span>
+            <span className="text-xs leading-snug text-muted-foreground">{o.description}</span>
           </button>
         )
       })}
@@ -177,7 +167,7 @@ export function StepNetwork({ form }: { form: CreateServiceFormApi }) {
         </Section>
 
         {/* ── Health check ── */}
-        <Section title="Health check" description="How the platform verifies the service is healthy.">
+        <Section title="Health check" description="A health check is a probe the platform runs on a schedule. After enough failed probes the service is marked unhealthy.">
           <form.Field name="network.healthCheck.type" children={(f) => (
             <HealthTypePicker
               value={f.state.value}
@@ -198,7 +188,7 @@ export function StepNetwork({ form }: { form: CreateServiceFormApi }) {
 
           {hcType === 'http' && (
             <div className="grid gap-3 sm:grid-cols-2">
-              <form.Field name="network.healthCheck.path" children={(f) => (<Field><FieldLabel>Path</FieldLabel><Input value={f.state.value} onChange={(e) => { f.handleChange(e.target.value) }} placeholder="/health" /></Field>)} />
+              <form.Field name="network.healthCheck.path" children={(f) => (<Field><FieldLabel>Path</FieldLabel><Input value={f.state.value} onChange={(e) => { f.handleChange(e.target.value) }} placeholder="/health" /><FieldDescription>URL path requested on the container port.</FieldDescription></Field>)} />
               <form.Field name="network.healthCheck.method" children={(f) => (
                 <Field>
                   <FieldLabel>Method</FieldLabel>
@@ -210,7 +200,7 @@ export function StepNetwork({ form }: { form: CreateServiceFormApi }) {
               )} />
               <form.Field name="network.healthCheck.expectedStatus" children={(f) => (
                 <Field>
-                  <FieldLabel>Expected status</FieldLabel>
+                  <FieldLabel>Expected status code</FieldLabel>
                   <AutocompleteField value={String(f.state.value)} onChange={(v) => { f.handleChange(Number(v)) }} options={STATUS_PRESETS} placeholder="200" />
                 </Field>
               )} />
@@ -223,29 +213,29 @@ export function StepNetwork({ form }: { form: CreateServiceFormApi }) {
           )}
           {hcType === 'command' && (
             <form.Field name="network.healthCheck.command" children={(f) => (
-              <Field><FieldLabel>Command</FieldLabel><AutocompleteField value={f.state.value} onChange={(v) => { f.handleChange(v) }} options={['curl -f http://localhost:3000/health', 'wget -q --spider http://localhost:3000/health', 'test -f /tmp/healthy']} placeholder="curl -f http://localhost:3000/health" /></Field>
+              <Field><FieldLabel>Command</FieldLabel><FieldDescription>Run inside the container; exit code 0 means healthy.</FieldDescription><AutocompleteField value={f.state.value} onChange={(v) => { f.handleChange(v) }} options={['curl -f http://localhost:3000/health', 'wget -q --spider http://localhost:3000/health', 'test -f /tmp/healthy']} placeholder="curl -f http://localhost:3000/health" /></Field>
             )} />
           )}
 
           {hcType !== 'none' && (
             <div className="mt-3 grid gap-3 border-t pt-3 sm:grid-cols-3">
               <form.Field name="network.healthCheck.interval" children={(f) => (
-                <Field><FieldLabel>Interval (s)</FieldLabel><NumberField value={f.state.value} onChange={(v) => { f.handleChange(v) }} options={['10', '15', '30', '60', '120']} placeholder="30" /></Field>
+                <Field><FieldLabel>Interval (s)</FieldLabel><NumberField value={f.state.value} onChange={(v) => { f.handleChange(v) }} options={['10', '15', '30', '60', '120']} placeholder="30" /><FieldDescription>Time between probes.</FieldDescription></Field>
               )} />
               <form.Field name="network.healthCheck.timeout" children={(f) => (
-                <Field><FieldLabel>Timeout (s)</FieldLabel><NumberField value={f.state.value} onChange={(v) => { f.handleChange(v) }} options={['3', '5', '10', '30', '60']} placeholder="10" /></Field>
+                <Field><FieldLabel>Timeout (s)</FieldLabel><NumberField value={f.state.value} onChange={(v) => { f.handleChange(v) }} options={['3', '5', '10', '30', '60']} placeholder="10" /><FieldDescription>A probe slower than this fails.</FieldDescription></Field>
               )} />
               <form.Field name="network.healthCheck.retries" children={(f) => (
-                <Field><FieldLabel>Retries</FieldLabel><NumberField value={f.state.value} onChange={(v) => { f.handleChange(v) }} options={['0', '1', '3', '5', '10']} placeholder="3" /></Field>
+                <Field><FieldLabel>Retries</FieldLabel><NumberField value={f.state.value} onChange={(v) => { f.handleChange(v) }} options={['0', '1', '3', '5', '10']} placeholder="3" /><FieldDescription>Extra attempts before a probe counts as failed.</FieldDescription></Field>
               )} />
               <form.Field name="network.healthCheck.startPeriod" children={(f) => (
-                <Field><FieldLabel>Start period (s)</FieldLabel><NumberField value={f.state.value} onChange={(v) => { f.handleChange(v) }} options={['0', '5', '10', '30', '60']} placeholder="0" /></Field>
+                <Field><FieldLabel>Start period (s)</FieldLabel><NumberField value={f.state.value} onChange={(v) => { f.handleChange(v) }} options={['0', '5', '10', '30', '60']} placeholder="0" /><FieldDescription>Grace time after start before failures count.</FieldDescription></Field>
               )} />
               <form.Field name="network.healthCheck.successThreshold" children={(f) => (
-                <Field><FieldLabel>Success threshold</FieldLabel><NumberField value={f.state.value} onChange={(v) => { f.handleChange(v) }} options={['1', '2', '3', '5']} placeholder="1" /></Field>
+                <Field><FieldLabel>Success threshold</FieldLabel><NumberField value={f.state.value} onChange={(v) => { f.handleChange(v) }} options={['1', '2', '3', '5']} placeholder="1" /><FieldDescription>Passing probes in a row to be healthy.</FieldDescription></Field>
               )} />
               <form.Field name="network.healthCheck.failureThreshold" children={(f) => (
-                <Field><FieldLabel>Failure threshold</FieldLabel><NumberField value={f.state.value} onChange={(v) => { f.handleChange(v) }} options={['1', '2', '3', '5']} placeholder="3" /></Field>
+                <Field><FieldLabel>Failure threshold</FieldLabel><NumberField value={f.state.value} onChange={(v) => { f.handleChange(v) }} options={['1', '2', '3', '5']} placeholder="3" /><FieldDescription>Failing probes in a row to be unhealthy.</FieldDescription></Field>
               )} />
             </div>
           )}

@@ -2,7 +2,7 @@
 
 > **Status:** canonical target architecture — supersedes
 > `docs/setup-lifecycle-complete.md` (setup-as-an-app), `docs/startup-flow-explained.md`
-> (orchestrator pipeline) and the deleted `api-services-bff-orchestrator.md`.
+> (orchestrator pipeline) and the deleted `api-bff-orchestrator.md`.
 > **Scope:** node lifecycle, CLI onboarding, configurator, api services + BFF,
 > networking/DNS, swarm, boot sequences.
 > **Branch:** `rewrite-v3`
@@ -49,7 +49,7 @@ becomes:
   not a pass-through proxy);
 - `apps/api/services/*` — domain services, **entity-first and CRUD-shaped**,
   each owning its aggregates, its tables, and its business rules;
-- `apps/api-services/shared` — everything shared **inside** the API folder (platform core,
+- `apps/api/shared` — everything shared **inside** the API folder (platform core,
   config, auth, shared server bootstrap). Nothing here leaks into `packages/*`.
 
 **3. No `*.deployer.localhost`.** The naming scheme (`api.deployer.localhost`,

@@ -2,10 +2,10 @@
 
 import { useId, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronRight, Plus, Trash2, X } from 'lucide-react'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Label } from '@repo/ui/components/shadcn/label'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Label } from '@deployer/ui/components/shadcn/label'
 import { fieldErrorId, type ContainerForm } from './use-container-form'
 
 /** Native select styled like the inputs; always give it an `id` + label or `aria-label`. */

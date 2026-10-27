@@ -1,8 +1,8 @@
 import { TerminalViewer } from '@/components/atomics/organisms/terminal'
-import type { DockerTerminalProfile } from '@repo/contracts-entities'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
+import type { DockerTerminalProfile } from '@deployer/contracts-entities'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { Plus, TerminalSquare, X } from 'lucide-react'
 import type { TerminalConnectionState } from '../../../_utils/container-terminal'
 

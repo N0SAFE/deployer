@@ -15,7 +15,7 @@ A comprehensive invitation system for Better Auth with full role management and 
 
 ## Installation
 
-The invite plugin is already included in the `@repo/auth` package.
+The invite plugin is already included in the `@deployer/auth` package.
 
 ## Setup
 
@@ -23,7 +23,7 @@ The invite plugin is already included in the `@repo/auth` package.
 
 ```typescript
 import { betterAuth } from "better-auth";
-import { useAdmin, useInvite } from "@repo/auth/server/plugins";
+import { useAdmin, useInvite } from "@deployer/auth/server/plugins";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg" }),
@@ -55,7 +55,7 @@ export const auth = betterAuth({
 
 ```typescript
 import { createAuthClient } from "better-auth/react";
-import { useInviteClient } from "@repo/auth/client/plugins";
+import { useInviteClient } from "@deployer/auth/client/plugins";
 
 export const authClient = createAuthClient({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
@@ -297,7 +297,7 @@ export default function SignUpPage() {
 The plugin provides full type safety for roles:
 
 ```typescript
-import type { AllRoleNames } from "@repo/auth/permissions";
+import type { AllRoleNames } from "@deployer/auth/permissions";
 
 // Roles are typed based on your permission configuration
 type Role = AllRoleNames; // "admin" | "sarah" | ...
@@ -333,7 +333,7 @@ The plugin provides descriptive error codes:
 ## Testing
 
 ```typescript
-import { invitePlugin } from "@repo/auth/server";
+import { invitePlugin } from "@deployer/auth/server";
 import { vi } from "vitest";
 
 // Mock date for testing expiration

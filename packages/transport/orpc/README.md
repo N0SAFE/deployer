@@ -1,4 +1,4 @@
-# @repo/orpc-utils
+# @deployer/orpc-utils
 
 Fluent builder utilities for creating type-safe ORPC contracts with standardized patterns.
 
@@ -11,14 +11,14 @@ This package provides a powerful builder pattern for creating ORPC API contracts
 This is an internal workspace package. Import it in your code:
 
 ```typescript
-import { standard, RouteBuilder, SchemaBuilder } from "@repo/orpc-utils";
+import { standard, RouteBuilder, SchemaBuilder } from "@deployer/orpc-utils";
 ```
 
 ## Quick Start
 
 ```typescript
-import { standard } from "@repo/orpc-utils";
-import { userSchema } from "@repo/api-contracts/common/user";
+import { standard } from "@deployer/orpc-utils";
+import { userSchema } from "@deployer/contracts-common/common/user";
 
 // Create a standard operations builder
 const userOps = standard.zod(userSchema, "user");
@@ -292,7 +292,7 @@ new SchemaBuilder(schema)
 ### Basic CRUD
 ```typescript
 import { oc } from "@orpc/contract";
-import { standard } from "@repo/orpc-utils";
+import { standard } from "@deployer/orpc-utils";
 
 const userOps = standard.zod(userSchema, "user");
 
@@ -329,7 +329,7 @@ const advancedContract = userOps.read()
 
 ### Custom Route
 ```typescript
-import { RouteBuilder } from "@repo/orpc-utils";
+import { RouteBuilder } from "@deployer/orpc-utils";
 
 const customContract = new RouteBuilder()
   .route({
@@ -350,7 +350,7 @@ const customContract = new RouteBuilder()
 
 ### Schema Transformations
 ```typescript
-import { SchemaBuilder } from "@repo/orpc-utils";
+import { SchemaBuilder } from "@deployer/orpc-utils";
 
 const publicUserSchema = new SchemaBuilder(userSchema)
   .omit(["email", "password"])

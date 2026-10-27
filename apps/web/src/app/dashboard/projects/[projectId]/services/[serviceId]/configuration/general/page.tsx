@@ -1,79 +1,52 @@
 'use client'
 
 import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import { useService, useUpdateService } from '@/domains/service/hooks'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Label } from '@repo/ui/components/shadcn/label'
-import { Textarea } from '@repo/ui/components/shadcn/textarea'
-import { Switch } from '@repo/ui/components/shadcn/switch'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
-import { Siren, Save, Hash, Boxes, CalendarClock } from 'lucide-react'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Label } from '@deployer/ui/components/shadcn/label'
+import { Textarea } from '@deployer/ui/components/shadcn/textarea'
+import { Switch } from '@deployer/ui/components/shadcn/switch'
+import { Save, Hash, Boxes, CalendarClock } from 'lucide-react'
 import { toast } from 'sonner'
 import { ServiceConfigSubNav } from '../../_components/service-config-subnav'
 import { AutocompleteField } from '@/app/dashboard/projects/_components/steps/autocomplete-field'
-import { SERVICE_TYPES } from '@repo/contracts-common'
+import { SERVICE_TYPES } from '@deployer/contracts-common'
+import { PageSkeleton } from '@/components/dashboard'
+import { InlineError } from '@/app/dashboard/projects/_components/workload/WorkloadStates'
 
-interface ServiceFields {
-  id: string
-  name?: string
-  description?: string | null
-  type?: string
-  port?: number | null
-  isActive?: boolean
-  resourceLimits?: { memory?: string; cpu?: string; storage?: string }
-  deploymentRetention?: { maxSuccessfulDeployments?: number; keepArtifacts?: boolean; autoCleanup?: boolean }
-}
+type ServiceData = NonNullable<ReturnType<typeof useService>['data']>
 
 export default function DashboardServiceConfigurationGeneralPage() {
-  const params = useParams<{ projectId: string; serviceId: string }>()
-  const projectId = params.projectId
-  const serviceId = params.serviceId
+  const { projectId, serviceId } = useParams<{ projectId: string; serviceId: string }>()
+  const query = useService(serviceId)
 
-  const { data: serviceData, isLoading: serviceLoading } = useService(serviceId)
+  if (query.isLoading) return <PageSkeleton blocks={3} withStrip={false} label="Loading service configuration" />
+  if (query.error) return <InlineError title="Could not load the service" error={query.error} onRetry={() => { void query.refetch() }} />
+  if (!query.data) return <InlineError title="Service not found" error={new Error('This service does not exist or was deleted.')} />
+  // Keyed so the form seeds once per service; a later refetch never overwrites what is being typed.
+  return <GeneralForm key={query.data.id} projectId={projectId} serviceId={serviceId} service={query.data} />
+}
+
+function GeneralForm({ projectId, serviceId, service }: { projectId: string; serviceId: string; service: ServiceData }) {
   const updateService = useUpdateService()
-  const service = (serviceData ?? null) as ServiceFields | null
 
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [type, setType] = useState('application')
-  const [port, setPort] = useState('')
-  const [memory, setMemory] = useState('')
-  const [cpu, setCpu] = useState('')
-  const [storage, setStorage] = useState('')
-  const [keepArtifacts, setKeepArtifacts] = useState(true)
-  const [autoCleanup, setAutoCleanup] = useState(true)
-  const [maxDeployments, setMaxDeployments] = useState('5')
-  const [loaded, setLoaded] = useState(false)
-
-  // Seed once when the service loads (useEffect — not render-time setState,
-  // which would break re-seeding when React re-renders with fresh data).
-  useEffect(() => {
-    if (!loaded && service) {
-      setName(service.name ?? '')
-      setDescription(service.description ?? '')
-      setType(service.type ?? 'application')
-      setPort(service.port != null ? String(service.port) : '')
-      setMemory(service.resourceLimits?.memory ?? '')
-      setCpu(service.resourceLimits?.cpu ?? '')
-      setStorage(service.resourceLimits?.storage ?? '')
-      // `deploymentRetention` is nullable and its inner flags are optional, so
-      // "unset" is a real state. Defaulting to `true` did not just display an
-      // affirmative value for it — it wrote one: opening this form and saving
-      // persisted keepArtifacts/autoCleanup as ON without the user choosing.
-      setKeepArtifacts(service.deploymentRetention?.keepArtifacts ?? false)
-      setAutoCleanup(service.deploymentRetention?.autoCleanup ?? false)
-      setMaxDeployments(String(service.deploymentRetention?.maxSuccessfulDeployments ?? 5))
-      setLoaded(true)
-    }
-  }, [loaded, service])
-
-  if (serviceLoading) return <div className="space-y-6"><Skeleton className="h-8 w-48" /><Skeleton className="h-48 w-full" /></div>
-  if (!service) return <Alert variant="destructive"><Siren className="size-4" /><AlertTitle>Not found</AlertTitle><AlertDescription>Service not found.</AlertDescription></Alert>
+  const [name, setName] = useState(service.name)
+  const [description, setDescription] = useState(service.description ?? '')
+  const [type, setType] = useState<string>(service.type)
+  const [port, setPort] = useState(service.port === null ? '' : String(service.port))
+  const [memory, setMemory] = useState(service.resourceLimits?.memory ?? '')
+  const [cpu, setCpu] = useState(service.resourceLimits?.cpu ?? '')
+  const [storage, setStorage] = useState(service.resourceLimits?.storage ?? '')
+  // `deploymentRetention` is nullable and its flags optional, so "unset" is a
+  // real state. Defaulting to `true` would write an affirmative value the user
+  // never chose, so unset shows as off.
+  const [keepArtifacts, setKeepArtifacts] = useState(service.deploymentRetention?.keepArtifacts ?? false)
+  const [autoCleanup, setAutoCleanup] = useState(service.deploymentRetention?.autoCleanup ?? false)
+  const [maxDeployments, setMaxDeployments] = useState(String(service.deploymentRetention?.maxSuccessfulDeployments ?? 5))
 
   const handleSave = async () => {
     try {

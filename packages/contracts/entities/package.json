@@ -18,10 +18,13 @@
         }
     },
     "scripts": {
-        "type-check": "bun --check",
+        "type-check": "bun check --no-script",
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
+        "prettify": "bun fmt .",
+        "format": "bun run prettify",
+        "format:check": "bun fmt --check .",
         "build": "bun --bun pkg-build",
         "dev": "bun --bun pkg-build --watch",
         "clean": "rimraf dist",

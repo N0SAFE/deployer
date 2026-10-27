@@ -8,7 +8,7 @@ import { SetupPhaseService } from "./setup-phase.service";
  *
  * Terminus maps this to a real HTTP status: `up` → 200, `down` → 503. That
  * matters because compose cannot parse a JSON body, so the STATUS CODE is the
- * entire contract. `api-dev`/`web-dev` therefore need no `healthcheck.sh`
+ * entire contract. `bff`/`web-dev` therefore need no `healthcheck.sh`
  * wrapper — a plain `wget --spider` is a correct probe.
  *
  * A pure read of the phase service's current value: no I/O, no polling. The

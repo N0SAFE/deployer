@@ -1,5 +1,5 @@
-import { hasMasterTokenPlugin } from '@repo/auth/client'
-import { createSessionAwareAuthClient, DEFAULT_SESSION_QUERY_KEY } from '@repo/auth/react/session'
+import { hasMasterTokenPlugin } from '@deployer/auth/client'
+import { createSessionAwareAuthClient, DEFAULT_SESSION_QUERY_KEY } from '@deployer/auth/react/session'
 import { authClient as originalAuthClient } from './options'
 
 // =============================================================================

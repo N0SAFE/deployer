@@ -1,12 +1,23 @@
 # =====================================================================
 # dependency-builder DEV config — INCLUDE-ONLY.
 #
-# One container builds every internal workspace package the enabled
-# applications need, once, through a single Turbo graph, and keeps them
-# built while the stack runs. The applications consume the artifacts
-# through the shared `dep-output` volume instead of building their own.
+# One container publishes every internal workspace package the enabled
+# applications need, then keeps them current while the stack runs. The
+# applications consume the artifacts through the shared `dep-output` volume
+# instead of building their own.
 #
-# ── Why this REPLACES the per-app `turbo run build` step ─────────────────
+# ── WHERE THE BUILD ACTUALLY HAPPENS ─────────────────────────────────────
+#
+# At IMAGE BUILD time, not at container start. The Dockerfile runs a full
+# `turbo run build` over every internal package and keeps Turbo's cache in the
+# image, so the artifacts exist before anything is started.
+#
+# At container start this process PUBLISHES them: it adopts the image's `dist/`
+# trees into the volume, symlinks each package's `dist/` at the volume, and opens
+# the gate. Its own build is skipped because there is nothing left to build —
+# which is what removes the "run, then rerun" a runtime-only build would cause.
+#
+# ── Why this REPLACES the per-app `turbo run build` step ────────────────
 #
 # Every other dev image used to build its own copy of its packages'
 # `dist/` inside the image, so N applications meant N builds of a shared
@@ -29,27 +40,48 @@ services:
     environment:
       NODE_ENV: development
       LOG_LEVEL: debug
-      # The applications to compute the union for. This is the ENABLEMENT LIST:
-      # dropping `-a web` removes web's packages from the union, so they are
-      # never built and never published.
+      # ── THE ENABLEMENT SIGNAL ────────────────────────────────────────────
+      # Which applications this run has enabled. The tool reads it to compute
+      # the package union, so the union and the running containers cannot
+      # drift.
       #
-      # Kept as a variable rather than inline flags so enabling or disabling an
-      # application is one edit in `.env` instead of an image rebuild.
-      DEP_BUILDER_APPS: ${DEP_BUILDER_APPS:--a api -a web -a setup -a doc}
+      # It is passed EXPLICITLY rather than left to compose. `COMPOSE_PROFILES`
+      # is the variable that selects profiles, but compose does NOT forward it
+      # into the containers it starts (measured: the host value is absent from
+      # the container's environment), so a service cannot read back the very
+      # variable that selected it. Interpolating it here is what carries the
+      # value across that boundary.
+      #
+      # Defaults to `all`, matching the root `dev` script and `.env.example`.
+      COMPOSE_PROFILES: ${COMPOSE_PROFILES:-all}
       # Keeps the package builds from dereferencing the `dist/` symlink that
       # publishes artifacts to this volume. See the note in the image.
       PKG_BUILD_KEEP_DIST: "1"
-    # `$$` escapes compose interpolation so the SHELL expands the list, which is
-    # what lets it be empty or reordered without a compose syntax error.
+    # No `DEP_BUILDER_APPS`: the enabled set is DETECTED from COMPOSE_PROFILES,
+    # not passed as flags. A second list here is how the union and the running
+    # services drift apart — a service removed from a compose file would stay
+    # in the union, and one added would be silently missing from it.
     command:
       - sh
       - -c
       - >-
-        bun --bun src/main.ts build --root /app $${DEP_BUILDER_APPS}
+        bun --bun src/main.ts build --root /app
     volumes:
       # The shared output. This container is its only writer; the applications
       # mount it read-only.
-      - dep_output_dev:/dep-output
+      #
+      # ── INSIDE /app, NOT A SIBLING ────────────────────────────────────────
+      # Turbo refuses to cache a task whose `outputs` resolve outside the
+      # workspace root, and the packages' `dist/` symlinks point here. At the
+      # old `/dep-output` every task warned `tar attempts to write outside of
+      # directory` and NO cache entry was written (measured: 2 entries for 38
+      # packages), so every boot rebuilt everything. Under `/app` there are zero
+      # warnings and the second run reports FULL TURBO.
+      #
+      # The applications mount this at the same path, which also keeps their own
+      # `dist/` symlinks inside their `/app` — Turbopack has the same
+      # boundary rule as Turbo.
+      - dep_output_dev:/app/dep-output
     develop:
       watch:
         # ── Sources ──────────────────────────────────────────────────────────
@@ -117,7 +149,7 @@ services:
       #
       # The path is absolute and does not depend on this container's working
       # directory.
-      test: ["CMD-SHELL", "test -f /dep-output/.initial-build-complete"]
+      test: ["CMD-SHELL", "test -f /app/dep-output/.initial-build-complete"]
       interval: 2s
       timeout: 3s
       retries: 3

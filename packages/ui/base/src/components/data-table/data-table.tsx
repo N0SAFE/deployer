@@ -2,9 +2,9 @@
 
 // ** import types
 import type { ColumnDef, ColumnResizeMode, Row, ExpandedState, TableOptions } from "@tanstack/react-table";
-import type { TableConfig } from "@repo/ui/components/data-table/utils/table-config";
-import type { CaseFormatConfig } from "@repo/ui/components/data-table/utils/case-utils";
-import type { DataTransformFunction, ExportableData } from "@repo/ui/components/data-table/utils/export-utils";
+import type { TableConfig } from "@deployer/ui/components/data-table/utils/table-config";
+import type { CaseFormatConfig } from "@deployer/ui/components/data-table/utils/case-utils";
+import type { DataTransformFunction, ExportableData } from "@deployer/ui/components/data-table/utils/export-utils";
 
 /** Column definition extended with meta and accessorKey for header rendering. */
 // NOTE: type alias, not interface — `ColumnDef<TData>` is a complex
@@ -38,18 +38,18 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@repo/ui/components/shadcn/table";
-import { Skeleton } from "@repo/ui/components/shadcn/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@repo/ui/components/shadcn/alert";
-import { DataTablePagination } from "@repo/ui/components/data-table/pagination";
-import { DataTableToolbar } from "@repo/ui/components/data-table/toolbar";
-import { DataTableResizer } from "@repo/ui/components/data-table/data-table-resizer";
+} from "@deployer/ui/components/shadcn/table";
+import { Skeleton } from "@deployer/ui/components/shadcn/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@deployer/ui/components/shadcn/alert";
+import { DataTablePagination } from "@deployer/ui/components/data-table/pagination";
+import { DataTableToolbar } from "@deployer/ui/components/data-table/toolbar";
+import { DataTableResizer } from "@deployer/ui/components/data-table/data-table-resizer";
 
 // ** import utils
-import { cn } from "@repo/ui/lib/utils";
-import { useTableConfig } from "@repo/ui/components/data-table/utils/table-config";
-import { useTableColumnResize } from "@repo/ui/components/data-table/hooks/use-table-column-resize";
-import { preprocessSearch } from "@repo/ui/components/data-table/utils/search";
+import { cn } from "@deployer/ui/lib/utils";
+import { useTableConfig } from "@deployer/ui/components/data-table/utils/table-config";
+import { useTableColumnResize } from "@deployer/ui/components/data-table/hooks/use-table-column-resize";
+import { preprocessSearch } from "@deployer/ui/components/data-table/utils/search";
 import {
   createSortingHandler,
   createColumnFiltersHandler,
@@ -57,14 +57,14 @@ import {
   createPaginationHandler,
   createColumnSizingHandler,
   createSortingState
-} from "@repo/ui/components/data-table/utils/table-state-handlers";
-import { createKeyboardNavigationHandler } from "@repo/ui/components/data-table/utils/keyboard-navigation";
-import { createConditionalStateHook } from "@repo/ui/components/data-table/utils/conditional-state";
+} from "@deployer/ui/components/data-table/utils/table-state-handlers";
+import { createKeyboardNavigationHandler } from "@deployer/ui/components/data-table/utils/keyboard-navigation";
+import { createConditionalStateHook } from "@deployer/ui/components/data-table/utils/conditional-state";
 import {
   initializeColumnSizes,
   trackColumnResizing,
   cleanupColumnResizing
-} from "@repo/ui/components/data-table/utils/column-sizing";
+} from "@deployer/ui/components/data-table/utils/column-sizing";
 
 // Define types for the data fetching function params and result
 interface DataFetchParams {

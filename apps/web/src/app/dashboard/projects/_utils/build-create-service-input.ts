@@ -1,6 +1,6 @@
-import type { ServiceCreateInput, ServiceCreateInputInput } from '@repo/api-contracts/modules/service/crud/create'
-import type { RouteVisibility } from '@repo/api-contracts/modules/reachability/index'
-import { orchestratorRunnerConfigSchema } from '@repo/contracts-entities'
+import type { ServiceCreateInput, ServiceCreateInputInput } from '@deployer/project-contracts/modules/service/crud/create'
+import type { RouteVisibility } from '@deployer/fleet-contracts/modules/reachability/index'
+import { orchestratorRunnerConfigSchema } from '@deployer/contracts-entities'
 
 /**
  * Maps the create-service wizard's output to the `service.create` input.
@@ -23,13 +23,13 @@ export interface CreateWizardPayload {
     visibility?: RouteVisibility
     tls?: { enabled?: boolean; certSecretRef?: string; httpRedirect?: boolean }
     healthCheck?: { type?: string; path?: string; interval?: number; timeout?: number; retries?: number }
-    domainEntries?: Array<{
+    domainEntries?: {
       projectDomainId: string
       subdomain: string | null
       basePath: string | null
       isPrimary: boolean
       sslEnabled: boolean
-    }>
+    }[]
   }
 }
 
@@ -138,7 +138,7 @@ export function buildCreateServiceInput(data: CreateWizardPayload, projectId: st
   ): ServiceCreateInputInput => {
     const env = svc.environment ?? {}
     const mergedEnv = { ...(orchestrator?.environment ?? {}), ...env }
-    const parentProviderConfig = (data.provider?.config ?? {}) as Record<string, unknown>
+    const parentProviderConfig = data.provider?.config ?? {}
     const parentSourceUrl = typeof parentProviderConfig.sourceUrl === 'string' && parentProviderConfig.sourceUrl
       ? parentProviderConfig.sourceUrl
       : 'https://github.com/N0SAFE/deployer'

@@ -12,7 +12,7 @@
  */
 
 import { Global, Module, type DynamicModule } from '@nestjs/common';
-import { AppLifecycleService } from '@repo/nest-lifecycle/app-lifecycle.service';
+import { AppLifecycleService } from '@deployer/nest-lifecycle/app-lifecycle.service';
 
 @Global()
 @Module({})

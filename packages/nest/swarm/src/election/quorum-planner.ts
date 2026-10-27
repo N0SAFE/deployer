@@ -5,7 +5,7 @@
  * Pure functions; all robustness is unit-testable without a daemon.
  */
 
-export interface QuorumPlan {
+export type QuorumPlan = {
     /** Number of swarm managers the cluster should keep. */
     managerCount: number;
     /** Hot standby slots (managers that are not the master). */

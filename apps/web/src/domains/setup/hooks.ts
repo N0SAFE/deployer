@@ -6,8 +6,8 @@ import { toast } from "sonner";
 import type {
     SetupStreamEvent,
     SetupInitializeInput,
-} from "@repo/contracts-entities";
-import { isSetupRunFinished } from "@repo/ui/components/setup/progress-tasks";
+} from "@deployer/contracts-entities";
+import { isSetupRunFinished } from "@deployer/ui/components/setup/progress-tasks";
 import { setupEndpoints } from "./endpoints";
 
 // ─── Query keys ───────────────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ export function useProbeMesh() {
   return useMutation({
     mutationFn: async (meshUrl: string) => {
       const res = await setupEndpoints.probeMesh.call({ meshUrl });
-      return res.body as { reachable: boolean; latencyMs?: number; advertisedHost?: string; version?: string; error?: string };
+      return res.body;
     },
   });
 }
@@ -93,13 +93,7 @@ export function useRemoteAuth() {
   return useMutation({
     mutationFn: async (input: { meshUrl: string; username: string; password: string }) => {
       const res = await setupEndpoints.remoteAuth.call(input);
-      return res.body as {
-        authToken: string;
-        userId: string;
-        email: string;
-        meshUrl: string;
-        latencyMs?: number;
-      };
+      return res.body;
     },
   });
 }
@@ -125,8 +119,8 @@ export function useTriggerInitialize() {
     mutationFn: (input: SetupInitializeInput) =>
       setupEndpoints.triggerInitialize.call(input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: setupKeys.state() });
-      queryClient.invalidateQueries({ queryKey: setupKeys.nodeStatus() });
+      void queryClient.invalidateQueries({ queryKey: setupKeys.state() });
+      void queryClient.invalidateQueries({ queryKey: setupKeys.nodeStatus() });
     },
     onError: (error: Error) => {
       toast.error(isDefinedORPCError(error) ? getErrorMessage(error, 'Setup trigger failed') : UNKNOWN_ORPC_ERROR_MESSAGE);

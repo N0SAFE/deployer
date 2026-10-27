@@ -14,17 +14,14 @@
  *
  * ── WHY THIS IS NOT ENFORCED BY PACKAGE BOUNDARIES ─────────────────────────
  * The obvious enforcement is one schema package per service, so `@deployer/svc-identity`
- * physically could not import `deployments`. It cannot work yet, for two reasons:
+ * physically could not import `deployments`. It cannot work yet:
  *
- *  1. `@deployer/nest-schema` is depended on by `apps/api` (the monolith being retired),
- *     which reads every table. Splitting it would mean splitting the monolith too, in
- *     the same change — not a step that can be taken while the old architecture still
- *     has to start.
- *  2. `packages/auth` sits BELOW the services and needs the auth tables. Moving those
+ *  1. `packages/auth` sits BELOW the services and needs the auth tables. Moving those
  *     tables into `identity` would make the dependency `auth → identity → auth`.
  *
  * A registry plus a test gets the same guarantee — one writer per table, checked on
- * every commit — without either problem. When the monolith goes, the split can follow.
+ * every commit — without that problem. (A second obstacle, the monolith reading every
+ * table, went away when it was removed; the split is now only blocked by the auth cycle.)
  *
  * ── WHY MULTI-OWNER ENTRIES EXIST ───────────────────────────────────────────
  * A few tables genuinely have two legitimate readers and ONE writer, and pretending
@@ -34,15 +31,14 @@
  * a second SELECT, it is a second writer disagreeing about what the row means.
  */
 
-/** The services that own tables, plus the two apps that are not services. */
+/** The services that own tables, plus `platform` for app-wide bookkeeping. */
 export type TableOwner =
 	| "identity" // users, credentials, notifications, analytics
 	| "project" // projects, services, domains, environments
 	| "runtime" // deployments, docker, runners
 	| "fleet" // cluster, nodes, providers, reachability
 	| "health" // probes and their history
-	| "platform" // app-wide config, versions, schema bookkeeping
-	| "monolith"; // still read/written by `apps/api` until it is retired
+	| "platform"; // app-wide config, versions, schema bookkeeping
 
 /**
  * Tables with more than one legitimate READER, but still a single writer.
@@ -50,7 +46,7 @@ export type TableOwner =
  * `writer` is the only service permitted to mutate; the others may read. Anything not
  * listed here has exactly one owner for all access.
  */
-export interface SharedTable {
+export type SharedTable = {
 	readonly table: string;
 	readonly writer: TableOwner;
 	readonly readers: readonly TableOwner[];

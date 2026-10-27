@@ -220,7 +220,7 @@ The error below is exactly what happens when a module starts before its dependen
 ```
 error: GlobalDatabaseService has not been initialized yet
       at db (/app/apps/api/src/core/modules/database/shared/database.service.ts:30:23)
-      at dispatchPending (/app/apps/api/src/core/modules/events/outbox/local-event-outbox-dispatcher.service.ts:58:36)
+      at dispatchPending (/app/apps/api/shared/src/core/modules/events/outbox/local-event-outbox-dispatcher.service.ts:58:36)
 ```
 
 `LocalEventOutboxDispatcherService.onModuleInit()` starts a ticker that calls `this.databaseService.db`, but the database hasn't been initialized yet. The module was loaded eagerly in `AppModule`, so its `onModuleInit` runs before the database is ready.
@@ -276,7 +276,7 @@ export interface DatabaseReadyTrigger extends BaseTriggerService<typeof database
 ### Step 2: BootstrapOrchestrator Emits the Trigger
 
 ```typescript
-// apps/api/src/core/modules/bootstrap/bootstrap-orchestrator.service.ts
+// apps/api/shared/src/core/modules/bootstrap/bootstrap-orchestrator.service.ts
 @Injectable()
 export class BootstrapOrchestratorService implements OnApplicationBootstrap {
   constructor(
@@ -1148,8 +1148,8 @@ The current `AppModule` eagerly imports all modules. The migration plan:
 | `apps/api/src/core/modules/loader/loader.module.ts` | **Create** — wires trigger + result + loaders |
 | `apps/api/src/core/modules/loader/feature-module-loader.ts` | **Create** — injects `DatabaseReadyResult`, loads feature modules |
 | `apps/api/src/core/modules/loader/auth-module-loader.ts` | **Create** — injects `DatabaseReadyResult`, loads `AuthModule.forRootAsync()` |
-| `apps/api/src/core/modules/bootstrap/bootstrap-orchestrator.service.ts` | **Modify** — emit `DatabaseReadyTrigger` instead of loading modules directly |
-| `apps/api/src/core/modules/bootstrap/bootstrap.module.ts` | **Modify** — add `DatabaseReadyTrigger` to `providers` and `exports` |
+| `apps/api/shared/src/core/modules/bootstrap/bootstrap-orchestrator.service.ts` | **Modify** — emit `DatabaseReadyTrigger` instead of loading modules directly |
+| `apps/api/shared/src/core/modules/bootstrap/bootstrap.module.ts` | **Modify** — add `DatabaseReadyTrigger` to `providers` and `exports` |
 | `apps/api/src/app.module.ts` | **Modify** — import `LoaderModule`, remove eager feature module imports |
 | `apps/api/src/main.ts` | **Verify** — no changes needed, loaders run in `OnApplicationBootstrap` |
 | `apps/api/src/main.ts` | Update health endpoint to report lifecycle phase |

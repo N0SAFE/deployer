@@ -8,7 +8,7 @@
 
 import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { generateMeshIdentity, restoreMeshIdentity, rosterStateSchema, type MeshIdentity, type RosterState } from "@repo/mesh-network";
+import { generateMeshIdentity, restoreMeshIdentity, rosterStateSchema, type MeshIdentity, type RosterState } from "@deployer/mesh-network";
 import z from "zod/v4";
 
 const identityFileSchema = z.object({

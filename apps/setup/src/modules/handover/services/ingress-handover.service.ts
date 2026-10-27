@@ -64,6 +64,9 @@ export class IngressHandoverService implements OnApplicationBootstrap {
    */
   private static readonly SETUP_ROUTER_PRIORITY = 3000;
 
+  /** Port the web container serves on INSIDE the platform network. */
+  private static readonly WEB_INTERNAL_PORT = Number(process.env.NEXT_PUBLIC_APP_PORT ?? 3000);
+
   constructor(private readonly env: EnvService) {}
 
   /**
@@ -104,6 +107,61 @@ export class IngressHandoverService implements OnApplicationBootstrap {
     const prefix = this.env.get("DEPLOYER_PREFIX");
     const base = "deployer.localhost";
     return prefix === "" ? `${service}.${base}` : `${service}.${prefix}.${base}`;
+  }
+
+  /**
+   * Route `web.<host>` at the dashboard.
+   *
+   * ── WHY THIS EXISTS: NOTHING EVER WROTE `dynamic-web.yml` ────────────────
+   * The ingress handover wrote `dynamic-api.yml` and `dynamic-setup.yml`, and the
+   * API's own config service takes those over later. Neither ever wrote the WEB
+   * route, and `PlatformPaths.webConfigFile()` exists but is called from NOWHERE
+   * (verified: its only two references are its own definitions). The consequence
+   * is a dashboard that is completely unreachable from a browser while looking
+   * perfectly healthy:
+   *
+   *   docker port nextjs-nestjs-web-dev   → (nothing: no published port)
+   *   traefik /config                     → dynamic-api.yml, dynamic-setup.yml
+   *   Host: web.deployer.localhost        → 404
+   *   Host: setup.deployer.localhost      → 200
+   *   docker exec web-dev wget :3000      → 200   ← healthy the whole time
+   *
+   * The web container serves fine; the ingress simply had no rule for its
+   * hostname, so Traefik answered with its own 404.
+   *
+   * ── WHY SETUP WRITES IT ──────────────────────────────────────────────────
+   * Setup is what knows the deployment is compose-owned and WHERE the web
+   * container lives (`DEPLOYER_WEB_TARGET`), and it already owns the ingress
+   * directory for the other two hostnames. Writing all three from one place
+   * keeps the grammar (`<service>.<prefix>deployer.localhost`) in one file.
+   *
+   * A null target is a legitimate answer — "this deployment serves no web" — so
+   * it writes nothing and says so, rather than emitting a router pointing at a
+   * container that does not exist (which would turn a clean 404 into a 502).
+   */
+  async pointWebAtTarget(target: string | null): Promise<void> {
+    if (target === null) {
+      this.logger.log("No web target for this deployment — `web.<host>` stays unrouted");
+      return;
+    }
+
+    const backend = `http://${target}:${String(IngressHandoverService.WEB_INTERNAL_PORT)}`;
+    const file = path.join(this.configDir(), "dynamic-web.yml");
+    await this.write(
+      file,
+      this.document([
+        {
+          router: "platform-web",
+          rule: `Host(\`${this.webHostname()}\`)`,
+          service: "platform-web-svc",
+          backend,
+          // Below setup's 3000 so a mid-handover deployment still resolves
+          // `setup.<host>` first if the rules ever overlap.
+          priority: null,
+        },
+      ]),
+      `web → ${backend}`,
+    );
   }
 
   /**
@@ -164,6 +222,21 @@ export class IngressHandoverService implements OnApplicationBootstrap {
         `Could not publish the wizard route — ${this.setupHostname()} will 404 until the ` +
           `handover retries. Check that TRAEFIK_CONFIG_BASE_PATH (${this.configDir()}) is ` +
           `writable and shared with Traefik. Cause: ${detail}`,
+      );
+    }
+
+    // The dashboard's route, written at boot for the same reason as setup's:
+    // nothing else writes it, and an unrouted `web.<host>` is a browser-visible
+    // 404 that no health check reports. Failure is non-fatal — the wizard is the
+    // surface that has to keep working so the operator can see the problem.
+    try {
+      await this.pointWebAtTarget(this.env.get("DEPLOYER_WEB_TARGET")?.trim() || null);
+    } catch (error: unknown) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Could not publish the dashboard route — ${this.webHostname()} will 404. ` +
+          `Check that TRAEFIK_CONFIG_BASE_PATH (${this.configDir()}) is writable and ` +
+          `shared with Traefik. Cause: ${detail}`,
       );
     }
   }
@@ -249,13 +322,13 @@ export class IngressHandoverService implements OnApplicationBootstrap {
    * their service name, and the backend spelled out in a `loadBalancer`.
    */
   private document(
-    entries: Array<{
+    entries: {
       router: string;
       rule: string;
       service: string;
       backend: string;
       priority: number | null;
-    }>,
+    }[],
   ): string {
     const routers = entries
       .map((e) => {

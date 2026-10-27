@@ -1,6 +1,6 @@
 'use client'
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { formatTime } from '@/lib/format/date'
 import type { MeshLookupHistoryEntry, MeshRoutePlanHistoryEntry } from './diagnostics-types'
 

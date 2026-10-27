@@ -1,7 +1,9 @@
 'use client'
 
 import type { z } from 'zod/v4'
-import { wizardSchema, providerSchema, runnerSchema, buildMethodSchema } from '../CreateService.hook'
+import { providerSchema } from '../CreateService.provider-schema'
+import { buildMethodSchema, runnerSchema } from '../CreateService.runner-schema'
+import { wizardSchema } from '../CreateService.schema'
 
 /**
  * Per-step validation for the create-service wizard.

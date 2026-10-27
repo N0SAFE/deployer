@@ -1,5 +1,5 @@
 import { defineConfig } from "vitest/config";
-import { createNodeConfig } from "@repo/config-vitest/node";
+import { createNodeConfig } from "@deployer/config-vitest/node";
 import swc from "unplugin-swc";
 import * as path from "path";
 
@@ -37,29 +37,50 @@ export default defineConfig(
     ],
     resolve: {
       alias: {
+        // ── ORDER IS LOAD-BEARING: MOST SPECIFIC FIRST ────────────────────────
+        // Vite resolves aliases in DECLARATION order and takes the first PREFIX
+        // match, so the bare `@` below would otherwise swallow every `@/…` path
+        // and rewrite it into THIS app's `src` — which is why an earlier attempt
+        // at this mapping changed nothing: the entry existed but was never
+        // reached.
+        //
+        // `@deployer/contracts-entities` resolves to that package's `src`
+        // DIRECTORY (see below), so its files are transpiled HERE rather than
+        // consumed from `dist`. Its own sources use the package-internal alias
+        // `@/entities/…`, which only ITS tsconfig defines. Unmapped, any spec
+        // that reaches the package dies at LOAD time with
+        //
+        //   Error: Cannot find package '@/entities/configuration/index'
+        //     imported from …/packages/contracts/entities/src/index.ts
+        //
+        // — a module-resolution failure, not a failed assertion, so the file
+        // reports as `FAIL` with zero tests run and nothing inside it executes.
+        "@/entities": path.resolve(__dirname, "../../packages/contracts/entities/src/entities"),
+        "@/contracts": path.resolve(__dirname, "../../packages/contracts/entities/src/contracts"),
+        "@/types": path.resolve(__dirname, "../../packages/contracts/entities/src/types"),
         "@": path.resolve(__dirname, "./src"),
         // Workspace packages resolve to their `src` DIRECTORY (not index.ts) so
         // deep subpaths keep working — the same convention as apps/api.
-        "@repo/nest-env": path.resolve(__dirname, "../../packages/nest/env/src"),
-        "@repo/env": path.resolve(__dirname, "../../packages/config/env/src"),
-        "@repo/errors": path.resolve(__dirname, "../../packages/utils/errors/src"),
-        "@repo/logger": path.resolve(__dirname, "../../packages/infrastructure/logger/src"),
+        "@deployer/nest-env": path.resolve(__dirname, "../../packages/nest/env/src"),
+        "@deployer/env": path.resolve(__dirname, "../../packages/config/env/src"),
+        "@deployer/errors": path.resolve(__dirname, "../../packages/utils/errors/src"),
+        "@deployer/logger": path.resolve(__dirname, "../../packages/infrastructure/logger/src"),
         // The module-graph spec loads `WizardModule`, which imports the shared
-        // wizard UI. That drags the whole `@repo/ui` tree (and its contracts)
+        // wizard UI. That drags the whole `@deployer/ui` tree (and its contracts)
         // into the test graph, so those packages must resolve to `src` — from
         // `dist` they would be a stale build, and `zod` would resolve from
         // THEIR node_modules, where the `zod/v4` subpath is absent. That is the
         // exact failure `dedupe` below prevents.
-        "@repo/ui": path.resolve(__dirname, "../../packages/ui/base/src"),
-        "@repo/auth": path.resolve(__dirname, "../../packages/auth/src"),
-        "@repo/api-contracts": path.resolve(__dirname, "../../packages/contracts/api"),
-        "@repo/contracts-entities": path.resolve(__dirname, "../../packages/contracts/entities/src"),
-        "@repo/orpc-utils": path.resolve(__dirname, "../../packages/transport/orpc/src"),
-        "@repo/nest-docker": path.resolve(__dirname, "../../packages/nest/docker/src"),
-        "@repo/nest-nodes": path.resolve(__dirname, "../../packages/nest/nodes/src"),
-        "@repo/nest-swarm": path.resolve(__dirname, "../../packages/nest/swarm/src"),
-        "@repo/nest-schema": path.resolve(__dirname, "../../packages/nest/schema/src"),
-        "@repo/nest-database-local": path.resolve(__dirname, "../../packages/nest/database-local/src"),
+        "@deployer/ui": path.resolve(__dirname, "../../packages/ui/base/src"),
+        "@deployer/auth": path.resolve(__dirname, "../../packages/auth/src"),
+        "@deployer/bff-contracts": path.resolve(__dirname, "../../packages/contracts/bff"),
+        "@deployer/contracts-entities": path.resolve(__dirname, "../../packages/contracts/entities/src"),
+        "@deployer/orpc-utils": path.resolve(__dirname, "../../packages/transport/orpc/src"),
+        "@deployer/nest-docker": path.resolve(__dirname, "../../packages/nest/docker/src"),
+        "@deployer/nest-nodes": path.resolve(__dirname, "../../packages/nest/nodes/src"),
+        "@deployer/nest-swarm": path.resolve(__dirname, "../../packages/nest/swarm/src"),
+        "@deployer/nest-schema": path.resolve(__dirname, "../../packages/nest/schema/src"),
+        "@deployer/nest-database-local": path.resolve(__dirname, "../../packages/nest/database-local/src"),
       },
       // Force zod from THIS app's node_modules. Workspace packages do not all
       // re-export the `zod/v4` subpath, so without this a package that imports

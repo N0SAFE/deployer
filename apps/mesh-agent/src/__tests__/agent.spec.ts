@@ -1,4 +1,4 @@
-import { generateMeshIdentity, getSetting, type RosterState, type WireguardDump } from "@repo/mesh-network";
+import { generateMeshIdentity, getSetting, type RosterState, type WireguardDump } from "@deployer/mesh-network";
 import { describe, expect, it } from "vitest";
 
 import { AgentError, MeshAgent } from "../agent";

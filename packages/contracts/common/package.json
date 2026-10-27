@@ -1,5 +1,5 @@
 {
-    "name": "@repo/contracts-common",
+    "name": "@deployer/contracts-common",
     "version": "0.0.0",
     "private": true,
     "type": "module",
@@ -18,23 +18,26 @@
         }
     },
     "scripts": {
-        "type-check": "tsc --noEmit",
+        "type-check": "bun check --no-script",
+        "prettify": "bun fmt .",
+        "format": "bun run prettify",
+        "format:check": "bun fmt --check .",
         "build": "bun --bun pkg-build",
         "dev": "bun --bun pkg-build --watch",
         "clean": "rimraf dist",
         "build:types": "bun --bun pkg-build --types"
     },
     "dependencies": {
-        "@repo/type-guards": "*",
+        "@deployer/type-guards": "*",
         "zod": "catalog:utils"
     },
     "devDependencies": {
         "@types/node": "catalog:build",
-        "@repo/config-typescript": "*",
+        "@deployer/config-typescript": "*",
         "typescript": "catalog:build",
         "chokidar": "catalog:build",
         "rimraf": "catalog:build",
-        "@repo/pkg-build": "*"
+        "@deployer/pkg-build": "*"
     },
     "module": "./dist/esm/index.mjs"
 }

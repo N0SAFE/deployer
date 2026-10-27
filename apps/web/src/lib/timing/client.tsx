@@ -11,7 +11,7 @@
 
 import { Suspense, useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
-import { AppLogger } from '@repo/logger'
+import { AppLogger } from '@deployer/logger'
 
 // ============================================================================
 // Types
@@ -64,21 +64,12 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(2)}s`
 }
 
-function getPerformanceIcon(ms: number): string {
-  if (ms < 100) return '🚀'
-  if (ms < 300) return '✅'
-  if (ms < 500) return '⚡'
-  if (ms < 1000) return '⚠️'
-  return '🐢'
-}
-
 function logTiming(
   type: 'hydration' | 'navigation' | 'render',
   pageName: string,
   duration: number,
   meta?: Record<string, string | number | boolean>
 ) {
-  const icon = getPerformanceIcon(duration)
   const metaStr = meta 
     ? ` | ${Object.entries(meta).map(([k, v]) => `${k}=${String(v)}`).join(', ')}`
     : ''
@@ -180,7 +171,6 @@ export function useRenderTiming(componentName: string) {
     
     if (renderCount.current > 0) {
       // Only log re-renders, not initial mount
-      const icon = renderTime > 16 ? '⚠️' : '✅'
       timingLogger.debug(`[Re-render] ${componentName}: ${formatDuration(renderTime)} (render #${String(renderCount.current)})`)
     }
     

@@ -1,4 +1,4 @@
-import type { DockerContainer } from "@repo/contracts-entities"
+import type { DockerContainer } from "@deployer/contracts-entities"
 
 /**
  * Enrichment data produced by a link resolver for a single container.
@@ -6,7 +6,7 @@ import type { DockerContainer } from "@repo/contracts-entities"
  * These fields require cross-module knowledge (deployment, service, project)
  * and MUST NOT be resolved inside the docker module.
  */
-export interface ContainerEnrichment {
+export type ContainerEnrichment = {
   projectId: string
   serviceId: string
   environment: DockerContainer["environment"]
@@ -35,7 +35,7 @@ export const CONTAINER_LINK_RESOLVER = "CONTAINER_LINK_RESOLVER" as const
  * Implementations MUST be stateless — the same labels always produce the same
  * enrichment. Any caching or DB lookups belong inside the implementation.
  */
-export interface IContainerLinkResolver {
+export type IContainerLinkResolver = {
   resolveEnrichment(
     labels: Record<string, string>,
     name: string,

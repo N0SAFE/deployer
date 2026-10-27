@@ -6,7 +6,7 @@ import { useLogger } from '@/lib/logging/use-logger'
 import { extractContainerLogEntries } from '../_lib/log-entry-parser'
 import { mergeLines } from '../_lib/merge-lines'
 import { CONTAINER_STREAM_LOG_LIMIT, type LogLineProjection } from '../_models/logs.types'
-import { isRecord } from "@repo/type-guards"
+import { isRecord } from "@deployer/type-guards"
 
 interface ContainerStreamEntity {
   id: string

@@ -36,7 +36,7 @@ Knip doesn't detect files executed directly as scripts (not imported as modules)
 
 **Files:**
 - `apps/api/src/cli/services/index.ts` - exports `cli-auth.service`
-- `apps/api/src/modules/health/index.ts` - re-exports from `@repo/api-contracts`
+- `apps/api/src/modules/health/index.ts` - re-exports from `@deployer/api-contracts`
 - `apps/api/src/modules/user/index.ts` - (need to check)
 - `apps/web/src/components/push-notifications/index.ts` - (need to check)
 
@@ -48,8 +48,8 @@ This is a barrel export. The service is likely used but via the barrel.
 
 **Analysis for `apps/api/src/modules/health/index.ts`:**
 ```typescript
-export { healthContract } from '@repo/api-contracts';
-export type { HealthContract } from '@repo/api-contracts';
+export { healthContract } from '@deployer/api-contracts';
+export type { HealthContract } from '@deployer/api-contracts';
 ```
 This re-exports contracts for convenience but may not be used.
 

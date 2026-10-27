@@ -1,0 +1,438 @@
+import { Controller, Logger } from "@nestjs/common";
+import { Implement } from "@orpc/nest";
+import { implement } from "@orpc/server";
+import { ORPCError } from "@orpc/server";
+import { setupContract } from "@deployer/bff-contracts";
+import { domainErrorOptions, standardErrorOptions } from "@deployer/orpc-utils";
+import { publicAccess } from "@/core/modules/auth/orpc/middlewares";
+import { AllowAnonymous } from "@/core/modules/auth/decorators/decorators";
+import { Pool } from "pg";
+import { InitializationService } from "@/core/modules/setup/services/initialization.service";
+import { ReachabilityService } from "@/core/modules/reachability/services/reachability.service";
+import { EgressRequestError, EgressService } from "@/core/modules/egress/egress.service";
+import { PostSetupDestinationService } from "../services/post-setup-destination.service";
+import { PostSetupVerificationService } from "../services/post-setup-verification.service";
+import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository";
+
+/**
+ * Setup wizard surface — intentionally PRE-AUTH by design (the wizard runs
+ * before any account exists).
+ *
+ * CRITICAL: the global APP_GUARD AuthGuard (AuthModule) runs at the Nest layer
+ * BEFORE ORPC middleware, so the ORPC-level `.use(publicAccess())` alone does
+ * NOT bypass it — every request would 401. The Nest-level @AllowAnonymous()
+ * metadata is what the guard actually reads (SetMetadata "PUBLIC"). Both are
+ * applied: @AllowAnonymous() for the guard, publicAccess() for ORPC handlers
+ * that read context.auth without requiring a session.
+ */
+@AllowAnonymous()
+@Controller()
+export class SetupController {
+    private readonly logger = new Logger(SetupController.name);
+    constructor(
+        private readonly initializationService: InitializationService,
+        private readonly reachabilityService: ReachabilityService,
+        private readonly nodeConfigRepository: NodeConfigRepository,
+        private readonly postSetupDestination: PostSetupDestinationService,
+        private readonly postSetupVerification: PostSetupVerificationService,
+        private readonly egress: EgressService,
+    ) {}
+
+    // ─── State ────────────────────────────────────────────────────────────────
+
+    @Implement(setupContract.getState)
+    getState() {
+        return implement(setupContract.getState)
+            .use(publicAccess())
+            .handler(() => this.initializationService.getSetupState());
+    }
+
+    @Implement(setupContract.getNodeStatus)
+    getNodeStatus() {
+        return implement(setupContract.getNodeStatus)
+            .use(publicAccess())
+            .handler(() => this.initializationService.getNodeStatus());
+    }
+
+    // ─── Pre-flight probes ────────────────────────────────────────────────────
+
+    /**
+     * Test a PostgreSQL URL — instant feedback, no side effects.
+     * Used by the "use existing database" toggle in local Step 2.
+     */
+    @Implement(setupContract.probeDatabase)
+    probeDatabase() {
+        return implement(setupContract.probeDatabase)
+            .use(publicAccess())
+            .handler(async ({ input }) => {
+                const start = Date.now();
+                const pool = new Pool({
+                    connectionString: input.databaseUrl.trim(),
+                    max: 1,
+                    connectionTimeoutMillis: 5_000,
+                });
+                try {
+                    await pool.query("SELECT 1");
+                    return {
+                        status: 201,
+                        headers: {},
+                        body: { reachable: true, latencyMs: Date.now() - start },
+                    };
+                } catch (err: unknown) {
+                    return {
+                        status: 201,
+                        headers: {},
+                        body: {
+                            reachable: false,
+                            error: err instanceof Error ? err.message : String(err),
+                        },
+                    };
+                } finally {
+                    await pool.end().catch(() => undefined);
+                }
+            });
+    }
+
+    /**
+     * Test a mesh URL — instant feedback, no side effects.
+     *
+     * Delegates to {@link ReachabilityService.checkMeshUrlReachability},
+     * which is the single source of truth for mesh reachability probing.
+     * That service hits the peer's public, unauthenticated
+     * `GET /mesh/ping` endpoint — see the controller in
+     * `system/modules/mesh` and `meshPingContract` for the route.
+     *
+     * `getLocalNode` is intentionally NOT used here: it sits behind
+     * `requireMeshPeer()` (session + mesh internal key) and would
+     * always 401 for a pre-auth bootstrap probe.
+     */
+    @Implement(setupContract.probeMesh)
+    probeMesh() {
+        return implement(setupContract.probeMesh)
+            .use(publicAccess())
+            .handler(async ({ input }) => {
+                const result = await this.reachabilityService.checkMeshUrlReachability(
+                    input.meshUrl,
+                );
+                return {
+                    status: 201,
+                    headers: {},
+                    body: {
+                        reachable: result.reachable,
+                        latencyMs: result.latencyMs,
+                        advertisedHost: result.advertisedHost,
+                        version: result.version,
+                        error: result.reachable ? undefined : result.error,
+                    },
+                };
+            });
+    }
+
+    // ─── Remote auth ──────────────────────────────────────────────────────────
+
+    /**
+     * Authenticate against a remote mesh node via its Better Auth signin
+     * endpoint. The returned `authToken` is forwarded as the join grant
+     * to `initialize` → `consumeJoinGrant`.
+     *
+     * Used by the setup wizard's "Authenticate" step. Validation happens
+     * in real time on the form, so the wizard only ever advances with a
+     * token the mesh actually accepted.
+     *
+     * Endpoint shape: `POST {meshOrigin}/api/auth/sign-in/email` with body
+     * `{ email, password }`. Better Auth returns either 200 with a session
+     * token (or set-cookie) or 401 with an error.
+     */
+    @Implement(setupContract.remoteAuth)
+    remoteAuth() {
+        return implement(setupContract.remoteAuth)
+            .use(publicAccess())
+            .handler(async ({ input, errors }) => {
+                let meshOrigin: string;
+                try {
+                    meshOrigin = new URL(input.meshUrl).origin;
+                } catch {
+                    throw errors.BAD_REQUEST(standardErrorOptions("validation", "Invalid mesh URL"));
+                }
+
+                const signinUrl = `${meshOrigin}/api/auth/sign-in/email`;
+
+                const startedAt = Date.now();
+
+                try {
+                    // The wizard is pre-auth, so this URL is attacker-reachable AND the call carries
+                    // the operator's admin credentials: it goes through the operator egress policy
+                    // (no loopback / link-local / metadata, no redirects), and failures come back as
+                    // a category, never a resolved address.
+                    const response = await this.egress.operator(
+                        {
+                            url: signinUrl,
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Accept": "application/json",
+                            },
+                            body: JSON.stringify({
+                                email: input.username,
+                                password: input.password,
+                            }),
+                        },
+                        { timeoutMs: 10_000 },
+                    );
+                    const ok = response.status >= 200 && response.status < 300;
+
+                    if (!ok) {
+                        const errorBody = parseJsonBody(response.body) as
+                            | { message?: unknown; error?: unknown }
+                            | null;
+                        const rawMessage =
+                            typeof errorBody?.message === "string"
+                                ? errorBody.message
+                                : typeof errorBody?.error === "string"
+                                  ? errorBody.error
+                                  : null;
+
+                        if (response.status === 401 || response.status === 400) {
+                            throw errors.UNAUTHORIZED(
+                                standardErrorOptions("unauthorized", rawMessage ?? "Invalid email or password"),
+                            );
+                        }
+
+                        throw errors.BAD_GATEWAY(
+                            domainErrorOptions(
+                                "BAD_GATEWAY",
+                                502,
+                                rawMessage ??
+                                    `Mesh returned ${response.status.toString()} during signin`,
+                            ),
+                        );
+                    }
+
+                    const result = (parseJsonBody(response.body) ?? {}) as {
+                        token?: unknown;
+                        user?: { id?: unknown; email?: unknown };
+                    };
+
+                    const setCookie = response.headers["set-cookie"] ?? "";
+                    const tokenFromBody =
+                        typeof result.token === "string" && result.token.length > 0
+                            ? result.token
+                            : null;
+
+                    // Better Auth returns a SESSION COOKIE, not just a raw token.
+                    // The `result.token` body field contains only the raw token,
+                    // but Better Auth's `getSession()` expects the FULL signed
+                    // cookie value in the format `<token>.<signature>`.  Without
+                    // the signature part the session validation always fails.
+                    // Always prefer the full `Set-Cookie` value when available.
+                    const authToken = extractSessionCookie(setCookie) ?? tokenFromBody;
+
+                    if (!authToken) {
+                        throw errors.INTERNAL_SERVER_ERROR(
+                            domainErrorOptions(
+                                "INTERNAL_SERVER_ERROR",
+                                500,
+                                "Mesh did not return a session token — cannot proceed",
+                            ),
+                        );
+                    }
+
+                    return {
+                        status: 201,
+                        headers: {},
+                        body: {
+                            authToken,
+                            userId:
+                                typeof result.user?.id === "string"
+                                    ? result.user.id
+                                    : `user-${input.username}`,
+                            email:
+                                typeof result.user?.email === "string"
+                                    ? result.user.email
+                                    : input.username,
+                            meshUrl: input.meshUrl.trim(),
+                            latencyMs: Date.now() - startedAt,
+                        },
+                    };
+                } catch (err) {
+                    if (err instanceof ORPCError) throw err;
+                    if (err instanceof EgressRequestError && err.failure === "denied") {
+                        throw errors.BAD_REQUEST(standardErrorOptions("validation", err.message));
+                    }
+                    if (err instanceof EgressRequestError && err.failure === "timeout") {
+                        throw errors.GATEWAY_TIMEOUT(
+                            domainErrorOptions(
+                                "GATEWAY_TIMEOUT",
+                                504,
+                                "Authentication timed out — mesh node did not respond",
+                            ),
+                        );
+                    }
+                    throw errors.INTERNAL_SERVER_ERROR(
+                        domainErrorOptions(
+                            "INTERNAL_SERVER_ERROR",
+                            500,
+                            err instanceof EgressRequestError ? err.message : "Unknown error contacting mesh",
+                        ),
+                    );
+                }
+            });
+    }
+
+    // ─── Trigger initialization (returns immediately) ─────────────────────────
+
+    /**
+     * Start the initialization process in the background.
+     * Returns immediately. Live progress can be consumed via `getInitializeStream`.
+     */
+    @Implement(setupContract.triggerInitialize)
+    triggerInitialize() {
+        return implement(setupContract.triggerInitialize)
+            .use(publicAccess())
+            .handler(({ input }) => {
+                // Credentials are stored inside initializationService.triggerInitialize()
+                const result = this.initializationService.triggerInitialize(input);
+                return { status: 201 as const, headers: {}, body: result };
+            });
+    }
+
+    // ─── Stream initialization events (SSE) ──────────────────────────────────
+
+    /**
+     * Subscribe to the initialization event stream.
+     * Returns an Observable of SetupStreamEvent (SSE).
+     * Replays past events for late subscribers (page reload / reconnection).
+     */
+    @Implement(setupContract.getInitializeStream)
+    getInitializeStream() {
+        return implement(setupContract.getInitializeStream)
+            .use(publicAccess())
+            .handler(() => this.initializationService.getInitializeStream());
+    }
+
+    // ─── Post-setup hints (ORPC) ────────────────────────────────────────────
+
+    /**
+     * List pending post-setup hint IDs.
+     * Called by PostSetupHints component on mount.
+     */
+    @Implement(setupContract.listPostSetupHints)
+    listPostSetupHints() {
+        return implement(setupContract.listPostSetupHints)
+            .use(publicAccess())
+            .handler(() => ({
+                hintIds: ["scanning" as const, "notifications" as const],
+            }));
+    }
+
+    /**
+     * Dismiss a post-setup hint. Persisted so the hint never appears again.
+     */
+    @Implement(setupContract.dismissPostSetupHint)
+    setupDismissPostSetupHint() {
+        return implement(setupContract.dismissPostSetupHint)
+            .use(publicAccess())
+            .handler(({ input, errors }) => {
+                this.logger.log(`Hint dismissed: ${input.hintId}`);
+                const config = this.nodeConfigRepository.find();
+                if (!config) {
+                    throw errors.INTERNAL_SERVER_ERROR(
+                        domainErrorOptions(
+                            "INTERNAL_SERVER_ERROR",
+                            500,
+                            "Cannot dismiss hint — node config not found",
+                        ),
+                    );
+                }
+                const flags = config.postSetupFlags ?? {};
+                this.nodeConfigRepository.upsert({
+                    nodeId: config.nodeId,
+                    strategy: config.strategy,
+                    setupState: config.setupState,
+                    deployerVersion: config.deployerVersion,
+                    databaseUrl: config.databaseUrl,
+                    databaseProvisioning: config.databaseProvisioning ?? null,
+                    configuredAt: config.configuredAt,
+                    meshUrlsSnapshot: config.meshUrlsSnapshot ?? [],
+                    meshSharedSecret: config.meshSharedSecret,
+                    meshSharedSecretUpdatedAt: config.meshSharedSecretUpdatedAt,
+                    peerServiceToken: config.peerServiceToken,
+                    peerServiceTokenExpiresAt: config.peerServiceTokenExpiresAt,
+                    upgradedAtVersion: config.upgradedAtVersion,
+                    postSetupFlags: { ...flags, [input.hintId]: "dismissed" },
+                    updatedAt: new Date().toISOString(),
+                });
+                return { status: 201 as const, headers: {}, body: { ok: true } };
+            });
+    }
+
+    // ─── Where the operator goes next ───────────────────────────────────────
+
+    /**
+     * The destination for the wizard's final "continue to dashboard" click.
+     *
+     * Answered by the API because it owns the one fact the client cannot see:
+     * whether a dashboard is actually running. With the managed web app enabled
+     * the destination is its hostname; without it, this API's own console page —
+     * which is answerable and offers to enable one. The client no longer derives
+     * this from its own hostname, which could only ever guess and produced a 404
+     * on the last click of a successful "API only" setup.
+     */
+    @Implement(setupContract.getPostSetupDestination)
+    getPostSetupDestination() {
+        return implement(setupContract.getPostSetupDestination)
+            .use(publicAccess())
+            .handler(async () => this.postSetupDestination.resolve());
+    }
+
+    /**
+     * Do the API and the dashboard really answer through the cluster ingress?
+     *
+     * The wizard asks this (and dials the returned URLs from the browser) before
+     * it lets the operator leave: the ingress is replaced at the end of setup and
+     * the stream reporting "done" is not evidence that the new one routes.
+     */
+    @Implement(setupContract.getPostSetupVerification)
+    getPostSetupVerification() {
+        return implement(setupContract.getPostSetupVerification)
+            .use(publicAccess())
+            .handler(async () => this.postSetupVerification.verify());
+    }
+}
+
+/** The JSON body of a response, or null when it is empty or not JSON. */
+function parseJsonBody(body: Uint8Array): unknown {
+    try {
+        return JSON.parse(new TextDecoder().decode(body)) as unknown;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Best-effort extraction of a session token from a `Set-Cookie` header
+ * returned by Better Auth.
+ */
+function extractSessionCookie(setCookieHeader: string): string | null {
+    if (!setCookieHeader) return null;
+
+    const cookies = setCookieHeader
+        // `Headers` joins several cookies with ", "; a comma inside `Expires=Wed, 21 Oct ...` is not followed by `name=`.
+        .split(/,\s*(?=[^\s;,=]+=)/g)
+        .map((c) => c.trim())
+        .filter(Boolean);
+
+    for (const raw of cookies) {
+        const [pair] = raw.split(";");
+        if (!pair) continue;
+        const eq = pair.indexOf("=");
+        if (eq <= 0) continue;
+        const name = pair.slice(0, eq).trim();
+        const value = pair.slice(eq + 1).trim();
+        if (name.toLowerCase().includes("session_token") && value.length > 0) {
+            return `${name}=${value}`;
+        }
+    }
+
+    return null;
+}

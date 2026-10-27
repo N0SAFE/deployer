@@ -69,5 +69,5 @@ the service. A setting editable in two places is a bug — keep the better one a
 ## 8. Mechanics (the repo rules)
 
 Typed routes only (`@/routes` builders, never a hardcoded `href`); data through the
-`domains/*` hooks; shared UI from `@repo/ui`; no `any`; no new file over ~400 lines;
+`domains/*` hooks; shared UI from `@deployer/ui`; no `any`; no new file over ~400 lines;
 move code, don't copy it. Update docs in the same change.

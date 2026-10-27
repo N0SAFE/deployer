@@ -1,5 +1,5 @@
-import { dockerContainerLogEntrySchema, type DockerContainerLogEntry } from '@repo/contracts-entities'
-import { isRecord } from '@repo/type-guards'
+import { dockerContainerLogEntrySchema, type DockerContainerLogEntry } from '@deployer/contracts-entities'
+import { isRecord } from '@deployer/type-guards'
 
 const DOCKER_TIMESTAMP_PREFIX_REGEX = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)\s+(.*)$/u
 const DOCKER_TIMESTAMP_BOUNDARY_REGEX = /(?=\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\s)/gu

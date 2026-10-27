@@ -50,7 +50,7 @@ interface AuthConfigContext {
  *           compiler will serialize. An explicit type annotation is needed.
  *
  * `pkg-build --types` treats that as fatal, so `server/auth.d.ts` was never
- * emitted - and since every downstream package resolves `@repo/auth` through
+ * emitted - and since every downstream package resolves `@deployer/auth` through
  * `dist/types`, that single missing file broke the whole workspace type-check.
  * The types were always correct; only EMIT was impossible.
  *
@@ -62,11 +62,11 @@ interface AuthConfigContext {
  * it, and `../types.ts` derives `Auth` / `Session` from this very return, so
  * that loss would silently reach every consumer.
  */
-export type BetterAuthFactoryResult = {
+export interface BetterAuthFactoryResult {
     auth: ReturnType<typeof betterAuth<ReturnType<typeof buildAuthConfig>>> & {
         config: ReturnType<typeof buildAuthConfig>;
     };
-};
+}
 
 /**
  * Build the options object handed to `betterAuth()`.
@@ -225,6 +225,9 @@ export const betterAuthFactory = <TSchema extends Record<string, unknown> = Reco
     // Build trusted origins: both public and private web app URLs + additional origins
     const origins: string[] = [];
 
+    // Computed BEFORE the origin block below, which needs it to pick the scheme.
+    const isHttps = BASE_URL?.startsWith("https://") ?? false;
+
     // Trust the private Docker network URL (APP_URL)
     if (APP_URL) {
         origins.push(APP_URL);
@@ -241,7 +244,35 @@ export const betterAuthFactory = <TSchema extends Record<string, unknown> = Reco
         origins.push(...additionalOrigins);
     }
 
-    const isHttps = BASE_URL?.startsWith("https://") ?? false;
+    // ── EVERY SUBDOMAIN OF THE PLATFORM IS TRUSTED, NOT JUST api/web ──────
+    // `TRUSTED_ORIGINS` defaults to plain `http://localhost:3000` in every dev
+    // profile, but the browser's origin is `http://<service>.deployer.localhost`.
+    // Better Auth compares the Origin header against this list, so the sign-in
+    // POST was rejected before any credential was looked at:
+    //
+    //   POST http://setup.deployer.localhost/api/auth/sign-in/email
+    //   → 403 {"message":"Invalid origin","code":"INVALID_ORIGIN"}
+    //
+    // (That request is forwarded by setup to the API, so it is the API's auth
+    // instance — correctly configured for `web.` and `api.` — that refused it.
+    // Any additional first-party hostname would fail the same way.)
+    //
+    // `AUTH_BASE_DOMAIN` already states the platform's parent domain, and it is
+    // the SAME fact that justifies a shared session cookie. Deriving the
+    // subdomains from it makes the two agree by construction: if the cookie may
+    // cross `a.deployer.localhost` and `b.deployer.localhost`, an Origin on any
+    // of them is first-party by definition.
+    if (AUTH_BASE_DOMAIN) {
+        const parent = AUTH_BASE_DOMAIN.startsWith(".") ? AUTH_BASE_DOMAIN : `.${AUTH_BASE_DOMAIN}`;
+        const scheme = isHttps ? "https" : "http";
+        // The bare parent (`deployer.localhost`) and the platform hostnames.
+        // Explicit names rather than a wildcard: Better Auth matches strings, and
+        // listing them keeps the trusted set auditable.
+        for (const host of ["", "web", "api", "setup", "docs"]) {
+            const hostname = host === "" ? parent.slice(1) : `${host}${parent}`;
+            origins.push(`${scheme}://${hostname}`);
+        }
+    }
 
     // Use explicit AUTH_BASE_DOMAIN when provided, otherwise no domain sharing.
     // AUTH_BASE_DOMAIN must be the parent domain (e.g. ".deployer.localhost" or

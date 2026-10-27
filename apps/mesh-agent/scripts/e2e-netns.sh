@@ -29,7 +29,7 @@ if (!res.ok) { console.error(await res.text()); process.exit(1); }
 console.log(await res.text());
 EOF
 
-ctl() { local n=$1; shift; docker run --rm -v "mesh-$n-run:/run/deployer-mesh" -v "$CTL/ctl.ts:/ctl.ts:ro" oven/bun:1.4.2-alpine bun /ctl.ts "$@"; }
+ctl() { local n=$1; shift; docker run --rm -v "mesh-$n-run:/run/deployer-mesh" -v "$CTL/ctl.ts:/ctl.ts:ro" oven/bun:1.4.3-alpine bun /ctl.ts "$@"; }
 field() { python3 -c "import sys,json;d=json.load(sys.stdin);print($1)"; }
 start() {
 	docker run -d --name "mesh-$1" --network "$NET" --cap-add NET_ADMIN \

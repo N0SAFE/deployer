@@ -89,13 +89,24 @@ export class SupervisorOrchestratorService implements OnApplicationBootstrap, On
 	private sweepTimer: ReturnType<typeof setTimeout> | null = null;	private disposed = false;
 
 	/**
-	 * Nest DI (`SupervisorsModule`) passes the PROCESS-WIDE registry so every
-	 * bootstrapped app (gateway + main sub-app) observes the same supervisors
-	 * — the gateway app RUNS them (before/while setup), the sub-apps only
-	 * consume. Direct construction (unit tests) creates an isolated map.
+	 * ── WHY THIS TAKES NO PARAMETERS ────────────────────────────────────────────
+	 * It used to accept a process-wide registry from `supervisor-shared.ts`, so a
+	 * gateway app and the sub-apps it spawned shared ONE set of supervisors. That
+	 * model is gone from this tree (`main.ts`: "ONE graph (AppModule): there is no
+	 * sub-app pipeline"), and the only thing the parameter still did was mislead
+	 * NestJS: `sharedRegistry?: Map<…>` is a DESIGN-TIME parameter, but Nest reads its
+	 * type as an INJECTION TOKEN at runtime —
+	 *
+	 *   Nest can't resolve dependencies of the SupervisorOrchestratorService (?).
+	 *   Please make sure that the argument Map at index [0] is available in the
+	 *   SupervisorsModule module.
+	 *
+	 * ...which fails every application boot, including the e2e suites. The registry is
+	 * per-container now, which is what `SupervisorsModule` already documents, so the
+	 * parameter has no remaining caller.
 	 */
-	constructor(sharedRegistry?: Map<string, AnySupervisor>) {
-		this.supervisors = sharedRegistry ?? new Map<string, AnySupervisor>();
+	constructor() {
+		this.supervisors = new Map<string, AnySupervisor>();
 	}
 
 	/**

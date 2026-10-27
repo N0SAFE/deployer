@@ -1,0 +1,729 @@
+# DEPLOYMENT PIPELINE roadmap
+> Owner prefix: DEPLOY · Sources: deployments.md, monolith-cutover.md, journeys.md (J1 steps 13-21, J2, quick wins, section 9), projects-services.md, parity.md, ideas-deploy.md (section 0, 3, 4), bench-coolify.md, bench-dokploy-dockhand.md, bench-market.md · Last verified: 2026-10-26
+
+Path abbreviations: `RT` = `apps/api-services/services/runtime/src/modules`, `FL` = `apps/api-services/services/fleet/src/modules`, `SH` = `apps/api-services/shared/src/core/modules`, `MONO` = `apps/api/src/modules` (frozen monolith; does not compile, but holds newer builder/trigger registries). All paths relative to `v3/`.
+
+## Summary
+The pipeline "works" only for one narrow path: authenticated user, explicit `dockerfile` builder, public GitHub tip or uploaded archive, docker runner, serial in-memory worker. Everything around it is inert or lies: a missing builder yields an `nginx:alpine` deployment reported as `success`, cancel does not cancel, rollback is a no-op in the live tier and unreachable from the UI, the queue is in-memory, webhooks always 401, push never deploys, PR previews never build, nothing is cleaned up, and build output is never captured. The swarm runner (the correct default) is written but unreachable. The runtime service is an older diverged fork of the monolith (which holds the builder/trigger registries), so the BFF cutover regresses deploys.
+Biggest risks: silent wrong-success (DEPLOY-001/002), command injection and open read/stream/upload endpoints (DEPLOY-030..032, 089), terminal-state overwrite and stranded jobs (DEPLOY-014..018), disk/container leaks (DEPLOY-056/057/052).
+Foundations owned here: SUB-B release manifest (DEPLOY-003/005/006) and the durable queue (DEPLOY-014). SUB-A (authz), SUB-C (event bus/outbox) and the system actor (DEPLOY-013) are consumed.
+Verified in code this pass (2026-10-26): nginx fallback (both runners), `execSync unzip`, reaper does not re-emit, webhook secret key reader with no writer, `JSON.stringify(input.body)` HMAC, `full_name` placeholder, rollback UI without `targetDeploymentId`, no guards on `cancelled`, builder/trigger registries absent from runtime tier.
+Counts: 130 items — P0 28 · P1 59 · P2 30 · P3 13; FIX 57 · ENHANCE 22 · NEW 51; 12 decisions.
+> Coverage pass: 2026-10-26 — 7 items added, 7 deps resolved (plus 3 mis-referenced IDs fixed; `See also` cross-links added to overlapping items)
+
+## Items
+
+### A. Honest deploy and release manifest (SUB-B)
+- [ ] `DEPLOY-001` **Remove the `nginx:alpine` fallback; fail the deploy when no image is produced** · FIX · P0 · S · Deps: none · See also: `JRN-017`
+  - Why/Problem: github/upload deploy without `execution.builder` (the UI default) builds nothing, runs `nginx:alpine`, reports `success` (`RT/runners/docker/docker-runtime-runner.service.ts:38`, `RT/runners/swarm/swarm-runtime-runner.service.ts:99`, `artifact-builder.service.ts:65-70` returns null `fallbackContainerImage`).
+  - Do: delete the `?? "nginx:alpine"` fallbacks in both runners; when `artifact.containerImage` and `deploymentContainerImage` are null, throw a typed permanent error ("no artifact produced: no Dockerfile / no builder resolved") that marks the deployment `failed` with reason.
+  - Done when: a deploy of a service with no resolvable builder ends `failed` with an actionable message; unit test in both runners asserts no fallback image; no code path can mark `success` without an image reference.
+  - Status: todo · Verified-in-code: yes · Source: deployments.md#3 (item 1), journeys.md#7 (win 8), journeys.md#W2.1
+- [ ] `DEPLOY-002` **Resolve source, builder, runner, port, health, start command, resources and volumes server-side from the saved service** · FIX · P0 · L · Deps: none · See also: `PROJ-040`
+  - Why/Problem: the server never reads `service.builderId`, `providerConfig`, `builderConfig`, `port`, `healthCheck*`, `startCommand`, `volumeMounts`, `secretRefs`; trigger takes source/execution from the request (`RT/deployment/services/deployment.service.ts:437-487`); UI builds github-only source inline with `as any`.
+  - Do: new `deployment.trigger({serviceId, environment, ref?})` resolution in one function (also used by dry-run later, `effects:false`); read provider config (repo, branch, rootPath, buildContext, dockerfilePath, image), builder via `builderId`/`builderConfig`, runtime config into runner; `source` becomes optional in `crud.ts:94`; delete UI inline source building; fail with an actionable message when resolution is impossible. Sub-items: consume github provider `buildContext` field (unused today); `authSecretRef`/`secretRefs` either wired (see DEPLOY-063) or removed.
+  - Done when: one-click Deploy on a service created by the wizard (github, gitlab, upload, custom image) deploys using only saved config; test asserting no field of the saved config is ignored (grep-able list of fields).
+  - Status: todo · Verified-in-code: partial · Source: deployments.md#4 (item 1), projects-services.md#1.5/#4 (item 3), journeys.md#W2.1
+- [ ] `DEPLOY-003` **Persist the release manifest (plan + effective config + env snapshot refs) on the deployment row before enqueue** · NEW · P0 · L · Deps: `DEPLOY-002`
+  - Why/Problem: the queue payload already carries `executionPlan`, `dependencyGraph`, `runtimeConfiguration: effective` (`deployment.service.ts:~536-555`) but the row stores only `sourceType`/`sourceConfig` (`packages/nest/schema/src/global/runtime/deployment.ts:38-114`); retry, rollback, cancel and replay all depend on data that lives only in memory. SUB-B foundation.
+  - Do: `release_manifests` table (id = sha256 of canonical JSON) + `deployments.manifest_id`; manifest = `{schema, serviceId, envId, source{repo,sha}, artifact{digest,builder,runner}, effectiveConfig (secret values replaced by ref+hash), planHash, scan?, policyDecision?, parent, actor}`; built in `triggerDeployment`, persisted before enqueue; schema versioned.
+  - Done when: restart between trigger and execution does not lose the plan; a deployment row alone is enough to re-run or roll back; manifest contains no secret value (test greps for plaintext).
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy.md#0 (2), #1 idea 1, journeys.md#J2 step 6, bench-coolify.md#1 (configuration_snapshot)
+  - Effect-impact (2026-10-26): store the manifest as JSON on the row; decode with zod at the edge and pass plain types to the worker (zod at contracts, Effect Schema only inside Effect-only code per `effect-ecosystem-research.md` §2.3). Foundation unchanged (SUB-B).
+- [ ] `DEPLOY-004` **Retry must carry the persisted plan and runtime configuration (env vars)** · FIX · P0 · S · Deps: `DEPLOY-003`
+  - Why/Problem: retry builds a new row + job whose payload drops `executionPlan` and `runtimeConfiguration` (`deployment.service.ts:875-944`, `:932-950`), hitting the nginx trap and losing env; upload retry fails after restart.
+  - Do: copy manifest/plan/config from the original row (falls out of DEPLOY-003); allow retry for `failed` and `cancelled` in API and UI.
+  - Done when: retry of a failed deploy builds from the same plan and env; test asserts payload equality.
+  - Status: todo · Verified-in-code: no · Source: deployments.md#1 (Retry), journeys.md#W2.12/#9 new finding 4
+- [ ] `DEPLOY-005` **Persist image digest and pin deployments by digest** · NEW · P1 · M · Deps: `DEPLOY-003`
+  - Why/Problem: `deployments` has `containerImage` (local tag) and no digest although `BuildArtifactResult.artifactDigest` exists (`RT/runners/runtime-runner.interface.ts:7`, workflow `:963`); required for deterministic rollback, CVE mapping, image GC pinning.
+  - Do: `image_digest` column (+ migration), set after build/push, runners pull/run by digest.
+  - Done when: every `success` row has a digest; rollback runs the recorded digest.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy.md#0 (2), #1 idea 1/16
+- [ ] `DEPLOY-006` **One executor: `deploy(manifestId)` replay entry point in the worker** · NEW · P1 · L · Deps: `DEPLOY-003`,`DEPLOY-005`
+  - Why/Problem: trigger, retry, rollback, promote, restore all need the same executor; today rollback runs the deploy path with no artifact (`deployment.service.ts:1396-1411`).
+  - Do: worker accepts a manifest; fresh trigger = build manifest then deploy it; replay skips source/build; replay of a pruned image fails loudly (never silently rebuilds); `--keep-config|--current-config` choice for rollback; rollback edges (`compensationNodeId`) become real compensation.
+  - Done when: rollback and retry-from-manifest go through the same function; pruned digest yields a visible terminal failure.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy.md#1 idea 1, #3 rule 1
+- [ ] `DEPLOY-007` **Accept free-form / id-based environment in `deployment.trigger`** · FIX · P1 · S · Deps: none · See also: `PROJ-066`, `JRN-037`
+  - Why/Problem: `environment` is a strict 4-name enum (`packages/contracts/common/src/environment.schema.ts:60` -> `packages/contracts/runtime/modules/deployment/crud.ts:93`) while UI and environments feature advertise free names.
+  - Do: accept environment id or validated slug; resolve against project environments; drop the enum.
+  - Done when: deploying to a custom environment name works; contract test.
+  - Status: todo · Verified-in-code: partial · Source: journeys.md#9 new finding 1, #W2.14
+- [ ] `DEPLOY-008` **Enforce environment `isActive`, link `isEnabled`, rules and overrides, and `autoDeployEnabled` in `triggerDeployment`** · FIX · P1 · M · Deps: `DEPLOY-002` · See also: `PROJ-061`
+  - Why/Problem: `isActive` ("deployments paused"), `service_environments.isEnabled`, `rules`, link `overrides` are stored and never consulted (`WEB/[projectId]/configuration/environments/...`; grep finds no consumer); `enablePreviewEnvironments` only gates `environment="preview"`. (PROJ owns the data model; enforcement point is here.)
+  - Do: check in the trigger resolution; surface "paused" reasons (resolver `constraints.reasons`); apply `overrides` in effective config.
+  - Done when: deploy to an inactive environment or a disabled link returns a 409-style typed error with reason; test per rule.
+  - Status: todo · Verified-in-code: unverified · Source: projects-services.md#1.3, #4 (item 6), ideas-deploy.md#4 (item 14)
+- [ ] `DEPLOY-009` **Enforce `requireApprovalForProduction` (park deployment in a pending state)** · ENHANCE · P2 · M · Deps: `DEPLOY-003` · See also: `PROJ-089`, `IDEA-040`, `IDEA-042`, `IDEA-091`
+  - Why/Problem: setting exists in project settings/resolver (`configuration-resolver.service.ts:~654`) and is not enforced at trigger; `environment_promotions` table unused. Full gate engine belongs to IDEA.
+  - Do: minimal `awaiting_approval` state stored on the row; approver role from project policy; approval audit entry.
+  - Done when: prod deploy waits for an authorised approval and survives restart.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#6, ideas-deploy.md#1 idea 3/13, bench-market.md#B
+- [ ] `DEPLOY-010` **Auto-detect builder and explain the choice** · NEW · P1 · M · Deps: `DEPLOY-002`
+  - Why/Problem: UI/catalog advertises "auto" but the deploy path picks nothing (`runner-presets.ts`, `builders.ts`); detection hints exist only for the wizard (`FL/.../github-account.controller.ts:~590-700 detectRunner`).
+  - Do: detect Dockerfile / compose / Node / static at trigger time (clone then detect), pick builder, record choice and reason in the manifest and deployment log; if ambiguous, fail with "detected Node; use Railpack? [apply]".
+  - Done when: repo with Dockerfile deploys without builder set; repo without any buildable signal fails with explanation.
+  - Status: todo · Verified-in-code: partial · Source: projects-services.md#1.5, ideas-deploy.md#4 (item 2)
+- [x] `DEPLOY-011` **Port the builder strategy registry from the monolith to the runtime tier** · FIX · P0 · M · Deps: none · See also: `ARCH-014`
+  - Why/Problem: `MONO/deployment/builders/{builder-registry.service.ts, strategies/*}` fix the nixpacks/buildpack/railpack dispatch ("Dockerfile not found") and do not exist in `RT`; runtime still uses the old if-chain. A naive "new tier wins" merge drops the fix.
+  - Do: port registry + strategies + spec to `RT/deployment/builders`; expose `supportedBuilders()` for DEPLOY-038.
+  - Done when: runtime tier dispatches builders via registry; parity spec green; monolith copy deletable.
+  - Status: done 2026-10-27 (see `ARCH-014`); `supportedBuilders()` is exposed by `BuilderRegistryService` but not yet consumed by the catalog (`DEPLOY-038`)
+  - Status: todo · Verified-in-code: yes (RT/deployment/builders holds only artifact-builder service) · Source: monolith-cutover.md#3 (deployment), #5 (item 1), #6 (step 4)
+  - Effect-impact (2026-10-26): runtime is classic Nest and last in the Effect migration order: port the registry Nest-style, keep it pure; builders that spawn processes should call a `CommandRunner` port (kill-on-interrupt) so DEPLOY-017 can work. Deps: `EFF-123`, `EFF-103`.
+- [ ] `DEPLOY-012` **Port the trigger registry (`api`, `github-push` sources) to the runtime tier** · FIX · P1 · M · Deps: `DEPLOY-013` · See also: `ARCH-015`
+  - Why/Problem: `MONO/deployment/triggers/*` (registry + `api-trigger.source` + `github-push-trigger.source` + spec) has no counterpart; webhook controller in fleet needs a service-to-service call to runtime.
+  - Do: port to `RT`; webhook (fleet) calls runtime through `ServiceClient` with a system actor; keep sources pluggable for hooks/schedule/registry.
+  - Done when: `api` and `github-push` sources resolve in runtime tier with specs.
+  - Status: todo · Verified-in-code: yes (no `triggers` dir in RT) · Source: monolith-cutover.md#3, #6 (step 5), deployments.md#1 (Triggers)
+- [ ] `DEPLOY-013` **System actor / service token for background triggers (webhook, schedule, reconcile)** · NEW · P0 · M · Deps: none · See also: `ARCH-056`, `ARCH-015`
+  - Why/Problem: `github.webhooks.controller.ts:120-131` logs "not dispatched (no system actor)"; nothing can deploy without a user session; real blocker for auto-deploy. Inter-service auth itself is ARCH; this item defines the deploy-side actor concept.
+  - Do: system actor identity (reuse `x-mesh-internal-key`, `apps/api-services/bff/src/clients/service-auth-context.ts:64`) accepted by `triggerDeployment`, recorded as `triggeredBy: system:<source>`, restricted to deploy-only scope per service.
+  - Done when: a verified webhook produces a deployment attributed to the system actor; negative test: system actor cannot call other procedures.
+  - Status: todo · Verified-in-code: partial · Source: monolith-cutover.md#6 (step 5), journeys.md#F3/#W2.8, deployments.md#4 (item 4)
+  - Effect-impact (2026-10-26): model the system actor as `Actor.system('<trigger>')` provided with `Effect.provideService` for background fibers (no hidden global); see ARCH-056. Deps: `EFF-014`.
+
+### B. Queue, state machine, cancel
+- [ ] `DEPLOY-014` **Durable deployment queue (DB-backed jobs)** · FIX · P0 · L · Deps: `DEPLOY-003`
+  - Why/Problem: queue is an in-process `Map` + RxJS Subject (`RT/deployment/queue/deployment-queue-lifecycle.service.ts:44-45,79`); restart loses all jobs; no pruning; serial single worker.
+  - Do: `deployment_jobs` table (claim with `FOR UPDATE SKIP LOCKED`, lease, heartbeat, attempts, availableAt), outbox-backed enqueue, DLQ in DB; keep the worker/lease API. Decision DEC-DEPLOY-7.
+  - Done when: kill the process mid-queue and every queued job still runs after restart; restart e2e (DEPLOY-117).
+  - Status: todo · Verified-in-code: yes · Source: deployments.md#1 (Queue), #4 (item 7), journeys.md#W2.6
+  - Effect-impact (2026-10-26): approach set (SUB-B): SQL `deployment_jobs` (claim `FOR UPDATE SKIP LOCKED`, lease, heartbeat) with the worker as an Effect program: one `Scope` + fiber per claimed job, `Schedule` retries, heartbeat via `Effect.repeat` forked in the job scope. Prototype `effect/workflow` + `SingleRunner` on Postgres side by side (unstable, no production reports found), do not commit to it. Runtime is Nest with 4 transaction sites in `deployment.repository.ts:399,456,588,738`: introduce the worker as a new module beside the Nest runtime (mixed idiom) or wait for the runtime migration (decide). Effort L unchanged, +2-3d prototype. Deps: `EFF-122`, `EFF-018`. Evidence: `effect-ecosystem-research.md` §2.7, §6.
+- [ ] `DEPLOY-015` **Lease reaper must re-emit reaped jobs** · FIX · P0 · S · Deps: none
+  - Why/Problem: `reapExpiredLeases` (`deployment-queue-lifecycle.service.ts:595-649`) resets expired jobs to `queued` but never calls `jobQueued$.next` (only `:148` and the retry path `:673` emit), so a reaped job is never executed again.
+  - Do: emit on `jobQueued$` (or via DEPLOY-014 polling) for each reaped job; test.
+  - Done when: a job whose worker dies is re-executed once the lease expires.
+  - Status: todo · Verified-in-code: yes · Source: deployments.md#1 (Lease reaper), #3 (item 4)
+  - Effect-impact (2026-10-26): reaping + re-emit falls out of the lease design in DEPLOY-014; implement inside the worker (claim expired leases) rather than a separate reaper. Deps: `EFF-122`.
+- [ ] `DEPLOY-016` **Reconcile `queued`/`deploying` rows at boot; health-check adopted swarm services** · FIX · P0 · M · Deps: `DEPLOY-014`
+  - Why/Problem: `deployment-queue-reconciliation.service.ts:71-165` handles only `building`; `queued`/`deploying` rows stay forever; swarm adoption marks `success` without a health check.
+  - Do: reconcile every non-terminal status at boot (re-enqueue or fail with reason), run the health gate before adopting, add timeouts for stuck states.
+  - Done when: restart test leaves no non-terminal row older than the lease window.
+  - Status: todo · Verified-in-code: partial · Source: deployments.md#1 (Crash reconciliation), #3 (item 4)
+  - Effect-impact (2026-10-26): boot reconcile = worker reclaiming expired leases plus health-checking adopted swarm services; lease-expiry tests with `TestClock`. Deps: `EFF-122`, `EFF-030`, `EFF-038`.
+- [ ] `DEPLOY-017` **Real cancel: abort queued and in-flight builds/deploys** · FIX · P0 · M · Deps: `DEPLOY-018`
+  - Why/Problem: `cancel` only sets DB `cancelled` and emits events (`deployment.service.ts:567-624`); a queued job is later claimed and flipped back to `building`; a running job ends `success`; the controls and `cancelExecution` are fake.
+  - Do: queue cancel flag; worker checks status before claim; `AbortSignal` into docker build/pull/service update; remove job from queue; stop swarm update in flight; clean workspace; replace `cancelExecution/resumeExecution` map mutation.
+  - Done when: cancel during build ends `cancelled`, stays `cancelled`, builder process/container is gone within 10 s (journeys acceptance 7).
+  - Status: todo · Verified-in-code: yes (no `cancelled` handling in queue/workflow/repository) · Source: deployments.md#1 (Cancel), #3 (item 3), journeys.md#W2.5
+  - Effect-impact (2026-10-26): approach set: cancel = set `cancel_requested`, worker `Fiber.interrupt`s the job fiber, `Effect.onExit` writes the terminal state, scoped child processes are killed on interrupt via a `CommandRunner` service (`effect/process` is unstable; wrap in one file). Caveats: `Effect.tryPromise` in current code ignores the `AbortSignal` (`user.repository.ts:184-189`, `health.service.ts:41-49`), so cancellation does not reach leaf work without a `fromAbortable` helper; kill-on-interrupt of the Bun spawner is unverified. Effort M -> M/L. Deps: `EFF-122`, `EFF-123`, `EFF-018`.
+- [ ] `DEPLOY-018` **Never overwrite a terminal state (guarded UPDATEs)** · FIX · P0 · S · Deps: none
+  - Why/Problem: `persistBuildArtifacts(status:'success')` is an unconditional UPDATE (`RT/deployment/repositories/deployment.repository.ts:524-591`); `markBuildExecutionStarted` resurrects cancelled rows.
+  - Do: `WHERE status NOT IN ('cancelled','success','failed')` on every status write (state-machine table); return 0-rows as a handled outcome.
+  - Done when: property test: no transition out of a terminal state is possible via repository.
+  - Status: todo · Verified-in-code: partial · Source: deployments.md#3 (item 3), journeys.md#W2.5
+  - Effect-impact (2026-10-26): guarded UPDATEs stay SQL; with `Effect.onExit` writing the terminal state the guard (`WHERE status NOT IN terminal`) is what prevents the cancel-vs-complete race. Deps: `EFF-122`.
+- [ ] `DEPLOY-019` **Failure persistence races the retry's `building` update** · FIX · P1 · S · Deps: `DEPLOY-018`
+  - Why/Problem: `void persistDeploymentExecutionFailure` runs even for retryable failures and races the retry (`worker` / workflow).
+  - Do: persist `failed` only on final attempt; use `retrying` status otherwise; await instead of `void`.
+  - Done when: retryable failure shows `retrying` then `building`, never flip-flops.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#3 (item 16)
+- [ ] `DEPLOY-020` **Classify errors (permanent vs transient) and apply `BASE_RETRY_POLICIES`** · FIX · P1 · M · Deps: none
+  - Why/Problem: fixed 5 s retry, max 5 (`lifecycle:319`); `BASE_RETRY_POLICIES` (`deployment.service.ts:135-168`) never consulted; Nest `BadRequestException` not in permanent list (`worker:349-366`) so deterministic failures rebuild 5x.
+  - Do: error-code classification (not class lists); queue reads the policy (backoff, max attempts) per service/environment; do not rebuild for deterministic failures (retry from failed phase using stored plan).
+  - Done when: a missing Dockerfile fails once; a network blip retries with backoff.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (Retry/DLQ), #5, ideas-deploy.md#4 (item 5)
+  - Effect-impact (2026-10-26): permanent vs transient classification maps to tagged errors + `Schedule.exponential`/`while` retry; fits the worker. Effort M unchanged. Deps: `EFF-122`.
+- [ ] `DEPLOY-021` **Per-service lock, bounded concurrency, build/deploy timeouts** · ENHANCE · P1 · M · Deps: `DEPLOY-014`
+  - Why/Problem: single serial worker (`worker:124-125`) = head-of-line blocking across all projects; two deploys of one service can interleave; no timeouts beyond lease heartbeats.
+  - Do: per-service advisory lock, configurable global concurrency (`concurrent_builds` like Coolify), timeouts for build and deploy (`deploymentTimeout`/`healthCheckTimeout` settings finally read).
+  - Done when: two deploys of one service serialize; two services build in parallel up to the cap; a hung build is killed at timeout.
+  - Status: todo · Verified-in-code: partial · Source: deployments.md#3 (item 17), bench-coolify.md#1 (pipeline quality)
+  - Effect-impact (2026-10-26): per-service lock and bounded concurrency = `Semaphore`/`Effect.forEach` concurrency, timeouts = `Effect.timeout` inside the job scope. Deps: `EFF-122`.
+- [ ] `DEPLOY-022` **Prune finished jobs and bound in-memory growth** · FIX · P1 · S · Deps: none (moot after DEPLOY-014 but needed as interim)
+  - Why/Problem: no pruning of finished jobs (memory growth) in lifecycle store.
+  - Do: TTL/size prune on terminal jobs; DB retention once durable.
+  - Done when: memory flat across 10k jobs in a test.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (Queue)
+- [ ] `DEPLOY-023` **Stop persisting plaintext env vars in job results and queue list endpoints** · FIX · P1 · M · Deps: `SUB-A`
+  - Why/Problem: env passed as plain strings (`worker:587-613`, `workflow:1027-1053`), persisted in queue job result, readable via `queueFindJobById/queueListJobs` by any authenticated user (`controller:429-445`). Secret store itself belongs to PROJ/SEC.
+  - Do: job payload holds secret references; redact on read; role-gate queue endpoints.
+  - Done when: DB grep for an env value finds nothing in job tables; queue endpoints 403 for non-members.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (Env vars), #3 (item 12)
+- [ ] `DEPLOY-024` **Queue priority, per-project quotas and queue visibility API** · NEW · P3 · M · Deps: `DEPLOY-014`
+  - Why/Problem: no priority/quota; queue position not visible.
+  - Do: priority field, per-project max queued/running, expose position + running job.
+  - Done when: API returns position; quota rejects excess.
+  - Status: todo · Verified-in-code: no · Source: deployments.md#3 (item 17), ideas-deploy.md#4 (item 5)
+- [ ] `DEPLOY-025` **Mesh replication of queue transitions: stop swallowing errors** · ENHANCE · P3 · S · Deps: none
+  - Why/Problem: best-effort replication swallowed (`lifecycle:449-467`).
+  - Do: log + metric on failure, or remove if DB is authoritative.
+  - Done when: failures observable.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (Queue)
+- [ ] `DEPLOY-026` **Decide and execute: real pipeline vs delete dead plan/phase/checkpoint APIs** · FIX · P2 · L · Deps: `DEPLOY-003`
+  - Why/Problem: `listPhaseTransitions/validate/apply` (static table `deployment.service.ts:118-133`, phases the pipeline does not use, `force` writes), `compilePlan`, plan snapshots, template provenance, execution checkpoints, node lifecycle events are in-memory maps (`:177-186,1112-1760`) that the executor never reads; all open to any user.
+  - Do: either make the compiled DAG drive execution with stages persisted as rows (then checkpoints/resume become real), or delete the stub procedures and contracts; at minimum remove `force` phase writes and bound/persist maps.
+  - Done when: no advertised procedure mutates only a memory map; contract surface matches behaviour.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (Queue/state machine), #3 (item 19), #5
+- [ ] `DEPLOY-027` **DLQ list/replay on the durable store** · ENHANCE · P2 · S · Deps: `DEPLOY-014`
+  - Why/Problem: DLQ replay works only on the in-memory store.
+  - Do: DB-backed DLQ; replay re-enqueues with stored manifest; UI jobs view (v1/v2 had Jobs tab).
+  - Done when: DLQ survives restart; replay works.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1, parity.md#1.5 (Jobs UI)
+
+### C. Sources and git
+- [ ] `DEPLOY-028` **Private repo clone with GitHub App installation token / PAT / deploy key** · NEW · P1 · M · Deps: none · See also: `FEAT-060`
+  - Why/Problem: anonymous clone only; `getInstallationAccessToken` (`SH/git/github/services/github.service.ts:325`) never called from clone path (`SH/git/git/services/git.service.ts:33`); `validateRepository` is anonymous `ls-remote` (`:122`); `providerAppId` only used for the repo picker.
+  - Do: inject token via `http.extraHeader` (never in URL/log), PAT and deploy key variants, default-branch detection, redact tokens in logs.
+  - Done when: private repo deploys via App install; token absent from logs and process args.
+  - Status: todo · Verified-in-code: partial · Source: deployments.md#1/#4 (item 5), projects-services.md#1.5, journeys.md#W2.9, bench-*.md (GitHub App)
+- [ ] `DEPLOY-029` **Clone by commit sha and PR refs (non-tip commits, `refs/pull/N/head`)** · FIX · P1 · S · Deps: none
+  - Why/Problem: `--depth 1 --branch <ref>` then `checkout(commit)` fails for non-tip commits; PR ref is not a valid `--branch`.
+  - Do: fetch-by-sha (`git fetch --depth 1 origin <sha>`), PR refs via `fetch origin pull/N/head`.
+  - Done when: deploying an older commit and a PR head works.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (GitHub source), projects-services.md#1.5
+- [ ] `DEPLOY-030` **Validate branch/ref and repo URL (git option injection)** · FIX · P0 · S · Deps: `SEC-013` · See also: `SEC-013`, `SEC-040`
+  - Why/Problem: `git clone --branch <user value>` unvalidated (`git.service.ts:33`).
+  - Do: allow-list `^[A-Za-z0-9._/-]+$`, reject leading `-`, use `--` separator, validate URL scheme.
+  - Done when: ref `--upload-pack=...` rejected; unit test.
+  - Status: todo · Verified-in-code: partial · Source: deployments.md#3 (item 11), journeys.md#W2.9
+- [ ] `DEPLOY-031` **Remove shell interpolation in archive extraction; add traversal guards; server-owned upload paths** · FIX · P0 · M · Deps: `SEC-014` · See also: `SEC-014`, `SEC-040`
+  - Why/Problem: `execSync(\`unzip -q "${filePath}" ...\`)` (`SH/git/git/services/git.service.ts:135`) with client-controlled `uploadPath` (`upload-source-provider.service.ts:97-109`, contract `crud.ts:55`); arbitrary server directory usable as build context (`artifact-builder.service.ts:106-113`); tar extraction has no traversal guard (`git.service.ts:144-146`); `unzip` blocks event loop.
+  - Do: derive path from `uploadId` only (drop `uploadPath` from contract); extract with library (yauzl / `tar` with strip + traversal check) or `Bun.spawn` argv array; size/entry-count/zip-bomb limits; run async.
+  - Done when: `uploadPath: "/etc"` and `"; touch x"` are rejected; zip-slip fixture rejected; tests added.
+  - Status: partial — extraction no longer shells out or trusts tar names in the live tier (`GitService.extractUploadedFile` -> `ArchiveExtractor`, see `SEC-014`). STILL OPEN: server-owned upload paths (`uploadBundle`/`uploadPath` is still client-controlled), role check + size cap (`DEPLOY-032`), the monolith copy — updated 2026-10-26 · Verified-in-code: yes (execSync unzip) · Source: deployments.md#3 (items 9, 11), journeys.md#8
+- [ ] `DEPLOY-032` **`uploadBundle`: role check, size cap, durable registry** · FIX · P0 · M · Deps: `SUB-A` · See also: `SEC-010`, `SEC-014`
+  - Why/Problem: no role, no size limit, `/tmp/deployer-uploads` (`deployment.service.ts:217-255`); in-memory registry (`upload-bundle-registry.service.ts`) loses uploads on restart/retry.
+  - Do: require deploy role on target service; configurable max size; persist registry (DB/volume) with TTL and cleanup.
+  - Done when: anonymous/non-member upload 403; oversized 413; upload survives restart.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (Zip), #3 (item 10)
+- [ ] `DEPLOY-033` **Zip/tar upload UI in the web** · NEW · P2 · M · Deps: `DEPLOY-031`,`DEPLOY-032`
+  - Why/Problem: no web UI calls `uploadBundle` (`file-upload-link.ts` only).
+  - Do: upload dialog on service deploy controls with progress and result.
+  - Done when: user uploads an archive and deploys from the UI.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1, projects-services.md#1.5
+- [ ] `DEPLOY-034` **GitLab source: builder support and authenticated clone (or hide GitLab)** · FIX · P1 · M · Deps: `DEC-DEPLOY-3`
+  - Why/Problem: checkout resolves but `artifact-builder.service.ts:91-119` accepts only `github`/`upload` ("Supported providers"); `resolveProviderKind` maps gitlab to upload; GitLab account tokens stored and unused.
+  - Do: generalise builder to any resolved checkout; use stored token; or remove from catalog/UI.
+  - Done when: GitLab repo deploys (token) or option not offered.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (GitLab), parity.md#1.3, projects-services.md#1.5
+- [ ] `DEPLOY-035` **GitLab webhooks and MR previews** · NEW · P2 · L · Deps: `DEPLOY-034`,`DEPLOY-095`,`DEPLOY-103`
+  - Why/Problem: no GitLab webhook controller, no MR previews.
+  - Do: reuse GitHub dispatch/idempotency/preview-provisioning abstractions; per-provider signature (`X-Gitlab-Token`).
+  - Done when: push to GitLab deploys; MR gets preview.
+  - Status: todo · Verified-in-code: unverified · Source: parity.md#3 (gap 8), bench-coolify.md#1
+- [ ] `DEPLOY-036` **Bitbucket / Gitea / generic git with deploy key** · NEW · P3 · L · Deps: `DEPLOY-034`
+  - Why/Problem: Coolify/Dokploy support Gitea/Bitbucket; vocabulary has bitbucket but no code.
+  - Do: provider plugins + webhook handlers; or remove from vocabulary.
+  - Done when: decided per DEC-DEPLOY-3 and implemented or removed.
+  - Status: todo · Verified-in-code: unverified · Source: projects-services.md#1.5, bench-dokploy-dockhand.md#1, bench-coolify.md#1
+- [ ] `DEPLOY-037` **Prebuilt image deploys with registry credentials / pull secrets** · ENHANCE · P1 · M · Deps: none · See also: `FEAT-041`, `CLUSTER-050`, `CLUSTER-051`
+  - Why/Problem: custom provider needs `customData.containerImage` (UI never supplies); no registry credentials plumbing; registries contract is list-only; Docker Hub admin page "unavailable". (Registry manager UI belongs to FEAT.)
+  - Do: pass `authconfig` on pull from an encrypted credential reference; wizard/UI field for image.
+  - Done when: private-registry image deploys.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (Custom), parity.md#3 (gap 6)
+- [ ] `DEPLOY-038` **Derive provider/builder catalog from registries; add gitlab/upload/custom; remove fake `static`** · ENHANCE · P2 · S · Deps: `DEPLOY-011`
+  - Why/Problem: catalogs are static (`packages/utils/provider-schema/src/catalog/{providers,builders}.ts`), list `static` and omit gitlab/upload/custom; integrity test only checks builders vs enum.
+  - Do: serve catalog from `BuilderRegistryService.supportedBuilders()`/provider registry; parity tests with trigger enums; honest `isAvailable()`.
+  - Done when: UI offers only what the backend can run.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (Catalogs), #5, ideas-deploy.md#4 (item 2)
+- [ ] `DEPLOY-039` **Static-site runner (nginx/caddy sidecar) for no-Dockerfile static builds** · NEW · P2 · M · Deps: `DEPLOY-045` · See also: `FEAT-040`
+  - Why/Problem: v1 had static-file hosting; v3 has no static runner (comment "A static site has no builder in the deploy path").
+  - Do: static builder (build command + output dir) producing an nginx image; runner `static` backed by swarm.
+  - Done when: a Vite/Hugo repo deploys as a static site.
+  - Status: todo · Verified-in-code: unverified · Source: parity.md#1.3, #3 (gap 9)
+- [ ] `DEPLOY-040` **Clean up deployment workspaces (`GitService.cleanupDeployment` has no callers)** · FIX · P1 · S · Deps: none
+  - Why/Problem: `/tmp/deployer-workspace/deployment-<id>` leaks.
+  - Do: call cleanup in `finally` of the workflow (success/fail/cancel) + boot sweeper.
+  - Done when: no workspace remains after a run; test.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (Build cache/cleanup), journeys.md#W2.15
+- [ ] `DEPLOY-041` **Watch paths / monorepo root filters on push** · NEW · P2 · M · Deps: `DEPLOY-095`
+  - Why/Problem: no path filters; monorepos redeploy everything (Railway/Dokploy/Render have them).
+  - Do: service config `watchPaths` globs evaluated against push `commits[].modified`; rootPath honoured in build.
+  - Done when: push touching only unrelated paths does not deploy.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#A, projects-services.md#6, bench-coolify.md#1
+- [ ] `DEPLOY-042` **Patches: file overlays applied at build time** · NEW · P3 · S · Deps: `DEPLOY-002` · See also: `FEAT-046`
+  - Why/Problem: Dokploy "Patches" lets edit repo files without forking.
+  - Do: per-service patch list applied on workspace before build, recorded in manifest.
+  - Done when: patch applied and visible in manifest.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#1, bench-market.md#E
+- [ ] `DEPLOY-043` **Git submodules and clean-cache options** · NEW · P3 · S · Deps: `DEPLOY-028`
+  - Why/Problem: Dokploy has submodules/cleanCache; ours none.
+  - Do: optional `--recurse-submodules`, "force rebuild / no cache" flag on trigger.
+  - Done when: flags honoured.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#1 (build row)
+
+### D. Build
+- [ ] `DEPLOY-044` **Capture and persist build output into deployment logs** · FIX · P0 · S · Deps: none · See also: `JRN-020`, `IDEA-097`
+  - Why/Problem: `followStream(stream)` called without progress callback (`packages/nest/docker/src/services/docker.service.ts:455`; callback already supported at `:1152`); builder has no repository access; `buildLogsUrl` always null; failures show only "build failed".
+  - Do: pass `onProgressLine` through builder to `insertLog` (batched, with stream marker, ANSI kept); redact known secrets.
+  - Done when: build output visible in deployment logs for a failing and a succeeding build.
+  - Status: todo · Verified-in-code: yes · Source: deployments.md#1 (Build log capture), journeys.md#7 (win 11)/#W2.4, bench-market.md#A
+  - Effect-impact (2026-10-26): if builds run via `CommandRunner`, `handle.all` -> line `Stream` -> log sink (DB + SSE) replaces the `followStream` callback path (IDEA-097); otherwise keep the callback. Effort S unchanged. Deps: `EFF-123`.
+- [ ] `DEPLOY-045` **Real nixpacks / railpack builders (and buildpack)** · NEW · P1 · L · Deps: `DEPLOY-011`,`DEC-DEPLOY-4` · See also: `DEC-FEAT-7`
+  - Why/Problem: `buildpack-family-builder.strategy.ts:52-60` has no toolchain; only works with custom commands on an alpine template; runners are aliases; Coolify/Dokploy/Railway all do this.
+  - Do: ship railpack (default per decision) and nixpacks via BuildKit frontend or builder image invoked with no docker socket; map detection; buildpack (CNB) later; remove alpine template path for non-custom builds.
+  - Done when: a Node repo without Dockerfile builds and runs; builder missing => honest unavailable.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1/#5, bench-coolify.md#2 (item 2), bench-dokploy-dockhand.md#3 (item 6), bench-market.md#3 (item 16)
+- [ ] `DEPLOY-046` **Honest builder availability until real builders exist** · FIX · P1 · S · Deps: none
+  - Why/Problem: `isAvailable()` always true and catalog advertises "auto-detect" while running an alpine template.
+  - Do: `isAvailable()` reflects toolchain presence; UI hides/marks unavailable builders.
+  - Done when: nixpacks/railpack selection without toolchain shows unavailable, not a fake build.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1, ideas-deploy.md#4 (item 2)
+- [ ] `DEPLOY-047` **Wire `SwarmComposeRealizerService` for the compose runner (or hide compose)** · FIX · P1 · L · Deps: `DEPLOY-058`
+  - Why/Problem: compose builder builds, returns `image:null`, runner deploys `nginx:alpine`; `SwarmComposeRealizerService` (709 lines, `runners.module.ts:41`) is dead; docs mark SW-025 "landed".
+  - Do: stack deploy via realizer (domain-per-service mapping, secrets, volumes), health gate per service; else remove compose option.
+  - Done when: a 2-service compose repo deploys as swarm stack.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1/#5, bench-coolify.md#1 (compose), bench-dokploy-dockhand.md#1
+- [ ] `DEPLOY-048` **Build args and build-time secrets (BuildKit secrets)** · NEW · P1 · M · Deps: `DEPLOY-063`
+  - Why/Problem: `buildImage` supports `buildArgs`, builder never passes them; no build vs runtime flag.
+  - Do: pass `buildArgs` from env marked build-time; BuildKit `--secret` for secrets; never bake into layers/logs.
+  - Done when: build-time var available during build and absent from image history.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (Build secrets), bench-market.md#E, bench-coolify.md#1 (env vars)
+- [ ] `DEPLOY-049` **Sandbox/harden custom build and run commands** · FIX · P1 · M · Deps: none · See also: `SEC-014`, `IDEA-037`
+  - Why/Problem: generated `FROM alpine:3.20` Dockerfile, root build, `curl | bash` for bun (`artifact-builder.service.ts:247-280`), regex CLI policy.
+  - Do: pinned toolchain images, non-root, no network-fetched installers at build, validate commands as argv.
+  - Done when: no `curl|bash`; build runs unprivileged.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1/#3 (item 13)
+- [ ] `DEPLOY-050` **BuildKit cache mounts and registry-backed build cache** · NEW · P2 · M · Deps: `DEPLOY-051`
+  - Why/Problem: no build cache, no `should_skip_build`.
+  - Do: BuildKit `--cache-from/--cache-to`, per-service/branch scoped (never across projects); skip build if image for sha exists.
+  - Done when: second build of unchanged commit reuses layers/skips.
+  - Status: todo · Verified-in-code: no · Source: deployments.md#5, ideas-deploy.md#1 idea 10, bench-coolify.md#1, parity.md#3 (gap 17)
+- [ ] `DEPLOY-051` **Registry push after build and digest pull on nodes (multi-node)** · NEW · P1 · L · Deps: `DEPLOY-005`,`DEC-DEPLOY-8` · See also: `CLUSTER-049`, `CLUSTER-051`, `FEAT-043`
+  - Why/Problem: images local-only `deployer/<svc>:<dep>-<builder>`; swarm multi-node placement fails "No such image". (Registry manager UI in FEAT.)
+  - Do: platform-managed or configured registry, push after build, pull by digest with credentials, auth plumbing to swarm (`--with-registry-auth`).
+  - Done when: service placed on a node that did not build runs the image.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#3 (item 8), #4 (item 3), bench-*.md (registry rows), journeys.md#F5
+- [ ] `DEPLOY-052` **Image/container GC with retention (keep N for rollback, pinned by manifests)** · NEW · P1 · M · Deps: `DEPLOY-005` · See also: `FEAT-050`, `FEAT-051`, `FEAT-054`, `CLUSTER-057`
+  - Why/Problem: no image/container GC; disk fills; `deploymentRetention` inert; Coolify keeps `docker_images_to_keep`.
+  - Do: retention policy per service (default N=5), GC job skipping digests referenced by in-force/rollback manifests, threshold-based prune, execution history; rollback rejects pruned targets with message. (Docker-level prune UI belongs to CLUSTER/FEAT.)
+  - Done when: disk usage bounded over 50 deploys; rollback to retained image works, to pruned fails clearly.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (Build cache/pruning), #3 (item 6), parity.md#3 (gap 7), bench-coolify.md#2 (item 15), bench-dokploy-dockhand.md#3 (item 9)
+- [ ] `DEPLOY-053` **Dedicated/remote build nodes and per-node build concurrency** · NEW · P3 · XL · Deps: `DEPLOY-051`,`DEPLOY-021` · See also: `CLUSTER-077`, `FEAT-044`, `IDEA-051`
+  - Why/Problem: builds run on the API node and starve production workloads; Dokploy "Build Server", Coolify `is_build_server`. (Auto-selection by load = IDEA.)
+  - Do: labelled builder node, worker claims builds remotely, rootless BuildKit, no socket.
+  - Done when: builds run on a designated node and push to registry.
+  - Status: todo · Verified-in-code: no · Source: deployments.md#6, bench-market.md#A, bench-coolify.md#1
+- [ ] `DEPLOY-054` **Pre-deploy / release command (migrations) and post-deploy command** · NEW · P1 · M · Deps: `DEPLOY-002` · See also: `PROJ-046`, `FEAT-066`, `IDEA-055`
+  - Why/Problem: Railway `preDeployCommand`, Heroku release phase, Coolify pre/post-deploy commands; none in ours.
+  - Do: typed service fields `preDeployCommand`, `postDeployCommand` run in a one-shot container (swarm job) before the flip; logged; failure fails the deploy; manifest records `schemaMigrated`.
+  - Done when: migration command runs once before traffic moves; failure keeps old version.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#A/#4 (win 7), bench-coolify.md#1, ideas-deploy.md#1 idea 19/#4 (item 8)
+- [ ] `DEPLOY-055` **Build log retention, download and size limits** · NEW · P2 · S · Deps: `DEPLOY-044`
+  - Why/Problem: logs only milestone lines; no retention/download.
+  - Do: cap per-deployment log size, retention policy (`autoCleanupDays`), download endpoint.
+  - Done when: logs downloadable; old logs pruned.
+  - Status: todo · Verified-in-code: no · Source: deployments.md#6, parity.md#3 (gap 17)
+
+### E. Runners and runtime behaviour
+- [ ] `DEPLOY-056` **Docker runner: attach to the platform overlay by default** · FIX · P0 · S · Deps: none
+  - Why/Problem: network only attached if `networkMode` explicit (`docker-runtime-runner.service.ts:59-69`); default node bridge is not resolvable by platform Traefik, so route 502s unless `DEPLOYER_NETWORK_MODE` set.
+  - Do: attach to platform overlay when unset (stopgap until DEPLOY-058); verify via `routeVerification`.
+  - Done when: default deploy is reachable via Traefik.
+  - Status: todo · Verified-in-code: partial · Source: deployments.md#1 (Plain docker runner), journeys.md#7 (win 15), #J1 step 18
+- [ ] `DEPLOY-057` **Stop/remove previous containers after the new one is healthy** · FIX · P0 · S · Deps: none
+  - Why/Problem: only same-`deploymentId` containers are stopped (`docker-runtime-runner.service.ts:73-77`); old versions run forever (CPU/port leak).
+  - Do: after health gate + route flip, stop/remove prior containers of the same service/environment, keeping N images; label-based lookup.
+  - Done when: one running container per service after deploy.
+  - Status: todo · Verified-in-code: partial · Source: deployments.md#1/#3 (item 6)
+- [ ] `DEPLOY-058` **Make the swarm runner selectable and the default (stable service name, start-first, reaping)** · FIX · P1 · L · Deps: `DEC-DEPLOY-1`,`DEPLOY-051` · See also: `CLUSTER-042`
+  - Why/Problem: `swarm` excluded from `deploymentRunnerKindSchema` (state machine `:17-24`) and trigger contract (`crud.ts:100-102`); `triggerDeployment:455` parses with it; service name embeds deployment id (`:100-102`) so each deploy creates a new service and the old is never removed; `removeService/scaleService/rollbackService` (`:69-95`) have no callers.
+  - Do: add `swarm` to enum/contract; stable name per (service, environment); `docker service update` start-first with rollback-on-failure; reap old services; wire remove/scale/rollback wrappers; swarm adoption of existing.
+  - Done when: redeploy updates one swarm service rolling; failed update auto-rolls back; no orphans.
+  - Status: todo · Verified-in-code: partial · Source: deployments.md#1/#4 (item 2), journeys.md#F7/#W2.7, bench-market.md#4 (win 12)
+- [ ] `DEPLOY-059` **Swarm health gate, endpoint ports, labels from service config** · FIX · P1 · M · Deps: `DEPLOY-058`,`DEPLOY-069`
+  - Why/Problem: healthcheck only when a URL is set (`swarm-runtime-runner.service.ts:118-125`) so "converged" = task Running; no `endpointPorts`; no Traefik labels (routing is DB/file based).
+  - Do: healthcheck from service config; min-stable window; verify Traefik reachability on overlay; expose swarm spec editor later (Dokploy swarm tuning is ENHANCE).
+  - Done when: service with failing health never converges.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (Swarm runner), bench-coolify.md#1 (swarm health empty at Coolify), bench-dokploy-dockhand.md#1
+- [ ] `DEPLOY-060` **Replicas from service config and a scale action** · NEW · P1 · M · Deps: `DEPLOY-058` · See also: `PROJ-043`, `CLUSTER-037`, `CLUSTER-038`, `FEAT-034`
+  - Why/Problem: replicas hardcoded to 1; no scale call in UI (bench P0 for runtime); env rules `replicas` display-only.
+  - Do: replicas in resolved config; `deployment`/`service` scale procedure + UI; honour per-environment rules.
+  - Done when: scaling changes running replicas without redeploy.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy.md#0 (2), bench-market.md#C, projects-services.md#1.3
+- [ ] `DEPLOY-061` **Wire resource limits and restart policy into runners** · FIX · P1 · S · Deps: `DEPLOY-002` · See also: `PROJ-042`, `CLUSTER-038`, `CLUSTER-039`
+  - Why/Problem: cpu/memory limits and defaults stored and ignored (`defaultCpuLimit/MemoryLimit`); swarm reservations `{}`; no restart policy/max restarts.
+  - Do: map limits/reservations/restart policy to docker and swarm specs; enforce project max via resolver constraints.
+  - Done when: container shows configured limits.
+  - Status: todo · Verified-in-code: unverified · Source: bench-coolify.md#2 (item 13), projects-services.md#1.1, bench-market.md#C
+- [ ] `DEPLOY-062` **Volumes: stable per-service naming, s3 mounts, swarm bind/nfs support** · FIX · P1 · M · Deps: `CLUSTER-043` · See also: `PROJ-044`, `CLUSTER-044`
+  - Why/Problem: s3 never mounted; swarm supports `volume` only (`swarm-runtime-runner.service.ts:451-473`); a new volume per deployment loses data on redeploy; config only from `service.metadata.storage`/`customData`, no contract field/UI; `volumeMounts: string[]` dead.
+  - Do: first-class `volumes` in service config contract; stable volume name per (service, env); reject unsupported kinds loudly; document node-local limits.
+  - Done when: data persists across redeploys; unsupported mount fails visibly.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (Storage), projects-services.md#1.5, ideas-deploy.md#4 (item 30)
+- [ ] `DEPLOY-063` **Secrets and env into workloads by reference (no plaintext in specs/logs)** · ENHANCE · P1 · M · Deps: `PROJ-020`,`PROJ-021` · See also: `CLUSTER-055`, `CLUSTER-056`, `PROJ-023`
+  - Why/Problem: env passed as plain strings; no redaction; `secretRefs`/`authSecretRef` fake.
+  - Do: swarm secrets / env resolved at start from encrypted store; redact in logs; remove `authSecretRef` options not implemented.
+  - Done when: no secret value in docker inspect for swarm secrets or in logs.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (Env vars), projects-services.md#1.5, ideas-deploy.md#3 (rule 4)
+- [ ] `DEPLOY-064` **Remove alias runners and vocabulary with no executor** · FIX · P2 · S · Deps: `DEPLOY-045`
+  - Why/Problem: dockerfile/nixpacks/buildpack/railpack/compose runners delegate to docker runner via `DelegatedRuntimeRunnerBase`; vocabulary includes kubernetes/nomad/worker-runtime/mock/static runners with no executor; provider vocabulary includes bitbucket/artifact-bundle/manual with no path.
+  - Do: collapse to real runners (swarm, docker-dev, static, compose); trim contract vocabulary or hide in UI.
+  - Done when: every selectable runner/provider has a working executor test.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1, projects-services.md#1.2
+- [ ] `DEPLOY-065` **Honour `deploymentStrategy` (rolling / blue-green) instead of policy-only** · ENHANCE · P2 · M · Deps: `DEPLOY-058`
+  - Why/Problem: strategy is a config value consumed only by policy checks (`state-machine:323-327`); no blue-green/canary executed. (Canary/weighted rollout belongs to IDEA.)
+  - Do: map rolling to swarm update config, blue-green to parallel service + route flip.
+  - Done when: chosen strategy observably changes rollout behaviour; unsupported strategies rejected.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (Zero-downtime), bench-market.md#B
+- [ ] `DEPLOY-066` **Runtime fallbacks for non-docker deployments: preview runners / `mock` runner** · NEW · P3 · M · Deps: `IDEA-046` · See also: `PROJ-070`, `IDEA-090`
+  - Why/Problem: runner type `mock` in vocabulary but no executor; needed by contract-validated preview mocks.
+  - Do: simplest mock = another service in project; implement or remove from vocabulary.
+  - Done when: preview topology mock substitution deploys something.
+  - Status: todo · Verified-in-code: unverified · Source: ideas-deploy.md#1 idea 6, projects-services.md#1.4
+- [ ] `DEPLOY-067` **Treat `docker` runner as dev-only or delete (contradicts "no plain container runtime" rule)** · ENHANCE · P2 · S · Deps: `DEC-DEPLOY-1`
+  - Why/Problem: plain docker runner contradicts `apps/api/AGENTS.md` platform rule.
+  - Do: gate behind a dev flag after DEPLOY-058, or remove.
+  - Done when: production profile cannot select it.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (Plain docker runner)
+
+### F. Health gate and URLs
+- [ ] `DEPLOY-068` **Surface the default lane URL on deployments (not only mapped domains)** · FIX · P1 · S · Deps: `NET-025` · See also: `NET-015`, `WEB-011`, `JRN-028`
+  - Why/Problem: `deployment.domainUrl` set only from domain mappings (`workflow:~600`, `domain-routing.service.ts:143-145 no_domain_mappings`); default deploy shows no URL although a lane route exists. Ingress hosts frozen at deploy time (`platform-routes-source.service.ts:228-229`) so mapping changes need redeploy (NET owns the refresh fix).
+  - Do: compute `<service>-<project>.<lane domain>` and show "Open" on service header and deployment row; store on row.
+  - Done when: URL visible after first deploy.
+  - Status: todo · Verified-in-code: partial · Source: journeys.md#J1 step 20, #W1.12, #9 new finding 2
+- [ ] `DEPLOY-069` **Honour service health config (path, port, interval, timeout, retries) at deploy** · FIX · P1 · S · Deps: `DEPLOY-002`
+  - Why/Problem: `healthCheckPath` hardcoded `/health` (`workflow:491`); service fields unread.
+  - Do: read config; support HTTP/TCP/command; defaults documented.
+  - Done when: custom path respected; test.
+  - Status: todo · Verified-in-code: unverified · Source: projects-services.md#1.2, journeys.md#J2 step 8, bench-coolify.md#1
+- [ ] `DEPLOY-070` **Stop logging "Readiness health gate passed" unconditionally** · FIX · P1 · S · Deps: none
+  - Why/Problem: written regardless of outcome (`workflow:803-813`/`:694`); docker health only unless URL.
+  - Do: log truthful gate outcome with evidence; fail the deploy on gate failure.
+  - Done when: failing health produces failed deployment with reason.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#3 (item 18), ideas-deploy.md#4 (item 10)
+- [ ] `DEPLOY-071` **Automatic rollback to the previous deployment on gate failure (all runners)** · NEW · P1 · M · Deps: `DEPLOY-006`,`DEPLOY-070`
+  - Why/Problem: no auto rollback for docker runner; route stays on old only by accident (`platform-routes-source.service.ts:213-248`); the failure UX must state "Still serving vN".
+  - Do: on failure, ensure traffic remains/returns to last-good manifest, mark reason, stop failed candidate.
+  - Done when: failing deploy: zero failed requests to the old URL during the window (journeys acceptance 3).
+  - Status: todo · Verified-in-code: partial · Source: deployments.md#1 (Rollback), #5, journeys.md#J2 UX/acceptance 3
+- [ ] `DEPLOY-072` **HTTP readiness options: method/port/host, expected status/body, min-stable window** · ENHANCE · P2 · S · Deps: `DEPLOY-069`
+  - Why/Problem: Coolify supports full health matrix; ours none.
+  - Do: extend health config schema and gate.
+  - Done when: configured expectations enforced.
+  - Status: todo · Verified-in-code: no · Source: deployments.md#5, bench-coolify.md#1
+- [ ] `DEPLOY-073` **"Why is it 502?" diagnostics from `routeVerification`** · ENHANCE · P2 · S · Deps: `DEPLOY-056`
+  - Why/Problem: success-but-502 is the most common PaaS support question.
+  - Do: show `routeVerification` result and likely causes (network, port, health) on deployment detail.
+  - Done when: broken route shows causes.
+  - Status: todo · Verified-in-code: unverified · Source: ideas-deploy.md#4 (item 12)
+
+### G. Lifecycle operations
+- [ ] `DEPLOY-074` **Rollback that actually reverts in the live (services) tier** · FIX · P0 · M · Deps: `DEPLOY-006` · See also: `ARCH-034`, `JRN-041`
+  - Why/Problem: runtime service lacks `executeRollbackDeployment` and the worker rollback branch; rollback row runs deploy path with no artifact, marked `success`, ignored by routing because no `containerName` (`deployment.service.ts:1396-1411`, `platform-routes-source.service.ts:224-225`). Monolith version works (`workflow:231-304`, `service:1400-1436`).
+  - Do: port monolith rollback then rebuild on manifest replay: redeploy recorded digest + env snapshot, health-gated, route flips after success, reject pruned targets.
+  - Done when: rollback restores N-1 content in under 15 s without a docker build line (journeys acceptance 4).
+  - Status: todo · Verified-in-code: partial · Source: deployments.md#1 (Rollback), #3 (item 5), journeys.md#W2.2
+- [ ] `DEPLOY-075` **Interim: rollback must not lie (fail "not supported" until DEPLOY-074)** · FIX · P0 · S · Deps: none · See also: `JRN-018`, `WEB-005`
+  - Why/Problem: fake rollback marks `success` with no effect.
+  - Do: return a typed error / mark failed with reason until real.
+  - Done when: no rollback row can end `success` without an execution.
+  - Status: todo · Verified-in-code: partial · Source: journeys.md#7 (win 9)
+- [ ] `DEPLOY-076` **Rollback UI: target picker and valid payload** · FIX · P0 · S · Deps: none
+  - Why/Problem: `projects/[projectId]/deployments/page.tsx:139-146` sends only `params.id` (`as any`); contract requires `body.targetDeploymentId` (`crud.ts:233-237`); service-level page has no rollback.
+  - Do: list previous successful deployments (commit, author, time, digest, scan, "config differs" badge), send target id, add to service header, offer "Redeploy latest" afterwards; typed payload (no `as any`).
+  - Done when: rollback from the UI works; component test on payload.
+  - Status: todo · Verified-in-code: yes · Source: deployments.md#1 (Rollback UI), journeys.md#J2 step 14/#W2.3, ideas-deploy.md#4 (item 6)
+- [ ] `DEPLOY-077` **Delete deployment: status guard (409 while running) and teardown** · FIX · P1 · M · Deps: none
+  - Why/Problem: `service:864-873` deletes the row only; contract claims 409 while running; no container/service/image teardown.
+  - Do: reject running; remove associated container/service, image reference (respecting retention), logs.
+  - Done when: delete of running deployment 409; delete leaves no resources.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (Delete), #5
+- [ ] `DEPLOY-078` **Enforce deployment retention (`maxDeployments`) and zombie reconciliation** · NEW · P1 · M · Deps: `DEPLOY-052`
+  - Why/Problem: `deploymentRetention` edited in UI, never enforced; v2 had `cleanup` module + zombie reconciler.
+  - Do: retention job (rows, logs, images) as a supervisor; zombie detection of containers/services without deployment rows with execution history.
+  - Done when: old rows/images pruned per setting; zombies reported/removed.
+  - Status: todo · Verified-in-code: unverified · Source: parity.md#1.2/#4 (item 3), bench-coolify.md#1 (cleanup)
+- [ ] `DEPLOY-079` **Deploy-side teardown on service/project deletion (consume `service.deleted`/`project.deleted`)** · NEW · P1 · M · Deps: `SUB-C` · See also: `PROJ-100`, `NET-041`, `WEB-050`
+  - Why/Problem: delete removes DB rows only; containers, swarm services, routes, DNS, previews, volumes remain; no consumer of the events. (PROJ owns the confirmation UX.)
+  - Do: runtime consumer removes services/containers/routes/preview rows; DNS via NET; volumes keep|delete choice.
+  - Done when: deleting a service leaves no workload or route.
+  - Status: todo · Verified-in-code: partial · Source: projects-services.md#3 (item 7)/#4 (item 9), ideas-deploy.md#4 (item 18)
+- [ ] `DEPLOY-080` **Cascade / dependency-ordered deploys (basic)** · NEW · P1 · L · Deps: `DEPLOY-003`,`DEPLOY-013` · See also: `PROJ-091`, `IDEA-043`, `CLUSTER-047`
+  - Why/Problem: `dependencyGraph` copied into job payload (`deployment.service.ts:544-553`) and never read; cross-project dependency rejected (`:385-394`); `FleetRolloutPlannerService`, `ServiceDagService` etc. dead. Saga/whole-graph rollback extension belongs to IDEA.
+  - Do: `deployment_run` row (one run -> N deployments), topological waves from `ServiceDagService`, wait on readiness per wave, partial-failure policy from `DependencyTemplateConfig`, required vs optional edges; honour DEC-DEPLOY-6.
+  - Done when: deploying a dependent stack deploys DB before API before web; failure stops later waves per policy.
+  - Status: todo · Verified-in-code: partial · Source: deployments.md#1 (Cascade), #6, projects-services.md#1.2/#4 (item 8), parity.md#1.2, ideas-deploy.md#1 idea 4
+  - Effect-impact (2026-10-26): cascade/saga rollback maps to `withCompensation` (top-level steps only, skipped when a cluster owner abandons a run): do after the workflow prototype; keep activities idempotent regardless. Deps: `EFF-122`.
+- [ ] `DEPLOY-081` **Deploy hook URLs (secret token per service) as a trigger source** · NEW · P1 · S · Deps: `DEPLOY-012`,`DEPLOY-013` · See also: `FEAT-081`, `WEB-085`
+  - Why/Problem: Vercel/Dokploy `[refreshToken]`/Coolify `/deploy?uuid` give CI an entry point; ours none.
+  - Do: per-service rotatable token, HMAC or random, rate-limited, optional `force`/tag; trigger source in registry; audit entry.
+  - Done when: `curl` to hook deploys; rotation invalidates old token.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#4 (win 1), bench-dokploy-dockhand.md#3 (item 3), bench-coolify.md#2 (item 6), ideas-deploy.md#4 (item 27)
+- [ ] `DEPLOY-082` **Scheduled deployments** · NEW · P3 · M · Deps: `DEPLOY-012`,`FEAT-030` · See also: `IDEA-041`
+  - Why/Problem: no schedule trigger source.
+  - Do: cron/time-window trigger via registry with system actor.
+  - Done when: deploy fires at configured time.
+  - Status: todo · Verified-in-code: no · Source: deployments.md#1 (Triggers), #6
+- [ ] `DEPLOY-083` **"Redeploy needed" badge via config hash vs in-force manifest** · ENHANCE · P2 · S · Deps: `DEPLOY-003` · See also: `PROJ-030`, `WEB-042`, `IDEA-059`
+  - Why/Problem: no signal when env/port/health/domain changed since last deploy (Coolify `ConfigurationChecker`).
+  - Do: hash resolved config; compare to manifest; banner on service page.
+  - Done when: editing env shows badge; redeploy clears.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy.md#4 (item 7), bench-coolify.md#4
+- [ ] `DEPLOY-084` **Deployment diff view (commit range, env keys, config, image size/digest)** · NEW · P3 · M · Deps: `DEPLOY-003` · See also: `FEAT-099`, `IDEA-069`, `WEB-040`
+  - Why/Problem: no diff between deployments (Dokploy/Vercel have).
+  - Do: structural manifest diff with secret masking in deployment detail.
+  - Done when: two deployments comparable in UI.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy.md#4 (item 9), bench-dokploy-dockhand.md#4
+
+### H. Events, streams and logs
+- [ ] `DEPLOY-085` **Emit `statusChanged` / `phaseUpdated` / `logAppended` from the workflow** · FIX · P1 · M · Deps: `DEPLOY-044` · See also: `OBS-004`
+  - Why/Problem: `deployment-execution-workflow.service.ts` writes DB only; live SSE shows nothing during build/deploy (only queued/cancel/rollback-created and `rollbackCompleted`).
+  - Do: emit all events (or project them from outbox, DEPLOY-087) so live and replay share a source; includes deployment success/failure events for OBS notifications.
+  - Done when: SSE shows build/deploy progress live.
+  - Status: todo · Verified-in-code: no (not re-verified this pass) · Source: deployments.md#1 (Events/SSE), #3 (item 15), #4 (item 8)
+- [ ] `DEPLOY-086` **Remove fake zero `metricsSnapshot` events (or feed real data)** · FIX · P2 · S · Deps: none
+  - Why/Problem: hard-coded zeros (`service:798-808,2236-2247`).
+  - Do: delete or source from container metrics.
+  - Done when: no fabricated metrics emitted.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1/#3 (item 15)
+- [ ] `DEPLOY-087` **Deployment events through the outbox with a projector feeding the stream bus** · ENHANCE · P2 · M · Deps: `SUB-C` · See also: `OBS-001`, `ARCH-062`
+  - Why/Problem: outbox exists but dispatcher only `markSent`; in-memory projector cursor in runtime.
+  - Do: publish via real consumers; stream bridge reads projected events; persistent cursor.
+  - Done when: live and replay identical; restart does not lose cursor.
+  - Status: todo · Verified-in-code: partial · Source: deployments.md#5, monolith-cutover.md#7 (item 3), ideas-deploy.md#4 (item 3)
+- [ ] `DEPLOY-088` **Logs viewer: tail, paging, live stream (not first 500 polled)** · ENHANCE · P1 · M · Deps: `DEPLOY-085` · See also: `WEB-032`, `OBS-062`
+  - Why/Problem: `deployment-logs-viewer.tsx:37-41` polls 4 s and shows first 500 lines; web does not consume streams.
+  - Do: tail + paginate, consume `deployment.stream*`, ANSI, follow toggle.
+  - Done when: tail of a long build visible live. (WEB executes UI; item tracked here for pipeline completeness.)
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (Logs), journeys.md#J2 step 20/#W2.4
+- [ ] `DEPLOY-089` **Authorization on all deployment read/stream/queue/plan endpoints (project membership + role)** · FIX · P0 · M · Deps: `SUB-A` · See also: `SEC-010`, `OBS-052`
+  - Why/Problem: list, get, logs, stream*, `queueFindJobById/queueListJobs`, `uploadBundle`, `createCompiledPlanSnapshot`, `upsertTemplateProvenance`, `compilePlan` are `requireAuth()` only (`controller:37-78,155-174,204-268,429-445`); any logged-in user reads any project's deployments/logs and writes memory maps.
+  - Do: SUB-A policy per procedure (read=project member, trigger/cancel/rollback/delete=deployer+); scope stream subscriptions; viewer sees no mutation controls.
+  - Done when: negative tests: non-member gets 403 on each procedure.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#3 (item 10), #1 (Contract drift)
+- [ ] `DEPLOY-090` **Fix contract/implementation drift (delete 409, swarm runner enum, unused procedures)** · FIX · P2 · S · Deps: `DEPLOY-077`,`DEPLOY-058`
+  - Why/Problem: delete 409 documented not implemented; swarm in code not contract; procedures advertised but stubbed.
+  - Do: align contracts with code; add contract-surface test.
+  - Done when: surface test asserts every contract error is reachable.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (Contract drift)
+
+### I. Webhooks and triggers
+- [ ] `DEPLOY-091` **Write/select the GitHub webhook secret (per-app via `X-GitHub-Hook-Installation-Target-ID`)** · FIX · P0 · M · Deps: none
+  - Why/Problem: secret read only from `app_config.key='github_webhook'` (`FL/providers/code/github/repositories/github-apps.repository.ts:172-189`); nothing writes it; per-app `githubApps.webhookSecret` (manifest flow) never used; every delivery 401 (fail closed).
+  - Do: resolve secret by target-id header (fall back to app/installation), remove dead key or write it in setup; encrypt secrets.
+  - Done when: a delivery signed with the app secret is accepted; wrong secret 401.
+  - Status: todo · Verified-in-code: yes · Source: deployments.md#1 (Webhook), #3 (item 2), journeys.md#J2 step 10/#W2.8
+- [ ] `DEPLOY-092` **Verify the HMAC over the raw request body** · FIX · P0 · S · Deps: none
+  - Why/Problem: HMAC over `JSON.stringify(input.body)` (`FL/providers/middleware/github-webhook-auth.middleware.ts:188`).
+  - Do: enable Nest `rawBody`, compute over bytes, constant-time compare.
+  - Done when: real-delivery fixture verifies; re-serialised body fails.
+  - Status: todo · Verified-in-code: yes · Source: deployments.md#1/#3 (item 2)
+- [ ] `DEPLOY-093` **Wire durable webhook idempotency (`WebhookIdempotencyService.claim()`)** · FIX · P0 · S · Deps: none
+  - Why/Problem: `claim()` never called; only an in-memory set (`github-webhook-auth.middleware.ts`).
+  - Do: call `claim(deliveryId)` after signature; return `duplicate_delivery`.
+  - Done when: replay after restart yields no new deployment.
+  - Status: todo · Verified-in-code: partial · Source: deployments.md#1/#3 (item 2), journeys.md#W2.8
+- [ ] `DEPLOY-094` **PR/push to service resolution via `findServiceBySourceUrl`** · FIX · P1 · S · Deps: none
+  - Why/Problem: `serviceId = payload.repository?.full_name ?? "unknown"` (`github.webhooks.controller.ts:139-140`); `projectId` never passed so `github_deployment_rules` never evaluated (`github-webhook-dispatch.service.ts:68-81`). Monolith already fixed (`apps/api/.../github.webhooks.controller.ts:212-222`); fleet repo has `findServiceBySourceUrl` (`github-apps.repository.ts:255`).
+  - Do: port the fix; support multiple services per repo; pass projectId.
+  - Done when: PR webhook resolves the right service(s).
+  - Status: todo · Verified-in-code: yes · Source: projects-services.md#1.4, journeys.md#J2 step 12/#7 (win 3)
+- [ ] `DEPLOY-095` **Push dispatch through the trigger registry (deploy on push)** · NEW · P1 · M · Deps: `DEPLOY-012`,`DEPLOY-013`,`DEPLOY-091`,`DEPLOY-092`,`DEPLOY-093`
+  - Why/Problem: `github.webhooks.controller.ts:78,120-131` returns `skipped`/"unhandled_event"; `github-push-trigger.source.ts` resolves repo->service correctly but nothing dispatches.
+  - Do: controller calls runtime via `ServiceClient` + system actor; honour branch match.
+  - Done when: push to tracked branch yields deployment within 90 s (journeys acceptance 1); push to other branch is `skipped`; bad signature 401.
+  - Status: todo · Verified-in-code: yes · Source: deployments.md#1/#4 (item 4), journeys.md#W2.8, monolith-cutover.md#5
+- [ ] `DEPLOY-096` **Consume `autoDeployEnabled`, `autoSyncEnabled`, `webhookEnabled` and branch filters** · FIX · P1 · S · Deps: `DEPLOY-095`
+  - Why/Problem: fields stored by wizard (`StepProvider.tsx:64`) and project settings, no consumer.
+  - Do: evaluate in trigger source; show webhook status in service UI.
+  - Done when: disabling auto-deploy stops push deploys.
+  - Status: todo · Verified-in-code: partial · Source: projects-services.md#1.4, journeys.md#J2 step 3
+- [ ] `DEPLOY-097` **`github_deployment_rules`: contract, controller, UI and evaluation** · NEW · P2 · M · Deps: `DEPLOY-094` · See also: `PROJ-074`, `FEAT-063`
+  - Why/Problem: `github-deployment-rule.service.ts` + repo exist; no contract/controller/UI; v1/v2 had rule-matcher.
+  - Do: CRUD contract, glob matcher, UI under service/project, evaluated before dispatch.
+  - Done when: rules gate deploys by branch/glob.
+  - Status: todo · Verified-in-code: unverified · Source: parity.md#1.3/#4 (item 7), projects-services.md#6
+- [ ] `DEPLOY-098` **Skip markers, fork-PR guard and watch paths on webhook trigger** · NEW · P2 · S · Deps: `DEPLOY-095` · See also: `FEAT-064`
+  - Why/Problem: Coolify `shouldSkipDeployAny` / `isForkPullRequest`; ours none.
+  - Do: `[skip deploy]`/`[skip ci]` in commit/PR title, label gate for previews, ignore fork PRs unless public-PR enabled.
+  - Done when: marker skips; fork PR gated.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#1 (Webhooks), bench-market.md#4 (win 6)
+- [ ] `DEPLOY-099` **Report back to GitHub: commit status/Deployments API and PR comment with preview URL** · NEW · P2 · M · Deps: `DEPLOY-095` · See also: `FEAT-065`
+  - Why/Problem: no feedback; Dokploy/Coolify comment on PR.
+  - Do: status check per deployment, PR comment with URL/gate results, updated on redeploy/teardown.
+  - Done when: GitHub shows status and comment.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#W2.13, ideas-deploy.md#4 (item 25), bench-coolify.md#1
+- [ ] `DEPLOY-100` **Generic signed inbound webhooks and registry/Docker Hub triggers** · NEW · P3 · M · Deps: `DEPLOY-012`
+  - Why/Problem: trigger registry has only `api` and `github-push`; no CI-CD/Docker Hub/generic.
+  - Do: provider-agnostic HMAC webhook source; image-push trigger.
+  - Done when: signed generic payload deploys.
+  - Status: todo · Verified-in-code: no · Source: deployments.md#1 (Scheduled/CI-CD), #6
+- [ ] `DEPLOY-101` **Audit/log webhook verification failures** · ENHANCE · P3 · S · Deps: none
+  - Why/Problem: Coolify `auditLogWebhookFailure`; ours silently 401.
+  - Do: structured log/event (delivery id, reason, no body secrets).
+  - Done when: failures queryable.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#1
+- [ ] `DEPLOY-102` **First-run default is PAT/deploy key; GitHub App manifest needs reachable URL** · ENHANCE · P2 · S · Deps: none
+  - Why/Problem: manifest flow requires public access point (`github-account.controller.ts:201-217`); a fresh VPS cannot use it before the domain step.
+  - Do: UI defaults to PAT/deploy key with clear "App requires public URL" hint; webhook status display ("connected / not reachable").
+  - Done when: first deploy from a private repo possible without domain.
+  - Status: todo · Verified-in-code: partial · Source: journeys.md#9 new finding 6, #J2 step 1
+
+### J. Preview environments
+- [ ] `DEPLOY-103` **Real per-PR/branch preview deployments (build, run, route)** · FIX · P1 · L · Deps: `DEPLOY-002`,`DEPLOY-095`,`DEPLOY-094` · See also: `IDEA-046`, `NET-036`
+  - Why/Problem: `preview-provisioning.service.ts:63-128` creates DNS + route + `preview_environments` row pointing at the service's latest deployment (`:239-243`); preview host routes to same container (`platform-routes-source.service.ts:252-277`); no per-PR build.
+  - Do: trigger a `preview` deployment of the PR ref with per-PR service name (`<svc>-pr-N`), preview env scope, wildcard/label host; link row to that deployment. (Full-stack topology execution = IDEA.)
+  - Done when: PR URL serves the PR's code, distinct from stable.
+  - Status: todo · Verified-in-code: partial · Source: deployments.md#1 (PR preview), projects-services.md#1.4, journeys.md#W2.10
+- [ ] `DEPLOY-104` **Preview teardown on PR close, TTL, orphan GC, shared naming** · FIX · P1 · M · Deps: `DEPLOY-103` · See also: `PROJ-071`, `FEAT-052`
+  - Why/Problem: create uses naming-service name, cleanup uses `pr-${n}`; TTL hardcoded 168 h (`github-webhook-dispatch.service.ts:174`); timer is `setInterval` 10 min (`preview-ttl-cleanup.service.ts`); no orphan GC.
+  - Do: one naming function; configurable TTL (`autoCleanupDays`); teardown on close removes deployment, route, DNS, volumes; daily orphan GC.
+  - Done when: closing PR removes route, DNS, container within 1 minute (acceptance 6).
+  - Status: todo · Verified-in-code: unverified · Source: projects-services.md#1.4, journeys.md#J2 acceptance 6, bench-coolify.md#1
+- [ ] `DEPLOY-105` **Wire `PreviewEnvOverlayService` and preview-scoped environment variables** · FIX · P1 · M · Deps: `DEPLOY-103` · See also: `PROJ-034`, `PROJ-070`
+  - Why/Problem: provided/exported in `deployment.module.ts:26,79,92`, injected nowhere (`preview-env-overlay.service.ts`); no preview-only env scope.
+  - Do: apply overlay in resolution for `preview` env; preview-scoped secrets; never inherit prod secrets for fork PRs.
+  - Done when: preview uses overlay values.
+  - Status: todo · Verified-in-code: yes (not injected, per reports) · Source: deployments.md#1, projects-services.md#1.4
+- [ ] `DEPLOY-106` **Fork-PR guard / public PR toggle for previews** · NEW · P1 · S · Deps: `DEPLOY-103` · See also: `PROJ-073`, `FEAT-064`
+  - Why/Problem: building untrusted fork code with secrets is a security risk (Coolify `is_pr_deployments_public_enabled`, Dokploy blocks non-collaborators).
+  - Do: default off for forks; require collaborator/label; no secrets for forks.
+  - Done when: fork PR from non-collaborator does not build.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#1, bench-dokploy-dockhand.md#1, journeys.md#W2.10
+- [ ] `DEPLOY-107` **Await/queue preview provisioning instead of fire-and-forget** · FIX · P1 · S · Deps: none
+  - Why/Problem: `void ...catch(warn)` provisioning; failures invisible.
+  - Do: run via queue/outbox with status and retries; surface errors on preview row.
+  - Done when: provisioning failure visible in UI and retried.
+  - Status: todo · Verified-in-code: unverified · Source: projects-services.md#1.4
+- [ ] `DEPLOY-108` **Enforce `maxPreviewEnvironments` and preview list controls (extend/destroy)** · ENHANCE · P2 · S · Deps: `DEPLOY-104` · See also: `PROJ-071`, `PROJ-073`
+  - Why/Problem: quota inert; preview list lacks owner PR link, TTL extend/destroy.
+  - Do: reject/evict beyond cap; add actions.
+  - Done when: 4th preview beyond cap of 3 handled per policy.
+  - Status: todo · Verified-in-code: unverified · Source: projects-services.md#1.1, ideas-deploy.md#4 (item 22)
+
+### K. Fork parity, cutover and UI
+- [ ] `DEPLOY-109` **Bring `services/runtime` to parity with the monolith and add a drift check** · FIX · P0 · M · Deps: `DEC-DEPLOY-5` · See also: `ARCH-034`, `ARCH-035`, `ARCH-037`
+  - Why/Problem: `RT/{deployment,runners,providers}` is a diverged older fork (no rollback fix, no builder registry, no trigger registry, no GitHub webhook controller there, no provider-schema); BFF cutover regresses deploy behaviour; ~20 other deployment files differ with "which is newer" unverified.
+  - Do: semantic diff of `MONO/deployment/{queue,services,mesh}` vs `RT`; port newer parts (DEPLOY-011/012/074); CI check that fails on divergence until `apps/api` is deleted.
+  - Done when: diff report empty or accepted; monolith deployment code deletable.
+  - Status: todo · Verified-in-code: yes (partial) · Source: deployments.md#1 (Duplicate code base), #4 (item 10), monolith-cutover.md#3/#5/#6/#8
+  - Effect-impact (2026-10-26): parity target is the classic Nest runtime (it stays Nest until last); do not port runtime to Effect as part of parity, and add the drift check against the frozen monolith. Deps: `EFF-103`.
+- [ ] `DEPLOY-110` **Remove dead web deploy components; adopt `trigger-source.ts`; drop `as any`** · FIX · P1 · S · Deps: `DEPLOY-002` · See also: `PROJ-124`, `WEB-008`, `JRN-027`
+  - Why/Problem: `TriggerDialog`, `ProjectDeploymentsTable`, `ConfirmDialog` under `projects/[projectId]/deployments/_components` and `_utils/trigger-source.ts` unused; page sends `{body:{...}} as any`.
+  - Do: delete dead ones or adopt; typed payload; deploy dialog free of inline source logic.
+  - Done when: no `as any` on deployment calls; unused files gone.
+  - Status: todo · Verified-in-code: partial · Source: deployments.md#4 (item 9), journeys.md#7 (win 18)
+- [ ] `DEPLOY-111` **Service-header deploy controls (Deploy / Redeploy / Rollback / Cancel) with role-aware visibility** · NEW · P1 · M · Deps: `DEPLOY-002`,`DEPLOY-017`,`DEPLOY-076` · See also: `WEB-009`, `WEB-051`, `WEB-112`
+  - Why/Problem: only entry point is Project -> Deployments -> "New Deployment"; service page has no controls; viewers see destructive buttons.
+  - Do: header buttons, confirm dialogs stating what is aborted, "Deploying abc123 (by push, @user)" chip, failure banner "Still serving vN".
+  - Done when: whole deploy lifecycle doable from service page; viewer sees none.
+  - Status: todo · Verified-in-code: partial · Source: journeys.md#W2.3/#UX, projects-services.md#1.6
+- [ ] `DEPLOY-112` **Trigger UI: branch/commit/builder/runner pickers and non-github sources** · ENHANCE · P2 · M · Deps: `DEPLOY-002`
+  - Why/Problem: no builder/runner/branch/commit UI; non-github sources fail validation (`source` required `crud.ts:94`).
+  - Do: advanced panel populated from saved config with overrides; commit picker.
+  - Done when: any service source type deployable from UI.
+  - Status: todo · Verified-in-code: partial · Source: deployments.md#1 (Manual trigger from UI), #4 (item 9)
+- [ ] `DEPLOY-113` **Global deployments page: server-side pagination/filters, actions, link to logs** · ENHANCE · P2 · M · Deps: `DEPLOY-089`
+  - Why/Problem: latest 100, client-side filter/sort; Retry only for `failed`; header text claims "roll back" there; project pages fetch 100 services client-side.
+  - Do: server pagination, filter by project/status/environment/actor, bulk cancel/retry, retry for cancelled.
+  - Done when: >100 deployments navigable.
+  - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (history), #5, ideas-deploy.md#4 (item 23)
+- [ ] `DEPLOY-114` **Deployment detail as a plan timeline (stages, durations, per-node status)** · ENHANCE · P2 · M · Deps: `DEPLOY-085`,`DEPLOY-026`
+  - Why/Problem: data model (compilePlan, phases) exists but workflow emits nothing; users see milestone lines.
+  - Do: render stages with live status and logs; builder detection explanation.
+  - Done when: timeline updates live during a deploy.
+  - Status: todo · Verified-in-code: unverified · Source: ideas-deploy.md#4 (item 3/2), bench-dokploy-dockhand.md#4
+- [ ] `DEPLOY-115` **Queue visibility in UI (position, running job, per-service lock)** · ENHANCE · P3 · S · Deps: `DEPLOY-024`
+  - Why/Problem: no queue view.
+  - Do: show position and what is blocking.
+  - Done when: queued deploy shows "waiting for X".
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy.md#4 (item 5), deployments.md#6
+
+## Test coverage to add
+- [ ] `DEPLOY-116` **E2E: build -> run -> health gate -> route flip (and no-fallback failure)** · NEW · P0 · M · Deps: `DEPLOY-001`,`DEPLOY-002`
+  - Why/Problem: e2e (`apps/api/src/e2e/deployment-workflows/`) cover config, upload trigger, plan compile and queue lifecycle only; unit tests (284 green) prove mocked wiring.
+  - Do: testcontainers e2e in the tier harness (port from MONO, see monolith-cutover step 7/8).
+  - Done when: e2e green in CI.
+  - Status: todo · Verified-in-code: yes · Source: deployments.md#1 (Tests), #4 (item 11)
+- [ ] `DEPLOY-117` **E2E: rollback actually reverts; cancel mid-build; restart reconciliation; lease reaper** · NEW · P0 · M · Deps: `DEPLOY-074`,`DEPLOY-017`,`DEPLOY-014`,`DEPLOY-015`
+  - Why/Problem: none of these have e2e or targeted unit tests; reaper test missing.
+  - Do: one spec each, with a failing-before assertion.
+  - Done when: specs green; kill-process test leaves no stuck rows.
+  - Status: todo · Verified-in-code: yes · Source: deployments.md#4 (item 11), journeys.md#J2 e2e 8
+  - Effect-impact (2026-10-26): interruption tests: cancel kills the child within ~1 s, crash-restart reclaims via lease; use `TestClock` for lease expiry. Deps: `EFF-122`, `EFF-030`, `EFF-038`.
+- [ ] `DEPLOY-118` **Webhook e2e with real signature, replay (duplicate), wrong signature, other branch, SSE live progress** · NEW · P1 · M · Deps: `DEPLOY-091`,`DEPLOY-092`,`DEPLOY-093`,`DEPLOY-095`,`DEPLOY-085`
+  - Why/Problem: no e2e for webhook delivery or SSE.
+  - Do: `fakeGithubSigner` fixture posting GitHub-shaped deliveries; assert 401 / `duplicate_delivery` / `skipped` / new deployment.
+  - Done when: matrix of acceptance 2 green.
+  - Status: todo · Verified-in-code: yes · Source: deployments.md#1 (Tests), journeys.md#J2 acceptance 2/e2e 9
+- [ ] `DEPLOY-119` **Security tests: unzip/tar injection and traversal, branch option injection, upload authz/size, deployment read authz** · NEW · P0 · S · Deps: `DEPLOY-030`,`DEPLOY-031`,`DEPLOY-032`,`DEPLOY-089`
+  - Why/Problem: no negative tests; non-member read/write of every deployment procedure untested.
+  - Do: table-driven negative tests per procedure and per payload.
+  - Done when: tests fail on current code, pass after fixes.
+  - Status: partial (archive traversal/injection and shell-metacharacter-filename tests exist; branch option injection and upload authz/size tests not written) — updated 2026-10-26 · Verified-in-code: yes · Source: deployments.md#3 (items 9-11), projects-services.md#4 (item 12)
+- [ ] `DEPLOY-120` **Web tests for trigger and rollback payloads (remove `as any` coverage hole)** · NEW · P1 · S · Deps: `DEPLOY-076`,`DEPLOY-110`
+  - Why/Problem: no web tests of trigger/rollback payloads; `as any` hides the contract mismatch.
+  - Do: component tests asserting typed payloads against contract schemas.
+  - Done when: rollback body missing `targetDeploymentId` fails a test.
+  - Status: todo · Verified-in-code: yes · Source: deployments.md#1 (Tests)
+- [ ] `DEPLOY-121` **Port missing specs: builder registry, trigger registry, `github-source-provider.service.spec`, deployment-workflows support and traefik-routing e2e** · NEW · P1 · M · Deps: `DEPLOY-011`,`DEPLOY-012`
+  - Why/Problem: unit/e2e counterparts exist only in apps/api (`github-source-provider.service.spec`, `deployment-workflows/support`, `traefik-routing`, `module-contract-surfaces`).
+  - Do: port or consciously drop with note.
+  - Done when: runtime tier has equal or better coverage for deployment module.
+  - Status: todo · Verified-in-code: partial · Source: monolith-cutover.md#3 (e2e/unit specs), #6 (step 8)
+- [ ] `DEPLOY-122` **Playwright journey `deploy-and-ship.spec.ts` (Gitea fixture, push deploy, health-gate failure keeps old, rollback, PR preview, cancel, viewer 403)** · NEW · P1 · L · Deps: `OPS-040`, `DEPLOY-095`,`DEPLOY-103`,`DEPLOY-071`,`DEPLOY-074`
+  - Why/Problem: no browser e2e exists; J2 outline defines 10 steps and 8 acceptance criteria.
+  - Do: implement per journeys.md J2 e2e outline; poll URL every 500 ms during failing deploy.
+  - Done when: spec green nightly; time-budget asserted.
+  - Status: todo · Verified-in-code: yes (no Playwright in repo) · Source: journeys.md#J2 e2e/#10
+- [ ] `DEPLOY-123` **Contract-surface/parity test: catalogs vs registries vs trigger enums; contract errors reachable** · NEW · P2 · S · Deps: `DEPLOY-038`,`DEPLOY-090`
+  - Why/Problem: catalog integrity test only checks builders vs `deploymentBuilderKindSchema`.
+  - Do: assert provider/builder/runner enums, catalogs and registry `supportedBuilders()` agree.
+  - Done when: adding an enum value without executor fails CI.
+  - Status: todo · Verified-in-code: yes · Source: deployments.md#1 (Catalogs), #5
+
+### Coverage-pass additions
+- [ ] `DEPLOY-124` **Surface route-sync and TLS provisioning failures on the deployment (not just warn logs)** · FIX · P1 · S · Deps: `DEPLOY-085`
+  - Why/Problem: route sync and TLS provisioning in the execution workflow (`deployment-execution-workflow.service.ts:487-535`) log failures as warnings only, so a deployment reports `success` with no route or certificate.
+  - Do: record route/TLS outcome on the deployment (reason + retry), show it in deployment detail, and fail or mark `degraded` per policy.
+  - Done when: a failed route sync or ACME request is visible on the deployment and in its log; test.
+  - Status: todo · Verified-in-code: no (per report) · Source: projects-services.md#1.5 (Domain/TLS row); See also: `DEPLOY-073`, `NET-015`
+- [ ] `DEPLOY-125` **Preview data isolation: preview-suffixed volumes and image tags, never mount stable volumes** · ENHANCE · P2 · S · Deps: `DEPLOY-103`
+  - Why/Problem: Coolify uses preview-suffixed volumes and separate preview image tags; our previews would share the stable service's volumes once built per PR.
+  - Do: derive preview volume names and image tags from the preview name; reject mounting stable-environment volumes in preview unless explicitly allowed.
+  - Done when: a preview writes to its own volume; teardown removes it.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#1 (Preview row); See also: `CLUSTER-043`, `IDEA-047`
+- [ ] `DEPLOY-126` **Unit tests: error classification and retry policy, per-service lock, health-config gate, build-log capture** · NEW · P1 · M · Deps: `DEPLOY-020`,`DEPLOY-021`,`DEPLOY-044`,`DEPLOY-069`
+  - Why/Problem: 284 green unit tests mostly prove mocked wiring; none cover these behaviours.
+  - Do: table-driven specs: permanent vs transient failures, backoff, two deploys of one service serialize, custom health path honoured, build lines reach `insertLog`.
+  - Done when: specs fail on current code and pass after fixes.
+  - Status: todo · Verified-in-code: yes (gap) · Source: deployments.md#1 (Tests), #3
+  - Effect-impact (2026-10-26): retry/backoff/timeout tests become deterministic with `TestClock`; `@effect/vitest` needs Vitest >=5 (repo `^4.1.9`). Deps: `EFF-030`, `EFF-038`.
+- [ ] `DEPLOY-127` **Swarm runner tests: stable service name, start-first update, auto-rollback, old-service reaping, replicas, health gate** · NEW · P1 · M · Deps: `DEPLOY-058`
+  - Why/Problem: the swarm runner is unreachable so none of its rollout behaviour is exercised end to end.
+  - Do: unit tests on spec mapping plus a DinD/testcontainers case for redeploy and failed-update rollback.
+  - Done when: redeploy updates one service in place; a failing update rolls back; no orphan services.
+  - Status: todo · Verified-in-code: yes (gap) · Source: deployments.md#1 (Swarm runner); See also: `CLUSTER-084`, `CLUSTER-082`
+- [ ] `DEPLOY-128` **Preview lifecycle tests: per-PR build, teardown on close, TTL, orphan GC, shared naming, fork guard** · NEW · P2 · M · Deps: `DEPLOY-103`,`DEPLOY-104`,`DEPLOY-106`
+  - Why/Problem: no tests cover preview provisioning/cleanup naming divergence or fork gating.
+  - Do: service-level tests with fake DNS/route adapters plus one webhook-driven integration test.
+  - Done when: create and cleanup resolve the same name; fork PR from non-collaborator does not build.
+  - Status: todo · Verified-in-code: yes (gap) · Source: projects-services.md#1.4; See also: `NET-097`, `PROJ-163`
+- [ ] `DEPLOY-129` **Git source tests: private clone with token redaction, fetch-by-sha, PR refs, default-branch detection** · NEW · P1 · S · Deps: `DEPLOY-028`,`DEPLOY-029`
+  - Why/Problem: git service has anonymous-clone tests only; token leakage and non-tip commits untested.
+  - Do: tests against a local git fixture asserting token absent from logs/process args and older commit/PR head checkouts work.
+  - Done when: specs green.
+  - Status: todo · Verified-in-code: yes (gap) · Source: deployments.md#1 (GitHub source); See also: `SEC-040`
+- [ ] `DEPLOY-130` **Deploy on tag/release trigger with tag patterns** · NEW · P3 · S · Deps: `DEPLOY-095`
+  - Why/Problem: only branch pushes are modelled; the report recommends deploy-on-push/tag.
+  - Do: tag-pattern field in service config evaluated by the push trigger source; tag name recorded in the manifest.
+  - Done when: pushing a matching tag deploys; non-matching tag is `skipped`.
+  - Status: todo · Verified-in-code: no · Source: deployments.md#6; See also: `DEPLOY-096`
+
+## Decisions needed
+- [ ] DEC-DEPLOY-1 Is swarm the only production runner? — options: (a) swarm only, docker runner dev-only flag; (b) keep both; (c) swarm + compose realizer only — recommendation: (a); two implementations double the work for canary/previews/rollback and the docker runner contradicts the platform rule.
+- [ ] DEC-DEPLOY-2 Is Postgres the manifest source of truth in v1 of SUB-B (signing/replication deferred)? — options: Postgres only / Postgres + signed ledger now — recommendation: Postgres now, but content-addressed canonical JSON so signing and mesh replication are additive.
+- [ ] DEC-DEPLOY-3 GitLab/Bitbucket/Gitea scope — options: implement GitLab fully (builder, clone, webhook, MR previews) and hide the rest; hide all non-GitHub providers until later; implement generic git + deploy key — recommendation: hide everything not working now, implement GitLab then generic git/deploy key.
+- [ ] DEC-DEPLOY-4 Default auto-builder — options: Railpack, Nixpacks, both — recommendation: Railpack default (Coolify is mid-churn from nixpacks), nixpacks optional.
+- [ ] DEC-DEPLOY-5 Fate of `apps/api-services/services/runtime` vs monolith — options: port monolith fixes then delete monolith; generate runtime from a shared source — recommendation: port (DEPLOY-011/012/074) then delete `apps/api`, add temporary drift check.
+- [ ] DEC-DEPLOY-6 Cross-project dependencies in cascade deploys (currently rejected `deployment.service.ts:385-394`) — options: keep rejected / allow with read access check — recommendation: keep rejected in v1.
+- [ ] DEC-DEPLOY-7 Durable queue backend — options: Postgres table with `SKIP LOCKED`; Redis/Bull — recommendation: Postgres (Redis is a phantom dependency, outbox/ownership already in PG).
+- [ ] DEC-DEPLOY-8 Image distribution — options: platform-managed registry service; external registry only; peer-to-peer digest-addressed pull-through (IDEA) — recommendation: configurable registry first (platform-managed optional), P2P later.
+- [ ] DEC-DEPLOY-9 Fork PR previews — options: never, collaborator/label only, public toggle — recommendation: collaborator/label gate by default, no secrets for forks.
+- [ ] DEC-DEPLOY-10 Where untrusted builds run (custom commands, buildpacks) — options: API node with rootless BuildKit; dedicated builder node; both — recommendation: rootless BuildKit in a builder container with no docker socket; dedicated node later.
+- [ ] DEC-DEPLOY-11 Retention defaults — options: keep 3/5/10 images, N days of rows/logs — recommendation: 5 images, 30 days logs, configurable per service.
+- [ ] DEC-DEPLOY-12 Environment model for `deployment.trigger` — options: id only; id or slug; free-form string — recommendation: id or validated slug resolved against project environments.
+
+## Notes on excluded/cross-owned source findings
+- Excluded (IDEA owns): dry-run/plan, gate engine (scan/window/approval/promotion), CVE blast radius, saga/whole-graph rollback, canary/weighted rollout, verify-before-flip, drift/time machine, full-stack preview topology, build-cache sharing across nodes, distributed builds, cost attribution, signed release ledger. DEPLOY-003/005/006 are their prerequisites.
+- Excluded (other owners): stale docs (`providers-runners-unification.md`, `IMPLEMENTATION_TODO.md` SW-022/SW-025) -> DOC; notification delivery, health probes -> OBS; env-var encryption store, per-env variables, default environment seeding, env "Config" link, settings enforcement -> PROJ; domain verification, ingress refresh on mapping change, `service.customDomains` bypass -> NET; registry manager UI, cron, templates, databases, backups UI, CLI, MCP -> FEAT; docker volume lifecycle UI, node ops -> CLUSTER; monolith-only analytics download, `backfill-env-secrets`, drizzle/auth generation, e2e harness extraction -> ARCH/OPS.
+
+## Item counts (hand tally)
+Total items: 130 (DEPLOY-001..130): P0 28, P1 59, P2 30, P3 13; FIX 57, ENHANCE 22, NEW 51. Decisions: 12.
+
+> Effect-impact pass: 2026-10-26 — 15 items annotated

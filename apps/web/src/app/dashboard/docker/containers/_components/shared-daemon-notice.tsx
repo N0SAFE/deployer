@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
+import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { TriangleAlert } from 'lucide-react'
 import { useDockerContainerGroupedList } from '@/domains/docker/hooks'
 import { DockerCopyableId } from '../../_components/docker-copy-button'

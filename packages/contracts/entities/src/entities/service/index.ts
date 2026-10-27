@@ -7,7 +7,7 @@ export {
 	manualProviderConfigSchema,
 	providerConfigSchemaById,
 	serviceProviderConfigUnionSchema,
-} from "@deployer/contracts-entities/entities/service/provider-config.schema";
+} from "./provider-config.schema";
 
 export {
 	kubernetesRunnerConfigSchema,
@@ -19,13 +19,13 @@ export {
 	staticRunnerConfigSchema,
 	runnerConfigSchemaById,
 	serviceRunnerConfigUnionSchema,
-} from "@deployer/contracts-entities/entities/service/runner-config.schema";
+} from "./runner-config.schema";
 
 export {
 	mockEngineSchema,
 	mockServiceConfigSchema,
 	implementedContractSchema,
-} from "@deployer/contracts-entities/entities/service/mock-config.schema";
+} from "./mock-config.schema";
 
 // Provider-backed network config (shared with project/network.schema.ts)
 export {
@@ -34,22 +34,22 @@ export {
         networkDnsRecordTypeSchema,
         defaultProjectNetworkConfig,
         defaultServiceNetworkConfig,
-} from "@deployer/contracts-entities/entities/project/network.schema";
+} from "../project/network.schema";
 
 export type {
         ServiceNetworkConfig,
         ProjectNetworkConfig,
-} from "@deployer/contracts-entities/entities/project/network.schema";
+} from "../project/network.schema";
 
 export {
 	serviceSchema,
 	serviceObjectShape,
 	serviceEffectiveConfigSchema,
 	serviceWithEffectiveConfigSchema,
-} from "@deployer/contracts-entities/entities/service/service.schema";
+} from "./service.schema";
 
 export type {
 	Service,
 	ServiceEffectiveConfig,
 	ServiceWithEffectiveConfig,
-} from "@deployer/contracts-entities/entities/service/service.schema";
+} from "./service.schema";

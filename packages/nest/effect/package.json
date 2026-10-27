@@ -1,0 +1,64 @@
+{
+	"dependencies": {
+		"@nestjs/core": "catalog:api:nest",
+		"@orpc/server": "catalog:orpc",
+		"effect": "catalog:effect"
+	},
+	"description": "Effect runtime bridge for NestJS: auto-discovers Effect service providers and exposes one ManagedRuntime.",
+	"devDependencies": {
+		"@deployer/config-eslint": "*",
+		"@deployer/config-prettier": "*",
+		"@deployer/config-typescript": "*",
+		"@deployer/config-vitest": "*",
+		"@deployer/pkg-build": "*",
+		"@nestjs/testing": "catalog:api:nest",
+		"@types/node": "catalog:build",
+		"chokidar": "catalog:build",
+		"eslint": "catalog:linting",
+		"reflect-metadata": "catalog:api:nest",
+		"rimraf": "catalog:build",
+		"typescript": "catalog:build",
+		"vitest": "catalog:testing"
+	},
+	"exports": {
+		".": {
+			"import": "./dist/esm/index.mjs",
+			"require": "./dist/cjs/index.js",
+			"types": "./dist/types/index.d.ts"
+		},
+		"./*": {
+			"import": "./dist/esm/*.mjs",
+			"require": "./dist/cjs/*.js",
+			"types": "./dist/types/*.d.ts"
+		},
+		"./testing": {
+			"import": "./dist/esm/testing.mjs",
+			"require": "./dist/cjs/testing.js",
+			"types": "./dist/types/testing.d.ts"
+		}
+	},
+	"main": "./dist/cjs/index.js",
+	"module": "./dist/esm/index.mjs",
+	"name": "@deployer/nest-effect",
+	"peerDependencies": {
+		"@nestjs/common": "catalog:api:nest",
+		"@nestjs/core": "catalog:api:nest"
+	},
+	"scripts": {
+		"build": "bun --bun pkg-build",
+		"build:types": "bun --bun pkg-build --types",
+		"clean": "rimraf dist",
+		"dev": "bun --bun pkg-build --watch",
+		"format": "bun run prettify",
+		"format:check": "bun fmt --check .",
+		"lint": "bun lint --no-script --type-aware",
+		"lint:fix": "bun lint --no-script --fix --type-aware",
+		"lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
+		"prettify": "bun fmt .",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"type-check": "bun check --no-script"
+	},
+	"types": "./dist/types/index.d.ts",
+	"version": "1.0.0"
+}

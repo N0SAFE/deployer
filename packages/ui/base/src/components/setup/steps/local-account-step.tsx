@@ -3,10 +3,10 @@
 import { useState } from "react"
 import { useForm } from "@tanstack/react-form"
 import { ArrowLeft, ArrowRight, Eye, EyeOff, User, Mail, Lock } from "lucide-react"
-import { Button } from "@repo/ui/components/shadcn/button"
-import { Input } from "@repo/ui/components/shadcn/input"
-import { Label } from "@repo/ui/components/shadcn/label"
-import { cn } from "@repo/ui/lib/utils"
+import { Button } from "@deployer/ui/components/shadcn/button"
+import { Input } from "@deployer/ui/components/shadcn/input"
+import { Label } from "@deployer/ui/components/shadcn/label"
+import { cn } from "@deployer/ui/lib/utils"
 // Bare `zod` (not `zod/v4`): this package is consumed from several apps whose
 // zod hoisting differs, and the subpath specifier resolved to a different
 // instance depending on the consumer — which made `z.object` undefined at

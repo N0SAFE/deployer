@@ -31,19 +31,19 @@ import {
     Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import {
     Card,
     CardContent,
     CardDescription,
     CardHeader,
     CardTitle,
-} from '@repo/ui/components/shadcn/card'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Label } from '@repo/ui/components/shadcn/label'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
+} from '@deployer/ui/components/shadcn/card'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Label } from '@deployer/ui/components/shadcn/label'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
+import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import {
     Table,
     TableBody,
@@ -51,7 +51,7 @@ import {
     TableHead,
     TableHeader,
     TableRow,
-} from '@repo/ui/components/shadcn/table'
+} from '@deployer/ui/components/shadcn/table'
 import {
     addPasskey,
     createApiKey,
@@ -71,12 +71,45 @@ import {
 } from '@/domains/account/hooks'
 
 /** Shown when a plugin endpoint fails, with the server's own explanation. */
-function ResourceError({ title, message }: { title: string; message: string }) {
+function ResourceError({
+    title,
+    message,
+    onRetry,
+}: {
+    title: string
+    message: string
+    onRetry: () => Promise<void>
+}) {
+    const [retrying, setRetrying] = React.useState(false)
+    const retry = async () => {
+        setRetrying(true)
+        try {
+            await onRetry()
+        } finally {
+            setRetrying(false)
+        }
+    }
     return (
         <Alert variant="destructive">
             <AlertTriangle className="size-4" />
             <AlertTitle>{title}</AlertTitle>
-            <AlertDescription>{message}</AlertDescription>
+            <AlertDescription>
+                <p>{message}</p>
+                <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-2"
+                    disabled={retrying}
+                    onClick={() => void retry()}
+                >
+                    {retrying ? (
+                        <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                        <RefreshCw className="size-4" />
+                    )}
+                    <span className="ml-2">Retry</span>
+                </Button>
+            </AlertDescription>
         </Alert>
     )
 }
@@ -167,7 +200,7 @@ export function PasskeysCard() {
                 {isLoading && <ListSkeleton rows={2} />}
 
                 {error && !isLoading && (
-                    <ResourceError title="Could not load passkeys" message={error} />
+                    <ResourceError title="Could not load passkeys" message={error} onRetry={reload} />
                 )}
 
                 {!isLoading && !error && passkeys.length === 0 && (
@@ -315,7 +348,7 @@ export function ActiveSessionsCard() {
                 {isLoading && <ListSkeleton rows={2} />}
 
                 {error && !isLoading && (
-                    <ResourceError title="Could not load devices" message={error} />
+                    <ResourceError title="Could not load devices" message={error} onRetry={reload} />
                 )}
 
                 {!isLoading && !error && sessions.length === 0 && (
@@ -479,7 +512,7 @@ export function ApiKeysCard() {
                             <Button
                                 size="sm"
                                 variant="ghost"
-                                onClick={() => setFreshKey(null)}
+                                onClick={() => { setFreshKey(null) }}
                             >
                                 Done
                             </Button>
@@ -494,7 +527,7 @@ export function ApiKeysCard() {
                             id="api-key-name"
                             value={name}
                             placeholder="ci-deploy"
-                            onChange={(e) => setName(e.target.value)}
+                            onChange={(e) => { setName(e.target.value) }}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter') void handleCreate()
                             }}
@@ -513,7 +546,7 @@ export function ApiKeysCard() {
                 {isLoading && <ListSkeleton rows={2} />}
 
                 {error && !isLoading && (
-                    <ResourceError title="Could not load API keys" message={error} />
+                    <ResourceError title="Could not load API keys" message={error} onRetry={reload} />
                 )}
 
                 {!isLoading && !error && keys.length === 0 && (
@@ -603,7 +636,7 @@ export function ApiKeysCard() {
  * difference between "no connections" and "not loaded" visible.
  */
 export function ConnectedAccountsCard() {
-    const { data, error, isLoading } = useLinkedAccounts()
+    const { data, error, isLoading, reload } = useLinkedAccounts()
 
     const accounts = data ?? []
 
@@ -622,7 +655,7 @@ export function ConnectedAccountsCard() {
                 {isLoading && <ListSkeleton rows={2} />}
 
                 {error && !isLoading && (
-                    <ResourceError title="Could not load connections" message={error} />
+                    <ResourceError title="Could not load connections" message={error} onRetry={reload} />
                 )}
 
                 {!isLoading && !error && accounts.length === 0 && (
@@ -668,7 +701,7 @@ export function AgentConnectionsCard() {
     // A deployment without agent auth configured returns an error here. That is
     // not a failure of this page, so it is stated as configuration, not as a
     // problem the user can fix.
-    const notConfigured = Boolean(agents.error || hosts.error)
+    const notConfigured = Boolean(agents.error ?? hosts.error)
 
     return (
         <Card>
@@ -798,7 +831,7 @@ export function SecurityPostureCard({ enabled }: { enabled: boolean }) {
                     size="sm"
                     variant="ghost"
                     className="ml-auto"
-                    onClick={() => window.location.reload()}
+                    onClick={() => { window.location.reload() }}
                 >
                     <RefreshCw className="size-4" />
                     <span className="ml-2">Refresh</span>

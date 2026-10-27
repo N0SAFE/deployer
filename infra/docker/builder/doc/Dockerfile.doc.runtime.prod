@@ -11,15 +11,29 @@
 # ===================================
 # Stage 1: Base - Install global dependencies and set environment
 # ===================================
-FROM oven/bun:1.4.2-alpine AS base
+FROM oven/bun:1.4.3-alpine AS base
 ENV NODE_ENV=production
+
+# ── BUILDKIT CACHE MOUNTS BREAK `install.globalStore` — TURN IT OFF ──────────
+# `bunfig.toml` sets `globalStore = true`, which points every
+# `node_modules/.bun/<pkg>` at an absolute path UNDER the bun cache mount used
+# below. A BuildKit cache mount is not committed to the image layer, so those
+# links would ship without their targets and every runtime import would fail
+# with ENOENT. Measured in a built image: with the store on, `test -d
+# node_modules/.bun/zod@4.6.7` is false. The env var overrides bunfig.toml.
+# Full reasoning: AGENTS.md → "One bun download cache".
+ENV BUN_INSTALL_GLOBAL_STORE=0
 
 # Install system dependencies
 # jq is needed to parse package.json exports in runner stage
 RUN apk add --no-cache libc6-compat dumb-init tar jq
 
 # Install global tools with cache mount
-RUN --mount=type=cache,target=/root/.bun/install/cache bun install -g turbo@^2 node-gyp
+# The explicit `id` matters because the cache id DEFAULTS TO THE MOUNT TARGET:
+# a different target would be a second download cache instead of the one shared
+# with every other Dockerfile here. See AGENTS.md → "One bun download cache".
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
+    bun install -g turbo@^2 node-gyp
 WORKDIR /app
 
 # ===================================
@@ -32,8 +46,11 @@ COPY turbo.json package.json ./
 COPY bun.lock* ./
 COPY --parents **/package.json ./
 
+# `@deployer/doc`, NOT `doc`: the scope is a WORKSPACE PACKAGE NAME, and every
+# application here is scoped. `turbo prune doc` fails with
+# "Invalid scope. Package with name doc in `package.json` not found."
 RUN --mount=type=cache,target=/root/.cache/turbo \
-  turbo prune doc --docker
+  turbo prune @deployer/doc --docker
 
 # Inject source.config.ts into out/json/ so the installer stage picks it
 # up via `COPY --from=pruner-json /app/out/json/ .` without an extra
@@ -53,7 +70,14 @@ RUN --mount=type=bind,target=/src \
   cp /src/turbo.json . && \
   cp /src/bun.lock* . 2>/dev/null || true ; \
   tar -C /src -cf - apps packages tooling 2>/dev/null | tar -xf - 2>/dev/null || true ; \
-  turbo prune doc --docker
+  turbo prune @deployer/doc --docker && \
+  # THE PRUNING TURBO IS NOT THE BUILDING TURBO — see AGENTS.md, "The pruning
+  # turbo writes the turbo.json the build parses". `turbo prune` re-serialises
+  # turbo.json from ITS OWN version, and this stage runs the `turbo@^2` global
+  # install while the build runs the LOCKFILE-PINNED turbo from node_modules.
+  # A newer prune writes futureFlags an older build rejects outright, and drops
+  # `remoteCache` that the `--remote-only` build below requires.
+  cp /app/turbo.json /app/out/full/turbo.json
 
 # ===================================
 # Stage 3: Installer - Install dependencies from pruned lockfile
@@ -91,7 +115,16 @@ COPY --from=pruner-json /app/out/json/ .
 # fallback never fires and the wrong tree installs silently.
 COPY --from=pruner-full /app/bun.lock ./bun.lock
 
-RUN --mount=type=cache,target=/root/.bun/install/cache \
+# ── WHY THE ROOT `scripts/` DIRECTORY ───────────────────────────────────────
+# `bun ci` runs the root `postinstall`,
+# `scripts/link-workspace-self-references.ts`, which creates the
+# `node_modules/<own-name> -> ../..` self-link that `bun install` never makes.
+# `turbo prune` keeps only what the pruned TARGET needs and a root script is not
+# one of its dependencies, so without this COPY the install dies with
+# `Module not found "scripts/link-workspace-self-references.ts"`.
+COPY scripts ./scripts
+
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
   bun ci
 
 # ===================================
@@ -121,10 +154,9 @@ COPY --from=pruner-full /app/bun.lock ./bun.lock
 # skipped and never copied, breaking module resolution at runtime.
 RUN --mount=type=bind,from=installer,source=/app,target=/mnt/installer \
     cd /mnt/installer && \
-    PATHS="node_modules"; \
-    for d in apps/*/node_modules packages/*/node_modules packages/*/*/node_modules tooling/*/node_modules tooling/*/*/node_modules; do \
-        if [ -d "$d" ]; then PATHS="$PATHS $d"; fi; \
-    done && \
+    # Depth-agnostic discovery — see AGENTS.md, "Discover node_modules with
+    # find, never a glob list".
+    PATHS="node_modules $(find apps packages tooling -type d -name node_modules -prune -print | tr '\n' ' ')"; \
     tar -cf - --exclude='*.map' --exclude='.cache' --exclude='.turbo' $PATHS | \
     tar -xf - -C /app --owner=root --group=root
 
@@ -138,14 +170,18 @@ COPY --parents --chmod=a+w **/.turbo/ ./
 RUN cd apps/doc && bun run postinstall
 
 # Generate routes
-RUN --mount=type=cache,target=/root/.bun/install/cache \
+RUN --mount=type=cache,id=deployer-turbo-cache,target=/turbo-cache,sharing=shared \
+    --mount=type=secret,id=turbo_token,env=TURBO_TOKEN,required=false \
+    --mount=type=secret,id=turbo_team,env=TURBO_TEAM,required=false \
+    --mount=type=secret,id=turbo_api,env=TURBO_API,required=false \
+    --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
     --mount=type=cache,target=/root/.cache \
     --mount=type=cache,target=/tmp/turbo-restore,id=turbo-doc-prod-runtime-generate,sharing=locked \
     set -eux; \
     if [ -d /tmp/turbo-restore/wt ]; then \
       cp -an /tmp/turbo-restore/wt/. /app/ 2>/dev/null || true; \
     fi; \
-    bunx turbo run generate --filter=doc... --remote-only; \
+    bunx turbo run generate --cache-dir=/turbo-cache --filter=@deployer/doc...; \
     rm -rf /tmp/turbo-restore/wt; \
     mkdir -p /tmp/turbo-restore/wt; \
     cd /app; \
@@ -206,4 +242,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=3 \
 
 WORKDIR /app
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["sh", "-c", "bun x turbo run doc#start --remote-only"]
+CMD ["sh", "-c", "bun x turbo run doc#start"]

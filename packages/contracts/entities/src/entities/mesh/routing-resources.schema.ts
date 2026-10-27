@@ -2,7 +2,7 @@ import z from "zod/v4";
 import {
     meshMembershipSnapshotSchema,
     meshNodeRoleSchema,
-} from "@deployer/contracts-entities/entities/mesh/topology.schema";
+} from "./topology.schema";
 
 export const meshResourceKindSchema = z.enum(["deployment", "stream", "log", "queue", "topic"]);
 export type MeshResourceKind = z.infer<typeof meshResourceKindSchema>;

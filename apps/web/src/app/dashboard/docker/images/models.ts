@@ -1,4 +1,4 @@
-import type { DockerDeploymentSnapshot, DockerImage } from '@repo/contracts-entities'
+import type { DockerDeploymentSnapshot, DockerImage } from '@deployer/contracts-entities'
 
 export type DockerImageEntity = DockerImage
 export type DockerImageDeployment = Pick<DockerDeploymentSnapshot, 'containerImage' | 'status'>
@@ -17,9 +17,8 @@ export type ImageTagRow = Pick<DockerImageEntity, 'id' | 'sizeBytes' | 'createdA
   failed: number
 }
 
-// A type alias (not an interface) so the row is assignable to DataTable's index-signature `ExportableData`.
-// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
-export type ImageGroupRow = {
+// Extends Record so the row is assignable to DataTable's index-signature `ExportableData`.
+export interface ImageGroupRow extends Record<string, unknown> {
   rowId: string
   repositoryKey: string
   repositoryLabel: string

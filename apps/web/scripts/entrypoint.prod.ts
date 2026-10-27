@@ -1,7 +1,7 @@
 #!/usr/bin/env -S bun
 
 import { execSync } from 'child_process'
-import { validateWebEnvSafe, webEnvIsValid } from '@repo/env'
+import { validateWebEnvSafe, webEnvIsValid } from '@deployer/env'
 import zod from 'zod/v4'
 
 /**

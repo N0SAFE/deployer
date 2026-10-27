@@ -20,7 +20,7 @@ vi.mock('@/lib/auth', () => ({
     useSession: mocks.useSession,
 }))
 
-vi.mock('@repo/logger', () => ({
+vi.mock('@deployer/logger', () => ({
     logger: { error: vi.fn() },
 }))
 

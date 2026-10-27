@@ -28,8 +28,8 @@ import {
 } from 'nuqs'
 import NProgress from 'nprogress'
 import queryString from 'query-string'
-import type { RouteBuilder } from '@repo/declarative-routing/make-route'
-import { isRecord } from "@repo/type-guards"
+import type { RouteBuilder } from '@deployer/declarative-routing/make-route'
+import { isRecord } from "@deployer/type-guards"
 
 // ============================================================================
 // Types
@@ -478,7 +478,7 @@ function normalizeSearchState<Search extends ZodObjectSearchSchema>(
  * 
  * @example
  * ```tsx
- * import { usePush } from '@repo/declarative-routing/hooks'
+ * import { usePush } from '@deployer/declarative-routing/hooks'
  * import { ProductDetail } from '../../../routes'
  * 
  * function MyComponent() {
@@ -545,7 +545,7 @@ export function usePush<
  * 
  * @example
  * ```tsx
- * import { useParams } from '@repo/declarative-routing/hooks'
+ * import { useParams } from '@deployer/declarative-routing/hooks'
  * import { ProductDetail } from '../../../routes'
  * 
  * function ProductPage() {
@@ -583,7 +583,7 @@ export function useParams<Route extends RouteBuilder<z.ZodType, z.ZodType>>(
  * 
  * @example
  * ```tsx
- * import { useSearchParams } from '@repo/declarative-routing/hooks'
+ * import { useSearchParams } from '@deployer/declarative-routing/hooks'
  * import { ProductList } from '../../../routes'
  * 
  * function ProductListPage() {
@@ -638,7 +638,7 @@ export function useSearchParams<Route extends RouteBuilder<z.ZodType, z.ZodType>
  *
  * @example
  * ```tsx
- * import { useSearchState } from '@repo/declarative-routing/hooks'
+ * import { useSearchState } from '@deployer/declarative-routing/hooks'
  * import { ProductList } from '../../../routes'
  *
  * function ProductListPage() {
@@ -732,7 +732,7 @@ export function useSearchState<
  * 
  * @example
  * ```tsx
- * import { useSearchParamState } from '@repo/declarative-routing/hooks'
+ * import { useSearchParamState } from '@deployer/declarative-routing/hooks'
  * import { ProductList } from '../../../routes'
  * 
  * function ProductListPage() {

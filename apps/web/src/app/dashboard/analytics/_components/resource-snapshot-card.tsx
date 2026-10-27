@@ -1,8 +1,9 @@
 'use client'
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { RelativeTime } from '../../_components/relative-time'
 import { CardBody, DataSourceBadge } from './card-states'
+import { Button } from '@deployer/ui/components/shadcn/button'
 
 export interface ResourceReading {
 	cpu: number
@@ -61,7 +62,8 @@ export function ResourceSnapshotCard({ reading, loading, error, onRetry }: { rea
 			</CardHeader>
 			<CardContent>
 				<CardBody loading={loading} error={error} onRetry={onRetry} empty={reading === undefined || unavailable} height="h-40"
-					emptyText="The Docker engine could not be read on this node, so there is nothing to show. Check that the API can reach the Docker socket.">
+					emptyText="The Docker engine could not be read on this node, so there is nothing to show. Check that the API can reach the Docker socket."
+					emptyAction={<Button size="sm" variant="outline" onClick={onRetry}>Check again</Button>}>
 					{reading ? (
 						<div className="grid gap-6 md:grid-cols-3">
 							<Meter label="CPU" value={reading.cpu} help="Average across running containers." />

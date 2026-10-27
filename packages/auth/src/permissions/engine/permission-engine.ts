@@ -30,10 +30,10 @@ import type {
     ProjectResource,
     ResourceRule,
     ResourceScope,
-} from "@repo/auth/permissions/engine/types";
-import { matchFilter } from "@repo/auth/permissions/engine/filter-matcher";
-import { getAncestorChain } from "@repo/auth/permissions/engine/resource-graph";
-import { compileDFilter, type ColumnResolver } from "@repo/auth/permissions/engine/filter-compiler";
+} from "@deployer/auth/permissions/engine/types";
+import { matchFilter } from "@deployer/auth/permissions/engine/filter-matcher";
+import { getAncestorChain } from "@deployer/auth/permissions/engine/resource-graph";
+import { compileDFilter, type ColumnResolver } from "@deployer/auth/permissions/engine/filter-compiler";
 import { and, or, inArray, sql as rawSql, type SQL } from "drizzle-orm";
 
 export type { ColumnResolver };

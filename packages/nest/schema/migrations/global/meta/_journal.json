@@ -274,6 +274,20 @@
       "when": 1791894066759,
       "tag": "0038_awesome_stature",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1792000000000,
+      "tag": "0039_gitlab_apps",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1792086400000,
+      "tag": "0040_encrypt_environment_variable_values",
+      "breakpoints": true
     }
   ]
 }

@@ -24,7 +24,7 @@
 
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import * as http from "node:http";
-import { logger } from "@repo/logger";
+import { logger } from "@deployer/logger";
 
 const log = logger.scope("ViteAssets");
 

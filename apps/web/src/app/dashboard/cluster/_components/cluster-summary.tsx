@@ -2,8 +2,8 @@
 
 import { Crown, Network, Server, ShieldCheck } from 'lucide-react'
 import { StatStrip, StatStripItem, StatusBadge } from '@/components/dashboard'
-import type { ClusterMasterView, ClusterNodeInventoryRow } from '@repo/api-contracts'
-import type { ClusterSnapshot } from '@repo/contracts-entities'
+import type { ClusterMasterView, ClusterNodeInventoryRow } from "@deployer/fleet-contracts";
+import type { ClusterSnapshot } from '@deployer/contracts-entities'
 import { CopyId } from '../../_components/copy-id-button'
 import { Hint } from '../../_components/hint'
 import { quorumInfo } from '../_utils/node-change-guard'

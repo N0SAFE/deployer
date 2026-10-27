@@ -1,6 +1,6 @@
 import { Test, type TestingModule } from "@nestjs/testing";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import type { ClusterSnapshot } from "@repo/contracts-entities";
+import type { ClusterSnapshot } from "@deployer/contracts-entities";
 import { SWARM_BOOT_CONVERGENCE } from "../swarm-config";
 import { SwarmBootstrapService } from "./swarm-bootstrap.service";
 import { SwarmParticipationService } from "./swarm-participation.service";

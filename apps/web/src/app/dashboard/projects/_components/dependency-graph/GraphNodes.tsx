@@ -2,8 +2,8 @@
 
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
 import { FolderTree } from 'lucide-react'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { StatusBadge, statusMeta } from '@/components/dashboard'
 import { cn } from '@/lib/utils'
 import { getColorForEnvironment } from './graph-env'

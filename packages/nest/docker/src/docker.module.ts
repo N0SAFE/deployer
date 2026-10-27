@@ -21,14 +21,14 @@ import type { DockerConnectionConfig, ScannerConfig } from "./docker-config";
  * its own default) and hands over the value. That is what lets a second Nest
  * app drive the same primitives from its own configuration.
  */
-export interface DockerModuleOptions {
+export type DockerModuleOptions = {
 	/** How to reach the Docker engine. */
 	connection: DockerConnectionConfig;
 	/** The scanner container's settings, including the app's chosen defaults. */
 	scanner: ScannerConfig;
 }
 
-export interface DockerModuleAsyncOptions {
+export type DockerModuleAsyncOptions = {
 	/** Modules whose exports the factory injects. */
 	imports?: NonNullable<ModuleMetadata["imports"]>;
 	/** Tokens the factory's parameters are injected from, in order. */

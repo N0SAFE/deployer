@@ -1,80 +1,86 @@
-import { AGENT_RUN_VOLUME } from "@repo/mesh-network";
 import type { Mock } from "vitest";
 import { describe, expect, it, vi } from "vitest";
 
 import { ApiServiceProvisioner } from "./api-service-provisioner.service";
 import { makeEnvService } from "@/test-support/env";
-import type { DockerService } from "@repo/nest-docker/services/docker.service";
+import type { DockerService } from "@deployer/nest-docker/services/docker.service";
 
 /**
  * The provisioner is where `SETUP_MODE` actually forks, so the assertions are
  * about the two paths staying distinct:
  *
- *   dev   — nothing is created; the backend is the compose service's address.
- *   prod  — a swarm service is created and reused on retry.
+ *   dev   — nothing is created; the backend is the compose BFF's address.
+ *   prod  — the microservices tier is scheduled (idempotently) and the BFF is the backend.
  *
  * Two failure modes are silent in production and therefore worth asserting
  * explicitly:
  *   1. `dev` with no `SETUP_API_URL` inventing a hostname — the ingress would be
  *      pointed at a name that does not resolve, and the operator would see a 502
  *      with no configuration error anywhere.
- *   2. `prod` recreating an existing service — a harmless-looking retry that
- *      RESTARTS a healthy API, turning it into an outage.
+ *   2. `prod` without a BFF image scheduling nothing and handing over to a name that
+ *      never exists.
  */
+
+type TierApp = { name: string; image: string; port: number };
+
 function makeProvisioner(
   envOverrides: Record<string, string>,
   docker: Partial<DockerService> = {},
-  managedWeb: boolean | null = null,
-): { provisioner: ApiServiceProvisioner; docker: Partial<DockerService> } {
+  tierApps: TierApp[] | null = null,
+): {
+  provisioner: ApiServiceProvisioner;
+  docker: Partial<DockerService>;
+  tier: { ensureTier: Mock };
+} {
   const service = {
     createSwarmService: vi.fn().mockResolvedValue({}),
-    inspectSwarmService: vi.fn(),
-    // The provisioner creates the platform OVERLAY before attaching the service
-    // to it, because a service name only resolves on a swarm-scoped network.
+    // The provisioner creates the platform OVERLAY before scheduling the tier, because a
+    // service name only resolves on a swarm-scoped network.
     ensureOverlayNetwork: vi.fn().mockResolvedValue(undefined),
     ...docker,
   };
-  // The wizard's dashboard choice, which the provisioner forwards as the API's
-  // `MANAGED_WEB_APP_ENABLED` seed. `null` models "the operator was never asked".
-  const gate = { managedWebEnabled: vi.fn(() => managedWeb) };
+  const prefix = envOverrides.DEPLOYER_PREFIX ?? "";
+  const bffName = prefix === "" ? "svc-bff" : `svc-bff-${prefix}`;
+  const tier = {
+    ensureTier: vi.fn().mockResolvedValue(
+      tierApps ?? [{ name: bffName, image: envOverrides.DEPLOYER_BFF_IMAGE ?? "svc-bff:local", port: 3005 }],
+    ),
+  };
   const provisioner = new ApiServiceProvisioner(
     makeEnvService(envOverrides),
+    // Partial double: the provisioner uses only a handful of the engine's methods.
     service as unknown as DockerService,
-    gate as unknown as ConstructorParameters<typeof ApiServiceProvisioner>[2],
+    tier as unknown as ConstructorParameters<typeof ApiServiceProvisioner>[2],
   );
-  return { provisioner, docker: service };
-}
-
-/** `inspectSwarmService` rejecting is how "the service does not exist" surfaces. */
-function notFound(): Mock {
-  return vi.fn().mockRejectedValue(new Error("Swarm service not found"));
+  return { provisioner, docker: service, tier };
 }
 
 describe("ApiServiceProvisioner", () => {
-  describe("dev — compose owns the API", () => {
-    it("returns the configured address and creates nothing", async () => {
-      const { provisioner, docker } = makeProvisioner({
+  describe("dev — compose owns the BFF", () => {
+    it("returns the configured address and schedules nothing", async () => {
+      const { provisioner, docker, tier } = makeProvisioner({
         SETUP_MODE: "dev",
-        SETUP_API_URL: "http://api-dev:3005",
+        SETUP_API_URL: "http://bff:3005",
       });
 
       const backend = await provisioner.ensureApi();
 
-      expect(backend).toMatchObject({ kind: "container", url: "http://api-dev:3005" });
-      // Creating a service in dev would schedule a SECOND API beside the compose
-      // one, and both would try to own the same volumes.
+      expect(backend).toMatchObject({ kind: "container", url: "http://bff:3005" });
+      // Scheduling the tier in dev would run a SECOND BFF beside the compose one, and both
+      // would try to own the same volumes.
+      expect(tier.ensureTier).not.toHaveBeenCalled();
       expect(docker.createSwarmService).not.toHaveBeenCalled();
     });
 
     it("strips a trailing slash so backend URLs do not become `//health/ready`", async () => {
       const { provisioner } = makeProvisioner({
         SETUP_MODE: "dev",
-        SETUP_API_URL: "http://api-dev:3005/",
+        SETUP_API_URL: "http://bff:3005/",
       });
 
       const backend = await provisioner.ensureApi();
 
-      expect(backend.url).toBe("http://api-dev:3005");
+      expect(backend.url).toBe("http://bff:3005");
     });
 
     it("REFUSES to guess an address when SETUP_API_URL is missing", async () => {
@@ -86,373 +92,168 @@ describe("ApiServiceProvisioner", () => {
     });
   });
 
-  describe("prod — setup schedules the API", () => {
-    it("creates a swarm service from DEPLOYER_API_IMAGE", async () => {
-      const { provisioner, docker } = makeProvisioner(
-        {
-          SETUP_MODE: "prod",
-          DEPLOYER_API_IMAGE: "deployer-api:local",
-          DEPLOYER_API_REPLICAS: "2",
-        },
-        { inspectSwarmService: notFound() },
-      );
+  describe("prod — setup schedules the tier", () => {
+    it("ensures the overlay, schedules the tier and hands over to the BFF", async () => {
+      const { provisioner, docker, tier } = makeProvisioner({
+        SETUP_MODE: "prod",
+        DEPLOYER_BFF_IMAGE: "svc-bff:local",
+      });
 
       const backend = await provisioner.ensureApi();
 
-      expect(docker.createSwarmService).toHaveBeenCalledOnce();
-      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
-        TaskTemplate: { ContainerSpec: { Image: string } };
-        Mode: { Replicated: { Replicas: number } };
-      };
-      // The image is the ONLY input for "which build to run" — that is the plan's
-      // single difference between local prod and a real deployment.
-      expect(spec.TaskTemplate.ContainerSpec.Image).toBe("deployer-api:local");
-      expect(spec.Mode.Replicated.Replicas).toBe(2);
-      expect(backend).toMatchObject({ kind: "swarm", serviceName: "deployer-api" });
-    });
-
-    /** An API service as the mesh-first spec creates it: agent socket mounted, no published port. */
-    const meshFirstService = {
-      Version: { Index: 7 },
-      Endpoint: { Spec: { Ports: [] } },
-      Spec: { TaskTemplate: { ContainerSpec: { Mounts: [{ Source: AGENT_RUN_VOLUME }] } } },
-    };
-
-    it("REUSES an existing service instead of recreating it", async () => {
-      const { provisioner, docker } = makeProvisioner(
-        { SETUP_MODE: "prod", DEPLOYER_API_IMAGE: "deployer-api:local" },
-        { inspectSwarmService: vi.fn().mockResolvedValue(meshFirstService), updateSwarmService: vi.fn() },
-      );
-
-      const backend = await provisioner.ensureApi();
-
-      // Recreating would restart a healthy API — a retry of a later step would
-      // become an outage. An already-upgraded service is not even UPDATED.
+      expect(docker.ensureOverlayNetwork).toHaveBeenCalledOnce();
+      expect(tier.ensureTier).toHaveBeenCalledOnce();
+      expect(backend).toMatchObject({ kind: "swarm", serviceName: "svc-bff", url: "http://svc-bff:3005" });
+      // The tier provisioner owns service creation; this class creates nothing itself.
       expect(docker.createSwarmService).not.toHaveBeenCalled();
-      expect(docker.updateSwarmService).not.toHaveBeenCalled();
-      expect(backend).toMatchObject({ kind: "swarm" });
     });
 
-    it("UPGRADES a service that predates the mesh (published port, no agent socket) in place", async () => {
-      const preMesh = {
-        Version: { Index: 3 },
-        Endpoint: { Spec: { Ports: [{ PublishedPort: 3005 }] } },
-        Spec: { TaskTemplate: { ContainerSpec: { Mounts: [] } } },
-      };
-      const { provisioner, docker } = makeProvisioner(
-        { SETUP_MODE: "prod", DEPLOYER_API_IMAGE: "deployer-api:local" },
-        { inspectSwarmService: vi.fn().mockResolvedValue(preMesh), updateSwarmService: vi.fn().mockResolvedValue({}) },
-      );
+    it("REFUSES to hand over without a BFF image tag, and schedules nothing", async () => {
+      const { provisioner, docker, tier } = makeProvisioner({ SETUP_MODE: "prod" });
 
-      await provisioner.ensureApi();
-
-      // Updated against its CURRENT version (swarm rejects a stale one), never
-      // recreated — and the new spec publishes nothing.
-      expect(docker.createSwarmService).not.toHaveBeenCalled();
-      expect(docker.updateSwarmService).toHaveBeenCalledWith("deployer-api", 3, expect.anything());
-      const updated = vi.mocked(docker.updateSwarmService!).mock.calls[0]?.[2] as { EndpointSpec: { Ports?: unknown[] } };
-      expect(updated.EndpointSpec.Ports ?? []).toEqual([]);
+      await expect(provisioner.ensureApi()).rejects.toThrow(/DEPLOYER_BFF_IMAGE/);
+      expect(tier.ensureTier).not.toHaveBeenCalled();
+      expect(docker.ensureOverlayNetwork).not.toHaveBeenCalled();
     });
 
-    it("REFUSES to schedule without an image tag", async () => {
-      const { provisioner } = makeProvisioner({ SETUP_MODE: "prod" });
+    it("refuses to hand over when the tier was scheduled without a BFF", async () => {
+      const { provisioner } = makeProvisioner(
+        { SETUP_MODE: "prod", DEPLOYER_BFF_IMAGE: "svc-bff:local" },
+        {},
+        [{ name: "svc-fleet", image: "svc-fleet:local", port: 3104 }],
+      );
 
-      await expect(provisioner.ensureApi()).rejects.toThrow(/DEPLOYER_API_IMAGE/);
+      await expect(provisioner.ensureApi()).rejects.toThrow(/without a BFF/);
     });
 
-    /**
-     * REGRESSION GUARD: a swarm task inherits NOTHING from the compose project,
-     * so every variable the scheduled app REQUIRES has to be passed explicitly.
-     * Omitting one is invisible until the task crash-loops, and the supervisor
-     * only reports "service has no running task":
-     *
-     *   ❌ Environment validation failed:
-     *      Invalid input: expected string, received undefined → at AUTH_SECRET
-     *
-     * `AUTH_SECRET`/`BETTER_AUTH_SECRET` matter most: the API SIGNS the session
-     * cookie and the web app's middleware DECRYPTS it, so a mismatch silently
-     * signs the operator out on alternate hosts.
-     */
-    it("passes the scheduled app the env it cannot inherit from compose", async () => {
-      const { provisioner, docker } = makeProvisioner(
-        {
-          SETUP_MODE: "prod",
-          DEPLOYER_API_IMAGE: "deployer-api:local",
-          AUTH_SECRET: "a-real-shared-secret",
-        },
-        { inspectSwarmService: notFound() },
-      );
-
-      await provisioner.ensureApi();
-
-      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
-        TaskTemplate: { ContainerSpec: { Env: string[] } };
-      };
-      const env = spec.TaskTemplate.ContainerSpec.Env;
-
-      expect(env).toContain("AUTH_SECRET=a-real-shared-secret");
-      // Must MATCH: the web schema rejects them when they differ.
-      expect(env).toContain("BETTER_AUTH_SECRET=a-real-shared-secret");
-      expect(env.some((e) => e.startsWith("NEXT_PUBLIC_API_URL="))).toBe(true);
-      expect(env.some((e) => e.startsWith("NEXT_PUBLIC_APP_URL="))).toBe(true);
-      expect(env.some((e) => e.startsWith("APP_URL="))).toBe(true);
-    });
-
-    /**
-     * Without `AUTH_BASE_DOMAIN` the API has no wildcard, so `trustedOrigins`
-     * holds only the explicit app URLs — and the WIZARD's own host is rejected,
-     * which is what surfaced as `Invalid origin` on the final click.
-     */
-    it("forwards the shared auth domain so the wizard's own origin is trusted", async () => {
-      const { provisioner, docker } = makeProvisioner(
-        { SETUP_MODE: "prod", DEPLOYER_API_IMAGE: "deployer-api:local" },
-        { inspectSwarmService: notFound() },
-      );
-
-      await provisioner.ensureApi();
-
-      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
-        TaskTemplate: { ContainerSpec: { Env: string[] } };
-      };
-      const env = spec.TaskTemplate.ContainerSpec.Env;
-
-      // The LEADING DOT is load-bearing: it produces `*.deployer.localhost`,
-      // which matches `setup.deployer.localhost` while rejecting the bare
-      // `deployer.localhost`.
-      expect(env).toContain("AUTH_BASE_DOMAIN=.deployer.localhost");
-      // And the setup origin is named explicitly as a belt-and-braces measure.
-      expect(env).toContain("TRUSTED_ORIGINS=http://setup.deployer.localhost");
-    });
-
-    /**
-     * REGRESSION GUARD: the API starts this node's mesh agent at boot, and the
-     * agent is what creates the host `deployer-mesh` WireGuard interface. A
-     * swarm task inherits NOTHING from compose, so a value the operator set is
-     * silently dropped here and the mesh stays down on a deployment that asked
-     * for it.
-     *
-     * The failure is invisible: the API boots, the wizard completes, and only
-     * the node's own interface is missing — which reads as a WireGuard or
-     * NET_ADMIN problem rather than a forgotten forward.
-     */
-    it("forwards the mesh dataplane so the scheduled node honours the operator's choice", async () => {
-      const { provisioner, docker } = makeProvisioner(
-        {
-          SETUP_MODE: "prod",
-          DEPLOYER_API_IMAGE: "deployer-api:local",
-          MESH_AGENT_DATAPLANE: "kernel",
-        },
-        { inspectSwarmService: notFound() },
-      );
-
-      await provisioner.ensureApi();
-
-      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
-        TaskTemplate: { ContainerSpec: { Env: string[] } };
-      };
-      const env = spec.TaskTemplate.ContainerSpec.Env;
-
-      expect(env).toContain("MESH_AGENT_DATAPLANE=kernel");
-      // The agent's image is the OTHER half of the same handover: setup is the
-      // only process that can name a tag the dev producers actually built.
-      expect(env.some((e) => e.startsWith("MESH_AGENT_IMAGE="))).toBe(true);
-    });
-
-    /**
-     * The variable is never empty — the schema enum resolves an unset value to
-     * `observe` — so it is forwarded UNCONDITIONALLY. This pins that: a
-     * dev-supervised stack must come up WITHOUT adding a host network device,
-     * which is the whole reason `observe` is the default.
-     */
-    it("forwards `observe` by schema default when the operator set nothing", async () => {
-      const { provisioner, docker } = makeProvisioner(
-        { SETUP_MODE: "prod", DEPLOYER_API_IMAGE: "deployer-api:local" },
-        { inspectSwarmService: notFound() },
-      );
-
-      await provisioner.ensureApi();
-
-      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
-        TaskTemplate: { ContainerSpec: { Env: string[] } };
-      };
-      const env = spec.TaskTemplate.ContainerSpec.Env;
-
-      // `makeProvisioner` seeds a real env through the schema, so this is the
-      // resolved value, not a literal the test supplied.
-      expect(env).toContain(`MESH_AGENT_DATAPLANE=${"observe"}`);
-    });
-
-    it("derives the auth domain from the prefix so a prefixed install is not broken", async () => {
-      const { provisioner, docker } = makeProvisioner(
-        {
-          SETUP_MODE: "prod",
-          DEPLOYER_API_IMAGE: "deployer-api:local",
-          DEPLOYER_PREFIX: "acme",
-          NODE_LOCAL_DB_VOLUME: "proj_api_local_db_data_acme",
-        },
-        { inspectSwarmService: notFound() },
-      );
-
-      await provisioner.ensureApi();
-
-      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
-        TaskTemplate: { ContainerSpec: { Env: string[] } };
-      };
-      const env = spec.TaskTemplate.ContainerSpec.Env;
-
-      expect(env).toContain("AUTH_BASE_DOMAIN=.acme.deployer.localhost");
-      expect(env).toContain("TRUSTED_ORIGINS=http://setup.acme.deployer.localhost");
-    });
-
-    /**
-     * The wizard's dashboard answer must reach the API, or the operator's choice
-     * is silently discarded on a fresh instance (the API would boot on its own
-     * env default instead).
-     */
-    it("forwards the wizard's dashboard choice as the API's seed", async () => {
-      const { provisioner, docker } = makeProvisioner(
-        { SETUP_MODE: "prod", DEPLOYER_API_IMAGE: "deployer-api:local" },
-        { inspectSwarmService: notFound() },
-        true,
-      );
-
-      await provisioner.ensureApi();
-
-      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
-        TaskTemplate: { ContainerSpec: { Env: string[] } };
-      };
-      expect(spec.TaskTemplate.ContainerSpec.Env).toContain("MANAGED_WEB_APP_ENABLED=true");
-    });
-
-    it("forwards an explicit API-only choice as false", async () => {
-      const { provisioner, docker } = makeProvisioner(
-        { SETUP_MODE: "prod", DEPLOYER_API_IMAGE: "deployer-api:local" },
-        { inspectSwarmService: notFound() },
-        false,
-      );
-
-      await provisioner.ensureApi();
-
-      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
-        TaskTemplate: { ContainerSpec: { Env: string[] } };
-      };
-      expect(spec.TaskTemplate.ContainerSpec.Env).toContain("MANAGED_WEB_APP_ENABLED=false");
-    });
-
-    it("omits the dashboard flag when the operator was never asked", async () => {
-      const { provisioner, docker } = makeProvisioner(
-        { SETUP_MODE: "prod", DEPLOYER_API_IMAGE: "deployer-api:local" },
-        { inspectSwarmService: notFound() },
-        null,
-      );
-
-      await provisioner.ensureApi();
-
-      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
-        TaskTemplate: { ContainerSpec: { Env: string[] } };
-      };
-      // An unasked choice must NOT become `false` — that would silently disable
-      // the dashboard instead of leaving the deployment's own default in place.
-      expect(spec.TaskTemplate.ContainerSpec.Env.some((e) => e.startsWith("MANAGED_WEB_APP_ENABLED="))).toBe(false);
-    });
-
-    it("mounts the shared local-db volume, so the API reads the decision setup wrote", async () => {
-      const { provisioner, docker } = makeProvisioner(
-        { SETUP_MODE: "prod", DEPLOYER_API_IMAGE: "deployer-api:local" },
-        { inspectSwarmService: notFound() },
-      );
-
-      await provisioner.ensureApi();
-
-      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
-        TaskTemplate: { ContainerSpec: { Mounts: Array<{ Source: string; Target: string }> } };
-      };
-      // `node_config` lives here; without the mount the API boots with no idea a
-      // cluster exists and would re-run onboarding.
-      expect(spec.TaskTemplate.ContainerSpec.Mounts).toContainEqual(
-        expect.objectContaining({ Target: "/app/data" }),
-      );
-    });
-
-    it("prefixes the SERVICE name so tenants stay distinguishable", async () => {
-      const { provisioner, docker } = makeProvisioner(
-        {
-          SETUP_MODE: "prod",
-          DEPLOYER_API_IMAGE: "deployer-api:local",
-          DEPLOYER_PREFIX: "acme",
-          NODE_LOCAL_DB_VOLUME: "proj_api_local_db_data_acme",
-        },
-        { inspectSwarmService: notFound() },
-      );
+    it("prefixes the BFF name so tenants stay distinguishable, matching the tier provisioner", async () => {
+      const { provisioner } = makeProvisioner({
+        SETUP_MODE: "prod",
+        DEPLOYER_BFF_IMAGE: "svc-bff:local",
+        DEPLOYER_PREFIX: "acme",
+      });
 
       const backend = await provisioner.ensureApi();
 
-      // The union is narrowed rather than asserted: only the swarm branch has a
-      // service name, and asserting its presence is the point of the test.
-      expect(backend.kind).toBe("swarm");
-      if (backend.kind !== "swarm") throw new Error("expected a swarm backend");
-      expect(backend.serviceName).toBe("deployer-api-acme");
-
-      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
-        TaskTemplate: { ContainerSpec: { Mounts: Array<{ Source: string; Target: string }> } };
-      };
-
-      // ── THE VOLUME NAME COMES FROM THE ENVIRONMENT ────────────────────────
-      // Compose prefixes volumes with its project name, which this process
-      // cannot guess. Reconstructing it from DEPLOYER_PREFIX produced a name
-      // that matched NOTHING the setup container had written, so the task
-      // mounted an empty volume and the API booted with no node state:
-      //
-      //   Failed query: select "node_id", "server_url" … (db not ready)
-      const mounts = spec.TaskTemplate.ContainerSpec.Mounts;
-      expect(mounts.map((m) => m.Source)).toContain("proj_api_local_db_data_acme");
+      expect(backend).toMatchObject({ serviceName: "svc-bff-acme", url: "http://svc-bff-acme:3005" });
     });
 
-    it("mounts the engine socket, without which no supervisor can converge", async () => {
-      const { provisioner, docker } = makeProvisioner(
-        {
-          SETUP_MODE: "prod",
-          DEPLOYER_API_IMAGE: "deployer-api:local",
-          NODE_LOCAL_DB_VOLUME: "proj_api_local_db_data_prod",
-        },
-        { inspectSwarmService: notFound() },
-      );
+    it("schedules the overlay BEFORE the tier, so the services attach to a network that exists", async () => {
+      const { provisioner, docker, tier } = makeProvisioner({
+        SETUP_MODE: "prod",
+        DEPLOYER_BFF_IMAGE: "svc-bff:local",
+      });
 
       await provisioner.ensureApi();
 
-      const spec = vi.mocked(docker.createSwarmService!).mock.calls[0]?.[0] as {
-        TaskTemplate: { ContainerSpec: { Mounts: Array<{ Type: string; Source: string; Target: string }> } };
-      };
+      const overlayOrder = (docker.ensureOverlayNetwork as Mock).mock.invocationCallOrder[0] ?? 0;
+      const tierOrder = tier.ensureTier.mock.invocationCallOrder[0] ?? 0;
+      expect(overlayOrder).toBeLessThan(tierOrder);
+    });
 
-      // A swarm task inherits NOTHING from the node it runs on, so the socket
-      // must be mounted explicitly. Without it every supervisor call fails with
-      // `connect ENOENT /var/run/docker.sock` and the platform never converges.
-      expect(spec.TaskTemplate.ContainerSpec.Mounts).toContainEqual(
-        expect.objectContaining({
-          Type: "bind",
-          Source: "/var/run/docker.sock",
-          Target: "/var/run/docker.sock",
-        }),
-      );
+    /**
+     * A network whose VXLAN datapath is poisoned cannot be joined, and polling
+     * never fixes it:
+     *
+     *   subnet sandbox join failed for "10.0.1.0/24":
+     *   error creating vxlan interface: file exists
+     *
+     * The VNI is the poisoned part, so after two consecutive failures the overlay
+     * is rebuilt on another one and the attach retried. A single failure is the
+     * engine's normal first-join hiccup and must NOT cost anyone their services.
+     */
+    describe("poisoned overlay datapath", () => {
+      const datapathError = () =>
+        new Error(
+          "failed to set up container networking: attaching to network failed: " +
+            "subnet sandbox join failed for 10.0.1.0/24: error creating vxlan interface: file exists",
+        );
+
+      async function run(connect: ReturnType<typeof vi.fn>) {
+        const recreateOverlayNetwork = vi
+          .fn()
+          .mockResolvedValue({ vxlanId: 4098, avoidedVxlanIds: [4097], removedServices: [] });
+        const { provisioner, docker } = makeProvisioner(
+          { SETUP_MODE: "prod", DEPLOYER_BFF_IMAGE: "svc-bff:local" },
+          {
+            recreateOverlayNetwork,
+            getDockerClient: vi.fn(() => ({ getNetwork: vi.fn(() => ({ connect })) })),
+          } as unknown as Partial<DockerService>,
+        );
+        const statics = ApiServiceProvisioner as unknown as { ATTACH_POLL_MS: number };
+        const previousPoll = statics.ATTACH_POLL_MS;
+        statics.ATTACH_POLL_MS = 0;
+        // HOSTNAME must look like a container id or the attach is skipped entirely.
+        const previousHostname = process.env.HOSTNAME;
+        process.env.HOSTNAME = "a".repeat(12);
+        try {
+          const result = await provisioner.ensureApi().then(
+            (value) => ({ value }),
+            (error: unknown) => ({ error }),
+          );
+          return { result, docker, recreateOverlayNetwork };
+        } finally {
+          statics.ATTACH_POLL_MS = previousPoll;
+          if (previousHostname === undefined) delete process.env.HOSTNAME;
+          else process.env.HOSTNAME = previousHostname;
+        }
+      }
+
+      it("rebuilds the overlay on a fresh VNI after two consecutive datapath failures", async () => {
+        const connect = vi
+          .fn()
+          .mockRejectedValueOnce(datapathError())
+          .mockRejectedValueOnce(datapathError())
+          .mockResolvedValueOnce(undefined);
+        const { result, recreateOverlayNetwork } = await run(connect);
+
+        expect(result).toHaveProperty("value");
+        expect(recreateOverlayNetwork).toHaveBeenCalledTimes(1);
+        expect(recreateOverlayNetwork).toHaveBeenCalledWith(
+          expect.objectContaining({ attachable: true }),
+          expect.objectContaining({ detachContainerIds: ["a".repeat(12)] }),
+        );
+        expect(connect).toHaveBeenCalledTimes(3);
+      });
+
+      it("leaves the overlay alone after a single transient failure", async () => {
+        const connect = vi.fn().mockRejectedValueOnce(datapathError()).mockResolvedValueOnce(undefined);
+        const { result, recreateOverlayNetwork } = await run(connect);
+
+        expect(result).toHaveProperty("value");
+        expect(recreateOverlayNetwork).not.toHaveBeenCalled();
+      });
+
+      it("stops after a bounded number of rebuilds and reports the engine's words", async () => {
+        const connect = vi.fn().mockRejectedValue(datapathError());
+        // Collapse the 60s attach budget so exhaustion is reachable in a unit test.
+        const statics = ApiServiceProvisioner as unknown as { ATTACH_TIMEOUT_MS: number };
+        const previousTimeout = statics.ATTACH_TIMEOUT_MS;
+        statics.ATTACH_TIMEOUT_MS = 50;
+        try {
+          const { result, recreateOverlayNetwork } = await run(connect);
+          expect(result).toHaveProperty("error");
+          expect(recreateOverlayNetwork.mock.calls.length).toBeLessThanOrEqual(3);
+          expect(String((result as { error: Error }).error.message)).toMatch(/vxlan interface/);
+        } finally {
+          statics.ATTACH_TIMEOUT_MS = previousTimeout;
+        }
+      });
     });
   });
 
   describe("backend URL", () => {
     it("uses SETUP_API_PORT so dev and prod do not disagree", async () => {
-      const { provisioner } = makeProvisioner(
-        {
-          SETUP_MODE: "prod",
-          DEPLOYER_API_IMAGE: "deployer-api:local",
-          SETUP_API_PORT: "3001",
-        },
-        { inspectSwarmService: notFound() },
-      );
+      const { provisioner } = makeProvisioner({
+        SETUP_MODE: "prod",
+        DEPLOYER_BFF_IMAGE: "svc-bff:local",
+        SETUP_API_PORT: "3001",
+      });
 
       const backend = await provisioner.ensureApi();
 
-      // Prod publishes 3001 and dev 3005; a hardcoded port would be right in one
-      // mode and produce an unreachable ingress backend in the other.
-      expect(backend.url).toBe("http://deployer-api:3001");
+      // A hardcoded port would be right in one mode and produce an unreachable ingress backend in the other.
+      expect(backend.url).toBe("http://svc-bff:3001");
     });
   });
 });

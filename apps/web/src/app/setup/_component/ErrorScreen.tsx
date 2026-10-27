@@ -1,8 +1,8 @@
 "use client"
 
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@repo/ui/components/shadcn/alert";
-import { Card, CardContent, CardHeader } from "@repo/ui/components/shadcn/card";
+import { Alert, AlertDescription } from "@deployer/ui/components/shadcn/alert";
+import { Card, CardContent, CardHeader } from "@deployer/ui/components/shadcn/card";
 import { useRouter } from "next/navigation";
 
 export function ErrorScreen({
@@ -24,7 +24,7 @@ export function ErrorScreen({
                     <Alert variant="destructive">
                         <AlertDescription>{message}</AlertDescription>
                     </Alert>
-                    <Button className="mt-4 w-full" onClick={() => router.refresh()}>
+                    <Button className="mt-4 w-full" onClick={() => { router.refresh(); }}>
                         Retry
                     </Button>
                 </CardContent>

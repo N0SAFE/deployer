@@ -41,7 +41,7 @@ const EMPTY_LIST: string[] = []
 const snapshotCache = new Map<string, { raw: string | null; value: string[] }>()
 
 function readSnapshot(key: string): string[] {
-  let raw: string | null = null
+  let raw: string | null
   try {
     raw = window.localStorage.getItem(key)
   } catch {
@@ -49,7 +49,7 @@ function readSnapshot(key: string): string[] {
     return snapshotCache.get(key)?.value ?? EMPTY_LIST
   }
   const cached = snapshotCache.get(key)
-  if (cached && cached.raw === raw) return cached.value
+  if (cached?.raw === raw) return cached.value
   let value = EMPTY_LIST
   if (raw !== null) {
     try {

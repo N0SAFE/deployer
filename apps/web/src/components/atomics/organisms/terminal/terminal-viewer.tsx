@@ -2,9 +2,9 @@
 
 import { type CSSProperties, type ReactNode, Fragment, useMemo } from 'react'
 import { LogsViewer } from '@/components/atomics/organisms/logs'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Input } from '@repo/ui/components/shadcn/input'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Input } from '@deployer/ui/components/shadcn/input'
 import { Keyboard } from 'lucide-react'
 
 export interface TerminalViewerProfile {
@@ -266,12 +266,15 @@ function computeSegmentStyle(state: TerminalSgrState): CSSProperties {
 
 function parseAnsiSegments(rawInput: string): TerminalStyledSegment[] {
   const text = rawInput
+    // ANSI escape sequences are control characters by definition.
+    // eslint-disable-next-line no-control-regex
     .replace(/\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)/gu, '')
     .replace(/\r\n/gu, '\n')
     .replace(/\r/gu, '')
 
   const segments: TerminalStyledSegment[] = []
   const state = defaultSgrState()
+  // eslint-disable-next-line no-control-regex
   const ansiRegex = /\u001b\[([0-9;?]*)([A-Za-z])/gu
 
   let cursor = 0
@@ -308,10 +311,10 @@ function parseAnsiSegments(rawInput: string): TerminalStyledSegment[] {
   return segments
 }
 
-function buildTerminalLinesFromOutput(outputChunks: string[]): Array<{ id: string; searchText: string; content: ReactNode }> {
+function buildTerminalLinesFromOutput(outputChunks: string[]): { id: string; searchText: string; content: ReactNode }[] {
   const combinedOutput = outputChunks.join('')
   const segments = parseAnsiSegments(combinedOutput)
-  const lines: Array<{ id: string; searchText: string; content: ReactNode }> = []
+  const lines: { id: string; searchText: string; content: ReactNode }[] = []
 
   let lineIndex = 0
   let segmentIndex = 0
@@ -401,7 +404,7 @@ export function TerminalViewer({
     </form>
   )
 
-  const shellBadge = primaryProfile ? `${primaryProfile.shell}` : 'shell'
+  const shellBadge = primaryProfile ? primaryProfile.shell : 'shell'
   const userBadge = primaryProfile ? `user:${primaryProfile.user}` : 'user:unknown'
   const cwdBadge = primaryProfile ? `cwd:${primaryProfile.workingDir}` : 'cwd:/'
 

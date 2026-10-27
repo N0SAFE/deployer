@@ -1,6 +1,5 @@
-import { Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
-import { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
-
+import { Inject, Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
+import { NODE_CONFIG_STORE, type NodeConfigStore } from "./node-config.port";
 import { EnvService } from "@/config/env/env.module";
 import { SetupPhaseService } from "@/modules/health/setup-phase.service";
 import { ClusterOrchestratorService } from "@/modules/cluster/services/cluster-orchestrator.service";
@@ -51,7 +50,7 @@ export class SetupGateService implements OnApplicationBootstrap {
 
   constructor(
     private readonly phases: SetupPhaseService,
-    private readonly nodeConfig: NodeConfigRepository,
+    @Inject(NODE_CONFIG_STORE) private readonly nodeConfig: NodeConfigStore,
     private readonly env: EnvService,
     private readonly cluster: ClusterOrchestratorService,
     private readonly orchestration: OrchestrationStreamService,

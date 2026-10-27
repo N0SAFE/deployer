@@ -7,15 +7,15 @@
  * converges via cluster.setSwarmConfig.
  */
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { Loader2, Save } from "lucide-react";
-import { Skeleton } from "@repo/ui/components/shadcn/skeleton";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@repo/ui/components/shadcn/dialog";
+import { Skeleton } from "@deployer/ui/components/shadcn/skeleton";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@deployer/ui/components/shadcn/dialog";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Button } from "@repo/ui/components/shadcn/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@repo/ui/components/shadcn/card";
-import { Badge } from "@repo/ui/components/shadcn/badge";
+import { Button } from "@deployer/ui/components/shadcn/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@deployer/ui/components/shadcn/card";
+import { Badge } from "@deployer/ui/components/shadcn/badge";
 import { useSetSwarmConfig, useSwarmConfig } from "@/domains/cluster/hooks";
 import { clusterEndpoints } from "@/domains/cluster/endpoints";
 import {
@@ -23,21 +23,17 @@ import {
   draftToInput,
   participationDraftFromView,
   type SwarmParticipationDraft,
-} from "@repo/ui/components/setup/swarm-participation-form";
+} from "@deployer/ui/components/setup/swarm-participation-form";
 
 export function SwarmConfigPanel() {
   const { data: view, isPending, error, refetch } = useSwarmConfig()
   const setConfig = useSetSwarmConfig()
   const queryClient = useQueryClient()
-  const [draft, setDraft] = useState<SwarmParticipationDraft | null>(null)
+  // The user's edits (or the last saved view); until then the draft is derived from the server view.
+  const [edited, setDraft] = useState<SwarmParticipationDraft | null>(null)
   const [confirming, setConfirming] = useState(false)
-
-  // Re-sync the draft whenever the server view changes (until the user edits).
-  useEffect(() => {
-    if (view && draft === null) {
-      setDraft(participationDraftFromView(view))
-    }
-  }, [view, draft])
+  const serverDraft = useMemo(() => (view ? participationDraftFromView(view) : null), [view])
+  const draft = edited ?? serverDraft
 
   const dirty = view && draft ? JSON.stringify(participationDraftFromView(view)) !== JSON.stringify(draft) : false
 
@@ -82,7 +78,7 @@ export function SwarmConfigPanel() {
             <span>Unable to load swarm configuration — {error instanceof Error ? error.message : "unknown error"}</span>
             <Button variant="outline" size="sm" onClick={() => void refetch()}>Retry</Button>
           </div>
-        ) : view && draft ? (
+        ) : draft ? (
           <>
             <SwarmParticipationForm
               initial={draft}

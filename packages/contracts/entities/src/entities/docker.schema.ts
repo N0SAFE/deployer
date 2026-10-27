@@ -169,7 +169,7 @@ export {
 	dockerImageSecurityScanStageSchema,
 	dockerImageSecurityScanEventTypeSchema,
 	dockerImageSecurityScanEventSchema,
-} from '@deployer/contracts-entities/entities/docker/index'
+} from './docker/index'
 
 export type {
 	DockerContainerStatus,
@@ -336,4 +336,4 @@ export type {
 	DockerImageSecurityScanStage,
 	DockerImageSecurityScanEventType,
 	DockerImageSecurityScanEvent,
-} from '@deployer/contracts-entities/entities/docker/index'
+} from './docker/index'

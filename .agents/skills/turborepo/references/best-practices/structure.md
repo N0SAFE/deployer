@@ -167,7 +167,7 @@ packages/ui/
 
 ```json
 {
-  "name": "@repo/ui", // Unique, namespaced name
+  "name": "@deployer/ui", // Unique, namespaced name
   "version": "0.0.0", // Version (can be 0.0.0 for internal)
   "private": true, // Prevents accidental publishing
   "exports": {
@@ -211,7 +211,7 @@ packages/
 ```json
 // packages/ui/tsconfig.json
 {
-  "extends": "@repo/typescript-config/library.json",
+  "extends": "@deployer/typescript-config/library.json",
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src"
@@ -241,7 +241,7 @@ packages/
 ```json
 // packages/eslint-config/package.json
 {
-  "name": "@repo/eslint-config",
+  "name": "@deployer/eslint-config",
   "exports": {
     "./base": "./base.js",
     "./next": "./next.js",
@@ -255,7 +255,7 @@ packages/
 ```js
 // apps/web/.eslintrc.js
 module.exports = {
-  extends: ["@repo/eslint-config/next"]
+  extends: ["@deployer/eslint-config/next"]
 };
 ```
 

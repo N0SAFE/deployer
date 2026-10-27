@@ -1,10 +1,11 @@
 'use client'
 
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@repo/ui/components/shadcn/select'
-import { Field, FieldLabel, FieldDescription } from '@repo/ui/components/shadcn/field'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
+import { Field, FieldLabel, FieldDescription } from '@deployer/ui/components/shadcn/field'
 import { useRunnerDetection } from './runner-detection-context'
 import type { CreateServiceFormApi } from '../CreateService.hook'
+import { Section } from './step-section'
 
 function TagsInput({ value, onChange, placeholder }: {
   value: string[]
@@ -38,17 +39,6 @@ function NumberField({ value, onChange, options, placeholder }: {
   )
 }
 
-function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-3 rounded-lg border bg-background/40 p-4">
-      <div>
-        <h4 className="text-sm font-semibold">{title}</h4>
-        {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
-      </div>
-      {children}
-    </div>
-  )
-}
 
 /**
  * Step 5 — Runtime. Shared execution fields for container-style runners
@@ -81,17 +71,18 @@ export function StepRuntime({ form }: { form: CreateServiceFormApi }) {
                     <Field>
                       <FieldLabel>Ports</FieldLabel>
                       <TagsInput value={(f.state.value as string[] | undefined) ?? []} onChange={(v) => { f.handleChange(v.map(Number)) }} placeholder="3000, 8080" />
+                      <FieldDescription>Ports your app listens on, separated by commas.</FieldDescription>
                       {hints?.ports && hints.ports.length > 0 ? <FieldDescription>Detected: {hints.ports.join(', ')}</FieldDescription> : null}
                     </Field>
                   )} />
                   <form.Field name="runner.config.args" children={(f) => (
-                    <Field><FieldLabel>CLI arguments</FieldLabel><TagsInput value={(f.state.value) ?? []} onChange={(v) => { f.handleChange(v) }} placeholder="--port, --verbose" /></Field>
+                    <Field><FieldLabel>CLI arguments</FieldLabel><TagsInput value={(f.state.value) ?? []} onChange={(v) => { f.handleChange(v) }} placeholder="--port, --verbose" /><FieldDescription>Extra arguments appended to the start command, separated by commas.</FieldDescription></Field>
                   )} />
                   <form.Field name="runner.config.volumeMounts" children={(f) => (
-                    <Field><FieldLabel>Volume mounts</FieldLabel><TagsInput value={(f.state.value) ?? []} onChange={(v) => { f.handleChange(v) }} placeholder="/data:/app/data" /></Field>
+                    <Field><FieldLabel>Volume mounts</FieldLabel><TagsInput value={(f.state.value) ?? []} onChange={(v) => { f.handleChange(v) }} placeholder="/data:/app/data" /><FieldDescription>Persistent storage as host-path:container-path, separated by commas.</FieldDescription></Field>
                   )} />
                   <form.Field name="runner.config.secretRefs" children={(f) => (
-                    <Field><FieldLabel>Secret references</FieldLabel><TagsInput value={(f.state.value) ?? []} onChange={(v) => { f.handleChange(v) }} placeholder="db-password, api-key" /></Field>
+                    <Field><FieldLabel>Secret references</FieldLabel><TagsInput value={(f.state.value) ?? []} onChange={(v) => { f.handleChange(v) }} placeholder="db-password, api-key" /><FieldDescription>Names of stored secrets to inject into the container.</FieldDescription></Field>
                   )} />
                 </div>
               </Section>
@@ -101,13 +92,14 @@ export function StepRuntime({ form }: { form: CreateServiceFormApi }) {
                 <div className="grid gap-3 sm:grid-cols-3">
                   <form.Field name="runner.config.strategy" children={(f) => (
                     <Field>
-                      <FieldLabel>Strategy</FieldLabel>
+                      <FieldLabel>Rollout strategy</FieldLabel>
                       <Select value={f.state.value} onValueChange={(v) => { f.handleChange(v as never) }}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {(['rolling', 'recreate', 'blue-green', 'canary'] as const).map((o) => (<SelectItem key={o} value={o}>{o}</SelectItem>))}
                         </SelectContent>
                       </Select>
+                      <FieldDescription>How a new version replaces the old one: rolling swaps gradually, recreate stops then starts, blue-green and canary switch traffic after the new version is up.</FieldDescription>
                     </Field>
                   )} />
                   <form.Field name="runner.config.networkMode" children={(f) => (
@@ -119,12 +111,14 @@ export function StepRuntime({ form }: { form: CreateServiceFormApi }) {
                           {(['bridge', 'host', 'overlay'] as const).map((o) => (<SelectItem key={o} value={o}>{o}</SelectItem>))}
                         </SelectContent>
                       </Select>
+                      <FieldDescription>Docker network type. Bridge is right for almost every service.</FieldDescription>
                     </Field>
                   )} />
                   <form.Field name="runner.config.gracefulShutdownSeconds" children={(f) => (
                     <Field>
                       <FieldLabel>Graceful shutdown (s)</FieldLabel>
                       <NumberField value={f.state.value} onChange={(v) => { f.handleChange(v) }} options={['10', '30', '60', '120', '300']} placeholder="30" />
+                      <FieldDescription>Seconds the container gets to finish its work after a stop request.</FieldDescription>
                     </Field>
                   )} />
                 </div>

@@ -1,5 +1,5 @@
 import { pgTable, text, timestamp, boolean, uuid, index } from "drizzle-orm/pg-core";
-import { encryptedText } from "@deployer/nest-schema/codecs/codec-registry";
+import { encryptedText } from "../../codecs/codec-registry";
 
 /**
  * GitLab source provider accounts.

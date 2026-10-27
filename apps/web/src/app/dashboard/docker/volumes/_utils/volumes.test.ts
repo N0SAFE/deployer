@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { DockerVolume } from '@repo/contracts-entities'
+import type { DockerVolume } from '@deployer/contracts-entities'
 import { filterVolumes, isVolumeInUse, totalReportedBytes } from './volumes'
 
 function vol(overrides: Partial<DockerVolume>): DockerVolume {

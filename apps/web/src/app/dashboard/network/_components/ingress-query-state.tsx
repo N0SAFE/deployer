@@ -2,9 +2,9 @@
 
 import type { ReactNode } from 'react'
 import { PageErrorState } from '@/components/dashboard'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 import { useIngress } from '@/domains/reachability/hooks'
-import type { IngressState } from '@repo/api-contracts/modules/reachability/index'
+import type { IngressState } from '@deployer/fleet-contracts/modules/reachability/index'
 
 /** Shape of the Network pages while the ingress snapshot loads: a vitals strip and two cards. */
 function NetworkSkeleton() {
@@ -21,7 +21,7 @@ function NetworkSkeleton() {
 }
 
 /** Every Network page reads the same `getIngress` snapshot; this renders its loading and error states once. */
-export function WithIngress({ children }: { children: (ingress: IngressState) => ReactNode }) {
+export function WithIngress({ children }: { children: (ingress: IngressState, refetch: () => void) => ReactNode }) {
   const { data, isLoading, error, refetch } = useIngress()
   if (isLoading) return <NetworkSkeleton />
   if (error !== null || data === undefined) {
@@ -33,5 +33,5 @@ export function WithIngress({ children }: { children: (ingress: IngressState) =>
       />
     )
   }
-  return <>{children(data)}</>
+  return <>{children(data, () => { void refetch() })}</>
 }

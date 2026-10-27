@@ -7,8 +7,8 @@ import {
 import type { QueryFunctionContext, QueryKey, UseQueryOptions } from "@tanstack/react-query";
 import { Observable as RxjsObservable } from "rxjs";
 import type { Observable as RxObservable } from "rxjs";
-import { reconstructObservableFromEventIterator } from "@repo/orpc-utils/observable/event-iterator";
-import { isObjectLike } from "@repo/type-guards"
+import { reconstructObservableFromEventIterator } from "@deployer/orpc-utils/observable/event-iterator";
+import { isObjectLike } from "@deployer/type-guards"
 
 export type ObservableQueryMode = "observable" | "streamed-observable";
 
@@ -436,6 +436,17 @@ async function collectObservableValues<TValue>(
   });
 }
 
+/**
+ * Minimum gap between two cache writes of a live stream.
+ *
+ * Every `setQueryData` notifies each observer of the key, so a stream that bursts
+ * (a container start emits ~10 docker events at once) re-rendered its consumers
+ * once per event. The first value is written at once (leading edge) and the
+ * newest one of a burst is written when the window closes (trailing edge), so the
+ * UI never shows anything but the latest state, at most once per window.
+ */
+const LIVE_WRITE_INTERVAL_MS = 100;
+
 async function consumeObservableLatestValue<TValue>(
   context: QueryFunctionContext,
   source$: RxObservable<TValue>,
@@ -443,8 +454,23 @@ async function consumeObservableLatestValue<TValue>(
   return await new Promise<TValue>((resolve, reject) => {
     let hasValue = false;
     let latestValue!: TValue;
+    let lastWriteAt = 0;
+    let pendingWrite: ReturnType<typeof setTimeout> | null = null;
+
+    const writeLatest = () => {
+      pendingWrite = null;
+      lastWriteAt = Date.now();
+      context.client.setQueryData(context.queryKey, latestValue);
+    };
+    const cancelPendingWrite = () => {
+      if (pendingWrite !== null) {
+        clearTimeout(pendingWrite);
+        pendingWrite = null;
+      }
+    };
 
     const rejectWith = (reason: unknown) => {
+      cancelPendingWrite();
       reject(reason instanceof Error ? reason : new Error("Unknown stream error"));
     };
 
@@ -457,7 +483,13 @@ async function consumeObservableLatestValue<TValue>(
       next(value) {
         hasValue = true;
         latestValue = value;
-        context.client.setQueryData(context.queryKey, value);
+        if (pendingWrite !== null) return;
+        const wait = LIVE_WRITE_INTERVAL_MS - (Date.now() - lastWriteAt);
+        if (wait <= 0) {
+          writeLatest();
+        } else {
+          pendingWrite = setTimeout(writeLatest, wait);
+        }
       },
       error(error) {
         context.signal.removeEventListener("abort", onAbort);
@@ -467,12 +499,14 @@ async function consumeObservableLatestValue<TValue>(
       complete() {
         context.signal.removeEventListener("abort", onAbort);
         subscription.unsubscribe();
+        cancelPendingWrite();
 
         if (!hasValue) {
           reject(new Error("Observable stream completed without emitting any value"));
           return;
         }
 
+        // The resolved value becomes the cache entry; nothing is left to flush.
         resolve(latestValue);
       },
     });

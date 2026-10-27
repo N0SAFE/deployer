@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { matchFilter, MAX_FILTER_DEPTH } from "@repo/auth/permissions/engine/filter-matcher";
-import type { DFilter } from "@repo/auth/permissions/engine/types";
-import { Variable } from "@repo/auth/permissions/engine/types";
+import { matchFilter, MAX_FILTER_DEPTH } from "@deployer/auth/permissions/engine/filter-matcher";
+import type { DFilter } from "@deployer/auth/permissions/engine/types";
+import { Variable } from "@deployer/auth/permissions/engine/types";
 
 const record = {
     id: "project-1",

@@ -15,11 +15,20 @@ export class WorkspaceScanError extends Error {
     }
 }
 
+/**
+ * No application could be resolved from the environment.
+ *
+ * The enablement comes from compose's `COMPOSE_PROFILES`, so this failure almost
+ * always means the container was started outside a compose profile (or with an
+ * empty value) — which is worth naming, because the union would otherwise be
+ * empty and every application would fail later with a missing-package error far
+ * from the cause.
+ */
 export class NoEnabledApplicationsError extends Error {
-    constructor(readonly inputsRoot: string) {
+    constructor(readonly detail: string) {
         super(
-            `No enabled applications found under ${inputsRoot}. ` +
-                'Mount at least one application workspace (see infra/docker/compose/).'
+            `No enabled applications: ${detail}. ` +
+                'The dependency-builder reads compose\'s COMPOSE_PROFILES; start it through a compose profile (see infra/docker/compose/).'
         )
         this.name = 'NoEnabledApplicationsError'
     }

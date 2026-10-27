@@ -57,12 +57,12 @@ export function useCloudflareZones(providerId?: string) {
 }
 
 /** Query the DNS records of a provider zone, filterable + paginated. */
-const CLOUDFLARE_RECORD_TYPES = ['A', 'AAAA', 'CAA', 'CERT', 'CNAME', 'DNSKEY', 'DS', 'HTTPS', 'LOC', 'MX', 'NAPTR', 'NS', 'OPENPGPKEY', 'PTR', 'SMIMEA', 'SRV', 'SVCB', 'TLSA', 'TXT', 'URI'] as const
+type CloudflareRecordType = 'A' | 'AAAA' | 'CAA' | 'CERT' | 'CNAME' | 'DNSKEY' | 'DS' | 'HTTPS' | 'LOC' | 'MX' | 'NAPTR' | 'NS' | 'OPENPGPKEY' | 'PTR' | 'SMIMEA' | 'SRV' | 'SVCB' | 'TLSA' | 'TXT' | 'URI'
 
 export function useCloudflareRecords(
   providerId: string | undefined,
   zoneId: string | undefined,
-  filters?: { type?: (typeof CLOUDFLARE_RECORD_TYPES)[number]; name?: string; page?: number; pageSize?: number },
+  filters?: { type?: CloudflareRecordType; name?: string; page?: number; pageSize?: number },
 ) {
   return useQuery({
     ...dnsProviderEndpoints.cloudflareListRecords.queryOptions({

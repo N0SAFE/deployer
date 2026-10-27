@@ -1,7 +1,7 @@
 {
-    "name": "@repo/nest-env",
+    "name": "@deployer/nest-env",
     "version": "1.0.0",
-    "description": "NestJS environment binding — ConfigModule wired to the shared @repo/env schema, exposed through a typed EnvService.",
+    "description": "NestJS environment binding — ConfigModule wired to the shared @deployer/env schema, exposed through a typed EnvService.",
     "main": "./dist/cjs/index.js",
     "types": "./dist/types/index.d.ts",
     "exports": {
@@ -17,11 +17,13 @@
         }
     },
     "scripts": {
-        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "prettify": "bun fmt .",
         "format": "bun run prettify",
-        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "lint": "eslint . --fix --cache",
-        "type-check": "tsc --noEmit",
+        "format:check": "bun fmt --check .",
+        "lint": "bun lint --no-script --type-aware",
+        "lint:fix": "bun lint --no-script --fix --type-aware",
+        "lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
+        "type-check": "bun check --no-script",
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
@@ -33,24 +35,24 @@
     "dependencies": {
         "@nestjs/common": "catalog:api:nest",
         "@nestjs/config": "catalog:api:nest",
-        "@repo/env": "*",
+        "@deployer/env": "*",
         "zod": "catalog:utils"
     },
     "peerDependencies": {
         "@nestjs/common": "catalog:api:nest"
     },
     "devDependencies": {
-        "@repo/config-eslint": "*",
-        "@repo/config-prettier": "*",
-        "@repo/config-typescript": "*",
-        "@repo/pkg-build": "*",
+        "@deployer/config-eslint": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-typescript": "*",
+        "@deployer/pkg-build": "*",
         "@types/node": "catalog:build",
         "chokidar": "catalog:build",
         "eslint": "catalog:linting",
         "rimraf": "catalog:build",
         "typescript": "catalog:build",
         "vitest": "catalog:testing",
-        "@repo/config-vitest": "*"
+        "@deployer/config-vitest": "*"
     },
     "module": "./dist/esm/index.mjs"
 }

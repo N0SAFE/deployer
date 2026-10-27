@@ -15,13 +15,13 @@
 #   # BFF / public surface
 #   docker build -f Dockerfile.api.prod \
 #     --build-arg PRUNE_SCOPE=@deployer/bff \
-#     --build-arg APP_DIR=apps/api-services/bff \
+#     --build-arg APP_DIR=apps/api/bff \
 #     --build-arg APP_PORT=3005 .
 #
 #   # a microservice
 #   docker build -f Dockerfile.api.prod \
 #     --build-arg PRUNE_SCOPE=@deployer/svc-runtime \
-#     --build-arg APP_DIR=apps/api-services/services/runtime \
+#     --build-arg APP_DIR=apps/api/services/runtime \
 #     --build-arg APP_PORT=3105 .
 #
 # `APP_PORT` only drives EXPOSE and the HEALTHCHECK; the app binds the port it is
@@ -41,7 +41,7 @@ ENV NODE_ENV=production
 
 # No defaults on purpose (see the header): fail here, in seconds, not after a long build.
 RUN test -n "${PRUNE_SCOPE}" && test -n "${APP_DIR}" || { \
-      echo "PRUNE_SCOPE and APP_DIR build args are required (e.g. @deployer/bff + apps/api-services/bff)" >&2; \
+      echo "PRUNE_SCOPE and APP_DIR build args are required (e.g. @deployer/bff + apps/api/bff)" >&2; \
       exit 1; \
     }
 
@@ -297,7 +297,7 @@ RUN apk add --no-cache curl wget bash coreutils && \
 #
 # The app runs from SOURCE with `bun run start` (`bun --bun src/main.ts`), like the dev and
 # supervised images: bun transpiles TS itself, `@/` resolves through the app's tsconfig `paths`,
-# and `apps/api-services/shared` resolves its OWN dependencies from its own node_modules. A
+# and `apps/api/shared` resolves its OWN dependencies from its own node_modules. A
 # bundled `dist/main.js` would inline shared and then need every dependency of shared declared on
 # every app.
 #

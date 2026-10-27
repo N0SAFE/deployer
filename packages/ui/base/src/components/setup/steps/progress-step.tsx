@@ -2,13 +2,13 @@
 
 import { useCallback, useMemo, useState } from "react"
 import { Activity, CheckCircle2, Loader2, RefreshCw, WifiOff, XCircle } from "lucide-react"
-import type { SetupStreamEvent } from "@repo/contracts-entities"
-import { Button } from "@repo/ui/components/shadcn/button"
-import { ProgressTasks, buildTasksFromEvents, isPipelineComplete } from "@repo/ui/components/setup/progress-tasks"
-import { buildVerificationTasks } from "@repo/ui/components/setup/platform-verification"
-import { markSetupComplete } from "@repo/ui/components/setup/setup-storage"
-import { usePlatformVerification } from "@repo/ui/components/setup/use-platform-verification"
-import type { SetupWizardApi } from "@repo/ui/components/setup/types"
+import type { SetupStreamEvent } from "@deployer/contracts-entities"
+import { Button } from "@deployer/ui/components/shadcn/button"
+import { ProgressTasks, buildTasksFromEvents, isPipelineComplete } from "@deployer/ui/components/setup/progress-tasks"
+import { buildVerificationTasks } from "@deployer/ui/components/setup/platform-verification"
+import { markSetupComplete } from "@deployer/ui/components/setup/setup-storage"
+import { usePlatformVerification } from "@deployer/ui/components/setup/use-platform-verification"
+import type { SetupWizardApi } from "@deployer/ui/components/setup/types"
 
 /**
  * Optional context about the configuration the user submitted. Any

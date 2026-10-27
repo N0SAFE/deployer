@@ -2,8 +2,8 @@
 
 import { Suspense, useState } from 'react'
 import { Network, Unplug, Waypoints } from 'lucide-react'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { PageHeader, StatStrip, StatStripItem } from '@/components/dashboard'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { PageErrorState, PageHeader, StatStrip, StatStripItem } from '@/components/dashboard'
 import { useMeshSseState } from '@/domains/mesh/hooks'
 import { useHydrated } from '@/lib/use-hydrated'
 import { AuthDashboardNetworkMesh, AuthDashboardNodes } from '@/routes'
@@ -38,6 +38,9 @@ export default function NodesDiagnosticsPage() {
   const snapshot = meshState?.snapshot
   // Client-only data: both server and first client render take the loading path.
   const loading = !hydrated || (streamStatus === 'connecting' && !meshState)
+  // The stream failed before delivering anything: say so instead of showing "0 peers".
+  const unavailable = streamStatus === 'error' && !meshState
+  const unread = loading || unavailable
 
   return (
     <div className="space-y-6">
@@ -63,12 +66,12 @@ export default function NodesDiagnosticsPage() {
       <StatStrip
         trailing={lastError ? <Badge variant="destructive">{lastError}</Badge> : undefined}
       >
-        <StatStripItem icon={Network} label="Peers" value={loading ? undefined : peers.length} hint={loading ? undefined : `${String(peers.filter((p) => p.state === 'up').length)} up`} />
-        <StatStripItem icon={Unplug} label="Sessions" value={loading ? undefined : sessions.length} />
-        <StatStripItem icon={Waypoints} label="Membership version" value={loading ? undefined : `v${String(snapshot?.version ?? 0)}`} />
+        <StatStripItem icon={Network} label="Peers" value={unread ? undefined : peers.length} hint={unread ? undefined : `${String(peers.filter((p) => p.state === 'up').length)} up`} />
+        <StatStripItem icon={Unplug} label="Sessions" value={unread ? undefined : sessions.length} />
+        <StatStripItem icon={Waypoints} label="Membership version" value={unread ? undefined : `v${String(snapshot?.version ?? 0)}`} />
         <StatStripItem
           label="This node"
-          value={loading ? undefined : (meshState?.localNode.nodeId.slice(0, 8) ?? 'n/a')}
+          value={unread ? undefined : (meshState?.localNode.nodeId.slice(0, 8) ?? 'n/a')}
         />
       </StatStrip>
 
@@ -77,8 +80,22 @@ export default function NodesDiagnosticsPage() {
       </Suspense>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ConnectionsCard peers={peers} loading={loading} />
-        <SessionsCard sessions={sessions} loading={loading} />
+        {unavailable ? (
+          <div className="lg:col-span-2">
+            <PageErrorState
+              title="Live mesh stream unavailable"
+              message="Peer connections and sessions come from a live stream that failed to connect. Reload to reconnect."
+              details={lastError ?? undefined}
+              retryLabel="Reload"
+              onRetry={() => { window.location.reload() }}
+            />
+          </div>
+        ) : (
+          <>
+            <ConnectionsCard peers={peers} loading={loading} />
+            <SessionsCard sessions={sessions} loading={loading} />
+          </>
+        )}
         <RoutePlannerCard
           onPlanned={(entry) => { setRoutePlans((prev) => [entry, ...prev].slice(0, HISTORY_LIMIT)) }}
         />

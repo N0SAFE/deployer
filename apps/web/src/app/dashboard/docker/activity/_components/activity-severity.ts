@@ -1,4 +1,4 @@
-import type { DockerRuntimeActivityEntity } from '@repo/contracts-entities'
+import type { DockerRuntimeActivityEntity } from '@deployer/contracts-entities'
 import type { StatusBadgeVariant } from '@/components/dashboard'
 
 /** Severity is its own axis (how bad an EVENT was), so it maps straight to a badge variant. */

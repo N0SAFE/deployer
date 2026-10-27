@@ -7,14 +7,14 @@ import {
   providerTemplateConfigSchema,
   routeTemplateConfigSchema,
   templateConfigSchema,
-} from '@deployer/contracts-entities/entities/template/config.schema'
+} from './config.schema'
 import {
   nonEmptyString,
   templateKindSchema,
   templateScopeSchema,
   templateStatusSchema,
   templateVersionSchema,
-} from '@deployer/contracts-entities/entities/template/vocabulary.schema'
+} from './vocabulary.schema'
 
 export const deploymentTemplateSchema = z.object({
   id: z.uuid(),

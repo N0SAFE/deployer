@@ -54,7 +54,7 @@ jobs:
       SKIP_STATIC_GENERATION: true
       
       # Package manager settings
-      BUN_VERSION: "1.4.2"
+      BUN_VERSION: "1.4.3"
 
     # Services for running Docker containers if needed
     services:
@@ -202,7 +202,7 @@ jobs:
           # Check workspace structure
           echo "📦 Workspace structure:"
           echo "- apps/web: $([ -d apps/web ] && echo '✅ exists' || echo '❌ missing')"
-          echo "- apps/api-services: $([ -d apps/api-services ] && echo '✅ exists' || echo '❌ missing')"
+          echo "- apps/api: $([ -d apps/api ] && echo '✅ exists' || echo '❌ missing')"
           echo "- packages: $([ -d packages ] && echo '✅ exists' || echo '❌ missing')"
           
           # Check if services are accessible
@@ -222,8 +222,10 @@ jobs:
           echo "- bun --bun run dev:local    # Start development environment locally"
           echo "- bun --bun run build        # Build all packages"
           echo "- bun --bun run test         # Run all tests"
-          echo "- bun --bun run lint         # Run linting"
-          echo "- bun --bun run format       # Format code"
+          echo "- bun --bun run lint         # Run linting (autofixes)"
+          echo "- bun --bun run lint         # Run linting (read-only, used by CI)"
+          echo "- bun --bun run format       # Format code (autofixes)"
+          echo "- bun --bun run format:check  # Check formatting (read-only)"
           echo "- bun --bun run clean        # Clean build artifacts"
           echo "- bun --bun --cwd packages/mcp-repo-manager run build    # Build MCP Repo Manager (MCP server)"
           echo ""
@@ -237,7 +239,7 @@ jobs:
           echo "- ✅ Redis caching"
           echo "- ✅ TypeScript support"
           echo "- ✅ Testing with Vitest"
-          echo "- ✅ Linting with ESLint"
-          echo "- ✅ Code formatting with Prettier"
+          echo "- ✅ Linting with Bun's built-in linter (bun lint)"
+          echo "- ✅ Code formatting with Bun's built-in formatter (bun fmt)"
           echo ""
           echo "🚀 The environment is ready for GitHub Copilot coding agent!"

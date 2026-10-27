@@ -22,7 +22,7 @@ dependency is pinned in the root `catalogs.orpc` block.
 
 ## Breaking changes that mattered
 
-- **Routing moved to metadata.** `~orpc.route` is gone; routing lives in `meta['~openapi']` via `.meta(openapi({ method, path }))`. `HTTPMethod` / `HTTPPath` / `Route` were removed from `@orpc/contract` and are re-declared in `packages/transport/orpc/src/types/types.ts`.
+- **Routing moved to metadata.** `~orpc.route` is gone; routing lives in `meta['~openapi']` via `.meta(openapi({ method, path }))`. `HTTPMethod` / `HTTPPath` / `Route` were removed from `@orpc/contract` and are re-declared in `packages/utils/orpc/src/types/types.ts`.
 - **Schemas became arrays.** `inputSchema` → `inputSchemas[0]`, `outputSchema` → `outputSchemas[0]`, because `.input()` / `.output()` now stack instead of replacing. Read them via `getProcedureInputSchema()` / `getProcedureOutputSchema()`.
 - **`getProcedureRoute()`** reads `meta['~openapi']` as `OpenAPIMeta`. Prefer it over indexing `meta` directly, which widens to `unknown`.
 - **Plugin `init` returns options.** It no longer mutates in place; plugins need a unique `name` and use `before` / `after` name arrays rather than a numeric `order`.

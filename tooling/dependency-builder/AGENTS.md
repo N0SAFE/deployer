@@ -1,7 +1,7 @@
 # AGENTS.md — `tooling/dependency-builder`
 
-Builds the union of internal workspace packages the enabled applications need,
-once, and keeps them built while the dev stack runs.
+Publishes the internal workspace packages the enabled applications need, and
+keeps them built while the dev stack runs.
 
 ## Scope Rules
 
@@ -19,8 +19,23 @@ turbo prune <app>  ├─ was: one pruned workspace per application
 
 This replaces the per-application `prune-*` volumes. Instead of each application
 container receiving a pruned copy of the repository, one container computes the
-union of what every enabled application needs, builds it through a single Turbo
-graph, and publishes the artifacts to a shared volume the applications read.
+union of what every enabled application needs and publishes the artifacts to a
+shared volume the applications read.
+
+### The build happens at IMAGE time; the container publishes
+
+The Dockerfile runs the full `turbo run build`. At container start this tool
+ADOPTS those `dist/` trees into the shared volume, symlinks each package's
+`dist/` at the volume, and opens the gate — so the operator's first `compose up`
+does not repeat work the image already finished.
+
+Its own build runs only when the volume is genuinely incomplete (a partial
+volume, a package added after the image was built, a host run). In that case
+Turbo's cache — baked into the image at `/app/.turbo-cache`, the path
+`cacheDirFor()` prefers — turns most of the work into a replay.
+
+That ordering is what removes the "run, then rerun" a runtime-only build causes:
+the container's first action is to OPEN THE GATE, not to rebuild.
 
 ## Where It Runs
 
@@ -143,16 +158,28 @@ Options: `-r/--root <path>` (repository root), `-a/--application <name>`
 `--dry-run` is the safe way to inspect the union: without it, the tool replaces
 real `dist/` directories with symlinks into the output root.
 
-In the compose profile the enablement list is `DEP_BUILDER_APPS`, whose default
-covers all four applications:
+### The enabled set is detected, not passed
+
+`--application` is only for a hand-run (and for tests). In the compose profile
+the command is given **no application list at all**: it reads `COMPOSE_PROFILES`
+from its own environment, which is the same value compose used to decide which
+application containers exist.
 
 ```bash
-DEP_BUILDER_APPS="-a api -a web" bun run dev:dep-builder
+bun run dev:dep-builder                    # auto-detects from COMPOSE_PROFILES
+COMPOSE_PROFILES=all bun run dev:dep-builder
 ```
 
-**Enabling an application means adding it there.** A container whose app is not
-in the list will not find its packages in the volume and will refuse to start,
-naming the first missing package.
+That is deliberate. A second list on the command line could disagree with
+compose — a service removed from a compose file would stay in the union, and one
+added to a compose file would be silently missing from it — surfacing later as an
+application that refuses to start because its packages were never built.
+
+**Enabling an application means giving it a profile** in
+`infra/docker/compose/`. `all` resolves to every application; a named profile
+(`api`, `web`, `setup`, `doc`) resolves to that one. A profile that names a
+workspace the repository does not contain is a hard error, because it means the
+compose file and the workspace tree have diverged.
 
 ## Boundaries
 

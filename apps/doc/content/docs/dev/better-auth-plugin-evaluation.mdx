@@ -19,7 +19,7 @@ A plugin is only "interesting" relative to a product. This section pins the prod
 - **Self-hosted PaaS.** Deploy and operate applications on user-owned infrastructure, with a Vercel/Render-like workflow. (`docs/PLATFORM_SOURCE_OF_TRUTH.md` §1)
 - **Fleet/cluster model.** Nodes enroll via `cluster_join_grants`, carry capabilities (edge/relay/partition-owner/observer), CPU/RAM allocations, and health. (`packages/nest/schema/src/global/cluster.ts`)
 - **Multi-tenant by design.** The source of truth states "an organization contains multiple projects" and requires Owner/Admin/Developer/Viewer baseline roles plus fine-grained grants. (`docs/PLATFORM_SOURCE_OF_TRUTH.md` §2, §3)
-- **Machine surfaces exist.** A NestJS CLI (`apps/api/src/cli.ts`) authenticates with a master token or seeded admin credentials (`apps/api/src/cli/services/cli-auth.service.ts`). A Traefik config builder, runners, and a mesh control plane all need programmatic access.
+- **Machine surfaces exist.** A NestJS CLI (`apps/api/bff/src/cli.ts`) authenticates with a master token or seeded admin credentials (`apps/api/bff/src/cli/services/cli-auth.service.ts`). A Traefik config builder, runners, and a mesh control plane all need programmatic access.
 
 ### 1.2 The tenancy gap (the single most important finding)
 
@@ -58,7 +58,7 @@ Two things follow, and they shape this document's recommendations:
 So the correct integration shape is **not** "replace the engine with Better Auth's `ac`". It is **"let Better Auth own identity, sessions, memberships and invitations; let `PermissionEngine` own row-level authorization."** The validated design doc already says exactly this (`permission-system-design.md`: "Section 1 → evaluated by Better Auth `ac.check()`; Section 2 → evaluated by PermissionEngine"). Every recommendation below preserves that split.
 
 <DocCallout title="The engine is built, but not yet enforcing" tone="warning">
-The engine, its resource graph, filter compiler and rule validator all exist and are unit-tested. But `PermissionService` — the NestJS wrapper at `apps/api/src/modules/permission/services/permission.service.ts` — has **zero injection sites**. A repo-wide grep for `PermissionService` returns only its own module, its own spec, and documentation. `PermissionModule` is registered in `app.module.ts` and initializes at boot, but nothing consumes it.
+The engine, its resource graph, filter compiler and rule validator all exist and are unit-tested. But `PermissionService` — the NestJS wrapper at `apps/api/services/identity/src/modules/permission/services/permission.service.ts` — has **zero injection sites**. A repo-wide grep for `PermissionService` returns only its own module, its own spec, and documentation. `PermissionModule` is registered in `app.module.ts` and initializes at boot, but nothing consumes it.
 
 So today, row-level authorization is *specified, designed, implemented and tested* — and not yet called from any request path. That matters for the recommendation below: adopting Better Auth plugins does not require waiting on this wiring, and wiring the engine is a separate, orthogonal task.
 </DocCallout>
@@ -87,7 +87,7 @@ These are not plugin recommendations — they are defects the plugin audit surfa
 
 **Gap A — the API key system is write-only.**
 
-`ApiKeyService` (`apps/api/src/modules/project/services/api-key.service.ts`) issues keys: it generates `dk_<64 hex>`, stores a SHA-256 hash, supports scopes, expiry, revoke and rotate. `ApiKeyRepository.findByHash()` exists and even filters on `isActive = true` — the exact shape an authentication lookup needs.
+`ApiKeyService` (`apps/api/services/project/src/modules/project/services/api-key.service.ts`) issues keys: it generates `dk_<64 hex>`, stores a SHA-256 hash, supports scopes, expiry, revoke and rotate. `ApiKeyRepository.findByHash()` exists and even filters on `isActive = true` — the exact shape an authentication lookup needs.
 
 But it is never used for authentication. Its **only** caller is `api-key.service.ts:66`, inside `createApiKey()`, checking for a hash collision. And `ApiKeyService` itself has **zero consumers** — a repo-wide grep finds it only in its own file, its own spec, and `project.module.ts` (which registers and exports it). There is no `x-api-key` header handling anywhere in `apps/api/src`; the only `X-API-Key` matches are Traefik middleware *tests*.
 
@@ -95,7 +95,7 @@ So: a user can create an API key, and that key authenticates nothing. The `api_k
 
 **Gap B — project collaborator invitations are not invitations.**
 
-`ProjectService.inviteCollaborator()` (`apps/api/src/modules/project/services/project.service.ts:160`) requires the target user to **already have an account** — it throws `NotFoundException("No user found with email")` otherwise. It then inserts a `project_collaborators` row with `acceptedAt: null`. There is no token, no expiry, no email, no accept endpoint. The UI's "Resend invitation" button simply re-runs the same insert.
+`ProjectService.inviteCollaborator()` (`apps/api/services/project/src/modules/project/services/project.service.ts:160`) requires the target user to **already have an account** — it throws `NotFoundException("No user found with email")` otherwise. It then inserts a `project_collaborators` row with `acceptedAt: null`. There is no token, no expiry, no email, no accept endpoint. The UI's "Resend invitation" button simply re-runs the same insert.
 
 Meanwhile the *platform-level* invite plugin does implement tokens, expiry and role validation — so the codebase contains both a real invite system and a fake one.
 
@@ -253,7 +253,7 @@ export function useApiKey() {
 }
 ```
 
-`enableSessionForAPIKeys: true` is the decisive option: it means the ORPC auth middleware (`apps/api/src/core/modules/auth/orpc/middlewares.ts`) needs **no change**. A request carrying a valid key already produces a session through `getSession()`, so every existing guard, decorator and permission check works unmodified.
+`enableSessionForAPIKeys: true` is the decisive option: it means the ORPC auth middleware (`apps/api/shared/src/core/modules/auth/orpc/middlewares.ts`) needs **no change**. A request carrying a valid key already produces a session through `getSession()`, so every existing guard, decorator and permission check works unmodified.
 
 **Migration.** The existing `api_keys` table has `keyHash` (SHA-256, unique), `keyPreview`, `scopes`, `expiresAt`, `isActive`, `projectId`. The plugin's table has a different shape. Since the existing keys authenticate nothing, **no user can be relying on them** — so the correct move is to drop `api_keys`, let the plugin create its own table, and delete `ApiKeyService` + `ApiKeyRepository` + their specs. Keeping both tables would be exactly the bridge the repo forbids.
 
@@ -263,7 +263,7 @@ export function useApiKey() {
 
 **Goal.** Remove the CLI's dependence on a master token and seeded admin credentials.
 
-**Why it fits.** `apps/api/src/cli/services/cli-auth.service.ts` implements a three-strategy fallback: master token → default admin credentials → temp seed user. Every one of those is a privileged credential being handled by a command-line tool. RFC 8628 is the standard fix, and it is what `gh`, `docker login`, and `wrangler` all do.
+**Why it fits.** `apps/api/bff/src/cli/services/cli-auth.service.ts` implements a three-strategy fallback: master token → default admin credentials → temp seed user. Every one of those is a privileged credential being handled by a command-line tool. RFC 8628 is the standard fix, and it is what `gh`, `docker login`, and `wrangler` all do.
 
 **Design.**
 
@@ -379,7 +379,7 @@ twoFactor({
 
 **Why this app is an unusually good fit.** The plugin's highest-leverage feature is its **OpenAPI adapter**, which derives the entire capability set from an existing spec: one capability per `operationId`, input/output schemas from the parameters and response bodies, plus a proxy `onExecute` handler. This repo already has that spec:
 
-- `apps/api/src/openapi.ts` exports `generateSpec()`, which runs ORPC's `OpenAPIGenerator` over `appContract`.
+- `apps/api/bff/src/orpc/openapi.ts` exports `generateSpec()`, which runs ORPC's `OpenAPIGenerator` over `appContract`.
 - `apps/api/src/core/orchestrator/orchestrator.service.ts:675-682` serves it at **`/openapi.json`**, with Scalar at `/reference`.
 
 So the capability surface does not need to be hand-written. It is a projection of the contracts that already exist.

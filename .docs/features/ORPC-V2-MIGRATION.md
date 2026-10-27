@@ -19,7 +19,7 @@ This project runs **oRPC v2** (`2.0.0-beta.40`). v2 currently ships under the np
 `~orpc.route` no longer exists. Routing lives in `meta['~openapi']`, produced by
 `.meta(openapi({ method, path, ... }))`. `HTTPMethod`, `HTTPPath` and `Route` were
 removed from `@orpc/contract` and are re-declared in
-`packages/transport/orpc/src/types/types.ts` on top of `OpenAPIMeta`.
+`packages/utils/orpc/src/types/types.ts` on top of `OpenAPIMeta`.
 
 This repo's own builder API (`.method()`, `.path()`, `.tags()`, `.summary()`) is
 unchanged — it is a fluent wrapper, and only its internals changed.
@@ -68,7 +68,7 @@ base URL (prepended to every request), and `url` is a path-only prefix typed as
 ### Wire format changed
 
 A v1 client cannot talk to a v2 server in either direction. Server and clients
-must be upgraded together — which is why `packages/transport/orpc`,
+must be upgraded together — which is why `packages/utils/orpc`,
 `packages/contracts/api`, `apps/api` and `apps/web` all moved in one change set.
 
 ## Transport plugins

@@ -112,7 +112,7 @@ Traefik never publishes a port that was not acknowledged, even if the setting is
 
 Providers are plugins; no code outside a provider names one. To add one:
 
-1. Implement `EdgeProvider` (`apps/api/src/core/modules/edge/edge-provider.ts`) in an `@Injectable` that calls `registry.register(this)` in its constructor.
+1. Implement `EdgeProvider` (`apps/api/shared/src/core/modules/edge/edge-provider.ts`) in an `@Injectable` that calls `registry.register(this)` in its constructor.
 2. Register the class in the module that owns its integration (account-backed providers live next to their DNS integration under `modules/providers`).
 3. Describe its options in the descriptor (`boolean`, `text`, `dns-account`). The web renders the form from it, with no UI change.
 

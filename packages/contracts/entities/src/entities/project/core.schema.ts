@@ -2,8 +2,8 @@ import z from 'zod/v4'
 import {
   deploymentStatusSchema as commonDeploymentStatusSchema,
 } from '@deployer/contracts-common'
-import { projectSettingsSchema } from '@deployer/contracts-entities/entities/project/settings.schema'
-import { projectNetworkConfigSchema } from '@deployer/contracts-entities/entities/project/network.schema'
+import { projectSettingsSchema } from './settings.schema'
+import { projectNetworkConfigSchema } from './network.schema'
 
 export const projectSchema = z.object({
   id: z.uuid(),

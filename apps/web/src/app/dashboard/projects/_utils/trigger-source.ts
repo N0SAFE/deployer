@@ -1,4 +1,4 @@
-import type { DeploymentTriggerSource } from '@repo/api-contracts/modules/deployment/crud'
+import type { DeploymentTriggerSource } from '@deployer/runtime-contracts/modules/deployment/crud'
 
 function str(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined

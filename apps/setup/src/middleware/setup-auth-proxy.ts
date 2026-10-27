@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import * as http from "node:http";
-import { logger } from "@repo/logger";
+import { logger } from "@deployer/logger";
 
 const log = logger.scope("SetupAuthProxy");
 
@@ -30,7 +30,7 @@ const log = logger.scope("SetupAuthProxy");
  * The response must be streamed byte-for-byte, headers included: Better Auth
  * sets `Set-Cookie` (possibly several), and re-serializing through `fetch` would
  * lose both the multi-value headers and the exact framing. This is the same
- * reasoning as `@repo/vite-assets`.
+ * reasoning as `@deployer/vite-assets`.
  */
 export const SETUP_AUTH_PREFIX = "/api/auth";
 

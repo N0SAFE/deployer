@@ -54,7 +54,7 @@ jobs:
         id: extract-version
         run: |
           # The BFF is the platform's public API surface and carries its release version
-          VERSION=$(jq -r '.version' apps/api-services/bff/package.json)
+          VERSION=$(jq -r '.version' apps/api/bff/package.json)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
           # Determine if this is a release (tag matches version)
@@ -90,12 +90,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { app: svc-bff, scope: "@deployer/bff", dir: apps/api-services/bff, port: "3005" }
-          - { app: svc-health, scope: "@deployer/svc-health", dir: apps/api-services/services/health, port: "3101" }
-          - { app: svc-identity, scope: "@deployer/svc-identity", dir: apps/api-services/services/identity, port: "3102" }
-          - { app: svc-project, scope: "@deployer/svc-project", dir: apps/api-services/services/project, port: "3103" }
-          - { app: svc-fleet, scope: "@deployer/svc-fleet", dir: apps/api-services/services/fleet, port: "3104" }
-          - { app: svc-runtime, scope: "@deployer/svc-runtime", dir: apps/api-services/services/runtime, port: "3105" }
+          - { app: svc-bff, scope: "@deployer/bff", dir: apps/api/bff, port: "3005" }
+          - { app: svc-health, scope: "@deployer/svc-health", dir: apps/api/services/health, port: "3101" }
+          - { app: svc-identity, scope: "@deployer/svc-identity", dir: apps/api/services/identity, port: "3102" }
+          - { app: svc-project, scope: "@deployer/svc-project", dir: apps/api/services/project, port: "3103" }
+          - { app: svc-fleet, scope: "@deployer/svc-fleet", dir: apps/api/services/fleet, port: "3104" }
+          - { app: svc-runtime, scope: "@deployer/svc-runtime", dir: apps/api/services/runtime, port: "3105" }
 
     steps:
       - name: 📚 Checkout repository

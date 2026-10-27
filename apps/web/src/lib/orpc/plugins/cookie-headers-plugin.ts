@@ -1,4 +1,4 @@
-import { AppLogger } from '@repo/logger'
+import { AppLogger } from '@deployer/logger'
 import { StandardLinkOptions, StandardLinkPlugin } from '@orpc/client/standard'
 
 const cookieLogger = new AppLogger('web').scope('CookieHeadersPlugin')

@@ -8,7 +8,7 @@ import {
     type CreateUseSessionOptions,
     type CreateSessionAwareAuthClientOptions,
     type MinimalAuthClient,
-} from '@repo/auth/react/session/shared'
+} from '@deployer/auth/react/session/shared'
 
 // Re-export all shared types and constants (same as server.ts)
 export { 
@@ -20,11 +20,11 @@ export {
     type MinimalAuthClient,
     type CreateGetSessionOptions,
     type PrefetchSessionOptions,
-} from '@repo/auth/react/session/shared'
+} from '@deployer/auth/react/session/shared'
 
 // =============================================================================
 // SERVER-ONLY STUBS (no-op or throw errors when called on client)
-// These exist so that imports from '@repo/auth/react/session/index' work isomorphically
+// These exist so that imports from '@deployer/auth/react/session/index' work isomorphically
 // =============================================================================
 
 /**
@@ -167,7 +167,7 @@ export function useSessionQuery<TData>(
  * @example
  * ```ts
  * // In your app's auth setup
- * import { createUseSession } from '@repo/auth/react/session/client'
+ * import { createUseSession } from '@deployer/auth/react/session/client'
  * import { authClient } from '@/react/session/options'
  * 
  * export const useSession = createUseSession({
@@ -253,7 +253,7 @@ export function createUseSession<TData>(
  * @example
  * ```ts
  * // In your app's auth setup (client.ts)
- * import { createSessionAwareAuthClient } from '@repo/auth/react/session/client'
+ * import { createSessionAwareAuthClient } from '@deployer/auth/react/session/client'
  * import { authClient as originalAuthClient } from '@/react/session/options'
  * 
  * export const authClient = createSessionAwareAuthClient(originalAuthClient, {

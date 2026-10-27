@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState, type ReactNode } from 'react'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import { RefreshCw, Siren } from 'lucide-react'
 import { isDefinedORPCError, getErrorMessage } from '@/lib/orpc/typed-errors'
 import { TableSkeleton } from '@/components/dashboard/Skeletons'

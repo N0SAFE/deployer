@@ -8,7 +8,7 @@
  * is not thrashed by a marginally-better challenger.
  */
 
-export interface MasterCandidateMetrics {
+export type MasterCandidateMetrics = {
     nodeId: string;
     /** normalized latency (p50 RTT / budget, clamped [0,1]) — lower better */
     latency: number;
@@ -26,7 +26,7 @@ export interface MasterCandidateMetrics {
     isCurrentMaster: boolean;
 }
 
-export interface MasterScorerWeights {
+export type MasterScorerWeights = {
     latency: number;
     jitter: number;
     memoryPressure: number;
@@ -36,7 +36,7 @@ export interface MasterScorerWeights {
     hysteresis: number;
 }
 
-export interface MasterScoreResult {
+export type MasterScoreResult = {
     nodeId: string;
     score: number;
     reasons: Partial<Record<keyof MasterScorerWeights, number>>;

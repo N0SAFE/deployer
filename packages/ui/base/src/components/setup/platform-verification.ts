@@ -1,6 +1,6 @@
-import type { SetupPostSetupVerification, SetupVerificationTarget } from "@repo/contracts-entities"
+import type { SetupPostSetupVerification, SetupVerificationTarget } from "@deployer/contracts-entities"
 
-import type { ProgressTask, TaskStatus } from "@repo/ui/components/setup/progress-tasks"
+import type { ProgressTask, TaskStatus } from "@deployer/ui/components/setup/progress-tasks"
 
 /**
  * The wizard's last gate: do the API and the dashboard REALLY answer?

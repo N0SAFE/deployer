@@ -17,7 +17,7 @@ export {
 	enabledLanes,
 	lanesForVisibility,
 	ingressExposure,
-} from '@deployer/contracts-entities/entities/ingress/lanes.schema'
+} from './lanes.schema'
 
 export type {
 	IngressLane,
@@ -25,7 +25,7 @@ export type {
 	PublicLane,
 	IngressLanes,
 	IngressExposure,
-} from '@deployer/contracts-entities/entities/ingress/lanes.schema'
+} from './lanes.schema'
 
 export {
 	edgeProviderKindSchema,
@@ -38,7 +38,7 @@ export {
 	edgeResourceSchema,
 	edgeHealthSchema,
 	edgeStatusSchema,
-} from '@deployer/contracts-entities/entities/ingress/edge-providers.schema'
+} from './edge-providers.schema'
 
 export type {
 	EdgeProviderKind,
@@ -50,7 +50,7 @@ export type {
 	EdgeResource,
 	EdgeHealth,
 	EdgeStatus,
-} from '@deployer/contracts-entities/entities/ingress/edge-providers.schema'
+} from './edge-providers.schema'
 
 export {
 	joinEntryPointKindSchema,
@@ -59,7 +59,7 @@ export {
 	joinEntryPointSummarySchema,
 	publicEntryHost,
 	joinEntryPoints,
-} from '@deployer/contracts-entities/entities/ingress/entry-points.schema'
+} from './entry-points.schema'
 
 export type {
 	JoinEntryPointKind,
@@ -67,4 +67,4 @@ export type {
 	JoinEntryPointSummary,
 	JoinEntryPointInputs,
 	PublicJoinPath,
-} from '@deployer/contracts-entities/entities/ingress/entry-points.schema'
+} from './entry-points.schema'

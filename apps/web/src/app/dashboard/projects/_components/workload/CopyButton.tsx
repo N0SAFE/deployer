@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Check, Copy } from 'lucide-react'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Button } from '@deployer/ui/components/shadcn/button'
 
 /** Icon button that copies `value`. Every id shown in mono gets one. */
 export function CopyButton({ value, label, className }: { value: string; label: string; className?: string }) {

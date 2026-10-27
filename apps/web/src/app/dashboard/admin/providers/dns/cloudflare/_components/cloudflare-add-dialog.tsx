@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { z } from 'zod/v4'
+import z from 'zod/v4'
 import { toast } from 'sonner'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@deployer/ui/components/shadcn/dialog'
 import { useCreateDNSProvider } from '@/domains/dns-providers/hooks'
 import { getErrorMessage } from '@/lib/orpc/typed-errors'
 import { FieldHelp } from '../../../_components/field-help'

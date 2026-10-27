@@ -5,14 +5,14 @@
  * Setup needs TWO processes, exactly as the API does
  * (`apps/api/scripts/entrypoint.dev.ts` spawns `dev:vite` then starts Nest):
  *
- *   1. Vite, in the background — the SSR wizard's client bundle. `@repo/vite-assets`
+ *   1. Vite, in the background — the SSR wizard's client bundle. `@deployer/vite-assets`
  *      proxies `/vite/` to a listener on 5174, so with nothing bound there the
  *      page renders as inert HTML and every asset 404s.
  *   2. Nest, in the FOREGROUND — the container's exit code is the health of the
  *      server. Backgrounding Nest would make every crash look like a clean run.
  *
  * Running both from one script (rather than two turbo tasks) is what lets
- * `turbo watch dev --filter=setup` own the whole app: turbo sees one persistent
+ * `turbo watch dev --filter=@deployer/setup` own the whole app: turbo sees one persistent
  * task per app, so its dependency rebuilds don't fight a second scheduler.
  */
 

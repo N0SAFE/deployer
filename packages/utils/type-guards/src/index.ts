@@ -20,7 +20,7 @@
  * ## Usage
  *
  * ```typescript
- * import { isRecord, isObjectLike, hasProperty, isString } from "@repo/type-guards"
+ * import { isRecord, isObjectLike, hasProperty, isString } from "@deployer/type-guards"
  *
  * if (isRecord(value)) {
  *   // value is narrowed to Record<string, unknown>
@@ -226,7 +226,7 @@ export function isObjectWithMessage(
 // Where to put domain-specific validation:
 //   - API: `apps/api/src/modules/<domain>/_validation/` or inline in
 //     the service that uses it. Use Zod schemas from
-//     `@repo/contracts-entities` or `@repo/api-contracts` as the
+//     `@deployer/contracts-entities` or a per-service contract package as the
 //     source of truth.
 //   - Web: `apps/web/src/domains/<domain>/_validation/` or inline.
 //     Same Zod pattern.

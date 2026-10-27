@@ -263,7 +263,7 @@ describe('utils', () => {
 
     it('should handle special characters', () => {
       expect(jsClean('test@123#abc')).toBe('test123abc')
-      expect(jsClean('@deployer/ui-base')).toBe('repouiBase')
+      expect(jsClean('@deployer/ui-base')).toBe('deployeruiBase')
     })
 
     it('should preserve numbers', () => {

@@ -1,7 +1,7 @@
 'use client'
 
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
-import { Label } from '@repo/ui/components/shadcn/label'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
+import { Label } from '@deployer/ui/components/shadcn/label'
 import { cn } from '@/lib/utils'
 import { useProjectDomains } from '@/domains/domain/hooks'
 import { InlineError } from './workload/WorkloadStates'

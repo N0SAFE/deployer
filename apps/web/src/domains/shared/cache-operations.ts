@@ -349,7 +349,7 @@ export function createCacheOperations<TEndpoint>(
     return {
       get: (queryClient: QueryClient) => {
         const queryKey = queryKeyFn();
-        return queryClient.getQueryData(queryKey as never);
+        queryClient.getQueryData(queryKey as never);
       },
 
       set: (

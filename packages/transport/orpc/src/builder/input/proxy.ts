@@ -1,10 +1,10 @@
  
-import type { AnySchema } from "@repo/orpc-utils/types/types";
-import type { VoidSchema } from "@repo/orpc-utils/types/standard-schema-helpers";
-import type { BasePluginTransformer } from "@repo/orpc-utils/builder/plugin/index";
-import { StandardPluginTransformer } from "@repo/orpc-utils/builder/plugin/index";
-import { DetailedInputBuilder } from "@repo/orpc-utils/builder/input/builder";
-import type { DetailedInputBuilderSchema } from "@repo/orpc-utils/builder/input/builder";
+import type { AnySchema } from "@deployer/orpc-utils/types/types";
+import type { VoidSchema } from "@deployer/orpc-utils/types/standard-schema-helpers";
+import type { BasePluginTransformer } from "@deployer/orpc-utils/builder/plugin/index";
+import { StandardPluginTransformer } from "@deployer/orpc-utils/builder/plugin/index";
+import { DetailedInputBuilder } from "@deployer/orpc-utils/builder/input/builder";
+import type { DetailedInputBuilderSchema } from "@deployer/orpc-utils/builder/input/builder";
 
 export type InputSchemaProxySchema<
     TPlugin extends BasePluginTransformer,

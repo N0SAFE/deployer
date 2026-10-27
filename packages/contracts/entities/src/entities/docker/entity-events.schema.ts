@@ -1,8 +1,8 @@
 import z from 'zod/v4'
-import { dockerContainerEntitySchema } from '@deployer/contracts-entities/entities/docker/containers/index'
-import { dockerImageEntitySchema } from '@deployer/contracts-entities/entities/docker/images/index'
-import { dockerNetworkEntitySchema } from '@deployer/contracts-entities/entities/docker/networks/index'
-import { dockerVolumeEntitySchema } from '@deployer/contracts-entities/entities/docker/volumes/index'
+import { dockerContainerEntitySchema } from './containers/index'
+import { dockerImageEntitySchema } from './images/index'
+import { dockerNetworkEntitySchema } from './networks/index'
+import { dockerVolumeEntitySchema } from './volumes/index'
 
 /**
  * Canonical kinds supported by the unified docker entity event stream.

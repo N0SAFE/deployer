@@ -142,7 +142,7 @@ Use runtime hook factory approach - hooks are created at runtime from contracts:
 ```typescript
 // packages/transport/orpc/src/hook-factory.ts
 import { createORPCHooks } from '@orpc/react-query'
-import type { ContractRouter } from '@repo/api-contracts'
+import type { ContractRouter } from '@deployer/api-contracts'
 
 export function createTypedHooks<T extends ContractRouter>(
   client: ORPCClient<T>
@@ -179,7 +179,7 @@ export function createTypedHooks<T extends ContractRouter>(
 ## 3. Testing Infrastructure
 
 ### Current Issues
-- 45/54 tests failing in `@repo/orpc-utils`
+- 45/54 tests failing in `@deployer/orpc-utils`
 - Zod 4 import issue in vitest
 
 ### Solution: Fix Test Environment
@@ -212,7 +212,7 @@ export default defineConfig({
 ```typescript
 // packages/transport/orpc/vitest.config.ts
 import { defineConfig, mergeConfig } from 'vitest/config'
-import baseConfig from '@repo/config-vitest'
+import baseConfig from '@deployer/config-vitest'
 
 export default mergeConfig(baseConfig, {
   test: {
@@ -503,7 +503,7 @@ No consistent error boundaries
 'use client'
 
 import { Component, type ReactNode } from 'react'
-import { ErrorState } from '@repo/ui'
+import { ErrorState } from '@deployer/ui'
 
 interface Props {
   children: ReactNode
@@ -589,7 +589,7 @@ Direct ORPC calls in hooks
 ```typescript
 // apps/web/src/repositories/user.repository.ts
 import { orpc } from '@/lib/orpc'
-import type { User, UpdateUserInput } from '@repo/api-contracts'
+import type { User, UpdateUserInput } from '@deployer/api-contracts'
 
 export const userRepository = {
   async findById(id: string): Promise<User | null> {

@@ -1,9 +1,9 @@
 'use client'
 
 import { Layers } from 'lucide-react'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Switch } from '@repo/ui/components/shadcn/switch'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Switch } from '@deployer/ui/components/shadcn/switch'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
 import { EmptyState } from '@/components/dashboard'
 import { envLinkKey, kindBadgeVariant, type ProjectEnvironment, type ProjectServiceRow, type ServiceEnvLink } from './types'
 

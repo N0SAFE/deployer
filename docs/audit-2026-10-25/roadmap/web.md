@@ -1,0 +1,719 @@
+# WEB FRONTEND roadmap
+> Owner prefix: WEB · Sources: web.md, ideas-dx-ai.md (§4 + UI parts of §1), journeys.md (frontend UX details, W-items that are UI), ideas-deploy.md (§4 UI enhancements, §1 UI surfaces), parity.md (UI-only gaps), bench-coolify.md, bench-dokploy-dockhand.md, bench-market.md (UX patterns) · Last verified: 2026-10-26
+
+## Summary
+The dashboard (`apps/web`, ~450 tsx files, 75 `route.info.ts`) is not a mock: almost every page is wired to a typed ORPC procedure with loading/error/empty states. The problems are (a) a handful of fake, unsafe or dead surfaces (service Logs tab invents sentences, service status is phantom, cluster role changes have no confirmation while the guarded table is dead, rollback UI sends an invalid body, env "Config" link is broken), (b) no project-role-aware UI at all (viewers see Delete/Deploy/Rollback/exec), (c) no real-time on workload lists although stream procedures exist, (d) PWA/service worker not wired, (e) auth completeness pages missing (forgot/reset/verify/invite-accept/2FA), (f) no pagination and client-side joins over 100-item windows, (g) a long list of pages a deploy platform needs that do not exist (audit log, secrets, webhooks, templates, alerts/inbox, backups, cron, certificates, node add/remove, quotas).
+Spot-verified this session: `cluster/page.tsx:80-84` still mutates immediately; `ClusterNodesTable` is referenced only inside its own file; env Config link still passes env name (`environment/page.tsx:166`); `site.webmanifest` still "Next.js NestJS Turborepo Template"; `serwist` is a dependency but not integrated in `next.config`; `domains/bff` has no non-test importer.
+Backend gaps behind many items (authz SUB-A, streams SUB-C, release manifest SUB-B) are owned by other areas; items here are the UI half and list them in Deps.
+Counts are in the final line of this file.
+
+## Items
+
+### Broken, fake and dead surfaces (fix first)
+- [ ] `WEB-001` **Replace the fake service Logs tab with real container + deployment logs** · FIX · P1 · M · Deps: none · See also: `OBS-059`
+  - Why/Problem: `services/[sid]/logs` renders sentences composed from statuses; the code admits "KNOWN GAP — these are not log lines" (`logs/_utils/service-activity.ts:44-55`). The "why did my app crash" screen cannot answer. Real hooks exist (`domains/docker/hooks.ts:1030,1044`; viewer in `app/dashboard/docker/logs/_components`).
+  - Do: drop `projectServiceActivity` as the main view; build tab from `useDockerContainerLogsStream` per replica merged with `useDeploymentLogs`; follow/pause, search, level colouring, time range, download, line-anchor permalinks; keep the activity list as a secondary "Events" tab; label "local node only" until node-aware docker procedures land.
+  - Done when: a service that prints `BOOM` to stderr shows that exact line in the Logs tab; no synthesized lines remain; viewer states differ for "not started", "no running replica - last 200 lines from previous container", "node unreachable".
+  - Status: todo · Verified-in-code: yes · Source: web.md#3 bug 2, journeys.md#J4 W4.1/quick win 10, ideas-dx-ai.md#4 item 1
+- [ ] `WEB-002` **Fix env-page "Config" link passing the environment name instead of its UUID** · FIX · P1 · S · Deps: none · See also: `PROJ-064`
+  - Why/Problem: `configuration/environment/page.tsx:165-166` passes `env` (name); `useProjectEnvironment` only enables for UUIDs (`domains/project/hooks.ts:55-61`) so the page always says "Environment not found". Link map `envIdByName` already exists at line 74.
+  - Do: pass `envIdByName.get(env)`; hide the link when no environment row exists; add a regression test.
+  - Done when: clicking Config opens the environment detail page for every linked environment.
+  - Status: todo · Verified-in-code: yes · Source: web.md#3 bug 1, journeys.md#quick win 13, ideas-dx-ai.md#4 item 2
+- [ ] `WEB-003` **Derive service overview status from reality, not phantom fields** · FIX · P1 · S · Deps: none · See also: `OBS-032`,`PROJ-122`
+  - Why/Problem: overview badge uses `s.status ?? s.state ?? 'unknown'`; those fields do not exist on the entity so it always reads "unknown" (`services/[serviceId]/page.tsx:150`).
+  - Do: compute Running/Degraded/Crash-looping/Stopped/Deploying/Failed from latest deployment + container/task state; adopt BFF `serviceDetail` composer once available (see WEB-033).
+  - Done when: badge reflects the latest deployment/replica state; "unknown" only when data is truly unavailable and says why.
+  - Status: todo · Verified-in-code: yes · Source: journeys.md#J4 step 2/W4.4/quick win 12, ideas-deploy.md#4 item 16
+- [ ] `WEB-004` **Wire the guarded cluster node table (quorum confirm) and delete the unsafe inline controls** · FIX · P0 · S · Deps: none · See also: `CLUSTER-023`
+  - Why/Problem: `/dashboard/cluster` calls `updateNode.mutate` on every Select/Switch change with no confirmation (`cluster/page.tsx:80-86`); demoting the last manager is one click. A tested quorum-aware `cluster-nodes-table.tsx` + `confirm-node-change-dialog.tsx` + `_utils/node-change-guard.ts` exist and are imported nowhere.
+  - Do: render `ClusterNodesTable` in the page, remove inline table, require typed confirmation for last-manager demotion, show quorum before/after; otherwise delete the dead files.
+  - Done when: role/ingress changes always open the confirm dialog showing manager count and quorum impact; last-manager demotion is refused; no dead cluster components remain.
+  - Status: todo · Verified-in-code: yes · Source: web.md#3 bug 3, journeys.md#J5 step 9/W5.8/quick win 16, ideas-dx-ai.md#4 item 3
+- [ ] `WEB-005` **Make rollback in the UI actually valid and honest** · FIX · P0 · S · Deps: none · See also: `DEPLOY-076`
+  - Why/Problem: UI sends `params.id` only but the contract requires `body.targetDeploymentId` (`deployments/page.tsx:141` vs `contracts/runtime/.../crud.ts:233-236`), so rollback fails validation; backend (DEPLOY area) records a fake success. The global deployments page text says "open a service to roll back" though service pages have no rollback.
+  - Do: build a rollback picker (previous successful deployments with commit, author, time, env/config-diff badge) that sends `targetDeploymentId`; until backend rollback is real, surface its error instead of success toasts; fix the misleading copy on `/dashboard/deployments`.
+  - Done when: rollback sends a valid body, shows the target, and reports failure truthfully.
+  - Status: todo · Verified-in-code: yes · Source: journeys.md#J2 step 14/quick win 9, web.md#1 (/dashboard/deployments), ideas-deploy.md#4 item 6
+- [ ] `WEB-006` **Fix `/manage/web-app` semantics and gate it by platform role in the UI** · FIX · P0 · S · Deps: `IDEA-001`
+  - Why/Problem: page claims to be "deliberately public" (`manage/web-app/page.tsx:7-11`) but the 6 `platform.*ManagedWeb*` procedures have no `@AllowAnonymous` and no `requirePlatformRole` (backend SEC/AUTH owns the server gate): logged-out visitors get 401 -> signin, and any authenticated role can stop/restart the web app or open a Cloudflare tunnel.
+  - Do: correct the comment/behaviour (decide public vs admin, see DEC-WEB-4); show the console only to platform admins; add an honest "administrators only" state; include `/manage/*` in middleware auth coverage (WEB-023).
+  - Done when: non-admins cannot reach or act on the console in UI and API; copy matches behaviour.
+  - Status: todo · Verified-in-code: partial · Source: web.md#1 (/manage/web-app), #3 bug 6, #4 item 1
+- [ ] `WEB-007` **Fix the "Live" header chip so it does not overpromise** · FIX · P2 · S · Deps: none · See also: `OBS-038`
+  - Why/Problem: chip reflects cluster control-plane reachability (`HeaderLiveStatus.tsx`) while its tooltip says "this page updates as things change"; projects/services/deployments/dashboard home/node detail are not live.
+  - Do: rename to "Control plane: reachable"; fix tooltip; replace with per-page freshness (see WEB-038).
+  - Done when: wording matches what is actually live.
+  - Status: todo · Verified-in-code: unverified · Source: web.md#3 bug 5, ideas-dx-ai.md#4 item 7
+- [ ] `WEB-008` **Remove `as any` / `any` filters from the project deployments page and move mutations into shared hooks** · FIX · P1 · M · Deps: none
+  - Why/Problem: lowest-quality file: `as any` on every mutation, `any` filters (`projects/[projectId]/deployments/page.tsx:63-150`), bare Skeleton instead of shared states; builds `source` for github only; dead `trigger-dialog.tsx` and `projects/_utils/trigger-source.ts` (written, unused).
+  - Do: adopt `trigger-source.ts`, typed `deploymentHooks` (`use<Feature>.orpc-hooks` style), shared loading/error/empty states; delete dead dialog; send server-resolved trigger (`{serviceId, environment, ref?}`) when the API supports it.
+  - Done when: zero `any`/`as any` in the file; typed mutations; page uses shared state components.
+  - Status: todo · Verified-in-code: yes · Source: web.md#1 (.../deployments), #3 item 15, journeys.md#quick win 18, ideas-deploy.md#4 item 1
+- [ ] `WEB-009` **Add Deploy / Redeploy / Restart / Stop / Rollback / Cancel controls to the service page** · NEW · P1 · M · Deps: `WEB-005`,`WEB-008`,`IDEA-001` · See also: `DEPLOY-111`
+  - Why/Problem: the only deploy entry is Project -> Deployments -> "New Deployment"; service pages have no action buttons (only an active toggle in the layout); service deployments tab has no rollback/cancel/redeploy.
+  - Do: service header split-button (Deploy primary; Redeploy, Restart, Stop/Start, Scale, Rollback, Cancel menu) with role gating and confirmations; sticky Rollback/Cancel on deployment detail; backend Restart/Stop/Scale lives in DEPLOY/CLUSTER.
+  - Done when: a developer can deploy, redeploy, cancel and roll back from the service page; viewers see none.
+  - Status: todo · Verified-in-code: yes · Source: web.md#1 (services/[sid]), #4 item 3, journeys.md#J2 W2.3/J4 W4.12, ideas-dx-ai.md#4 item 4
+- [ ] `WEB-010` **Add a "Deploy now" step / action to the service creation wizard** · ENHANCE · P1 · S · Deps: `WEB-009`
+  - Why/Problem: the 8-step CreateServiceWizard persists config but has no "deploy now"; `grep useTriggerDeployment` finds one page only (J1 step 12).
+  - Do: final-step checkbox/button "Create and deploy" that triggers the first deployment and routes to the live deployment view.
+  - Done when: a new service can be created and deployed in one flow.
+  - Status: todo · Verified-in-code: partial · Source: journeys.md#J1 step 12
+- [ ] `WEB-011` **Show the live service URL and an Open button** · ENHANCE · P1 · S · Deps: none
+  - Why/Problem: `deployment.domainUrl` is set only from domain mappings so a default deploy shows no URL although a lane route exists; "Open" is absent in service header and deployment row.
+  - Do: compute `<service>-<project>.<lane domain>` from lane config (or read from backend) and show it in service header, deployment row and `deployment-detail.tsx:60`; Open button.
+  - Done when: after a successful deploy the URL shows and opens the app.
+  - Status: todo · Verified-in-code: partial · Source: journeys.md#J1 step 20/W1.12/quick win 19
+- [ ] `WEB-012` **Stop faking "every service in every env" in the dependencies graph and fix fixed ENV_NAMES in monitoring** · FIX · P2 · S · Deps: none
+  - Why/Problem: `dependencies/page.tsx:72-77` `graphServiceEnvironments` fakes all env combinations; "real state" graph derived from shared docker network of the LOCAL engine only; monitoring page env columns come from fixed `ENV_NAMES` though environments are free-form.
+  - Do: use real service-environment links; label local-engine scope; drive monitoring columns from the project's environments.
+  - Done when: graph and monitoring match actual links/environments.
+  - Status: todo · Verified-in-code: unverified · Source: web.md#1 (dependencies, monitoring)
+- [ ] `WEB-013` **Remove the `service.customDomains` free-text bypass from the wizard Domains step** · FIX · P1 · S · Deps: none · See also: `NET-014`
+  - Why/Problem: `StepDomains.tsx:145` free-text domains are published as public hosts without verification (backend `platform-routes-source.service.ts:233`).
+  - Do: replace with a picker over verified project domains (or delete the step); show verification state.
+  - Done when: the wizard cannot introduce an unverified host.
+  - Status: todo · Verified-in-code: partial · Source: journeys.md#J3 step 8/quick win 21
+- [ ] `WEB-014` **Hide or mark every stored-but-ignored setting until it is wired** · ENHANCE · P1 · M · Deps: none · See also: `PROJ-080`,`FEAT-141`
+  - Why/Problem: quotas, notifications, retention, basic auth, IP allowlist, timeouts, `autoSyncEnabled`, `webhookEnabled`, preview limits are editable but inert; UI implies they work (audit cross-cutting #4).
+  - Do: add a "Not enforced yet" tag or hide controls; show `dataSource` badges on every metric card (pattern from analytics); remove Refresh-environment button that throws `NotImplementedException`.
+  - Done when: no settings control is silently inert; list is generated from a single inert-settings registry.
+  - Status: todo · Verified-in-code: unverified · Source: ideas-dx-ai.md#4 item 12, ideas-deploy.md#4 items 13,17, bench-dokploy-dockhand.md#4
+- [ ] `WEB-015` **Stop the Analytics "history not recorded" gap from looking like a feature: fix reports page or hide it** · ENHANCE · P2 · M · Deps: none
+  - Why/Problem: 21 analytics endpoints (reports, report-configs, API usage, storage usage, user activity) are exposed in `domains/analytics/endpoints.ts` but no UI uses them; download route needs a fix first.
+  - Do: build a Reports page (generate/list/download/configs) or hide the endpoints; fix download route.
+  - Done when: reports are reachable from UI or explicitly absent.
+  - Status: todo · Verified-in-code: unverified · Source: web.md#1 (analytics), ideas-dx-ai.md#4 item 17, parity.md#1.5
+
+### Permission-aware UI
+- [ ] `WEB-016` **Introduce project-role-aware UI (`useProjectPermissions` + `<RequireProjectRole>`)** · NEW · P0 · M · Deps: `IDEA-001` · See also: `PROJ-114`
+  - Why/Problem: no use of project roles anywhere in project/deployment/docker pages; only platform-admin gating exists. Viewers see Delete project, Deploy, Rollback, exec terminal (web.md#3 item 7).
+  - Do: one `usePermission(procedureMeta)` hook driven by the contract policy annotations (SUB-A); `<RequireProjectRole>` mirroring `components/auth` platform components; hide/disable destructive controls for viewers; "You are a viewer" badge; non-members get a "no access" state rather than a leak of existence. Server remains the barrier.
+  - Done when: a viewer sees no Deploy/Rollback/Delete/Shell controls on any project page and API returns 403 for each.
+  - Status: todo · Verified-in-code: yes · Source: web.md#3 item 7/#4 item 1, journeys.md#J6 W6.6, ideas-dx-ai.md#4 item 5
+- [ ] `WEB-017` **UI-gate docker terminal, exec, kill, remove and file-write actions by role** · FIX · P0 · S · Deps: `IDEA-001`,`WEB-016`
+  - Why/Problem: no role gate on terminal/delete in docker pages; server currently allows any authenticated user (SEC area fixes API).
+  - Do: platform admin/project maintainer gate on container modal terminal tab, `/dashboard/docker/shell`, delete/remove/kill buttons; "Requires maintainer" copy; banner "This session is recorded" once audit exists.
+  - Done when: viewers see read-only docker pages.
+  - Status: todo · Verified-in-code: yes · Source: web.md#1 (node engine), journeys.md#J4 W4.8
+- [ ] `WEB-018` **Add a role guard to the `/dashboard/admin/*` layout (not only nav hiding)** · FIX · P1 · S · Deps: none
+  - Why/Problem: `admin` layout has no role guard; only hidden in nav.
+  - Do: server-side layout guard with "Administrators only" state; reuse `RequirePlatformRole`.
+  - Done when: direct URL access by a non-admin shows the guard.
+  - Status: todo · Verified-in-code: unverified · Source: web.md#1 (admin/providers)
+- [ ] `WEB-019` **Role-gated controls on all fleet/network/cluster mutations and join-token panel** · FIX · P1 · S · Deps: `IDEA-001`
+  - Why/Problem: `swarm-config-panel.tsx:94` reads `view.joinTokens` which every authenticated user receives (backend fix is CLUSTER/SEC); capacity/admission/allocation/DNS/tunnel controls need admin gating in UI.
+  - Do: remove join-token rendering from the panel after backend removes them; replace with an admin-only "Add node" flow (WEB-064); gate capacity/admission/DNS/tunnel mutation buttons.
+  - Done when: no token field is read by the UI; non-admins see read-only fleet/network pages.
+  - Status: todo · Verified-in-code: yes · Source: journeys.md#J5 step 12/W5.1/W5.2, J3 step 13
+- [ ] `WEB-020` **Show a permission matrix and role descriptions in the UI** · NEW · P2 · S · Deps: `WEB-016`
+  - Why/Problem: invite/team dialogs have no explanation of roles; J6 requires "what each role can do" and a live "this person will be able to..." sentence.
+  - Do: shared role-matrix component used by Members invite dialog, Team page and role-change confirm.
+  - Done when: every role picker links to or embeds the matrix.
+  - Status: todo · Verified-in-code: unverified · Source: journeys.md#J6 UX details
+
+### Auth, account and onboarding pages
+- [ ] `WEB-021` **Add forgot-password, reset-password and email-verification pages** · NEW · P1 · M · Deps: none
+  - Why/Problem: sign-in has no forgot/reset/verify/social flow (web.md#1 /auth/signin); backend mail transport is AUTH/SETUP area.
+  - Do: `/auth/forgot`, `/auth/reset`, `/auth/verify` with `route.info.ts`; "mail not configured" mode that shows an admin-copyable link.
+  - Done when: a user can reset a password end to end in a mail-enabled install and sees an honest message otherwise.
+  - Status: todo · Verified-in-code: yes · Source: web.md#1/#4 item 5, journeys.md#J6 W6.3
+- [ ] `WEB-022` **Add the invitation-acceptance page and an admin Members page with invite dialog** · NEW · P1 · M · Deps: `WEB-021` · See also: `AUTH-010`
+  - Why/Problem: no `/auth/invite` landing route ("Invitation sent" has nowhere to land); `authClient.invite.*` unused; admin `createUser` defined but no page calls it (`domains/admin/endpoints.ts:103`).
+  - Do: `/auth/invite?token=` page (set password or passkey); Settings -> Members page: invite by email + platform role + optional project grants, pending list with resend/revoke/copy link/expiry; specific errors ("No account for that email - an invitation will be sent").
+  - Done when: an invited user without an account can accept and sees only granted projects.
+  - Status: todo · Verified-in-code: yes · Source: web.md#1, journeys.md#J6 W6.2
+- [ ] `WEB-023` **Harden middleware auth coverage and stop trusting cookie presence** · FIX · P1 · S · Deps: none
+  - Why/Problem: `WithAuth.ts:115-129` covers only `/dashboard*`, `/settings`, `/profile` and checks cookie presence (`getSessionCookie`); `/auth/me`, `/manage/*`, `/device` are outside it.
+  - Do: extend matcher to `/auth/me`, `/manage/*`, `/device`; keep validity enforced by layout session fetch plus a documented 401 handler; test the matcher.
+  - Done when: all authenticated routes redirect when logged out.
+  - Status: todo · Verified-in-code: unverified · Source: web.md#3 item 8
+- [ ] `WEB-024` **Server-driven sign-up policy instead of `NODE_ENV`** · FIX · P1 · S · Deps: none
+  - Why/Problem: sign-up page hides in production by build mode (`auth/signup/page.tsx:96-119`); dev demo credentials (admin@admin.com / adminadmin) shown on sign-in only when `NODE_ENV !== production` (`auth/_utils/dev-only.ts:9`) so a staging build with `NODE_ENV=development` leaks them.
+  - Do: read sign-up policy and dev-hint flag from a server endpoint (backend AUTH owns `disableSignUp`); show demo credentials only with an explicit opt-in env flag.
+  - Done when: a staging build never shows default credentials and sign-up follows server policy.
+  - Status: todo · Verified-in-code: yes · Source: web.md#1/#3 item 10, #4 item 5, journeys.md#J6 step 1
+- [ ] `WEB-025` **2FA enrolment, challenge and backup-code UI; lockout messaging; social/OIDC login buttons** · NEW · P2 · M · Deps: none
+  - Why/Problem: only a 2FA status card exists; no enrolment/challenge UI, no account lockout messaging, no social/OIDC config UI (bench: Coolify 10 providers, Dockhand OIDC/LDAP).
+  - Do: enrol (QR + verify), challenge step on sign-in, backup codes, "require 2FA for admins" setting UI, lockout/rate-limit copy; provider buttons when configured.
+  - Done when: a user can enrol and sign in with 2FA from the UI.
+  - Status: todo · Verified-in-code: unverified · Source: web.md#4 item 5, journeys.md#J6 W6.11, bench-coolify.md#1 (OAuth/SSO), bench-dokploy-dockhand.md#3 item 22
+- [ ] `WEB-026` **Move push notification settings from `/auth/me` into account settings** · ENHANCE · P3 · S · Deps: `WEB-076`
+  - Why/Problem: `PushNotificationSettings` mounted only on `/auth/me`; not in `/dashboard/settings/account`.
+  - Do: relocate/duplicate into account settings next to notification channel preferences.
+  - Done when: users find push settings in account settings.
+  - Status: todo · Verified-in-code: yes · Source: web.md#1 (settings/account, /auth/me)
+- [ ] `WEB-027` **Team page: show name/email/avatar, last active, pending invite state, resend, confirm role changes** · ENHANCE · P1 · S · Deps: `WEB-022` · See also: `PROJ-112`
+  - Why/Problem: remove dialog shows `userId` (`team/page.tsx:86`); invite has no pending state; "Invitation sent" has no accept page.
+  - Do: name/email/avatar, last active, role descriptions, pending badge with resend/revoke/expiry, before/after role confirm with 10 s undo, "Invite your first teammate" empty state, non-user invite messaging.
+  - Done when: no raw `userId` is displayed and pending invites are visible.
+  - Status: todo · Verified-in-code: yes · Source: web.md#1/#5, journeys.md#J6 W6.10/quick win 20, ideas-dx-ai.md#4 item 14
+- [ ] `WEB-028` **Onboarding checklist on the command center** · NEW · P1 · M · Deps: none · See also: `SETUP-022`
+  - Why/Problem: no onboarding; `listPostSetupHints` is a constant that ignores dismissal; `PostSetupHints` is mounted twice (root `app/layout.tsx:133` and `dashboard/layout.tsx:85`).
+  - Do: persistent checklist (connect Git host -> create project -> add domain -> first deploy) computed from queries `/dashboard` already makes; persistent dismissal; remove duplicate mount; empty-state copy for no Git provider ("Paste a public repo or connect GitHub/GitLab - needs a public address, set one in Network"; keep PAT visible).
+  - Done when: a fresh install shows the checklist, steps tick automatically, dismissal persists, hints render once.
+  - Status: todo · Verified-in-code: yes · Source: web.md#6 item 16, journeys.md#J1 W1.10/UX details, ideas-dx-ai.md#4 item 11, ideas-dx-ai.md#1 idea 22
+- [ ] `WEB-029` **"Quick deploy" page `/dashboard/new` (repo URL / image / upload -> detect -> deploy -> live log)** · NEW · P1 · L · Deps: `WEB-008`,`WEB-009`,`WEB-001`
+  - Why/Problem: no single-entry flow; competitors have "New resource" picker (Coolify) and detect-and-deploy (Railway); `detectRunner` exists in the GitHub controller.
+  - Do: one screen grouped Git / Docker image / Compose / Template / Database; detect stack and builder with explanation; create project+service+env+deploy; stream stage timeline and logs; Open button. Requires honest deploy backend (DEPLOY area).
+  - Done when: a public Dockerfile repo reaches a live URL from one page; a repo without Dockerfile shows an error naming the missing file.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#J1 W1.13, ideas-dx-ai.md#1 idea 22, bench-coolify.md#4 item 1
+
+### Live data and data layer
+- [ ] `WEB-030` **Set sensible TanStack `QueryClient` defaults and a global 401/offline handler** · FIX · P1 · S · Deps: none
+  - Why/Problem: default client (`utils/providers/ReactQueryProviders.tsx:10`) staleTime 0, retry 3, refetch on focus: every mount refetches, 401/5xx storms retry thrice, no global error/offline handling.
+  - Do: staleTime ~15 s, retry 1 (never on 4xx), refetchOnWindowFocus tuned, global `onError` for 401 -> signin and offline banner.
+  - Done when: defaults documented and tested; 401 redirects once.
+  - Status: todo · Verified-in-code: yes · Source: web.md#3 item 13, ideas-dx-ai.md#4 item 7
+- [ ] `WEB-031` **Subscribe workload lists to the existing stream procedures and invalidate caches** · ENHANCE · P1 · M · Deps: `IDEA-003` · See also: `OBS-069`
+  - Why/Problem: `deployment.streamQuery`, `service.streams.query`, `project.streamQuery` are defined and consumed by nothing; projects, services, deployments, command center and node detail are not live.
+  - Do: hooks that subscribe and `invalidateQueries`, with reconnect/backoff; apply to project/service/deployment lists, overview, node detail.
+  - Done when: a deployment started elsewhere appears without refresh.
+  - Status: todo · Verified-in-code: yes · Source: web.md#4 item 7, journeys.md#J4 W4.13, ideas-dx-ai.md#4 item 7
+  - Effect-impact (2026-10-26): web is unaffected by the Effect rewrite (contracts and generated hooks unchanged); stream transport stays oRPC `eventIterator` regardless of the RxJS vs Effect `Stream` ruling (D5). Deps: `EFF-022`.
+- [ ] `WEB-032` **Stream deployment logs/status instead of 4 s polling and 500-line window** · ENHANCE · P1 · M · Deps: `IDEA-003`,`WEB-031` · See also: `OBS-062`,`DEPLOY-088`
+  - Why/Problem: `deployment-logs-viewer.tsx:37-41` polls `getLogs` every 4 s while running and shows first 500 lines; `deployment.stream*` never used.
+  - Do: consume `deployment.stream` (`logAppended`/`statusChanged`), tail not head, page older lines, ANSI, pause/follow/copy/download retained.
+  - Done when: logs tail live with <2 s lag and long builds show the end.
+  - Status: todo · Verified-in-code: yes · Source: web.md#1/#4 item 2, journeys.md#J2 step 20/W2.4, ideas-deploy.md#4 item 4
+- [ ] `WEB-033` **Adopt BFF screen procedures and remove client-side joins over 100-item windows** · ENHANCE · P1 · M · Deps: none
+  - Why/Problem: command center joins 7 reads in the browser (`dashboard-client.tsx:35-41`); `domains/bff/hooks.ts` (dashboardOverview etc.) has no non-test importer; project overview fetches up to 100 services of all projects and filters in the browser (`[projectId]/page.tsx:36,42`) - breaks past 100 services.
+  - Do: use `bff.dashboardOverview` on `/dashboard`, `serviceDetail`/project-detail aggregates on project pages, query by `projectId` server-side; delete dead hooks otherwise.
+  - Done when: no page filters a global list client-side for correctness; `domains/bff` has real importers.
+  - Status: todo · Verified-in-code: yes · Source: web.md#1 (/dashboard, projects/[id]), #4 item 8/12, ideas-deploy.md#4 item 24
+- [ ] `WEB-034` **Server-side pagination, filters and sorting on projects/services/deployments/containers** · ENHANCE · P1 · L · Deps: `WEB-033`
+  - Why/Problem: hard `limit: 100` (300/500 for containers) with client-side joins; no pagination UI on any workload list (`projects/page.tsx`, `/dashboard/services`, `/dashboard/deployments`).
+  - Do: pagination/virtualisation, server filters by project/status/environment/actor, bulk actions; remove "Not in the latest deployments" workarounds.
+  - Done when: lists work with >1000 rows without truncation.
+  - Status: todo · Verified-in-code: yes · Source: web.md#3 item 11/#4 item 8, ideas-deploy.md#4 item 23
+- [ ] `WEB-035` **Unified table primitive (sort, column chooser, saved filters, bulk actions, CSV, pagination)** · ENHANCE · P2 · L · Deps: `WEB-034`
+  - Why/Problem: each list page re-implements search/sort; competitors have saved filters/column settings (Dockhand DataGrid).
+  - Do: shared `@repo/ui` DataTable on TanStack Table with URL-synced filters, column visibility persisted, bulk redeploy/delete, CSV export, card-collapse on mobile.
+  - Done when: projects/services/deployments/containers/nodes use it.
+  - Status: todo · Verified-in-code: unverified · Source: web.md#5, ideas-dx-ai.md#4 item 9, bench-dokploy-dockhand.md#2 (command palette, saved filters)
+- [ ] `WEB-036` **Put tab/section state in the URL (node detail tabs, service config sections)** · ENHANCE · P3 · S · Deps: none
+  - Why/Problem: node detail tab state is `useState` (`nodes/[nodeId]/page.tsx:27`); no deep links/back button.
+  - Do: `searchParams` via declarative routing for tabs/sections; run `dr:build`.
+  - Done when: tabs are linkable and survive reload.
+  - Status: todo · Verified-in-code: yes · Source: web.md#1/#5, ideas-dx-ai.md#4 item 10
+- [ ] `WEB-037` **Move the deployment logs/other pages off bare Skeletons to shared state components** · ENHANCE · P3 · S · Deps: none
+  - Why/Problem: old pages use bare Skeletons rather than shared loading/error/empty states; route coverage 5 loading / 4 error / 1 not-found over 70 pages (parity.md).
+  - Do: add `loading.tsx`/`error.tsx`/`not-found.tsx` per major route group and use shared state components.
+  - Done when: every dashboard route group has loading/error boundaries.
+  - Status: todo · Verified-in-code: partial · Source: web.md#1, parity.md#2.2
+- [ ] `WEB-038` **Per-page freshness indicator ("updated 12 s ago") and SSE reconnect state** · ENHANCE · P2 · S · Deps: `WEB-031`
+  - Why/Problem: one global chip is the only liveness signal; no reconnect indication on streams.
+  - Do: shared `<Freshness>` component with auto-refresh toggle; reconnect banner ("reconnecting... last line 12:04:11") on stream views.
+  - Done when: each live page shows freshness and stream state.
+  - Status: todo · Verified-in-code: unverified · Source: web.md#5, journeys.md#J4 UX details, ideas-dx-ai.md#4 item 7
+- [ ] `WEB-039` **Move Leaflet CSS out of the root layout** · ENHANCE · P3 · S · Deps: none
+  - Why/Problem: 4 Leaflet CSS files imported globally (`app/layout.tsx:3-6`), shipped on login/landing.
+  - Do: import only in the topology/map components.
+  - Done when: landing/login bundles no longer include Leaflet CSS.
+  - Status: todo · Verified-in-code: unverified · Source: web.md#3 item 14
+
+### Deployment, release and environment UI
+- [ ] `WEB-040` **Deployment detail as a stage timeline with diff vs previous** · ENHANCE · P1 · L · Deps: `IDEA-002`,`WEB-032` · See also: `DEPLOY-114`
+  - Why/Problem: flat log text; no stages, durations or diff. Compiled plan/lifecycle events/provenance schemas exist (`plan.schema.ts`, `lifecycle-events.ts`) but the producer does not (DEPLOY).
+  - Do: stages (clone, build, push, deploy, health gate, route flip) with durations and collapsible logs; diff vs previous (commit, image digest, env keys by name/hash only, plan hash, scan delta); failure banner "Deploy failed at build: <first error>. Still serving v41 (abc122)" with View log / Retry; header chip "Deploying abc123 (by push, @octocat)"; `aria-live` status updates.
+  - Done when: a deployment shows stage durations and what changed since the last good deploy.
+  - Status: todo · Verified-in-code: no · Source: web.md#5, ideas-dx-ai.md#4 item 8/#1 idea 9, ideas-deploy.md#4 items 3,9, journeys.md#J2 UX
+- [ ] `WEB-041` **Dry-run "Plan" panel before Deploy (builder choice, config diff, gates, cascade, route changes)** · NEW · P2 · L · Deps: `IDEA-002`,`WEB-009`
+  - Why/Problem: ideas-deploy idea 2/4 - show exactly what will happen before clicking; also detect-and-explain builder ("detected Node: use Railpack? [apply]") instead of advertising auto-detect while running an alpine template.
+  - Do: plan panel in deploy dialog and service header; risk-tagged diff (breaking vs safe); apply sends `planHash` and refuses when stale.
+  - Done when: Deploy shows plan/diff and apply is bound to the shown plan.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy.md#1 idea 2/#4 items 1-2
+- [ ] `WEB-042` **"Redeploy needed" badge** · NEW · P1 · S · Deps: `IDEA-002` · See also: `DEPLOY-083`,`PROJ-030`
+  - Why/Problem: env/port/health/domain edits give no signal that the running deployment is stale (Coolify `ConfigurationChecker` pattern).
+  - Do: compare resolved config hash with the in-force manifest; banner/badge on service header and env page.
+  - Done when: editing an env var shows the badge until redeploy.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy.md#4 item 7, bench-coolify.md#4 item 3, journeys.md#J2 W2.11
+- [ ] `WEB-043` **Queue visibility and control in the UI** · NEW · P2 · M · Deps: `WEB-009` · See also: `DEPLOY-115`
+  - Why/Problem: no queue position, running job or per-service lock shown; cancel semantics unclear; "retry from failed phase" absent.
+  - Do: queue/awaiting position chip, what cancel aborts (confirm text), retry from failed phase using stored plan; global deployments indicator and live deployment slide-in (Coolify `ActivityMonitor`/`DeploymentsIndicator`).
+  - Done when: operators can see queue state and cancel confirms what is aborted.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy.md#4 item 5, bench-coolify.md#4 item 4
+- [ ] `WEB-044` **Pipeline "stuck" diagnostics panel (route 502 after success)** · NEW · P2 · S · Deps: none
+  - Why/Problem: deploy succeeds but route 502s (docker runner on bridge) - most common PaaS support question.
+  - Do: show `routeVerification` result and the three likely causes on the deployment page.
+  - Done when: a 502 after success shows a diagnosis.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy.md#4 item 12
+- [ ] `WEB-045` **Approvals inbox, awaiting-approval banner and approve/reject card** · NEW · P2 · M · Deps: `IDEA-001`,`WEB-076`
+  - Why/Problem: `requireApprovalForProduction` is saved but unenforced; no `awaiting_approval` UI.
+  - Do: service header banner, approvals inbox, card "Deploy abc123 to production requested by @dev 2 min ago - commit range, env changes [Approve] [Reject]" with comment/expiry; requester view "Waiting for approval (expires in 23 h)"; no self-approval hint.
+  - Done when: a gated deploy shows the card and approving proceeds.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#J6 W6.7/UX details, ideas-deploy.md#1 idea 3
+- [ ] `WEB-046` **Promotion UI (promote digest staging -> production with gate results)** · NEW · P3 · M · Deps: `IDEA-002`
+  - Why/Problem: `environment_promotions` table unused; no promotion UI.
+  - Do: promote action on environments/deployments showing gate results (scan, approval, window, soak) and approver.
+  - Done when: promotion moves the same digest with visible gate results.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy.md#4 item 21/#1 idea 3
+- [ ] `WEB-047` **Scan gate and CVE status visible on deploy card and rollback targets; CVE blast-radius view** · NEW · P2 · M · Deps: `IDEA-002`
+  - Why/Problem: scanner is real but not shown in the deploy flow ("scan: 2 high, policy: block critical, waived until 11-30").
+  - Do: chips on deploy card/rollback picker; page "which running deployments are exposed to CVE-X" with remediate-through-pipeline action.
+  - Done when: scan state is visible on deployments and rollback targets.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy.md#4 item 29/#1 idea 16, bench-dokploy-dockhand.md#3 item 7
+- [ ] `WEB-048` **Preview environments list per project (TTL, PR link, extend/destroy, resource chip)** · ENHANCE · P2 · M · Deps: none
+  - Why/Problem: previews page exists but has no TTL/owner/extend/destroy; deployment list should group previews; "Preview removed" on PR close.
+  - Do: per-project preview list with TTL countdown, PR link, extend/destroy, grouped in deployments list.
+  - Done when: previews can be managed from one page.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy.md#4 item 22, journeys.md#J2 UX
+- [ ] `WEB-049` **Dependency editor UI (add/remove edges, required/optional, waves, failure-isolation, cascade preview)** · NEW · P2 · M · Deps: none · See also: `PROJ-090`
+  - Why/Problem: dependency graph is read-only; add/remove hooks exist unused; cascade-deploy plan not shown.
+  - Do: edge editor with cycle feedback, DAG with waves, isolation policy, dry-run cascade.
+  - Done when: dependencies are editable in UI.
+  - Status: todo · Verified-in-code: yes · Source: ideas-deploy.md#4 item 15, parity.md#1.2
+- [ ] `WEB-050` **Teardown preview on delete ("Deleting this service will remove: N containers, M routes, DNS X, previews, volumes [keep|delete]")** · ENHANCE · P2 · S · Deps: none · See also: `PROJ-100`
+  - Why/Problem: deletes have no impact preview or typed confirmation.
+  - Do: impact summary + typed confirmation (Danger tab pattern) for project/service/environment/node delete.
+  - Done when: destructive deletes show an impact list.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy.md#4 item 18, bench-coolify.md#4 item 6
+- [ ] `WEB-051` **Service page header: status, last deploy, URLs, replica health, env switcher** · ENHANCE · P1 · M · Deps: `WEB-003`,`WEB-009`
+  - Why/Problem: no environment-switcher context although environments are first class; header shows only active toggle.
+  - Do: header with honest status, last deploy (who/when/commit), public URLs, replica health, split action button, environment switcher context shared by tabs.
+  - Done when: all service tabs respect the selected environment.
+  - Status: todo · Verified-in-code: yes · Source: web.md#5, ideas-dx-ai.md#4 item 4, journeys.md#J4 ideal state
+- [ ] `WEB-052` **Failure explainer "What's wrong" card on the service page** · NEW · P2 · M · Deps: `IDEA-002` · See also: `OBS-033`
+  - Why/Problem: no failure reason model surfaced; user must read logs. Backend persists `failureKind`, exit code, OOM flag (OBS/DEPLOY).
+  - Do: card "Crash loop: exit code 137 (out of memory, limit 256 MB) [Raise limit] [View logs] [Rollback]" with quoted last output.
+  - Done when: crashing service shows cause and actions.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#J4 W4.5/UX details
+
+### Env vars and secrets UI
+- [ ] `WEB-053` **Env editor upgrade: `.env` paste/import/export, secret type, per-env values, reveal-all, search, history, copy between envs** · ENHANCE · P1 · L · Deps: `WEB-002` · See also: `PROJ-028`
+  - Why/Problem: plain key/value; values masked by `type=password` only but returned in clear; no `.env`, no secret type, no per-env values (prefix convention), no diff/versioning (`configuration/environment/page.tsx`). Backend encryption/masking is PROJ/SEC.
+  - Do: bulk paste/import/export, secret (write-only, show-once, masked on read), build vs runtime flag, per-environment layers with diff, "used by" and drift warnings across envs, copy between envs, comments, references `${{db.URL}}`, "last changed by X 3 min ago", shared-variable hierarchy view.
+  - Done when: a secret value never reaches the browser after save and `.env` round-trips.
+  - Status: todo · Verified-in-code: yes · Source: web.md#1/#4 item 6/#5, journeys.md#J2 W2.11, ideas-dx-ai.md#4 item 2, bench-coolify.md#4 item 11, ideas-deploy.md#4 item 19
+- [ ] `WEB-054` **Secrets management page and `authSecretRef` picker** · NEW · P1 · M · Deps: `WEB-076` · See also: `PROJ-023`
+  - Why/Problem: `authSecretRef` is hardcoded `'default'` in `CreateService.defaults.ts:19`; no secret picker, no project/environment-scoped secret store page, no rotation.
+  - Do: Secrets page (project/environment scope, rotation, referenced-by), picker in wizard/provider config; reference-only in manifests.
+  - Done when: services select secrets by reference and never see plaintext.
+  - Status: todo · Verified-in-code: yes · Source: web.md#1/#6 item 2, ideas-deploy.md#4 item 19
+- [ ] `WEB-055` **Scope variable templates to a project in the UI** · ENHANCE · P3 · S · Deps: none
+  - Why/Problem: templates are global; any admin edits any template.
+  - Do: project-scoped template list/editor (backend PROJ).
+  - Done when: templates are listed per project.
+  - Status: todo · Verified-in-code: unverified · Source: ideas-deploy.md#4 item 20
+
+### Domains, network and certificates UI
+- [ ] `WEB-056` **Unify domain add/verify UX: show returned verification instructions, Verify button, record stepper** · FIX · P1 · M · Deps: none · See also: `NET-019`
+  - Why/Problem: project domains page discards `verificationInstructions` after add (`projects/[projectId]/domains/page.tsx:35-41`), row has no Verify (`ProjectDomainRow.tsx`); two pages show different things (`/network/domains` shows correct TXT).
+  - Do: shared stepper component with record table (type/name/value/status/"we saw"), copy buttons, auto-poll with backoff, Cloudflare-proxy hint, verified-without-click; "Create records for me" when a DNS provider is connected; same component on both pages.
+  - Done when: add on either page shows identical instructions and verification completes automatically.
+  - Status: todo · Verified-in-code: yes · Source: journeys.md#J3 steps 1-2/quick win 2/UX details
+- [ ] `WEB-057` **Cross-project domain and certificate inventory page (TLS expiry, redirects, www<->apex)** · NEW · P1 · M · Deps: `WEB-056` · See also: `NET-021`
+  - Why/Problem: `/dashboard/network/domains` is per-project only (must pick a project first, `domains/page.tsx:41`); no TLS expiry view, no wildcard status, no redirect toggles; no cert status UI.
+  - Do: inventory with verification, DNS, cert status/expiry/last error, bound service; redirect toggles; ACME-email-required block when enabling public TLS; ACME error-to-cause mapping (CAA, rate limit, port 80); removal flow stating which records remain; empty state "Your app is at ...".
+  - Done when: every domain and its cert state is listed in one place.
+  - Status: todo · Verified-in-code: yes · Source: web.md#1/#6 item 9, journeys.md#J3 W3.9/W3.11/UX details, parity.md#3 item 15
+- [ ] `WEB-058` **Per-route edge toggles UI: www redirect, basic auth, gzip, strip-prefix, IP allowlist, mesh-only/public** · NEW · P3 · M · Deps: none
+  - Why/Problem: project settings inert; Coolify/Dokploy expose these; Traefik middleware library exists backend-side.
+  - Do: per-service toggles backed by the middleware library (NET/DEPLOY area).
+  - Done when: toggles change routing.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#3/#2 item 21, bench-dokploy-dockhand.md#1, bench-market.md#1.G
+- [ ] `WEB-059` **Traefik effective-config viewer/editor and access-log "Requests" page** · NEW · P3 · M · Deps: none
+  - Why/Problem: `network/ingress` has no router/service/middleware viewer; Dokploy has file editor and requests page; v1 had a Traefik admin UI.
+  - Do: read-only effective config viewer, validated editor later, requests analytics (status distribution, table) from the access log (NET/OBS provide data).
+  - Done when: operators can inspect effective routing and recent requests.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#1/#3 item 20, parity.md#1.4
+- [ ] `WEB-060` **Network DNS page: records editor and per-provider health** · ENHANCE · P3 · M · Deps: none
+  - Why/Problem: `/dashboard/network/dns` is read-only, derived from ingress state, no hook of its own; edge provider health not shown.
+  - Do: dedicated hooks; provider health/status; create/delete records for admins (after NET authz).
+  - Done when: DNS state and provider health are visible with actions.
+  - Status: todo · Verified-in-code: yes · Source: web.md#1, bench-dokploy-dockhand.md#4 (mesh/network UI)
+- [ ] `WEB-061` **Registry credentials UI and real Docker Hub/Route53/Google DNS pages (replace "unavailable" placeholders when backends land)** · NEW · P2 · M · Deps: none
+  - Why/Problem: `admin/providers/code/docker-hub`, `dns/route53`, `dns/google-dns` are `UnavailableIntegration` placeholders; registries contract is list-only; "no place to store credentials".
+  - Do: registry manager (credentials, push after build, pull secrets) and real provider pages once backend stores credentials; until then hide from nav or mark clearly.
+  - Done when: credentials can be saved and used or the entries are removed.
+  - Status: todo · Verified-in-code: yes · Source: web.md#1/#6 item 10, parity.md#3 item 6, bench-dokploy-dockhand.md#3 item 12
+
+### Nodes, cluster and fleet UI
+- [ ] `WEB-062` **Node-aware Docker pages (node selector acts, not just warns)** · ENHANCE · P1 · M · Deps: none
+  - Why/Problem: Docker contracts take no node id; pages show only the API-hosting node and warn when the header picker differs (`docker-node-context.tsx:12-16,50-54`); replicas on other nodes read as "no containers"; remote container actions not routed.
+  - Do: once CLUSTER adds `nodeId`, thread the selected node through logs/inspect/exec/actions/images/networks/volumes; "Logs unavailable: node n2 is unreachable" states.
+  - Done when: logs/exec for a replica on node 2 work from node 1's UI.
+  - Status: todo · Verified-in-code: yes · Source: web.md#1/#3 item 12/#4 item 10, journeys.md#J4 W4.3
+- [ ] `WEB-063` **Per-node drill pages (Services, Tasks, Images, Networks, Volumes, Logs, Shell)** · NEW · P2 · L · Deps: `WEB-062`
+  - Why/Problem: `/nodes/[nodeId]` has 4 tabs only; fleet-centric plan promised per-node Services/Tasks/Images/Networks/Volumes/Logs/Shell; docs claim done.
+  - Do: add per-node tabs reusing docker page components; tab state in URL.
+  - Done when: each node has resource pages.
+  - Status: todo · Verified-in-code: yes · Source: web.md#1/#4 item 12/#6 item 13, ideas-dx-ai.md#4 item 13
+- [ ] `WEB-064` **"Add node" dialog (grant, one-liner, QR, live stages)** · NEW · P1 · M · Deps: `IDEA-001` · See also: `CLUSTER-019`
+  - Why/Problem: no Add node UI; `mesh.issueJoinGrant` exists, web never calls it; Network -> Mesh only explains the wizard on the new machine (`mesh/page.tsx:116-127`).
+  - Do: admin-only dialog: role + labels, single-use 15-min grant with countdown/regenerate/revoke, copyable one-liner + QR, live stages (mesh admitted -> swarm joined -> ready) from mesh SSE + `cluster.streamNodes`, "nothing happened in 2 min" causes (UDP 51820, clock skew, Docker < 24), one-node empty state "Add a second node..."; validate-and-install progress style (bench).
+  - Done when: a worker can be added from the UI in <= 3 min after running the one-liner.
+  - Status: todo · Verified-in-code: yes · Source: web.md#6 item 13, journeys.md#J5 W5.3/UX details, bench-coolify.md#4 item 9, bench-dokploy-dockhand.md#3 item 21
+- [ ] `WEB-065` **Node drain / cordon / activate / promote / demote / remove UI with quorum-aware confirmation** · NEW · P1 · L · Deps: `WEB-004` · See also: `CLUSTER-016`,`CLUSTER-020`
+  - Why/Problem: nodes page says "Removing them needs an API that does not exist yet" (`nodes/page.tsx:131-135`); no deregistration UI. Backend procedures are CLUSTER.
+  - Do: confirmation quantifying impact ("7 tasks will move; managers 3->2; quorum 2/3 stays; `db-data` lives only on this node"), block with reason when quorum breaks, drain progress (tasks per node, "Safe to remove"), typed node name for Remove, Re-activate undo, "Cannot remove: node still hosts 2 tasks - drain first".
+  - Done when: drain/remove are doable in UI and refuse to break quorum.
+  - Status: todo · Verified-in-code: yes · Source: web.md#1/#6 item 13, journeys.md#J5 W5.5-W5.7/UX details, bench-market.md#1.C
+- [ ] `WEB-066` **Replace-node wizard (add -> wait -> drain old -> remove old checklist)** · NEW · P3 · M · Deps: `WEB-064`,`WEB-065` · See also: `CLUSTER-021`
+  - Why/Problem: J5 requires a replace flow copying labels/region.
+  - Do: step checklist with per-step status; old node kept until new is ready.
+  - Done when: replace completes as a guided checklist.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#J5 W5.10
+- [ ] `WEB-067` **Truthful node health in UI (Down/Drained/Active from engine, real CPU/memory)** · FIX · P2 · S · Deps: none
+  - Why/Problem: backend forces `active`; node capacity/metrics are mislabelled link metrics; UI shows them.
+  - Do: render engine state/availability; hide mislabelled metrics until fixed; Down within 60 s.
+  - Done when: a stopped node shows Down.
+  - Status: todo · Verified-in-code: unverified · Source: journeys.md#J5 W5.9, ideas-deploy.md#1 idea 11
+- [ ] `WEB-068` **Node security audit page and node policy panel (disk warning, timezone, update/prune schedules, labels)** · NEW · P3 · M · Deps: none
+  - Why/Problem: Dokploy server-audit (ufw/ssh/fail2ban) and Dockhand environment policies have no counterpart.
+  - Do: per-node checks panel and policy settings (data from CLUSTER/OBS).
+  - Done when: node policies are editable and audit results visible.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#3 item 21/#2, bench-coolify.md#2 item 24
+
+### Docker engine UI completeness
+- [ ] `WEB-069` **Complete Docker pages: volume browse/create/clone/export, network create/connect/disconnect/prune, image pull/tag/push/prune, container create/batch ops** · ENHANCE · P3 · L · Deps: `WEB-062`
+  - Why/Problem: volumes/networks pages are list-only; no push/prune; bench claims image pull UI fake and container create toasts only [unverified; web.md says pull/remove are real]; Dockhand parity.
+  - Do: implement actions with role gates; batch start/stop/restart/remove; rename/pause surfaced; disk-usage panel with prune (Dokploy `clean*`).
+  - Done when: listed actions work against the engine.
+  - Status: todo · Verified-in-code: unverified · Source: bench-dokploy-dockhand.md#2/#3 item 10, parity.md#1.5
+- [ ] `WEB-070` **Container file browser: binary-safe upload/download, chmod, editor; volume mode** · ENHANCE · P3 · M · Deps: none
+  - Why/Problem: list/read/write/rename/delete/mkdir only; text only.
+  - Do: upload/download, chmod, CodeMirror editing, volume browsing via helper container.
+  - Done when: binary files can be transferred.
+  - Status: todo · Verified-in-code: unverified · Source: bench-dokploy-dockhand.md#2/#4
+- [ ] `WEB-071` **Terminal hardening in UI: session banner, shell detection, idle timeout, reconnect, session list** · ENHANCE · P2 · M · Deps: `WEB-017`
+  - Why/Problem: no audit/banner/idle timeout; shell not auto-detected; session list of connected users absent.
+  - Do: "This session is recorded" banner, shell/user auto-detect, idle timeout, reconnect, who-is-connected list, "Requires maintainer" copy.
+  - Done when: sessions are visibly audited and gated.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#J4 W4.8/UX details, bench-dokploy-dockhand.md#4, bench-coolify.md#3
+- [ ] `WEB-072` **Merged multi-container / project-level logs with saved favorites and groups** · NEW · P2 · M · Deps: `WEB-001`
+  - Why/Problem: single stream only; Dockhand merged logs/favorites; no unified log explorer.
+  - Do: project-level merged view, search across services/nodes/time range, favorites/groups, log drains settings page later (OBS backend).
+  - Done when: logs of multiple containers can be viewed interleaved.
+  - Status: todo · Verified-in-code: no · Source: web.md#6 item 5, bench-dokploy-dockhand.md#2/#3 item 23
+- [ ] `WEB-073` **Docker stacks, registries, swarm services/secrets/configs and events pages** · NEW · P3 · L · Deps: none
+  - Why/Problem: feature-status docs claim Stacks/Registry/Events pages WORKING; none exist (7 docker dirs only; contracts `stacks/list.ts`, `registries/list.ts` list-only; stack procedures deliberately removed).
+  - Do: decide per page (see DEC-WEB-9); compose stack editor with adoption of foreign stacks and service graph, swarm services/secrets/configs, events page saved filters/export (the activity page covers events).
+  - Done when: listed pages exist or claims are removed (DOC).
+  - Status: todo · Verified-in-code: yes · Source: parity.md#1.5/#2.1, bench-dokploy-dockhand.md#3 item 14, web.md#1
+- [ ] `WEB-074` **Swarm spec editor (typed form + YAML view) and swarm overview page** · NEW · P3 · M · Deps: none
+  - Why/Problem: Dokploy exposes swarm service tuning (health, restart, placement, update/rollback config, ulimits); ours not selectable.
+  - Do: typed advanced form + YAML tab per service; swarm overview.
+  - Done when: swarm settings are editable in UI.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#1 (swarm tuning/cluster)
+- [ ] `WEB-075` **Resource limits, restart policy and health-check config UI wired to honest backend** · ENHANCE · P2 · S · Deps: `WEB-014`
+  - Why/Problem: service health fields (`healthCheckPath/interval/timeout/retries`) and cpu/mem limits are stored but ignored; Coolify UI covers cpus, memory, swap, reservation, GPU, stop grace, max restarts.
+  - Do: add restart policy/max restarts, reservations, health config section with inline helper text; mark "not enforced" until wired.
+  - Done when: UI covers these fields and shows enforcement state.
+  - Status: todo · Verified-in-code: partial · Source: bench-coolify.md#2 item 13/#4 item 2
+
+### Observability, alerts and notification UI
+- [ ] `WEB-076` **Notification inbox (header bell) and notification settings as channel x event toggle grid with working "Send test"** · NEW · P1 · L · Deps: `IDEA-003` · See also: `OBS-025`
+  - Why/Problem: no inbox; notification settings (`slackWebhookUrl`, `emailRecipients`, `notifyOn*`) shown but nothing sends; identity `sendTestNotification` fabricates delivery (OBS fixes backend).
+  - Do: bell with unread, channels (webhook, Slack, Discord, Telegram, ntfy, email, web push) with Coolify's 14-event toggle matrix, test button showing real result, last-delivery status, mute with expiry.
+  - Done when: a configured channel receives an alert and the UI shows delivery status.
+  - Status: todo · Verified-in-code: partial · Source: web.md#6 item 6, journeys.md#J4 W4.10/UX, bench-coolify.md#4 item 8, parity.md#3 item 2
+- [ ] `WEB-077` **Alerts page: rules (CPU, restarts, health, deploy failed, cert expiring, node down) with last fired/muted** · NEW · P2 · L · Deps: `WEB-076`
+  - Why/Problem: no alert rules UI; Dockhand's alerts page is placeholder (opportunity).
+  - Do: rules list/editor, last fired, mute, per-service Alerts tab.
+  - Done when: rules can be created and show state.
+  - Status: todo · Verified-in-code: no · Source: web.md#6 item 6, journeys.md#J4 ideal state, bench-dokploy-dockhand.md#2
+- [ ] `WEB-078` **Metrics history charts (per service/node, 1 h / 24 h, limits drawn) and wire `useRealtimeMetrics`** · NEW · P2 · M · Deps: none · See also: `OBS-046`
+  - Why/Problem: monitoring page is a one-shot snapshot; `useRealtimeMetrics` (90-point client history, `domains/docker/hooks.ts:703`) used nowhere; analytics says "History is not recorded yet". Backend history is OBS.
+  - Do: Metrics tab with live + stored history, limits overlay, dataSource badge, metrics-history-days setting.
+  - Done when: reload preserves >= 15 min of history.
+  - Status: todo · Verified-in-code: yes · Source: web.md#6 item 6, journeys.md#J4 W4.6, bench-coolify.md#2 item 23
+- [ ] `WEB-079` **Platform audit log page + per-resource History tab** · NEW · P1 · M · Deps: `IDEA-001` · See also: `OBS-073`
+  - Why/Problem: no audit UI (who deployed, changed env, exec'd, changed roles); Dokploy/Dockhand paywall it.
+  - Do: `/dashboard/settings/audit` with filters, sentence rows ("Alice changed env var `DATABASE_URL` on `api` (production)") with expandable redacted diff (never values), export CSV/JSON, retention setting, live SSE; History tab per service/project.
+  - Done when: every mutation in the journey appears as a row without secret values.
+  - Status: todo · Verified-in-code: no · Source: web.md#6 item 1, journeys.md#J6 W6.8/UX, bench-dokploy-dockhand.md#2
+- [ ] `WEB-080` **Events/incident timeline per service and per project (activity tab)** · NEW · P2 · M · Deps: `IDEA-003`
+  - Why/Problem: `/dashboard/docker/activity` is node-local; no project-level activity; v1 had Activity, Jobs and Monitoring tabs.
+  - Do: service Events tab merging docker, deployment, health transitions, config changes with actor; project Activity/Monitoring tabs; incident timeline page grouping related events with post-mortem export.
+  - Done when: a failed deploy shows a correlated timeline.
+  - Status: todo · Verified-in-code: partial · Source: journeys.md#J4 W4.7, web.md#6 item 15, parity.md#1.5, ideas-dx-ai.md#1 idea 10
+- [ ] `WEB-081` **Jobs / queue / dead-letter UI** · NEW · P3 · M · Deps: none
+  - Why/Problem: queue/dead-letter/replay contracts exist; v1 had a project Jobs tab; no page.
+  - Do: jobs page with dead-letter list and replay.
+  - Done when: operators can inspect and replay failed jobs.
+  - Status: todo · Verified-in-code: yes · Source: parity.md#1.5
+- [ ] `WEB-082` **Public/private status page and per-service uptime view** · NEW · P3 · L · Deps: none
+  - Why/Problem: no end-user status page or synthetic checks UI; must not depend on the platform it reports on.
+  - Do: status page per project from health registry, incident notes, cert/domain expiry; node-local static snapshot.
+  - Done when: a status page renders from probe data.
+  - Status: todo · Verified-in-code: no · Source: web.md#6 item 15, ideas-dx-ai.md#1 idea 15, bench-market.md#3 item 30
+- [ ] `WEB-083` **Live topology map unifying fleet map and service dependency graph** · NEW · P3 · M · Deps: none
+  - Why/Problem: fleet topology and `ServiceDependencyGraphPanel.tsx` are separate and not live.
+  - Do: unified graph with health/traffic overlay and honest "unknown" edges.
+  - Done when: one view shows services, nodes, networks with health.
+  - Status: todo · Verified-in-code: partial · Source: ideas-dx-ai.md#1 idea 13
+- [ ] `WEB-084` **Per-service analytics hooks for deploy usage reports (honest "history not recorded" states)** · ENHANCE · P3 · S · Deps: `WEB-014`
+  - Why/Problem: analytics is shallow; keep honest states and add dataSource badge pattern everywhere.
+  - Do: apply the `resource-snapshot-card.tsx` pattern to all metric cards.
+  - Done when: each metric states its data source and window.
+  - Status: todo · Verified-in-code: partial · Source: web.md#1 (analytics), ideas-dx-ai.md#4 item 12
+
+### Missing platform pages
+- [ ] `WEB-085` **Webhooks and CI/CD page (deploy webhook URL + secret, push/PR trigger status, auto-deploy rules, deploy tokens)** · NEW · P1 · M · Deps: `IDEA-001` · See also: `FEAT-081`
+  - Why/Problem: no page or hook; per-service deploy hook URL, GitHub/GitLab webhook status ("Webhook: connected / not reachable - fix"), GitHub deployment rules (service exists, no contract/UI), project-scoped deploy tokens (account API keys exist only at user level).
+  - Do: Webhooks tab per service, rules CRUD (branch/glob, skip keywords, watch paths), tokenised deploy hook with rotate, deploy tokens/scoped keys with expiry/IP allowlist (Coolify abilities).
+  - Done when: a user can set up push-to-deploy and a CI deploy hook from the UI.
+  - Status: todo · Verified-in-code: yes · Source: web.md#6 item 3, journeys.md#J2 UX, parity.md#3 item 8, bench-coolify.md#2 item 6
+- [ ] `WEB-086` **Templates / one-click apps page and clone project / duplicate service / move across environments** · NEW · P1 · L · Deps: none · See also: `FEAT-001`,`PROJ-126`
+  - Why/Problem: `template` contract mounted with 16 procs but no implementation or UI; clone/move absent (Coolify `ResourceOperations`).
+  - Do: catalogue browse/search/deploy with variable generation and preview, validate/resolve flows; clone/move with volume cloning option; "Danger" tab.
+  - Done when: a template can be deployed from the UI.
+  - Status: todo · Verified-in-code: yes · Source: web.md#6 item 4, parity.md#3 item 3, bench-coolify.md#4 item 7
+- [ ] `WEB-087` **Backups UI (schedules, retention, executions, backup now, restore) and managed databases as first-class** · NEW · P2 · L · Deps: none · See also: `FEAT-015`
+  - Why/Problem: no backup feature in v3; v1 had create/list/restore/delete/download; Coolify UI is the pattern (schedule, 3-dimension retention, executions with size/status).
+  - Do: backups pages for DB/volume/platform state with S3 destinations, restore drill; database service kind with public-port toggle.
+  - Done when: a scheduled backup and restore can be run from the UI.
+  - Status: todo · Verified-in-code: yes · Source: web.md#6 item 7, parity.md#3 items 3-4, bench-coolify.md#4 item 10, bench-dokploy-dockhand.md#1
+- [ ] `WEB-088` **Cron jobs / one-off tasks / release commands UI with execution history** · NEW · P2 · M · Deps: none · See also: `FEAT-032`
+  - Why/Problem: no scheduled tasks page; Dockhand schedules monitor with execution history + cronstrue is the pattern.
+  - Do: per-service Scheduled Tasks tab (cron + timezone, timeout, executions and output), pre-deploy/release command field, one-off run.
+  - Done when: a cron task runs and its history is visible.
+  - Status: todo · Verified-in-code: no · Source: web.md#6 item 8, bench-dokploy-dockhand.md#2, bench-coolify.md#2 item 12
+- [ ] `WEB-089` **Quotas, usage and billing views (only if multi-tenant) and org/team workspace UI** · NEW · P3 · L · Deps: none
+  - Why/Problem: per-project quotas inert; analytics exposes `generateReport/listReports` unused; orgs/invites/SSO were removed and docs still promise them.
+  - Do: per-project resource quota and usage report pages; org/team/transfer/SSO provider UI - gated by DEC-WEB-6.
+  - Done when: decision recorded; pages built or promise removed.
+  - Status: todo · Verified-in-code: yes · Source: web.md#6 items 11-12, parity.md#3 item 12
+- [ ] `WEB-090` **Maintenance / system page (version, update check, platform backup/restore, component health, support bundle)** · NEW · P2 · M · Deps: none · See also: `FEAT-131`
+  - Why/Problem: no platform self-upgrade or maintenance UI; Coolify lacks rollback of self-upgrade (opportunity); Dockhand has self-update dialog and changelog.
+  - Do: version/update channel, update with automatic rollback state, control-plane DB backup/restore, health of every internal component, support bundle download, changelog.
+  - Done when: operator can see and update platform version from UI.
+  - Status: todo · Verified-in-code: no · Source: web.md#6 item 14, bench-coolify.md#2 item 16, bench-dokploy-dockhand.md#2
+- [ ] `WEB-091` **Log retention/cleanup and docker disk-usage settings UI** · NEW · P3 · S · Deps: none
+  - Why/Problem: retention settings inert; no cleanup/prune policy UI, no cleanup execution history.
+  - Do: threshold-based cleanup settings with executions list; image retention/prune; build cache controls.
+  - Done when: policies editable with execution history.
+  - Status: todo · Verified-in-code: no · Source: web.md#6 item 10, parity.md#3 item 7, bench-coolify.md#1 (cleanup)
+- [ ] `WEB-092` **Patches, config sets and watch-path fields in service config** · NEW · P3 · S · Deps: none
+  - Why/Problem: Dokploy patches (file overlays), Dockhand config sets (reusable env/label bundles), Railway/Render watch paths have no UI.
+  - Do: service config sections once backend supports them.
+  - Done when: fields available and honest.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#1/#2, bench-market.md#1.A
+- [ ] `WEB-093` **Scheduled/auto-update UI (scan-gated container/service updates, pending updates list)** · NEW · P3 · M · Deps: none
+  - Why/Problem: Dockhand auto-update with vulnerability gate; no pending-updates UI.
+  - Do: pending updates list with severity gate setting and schedule.
+  - Done when: updates can be reviewed and gated.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#2 / #3 item 7
+
+### Navigation, search and cross-page UX patterns
+- [ ] `WEB-094` **Command palette that acts (deploy X, create project, open logs of Y, roll back, connect node) plus global entity search** · ENHANCE · P2 · M · Deps: none · See also: `FEAT-135`
+  - Why/Problem: Cmd-K is navigation only (`components/dashboard/navigation.ts` feeds sidebar and palette); competitors have global search/palette.
+  - Do: action registry with risk/confirm, server `search.query` across projects/services/domains/nodes, recent items, parameter prompts, chords.
+  - Done when: "deploy api" runs through a confirmation.
+  - Status: todo · Verified-in-code: yes · Source: web.md#5, ideas-dx-ai.md#1 idea 23/#4 item 10, bench-coolify.md#4 item 5, bench-dokploy-dockhand.md#3 item 23
+- [ ] `WEB-095` **Remove banned top KPI "StatStrip" cards and unify the two visual dialects** · ENHANCE · P3 · M · Deps: none
+  - Why/Problem: nodes, network, projects overview use top KPI strips though `apps/web/AGENTS.md` bans the pattern; glass cards (`bg-card/40 backdrop-blur-xl`) vs flat cards; heading `font-display` inconsistent between old and new pages.
+  - Do: pick one card dialect (DEC-WEB-7), migrate old project/service pages, drop StatStrips.
+  - Done when: no banned patterns and one dialect.
+  - Status: todo · Verified-in-code: unverified · Source: web.md#5, ideas-dx-ai.md#4 item 18
+- [ ] `WEB-096` **Saved filters, favorites and column settings persisted per user** · ENHANCE · P3 · S · Deps: `WEB-035`
+  - Why/Problem: Dockhand persists prefs in localStorage; ours none.
+  - Do: persisted view state via the table primitive with try/catch storage.
+  - Done when: filters survive reload.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#2, bench-coolify.md#4
+- [ ] `WEB-097` **Configuration sidebar per resource with instant save and inline helper text; Danger tab with typed confirmation** · ENHANCE · P3 · M · Deps: `WEB-050`
+  - Why/Problem: Coolify per-resource sidebar (General, Advanced, Environment, Storage, Healthchecks, Limits, Webhooks, Preview, Rollback, Scheduled tasks, Danger); ours already has `ServiceConfigSubNav` but lacks several sections.
+  - Do: extend subnav with Healthchecks, Limits, Webhooks, Rollback, Tasks, Danger; config import/export (`UploadConfig` pattern).
+  - Done when: sections present and honest.
+  - Status: todo · Verified-in-code: partial · Source: bench-coolify.md#4 items 2,6,11
+- [ ] `WEB-098` **Dashboard widgets: draggable tiles, CPU/mem history, disk usage, top containers, offline state** · ENHANCE · P3 · M · Deps: `WEB-078`
+  - Why/Problem: Dockhand dashboard; ours partial with no history.
+  - Do: customizable tiles on the command center.
+  - Done when: tiles configurable.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#2
+
+### PWA, mobile and offline
+- [ ] `WEB-099` **Make the PWA real: build/register service worker via serwist, push + notificationclick handlers, runtime caching, correct manifest** · FIX · P1 · M · Deps: none · See also: `OBS-007`
+  - Why/Problem: `app/sw.ts` exists but is not built/served/registered (no `sw.js`, no route handler, no `next.config` integration; `serwist` only a dependency); `/~offline` unreachable; push subscribe throws "Service worker not registered" (`PushNotificationSettings.tsx:121-126`); `sw.ts` has no push handler; manifest says "Next.js NestJS Turborepo Template"/"NestJS App", `orientation: portrait-primary`. Push delivery backend is OBS.
+  - Do: integrate serwist (`@serwist/turbopack`), `register()`, push + notificationclick (action buttons), runtime caching, correct name/icons/orientation/theme-color; or delete `sw.ts`, `~offline`, manifest per DEC-WEB-1.
+  - Done when: SW registers, offline page serves, push subscribe succeeds, manifest names the product.
+  - Status: todo · Verified-in-code: yes · Source: web.md#3 bug 4/#4 item 9, ideas-dx-ai.md#4 item 6/#1 idea 17, journeys.md#J4 step 1
+  - Effect-impact (2026-10-26): end-to-end push needs the server side to work first: identity `PushService` lacks `@Injectable()` and `sendTestNotification` is still fabricated (`push.service.ts:1-4`, `push.controller.ts`); do not count push as ready for the PWA tests until OBS-006/008. Deps: `EFF-104`.
+- [ ] `WEB-100` **`/oncall` compact mobile route with push action buttons (approve/rollback/ack) and offline-readable incident view** · NEW · P3 · M · Deps: `WEB-099`,`WEB-076`
+  - Why/Problem: nobody offers mobile on-call; dashboard has offcanvas sidebar but no compact incident route.
+  - Do: active incidents, last deploys, rollback button with passkey approval, offline cache.
+  - Done when: a push can be answered with one-thumb rollback.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai.md#1 idea 17/#4 item 15
+- [ ] `WEB-101` **Mobile pass: card-collapse wide tables, touch-tuned log/terminal viewers** · ENHANCE · P3 · M · Deps: `WEB-035`
+  - Why/Problem: tables use `overflow-x-auto` only; deployments/containers not card-collapsed; only 117 of 452 tsx files use responsive prefixes; no mobile e2e.
+  - Do: responsive card layouts, touch scroll/keyboard handling in terminal/logs; mobile viewport tests.
+  - Done when: key pages usable at 375 px.
+  - Status: todo · Verified-in-code: unverified · Source: web.md#5, ideas-dx-ai.md#4 item 15
+
+### Shell, SEO, theming, i18n, accessibility
+- [ ] `WEB-102` **Fix robots.txt and sitemap for a private console** · FIX · P2 · S · Deps: none
+  - Why/Problem: `public/robots.txt` is `Allow: /` and `sitemap-0.xml` points at `http://localhost:3000`.
+  - Do: disallow all except the public landing, drop localhost sitemap (or generate from env).
+  - Done when: crawlers cannot index dashboard routes and sitemap has no localhost URLs.
+  - Status: todo · Verified-in-code: partial · Source: web.md#1 (/), #4 item 11
+- [ ] `WEB-103` **Per-scheme `theme-color` and dynamic `<html lang>`; i18n string extraction scaffold** · ENHANCE · P3 · M · Deps: none
+  - Why/Problem: `theme-color` static `#000000`; `<html lang="en">` hardcoded; English strings hardcoded; no i18n library.
+  - Do: theme-color per scheme; dynamic lang; next-intl scaffolding with extraction of key strings (if DEC-WEB-2 says yes).
+  - Done when: lang/theme-color follow state; strings extractable.
+  - Status: todo · Verified-in-code: yes · Source: web.md#1/#4 item 13/#5, parity.md#3 item 20
+- [ ] `WEB-104` **Accessibility pass on old pages and flows** · ENHANCE · P2 · M · Deps: none
+  - Why/Problem: project deployments page and service env page use `div`/button groups without labels; Dialog-driven delete flows not fully keyboard-operable; no `aria-live` on deployment status changes.
+  - Do: label controls, keyboard operable dialogs, `aria-live` for status, focus management; axe checks in tests.
+  - Done when: axe has no serious violations on listed pages.
+  - Status: todo · Verified-in-code: unverified · Source: web.md#5, ideas-dx-ai.md#4 item 16
+- [ ] `WEB-105` **Global error boundary, offline handling and not-found coverage** · ENHANCE · P2 · S · Deps: `WEB-030`
+  - Why/Problem: error boundary per section exists but no global error/offline handling; 1 not-found over 70 pages.
+  - Do: root `error.tsx`/`global-error.tsx`, offline banner (with WEB-099), route-group not-found pages, "no access" pages.
+  - Done when: errors never show a blank screen.
+  - Status: todo · Verified-in-code: partial · Source: web.md#3 item 13, parity.md#2.2
+- [ ] `WEB-106` **Replace SSR landing sitemap claims; verify landing links** · ENHANCE · P3 · S · Deps: `WEB-102`
+  - Why/Problem: landing is static marketing for a private console.
+  - Do: decide if landing stays public (DEC-WEB-8); otherwise redirect `/` to dashboard/signin.
+  - Done when: `/` behaviour matches decision.
+  - Status: todo · Verified-in-code: yes · Source: web.md#1 (/)
+
+### Code health and dead code
+- [ ] `WEB-107` **Delete dead and junk web artifacts** · FIX · P3 · S · Deps: none
+  - Why/Problem: `~offline` (unless PWA kept), duplicate `PostSetupHints` mount, `projects/_components/CREATION-ROADMAP.md`, junk in app root (`apps/web/animate-pulse`, `check-manifest4.py`, `list-shells.py`, `redoc-static.html`), 44 `eslint-disable`s, dead `trigger-dialog.tsx`, `ClusterNodesTable` (unless adopted).
+  - Do: delete or adopt each; reduce eslint-disables.
+  - Done when: none of the listed files remain unused.
+  - Status: todo · Verified-in-code: unverified · Source: web.md#1 dead summary/#3 item 15/#4 item 12
+- [ ] `WEB-108` **Reduce `as unknown as` casts on service pages and keep 0 type/lint errors** · ENHANCE · P3 · M · Deps: `WEB-033`
+  - Why/Problem: service overview and others use heavy casts (`as unknown as`).
+  - Do: type through contract outputs; remove casts as pages migrate to BFF hooks.
+  - Done when: casts removed on service pages.
+  - Status: todo · Verified-in-code: unverified · Source: web.md#1 (services/[sid])
+- [ ] `WEB-109` **Typed declarative links and ORPC hooks on remaining pages** · ENHANCE · P3 · M · Deps: none
+  - Why/Problem: AGENTS.md forbids hardcoded hrefs and direct calls; older pages use deprecated manual hooks.
+  - Do: migrate to `use<Feature>.orpc-hooks.ts` and typed `Route.Link`; run `dr:build`.
+  - Done when: grep finds no raw hrefs/direct ORPC calls in web components.
+  - Status: todo · Verified-in-code: unverified · Source: web.md#1, root AGENTS.md conventions (referenced)
+- [ ] `WEB-110` **Update `docs/FLEET-CENTRIC-FRONTEND-REWRITE.md` status table and retire stale web docs (cross-ref DOC)** · ENHANCE · P3 · S · Deps: none
+  - Why/Problem: plan claims node drill pages done ("MeshPulse built") while per-node pages do not exist; `docs/qa/web-rebuild/feature-mapping-v1-v2-to-v3.md` is 7 months stale.
+  - Do: correct status table; remove/replace the stale mapping (DOC owns the rest).
+  - Done when: plan matches the code.
+  - Status: todo · Verified-in-code: unverified · Source: web.md#4 item 12
+
+### Journey UX copy (empty, progress, failure, undo)
+- [ ] `WEB-111` **Failure/empty/progress copy for first-run and first deploy** · ENHANCE · P2 · S · Deps: `WEB-029`
+  - Why/Problem: J1 requires staged failure messages naming the stage and cause ("No Dockerfile at repository root: set Root directory or pick Nixpacks"), last 20 log lines inline, "Retry this step", wizard "Start over".
+  - Do: failure component with stage, cause, last lines, retry; setup wizard progress with durations and reconnect-safe stream (SETUP backend).
+  - Done when: failures never show a bare error.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#J1 UX details
+- [ ] `WEB-112` **Deploy empty/failed/preview states ("Nothing deployed yet", "Still serving v41", "Preview removed")** · ENHANCE · P2 · S · Deps: `WEB-040`
+  - Why/Problem: copy for service with no deployments, webhook status, failure banner stating previous version stays live, cancel confirm text.
+  - Do: implement these states and group previews in deployment list.
+  - Done when: states exist per J2 UX.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#J2 UX details
+- [ ] `WEB-113` **Log viewer state copy and exec "Requires maintainer" copy** · ENHANCE · P2 · S · Deps: `WEB-001`
+  - Why/Problem: empty panes without explanation; J4 lists distinct states.
+  - Do: implement the three log states and exec copy.
+  - Done when: no empty pane is unexplained.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#J4 UX details
+- [ ] `WEB-114` **Undo affordances (role change undo 10 s, alert mute expiry, Drain -> Re-activate, revoke invite)** · ENHANCE · P3 · S · Deps: `WEB-027`,`WEB-065`
+  - Why/Problem: journeys specify undo patterns; none exist.
+  - Do: implement undo toasts writing inverse change and audit entry.
+  - Done when: each listed action has an undo.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#J6 UX/#J5 UX/#J4 UX
+- [ ] `WEB-115` **No-access state for non-member project URLs and "request access" empty states** · NEW · P2 · S · Deps: `WEB-016`
+  - Why/Problem: non-member URL should show "You don't have access. Ask an owner", not leak existence.
+  - Do: shared no-access page used by project/service routes.
+  - Done when: non-member direct URL shows the state.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#J6 UX details
+
+### Cross-area surfaces owned by IDEA/OBS but needing a web home
+- [ ] `WEB-116` **"Explain this failed deploy" button + suggested-patch diff view (opt-in, BYO model)** · NEW · P3 · M · Deps: `WEB-040`
+  - Why/Problem: ideas-dx-ai idea 18; evidence-linked causes and a rendered (never auto-applied) patch; output rendered as text.
+  - Do: button on failed deployments, ranked causes with log-line links, patch diff view that goes through plan/approve; LLM provider setting page (backend IDEA).
+  - Done when: UI renders schema-validated explanations with verified evidence links.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai.md#1 idea 18
+- [ ] `WEB-117` **Natural-language plan/approve panel and `deployer.yaml` plan/diff/drift views** · NEW · P3 · L · Deps: `WEB-041`
+  - Why/Problem: ideas 4 and 19; same diff view as CLI; drift badge "3 resources differ"; managed-by-file marking on resources.
+  - Do: plan diff component reused across UI, drift badge, "managed by file" lock (DEC pending).
+  - Done when: plan/apply with diff works in UI.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai.md#1 ideas 4,19, ideas-deploy.md#1 idea 8-9
+- [ ] `WEB-118` **Project time machine, drift view, canary/rollout controls, preview-topology UI, cost/right-sizing cards** · NEW · P3 · L · Deps: `IDEA-002`
+  - Why/Problem: ideas-deploy ideas 5, 6, 8, 9, 14, 15 each need UI (read-only "what ran at T", reconcile policy, stage plan with abort, link/mock/fixed topology picker, resource cards).
+  - Do: build each UI after its backend lands (tracked in IDEA/DEPLOY).
+  - Done when: each backend feature has a UI entry.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy.md#1 ideas 5,6,8,9,14,15
+- [ ] `WEB-119` **Audit trail "mesh member" actor display and signed-roster audit stream view** · NEW · P3 · S · Deps: `WEB-079`,`IDEA-004`
+  - Why/Problem: tie actors to mesh member ids and expose roster membership changes as audit stream.
+  - Do: actor chips linking to node/member and a roster events filter.
+  - Done when: audit rows show member identity.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#5, ideas-dx-ai.md#1 idea 14
+- [ ] `WEB-120` **Agent/API token and OpenAPI/CLI/MCP settings page (scoped tokens, approvals, device-flow clients)** · NEW · P2 · M · Deps: `IDEA-001` · See also: `FEAT-080`
+  - Why/Problem: account API keys exist only at user level; no scoped/expiring token UI; no device-flow client management; CLI login approval page `/device` exists.
+  - Do: tokens page with scope grammar, expiry warnings, IP allowlist, agent grants list, copy-CLI-login hint.
+  - Done when: a scoped token can be issued and revoked from UI.
+  - Status: todo · Verified-in-code: partial · Source: ideas-dx-ai.md#1 idea 3, bench-coolify.md#2 item 6, web.md#6 item 3
+
+## Test coverage to add
+- [ ] `WEB-121` **Role-matrix UI tests (viewer/developer/maintainer/admin) for project, deployment, docker, fleet pages** · NEW · P0 · M · Deps: `WEB-016`
+  - Why/Problem: no test proves destructive controls disappear for viewers.
+  - Do: component/state tests asserting hidden/disabled controls per role.
+  - Done when: matrix test fails if a destructive control renders for a viewer.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#J2/J6 acceptance
+- [ ] `WEB-122` **Regression tests for the five known bugs (env link, rollback body, cluster confirm, service status, logs tab)** · NEW · P1 · S · Deps: `WEB-001`,`WEB-002`,`WEB-003`,`WEB-004`,`WEB-005`
+  - Why/Problem: bugs shipped with 61 web tests present.
+  - Do: one `*.states.test.tsx` per fix.
+  - Done when: reverting any fix fails a test.
+  - Status: todo · Verified-in-code: no · Source: web.md#3
+- [ ] `WEB-123` **Playwright UI specs per journey (UI halves of J1-J6) on the shared harness** · NEW · P1 · L · Deps: none
+  - Why/Problem: no browser e2e exists; harness is OPS (F8); selectors via role/label (451 `aria-*` already).
+  - Do: write first-run, deploy-and-ship, custom-domain, debug-failing-service, node-lifecycle, team-collaboration UI steps from journeys.md outlines.
+  - Done when: specs run on the OPS harness and gate PRs (`@pr`) / nightly.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#J1-J6 E2E outlines, #10
+- [ ] `WEB-124` **Axe accessibility and responsive (375 px) test pass in CI** · NEW · P2 · M · Deps: `WEB-104`,`WEB-101`
+  - Why/Problem: no a11y or mobile tests.
+  - Do: axe on key routes; mobile viewport screenshots.
+  - Done when: CI fails on serious violations.
+  - Status: todo · Verified-in-code: no · Source: web.md#5, ideas-dx-ai.md#4 items 15-16
+- [ ] `WEB-125` **Service-worker/PWA and middleware matcher tests** · NEW · P2 · S · Deps: `WEB-099`,`WEB-023`
+  - Why/Problem: SW and middleware untested.
+  - Do: unit tests for matcher coverage and SW registration/push handlers.
+  - Done when: tests cover registration and every protected route prefix.
+  - Status: todo · Verified-in-code: no · Source: web.md#3 bug 4, item 8
+- [ ] `WEB-126` **Stream-hook tests (reconnect, invalidate, backoff) and QueryClient default tests** · NEW · P2 · S · Deps: `WEB-031`,`WEB-030`
+  - Why/Problem: new live hooks need regression safety.
+  - Do: tests with fake SSE for reconnect/invalidate; 401 handler test.
+  - Done when: live hooks tested.
+  - Status: todo · Verified-in-code: no · Source: web.md#4 item 7
+
+### Coverage-pass additions
+- [ ] `WEB-127` **Show paused/inactive environments in the deploy dialog and service page** · ENHANCE · P2 · S · Deps: `DEPLOY-008`,`WEB-009`
+  - Why/Problem: environments carry `isActive` / link `isEnabled` flags that will be enforced at deploy; the UI gives no hint, so a blocked deploy looks like a random failure.
+  - Do: badge "paused" on the env switcher and deploy dialog, disable Deploy with the reason and a link to the environment settings.
+  - Done when: deploying to a paused environment is impossible from the UI and says why.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy.md#4 item 14
+- [ ] `WEB-128` **Undo-aware copy for deploy actions (Cancel, Restart, rollback, secret edits)** · ENHANCE · P3 · S · Deps: `WEB-009`,`WEB-005`
+  - Why/Problem: journeys specify that Cancel must say what is aborted, Restart must say it is only undoable by redeploy, a finished rollback should offer "Redeploy latest", and secret edits show "Last changed by X, 3 min ago" without the value.
+  - Do: confirmation dialogs and post-action toasts with those texts; last-changed metadata on env rows (value never shown).
+  - Done when: each action's dialog states its effect and undo path.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#J2 UX details, journeys.md#J4 UX details
+- [ ] `WEB-129` **Domain primary-change and removal dialogs (redirect effect, restored primary, records left at DNS host)** · ENHANCE · P3 · S · Deps: `WEB-056`
+  - Why/Problem: changing the primary domain silently changes redirects; removal gives no statement of which DNS records remain.
+  - Do: show redirect effect before confirming a primary change; removal restores the previous primary and lists leftover records.
+  - Done when: both dialogs show the effect before confirm.
+  - Status: todo · Verified-in-code: no · Source: journeys.md#J3 UX details (Undo)
+- [ ] `WEB-130` **Global in-flight deployments indicator and live-log slide-in panel** · NEW · P3 · M · Deps: `WEB-032`
+  - Why/Problem: Coolify's `DeploymentsIndicator` and `ActivityMonitor` let operators watch any running deploy from any page; ours requires navigating to the service.
+  - Do: header indicator with running/queued count and a slide-in streaming the selected deployment's log; hidden/debug line toggle.
+  - Done when: a running deploy can be followed from any dashboard page.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#1 row UX
+
+## Decisions needed
+- [ ] DEC-WEB-1 Keep or delete the PWA (service worker, `~offline`, manifest, push) — options: wire via serwist / delete — recommendation: wire it (push + `/oncall` need it), correct manifest now.
+- [ ] DEC-WEB-2 i18n — options: extract strings now / English-only with dynamic `lang` — recommendation: English-only now, keep `lang` dynamic; revisit if non-English operators appear.
+- [ ] DEC-WEB-3 Project-role model surfaced in UI — options: derive from contract policy annotations (SUB-A) / hand-written role rules per page — recommendation: contract-derived `usePermission` hook to avoid drift.
+- [ ] DEC-WEB-4 `/manage/web-app` — options: truly public (anonymous recovery console) / admin-only — recommendation: admin-only (current server behaviour; any-role access is unacceptable).
+- [ ] DEC-WEB-5 Table primitive — options: TanStack Table in `@repo/ui` / keep per-page tables — recommendation: shared DataTable with URL-synced state.
+- [ ] DEC-WEB-6 Organizations/teams/quotas/billing UI — options: single-tenant (delete promises) / multi-tenant epic — recommendation: single-tenant (matches operator mesh-first stance); skip WEB-089 org parts.
+- [ ] DEC-WEB-7 Visual dialect — options: glass cards (new fleet pages) / flat cards (old pages) — recommendation: pick the fleet dialect and migrate old project/service pages.
+- [ ] DEC-WEB-8 Public landing page — options: keep static marketing / redirect to signin — recommendation: redirect for a private console unless marketing is wanted.
+- [ ] DEC-WEB-9 Docker stacks/registries/events pages — options: build / remove claims — recommendation: registries UI yes (multi-node blocker), stacks later, events covered by activity page.
+- [ ] DEC-WEB-10 Whether UI may edit resources managed by `deployer.yaml` — options: block edits / allow with drift badge — recommendation: block with "managed by file" lock (pairs with IDEA decision).
+- [ ] DEC-WEB-11 Adopt `bff.*` screen procedures as the default page data source — options: adopt everywhere / keep per-domain hooks — recommendation: adopt for dashboard, project detail, service detail; delete unused composers.
+
+Counts: 130 items. Priority: P0 6, P1 40, P2 41, P3 43. Type: FIX 21, ENHANCE 48, NEW 61. 11 decisions.
+
+> Coverage pass: 2026-10-26 — 4 items added, 22 deps resolved
+
+> Effect-impact pass: 2026-10-26 — 2 items annotated

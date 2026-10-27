@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { authClient } from "@/lib/auth";
-import { Badge } from "@repo/ui/components/shadcn/badge";
-import { Button } from "@repo/ui/components/shadcn/button";
+import { useDevtoolsResource } from "../use-devtools-resource";
+import { Badge } from "@deployer/ui/components/shadcn/badge";
+import { Button } from "@deployer/ui/components/shadcn/button";
 import {
   Table,
   TableBody,
@@ -11,10 +12,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@repo/ui/components/shadcn/table";
-import { Skeleton } from "@repo/ui/components/shadcn/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@repo/ui/components/shadcn/alert";
-import { Separator } from "@repo/ui/components/shadcn/separator";
+} from "@deployer/ui/components/shadcn/table";
+import { Skeleton } from "@deployer/ui/components/shadcn/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@deployer/ui/components/shadcn/alert";
+import { Separator } from "@deployer/ui/components/shadcn/separator";
 
 /**
  * DevTools panel: account security.
@@ -47,7 +48,7 @@ interface Passkey {
 
 function relativeTime(value: Date | string | null | undefined): string {
   if (!value) return "—";
-  const date = value instanceof Date ? value : new Date(String(value));
+  const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
 
   const diffMs = date.getTime() - Date.now();
@@ -80,37 +81,19 @@ function relativeTime(value: Date | string | null | undefined): string {
  * Going through `$fetch` speaks to the documented endpoint directly. It is the
  * same request the atom makes, with none of the framework indirection.
  */
+async function fetchPasskeys(): Promise<Passkey[]> {
+  const result = await authClient.$fetch<Passkey[]>("/passkey/list-user-passkeys", {
+    method: "GET",
+  });
+  if (result.error) {
+    throw new Error(result.error.message ?? "Failed to list passkeys");
+  }
+  return Array.isArray(result.data) ? result.data : [];
+}
+
 function usePasskeys() {
-  const [passkeys, setPasskeys] = useState<Passkey[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await authClient.$fetch<Passkey[]>("/passkey/list-user-passkeys", {
-        method: "GET",
-      });
-
-      if (result.error) {
-        setError(result.error.message ?? "Failed to list passkeys");
-        return;
-      }
-      const data = result.data;
-      setPasskeys(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to list passkeys");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  return { passkeys, error, loading, reload: load };
+  const { data, error, loading, reload } = useDevtoolsResource(fetchPasskeys);
+  return { passkeys: data, error, loading, reload };
 }
 
 function PasskeysSection() {
@@ -122,7 +105,7 @@ function PasskeysSection() {
     setDeleting(id);
     try {
       await authClient.passkey.deletePasskey({ id });
-      await reload();
+      reload();
     } finally {
       setDeleting(null);
     }
@@ -132,7 +115,7 @@ function PasskeysSection() {
     setAdding(true);
     try {
       await authClient.passkey.addPasskey();
-      await reload();
+      reload();
     } finally {
       setAdding(false);
     }
@@ -153,7 +136,7 @@ function PasskeysSection() {
         <AlertTitle>Failed to load passkeys</AlertTitle>
         <AlertDescription className="flex flex-col gap-2">
           <span>{error}</span>
-          <Button size="sm" variant="outline" className="self-start" onClick={() => void reload()}>
+          <Button size="sm" variant="outline" className="self-start" onClick={reload}>
             Retry
           </Button>
         </AlertDescription>
@@ -170,7 +153,7 @@ function PasskeysSection() {
           Passkeys <span className="text-muted-foreground font-normal">({list.length})</span>
         </h4>
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => void reload()} disabled={loading}>
+          <Button size="sm" variant="outline" onClick={reload} disabled={loading}>
             {loading ? "Refreshing…" : "Refresh"}
           </Button>
           <Button size="sm" onClick={() => void handleAdd()} disabled={adding}>

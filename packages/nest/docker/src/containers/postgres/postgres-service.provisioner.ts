@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
-import { AppError } from "@repo/errors";
-import { splitManagedEnv } from "@repo/env";
-import type { SwarmServiceSpecInput } from "@repo/contracts-entities";
+import { AppError } from "@deployer/errors";
+import { splitManagedEnv } from "@deployer/env";
+import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
 import type { PostgresIdentityConfig } from "../../docker-config";
 import { DockerService } from "../../services/docker.service";
 import { platformNetworkName, platformOverlayNetworkName } from "../../services/docker-supervisor-runtime";
@@ -71,7 +71,7 @@ export function managedPostgresServiceName(prefix?: string | null): string {
 }
 
 /** Credentials/identity of the managed database. */
-export interface PostgresServiceIdentity {
+export type PostgresServiceIdentity = {
     databaseName: string;
     username: string;
     password: string;

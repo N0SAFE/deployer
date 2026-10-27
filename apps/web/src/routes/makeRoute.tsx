@@ -7,14 +7,14 @@ import queryString from 'query-string'
 import Link from 'next/link'
 import NProgress from 'nprogress'
 import { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime'
-import type { Session } from '@repo/auth'
+import type { Session } from '@deployer/auth'
 // IMPORTANT: We explicitly import from /server subpath to ensure server-side implementations
 // are used for SessionPage. The conditional exports (react-server condition) don't work
 // reliably in monorepos with Next.js bundler.
 // 
 // - createPage: Used for both server and client pages (params/search validation)
 // - createSessionPage: MUST use server version for proper hydration
-import { createPage, createSessionPage } from '@repo/declarative-routing/page-wrappers'
+import { createPage, createSessionPage } from '@deployer/declarative-routing/page-wrappers'
 
 // Next.js page props type (Promise-based params/searchParams)
 export interface NextPageProps {

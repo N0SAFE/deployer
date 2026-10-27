@@ -96,7 +96,7 @@ function matcherNodes(matcher: Matcher): MatcherType[] {
   }
 
   // MatcherTypeRecord semantics in stackMiddlewares are OR across values.
-  return Object.values(matcher) as MatcherType[];
+  return Object.values(matcher);
 }
 
 function compileMatcherType(matcher: MatcherType): string {
@@ -235,6 +235,10 @@ function makeGroupsNonCapturing(source: string): string {
 
   for (let index = 0; index < source.length; index += 1) {
     const character = source[index];
+    
+    if (!character) {
+      break;
+    }
 
     if (escaped) {
       result += character;
@@ -280,7 +284,6 @@ function isMatcherCondition(
 ): matcher is MatcherCondition {
   return (
     typeof matcher === "object" &&
-    matcher !== null &&
     !(matcher instanceof RegExp) &&
     ("and" in matcher || "or" in matcher || "not" in matcher)
   );

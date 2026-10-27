@@ -160,7 +160,7 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
    *
    * Subscribing to the gate instead makes the handover mean what it says: the
    * details are in `node_config`, so the API may be started and watched. In dev
-   * the ordering is enforced by compose (`api-dev` gates on this app's health),
+   * the ordering is enforced by compose (`bff` gates on this app's health),
    * so `ensureApi()` just resolves the address compose will fill in.
    *
    * `filter`/`distinctUntilChanged` are not needed here: `onEnter` already
@@ -430,26 +430,54 @@ export class HandoverOrchestratorService implements OnApplicationBootstrap, OnMo
    * handover stays retryable.
    */
   private async waitForWebApp(): Promise<{ ok: boolean; reason: string }> {
-    if (!this.gate.managedWebEnabled()) {
+    const hostname = this.ingress.webHostname();
+    const prefix = this.env.get("DEPLOYER_PREFIX");
+    // ── BOTH INGRESS NAMES, NOT JUST THE SWARM ONE ──────────────────────────
+    // This hardcoded `deployer-traefik`. A compose-owned profile (`dev:services`)
+    // runs the ingress as a compose service named `traefik`, so the swarm name
+    // does not resolve there and the wait reported:
+    //
+    //   the dashboard was requested but web.deployer.localhost is not
+    //   answering yet (the ingress is not reachable
+    //   (getaddrinfo ENOTFOUND deployer-traefik))
+    //
+    // That failure is STICKY (`failed` blocks every later phase), so the setup
+    // gate stayed 503 — which in turn held `svc-*` in their entrypoint wait,
+    // which made the BFF's fan-out hit ECONNREFUSED and returned 500 to the
+    // browser on every analytics call. One wrong hostname, four layers down.
+    //
+    // Same fix as `BootstrapIngressService.probeRoutedThroughEntryPort`: try the
+    // swarm service first (correct when swarm owns the ingress) and the compose
+    // service second (correct when compose does).
+    const ingresses = [
+      prefix === "" ? "deployer-traefik" : `deployer-traefik-${prefix}`,
+      "traefik",
+    ];
+
+    // `managedWebEnabled()` is the flag that says "the operator wants a dashboard".
+    // A compose profile that DECLARES its web container (`DEPLOYER_WEB_TARGET`)
+    // wants one too, and it never sets that flag — so the wait was skipped there
+    // and the route could go unverified.
+    const wantsDashboard =
+      this.gate.managedWebEnabled() ||
+      (this.env.get("DEPLOYER_WEB_TARGET")?.trim() ?? "") !== "";
+    if (!wantsDashboard) {
       this.logger.log("No dashboard requested — skipping the web readiness wait");
       return { ok: true, reason: "no dashboard requested" };
     }
-
-    const hostname = this.ingress.webHostname();
-    const ingress = this.env.get("DEPLOYER_PREFIX") === ""
-      ? "deployer-traefik"
-      : `deployer-traefik-${this.env.get("DEPLOYER_PREFIX")}`;
 
     const deadline = Date.now() + this.timeoutMs();
     let lastReason = "the dashboard never answered";
 
     while (Date.now() < deadline) {
-      const attempt = await this.probeWebRoute(ingress, hostname);
-      if (attempt.ok) {
-        this.logger.log(`Dashboard reachable — ${hostname} is routed`);
-        return { ok: true, reason: attempt.reason };
+      for (const ingress of ingresses) {
+        const attempt = await this.probeWebRoute(ingress, hostname);
+        if (attempt.ok) {
+          this.logger.log(`Dashboard reachable — ${hostname} is routed via ${ingress}`);
+          return { ok: true, reason: attempt.reason };
+        }
+        lastReason = attempt.reason;
       }
-      lastReason = attempt.reason;
       await new Promise((resolve) => setTimeout(resolve, this.pollIntervalMs()));
     }
 

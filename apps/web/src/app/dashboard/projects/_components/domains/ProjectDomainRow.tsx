@@ -2,9 +2,9 @@
 
 import { useEffect } from 'react'
 import { CircleAlert, CircleCheck, CircleX, Loader2, RefreshCw, Trash2 } from 'lucide-react'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { TableCell, TableRow } from '@repo/ui/components/shadcn/table'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { TableCell, TableRow } from '@deployer/ui/components/shadcn/table'
 import { StatusBadge } from '@/components/dashboard'
 import { useDomainReachabilityCheck } from '@/domains/reachability/hooks'
 import { RelativeTime } from '../workload/RelativeTime'

@@ -13,13 +13,13 @@ import * as z from "zod";
 import {
     type SortingConfig as BaseSortingConfig,
     type SortingSchemaOutput as BaseSortingSchemaOutput,
-} from "@repo/orpc-utils/operations/base/utils/sorting";
+} from "@deployer/orpc-utils/operations/base/utils/sorting";
 import {
     CONFIG_SYMBOL,
     withConfig,
     getConfig,
     type ZodSchemaWithConfig,
-} from "@repo/orpc-utils/operations/zod/utils/pagination";
+} from "@deployer/orpc-utils/operations/zod/utils/pagination";
 
 // Re-export base types for external use
 export type { BaseSortingConfig, BaseSortingSchemaOutput };

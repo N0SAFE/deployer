@@ -118,7 +118,7 @@ const nextConfig: NextConfig = {
     //
     // The cache only pays off if the directory survives the container:
     // compose mounts a named volume over `.next/dev` (dev) and
-    // `.next/cache` (prod). See infra/infra/docker/compose/common/web/.
+    // `.next/cache` (prod). See docker/compose/common/web/.
     turbopackFileSystemCacheForDev: true,
     turbopackFileSystemCacheForBuild: true,
   },

@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import { AlertCircle, Moon, Shield, ShieldAlert, ShieldCheck, ShieldX, Sun, Terminal } from 'lucide-react'
 import { DockerScanFindingsDataTable } from './docker-scan-findings-data-table'
 
@@ -171,7 +171,7 @@ export function DockerScanStackPanel({
           <div className="inline-flex items-center gap-2">{headerStatusNode}</div>
           <div className="flex items-center gap-2">
             {scanStatus === 'complete' && totalVulnerabilities > 0 ? (
-              <Badge variant={hasCriticalOrHigh ? 'destructive' : 'secondary'} className="text-[10px]">
+              <Badge variant={hasCriticalOrHigh ? 'destructive' : 'secondary'} className="text-xs">
                 {totalVulnerabilities} vulns
               </Badge>
             ) : null}
@@ -223,7 +223,7 @@ export function DockerScanStackPanel({
           {scanStageSummaryRows.map((row) => (
             <div key={row.stage} className="rounded border bg-muted/20 p-2.5">
               <div className="mb-1 flex items-center justify-between gap-2">
-                <p className="text-[11px] font-medium uppercase tracking-wide">{titleCaseStage(row.stage)}</p>
+                <p className="text-xs font-medium uppercase tracking-wide">{titleCaseStage(row.stage)}</p>
                 <Badge
                   variant={
                     row.status === 'failed'
@@ -234,15 +234,15 @@ export function DockerScanStackPanel({
                           ? 'secondary'
                           : 'outline'
                   }
-                  className="text-[10px]"
+                  className="text-xs"
                 >
                   {row.status}
                 </Badge>
               </div>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {row.last ? `${toClock(row.last.timestamp)} • ${row.last.message}` : 'No event yet'}
               </p>
-              <p className="mt-1 text-[11px] text-muted-foreground">peak {row.maxProgress}%</p>
+              <p className="mt-1 text-xs text-muted-foreground">peak {row.maxProgress}%</p>
             </div>
           ))}
         </div>
@@ -251,7 +251,7 @@ export function DockerScanStackPanel({
       <div className="rounded-xl border p-3 space-y-2">
         <div className="flex items-center justify-between gap-2">
           <p className="text-xs font-medium text-muted-foreground">Scanner stacks pull progress</p>
-          <Badge variant="outline" className="text-[10px]">Dockhand parity</Badge>
+          <Badge variant="outline" className="text-xs">Dockhand parity</Badge>
         </div>
         <div className="grid gap-2 md:grid-cols-3">
           {scannerPullRows.map((row) => (
@@ -268,7 +268,7 @@ export function DockerScanStackPanel({
                           ? 'secondary'
                           : 'outline'
                   }
-                  className="text-[10px]"
+                  className="text-xs"
                 >
                   {row.status}
                 </Badge>
@@ -276,7 +276,7 @@ export function DockerScanStackPanel({
               <div className="h-1.5 rounded bg-muted overflow-hidden">
                 <div className="h-full bg-primary transition-all" style={{ width: `${String(row.progress)}%` }} />
               </div>
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-xs text-muted-foreground">
                 {row.latestPull ? row.latestPull.message : 'No scanner pull event yet'}
               </p>
             </div>
@@ -294,7 +294,7 @@ export function DockerScanStackPanel({
             <div className="h-1.5 rounded bg-muted overflow-hidden">
               <div className="h-full bg-primary transition-all" style={{ width: `${String(source.progress)}%` }} />
             </div>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {source.findingsCount} findings • started {source.startedAt}
             </p>
           </div>
@@ -324,7 +324,7 @@ export function DockerScanStackPanel({
             disabled={scanFindings.length === 0}
           >
             Results
-            {scanFindings.length > 0 ? <Badge variant="secondary" className="ml-1 text-[10px]">{scanFindings.length}</Badge> : null}
+            {scanFindings.length > 0 ? <Badge variant="secondary" className="ml-1 text-xs">{scanFindings.length}</Badge> : null}
           </button>
 
           <div className="ml-auto">

@@ -9,7 +9,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@repo/ui/components/shadcn/select'
+} from '@deployer/ui/components/shadcn/select'
 import { Network, Server } from 'lucide-react'
 
 /**
@@ -67,7 +67,9 @@ export function NodeScopePicker() {
   return (
     <Select
       value={nodeId ?? '__mesh__'}
-      onValueChange={(v) => setNodeId(v === '__mesh__' ? null : v)}
+      onValueChange={(v) => {
+        setNodeId(v === '__mesh__' ? null : v)
+      }}
     >
       <SelectTrigger
         aria-label="Node scope: which node the pages show"

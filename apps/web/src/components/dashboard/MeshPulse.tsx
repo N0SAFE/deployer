@@ -6,8 +6,8 @@ import { Network, TriangleAlert } from 'lucide-react'
 import { AuthDashboardNodes, AuthDashboardNodesNodeId } from '@/routes'
 import { useClusterNodes } from '@/domains/cluster/hooks'
 import { cn } from '@/lib/utils'
-import { Button } from '@repo/ui/components/shadcn/button'
-import type { ClusterNodeInventoryRow } from '@repo/api-contracts'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import type { ClusterNodeInventoryRow } from "@deployer/fleet-contracts";
 import { useNow } from './use-now'
 import { deriveNodeHealth, formatAgo, summarizePulse, type NodeEvidence } from './mesh-pulse-model'
 

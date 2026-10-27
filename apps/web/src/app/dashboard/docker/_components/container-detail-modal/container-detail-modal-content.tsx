@@ -1,9 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import type { DockerContainer } from '@repo/contracts-entities'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Dialog, DialogContent, DialogFooter } from '@repo/ui/components/shadcn/dialog'
+import { useCallback, useState } from 'react'
+import type { DockerContainer } from '@deployer/contracts-entities'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Dialog, DialogContent, DialogFooter } from '@deployer/ui/components/shadcn/dialog'
 import { useContainerActions } from '../../_hooks/use-container-actions'
 import { useContainerFiles } from '../../_hooks/use-container-files'
 import { useContainerInspect } from '../../_hooks/use-container-inspect'

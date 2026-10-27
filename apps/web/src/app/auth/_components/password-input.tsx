@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { Eye, EyeOff } from 'lucide-react'
-import { Input } from '@repo/ui/components/shadcn/input'
+import { Input } from '@deployer/ui/components/shadcn/input'
 
 type PasswordInputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'>
 

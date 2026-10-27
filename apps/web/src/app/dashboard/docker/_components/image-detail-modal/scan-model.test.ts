@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { DockerVulnerabilityEntry } from '@repo/contracts-entities'
+import type { DockerVulnerabilityEntry } from '@deployer/contracts-entities'
 import {
   buildLayerRiskById,
   filterAndSortVulnerabilities,
-  parsePullLayerActivity,
   summarizeSeverity,
 } from './scan-model'
+import { parsePullLayerActivity } from './pull-layer-model'
 
 function vuln(partial: Partial<DockerVulnerabilityEntry> & Pick<DockerVulnerabilityEntry, 'id' | 'severity'>): DockerVulnerabilityEntry {
   return {

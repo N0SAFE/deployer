@@ -1,7 +1,7 @@
 'use client'
 
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
 import { RotateCw, ExternalLink } from 'lucide-react'
 import { StatusBadge, EnvironmentBadge } from '@/components/dashboard'
 import { AuthDashboardProjectsProjectIdServicesServiceId, AuthDashboardProjectsProjectIdServicesServiceIdDeployments } from '@/routes'

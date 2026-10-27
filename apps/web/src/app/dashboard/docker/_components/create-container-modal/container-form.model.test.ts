@@ -2,13 +2,12 @@ import { describe, expect, it } from 'vitest'
 import {
   buildPayload,
   createInitialState,
-  describeErrorField,
   formatPortBinding,
   slugify,
-  validateForm,
   type ContainerFormState,
   type PullScanSummary,
 } from './container-form.model'
+import { describeErrorField, validateForm } from './container-form.validation'
 
 const summary: PullScanSummary = {
   pullStatus: 'complete',

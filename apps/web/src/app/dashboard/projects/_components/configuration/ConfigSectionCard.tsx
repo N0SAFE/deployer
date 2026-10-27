@@ -2,9 +2,9 @@
 
 import { useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 import { getErrorMessage, isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE } from '@/lib/orpc/typed-errors'
 import { InlineError } from '../workload/WorkloadStates'
 

@@ -65,7 +65,7 @@ describe("HandoverOrchestratorService", () => {
         effects.push("ensureApi");
         return Promise.resolve({
           kind: "container" as const,
-          url: "http://api-dev:3005",
+          url: "http://bff:3005",
           detail: "dev",
         });
       },
@@ -188,20 +188,20 @@ describe("HandoverOrchestratorService", () => {
       expect(result.ok).toBe(true);
       expect(effects).toEqual([
         "ensureApi",
-        "pointApiAt:http://api-dev:3005",
+        "pointApiAt:http://bff:3005",
         // The API's own output is streamed BEFORE the trigger, so the operator
         // sees provisioning from its FIRST event. Attaching after the trigger
         // would miss the beginning of the run — which is the part that shows the
         // platform coming up.
         "attachStream",
-        "trigger:http://api-dev:3005/setup/trigger",
+        "trigger:http://bff:3005/setup/trigger",
         "waitUntilReady",
         "releaseEntryPort",
         // The port is handed over, then PROVEN: a task can hold the port while
         // its router table is still empty, and that window is what the operator
         // saw as a red "Failed to fetch" on the last step.
         "waitForEntryPointToServe:api.deployer.localhost",
-        "pointSetupAtDonePage:http://api-dev:3005",
+        "pointSetupAtDonePage:http://bff:3005",
       ]);
     });
 
@@ -212,7 +212,7 @@ describe("HandoverOrchestratorService", () => {
       // starts, otherwise the first events are lost and the progress view opens
       // mid-run with no explanation of how it got there.
       expect(effects.indexOf("attachStream")).toBeLessThan(
-        effects.indexOf("trigger:http://api-dev:3005/setup/trigger"),
+        effects.indexOf("trigger:http://bff:3005/setup/trigger"),
       );
     });
 
@@ -222,7 +222,7 @@ describe("HandoverOrchestratorService", () => {
       // The trigger is what STARTS provisioning, so polling first would wait for
       // work nobody has asked for — and the API would sit idle until the
       // timeout, failing a perfectly healthy install.
-      expect(effects.indexOf("trigger:http://api-dev:3005/setup/trigger")).toBeLessThan(
+      expect(effects.indexOf("trigger:http://bff:3005/setup/trigger")).toBeLessThan(
         effects.indexOf("waitUntilReady"),
       );
     });
@@ -233,7 +233,7 @@ describe("HandoverOrchestratorService", () => {
       // The route exists from the moment the backend is known. The worst case is
       // then the API's own 503 — truthful and debuggable — rather than a Traefik
       // 404 that reads as a routing misconfiguration.
-      expect(effects.indexOf("pointApiAt:http://api-dev:3005")).toBeLessThan(
+      expect(effects.indexOf("pointApiAt:http://bff:3005")).toBeLessThan(
         effects.indexOf("waitUntilReady"),
       );
     });
@@ -248,7 +248,7 @@ describe("HandoverOrchestratorService", () => {
     it("reports the backend it handed over to", async () => {
       const result = await run(makeOrchestrator());
 
-      expect(result).toEqual({ ok: true, apiBackend: "http://api-dev:3005" });
+      expect(result).toEqual({ ok: true, apiBackend: "http://bff:3005" });
     });
 
     it("skips the trigger on a RESTART, where the row is already complete", async () => {
@@ -281,7 +281,7 @@ describe("HandoverOrchestratorService", () => {
       // answer. Rewriting the route first keeps it pointing at a live backend for
       // the whole window (plan §9.2: a URL changes owner, it never disappears).
       expect(effects.indexOf("releaseEntryPort")).toBeLessThan(
-        effects.indexOf("pointSetupAtDonePage:http://api-dev:3005"),
+        effects.indexOf("pointSetupAtDonePage:http://bff:3005"),
       );
     });
 
@@ -293,7 +293,7 @@ describe("HandoverOrchestratorService", () => {
       // the platform converged while its ingress is about to stop existing.
       expect(result.ok).toBe(false);
       expect(result.ok === false && result.reason).toContain("entry port");
-      expect(effects).not.toContain("pointSetupAtDonePage:http://api-dev:3005");
+      expect(effects).not.toContain("pointSetupAtDonePage:http://bff:3005");
     });
 
     /**
@@ -315,7 +315,7 @@ describe("HandoverOrchestratorService", () => {
       expect(result.ok === false && result.reason).toContain("routing the API");
       // The setup hostname is NOT repointed: the platform is mid-switch, so
       // leaving the route where it is keeps the retry meaningful.
-      expect(effects).not.toContain("pointSetupAtDonePage:http://api-dev:3005");
+      expect(effects).not.toContain("pointSetupAtDonePage:http://bff:3005");
     });
 
     it("probes the API hostname, not merely the port", async () => {
@@ -382,13 +382,13 @@ describe("HandoverOrchestratorService", () => {
       expect(effects.some((e) => e.startsWith("pointSetupAtDonePage"))).toBe(false);
       // The api route WAS pointed (that is the early-write rule), which is what
       // makes `api.<host>` return a diagnosable 503 while the operator retries.
-      expect(effects).toContain("pointApiAt:http://api-dev:3005");
+      expect(effects).toContain("pointApiAt:http://bff:3005");
     });
 
     it("reports the provisioner's error as data instead of throwing", async () => {
       const result = await run(
         makeOrchestrator({
-          provisionThrows: new Error("SETUP_MODE=prod requires DEPLOYER_API_IMAGE"),
+          provisionThrows: new Error("SETUP_MODE=prod requires DEPLOYER_BFF_IMAGE"),
         }),
       );
 
@@ -396,7 +396,7 @@ describe("HandoverOrchestratorService", () => {
       // error would kill the pipeline and leave the phase stuck on "provisioning".
       expect(result).toEqual({
         ok: false,
-        reason: "SETUP_MODE=prod requires DEPLOYER_API_IMAGE",
+        reason: "SETUP_MODE=prod requires DEPLOYER_BFF_IMAGE",
       });
       expect(phases.current().phase).toBe("failed");
     });

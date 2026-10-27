@@ -1,6 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { defer, ReplaySubject, skip, type Observable } from "rxjs";
-import type { SetupStreamEvent, SetupStepId } from "@repo/contracts-entities";
+import type { SetupStreamEvent, SetupStepId } from "@deployer/contracts-entities";
 
 import { EnvService } from "@/config/env/env.module";
 
@@ -9,6 +9,31 @@ export type OrchestrationStepId = Extract<
     SetupStepId,
     "initialize_swarm" | "start_api" | "await_api_boot" | "promote_ingress"
 >;
+
+/**
+ * Every id in `OrchestrationStepId`, at RUNTIME.
+ *
+ * The union above is a compile-time fact; `step_detail.stepId` is typed `z.string()`
+ * on the wire, so reading it back yields `string` and cannot be narrowed by
+ * declaring the target as `OrchestrationStepId[]`. Without this list the assignment
+ * is a type error that invites an `as` cast — and a cast here would be a lie: it
+ * would claim every incoming id is one of these four, including ids a future flow
+ * adds, which would then be logged under a step that does not exist.
+ *
+ * `satisfies` keeps the two in sync: adding a member to the union above without
+ * adding it here fails to compile.
+ */
+const ORCHESTRATION_STEP_IDS = [
+    "initialize_swarm",
+    "start_api",
+    "await_api_boot",
+    "promote_ingress",
+] as const satisfies readonly OrchestrationStepId[];
+
+/** Real narrowing, not an assertion: unknown ids are dropped, not trusted. */
+export function isOrchestrationStepId(value: string): value is OrchestrationStepId {
+    return (ORCHESTRATION_STEP_IDS as readonly string[]).includes(value);
+}
 
 /** How many events the replay keeps — older ones are dropped from it. */
 const REPLAY_CAPACITY = 200;
@@ -222,7 +247,7 @@ export class OrchestrationStreamService {
    * own stream uses, which is what lets the wizard treat both producers
    * identically.
    */
-  snapshot(entries: Array<{ id: OrchestrationStepId; status: StepStatus; error?: string }>): SetupStreamEvent {
+  snapshot(entries: { id: OrchestrationStepId; status: StepStatus; error?: string }[]): SetupStreamEvent {
     const event: SetupStreamEvent = {
       type: "snapshot",
       ...this.stamp(),

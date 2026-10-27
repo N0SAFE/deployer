@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { Input } from '@repo/ui/components/shadcn/input'
+import { Input } from '@deployer/ui/components/shadcn/input'
 import { FieldError, Field, SELECT_CLASS } from './form-primitives'
 import type { ContainerForm } from './use-container-form'
 

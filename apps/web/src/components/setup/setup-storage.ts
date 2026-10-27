@@ -1,4 +1,4 @@
-import { logger } from '@repo/logger'
+import { logger } from '@deployer/logger'
 
 const setupLogger = logger.scope('SetupStorage')
 

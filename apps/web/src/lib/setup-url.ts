@@ -2,7 +2,7 @@
  * Setup redirect target for the WEB app.
  *
  * The web app serves its OWN `/setup` route (the wizard UI is shared from
- * `@repo/ui`, so both surfaces render the identical experience). Setup is
+ * `@deployer/ui`, so both surfaces render the identical experience). Setup is
  * therefore a SAME-DEPLOYMENT destination, and the correct redirect is the
  * relative path `/setup`.
  *

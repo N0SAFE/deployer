@@ -1,6 +1,6 @@
 'use client'
 
-import { Badge } from '@repo/ui/components/shadcn/badge'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Network, Server } from 'lucide-react'
 
 /**

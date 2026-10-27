@@ -15,15 +15,15 @@
  */
 
 import type { AnySchema } from "@orpc/contract";
-import { RouteBuilder } from "@repo/orpc-utils/builder/core/route-builder";
-import type { EntitySchema, SchemaWithConfig } from "@repo/orpc-utils/operations/base/types";
-import type { UUIDSchema } from "@repo/orpc-utils/operations/base/types";
-import type { FieldFilterConfig } from "@repo/orpc-utils/operations/base/utils/index";
+import { RouteBuilder } from "@deployer/orpc-utils/builder/core/route-builder";
+import type { EntitySchema, SchemaWithConfig } from "@deployer/orpc-utils/operations/base/types";
+import type { UUIDSchema } from "@deployer/orpc-utils/operations/base/types";
+import type { FieldFilterConfig } from "@deployer/orpc-utils/operations/base/utils/index";
 import {
     BasePluginTransformer,
     StandardPluginTransformer,
     type PluginVoid,
-} from "@repo/orpc-utils/builder/index";
+} from "@deployer/orpc-utils/builder/index";
 
 /**
  * Options for entity operations

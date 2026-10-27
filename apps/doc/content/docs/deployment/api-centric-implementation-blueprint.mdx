@@ -40,14 +40,14 @@ The rewrite reuses machinery that already exists. Implementation must extend the
 |---|---|---|
 | Express gateway + CORS + health | `apps/api/src/main.ts` | App-token middleware slots into the same middleware chain; CORS policy replaced per Workstream C |
 | Sub-app orchestrator | `apps/api/src/core/orchestrator/orchestrator.service.ts` | Platform supervisors join the bootstrap sequence as lifecycle participants |
-| Postgres auto-provisioning via dockerode | `apps/api/src/core/modules/setup/services/local-initialization.service.ts` | The dockerode access pattern (client acquisition, pull/create/start, probe) is the template for both new supervisors |
-| User-project Traefik domain | `apps/api/src/core/modules/traefik/` (config-builder, validation, sync services) | **Different concern** (see boundaries below). Potential later reuse of validation/middleware-library; not a dependency for Phase 1 |
+| Postgres auto-provisioning via dockerode | `apps/api/shared/src/core/modules/setup/services/local-initialization.service.ts` | The dockerode access pattern (client acquisition, pull/create/start, probe) is the template for both new supervisors |
+| User-project Traefik domain | `apps/api/shared/src/core/modules/traefik/` (config-builder, validation, sync services) | **Different concern** (see boundaries below). Potential later reuse of validation/middleware-library; not a dependency for Phase 1 |
 | Contract aggregation | `packages/contracts/api/index.ts` (`oc.router`) | New `platform` contract group registered here |
 | Contract modules convention | `packages/contracts/api/modules/<domain>/` | Home of the new app-instance contracts |
 | Env schema (Zod, single SSOT) | `packages/config/env/src/index.ts` | All new env vars declared here (`API_PORT`, `TRUSTED_ORIGINS`, `SETUP_AUTO` already live there) |
-| Global platform config tables | `apps/api/src/config/drizzle/global/schema/app-config.ts` | Candidate store for the managed-web flag (verify key/value shape in Phase 0) |
+| Global platform config tables | `packages/nest/schema/src/global/platform/app-config.ts` | Candidate store for the managed-web flag (verify key/value shape in Phase 0) |
 | Drizzle schema + migrations flow | `apps/api/src/db/drizzle/schema/`, generate → review → migrate | New `app_instances` table follows this exact flow |
-| Better Auth wiring + trustedOrigins | `apps/api/src/core/modules/auth/auth.module.ts`, `apps/api/src/auth.ts` | User-auth layer untouched; trustedOrigins cross-origin role removed |
+| Better Auth wiring + trustedOrigins | `apps/api/shared/src/core/modules/auth/auth.module.ts`, `apps/api/shared/src/auth.ts` | User-auth layer untouched; trustedOrigins cross-origin role removed |
 
 ---
 
@@ -133,7 +133,7 @@ Empty-string default for `DEPLOYER_PREFIX` encodes "no prefix segment" as the ze
 One function derives every self-referencing URL in the codebase. Nothing else may build these strings:
 
 ```ts
-// apps/api/src/core/modules/platform-ingress/services/hostname.service.ts — sketch
+// apps/api/shared/src/core/modules/platform-ingress/services/hostname.service.ts — sketch
 export abstract class HostnameService {
   /** "acme" → "api.acme.deployer.localhost"; "" → "api.deployer.localhost" */
   abstract apiHostname(): string;
@@ -217,7 +217,7 @@ This is the largest workstream. It replaces cross-origin CORS trust with possess
 New Drizzle table colocated with the global schemas:
 
 ```ts
-// apps/api/src/db/drizzle/schema/platform/app-instance.ts — sketch
+// packages/nest/schema/src/global/platform/app-instance.ts — sketch
 export const appInstances = pgTable(
   "app_instances",
   {

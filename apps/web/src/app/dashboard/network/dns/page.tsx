@@ -1,7 +1,7 @@
 'use client'
 
 import { Network } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { EmptyState, PageHeader } from '@/components/dashboard'
 import { AuthDashboardAdminProvidersDns } from '@/routes'
 import { DnsRecordsTable } from '../_components/dns-records-table'

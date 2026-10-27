@@ -10,21 +10,21 @@ import type { BetterAuthClientPlugin } from "better-auth/client";
 import {
   platformAc,
   platformRoles,
-} from "@repo/auth/permissions/index";
-import type { invitePlugin } from "@repo/auth/server/plugins/invite";
+} from "@deployer/auth/permissions/index";
+import type { invitePlugin } from "@deployer/auth/server/plugins/invite";
 
 // ============================================================================
 // Re-export existing plugins
 // ============================================================================
 
-export { default as masterTokenClient } from "@repo/auth/client/plugins/masterToken/index";
-export { loginAsClientPlugin } from "@repo/auth/client/plugins/loginAs/index";
+export { default as masterTokenClient } from "@deployer/auth/client/plugins/masterToken/index";
+export { loginAsClientPlugin } from "@deployer/auth/client/plugins/loginAs/index";
 
 // Re-export guards.
 //
 // These are explicit named re-exports rather than `export *` on purpose: this
 // module is built by `pkg-build`, which marks the package's own name external
-// (`@repo/auth`, `@repo/auth/*`). `bun build` keeps a lone `export *` from a
+// (`@deployer/auth`, `@deployer/auth/*`). `bun build` keeps a lone `export *` from a
 // file that contains nothing else, but DROPS wildcard re-exports in a module
 // that also declares other exports — silently, with no warning. That is exactly
 // this file: the wildcard arms vanished from the emitted `dist/**/plugins/index
@@ -33,8 +33,8 @@ export { loginAsClientPlugin } from "@repo/auth/client/plugins/loginAs/index";
 // with "Export hasMasterTokenPlugin doesn't exist in target module".
 //
 // Keep these lists in sync with the source modules they mirror.
-export { hasMasterTokenPlugin } from "@repo/auth/client/plugins/masterToken/guard";
-export type { MasterTokenActions } from "@repo/auth/client/plugins/masterToken/guard";
+export { hasMasterTokenPlugin } from "@deployer/auth/client/plugins/masterToken/guard";
+export type { MasterTokenActions } from "@deployer/auth/client/plugins/masterToken/guard";
 
 // Re-export plugin utilities.
 export {
@@ -45,11 +45,11 @@ export {
   getMasterTokenEnabled,
   setDevtoolsApiKeyProvider,
   setMasterTokenEnabled,
-} from "@repo/auth/client/plugins/masterToken/state";
-export type { MasterTokenSubscriber } from "@repo/auth/client/plugins/masterToken/state";
+} from "@deployer/auth/client/plugins/masterToken/state";
+export type { MasterTokenSubscriber } from "@deployer/auth/client/plugins/masterToken/state";
 
 // Export components
-export { MasterTokenProvider, useMasterToken } from "@repo/auth/client/plugins/masterToken/components/provider";
+export { MasterTokenProvider, useMasterToken } from "@deployer/auth/client/plugins/masterToken/components/provider";
 
 // ============================================================================
 // Admin Client Plugin
@@ -69,7 +69,7 @@ export { MasterTokenProvider, useMasterToken } from "@repo/auth/client/plugins/m
  * 
  * @example
  * ```typescript
- * import { useAdminClient } from '@repo/auth/client/plugins/index'
+ * import { useAdminClient } from '@deployer/auth/client/plugins/index'
  * 
  * const authClient = createAuthClient({
  *   plugins: [useAdminClient()]
@@ -110,7 +110,7 @@ export type AdminClientPlugin = ReturnType<typeof useAdminClient>;
  * 
  * @example
  * ```typescript
- * import { useInviteClient } from '@repo/auth/client/plugins/index'
+ * import { useInviteClient } from '@deployer/auth/client/plugins/index'
  * 
  * const authClient = createAuthClient({
  *   plugins: [useInviteClient()]

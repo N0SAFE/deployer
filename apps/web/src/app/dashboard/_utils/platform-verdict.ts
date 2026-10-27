@@ -195,7 +195,7 @@ export function derivePlatformVerdict(input: VerdictInput): PlatformVerdict {
 
 	const ing = input.ingress
 	if (ing !== undefined) {
-		if (ing.publicLaneProvider !== null && (ing.edge === null || !ing.edge.provisioned)) {
+		if (ing.publicLaneProvider !== null && !ing.edge?.provisioned) {
 			items.push({
 				key: 'edge-not-provisioned',
 				label: 'Public edge is not provisioned',

@@ -12,11 +12,14 @@ import { useState } from 'react'
  */
 export function useOnDepsChange(deps: readonly unknown[], handler: () => void, runOnMount = true): void {
   const [previous, setPrevious] = useState<readonly unknown[] | null>(runOnMount ? null : deps)
-  const changed = previous === null
-    || previous.length !== deps.length
-    || deps.some((value, index) => !Object.is(value, previous[index]))
-  if (changed) {
+  if (depsChanged(previous, deps)) {
     setPrevious(deps)
     handler()
   }
+}
+
+function depsChanged(previous: readonly unknown[] | null, deps: readonly unknown[]): boolean {
+  if (previous === null) return true
+  if (previous.length !== deps.length) return true
+  return deps.some((value, index) => !Object.is(value, previous[index]))
 }

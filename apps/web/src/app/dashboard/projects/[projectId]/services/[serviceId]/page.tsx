@@ -5,10 +5,10 @@ import { useParams } from 'next/navigation'
 import { useProject, useProjectServiceEnvironmentLinks } from '@/domains/project/hooks'
 import { useService, useServiceDependencies } from '@/domains/service/hooks'
 import { useDeploymentList } from '@/domains/deployment/hooks'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 import { PageSkeleton } from '@/components/dashboard/Skeletons'
 import { InlineError } from '../../../_components/workload/WorkloadStates'
 import { RelativeTime } from '../../../_components/workload/RelativeTime'
@@ -21,7 +21,7 @@ import {
 } from '@/routes'
 import { StatusBadge } from '@/components/dashboard'
 import { EmptyState } from '@/components/dashboard'
-import { ENV_NAMES } from '@repo/contracts-common'
+import { ENV_NAMES } from '@deployer/contracts-common'
 
 /** Known fields we read from the service entity + its effective config. */
 interface ServiceFields {

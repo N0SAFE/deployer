@@ -22,16 +22,16 @@
 
 import { useMemo, useState } from "react";
 import { Check, Copy, Network, Sparkles, Waypoints } from "lucide-react";
-import { Button } from "@repo/ui/components/shadcn/button";
-import { Input } from "@repo/ui/components/shadcn/input";
-import { Badge } from "@repo/ui/components/shadcn/badge";
-import { cn } from "@repo/ui/lib/utils";
+import { Button } from "@deployer/ui/components/shadcn/button";
+import { Input } from "@deployer/ui/components/shadcn/input";
+import { Badge } from "@deployer/ui/components/shadcn/badge";
+import { cn } from "@deployer/ui/lib/utils";
 import type {
   SwarmConfigView,
   SwarmParticipationInput,
   SwarmNodePolicy,
   SwarmParticipationMode,
-} from "@repo/contracts-entities";
+} from "@deployer/contracts-entities";
 
 export type SwarmParticipationContext = "founding" | "joining" | "edit";
 

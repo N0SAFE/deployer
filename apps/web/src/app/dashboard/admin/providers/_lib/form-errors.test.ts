@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { z } from 'zod/v4'
+import z from 'zod/v4'
 import { fieldErrors } from './form-errors'
 
 const schema = z.object({ name: z.string().min(1, 'Name is required'), url: z.string().url('Must be a valid URL') })

@@ -7,6 +7,10 @@ services:
     build:
       context: ../../../../..
       dockerfile: ./infra/docker/builder/doc/Dockerfile.doc.runtime.prod
+      secrets:
+        - turbo_token
+        - turbo_team
+        - turbo_api
       args:
         - NODE_ENV=production
         - BUILDKIT_INLINE_CACHE=1

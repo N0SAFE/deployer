@@ -53,12 +53,12 @@
   - Replaced direct ORPC usage with generated hooks
   - Added example of queryKeys usage in comments
 
-### 1.3 Consolidate RequirePermission into @repo/auth-utils ✅ COMPLETE
+### 1.3 Consolidate RequirePermission into @deployer/auth-utils ✅ COMPLETE
 > 📍 Context: [01-CRITICAL-FIXES.md#L118-L180](enhancements/01-CRITICAL-FIXES.md#L118-L180)
 
 **Problem**: Two implementations exist with inconsistent behavior
 
-**Solution**: Merge into `@repo/auth-utils` package
+**Solution**: Merge into `@deployer/auth-utils` package
 
 **COMPLETED**:
 - ✅ Created factory-based permission hooks in `packages/auth/src/react/usePermissions.ts`
@@ -76,8 +76,8 @@
 **Key Changes Made**:
 - Implemented factory pattern: `createPermissionHooks()` and `createRequirePermissionComponents()`
 - Adapter pattern for Better Auth session compatibility with `UseSessionResult` interface
-- Type exports: `PlatformRole`, `OrganizationRole` from `@repo/auth`, `PlatformPermission`, `OrganizationPermission` from `@repo/auth/react`
-- All permission checking logic now centralized in `@repo/auth` package
+- Type exports: `PlatformRole`, `OrganizationRole` from `@deployer/auth`, `PlatformPermission`, `OrganizationPermission` from `@deployer/auth/react`
+- All permission checking logic now centralized in `@deployer/auth` package
 - App-specific instantiation in `apps/web/src/lib/permissions.ts` with authClient and useOrganizationMembers dependencies
 
 ### 1.4 Fix Production Console Logging ✅ COMPLETE
@@ -88,14 +88,14 @@
 **Solution**: Replace with Pino logger (see Phase 2.2)
 
 **COMPLETED**:
-- ✅ Created `@repo/logger` package with Pino (Task 2.2)
+- ✅ Created `@deployer/logger` package with Pino (Task 2.2)
   - All log levels: trace, debug, info, warn, error, fatal
   - Child loggers with context binding
   - Sensitive data redaction (passwords, tokens, secrets)
   - Error serialization with stack traces
   - Environment-based pretty printing (dev) vs JSON (prod)
 - ✅ Replaced 5 console.log calls in `apps/web/src/lib/orpc/index.ts` with logger
-- ✅ Added `@repo/logger` dependency to web app
+- ✅ Added `@deployer/logger` dependency to web app
 - ✅ Type-check successful
 
 **Remaining console.log calls** (non-critical, can be addressed incrementally):
@@ -262,8 +262,8 @@
 
 - [ ] Create `apps/web/src/types/index.ts`
 - [ ] Re-export hook types from `@/hooks/*`
-- [ ] Re-export API contract types from `@repo/api-contracts`
-- [ ] Re-export permission types from `@repo/auth-utils`
+- [ ] Re-export API contract types from `@deployer/api-contracts`
+- [ ] Re-export permission types from `@deployer/auth-utils`
 - [ ] Re-export component prop types
 - [ ] Update imports across app to use centralized types
 
@@ -675,7 +675,7 @@ tools/              # CLI tools (separate from packages)
 ### 5.1 Consolidate RequirePermission (if not done in Phase 1)
 > 📍 Context: [04-CONSOLIDATION.md#L7-L68](enhancements/04-CONSOLIDATION.md#L7-L68)
 
-- [ ] Verify single source in `@repo/auth-utils`
+- [ ] Verify single source in `@deployer/auth-utils`
 - [ ] Ensure all imports updated
 - [ ] Delete any remaining duplicates
 
@@ -714,7 +714,7 @@ tools/              # CLI tools (separate from packages)
 - [ ] Update each package's `vitest.config.ts` to extend base:
   ```typescript
   import { mergeConfig } from 'vitest/config'
-  import { reactConfig } from '@repo/config-vitest'
+  import { reactConfig } from '@deployer/config-vitest'
   export default mergeConfig(reactConfig, { /* overrides */ })
   ```
 - [ ] Verify all tests still pass
@@ -899,7 +899,7 @@ All decisions made during our discussion:
 |---|----------|--------|--------|
 | 1 | Zod fix | `zod/v4` import | [01-CRITICAL-FIXES.md#L25-L45](enhancements/01-CRITICAL-FIXES.md#L25-L45) |
 | 2 | useUsers.ts | Remove completely | [01-CRITICAL-FIXES.md#L68-L80](enhancements/01-CRITICAL-FIXES.md#L68-L80) |
-| 3 | RequirePermission | Merge into `@repo/auth-utils` | [01-CRITICAL-FIXES.md#L140-L160](enhancements/01-CRITICAL-FIXES.md#L140-L160) |
+| 3 | RequirePermission | Merge into `@deployer/auth-utils` | [01-CRITICAL-FIXES.md#L140-L160](enhancements/01-CRITICAL-FIXES.md#L140-L160) |
 | 4 | Logger | Pino (NestJS-compatible) | [02-DX-IMPROVEMENTS.md#L160-L180](enhancements/02-DX-IMPROVEMENTS.md#L160-L180) |
 | 5 | Invitations | Dual system (app + org) | [01-CRITICAL-FIXES.md#L230-L270](enhancements/01-CRITICAL-FIXES.md#L230-L270) |
 | 6 | Permissions | Dual-layer + usePermissions() | [05-ARCHITECTURE.md#L15-L50](enhancements/05-ARCHITECTURE.md#L15-L50) |

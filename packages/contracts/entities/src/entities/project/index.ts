@@ -1,7 +1,7 @@
 export {
   projectSchema,
   projectWithStatsSchema,
-} from '@deployer/contracts-entities/entities/project/core.schema'
+} from './core.schema'
 
 export {
   projectNetworkConfigSchema,
@@ -11,14 +11,14 @@ export {
   defaultProjectNetworkConfig,
   defaultServiceNetworkConfig,
   NETWORK_DNS_RECORD_TYPES,
-} from '@deployer/contracts-entities/entities/project/network.schema'
+} from './network.schema'
 
 export type {
   ProjectNetworkConfig,
   ServiceNetworkConfig,
   NetworkDnsRecordType,
   NetworkTls,
-} from '@deployer/contracts-entities/entities/project/network.schema'
+} from './network.schema'
 
 export {
   projectBaseEnvironmentSettingsSchema,
@@ -38,41 +38,41 @@ export {
   projectSecurityConfigSchema,
   projectResourceConfigSchema,
   projectNotificationConfigSchema,
-} from '@deployer/contracts-entities/entities/project/settings.schema'
+} from './settings.schema'
 
 export type {
   ProjectSettings,
-} from '@deployer/contracts-entities/entities/project/settings.schema'
+} from './settings.schema'
 
 export {
   projectRoleSchema,
   collaboratorSchema,
   inviteCollaboratorSchema,
-} from '@deployer/contracts-entities/entities/project/collaborators.schema'
+} from './collaborators.schema'
 
 export {
   environmentTypeSchema,
   environmentStatusSchema,
   environmentRulesSchema,
   projectEnvironmentSchema,
-} from '@deployer/contracts-entities/entities/project/environments.schema'
+} from './environments.schema'
 
 export type {
   EnvironmentRules,
-} from '@deployer/contracts-entities/entities/project/environments.schema'
+} from './environments.schema'
 
 export {
   serviceEnvironmentLinkSchema,
   serviceEnvironmentLinkInputSchema,
-} from '@deployer/contracts-entities/entities/project/service-environment-link.schema'
+} from './service-environment-link.schema'
 
 export type {
   ServiceEnvironmentLink,
   ServiceEnvironmentLinkInput,
-} from '@deployer/contracts-entities/entities/project/service-environment-link.schema'
+} from './service-environment-link.schema'
 
 // Re-export the environment KIND + TRIGGER primitives (defined in contracts-common)
-// so contracts can import them from @deployer/contracts-entities like the rest.
+// so contracts can import them from @/ like the rest.
 export {
   environmentKindSchema,
   environmentTriggerSchema,
@@ -85,4 +85,4 @@ export {
 export {
   templateVariableSchema,
   variableTemplateSchema,
-} from '@deployer/contracts-entities/entities/project/templates.schema'
+} from './templates.schema'

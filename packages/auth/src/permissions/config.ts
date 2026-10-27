@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { PermissionBuilder } from "@repo/auth/permissions/system/builder/builder";
+import { PermissionBuilder } from "@deployer/auth/permissions/system/builder/builder";
 import { defaultStatements as adminDefaultStatements } from "better-auth/plugins/admin/access";
 
 

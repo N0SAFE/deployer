@@ -5,20 +5,21 @@ import {
   createContext,
   createElement,
   type ReactNode,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
 } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { debounceTime } from '@repo/orpc-utils'
 import { dockerEndpoints } from './endpoints'
 import { useDeploymentList } from '@/domains/deployment/hooks'
 import { useServiceList } from '@/domains/service/hooks'
 import { useFleetServers } from '@/domains/fleet/hooks'
 import { useMeshEventStreams, useMeshSseState } from '@/domains/mesh/hooks'
-import { isRecord, isObjectLike } from "@repo/type-guards";
+import { isRecord } from "@deployer/type-guards";
 import {
   dockerContainerRuntimeEventSchema,
   dockerImageSecurityScanEventSchema,
@@ -27,22 +28,21 @@ import {
   dockerRuntimeEventSchema,
   type DockerContainer,
   type DockerContainerMetricPoint,
-  type DockerImageSecurityScanEvent,
   type DockerRuntimeCatalog,
   type DockerRuntimeEvent,
-} from '@repo/contracts-entities'
+} from '@deployer/contracts-entities'
 
 
 /**
  * Type guard that narrows `unknown` to a record-like object so we can
  * index it with string keys.
  */
-type QueryPagination = {
+interface QueryPagination {
   limit?: number
   offset?: number
 }
 
-type QueryInput = {
+interface QueryInput {
   query?: QueryPagination
 }
 
@@ -54,7 +54,7 @@ type QueryInput = {
  * managedBy) use the contract's literal unions so the object stays assignable
  * to the strict schema output type.
  */
-type DockerContainerListFilter = {
+interface DockerContainerListFilter {
   name?: { operator: 'eq' | 'like' | 'ilike'; value: string }
   status?: { operator: 'eq'; value: DockerContainer['status'] }
   projectId?: { operator: 'eq'; value: string }
@@ -65,7 +65,7 @@ type DockerContainerListFilter = {
   managedProjectId?: { operator: 'eq'; value: string }
 }
 
-type DockerContainerListQueryInput = {
+interface DockerContainerListQueryInput {
   limit?: number
   offset?: number
   sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'status'
@@ -80,11 +80,11 @@ type LinkedContainerQueryInput = QueryInput & {
   maxDepth?: 1 | 2 | 3
 }
 
-type DockerContainerListContractInput = {
+interface DockerContainerListContractInput {
   query?: Partial<DockerContainerListQueryInput>
 }
 
-type DockerContainerGroupedListContractInput = {
+interface DockerContainerGroupedListContractInput {
   query?: Partial<DockerContainerGroupedListQueryInput>
 }
 
@@ -259,10 +259,10 @@ type DockerImageSecurityScanStreamInput = Parameters<
 type DockerRuntimeEventFilterInput = NonNullable<DockerRuntimeEventsStreamInput['query']>['filter']
 type DockerRuntimeScope = Exclude<DockerRuntimeEvent['source'], 'unknown'>
 
-export type DockerRuntimeScopeSelection<
+export interface DockerRuntimeScopeSelection<
   Scope extends DockerRuntimeScope = DockerRuntimeScope,
   Actions extends readonly string[] | undefined = readonly string[] | undefined,
-> = {
+> {
   scope: Scope
   actions?: Actions
 }
@@ -296,9 +296,9 @@ interface BuildDockerRuntimeStreamInputOptions<
   scopes?: Selections
 }
 
-type DockerScopedEventsStreamInput<
+interface DockerScopedEventsStreamInput<
   Actions extends readonly string[] | undefined = readonly string[] | undefined,
-> = {
+> {
   query?: {
     since?: string
     until?: string
@@ -334,7 +334,7 @@ const EXCEPTIONAL_ACTIONS_BY_SCOPE: Record<DockerRuntimeScope, readonly string[]
 }
 
 const DEFAULT_EXCEPTIONAL_SCOPE_SELECTIONS: readonly DockerRuntimeScopeSelection[] =
-  (Object.entries(EXCEPTIONAL_ACTIONS_BY_SCOPE) as Array<[DockerRuntimeScope, readonly string[]]>)
+  (Object.entries(EXCEPTIONAL_ACTIONS_BY_SCOPE) as [DockerRuntimeScope, readonly string[]][])
     .map(([scope, actions]) => ({ scope, actions }))
 
 function mergeRuntimeFilters(
@@ -351,7 +351,7 @@ function mergeRuntimeFilters(
 
   return {
     _and: [isRecord(scopeFilter) ? scopeFilter : {}, isRecord(extraFilter) ? extraFilter : {}],
-  } as DockerRuntimeEventFilterInput
+  }
 }
 
 function buildScopeFilter(scopes: readonly DockerRuntimeScopeSelection[]): DockerRuntimeEventFilterInput | undefined {
@@ -381,18 +381,18 @@ function buildScopeFilter(scopes: readonly DockerRuntimeScopeSelection[]): Docke
   })
 
   if (nodes.length === 1) {
-    return nodes[0] as DockerRuntimeEventFilterInput
+    return nodes[0]
   }
 
   return {
     _or: nodes,
-  } as DockerRuntimeEventFilterInput
+  }
 }
 
 export function buildDockerRuntimeStreamInput<
   Selections extends DockerRuntimeScopeSelections | undefined = undefined,
 >(
-  options: BuildDockerRuntimeStreamInputOptions<Selections> = {} as BuildDockerRuntimeStreamInputOptions<Selections>,
+  options: BuildDockerRuntimeStreamInputOptions<Selections> = {},
 ): DockerRuntimeTypedStreamInput<Selections> {
   const scopeFilter = buildScopeFilter(options.scopes ?? [])
   const mergedFilter = mergeRuntimeFilters(scopeFilter, options.filter)
@@ -410,7 +410,7 @@ export function buildDockerRuntimeStreamInput<
     query.filter = mergedFilter
   }
 
-  return { query } as DockerRuntimeTypedStreamInput<Selections>
+  return { query }
 }
 
 export function buildDockerExceptionalRuntimeStreamInput<
@@ -453,7 +453,7 @@ function mergeRuntimeScopedInput<
         actions: query.actions,
       },
     ],
-  }) as DockerRuntimeTypedStreamInput<readonly [DockerRuntimeScopeSelection<Scope, Actions>]>
+  })
 }
 
 interface DockerRuntimeEventSubscriptionOptions<
@@ -473,26 +473,11 @@ interface DockerRuntimeEventSubscriberOptions {
   onEvent: (event: DockerRuntimeEvent) => void
 }
 
-interface UseEventTriggerOptions {
-  enabled?: boolean
-  cooldownMs?: number
-}
-
 type DockerRuntimeStreamStatus = 'connecting' | 'connected' | 'disconnected' | 'error'
 
 export interface DockerRuntimeSseState {
   status: DockerRuntimeStreamStatus
   lastError: string | null
-  event: DockerRuntimeEvent | null
-}
-
-interface UseContainerLiveUpdateOptions {
-  enabled?: boolean
-  containerId?: string
-  containerName?: string
-  includeServiceEvents?: boolean
-  includeDaemonEvents?: boolean
-  cooldownMs?: number
 }
 
 interface RealtimeMetricsState {
@@ -519,7 +504,7 @@ interface RuntimeEventSubscriptionEntry {
   filter?: (event: DockerRuntimeEvent) => boolean
   cooldownMs: number
   lastDispatchedAt: number
-  onEventRef: React.MutableRefObject<(event: DockerRuntimeEvent) => void>
+  onEventRef: React.RefObject<(event: DockerRuntimeEvent) => void>
 }
 
 interface DockerRuntimeEventsContextValue {
@@ -556,18 +541,22 @@ export function useDockerRuntimeEventsHub<
 ) {
   const streamQuery = useQuery(
     dockerEndpoints.runtime.stream.experimental_liveObservableOptions({
-      input: input as DockerRuntimeEventsStreamInput,
+      input: input,
       enabled: options?.enabled ?? true,
       refetchInterval: false,
     }),
   )
 
-  const parsed = dockerRuntimeEventSchema.safeParse(streamQuery.data)
+  // Memoised on the raw payload: `safeParse` returns a fresh object every call,
+  // and an unstable `event` re-ran every effect/memo that depends on it on each
+  // render, not only when a new event arrived.
+  const { data } = streamQuery
+  const event = useMemo(() => {
+    const parsed = dockerRuntimeEventSchema.safeParse(data)
+    return (parsed.success ? parsed.data : null) as DockerRuntimeEventFromTypedInput<Input> | null
+  }, [data])
 
-  return {
-    ...streamQuery,
-    event: (parsed.success ? parsed.data : null) as DockerRuntimeEventFromTypedInput<Input> | null,
-  }
+  return { ...streamQuery, event }
 }
 
 export function  DockerRuntimeEventsProvider({
@@ -579,8 +568,21 @@ export function  DockerRuntimeEventsProvider({
   const runtimeEventsHub = useDockerRuntimeEventsHub(input, { enabled })
   const { event } = runtimeEventsHub
 
-  const subscriptionsRef = useRef<Map<number, RuntimeEventSubscriptionEntry>>(new Map())
-  const subscriptionIdRef = useRef(0)
+  // A lazily-created store (not refs): `subscribe` is handed to context
+  // consumers during render, and a ref-reading closure cannot be.
+  const [subscriptionStore] = useState(() => {
+    const entries = new Map<number, RuntimeEventSubscriptionEntry>()
+    let nextId = 0
+    const subscribe: DockerRuntimeEventsContextValue['subscribe'] = (options) => {
+      const id = nextId
+      nextId += 1
+      entries.set(id, { ...options, id, lastDispatchedAt: 0 })
+      return () => {
+        entries.delete(id)
+      }
+    }
+    return { entries, subscribe }
+  })
   const lastFingerprintRef = useRef<string | null>(null)
   const lastDispatchAtRef = useRef<number>(0)
 
@@ -603,7 +605,7 @@ export function  DockerRuntimeEventsProvider({
     lastFingerprintRef.current = fingerprint
     lastDispatchAtRef.current = now
 
-    for (const subscription of subscriptionsRef.current.values()) {
+    for (const subscription of subscriptionStore.entries.values()) {
       if (subscription.filter && !subscription.filter(event)) {
         continue
       }
@@ -634,6 +636,9 @@ export function  DockerRuntimeEventsProvider({
           ? 'connecting'
           : 'disconnected'
 
+    // Deliberately carries no event: the context value must only change when the
+    // connection state does, otherwise every consumer (the containers page reads
+    // just `status`) re-renders on every docker event.
     return {
       status,
       lastError: runtimeEventsHub.isError
@@ -641,29 +646,13 @@ export function  DockerRuntimeEventsProvider({
             ? getErrorMessage(runtimeEventsHub.error, 'Docker runtime stream connection error')
             : UNKNOWN_ORPC_ERROR_MESSAGE)
         : null,
-      event,
     }
-  }, [event, runtimeEventsHub.data, runtimeEventsHub.error, runtimeEventsHub.fetchStatus, runtimeEventsHub.isError])
+  }, [runtimeEventsHub.error, runtimeEventsHub.fetchStatus, runtimeEventsHub.isError, runtimeEventsHub.isLoading])
 
-  const contextValue = useMemo<DockerRuntimeEventsContextValue>(() => {
-    return {
-      subscribe: (options) => {
-        const id = subscriptionIdRef.current
-        subscriptionIdRef.current += 1
-
-        subscriptionsRef.current.set(id, {
-          ...options,
-          id,
-          lastDispatchedAt: 0,
-        })
-
-        return () => {
-          subscriptionsRef.current.delete(id)
-        }
-      },
-      sseState,
-    }
-  }, [sseState])
+  const contextValue = useMemo<DockerRuntimeEventsContextValue>(
+    () => ({ subscribe: subscriptionStore.subscribe, sseState }),
+    [subscriptionStore, sseState],
+  )
 
   return createElement(
     DockerRuntimeEventsContext.Provider,
@@ -681,9 +670,19 @@ export function useDockerRuntimeEventSubscriber({
   const runtimeEventsContext = useContext(DockerRuntimeEventsContext)
 
   const onEventRef = useRef(onEvent)
+  const filterRef = useRef(filter)
   useEffect(() => {
     onEventRef.current = onEvent
-  }, [onEvent])
+    filterRef.current = filter
+  }, [onEvent, filter])
+
+  // Callers pass inline closures; subscribing with the closure itself re-subscribed
+  // on every render. The stable wrapper always reads the latest filter.
+  const hasFilter = filter !== undefined
+  const stableFilter = useCallback(
+    (event: DockerRuntimeEvent) => filterRef.current?.(event) ?? true,
+    [],
+  )
 
   useEffect(() => {
     if (!enabled || !runtimeEventsContext) {
@@ -691,11 +690,11 @@ export function useDockerRuntimeEventSubscriber({
     }
 
     return runtimeEventsContext.subscribe({
-      filter,
+      filter: hasFilter ? stableFilter : undefined,
       cooldownMs,
       onEventRef,
     })
-  }, [cooldownMs, enabled, filter, runtimeEventsContext])
+  }, [cooldownMs, enabled, hasFilter, runtimeEventsContext, stableFilter])
 
   useDockerRuntimeEventSubscription({
     enabled: enabled && runtimeEventsContext === null,
@@ -703,29 +702,6 @@ export function useDockerRuntimeEventSubscriber({
     cooldownMs,
     onEvent,
   })
-}
-
-interface UseDockerRuntimeRefetchOnStreamOptions {
-  /**
-   * Restrict the source observable to one or more runtime scopes
-   * (`container`, `image`, `service`, `daemon`, ...). When omitted, every
-   * event emitted by the docker runtime stream is observed.
-   */
-  scopes?: readonly DockerRuntimeScope[]
-  /**
-   * Restrict the source observable to a list of docker event actions
-   * (e.g. `["create", "update", "destroy"]`). Forwarded to the underlying
-   * ORPC stream input.
-   */
-  actions?: readonly string[]
-  /**
-   * Wait this many milliseconds of quiet on the source observable before
-   * emitting a single value. Defaults to `200`. This is the canonical way
-   * to coalesce bursts of docker events into a single refetch signal.
-   */
-  debounceMs?: number
-  enabled?: boolean
-  onData: () => void
 }
 
 /**
@@ -736,7 +712,7 @@ interface UseDockerRuntimeRefetchOnStreamOptions {
  * to docker runtime activity.
  *
  * Internally it leverages the `queryFnOptions` transform from
- * `@repo/orpc-utils` so that consumers can pass `(obs) => obs.pipe(...)`
+ * `@deployer/orpc-utils` so that consumers can pass `(obs) => obs.pipe(...)`
  * directly to the underlying stream. Default behavior (no transform) is to
  * forward every event unchanged.
  */
@@ -749,10 +725,25 @@ export function useRealtimeMetrics(
     resolveHash,
   }: UseRealtimeMetricsOptions = {},
 ): RealtimeMetricsState {
-  const [state, setState] = useState<RealtimeMetricsState>({
-    timelineByHash: {},
-    latestAtByHash: {},
-  })
+  const [state, appendPoint] = useReducer(
+    (
+      previous: RealtimeMetricsState,
+      action: { hash: string; point: DockerContainerMetricPoint; at: string; historySize: number },
+    ): RealtimeMetricsState => {
+      const timeline = previous.timelineByHash[action.hash] ?? []
+      return {
+        timelineByHash: {
+          ...previous.timelineByHash,
+          [action.hash]: [...timeline, action.point].slice(-action.historySize),
+        },
+        latestAtByHash: {
+          ...previous.latestAtByHash,
+          [action.hash]: action.at,
+        },
+      }
+    },
+    { timelineByHash: {}, latestAtByHash: {} },
+  )
 
   const hashFilterSet = useMemo(() => {
     return new Set(containerHashes.map((value) => value.trim()).filter((value) => value.length > 0))
@@ -815,21 +806,7 @@ export function useRealtimeMetrics(
       ioWriteKb: 0,
     })
 
-    setState((previous) => {
-      const timeline = previous.timelineByHash[resolvedHash] ?? []
-      const nextTimeline = [...timeline, eventPoint].slice(-historySize)
-
-      return {
-        timelineByHash: {
-          ...previous.timelineByHash,
-          [resolvedHash]: nextTimeline,
-        },
-        latestAtByHash: {
-          ...previous.latestAtByHash,
-          [resolvedHash]: eventTimestamp,
-        },
-      }
-    })
+    appendPoint({ hash: resolvedHash, point: eventPoint, at: eventTimestamp, historySize })
   }, [cooldownMs, enabled, hashFilterSet, historySize, resolveHash, streamQuery.data])
 
   return state
@@ -937,9 +914,6 @@ export function useDockerRuntimeSseState(
     return runtimeEventsContext.sseState
   }
 
-  const parsedEvent = dockerRuntimeEventSchema.safeParse(streamQuery.data)
-  const event = parsedEvent.success ? parsedEvent.data : null
-
   const status: DockerRuntimeStreamStatus = streamQuery.isError
     ? 'error'
     : streamQuery.fetchStatus === 'fetching'
@@ -955,7 +929,6 @@ export function useDockerRuntimeSseState(
           ? getErrorMessage(streamQuery.error, 'Docker runtime stream connection error')
           : UNKNOWN_ORPC_ERROR_MESSAGE)
       : null,
-    event,
   }
 }
 

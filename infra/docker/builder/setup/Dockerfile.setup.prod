@@ -20,14 +20,28 @@
 # ===================================
 # Stage 1: Base
 # ===================================
-FROM oven/bun:1.4.2-alpine AS base
+FROM oven/bun:1.4.3-alpine AS base
 ENV NODE_ENV=production
+
+# ── BUILDKIT CACHE MOUNTS BREAK `install.globalStore` — TURN IT OFF ──────────
+# `bunfig.toml` sets `globalStore = true`, which points every
+# `node_modules/.bun/<pkg>` at an absolute path UNDER the bun cache mount used
+# below. A BuildKit cache mount is not committed to the image layer, so those
+# links would ship without their targets and every runtime import would fail
+# with ENOENT. Measured in a built image: with the store on, `test -d
+# node_modules/.bun/zod@4.6.7` is false. The env var overrides bunfig.toml.
+# Full reasoning: AGENTS.md → "One bun download cache".
+ENV BUN_INSTALL_GLOBAL_STORE=0
 
 # jq is needed to parse package.json exports in the runner stage; wget is the
 # compose healthcheck's probe (Terminus returns a real status code, so a plain
 # --spider is correct and no grep wrapper is needed).
 RUN apk add --no-cache libc6-compat tar jq wget
-RUN --mount=type=cache,target=/root/.bun/install/cache bun install -g turbo@^2
+# The explicit `id` matters because the cache id DEFAULTS TO THE MOUNT TARGET:
+# a different target would be a second download cache instead of the one shared
+# with every other Dockerfile here. See AGENTS.md → "One bun download cache".
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
+    bun install -g turbo@^2
 WORKDIR /app
 
 # ===================================
@@ -40,8 +54,11 @@ COPY turbo.json package.json ./
 COPY bun.lock* ./
 COPY --parents **/package.json ./
 
+# `@deployer/setup`, NOT `setup`: the scope is a WORKSPACE PACKAGE NAME, and
+# every application here is scoped. `turbo prune setup` fails with
+# "Invalid scope. Package with name setup in `package.json` not found."
 RUN --mount=type=cache,target=/root/.cache/turbo \
-  turbo prune setup --docker
+  turbo prune @deployer/setup --docker
 
 # ===================================
 # Stage 2b: pruner-full — sources via bind mount
@@ -56,7 +73,14 @@ RUN --mount=type=bind,target=/src \
   cp /src/turbo.json . && \
   cp /src/bun.lock* . 2>/dev/null || true ; \
   tar -C /src -cf - apps packages tooling 2>/dev/null | tar -xf - 2>/dev/null || true ; \
-  turbo prune setup --docker
+  turbo prune @deployer/setup --docker && \
+  # THE PRUNING TURBO IS NOT THE BUILDING TURBO — see AGENTS.md, "The pruning
+  # turbo writes the turbo.json the build parses". `turbo prune` re-serialises
+  # turbo.json from ITS OWN version, and this stage runs the `turbo@^2` global
+  # install while the build runs the LOCKFILE-PINNED turbo from node_modules.
+  # A newer prune writes futureFlags an older build rejects outright, and drops
+  # `remoteCache` that the `--remote-only` build below requires.
+  cp /app/turbo.json /app/out/full/turbo.json
 
 # ===================================
 # Stage 3: Installer
@@ -87,7 +111,16 @@ COPY --from=pruner-json /app/out/json/ .
 # fallback never fires and the wrong tree installs silently.
 COPY --from=pruner-full /app/bun.lock ./bun.lock
 
-RUN --mount=type=cache,target=/root/.bun/install/cache \
+# ── WHY THE ROOT `scripts/` DIRECTORY ───────────────────────────────────────
+# `bun ci` runs the root `postinstall`,
+# `scripts/link-workspace-self-references.ts`, which creates the
+# `node_modules/<own-name> -> ../..` self-link that `bun install` never makes.
+# `turbo prune` keeps only what the pruned TARGET needs and a root script is not
+# one of its dependencies, so without this COPY the install dies with
+# `Module not found "scripts/link-workspace-self-references.ts"`.
+COPY scripts ./scripts
+
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
   bun ci
 
 # ===================================
@@ -106,24 +139,55 @@ COPY --from=pruner-full /app/bun.lock ./bun.lock
 # the pruned source, silently skipping `apps/setup/node_modules`.
 RUN --mount=type=bind,from=installer,source=/app,target=/mnt/installer \
     cd /mnt/installer && \
-    PATHS="node_modules"; \
-    for d in apps/*/node_modules packages/*/node_modules packages/*/*/node_modules tooling/*/node_modules tooling/*/*/node_modules; do \
-        if [ -d "$d" ]; then PATHS="$PATHS $d"; fi; \
-    done && \
+    # Depth-agnostic discovery — see AGENTS.md, "Discover node_modules with
+    # find, never a glob list".
+    PATHS="node_modules $(find apps packages tooling -type d -name node_modules -prune -print | tr '\n' ' ')"; \
     tar -cf - --exclude='*.map' --exclude='.cache' --exclude='.turbo' $PATHS | \
     tar -xf - -C /app --owner=root --group=root
 
 COPY --parents --chmod=a+w **/.turbo/ ./
 
-# Build setup AND its workspace dependencies. `--filter=setup...` is required:
+# Build setup AND its workspace dependencies. `--filter=@deployer/setup...` is required:
 # the app imports workspace packages whose `dist/` must exist before Nest
-# resolves them, and a bare `--filter=setup` would skip the packages it depends
+# resolves them, and a bare `--filter=@deployer/setup` would skip the packages it depends
 # on. The build itself runs `scripts/build.ts`, which bundles the two entry
 # points AND executes `dist/compile.js` — so a Nest graph that cannot assemble
 # fails the IMAGE BUILD rather than the container start.
-RUN --mount=type=cache,target=/root/.bun/install/cache \
+RUN --mount=type=cache,id=deployer-turbo-cache,target=/turbo-cache,sharing=shared \
+    --mount=type=secret,id=turbo_token,env=TURBO_TOKEN,required=false \
+    --mount=type=secret,id=turbo_team,env=TURBO_TEAM,required=false \
+    --mount=type=secret,id=turbo_api,env=TURBO_API,required=false \
+    --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
     --mount=type=cache,target=/root/.cache \
-    bunx turbo run build --filter=setup...
+    bunx turbo run build --cache-dir=/turbo-cache --filter=@deployer/setup...
+
+# ── PRUNE devDependencies HERE, WHERE THE TREE IS COMPLETE ──────────────────
+# MUST run in the builder: the runtime receives each workspace's `node_modules`
+# by having it COPIED out of this stage, so pruning here is what makes the
+# runtime image smaller. The same work in the runner is impossible — it never
+# receives `bun.lock`, the `tooling/*` manifests, or `scripts/`, and the
+# install that used to sit there died with
+# `error: Workspace not found "tooling/eslint"` (x7, measured).
+#
+# `bun prune` and NOT `rm -rf node_modules && bun install --production`: same
+# final tree (1462 MB, verified), but 0.9s against 18s, and purely local
+# (verified with `--network=none`). `bun pm prune` is a different, non-existent
+# command — `bun prune` is top-level.
+#
+# ── WHY `scripts/` IS STILL NEEDED, AND WHY THE RE-LINK IS NOT OPTIONAL ────
+# The root `postinstall` is `scripts/link-workspace-self-references.ts`, and
+# `turbo prune` does not bring it: a root script is not a dependency of any
+# workspace, so the pruner drops it.
+#
+# The installer already needs it for the install-time postinstall. Here the
+# reason is narrower: **`bun prune` DELETES the self-links it created**, because
+# `node_modules/<own-name> -> ../..` is not an entry in `bun.lock`. Measured:
+# present before the prune, ABSENT after. So the prune must be followed by an
+# explicit re-link, or node fails to load any dist barrel that re-imports its
+# own package by name.
+COPY scripts ./scripts
+RUN bun prune --production && \
+    bun --bun run scripts/link-workspace-self-references.ts
 
 # ===================================
 # Stage 5: Runner
@@ -168,10 +232,7 @@ RUN --mount=type=bind,from=builder,source=/app,target=/mnt/builder \
     # node_modules: per-dir merge, not one tar. Nested workspaces can appear in
     # several PATHS entries and a plain tar extract aborts on such overlaps.
     cd /mnt/builder && \
-    PATHS="node_modules"; \
-    for d in apps/*/node_modules packages/*/node_modules packages/*/*/node_modules tooling/*/node_modules tooling/*/*/node_modules; do \
-        if [ -d "$d" ]; then PATHS="$PATHS $d"; fi; \
-    done && \
+    PATHS="node_modules $(find apps packages tooling -type d -name node_modules -prune -print | tr '\n' ' ')"; \
     for d in $PATHS; do \
         mkdir -p "/app/$d"; \
         cp -a "/mnt/builder/$d/." "/app/$d/" 2>/dev/null || { \
@@ -181,9 +242,10 @@ RUN --mount=type=bind,from=builder,source=/app,target=/mnt/builder \
         }; \
     done
 
-# Drop devDependencies now that the build is done.
-RUN --mount=type=cache,target=/root/.bun/install/cache,sharing=locked \
-    bun install --frozen-lockfile --production
+# devDependencies were already dropped in the BUILDER stage (see the prune
+# there). Nothing to re-install here: the runner does not even have `bun.lock`
+# or the `tooling/*` manifests this install would need, which is why the
+# install that used to sit here failed with `Workspace not found`.
 
 # /app/data holds the SHARED SQLite file (setup writes the swarm participation
 # decision and the database URL; the API reads them), and /app/traefik-configs

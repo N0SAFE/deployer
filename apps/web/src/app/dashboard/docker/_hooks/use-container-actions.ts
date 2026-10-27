@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 import { useDockerRunContainerAction } from '@/domains/docker/hooks'
 import { getErrorMessage, isDefinedORPCError } from '@/lib/orpc/typed-errors'

@@ -10,7 +10,7 @@ Select specific packages to run tasks in.
 
 ```bash
 turbo build --filter=web
-turbo build -F=@repo/ui -F=@repo/utils
+turbo build -F=@deployer/ui -F=@deployer/utils
 turbo test --filter=./apps/*
 ```
 

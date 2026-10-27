@@ -3,7 +3,9 @@ import { RenderModule } from "@nestjs-ssr/react";
 
 import { EnvModule } from "@/config/env/env.module";
 import { localDatabaseRegistration } from "@/config/database/local-database.module";
-import { NodesModule } from "@repo/nest-nodes";
+import { NodesModule } from "@deployer/nest-nodes";
+import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository";
+import { NODE_CONFIG_READER, NODE_CONFIG_STORE } from "./node-config.port";
 import { SetupHealthModule } from "@/modules/health/setup-health.module";
 import { SetupClusterModule } from "@/modules/cluster/cluster.module";
 import { SetupGateService } from "./setup-gate.service";
@@ -64,6 +66,25 @@ import { SetupProgressModule } from "@/modules/progress/progress.module";
   ],
   controllers: [WizardPageController, WizardController],
   providers: [
+    // ── THE NARROW PORTS ARE BOUND TO THE REAL REPOSITORY ───────────────────
+    // `SetupGateService` and `WizardStateService` take `NodeConfigStore` /
+    // `NodeConfigReader` (a `Pick` of the repository) instead of the class, so
+    // their specs can stub them without a private `localDb`. A `Pick` is a TYPE,
+    // and Nest resolves by runtime token — an interface/type alias has none — so
+    // the binding has to be explicit or the graph fails with
+    // "Nest can't resolve dependencies of the SetupGateService".
+    //
+    // `useExisting` (not `useClass`) so there is still exactly ONE instance: the
+    // `NodesModule` export is the single source, and `useClass` would construct a
+    // second repository over the same file.
+    {
+      provide: NODE_CONFIG_STORE,
+      useExisting: NodeConfigRepository,
+    },
+    {
+      provide: NODE_CONFIG_READER,
+      useExisting: NodeConfigRepository,
+    },
     SetupGateService,
     WizardStateService,
     WizardUpstreamService,

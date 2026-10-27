@@ -7,7 +7,7 @@ import {
     platformRoleFromLabels,
     withIngress,
     withPlatformRole,
-} from "@repo/nest-nodes/swarm-node-labels";
+} from "@deployer/nest-nodes/swarm-node-labels";
 
 describe("platformRoleFromLabels", () => {
     it("reads a valid role from the node labels", () => {

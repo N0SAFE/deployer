@@ -2,13 +2,13 @@
 
 import { useForm } from '@tanstack/react-form'
 import { toast } from 'sonner'
-import { z } from 'zod/v4'
-import { projectRoleSchema } from '@repo/contracts-entities'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Label } from '@repo/ui/components/shadcn/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@repo/ui/components/shadcn/select'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
+import z from 'zod/v4'
+import { projectRoleSchema } from '@deployer/contracts-entities'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Label } from '@deployer/ui/components/shadcn/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@deployer/ui/components/shadcn/dialog'
 import { ROLE_DESCRIPTIONS } from '../../[projectId]/_utils/team'
 
 export type ProjectRole = z.infer<typeof projectRoleSchema>

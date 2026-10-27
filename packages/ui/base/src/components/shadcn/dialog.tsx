@@ -3,8 +3,8 @@
 import * as React from "react"
 import { Dialog as DialogPrimitive } from "radix-ui"
 
-import { cn } from "@repo/ui/lib/utils"
-import { Button } from "@repo/ui/components/shadcn/button"
+import { cn } from "@deployer/ui/lib/utils"
+import { Button } from "@deployer/ui/components/shadcn/button"
 import { XIcon } from "lucide-react"
 
 function Dialog({

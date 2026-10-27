@@ -1,8 +1,8 @@
 'use client'
 
 import { Pause, Play, RefreshCw, Search } from 'lucide-react'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Input } from '@repo/ui/components/shadcn/input'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Input } from '@deployer/ui/components/shadcn/input'
 import { cn } from '@/lib/utils'
 import { StatusDot } from '@/components/dashboard'
 import type { FeedConnection } from '../_hooks/use-activity-feed'

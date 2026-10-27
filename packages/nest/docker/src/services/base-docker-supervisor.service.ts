@@ -17,14 +17,14 @@ import { DockerService } from "./docker.service";
 import {
 	BaseSupervisorService,
 	baseSupervisorPayloadSchema,
-} from "@repo/nest-supervisor-core/base-supervisor.service";
-import { type DockerProcessInfo, type SwarmProcessInfo } from "@repo/nest-supervisor-core/supervisor-process-info";
-import { baseSupervisorProcessInfoSchema } from "@repo/nest-supervisor-core/supervisor-process-info";
+} from "@deployer/nest-supervisor-core/base-supervisor.service";
+import { type DockerProcessInfo, type SwarmProcessInfo } from "@deployer/nest-supervisor-core/supervisor-process-info";
+import { baseSupervisorProcessInfoSchema } from "@deployer/nest-supervisor-core/supervisor-process-info";
 import {
 	platformOverlayNetworkName,
 	type DockerSupervisorRuntime,
 } from "./docker-supervisor-runtime";
-import type { SwarmServiceSpecInput } from "@repo/contracts-entities";
+import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
 import { toDockerServiceSpec } from "./swarm-spec.mapper";
 
 /** Dockerode API errors carry an HTTP-style statusCode (404 = not found). */
@@ -48,7 +48,7 @@ export function isSwarmVersionConflict(error: unknown): boolean {
 }
 
 /** Declarative description of the container a supervisor wants running. */
-export interface DockerSupervisorContainerSpec {
+export type DockerSupervisorContainerSpec = {
 	name: string;
 	image: string;
 	command?: string[];
@@ -230,7 +230,7 @@ export abstract class BaseDockerSupervisorService<
 					reject(new Error(`null pull stream for image "${image}"`));
 					return;
 				}
-				stream.once("end", () => resolve());
+				stream.once("end", () => { resolve(); });
 				stream.once("error", reject);
 				stream.resume();
 			});
@@ -367,7 +367,7 @@ export abstract class BaseDockerSupervisorService<
 		try {
 			const svc = await this.dockerService.inspectSwarmService(spec.name);
 			const tasks = await this.dockerService.listSwarmServiceTasks(spec.name).catch(() => []);
-			const running = (tasks as Array<{ Status?: { State?: string } }>).filter(
+			const running = (tasks as { Status?: { State?: string } }[]).filter(
 				(t) => t.Status?.State === "running",
 			).length;
 			live = {

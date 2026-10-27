@@ -11,12 +11,12 @@
  */
 
 import type { Auth as BetterAuthInstance } from 'better-auth'
-import type { AnyPermissionBuilder, InferStatementFromBuilder } from "@repo/auth/permissions/plugins/system/type-inference";
-import type { InferSessionFromAuth } from "@repo/auth/types";
+import type { AnyPermissionBuilder, InferStatementFromBuilder } from "@deployer/auth/permissions/plugins/system/type-inference";
+import type { InferSessionFromAuth } from "@deployer/auth/types";
 
 // Re-export for convenience
-export type { InferSessionFromAuth } from "@repo/auth/types";
-export type { InferParams, ExtractBody, ExtractQuery } from "@repo/auth/permissions/plugins/system/type-inference";
+export type { InferSessionFromAuth } from "@deployer/auth/types";
+export type { InferParams, ExtractBody, ExtractQuery } from "@deployer/auth/permissions/plugins/system/type-inference";
 
 /**
  * Permission object type - resource to actions mapping

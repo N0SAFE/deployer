@@ -1,4 +1,4 @@
-import { Input } from '@repo/ui/components/shadcn/input'
+import { Input } from '@deployer/ui/components/shadcn/input'
 import { Search } from 'lucide-react'
 
 interface LogsSearchInputProps {

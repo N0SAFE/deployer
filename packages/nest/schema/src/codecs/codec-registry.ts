@@ -28,20 +28,47 @@ const IV_LENGTH = 16;
 const SALT_LENGTH = 32;
 const KEY_LENGTH = 32;
 
-/** Supplies the encryption key. The app decides where it comes from. */
-export interface EncryptedTextKeyProvider {
+/**
+ * Supplies the LEGACY encryption key. The app decides where it comes from.
+ *
+ * Since the sealing codec was introduced this is the READ path for old rows only
+ * (`salt:iv:tag:data`); new writes go through {@link EncryptedTextSealer}.
+ */
+export type EncryptedTextKeyProvider = {
 	resolveKey(): Buffer;
 }
 
+/**
+ * Seals and opens values in the current stored form (`enc:v1:{...}`: key id, nonce and
+ * ciphertext, AES-256-GCM under an HKDF-derived key). Supplied by the app so this package
+ * never owns key material; it only knows the prefix, to route a stored value to the right
+ * reader.
+ */
+export type EncryptedTextSealer = {
+	seal(plaintext: string): string;
+	open(stored: string): string;
+}
+
+/** Prefix of a value written by a sealer. A legacy value (`salt:iv:tag:data`, hex) never starts with it. */
+export const SEALED_VALUE_PREFIX = "enc:v1:";
+
+/** True when `stored` is in the current (sealed) form rather than the legacy one. */
+export function isSealedValue(stored: string): boolean {
+	return stored.startsWith(SEALED_VALUE_PREFIX);
+}
+
 /** The minimal builder contract the traefik column needs. Supplied by the app. */
-export interface TraefikConfigCodec<TBuilder> {
+export type TraefikConfigCodec<TBuilder> = {
 	load(value: string | object): TBuilder;
 	empty(): TBuilder;
 	build(builder: TBuilder): object;
 }
 
-interface Registry {
+type Registry = {
+	/** Legacy key: used to READ old rows. Never used to write once `sealing` is configured. */
 	encryption?: EncryptedTextKeyProvider;
+	/** Current codec: used for every write, and for every read of a sealed value. */
+	sealing?: EncryptedTextSealer;
 	/** Erased form: the registry is heterogeneous, reads re-apply the type. */
 	traefik?: TraefikConfigCodec<unknown>;
 }
@@ -51,6 +78,11 @@ const registry: Registry = {};
 /** Configure the encryption key. Call once at boot, before the first query. */
 export function configureEncryption(provider: EncryptedTextKeyProvider): void {
 	registry.encryption = provider;
+}
+
+/** Configure the sealing codec. Call once at boot, before the first query. */
+export function configureSealing(sealer: EncryptedTextSealer): void {
+	registry.sealing = sealer;
 }
 
 /**
@@ -68,6 +100,7 @@ export function configureTraefikConfigCodec<TBuilder>(codec: TraefikConfigCodec<
 /** Configure everything the schema needs, in one call. */
 export function configureSchemaCodecs(config: Registry): void {
 	if (config.encryption !== undefined) configureEncryption(config.encryption);
+	if (config.sealing !== undefined) configureSealing(config.sealing);
 	if (config.traefik !== undefined) configureTraefikConfigCodec(config.traefik);
 }
 
@@ -98,6 +131,10 @@ function requireEncryption(): EncryptedTextKeyProvider {
 export function encryptSecret(text: string): string {
 	if (!text) return text;
 	try {
+		// The current form. Only when no sealer is configured (the frozen monolith) does a
+		// write fall back to the legacy form below.
+		if (registry.sealing !== undefined) return registry.sealing.seal(text);
+
 		const key = requireEncryption().resolveKey();
 		const salt = randomBytes(SALT_LENGTH);
 		const derived = scryptSync(key, salt, KEY_LENGTH);
@@ -118,7 +155,7 @@ export function encryptSecret(text: string): string {
 }
 
 /** The four hex segments of a stored ciphertext. */
-interface EncryptedPayload {
+type EncryptedPayload = {
 	saltHex: string;
 	ivHex: string;
 	authTagHex: string;
@@ -158,6 +195,18 @@ function parseEncryptedPayload(payload: string): EncryptedPayload {
 export function decryptSecret(payload: string): string {
 	if (!payload) return payload;
 	try {
+		// A sealed value is routed to the sealer; everything else is the legacy form.
+		if (isSealedValue(payload)) {
+			if (registry.sealing === undefined) {
+				throw new AppError(
+					"sealed value read before the sealing codec was configured — " +
+						"call configureSchemaCodecs({ sealing }) at boot",
+					"SCHEMA_CODEC_NOT_CONFIGURED",
+				);
+			}
+			return registry.sealing.open(payload);
+		}
+
 		const { saltHex, ivHex, authTagHex, encryptedData } = parseEncryptedPayload(payload);
 
 		const salt = Buffer.from(saltHex, "hex");

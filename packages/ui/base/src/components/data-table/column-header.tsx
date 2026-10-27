@@ -6,15 +6,15 @@ import {
 } from "lucide-react";
 import type { Column } from "@tanstack/react-table";
 
-import { cn } from "@repo/ui/lib/utils";
-import { Button } from "@repo/ui/components/shadcn/button";
+import { cn } from "@deployer/ui/lib/utils";
+import { Button } from "@deployer/ui/components/shadcn/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger
-} from "@repo/ui/components/shadcn/dropdown-menu";
+} from "@deployer/ui/components/shadcn/dropdown-menu";
 
 
 interface DataTableColumnHeaderProps<TData, TValue>

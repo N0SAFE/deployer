@@ -4,4 +4,4 @@ export {
   webEnvIsValid as envIsValid,
   validateWebEnv as validateEnv,
   validateWebEnvPath as validateEnvPath,
-} from '@repo/env';
+} from '@deployer/env';

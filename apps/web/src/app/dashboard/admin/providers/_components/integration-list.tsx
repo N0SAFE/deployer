@@ -3,8 +3,8 @@
 import type { ComponentType, ReactNode } from 'react'
 import { useMemo } from 'react'
 import { ArrowRight, Cloud, Code2, Container, Globe, GitFork, Shield, type LucideIcon } from 'lucide-react'
-import { buttonVariants } from '@repo/ui/components/shadcn/button'
-import { Card, CardContent } from '@repo/ui/components/shadcn/card'
+import { buttonVariants } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent } from '@deployer/ui/components/shadcn/card'
 import { cn } from '@/lib/utils'
 import {
   AuthDashboardAdminProvidersCodeDockerHub,
@@ -29,7 +29,7 @@ import {
 } from '../_lib/provider-status'
 import { IntegrationStatusBadge } from './status-line'
 import { ProviderLoadError } from './states'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 
 interface RouteLike {
   (): string
@@ -189,7 +189,8 @@ export function IntegrationList({ group }: { group: IntegrationGroup }) {
 }
 
 /** Counts used by the hub's one-line summary. */
-export function useIntegrationSummary(): { connected: number; attention: number; total: number; loading: boolean } {
+/** `failed` means a status query errored: the counts are then NOT facts and must not be shown. */
+export function useIntegrationSummary(): { connected: number; attention: number; total: number; loading: boolean; failed: boolean } {
   const github = useGitHubApps()
   const gitlab = useGitlabApps()
   const dns = useDNSProviders()
@@ -206,6 +207,7 @@ export function useIntegrationSummary(): { connected: number; attention: number;
       attention: all.filter((s) => s.status === 'error' || s.status === 'unknown').length,
       total: all.length,
       loading: github.isLoading || gitlab.isLoading || dns.isLoading,
+      failed: Boolean(github.error ?? gitlab.error ?? dns.error),
     }
-  }, [github.data, github.isLoading, gitlab.data, gitlab.isLoading, dns.data, dns.isLoading])
+  }, [github.data, github.isLoading, github.error, gitlab.data, gitlab.isLoading, gitlab.error, dns.data, dns.isLoading, dns.error])
 }

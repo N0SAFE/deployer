@@ -20,6 +20,10 @@ Read the ones matching your current task before writing code.
 ORPC for all data access, logger instead of `console.*`, MCP tools before bash, tests must pass
 before commit. Details in the files above.
 
+**Verification commands:** lint with `bun lint`, run the full gate with `bun check --no-script`
+(compile → lint → type-check → test). Do **not** run `eslint` or `tsc` directly — the
+scripts handle build order, memory flags and per-workspace config that the raw CLIs skip.
+
 ---
 
 ## Architectural Layers at a Glance

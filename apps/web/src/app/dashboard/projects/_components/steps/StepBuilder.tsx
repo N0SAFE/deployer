@@ -1,14 +1,15 @@
 'use client'
 
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
-import { Field, FieldLabel, FieldDescription } from '@repo/ui/components/shadcn/field'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
+import { Field, FieldLabel, FieldDescription } from '@deployer/ui/components/shadcn/field'
 import { Check, Sparkles, Container } from 'lucide-react'
-import { cn } from '@repo/ui/lib/utils'
+import { cn } from '@deployer/ui/lib/utils'
 import type { CreateServiceFormApi } from '../CreateService.hook'
 import { useRunnerDetection } from './runner-detection-context'
 import { AutocompleteField } from './autocomplete-field'
 import { BUILD_METHOD_META, type BuildMethod } from './runner-presets'
+import { Section } from './step-section'
 
 const ROOT_PATH_PRESETS = ['/', './apps/web', './apps/api', './packages/app', './client', './server', './src'] as const
 const BUILD_CONTEXT_PRESETS = ['.', './src', './apps/web', './packages/app', './client', './server', '../..'] as const
@@ -28,16 +29,16 @@ function BuildMethodPicker({ value, onChange }: { value: BuildMethod; onChange: 
             type="button"
             onClick={() => { onChange(opt.value) }}
             className={cn(
-              'flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left transition-all',
+              'flex items-start gap-2 rounded-lg border px-2.5 py-2 text-left transition-all',
               selected
                 ? 'border-primary bg-primary/10 ring-1 ring-primary'
                 : 'border-border bg-background/40 hover:border-primary/40 hover:bg-muted/40',
             )}
           >
-            <Icon className={cn('size-3.5 shrink-0', selected ? 'text-primary' : 'text-muted-foreground')} />
+            <Icon className={cn('mt-0.5 size-3.5 shrink-0', selected ? 'text-primary' : 'text-muted-foreground')} />
             <span className="min-w-0">
-              <span className="block truncate text-xs font-medium leading-tight">{opt.label}</span>
-              <span className="block truncate text-[10px] leading-snug text-muted-foreground">{opt.description}</span>
+              <span className="block text-sm font-medium leading-tight">{opt.label}</span>
+              <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">{opt.description}</span>
             </span>
             {selected && <Check className="ml-auto size-3 shrink-0 text-primary" />}
           </button>
@@ -47,17 +48,6 @@ function BuildMethodPicker({ value, onChange }: { value: BuildMethod; onChange: 
   )
 }
 
-function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-3 rounded-lg border bg-background/40 p-4">
-      <div>
-        <h4 className="text-sm font-semibold">{title}</h4>
-        {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
-      </div>
-      {children}
-    </div>
-  )
-}
 
 /**
  * Step 3 — Builder. How the container image is produced from the source.
@@ -75,8 +65,8 @@ export function StepBuilder({ form }: { form: CreateServiceFormApi }) {
           {hints && (
             <Alert className="border-primary/30 bg-primary/5 py-2">
               <Sparkles className="size-3.5 text-primary" />
-              <AlertTitle className="text-[11px]">Build detection</AlertTitle>
-              <AlertDescription className="text-[11px]">
+              <AlertTitle className="text-xs">Build detection</AlertTitle>
+              <AlertDescription className="text-xs">
                 {[
                   hints.language ? `Language: ${hints.language}` : null,
                   hints.framework ? `Framework: ${hints.framework}` : null,
@@ -90,7 +80,7 @@ export function StepBuilder({ form }: { form: CreateServiceFormApi }) {
           )}
 
           {/* Build method */}
-          <Section title="Build method" description="How the container image is produced from your source code.">
+          <Section title="Build method" description="The builder turns your source code into a container image that the runner then starts. Auto-detect is a safe default.">
             <form.Field name="runner.build.method" children={(f) => (
               <BuildMethodPicker value={f.state.value} onChange={(v) => { f.handleChange(v) }} />
             )} />
@@ -117,7 +107,7 @@ export function StepBuilder({ form }: { form: CreateServiceFormApi }) {
                       placeholder="/"
                       detected={hints?.rootPath}
                     />
-                    <FieldDescription>Directory containing the app entrypoint.</FieldDescription>
+                    <FieldDescription>Folder of the repository that contains your app (use / for the whole repo, or a sub-folder in a monorepo).</FieldDescription>
                   </Field>
                 )} />
                 <form.Field name="runner.build.buildContext" children={(f) => (
@@ -130,6 +120,7 @@ export function StepBuilder({ form }: { form: CreateServiceFormApi }) {
                       placeholder="."
                       detected={hints?.buildContext}
                     />
+                    <FieldDescription>Folder sent to the build, relative to the root path.</FieldDescription>
                   </Field>
                 )} />
                 {method === 'dockerfile' && (
@@ -143,13 +134,14 @@ export function StepBuilder({ form }: { form: CreateServiceFormApi }) {
                         placeholder="Dockerfile"
                         detected={hints?.dockerfilePath}
                       />
+                      <FieldDescription>Location of the Dockerfile in the repository.</FieldDescription>
                     </Field>
                   )} />
                 )}
                 {method === 'dockerfile' && (
                   <form.Field name="runner.build.composeFile" children={(f) => (
                     <Field>
-                      <FieldLabel>Compose file (reference)</FieldLabel>
+                      <FieldLabel>Compose file (optional)</FieldLabel>
                       <AutocompleteField
                         value={(f.state.value) ?? ''}
                         onChange={(v) => { f.handleChange(v) }}
@@ -157,6 +149,7 @@ export function StepBuilder({ form }: { form: CreateServiceFormApi }) {
                         placeholder="docker-compose.yml"
                         detected={hints?.composeFile}
                       />
+                      <FieldDescription>Optional path to a compose file in the repository, kept as a reference.</FieldDescription>
                     </Field>
                   )} />
                 )}
@@ -165,12 +158,14 @@ export function StepBuilder({ form }: { form: CreateServiceFormApi }) {
                     <Field>
                       <FieldLabel>Build command</FieldLabel>
                       <Input value={(f.state.value) ?? ''} onChange={(e) => { f.handleChange(e.target.value) }} placeholder="npm run build" />
+                      <FieldDescription>Optional. The command that compiles your app during the build.</FieldDescription>
                     </Field>
                   )} />
                   <form.Field name="runner.build.runCommand" children={(f) => (
                     <Field>
                       <FieldLabel>Run command</FieldLabel>
                       <Input value={(f.state.value) ?? ''} onChange={(e) => { f.handleChange(e.target.value) }} placeholder="npm start" />
+                      <FieldDescription>Optional. The command the container runs to start your app.</FieldDescription>
                     </Field>
                   )} />
                 </>)}

@@ -10,7 +10,7 @@
 import React, { ReactNode } from 'react'
 import { ErrorBoundary } from './ErrorBoundary'
 import { FeatureErrorFallback } from './FeatureErrorFallback'
-import { logger } from '@repo/logger'
+import { logger } from '@deployer/logger'
 
 interface FeatureErrorBoundaryProps {
   /** Child components to render */

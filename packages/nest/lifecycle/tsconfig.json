@@ -6,7 +6,7 @@
     ],
     "compilerOptions": {
         "paths": {
-            "@repo/nest-lifecycle/*": [
+            "@deployer/nest-lifecycle/*": [
                 "./src/*"
             ]
         }

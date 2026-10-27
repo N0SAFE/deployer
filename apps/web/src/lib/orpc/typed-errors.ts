@@ -2,7 +2,7 @@ import { isDefinedError, ORPCError } from "@orpc/client";
 import {
     standardDomainErrorPayloadSchema,
     type StandardDomainErrorPayload,
-} from "@repo/orpc-utils";
+} from "@deployer/orpc-utils";
 
 export { isDefinedError };
 
@@ -118,7 +118,8 @@ export function getErrorType(error: unknown): string | null {
     const payload = getDomainErrorPayload(error);
     if (payload) return payload.code;
     if (error instanceof ORPCError && isDefinedError(error)) {
-        return error.code;
+        const code: unknown = error.code;
+        return typeof code === "string" ? code : null;
     }
     return null;
 }

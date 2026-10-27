@@ -1,8 +1,8 @@
 import type { ColumnDef } from '@tanstack/react-table'
 import type React from 'react'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { DataTableColumnHeader } from '@repo/ui/components/data-table/column-header'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { DataTableColumnHeader } from '@deployer/ui/components/data-table/column-header'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import { ChevronRight, Fingerprint, Tag } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ImageGroupRow, ImageTagRow, TagSelectionOption } from './models'
@@ -81,7 +81,7 @@ export function createImageColumns({
     {
       accessorKey: 'tagsCount',
       header: ({ column }) => <DataTableColumnHeader className='' column={column} title='Tags' />,
-      cell: ({ row }) => <Badge className='text-[10px]' variant='outline'>{row.original.tagsCount}</Badge>,
+      cell: ({ row }) => <Badge className='text-xs' variant='outline'>{row.original.tagsCount}</Badge>,
       size: 90,
     },
     {
@@ -133,7 +133,7 @@ export function createImageSubRowColumns({ onOpenImageDetail }: ImageSubRowColum
       cell: ({ row }) => (
         <button
           type='button'
-          className='group inline-flex max-w-full items-center gap-1.5 rounded-full border border-border/70 bg-muted/30 px-2.5 py-1 text-[11px] font-medium font-mono transition-colors hover:border-primary/40 hover:bg-primary/10'
+          className='group inline-flex max-w-full items-center gap-1.5 rounded-full border border-border/70 bg-muted/30 px-2.5 py-1 text-xs font-medium font-mono transition-colors hover:border-primary/40 hover:bg-primary/10'
           onClick={() => {
             onOpenImageDetail(row.original.id)
           }}
@@ -151,7 +151,7 @@ export function createImageSubRowColumns({ onOpenImageDetail }: ImageSubRowColum
       cell: ({ row }) => (
         <button
           type='button'
-          className='group inline-flex max-w-full items-center gap-1.5 rounded-md border border-border/60 bg-background/80 px-2 py-1 font-mono text-[11px] text-primary transition-colors hover:border-primary/40 hover:bg-primary/5'
+          className='group inline-flex max-w-full items-center gap-1.5 rounded-md border border-border/60 bg-background/80 px-2 py-1 font-mono text-xs text-primary transition-colors hover:border-primary/40 hover:bg-primary/5'
           onClick={() => {
             onOpenImageDetail(row.original.id)
           }}
@@ -174,12 +174,12 @@ export function createImageSubRowColumns({ onOpenImageDetail }: ImageSubRowColum
       header: () => <span className='text-xs text-muted-foreground'>Health</span>,
       cell: ({ row }) => (
         <div className='flex items-center gap-1.5'>
-          <Badge variant='secondary' className='rounded-full border border-border/70 bg-muted/40 px-2 text-[10px]'>
+          <Badge variant='secondary' className='rounded-full border border-border/70 bg-muted/40 px-2 text-xs'>
             usage {row.original.usageCount}
           </Badge>
           <Badge
             variant={row.original.failed > 0 ? 'destructive' : 'outline'}
-            className='rounded-full border border-border/70 px-2 text-[10px]'
+            className='rounded-full border border-border/70 px-2 text-xs'
           >
             failed {row.original.failed}
           </Badge>

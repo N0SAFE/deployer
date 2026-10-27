@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { DockerRuntimeActivityEntity } from '@repo/contracts-entities'
+import type { DockerRuntimeActivityEntity } from '@deployer/contracts-entities'
 import { activityKind, describeActivity } from './describe-activity'
 import { resolveResourceName, resolveSwarmTaskErrors } from './activity-fields'
 

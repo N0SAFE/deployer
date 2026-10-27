@@ -13,7 +13,7 @@
  * AND workloads — the shared-node default), `control`, `worker`.
  */
 
-import { clusterPlatformRoleSchema, type ClusterPlatformRole, type SwarmNodePolicy } from "@repo/contracts-entities";
+import { clusterPlatformRoleSchema, type ClusterPlatformRole, type SwarmNodePolicy } from "@deployer/contracts-entities";
 
 /** Marks a node as an ingress node (`deployer.ingress == "true"`). */
 export const SWARM_NODE_LABEL_INGRESS = "deployer.ingress";
@@ -108,7 +108,7 @@ export function withIngress(
 export type SwarmNodeRole = "manager" | "worker";
 
 /** Shape needed to resolve a role — the subset of a docker node summary. */
-export interface SwarmNodeRoleSource {
+export type SwarmNodeRoleSource = {
 	ManagerStatus: unknown;
 	Spec: { Role?: string | undefined };
 }

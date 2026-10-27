@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import type { DockerRuntimeActivityEntity } from '@repo/contracts-entities'
+import type { DockerRuntimeActivityEntity } from '@deployer/contracts-entities'
 import { dockerEndpoints } from '@/domains/docker/endpoints'
 import { useDockerRuntimeActivityDetail, useDockerRuntimeActivityList } from '@/domains/docker/hooks'
 import { mergeActivities } from '../_utils/merge-activities'

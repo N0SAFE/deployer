@@ -1,11 +1,11 @@
 import type { RefObject } from 'react'
-import type { DockerFileEntry } from '@repo/contracts-entities'
-import { Button } from '@repo/ui/components/shadcn/button'
+import type { DockerFileEntry } from '@deployer/contracts-entities'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import {
   ContextMenuItem,
   ContextMenuLabel,
   ContextMenuSeparator,
-} from '@repo/ui/components/shadcn/context-menu'
+} from '@deployer/ui/components/shadcn/context-menu'
 import { Download, Eye, FilePenLine, FolderOpen, FolderPlus, HardDrive, Pencil, Plus, Shield, Terminal, Trash2, Upload } from 'lucide-react'
 import { DockerFileBrowser } from '../../docker-file-browser'
 

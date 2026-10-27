@@ -13,6 +13,69 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
+const REPO_ROOT = join(__dirname, '..', '..', '..', '..')
+
+/**
+ * The cache-key environment must agree between the image build and the runtime.
+ *
+ * ── WHY THIS IS A TEST AND NOT A COMMENT ────────────────────────────────────
+ * `turbo.json` lists `NODE_ENV` and `LOG_LEVEL` in `globalEnv`, so BOTH feed
+ * every task's cache key. The Dockerfile builds the cache and the compose
+ * service runs the build that should REUSE it — and when the two disagreed by
+ * these variables, every lookup missed, permanently and silently:
+ *
+ *   @deployer/type-guards:build: cache miss, executing 8e8ad2152680e352   (image)
+ *   @deployer/type-guards:build: cache miss, executing 03d9cabe0b8c28c4   (runtime)
+ *
+ * Nothing reported that as wrong: the build still succeeded, just without the
+ * cache it was built to provide. A silent regression needs an assertion.
+ */
+describe('cache-key environment', () => {
+    /** Variables that are both in `globalEnv` and set for the build. */
+    const SHARED = ['NODE_ENV', 'LOG_LEVEL'] as const
+
+    function readEnvOf(relativePath: string): Map<string, string> {
+        const found = new Map<string, string>()
+        for (const line of readFileSync(join(REPO_ROOT, relativePath), 'utf8').split('\n')) {
+            // Skip comments: a doc line mentioning the variable is not a
+            // declaration, and matching one produced a value with a stray
+            // character during development of this very test.
+            const code = line.split('#')[0] ?? ''
+            for (const name of SHARED) {
+                // Dockerfile `ENV K=V` and compose `K: V`, anchored at the start
+                // of the line so an inline mention cannot match.
+                const match = code.match(
+                    new RegExp(`^\\s*(?:ENV\\s+)?${name}[:=\\s]+["']?([^"'\\s]+)`)
+                )
+                if (match?.[1] !== undefined) found.set(name, match[1])
+            }
+        }
+        return found
+    }
+
+    it('is set identically in the builder image and the compose service', () => {
+        const image = readEnvOf(
+            'infra/docker/builder/dependency-builder/Dockerfile.dependency-builder.dev'
+        )
+        const service = readEnvOf(
+            'infra/docker/compose/common/dependency-builder/docker-compose.config.dev.yml'
+        )
+
+        for (const name of SHARED) {
+            expect(
+                image.get(name),
+                `${name} is missing from the builder image; the runtime cache will never hit`
+            ).toBeDefined()
+            expect(
+                image.get(name),
+                `${name} differs between the image and the compose service, so ` +
+                    'every task hash differs and the baked cache is dead weight'
+            ).toBe(service.get(name))
+        }
+    })
+})
+
+
 import { TurboRunner } from './turbo-runner.service'
 import type { UnionMember } from '../schemas'
 
@@ -266,6 +329,93 @@ describe('TurboRunner', () => {
             expect(realpathSync(link)).toBe(
                 realpathSync(join(out, 'packages/@deployer/logger/dist'))
             )
+        })
+    })
+
+    describe('adopting the image-built output', () => {
+        it('copies a real dist into the volume instead of discarding it', () => {
+            const root = repo({
+                'packages/infrastructure/logger': { name: '@deployer/logger' },
+            })
+            const out = join(root, 'out')
+            const runner = new TurboRunner()
+
+            // The fixture writes a real `dist/index.mjs`, which is exactly the
+            // state the Dockerfile leaves behind. Deleting it would throw away a
+            // finished build and force the operator's first run to redo it.
+            runner.linkOutputs(
+                root,
+                [member('@deployer/logger', 'packages/infrastructure/logger')],
+                out
+            )
+
+            expect(
+                readFileSync(
+                    join(out, 'packages/@deployer/logger/dist/index.mjs'),
+                    'utf8'
+                )
+            ).toContain('export const x = 1')
+        })
+
+        it('reports COMPLETE when the image built every package', () => {
+            const root = repo({
+                'packages/a': { name: '@deployer/a' },
+                'packages/b': { name: '@deployer/b' },
+            })
+            const runner = new TurboRunner()
+
+            const published = runner.linkOutputs(
+                root,
+                [member('@deployer/a', 'packages/a'), member('@deployer/b', 'packages/b')],
+                join(root, 'out')
+            )
+
+            // This is what lets the command skip its build entirely on a first run.
+            expect(published).toBe(true)
+        })
+
+        it('reports INCOMPLETE when a package has not been built', () => {
+            // The fixture omits `dist/` for a package with a build script only
+            // when told to; shaping that here means removing it after creation.
+            const root = repo({ 'packages/a': { name: '@deployer/a' } })
+            rmSync(join(root, 'packages/a/dist'), { recursive: true, force: true })
+            const runner = new TurboRunner()
+
+            const published = runner.linkOutputs(
+                root,
+                [member('@deployer/a', 'packages/a')],
+                join(root, 'out')
+            )
+
+            // Something is missing, so the caller must still build.
+            expect(published).toBe(false)
+        })
+
+        it('does NOT overwrite artifacts a previous run already published', () => {
+            const root = repo({
+                'packages/a': { name: '@deployer/a' },
+            })
+            const out = join(root, 'out')
+            const runner = new TurboRunner()
+            const union = [member('@deployer/a', 'packages/a')]
+
+            // A previous run published a newer artifact into the surviving volume.
+            mkdirSync(join(out, 'packages/@deployer/a/dist'), { recursive: true })
+            writeFileSync(
+                join(out, 'packages/@deployer/a/dist/index.mjs'),
+                'export const NEWER = 1\n'
+            )
+
+            runner.linkOutputs(root, union, out)
+
+            // The volume outlives the container, so its content must win over the
+            // older image output — otherwise a restart would silently roll back.
+            expect(
+                readFileSync(
+                    join(out, 'packages/@deployer/a/dist/index.mjs'),
+                    'utf8'
+                )
+            ).toContain('NEWER')
         })
     })
 })

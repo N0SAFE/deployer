@@ -42,7 +42,7 @@ pipeline that silently never re-executes retried jobs and can strand deployments
 | 5 | **TLS is not production** — ACME email hardcoded `admin@example.com`, TLS flag not env-gated, no HTTP→HTTPS redirect, Traefik dashboard `insecure:true` | B5, B6 | W-P1 |
 
 *Runner-up (H priority):* CI gates absent — knip exits 1 and is not enforced; no e2e
-job; e2e has ~147 legacy type errors; `@repo/orpc-utils` builder-regression cluster
+job; e2e has ~147 legacy type errors; `@deployer/orpc-utils` builder-regression cluster
 fails ~7 turbo tasks.
 
 **Top quick wins:** ① retry-channel re-emit (1 file, unblocks the #1 blocker's worst
@@ -110,7 +110,7 @@ temporary compat layer (no-bridges doctrine extends to features).
 | SC-EXT1 | Surface-completeness map — every route vs product promise | **MAPPED** — 69 `page.tsx` / 80+ routes inventoried; **8 notable absences**: project-level env/secret tab, admin audit log, backup UI, TLS/cert UI, webhook delivery-log UI, API-token UI, usage/quotas UI, template browse UI (template contract orphaned) **+ 3 redirect stubs** queu/terminal/events → activity/shell | FE-1 | W-F1, W-F4..W-F9, W-F10 (stub cleanup) |
 | SC-EXT2 | New-feature readiness rubric — flagship features have full readiness blocks (UX flow, ORPC, data model, SSE-vs-poll, tests) | **BLOCKS PROVIDED** for env vault, build-log streaming, audit log, API tokens, webhook delivery log, template browser — plus binding technical conformance (uuid IDs, `.errors()`, zod v4, env-set naming, `environmentKind`, `Route.<Link>` only) | FE-9..FE-11 | §5ter (W-F1, W-F3..W-F6, W-F9) |
 | SC-EXT3 | State-conformance sweep — every data route has loading/error/empty | **GAP enumerated** — 4 `loading.tsx` for 60+ data routes; 8 service-config pages drop `useService` error (not-found guard only); deployments Alert:168 no retry vs :138 pattern; config/provider error-as-empty; admin/users drops error :61; docker/images no empty/error | FE-14 (g2) | W-F10 |
-| SC-EXT4 | Design-system conformance — @repo/ui audit | **PARTIAL** — 636 imports / 156 files; `data-table.tsx` = 1530 lines (size smell, rich capabilities); `mode-toggle` orphaned; `radio-group`/`sheet` orphaned; `drawer`/`hover-card`/`stepper`/`terminal`/`yaml` absent; `"./*"` wildcard export = boundary violation | FE-4, FE-5, FE-20 | W-F12 |
+| SC-EXT4 | Design-system conformance — @deployer/ui audit | **PARTIAL** — 636 imports / 156 files; `data-table.tsx` = 1530 lines (size smell, rich capabilities); `mode-toggle` orphaned; `radio-group`/`sheet` orphaned; `drawer`/`hover-card`/`stepper`/`terminal`/`yaml` absent; `"./*"` wildcard export = boundary violation | FE-4, FE-5, FE-20 | W-F12 |
 | SC-EXT5 | Responsive + a11y baseline | **GAP** — 56 `<select>` (0 `aria-label`; 2 `htmlFor`); 20 non-skeleton index-key maps; mobile Sheet ≤18rem present but overflow unverified | FE-8 | W-F14 |
 | SC-EXT6 | Perf/UX baseline — streams + heavy surfaces | **PRECEDENTS VERIFIED** — SSE streaming live (docker logs), deferred-value pattern + trigger/content modal split required for SSE-heavy pages | FE-2, FE-12 | W-F3, W-F12, W-F14 |
 | SC-EXT7 | Env/secret manager spec (flagship) | **GAP + DESIGN** — table exists with encryption-ready shape but **PLAINTEXT values**; flagship spec = encryption-at-rest (AES-GCM pattern precedent), masking UX, project-level sets, per-service overrides, versioning, link-to-deploy preview, migration ack | FE-9 | W-F1 |
@@ -376,7 +376,7 @@ the local case. SSE-only, no WebSocket transport today.
 recovery test, or (b) explicit local-only limitation with dashboard affordance — no
 half-implemented registry.
 
-### W-P7 — @repo/orpc-utils regression fixes
+### W-P7 — @deployer/orpc-utils regression fixes
 *Effort M · Owns G4 · Ordered last but may be pulled forward by W-P6 (see ordering note)*
 Root-cause and fix the builder-layer regression cluster: bare-list void-input (2),
 entitySchema exposure (2), legacy callable (1), tanstack invalidation, POST mutation hook
@@ -708,13 +708,13 @@ metadata/generateMetadata (script-verified); dynamic routes title correctly; act
 
 **Goal.** Fix DS-level debt and ship only the primitives the features consume.
 
-**Evidence.** @repo/ui: 636 imports / 156 files; `data-table.tsx` = **1530 lines** (server
+**Evidence.** @deployer/ui: 636 imports / 156 files; `data-table.tsx` = **1530 lines** (server
 pagination/search/sort/column-visibility/column-resize(localStorage)/URL-state/row-selection/
 export CSV+Excel/subRows/onRowClick; 7+ docker sites); `chart.tsx` + recharts 3.8.1 at **1 site**;
 `mode-toggle` **ORPHANED** (dark mode ON via next-themes, no visible toggle); `radio-group`/`sheet`
 orphaned; `drawer`/`hover-card`/`stepper`/`terminal`/`yaml` **absent**; near-zero
 tooltip(1)/dropdown(1)/breadcrumb(1)/progress(1); `"./*"` wildcard export = boundary violation;
-209 `@repo/ui` subpath imports (FE-4, FE-5, FE-18, FE-20).
+209 `@deployer/ui` subpath imports (FE-4, FE-5, FE-18, FE-20).
 
 **Scope.** (1) **Mode-toggle wiring** (R12 quick win): wire the orphan into the dashboard
 sidebar/account nav — make the shipped dark theme reachable. (2) data-table split: compose
@@ -852,7 +852,7 @@ env-set naming, `environmentKind`, typed `Route.<Link>`).*
 
 | claim | finding | source |
 |---|---|---|
-| Webhook auth fails closed (missing secret/sig → 401); plan's R1 "fail-open" REFUTED | B1 | `apps/api/src/modules/providers/middleware/github-webhook-auth.middleware.ts:100-150` |
+| Webhook auth fails closed (missing secret/sig → 401); plan's R1 "fail-open" REFUTED | B1 | `apps/api/services/fleet/src/modules/providers/middleware/github-webhook-auth.middleware.ts:100-150` |
 | `verifySignature` hashes `JSON.stringify(input.body)`, not raw bytes | B2 (G6) | same middleware `:173-190` |
 | Webhook idempotency in-memory only | B3 | `…/services/webhook-idempotency.service.ts` |
 | Rate limiting: zero in api src | B4 | grep core/system/sub-apps/modules/main |
@@ -887,7 +887,7 @@ env-set naming, `environmentKind`, typed `Route.<Link>`).*
 | Surface inventory: 69 `page.tsx` / 80+ routes; **absent surfaces**: project-level env/secret tab (only per-service config/environment), admin audit log, backup UI, TLS/cert UI, webhook delivery-log UI, API-token UI, usage/quotas UI, template browse UI (template contract orphaned); redirect stubs queu/terminal/events → activity/shell | FE-1 | app pages sweep + `src/routes` |
 | Shell: root layout = next-themes ThemeProvider + sonner Toaster (richColors closeButton top-right) + metadata; DashboardSidebar (mainNav overview/deployments/services/docker10/orgs; adminNav servers/users/orgs/domains/providers8/system; accountNav profile; shortcuts `g o`…); CommandPalette wired ⌘K (dashboard layout :83); mobile Sheet drawer ≤18rem; 4 `loading.tsx`; states lib @/components/dashboard: PageHeader/PageLoadingState/PageErrorState/EmptyState | FE-2 | root `layout.tsx`, dashboard `layout.tsx`, sidebar, states lib |
 | Orphans: `analytics`, `events`, `push`, `template` contract modules = **zero web consumers** (server modules wired); idle UI opportunities: activity feed, audit log, webhook delivery log, usage meters, template browser | FE-3 | contracts modules grep (web consumers) |
-| DS scale: @repo/ui 636 imports / 156 files; `data-table.tsx` 1530 lines — server pagination/search/sort/column-visibility/column-resize(localStorage)/URL-state/row-selection/export CSV+Excel/subRows/onRowClick, 7+ docker sites; 209 subpath imports | FE-4 | packages/ui grep + data-table.tsx |
+| DS scale: @deployer/ui 636 imports / 156 files; `data-table.tsx` 1530 lines — server pagination/search/sort/column-visibility/column-resize(localStorage)/URL-state/row-selection/export CSV+Excel/subRows/onRowClick, 7+ docker sites; 209 subpath imports | FE-4 | packages/ui grep + data-table.tsx |
 | DS orphans: `mode-toggle` ORPHANED (dark mode ON via next-themes, no visible toggle); `chart.tsx` + recharts 3.8.1 at 1 site; `radio-group`/`sheet` orphaned (sheet only via sidebar mobile); drawer/hover-card/stepper/terminal/yaml ABSENT; near-zero tooltip(1)/dropdown(1)/breadcrumb(1)/progress(1); `"./*"` wildcard export = boundary violation | FE-5 | packages/ui exports + component grep |
 | 64 `as any` web/13 files: 22 `(err as any)?.message`; 7 Badge-variant casts; 11 `[] as any[]`; 8 response-shape (contracts may lack output schemas — G-E3); 4 contract-align. API prod 12 (mesh-resource-service generic looseness 5, `orchestrator.service.ts:99` `databaseUrl null as any`, mesh-resource.controller, `super(...,entity as any)`, `mesh-where.ts:316`); spec/e2e ~252 (mesh helper signatures); packages ~12. Precedent: `CreateServiceWizard` → `as never as T` | FE-6 | `as any` grep apps/web, apps/api, packages, spec/e2e |
 | **g4 metadata ruling**: `route.info.ts` (not `page.info.ts`; migrated 2026-01-01) = generator-owned; schema `{page, layout, Route name/params/search, verbs}` ONLY — no metadata slot; generator emits no metadata (`build-tools.ts`); SANCTIONED = per-page `export const metadata`/`generateMetadata` (0/69 today; root pattern `layout.tsx:27`) | FE-7 | `build-tools.ts` + route.info.ts schema |
@@ -1123,7 +1123,7 @@ forks); review cycles 2/3 used (Part-1 cycle 1 + 2, extension cycle 3); recursio
   → `retryable:false` (don't pollute retries/DLQ). +1 spec test.
 
 ### W-F13 — getErrorMessage + Badge widen ✓
-- `getErrorMessage(error)` added to `@repo/errors` (+6 package tests). Web keeps
+- `getErrorMessage(error)` added to `@deployer/errors` (+6 package tests). Web keeps
   its ORPC-aware `@/lib/orpc/typed-errors` version (consolidated, DRY — no new
   dep). 22 `(err as any)?.message` casts migrated to `getErrorMessage` across
   configuration/deployments/environments/team pages.
@@ -1162,7 +1162,7 @@ metadata` lives in `page.tsx`, per g4). Migration/test/legit refs untouched.
 - API type-check (non-e2e): **0 errors**. Web type-check: **0 errors**.
 - API unit project: **129 files / 1449 tests** (was 127/1435 — +2 files/+14 tests).
 - Deployment suite **167** + providers suite incl. webhook **192** combined.
-- `@repo/errors` 6/6, `@repo/auth` 15 pre-existing domain-isolated failures
+- `@deployer/errors` 6/6, `@deployer/auth` 15 pre-existing domain-isolated failures
   (masterToken/invitePlugin — unrelated to this pass; tracked, not caused).
 
 ### 10.1 Second implementation batch (same day, continued)

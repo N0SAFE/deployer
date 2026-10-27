@@ -1,7 +1,6 @@
 import { Module } from "@nestjs/common";
 
 import { EnvModule } from "@/config/env/env.module";
-import { SetupClusterModule } from "@/modules/cluster/cluster.module";
 import { SetupHealthModule } from "@/modules/health/setup-health.module";
 import { SetupIngressModule } from "@/modules/ingress/setup-ingress.module";
 import { SetupProgressModule } from "@/modules/progress/progress.module";
@@ -10,6 +9,7 @@ import { ApiReadinessWatcherService } from "./services/api-readiness-watcher.ser
 import { ApiServiceProvisioner } from "./services/api-service-provisioner.service";
 import { HandoverOrchestratorService } from "./services/handover-orchestrator.service";
 import { IngressHandoverService } from "./services/ingress-handover.service";
+import { ServicesTierProvisioner } from "./services/services-tier-provisioner.service";
 import { SetupExitService } from "./services/setup-exit.service";
 
 /**
@@ -68,6 +68,10 @@ import { SetupExitService } from "./services/setup-exit.service";
   ],
   providers: [
     IngressHandoverService,
+    // Schedules the BFF + five services onto the swarm, for a node whose
+    // architecture is the microservices tier. Injected into
+    // `ApiServiceProvisioner`, which owns the "what do we hand over to" decision.
+    ServicesTierProvisioner,
     ApiServiceProvisioner,
     ApiReadinessWatcherService,
     HandoverOrchestratorService,

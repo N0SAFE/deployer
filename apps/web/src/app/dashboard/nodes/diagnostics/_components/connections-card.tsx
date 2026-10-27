@@ -1,9 +1,9 @@
 'use client'
 
 import { Network } from 'lucide-react'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 import { EmptyState } from '@/components/dashboard'
 import type { useMeshSseState } from '@/domains/mesh/hooks'
 

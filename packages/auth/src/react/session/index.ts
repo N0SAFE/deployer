@@ -2,20 +2,20 @@
  * Session management utilities for React.
  * 
  * This module provides isomorphic session management:
- * - Import from '@repo/auth/react/session/client' for client-side hooks (useSession)
- * - Import from '@repo/auth/react/session/server' for server-side utilities (getSession, prefetch)
- * - Import from '@repo/auth/react/session/shared' or this index for types and constants
+ * - Import from '@deployer/auth/react/session/client' for client-side hooks (useSession)
+ * - Import from '@deployer/auth/react/session/server' for server-side utilities (getSession, prefetch)
+ * - Import from '@deployer/auth/react/session/shared' or this index for types and constants
  * 
  * @example
  * ```ts
  * // Client-side usage
- * import { createUseSession } from '@repo/auth/react/session/client'
+ * import { createUseSession } from '@deployer/auth/react/session/client'
  * 
  * // Server-side usage
- * import { createGetSession, createPrefetchSession } from '@repo/auth/react/session/server'
+ * import { createGetSession, createPrefetchSession } from '@deployer/auth/react/session/server'
  * 
  * // Shared types (isomorphic)
- * import { DEFAULT_SESSION_QUERY_KEY, type SessionResult } from '@repo/auth/react/session/index'
+ * import { DEFAULT_SESSION_QUERY_KEY, type SessionResult } from '@deployer/auth/react/session/index'
  * ```
  */
 
@@ -26,4 +26,4 @@ export {
     type CreateUseSessionOptions,
     type CreateGetSessionOptions,
     type PrefetchSessionOptions,
-} from '@repo/auth/react/session/shared'
+} from '@deployer/auth/react/session/shared'

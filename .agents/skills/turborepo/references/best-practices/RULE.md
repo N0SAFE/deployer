@@ -43,7 +43,7 @@ my-monorepo/
   "name": "web",
   "private": true,
   "dependencies": {
-    "@repo/ui": "workspace:*",
+    "@deployer/ui": "workspace:*",
     "next": "latest"
   }
 }
@@ -52,13 +52,13 @@ my-monorepo/
 ### Library Packages (`packages/`)
 
 - **Shared code**: Utilities, components, configs
-- **Namespaced names**: Use `@repo/` or `@yourorg/` prefix
+- **Namespaced names**: Use `@deployer/` or `@yourorg/` prefix
 - **Clear exports**: Define what the package exposes
 
 ```json
 // packages/ui/package.json
 {
-  "name": "@repo/ui",
+  "name": "@deployer/ui",
   "exports": {
     "./button": "./src/button.tsx",
     "./card": "./src/card.tsx"
@@ -74,7 +74,7 @@ Export TypeScript directly; let the app's bundler compile it.
 
 ```json
 {
-  "name": "@repo/ui",
+  "name": "@deployer/ui",
   "exports": {
     "./button": "./src/button.tsx"
   }
@@ -90,7 +90,7 @@ Package compiles itself with `tsgo` or bundler.
 
 ```json
 {
-  "name": "@repo/ui",
+  "name": "@deployer/ui",
   "exports": {
     "./button": {
       "types": "./src/button.tsx",
@@ -114,7 +114,7 @@ Install dependencies in the package that uses them, not the root.
 
 ```bash
 # Good: Install in the package that needs it
-pnpm add lodash --filter=@repo/utils
+pnpm add lodash --filter=@deployer/utils
 
 # Avoid: Installing everything at root
 pnpm add lodash -w  # Only for repo-level tools
@@ -134,10 +134,10 @@ Use workspace protocol for internal packages:
 
 ```json
 // pnpm/bun
-{ "@repo/ui": "workspace:*" }
+{ "@deployer/ui": "workspace:*" }
 
 // npm/yarn
-{ "@repo/ui": "*" }
+{ "@deployer/ui": "*" }
 ```
 
 ## Exports Best Practices
@@ -178,7 +178,7 @@ export * from './modal';
 
 ```json
 // Good
-{ "name": "@repo/ui" }
+{ "name": "@deployer/ui" }
 { "name": "@acme/utils" }
 
 // Avoid (conflicts with npm registry)
@@ -195,7 +195,7 @@ export * from './modal';
 import { Button } from "../../packages/ui/src/button";
 
 // GOOD: Install and import properly
-import { Button } from "@repo/ui/button";
+import { Button } from "@deployer/ui/button";
 ```
 
 ### Shared Code in Apps

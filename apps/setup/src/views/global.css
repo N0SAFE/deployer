@@ -1,19 +1,19 @@
 /*
  * apps/setup/src/views/global.css — Tailwind entry for the SSR views served by
- * the API. Reuses the SAME shared theme as the web app: `@repo/ui` globals
+ * the API. Reuses the SAME shared theme as the web app: `@deployer/ui` globals
  * (which themselves import `tailwindcss`, `tw-animate-css`, `shadcn/...`
  * theme tokens + the shadcn component utilities).
  *
  * `@source` ensures tailwind also scans THIS app's view components (the ui
  * globals only scan the ui package's own sources).
  */
-@import "@repo/ui/styles/globals.css";
+@import "@deployer/ui/styles/globals.css";
 
 /* Scan apps/setup/src/** (views + any component used by them). */
 @source "../**/*.{ts,tsx}";
 
 /*
- * The wizard's components live in `@repo/ui`, which this app consumes BUILT: the
+ * The wizard's components live in `@deployer/ui`, which this app consumes BUILT: the
  * `@source` inside the ui globals resolves next to the compiled output, where
  * there is no `.tsx` to scan, so a class used only there (the progress list's
  * `max-h-dvh` / `flex-col-reverse`) was never generated. Scan the source.

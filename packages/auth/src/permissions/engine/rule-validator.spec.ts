@@ -3,9 +3,9 @@ import {
     parseResourceRules,
     safeParseResourceRules,
     resourceRuleSchema,
-} from "@repo/auth/permissions/engine/rule-validator";
-import { MAX_FILTER_DEPTH } from "@repo/auth/permissions/engine/filter-matcher";
-import type { DFilter, ResourceRule } from "@repo/auth/permissions/engine/types";
+} from "@deployer/auth/permissions/engine/rule-validator";
+import { MAX_FILTER_DEPTH } from "@deployer/auth/permissions/engine/filter-matcher";
+import type { DFilter, ResourceRule } from "@deployer/auth/permissions/engine/types";
 
 // ---------------------------------------------------------------------------
 // Helpers

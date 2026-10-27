@@ -173,5 +173,7 @@ export const swarmOverlayNetworkRequestSchema = z.object({
   ingress: z.boolean().default(false),
   labels: z.record(z.string(), z.string()).default({}),
   enableIpv6: z.boolean().default(false),
+  /** Pin the VXLAN network identifier; omitted lets the engine allocate the next free one. */
+  vxlanId: z.number().int().min(4096).max(16_777_215).optional(),
 })
 export type SwarmOverlayNetworkRequest = z.infer<typeof swarmOverlayNetworkRequestSchema>

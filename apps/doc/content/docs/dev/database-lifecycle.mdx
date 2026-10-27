@@ -8,25 +8,29 @@ order: 7
 
 ## Ownership boundary
 
-- Database access is API-owned (`apps/api`).
+- Database access is API-owned (`apps/api`: each service owns its tables, and the BFF runs the CLI).
 - Web consumes data through ORPC contracts and domain hooks.
-- Schema and migration lifecycle stays centralized in API tooling.
+- Schema and migration lifecycle stays centralized: one schema package, one CLI.
 
 ## Canonical locations
 
-- Schema: `apps/api/src/config/drizzle/schema`
-- API DB scripts: `apps/api/package.json` (`db:*`)
-- Dev entrypoint orchestration: `apps/api/scripts/entrypoint.dev.ts`
-- Prod entrypoint orchestration: `apps/api/scripts/entrypoint.prod.ts`
+- Schema: `packages/nest/schema/src/global/**` (the global Postgres) and `src/local/**` (the node-local SQLite)
+- Schema scripts (generate, push, studio): `packages/nest/schema/package.json` (`db:*`)
+- Migrate, seed and reset: the BFF CLI, `apps/api/bff/package.json` (`db:migrate`, `db:seed`, `db:reset`)
+- Dev entrypoint: `infra/docker/builder/app/entrypoint-app.sh`; prod images run `bun run start` in the app directory (`infra/docker/builder/api/Dockerfile.api.prod`)
 
 ## Core commands
 
 ```bash
-bun run api -- db:generate
-bun run api -- db:push
-bun run api -- db:migrate
-bun run api -- db:seed
-bun run api -- db:studio
+# schema (from packages/nest/schema)
+bun run db:generate
+bun run db:push
+bun run db:studio
+
+# data (from apps/api/bff)
+bun run db:migrate
+bun run db:seed
+bun run db:reset
 ```
 
 ## Runtime order (important)
@@ -59,7 +63,7 @@ Never perform direct DB access from web code. Keep persistence rules in API serv
 
 ## Practical workflow
 
-1. Update schema in `apps/api/src/config/drizzle/schema`.
+1. Update the schema in `packages/nest/schema/src/global/**`.
 2. Generate migration (`db:generate`).
 3. Apply migration (`db:migrate` or `db:push` per environment).
 4. Update service/repository logic.

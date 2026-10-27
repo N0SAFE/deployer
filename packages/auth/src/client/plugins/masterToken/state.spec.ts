@@ -5,7 +5,7 @@ import {
     setMasterTokenEnabled,
     clearMasterToken,
     MasterTokenManager,
-} from '@repo/auth/client/plugins/masterToken/state'
+} from '@deployer/auth/client/plugins/masterToken/state'
 
 // Ensure tests run in jsdom environment where document and localStorage exist
 

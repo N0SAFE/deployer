@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { ScanSearch, Bell, Globe, Cog } from "lucide-react";
-import { AuthDashboardSettingsAccount } from "@/routes";
-import { setupEndpoints } from "@/domains/setup/endpoints";
+import { AuthDashboardNodes, AuthDashboardProjects, AuthDashboardSettingsAccount } from "@/routes";
+import { SETUP_COMPLETE_KEY } from "./setup-storage";
 
 // ─── Hint definitions with fully custom run() logic ─────────────────────
 
@@ -31,15 +31,15 @@ const HINTS: HintDef[] = [
         action: {
           label: "Configure",
           onClick: () => {
-            router.push("/dashboard/projects");
+            router.push(AuthDashboardProjects());
             next("configured");
           },
         },
         cancel: {
           label: "Skip",
-          onClick: () => next("dismissed"),
+          onClick: () => { next("dismissed"); },
         },
-        onDismiss: () => next("skipped"),
+        onDismiss: () => { next("skipped"); },
       });
     },
   },
@@ -53,8 +53,8 @@ const HINTS: HintDef[] = [
         position: "bottom-right",
         icon: <Bell className="h-4 w-4" />,
         action: { label: "Configure", onClick: () => { router.push(AuthDashboardSettingsAccount()); next("configured"); } },
-        cancel: { label: "Skip", onClick: () => next("dismissed") },
-        onDismiss: () => next("skipped"),
+        cancel: { label: "Skip", onClick: () => { next("dismissed"); } },
+        onDismiss: () => { next("skipped"); },
       });
     },
   },
@@ -67,9 +67,9 @@ const HINTS: HintDef[] = [
         duration: 20_000,
         position: "bottom-right",
         icon: <Globe className="h-4 w-4" />,
-        action: { label: "Set up", onClick: () => { router.push("/dashboard/projects"); next("configured"); } },
-        cancel: { label: "Later", onClick: () => next("dismissed") },
-        onDismiss: () => next("skipped"),
+        action: { label: "Set up", onClick: () => { router.push(AuthDashboardProjects()); next("configured"); } },
+        cancel: { label: "Later", onClick: () => { next("dismissed"); } },
+        onDismiss: () => { next("skipped"); },
       });
     },
   },
@@ -82,61 +82,62 @@ const HINTS: HintDef[] = [
         duration: 20_000,
         position: "bottom-right",
         icon: <Cog className="h-4 w-4" />,
-        action: { label: "Add nodes", onClick: () => { router.push("/dashboard/fleet"); next("configured"); } },
-        cancel: { label: "Not now", onClick: () => next("dismissed") },
-        onDismiss: () => next("skipped"),
+        action: { label: "Add nodes", onClick: () => { router.push(AuthDashboardNodes()); next("configured"); } },
+        cancel: { label: "Not now", onClick: () => { next("dismissed"); } },
+        onDismiss: () => { next("skipped"); },
       });
     },
   },
 ];
 
-const LS_FLAG = "post-setup-complete";
 const LS_DISMISSED_SET = "post-setup-dismissed-set";
+
+function readDismissed(): Set<string> {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(LS_DISMISSED_SET) ?? "[]");
+    return new Set(Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function rememberDismissed(hintId: string): void {
+  try {
+    const set = readDismissed();
+    set.add(hintId);
+    localStorage.setItem(LS_DISMISSED_SET, JSON.stringify([...set]));
+  } catch { /* storage unavailable: the hint may show again, nothing else is lost */ }
+}
 
 // ─── Component ──────────────────────────────────────────────────────────
 
 export function PostSetupHints() {
   const router = useRouter();
-  const [running, setRunning] = useState(false);
-  const done = useRef(false);
-  const idx = useRef(0);
+  const started = useRef(false);
 
-  const next = useCallback((hintId: string, result: HintResult) => {
-    if (result !== "skipped") {
-      try {
-        const set = new Set(JSON.parse(localStorage.getItem(LS_DISMISSED_SET) ?? "[]"));
-        set.add(hintId);
-        localStorage.setItem(LS_DISMISSED_SET, JSON.stringify([...set]));
-      } catch { /* noop */ }
-    }
-    setRunning(false);
-  }, []);
-
+  // One-shot sequential queue: show a hint, and when it is answered move on to the
+  // next hint that was not already dismissed. Driven by the toast callbacks, so no
+  // component state is involved.
   useEffect(() => {
-    if (done.current) return;
-    const setupDone = localStorage.getItem(LS_FLAG);
-    if (!setupDone) return;
-    done.current = true;
-    localStorage.removeItem(LS_FLAG);
-    setRunning(true);
-  }, []);
+    if (started.current) return;
+    if (!localStorage.getItem(SETUP_COMPLETE_KEY)) return;
+    started.current = true;
+    localStorage.removeItem(SETUP_COMPLETE_KEY);
 
-  // Sequential queue: when running becomes false, start next non-dismissed hint
-  useEffect(() => {
-    if (!running) return;
-
-    const dismissed: string[] = JSON.parse(
-      localStorage.getItem(LS_DISMISSED_SET) ?? "[]"
-    );
-
-    while (idx.current < HINTS.length) {
-      const hint = HINTS[idx.current];
-      idx.current++;
-      if (!hint || dismissed.includes(hint.id)) continue;
-      hint.run((result) => next(hint.id, result), router);
-      return;
-    }
-  }, [running, next, router]);
+    const dismissed = readDismissed();
+    const runFrom = (index: number): void => {
+      for (let i = index; i < HINTS.length; i++) {
+        const hint = HINTS[i];
+        if (!hint || dismissed.has(hint.id)) continue;
+        hint.run((result) => {
+          if (result !== "skipped") rememberDismissed(hint.id);
+          runFrom(i + 1);
+        }, router);
+        return;
+      }
+    };
+    runFrom(0);
+  }, [router]);
 
   return null;
 }

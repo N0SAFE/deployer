@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@repo/ui/components/shadcn/tabs'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@deployer/ui/components/shadcn/dialog'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@deployer/ui/components/shadcn/tabs'
 import { ManualDomainForm } from './manual-domain-form'
 import { ProviderDomainForm } from './provider-domain-form'
 

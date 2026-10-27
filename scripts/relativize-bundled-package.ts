@@ -2,11 +2,11 @@
 /**
  * Give the bundled CLI its relative imports back.
  *
- * `@repo/cli-declarative-routing` is a self-contained CLI: one entry
+ * `@deployer/cli-declarative-routing` is a self-contained CLI: one entry
  * (`src/index.ts`) that bun bundles into `dist/index.js`. Converting its
  * internal imports to the package's own name made every internal module an
  * *external* dependency, which a single-entry CJS bundle cannot satisfy at
- * runtime (`Cannot find package '@repo/cli-declarative-routing/config'`).
+ * runtime (`Cannot find package '@deployer/cli-declarative-routing/config'`).
  *
  * For a bundled app/CLI, relative imports are the correct form: nothing
  * consumes these modules individually through `exports`.

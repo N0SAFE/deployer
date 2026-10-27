@@ -1,4 +1,4 @@
-import { betterAuthFactory } from '@repo/auth/server/auth';
+import { betterAuthFactory } from '@deployer/auth/server/auth';
 import { type Auth as BetterAuthInstance } from 'better-auth';
 /**
  * Interface for environment service to be implemented by the API

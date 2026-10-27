@@ -489,7 +489,7 @@ pre-filled with detected values.
 ## API mapping (`projectId/page.tsx` `handleCreateService`)
 
 The wizard's typed `RunnerFormData` is flattened into the API's
-`builderConfig` record (validated by `@repo/contracts-entities`
+`builderConfig` record (validated by `@deployer/contracts-entities`
 `serviceRunnerConfigUnionSchema`):
 
 - `manual` → `{ startCommand, strategy, args, ports, volumeMounts, secretRefs, networkMode, gracefulShutdownSeconds }`

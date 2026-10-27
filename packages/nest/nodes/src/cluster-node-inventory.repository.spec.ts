@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DockerodeNodeSummary } from "@repo/contracts-entities";
+import type { DockerodeNodeSummary } from "@deployer/contracts-entities";
 import { toEngineNodeRow } from "./cluster-node-inventory.repository";
 
 const node = (overrides: Partial<DockerodeNodeSummary> = {}): DockerodeNodeSummary =>

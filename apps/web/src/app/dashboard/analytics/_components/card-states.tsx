@@ -1,20 +1,22 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
-import { Badge } from '@repo/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Hint } from '../../_components/hint'
 
 /** Loading / error / empty states shared by the analytics cards, so one failing query never blanks the page. */
 export function CardBody({
-	loading, error, onRetry, empty, emptyText, height = 'h-60', children,
+	loading, error, onRetry, empty, emptyText, emptyAction, height = 'h-60', children,
 }: {
 	loading: boolean
 	error: boolean
 	onRetry: () => void
 	empty: boolean
 	emptyText: ReactNode
+	/** The next step when empty (UI-PRINCIPLES §1: an empty state names its next action). */
+	emptyAction?: ReactNode
 	height?: string
 	children: ReactNode
 }) {
@@ -27,7 +29,14 @@ export function CardBody({
 			</div>
 		)
 	}
-	if (empty) return <div className={`flex ${height} items-center justify-center px-6 text-center text-sm text-muted-foreground`}>{emptyText}</div>
+	if (empty) {
+		return (
+			<div className={`flex ${height} flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground`}>
+				<p>{emptyText}</p>
+				{emptyAction}
+			</div>
+		)
+	}
 	return <>{children}</>
 }
 

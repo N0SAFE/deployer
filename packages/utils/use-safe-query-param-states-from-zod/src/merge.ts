@@ -9,8 +9,8 @@
  */
 import type { z } from 'zod'
 
-import { getZodObjectDefaults } from '@repo/use-safe-query-param-states-from-zod/defaults'
-import type { UnknownRecord } from '@repo/use-safe-query-param-states-from-zod/types'
+import { getZodObjectDefaults } from '@deployer/use-safe-query-param-states-from-zod/defaults'
+import type { UnknownRecord } from '@deployer/use-safe-query-param-states-from-zod/types'
 
 /**
  * Merge `rawValues` (from the URL, possibly partial) with the schema

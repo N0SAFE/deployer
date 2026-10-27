@@ -1,5 +1,5 @@
 /**
- * @repo/nest-database-core — the framework primitives every Drizzle-backed
+ * @deployer/nest-database-core — the framework primitives every Drizzle-backed
  * service in this monorepo is built on.
  *
  * WHAT THIS PACKAGE IS

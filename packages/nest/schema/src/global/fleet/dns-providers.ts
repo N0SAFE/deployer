@@ -1,12 +1,12 @@
 import { boolean, index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { encryptedText } from "@deployer/nest-schema/codecs/codec-registry";
+import { encryptedText } from "../../codecs/codec-registry";
 
 /**
  * Runtime state of a DNS provider app, refreshed live at runtime (never
  * authoritative — the DB copy is only the last-known cache used to paint the
  * UI before a live re-check lands).
  */
-export interface DnsProviderRuntimeState {
+export type DnsProviderRuntimeState = {
     status: "ok" | "error" | "unknown";
     checkedAt: string | null;
     /** Cloudflare account id resolved from the token at runtime. */
@@ -21,7 +21,7 @@ export interface DnsProviderRuntimeState {
  * behavior on these: a feature only "exists" when at least one provider app
  * has it enabled AND its runtime state is healthy.
  */
-export interface DnsProviderFeatures {
+export type DnsProviderFeatures = {
     /** Manage DNS zones/records through this provider. */
     dnsManagement: boolean;
     /** Host Cloudflare Tunnels for node network configs. */

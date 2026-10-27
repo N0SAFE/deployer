@@ -29,7 +29,7 @@ import type {
     SchemasConfig,
     SessionOptions,
     RouteRuntimeConfig,
-} from '@repo/declarative-routing/types'
+} from '@deployer/declarative-routing/types'
 
 // ============================================================================
 // Constants
@@ -446,8 +446,8 @@ function createUrlBuilder<
  * @example
  * ```tsx
  * // In apps/web/src/routes/configure.ts
- * import { createRouteFactory } from '@repo/declarative-routing'
- * import { createPage, createSessionPage } from '@repo/declarative-routing/page-wrappers'
+ * import { createRouteFactory } from '@deployer/declarative-routing'
+ * import { createPage, createSessionPage } from '@deployer/declarative-routing/page-wrappers'
  * import { withClientSession } from '../../../lib/auth/with-client-session'
  * 
  * const { makeRoute, makeGetRoute, makePostRoute, makePutRoute, makeDeleteRoute } = 

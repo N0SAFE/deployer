@@ -11,8 +11,15 @@ import { scopedLogger } from './logger'
  *
  * This process is the single owner of internal workspace package builds in the
  * dev stack. It discovers which applications compose has enabled, computes the
- * union of the internal packages they need, builds that union once through a
- * single Turbo graph, then stays in Turbo watch mode.
+ * union of the internal packages they need, publishes those artifacts from the
+ * IMAGE into the shared volume, and then stays in Turbo watch mode.
+ *
+ * ── THE IMAGE ALREADY BUILT THEM ────────────────────────────────────────────
+ * The Dockerfile runs a full `turbo run build`, so by the time this process
+ * starts every package is built. Its job is to PUBLISH that work — adopt the
+ * image's `dist/` trees into the volume and open the gate — not to repeat it.
+ * A build only runs when something is genuinely missing (a partial volume, a
+ * host run, a package the image did not know about).
  *
  * It is a Nest + nest-commander app for the same reason `apps/api`'s CLI is: the
  * build orchestration has real dependencies (a discovery service, a planner, a

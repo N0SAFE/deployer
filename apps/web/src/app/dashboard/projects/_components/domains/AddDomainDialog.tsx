@@ -2,13 +2,13 @@
 
 import { useForm } from '@tanstack/react-form'
 import { toast } from 'sonner'
-import { z } from 'zod/v4'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
-import { Field, FieldDescription, FieldLabel } from '@repo/ui/components/shadcn/field'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Label } from '@repo/ui/components/shadcn/label'
-import { Switch } from '@repo/ui/components/shadcn/switch'
+import z from 'zod/v4'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@deployer/ui/components/shadcn/dialog'
+import { Field, FieldDescription, FieldLabel } from '@deployer/ui/components/shadcn/field'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Label } from '@deployer/ui/components/shadcn/label'
+import { Switch } from '@deployer/ui/components/shadcn/switch'
 
 const addDomainSchema = z.object({
   domain: z.string().trim().min(1, 'Domain is required').regex(/^([a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,}$/i, 'Invalid domain format'),

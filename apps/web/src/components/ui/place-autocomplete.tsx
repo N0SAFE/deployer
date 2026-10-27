@@ -154,12 +154,12 @@ function buildSearchUrl({
     return String(url)
 }
 
-function useDebounce<T>(value: T, delay: number = 300) {
+function useDebounce<T>(value: T, delay = 300) {
     const [debouncedValue, setDebouncedValue] = React.useState<T>(value)
 
     React.useEffect(() => {
-        const timer = setTimeout(() => setDebouncedValue(value), delay)
-        return () => clearTimeout(timer)
+        const timer = setTimeout(() => { setDebouncedValue(value); }, delay)
+        return () => { clearTimeout(timer); }
     }, [value, delay])
 
     return debouncedValue
@@ -227,7 +227,7 @@ function usePlaceSearch({
 
         fetchResults()
 
-        return () => abortController.abort()
+        return () => { abortController.abort(); }
     }, [
         debouncedQuery,
         props.lang,

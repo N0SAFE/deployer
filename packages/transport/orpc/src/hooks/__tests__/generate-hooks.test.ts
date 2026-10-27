@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { ROUTE_METHOD_META_KEY } from '@repo/orpc-utils/types/route-method-meta';
-import type { HTTPMethod } from '@repo/orpc-utils/types/types';
+import { ROUTE_METHOD_META_KEY } from '@deployer/orpc-utils/types/route-method-meta';
+import type { HTTPMethod } from '@deployer/orpc-utils/types/types';
 
 const reactQueryMocks = vi.hoisted(() => {
   return {
@@ -11,7 +11,7 @@ const reactQueryMocks = vi.hoisted(() => {
 
 vi.mock('@tanstack/react-query', () => reactQueryMocks);
 
-import { createRouterHooks, defineInvalidations } from '@repo/orpc-utils/hooks/generate-hooks';
+import { createRouterHooks, defineInvalidations } from '@deployer/orpc-utils/hooks/generate-hooks';
 
 /**
  * Helper to create a mock procedure with RouteBuilder metadata.

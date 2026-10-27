@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { Laptop, Server, UserX } from 'lucide-react'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import {
   Dialog,
   DialogContent,
@@ -11,11 +11,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@repo/ui/components/shadcn/dialog'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Label } from '@repo/ui/components/shadcn/label'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
-import type { MeshMemberView } from '@repo/api-contracts/modules/reachability/index'
+} from '@deployer/ui/components/shadcn/dialog'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Label } from '@deployer/ui/components/shadcn/label'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
+import type { MeshMemberView } from '@deployer/fleet-contracts/modules/reachability/index'
 import { useRevokeMeshMember } from '@/domains/reachability/hooks'
 import { AuthDashboardNodesNodeId } from '@/routes'
 import { Age, LinkPathBadge, Mono } from './network-copy'

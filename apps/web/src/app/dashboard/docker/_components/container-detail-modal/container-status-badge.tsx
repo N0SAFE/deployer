@@ -1,5 +1,5 @@
-import type { DockerContainer } from '@repo/contracts-entities'
-import { Badge } from '@repo/ui/components/shadcn/badge'
+import type { DockerContainer } from '@deployer/contracts-entities'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
 
 type Variant = 'default' | 'secondary' | 'destructive' | 'outline'
 

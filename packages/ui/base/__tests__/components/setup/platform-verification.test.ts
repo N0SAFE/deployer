@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest"
-import type { SetupPostSetupVerification, SetupVerificationTarget } from "@repo/contracts-entities"
+import type { SetupPostSetupVerification, SetupVerificationTarget } from "@deployer/contracts-entities"
 
 import {
 	buildVerificationTasks,
@@ -8,7 +8,7 @@ import {
 	probeFromBrowser,
 	verificationFailed,
 	type VerificationInput,
-} from "@repo/ui/components/setup/platform-verification"
+} from "@deployer/ui/components/setup/platform-verification"
 
 /**
  * The final verification gates the Continue button, so the cases that matter are

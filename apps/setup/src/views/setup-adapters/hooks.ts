@@ -3,15 +3,15 @@
 /**
  * The setup data hooks for the API-served wizard.
  *
- * The UI itself is shared (`@repo/ui/components/setup`); only the transport is
+ * The UI itself is shared (`@deployer/ui/components/setup`); only the transport is
  * app-specific. The API serves the page AND the ORPC endpoints on one origin,
  * so these differ from the web app's hooks only in the client they use.
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { SetupInitializeInput, SetupStreamEvent } from "@repo/contracts-entities";
-import { isSetupRunFinished } from "@repo/ui/components/setup/progress-tasks";
+import type { SetupInitializeInput, SetupStreamEvent } from "@deployer/contracts-entities";
+import { isSetupRunFinished } from "@deployer/ui/components/setup/progress-tasks";
 import { setupEndpoints } from "@/views/setup-adapters/endpoints";
 import { getErrorMessage } from "@/views/lib/errors";
 
@@ -59,13 +59,7 @@ export function useProbeMesh() {
 	return useMutation({
 		mutationFn: async (meshUrl: string) => {
 			const res = await setupEndpoints.probeMesh.call({ meshUrl });
-			return res.body as {
-				reachable: boolean;
-				latencyMs?: number;
-				advertisedHost?: string;
-				version?: string;
-				error?: string;
-			};
+			return res.body;
 		},
 	});
 }
@@ -75,13 +69,7 @@ export function useRemoteAuth() {
 	return useMutation({
 		mutationFn: async (input: { meshUrl: string; username: string; password: string }) => {
 			const res = await setupEndpoints.remoteAuth.call(input);
-			return res.body as {
-				authToken: string;
-				userId: string;
-				email: string;
-				meshUrl: string;
-				latencyMs?: number;
-			};
+			return res.body;
 		},
 	});
 }

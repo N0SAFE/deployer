@@ -1,8 +1,8 @@
 'use client'
 
 import { ExternalLink, GitFork, Key, Wrench } from 'lucide-react'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { cn } from '@/lib/utils'
 
 /** The three ways to connect, in order of preference. The first is the recommended path. */

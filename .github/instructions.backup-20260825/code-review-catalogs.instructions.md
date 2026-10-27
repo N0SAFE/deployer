@@ -229,15 +229,15 @@ Every package and app has path aliases. **Use them, never use `../../../`**:
 | `apps/web` | `@/*` → `src/*` |
 | `apps/api` | `@/*` → `src/*` |
 | `apps/doc` | `@/*` → `src/*` |
-| `packages/ui` | `@repo/ui` |
-| `packages/contracts/entities` | `@repo/contracts-entities` |
-| `packages/contracts/api` | `@repo/contracts-api` |
-| `packages/transport/orpc` | `@repo/utils-orpc` |
-| `packages/infrastructure/logger` | `@repo/utils-logger` |
-| `packages/auth` | `@repo/utils-auth` |
-| `packages/utils/use-safe-query-param-states-from-zod` | `@repo/use-safe-query-param-states-from-zod` |
-| `packages/nest` | `@repo/nest` |
-| `packages/types` | `@repo/types` |
+| `packages/ui` | `@deployer/ui` |
+| `packages/contracts/entities` | `@deployer/contracts-entities` |
+| `packages/contracts/api` | `@deployer/contracts-api` |
+| `packages/transport/orpc` | `@deployer/utils-orpc` |
+| `packages/infrastructure/logger` | `@deployer/utils-logger` |
+| `packages/auth` | `@deployer/utils-auth` |
+| `packages/utils/use-safe-query-param-states-from-zod` | `@deployer/use-safe-query-param-states-from-zod` |
+| `packages/nest` | `@deployer/nest` |
+| `packages/types` | `@deployer/types` |
 
 ### Common Dev Workflows
 

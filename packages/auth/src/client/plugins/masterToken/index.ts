@@ -6,7 +6,7 @@ import {
     clearMasterToken,
     getDevtoolsApiKey,
     MasterTokenManager,
-} from '@repo/auth/client/plugins/masterToken/state'
+} from '@deployer/auth/client/plugins/masterToken/state'
 
 /**
  * Better Auth client plugin to attach a master token Authorization header

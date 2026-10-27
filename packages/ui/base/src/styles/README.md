@@ -1,4 +1,4 @@
-# @repo/ui design tokens
+# @deployer/ui design tokens
 
 Source of truth: `globals.css` (`:root` = light, `.dark` = dark). Every colour is an
 `oklch()` token exposed to Tailwind through `@theme inline`. Contrast is enforced:

@@ -58,8 +58,26 @@ export function toOrigin(value: string): string {
 	return isIpAddress(clean) ? `http://${clean}` : `https://${clean}`;
 }
 
+/** The slice of a response a probe reads. */
+export type ProbeResponse = {
+	readonly ok: boolean;
+	readonly status: number;
+	json(): Promise<unknown>;
+}
+
+/**
+ * How a probe makes its HTTP request.
+ *
+ * REQUIRED, not defaulted: a probe dials an address a user or operator typed, so the
+ * app must decide what it may reach (the app's egress policy). A default of the global
+ * `fetch` here would make forgetting to pass one a silent SSRF. The function rejects
+ * for transport failures and policy refusals; the message is shown to callers, so it
+ * must not carry resolved addresses.
+ */
+export type ProbeHttp = (url: string, init: { readonly timeoutMs: number }) => Promise<ProbeResponse>;
+
 /** The outcome of probing whether an address belongs to a live process. */
-export interface AddressProbeResult {
+export type AddressProbeResult = {
 	readonly valid: boolean;
 	readonly reason?: string;
 	readonly latencyMs?: number;
@@ -69,7 +87,9 @@ export interface AddressProbeResult {
 }
 
 /** Options for {@link probeAddress}. */
-export interface ProbeAddressOptions {
+export type ProbeAddressOptions = {
+	/** The HTTP client the probe uses; carries the app's egress policy. */
+	readonly http: ProbeHttp;
 	/** Paths to try, in order, appended to the normalized origin. */
 	readonly paths: readonly string[];
 	/** Per-probe timeout (ms). */
@@ -116,7 +136,7 @@ export async function probeAddress(
 	for (const url of candidates) {
 		try {
 			const start = Date.now();
-			const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+			const response = await options.http(url, { timeoutMs });
 			if (response.ok) {
 				return {
 					valid: true,
@@ -139,13 +159,13 @@ export async function probeAddress(
 }
 
 /** The identity a peer's probe endpoint may report back. */
-export interface PeerIdentity {
+export type PeerIdentity = {
 	readonly advertisedHost?: string;
 	readonly version?: string;
 }
 
 /** The outcome of probing another node's identity endpoint. */
-export interface PeerProbeResult {
+export type PeerProbeResult = {
 	readonly url: string;
 	readonly reachable: boolean;
 	/** The URL that actually answered (the primary path, or the fallback). */
@@ -156,7 +176,9 @@ export interface PeerProbeResult {
 }
 
 /** Options for {@link probePeer}. */
-export interface PeerProbeOptions {
+export type PeerProbeOptions = {
+	/** The HTTP client the probe uses; carries the app's egress policy. */
+	readonly http: ProbeHttp;
 	/** Primary path, e.g. `/mesh/ping`. */
 	readonly primaryPath: string;
 	/**
@@ -192,10 +214,7 @@ export async function probePeer(url: string, options: PeerProbeOptions): Promise
 	const primaryUrl = `${origin}${options.primaryPath}`;
 
 	try {
-		const response = await fetch(primaryUrl, {
-			method: "GET",
-			signal: AbortSignal.timeout(timeoutMs),
-		});
+		const response = await options.http(primaryUrl, { timeoutMs });
 		const latencyMs = Date.now() - start;
 
 		if (response.ok) {
@@ -230,10 +249,7 @@ export async function probePeer(url: string, options: PeerProbeOptions): Promise
 		}
 
 		const fallbackUrl = `${origin}${options.fallbackPath}`;
-		const fallback = await fetch(fallbackUrl, {
-			method: "GET",
-			signal: AbortSignal.timeout(timeoutMs),
-		});
+		const fallback = await options.http(fallbackUrl, { timeoutMs });
 		const fallbackLatency = Date.now() - start;
 
 		if (fallback.ok) {

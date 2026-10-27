@@ -21,9 +21,28 @@ export const trimTrailingSlash = (url: string) => (url.endsWith('/') ? url.slice
  * @param _fallback - Unused; see above
  * @returns Zod URL schema with production validation
  */
-export const guardedUrl = (name: string, _fallback: string) =>
+/**
+ * A URL env var that must be valid when supplied, and falls back when it is not.
+ *
+ * ── WHY THE FALLBACK IS NOW USED ────────────────────────────────────────────
+ * This took a `_fallback` parameter and IGNORED it (the underscore was the tell):
+ * an unset value was rejected outright. The consequence was that every API service
+ * failed to BOOT outside a compose file that happened to set `NEXT_PUBLIC_API_URL`,
+ * because the schema demanded a value whose only consumer is Better Auth's base URL —
+ * and whose correct value in a container is exactly the fallback this function was
+ * already being handed.
+ *
+ * The default is applied BEFORE validation, so a caller that supplies a value still
+ * gets it checked (a malformed URL is a real misconfiguration and must fail), while an
+ * absent one resolves to the documented local default instead of killing the process.
+ *
+ * `name` is kept in the messages so a production failure still says which variable,
+ * which is the only way to act on it.
+ */
+export const guardedUrl = (name: string, fallback: string) =>
     zod
         .string()
+        .default(fallback)
         .superRefine((val, ctx) => {
             if (!val) {
                 ctx.addIssue({

@@ -1,8 +1,8 @@
 import { Module } from "@nestjs/common";
-import { AGENT_SOCKET_PATH, MeshAgentHttpClient } from "@repo/mesh-network";
-import { DockerModule } from "@repo/nest-docker/docker.module";
-import { NodesModule } from "@repo/nest-nodes";
-import { SwarmModule } from "@repo/nest-swarm";
+import { AGENT_SOCKET_PATH, MeshAgentHttpClient } from "@deployer/mesh-network";
+import { DockerModule } from "@deployer/nest-docker/docker.module";
+import { NodesModule } from "@deployer/nest-nodes";
+import { SwarmModule } from "@deployer/nest-swarm";
 
 import { localDatabaseRegistration } from "@/config/database/local-database.module";
 import { EnvModule, EnvService } from "@/config/env/env.module";
@@ -28,7 +28,7 @@ async function meshAgentAddress(env: EnvService): Promise<string | null> {
  * policy.
  *
  * WHY `forRoot`-CONFIGURED IMPORTS RATHER THAN RE-DECLARED PROVIDERS
- * `@repo/nest-docker`, `@repo/nest-nodes` and `@repo/nest-swarm` each own their
+ * `@deployer/nest-docker`, `@deployer/nest-nodes` and `@deployer/nest-swarm` each own their
  * wiring through `forRoot`/`forRootAsync`. This module supplies this app's
  * VALUES through those entry points and declares only its own two services.
  * Re-declaring the package providers here would be a second wiring of the same

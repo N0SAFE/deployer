@@ -1,14 +1,14 @@
 'use client'
 
-import type { DockerContainer } from '@repo/contracts-entities'
-import { Button } from '@repo/ui/components/shadcn/button'
+import type { DockerContainer } from '@deployer/contracts-entities'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@repo/ui/components/shadcn/dropdown-menu'
+} from '@deployer/ui/components/shadcn/dropdown-menu'
 import { MoreHorizontal, Play, RotateCcw, Square, Trash2 } from 'lucide-react'
 import { DockerContainerDetailModalTrigger } from '../../_components/container-detail-modal'
 import type { ContainerAction, ContainerRow } from '../_models/container-list.model'

@@ -36,7 +36,7 @@ export function buildPreviewName(
   const { strategy, branchName, prNumber, serviceId, commitSha } = input
   switch (strategy) {
     case 'pr':
-      return { previewName: prNumber != null ? `pr-${prNumber}` : slugify(branchName ?? 'preview') }
+      return { previewName: prNumber != null ? `pr-${String(prNumber)}` : slugify(branchName ?? 'preview') }
     case 'branch':
       return { previewName: slugify(branchName ?? 'preview') }
     case 'branch_hash': {

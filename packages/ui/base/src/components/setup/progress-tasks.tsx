@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react"
 import { CheckCircle2, Loader2, Circle, XCircle, ChevronDown } from "lucide-react"
-import type { SetupStreamEvent, SetupStepId, SetupStreamStepState } from "@repo/contracts-entities"
-import { cn } from "@repo/ui/lib/utils"
+import type { SetupStreamEvent, SetupStepId, SetupStreamStepState } from "@deployer/contracts-entities"
+import { cn } from "@deployer/ui/lib/utils"
 
 export type TaskStatus = "pending" | "running" | "done" | "error"
 

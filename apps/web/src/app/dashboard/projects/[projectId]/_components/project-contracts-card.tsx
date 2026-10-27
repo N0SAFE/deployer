@@ -3,12 +3,11 @@
 import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { useState } from 'react'
 import { useProject, useUpdateProject } from '@/domains/project/hooks'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Label } from '@repo/ui/components/shadcn/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@repo/ui/components/shadcn/select'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
 import { FileCheck, Plus, X, Save } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -37,7 +36,7 @@ export function ProjectContractsCard({ projectId }: { projectId: string }) {
     const map = settings?.contracts ?? {}
     return Object.entries(map).map(([contractRef, entry]) => ({
       contractRef,
-      source: entry.source ?? { kind: 'openapi', path: '' },
+      source: entry.source,
       version: entry.version,
       description: entry.description,
     }))
@@ -79,7 +78,7 @@ export function ProjectContractsCard({ projectId }: { projectId: string }) {
       const settings = (projectData as Record<string, unknown> | undefined)?.settings ?? {}
       await updateProject.mutateAsync({
         id: projectId,
-        settings: { ...settings, contracts: map } as never,
+        settings: { ...settings, contracts: map },
       })
       toast.success('Contract registry updated')
       setEdits(null)
@@ -105,13 +104,13 @@ export function ProjectContractsCard({ projectId }: { projectId: string }) {
         <div className="flex gap-1.5">
           {edits !== null ? (
             <>
-              <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => setEdits(null)}>Cancel</Button>
-              <Button size="sm" className="h-7 gap-1 text-[11px]" onClick={() => { void handleSave() }} disabled={saving}>
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setEdits(null) }}>Cancel</Button>
+              <Button size="sm" className="h-7 gap-1 text-xs" onClick={() => { void handleSave() }} disabled={saving}>
                 <Save className="size-3" /> {saving ? 'Saving…' : 'Save'}
               </Button>
             </>
           ) : (
-            <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px]" onClick={addEntry}>
+            <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={addEntry}>
               <Plus className="size-3" /> Add contract
             </Button>
           )}
@@ -119,7 +118,7 @@ export function ProjectContractsCard({ projectId }: { projectId: string }) {
       </CardHeader>
       <CardContent className="space-y-2">
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading contracts…</p>
+          <p role="status" className="text-sm text-muted-foreground">Loading contracts…</p>
         ) : entries.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No contracts declared. Add one (e.g. <code className="font-mono">api.oas3</code>) to let mocks
@@ -157,7 +156,7 @@ export function ProjectContractsCard({ projectId }: { projectId: string }) {
                 placeholder="v1"
                 className="h-8 w-16 font-mono"
               />
-              <Button size="icon" variant="ghost" className="ml-auto size-7 p-0 text-destructive hover:text-destructive" aria-label="Remove contract" onClick={() => { removeEntry(i) }}>
+              <Button size="icon" variant="ghost" className="ml-auto size-7 p-0 text-destructive hover:text-destructive" aria-label={`Remove contract ${entry.contractRef || String(i + 1)}`} onClick={() => { removeEntry(i) }}>
                 <X className="size-3.5" />
               </Button>
             </div>
@@ -166,7 +165,7 @@ export function ProjectContractsCard({ projectId }: { projectId: string }) {
         {entries.length > 0 && (
           <div className="flex flex-wrap gap-1.5 pt-1">
             {entries.filter((e) => e.contractRef.trim()).map((e) => (
-              <Badge key={e.contractRef} variant="outline" className="font-mono text-[10px]">{e.contractRef}</Badge>
+              <Badge key={e.contractRef} variant="outline" className="font-mono text-xs">{e.contractRef}</Badge>
             ))}
           </div>
         )}

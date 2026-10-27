@@ -1,4 +1,4 @@
-import type { DockerContainerLogEntry } from '@repo/contracts-entities'
+import type { DockerContainerLogEntry } from '@deployer/contracts-entities'
 
 export interface LogsTimeRange {
   start: string | null

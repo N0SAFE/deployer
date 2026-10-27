@@ -27,7 +27,7 @@ runnable until every service is verified, so both exist side by side by design.
 
 Each service is reachable by its **compose/service name** (`http://svc-project:3103`).
 There is no routing table to keep in sync: the service's NAME in `API_SERVICES`
-(`apps/api-services/shared/src/server/service-address.ts`) is also its contract namespace and
+(`apps/api/shared/src/server/service-address.ts`) is also its contract namespace and
 its DNS name.
 
 ## Where things live
@@ -36,11 +36,11 @@ its DNS name.
 |---|---|---|
 | Contracts (Zod → oRPC) | `packages/contracts/{health,identity,project,runtime,fleet,bff}` | One package per service; a service imports ONLY its own |
 | Entities (shared shapes) | `packages/contracts/entities` | Referenced by several contracts, so it cannot live in one |
-| Core infrastructure | `apps/api-services/shared/src/core` | Shared by every app, addressed as `@/core/*` |
-| Shared server runtime | `apps/api-services/shared/src/server` | `createOrpcModule`, preflight, health indicators, service catalog |
-| Service apps | `apps/api-services/services/<name>` | One Nest app per bounded context |
-| BFF app | `apps/api-services/bff` | Public edge, session authority, SSR views |
-| Ops CLI | `apps/api-services/bff/src/cli` (+ `src/cli.ts`) | Node-scoped administration: migrations, seed, admin, startup check. It writes `node_config` and can run BEFORE any network exists, so it belongs on the node's own process (the BFF), not in a service |
+| Core infrastructure | `apps/api/shared/src/core` | Shared by every app, addressed as `@/core/*` |
+| Shared server runtime | `apps/api/shared/src/server` | `createOrpcModule`, preflight, health indicators, service catalog |
+| Service apps | `apps/api/services/<name>` | One Nest app per bounded context |
+| BFF app | `apps/api/bff` | Public edge, session authority, SSR views |
+| Ops CLI | `apps/api/bff/src/cli` (+ `src/cli.ts`) | Node-scoped administration: migrations, seed, admin, startup check. It writes `node_config` and can run BEFORE any network exists, so it belongs on the node's own process (the BFF), not in a service |
 | Local node state | `<app>/node_config` (SQLite) | Node-scoped facts; survives a profile switch |
 
 ## Build and run
@@ -75,7 +75,7 @@ stopped agreeing when services arrived:
 | `APP` | workspace **package name** — what `turbo prune` and `turbo run --filter` accept | `@deployer/svc-health` |
 | `APP_SRC_DIR` | source **directory** — what the runner stage `WORKDIR`s into | `api/services/health` |
 
-They coincide for the four original apps (`api` → `api`); deriving one from the other
+They coincide for the four original apps (`@deployer/api` → `apps/api`); deriving one from the other
 produced `/app/apps/@deployer/svc-health`, a directory that never exists.
 
 `turbo prune` needs the NAME because it takes selectors, not paths:
@@ -119,7 +119,7 @@ error, which is why they took a while to separate:
 
 ```
 error: Cannot find module '@deployer/auth/server' from
-'/app/apps/api-services/shared/src/config/auth/auth.ts'
+'/app/apps/api/shared/src/config/auth/auth.ts'
 ```
 
 1. **The entrypoint linked before it waited.** It created each package's `dist` symlink
@@ -185,7 +185,7 @@ exceeds the source's line count — `apps/api/src` is the reference, not a depen
 
 ### The ops CLI
 
-Ported to `apps/api-services/bff/src/cli` with `src/cli.ts` as the entry:
+Ported to `apps/api/bff/src/cli` with `src/cli.ts` as the entry:
 
 ```bash
 bun --bun run cli --help
@@ -209,9 +209,9 @@ providers — invisible to an imported module. The CLI now imports the shared
 ## Adding a service
 
 1. Create `packages/contracts/<name>` with the Zod schemas and the contract router.
-2. Create `apps/api-services/services/<name>` with `src/app.module.ts` and `src/main.ts`
+2. Create `apps/api/services/<name>` with `src/app.module.ts` and `src/main.ts`
    (`bootstrapApiServer` derives the port from the catalog).
-3. Add the name to `API_SERVICES` in `apps/api-services/shared/src/server/service-address.ts`.
+3. Add the name to `API_SERVICES` in `apps/api/shared/src/server/service-address.ts`.
 4. Add an entry to `infra/docker/compose/common/api/docker-compose.config.services.yml`
    with `APP=<package name>` and `APP_SRC_DIR=api/services/<name>`.
 5. Add the container plus its `depends_on` to

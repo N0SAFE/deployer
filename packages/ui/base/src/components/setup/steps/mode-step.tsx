@@ -1,8 +1,8 @@
 "use client"
 
 import { Network, Sparkles, ArrowRight, Check } from "lucide-react"
-import { Button } from "@repo/ui/components/shadcn/button"
-import { cn } from "@repo/ui/lib/utils"
+import { Button } from "@deployer/ui/components/shadcn/button"
+import { cn } from "@deployer/ui/lib/utils"
 import { useState } from "react"
 
 type Props = {

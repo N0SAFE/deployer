@@ -1,8 +1,9 @@
 import { Injectable, Logger, NotFoundException, type OnApplicationBootstrap } from "@nestjs/common";
+import { readFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { Socket } from "node:net";
-import { DockerService } from "@repo/nest-docker/services/docker.service";
-import { platformNetworkName } from "@repo/nest-docker/services/docker-supervisor-runtime";
+import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { platformNetworkName } from "@deployer/nest-docker/services/docker-supervisor-runtime";
 
 import { EnvService } from "@/config/env/env.module";
 
@@ -82,6 +83,16 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
    */
   private static readonly SWARM_SERVICE_NAME = "deployer-traefik";
   private static readonly SWARM_SERVICE_PORT = 80;
+  /**
+   * The COMPOSE ingress, reached by its compose SERVICE name.
+   *
+   * A profile where the deployment owns the ingress (`MANAGED_TRAEFIK_ENABLED=true`,
+   * as `dev:services` sets) runs traefik as a compose service named `traefik`
+   * rather than the swarm service `deployer-traefik`. Setup shares the platform
+   * network with it, so this name resolves — which is what makes the handover
+   * probe work in that profile. See `probeRoutedThroughEntryPort`.
+   */
+  private static readonly COMPOSE_INGRESS_NAME = "traefik";
 
   /** Where the file provider reads generated routes inside the container. */
   private static readonly CONFIG_MOUNT = "/config";
@@ -210,7 +221,7 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
 
     this.logger.log(
       `Bootstrap ingress running (${BootstrapIngressService.CONTAINER_NAME} → :${String(this.entryPort())}) — ` +
-        `${this.ingressStateNote()}`,
+        this.ingressStateNote(),
     );
   }
 
@@ -398,13 +409,32 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
     );
     if (viaOverlay.ok) return viaOverlay;
 
+    // Candidate 1b: the COMPOSE ingress, by service name.
+    //
+    // In a profile where the deployment owns the ingress (`MANAGED_TRAEFIK_ENABLED=true`,
+    // which `dev:services` sets) the ingress is a COMPOSE container, not the swarm
+    // service — so candidate 1 can never answer and the handover reported a routing
+    // failure for a platform that was routing fine. Measured while probing by hand:
+    //
+    //   traefik:80  -> {"status":"ready"}
+    //   172.17.0.1:80 / 172.25.0.1:80 -> nothing (port bound to 127.0.0.1 only)
+    //
+    // Reaching it by SERVICE NAME is the reliable form: it does not depend on how
+    // the host publishes the port, and setup already shares a network with it.
+    const viaComposeIngress = await this.probeIngress(
+      BootstrapIngressService.COMPOSE_INGRESS_NAME,
+      80,
+      hostname,
+    );
+    if (viaComposeIngress.ok) return viaComposeIngress;
+
     // Candidate 2: the host-published entry port (the operator's path).
     const viaEntryPort = await this.probeIngress(this.hostGateway(), this.entryPort(), hostname);
     if (viaEntryPort.ok) return viaEntryPort;
 
     // Report the ENTRY-PORT reason: it is the one the operator's browser will
     // hit, so it is the honest description of why the platform is unreachable
-    // if BOTH failed.
+    // if ALL of the candidates failed.
     return viaEntryPort;
   }
 
@@ -795,9 +825,9 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
         resolve(result);
       };
       socket.setTimeout(1_500);
-      socket.once("connect", () => done(true));
-      socket.once("timeout", () => done(false));
-      socket.once("error", () => done(false));
+      socket.once("connect", () => { done(true); });
+      socket.once("timeout", () => { done(false); });
+      socket.once("error", () => { done(false); });
       socket.connect(port, host);
     });
   }
@@ -805,14 +835,71 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
   /**
    * The address that reaches PUBLISHED host ports from inside this container.
    *
-   * Docker resolves `host.docker.internal` to the host on Desktop and on Linux
-   * with `--add-host=host.docker.internal:host-gateway` (which the API's compose
-   * config sets). Falls back to the default-gateway IP for engines without it.
+   * ── WHY `host.docker.internal` IS NOT THE WHOLE ANSWER ──────────────────
+   * `--add-host=host.docker.internal:host-gateway` maps that name to the DEFAULT
+   * BRIDGE gateway (`172.17.0.1`), which is NOT this container's gateway. Setup
+   * joins three user-defined networks, so its default route is `172.25.0.1`;
+   * `172.17.0.1` answers nothing at all. Measured from the running container
+   * while the ingress was demonstrably routing:
+   *
+   *   host.docker.internal -> 172.17.0.1     (ningún servicio)
+   *   172.17.0.1:80  -> no answer
+   *   172.25.0.1:80  -> no answer (the port was bound to 127.0.0.1 only)
+   *   traefik:80     -> {"status":"ready"}
+   *
+   * The handover therefore reported "the swarm ingress took the entry port but
+   * is not routing the API yet" for a platform that WAS routing — a sticky
+   * failure that kept `/setup/health` at 503 and held `web-dev` in its entrypoint
+   * wait indefinitely.
+   *
+   * The address is now derived from THIS container's own default route, so it
+   * follows whichever network the platform is actually on. `HOST_GATEWAY_ADDRESS`
+   * stays as the explicit override for an engine where that derivation is wrong.
    */
   private hostGateway(): string {
     const configured = process.env.HOST_GATEWAY_ADDRESS;
-    if (configured !== undefined && configured.length > 0) return configured;
+    // A bare `host.docker.internal` default is what made the probe target the
+    // wrong gateway, so it is treated as "unset" rather than honoured.
+    if (
+      configured !== undefined &&
+      configured.length > 0 &&
+      configured !== "host.docker.internal"
+    ) {
+      return configured;
+    }
+
+    const fromRoute = this.defaultGatewayFromProcNetRoute();
+    if (fromRoute !== null) return fromRoute;
+
     return "host.docker.internal";
+  }
+
+  /**
+   * This container's DEFAULT GATEWAY, read from the kernel.
+   *
+   * `/proc/net/route` is a tab-separated table whose destination `00000000` row
+   * is the default route; the gateway is little-endian hex. Read from the file
+   * rather than shelling out to `ip`, which is not installed in every image.
+   * Returns `null` when there is no default route, so the caller can fall back
+   * instead of probing `undefined`.
+   */
+  private defaultGatewayFromProcNetRoute(): string | null {
+    try {
+      const table = readFileSync("/proc/net/route", "utf8");
+      for (const line of table.split("\n").slice(1)) {
+        const columns = line.trim().split(/\s+/);
+        if (columns.length < 3) continue;
+        const [, destination, gateway] = columns;
+        if (destination !== "00000000" || gateway === undefined) continue;
+        const value = Number.parseInt(gateway, 16);
+        if (!Number.isFinite(value)) continue;
+        // Little-endian: the hex is the address with its bytes reversed.
+        return [value & 0xff, (value >> 8) & 0xff, (value >> 16) & 0xff, (value >> 24) & 0xff].join(".");
+      }
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   /** Operator-facing note about which incarnation currently owns the ingress. */

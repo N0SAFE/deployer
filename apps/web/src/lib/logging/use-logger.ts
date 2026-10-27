@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import type { LogData } from '@repo/logger'
+import type { LogData } from '@deployer/logger'
 import type { ContextFilterDebugLogger, ContextFilterDebugPredicate } from './context-filter-debug'
 
 export function useLogger<TContext extends LogData = LogData>(

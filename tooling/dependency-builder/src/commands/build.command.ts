@@ -7,6 +7,8 @@ import { Command, CommandRunner, Option } from 'nest-commander'
 import { scopedLogger } from '../logger'
 
 import { UnionPlanner } from '../services/union-planner.service'
+import { ApplicationDetector } from '../services/application-detector.service'
+import { WorkspaceScanner } from '../services/workspace-scanner.service'
 import {
     TurboRunner,
     BUILD_MARKER,
@@ -17,7 +19,12 @@ import {
 interface BuildOptions {
     /** Repository root inside this container. */
     root?: string
-    /** Workspace name of an enabled application. Repeatable. */
+    /**
+     * Workspace name of an enabled application. Repeatable.
+     *
+     * Omitted by the compose profile, which relies on auto-detection from
+     * `COMPOSE_PROFILES` instead — see `ApplicationDetector`.
+     */
     application?: string[]
     /** Where built artifacts are published. */
     output?: string
@@ -31,15 +38,23 @@ interface BuildOptions {
  * The one command this tool exposes.
  *
  * Responsibilities, in order:
- *   1. discover the enabled applications' internal dependency union
- *   2. link every union member's `dist/` into the shared output volume
- *   3. build the union once, through a single Turbo graph
- *   4. publish the marker the applications gate on
- *   5. stay in Turbo watch mode
+ *   1. discover the enabled applications (compose profile, or `--application`)
+ *   2. compute the internal dependency union of those applications
+ *   3. link every union member's `dist/` into the shared output volume,
+ *      adopting the artifacts the IMAGE built
+ *   4. build the union — skipped when step 3 found the volume complete
+ *   5. publish the marker the applications gate on
+ *   6. stay in Turbo watch mode
  *
- * The applications must not start their dev servers before step 3 finishes,
- * which is why step 4 exists: compose gates them on the marker rather than on a
- * delay.
+ * ── WHY THE BUILD IS USUALLY SKIPPED ────────────────────────────────────────
+ * The Dockerfile builds every internal package, so the artifacts already exist
+ * when the container starts. Step 3 publishes them and reports the volume as
+ * complete; step 4 then has nothing to do. The container's first action is
+ * therefore to OPEN THE GATE, not to rebuild what the image just built.
+ *
+ * The applications must not start their dev servers before the artifacts are
+ * published, which is why step 5 exists: compose gates them on the marker rather
+ * than on a delay.
  */
 @Command({
     name: 'build',
@@ -52,7 +67,9 @@ export class BuildCommand extends CommandRunner {
 
     constructor(
         private readonly planner: UnionPlanner,
-        private readonly turbo: TurboRunner
+        private readonly turbo: TurboRunner,
+        private readonly detector: ApplicationDetector,
+        private readonly scanner: WorkspaceScanner
     ) {
         super()
     }
@@ -65,19 +82,23 @@ export class BuildCommand extends CommandRunner {
         const outputRoot = isAbsolute(options.output ?? DEFAULT_OUTPUT_ROOT)
             ? (options.output ?? DEFAULT_OUTPUT_ROOT)
             : resolve(root, options.output ?? DEFAULT_OUTPUT_ROOT)
-        const applications = options.application ?? []
-
-        if (applications.length === 0) {
-            throw new Error(
-                'At least one --application is required (the workspace name of an enabled application).'
-            )
-        }
 
         if (!existsSync(join(root, 'package.json'))) {
             throw new Error(
                 `No package.json at ${root}. Pass --root, or mount the repository there.`
             )
         }
+
+        // ── THE ENABLED SET COMES FROM COMPOSE, NOT FROM A FLAG LIST ────────
+        // `--application` remains for a hand-run (and for tests), but the
+        // compose profile passes nothing: the enablement is whatever
+        // `COMPOSE_PROFILES` says, which is the same value that decided which
+        // application containers exist. A second list here is how the union and
+        // the running services drift apart.
+        const applications =
+            options.application !== undefined && options.application.length > 0
+                ? options.application
+                : this.detector.detect(this.scanner.scan(root).workspaces)
 
         this.logger.info(`repository root: ${root}`)
         this.logger.info(`enabled applications: ${applications.join(', ')}`)
@@ -91,7 +112,7 @@ export class BuildCommand extends CommandRunner {
         // Measured symptom on a warm restart:
         //
         //   error: Cannot find module '@deployer/auth/server' from
-        //   '/app/apps/api-services/shared/src/config/auth/auth.ts'
+        //   '/app/apps/api/shared/src/config/auth/auth.ts'
         //   error: Cannot find module '../chunks/auth-client-*.mjs' from
         //   '/dep-output/packages/@deployer/auth/dist/production/esm/index.mjs'
         //
@@ -112,14 +133,72 @@ export class BuildCommand extends CommandRunner {
             return
         }
 
-        this.turbo.linkOutputs(root, union, outputRoot)
+        // The return value reports whether the volume was ALREADY complete,
+        // which decides whether step 3 has any work to do.
+        const published = this.turbo.linkOutputs(root, union, outputRoot)
 
-        // 3 — one build, one graph.
+        // ── STEP 2.5 — NARROW THE GRAPH BEFORE THE FIRST TURBO PROCESS ─────
+        // Deliberately NOT lazy. This edits the root `package.json`, which is
+        // part of Turbo's GLOBAL HASH, so it must happen before any build whose
+        // cache entries the stack will rely on — and exactly once.
+        //
+        // It used to run inside `buildOnce` and again inside `watch`. On a cold
+        // start the initial build is SKIPPED (the image already published
+        // everything), so the only call was `watch`'s, which happens AFTER the
+        // marker is written. The applications were already compiling when the
+        // manifest changed, every baked cache entry was invalidated, and the
+        // watch phase rebuilt all 40 packages into the tree the applications
+        // were resolving through — surfacing as `Module not found` for eight
+        // packages on a clean first run.
+        //
+        // Applying it here makes the manifest constant for the container's whole
+        // life: the initial build and the watch run see identical workspace
+        // sets, so watch starts warm, and no app ever reads a tree being
+        // rewritten underneath it.
+        //
+        // Safe for discovery: the plan above already ran, and `WorkspaceScanner`
+        // treats the conventional trees as always-scanned.
+        this.turbo.excludeApplicationsFromGraph(root)
+
+        // 4 — A BUILD WITH THE FINAL GRAPH, BEFORE THE GATE OPENS.
+        //
+        // ── WHY THIS IS NOT CONDITIONAL ON `published` ──────────────────────
+        // It used to be: "the image already published everything → skip". That
+        // skip is what produced the cold-start failure, because the image's bake
+        // and `turbo watch` do not hash the same graph:
+        //
+        //   Dockerfile : turbo run build --filter='!./apps/**'   (apps PRESENT in workspaces)
+        //   watch      : same filter, but AFTER `excludeApplicationsFromGraph`
+        //                strips `apps/**` — a DIFFERENT resolved task graph
+        //
+        // Turbo's hash includes that graph, so watch could never reuse the baked
+        // entries. Measured on a cold start with a wiped volume:
+        //
+        //   [BuildCommand] every package is already published; skipping the initial build
+        //   [BuildCommand] initial build complete        ← gate opens, apps start compiling
+        //   [TurboRunner]  entering watch mode
+        //   • Running build in 42 packages
+        //   40 × "cache miss, executing …"               ← volume rewritten under the apps
+        //
+        // The result was ~715 `Module not found` errors and a 500-ing dev server
+        // that a single restart always fixed — the signature of a race.
+        //
+        // So the build ALWAYS runs here. It is cheap when the hashes do line up
+        // (a `FULL TURBO` replay of the image's cache), and when they do not it
+        // finishes BEFORE the marker is written, so no application ever compiles
+        // against a volume being rewritten. `watch` then starts warm.
+        //
+        // `published` still matters for diagnostics, so it is logged.
         const cacheDir = cacheDirFor(outputRoot)
+        this.logger.info(
+            published
+                ? 'image output adopted into the volume; running a build with the watch graph so `turbo watch` starts warm'
+                : 'volume was incomplete; building the union before opening the gate'
+        )
         await this.turbo.buildOnce(root, union, cacheDir)
 
-        // 4 — the gate the applications wait on. Written only now, so its
-        // presence means THIS run published the artifacts.
+        // 5 — the gate the applications wait on. Written only once every artifact
+        // is on the volume AND nothing is still rebuilding it.
         writeFileSync(marker, `${new Date().toISOString()}\n`)
         this.logger.info(`initial build complete (${marker})`)
 
@@ -128,7 +207,7 @@ export class BuildCommand extends CommandRunner {
             return
         }
 
-        // 5 — stay up, rebuilding the union as its sources change.
+        // 6 — stay up, rebuilding the union as its sources change.
         await this.turbo.watch(root, union, cacheDir)
     }
 
@@ -142,7 +221,8 @@ export class BuildCommand extends CommandRunner {
 
     @Option({
         flags: '-a, --application <name>',
-        description: 'Workspace name of an enabled application (repeatable)',
+        description:
+            'Workspace name of an enabled application (repeatable). Omit to auto-detect from COMPOSE_PROFILES.',
     })
     parseApplication(value: string, previous: string[] = []): string[] {
         return [...previous, value]

@@ -29,7 +29,7 @@ During our discussion, we reviewed 9 potential components and selected 5 based o
 
 ### How to Use These Components
 
-All components live in `packages/ui/base/src/components/` and are exported from `@repo/ui`:
+All components live in `packages/ui/base/src/components/` and are exported from `@deployer/ui`:
 
 ```typescript
 import {
@@ -39,7 +39,7 @@ import {
   LoadingState,
   ConfirmDialog,
   useConfirmDialog
-} from '@repo/ui'
+} from '@deployer/ui'
 ```
 
 ---

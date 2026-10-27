@@ -3,7 +3,7 @@ import {
   runnerNetworkModeSchema,
   serviceRunnerStrategySchema,
 } from "@deployer/contracts-common";
-import { mockServiceConfigSchema } from "@deployer/contracts-entities/entities/service/mock-config.schema";
+import { mockServiceConfigSchema } from "./mock-config.schema";
 
 /**
  * COMPOSE STACK — one service that manages a docker-compose stack as a

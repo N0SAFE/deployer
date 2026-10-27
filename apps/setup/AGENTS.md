@@ -20,7 +20,7 @@ covers the phase before it.
 ## The gate — the most important thing in this app
 
 `GET /setup/health` is a compose healthcheck, and **compose starts the API behind
-it** (`api-dev: depends_on: setup-dev: service_healthy`). So:
+it** (`bff: depends_on: setup-dev: service_healthy`). So:
 
 > **Setup's health means "the platform may start the API". It is an INPUT to the
 > API's existence, never a report about it.**
@@ -126,7 +126,7 @@ below follows from that:
 
 - **`completed` is not the end.** The API's `completed` arrives *before* the swap.
   The client treats the stream as finished only when the run failed or the whole
-  pipeline is done (`isSetupRunFinished` in `@repo/ui`), so a dropped connection
+  pipeline is done (`isSetupRunFinished` in `@deployer/ui`), so a dropped connection
   is retried instead of freezing the timeline.
 - **A reconnect is a re-sync.** `orchestratedStream` sends the step definitions,
   the *current* snapshot, then the live tail — history is skipped. A terminal
@@ -147,7 +147,7 @@ Continue button in front of a platform that did not answer.
 
 ## Boundaries
 
-- **No business logic in packages.** `@repo/nest-*` exports mechanisms
+- **No business logic in packages.** `@deployer/nest-*` exports mechanisms
   (`forRoot`-configured primitives, storage, network probing). The DECISIONS —
   which mode to enter, when to hand over, where the operator lands — live here.
 - **No env var may be assumed from the API.** This app has its own

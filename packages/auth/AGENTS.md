@@ -10,12 +10,12 @@ This package provides shared authentication configuration for Better Auth across
 
 ## Key Exports
 
-### Server (`@repo/auth/server`)
+### Server (`@deployer/auth/server`)
 - `betterAuthFactory` - Factory function to create Better Auth instance
 - Server plugins: `masterTokenPlugin`, `loginAsPlugin`, `pushNotificationsPlugin`, `useInvite`, `useAdmin`, plus Better Auth's built-ins `openAPI` and `multiSession`
 - Permissions: `useAdmin`, permission config (`useOrganization` is **not** implemented — see `apps/doc/content/docs/dev/better-auth-plugin-evaluation.mdx` §4.1)
 
-### Client (`@repo/auth/client`)
+### Client (`@deployer/auth/client`)
 - `createAuthClientFactory` - Factory to create Better Auth client with plugins
 - Client plugins: `masterTokenClient`, `loginAsClientPlugin`, `useInviteClient`, `useAdminClient`, plus Better Auth's `multiSessionClient`
 - Guards: `hasMasterTokenPlugin`

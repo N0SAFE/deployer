@@ -1,14 +1,14 @@
 import z from 'zod/v4'
-import { dockerListMetaSchema } from '@deployer/contracts-entities/entities/docker/common.schema'
+import { dockerListMetaSchema } from '../common.schema'
 import {
   dockerContainerProjectRefSchema,
   dockerContainerSchema,
   dockerServiceSnapshotSchema,
-} from '@deployer/contracts-entities/entities/docker/containers/index'
-import { dockerImageSchema } from '@deployer/contracts-entities/entities/docker/images/index'
-import { dockerVolumeSchema } from '@deployer/contracts-entities/entities/docker/volumes/index'
-import { dockerStackSchema } from '@deployer/contracts-entities/entities/docker/stacks/index'
-import { dockerNetworkSchema } from '@deployer/contracts-entities/entities/docker/networks/base.schema'
+} from '../containers/index'
+import { dockerImageSchema } from '../images/index'
+import { dockerVolumeSchema } from '../volumes/index'
+import { dockerStackSchema } from '../stacks/index'
+import { dockerNetworkSchema } from './base.schema'
 
 export const dockerNetworkListSchema = z.object({
   data: z.array(z.lazy(() => dockerNetworkSchema)),

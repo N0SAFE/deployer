@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 
 import { WorkspaceScanner } from './workspace-scanner.service'
-import { UnknownWorkspaceError } from '../errors'
+import { NoEnabledApplicationsError, UnknownWorkspaceError } from '../errors'
 import { scopedLogger } from '../logger'
 import type { UnionMember } from '../schemas'
 
@@ -55,7 +55,22 @@ export class UnionPlanner {
         const { workspaces, rootInternal } = this.scanner.scan(root)
 
         if (applicationNames.length === 0) {
-            throw new UnknownWorkspaceError('(none)', [...workspaces.keys()])
+            // NOT `UnknownWorkspaceError('(none)')`, which read as "your
+            // application name is wrong" when the real cause is upstream: the
+            // detector found no application to name. Reporting the two
+            // possibilities points at the actual investigation.
+            //
+            // Measured case: `COMPOSE_PROFILES=all` resolved to nothing because
+            // `apps/**` had been stripped from the root manifest's workspace
+            // globs, so the applications were never DISCOVERED. The old message
+            // sent the reader looking for a bad workspace name.
+            throw new NoEnabledApplicationsError(
+                'no application was resolved for this run — either ' +
+                    'COMPOSE_PROFILES named none (it is read from the container ' +
+                    'environment), or the applications were not discovered. ' +
+                    `Discovered workspaces: ${String(workspaces.size)} ` +
+                    `(${[...workspaces.keys()].slice(0, 5).join(', ')}…)`
+            )
         }
 
         // Contributors per package, so the log can name every application that

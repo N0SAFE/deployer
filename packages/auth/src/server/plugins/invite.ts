@@ -87,8 +87,8 @@ const ERROR_CODES = {
  * 
  * @example
  * ```typescript
- * import { invitePlugin } from '@repo/auth/server/plugins/invite'
- * import { ac, roles } from '@repo/auth/permissions/index'
+ * import { invitePlugin } from '@deployer/auth/server/plugins/invite'
+ * import { ac, roles } from '@deployer/auth/permissions/index'
  * 
  * betterAuth({
  *   plugins: [

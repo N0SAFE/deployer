@@ -13,7 +13,7 @@
  * - `compileDFilter()`: recursive; converts DFilter → `SQL | undefined`.
  *
  * Important: this module imports from `drizzle-orm` which is a peerDependency
- * of `@repo/auth`. Callers must have `drizzle-orm` in their dependencies.
+ * of `@deployer/auth`. Callers must have `drizzle-orm` in their dependencies.
  */
 
 import {
@@ -35,9 +35,9 @@ import {
     type SQL,
     type SQLWrapper,
 } from "drizzle-orm";
-import type { DFilter, DFilterOperator, DynamicVars, FilterableScalar } from "@repo/auth/permissions/engine/types";
-import { isVariable } from "@repo/auth/permissions/engine/types";
-import { MAX_FILTER_DEPTH } from "@repo/auth/permissions/engine/filter-matcher";
+import type { DFilter, DFilterOperator, DynamicVars, FilterableScalar } from "@deployer/auth/permissions/engine/types";
+import { isVariable } from "@deployer/auth/permissions/engine/types";
+import { MAX_FILTER_DEPTH } from "@deployer/auth/permissions/engine/filter-matcher";
 
 // ---------------------------------------------------------------------------
 // ColumnResolver type

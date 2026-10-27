@@ -5,7 +5,7 @@ import * as path from "path";
 import { randomUUID } from "node:crypto";
 import { DockerService } from "./docker.service";
 
-export interface DockerContainerStartOptions {
+export type DockerContainerStartOptions = {
     image: string;
     name: string;
     env?: string[];

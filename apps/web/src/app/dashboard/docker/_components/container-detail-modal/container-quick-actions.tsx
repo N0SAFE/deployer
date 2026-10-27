@@ -2,8 +2,8 @@
 
 import type { LucideIcon } from 'lucide-react'
 import { Pause, Play, PlayCircle, RotateCcw, Skull, Square, Trash2 } from 'lucide-react'
-import { Button } from '@repo/ui/components/shadcn/button'
-import type { DockerContainer } from '@repo/contracts-entities'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import type { DockerContainer } from '@deployer/contracts-entities'
 import type { ContainerOp } from '../../_hooks/use-container-actions'
 
 interface QuickAction {

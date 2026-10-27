@@ -3,18 +3,19 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { ArrowRight, Server } from 'lucide-react'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Label } from '@repo/ui/components/shadcn/label'
-import { Progress } from '@repo/ui/components/shadcn/progress'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Label } from '@deployer/ui/components/shadcn/label'
+import { Progress } from '@deployer/ui/components/shadcn/progress'
 import { EmptyState } from '@/components/dashboard'
 import { PresenceBadge } from '../../_components/presence-badge'
 import type { NodePresence } from '../../_utils/node-presence'
 import { useSetFleetServerCapacity, type useFleetServers } from '@/domains/fleet/hooks'
 import { getErrorMessage, isDefinedORPCError } from '@/lib/orpc/typed-errors'
-import { AuthDashboardNodesNodeId } from '@/routes'
+import { useRouter } from 'next/navigation'
+import { AuthDashboardNetworkMesh, AuthDashboardNodesNodeId } from '@/routes'
 import { ALLOCATION_MODE_LABEL, formatCpu, formatMemory, utilisationIndicatorClass, utilisationPct } from './capacity-format'
 
 type FleetServer = NonNullable<ReturnType<typeof useFleetServers>['data']>['items'][number]
@@ -152,8 +153,16 @@ export function NodeCapacityCards({
   allocations: readonly FleetAllocation[]
   presenceOf: (nodeId: string, lastSeenAt: string | null, status: string) => NodePresence
 }) {
+  const router = useRouter()
   if (servers.length === 0) {
-    return <EmptyState icon={Server} title="No nodes registered yet" description="Nodes appear here as soon as they join the mesh." />
+    return (
+      <EmptyState
+        icon={Server}
+        title="No nodes registered yet"
+        description="Nodes appear here as soon as they join the mesh."
+        action={{ label: 'Add a node', onClick: () => { router.push(AuthDashboardNetworkMesh()) } }}
+      />
+    )
   }
   return (
     <div className="grid gap-4 lg:grid-cols-2">

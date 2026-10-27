@@ -13,8 +13,8 @@
  *    Callers may pre-flatten relational data into the record for efficiency.
  */
 
-import type { DFilter, DFilterOperator, DynamicVars, FilterableScalar } from "@repo/auth/permissions/engine/types";
-import { isVariable } from "@repo/auth/permissions/engine/types";
+import type { DFilter, DFilterOperator, DynamicVars, FilterableScalar } from "@deployer/auth/permissions/engine/types";
+import { isVariable } from "@deployer/auth/permissions/engine/types";
 
 /**
  * Maximum allowed nesting depth for a DFilter condition.

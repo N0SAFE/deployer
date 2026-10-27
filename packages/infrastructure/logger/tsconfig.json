@@ -8,7 +8,7 @@
         "rootDir": ".",
         "target": "ES2020",
         "paths": {
-            "@repo/logger/*": [
+            "@deployer/logger/*": [
                 "./src/*"
             ]
         }

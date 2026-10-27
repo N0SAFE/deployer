@@ -15,7 +15,7 @@
             "dom.iterable"
         ],
         "paths": {
-            "@repo/use-safe-query-param-states-from-zod/*": [
+            "@deployer/use-safe-query-param-states-from-zod/*": [
                 "./src/*"
             ]
         }

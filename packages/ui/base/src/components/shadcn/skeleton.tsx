@@ -1,6 +1,6 @@
 import { cva, type VariantProps } from "class-variance-authority"
 
-import { cn } from "@repo/ui/lib/utils"
+import { cn } from "@deployer/ui/lib/utils"
 
 const skeletonVariants = cva("animate-pulse bg-muted", {
   variants: {

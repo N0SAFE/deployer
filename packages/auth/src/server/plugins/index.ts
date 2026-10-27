@@ -43,7 +43,7 @@ export * from './securityPlugins'
  * 
  * @example
  * ```typescript
- * import { useAdmin } from '@repo/auth/server/plugins/index'
+ * import { useAdmin } from '@deployer/auth/server/plugins/index'
  * 
  * betterAuth({
  *   plugins: [
@@ -121,7 +121,7 @@ type ConfiguredRoleNames = typeof platformSchemas.roleNames extends { _output: i
  * 
  * @example
  * ```typescript
- * import { useInvite } from '@repo/auth/server/plugins/index'
+ * import { useInvite } from '@deployer/auth/server/plugins/index'
  * 
  * betterAuth({
  *   plugins: [

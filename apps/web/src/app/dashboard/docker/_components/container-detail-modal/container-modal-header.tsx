@@ -1,7 +1,7 @@
 'use client'
 
-import type { DockerContainer } from '@repo/contracts-entities'
-import { DialogDescription, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
+import type { DockerContainer } from '@deployer/contracts-entities'
+import { DialogDescription, DialogHeader, DialogTitle } from '@deployer/ui/components/shadcn/dialog'
 import { DockerCopyableId } from '../docker-copy-button'
 import { DockerNodeBadge } from '../docker-node-context'
 import { shortId } from '../../_utils/format'

@@ -4,7 +4,7 @@
 
 ---
 
-## 🔴 1. Fix @repo/orpc-utils Test Failures
+## 🔴 1. Fix @deployer/orpc-utils Test Failures
 
 ### Problem
 45 out of 54 tests failing in `packages/transport/orpc/src/hooks/__tests__/`
@@ -151,11 +151,11 @@ Two implementations of `RequirePermission` exist:
 - Simpler implementation
 - Less feature-rich
 
-### Why Merge into `@repo/auth-utils`?
+### Why Merge into `@deployer/auth-utils`?
 
 During our discussion, we determined:
 1. **Single source of truth**: Permission components belong in the auth package where permission logic lives
-2. **Shared across apps**: `@repo/auth-utils` is already a shared package, making the component reusable
+2. **Shared across apps**: `@deployer/auth-utils` is already a shared package, making the component reusable
 3. **Colocation**: Keep permission checking logic and permission UI components together
 4. **Canonical location**: Clear answer to "which RequirePermission should I use?"
 
@@ -163,7 +163,7 @@ During our discussion, we determined:
 
 ```typescript
 // Import from the auth utilities package
-import { RequirePermission } from '@repo/auth-utils'
+import { RequirePermission } from '@deployer/auth-utils'
 
 // Use for platform permissions
 <RequirePermission permission="admin:users:read">
@@ -323,7 +323,7 @@ const { data: pendingInvites } = useAppInvitations()
 **Usage:**
 ```typescript
 // Built-in Better Auth org plugin
-import { useOrganization } from '@repo/auth-utils'
+import { useOrganization } from '@deployer/auth-utils'
 
 const { inviteMember } = useOrganization()
 await inviteMember({ email: 'existing-user@example.com', role: 'member' })

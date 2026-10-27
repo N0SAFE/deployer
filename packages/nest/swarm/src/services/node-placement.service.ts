@@ -8,7 +8,7 @@
  * ingress label produce hard constraints, per doc-04 rule 4.
  */
 
-export interface SwarmPlacementPlan {
+export type SwarmPlacementPlan = {
     constraints: string[];
     preferences: { spreadDescriptor: string }[];
 }
@@ -19,7 +19,7 @@ export type PlacementPolicy =
     | "exclude-ingress"
     | "prefer-region";
 
-export interface PlacementPolicyInput {
+export type PlacementPolicyInput = {
     policy: PlacementPolicy;
     /** Tenant id embedded in the dedicated constraint (`deployer.tenant.<id>`). */
     tenantId?: string;

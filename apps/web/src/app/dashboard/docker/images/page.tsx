@@ -4,8 +4,8 @@ import { useMemo, useState } from 'react'
 import { z } from 'zod'
 import { Boxes } from 'lucide-react'
 import { toast } from 'sonner'
-import { DataTable } from '@repo/ui/components/data-table/data-table'
-import { useSafeQueryParamStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
+import { DataTable } from '@deployer/ui/components/data-table/data-table'
+import { useSafeQueryParamStatesFromZod } from '@deployer/use-safe-query-param-states-from-zod'
 import { EmptyState, FilteredEmptyState, StatStrip, StatStripItem } from '@/components/dashboard'
 import { AuthDashboardDockerImages } from '@/routes/index'
 import { useDockerDeploymentList, useDockerImageEventsStream, useDockerImageList } from '@/domains/docker/hooks'
@@ -141,8 +141,7 @@ export default AuthDashboardDockerImages.Route(function DashboardDockerImagesPag
                 getColumns={() => imageColumns}
                 getSubRowColumns={() => imageSubRowColumns}
                 fetchDataFn={imageTableFetchData}
-                // eslint-disable-next-line @typescript-eslint/require-await -- DataTable requires an async fetcher; there is no by-id lookup
-                fetchByIdsFn={async () => []}
+                fetchByIdsFn={() => Promise.resolve<ImageGroupRow[]>([])}
                 exportConfig={{
                   entityName: 'docker-images',
                   headers: ['repositoryKey', 'tagsCount', 'totalSizeBytes', 'usageCount', 'failed', 'lastSeenAt'],

@@ -8,10 +8,10 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from '@repo/ui/components/shadcn/command'
-import { Popover, PopoverContent, PopoverTrigger } from '@repo/ui/components/shadcn/popover'
+} from '@deployer/ui/components/shadcn/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@deployer/ui/components/shadcn/popover'
 import { Check, ChevronsUpDown, PencilLine } from 'lucide-react'
-import { cn } from '@repo/ui/lib/utils'
+import { cn } from '@deployer/ui/lib/utils'
 
 export interface SearchableOption {
   value: string
@@ -38,6 +38,7 @@ export function SearchableSelect({
   emptyMessage = 'No match found.',
   allowCustom = false,
   className,
+  onClose,
 }: {
   value: string
   onChange: (next: string) => void
@@ -48,6 +49,8 @@ export function SearchableSelect({
   /** Allow the typed text to be committed as a custom value. */
   allowCustom?: boolean
   className?: string
+  /** Called when the popover closes (wire to the field's blur). */
+  onClose?: () => void
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -64,7 +67,7 @@ export function SearchableSelect({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(next) => { setOpen(next); if (!next) onClose?.() }}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -80,7 +83,7 @@ export function SearchableSelect({
               <>
                 <span className="truncate">{selected.label ?? selected.value}</span>
                 {selected.badge ? (
-                  <span className="shrink-0 rounded bg-muted px-1 py-px text-[10px] font-medium text-muted-foreground">{selected.badge}</span>
+                  <span className="shrink-0 rounded bg-muted px-1 py-px text-xs font-medium text-muted-foreground">{selected.badge}</span>
                 ) : null}
               </>
             ) : (
@@ -106,10 +109,10 @@ export function SearchableSelect({
                   >
                     <span className="flex min-w-0 flex-col">
                       <span className="truncate">{o.label ?? o.value}</span>
-                      {o.description ? <span className="truncate text-[11px] text-muted-foreground">{o.description}</span> : null}
+                      {o.description ? <span className="truncate text-xs text-muted-foreground">{o.description}</span> : null}
                     </span>
                     <span className="flex shrink-0 items-center gap-1.5">
-                      {o.badge ? <span className="rounded bg-muted px-1 py-px text-[10px] font-medium text-muted-foreground">{o.badge}</span> : null}
+                      {o.badge ? <span className="rounded bg-muted px-1 py-px text-xs font-medium text-muted-foreground">{o.badge}</span> : null}
                       {value === o.value && <Check className="size-3.5 text-primary" />}
                     </span>
                   </CommandItem>

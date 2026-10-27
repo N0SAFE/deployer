@@ -1,5 +1,5 @@
 /**
- * @repo/nest-docker — Docker engine primitives: containers, swarm services,
+ * @deployer/nest-docker — Docker engine primitives: containers, swarm services,
  * networks and volumes, plus the swarm-spec translation.
  *
  * WHAT THIS PACKAGE IS

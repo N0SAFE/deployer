@@ -1,0 +1,62 @@
+{
+    "name": "@deployer/fleet-contracts",
+    "version": "0.0.0",
+    "private": true,
+    "main": "./index.ts",
+    "types": "./index.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/types/index.d.ts",
+            "import": "./index.ts",
+            "default": "./index.ts"
+        },
+        "./*": {
+            "types": "./dist/types/*.d.ts",
+            "import": "./*.ts",
+            "default": "./*.ts"
+        }
+    },
+    "scripts": {
+        "clean": "rm -rf dist",
+        "build": "bun --bun pkg-build",
+        "compile": "bun x cross-env COMPILE_MODE=true bun run build",
+        "prettify": "bun fmt .",
+        "format": "bun run prettify",
+        "format:check": "bun fmt --check .",
+        "dev": "bun --bun pkg-build --watch",
+        "lint": "bun lint --no-script --type-aware",
+        "lint:fix": "bun lint --no-script --fix --type-aware",
+        "lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
+        "type-check": "bun check --no-script",
+        "build:types": "bun --bun pkg-build --types"
+    },
+    "dependencies": {
+        "@octokit/webhooks-types": "catalog:utils",
+        "@orpc/contract": "catalog:orpc",
+        "@orpc/openapi": "catalog:orpc",
+        "@orpc/shared": "catalog:orpc",
+        "@deployer/auth": "*",
+        "@deployer/contracts-common": "*",
+        "@deployer/contracts-entities": "*",
+        "@deployer/orpc-utils": "*",
+        "@deployer/provider-schema": "*",
+        "@deployer/type-guards": "*",
+        "zod": "catalog:utils"
+    },
+    "peerDependencies": {
+        "@orpc/contract": "catalog:orpc",
+        "@orpc/shared": "catalog:orpc",
+        "zod": "catalog:utils"
+    },
+    "devDependencies": {
+        "@types/node": "catalog:build",
+        "chokidar": "catalog:build",
+        "@deployer/config-eslint": "*",
+        "@deployer/config-prettier": "*",
+        "eslint": "catalog:linting",
+        "@deployer/config-typescript": "*",
+        "typescript": "catalog:build",
+        "@deployer/pkg-build": "*"
+    },
+    "description": "Cluster, fleet nodes, providers, reachability, mesh and the platform surface."
+}

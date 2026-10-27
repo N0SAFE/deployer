@@ -1,7 +1,7 @@
 'use client'
 
 import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { useService, useUpdateService } from '@/domains/service/hooks'
 import {
@@ -9,15 +9,15 @@ import {
   useProjectServiceEnvironmentLinks,
   useUpsertServiceEnvironmentLink,
 } from '@/domains/project/hooks'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
-import { Siren, Save, Plus, X, Globe, KeyRound, Rocket, LayoutTemplate, Eye, EyeOff } from 'lucide-react'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Save, Plus, X, Globe, KeyRound, Rocket, LayoutTemplate, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
-import { ENV_NAMES, type EnvName } from '@repo/contracts-common'
+import { ENV_NAMES, type EnvName } from '@deployer/contracts-common'
+import { PageSkeleton } from '@/components/dashboard'
+import { InlineError } from '@/app/dashboard/projects/_components/workload/WorkloadStates'
 import { ServiceConfigSubNav } from '../../_components/service-config-subnav'
 import {
   AuthDashboardProjectsProjectIdConfigurationEnvironmentsEnvironmentId,
@@ -31,28 +31,33 @@ const ENV_META: Record<EnvName, { color: string; label: string }> = {
   development: { color: 'text-emerald-500', label: 'Development' },
 }
 
-export default function DashboardServiceConfigurationEnvironmentPage() {
-  const params = useParams<{ projectId: string; serviceId: string }>()
-  const projectId = params.projectId
-  const serviceId = params.serviceId
+type ServiceData = NonNullable<ReturnType<typeof useService>['data']>
 
-  const { data: serviceData, isLoading: serviceLoading } = useService(serviceId)
+export default function DashboardServiceConfigurationEnvironmentPage() {
+  const { projectId, serviceId } = useParams<{ projectId: string; serviceId: string }>()
+  const query = useService(serviceId)
+
+  if (query.isLoading) return <PageSkeleton blocks={3} withStrip={false} label="Loading service environment" />
+  if (query.error) return <InlineError title="Could not load the service" error={query.error} onRetry={() => { void query.refetch() }} />
+  if (!query.data) return <InlineError title="Service not found" error={new Error('This service does not exist or was deleted.')} />
+  // Keyed so the variable list seeds once per service and a refetch never overwrites edits.
+  return <EnvironmentForm key={query.data.id} projectId={projectId} serviceId={serviceId} service={query.data} />
+}
+
+function EnvironmentForm({ projectId, serviceId, service }: { projectId: string; serviceId: string; service: ServiceData }) {
   const { data: templatesData } = useProjectVariableTemplates(projectId)
   const { data: envLinksData } = useProjectServiceEnvironmentLinks(projectId)
   const upsertServiceEnvironmentLink = useUpsertServiceEnvironmentLink()
   const updateService = useUpdateService()
-  const service = (serviceData ?? null) as Record<string, unknown> | null
 
   const [editing, setEditing] = useState(false)
   const [editEnabledEnvs, setEditEnabledEnvs] = useState<EnvName[]>([])
-  const [vars, setVars] = useState<{ key: string; value: string }[]>([])
+  const [vars, setVars] = useState<{ key: string; value: string }[]>(() =>
+    Object.entries(service.environmentVariables ?? {}).map(([key, value]) => ({ key, value })),
+  )
   const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set())
-  const [loaded, setLoaded] = useState(false)
 
-  const templates = useMemo(() => {
-    const t = templatesData as unknown as { templates?: { id: string; name: string; variables?: Record<string, string>; isBuiltIn?: boolean }[] } | undefined
-    return t?.templates ?? []
-  }, [templatesData])
+  const templates = useMemo(() => templatesData?.templates ?? [], [templatesData])
 
   /**
    * Enabled environments come from the `service_environments` link rows — the
@@ -83,20 +88,6 @@ export default function DashboardServiceConfigurationEnvironmentPage() {
     return ENV_NAMES.filter((env) => enabled.has(env))
   }, [envLinksData, serviceId])
 
-  // Seed once when the service loads (useEffect — not render-time setState,
-  // which would break re-seeding when React re-renders with fresh data).
-  useEffect(() => {
-    if (!loaded && service) {
-      setEditEnabledEnvs([...enabledEnvs])
-      const rawVars = (service.environmentVariables ?? service.environment_variables ?? {}) as Record<string, string> | undefined
-      setVars(Object.entries(rawVars ?? {}).map(([key, value]) => ({ key, value })))
-      setLoaded(true)
-    }
-  }, [loaded, service, enabledEnvs])
-
-  if (serviceLoading) return <div className="space-y-6"><Skeleton className="h-8 w-48" /><Skeleton className="h-48 w-full rounded-xl" /></div>
-  if (!service) return <Alert variant="destructive"><Siren className="size-4" /><AlertTitle>Not found</AlertTitle><AlertDescription>Service not found.</AlertDescription></Alert>
-
   const handleSave = async () => {
     try {
       const envVars: Record<string, string> = {}
@@ -125,11 +116,10 @@ export default function DashboardServiceConfigurationEnvironmentPage() {
     }
   }
 
-  const applyTemplate = (template: { variables?: Record<string, string> }) => {
-    if (!template.variables) return
+  const applyTemplate = (template: (typeof templates)[number]) => {
     setVars((prev) => {
       const map = new Map(prev.map((v) => [v.key, v.value]))
-      for (const [k, val] of Object.entries(template.variables ?? {})) { if (k.trim()) map.set(k.trim(), val) }
+      for (const tv of template.variables) { if (tv.key.trim()) map.set(tv.key.trim(), tv.defaultValue ?? '') }
       return [...map.entries()].map(([key, value]) => ({ key, value }))
     })
     if (!editing) setEditing(true)
@@ -152,7 +142,7 @@ export default function DashboardServiceConfigurationEnvironmentPage() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {ENV_NAMES.map((env) => {
               const meta = ENV_META[env]
-              const enabled = editEnabledEnvs.includes(env)
+              const enabled = (editing ? editEnabledEnvs : enabledEnvs).includes(env)
               return (
                 <div key={env} className={`rounded-lg border bg-background/40 p-3 transition-opacity ${enabled ? '' : 'opacity-50'}`}>
                   <div className="flex items-center justify-between">
@@ -163,21 +153,21 @@ export default function DashboardServiceConfigurationEnvironmentPage() {
                       <button
                         type="button"
                         onClick={() => { setEditEnabledEnvs((prev) => prev.includes(env) ? prev.filter((e) => e !== env) : [...prev, env]) }}
-                        className={`rounded-md px-2 py-0.5 text-[10px] font-medium ${enabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}
+                        className={`rounded-md px-2 py-0.5 text-xs font-medium ${enabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}
                       >
                         {enabled ? 'On' : 'Off'}
                       </button>
                     ) : (
-                      <Badge variant={enabled ? 'default' : 'outline'} className="text-[10px]">{enabled ? 'enabled' : 'disabled'}</Badge>
+                      <Badge variant={enabled ? 'default' : 'outline'} className="text-xs">{enabled ? 'enabled' : 'disabled'}</Badge>
                     )}
                   </div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    <Button asChild size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-[10px]">
+                    <Button asChild size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-xs">
                       <AuthDashboardProjectsProjectIdConfigurationEnvironmentsEnvironmentId.Link projectId={projectId} environmentId={env}>
                         <KeyRound className="size-3" /> Config
                       </AuthDashboardProjectsProjectIdConfigurationEnvironmentsEnvironmentId.Link>
                     </Button>
-                    <Button asChild size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-[10px]">
+                    <Button asChild size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-xs">
                       <AuthDashboardProjectsProjectIdServicesServiceIdDeployments.Link projectId={projectId} serviceId={serviceId}>
                         <Rocket className="size-3" /> Deploy
                       </AuthDashboardProjectsProjectIdServicesServiceIdDeployments.Link>
@@ -197,7 +187,7 @@ export default function DashboardServiceConfigurationEnvironmentPage() {
           <CardContent>
             <div className="flex flex-wrap gap-1.5">
               {templates.map((t) => (
-                <Button key={t.id} size="sm" variant="outline" className="gap-1 text-[11px]" onClick={() => { applyTemplate(t) }}>
+                <Button key={t.id} size="sm" variant="outline" className="gap-1 text-xs" onClick={() => { applyTemplate(t) }}>
                   <LayoutTemplate className="size-3" /> {t.name}
                 </Button>
               ))}
@@ -258,7 +248,7 @@ export default function DashboardServiceConfigurationEnvironmentPage() {
               </div>
             )
           })}
-          <Button type="button" size="sm" variant="outline" className="h-7 w-fit gap-1 text-[11px]" onClick={() => { setVars([...vars, { key: '', value: '' }]) }}>
+          <Button type="button" size="sm" variant="outline" className="h-7 w-fit gap-1 text-xs" onClick={() => { setVars([...vars, { key: '', value: '' }]) }}>
             <Plus className="size-3" /> Add variable
           </Button>
           <div className="pt-1">

@@ -1,5 +1,5 @@
 import { MarkerType, type Edge, type Node } from '@xyflow/react'
-import { ENV_NAMES } from '@repo/contracts-common'
+import { ENV_NAMES } from '@deployer/contracts-common'
 import {
   EDGE_ACTIVE_OPACITY,
   EDGE_DIMMED_OPACITY,

@@ -1,12 +1,12 @@
 import type { Observable } from "rxjs";
-import { BaseEventService } from "@repo/nest-events/base-event.service";
+import { BaseEventService } from "@deployer/nest-events/base-event.service";
 import {
   type EventContracts,
   type EventInput,
   type EventOutput,
-} from "@repo/nest-events/event-contract.builder";
-import type { CoreEventStreamPoolService } from "@repo/nest-events/core-event-stream-pool.service";
-import { isRecord } from "@repo/type-guards"
+} from "@deployer/nest-events/event-contract.builder";
+import type { CoreEventStreamPoolService } from "@deployer/nest-events/core-event-stream-pool.service";
+import { isRecord } from "@deployer/type-guards"
 
 export type PooledEventObserveOptions = {
   replayLimit?: number;

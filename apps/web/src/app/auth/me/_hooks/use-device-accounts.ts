@@ -14,7 +14,7 @@
  */
 
 import * as React from 'react'
-import { logger } from '@repo/logger'
+import { logger } from '@deployer/logger'
 import { authClient, useSession } from '@/lib/auth'
 import type { DeviceAccount } from '../_models/device-account.types'
 

@@ -2,8 +2,8 @@ import { pgTable, text, timestamp, boolean, integer, uuid, jsonb, pgEnum, type A
 import { relations } from "drizzle-orm";
 import { user } from "@deployer/nest-schema/global/identity/auth";
 import { environments } from "@deployer/nest-schema/global/project/environment";
-import { encryptedText } from "@deployer/nest-schema/codecs/codec-registry";
-import { traefikConfigBuilder } from "@deployer/nest-schema/codecs/codec-registry";
+import { encryptedText } from "../../codecs/codec-registry";
+import { traefikConfigBuilder } from "../../codecs/codec-registry";
 import {
     deploymentEnvironmentSchema,
     deploymentPhaseSchema,

@@ -12,7 +12,7 @@
  * Pure server component with CSS animations only.
  */
 
-import { cn } from '@repo/ui/lib/utils'
+import { cn } from '@deployer/ui/lib/utils'
 
 // Skeleton primitive - animated pulse effect
 function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {

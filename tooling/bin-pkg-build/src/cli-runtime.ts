@@ -20,7 +20,7 @@ type CliOptions = Parameters<typeof CommandFactory.run>[1]
  * `logger: false` because the builder's own output (colored progress lines and
  * raw compiler output) is the UX; Nest's logger would only prefix it.
  */
-export function cliOptions(): CliOptions {
+export function cliOptions() {
     return {
         cliName: 'pkg-build',
         logger: false,
@@ -32,7 +32,7 @@ export function cliOptions(): CliOptions {
             console.error(`${c.red('x')} ${error.message}`)
             process.exit(1)
         },
-    }
+    } satisfies CliOptions
 }
 
 /**

@@ -48,8 +48,11 @@ bun run dev:api
 bun run dev:web
 bun run test
 bun run build
-bun run lint
-bun run format
+bun run lint          # bun lint --no-script --type-aware in every workspace (read-only)
+bun run lint:fix      # the same, with --fix (what CI does not run)
+bun run lint:fix+     # the same, with --fix-suggestions
+bun run format        # bun fmt in every workspace
+bun run format:check  # the same, without writing (what CI runs)
 bun run check
 ```
 

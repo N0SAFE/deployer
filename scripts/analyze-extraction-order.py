@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""File-level dependency analysis for the planned @repo/nest-* extractions.
+"""File-level dependency analysis for the planned @deployer/nest-* extractions.
 
 Module-level imports can be misleading: `node-state.module.ts` importing
 `swarm/repositories/x.repository.ts` is a FILE dependency on a repository, not a
@@ -27,7 +27,7 @@ GROUPS = {
 }
 
 # The repo files that node-state.module.ts pulls in from OTHER groups. These are
-# the files that would move into @repo/nest-nodes to make it a real leaf.
+# the files that would move into @deployer/nest-nodes to make it a real leaf.
 EXTRA_FILES = {
     "nodes": [
         "setup/repositories/node-config.repository.ts",

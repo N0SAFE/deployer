@@ -182,33 +182,49 @@ export class WorkspaceScanner {
      *
      * Globs are directory globs (with negations prefixed by a bang); only the
      * leading directory segment is needed, and negations are skipped.
+     *
+     * ── WHY THE CONVENTIONAL TREES ARE ALWAYS UNIONS ────────────────────────
+     * `TurboRunner.excludeApplicationsFromGraph` rewrites `workspaces.packages`
+     * to strip `apps/**` before any Turbo process runs. If discovery read ONLY
+     * that list, the two would fight: the applications would become
+     * undiscoverable, `COMPOSE_PROFILES=all` would resolve to nothing, and the
+     * planner would fail with `Workspace "(none)" is not part of the
+     * repository` — which is exactly how that was found (measured).
+     *
+     * So the manifest's globs are treated as a SUPERSET trigger rather than the
+     * whole answer: whatever they declare, plus the conventional trees that
+     * exist on disk. A workspace under one of those trees is discoverable no
+     * matter what any consumer has done to the manifest.
      */
     private workspaceRoots(root: string): string[] {
+        const roots = new Set<string>(DEFAULT_WORKSPACE_ROOTS)
+
         try {
             const raw = JSON.parse(
                 readFileSync(join(root, 'package.json'), 'utf8')
             ) as unknown
             const parsed = rootManifestSchema.safeParse(raw)
-            if (!parsed.success) return []
+            if (parsed.success) {
+                const globs = parsed.data.workspaces
+                const patterns = Array.isArray(globs)
+                    ? globs
+                    : (globs?.packages ?? [])
 
-            const globs = parsed.data.workspaces
-            const patterns = Array.isArray(globs) ? globs : (globs?.packages ?? [])
-
-            const roots = new Set<string>()
-            for (const pattern of patterns) {
-                if (pattern.startsWith('!')) continue // negation: not a root
-                const [head] = pattern.split('/')
-                // A glob with no concrete leading directory is not a root.
-                if (!head || head === '**' || head.includes('*')) continue
-                roots.add(head)
+                for (const pattern of patterns) {
+                    if (pattern.startsWith('!')) continue // negation: not a root
+                    const [head] = pattern.split('/')
+                    // A glob with no concrete leading directory is not a root.
+                    if (!head || head === '**' || head.includes('*')) continue
+                    roots.add(head)
+                }
             }
-
-            // A manifest that declares no globs is still a valid workspace root
-            // by convention; scanning the usual trees beats scanning nothing.
-            return roots.size > 0 ? [...roots] : [...DEFAULT_WORKSPACE_ROOTS]
         } catch {
-            return [...DEFAULT_WORKSPACE_ROOTS]
+            // An unreadable manifest still gets the conventional trees.
         }
+
+        // Only directories that exist, so a tree this repository does not have
+        // costs nothing.
+        return [...roots].filter((dir) => existsSync(join(root, dir)))
     }
 
     /** Parse a directory's `package.json`, or return null when it is unreadable/nameless. */

@@ -6,9 +6,9 @@
  * - permissions: Permission checking hooks and components
  * 
  * For isomorphic imports, use the specific submodules:
- * - '@repo/auth/react/session' - Shared types and constants
- * - '@repo/auth/react/session/client' - Client-side hooks
- * - '@repo/auth/react/session/server' - Server-side utilities
+ * - '@deployer/auth/react/session' - Shared types and constants
+ * - '@deployer/auth/react/session/client' - Client-side hooks
+ * - '@deployer/auth/react/session/server' - Server-side utilities
  */
 
 // Re-export session types and constants (isomorphic)
@@ -18,7 +18,7 @@ export {
     type CreateUseSessionOptions,
     type CreateGetSessionOptions,
     type PrefetchSessionOptions,
-} from '@repo/auth/react/session/index'
+} from '@deployer/auth/react/session/index'
 
 // Re-export permission hooks factory and types
 export {
@@ -27,16 +27,16 @@ export {
     type CreatePermissionHooksOptions,
     type UseSessionResult,
     type SessionData,
-} from '@repo/auth/react/usePermissions'
+} from '@deployer/auth/react/usePermissions'
 
 // Re-export permission components factory
 export {
     createRequirePermissionComponents,
     type RequirePlatformPermissionProps,
     type RequirePermissionProps,
-} from '@repo/auth/react/RequirePermission'
+} from '@deployer/auth/react/RequirePermission'
 
 // Re-export permission types
 export type {
     PlatformPermission,
-} from '@repo/auth/react/usePermissions'
+} from '@deployer/auth/react/usePermissions'

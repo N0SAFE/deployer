@@ -28,7 +28,7 @@ export default function IntegrationsPage() {
         description="External services this platform uses: Git hosts and registries to deploy from, and DNS providers to publish your domains."
       />
 
-      {summary.loading ? null : (
+      {summary.loading || summary.failed ? null : (
         <StatStrip>
           <StatStripItem label="Connected" value={`${String(summary.connected)} of ${String(summary.total)}`} tone={summary.connected > 0 ? 'live' : undefined} />
           <StatStripItem

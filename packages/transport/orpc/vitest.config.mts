@@ -1,5 +1,5 @@
 import { defineConfig } from 'vitest/config';
-import { workspaceSourceAliases } from '@repo/config-vitest';
+import { workspaceSourceAliases } from '@deployer/config-vitest';
 import path from 'path';
 
 export default defineConfig({

@@ -138,14 +138,34 @@ export function swarmInitOptions(
 /**
  * A non-loopback IPv4 address for this node, for use as the swarm address.
  *
+ * ── THE ADDRESS MUST BE ONE `dockerd` CAN BIND, WHICH IS NOT THE CONTAINER'S ──
+ * `docker swarm init --advertise-addr` is executed against the DAEMON, and the
+ * daemon binds the address on the HOST it runs on. Returning the address of the
+ * interface INSIDE this process's network namespace therefore cannot work: the
+ * daemon does not own it, and swarm init fails with
+ *
+ *   manager stopped: failed to listen on remote API address:
+ *   listen tcp 172.25.0.2:2377: bind: cannot assign requested address
+ *
+ * Measured on the affected setup container:
+ *
+ *   /proc/net/route  eth0 default gw 010019AC  → 172.25.0.1
+ *   ip -4 addr       eth0 172.25.0.2/16, eth1 172.27.0.2/16
+ *   host             br-… 172.25.0.1/16           ← the HOST owns .1, not .2
+ *
+ * So when this process is containerised, the correct answer is the DEFAULT
+ * GATEWAY — that is the host's address on the container's bridge, and the one
+ * the daemon can bind. On a host process the default-route interface address is
+ * already correct, so the same probe serves both cases.
+ *
  * Order of preference:
  *   1. `DEPLOYER_SWARM_ADVERTISE_ADDR` — explicit operator override, for a host
  *      with several interfaces where the automatic choice is wrong.
- *   2. The address of the interface carrying the DEFAULT ROUTE (`/proc/net/route`),
- *      which is the host's own outbound address and the one peers can reach.
- *   3. `hostname -I`'s first non-loopback address (covers macOS/most Linux where
- *      `/proc` is absent).
- *   4. `127.0.0.1` — only when the host has no other address at all.
+ *   2. Inside a container (`/.dockerenv` or `KUBERNETES_SERVICE_HOST`): the
+ *      default gateway, i.e. the host on this container's bridge.
+ *   3. Bare metal: the default-route interface's own address.
+ *   4. `hostname -I`'s first non-loopback address.
+ *   5. `127.0.0.1` — only when the host has no other address at all.
  *
  * Loopback is excluded at every step: it produces a swarm whose overlay can never
  * be joined, which is worse than failing loudly.
@@ -160,22 +180,24 @@ export async function resolveSwarmNodeAddress(): Promise<string> {
     return override;
   }
 
-  const loopback = (ip: string | undefined): boolean =>
-    ip === undefined || ip === "" || ip === "0.0.0.0" || ip.startsWith("127.");
+  const loopback = (ip: string | null | undefined): boolean =>
+    ip === undefined || ip === null || ip === "" || ip === "0.0.0.0" || ip.startsWith("127.");
 
-  // 1. Default-route interface address. `destination 00000000` is the default
-  //    route; the address assigned to that interface is what the host uses to
-  //    reach everything else.
   const route = await readTextFile("/proc/net/route");
-  if (route !== null) {
-    for (const line of route.split("\n").slice(1)) {
-      const parts = line.trim().split(/\s+/);
-      if (parts.length < 2 || parts[1] !== "00000000") continue;
-      const iface = parts[0];
-      if (iface === undefined) continue;
-      const ip = await ipv4OfInterface(iface);
-      if (!loopback(ip)) return ip as string;
-    }
+  const defaultIface = route === null ? null : defaultRouteInterface(route);
+
+  // ── CONTAINERISED: THE HOST'S ADDRESS, NOT OURS ───────────────────────────
+  // The daemon binds on the host, so the container's own interface address is
+  // unbindable there. The default gateway IS the host on this bridge.
+  if (await isRunningInContainer()) {
+    const gateway = route === null ? null : defaultRouteGateway(route);
+    if (!loopback(gateway)) return gateway!;
+  }
+
+  // 1. Default-route interface address (bare metal: this IS the host).
+  if (defaultIface !== null) {
+    const ip = await ipv4OfInterface(defaultIface);
+    if (!loopback(ip)) return ip!;
   }
 
   // 2. Any non-loopback IPv4 the OS reports for this host.
@@ -187,6 +209,54 @@ export async function resolveSwarmNodeAddress(): Promise<string> {
   }
 
   return "127.0.0.1";
+}
+
+/**
+ * Is this process running inside a container?
+ *
+ * `/.dockerenv` is created by Docker for every container; `KUBERNETES_SERVICE_HOST`
+ * covers k8s pods (which have no `/.dockerenv`). Both are cheap file/env probes
+ * with no dependency on the daemon.
+ */
+async function isRunningInContainer(): Promise<boolean> {
+  if (process.env.KUBERNETES_SERVICE_HOST !== undefined) return true;
+  return await Bun.file("/.dockerenv").exists();
+}
+
+/** The interface carrying the default route (`destination 00000000`), or null. */
+function defaultRouteInterface(routeTable: string): string | null {
+  for (const line of routeTable.split("\n").slice(1)) {
+    const parts = line.trim().split(/\s+/);
+    if (parts.length < 2 || parts[1] !== "00000000") continue;
+    return parts[0] ?? null;
+  }
+  return null;
+}
+
+/**
+ * The default route's gateway address, decoded from the kernel's little-endian
+ * hex form (`010019AC` → `172.25.0.1`), or null when it cannot be decoded.
+ *
+ * `destination 00000000` identifies the default route; field 2 is its gateway.
+ * A gateway of `00000000` means "directly connected, no gateway" and is rejected.
+ */
+function defaultRouteGateway(routeTable: string): string | null {
+  for (const line of routeTable.split("\n").slice(1)) {
+    const parts = line.trim().split(/\s+/);
+    if (parts.length < 3 || parts[1] !== "00000000") continue;
+    const hex = parts[2] ?? "";
+    if (hex.length < 8 || hex === "00000000") return null;
+    // Stored little-endian: reverse the byte order.
+    const octets = [
+      parseInt(hex.slice(6, 8), 16),
+      parseInt(hex.slice(4, 6), 16),
+      parseInt(hex.slice(2, 4), 16),
+      parseInt(hex.slice(0, 2), 16),
+    ];
+    if (octets.some((octet) => Number.isNaN(octet))) return null;
+    return octets.join(".");
+  }
+  return null;
 }
 
 /**

@@ -15,7 +15,7 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from '@repo/ui/components/shadcn/breadcrumb'
+} from '@deployer/ui/components/shadcn/breadcrumb'
 
 /**
  * DashboardBreadcrumbs — breadcrumb trail for the dashboard header.

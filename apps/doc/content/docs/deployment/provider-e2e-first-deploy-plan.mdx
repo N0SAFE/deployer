@@ -161,7 +161,7 @@ Removed in this change set:
 | Compose | `infra/infra/docker/compose/load-balancer/` (dev/prod/prod-like) deleted; includes removed from `docker-compose.{dev,prod,prod-like}.yml`; `lb-dev`/`lb-prod` deps removed from override files |
 | API | `DeploymentLoadBalancerSyncAdapter` deleted; runner ctor/sync/result field removed; `RuntimeConvergenceConfig`/`RuntimeExecutionResult` LB field removed; convergence resolution LB key removed; workflow LB log/merge removed |
 | Contracts | `runtime-runner-options.schema.ts` `loadBalancerSyncMaxAttempts` removed |
-| Env | `loadBalancerEnvSchema`, `LoadBalancerEnv`, `LOAD_BALANCER_URL`, all `LB_*` keys removed from `@repo/utils-env` (index + mock) |
+| Env | `loadBalancerEnvSchema`, `LoadBalancerEnv`, `LOAD_BALANCER_URL`, all `LB_*` keys removed from `@deployer/utils-env` (index + mock) |
 | Doc app | `deployment/load-balancer.mdx` deleted; browser/server loaders de-imported; stale links replaced with Traefik ingress pages |
 | Root | `package.json` `load-balancer` script removed; builder AGENTS LB sections removed |
 
@@ -487,6 +487,6 @@ contract honest for every list op.
 - `src/e2e/**` (P2-3): compile-broken legacy harnesses (~147 type errors +
   runtime drift: `getStateMachine`, `initialize`, sourceType literals, …) — still
   failing; must be repaired next.
-- `@repo/orpc-utils` package tests: 7 pre-existing runtime failures (verified
+- `@deployer/orpc-utils` package tests: 7 pre-existing runtime failures (verified
   present WITHOUT the FilteringSchemaOutput change — bare-list/entitySchema
   coverage) — backlog candidate.

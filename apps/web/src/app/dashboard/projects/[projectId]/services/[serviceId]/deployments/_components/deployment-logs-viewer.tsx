@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Copy, Download, Pause, Play, RefreshCw, ScrollText, WrapText } from 'lucide-react'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Toggle } from '@repo/ui/components/shadcn/toggle'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Toggle } from '@deployer/ui/components/shadcn/toggle'
 import { EmptyState } from '@/components/dashboard'
 import { useDeploymentLogs } from '@/domains/deployment/hooks'
 import { formatDateTime } from '@/lib/format/date'

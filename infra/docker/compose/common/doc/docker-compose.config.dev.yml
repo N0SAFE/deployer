@@ -14,7 +14,10 @@ services:
       tags:
         - "${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-doc-dev:latest"
       args:
-        - APP=doc
+        - APP=@deployer/doc
+        # See the api variant: the package name and the source directory are
+        # separate facts, and they only coincide for the four original apps.
+        - APP_SRC_DIR=doc
         - APP_DEPS_MODE=${APP_DEPS_MODE:-volume}
         - BUILDKIT_INLINE_CACHE=1
     ports:
@@ -24,7 +27,7 @@ services:
       # Read by the shared entrypoint; `APP_NAME` is derived from the image's
       # WORKDIR (`/app/apps/doc`).
       APP_DIR: /app
-      DEP_OUTPUT_ROOT: /dep-output
+      DEP_OUTPUT_ROOT: /app/dep-output
       WAIT_FOR_DEPS: ${WAIT_FOR_DEPS:-1}
       # URLs — client-side (browser access via localhost)
       NEXT_PUBLIC_DOC_URL: ${NEXT_PUBLIC_DOC_URL:-http://localhost:${NEXT_PUBLIC_DOC_PORT:-3020}}
@@ -55,7 +58,7 @@ services:
       - doc_next_cache_dev:/app/apps/doc/.next/dev/cache
       # The shared internal-package output, written by `dependency-builder`.
       # READ-ONLY: a stray build here cannot corrupt the tree for other apps.
-      - dep_output_dev:/dep-output:ro
+      - dep_output_dev:/app/dep-output:ro
     develop:
       watch:
         # Restart when Docker Compose configuration changes
@@ -64,7 +67,7 @@ services:
           target: /app
           include:
             - infra/docker/compose/common/doc/docker-compose.config.dev.yml
-            - infra/docker/compose/docker-compose.dev.yml
+            - infra/docker/compose/docker-compose.services.dev.yml
         # Rebuild when critical dependency or config files change
         - action: rebuild
           path: ../../../../..

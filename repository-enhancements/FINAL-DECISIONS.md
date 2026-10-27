@@ -14,7 +14,7 @@ This document records the final decisions made for each enhancement area.
 |---|-------|----------|
 | 1 | Zod test fix | Update imports to `zod/v4` |
 | 2 | Deprecated useUsers.ts | Remove completely, migrate to ORPC hooks |
-| 3 | Duplicate RequirePermission | Merge both into `@repo/auth-utils` package |
+| 3 | Duplicate RequirePermission | Merge both into `@deployer/auth-utils` package |
 | 4 | Production logging | Create shared **Pino** logger package (NestJS-compatible) |
 | 5 | useInvitation | Two types: App invitations via Better Auth plugin, Org invitations via built-in |
 | 6 | Permission system | Keep dual-layer + add `usePermissions()` convenience hook |
@@ -57,7 +57,7 @@ import { z } from 'zod/v4'
 ---
 
 ### 3. RequirePermission Consolidation
-**Decision:** Merge into `@repo/auth-utils` package
+**Decision:** Merge into `@deployer/auth-utils` package
 
 - Combine features from both implementations:
   - `apps/web/src/components/permissions/RequirePermission.tsx` (227 lines)
@@ -279,7 +279,7 @@ No new convenience scripts needed. Current setup is sufficient.
 ### Phase 1: Critical Fixes (Week 1)
 1. Fix Zod imports to `zod/v4`
 2. Remove deprecated `useUsers.ts`
-3. Merge RequirePermission into `@repo/auth-utils`
+3. Merge RequirePermission into `@deployer/auth-utils`
 
 ### Phase 2: Infrastructure (Week 2)
 1. Create Pino logger package

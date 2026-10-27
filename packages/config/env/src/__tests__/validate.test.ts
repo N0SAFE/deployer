@@ -14,7 +14,7 @@ import {
   validateAllEnv,
   validateAllEnvSafe,
   allEnvIsValid,
-} from '@repo/env/validate'
+} from '@deployer/env/validate'
 
 describe('API Environment Validation', () => {
   const validApiEnv = {
@@ -83,11 +83,19 @@ describe('API Environment Validation', () => {
       expect(apiEnvIsValid(validApiEnv)).toBe(true)
     })
 
-    it('should return false for invalid environment', () => {
-      expect(apiEnvIsValid({})).toBe(false)
+    it('should accept an empty environment, because every field has a default', () => {
+      // This used to assert `false`, and it was only passing because `NEXT_PUBLIC_API_URL`
+      // was required with no working fallback — the schema demanded a value whose only
+      // consumer is Better Auth's base URL, and whose correct container value IS the
+      // default. That made every API service un-bootable outside a compose file that set
+      // it. The assertion is inverted rather than deleted: "an empty environment is
+      // usable" is the property a developer relying on defaults actually needs.
+      expect(apiEnvIsValid({})).toBe(true)
     })
 
-    it('should return false for invalid environment', () => {
+    it('should return false for an invalid URL, which is a real misconfiguration', () => {
+      // The guard still has teeth: supplying a malformed value must fail, because a bad
+      // URL is not something the default should paper over.
       expect(apiEnvIsValid({ NEXT_PUBLIC_APP_URL: 'not-a-url' })).toBe(false)
     })
   })
@@ -359,8 +367,12 @@ describe('All Apps Environment Validation', () => {
       expect(result.doc.NODE_ENV).toBe('development')
     })
 
-    it('should throw on invalid api environment', () => {
-      const invalid = { ...validAllEnv, api: {} }
+    it('should throw on a genuinely invalid api environment', () => {
+      // `{ api: {} }` used to be "invalid" only because the URL fields were required
+      // without a working default. An empty api env is now legitimate (everything
+      // defaults), so the test supplies a value that is actually wrong — a malformed
+      // URL — which is what the validation is for.
+      const invalid = { ...validAllEnv, api: { ...validAllEnv.api, NEXT_PUBLIC_APP_URL: 'not-a-url' } }
       expect(() => validateAllEnv(invalid)).toThrow()
     })
 

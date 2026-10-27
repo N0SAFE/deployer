@@ -1,5 +1,5 @@
 {
-    "name": "@repo/nest-events",
+    "name": "@deployer/nest-events",
     "version": "1.0.0",
     "description": "NestJS + RxJS typed event system with Zod validation. Provides BaseEventService, EventContractBuilder, BasePooledEventService, and stream pool utilities.",
     "main": "./dist/cjs/index.js",
@@ -17,11 +17,13 @@
         }
     },
     "scripts": {
-        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "prettify": "bun fmt .",
         "format": "bun run prettify",
-        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "lint": "eslint . --fix --cache",
-        "type-check": "tsc --noEmit",
+        "format:check": "bun fmt --check .",
+        "lint": "bun lint --no-script --type-aware",
+        "lint:fix": "bun lint --no-script --fix --type-aware",
+        "lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
+        "type-check": "bun check --no-script",
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
@@ -31,8 +33,9 @@
         "build:types": "bun --bun pkg-build --types"
     },
     "dependencies": {
+        "@deployer/type-guards": "*",
         "@nestjs/common": "catalog:api:nest",
-        "@repo/type-guards": "*",
+        "effect": "catalog:effect",
         "rxjs": "catalog:api:nest",
         "zod": "catalog:utils"
     },
@@ -40,16 +43,16 @@
         "@nestjs/common": "catalog:api:nest"
     },
     "devDependencies": {
-        "@repo/config-eslint": "*",
-        "@repo/config-prettier": "*",
-        "@repo/config-typescript": "*",
+        "@deployer/config-eslint": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-typescript": "*",
         "@types/node": "catalog:build",
         "eslint": "catalog:linting",
         "typescript": "catalog:build",
         "vitest": "catalog:testing",
         "chokidar": "catalog:build",
         "rimraf": "catalog:build",
-        "@repo/pkg-build": "*"
+        "@deployer/pkg-build": "*"
     },
     "module": "./dist/esm/index.mjs"
 }

@@ -13,7 +13,7 @@
  *
  * @example
  * ```typescript
- * import { logger } from '@repo/logger'
+ * import { logger } from '@deployer/logger'
  *
  * logger.info('User logged in', { userId: '123' })
  *
@@ -38,7 +38,7 @@ import {
   ContextFilterLogger,
   type ContextFilterLoggerOptions,
   type ContextFilterLoggerSource,
-} from '@repo/logger/context-filter-logger'
+} from '@deployer/logger/context-filter-logger'
 
 type LoggerBackend = {
   trace: (objOrMsg: unknown, msg?: string) => void
@@ -744,7 +744,7 @@ function createLogger(options: LoggerOptions = {}, pinoInstance?: LoggerBackend)
  *
  * @example
  * ```typescript
- * import { logger } from '@repo/logger'
+ * import { logger } from '@deployer/logger'
  *
  * // Basic logging
  * logger.info('Application started')
@@ -820,7 +820,7 @@ export function createAppLogger(appSourceTag: string): AppLogger {
  *
  * @example
  * ```typescript
- * import { createLogger } from '@repo/logger'
+ * import { createLogger } from '@deployer/logger'
  *
  * // Custom scope
  * const apiLogger = createLogger({ scope: 'API', level: 'debug' })

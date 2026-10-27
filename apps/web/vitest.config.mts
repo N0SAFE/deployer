@@ -2,7 +2,7 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import * as path from 'path'
-import { createNextJsConfig } from '@repo/config-vitest'
+import { createNextJsConfig } from '@deployer/config-vitest'
 
 const shared = createNextJsConfig({
     plugins: [react()],
@@ -13,25 +13,32 @@ const shared = createNextJsConfig({
             '~': path.resolve(__dirname, './'),
             // Workspace packages resolve to their `src` **directory**, not to a
             // single `index.ts` file. Code imports deep subpaths such as
-            // `@repo/orpc-utils/builder/core/route-builder`; mapping the package
+            // `@deployer/orpc-utils/builder/core/route-builder`; mapping the package
             // name to a directory lets both the barrel and every subpath resolve
             // to source. Mapping to `${pkg}/src/index.ts` would leave subpaths to
             // fall through to `dist/`, which tests must not load.
-            '@repo/env': path.resolve(__dirname, '../../packages/config/env/src'),
-            '@repo/logger': path.resolve(__dirname, '../../packages/infrastructure/logger/src'),
-            '@repo/type-guards': path.resolve(__dirname, '../../packages/utils/type-guards/src'),
-            '@repo/api-contracts': path.resolve(__dirname, '../../packages/contracts/api'),
-            '@repo/auth': path.resolve(__dirname, '../../packages/auth/src'),
-            '@repo/contracts-entities': path.resolve(__dirname, '../../packages/contracts/entities/src'),
-            '@repo/contracts-common': path.resolve(__dirname, '../../packages/contracts/common/src'),
-            '@repo/orpc-utils': path.resolve(__dirname, '../../packages/transport/orpc/src'),
-            '@repo/provider-schema': path.resolve(__dirname, '../../packages/utils/provider-schema/src'),
-            '@repo/errors': path.resolve(__dirname, '../../packages/utils/errors/src'),
-            '@repo/nest-events': path.resolve(__dirname, '../../packages/nest/events/src'),
-            '@repo/nest-lifecycle': path.resolve(__dirname, '../../packages/nest/lifecycle/src'),
-            '@repo/ui': path.resolve(__dirname, '../../packages/ui/base/src'),
-            '@repo/types': path.resolve(__dirname, '../../packages/types/src'),
-            '@repo': path.resolve(__dirname, '../../packages'),
+            '@deployer/env': path.resolve(__dirname, '../../packages/config/env/src'),
+            '@deployer/logger': path.resolve(__dirname, '../../packages/infrastructure/logger/src'),
+            '@deployer/type-guards': path.resolve(__dirname, '../../packages/utils/type-guards/src'),
+            '@deployer/bff-contracts': path.resolve(__dirname, '../../packages/contracts/bff'),
+            '@deployer/auth': path.resolve(__dirname, '../../packages/auth/src'),
+            '@deployer/contracts-entities': path.resolve(__dirname, '../../packages/contracts/entities/src'),
+            '@deployer/contracts-common': path.resolve(__dirname, '../../packages/contracts/common/src'),
+            // The service contract packages the shared surface composes. Without
+            // these, `service-surface.ts` resolves them through the package
+            // `exports` map and loads `dist/` — which tests must not use, and which
+            // is absent in a fresh checkout, so the whole unit project fails to load.
+            '@deployer/identity-contracts': path.resolve(__dirname, '../../packages/contracts/identity'),
+            '@deployer/project-contracts': path.resolve(__dirname, '../../packages/contracts/project'),
+            '@deployer/runtime-contracts': path.resolve(__dirname, '../../packages/contracts/runtime'),
+            '@deployer/fleet-contracts': path.resolve(__dirname, '../../packages/contracts/fleet'),
+            '@deployer/health-contracts': path.resolve(__dirname, '../../packages/contracts/health'),
+            '@deployer/orpc-utils': path.resolve(__dirname, '../../packages/transport/orpc/src'),
+            '@deployer/provider-schema': path.resolve(__dirname, '../../packages/utils/provider-schema/src'),
+            '@deployer/errors': path.resolve(__dirname, '../../packages/utils/errors/src'),
+            '@deployer/nest-events': path.resolve(__dirname, '../../packages/nest/events/src'),
+            '@deployer/nest-lifecycle': path.resolve(__dirname, '../../packages/nest/lifecycle/src'),
+            '@deployer/ui': path.resolve(__dirname, '../../packages/ui/base/src'),
         },
     },
     define: {

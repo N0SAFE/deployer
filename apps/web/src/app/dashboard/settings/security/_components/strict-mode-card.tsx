@@ -3,12 +3,13 @@
 import { useState } from 'react'
 import { AlertCircle, CheckCircle2, Shield, ShieldAlert, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@repo/ui/components/shadcn/dialog'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
-import { Switch } from '@repo/ui/components/shadcn/switch'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@deployer/ui/components/shadcn/dialog'
+import { QueryError } from '../../_components/query-error'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
+import { Switch } from '@deployer/ui/components/shadcn/switch'
 import { StatStrip, StatStripItem } from '@/components/dashboard'
 import { getErrorMessage, isDefinedORPCError } from '@/lib/orpc/typed-errors'
 import { useMeshTrustStrictModeSet, useMeshTrustStrictReadiness, useMeshTrustStrictRollback } from '@/domains/mesh/hooks'
@@ -19,7 +20,7 @@ type Pending = { kind: 'toggle'; enabled: boolean } | { kind: 'rollback' } | nul
 /** Strict mode: every node must acknowledge a new key before it takes effect. Every change is confirmed. */
 export function StrictModeCard() {
   const hydrated = useHydrated()
-  const { data: readiness, isLoading: loadingRaw } = useMeshTrustStrictReadiness()
+  const { data: readiness, isLoading: loadingRaw, error: readinessError, refetch: refetchReadiness } = useMeshTrustStrictReadiness()
   const setStrict = useMeshTrustStrictModeSet()
   const rollback = useMeshTrustStrictRollback()
   const [pending, setPending] = useState<Pending>(null)
@@ -119,6 +120,8 @@ export function StrictModeCard() {
               </div>
             ) : null}
           </>
+        ) : readinessError ? (
+          <QueryError what="strict-mode readiness" onRetry={() => { void refetchReadiness() }} />
         ) : (
           <div className="flex flex-col items-center gap-2 py-8 text-center">
             <Shield className="size-10 text-muted-foreground/50" />

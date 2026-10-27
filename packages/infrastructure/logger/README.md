@@ -1,4 +1,4 @@
-# @repo/logger
+# @deployer/logger
 
 Production-ready logger package using Pino for Next.js and NestJS applications.
 
@@ -16,7 +16,7 @@ Production-ready logger package using Pino for Next.js and NestJS applications.
 ## Installation
 
 ```bash
-bun add @repo/logger
+bun add @deployer/logger
 ```
 
 ## Usage
@@ -24,7 +24,7 @@ bun add @repo/logger
 ### Basic Logging
 
 ```typescript
-import { logger } from '@repo/logger'
+import { logger } from '@deployer/logger'
 
 // Different log levels
 logger.trace('Very detailed debug info')
@@ -55,7 +55,7 @@ try {
 Create loggers with namespace prefixes for better organization:
 
 ```typescript
-import { logger } from '@repo/logger'
+import { logger } from '@deployer/logger'
 
 const authLogger = logger.scope('Auth')
 const dbLogger = logger.scope('Database')
@@ -77,7 +77,7 @@ userAuthLogger.debug('Validating credentials')
 Bind context that appears in all subsequent logs:
 
 ```typescript
-import { logger } from '@repo/logger'
+import { logger } from '@deployer/logger'
 
 // Create a child logger with request context
 const requestLogger = logger.child({
@@ -96,7 +96,7 @@ requestLogger.info('Request completed', { duration: 150 })
 ### Custom Configuration
 
 ```typescript
-import { createLogger } from '@repo/logger'
+import { createLogger } from '@deployer/logger'
 
 // Custom log level
 const apiLogger = createLogger({
@@ -197,7 +197,7 @@ Create scoped loggers at the module level:
 
 ```typescript
 // services/user.service.ts
-import { logger } from '@repo/logger'
+import { logger } from '@deployer/logger'
 
 const userLogger = logger.scope('UserService')
 
@@ -213,7 +213,7 @@ export class UserService {
 
 ```typescript
 // middleware/request-logger.ts
-import { logger } from '@repo/logger'
+import { logger } from '@deployer/logger'
 
 export function requestLogger(req, res, next) {
   const requestLogger = logger.child({
@@ -275,7 +275,7 @@ The logger automatically adjusts based on `NODE_ENV`:
 Full TypeScript support with proper types:
 
 ```typescript
-import { logger, Logger, LogLevel, LoggerOptions } from '@repo/logger'
+import { logger, Logger, LogLevel, LoggerOptions } from '@deployer/logger'
 
 const config: LoggerOptions = {
   level: 'debug',

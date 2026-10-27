@@ -1,6 +1,6 @@
 'use client'
 
-import { Badge } from '@repo/ui/components/shadcn/badge'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { cn } from '@/lib/utils'
 import {
   CircleCheck,
@@ -188,7 +188,7 @@ export function StatusBadge({
 }) {
   const meta = statusMeta(status)
   const Icon = meta.icon
-  const animating = pulse || meta.animate
+  const animating = pulse === true || meta.animate
   return (
     <Badge variant={meta.variant} title={title} className={cn('gap-1 capitalize', className)}>
       {showDot ? (
@@ -205,7 +205,7 @@ export function StatusMetric({
   label,
   value,
   status,
-  tone = 'neutral',
+  tone,
   pulse = false,
   icon: Icon,
   hint,

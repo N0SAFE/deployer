@@ -1,0 +1,566 @@
+# COMPETITIVE FEATURE GAPS roadmap
+> Owner prefix: FEAT · Sources: parity.md, bench-coolify.md, bench-dokploy-dockhand.md, bench-market.md, ideas-dx-ai.md · Last verified: 2026-10-26
+
+## Summary
+This area covers features that do not yet exist as a real, working feature (or exist only as a mounted contract / inert setting): templates and managed databases, backups, cron, static sites, registry credentials, cleanup enforcement, extra git providers and rules, CLI/tokens/hooks/audit/SSO, notification channels, status page, MCP, deployer.yaml, upgrade UX, Traefik viewer, command palette.
+Spot-verified in code on 2026-10-26: `packages/contracts/bff/modules/template/` exists and is mounted in 5 app-contract files but no `Implement(...template...)` controller exists anywhere; `github-deployment-rule.service.ts` exists with no contract/controller; no backup feature in `apps/api`/`apps/api-services` (grep hits only Traefik/e2e); no `deployer.yaml` reference; no `apps/cli`.
+Cross-area Deps are resolved to real item IDs (SUB-A..D = `IDEA-001`..`IDEA-004`); none unresolved.
+Nearly everything here is blocked on the P0 substrates: SUB-A (authz), SUB-B (release manifest), SUB-C (event bus with real consumers) and on honest builders / secrets encryption owned by other areas. Items are ordered so that prerequisites come first inside each theme.
+Counts (102 items): P0 1 · P1 38 · P2 37 · P3 26; types FIX 3 · ENHANCE 11 · NEW 88. Plus 8 decisions.
+> Coverage pass: 2026-10-26 — 3 items added, 76 deps resolved
+Excluded as owned elsewhere (referenced only): env var model features (shared vars, promotion, .env import, build/runtime flags, dynamic vars: PROJ); node add/drain/remove wizard, mesh DNS, wildcard DNS-01, per-domain cert UI, L4 exposure, CDN (CLUSTER/NET); build-log capture, honest builders, registry push on build, compose realizer, health probes/metrics history/alert engine (DEPLOY/OBS); terminal audit/viewer-exec gate, openapi.json gating, API-key header mismatch (SEC/AUTH); installer (SETUP); production hardening guide (DOC); GitOps without controller, federated telemetry, NL-ops, SLO auto-rollback, topology, capacity planner (IDEA).
+
+## Items
+
+### Templates and managed databases
+- [ ] `FEAT-001` **Implement the `template.*` contract end to end (controller, service, repository)** · NEW · P1 · L · Deps: `IDEA-001`,`DEPLOY-047` · See also: `ARCH-085`
+  - Why/Problem: `templateContract` is mounted in BFF/web/setup/api `app-contract.ts` (16 procedures, `packages/contracts/bff/modules/template/*`) but zero controllers implement it, so every call fails; UI advertises a marketplace that cannot work.
+  - Do: add template module in the owning service (BFF forwarder + project/runtime service), repository for installed templates and catalogue cache, `requireAuth()` + policy on each handler, service/controller specs.
+  - Done when: `template.list/findById/create/update/delete/validate/resolve/migration` return real data under authz and a template can be deployed through the existing runner; no unimplemented contract remains mounted.
+  - Status: todo · Verified-in-code: yes (no implementer found) · Source: parity.md#1.2, bench-dokploy-dockhand.md#1 row Templates, bench-market.md#A
+- [ ] `FEAT-002` **Ship a built-in template catalogue (start with 40-50 apps + databases)** · NEW · P1 · L · Deps: `FEAT-001`
+  - Why/Problem: Coolify has 361 compose templates / 333 index entries, Easypanel 750+, Dokploy remote TOML catalogue; ours has zero.
+  - Do: seed top 40-50 (Postgres, MySQL, Redis, Mongo, Plausible, Umami, n8n, Uptime Kuma, Ghost, etc.) with slogan/tags/logo/port metadata; template format supports generated secrets/passwords, generated domains, mounts, per-template compose.
+  - Done when: catalogue lists >= 40 templates; each installs and reaches healthy in an e2e smoke; metadata index served by `template.list`.
+  - Status: todo · Verified-in-code: yes · Source: bench-coolify.md#1 row Templates, #2 #9; bench-market.md#3 #8
+- [ ] `FEAT-003` **Support Coolify `SERVICE_*` magic variables / compose import for templates (licence permitting)** · NEW · P2 · M · Deps: `FEAT-002`
+  - Why/Problem: adapting Coolify's compose templates gives an instant catalogue; magic vars (`SERVICE_FQDN_*`, `SERVICE_PASSWORD_*`, ~2084 occurrences) are the compatibility spec.
+  - Do: resolver for magic variables in `template.resolve`; verify Apache-2.0 licence and attribution before importing any templates; per-service domain mapping.
+  - Done when: at least 20 imported Coolify templates resolve and deploy; licence note recorded in the docs.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#1 row Templates, #2 #9
+- [ ] `FEAT-004` **Surface template validation, compatibility matrix and version migrations in the UI** · ENHANCE · P2 · M · Deps: `FEAT-001`
+  - Why/Problem: our contract is richer than competitors (semantic validation, compatibility, migration, provenance in `packages/contracts/bff/modules/template/{validation,compatibility,migration,resolver}.ts`) but unusable without implementation; this is a leapfrog (bench-dokploy section 5.8).
+  - Do: UI showing validation results, compat warnings per node/arch, and an upgrade flow that runs `migration`; record template provenance on the deployment (SUB-B).
+  - Done when: installing an outdated template offers a migration preview; incompatible template blocked with reason.
+  - Status: todo · Verified-in-code: partial · Source: bench-dokploy-dockhand.md#1,#5; ideas-dx-ai.md#0
+- [ ] `FEAT-005` **Community template submissions / marketplace** · NEW · P3 · L · Deps: `FEAT-002`,`IDEA-004`
+  - Why/Problem: Coolify, Easypanel, Railway have community catalogues.
+  - Do: signed template packs/import from a git URL; moderation-free private catalogue first.
+  - Done when: operator can add a third-party catalogue URL with signature check.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#J
+- [ ] `FEAT-006` **Managed databases as a typed service kind (PG, MySQL, MariaDB, Mongo, Redis/Valkey/KeyDB, ClickHouse)** · NEW · P1 · L · Deps: `FEAT-001`,`CLUSTER-044`,`PROJ-020`
+  - Why/Problem: no user-facing DBs; only platform's own `database-service-supervisor`. Highest-demand primitive after builders (Coolify `Standalone*`, Dokploy per-DB routers).
+  - Do: DB service kind on swarm runner with persistent volume + placement constraint, generated credentials stored encrypted, optional public-port toggle with timeout, init scripts, custom image, restart tracking, connection-string reveal (shown once).
+  - Done when: create a PG/MySQL/Redis from UI, get connection string, data survives redeploy; start/stop/restart work; credentials never appear in plaintext in DB rows.
+  - Status: todo · Verified-in-code: yes (only platform supervisor) · Source: parity.md#1.2 #3; bench-coolify.md#1 row Databases; bench-dokploy-dockhand.md#1; bench-market.md#D
+- [ ] `FEAT-007` **Database import dump / TLS via internal CA / DB connection helpers** · NEW · P3 · M · Deps: `FEAT-006`
+  - Why/Problem: Coolify offers import dump form and internal CA for DB/service TLS (`RegenerateSslCertJob`).
+  - Do: dump upload + restore into a managed DB; optional TLS using platform CA with rotation; expiry notification.
+  - Done when: import a SQL dump via UI; TLS-enabled DB reachable with CA cert.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#1 rows Databases, SSL
+- [ ] `FEAT-008` **Unified "New resource" picker (Git / Docker image / Compose / Template / Database)** · NEW · P2 · M · Deps: `FEAT-001`,`FEAT-006`
+  - Why/Problem: Coolify's single entry (`NewResourceTypes.php`); ours has project/service CRUD with no type picker for DBs/templates.
+  - Do: one-screen picker grouped by type feeding the right wizard.
+  - Done when: all five paths reachable from one screen with typed routes.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#1,#4
+- [ ] `FEAT-009` **Per-preview database branching (empty or seeded DB per preview)** · NEW · P3 · M · Deps: `FEAT-006`,`DEPLOY-103`
+  - Why/Problem: Render previews copy datastores; market P3.
+  - Do: create ephemeral DB per preview with TTL teardown.
+  - Done when: preview deploy gets its own DB, removed on teardown.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#D
+
+### Backups and restore
+- [ ] `FEAT-010` **Platform self-backup (Postgres, mesh roster, secrets) with one-command restore** · NEW · P0 · M · Deps: `FEAT-011`,`OPS-013` · See also: `OPS-013`
+  - Why/Problem: no backup story exists for the platform itself; loss of the DB/roster is unrecoverable (audit P0 #10; Dokploy `web-server.ts`, Coolify instance backup). Coordinate with OPS (prod compose backups) so it is not built twice.
+  - Do: scheduled encrypted dump of platform Postgres + signed roster + secrets-store key material to configured destination; documented restore command; restore drill test.
+  - Done when: destroy and restore a dev stack from a backup artifact and all projects/roster are back.
+  - Status: todo · Verified-in-code: yes (no backup code) · Source: bench-dokploy-dockhand.md#1 row self-backup, #3 #5; bench-market.md#D,#3 #10
+- [ ] `FEAT-011` **S3-compatible backup destinations as a shared resource** · NEW · P1 · M · Deps: `IDEA-001`,`PROJ-020` · See also: `OPS-015`
+  - Why/Problem: `s3-storage-provider` exists only as an artifact store; no destination CRUD (Dokploy `destination.ts`, Coolify `S3Storage`, Easypanel R2 preset).
+  - Do: destinations contract + encrypted credentials + "test connection"; presets for AWS, R2, B2, MinIO; local/NFS destination too.
+  - Done when: create destination, test passes, used by FEAT-012 and FEAT-010.
+  - Status: todo · Verified-in-code: yes · Source: parity.md#1.3; bench-market.md#D; bench-dokploy-dockhand.md#1
+- [ ] `FEAT-012` **Scheduled database backups with retention and execution history** · NEW · P1 · L · Deps: `FEAT-006`,`FEAT-011`,`FEAT-030`
+  - Why/Problem: no backup feature in v3 (v1 had create/list/restore/delete/download); Coolify `DatabaseBackupJob` (pg/mysql/mariadb/mongo, `dump_all`, per-db selection, retention by count/days/max-storage, local and S3 separate, `disable_local_backup`).
+  - Do: backup engine (dump command declared per DB kind/template), cron schedule, retention in three dimensions (count/days/storage), executions table with size/status/log, "backup now", notifications on success/failure/S3 warning.
+  - Done when: a schedule produces dumps in S3, retention prunes, execution list shows size/status.
+  - Status: todo · Verified-in-code: yes · Source: parity.md#1.3 #4; bench-coolify.md#1,#2 #8; bench-dokploy-dockhand.md#1,#3 #5
+- [ ] `FEAT-013` **Restore flow with verification (restore drill) and encrypted-at-rest backups** · NEW · P1 · M · Deps: `FEAT-012` · See also: `OPS-016`
+  - Why/Problem: Coolify has no restore verification, no encryption at rest; beat them (bench-coolify row 25).
+  - Do: restore into a scratch DB and run a checksum/row-count verification; client-side encryption with key from secrets store; restore to original or new service.
+  - Done when: a scheduled "verify restore" job reports pass/fail and emits an event; backups unreadable without key.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#1 row 25; bench-market.md#3 #9
+- [ ] `FEAT-014` **Volume backups and restore (optional service stop)** · NEW · P2 · M · Deps: `FEAT-011`
+  - Why/Problem: Dokploy volume-backups; v3 has none.
+  - Do: tar of named volumes to destination via helper container on the node holding the volume; optional stop/start of the service; restore.
+  - Done when: back up and restore a volume of a stateful service.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#1; bench-market.md#D
+- [ ] `FEAT-015` **Backups UI (schedule, retention, executions, backup-now, restore)** · NEW · P1 · M · Deps: `FEAT-012` · See also: `WEB-087`
+  - Why/Problem: Coolify UX pattern #10; no UI.
+  - Do: backups tab on DB/service and platform backups page; typed routes + ORPC hooks.
+  - Done when: operator manages a schedule fully from UI.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#4 #10
+- [ ] `FEAT-016` **PITR / WAL archiving for Postgres** · NEW · P3 · L · Deps: `FEAT-013`
+  - Why/Problem: Coolify has no PITR; potential differentiator.
+  - Do: optional WAL archive to destination + point-in-time restore.
+  - Done when: restore to a chosen timestamp validated in test.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#1 row 25
+
+### Scheduled jobs and cron
+- [ ] `FEAT-030` **Scheduler service (durable cron with timezone) and schedules monitor** · NEW · P1 · M · Deps: `IDEA-003`
+  - Why/Problem: no cron anywhere (only internal `setInterval` loops); Coolify `ScheduledJobManager` (every minute, `CronExpression` + timezone), Dokploy `apps/schedules`, Dockhand schedules page.
+  - Do: durable scheduler (single owner on mesh/leader-free dedupe), schedule table, executions history with output; prefer a shared primitive for backups, cleanup, scheduled updates.
+  - Done when: schedule persists across restart, fires once per tick even with 2 API replicas, history visible.
+  - Status: todo · Verified-in-code: yes · Source: parity.md#1.2 #5; bench-coolify.md#1 row Cron; bench-dokploy-dockhand.md#1,#2 row Schedules; bench-market.md#C
+  - Effect-impact (2026-10-26): scheduler primitives are stable Effect (`Schedule.cron`/`Cron`, `Effect.repeat`); single-fire under replicas needs a Postgres advisory-lock lease (same helper as ARCH-042); `ClusterCron` deferred (unstable). Effort M unchanged. Deps: `EFF-129`.
+- [ ] `FEAT-031` **Cron jobs per service as ephemeral swarm jobs, with logs and executions** · NEW · P1 · M · Deps: `FEAT-030`,`DEPLOY-058`
+  - Why/Problem: P0 table stakes in market (Dokku, Railway, Dokploy, Komodo); Coolify's is container exec only; ours can run as one-shot swarm job on any node.
+  - Do: scheduled task model (command, cron, timezone, timeout default 300s), run as swarm replicated-job/one-shot, capture stdout/exit code, notify on success/failure; also exec-in-container mode.
+  - Done when: cron task runs on schedule, logs in UI, failure emits notification event.
+  - Status: todo · Verified-in-code: yes · Source: bench-coolify.md#2 #12; bench-market.md#3 #14; parity.md#4 #5
+- [ ] `FEAT-032` **Scheduled tasks / jobs UI (project jobs tab, executions, dead-letter queue page)** · NEW · P2 · M · Deps: `FEAT-031` · See also: `WEB-081`
+  - Why/Problem: v1 project `jobs` tab missing; queue/dead-letter contracts exist with no page (parity 1.5).
+  - Do: schedules page + executions with cronstrue rendering; page for deployment queue/dead-letter list and replay.
+  - Done when: operator sees, runs, pauses, and replays jobs.
+  - Status: todo · Verified-in-code: yes · Source: parity.md#1.5; bench-dokploy-dockhand.md#2 row Schedules monitor
+- [ ] `FEAT-033` **Background workers / multiple process types per service (Procfile-style roles)** · NEW · P2 · L · Deps: `DEPLOY-058`,`FEAT-060`
+  - Why/Problem: no role/process-type model (Render workers, Heroku process types, Fly, Kamal roles).
+  - Do: service roles (web/worker/job) with independent command, replicas and health; expressible in deployer.yaml.
+  - Done when: one repo deploys web + worker with separate scaling.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#C
+- [ ] `FEAT-034` **Manual replica scaling UI/CLI** · NEW · P1 · S · Deps: `IDEA-001` · See also: `PROJ-043`,`DEPLOY-060`
+  - Why/Problem: replicas/manual scale are table stakes (market P0); no scale call in the swarm UI.
+  - Do: scale procedure + service header control; show replica health.
+  - Done when: scaling to N is reflected in swarm and UI with confirmation.
+  - Status: todo · Verified-in-code: unverified · Source: bench-market.md#C
+- [ ] `FEAT-035` **Autoscaling and scale-to-zero (autostop/autostart)** · NEW · P3 · L · Deps: `FEAT-034`
+  - Why/Problem: Fly/Render/Vercel offer them; market P2.
+  - Do: rule-based scale on CPU/mem/requests; idle autostop with wake-on-request via Traefik.
+  - Done when: demo service scales with load and stops when idle.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#C
+- [ ] `FEAT-036` **Auto-migrate workloads off a bad node** · NEW · P3 · M · Deps: `CLUSTER-016`
+  - Why/Problem: Fly machine migration; natural fit for swarm.
+  - Do: on node unreachable beyond threshold, reschedule stateless services (placement-aware).
+  - Done when: killing a node moves stateless replicas with an event emitted.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#C
+
+### Static sites, registries, Docker-image sources
+- [ ] `FEAT-040` **Static site / SPA hosting runner (no Dockerfile)** · NEW · P1 · M · Deps: `DEPLOY-045` · See also: `DEPLOY-039`
+  - Why/Problem: v1 `static-file` module explicitly in the v1 brief; v3 GitHub controller comments "A static site has no builder in the deploy path"; no static runner.
+  - Do: nginx/Caddy static runner with SPA fallback, build command + publish dir, cache headers.
+  - Done when: a Vite/Next-export repo deploys as static with domain and TLS.
+  - Status: todo · Verified-in-code: partial · Source: parity.md#1.3 #10; bench-coolify.md#1 row Build packs
+- [ ] `FEAT-041` **Registry credentials manager (encrypted) and pull secrets** · NEW · P1 · M · Deps: `PROJ-020`,`IDEA-001` · See also: `CLUSTER-050`,`DEPLOY-037`
+  - Why/Problem: registries contract is `list` only; UI admin page says "no place to store credentials"; private images undeployable.
+  - Do: encrypted credential table (pattern: dns/github providers), registries CRUD contract, pass `authconfig`/`--with-registry-auth` on pull, replace "unavailable" `admin/providers/code/docker-hub` page.
+  - Done when: deploy a private image from Docker Hub/GHCR/private registry via stored credential; secret never returned by API.
+  - Status: todo · Verified-in-code: partial · Source: parity.md#1.3,#3 #6; bench-dokploy-dockhand.md#1 row Registry; bench-market.md#A
+- [ ] `FEAT-042` **Registry browser (search, catalogue, tags) and image push/copy/prune/tag UI** · NEW · P2 · M · Deps: `FEAT-041`,`CLUSTER-053` · See also: `CLUSTER-053`
+  - Why/Problem: Dockhand registry browser; image pull/tag/push/prune fake or missing.
+  - Do: browse tags, push/copy between registries, real pull with progress.
+  - Done when: image pull UI is real and registry tags are browsable.
+  - Status: todo · Verified-in-code: partial · Source: bench-dokploy-dockhand.md#2
+- [ ] `FEAT-043` **Embedded or mesh-local registry for multi-node image distribution** · NEW · P2 · M · Deps: `FEAT-041`,`CLUSTER-054`,`NET-079` · See also: `NET-079`
+  - Why/Problem: multi-node swarm cannot pull locally built images; Dokploy Registry, Kamal registry.
+  - Do: optional per-mesh registry service with auth; digest-pinned pulls (SUB-B).
+  - Done when: image built on node A deploys on node B without external registry.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#3 #18; bench-coolify.md#1 row Docker registry push
+- [ ] `FEAT-044` **Dedicated/remote build servers and build cache** · NEW · P2 · L · Deps: `DEPLOY-045`,`FEAT-043` · See also: `CLUSTER-077`,`DEPLOY-053`
+  - Why/Problem: Dokploy Build Server, Coolify `is_build_server`/`concurrent_builds`, Komodo spot builders; no build cache.
+  - Do: designate mesh node(s) as builders, build there and push to registry; BuildKit cache mounts; concurrency limits.
+  - Done when: build executes on a builder node and second build uses cache.
+  - Status: todo · Verified-in-code: no · Source: parity.md#1.3,#3 #17; bench-coolify.md#1; bench-market.md#A
+- [ ] `FEAT-045` **Swarm service spec editor (typed form + YAML) for advanced tuning** · ENHANCE · P2 · M · Deps: `DEPLOY-058` · See also: `PROJ-051`,`WEB-074`
+  - Why/Problem: Dokploy exposes health, restart policy, placement, update/rollback config, mode, labels, networks, ulimits, stop-grace; ours runner exists but not selectable/configurable.
+  - Do: expose editable swarm spec with validation and diff preview.
+  - Done when: operator edits update-config and placement from UI and deploy honours it.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#1 row Swarm service tuning
+- [ ] `FEAT-046` **Patches: file overlays applied at build time** · NEW · P3 · S · Deps: `DEPLOY-045` · See also: `DEPLOY-042`
+  - Why/Problem: Dokploy `patch.ts`; cheap, loved.
+  - Do: patch records (path + content) applied to checkout before build.
+  - Done when: patch changes built artifact; shown in deployment manifest.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#1; bench-market.md#E
+
+### Cleanup and retention enforcement
+- [ ] `FEAT-050` **Enforce `deploymentRetention` and prune old deployments/artifacts** · FIX · P1 · S · Deps: none · See also: `DEPLOY-078`,`PROJ-084`
+  - Why/Problem: `deploymentRetention` merged in `service-effective-config.ts` and editable in UI but nothing enforces it (settings inert, v1 `maxDeployments`).
+  - Do: retention worker keeping N deployments/images per service; remove old artifacts and zip bundles; emit events.
+  - Done when: with retention=3 after 6 deploys only 3 records/images remain; test covers it.
+  - Status: todo · Verified-in-code: yes · Source: parity.md#1.2,#4 #3
+- [ ] `FEAT-051` **Docker cleanup policy (threshold-based images/containers/volumes/networks/builder cache) with execution history** · NEW · P1 · M · Deps: `FEAT-030`,`CLUSTER-035` · See also: `CLUSTER-059`
+  - Why/Problem: no image/container prune; disks fill on a VPS; Coolify `DockerCleanupJob`/`DockerCleanupExecution`, Dokploy `settings.clean*`.
+  - Do: per-node policy (disk threshold, frequency, exclude app repos, optional volume/network prune), swarm-aware; executions history; notifications.
+  - Done when: crossing threshold triggers prune, history row written, notification emitted.
+  - Status: todo · Verified-in-code: yes · Source: parity.md#3 #7; bench-coolify.md#1 row Cleanup; bench-dokploy-dockhand.md#3 #9
+- [ ] `FEAT-052` **Zombie container / orphan preview reconciler (v2 cleanup module)** · NEW · P1 · M · Deps: `FEAT-050` · See also: `DEPLOY-104`
+  - Why/Problem: v2 `cleanup` module and zombie reconciler not ported; Coolify daily `CleanupOrphanedPreviewContainersJob`.
+  - Do: supervisor reconciling containers/services/DNS routes not tied to a deployment or preview; dry-run mode.
+  - Done when: orphan created by test is removed and logged.
+  - Status: todo · Verified-in-code: yes · Source: parity.md#1.2,#4 #3; bench-coolify.md#1
+- [ ] `FEAT-053` **Log retention / pruning and disk-usage panel** · NEW · P2 · S · Deps: `OBS-064` · See also: `OBS-070`
+  - Why/Problem: no log retention; Dokploy `getDockerDiskUsage` and log cleanup cron.
+  - Do: retention setting for deployment/build logs; disk-usage view per node.
+  - Done when: old logs pruned per policy; disk panel shows breakdown.
+  - Status: todo · Verified-in-code: yes · Source: parity.md#1.5; bench-dokploy-dockhand.md#1,#3 #9
+- [ ] `FEAT-054` **Rollback image retention (keep N images) and one-click rollback list** · ENHANCE · P2 · S · Deps: `IDEA-002`,`FEAT-050`
+  - Why/Problem: Coolify `docker_images_to_keep`; rollback from stored plan snapshot is a leapfrog (Dokploy `rollbacks` fullContext).
+  - Do: retain last N images by digest; rollback from any past deployment manifest.
+  - Done when: rollback to deployment N-2 replays exact digest/plan/config.
+  - Status: todo · Verified-in-code: partial · Source: bench-coolify.md#1 row Rollback, #2 #14; bench-dokploy-dockhand.md#3 #18
+
+### Git providers, webhooks features and rules
+- [ ] `FEAT-060` **GitHub App private-repo access (installation tokens, repo/branch picker) and deploy keys** · NEW · P1 · M · Deps: `PROJ-020`,`IDEA-001` · See also: `DEPLOY-028`
+  - Why/Problem: private repos are unusable (anonymous clone); `getInstallationAccessToken` exists; Coolify `GithubApp` + `PrivateKey` deploy keys.
+  - Do: use installation token for clone/fetch, deploy-key support for generic git, picker for repos/branches.
+  - Done when: private repo deploys via App and via deploy key; token never logged.
+  - Status: todo · Verified-in-code: partial · Source: bench-coolify.md#1,#2 #5; bench-dokploy-dockhand.md#1,#3 #15; bench-market.md#A,#3 #15
+- [ ] `FEAT-061` **GitLab webhooks + MR previews** · NEW · P1 · M · Deps: `DEPLOY-091`,`DEPLOY-103` · See also: `DEPLOY-035`
+  - Why/Problem: GitLab has account CRUD + checkout provider only; no webhook controller, no MR previews.
+  - Do: GitLab webhook controller reusing GitHub dispatch/idempotency/preview-provisioning abstractions, token verification, MR open/close/update.
+  - Done when: push and MR events trigger deploy/preview with idempotency.
+  - Status: todo · Verified-in-code: yes · Source: parity.md#1.3,#3 #8; bench-coolify.md#1
+- [ ] `FEAT-062` **Gitea and Bitbucket (and Azure DevOps) providers** · NEW · P2 · M · Deps: `FEAT-061` · See also: `DEPLOY-036`
+  - Why/Problem: Coolify/Dokploy support them; Vercel supports Azure DevOps too.
+  - Do: provider plugins using the provider-schema catalogue: account, repo listing, webhook verify.
+  - Done when: each provider deploys on push.
+  - Status: todo · Verified-in-code: no · Source: parity.md#3 #8; bench-market.md#A
+- [ ] `FEAT-063` **Deployment rules CRUD (branch/glob → environment) contract, controller and UI** · NEW · P1 · M · Deps: `IDEA-001` · See also: `DEPLOY-097`,`PROJ-074`
+  - Why/Problem: `github-deployment-rule.service.ts` + repo exist (v2 `rule-matcher`) with no contract/controller/UI.
+  - Do: `deploymentRule` contract via `standard.zod`, controller, UI under project config; unit tests for matcher.
+  - Done when: rules created in UI decide which branch deploys to which environment.
+  - Status: todo · Verified-in-code: yes · Source: parity.md#1.3,#4 #7
+- [ ] `FEAT-064` **Watch paths, skip markers (`[skip deploy]`), label gates and fork-PR guard on push/PR triggers** · ENHANCE · P1 · S · Deps: `DEPLOY-091` · See also: `DEPLOY-098`
+  - Why/Problem: monorepo path filters (Railway, Dokploy, Render) and skip keywords (Coolify `shouldSkipDeployAny`, `isForkPullRequest`) absent; Dokploy blocks non-collaborator PR previews.
+  - Do: watchPaths glob on push trigger; skip keywords in commit/PR title; preview label gate; public-PR toggle.
+  - Done when: a commit touching unrelated path or with `[skip deploy]` does not deploy.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#1; bench-market.md#4 #6, A,B
+- [ ] `FEAT-065` **PR comment with preview URL, deployment status checks and preview extras (TTL, env scope)** · NEW · P2 · M · Deps: `DEPLOY-103` · See also: `DEPLOY-099`
+  - Why/Problem: Coolify `ApplicationPullRequestUpdateJob`, Dokploy comments; Render expiry and `previewValue`.
+  - Do: post/update PR comment, GitHub deployment status, TTL (`expireAfterDays`), preview-only env scope.
+  - Done when: opening a PR posts a comment with URL and it is updated/removed on close.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#1 row Preview; bench-dokploy-dockhand.md#1; bench-market.md#B
+- [ ] `FEAT-066` **Pre-deploy / release command (migrations)** · NEW · P1 · S · Deps: `DEPLOY-026` · See also: `DEPLOY-054`,`PROJ-046`
+  - Why/Problem: Railway `preDeployCommand`, Heroku Release Phase, Render hook; Coolify pre/post-deploy commands; none in ours.
+  - Do: service field + workflow stage running command in container before cutover; failure blocks deploy.
+  - Done when: migration command runs before routes flip and failure aborts.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#A,#4 #7; bench-coolify.md#1
+- [ ] `FEAT-067` **Scan-gated deploys with severity threshold and per-service override** · ENHANCE · P1 · S · Deps: `IDEA-002` · See also: `CLUSTER-066`
+  - Why/Problem: scanner works (grype/trivy) but does not gate; quick win in bench-market, Dockhand `shouldBlockUpdate`.
+  - Do: policy (never/any/critical_high/critical/new-vs-previous), stored in manifest as scan receipt.
+  - Done when: deploy with new critical CVE blocked with reason; override audited.
+  - Status: todo · Verified-in-code: partial · Source: bench-market.md#4 #4; bench-dokploy-dockhand.md#3 #7; ideas-dx-ai.md#25
+- [ ] `FEAT-068` **Scan history, scheduled rescans, grype+trivy side-by-side, SBOM export** · ENHANCE · P2 · M · Deps: `FEAT-030`
+  - Why/Problem: scan results lack history per digest and scheduling.
+  - Do: store scans by digest, scheduled rescan, SBOM download, scanner comparison.
+  - Done when: per-digest history visible and rescan runs on schedule.
+  - Status: todo · Verified-in-code: partial · Source: bench-dokploy-dockhand.md#4
+- [ ] `FEAT-069` **Container/service auto-update with digest check and scan gate** · NEW · P2 · M · Deps: `FEAT-067`,`FEAT-030` · See also: `CLUSTER-067`
+  - Why/Problem: Dockhand auto-update, pending updates list, recreate-from-inspect; Komodo auto-update.
+  - Do: check-updates and pending-updates procedures, per-service schedule, gate by scan.
+  - Done when: updated image triggers redeploy only if gate passes.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#2; bench-market.md#J
+- [ ] `FEAT-070` **Promote-without-rebuild between environments (digest pinning) and approval gates / deployment protection** · NEW · P2 · M · Deps: `IDEA-002`,`IDEA-001` · See also: `PROJ-067`
+  - Why/Problem: Heroku pipelines, Vercel promote and deployment policy; ours has environment CRUD with rules inert.
+  - Do: promote a manifest to another environment; optional required-approval per environment (human approve).
+  - Done when: staging digest promoted to prod without rebuild; prod deploy requires approval when enabled.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#B,#3 #27
+- [ ] `FEAT-071` **Progressive delivery: weighted canary via Traefik weights with abort and health auto-rollback** · NEW · P3 · L · Deps: `IDEA-002`,`DEPLOY-071`
+  - Why/Problem: Vercel Rolling Releases; market P2/differentiator.
+  - Do: staged weights with deterministic health rule abort; no LLM decisions.
+  - Done when: canary at 10% promoted or auto-aborted by health rule.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#B,#3 #29
+
+### CLI, tokens, hooks, API surfaces
+- [ ] `FEAT-080` **Scoped API tokens (read/write/deploy abilities, expiry, IP allow-list, per-project deploy keys)** · NEW · P1 · M · Deps: `AUTH-019`,`IDEA-001` · See also: `AUTH-022`,`AUTH-019`
+  - Why/Problem: Better Auth `apiKey` plugin exists but header mismatch and BFF does not forward; Coolify Sanctum abilities + `ApiTokenExpirationWarningJob`; unlocks CLI/CI/MCP.
+  - Do: scope grammar bound to procedure risk, expiry + warning event, IP allow-list, UI for tokens, per-project deploy keys; delete legacy `ApiKeyService`/`api_keys`.
+  - Done when: token with `deploy` scope can only trigger deploys; expired/denied tokens rejected; test matrix.
+  - Status: todo · Verified-in-code: partial · Source: parity.md#1.1; bench-coolify.md#1 row API tokens, #2 #6; bench-market.md#3 #6; ideas-dx-ai.md#3
+- [ ] `FEAT-081` **Generic deploy hook URL (secret token per service, tag-based deploy, force)** · NEW · P1 · S · Deps: `IDEA-001`,`FEAT-080` · See also: `DEPLOY-081`
+  - Why/Problem: Vercel/Render/Netlify/Dokploy `[refreshToken]`/Coolify `/deploy?uuid&tag&force`; none in ours.
+  - Do: trigger source in `deployment-trigger-registry.service.ts` with random token or HMAC, rate-limited, revocable, audit event.
+  - Done when: curl to hook triggers deploy; rotating token invalidates old URL.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#A,#4 #1; bench-coolify.md#1; bench-dokploy-dockhand.md#3 #3
+- [ ] `FEAT-082` **Generic signed inbound webhooks and outbound event webhooks with retry/backoff and SSRF-safe delivery** · NEW · P1 · M · Deps: `IDEA-003`,`SEC-013` · See also: `DEPLOY-100`,`OBS-014`
+  - Why/Problem: no outbound webhook delivery; market lists signed webhooks as P0/P1; parity requires retry/backoff.
+  - Do: webhook subscriptions per project, HMAC signing, retry with backoff, dead-letter, delivery log, SSRF allow/deny.
+  - Done when: deployment event reaches endpoint with valid signature; failures retried and visible.
+  - Status: todo · Verified-in-code: no · Source: parity.md#4 #2; bench-market.md#I,#H
+- [ ] `FEAT-083` **CLI (`apps/cli`): login (device flow), deploy, logs, status, rollback, exec, env set, mesh connect, plan/apply** · NEW · P1 · L · Deps: `FEAT-080`,`IDEA-001`,`OPS-006` · See also: `AUTH-023`,`SETUP-026`
+  - Why/Problem: no CLI; `apps/` = api, api-services, doc, mesh-agent, setup, web; device-auth exists with no client; only nest-commander admin commands. README promises it.
+  - Do: thin CLI over the typed ORPC client (citty/oclif), streams via SSE procedures, `--json` output, device-code login; decide CLI vs `apps/setup` (DEC-FEAT-1).
+  - Done when: `deployer login` then `deployer deploy` triggers and tails a deployment; CI smoke test.
+  - Status: todo · Verified-in-code: yes · Source: parity.md#1.1,#4 #8; bench-market.md#I,#3 #5; bench-dokploy-dockhand.md#3 #19; ideas-dx-ai.md#1
+- [ ] `FEAT-084` **Generate CLI/MCP manifest from contract metadata (`cli`, `risk`, `approval`, `streaming`)** · NEW · P2 · M · Deps: `IDEA-001`
+  - Why/Problem: avoids hand-written wrappers and drift; policy annotations double as authz source.
+  - Do: extend `standard.zod` builder meta; build script emits CLI manifest, MCP tools, surface-parity CI check; exclude `test.*`, `setup.*`, internal mesh procedures.
+  - Done when: adding a procedure appears in CLI+MCP in the same commit; CI fails on missing meta.
+  - Status: todo · Verified-in-code: partial · Source: ideas-dx-ai.md#1,#2
+- [ ] `FEAT-085` **Published, versioned public OpenAPI spec with stable/internal split and typed TS SDK** · ENHANCE · P2 · M · Deps: `FEAT-084`,`FEAT-080`
+  - Why/Problem: OpenAPI is generated (`openapi-docs.controller.ts:64`) but not a documented public surface; SDK free from ORPC client.
+  - Do: scrubbed versioned spec, changelog, published `@deployer/sdk`.
+  - Done when: external consumer builds against the SDK; breaking-change policy documented.
+  - Status: todo · Verified-in-code: partial · Source: bench-market.md#I,#6; bench-coolify.md#1 row Public REST API; ideas-dx-ai.md#1
+- [ ] `FEAT-086` **Terraform provider generated from OpenAPI** · NEW · P3 · L · Deps: `FEAT-085`
+  - Why/Problem: Coolify/Render/Vercel have providers; do not hand-write.
+  - Do: generate via tfplugingen after API stabilises.
+  - Done when: `terraform apply` creates a project and service.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#E,#6; ideas-dx-ai.md#1
+- [ ] `FEAT-087` **Declarative `deployer.yaml` with `plan`/`apply`, drift view and `generate` from existing state** · NEW · P2 · XL · Deps: `IDEA-002`,`FEAT-083`,`PROJ-040` · See also: `PROJ-053`
+  - Why/Problem: `deployer.yaml` references 0; Render Blueprints, Railway IaC, Kamal, Fly; fixes "stored but ignored" bug class by making one resolver the reader.
+  - Do: zod schema (shared with UI forms via provider-schema), `config.plan`/`config.apply` procedures with `planHash` and destructive guard, secrets as `sync:false` refs, removal never deletes, drift badge.
+  - Done when: `deployer plan` shows diff, `apply` is idempotent, drift shown in UI.
+  - Status: todo · Verified-in-code: yes (absent) · Source: bench-market.md#E,#3 #4,#6; ideas-dx-ai.md#4
+- [ ] `FEAT-088` **Import/migrate wizard (docker-compose, Coolify, Dokploy, Heroku app.json, render.yaml)** · NEW · P3 · M · Deps: `FEAT-087`
+  - Why/Problem: removes adoption barrier; mapping report with ignored fields and dry-run through `config.plan`.
+  - Do: parsers per source; start with compose (S).
+  - Done when: import a Coolify export with a report of mapped/ignored fields.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai.md#6
+- [ ] `FEAT-089` **Shared project config export/import (UploadConfig equivalent) and project clone/move across environments** · NEW · P2 · S · Deps: `PROJ-024` · See also: `PROJ-126`
+  - Why/Problem: Coolify `ResourceOperations` (clone/move with volume cloning) and `UploadConfig`; tags.
+  - Do: clone service/project, move between environments, tags for grouping.
+  - Done when: clone produces an independent copy; tags filter lists.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#1 row UX, #4 #7,#11; bench-dokploy-dockhand.md#1
+
+### AI-assisted ops and MCP
+- [ ] `FEAT-095` **Read-only MCP server (projects, deployments, logs, node/mesh status, domains)** · NEW · P2 · S · Deps: `FEAT-080`,`IDEA-001`
+  - Why/Problem: Vercel, Fly, Netlify, Render, Coolify, Easypanel have MCP; cheap wrapper on ORPC; Agent Auth (`agentAuth.ts`) and `/.well-known/agent-configuration` exist (agent-auth pinned 0.6.2, unstable).
+  - Do: streamable-HTTP MCP, read-only default scopes, logs returned as typed data marked untrusted and truncated, bound to project membership.
+  - Done when: Claude Code lists projects/deployments via MCP with a read-only token; audit event per call.
+  - Status: todo · Verified-in-code: yes (none) · Source: bench-market.md#I,#7 tier 1,#4 #8; bench-coolify.md#2 #25; ideas-dx-ai.md#20
+- [ ] `FEAT-096` **MCP write tools with plan/approve gate (deploy, rollback, scale) bound to `planHash`** · NEW · P3 · M · Deps: `FEAT-095`,`FEAT-087`
+  - Why/Problem: Vercel docs advise human confirmation; mutations must be proposals only.
+  - Do: write tools return a plan; approval via passkey-bound token tied to `planHash`; never executed by the model.
+  - Done when: executing a different plan than approved is impossible; audited.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#7 tier 4; ideas-dx-ai.md#20
+- [ ] `FEAT-097` **Diagnose-failed-deploy (advice only, injection-safe context)** · NEW · P3 · M · Deps: `DEPLOY-044`,`FEAT-099`
+  - Why/Problem: Vercel Agent / Dokploy assistant; needs captured build logs first.
+  - Do: context packer (plan, diff vs last green, health, sanitized/redacted logs), no-tool model call returning zod-validated JSON with verified log-line citations, BYO/local LLM, opt-in.
+  - Done when: failed deploy button returns causes with citations; uncited claims dropped.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#7 tier 2; ideas-dx-ai.md#18
+- [ ] `FEAT-098` **AI config generation (`deployer.yaml` for a repo) and alert triage summaries** · NEW · P3 · M · Deps: `FEAT-087`,`FEAT-097`
+  - Why/Problem: market tiers 3 and 5; human reviews diff then `plan`.
+  - Do: detect stack, propose healthcheck/port/env keys; summarise alert bursts after alerts exist.
+  - Done when: generated file passes `plan` with human review step.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#7 tiers 3,5; bench-dokploy-dockhand.md#1 row AI assistant
+- [ ] `FEAT-099` **Deployment timeline with config/digest/env-key diff vs previous deployment** · ENHANCE · P2 · M · Deps: `IDEA-002` · See also: `WEB-040`,`DEPLOY-084`
+  - Why/Problem: Coolify stores config snapshot without diff; web asks for timeline; compiled plan schema exists, producer not.
+  - Do: stage timings from lifecycle events; structural diff over plan nodes, env key set (names/hashes only), digest, scan result.
+  - Done when: deployment detail shows "what changed since last good deploy" without secret values.
+  - Status: todo · Verified-in-code: partial · Source: bench-coolify.md#3; bench-dokploy-dockhand.md#4; ideas-dx-ai.md#9
+
+### Audit log, identity and access features
+- [ ] `FEAT-110` **User-facing audit log (middleware, table, query/export, UI, hash-chain tamper evidence)** · NEW · P1 · M · Deps: `IDEA-001`,`IDEA-003` · See also: `OBS-071`,`WEB-079`
+  - Why/Problem: no audit service/table (only internal event outbox); Dokploy and Dockhand paywall it; Coolify has webhook-failure log only.
+  - Do: one ORPC middleware writing actor, procedure, resource id, diff, origin (device/agent id); include terminal sessions and agent-auth `onEvent`; JSON/CSV export; live stream; optional per-node hash chain anchored in roster; retention.
+  - Done when: every mutating procedure produces a row; UI filters/export work; log append-only.
+  - Status: todo · Verified-in-code: yes (absent) · Source: parity.md#1.1,#4 #11; bench-dokploy-dockhand.md#1,#2,#3 #2; bench-market.md#F,#4 #3; ideas-dx-ai.md#14
+  - Effect-impact (2026-10-26): implement the single audit middleware with `Effect.fn`-named code annotated with actor/trace id; depends on the per-request Actor service. Deps: `EFF-014`.
+- [ ] `FEAT-111` **OIDC/social login configuration UI (Better Auth genericOAuth) and optional LDAP** · NEW · P2 · M · Deps: `AUTH-017` · See also: `AUTH-037`
+  - Why/Problem: Coolify supports 10 providers, Dockhand OIDC/LDAP, Komodo OIDC; ours has none configurable.
+  - Do: admin UI for providers (GitHub, Google, generic OIDC, Azure, Authentik, Zitadel), registration toggle, account linking; LDAP later.
+  - Done when: login through a configured OIDC provider; secrets encrypted.
+  - Status: todo · Verified-in-code: partial · Source: bench-coolify.md#1 row OAuth/SSO,#2 #25; bench-dokploy-dockhand.md#1,#2; bench-market.md#H
+- [ ] `FEAT-112` **Free-tier custom roles with project/node/environment scoping** · NEW · P2 · M · Deps: `IDEA-001` · See also: `AUTH-026`
+  - Why/Problem: Dokploy custom roles and Dockhand env-scoped RBAC are enterprise-only; open lane for us.
+  - Do: role definitions mapped to procedure risk annotations, assignable per project/node.
+  - Done when: custom role created and enforced by policy middleware; test matrix.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#3 #17,#5 #5; bench-market.md#H
+- [ ] `FEAT-113` **Organizations / teams (multi-tenant boundary)** · NEW · P3 · XL · Deps: `IDEA-001` · See also: `AUTH-027`
+  - Why/Problem: v1/v2 had `organization/select`; v3 removed it (no Better Auth org plugin); docs still claim it. Operator is mesh-first/solo so decision-gated.
+  - Do: only if DEC-FEAT-3 says multi-tenant: adopt Better Auth organization plugin and project ownership.
+  - Done when: decision recorded; either implemented or docs state flat roles by design.
+  - Status: todo · Verified-in-code: yes (absent) · Source: parity.md#1.1,#3 #12; bench-market.md#H,#J
+- [ ] `FEAT-114` **Per-project resource usage view and quotas (instead of billing)** · NEW · P3 · M · Deps: `OBS-045`
+  - Why/Problem: usage/cost views are hosted-only; bench recommends resource usage per project; project quotas inert.
+  - Do: usage per project from metrics history; enforce quotas only if multi-tenant.
+  - Done when: usage page shows CPU/mem/disk per project; quotas enforced or removed.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#J,#B; bench-coolify.md#1 row Multi-tenant
+
+### Notification channels
+- [ ] `FEAT-120` **Notification channel adapters: webhook, SMTP email, Slack, Discord, Telegram first** · NEW · P1 · M · Deps: `IDEA-003`,`PROJ-020` · See also: `OBS-012`,`OBS-015`
+  - Why/Problem: notification settings (email/Slack fields) collected in `ProjectConfigSections.tsx` but nothing sends (no smtp/slack client); headline feature of Dokploy/Coolify. The bus and dispatcher are OBS; adapters are here.
+  - Do: provider registry with channel config encrypted, adapters for webhook, SMTP, Slack, Discord, Telegram; test-send button; retries.
+  - Done when: deployment failure delivers a message to each channel; test button works.
+  - Status: todo · Verified-in-code: yes · Source: parity.md#1.2,#3 #2,#4 #2; bench-coolify.md#1,#2 #3; bench-dokploy-dockhand.md#1,#3 #1; bench-market.md#F
+  - Effect-impact (2026-10-26): build adapters as Effect services with `Schedule` retry/backoff and `Redacted` secrets, delivered by the outbox Stream consumer; see OBS-012. Deps: `EFF-127`.
+- [ ] `FEAT-121` **Additional channels: ntfy, Gotify, Pushover, Mattermost, Teams, Lark, Resend and Apprise bridge** · NEW · P2 · M · Deps: `FEAT-120`
+  - Why/Problem: Dokploy supports 12 channels; Apprise bridge gives ~90 targets cheaply.
+  - Do: adapters or a single Apprise sidecar adapter.
+  - Done when: ntfy and Apprise delivery verified.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#1,#2 row Notifications,#3 #1; bench-market.md#F
+- [ ] `FEAT-122` **Event taxonomy + per-channel toggle matrix UI** · NEW · P1 · M · Deps: `FEAT-120` · See also: `OBS-021`
+  - Why/Problem: Coolify's 14 per-channel toggles: deployment success/failure, status change, backup success/failure, scheduled task success/failure, docker cleanup, disk usage, node reachable/unreachable, patch, Traefik outdated, SSL expiry, API token expiry, restart-limit, container restarted/stopped.
+  - Do: define event types in a shared enum, grid UI with test button, per-environment filters (Komodo-style whitelist/blacklist).
+  - Done when: toggling an event for a channel changes delivery; all event types have an emitter or are flagged unavailable.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#1 row Notifications,#4 #8; bench-market.md#F
+- [ ] `FEAT-123` **Web push triggered by deployment/health events (not only user-initiated test)** · FIX · P2 · S · Deps: `IDEA-003`,`WEB-099`,`OBS-007` · See also: `OBS-008`
+  - Why/Problem: push API + settings exist but nothing emits a push on deployment/health events; service worker unregistered.
+  - Do: subscribe push dispatcher to bus; per-user preferences.
+  - Done when: deploy failure produces a push notification on a subscribed device.
+  - Status: todo · Verified-in-code: yes · Source: parity.md#1.1,#2.2
+  - Effect-impact (2026-10-26): identity push is untouched classic Nest and `PushService` lacks `@Injectable()` (`push.service.ts:1-4`, verified): confirm DI works before wiring event-driven web push. Deps: `EFF-104`.
+- [ ] `FEAT-124` **Cert-expiry, API-token-expiry and node-down alert events via existing bus** · NEW · P1 · S · Deps: `FEAT-120`,`FEAT-080`
+  - Why/Problem: quick win; Coolify `SslExpirationNotification`, token expiry job.
+  - Do: daily checker emitting events; documented webhook + ntfy path.
+  - Done when: simulated expiry triggers a notification.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#4 #11; bench-coolify.md#1
+- [ ] `FEAT-125` **ChatOps: deploy/rollback/approve from Slack/Discord/Telegram with passkey-bound approvals** · NEW · P3 · L · Deps: `FEAT-120`,`FEAT-087`,`FEAT-080`
+  - Why/Problem: competitors send one-way notifications only.
+  - Do: signed inbound receiver, fixed command grammar, plan card with one-tap passkey approval link, chat identity linking via device flow.
+  - Done when: `deploy api prod` yields a plan card and executes only after passkey approval.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai.md#16
+- [ ] `FEAT-126` **Log drains and OTel/Prometheus export** · NEW · P2 · M · Deps: `OBS-065` · See also: `OBS-049`,`OBS-065`
+  - Why/Problem: Coolify (Axiom/NewRelic/Fluent Bit), Netlify/Vercel drains; none in ours (0 hits).
+  - Do: syslog/HTTP/Loki sink and OTLP/Prometheus exporter optional.
+  - Done when: logs appear in a Loki instance and metrics scrape works.
+  - Status: todo · Verified-in-code: yes · Source: bench-coolify.md#1 row Log drains; bench-market.md#F,#3 #24
+
+### Status page, upgrade, edge UI and UX
+- [ ] `FEAT-130` **Status page and synthetic uptime/cert checks (served so it does not depend on the platform it reports)** · NEW · P2 · M · Deps: `OBS-030`,`FEAT-120` · See also: `OBS-039`,`WEB-082`
+  - Why/Problem: neither Coolify nor Dokploy has a status page; Uptime Kuma is a separate product; monitoring schema tables (`healthChecks`, `serviceHealthConfigs`) unused.
+  - Do: per-project public/private page from health registry + multi-vantage probes from mesh nodes, incident notes, cert/domain expiry; static cached render via edge provider.
+  - Done when: page remains available during platform API outage and shows real uptime.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#3 #30; bench-coolify.md#2 #19; ideas-dx-ai.md#15
+- [ ] `FEAT-131` **Platform self-upgrade UX with release channels, changelog and automatic rollback** · NEW · P1 · M · Deps: `OPS-006`,`OPS-005` · See also: `OPS-018`,`OPS-020`
+  - Why/Problem: missing; Coolify has no rollback (grep finds none), Dockhand SelfUpdateDialog/What's New.
+  - Do: version check job, channels (stable/next), "upgrade now" with swarm rolling update and automatic rollback on health failure, version pinning.
+  - Done when: upgrade and forced-failure rollback both demonstrated; changelog shown.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#1 row Auto-update,#2 #16; bench-dokploy-dockhand.md#2; bench-market.md#J
+- [ ] `FEAT-132` **Traefik effective-config viewer (read-only) then validated editor and dynamic-config file editor** · NEW · P2 · M · Deps: `IDEA-001`,`NET-023` · See also: `NET-023`,`WEB-059`
+  - Why/Problem: `network/ingress` page is 83 lines with no router/service/middleware editor; v1 `/dashboard/traefik` existed; Dokploy file editor, Coolify dynamic config editor and "outdated proxy" notice.
+  - Do: effective-config viewer first, then validated editor with diff and rollback; Traefik version check notice.
+  - Done when: operator inspects routers/services/middlewares and edits a dynamic file safely.
+  - Status: todo · Verified-in-code: partial · Source: parity.md#1.4; bench-coolify.md#1 row Domains; bench-dokploy-dockhand.md#1,#3 #20
+- [ ] `FEAT-133` **Per-route middleware toggles UI: www redirect, basic auth, gzip, strip-prefix, IP allowlist, redirects** · ENHANCE · P2 · M · Deps: `NET-015` · See also: `NET-022`,`WEB-058`
+  - Why/Problem: Traefik middleware library exists (`traefik-middleware-library.service.ts`) but project settings inert; Coolify/Dokploy expose these per app.
+  - Do: per-service UI backed by the existing library; mesh-only/public/IP-allowlist toggle.
+  - Done when: enabling basic auth on a route enforces it.
+  - Status: todo · Verified-in-code: partial · Source: bench-coolify.md#2 #21; bench-dokploy-dockhand.md#1; bench-market.md#G
+- [ ] `FEAT-134` **Requests page (Traefik access-log analytics)** · NEW · P2 · M · Deps: `OBS-051` · See also: `OBS-051`,`WEB-059`
+  - Why/Problem: Dokploy requests page; cheap win from access log.
+  - Do: JSON access log tail, status distribution/table per route.
+  - Done when: page shows real request stats per service.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#1,#3 #20
+- [ ] `FEAT-135` **Command palette actions + global search + saved filters/favorites** · NEW · P2 · S · Deps: `FEAT-084` · See also: `WEB-094`
+  - Why/Problem: Cmd-K search (Coolify), Dockhand palette; `navigation.ts` already models palette; "command-palette actions, global search" missing.
+  - Do: action registry from contract manifest (confirm destructive), server `search.query` across projects/services/domains/nodes, recent items, parameter prompts.
+  - Done when: Cmd-K "deploy api" runs with confirmation; entity search works.
+  - Status: todo · Verified-in-code: partial · Source: parity.md#3 #20; bench-coolify.md#2 #22; bench-dokploy-dockhand.md#3 #23; ideas-dx-ai.md#23
+- [ ] `FEAT-136` **Compose stacks manager (adopt foreign stacks, edit, up/down, env, git stacks with webhook/cron sync)** · NEW · P2 · L · Deps: `DEPLOY-047`,`FEAT-061`,`FEAT-030` · See also: `CLUSTER-068`
+  - Why/Problem: stack procedures deliberately removed (`contracts/runtime/modules/docker/stacks/list.ts` only); Dockhand stacks + git stacks; Dokploy compose native.
+  - Do: stacks pages, CodeMirror editor, adopt/scan, env, git stack sync with signature verification, compose graph reuse.
+  - Done when: adopt an existing stack, edit and redeploy from UI.
+  - Status: todo · Verified-in-code: yes · Source: parity.md#1.5,#3 #14; bench-dokploy-dockhand.md#2,#3 #14
+- [ ] `FEAT-137` **Docker console parity: container create/batch ops, volume browse/clone/export, network create/connect/prune, swarm secrets/configs** · NEW · P3 · L · Deps: `CLUSTER-061`,`CLUSTER-062`,`CLUSTER-063` · See also: `WEB-069`
+  - Why/Problem: Dockhand parity; create container modal is a stub; volumes/networks list-only; no swarm secrets/configs UI. Owned partly by CLUSTER; kept here as competitive item.
+  - Do: implement missing contracts + pages; binary-safe upload/download, chmod, editor in file browser; volume browse via helper container.
+  - Done when: each listed action works against a real daemon.
+  - Status: todo · Verified-in-code: yes · Source: parity.md#1.5; bench-dokploy-dockhand.md#2,#3 #10,#4
+- [ ] `FEAT-138` **Cloud provisioning (Hetzner/DO) with cloud-init that auto-joins the mesh** · NEW · P3 · L · Deps: `CLUSTER-019`,`CLUSTER-076` · See also: `CLUSTER-076`
+  - Why/Problem: Coolify Hetzner create + cloud-init; ours should join via mesh token not SSH.
+  - Do: provider tokens (encrypted), create server with cloud-init script containing join token.
+  - Done when: one click yields a node in the mesh.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#1 row Servers,#2 #24
+- [ ] `FEAT-139` **i18n** · NEW · P3 · M · Deps: none
+  - Why/Problem: polish gap listed in parity ranking #20.
+  - Do: next-intl scaffolding, extract strings for core flows.
+  - Done when: second locale switchable for dashboard shell.
+  - Status: todo · Verified-in-code: no · Source: parity.md#3 #20
+- [ ] `FEAT-140` **Cluster-wide Docker "environment policies" and config sets (reusable env/label bundles)** · NEW · P3 · S · Deps: `CLUSTER-070`
+  - Why/Problem: Dockhand environment policies (disk warning, timezone, update/prune schedules) and config sets.
+  - Do: node policy panel and reusable bundles attached to services.
+  - Done when: policy stored and consumed by cleanup/update jobs.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#2
+- [ ] `FEAT-141` **Remove/hide stored-but-inert settings until wired (honest UI)** · FIX · P1 · S · Deps: none · See also: `PROJ-080`,`OBS-020`,`WEB-014`
+  - Why/Problem: settings fields (notifications, retention, health alerts, dynamic vars, promotion) are stored but ignored; UI lies (audit cross-cutting #4; bench-market quick win #9).
+  - Do: feature flag or "not available" badge on each inert setting; delete dead schema (`environment_promotions`, `health_check_jobs`, dynamic-variable columns) unless scheduled.
+  - Done when: no UI control exists whose value is never read; each removed item referenced by a roadmap ID.
+  - Status: todo · Verified-in-code: yes · Source: bench-market.md#4 #9; bench-dokploy-dockhand.md#4; parity.md#4 #12
+- [ ] `FEAT-142` **Remote SSH (agentless) servers** · NEW · P3 · XL · Deps: `DEC-FEAT-5`
+  - Why/Problem: Coolify/Dokploy default; v3 intentionally mesh-first (no inbound ports) so low priority/likely rejected.
+  - Do: only if operator decides; otherwise record non-goal.
+  - Done when: decision recorded.
+  - Status: todo · Verified-in-code: no · Source: parity.md#3 #18
+- [ ] `FEAT-143` **Secrets providers (Vault/Infisical) integration** · NEW · P3 · M · Deps: `PROJ-020` · See also: `PROJ-035`
+  - Why/Problem: Dokploy Secrets Providers.
+  - Do: reference syntax resolved at deploy by provider plugin.
+  - Done when: a value fetched from Vault appears in a deployment without persisting.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#E
+- [ ] `FEAT-144` **Merged multi-container/project logs, log favorites and groups** · NEW · P3 · M · Deps: `OBS-059` · See also: `OBS-066`,`WEB-072`
+  - Why/Problem: Dockhand merged logs, favorites; ours single stream only (service Logs tab fake is OBS/WEB).
+  - Do: merged stream procedure + UI.
+  - Done when: project-level merged log view with filters.
+  - Status: todo · Verified-in-code: yes · Source: bench-dokploy-dockhand.md#2
+
+### Coverage-pass additions
+- [ ] `FEAT-145` **Compose app options: isolated deployment, randomized names, per-service domain mapping, convert-for-preview** · NEW · P3 · M · Deps: `DEPLOY-047`,`FEAT-136`
+  - Why/Problem: Dokploy compose apps support isolated deployment, randomize names and convert-for-preview; Coolify maps domains per compose service. Ours has none of these controls.
+  - Do: compose service options in the realizer (name suffixing, per-project network isolation, per-service domain map, preview conversion).
+  - Done when: two copies of the same compose file deploy side by side without collisions.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy-dockhand.md#1 row Compose, bench-coolify.md#1 row Compose
+- [ ] `FEAT-146` **Extended runtime limits: cpuset, swap, stop grace period, max restart count, GPU options** · ENHANCE · P3 · S · Deps: `PROJ-042`
+  - Why/Problem: Coolify exposes cpuset/swap/swappiness/GPU/stop-grace/`max_restart_count`; ours stores only basic limits (inert).
+  - Do: add typed fields once basic limits are wired; map to swarm spec; max-restart feeds the restart-loop alert.
+  - Done when: fields apply to the swarm service and are visible in inspect.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#1 row Resource limits
+- [ ] `FEAT-147` **Custom docker run options / extra labels with an allow-list sanitiser** · ENHANCE · P3 · S · Deps: `PROJ-042`,`SEC-028`
+  - Why/Problem: Coolify offers `custom_docker_run_options` and custom labels; users need an escape hatch but user labels must never set `traefik.*` or `deployer.managed*`.
+  - Do: validated advanced-options field; denylist reserved label prefixes; show the effective spec.
+  - Done when: reserved labels are rejected, allowed options reach the container.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#1 row Domains / proxy
+
+## Decisions needed
+- [ ] DEC-FEAT-1 CLI vs `apps/setup` as the hero entry point (and where `deployer mesh connect` lives) — (a) generated CLI from contract manifest, (b) extend setup app, (c) both — recommend (a), setup app stays for first-run only.
+- [ ] DEC-FEAT-2 Template licensing and format — (a) adopt Coolify compose + `SERVICE_*` (verify Apache-2.0), (b) own format with richer contract, (c) hybrid importer — recommend (c).
+- [ ] DEC-FEAT-3 Single-tenant vs organizations/teams/billing — options: flat platform roles (current), Better Auth org plugin, drop — recommend stay flat roles, document it (operator is mesh-first/solo), keep FEAT-113 as P3.
+- [ ] DEC-FEAT-4 Where `deployer.yaml` lives and whether UI edits are allowed on file-managed resources — (a) repo file is source, UI read-only, (b) UI writes file, (c) replicated roster — recommend (a) with "managed by file" lock.
+- [ ] DEC-FEAT-5 Agentless SSH servers — add or declare non-goal — recommend non-goal.
+- [ ] DEC-FEAT-6 Acceptable LLM providers for AI items — BYO key, local Ollama, none — recommend opt-in BYO/local, off by default; no autonomous remediation (deterministic health rules only).
+- [ ] DEC-FEAT-7 Default build/package direction for static and templates — railpack as single default vs nixpacks+railpack — recommend railpack default (coordinate with DEPLOY).
+- [ ] DEC-FEAT-8 Scheduler ownership in a no-source-of-truth mesh (single leader vs placement-owner per task) — recommend placement-owner per task with idempotent runs.
+
+## Test coverage to add
+- [ ] `FEAT-150` **Template controller/service specs and an install e2e per catalogue entry (smoke)** · NEW · P1 · M · Deps: `FEAT-001`,`FEAT-002`
+  - Why/Problem: contract-existence is not implementation; no tests exist.
+  - Do: service spec (happy/conflict/not-found/null), controller spec per AGENTS conventions, e2e install smoke for each template in CI nightly.
+  - Done when: all template procedures covered and catalogue smoke job green.
+  - Status: todo · Verified-in-code: no · Source: parity.md#1.2; bench-coolify.md#caveats
+- [ ] `FEAT-151` **Backup engine tests including restore-drill and retention pruning** · NEW · P1 · M · Deps: `FEAT-012`,`FEAT-013`
+  - Why/Problem: data-loss feature must be provably restorable.
+  - Do: integration test with MinIO container; retention by count/days/size; encrypted restore; platform self-backup restore e2e.
+  - Done when: CI proves backup then destroy then restore round trip.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#1 row 25
+- [ ] `FEAT-152` **Scheduler tests: single-fire under 2 replicas, timezone, restart durability** · NEW · P1 · S · Deps: `FEAT-030`
+  - Why/Problem: duplicate cron fires are a classic failure.
+  - Do: tests with fake clock and two scheduler instances.
+  - Done when: exactly-once per tick asserted.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify.md#1 row Cron
+  - Effect-impact (2026-10-26): single-fire/timezone/restart tests become deterministic with `TestClock` (`@effect/vitest` needs Vitest >=5; repo `^4.1.9`). Deps: `EFF-030`, `EFF-038`.
+- [ ] `FEAT-153` **Retention/cleanup tests (retention=N, threshold prune, orphan reconcile dry-run)** · NEW · P1 · S · Deps: `FEAT-050`,`FEAT-051`,`FEAT-052`
+  - Why/Problem: settings were inert for want of a test asserting effect.
+  - Do: unit + integration tests that assert records/images removed.
+  - Done when: tests fail if enforcement removed.
+  - Status: todo · Verified-in-code: no · Source: parity.md#1.2
+- [ ] `FEAT-154` **Token scope matrix and deploy-hook tests (scope, expiry, IP allow-list, rotation)** · NEW · P1 · S · Deps: `FEAT-080`,`FEAT-081`
+  - Why/Problem: authz-sensitive new surface.
+  - Do: table-driven tests per procedure risk x token scope.
+  - Done when: matrix green; denied paths asserted.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#H; ideas-dx-ai.md#2
+- [ ] `FEAT-155` **Notification adapter contract tests with mock servers + retry/backoff/SSRF cases** · NEW · P1 · S · Deps: `FEAT-120`,`FEAT-082`
+  - Why/Problem: nothing delivers today; regression guard.
+  - Do: per-adapter test against local HTTP/SMTP mock, signature verification, SSRF deny list.
+  - Done when: each adapter has delivery + failure tests.
+  - Status: todo · Verified-in-code: no · Source: parity.md#4 #2
+- [ ] `FEAT-156` **Audit log coverage test: every mutating procedure emits a row** · NEW · P1 · S · Deps: `FEAT-110`
+  - Why/Problem: ensure no mutation bypasses the middleware.
+  - Do: generated test iterating the contract for mutating procedures.
+  - Done when: test fails when a mutating route lacks audit.
+  - Status: todo · Verified-in-code: no · Source: bench-market.md#4 #3
+- [ ] `FEAT-157` **Git provider webhook tests (GitLab/Gitea/Bitbucket signature, idempotency, MR lifecycle) and deployment-rule matcher tests** · NEW · P2 · S · Deps: `FEAT-061`,`FEAT-062`,`FEAT-063`
+  - Why/Problem: reuse GitHub dispatch abstractions; verify parity.
+  - Do: fixtures per provider; glob matcher cases.
+  - Done when: provider suites mirror GitHub suite.
+  - Status: todo · Verified-in-code: no · Source: parity.md#1.3
+- [ ] `FEAT-158` **CLI and MCP e2e (device login, deploy tail, read-only token cannot mutate, untrusted log marking)** · NEW · P2 · M · Deps: `FEAT-083`,`FEAT-095`
+  - Why/Problem: public surface and prompt-injection guard need regression tests.
+  - Do: e2e against dev stack; MCP test that log content is returned as typed untrusted data.
+  - Done when: CI green on both.
+  - Status: todo · Verified-in-code: no · Source: ideas-dx-ai.md#20; bench-market.md#7
+- [ ] `FEAT-159` **Static runner, registry credential, and DB service-kind integration tests** · NEW · P2 · M · Deps: `FEAT-040`,`FEAT-041`,`FEAT-006`
+  - Why/Problem: new runner/credential/service-kind paths need honest end-to-end checks (secret never returned by API).
+  - Do: tests deploying static site, private image from local registry with auth, and a PG instance with volume persistence.
+  - Done when: all three green; API response snapshot contains no secret.
+  - Status: todo · Verified-in-code: no · Source: parity.md#1.3; bench-coolify.md#1
+
+> Effect-impact pass: 2026-10-26 — 5 items annotated

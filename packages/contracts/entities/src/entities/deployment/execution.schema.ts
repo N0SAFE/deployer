@@ -2,7 +2,7 @@ import z from "zod/v4";
 import {
     deploymentExecutionProgressSchema,
     deploymentObservabilityContextSchema,
-} from "@deployer/contracts-entities/entities/deployment/base.schema";
+} from "./base.schema";
 
 export const deploymentExecutionStateSchema = z.enum([
     "queued",

@@ -1,6 +1,6 @@
-import { BaseConfig } from '@repo/auth/permissions/system/builder/shared/base-config';
-import { StatementConfig } from '@repo/auth/permissions/system/builder/statements/single-statement-config';
-import { StatementConfigCollection } from '@repo/auth/permissions/system/builder/statements/statement-config-collection';
+import { BaseConfig } from '@deployer/auth/permissions/system/builder/shared/base-config';
+import { StatementConfig } from '@deployer/auth/permissions/system/builder/statements/single-statement-config';
+import { StatementConfigCollection } from '@deployer/auth/permissions/system/builder/statements/statement-config-collection';
 
 /**
  * StatementsConfig - Manages all statements (resources with their actions)

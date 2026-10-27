@@ -1,6 +1,6 @@
 "use client"
 
-import { cn } from "@repo/ui/lib/utils"
+import { cn } from "@deployer/ui/lib/utils"
 
 type Props = {
   current: number

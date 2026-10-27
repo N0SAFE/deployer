@@ -1,7 +1,7 @@
 import { Fragment } from 'react'
-import type { DockerContainerLogEntry, DockerContainerProcessEntry } from '@repo/contracts-entities'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
+import type { DockerContainerLogEntry, DockerContainerProcessEntry } from '@deployer/contracts-entities'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
 
 interface DockerContainerProcessesTabProps {
   liveProcesses: DockerContainerProcessEntry[]

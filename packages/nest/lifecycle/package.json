@@ -1,5 +1,5 @@
 {
-    "name": "@repo/nest-lifecycle",
+    "name": "@deployer/nest-lifecycle",
     "version": "1.0.0",
     "description": "NestJS lifecycle management — tracks app bootstrap phases, provides typed observables for phase transitions.",
     "main": "./dist/cjs/index.js",
@@ -17,11 +17,13 @@
         }
     },
     "scripts": {
-        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "prettify": "bun fmt .",
         "format": "bun run prettify",
-        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "lint": "eslint . --fix --cache",
-        "type-check": "tsc --noEmit",
+        "format:check": "bun fmt --check .",
+        "lint": "bun lint --no-script --type-aware",
+        "lint:fix": "bun lint --no-script --fix --type-aware",
+        "lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
+        "type-check": "bun check --no-script",
         "build": "bun --bun pkg-build",
         "dev": "bun --bun pkg-build --watch",
         "clean": "rimraf dist",
@@ -35,15 +37,15 @@
         "@nestjs/common": "catalog:api:nest"
     },
     "devDependencies": {
-        "@repo/config-eslint": "*",
-        "@repo/config-prettier": "*",
-        "@repo/config-typescript": "*",
+        "@deployer/config-eslint": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-typescript": "*",
         "@types/node": "catalog:build",
         "eslint": "catalog:linting",
         "typescript": "catalog:build",
         "chokidar": "catalog:build",
         "rimraf": "catalog:build",
-        "@repo/pkg-build": "*"
+        "@deployer/pkg-build": "*"
     },
     "module": "./dist/esm/index.mjs"
 }

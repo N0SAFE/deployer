@@ -39,11 +39,11 @@ type ModuleInterceptor = NonNullable<ORPCModuleConfig["interceptors"]>[number];
  * `request` is carried as context because the handlers need the caller's host to
  * decide where to send the browser after setup.
  */
-export type WizardContext = {
+export interface WizardContext {
   request: Request;
   [key: string]: unknown;
   [key: symbol]: unknown;
-};
+}
 
 /**
  * Map a NestJS `HttpException` onto a contract-declared oRPC error.

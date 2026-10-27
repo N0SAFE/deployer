@@ -1,5 +1,5 @@
 import type { RequestHandler } from "express";
-import { logger } from "@repo/logger";
+import { logger } from "@deployer/logger";
 
 import {
   createViteAssetsProxy,

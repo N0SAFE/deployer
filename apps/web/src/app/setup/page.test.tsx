@@ -14,7 +14,7 @@ vi.mock("sonner", () => ({
   },
 }));
 
-vi.mock("@repo/ui/components/shadcn/card", () => ({
+vi.mock("@deployer/ui/components/shadcn/card", () => ({
   Card: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   CardHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   CardTitle: ({ children }: { children: React.ReactNode }) => <h1>{children}</h1>,
@@ -23,22 +23,22 @@ vi.mock("@repo/ui/components/shadcn/card", () => ({
   CardFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock("@repo/ui/components/shadcn/button", () => ({
+vi.mock("@deployer/ui/components/shadcn/button", () => ({
   Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
     <button {...props}>{children}</button>
   ),
 }));
 
-vi.mock("@repo/ui/components/shadcn/input", () => ({
+vi.mock("@deployer/ui/components/shadcn/input", () => ({
   Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
 }));
 
-vi.mock("@repo/ui/components/shadcn/alert", () => ({
+vi.mock("@deployer/ui/components/shadcn/alert", () => ({
   Alert: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   AlertDescription: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock("@repo/ui/components/atomics/atoms/Icon", () => ({
+vi.mock("@deployer/ui/components/atomics/atoms/Icon", () => ({
   Spinner: () => <span>spinner</span>,
 }));
 
@@ -108,7 +108,7 @@ vi.mock("@/lib/orpc/typed-errors", () => ({
 // The wizard now lives in the shared UI package (one implementation for the
 // API and the web app), so the mock must target that specifier — mocking the
 // old local path silently stopped applying and pulled in the real wizard tree.
-vi.mock("@repo/ui/components/setup/setup-wizard", () => ({
+vi.mock("@deployer/ui/components/setup/setup-wizard", () => ({
   SetupWizard: () => <div>Setup Wizard</div>,
 }));
 

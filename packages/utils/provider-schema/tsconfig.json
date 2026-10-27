@@ -11,7 +11,7 @@
             "vitest/globals"
         ],
         "paths": {
-            "@repo/provider-schema/*": [
+            "@deployer/provider-schema/*": [
                 "./src/*"
             ]
         }

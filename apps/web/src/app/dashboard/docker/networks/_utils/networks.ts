@@ -1,4 +1,4 @@
-import type { DockerNetwork } from '@repo/contracts-entities'
+import type { DockerNetwork } from '@deployer/contracts-entities'
 
 /** Docker's predefined networks. The engine refuses to remove them. */
 const BUILT_IN_NETWORK_NAMES: ReadonlySet<string> = new Set(['bridge', 'host', 'none'])

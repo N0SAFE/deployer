@@ -21,9 +21,19 @@
 # Sources are synced in by `develop.watch` rather than bind-mounted; see the
 # compose service for why a bind mount cannot work.
 
-ARG BUN_VERSION=1.4.2
+ARG BUN_VERSION=1.4.3
 
 FROM oven/bun:${BUN_VERSION}-alpine AS base
+
+# ── BUILDKIT CACHE MOUNTS BREAK `install.globalStore` — TURN IT OFF ──────────
+# `bunfig.toml` sets `globalStore = true`, which points every
+# `node_modules/.bun/<pkg>` at an absolute path UNDER the bun cache mount used
+# below. A BuildKit cache mount is not committed to the image layer, so those
+# links would ship without their targets and every import in the container would
+# fail with ENOENT. Measured in a built image: with the store on, `test -d
+# node_modules/.bun/zod@4.6.7` is false. The env var overrides bunfig.toml.
+# Full reasoning: AGENTS.md → "One bun download cache".
+ENV BUN_INSTALL_GLOBAL_STORE=0
 
 RUN apk add --no-cache curl wget bash git python3 make g++ gcc musl-dev tar libc6-compat jq
 
@@ -39,9 +49,48 @@ RUN ln -sf /usr/local/bin/node /usr/bin/node && \
 # No global `turbo`: the tool runs the repository's OWN Turbo from node_modules,
 # so the version it uses is the version the repository pins. A global install
 # would silently drift from it.
-RUN --mount=type=cache,target=/root/.bun,sharing=locked bun install -g node-gyp
+# ── `sharing=shared`, NOT `locked` ──────────────────────────────────────────
+# `locked` holds an exclusive lock on the bun cache for the WHOLE RUN, so this
+# image serialized against every other image build sharing the cache — the
+# dependency-builder could not install while an application was installing.
+# Bun's cache is content-addressed and written atomically, so several installs
+# share one safely.
+#
+# Contrast with the turbo cache mount below, which stays `locked`: that one is
+# a private per-build cache whose contents are mutated in place.
+#
+# ── WHY THE TARGET IS THE CACHE SUBDIR AND THE `id` IS EXPLICIT ─────────────
+# Mounting the WHOLE `/root/.bun` hides what the install just wrote: bun's global
+# bin dir is `/root/.bun/install/global` and `/usr/local/bin/<tool>` is a symlink
+# into it, so with the mount on the parent the symlink dangles (measured).
+# The `id` is explicit because the cache id DEFAULTS TO THE MOUNT TARGET, and a
+# different target is a different cache: one explicit id is what lets this image
+# and the application images share a single download cache.
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
+    bun install -g node-gyp
 
 WORKDIR /app
+
+# ── The env the build is hashed WITH, so the runtime can reuse the cache ────
+#
+# `turbo.json` lists `NODE_ENV` and `LOG_LEVEL` in `globalEnv`, so BOTH feed every
+# task's cache key. The compose service sets `NODE_ENV=development` and
+# `LOG_LEVEL=debug`; building here WITHOUT them produced a different hash for the
+# same package, and every runtime lookup missed:
+#
+#   @deployer/type-guards:build: cache miss, executing 8e8ad2152680e352   <- image
+#   @deployer/type-guards:build: cache miss, executing 03d9cabe0b8c28c4   <- runtime
+#
+# Measured on the running stack: 38 of 38 tasks missed, so the cache this image
+# bakes was never read. These values MUST match the compose service's
+# `environment:` block — that is the whole reason they are set here rather than
+# left to the build's ambient environment.
+#
+# `NODE_ENV=development` is also the CORRECT build mode for a dev stack, and
+# `pkg-build` reads it to choose the JSX variant, so this is not merely a
+# cache-key coincidence.
+ENV NODE_ENV=development
+ENV LOG_LEVEL=debug
 
 # ── The workspace ────────────────────────────────────────────────────────────
 #
@@ -51,34 +100,113 @@ WORKDIR /app
 # `dist/` is excluded by .dockerignore, so this COPY never drags in stale build
 # output from the host.
 #
-# `apps/` IS needed here, but only for the MANIFESTS: the union planner walks
-# each application's `package.json` to compute its dependency closure, so without
-# the app trees it cannot answer "what does `web` need".
+# `apps/` IS needed here for TWO reasons: the image-wide build below would
+# otherwise have nothing to filter OUT (its `--filter=!./apps/**` names them),
+# and the runtime's union planner walks each application's `package.json` to
+# compute its dependency closure — so without the app trees it cannot answer
+# "what does `web` need".
 #
-# Shipping them does put the applications in Turbo's build graph, because Turbo
-# discovers workspaces from the root manifest's globs. That is handled at runtime,
-# by `TurboRunner.excludeApplicationsFromGraph`, which strips `apps/**` from the
-# workspace list of THIS container's copy before any Turbo process starts — see
-# the note there for why a `--filter=!` cannot do the same job.
+# The applications are kept OUT of this image's build by that filter, which
+# scopes the TASKS without touching the manifest. Editing
+# `workspaces.packages` instead is the trap: it is also what
+# `WorkspaceScanner` reads to decide WHERE workspaces live, so stripping
+# `apps/**` from it leaves the runtime unable to discover them at all. See the
+# note on the build below.
 COPY package.json bun.lock* turbo.json ./
 COPY apps ./apps
 COPY packages ./packages
-# `tooling/` holds this tool AND the shared config packages (`@repo/pkg-build`,
-# `@repo/eslint`, ...) its build depends on. Copying it wholesale is what makes
-# `turbo run build --filter=@repo/dependency-builder...` resolvable below.
+# `tooling/` holds this tool AND the shared config packages (`@deployer/pkg-build`,
+# `@deployer/eslint`, ...) its build depends on. Copying it wholesale is what makes
+# the tool's own imports resolvable.
 COPY tooling ./tooling
+# The root `postinstall` (`scripts/link-workspace-self-references.ts`) runs during
+# `bun install` below. It is not a dependency of anything, so nothing else brings it
+# in, and without it the install dies with
+# `Module not found "scripts/link-workspace-self-references.ts"`.
+COPY scripts ./scripts
 
-RUN --mount=type=cache,target=/root/.bun,sharing=locked \
-    --mount=type=cache,target=/root/.cache,sharing=locked \
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
+    --mount=type=cache,target=/root/.cache,sharing=shared \
     bun install --frozen-lockfile
 
-# The tool's own dependencies, built once into the image. Without this the first
-# start would have to build `@repo/logger` and `@repo/type-guards` before it
-# could import them, and the failure would look like a crash rather than a slow
-# first boot.
-RUN --mount=type=cache,target=/app/.turbo,sharing=locked,id=turbo-dep-builder-dev \
-    --mount=type=cache,target=/root/.bun,sharing=locked \
-    bun x turbo run build --filter=@repo/dependency-builder... --filter=!@repo/dependency-builder
+# ── Build EVERY internal package, and keep the cache ─────────────────────────
+#
+# Every internal package is built HERE, into the image, and Turbo's cache is
+# written to `/app/.turbo-cache` — the path `cacheDirFor()` prefers.
+#
+# ── THE APPLICATIONS ARE EXCLUDED BY FILTER, NOT BY EDITING THE MANIFEST ────
+# An unfiltered `turbo run build` builds `build` in every workspace, including
+# the four applications, whose builds fail here:
+#
+#   web:build: error: Unexpected while resolving package 'handlebars'
+#   web#build:  ERROR  command (/app/apps/web) ... exited (1)
+#
+# `--filter=!./apps/**` removes them. The manifest is deliberately NOT edited:
+# `workspaces.packages` is also what `WorkspaceScanner` reads to decide WHERE
+# workspaces live, so stripping `apps/**` from it leaves the runtime unable to
+# DISCOVER the applications — it resolves `COMPOSE_PROFILES=all` to nothing and
+# dies with `Workspace "(none)" is not part of the repository`. Measured.
+# A filter scopes which TASKS run and leaves discovery intact.
+#
+# ── WHY THE ARTIFACTS MATTER MORE THAN THE CACHE ────────────────────────────
+# The runtime container does not need to rebuild anything: it ADOPTS these
+# `dist/` trees into the shared volume and opens the gate, so the operator's
+# first `compose up` publishes work the image already finished.
+#
+# The cache is the safety net for when that is not enough — a partial volume, a
+# package added after the image was built, a host run. In those cases the runtime
+# build hits these entries instead of recompiling from scratch.
+#
+# Verified that a cache seeded WITHOUT `.env` is still reused WITH `.env` loaded
+# (`FULL TURBO`), so the image-build and runtime environments do not invalidate
+# each other's entries.
+#
+# ── WHY THERE IS NO POSITIVE PACKAGE FILTER ─────────────────────────────────
+# The union of enabled applications is not known at image-build time (compose
+# decides it at runtime), so the image builds the SUPERSET of internal packages.
+# A runtime build then hits the cache for whatever the union actually needs.
+#
+# ── `PKG_BUILD_KEEP_DIST` MUST MATCH THE RUNTIME ────────────────────────────
+# The runtime builder spawns Turbo with `PKG_BUILD_KEEP_DIST=1`
+# (`TurboRunner.run`), because at that point each package's `dist/` is a SYMLINK
+# into the shared output root and a build that dereferenced it would write into
+# the package directory instead of the volume every app reads.
+#
+# Turbo hashes the environment, so a bake WITHOUT this variable produces entries
+# the runtime run can never hit. Measured on a real boot: the runtime logged 38
+# `cache miss, executing` lines and rebuilt every package — and that rebuild is
+# what DETACHED each `dist/` symlink mid-flight, so an application compiling at
+# the same time resolved a path that had just been emptied:
+#
+#   Module not found: Can't resolve '@deployer/type-guards'
+#   Path packages/utils/type-guards/dist/esm/index.mjs could not be resolved
+#
+# Setting it here is safe: nothing has been published yet, so "keep `dist`"
+# simply means the packages' own `clean` still governs (`PKG_BUILD_KEEP_DIST`
+# only stops pkg-build REMOVING a symlinked `dist`, and at this point `dist/` is
+# a real directory the image owns).
+#
+# `--cache-dir` is explicit rather than the default `.turbo/cache`, because the
+# default is not the path `cacheDirFor()` reads. It points OUTSIDE `/app` on
+# purpose: `develop.watch` syncs the host tree into `/app`, so a cache under
+# there is a cache that sync may remove.
+#
+# ── WHY THIS BAKE IS REACHABLE AT RUNTIME ───────────────────────────────────
+# Turbo will not cache a task whose `outputs` resolve outside the workspace root.
+# The runtime repoints each package's `dist/` at the shared output root, so while
+# that root was `/dep-output` — a SIBLING of `/app` — every task warned
+#
+#   WARNING  tar attempts to write outside of directory:
+#            /dep-output/packages/@deployer/pkg-build/dist
+#
+# and NO entry was written (measured: 2 for 38 packages). This cache was then
+# unreachable by construction and every boot rebuilt everything.
+#
+# With the root at `/app/dep-output` the outputs stay inside the tree Turbo is
+# allowed to read, so the entries below are writable AND reusable — verified by
+# a second run reporting `FULL TURBO`.
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
+    PKG_BUILD_KEEP_DIST=1 bun x turbo run build --cache-dir=/opt/turbo-cache --filter='!./apps/**'
 
 # ── Start the builder ────────────────────────────────────────────────────────
 #
@@ -87,9 +215,10 @@ RUN --mount=type=cache,target=/app/.turbo,sharing=locked,id=turbo-dep-builder-de
 # anywhere else the command decorators throw
 # `undefined is not an object (evaluating 'descriptor.value')`.
 #
-# `--root /app` is where the tool finds the workspace. `-a` names an enabled
-# application and is repeatable; compose supplies the list, so enabling or
-# disabling an application is a compose edit and never an image rebuild.
+# `--root /app` is where the tool finds the workspace. The enabled applications
+# are auto-detected from `COMPOSE_PROFILES` (see `ApplicationDetector`), so
+# enabling or disabling an application is a compose edit and never an image
+# rebuild.
 WORKDIR /app/tooling/dependency-builder
 
 CMD ["bun", "--bun", "src/main.ts", "build", "--root", "/app"]

@@ -14,7 +14,6 @@ import ModeToggle from '@deployer/ui/components/shadcn/mode-toggle'
 import { useEffect } from 'react'
 import { AuthDashboard } from '@/routes'
 import { useIsPlatformAdmin } from '@/lib/access/platform-role'
-import { useSession } from '@/lib/auth'
 import { SidebarProjectTree } from './SidebarProjectTree'
 import { SidebarUserMenu } from './SidebarUserMenu'
 import { toggleInList, useStoredStringList } from './persisted-state'
@@ -127,7 +126,6 @@ function groupHasActiveRoute(group: NavGroup, pathname: string): boolean {
 
 function DashboardSidebarInner() {
   const pathname = usePathname()
-  const { data: session } = useSession()
   const { state, isMobile, setOpenMobile } = useSidebar()
   const [collapsedGroups, setCollapsedGroups] = useStoredStringList(COLLAPSED_GROUPS_KEY)
 

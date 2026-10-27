@@ -2,19 +2,19 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@repo/ui/components/shadcn/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
+} from '@deployer/ui/components/shadcn/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
 import { Radio } from 'lucide-react'
 import { StatusBadge } from '@/components/dashboard'
-import type { DockerRuntimeActivityEntity } from '@repo/contracts-entities'
+import type { DockerRuntimeActivityEntity } from '@deployer/contracts-entities'
 import { formatDateTime as formatDate } from '@/lib/format/date'
 import { dockerEndpoints } from '@/domains/docker/endpoints'
 
@@ -81,7 +81,8 @@ export function SwarmEventFeedPanel() {
         .sort((left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime())
         .map((item) => item.eventId ?? item.id)
       if (ordered.length > 300) {
-        for (const stale of ordered.slice(300)) delete next[stale]
+        const keep = new Set(ordered.slice(0, 300))
+        return Object.fromEntries(Object.entries(next).filter(([key]) => keep.has(key)))
       }
       return next
     })
@@ -89,7 +90,7 @@ export function SwarmEventFeedPanel() {
 
   useEffect(() => {
     if (!streamQuery.data) return
-    liveBufferRef.current.push(streamQuery.data as DockerRuntimeActivityEntity)
+    liveBufferRef.current.push(streamQuery.data)
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
     // Debounced like the activity page: swarm events arrive in bursts (create +
     // several updates per replica), and re-rendering per event is wasted work.
@@ -112,8 +113,7 @@ export function SwarmEventFeedPanel() {
 
   const failingTasks = activities.flatMap((activity) =>
     activity.swarmTasks
-      .filter((task) => task.error !== null)
-      .map((task) => task.error as string),
+      .flatMap((task) => (task.error !== null ? [task.error] : [])),
   )
 
   return (
@@ -145,7 +145,7 @@ export function SwarmEventFeedPanel() {
               key={source}
               size="sm"
               variant={sourceFilter === source ? 'default' : 'outline'}
-              onClick={() => setSourceFilter(source)}
+              onClick={() => { setSourceFilter(source) }}
               aria-pressed={sourceFilter === source}
             >
               {source === 'all' ? 'All swarm' : source}
@@ -177,7 +177,7 @@ export function SwarmEventFeedPanel() {
                   .filter((error): error is string => error !== null && error.trim().length > 0)
                 const service = activity.swarmService
                 const resource = service?.serviceName
-                  ?? activity.actorAttributes['name']
+                  ?? activity.actorAttributes.name
                   ?? activity.actorId?.slice(0, 12)
                   ?? '—'
 

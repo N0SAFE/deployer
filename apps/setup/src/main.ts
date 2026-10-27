@@ -1,6 +1,6 @@
 import "reflect-metadata";
 
-import { logger } from "@repo/logger";
+import { logger } from "@deployer/logger";
 
 import { createSetupApp, SETUP_PORT, setupPublicUrl } from "./app.config";
 import { SetupExitService } from "./modules/handover/services/setup-exit.service";

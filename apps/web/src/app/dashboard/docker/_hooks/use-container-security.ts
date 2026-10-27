@@ -8,7 +8,7 @@ import {
   type DockerContainerInspectDetail,
   type DockerImageSecurityScanEvent,
   type DockerVulnerabilityEntry,
-} from '@repo/contracts-entities'
+} from '@deployer/contracts-entities'
 import { mergeScanEvents } from '../_utils/scan-events'
 import { useOnDepsChange } from './use-on-deps-change'
 import { layerStatusVariant, resolveLayerStatus, type LayerStatus } from '../_utils/container-detail'

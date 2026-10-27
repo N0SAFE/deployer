@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@repo/ui/components/shadcn/select'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
 import { PageHeader, ScopeLabel } from '@/components/dashboard'
 import type { Granularity, TimeRange } from '@/domains/analytics/types'
 import { useDeploymentMetrics, useDeploymentUsage, useRealTimeMetrics, useServiceHealth } from '@/domains/analytics/hooks'

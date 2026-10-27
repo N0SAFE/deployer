@@ -2,7 +2,7 @@
 
 import React, { Suspense } from 'react'
 import { usePathname } from 'next/navigation'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import {
     Home,
     AuthSignin,

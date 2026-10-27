@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { DockerContainer } from '@repo/contracts-entities'
+import type { DockerContainer } from '@deployer/contracts-entities'
 
 /** URL state of the containers list. Everything the user can filter or sort lives here so a view is linkable. */
 export const CONTAINER_LIST_QUERY_SCHEMA = z.object({

@@ -1,4 +1,4 @@
-# @repo/env
+# @deployer/env
 
 Centralized environment variable validation for all apps using Zod.
 
@@ -15,7 +15,7 @@ Centralized environment variable validation for all apps using Zod.
 ### API App (NestJS)
 
 ```typescript
-import { validateApiEnv, apiEnvSchema, type ApiEnv } from '@repo/env'
+import { validateApiEnv, apiEnvSchema, type ApiEnv } from '@deployer/env'
 
 // In your ConfigModule
 const env = validateApiEnv(process.env)
@@ -27,7 +27,7 @@ const port: number = env.API_PORT
 ### Web App (Next.js)
 
 ```typescript
-import { validateWebEnv, webEnvSchema, type WebEnv } from '@repo/env'
+import { validateWebEnv, webEnvSchema, type WebEnv } from '@deployer/env'
 
 // Validate environment
 const env = validateWebEnv(process.env)
@@ -39,7 +39,7 @@ const apiUrl: string = env.API_URL
 ### Doc App (Fumadocs)
 
 ```typescript
-import { validateDocEnv, docEnvSchema, type DocEnv } from '@repo/env'
+import { validateDocEnv, docEnvSchema, type DocEnv } from '@deployer/env'
 
 // Validate environment
 const env = validateDocEnv(process.env)
@@ -99,7 +99,7 @@ Creates a URL validator that:
 - **Development/Test**: Falls back to provided value if not set
 
 ```typescript
-import { guardedUrl } from '@repo/env'
+import { guardedUrl } from '@deployer/env'
 
 const schema = z.object({
   API_URL: guardedUrl('API_URL', 'http://localhost:3001')
@@ -120,5 +120,5 @@ Parses comma-separated debug scope patterns:
 ## Type Exports
 
 ```typescript
-import type { ApiEnv, WebEnv, DocEnv } from '@repo/env'
+import type { ApiEnv, WebEnv, DocEnv } from '@deployer/env'
 ```

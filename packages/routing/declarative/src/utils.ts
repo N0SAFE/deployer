@@ -270,7 +270,7 @@ function processSchema<T extends z.ZodType>(
  * @example
  * ```tsx
  * // In a Server Component
- * import { safeParseSearchParams } from '@repo/declarative-routing/utils'
+ * import { safeParseSearchParams } from '@deployer/declarative-routing/utils'
  * 
  * const searchSchema = z.object({
  *   page: z.coerce.number().optional().default(1),

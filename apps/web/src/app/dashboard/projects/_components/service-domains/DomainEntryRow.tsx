@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { ShieldCheck, Trash2 } from 'lucide-react'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { resolveFullUrl, sslLabel } from './domain-url'
 

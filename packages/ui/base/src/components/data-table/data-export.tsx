@@ -3,8 +3,8 @@
 // ** import types
 import type { JSX } from "react";
 import type { Table } from "@tanstack/react-table";
-import type { ExportableData, DataTransformFunction } from "@repo/ui/components/data-table/utils/export-utils";
-import type { TableConfig } from "@repo/ui/components/data-table/utils/table-config";
+import type { ExportableData, DataTransformFunction } from "@deployer/ui/components/data-table/utils/export-utils";
+import type { TableConfig } from "@deployer/ui/components/data-table/utils/table-config";
 
 // ** import core packages
 import { useState } from "react";
@@ -12,16 +12,16 @@ import { DownloadIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 // ** import components
-import { Button } from "@repo/ui/components/shadcn/button";
+import { Button } from "@deployer/ui/components/shadcn/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@repo/ui/components/shadcn/dropdown-menu";
+} from "@deployer/ui/components/shadcn/dropdown-menu";
 
 // ** import utils
-import { exportData, exportToCSV, exportToExcel } from "@repo/ui/components/data-table/utils/export-utils";
+import { exportData, exportToCSV, exportToExcel } from "@deployer/ui/components/data-table/utils/export-utils";
 
 interface DataTableExportProps<TData extends ExportableData> {
   table: Table<TData>;

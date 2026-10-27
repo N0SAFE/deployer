@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@repo/ui/components/shadcn/tooltip'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@deployer/ui/components/shadcn/tooltip'
 
 /** Keyboard-focusable wrapper that explains its child on hover/focus. */
 export function Hint({ content, children }: { content: ReactNode; children: ReactNode }) {

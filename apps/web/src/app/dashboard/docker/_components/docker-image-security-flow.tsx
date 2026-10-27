@@ -1,6 +1,6 @@
 'use client'
 
-import { Badge } from '@repo/ui/components/shadcn/badge'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Download, Loader2, ScrollText, Shield } from 'lucide-react'
 import { type ReactNode, useMemo } from 'react'
 import { DockerFlowTabGroup, type DockerFlowTabItem } from './docker-flow-tab-group'
@@ -37,8 +37,8 @@ export function DockerImageSecurityFlow({
         badge: (
           <>
             {pullStatus === 'pulling' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-            {pullStatus === 'complete' ? <Badge variant="default" className="h-5 px-1 text-[10px]">done</Badge> : null}
-            {pullStatus === 'error' ? <Badge variant="destructive" className="h-5 px-1 text-[10px]">error</Badge> : null}
+            {pullStatus === 'complete' ? <Badge variant="default" className="h-5 px-1 text-xs">done</Badge> : null}
+            {pullStatus === 'error' ? <Badge variant="destructive" className="h-5 px-1 text-xs">error</Badge> : null}
           </>
         ),
       },
@@ -46,13 +46,13 @@ export function DockerImageSecurityFlow({
         value: 'logs',
         label: 'Logs',
         icon: ScrollText,
-        badge: <Badge variant="outline" className="h-5 px-1 text-[10px]">{logsCount}</Badge>,
+        badge: <Badge variant="outline" className="h-5 px-1 text-xs">{logsCount}</Badge>,
       },
       {
         value: 'results',
         label: 'Results',
         icon: Shield,
-        badge: <Badge variant="outline" className="h-5 px-1 text-[10px]">{resultsCount}</Badge>,
+        badge: <Badge variant="outline" className="h-5 px-1 text-xs">{resultsCount}</Badge>,
       },
     ] as const
   }, [logsCount, pullStatus, resultsCount])

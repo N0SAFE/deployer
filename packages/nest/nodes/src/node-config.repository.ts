@@ -1,8 +1,8 @@
 import { Injectable } from "@nestjs/common";
-import { ConflictError } from "@repo/errors";
-import { nodeConfig } from "@repo/nest-schema/local";
-import { LocalDatabaseService } from "@repo/nest-database-local/local-database.service";
-import { isRecord, isObjectLike } from "@repo/type-guards"
+import { ConflictError } from "@deployer/errors";
+import { nodeConfig } from "@deployer/nest-schema/local";
+import { LocalDatabaseService } from "@deployer/nest-database-local/local-database.service";
+import { isRecord, isObjectLike } from "@deployer/type-guards"
 
 
 

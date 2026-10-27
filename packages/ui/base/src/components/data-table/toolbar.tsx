@@ -4,23 +4,23 @@ import { X } from "lucide-react";
 import type { Table } from "@tanstack/react-table";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Settings, Undo2, EyeOff, CheckSquare, MoveHorizontal } from "lucide-react";
-import type { SubRowsConfig } from "@repo/ui/components/data-table/data-table";
+import type { SubRowsConfig } from "@deployer/ui/components/data-table/data-table";
 
-import { Button } from "@repo/ui/components/shadcn/button";
-import { Input } from "@repo/ui/components/shadcn/input";
+import { Button } from "@deployer/ui/components/shadcn/button";
+import { Input } from "@deployer/ui/components/shadcn/input";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@repo/ui/components/shadcn/popover";
-import { CalendarDatePicker } from "@repo/ui/components/calendar-date-picker";
-import { DataTableViewOptions } from "@repo/ui/components/data-table/view-options";
-import { DataTableExport } from "@repo/ui/components/data-table/data-export";
-import type { DataTransformFunction, ExportableData } from "@repo/ui/components/data-table/utils/export-utils";
-import { resetUrlState } from "@repo/ui/components/data-table/utils/deep-utils";
-import { parseDateFromUrl } from "@repo/ui/components/data-table/utils/url-state";
-import type { TableConfig } from "@repo/ui/components/data-table/utils/table-config";
-import { formatDate } from "@repo/ui/components/data-table/utils/date-format";
+} from "@deployer/ui/components/shadcn/popover";
+import { CalendarDatePicker } from "@deployer/ui/components/calendar-date-picker";
+import { DataTableViewOptions } from "@deployer/ui/components/data-table/view-options";
+import { DataTableExport } from "@deployer/ui/components/data-table/data-export";
+import type { DataTransformFunction, ExportableData } from "@deployer/ui/components/data-table/utils/export-utils";
+import { resetUrlState } from "@deployer/ui/components/data-table/utils/deep-utils";
+import { parseDateFromUrl } from "@deployer/ui/components/data-table/utils/url-state";
+import type { TableConfig } from "@deployer/ui/components/data-table/utils/table-config";
+import { formatDate } from "@deployer/ui/components/data-table/utils/date-format";
 
 // Helper functions for component sizing
 const getInputSizeClass = (size: 'sm' | 'default' | 'lg') => {

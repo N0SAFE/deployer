@@ -12,7 +12,7 @@
  */
 
 import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
-import { useEffect, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { AuthDashboardNetworkIngress } from '@/routes'
 import {
   Activity,
@@ -27,14 +27,14 @@ import {
   Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Label } from '@repo/ui/components/shadcn/label'
-import { Separator } from '@repo/ui/components/shadcn/separator'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Label } from '@deployer/ui/components/shadcn/label'
+import { Separator } from '@deployer/ui/components/shadcn/separator'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
+import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import {
   useDisableManagedWebTunnel,
   useEnableManagedWebTunnel,
@@ -119,12 +119,10 @@ export default function ManageWebAppPage() {
   // Keep the origin input in sync with the server state (after a mutation or
   // a refetch it reflects the persisted value).
   const [customKey, setCustomKey] = useState<string | null>(null)
-  useEffect(() => {
-    if (state !== undefined && state.customOrigin !== customKey) {
-      setOriginInput(state.customOrigin ?? '')
-      setCustomKey(state.customOrigin)
-    }
-  }, [state, customKey])
+  if (state !== undefined && state.customOrigin !== customKey) {
+    setOriginInput(state.customOrigin ?? '')
+    setCustomKey(state.customOrigin)
+  }
 
   const ledTone: LedTone = state === undefined
     ? 'gray'
@@ -140,13 +138,15 @@ export default function ManageWebAppPage() {
 
   const busy = toggle.isPending || restart.isPending || setOrigin.isPending || enableTunnel.isPending || disableTunnel.isPending
 
-  async function run(fn: () => Promise<unknown>, success: string) {
-    try {
-      await fn()
-      toast.success(success)
-    } catch (e) {
-      toast.error(isDefinedORPCError(e) ? getErrorMessage(e) : UNKNOWN_ORPC_ERROR_MESSAGE)
-    }
+  function run(fn: () => Promise<unknown>, success: string): void {
+    void (async () => {
+      try {
+        await fn()
+        toast.success(success)
+      } catch (e) {
+        toast.error(isDefinedORPCError(e) ? getErrorMessage(e) : UNKNOWN_ORPC_ERROR_MESSAGE)
+      }
+    })()
   }
 
   return (
@@ -191,7 +191,7 @@ export default function ManageWebAppPage() {
           <AlertTitle>Console unreachable</AlertTitle>
           <AlertDescription>
             {getErrorMessage(error)}
-            <Button variant="outline" size="sm" className="ml-3" onClick={() => refetch()}>
+            <Button variant="outline" size="sm" className="ml-3" onClick={() => { void refetch() }}>
               Retry
             </Button>
           </AlertDescription>
@@ -261,12 +261,12 @@ export default function ManageWebAppPage() {
                     placeholder="web.example.com"
                     className="font-mono"
                     value={originInput}
-                    onChange={(e) => setOriginInput(e.target.value)}
+                    onChange={(e) => { setOriginInput(e.target.value) }}
                   />
                   <Button
                     variant="default"
                     disabled={busy}
-                    onClick={() => run(() => setOrigin.mutateAsync({ origin: originInput.trim() === '' ? null : originInput.trim() }), 'Origin updated')}
+                    onClick={() => { run(() => setOrigin.mutateAsync({ origin: originInput.trim() === '' ? null : originInput.trim() }), 'Origin updated') }}
                   >
                     {setOrigin.isPending ? <Loader2 className="size-4 animate-spin" /> : <Globe className="size-4" />}
                     <span className="ml-1.5">Save</span>
@@ -275,7 +275,7 @@ export default function ManageWebAppPage() {
                     <Button
                       variant="ghost"
                       disabled={busy}
-                      onClick={() => run(() => setOrigin.mutateAsync({ origin: null }), 'Origin cleared')}
+                      onClick={() => { run(() => setOrigin.mutateAsync({ origin: null }), 'Origin cleared') }}
                     >
                       Clear
                     </Button>
@@ -292,15 +292,17 @@ export default function ManageWebAppPage() {
                       placeholder="web.sebille.net"
                       className="font-mono"
                       value={tunnelHostname}
-                      onChange={(e) => setTunnelHostname(e.target.value)}
+                      onChange={(e) => { setTunnelHostname(e.target.value) }}
                     />
                     <Button
                       variant="outline"
                       disabled={busy || tunnelHostname.trim() === ''}
-                      onClick={() => run(
-                        () => enableTunnel.mutateAsync({ hostname: tunnelHostname.trim() }),
-                        'Tunnel provisioned — app restarted with the new origin',
-                      )}
+                      onClick={() => {
+                        run(
+                          () => enableTunnel.mutateAsync({ hostname: tunnelHostname.trim() }),
+                          'Tunnel provisioned — app restarted with the new origin',
+                        )
+                      }}
                     >
                       {enableTunnel.isPending ? <Loader2 className="size-4 animate-spin" /> : <Plug className="size-4" />}
                       <span className="ml-1.5">Provision</span>
@@ -317,7 +319,7 @@ export default function ManageWebAppPage() {
                       onClick={() => {
                         if (!confirmRemoveTunnel) {
                           setConfirmRemoveTunnel(true)
-                          setTimeout(() => setConfirmRemoveTunnel(false), 3000)
+                          setTimeout(() => { setConfirmRemoveTunnel(false) }, 3000)
                           return
                         }
                         setConfirmRemoveTunnel(false)
@@ -346,7 +348,7 @@ export default function ManageWebAppPage() {
               <Button
                 variant={enabled ? 'destructive' : 'default'}
                 disabled={busy || state.external}
-                onClick={() => run(() => toggle.mutateAsync({}), enabled ? 'Managed web app disabled' : 'Managed web app enabled')}
+                onClick={() => { run(() => toggle.mutateAsync({}), enabled ? 'Managed web app disabled' : 'Managed web app enabled') }}
               >
                 {toggle.isPending ? <Loader2 className="size-4 animate-spin" /> : <Power className="size-4" />}
                 <span className="ml-1.5">{enabled ? 'Disable managed web app' : 'Enable managed web app'}</span>
@@ -354,7 +356,7 @@ export default function ManageWebAppPage() {
               <Button
                 variant="outline"
                 disabled={busy || state.external}
-                onClick={() => run(() => restart.mutateAsync({}), 'Restart requested')}
+                onClick={() => { run(() => restart.mutateAsync({}), 'Restart requested') }}
               >
                 {restart.isPending ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
                 <span className="ml-1.5">Force restart container</span>

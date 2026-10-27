@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Input } from '@repo/ui/components/shadcn/input'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Input } from '@deployer/ui/components/shadcn/input'
 
 /** A secret field: masked by default, with an explicit reveal. Never autofilled. */
 export function SecretInput({

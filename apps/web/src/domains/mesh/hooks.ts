@@ -5,7 +5,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   meshRuntimeEventSchema,
   type MeshRuntimeEvent,
-} from "@repo/contracts-entities";
+} from "@deployer/contracts-entities";
 import { meshEndpoints } from "./endpoints";
 import { meshInvalidations } from "./invalidations";
 import { wrapWithInvalidations } from "@/domains/shared/helpers";

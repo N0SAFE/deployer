@@ -24,15 +24,15 @@
 
 | Source | File(s) | What Was Learned |
 |--------|---------|------------------|
-| **Docker logs (web)** | `docker logs nextjs-nestjs-web-dev` | @repo/ui built once (2049ms); next dev ready in 1612ms; containers now stopped |
+| **Docker logs (web)** | `docker logs nextjs-nestjs-web-dev` | @deployer/ui built once (2049ms); next dev ready in 1612ms; containers now stopped |
 | **Docker logs (API)** | `docker logs nextjs-nestjs-api-dev` | Mesh control plane event storm (200+ rate limit warnings), own node ID |
 | **Docker compose** | `v3/docker/compose/web/docker-compose.web.dev.yml` | No bind mounts; `develop.watch` sync with `**/dist/` and routes ignored |
 | **Docker compose** | `v3/docker/compose/api/docker-compose.api.dev.yml` | API mounts Docker socket, health check endpoint at `/api/nest/health` |
 | **Dockerfile** | `v3/docker/builder/web/Dockerfile.web.dev` | CMD runs `turbo run dev --filter=web...` (triggers all 18 deps) |
-| **next.config.ts** | `v3/apps/web/next.config.ts` | `transpilePackages` auto-resolves all @repo/* packages; no `watchOptions.ignored` |
+| **next.config.ts** | `v3/apps/web/next.config.ts` | `transpilePackages` auto-resolves all @deployer/* packages; no `watchOptions.ignored` |
 | **Entrypoint script** | `v3/apps/web/scripts/entrypoint.dev.ts` | Spawns next dev + dr:build:watch; restart on exit code 0 (MAX=5) |
-| **@repo/ui build** | `v3/packages/ui/base/scripts/build.ts` | tsup watch mode, 69 entries, deletes dist/ on start; @parcel/watcher imported but void-ed |
-| **@repo/api-contracts build** | `v3/packages/contracts/api/scripts/build.ts` | Bun build + chokidar watch; no explicit `dist/` exclusion in watch scope |
+| **@deployer/ui build** | `v3/packages/ui/base/scripts/build.ts` | tsup watch mode, 69 entries, deletes dist/ on start; @parcel/watcher imported but void-ed |
+| **@deployer/api-contracts build** | `v3/packages/contracts/api/scripts/build.ts` | Bun build + chokidar watch; no explicit `dist/` exclusion in watch scope |
 | **Declarative routing** | `v3/packages/bin/declarative-routing/` | Writes `apps/web/src/routes/{index,openapi}.ts` only when content changes |
 | **Circular deps (madge)** | All v3 packages | 21 circular deps found, none involving apps/web/ (see §3) |
 | **esbuild-wasm package** | `.bun/esbuild-wasm@0.27.7/node_modules/esbuild-wasm/` | No temp file writing; pure WASM wrapper; `serverExternalPackages` only |
@@ -56,7 +56,7 @@ Each hypothesis is explicitly CONFIRMED (✅) or ELIMINATED (❌) with evidence.
 
 ---
 
-### H2: `@repo/declarative-routing` generates files inside webpack-watched directory
+### H2: `@deployer/declarative-routing` generates files inside webpack-watched directory
 **Status: ✅ CONFIRMED POTENTIAL**
 
 **Evidence:**
@@ -74,11 +74,11 @@ Each hypothesis is explicitly CONFIRMED (✅) or ELIMINATED (❌) with evidence.
 **Status: ✅ CONFIRMED — PRIMARY ROOT CAUSE**
 
 **Evidence:**
-- `@repo/ui` `package.json` points `"main": "./dist/cjs/index.js"` and `"module": "./dist/esm/index.js"`
-- Webpack, via `transpilePackages`, resolves `@repo/ui` to its `dist/cjs/index.js` entry point
-- `@repo/ui:dev` runs tsup `--watch` mode that writes to `dist/` on every change
+- `@deployer/ui` `package.json` points `"main": "./dist/cjs/index.js"` and `"module": "./dist/esm/index.js"`
+- Webpack, via `transpilePackages`, resolves `@deployer/ui` to its `dist/cjs/index.js` entry point
+- `@deployer/ui:dev` runs tsup `--watch` mode that writes to `dist/` on every change
 - The `next.config.ts` has **no** `watchOptions.ignored` pattern for `**/dist/**` in its webpack override
-- Therefore, when `@repo/ui:dev` writes to `dist/`, webpack detects the change and recompiles
+- Therefore, when `@deployer/ui:dev` writes to `dist/`, webpack detects the change and recompiles
 - Webpack recompilation reads from `dist/`, which changes access timestamps → possible re-trigger
 
 **Evidence from logs:**
@@ -169,7 +169,7 @@ Each hypothesis is explicitly CONFIRMED (✅) or ELIMINATED (❌) with evidence.
 
 ---
 
-### H9: Circular dependency in `@repo/*` packages triggers recompilation
+### H9: Circular dependency in `@deployer/*` packages triggers recompilation
 **Status: ❌ ELIMINATED**
 
 **Evidence:**
@@ -289,7 +289,7 @@ The compilation loop is caused by a **cascade of parallel file watchers** with o
 │                  Docker Container                        │
 │                                                          │
 │  ┌─────────────────────┐   ┌─────────────────────────┐  │
-│  │  @repo/ui:dev       │   │  @repo/api-contracts:dev │  │
+│  │  @deployer/ui:dev       │   │  @deployer/api-contracts:dev │  │
 │  │  (tsup --watch)      │   │  (bun build + chokidar)  │  │
 │  │  Watches: src/      │   │  Watches: src/           │  │
 │  │  Writes: dist/      │   │  Writes: dist/ (maybe)   │  │
@@ -298,7 +298,7 @@ The compilation loop is caused by a **cascade of parallel file watchers** with o
 │             ▼                          │                  │
 │  ┌────────────────────────┐            │                  │
 │  │  next dev (webpack)    │◄───────────┘                  │
-│  │  Watches: ALL @repo/*  │                              │
+│  │  Watches: ALL @deployer/*  │                              │
 │  │  via transpilePackages │                              │
 │  │  NO ignored: **/dist/**│                              │
 │  └──────────┬─────────────┘                              │
@@ -395,9 +395,9 @@ Created a permanent reference document with full analysis, the fix, and context 
 
 ## 8. Additional Recommendations
 
-### R1: Fix @repo/api-contracts chokidar watch self-trigger
+### R1: Fix @deployer/api-contracts chokidar watch self-trigger
 
-The `@repo/api-contracts:dev` watch mode triggers a second rebuild because its chokidar watcher likely does not exclude the `dist/` output directory.
+The `@deployer/api-contracts:dev` watch mode triggers a second rebuild because its chokidar watcher likely does not exclude the `dist/` output directory.
 
 **Evidence:** The build ran twice (initial build + immediate watch-triggered rebuild).
 
@@ -409,9 +409,9 @@ watcher = chokidar.watch(rootDir, {
 });
 ```
 
-### R2: Remove dead @parcel/watcher import from @repo/ui build script
+### R2: Remove dead @parcel/watcher import from @deployer/ui build script
 
-The `@repo/ui/base/scripts/build.ts` imports `@parcel/watcher` but immediately `void`s it (unused). This adds unnecessary module resolution overhead.
+The `@deployer/ui/base/scripts/build.ts` imports `@parcel/watcher` but immediately `void`s it (unused). This adds unnecessary module resolution overhead.
 
 ### R3: Investigate API MeshControlPlaneService event storm
 
@@ -430,12 +430,12 @@ The `@repo/ui/base/scripts/build.ts` imports `@parcel/watcher` but immediately `
 
 ### R4: Consider using `transpilePackages` with an explicit list instead of auto-resolution
 
-The `getWorkspaceTranspilePackages()` function reads `package.json` at config load time to auto-detect `@repo/*` packages. While convenient, it includes ALL `@repo/*` deps even those that are pure type definitions or schemas (no runtime). Consider maintaining an explicit list:
+The `getWorkspaceTranspilePackages()` function reads `package.json` at config load time to auto-detect `@deployer/*` packages. While convenient, it includes ALL `@deployer/*` deps even those that are pure type definitions or schemas (no runtime). Consider maintaining an explicit list:
 
 ```typescript
 transpilePackages: [
-  "@repo/ui",
-  "@repo/declarative-routing",
+  "@deployer/ui",
+  "@deployer/declarative-routing",
   // Only packages that actually need transpilation
 ],
 ```
@@ -448,10 +448,10 @@ This reduces webpack's watch scope.
 
 If the fix doesn't completely resolve the issue, try these workarounds:
 
-### W1: Disable @repo/ui:dev watch mode
-In `v3/apps/web/package.json` or Turborepo config, set `@repo/ui:dev` to build once (not watch):
+### W1: Disable @deployer/ui:dev watch mode
+In `v3/apps/web/package.json` or Turborepo config, set `@deployer/ui:dev` to build once (not watch):
 ```json
-"@repo/ui#dev": "bun run build"
+"@deployer/ui#dev": "bun run build"
 ```
 This prevents `dist/` rebuilds during development. The trade-off is you'd need to manually rebuild UI changes.
 
@@ -463,8 +463,8 @@ environment:
 ```
 A falsy value prevents any polling, reducing CPU contention on Docker overlay.
 
-### W3: Move @repo/ui dist/ outside webpack resolve scope
-Configure `@repo/ui` to point `main` to source files (not dist/) for development, using conditional exports:
+### W3: Move @deployer/ui dist/ outside webpack resolve scope
+Configure `@deployer/ui` to point `main` to source files (not dist/) for development, using conditional exports:
 ```json
 "exports": {
   ".": {
@@ -487,11 +487,11 @@ config.watchOptions.aggregateTimeout = 1000; // 1 second debounce
 
 ### Web Container
 ```
-@repo/ui:dev: CLI Building entry: packages/ui/base/src/
-@repo/ui:dev: ESM Build start
-@repo/ui:dev: CJS Build start
-@repo/ui:dev: CJS ⚡️ Build success in 2049ms
-@repo/ui:dev: ✅ Successfully built 69 files to /app/packages/ui/base/dist
+@deployer/ui:dev: CLI Building entry: packages/ui/base/src/
+@deployer/ui:dev: ESM Build start
+@deployer/ui:dev: CJS Build start
+@deployer/ui:dev: CJS ⚡️ Build success in 2049ms
+@deployer/ui:dev: ✅ Successfully built 69 files to /app/packages/ui/base/dist
 web:dev: ○ Compiling proxy ...
 web:dev: ○ Compiling / ...
 web:dev: ✓ Ready in 1612ms

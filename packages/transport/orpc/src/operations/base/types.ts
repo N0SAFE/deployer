@@ -5,7 +5,7 @@
 
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { AnySchema } from "@orpc/contract";
-import type { HTTPMethod, HTTPPath } from "@repo/orpc-utils/types/types";
+import type { HTTPMethod, HTTPPath } from "@deployer/orpc-utils/types/types";
 
 /**
  * Re-export commonly used types
@@ -14,9 +14,9 @@ import type { HTTPMethod, HTTPPath } from "@repo/orpc-utils/types/types";
  * removed them from `@orpc/contract` (routing now lives in OpenAPI metadata).
  */
 export type { AnySchema } from "@orpc/contract";
-export type { HTTPMethod, HTTPPath } from "@repo/orpc-utils/types/types";
+export type { HTTPMethod, HTTPPath } from "@deployer/orpc-utils/types/types";
 export type { StandardSchemaV1 } from "@standard-schema/spec";
-export type { VoidSchema, NeverSchema } from "@repo/orpc-utils/types/standard-schema-helpers";
+export type { VoidSchema, NeverSchema } from "@deployer/orpc-utils/types/standard-schema-helpers";
 
 /**
  * Schema shape type - represents an object where each key maps to a schema

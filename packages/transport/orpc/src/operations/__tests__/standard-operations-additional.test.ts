@@ -4,9 +4,9 @@
  */
 import { describe, it, expect } from 'vitest';
 import z from 'zod/v4';
-import { standard } from '@repo/orpc-utils/operations/zod/standard-operations';
-import { voidSchema } from '@repo/orpc-utils/types/standard-schema-helpers';
-import { getProcedureRoute } from '@repo/orpc-utils/types/type-helpers';
+import { standard } from '@deployer/orpc-utils/operations/zod/standard-operations';
+import { voidSchema } from '@deployer/orpc-utils/types/standard-schema-helpers';
+import { getProcedureRoute } from '@deployer/orpc-utils/types/type-helpers';
 
 describe('StandardOperations - Additional Coverage', () => {
   const entitySchema = z.object({

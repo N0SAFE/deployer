@@ -1,14 +1,14 @@
 import { Controller, Logger } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement, ORPCError } from "@orpc/server";
-import { setupAppContract } from "@repo/api-contracts";
+import { setupAppContract } from "@deployer/bff-contracts";
 import type {
   SetupPostSetupDestination,
   SetupPostSetupVerification,
   SetupProbeDbResult,
   SetupProbeMeshResult,
   SetupRemoteAuthResult,
-} from "@repo/contracts-entities";
+} from "@deployer/contracts-entities";
 
 import { SetupGateService } from "./setup-gate.service";
 import { WizardStateService } from "./wizard-state.service";

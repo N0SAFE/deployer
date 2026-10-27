@@ -1,8 +1,8 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import type { DockerImageInspectDetail } from '@repo/contracts-entities'
-import { Badge } from '@repo/ui/components/shadcn/badge'
+import type { DockerImageInspectDetail } from '@deployer/contracts-entities'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { formatBytes } from '../../_utils/format'
 import { DockerCopyableId } from '../docker-copy-button'
 import { DockerRelativeTime } from '../docker-relative-time'

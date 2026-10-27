@@ -8,7 +8,7 @@ order: 2
 
 ## Monorepo topology
 
-- `apps/api`: NestJS runtime (ORPC implementation + auth + DB access)
+- `apps/api`: the API tier, a BFF plus five NestJS services (ORPC implementation + auth + DB access)
 - `apps/web`: Next.js App Router frontend
 - `apps/doc`: Fumadocs-powered documentation app
 - `packages/contracts/api`: shared ORPC contracts
@@ -30,7 +30,7 @@ order: 2
 flowchart LR
 	UI[Web UI\napps/web] --> HK[Domain Hooks\napps/web/src/domains]
 	HK --> ORPC[ORPC Client]
-	ORPC --> API[API Module\napps/api]
+	ORPC --> API[API tier\napps/api]
 	API --> SV[Service Layer]
 	SV --> DB[(PostgreSQL\nDrizzle ORM)]
 	API --> AUTH[Auth + Permission Guards]

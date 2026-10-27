@@ -9,8 +9,8 @@
  */
 import 'server-only'
 
-import { configureServerAuth } from '@repo/declarative-routing/page-wrappers/server'
-import { configureLayoutAuth } from '@repo/declarative-routing/layout-wrappers/server'
+import { configureServerAuth } from '@deployer/declarative-routing/page-wrappers/server'
+import { configureLayoutAuth } from '@deployer/declarative-routing/layout-wrappers/server'
 import { HydrationBoundary, QueryClient, dehydrate } from '@tanstack/react-query'
 import { getSessionFromCookie, hasSessionCookie } from '@/lib/auth/cookie-session'
 import type { ReactNode, ComponentType } from 'react'

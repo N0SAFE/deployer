@@ -2,7 +2,7 @@
 
 import { ShieldAlert } from 'lucide-react'
 import { PageHeader, ScopeLabel } from '@/components/dashboard'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
+import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { NodeNetworkConfig } from '@/components/dashboard/system/NodeNetworkConfig'
 import { AuthDashboardSettingsSecurity } from '@/routes'
 import { useIsPlatformAdmin } from '../_components/use-is-admin'

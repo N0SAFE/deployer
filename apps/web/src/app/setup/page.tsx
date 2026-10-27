@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import { Setup, AuthSignin } from '@/routes'
 // ONE wizard implementation, shared with the API's own setup page. This page
 // only supplies the web app's data access (the adapter).
-import { SetupWizard } from '@repo/ui/components/setup/setup-wizard'
+import { SetupWizard } from '@deployer/ui/components/setup/setup-wizard'
 import { setupApi } from '@/domains/setup/api'
 
 import type { Metadata } from 'next'
@@ -23,7 +23,7 @@ export default Setup.Route(async ({ searchParams }) => {
         )
     }
 
-    if (data.needsSetup === false) {
+    if (!data.needsSetup) {
         return redirect(AuthSignin({}, { redirectTo: searchParams.redirectTo ?? searchParams.callbackUrl }))
     }
 

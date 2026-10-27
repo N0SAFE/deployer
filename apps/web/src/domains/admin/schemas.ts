@@ -5,7 +5,7 @@
  */
 
 import { z } from "zod";
-import { platformSchemas } from "@repo/auth";
+import { platformSchemas } from "@deployer/auth";
 
 /**
  * List users schema - wraps query parameters

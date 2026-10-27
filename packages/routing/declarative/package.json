@@ -1,5 +1,5 @@
 {
-    "name": "@repo/declarative-routing",
+    "name": "@deployer/declarative-routing",
     "version": "0.1.0",
     "private": true,
     "sideEffects": false,
@@ -161,24 +161,26 @@
         }
     },
     "scripts": {
-        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "prettify": "bun fmt .",
         "format": "bun run prettify",
-        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "lint": "eslint . --fix --cache",
-        "type-check": "tsc --noEmit",
+        "format:check": "bun fmt --check .",
+        "lint": "bun lint --no-script --type-aware",
+        "lint:fix": "bun lint --no-script --fix --type-aware",
+        "lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
+        "type-check": "bun check --no-script",
         "build": "bun --bun pkg-build",
         "dev": "bun --bun pkg-build --watch",
         "clean": "rimraf dist",
         "build:types": "bun --bun pkg-build --types"
     },
     "dependencies": {
-        "@repo/type-guards": "*",
+        "@deployer/type-guards": "*",
         "nuqs": "catalog:web",
         "query-string": "catalog:utils",
         "zod": "catalog:utils"
     },
     "peerDependencies": {
-        "@repo/auth": "*",
+        "@deployer/auth": "*",
         "@tanstack/react-query": ">=5.0.0",
         "next": ">=16.1.2",
         "nprogress": ">=0.2.0",
@@ -194,17 +196,17 @@
     },
     "devDependencies": {
         "@types/node": "catalog:build",
-        "@repo/auth": "*",
-        "@repo/use-safe-query-param-states-from-zod": "*",
-        "@repo/config-eslint": "*",
-        "@repo/config-prettier": "*",
-        "@repo/config-typescript": "*",
+        "@deployer/auth": "*",
+        "@deployer/use-safe-query-param-states-from-zod": "*",
+        "@deployer/config-eslint": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-typescript": "*",
         "@types/nprogress": "catalog:web",
         "@types/react": "catalog:react",
         "eslint": "catalog:linting",
         "server-only": "catalog:utils",
         "typescript": "catalog:build",
-        "@repo/pkg-build": "*"
+        "@deployer/pkg-build": "*"
     },
     "module": "./dist/production/esm/index.mjs"
 }

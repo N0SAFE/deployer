@@ -11,7 +11,7 @@ import { SetupReadinessIndicator } from "./setup-readiness.indicator";
  * Two endpoints with deliberately different audiences:
  *
  *  - `GET /setup/health` — the COMPOSE GATE. Binary, real status codes. 200 only
- *    once the handover is complete, so `api-dev`/`web-dev` gate on it and the
+ *    once the handover is complete, so `bff`/`web-dev` gate on it and the
  *    dashboard can never start on a half-built platform.
  *  - `GET /setup/state` — the WIZARD's view. Always 200, carries the phase,
  *    whether the API is up/ready, and the detail string. Kept out of the health

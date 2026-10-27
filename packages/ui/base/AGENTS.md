@@ -1,4 +1,4 @@
-# AGENTS.md — @repo/ui
+# AGENTS.md — @deployer/ui
 
 Shared UI component library (Shadcn + Tailwind).
 

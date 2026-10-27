@@ -2,8 +2,8 @@ import type {
   DockerImageSecurityScanEvent,
   DockerImageSecurityScanSummary,
   DockerVulnerabilityEntry,
-} from '@repo/contracts-entities'
-import { Badge } from '@repo/ui/components/shadcn/badge'
+} from '@deployer/contracts-entities'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
 
 interface DockerContainerSecurityTabProps {
   severityCounts: Record<DockerVulnerabilityEntry['severity'], number>
@@ -85,11 +85,11 @@ export function DockerContainerSecurityTab({
               </div>
               <p className="mt-2 text-lg font-semibold">{scanner.findingsCount}</p>
               <p className="text-xs text-muted-foreground">findings</p>
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-xs text-muted-foreground">
                 {scanner.durationMs === null ? 'duration unavailable' : `${String(scanner.durationMs)} ms`}
               </p>
               {scanner.error ? (
-                <p className="mt-1 line-clamp-2 text-[11px] text-destructive/80">{scanner.error}</p>
+                <p className="mt-1 line-clamp-2 text-xs text-destructive">{scanner.error}</p>
               ) : null}
             </div>
           ))}
@@ -135,8 +135,8 @@ export function DockerContainerSecurityTab({
         </div>
         <div className="grid gap-2 lg:grid-cols-2">
           <div className="rounded border bg-muted/20 p-2">
-            <p className="text-[11px] font-medium text-muted-foreground">Scanner status timeline</p>
-            <div className="mt-2 max-h-40 space-y-1 overflow-auto text-[11px]">
+            <p className="text-xs font-medium text-muted-foreground">Scanner status timeline</p>
+            <div className="mt-2 max-h-40 space-y-1 overflow-auto text-xs">
               {streamStatusEvents.length > 0 ? streamStatusEvents.map((event) => (
                 <div key={`${event.timestamp}-${event.type}-${event.message}-${event.scanner ?? 'none'}`} className="rounded border bg-background/70 px-2 py-1">
                   <div className="flex items-center justify-between gap-2">
@@ -151,8 +151,8 @@ export function DockerContainerSecurityTab({
             </div>
           </div>
           <div className="rounded border bg-black p-2">
-            <p className="text-[11px] font-medium text-zinc-300">Scanner logs</p>
-            <div className="mt-2 max-h-40 space-y-1 overflow-auto font-mono text-[11px] text-zinc-100">
+            <p className="text-xs font-medium text-zinc-300">Scanner logs</p>
+            <div className="mt-2 max-h-40 space-y-1 overflow-auto font-mono text-xs text-zinc-100">
               {streamLogEvents.length > 0 ? streamLogEvents.map((event, index) => (
                 <p key={`${event.timestamp}-${event.scanner ?? 'none'}-${String(index)}`}>
                   <span className="text-zinc-400">[{event.timestamp.slice(11, 19)}]</span>{' '}
@@ -206,7 +206,7 @@ export function DockerContainerSecurityTab({
               {(entry.scannerSources ?? []).length > 0 ? (
                 <div className="flex flex-wrap gap-1">
                   {(entry.scannerSources ?? []).map((source) => (
-                    <Badge key={`${entry.id}-${source}`} variant="secondary" className="text-[10px] uppercase tracking-wide">
+                    <Badge key={`${entry.id}-${source}`} variant="secondary" className="text-xs uppercase tracking-wide">
                       {source}
                     </Badge>
                   ))}

@@ -1,5 +1,5 @@
 /**
- * @repo/errors — Canonical application error hierarchy
+ * @deployer/errors — Canonical application error hierarchy
  *
  * All custom errors across the monorepo should extend these base classes
  * instead of `Error` directly. This ensures consistent error codes,
@@ -19,7 +19,7 @@
  * ## Usage
  *
  * ```typescript
- * import { NotFoundError, BadRequestError } from "@repo/errors"
+ * import { NotFoundError, BadRequestError } from "@deployer/errors"
  *
  * throw new NotFoundError("User", userId)
  * throw new BadRequestError("Invalid input", { field: "email" })
@@ -30,7 +30,7 @@
  * Extend AppError for module-specific errors:
  *
  * ```typescript
- * import { AppError } from "@repo/errors"
+ * import { AppError } from "@deployer/errors"
  *
  * export class MeshTimeoutError extends AppError {
  *   constructor(peerId: string) {
@@ -50,6 +50,6 @@ export {
   TimeoutError,
   ServiceUnavailableError,
   BadRequestError,
-} from '@repo/errors/app-error';
-export type { ValidationIssue } from '@repo/errors/app-error';
-export { getErrorMessage } from '@repo/errors/get-error-message';
+} from './app-error';
+export type { ValidationIssue } from './app-error';
+export { getErrorMessage } from './get-error-message';

@@ -1,0 +1,107 @@
+import { Injectable, Logger } from "@nestjs/common";
+  import { DatabaseNotReadyReporter } from "../../../../database/services/db-not-ready";
+  import type {
+      MeshResourceIndexUpsertInput,
+      MeshResourceIndexUpsertResult,
+      MeshResourceKind,
+      MeshResourceLocation,
+      MeshResourceLookupInput,
+      MeshResourceLookupResult,
+  } from "@deployer/contracts-entities";
+import { SystemMeshLogicService } from "../../system-mesh-logic.service";
+import { SystemMeshClusterRepository } from "../../../repositories/system-mesh-cluster.repository";
+
+  /**
+   * Index des ressources du mesh (streams, queues, etc.) par (org, kind, key).
+   * Persistance fire-and-forget avec log d'erreur explicite.
+   */
+  @Injectable()
+  export class MeshResourceRegistryService {
+      private readonly logger = new Logger(MeshResourceRegistryService.name);
+      private readonly index = new Map<string, MeshResourceLocation[]>();
+      private readonly dbNotReady = new DatabaseNotReadyReporter();
+
+      constructor(
+          private readonly meshLogic: SystemMeshLogicService,
+          private readonly clusterRepository?: SystemMeshClusterRepository,
+      ) {}
+
+      async hydrate(): Promise<void> {
+          if (!this.clusterRepository?.loadAllResourceLocations) return;
+          try {
+              const locations = await this.clusterRepository.loadAllResourceLocations();
+              for (const loc of locations) {
+                  const key = this.indexKey(loc.kind, loc.key);
+                  const existing = this.index.get(key) ?? [];
+                  existing.push(loc);
+                  this.index.set(key, this.meshLogic.rankResourceLocations(existing));
+              }
+              if (locations.length > 0) {
+                  this.logger.log(`Hydrated ${String(locations.length)} resource ownership entries`);
+              }
+          } catch (error) {
+              this.dbNotReady.report(this.logger, "Resource hydration failed", this.errMsg(error), error);
+          }
+      }
+
+      lookup(input: MeshResourceLookupInput): MeshResourceLookupResult {
+          const key = this.indexKey(input.kind, input.key);
+          const ranked = this.meshLogic.rankResourceLocations((this.index.get(key) ?? []).slice());
+          const candidates = input.includeCandidates ? ranked : ranked.slice(0, 1);
+          return { found: ranked.length > 0, query: input, primary: ranked[0] ?? null, candidates };
+      }
+
+      upsert(input: MeshResourceIndexUpsertInput): MeshResourceIndexUpsertResult {
+          let replaced = 0;
+          let upserted = 0;
+
+          if (input.replaceExistingForSource) {
+              for (const [key, existing] of this.index) {
+                  const retained = existing.filter((r) => r.ownerNodeId !== input.sourceNodeId);
+                  replaced += existing.length - retained.length;
+                  if (retained.length === 0) this.index.delete(key);
+                  else this.index.set(key, retained);
+              }
+          }
+
+          for (const resource of input.resources) {
+              const normalized: MeshResourceLocation = resource;
+              const key = this.indexKey(normalized.kind, normalized.key);
+              const existing = this.index.get(key) ?? [];
+              const deduped = existing.filter(
+                  (r) => !(
+                      r.ownerNodeId === normalized.ownerNodeId &&
+                      r.ownerServerUrl === normalized.ownerServerUrl &&
+                      r.endpointPath === normalized.endpointPath &&
+                      r.protocol === normalized.protocol
+                  ),
+              );
+              if (deduped.length !== existing.length) replaced += existing.length - deduped.length;
+              deduped.push(normalized);
+              this.index.set(key, this.meshLogic.rankResourceLocations(deduped));
+              upserted += 1;
+          }
+
+          if (this.clusterRepository) {
+              void this.clusterRepository.persistResourceIndexUpsert(input).catch((e: unknown) => {
+                  this.dbNotReady.report(this.logger, "Resource index persist failed", this.errMsg(e), e);
+              });
+          }
+
+          return { accepted: true, sourceNodeId: input.sourceNodeId, upserted, replaced };
+      }
+
+      removeByNode(ownerNodeId: string): void {
+          for (const [key, resources] of this.index) {
+              const remaining = resources.filter((r) => r.ownerNodeId !== ownerNodeId);
+              if (remaining.length === 0) this.index.delete(key);
+              else if (remaining.length !== resources.length) this.index.set(key, remaining);
+          }
+      }
+
+      private indexKey(kind: MeshResourceKind, key: string): string {
+          return `${kind}:${key}`;
+      }
+
+      private errMsg(e: unknown): string { return e instanceof Error ? e.message : "unknown_error"; }
+  }

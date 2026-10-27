@@ -1,8 +1,8 @@
 'use client'
 
 import { Loader2 } from 'lucide-react'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
-import { TableCell, TableRow } from '@repo/ui/components/shadcn/table'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
+import { TableCell, TableRow } from '@deployer/ui/components/shadcn/table'
 import { cn } from '@/lib/utils'
 
 interface DockerInlineLoadingStateProps {

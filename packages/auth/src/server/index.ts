@@ -1,5 +1,5 @@
 // Export the auth factory
-export { betterAuthFactory } from "@repo/auth/server/auth";
+export { betterAuthFactory } from "@deployer/auth/server/auth";
 
 // Export server plugins
-export * from "@repo/auth/server/plugins/index";
+export * from "@deployer/auth/server/plugins/index";

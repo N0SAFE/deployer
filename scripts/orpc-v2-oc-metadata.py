@@ -11,7 +11,7 @@ routing now lives in OpenAPI metadata set with the `openapi()` helper:
 uses both is folded into ONE `.meta(openapi({...}))` call.
 
 Also rewrites the *type-level* references that v2 moved:
-  - `HTTPMethod`/`HTTPPath`/`Route` are re-exported from `@repo/orpc-utils/types`
+  - `HTTPMethod`/`HTTPPath`/`Route` are re-exported from `@deployer/orpc-utils/types`
     (already defined there), not `@orpc/contract`.
 
 The pass is purely mechanical and reports every site it changes so the diff can

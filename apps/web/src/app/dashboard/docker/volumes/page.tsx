@@ -3,10 +3,10 @@
 import { useEffect, useMemo } from 'react'
 import { z } from 'zod'
 import { RefreshCw, Search } from 'lucide-react'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { useSafeQueryParamStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
-import { useDockerVolumeEventsStream, useDockerVolumeList } from '@/domains/docker/hooks'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { useSafeQueryParamStatesFromZod } from '@deployer/use-safe-query-param-states-from-zod'
+import { useDockerRuntimeEventSubscriber, useDockerVolumeList } from '@/domains/docker/hooks'
 import { DockerEngineError } from '../_components/docker-engine-error'
 import { DockerTablePagination } from '../_components/docker-table-pagination'
 import { DockerActiveFilterChips, DockerExportActions } from '../_components/docker-page-utilities'
@@ -16,7 +16,7 @@ import { VolumesTable } from './_components/volumes-table'
 import { filterVolumes, isVolumeInUse, totalReportedBytes } from './_utils/volumes'
 
 const VOLUME_LIST_INPUT = { query: { limit: 100, offset: 0 } } as const
-const VOLUME_STREAM_INPUT = { query: {} } as const
+const isDockerVolumeEvent = (event: { source: string }) => event.source === 'volume'
 
 const VOLUME_LIST_QUERY_SCHEMA = z.object({
   q: z.string().default(''),
@@ -33,7 +33,14 @@ const SELECT_CLASS = 'h-9 rounded-md border border-border/70 bg-background px-3 
 export default function DashboardDockerVolumesPage() {
   const [listQuery, setListQuery] = useSafeQueryParamStatesFromZod(VOLUME_LIST_QUERY_SCHEMA)
   const volumeQuery = useDockerVolumeList(VOLUME_LIST_INPUT)
-  useDockerVolumeEventsStream(VOLUME_STREAM_INPUT)
+  // Rides the docker layout's shared runtime stream: a page-level stream was a
+  // second connection whose result was thrown away and never refreshed the list.
+  const { refetch: refetchVolumes } = volumeQuery
+  useDockerRuntimeEventSubscriber({
+    cooldownMs: 1000,
+    filter: isDockerVolumeEvent,
+    onEvent: () => { void refetchVolumes() },
+  })
 
   const volumes = useMemo(() => volumeQuery.data?.data ?? [], [volumeQuery.data?.data])
   const filtered = useMemo(

@@ -1,24 +1,24 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Badge } from '@repo/ui/components/shadcn/badge'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@repo/ui/components/shadcn/card'
+} from '@deployer/ui/components/shadcn/card'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@repo/ui/components/shadcn/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
+} from '@deployer/ui/components/shadcn/select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
 import { Boxes, Globe, Layers, ListTree } from 'lucide-react'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 import { CopyId } from '../../_components/copy-id-button'
 import { PageErrorState, StatStrip, StatStripItem, StatusBadge } from '@/components/dashboard'
 import { useClusterServices, useClusterTasks } from '@/domains/cluster/hooks'
@@ -73,7 +73,7 @@ export function FleetWorkloadsPanel() {
     image: s.image,
     desiredTasks: s.desiredTasks,
     runningTasks: s.runningTasks,
-    labels: s.labels ?? {},
+    labels: s.labels,
   })), [servicesData])
 
   const tasks = useMemo<TaskRow[]>(() => (tasksData ?? []).map((t) => ({
@@ -85,7 +85,7 @@ export function FleetWorkloadsPanel() {
     state: t.state || t.desiredState,
     desiredState: t.desiredState,
     error: t.error ?? null,
-    image: t.image ?? '',
+    image: t.image,
   })), [tasksData])
 
   if (isLoading) return <Skeleton aria-busy="true" className="h-72 w-full" />
@@ -113,7 +113,7 @@ export function FleetWorkloadsPanel() {
         <StatStripItem
           icon={Layers}
           label="Running"
-          value={`${runningTasks} / ${tasks.length}`}
+          value={`${String(runningTasks)} / ${String(tasks.length)}`}
           tone={runningTasks === tasks.length ? 'live' : tasks.length === 0 ? undefined : 'pending'}
         />
       </StatStrip>
@@ -162,7 +162,7 @@ export function FleetWorkloadsPanel() {
                       <Badge variant={service.mode === 'global' ? 'default' : 'secondary'}>
                         {service.mode}
                         {service.mode === 'replicated' && service.replicas != null
-                          ? ` × ${service.replicas}`
+                          ? ` × ${String(service.replicas)}`
                           : ''}
                       </Badge>
                     </TableCell>
@@ -260,7 +260,7 @@ export function FleetWorkloadsPanel() {
                       <TableCell className="text-xs text-muted-foreground">{task.desiredState}</TableCell>
                       <TableCell className="max-w-64 truncate text-xs text-destructive" title={task.error ?? undefined}>{task.error ?? ''}</TableCell>
                       <TableCell className="max-w-70 truncate font-mono text-xs text-muted-foreground">
-                        {task.image || '—'}
+                        {task.image === '' ? '—' : task.image}
                       </TableCell>
                     </TableRow>
                   ))

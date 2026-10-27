@@ -371,10 +371,10 @@ flowchart TD
 
 ### API runtime wiring (mesh)
 
-- `apps/api/src/core/modules/mesh/mesh-core.module.ts`
+- `apps/api/shared/src/core/modules/mesh/mesh-core.module.ts`
 - `apps/api/src/system/modules/mesh/system-mesh.module.ts`
 - `apps/api/src/system/modules/mesh/controllers/system-mesh.controller.ts`
-- `apps/api/src/core/modules/mesh/services/base-mesh.service.ts`
+- `apps/api/shared/src/core/modules/mesh/services/base-mesh.service.ts`
 
 ### Web model consumers
 
@@ -441,7 +441,7 @@ flowchart TB
     direction TB
     USER[User]
 
-    subgraph PLATFORM_ROLES[Platform Roles\n@repo/auth PLATFORM_ROLES]
+    subgraph PLATFORM_ROLES[Platform Roles\n@deployer/auth PLATFORM_ROLES]
       P_SUPER[superAdmin]
       P_ADMIN[admin]
       P_OP[operator]

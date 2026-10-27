@@ -22,7 +22,34 @@ services:
       - --providers.file.watch=true
       - --entrypoints.web.address=:80
     ports:
-      - "127.0.0.1:${MANAGED_TRAEFIK_HTTP_PORT:-80}:80"
+      # ── BOUND ON THE GATEWAY, NOT ON LOOPBACK ────────────────────────────
+      # This was `127.0.0.1:80`, which binds the HOST's loopback only. Nothing
+      # inside a container can reach that address, and the setup app's handover
+      # proves it by requesting `api.<host>` THROUGH the entry port:
+      #
+      #   [HandoverOrchestratorService] Handover failed: the swarm ingress took
+      #   the entry port but is not routing the API yet
+      #
+      # It never could. Measured from the setup container:
+      #
+      #   host.docker.internal -> 172.17.0.1   (setup's gateway is 172.25.0.1)
+      #   172.17.0.1:80 -> no answer
+      #   172.25.0.1:80 -> no answer
+      #   and container-to-container: traefik:80 -> {"status":"ready"}
+      #
+      # So the ingress WAS routing; the probe just aimed at a socket that
+      # cannot exist for a container. The failure is sticky (`failed` blocks
+      # further phases) and `/setup/health` stays 503, which in turn holds
+      # `web-dev` in its entrypoint wait forever — the "web app makes import
+      # errors / never serves" symptom had nothing to do with imports.
+      #
+      # `0.0.0.0` (no host prefix) publishes the port on every interface
+      # INCLUDING the docker bridge gateways, so both the operator's browser
+      # (`localhost:80`) and an in-container probe (`<gateway>:80`) reach the
+      # same ingress. It is not a wider public exposure than before in this
+      # repo's topology: the entry port is what the platform serves on, and
+      # `MANAGED_TRAEFIK_HTTP_PORT` still decides it.
+      - "${MANAGED_TRAEFIK_HTTP_PORT:-80}:80"
     volumes:
       # Config files are shared via a NAMED VOLUME: the API writes them under
       # /app/traefik-configs (mounted from the volume by compose) and this

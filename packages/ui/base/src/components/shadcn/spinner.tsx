@@ -1,7 +1,7 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
 
-import { cn } from "@repo/ui/lib/utils"
+import { cn } from "@deployer/ui/lib/utils"
 
 /**
  * Accessible spinner. Announces `label` to assistive tech (`role="status"`) and

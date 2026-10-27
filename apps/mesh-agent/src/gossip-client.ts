@@ -7,7 +7,7 @@
  * truth the design exists to avoid.
  */
 
-import { AGENT_ROUTES, gossipMessageSchema, type RosterState } from "@repo/mesh-network";
+import { AGENT_ROUTES, gossipMessageSchema, type RosterState } from "@deployer/mesh-network";
 
 export type GossipClient = (address: string, port: number, roster: RosterState) => Promise<RosterState | null>;
 

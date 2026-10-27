@@ -4,7 +4,7 @@
  * SC1: emits machine-readable DI graph (roots + per-root closure + nodes + edges with file:line).
  * SC2: executable acyclicity gate - exits non-zero on any violation.
  *
- * NODES = every *.module.ts under the API tier (apps/api-services: bff, services/*, shared) and packages/.
+ * NODES = every *.module.ts under the API tier (apps/api: bff, services/*, shared) and packages/.
  * EDGES = DI nesting. A -> B when a class referenced in A's top-level @Module({ imports: [...] })
  *         is imported via a specifier that RESOLVES to B.module.ts.
  *         Dynamic modules are NOT inlined: an inner `imports:` array belongs to the dynamic
@@ -23,7 +23,7 @@ import { dirname, relative, resolve } from "node:path"
 
 const ROOT = resolve(import.meta.dir, "..")
 // The API tier: one source root per app. `shared` is the base; the rest are apps.
-const TIER = resolve(ROOT, "apps/api-services")
+const TIER = resolve(ROOT, "apps/api")
 const SHARED_SRC = resolve(TIER, "shared/src")
 const BFF_SRC = resolve(TIER, "bff/src")
 const SERVICES_DIR = resolve(TIER, "services")
@@ -432,8 +432,8 @@ for (const e of diEdges) {
 // printed as `anchor-missing` rather than skipped.
 type RootDef = { anchorRel: string; cls: string; site: string }
 const ROOT_DEFS: RootDef[] = [
-	{ anchorRel: "apps/api-services/bff/src/bff.module.ts", cls: "BffModule", site: "NestFactory.create(BffModule)" },
-	{ anchorRel: "apps/api-services/bff/src/cli/cli.module.ts", cls: "CLIModule", site: "CommandFactory.run(CLIModule)" },
+	{ anchorRel: "apps/api/bff/src/bff.module.ts", cls: "BffModule", site: "NestFactory.create(BffModule)" },
+	{ anchorRel: "apps/api/bff/src/cli/cli.module.ts", cls: "CLIModule", site: "CommandFactory.run(CLIModule)" },
 	...SERVICE_SRCS.map((dir): RootDef => {
 		const anchor = resolve(dir, "app.module.ts")
 		// A service's root class is named after the service (`RuntimeServiceModule`); read it from

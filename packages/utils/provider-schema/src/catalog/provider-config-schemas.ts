@@ -1,4 +1,4 @@
-import type { ConfigSchema } from "@repo/provider-schema/domain/index";
+import type { ConfigSchema } from "@deployer/provider-schema/domain/index";
 
 export const providerSchemasCatalog: Record<string, ConfigSchema> = {
     github: {

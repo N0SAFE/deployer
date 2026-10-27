@@ -1,0 +1,20 @@
+{
+  "$schema": "https://v2-11-3.turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    // Same build as `build`, but with the API_URL next.config.ts requires
+    // defaulted, so tests can build the web without a configured environment.
+    "build:e2e": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**"]
+    },
+    // The e2e project serves the production build (`.next/BUILD_ID`), so the
+    // web must be built first. `$TURBO_EXTENDS$` keeps the root deps.
+    "test": {
+      "dependsOn": ["$TURBO_EXTENDS$", "build:e2e"]
+    },
+    "test:e2e": {
+      "dependsOn": ["$TURBO_EXTENDS$", "build:e2e"]
+    }
+  }
+}

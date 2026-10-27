@@ -91,7 +91,7 @@ describe("table ownership registry", () => {
 		// detectable at all.
 		const source = readFileSync(join(__dirname, "table-ownership.ts"), "utf8");
 		const claimed = [...source.matchAll(/^\t([a-z_]+):\s*"(identity|project|runtime|fleet|health|platform|monolith)",$/gm)].map(
-			(match) => match[1] as string,
+			(match) => match[1]!,
 		);
 
 		// The file is one table per line, so a repeated name is a real duplicate.

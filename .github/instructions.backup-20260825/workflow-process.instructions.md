@@ -459,7 +459,7 @@ When an MCP action returns an error:
 | API | `auth-generate` | Regenerate auth schema/types after `src/auth.ts` change |
 | API | `api-db { action: "generate"\|"push"\|"migrate"\|"seed"\|"reset"\|"studio" }` | DB lifecycle |
 | Web | `run-script` for `dr:build`/`dr:build:watch` | Regenerate declarative routes |
-| UI | `ui-add { components: [...] }` | Add Shadcn components to `@repo/ui` |
+| UI | `ui-add { components: [...] }` | Add Shadcn components to `@deployer/ui` |
 | Packages | `run-script`, `bump-version`, `list-internal-dependencies` | Impact analysis |
 
 ### Local vs Docker Execution
@@ -522,7 +522,7 @@ bun test
 | `create-package` | Create a new package |
 | `auth-generate` | Regenerate auth schema/types (api) |
 | `api-db { action: "generate"\|"push"\|"migrate"\|"seed"\|"reset"\|"studio" }` | DB lifecycle |
-| `ui-add { components: [...] }` | Add Shadcn components to `@repo/ui` |
+| `ui-add { components: [...] }` | Add Shadcn components to `@deployer/ui` |
 | `docker-up { mode: "dev"\|"prod", target: "api"\|"web"\|"all" }` | Start dev stack |
 
 ---

@@ -1,14 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Checkbox } from '@repo/ui/components/shadcn/checkbox'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@repo/ui/components/shadcn/select'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
-import { Field, FieldLabel, FieldDescription, FieldGroup, FieldSet, FieldLegend } from '@repo/ui/components/shadcn/field'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Checkbox } from '@deployer/ui/components/shadcn/checkbox'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
+import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
+import { Field, FieldLabel, FieldDescription, FieldGroup, FieldSet, FieldLegend } from '@deployer/ui/components/shadcn/field'
 import { Plus, AlertTriangle, Loader2, RefreshCw } from 'lucide-react'
-import { SERVICE_PROVIDER_TYPES } from '@repo/contracts-common'
+import { SERVICE_PROVIDER_TYPES } from '@deployer/contracts-common'
 import { useGitHubApps, useGitHubRepos, useGitHubBranches } from '@/domains/github-apps/hooks'
 import { githubAppEndpoints } from '@/domains/github-apps/endpoints'
 import { AuthDashboardAdminProvidersCodeGithub } from '@/routes'
@@ -16,6 +16,7 @@ import type { CreateServiceFormApi, WizardFormData } from '../CreateService.hook
 import { useRunnerDetection } from './runner-detection-context'
 import { runnerFromDetection } from './runner-presets'
 import { SearchableSelect } from './searchable-select'
+import { RequiredError } from './required-error'
 
 const AUTH_SECRET_OPTIONS = [
   { value: 'default', label: 'Default (built-in)' },
@@ -24,6 +25,18 @@ const AUTH_SECRET_OPTIONS = [
   { value: 'gcp-secret-manager', label: 'GCP Secret Manager' },
   { value: 'azure-key-vault', label: 'Azure Key Vault' },
 ] as const
+
+const PROVIDER_LABELS: Record<string, string> = {
+  github: 'GitHub',
+  gitlab: 'GitLab',
+  bitbucket: 'Bitbucket',
+  'container-registry': 'Container registry (prebuilt image)',
+  'artifact-bundle': 'Artifact bundle (archive URL)',
+  manual: 'Manual (custom URL)',
+}
+
+const requiredInvalid = (touched: boolean, value: unknown): boolean | undefined =>
+  (touched && (value === undefined || value === null || (typeof value === 'string' && value.trim() === ''))) || undefined
 
 const GIT_PROVIDERS = new Set(['github', 'gitlab', 'bitbucket'])
 const IMAGE_PROVIDERS = new Set(['container-registry', 'artifact-bundle'])
@@ -57,9 +70,10 @@ export function StepProvider({ form }: { form: CreateServiceFormApi }) {
                 }}>
                   <SelectTrigger id="prov-type"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {SERVICE_PROVIDER_TYPES.map((p) => (<SelectItem key={p} value={p}>{p}</SelectItem>))}
+                    {SERVICE_PROVIDER_TYPES.map((p) => (<SelectItem key={p} value={p}>{PROVIDER_LABELS[p] ?? p}</SelectItem>))}
                   </SelectContent>
                 </Select>
+                <FieldDescription>Where the platform fetches your code or image from. Everything after this step depends on it.</FieldDescription>
               </Field>
             )} />
 
@@ -68,8 +82,8 @@ export function StepProvider({ form }: { form: CreateServiceFormApi }) {
 
             {/* ── Git (non-GitHub): manual URL + branch ── */}
             {isGit && provider.providerId !== 'github' && (<>
-              <form.Field name="provider.config.sourceUrl" children={(f) => (<Field><FieldLabel>Repository URL <span className="text-destructive">*</span></FieldLabel><Input value={f.state.value} onBlur={f.handleBlur} onChange={(e) => { f.handleChange(e.target.value) }} placeholder="https://gitlab.com/org/repo" /></Field>)} />
-              <form.Field name="provider.config.branch" children={(f) => (<Field><FieldLabel>Branch <span className="text-destructive">*</span></FieldLabel><Input value={f.state.value} onBlur={f.handleBlur} onChange={(e) => { f.handleChange(e.target.value) }} placeholder="main" /></Field>)} />
+              <form.Field name="provider.config.sourceUrl" children={(f) => (<Field data-invalid={requiredInvalid(f.state.meta.isTouched, f.state.value)}><FieldLabel>Repository URL <span className="text-destructive">*</span></FieldLabel><Input value={f.state.value} onBlur={f.handleBlur} onChange={(e) => { f.handleChange(e.target.value) }} placeholder="https://gitlab.com/org/repo" aria-invalid={requiredInvalid(f.state.meta.isTouched, f.state.value)} /><RequiredError touched={f.state.meta.isTouched} value={f.state.value} message="Enter the repository URL." /></Field>)} />
+              <form.Field name="provider.config.branch" children={(f) => (<Field data-invalid={requiredInvalid(f.state.meta.isTouched, f.state.value)}><FieldLabel>Branch <span className="text-destructive">*</span></FieldLabel><Input value={f.state.value} onBlur={f.handleBlur} onChange={(e) => { f.handleChange(e.target.value) }} placeholder="main" aria-invalid={requiredInvalid(f.state.meta.isTouched, f.state.value)} /><FieldDescription>The branch deployed by default.</FieldDescription><RequiredError touched={f.state.meta.isTouched} value={f.state.value} message="Enter a branch name." /></Field>)} />
             </>)}
 
             {/* ── Image provider: URL only ── */}
@@ -77,7 +91,8 @@ export function StepProvider({ form }: { form: CreateServiceFormApi }) {
               <form.Field name="provider.config.sourceUrl" children={(f) => (
                 <Field>
                   <FieldLabel>{provider.providerId === 'container-registry' ? 'Image URL' : 'Bundle download URL'} <span className="text-destructive">*</span></FieldLabel>
-                  <Input value={f.state.value} onBlur={f.handleBlur} onChange={(e) => { f.handleChange(e.target.value) }} placeholder={provider.providerId === 'container-registry' ? 'nginx:latest' : 'https://storage.example.com/bundle.tar.gz'} />
+                  <Input value={f.state.value} onBlur={f.handleBlur} onChange={(e) => { f.handleChange(e.target.value) }} placeholder={provider.providerId === 'container-registry' ? 'nginx:latest' : 'https://storage.example.com/bundle.tar.gz'} aria-invalid={requiredInvalid(f.state.meta.isTouched, f.state.value)} />
+                  <RequiredError touched={f.state.meta.isTouched} value={f.state.value} message={provider.providerId === 'container-registry' ? 'Enter the image reference.' : 'Enter the bundle URL.'} />
                   <FieldDescription>{provider.providerId === 'container-registry' ? 'Full container image reference.' : 'URL to download the artifact archive from.'}</FieldDescription>
                 </Field>
               )} />
@@ -85,13 +100,13 @@ export function StepProvider({ form }: { form: CreateServiceFormApi }) {
 
             {/* ── Manual: free-form URL ── */}
             {provider.providerId === 'manual' && (
-              <form.Field name="provider.config.sourceUrl" children={(f) => (<Field><FieldLabel>Source URL <span className="text-destructive">*</span></FieldLabel><Input value={f.state.value} onBlur={f.handleBlur} onChange={(e) => { f.handleChange(e.target.value) }} placeholder="https://..." /></Field>)} />
+              <form.Field name="provider.config.sourceUrl" children={(f) => (<Field data-invalid={requiredInvalid(f.state.meta.isTouched, f.state.value)}><FieldLabel>Source URL <span className="text-destructive">*</span></FieldLabel><Input value={f.state.value} onBlur={f.handleBlur} onChange={(e) => { f.handleChange(e.target.value) }} placeholder="https://..." aria-invalid={requiredInvalid(f.state.meta.isTouched, f.state.value)} /><FieldDescription>Any URL the platform can download the source from.</FieldDescription><RequiredError touched={f.state.meta.isTouched} value={f.state.value} message="Enter the source URL." /></Field>)} />
             )}
 
             {/* ── Shared fields for git providers ── */}
             {isGit && (<>
-              <form.Field name="provider.config.autoSyncEnabled" children={(f) => (<Field orientation="horizontal"><Checkbox checked={f.state.value} onCheckedChange={(c) => { f.handleChange(c === true) }} /><FieldLabel>Auto-sync source on push</FieldLabel></Field>)} />
-              <form.Field name="provider.config.webhookEnabled" children={(f) => (<Field orientation="horizontal"><Checkbox checked={f.state.value} onCheckedChange={(c) => { f.handleChange(c === true) }} /><FieldLabel>Register webhook</FieldLabel></Field>)} />
+              <form.Field name="provider.config.autoSyncEnabled" children={(f) => (<Field orientation="horizontal"><Checkbox checked={f.state.value} onCheckedChange={(c) => { f.handleChange(c === true) }} /><FieldLabel>Auto-sync source on push</FieldLabel><FieldDescription>Redeploy automatically when new commits arrive on the branch.</FieldDescription></Field>)} />
+              <form.Field name="provider.config.webhookEnabled" children={(f) => (<Field orientation="horizontal"><Checkbox checked={f.state.value} onCheckedChange={(c) => { f.handleChange(c === true) }} /><FieldLabel>Register webhook</FieldLabel><FieldDescription>Let the Git host notify the platform on every push (needed for instant auto-sync).</FieldDescription></Field>)} />
             </>)}
 
             {/* ── Auth secret (all providers) ── */}
@@ -104,6 +119,7 @@ export function StepProvider({ form }: { form: CreateServiceFormApi }) {
                     {AUTH_SECRET_OPTIONS.map((opt) => (<SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>))}
                   </SelectContent>
                 </Select>
+                <FieldDescription>Where credentials for this source are read from. Keep Default unless you store them in an external secret manager.</FieldDescription>
               </Field>
             )} />
           </FieldGroup>
@@ -123,6 +139,7 @@ function GitHubSourcePicker({ form }: { form: CreateServiceFormApi }) {
       {/* Provider app */}
       <Field>
         <FieldLabel>GitHub App <span className="text-destructive">*</span></FieldLabel>
+        <FieldDescription>The GitHub App installation the platform uses to read your repositories.</FieldDescription>
         {appsLoading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Loading apps…</div>
         ) : apps.length === 0 ? (

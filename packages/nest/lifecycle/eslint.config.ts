@@ -1,5 +1,5 @@
-import libraryConfig from '@repo/config-eslint/library'
-import { defineConfig } from "@repo/config-eslint"
+import libraryConfig from '@deployer/config-eslint/library'
+import { defineConfig } from "@deployer/config-eslint"
 
 export default defineConfig([
     {extends:[libraryConfig.configs.base()],

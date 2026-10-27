@@ -8,7 +8,7 @@
  * not destroyed.
  */
 
-import { doorContainerName, type AgentDoorView, type DoorLane, type NodeDoorsSetting } from "@repo/mesh-network";
+import { doorContainerName, type AgentDoorView, type DoorLane, type NodeDoorsSetting } from "@deployer/mesh-network";
 
 import { DOOR_HASH_LABEL, DOOR_LABEL, doorContainerSpec, planDoors, type DoorPlan } from "./door-config";
 import type { ContainerSummary, DockerEngine } from "./docker-engine";

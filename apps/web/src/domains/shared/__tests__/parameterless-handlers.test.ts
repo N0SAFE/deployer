@@ -11,25 +11,27 @@
 import { describe, it, expect } from 'vitest'
 
 // Mock the custom helper to avoid dependency issues in tests
-const mockCustom = (config: any) => ({
-  call: async () => {
-    if (typeof config.handler === 'function') {
-      return Promise.resolve(config.handler())
+interface MockHandlerConfig {
+  keys: readonly string[]
+  handler?: () => unknown
+}
+
+const mockCustom = ({ keys, handler }: MockHandlerConfig) => {
+  const run = async () => {
+    if (typeof handler === 'function') {
+      return Promise.resolve(handler())
     }
     return Promise.resolve()
-  },
-  queryKey: () => config.keys,
-  queryOptions: () => ({
-    // eslint-disable-next-line @tanstack/query/exhaustive-deps
-    queryKey: config.keys,
-    queryFn: async () => {
-      if (typeof config.handler === 'function') {
-        return Promise.resolve(config.handler())
-      }
-      return Promise.resolve()
-    }
-  })
-})
+  }
+  return {
+    call: run,
+    queryKey: () => keys,
+    queryOptions: () => ({
+      queryKey: keys,
+      queryFn: run,
+    }),
+  }
+}
 
 const testEndpoints = {
   testParameterless: mockCustom({

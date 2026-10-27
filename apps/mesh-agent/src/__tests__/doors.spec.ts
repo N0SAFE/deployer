@@ -1,4 +1,4 @@
-import type { NodeDoorsSetting } from "@repo/mesh-network";
+import type { NodeDoorsSetting } from "@deployer/mesh-network";
 import { describe, expect, it } from "vitest";
 
 import { DOOR_HASH_LABEL, DOOR_LABEL, doorContainerSpec, planDoors, renderDoorNginxConfig } from "../doors/door-config";

@@ -42,7 +42,7 @@ repository-enhancements/
 - **Hook Generation**: Auto-generation from contracts
 
 ### ⚠️ Needs Attention
-- **Tests**: 45/54 failing in `@repo/orpc-utils` (Zod 4 import issue)
+- **Tests**: 45/54 failing in `@deployer/orpc-utils` (Zod 4 import issue)
 - **Deprecated Code**: `useUsers.ts` (632 lines) marked for removal
 - **Duplicates**: Two `RequirePermission` components exist
 - **TODOs**: 6 unresolved in application code
@@ -67,14 +67,14 @@ repository-enhancements/
 | React | React | 19.2.0 |
 | Backend | NestJS | 11.1.8 |
 | API | ORPC | 1.12.1 |
-| Auth | Better Auth | 1.4.4 |
+| Auth | Better Auth | 1.4.3 |
 | ORM | Drizzle | 0.44.7 |
 | Database | PostgreSQL | Latest |
 | Cache | Redis | Latest |
 | Styling | Tailwind CSS | 4.x |
 | Components | ShadCN UI | Latest |
 | Monorepo | Turborepo | 2.x |
-| Runtime | Bun | 1.4.2 |
+| Runtime | Bun | 1.4.3 |
 
 ## Priority Order for Enhancements
 

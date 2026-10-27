@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen, waitFor } from "@testing-library/react"
-import type { SetupPostSetupVerification, SetupStreamEvent } from "@repo/contracts-entities"
+import type { SetupPostSetupVerification, SetupStreamEvent } from "@deployer/contracts-entities"
 
-import { ProgressStep } from "@repo/ui/components/setup/steps/progress-step"
-import type { SetupWizardApi } from "@repo/ui/components/setup/types"
+import { ProgressStep } from "@deployer/ui/components/setup/steps/progress-step"
+import type { SetupWizardApi } from "@deployer/ui/components/setup/types"
 
 /**
  * What the operator actually saw: the stream said "done" while the ingress was

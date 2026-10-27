@@ -10,7 +10,7 @@ import swc from "unplugin-swc";
 import { createNodeConfig } from "./node.js";
 
 /**
- * Test config for an `apps/api-services` app.
+ * Test config for an `apps/api` app.
  *
  * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────
  * The BFF and the five services each carried a 143-line copy of the same config,
@@ -29,21 +29,20 @@ const IS_BUN_RUNTIME = Boolean(process.versions.bun);
 /**
  * Absolute paths the aliases need, resolved by walking up to the workspace root.
  *
- * The apps are not all at the same depth — `api-services/bff` sits one level above
- * `api-services/services/<name>` — so a fixed `../..` would resolve `shared` to
- * `api-services/services/shared` for a service and `apps/shared` for the BFF. Walking
+ * The apps are not all at the same depth — `api/bff` sits one level above
+ * `api/services/<name>` — so a fixed `../..` would resolve `shared` to
+ * `api/services/shared` for a service and `apps/shared` for the BFF. Walking
  * up until the layout is recognisable is depth-independent.
  */
-function resolveWorkspacePaths(): { sharedSrc: string; apiRoot: string } {
+function resolveWorkspacePaths(): { sharedSrc: string } {
     let dir = process.cwd();
     for (let i = 0; i < 6; i++) {
-        const sharedSrc = path.join(dir, "apps/api-services/shared/src");
-        const apiRoot = path.join(dir, "apps/api");
-        if (isDirectory(sharedSrc) && isDirectory(apiRoot)) return { sharedSrc, apiRoot };
+        const sharedSrc = path.join(dir, "apps/api/shared/src");
+        if (isDirectory(sharedSrc)) return { sharedSrc };
         dir = path.dirname(dir);
     }
     throw new Error(
-        `@deployer/config-vitest: could not locate apps/api-services/shared/src and apps/api ` +
+        `@deployer/config-vitest: could not locate apps/api/shared/src ` +
             `by walking up from ${process.cwd()}`,
     );
 }
@@ -59,6 +58,8 @@ function isDirectory(p: string): boolean {
 export interface ServiceTestConfigOptions {
     /** The service name, used for the project names and the e2e SQLite path. */
     readonly service: string;
+    /** App-local aliases that must win over the `@/` catch-all (e.g. a module-wide `core`). */
+    readonly extraAliases?: readonly { find: string; replacement: string }[];
 }
 
 /**
@@ -68,7 +69,10 @@ export const createServiceTestConfig = (
     options: ServiceTestConfigOptions,
 ): ViteUserConfigExport => {
     const { service } = options;
-    const { sharedSrc: SHARED_SRC, apiRoot: API_ROOT } = resolveWorkspacePaths();
+    const { sharedSrc } = resolveWorkspacePaths();
+    // The e2e harness (shared Postgres container, global setup/teardown, bun:sqlite shim) lives in
+    // `shared`, not in the app: it is the same for the BFF and every service.
+    const harness = path.join(sharedSrc, "e2e-harness/vitest");
     const appSrc = path.resolve(process.cwd(), "src");
 
     // ── THE ARRAY FORM, AND THE ORDER IS THE POINT ────────────────────────────
@@ -83,13 +87,6 @@ export const createServiceTestConfig = (
     // monolith's copy instead of this service's, so a test would silently exercise
     // different code than the app ships.
     const sharedAlias = [
-        { find: "@/core", replacement: path.resolve(SHARED_SRC, "core") },
-        { find: "@/config", replacement: path.resolve(SHARED_SRC, "config") },
-        { find: "@/auth", replacement: path.resolve(SHARED_SRC, "auth.ts") },
-        // The shared e2e harness. Without this the import falls through to
-        // `./src/e2e-harness`, which does not exist in a service, and the spec fails at
-        // COLLECTION time rather than at the import that is actually wrong.
-        { find: "@/e2e-harness", replacement: path.resolve(SHARED_SRC, "e2e-harness") },
         // Under Node (the VS Code extension) `bun:` protocol imports cannot resolve.
         // Aliasing `bun:sqlite` to the node:sqlite shim keeps drizzle-orm/bun-sqlite
         // and the local-db supervisor tests working there.
@@ -98,7 +95,7 @@ export const createServiceTestConfig = (
             : [
                   {
                       find: "bun:sqlite",
-                      replacement: path.resolve(API_ROOT, "vitest-shims/bun-sqlite.ts"),
+                      replacement: path.join(harness, "bun-sqlite-shim.ts"),
                   },
               ]),
     ];
@@ -108,7 +105,10 @@ export const createServiceTestConfig = (
     //
     // The catch-all comes LAST so the shared prefixes above win, and points at the
     // app's own `src` — the same target the tsconfig declares for `@/*`.
-    const appAlias = [{ find: /^@\//, replacement: appSrc + "/" }];
+    const appAlias = [
+        ...(options.extraAliases ?? []),
+        { find: /^@\//, replacement: appSrc + "/" },
+    ];
 
     const resolveConfig = { alias: [...sharedAlias, ...appAlias], dedupe: ["zod"] };
 
@@ -207,11 +207,11 @@ export const createServiceTestConfig = (
                             // and already boot a full Nest app, so serialising them costs
                             // little and makes the suite deterministic.
                             fileParallelism: false,
-                            // Referenced from `apps/api`, not copied: their imports are relative
+                            // Referenced from `shared`, not copied: their imports are relative
                             // to their own directory, so a copy per app would be six identical
                             // files to keep in step.
-                            globalSetup: [path.resolve(API_ROOT, "vitest.global-setup.e2e.ts")],
-                            setupFiles: [path.resolve(API_ROOT, "vitest.setup.e2e.ts")],
+                            globalSetup: [path.join(harness, "global-setup.ts")],
+                            setupFiles: [path.join(harness, "setup.ts")],
                             include: ["src/**/*.e2e-spec.ts"],
                             exclude: ["node_modules", "dist"],
                             testTimeout: 120000,

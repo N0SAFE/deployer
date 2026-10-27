@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Box } from 'lucide-react'
 import { toast } from 'sonner'
-import { useSafeQueryParamStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
+import { useSafeQueryParamStatesFromZod } from '@deployer/use-safe-query-param-states-from-zod'
 import { EmptyState, StatStrip, StatStripItem, StatusDot } from '@/components/dashboard'
 import { useDockerRuntimeSseState } from '@/domains/docker/hooks'
 import { AuthDashboardDockerContainers } from '@/routes/index'
@@ -161,7 +161,7 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
 
         {data.hasError ? (
           <div className="p-3">
-            <DockerEngineError what="containers" error={null} onRetry={() => { void refresh() }} isRetrying={data.isRefreshing} />
+            <DockerEngineError what="containers" error={data.error} onRetry={() => { void refresh() }} isRetrying={data.isRefreshing} />
           </div>
         ) : null}
 
@@ -179,7 +179,7 @@ export default AuthDashboardDockerContainers.Route(function DashboardDockerConta
           <div className="p-3">
             <DockerTableSkeleton columns={6} rows={6} label="Loading containers…" />
           </div>
-        ) : isEmptyNode ? (
+        ) : data.hasError && allRows.length === 0 ? null : isEmptyNode ? (
           <div className="p-3">
             <EmptyState
               icon={Box}

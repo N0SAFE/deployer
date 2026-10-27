@@ -109,7 +109,7 @@ export function usePlatformRole(): {
 } {
   const { data: session } = useSession()
   
-  const role = isPlatformRole(session?.user?.role) ? session.user.role : null
+  const role = isPlatformRole(session?.user.role) ? session.user.role : null
 
   return {
     role,

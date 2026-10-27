@@ -6,7 +6,7 @@
  */
 
 import { ZodType } from 'zod';
-import type { PermissionBuilder } from '@repo/auth/permissions/system/builder/builder';
+import type { PermissionBuilder } from '@deployer/auth/permissions/system/builder/builder';
 
 // ============================================================================
 // Permission Builder Type Constraints

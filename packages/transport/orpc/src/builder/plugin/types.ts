@@ -14,8 +14,8 @@
  * a new branch per op here. Everything schema-type lives with the plugin.
  */
 
-import type { AnySchema } from "@repo/orpc-utils/types/types";
-import { ZodPluginTransformer } from "@repo/orpc-utils/builder/plugin/zod";
+import type { AnySchema } from "@deployer/orpc-utils/types/types";
+import { ZodPluginTransformer } from "@deployer/orpc-utils/builder/plugin/zod";
 import type {
     StdField,
     StdOptional,
@@ -35,7 +35,7 @@ import type {
     StdExtractOutputStatus,
     StdExtractOutputHeaders,
     StdOutputProxySchema,
-} from "@repo/orpc-utils/builder/plugin/standard";
+} from "@deployer/orpc-utils/builder/plugin/standard";
 import type {
     ZodField,
     ZodOptional,
@@ -55,7 +55,7 @@ import type {
     ZodExtractOutputStatus,
     ZodExtractOutputHeaders,
     ZodOutputProxySchema,
-} from "@repo/orpc-utils/builder/plugin/zod";
+} from "@deployer/orpc-utils/builder/plugin/zod";
 
 /** Check whether a plugin produces Zod schemas (type-level). */
 export type IsPluginZod<TP> = TP extends ZodPluginTransformer ? true : false;

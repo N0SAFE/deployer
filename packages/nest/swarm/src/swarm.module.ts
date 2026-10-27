@@ -36,7 +36,7 @@ import { SwarmLeadershipService } from "./election/swarm-leadership.service";
  * run the same swarm code from its own environment instead of inheriting the
  * first app's variable names.
  */
-export interface SwarmModuleOptions {
+export type SwarmModuleOptions = {
 	/** Timings + thresholds for the election loop. */
 	election: SwarmElectionConfig;
 	/** Where a joiner can reach this cluster, plus the quorum cap. */
@@ -68,7 +68,7 @@ export interface SwarmModuleOptions {
  * every parameter type, so any factory shape type-checks here and the app keeps
  * its own parameter types (validated against its own `inject` list).
  */
-export interface SwarmModuleAsyncOptions {
+export type SwarmModuleAsyncOptions = {
 	/** Modules whose exports the factory injects. */
 	imports?: NonNullable<ModuleMetadata["imports"]>;
 	/** Tokens the factory's parameters are injected from, in order. */
@@ -105,8 +105,8 @@ export interface SwarmModuleAsyncOptions {
  * the package that owns the services, while the VALUES still come from the app.
  *
  * DEPENDENCIES THE APP REGISTERS FIRST
- * `DockerService` (`@repo/nest-docker`'s `DockerModule`) and the node-state
- * repositories (`@repo/nest-nodes`' `NodesModule`). Both are `@Global()`, so
+ * `DockerService` (`@deployer/nest-docker`'s `DockerModule`) and the node-state
+ * repositories (`@deployer/nest-nodes`' `NodesModule`). Both are `@Global()`, so
  * this module resolves them without importing them — and without inheriting
  * either one's configuration, which the app supplies separately.
  *

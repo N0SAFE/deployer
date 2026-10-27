@@ -1,6 +1,6 @@
-export { OBSERVABLE_DETAILS_SYMBOL, toAsyncIteratorFromObservable, observable, getObservableSchemaDetails } from "@repo/orpc-utils/observable/contract";
-export type { Observable, ObservableObserver, ObservableSubscription, ObservableSchemaDetails } from "@repo/orpc-utils/observable/contract";
-export { createDirectObservable, createEventIteratorFrame, isEventIteratorFrame, serializeEventIteratorFrame, deserializeEventIteratorFrame, deconstructObservableToEventIterator, reconstructObservableFromEventIterator } from "@repo/orpc-utils/observable/event-iterator";
-export type { EventIteratorProtocolVersion, EventIteratorFrameKind, EventIteratorFrame, DirectObserver, DirectSubscription, DirectObservable, EventSerializer, EventDeserializer } from "@repo/orpc-utils/observable/event-iterator";
-export { createObservableQueryUtils } from "@repo/orpc-utils/observable/tanstack-query";
-export type { ObservableQueryMode, ObservablePipeTransform, StreamedObservableOptionsConfig, LiveObservableOptionsConfig, ObservableProcedureQueryUtils, ObservableQueryUtils } from "@repo/orpc-utils/observable/tanstack-query";
+export { OBSERVABLE_DETAILS_SYMBOL, toAsyncIteratorFromObservable, observable, getObservableSchemaDetails } from "@deployer/orpc-utils/observable/contract";
+export type { Observable, ObservableObserver, ObservableSubscription, ObservableSchemaDetails } from "@deployer/orpc-utils/observable/contract";
+export { createDirectObservable, createEventIteratorFrame, isEventIteratorFrame, serializeEventIteratorFrame, deserializeEventIteratorFrame, deconstructObservableToEventIterator, reconstructObservableFromEventIterator } from "@deployer/orpc-utils/observable/event-iterator";
+export type { EventIteratorProtocolVersion, EventIteratorFrameKind, EventIteratorFrame, DirectObserver, DirectSubscription, DirectObservable, EventSerializer, EventDeserializer } from "@deployer/orpc-utils/observable/event-iterator";
+export { createObservableQueryUtils } from "@deployer/orpc-utils/observable/tanstack-query";
+export type { ObservableQueryMode, ObservablePipeTransform, StreamedObservableOptionsConfig, LiveObservableOptionsConfig, ObservableProcedureQueryUtils, ObservableQueryUtils } from "@deployer/orpc-utils/observable/tanstack-query";

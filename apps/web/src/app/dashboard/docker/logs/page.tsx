@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { Boxes } from 'lucide-react'
 import { EmptyState } from '@/components/dashboard'
 import { useDockerContainerList } from '@/domains/docker/hooks'
@@ -8,11 +9,13 @@ import { useDockerLiveRefetch } from '@/domains/docker/use-docker-live'
 import { DockerEngineError } from '../_components/docker-engine-error'
 import { useDockerNode } from '../_components/docker-node-context'
 import { DockerPageSkeleton } from '../_components/docker-loading-states'
+import { AuthDashboardDockerContainers, AuthDashboardProjects } from '@/routes'
 import { LogsWorkspace, type LogsContainer } from './_components/logs-workspace'
 
 const CONTAINER_LIST_INPUT = { query: { limit: 100, offset: 0 } } as const
 
 export default function DashboardDockerLogsPage() {
+  const router = useRouter()
   const { nodeName } = useDockerNode()
   const containerListQuery = useDockerContainerList(CONTAINER_LIST_INPUT)
   const { refetch } = containerListQuery
@@ -52,6 +55,8 @@ export default function DashboardDockerLogsPage() {
         icon={Boxes}
         title={`No containers on ${nodeName}`}
         description="Logs are streamed per container. Deploy a service or start a container and it will appear here."
+        action={{ label: 'Open Containers', onClick: () => { router.push(AuthDashboardDockerContainers()) } }}
+        secondaryAction={{ label: 'Go to projects', onClick: () => { router.push(AuthDashboardProjects()) } }}
       />
     )
   }

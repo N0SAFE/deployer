@@ -1,5 +1,5 @@
 {
-    "name": "@repo/vite-assets",
+    "name": "@deployer/vite-assets",
     "version": "1.0.0",
     "description": "Express middleware that proxies the SSR client bundle from a Vite dev server. Dev-only, fail-closed, one whitelisted prefix.",
     "main": "./dist/cjs/index.js",
@@ -18,23 +18,25 @@
         }
     },
     "scripts": {
-        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "prettify": "bun fmt .",
         "format": "bun run prettify",
-        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "lint": "eslint . --fix --cache",
-        "type-check": "tsc --noEmit",
+        "format:check": "bun fmt --check .",
+        "lint": "bun lint --no-script --type-aware",
+        "lint:fix": "bun lint --no-script --fix --type-aware",
+        "lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
+        "type-check": "bun check --no-script",
         "build": "bun --bun pkg-build",
         "dev": "bun --bun pkg-build --watch",
         "clean": "rimraf dist",
         "build:types": "bun --bun pkg-build --types"
     },
     "dependencies": {
-        "@repo/logger": "*"
+        "@deployer/logger": "*"
     },
     "devDependencies": {
-        "@repo/config-eslint": "*",
-        "@repo/config-prettier": "*",
-        "@repo/config-typescript": "*",
+        "@deployer/config-eslint": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-typescript": "*",
         "@types/express": "catalog:api:nest",
         "@types/node": "catalog:build",
         "chokidar": "catalog:build",
@@ -42,6 +44,6 @@
         "express": "catalog:api:nest",
         "rimraf": "catalog:build",
         "typescript": "catalog:build",
-        "@repo/pkg-build": "*"
+        "@deployer/pkg-build": "*"
     }
 }

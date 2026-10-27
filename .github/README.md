@@ -6,7 +6,7 @@ This repository includes comprehensive CI workflows for building and testing you
 
 ### 1. CI Pipeline (`.github/workflows/ci.yml`)
 Runs on every push and pull request:
-- 🔍 **Lint & Type Check**: ESLint and Prettier validation
+- 🔍 **Lint & Type Check**: `bun lint` and `bun fmt` validation
 - 🏗️ **Build & Test**: Builds all packages and runs tests with coverage
 - 🐳 **Docker Build Test**: Tests Docker builds (production only)
 - 📊 **Coverage Reports**: Collects and merges coverage from all packages
@@ -45,8 +45,8 @@ bun run docker:build       # Build Docker images (for testing)
 # Testing
 bun run test              # Run all tests
 bun run test:coverage     # Run tests with coverage
-bun run lint              # Lint all code
-bun run format            # Format with Prettier
+bun run lint              # Lint all code (bun lint --fix)
+bun run format            # Format with bun fmt
 ```
 
 ##  Workflow Customization

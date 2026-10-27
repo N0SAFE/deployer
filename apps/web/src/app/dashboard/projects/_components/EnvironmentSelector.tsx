@@ -1,7 +1,7 @@
 'use client'
 
 import { useProjectEnvironments } from '@/domains/project/hooks'
-import { Label } from '@repo/ui/components/shadcn/label'
+import { Label } from '@deployer/ui/components/shadcn/label'
 import { EnvironmentBadge } from '@/components/dashboard'
 import { cn } from '@/lib/utils'
 import { Loader2 } from 'lucide-react'
@@ -11,15 +11,6 @@ interface EnvironmentSelectorProps {
   value: string[]
   onChange: (environments: string[]) => void
   disabled?: boolean
-}
-
-/** Minimal environment row shape read from the project environments API. */
-interface EnvironmentRow {
-  id: string
-  slug?: string | null
-  name?: string | null
-  type?: string | null
-  kind?: string | null
 }
 
 export function EnvironmentSelector({ projectId, value, onChange, disabled }: EnvironmentSelectorProps) {
@@ -51,9 +42,9 @@ export function EnvironmentSelector({ projectId, value, onChange, disabled }: En
         <p className="text-sm text-muted-foreground">No environments defined for this project.</p>
       ) : (
         <div className="flex flex-wrap gap-2">
-          {(environments as EnvironmentRow[]).map((env) => {
-            const envId = env.id ?? env.slug ?? ''
-            const envName = env.name ?? env.slug ?? envId
+          {environments.map((env) => {
+            const envId = env.id
+            const envName = env.name
             const isSelected = value.includes(envId)
             return (
               <button

@@ -1,5 +1,5 @@
 {
-    "extends": "@repo/config-typescript/config/nextjs.json",
+    "extends": "@deployer/config-typescript/config/nextjs.json",
     "compilerOptions": {
         "useDefineForClassFields": true,
         "incremental": true,
@@ -35,6 +35,7 @@
         "env.ts",
         "src/**/*.ts",
         "src/**/*.tsx",
+        "src/app/.well-known/**/*.ts",
         ".next/types/**/*.ts",
         "*.config.ts",
         "*.config.mts",
@@ -42,7 +43,7 @@
         "*.config.mjs",
         "vitest.setup.unit.ts",
         "vitest.setup.e2e.ts",
-        // `@repo/ui` now ships declarations (`dist/types`), but its ambient
+        // `@deployer/ui` now ships declarations (`dist/types`), but its ambient
         // `declare module` files are inputs that are never imported, so no
         // program sees them automatically. `include` above is scoped to this
         // app's own `src/`, so the module declarations must be listed —

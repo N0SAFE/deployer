@@ -2,9 +2,9 @@
 
 import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from 'react'
 import { LogsSearchInput } from '@/components/atomics/atoms/logs/logs-search-input'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Toggle } from '@repo/ui/components/shadcn/toggle'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Toggle } from '@deployer/ui/components/shadcn/toggle'
 import { Pause, Play, WrapText } from 'lucide-react'
 
 export interface LogsViewerLine {

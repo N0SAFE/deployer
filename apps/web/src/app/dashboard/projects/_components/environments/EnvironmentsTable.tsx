@@ -1,9 +1,9 @@
 'use client'
 
 import { Copy, Layers, Pencil, RefreshCw, Trash2 } from 'lucide-react'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
 import { EmptyState, StatusBadge } from '@/components/dashboard'
 import { kindBadgeVariant, type ProjectEnvironment } from './types'
 

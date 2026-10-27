@@ -17,10 +17,10 @@ import { useParams as useNextParams, useRouter } from 'next/navigation'
 import queryString from 'query-string'
 import { z } from 'zod'
 
-import { useSafeQueryParamStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
+import { useSafeQueryParamStatesFromZod } from '@deployer/use-safe-query-param-states-from-zod'
 
 import type {
-} from "@repo/declarative-routing/types";
+} from "@deployer/declarative-routing/types";
 import type {
     Session,
     ClientAuthAdapter,
@@ -34,7 +34,7 @@ import type {
     RouteRuntimeConfig,
     PageRouteHelpers,
     RouteSearchPatch,
-} from '@repo/declarative-routing/types'
+} from '@deployer/declarative-routing/types'
 
 // ============================================================================
 // Configuration - Must be set before using session wrappers
@@ -547,4 +547,4 @@ export type {
     UnwrappedPageProps,
     BasePageProps,
     RouteRuntimeConfig,
-} from '@repo/declarative-routing/types'
+} from '@deployer/declarative-routing/types'

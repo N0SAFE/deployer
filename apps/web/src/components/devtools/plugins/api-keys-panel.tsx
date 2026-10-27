@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useDevtoolsResource } from "../use-devtools-resource";
 import { authClient } from "@/lib/auth";
-import { Badge } from "@repo/ui/components/shadcn/badge";
-import { Button } from "@repo/ui/components/shadcn/button";
+import { Badge } from "@deployer/ui/components/shadcn/badge";
+import { Button } from "@deployer/ui/components/shadcn/button";
 import {
   Table,
   TableBody,
@@ -11,16 +12,16 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@repo/ui/components/shadcn/table";
-import { Skeleton } from "@repo/ui/components/shadcn/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@repo/ui/components/shadcn/alert";
+} from "@deployer/ui/components/shadcn/table";
+import { Skeleton } from "@deployer/ui/components/shadcn/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@deployer/ui/components/shadcn/alert";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@repo/ui/components/shadcn/select";
+} from "@deployer/ui/components/shadcn/select";
 
 /**
  * DevTools panel: API keys.
@@ -71,14 +72,14 @@ function relativeTime(value: Date | null): string {
   return fmt.format(Math.round(diffMs / day), "day");
 }
 
-function ExpiryCell({ expiresAt }: { expiresAt: Date | null }) {
+function ExpiryCell({ expiresAt, now }: { expiresAt: Date | null; now: number }) {
   if (!expiresAt) return <span className="text-muted-foreground text-xs">never</span>;
 
-  const date = expiresAt instanceof Date ? expiresAt : new Date(String(expiresAt));
+  const date = expiresAt instanceof Date ? expiresAt : new Date(expiresAt);
   if (Number.isNaN(date.getTime())) {
     return <span className="text-muted-foreground text-xs">never</span>;
   }
-  if (date.getTime() <= Date.now()) return <Badge variant="destructive">expired</Badge>;
+  if (date.getTime() <= now) return <Badge variant="destructive">expired</Badge>;
 
   return (
     <span className="text-xs" title={date.toISOString()}>
@@ -87,43 +88,35 @@ function ExpiryCell({ expiresAt }: { expiresAt: Date | null }) {
   );
 }
 
+interface ApiKeysSnapshot {
+  keys: ApiKeyRow[];
+  loadedAt: number;
+}
+
+async function fetchApiKeys(): Promise<ApiKeysSnapshot> {
+  // GET /api-key/list — query params, returns { apiKeys: ApiKey[] }.
+  const result = await authClient.apiKey.list({
+    query: { limit: 50, offset: 0 },
+  });
+  if (result.error) {
+    throw new Error(result.error.message ?? "Failed to load API keys");
+  }
+  return { keys: result.data.apiKeys, loadedAt: Date.now() };
+}
+
 export function ApiKeysPanel() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "disabled">("all");
-  const [keys, setKeys] = useState<ApiKeyRow[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, error, loading, reload: load } = useDevtoolsResource(fetchApiKeys);
+  const keys = data?.keys ?? null;
+  // Captured when the list was fetched, so "expired" is judged at a fixed instant.
+  const loadedAt = data?.loadedAt ?? 0;
   const [revoking, setRevoking] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // GET /api-key/list — query params, returns { apiKeys: ApiKey[] }.
-      const result = await authClient.apiKey.list({
-        query: { limit: 50, offset: 0 },
-      });
-
-      if (result.error) {
-        setError(result.error.message ?? "Failed to load API keys");
-        return;
-      }
-      setKeys((result.data?.apiKeys ?? []) as ApiKeyRow[]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load API keys");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   const handleRevoke = async (keyId: string) => {
     setRevoking(keyId);
     try {
       await authClient.apiKey.delete({ keyId });
-      await load();
+      load();
     } finally {
       setRevoking(null);
     }
@@ -165,7 +158,7 @@ export function ApiKeysPanel() {
         <div className="flex items-center gap-2">
           <Select
             value={statusFilter}
-            onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}
+            onValueChange={(v) => { setStatusFilter(v as typeof statusFilter); }}
           >
             <SelectTrigger className="h-8 w-[130px]" aria-label="Filter by status">
               <SelectValue />
@@ -176,7 +169,7 @@ export function ApiKeysPanel() {
               <SelectItem value="disabled">Disabled</SelectItem>
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={() => void load()} disabled={loading}>
+          <Button size="sm" variant="outline" onClick={load} disabled={loading}>
             {loading ? "Refreshing…" : "Refresh"}
           </Button>
         </div>
@@ -213,13 +206,13 @@ export function ApiKeysPanel() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <ExpiryCell expiresAt={key.expiresAt} />
+                    <ExpiryCell expiresAt={key.expiresAt} now={loadedAt} />
                   </TableCell>
                   <TableCell className="text-xs">{relativeTime(key.lastRequest)}</TableCell>
                   <TableCell className="text-xs">
                     {key.remaining === null
-                      ? `${key.requestCount} (uncapped)`
-                      : `${key.requestCount} / ${key.requestCount + key.remaining}`}
+                      ? `${String(key.requestCount)} (uncapped)`
+                      : `${String(key.requestCount)} / ${String(key.requestCount + key.remaining)}`}
                   </TableCell>
                   <TableCell>
                     <Button

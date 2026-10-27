@@ -12,8 +12,8 @@ The Next.js dev server can enter a perceived "infinite compilation loop" when th
 ## Context
 
 The web container runs:
-1. `@repo/ui:dev` — tsup `--watch` mode rebuilds UI components to `dist/`
-2. `next dev` — webpack (via `transpilePackages`) watches all `@repo/*` packages including their `dist/` output
+1. `@deployer/ui:dev` — tsup `--watch` mode rebuilds UI components to `dist/`
+2. `next dev` — webpack (via `transpilePackages`) watches all `@deployer/*` packages including their `dist/` output
 3. `dr:build:watch` — watches for route file changes and regenerates `routes/index.ts`
 
 These three watchers run concurrently with no `ignored` patterns for `**/dist/**` on webpack.
@@ -25,9 +25,9 @@ User saves file on host
     ↓
 Docker develop.watch syncs change to container
     ↓
-@repo/ui:dev (tsup --watch) detects source change, rebuilds to dist/
+@deployer/ui:dev (tsup --watch) detects source change, rebuilds to dist/
     ↓
-Webpack (via transpilePackages resolving @repo/ui → dist/cjs/index.js) 
+Webpack (via transpilePackages resolving @deployer/ui → dist/cjs/index.js) 
     detects dist/ file changes → triggers recompilation
     ↓
 dr:build:watch may detect route file changes → regenerates routes/index.ts
@@ -39,7 +39,7 @@ Webpack detects route changes → triggers ANOTHER recompilation
 
 ## Key Facts Discovered
 
-- **@repo/ui:dev builds ONCE** per startup (1 ESM + 1 CJS build) — 467 lines of output is just verbosity
+- **@deployer/ui:dev builds ONCE** per startup (1 ESM + 1 CJS build) — 467 lines of output is just verbosity
 - **next dev starts successfully** — "✓ Ready in 1612ms" confirmed in logs
 - **No docker bind mounts** — only `develop.watch` sync with `**/dist/` ignored
 - **No polling enabled** — `NEXT_WEBPACK_USEPOLLING=0` is falsy
@@ -77,8 +77,8 @@ webpack: (config, context) => {
 
 ## Additional Recommendations
 
-### 1. Add `**/dist/**` to @repo/api-contracts chokidar exclusion
-The `@repo/api-contracts:dev` watch mode rebuilds twice (initial + self-triggered). The chokidar watcher should exclude `dist/`:
+### 1. Add `**/dist/**` to @deployer/api-contracts chokidar exclusion
+The `@deployer/api-contracts:dev` watch mode rebuilds twice (initial + self-triggered). The chokidar watcher should exclude `dist/`:
 
 In `packages/contracts/api/scripts/build.ts`:
 ```typescript
@@ -88,7 +88,7 @@ watcher = chokidar.watch(rootDir, {
 });
 ```
 
-### 2. Remove `import("@parcel/watcher")` dead code in @repo/ui build script
+### 2. Remove `import("@parcel/watcher")` dead code in @deployer/ui build script
 
 ### 3. Separate issue: API mesh control plane event loop
 `MeshControlPlaneService` publishes events that loop back to its own node ID (`759d5e0c...`). Rate limit warnings flood API logs. Needs investigation in `v3/apps/api/src/core/modules/mesh/`.

@@ -1,4 +1,4 @@
-import type { ClusterSwarmRole } from "@repo/contracts-entities";
+import type { ClusterSwarmRole } from "@deployer/contracts-entities";
 
 /**
  * What the cluster bootstrap reports back.

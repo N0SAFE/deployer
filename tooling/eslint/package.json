@@ -9,36 +9,42 @@
     "exports": {
         ".": {
             "types": "./dist/types/index.d.ts",
-            "import": "./dist/index.mjs"
+            "import": "./dist/index.mjs",
+            "default": "./dist/index.mjs"
         },
         "./library": {
             "types": "./dist/types/library.d.ts",
-            "import": "./dist/library.mjs"
+            "import": "./dist/library.mjs",
+            "default": "./dist/library.mjs"
         },
         "./nextjs": {
             "types": "./dist/types/nextjs.d.ts",
-            "import": "./dist/nextjs.mjs"
+            "import": "./dist/nextjs.mjs",
+            "default": "./dist/nextjs.mjs"
         },
         "./nestjs": {
             "types": "./dist/types/nestjs.d.ts",
-            "import": "./dist/nestjs.mjs"
+            "import": "./dist/nestjs.mjs",
+            "default": "./dist/nestjs.mjs"
         },
         "./react": {
             "types": "./dist/types/react.d.ts",
-            "import": "./dist/react.mjs"
+            "import": "./dist/react.mjs",
+            "default": "./dist/react.mjs"
         },
         "./mdx": {
             "types": "./dist/types/mdx.d.ts",
-            "import": "./dist/mdx.mjs"
+            "import": "./dist/mdx.mjs",
+            "default": "./dist/mdx.mjs"
         }
     },
     "scripts": {
         "build": "bun --bun pkg-build",
         "build:types": "bun --bun pkg-build --types",
-        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "prettify": "bun fmt .",
         "format": "bun run prettify",
-        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
-        "type-check": "bun --check",
+        "format:check": "bun fmt --check .",
+        "type-check": "bun check --no-script",
         "test": "vitest run",
         "test:watch": "vitest",
         "dev": "bun --bun pkg-build --watch",

@@ -1,0 +1,532 @@
+# PROJECTS & SERVICES roadmap
+> Owner prefix: PROJ · Sources: projects-services.md, parity.md, journeys.md (J2, J6, section 7), ideas-deploy.md (section 4 enhancements + ideas 3/6/8), bench-coolify.md, bench-dokploy-dockhand.md, bench-market.md · Last verified: 2026-10-26
+
+Path abbreviations: `PS` = `apps/api-services/services/project/src/modules`, `RT` = `apps/api-services/services/runtime/src/modules`, `FL` = `apps/api-services/services/fleet/src/modules`, `WEB` = `apps/web/src/app/dashboard/projects`, `SH` = `apps/api-services/shared/src/core/modules`. Live implementation is svc-project (via BFF delegation); the monolith copy `apps/api/src/modules/{project,service}` is frozen and worse (fix once in svc-project, delete the copy under ARCH).
+
+## Summary
+The projects/services data layer is real (CRUD, sub-service trees, dependency edges with cycle checks, environments + link matrix, settings forms), but it is largely decorative at runtime and has no access control. Every authenticated user can list/read every project and service (including env var values), write DNS records into the platform zone, create sub-services in any project, and a maintainer can mint owners. Env vars are plaintext JSONB (the encrypted table has no reader), and most project/service settings (quotas, notifications, basic auth, health, volumes, runner config, environment rules, dependency graph, preview topology) are stored and never consumed. New projects have zero environments, delete leaks all runtime resources, and several web pages are wrong (phantom status, broken env link, 100-row truncation).
+Counts: 96 PROJ items (incl. 14 test items at the end) plus 6 decisions. By priority: P0 x12, P1 x39, P2 x34, P3 x11. By type: FIX x40, ENHANCE x10, NEW x46.
+> Coverage pass: 2026-10-26 — 4 items added, 9 deps resolved (SUB-A/B/C substrate tokens kept as-is; `See also` cross-links added to overlapping SEC/ARCH/FEAT/IDEA/CLUSTER/NET/OBS/WEB/DEPLOY items)
+Biggest risks: authz holes (PROJ-001..006), plaintext secrets (PROJ-020..022), deploy ignores saved service config (PROJ-040; execution side is DEPLOY), no teardown (PROJ-100).
+Substrates: SUB-A (policy-gated authz) underpins PROJ-001..005, 008, 114; SUB-B (release manifest) underpins redeploy-needed badge, promotion, config history; SUB-C (event bus consumers) underpins teardown and notifications.
+
+## Items
+
+### Authorization and tenant isolation (all in svc-project)
+- [ ] `PROJ-001` **Scope project list/findById/stream to membership** · FIX · P0 · M · Deps: `SUB-A` · See also: `SEC-006`, `OBS-052`
+  - Why/Problem: any authenticated user lists and reads every project: `PS/project/services/project.service.ts:63-73`, `project.repository.ts:191-227`. Project event stream is also unscoped (any user sees all project events) `project.service.ts:740-902`. `list` only filters id/name/ownerId. [verified-by-report]
+  - Do: add a ProjectAccessService read-level check on `findById`, stream, stats; filter `list` by owner/collaborator membership (platform admins excepted); non-members get 404 (do not leak existence); add membership filter to list contract; add `userId`/`membership` filters.
+  - Done when: a non-member gets 404/403 on `project.findById`, `project.list` omits foreign projects, stream emits only member projects; negative test per procedure (see PROJ-150).
+  - Status: todo · Verified-in-code: partial (reading of service confirmed by report; not re-read) · Source: projects-services#1.1,#3.1; journeys#J6 step 8
+  - Effect-impact (2026-10-26): land the scoping fix Nest-style in the project service now (P0); the project service is the first one that forces the Effect transaction decision (7 non-spec `transaction()` sites: `project.repository.ts:241,297,335`, `service.repository.ts:183,502,623,659`), so do not wait for its migration. Deps: `EFF-018`, `EFF-103`.
+- [ ] `PROJ-002` **Scope service list/findById/children/subtree/dependencies/stream to project membership** · FIX · P0 · M · Deps: `SUB-A`, `PROJ-001`
+  - Why/Problem: `service.service.ts:88-102` lets any user read all services incl. env vars and provider config; `dependencies.list` has no access check; service stream unscoped `service.service.ts:530-790`.
+  - Do: resolve the service's project and enforce read access on each procedure; `service.list` must filter by accessible projects (and accept a server-side `projectId` filter, see PROJ-120).
+  - Done when: non-member requests for a foreign service/dependency/stream return 403/404 in tests.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.2,#3.1; journeys#J6 step 8
+  - Effect-impact (2026-10-26): same as PROJ-001: scope in the existing repositories now; Effect migration of project (L) comes after template v1. Deps: `EFF-103`.
+- [ ] `PROJ-003` **Add access checks to project network (DNS provider/zone/base domain) get/update** · FIX · P0 · S · Deps: `SUB-A` · See also: `SEC-008`
+  - Why/Problem: `project.controller.ts:183-195` passes no user, no access check; `PS/project/services/project-network.service.ts:61-185` lets any user read/change any project's DNS provider/zone/base domain.
+  - Do: pass the caller, require read for get and `admin` (manage) for update; validate base domain belongs to the configured zone (zone ownership validation is NET).
+  - Done when: non-member and viewer get 403 on both; test added.
+  - Status: todo · Verified-in-code: partial (controller seen in report) · Source: projects-services#1.1,#3.1,#5
+- [ ] `PROJ-004` **Lock down service `provisionDnsRecord` and service network get/update** · FIX · P0 · M · Deps: `SUB-A` · See also: `SEC-008`, `ARCH-057`
+  - Why/Problem: `PS/service/services/service-network.service.ts:82,148,181`; controller `service.controller.ts:172` — any authenticated user can create arbitrary DNS records (type/name/content) in the platform zone for any service; no hostname-under-zone check.
+  - Do: require `admin` access on the service's project; hostname must be within the project's zone; record type allowlist (A/AAAA/CNAME/TXT constrained); or remove the procedure and derive records from domain verification flows (coordinate NET).
+  - Done when: unauthorized caller gets 403; out-of-zone hostname and disallowed type are rejected; test per case.
+  - Status: todo · Verified-in-code: yes (`provisionDnsRecord` wired at controller `service.controller.ts:172`, no access param passed) · Source: projects-services#1.2,#3.1,#4.1,#5
+- [ ] `PROJ-005` **Force same-project on sub-service creation and verify `parentId`** · FIX · P0 · S · Deps: `SUB-A` · See also: `SEC-009`
+  - Why/Problem: `service.repository.ts:276` inserts `projectId: child.projectId` taken from the request; only the root's project is access-checked (`service.service.ts:108`). `parentId` on create is not checked for same-project/access either.
+  - Do: ignore request `projectId` for children (set to parent/root project), assert `parentId` belongs to the same project the caller can write.
+  - Done when: creating a child with a foreign `projectId` or a foreign `parentId` fails; test.
+  - Status: todo · Verified-in-code: yes (read `service.repository.ts:276-282`) · Source: projects-services#1.2,#3.1
+- [ ] `PROJ-006` **Fix collaborator privilege escalation and role hierarchy** · FIX · P0 · S · Deps: `SUB-A` · See also: `SEC-007`, `IDEA-010`
+  - Why/Problem: `assertNotOwnerGrant` / `assertRoleIsAssignable` (`PS/project/domain/project.entity.ts:117,212`) are defined and never called (grep confirms no other references); `inviteCollaboratorSchema.role` includes `owner` (`packages/contracts/entities/.../collaborators.schema.ts:27-29`) so a maintainer can invite/promote anyone to owner; maintainers can demote/remove other maintainers (`project.service.ts:160-255`).
+  - Do: call both asserts in invite/update; add rule "cannot grant or modify a role >= own role"; restrict owner changes to owner only (see PROJ-111 for transfer); drop `owner` from the invitable role enum.
+  - Done when: maintainer inviting/promoting to `owner` -> 403; maintainer cannot modify/remove equal-or-higher; unit tests per matrix cell.
+  - Status: todo · Verified-in-code: yes · Source: projects-services#1.1,#3.2; journeys#J6 W6.4, step 7
+- [ ] `PROJ-007` **Remove or repair unwired webhook/api-key services (nonexistent "admin" role)** · FIX · P1 · S · Deps: none · See also: `AUTH-020`
+  - Why/Problem: `PS/project/services/webhook.service.ts:137` and `api-key.service.ts:178` gate on `["owner","admin"]`; `admin` is not in `PROJECT_ROLES`; both are provided in `project.module.ts` with no controller/contract/caller; tests pass only via mocks. Parity: legacy `ApiKeyService`/`api_keys` are dead (Better Auth apiKey plugin replaced them).
+  - Do: delete both services/repositories/tests unless PROJ-088 chooses to expose them (then fix roles to maintainer/owner and add contracts).
+  - Done when: no dead provider remains or each has contract+controller+authz test.
+  - Status: todo · Verified-in-code: yes (grep) · Source: projects-services#1.1,#3.2; parity#1.2
+- [ ] `PROJ-008` **Scope variable templates to a project and enforce ownership on get/update/delete** · FIX · P1 · M · Deps: `SUB-A` · See also: `SEC-009`, `WEB-055`
+  - Why/Problem: table is GLOBAL (`project.repository.ts:699-715`, TODO, `_projectId` ignored); any project admin can edit/delete any template; get/update/delete do not check membership. Applying a template copies only `defaultValue`.
+  - Do: add `project_id` (nullable for platform-global curated ones) with migration, filter on it, check template belongs to the project on mutate; consider applying template with generated defaults.
+  - Done when: project A cannot see or edit project B's templates; migration backfills.
+  - Status: todo · Verified-in-code: no · Source: projects-services#1.3; ideas-deploy#4.20
+- [ ] `PROJ-009` **Stop returning basic-auth password and webhook secret in clear from security config read** · FIX · P0 · S · Deps: `PROJ-022` · See also: `SEC-021`
+  - Why/Problem: `project.service.ts:593-613` returns `webhookSecret` and `basicAuthPassword` to any reader (read access suffices); stored unencrypted in `projects.settings` JSONB.
+  - Do: write-only semantics: return `hasSecret: true`/masked; require `admin` access to set; encrypt at rest (PROJ-022).
+  - Done when: GET security config never contains the secret values; unit test asserts redaction.
+  - Status: todo · Verified-in-code: no · Source: projects-services#1.1,#3.3
+- [ ] `PROJ-010` **Fix project event stream replay and per-user filtering** · FIX · P2 · S · Deps: `PROJ-001`
+  - Why/Problem: stream replay always emits `projectCreated`; unscoped (`project.service.ts:740-902`, `project-event.service.ts`).
+  - Do: replay real current state or last events only for projects the caller may read; add heartbeat/resume token if needed.
+  - Done when: replay reflects actual events; filter test.
+  - Status: todo · Verified-in-code: no · Source: projects-services#1.1
+- [ ] `PROJ-011` **Enforce or remove per-collaborator `permissions` JSON and use the unused `deploy`/`manage` access levels** · FIX · P2 · M · Deps: `SUB-A`
+  - Why/Problem: collaborator `permissions` (canDeploy, canViewLogs...) is stored and never enforced; `deploy` and `manage` levels in `domain/project.entity.ts:56-221` are never used by callers (config writes use `admin`).
+  - Do: map procedures to levels (deploy -> `deploy`, config -> `manage`, delete/collaborators -> `admin`) through the SUB-A policy; either honor `permissions` overrides or drop the field from schema/UI.
+  - Done when: each procedure documents its required level and a deployer-role user can deploy but not edit config.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.1
+
+### Secrets and environment variable model
+- [ ] `PROJ-020` **Encrypt the real env var store (service/deployment/preview JSONB)** · FIX · P0 · L · Deps: none · See also: `ARCH-013`, `ARCH-040`, `SEC-021`, `DEC-PROJ-1`
+  - Why/Problem: `services.environment_variables` is plaintext JSONB (`packages/nest/schema/src/global/project/deployment.ts:118`), also copied into deployments/preview rows; the encrypted `environment_variables` table (`.../environment.ts:203-215`, `encryptedText`) has no v3 reader/writer except monolith `backfill-env-secrets.command.ts`. "Fix" in the catalogue protects an unused table. All three benchmarks encrypt.
+  - Do: either route UI/API through the encrypted table or apply the `encryptedText` codec (`packages/nest/schema/src/codecs/codec-registry.ts:184`) to the JSONB columns incl. deployments/previews copies; migrate existing rows; apply in svc-project and runtime; correct the gap-catalogue S-1 entry.
+  - Done when: DB grep for a known plaintext value returns no hits; env still injected into containers; migration tested.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.2,#3.3; parity#2.1,#3 rank1,#4.1; journeys#J2 step 18, W2.11
+  - Effect-impact (2026-10-26): once the Effect infra layer exists, read the key through `Config.redacted` and unwrap at the codec only (SEC-016); the store fix itself is unchanged. Deps: `EFF-028`.
+- [ ] `PROJ-021` **Add `isSecret` semantics: masking on read, write-only update, shown-once** · NEW · P0 · M · Deps: `PROJ-020` · See also: `IDEA-024`, `WEB-053`, `DEPLOY-063`
+  - Why/Problem: values returned in clear by `service.findById`; `isSecret` exists only in migrations; UI masks client-side only (eye toggle).
+  - Do: per-variable `isSecret`, server returns `***` + "last changed by/at"; update accepts new value only; optional `isShownOnce`, `comment`, multiline/literal flags (Coolify parity); redact in deployment logs and job payloads.
+  - Done when: API responses/logs/job payloads never contain secret values; UI shows "Last changed by X".
+  - Status: todo · Verified-in-code: partial · Source: parity#1.2; journeys#J2 acceptance 5; bench-coolify#1 row Env vars
+- [ ] `PROJ-022` **Encrypt `basicAuthPassword` and `webhookSecret` (project settings JSONB)** · FIX · P1 · S · Deps: `PROJ-020` · See also: `SEC-021`
+  - Why/Problem: stored unencrypted in `projects.settings` (`packages/nest/schema/src/global/project/deployment.ts`).
+  - Do: apply encrypted codec / secret store; migrate existing; decide with DEPLOY-091/DEPLOY-081 whether project `webhookSecret` becomes the webhook/deploy-hook secret or is deleted (it is unused today).
+  - Done when: DB shows ciphertext; PROJ-009 redaction passes.
+  - Status: todo · Verified-in-code: no · Source: projects-services#1.1,#4.5
+- [ ] `PROJ-023` **Implement or remove `authSecretRef` and runner `secretRefs`** · FIX · P1 · M · Deps: `PROJ-020` · See also: `CLUSTER-055`, `DEPLOY-063`
+  - Why/Problem: `authSecretRef` options (Vault/AWS/GCP/Azure) in `WEB/_components/steps/StepProvider.tsx` are stored and consumed nowhere; runner-config `secretRefs` dead (only compose realizer reads compose `secrets`).
+  - Do: define a secret-reference resolver (platform secret store first), wire into git auth and env injection; delete unsupported provider options from UI until implemented.
+  - Done when: a ref resolves at deploy and an unsupported option is not offered.
+  - Status: todo · Verified-in-code: no · Source: projects-services#1.5,#3.3,#4.5
+- [ ] `PROJ-024` **Per-environment variables (store, API, UI, resolver layer)** · NEW · P1 · L · Deps: `PROJ-020` · See also: `WEB-053`
+  - Why/Problem: v1/v2 had get/update/resolve per environment; v3 project `getEnvironmentConfig` stores `production/staging/developmentEnvironmentVariables` that the resolver never reads (only `default...`, `configuration-resolver.service.ts:~654,716-760`); no UI for `getEnvironmentConfig/updateEnvironmentConfig` (hook `useProjectEnvironmentConfig` has no page); `environment_variables` table unused.
+  - Do: add environment layer to the merge chain (mesh < project default < environment < service < user), UI per environment, preview-scoped values (see PROJ-034).
+  - Done when: same service resolves different env values for production vs staging; UI edits them.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.3; parity#1.2; journeys#J2 W2.11; bench-market#E
+- [ ] `PROJ-025` **Build-time vs runtime variable flag and build secrets/args** · NEW · P1 · M · Deps: `PROJ-021` · See also: `DEPLOY-048`
+  - Why/Problem: no build/runtime split; `buildArgs` supported by `DockerService.buildImage` but unused; Coolify `is_buildtime/is_runtime`, BuildKit secrets; Dokploy build args/secrets (bench).
+  - Do: per-variable `scope: build|runtime|both`; pass build args and BuildKit `--secret` (never baked into image layers/logs); executor side is DEPLOY.
+  - Done when: build-only var absent from the running container and secret value absent from image history.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify#1; bench-market#E; ideas-deploy#4.19
+- [ ] `PROJ-026` **Shared variables / env groups across services, projects and environments** · NEW · P2 · M · Deps: `PROJ-020` · See also: `FEAT-140`
+  - Why/Problem: Coolify team/project/environment/server shared variables, Render env groups, Komodo shared vars; v3 has only the project->service merge.
+  - Do: shared variable sets attachable to services/environments; precedence documented in the resolver; UI hierarchy view.
+  - Done when: a group change propagates to attached services and shows in the redeploy-needed badge.
+  - Status: todo · Verified-in-code: no · Source: parity#3 rank16; bench-coolify; bench-market#E
+- [ ] `PROJ-027` **Variable reference syntax between services (`${{db.URL}}`) and dynamic variables** · NEW · P2 · M · Deps: `PROJ-024`
+  - Why/Problem: `isDynamic/resolvedValue/resolutionStatus` exist only in schema (parity 1.2); references are an advertised v1 schema concept.
+  - Do: resolve `${{service.VAR}}`/`{{project.X}}` in the resolver with cycle detection and masked previews; decide to implement or prune the dynamic columns (see PROJ-081).
+  - Done when: referencing a dependency's exposed variable resolves at deploy.
+  - Status: todo · Verified-in-code: yes (schema-only per report) · Source: parity#1.2,#2.2; projects-services#6
+- [ ] `PROJ-028` **`.env` paste/import/export and bulk edit in the env editor** · NEW · P2 · S · Deps: `PROJ-021` · See also: `WEB-053`
+  - Why/Problem: no import/export; UI text "Prefix `ENV_NAME` for per-env values" describes a nonexistent feature.
+  - Do: bulk edit textarea, `.env` import with diff, export with secrets omitted; correct/remove misleading helper text.
+  - Done when: round-trip import/export preserves non-secret variables.
+  - Status: todo · Verified-in-code: no · Source: projects-services#1.2,#6; journeys#J2 W2.11; bench-coolify
+- [ ] `PROJ-029` **Config revision history with diff and rollback (append-only `config_revisions`)** · NEW · P2 · M · Deps: `SUB-B` · See also: `IDEA-048`
+  - Why/Problem: project/service/environment edits overwrite in place; time-machine, audit and "who changed what" need history; `environment_access_logs` table exists unused.
+  - Do: append-only revisions written by svc-project on every mutation (canonical JSON, secrets as refs/hashes), diff view, restore previous revision.
+  - Done when: each settings/env edit creates a revision; UI diff and restore work.
+  - Status: todo · Verified-in-code: no · Source: projects-services#5; ideas-deploy#1.8; ideas-deploy#4.19
+- [ ] `PROJ-030` **"Redeploy needed" badge via config/env hash vs in-force manifest** · NEW · P2 · S · Deps: `SUB-B` · See also: `DEPLOY-083`, `WEB-042`, `IDEA-059`
+  - Why/Problem: no signal that saved config differs from the running deployment (Coolify ConfigurationChecker).
+  - Do: hash resolved effective config + env, compare to the deployment manifest, show badge on service header/environment pages.
+  - Done when: changing an env var/port/health shows the badge until redeploy.
+  - Status: todo · Verified-in-code: no · Source: ideas-deploy#4.7; journeys#J2 ideal state; bench-coolify#4
+- [ ] `PROJ-034` **Preview-scoped environment variable overrides (`previewValue` / `is_preview`)** · NEW · P2 · M · Deps: `PROJ-024` · See also: `DEPLOY-105`
+  - Why/Problem: previews must not reuse production secrets; Render `previewValue`, Coolify preview-scoped vars; `PreviewEnvOverlayService` is the unwired hook.
+  - Do: per-variable preview value in the env layer; overlay applied when deploying a preview; fork-PR guard (never inject secrets for forked PRs).
+  - Done when: a preview container gets preview values and never production secrets.
+  - Status: todo · Verified-in-code: yes (overlay unwired) · Source: ideas-deploy#1.6; bench-coolify#1 row Preview; bench-market#B
+- [ ] `PROJ-035` **External secret providers (Vault/Infisical) as variable sources** · NEW · P3 · M · Deps: `PROJ-023` · See also: `FEAT-143`
+  - Why/Problem: Dokploy "Secrets Providers"; `authSecretRef` UI already lists Vault/AWS/GCP/Azure.
+  - Do: provider interface behind the secret-ref resolver.
+  - Done when: one external provider resolves a ref at deploy.
+  - Status: todo · Verified-in-code: no · Source: bench-market#E; projects-services#1.5
+
+### Service configuration: what the model stores vs what runs
+- [ ] `PROJ-040` **Make the saved service config the single source read by deploy (typed schema, wired fields)** · FIX · P1 · L · Deps: `SUB-B` · See also: `DEPLOY-002`
+  - Why/Problem: `builderConfig`, `providerConfig`, `startCommand`, args, ports, `volumeMounts`, `secretRefs`, service `port`, `healthCheckPath/Interval/Timeout/Retries` are never read by runtime/shared (defaults `PS/service/services/service-config-defaults.ts:116-152`); health path hardcoded `"/health"` (`RT/deployment/services/deployment-execution-workflow.service.ts:491`); web builds source inline (`as any`). This is the project-side half of the DEPLOY "honest deploy" work (execution side: DEPLOY-002).
+  - Do: define the typed service-config contract and a server-side resolver (source from providerConfig, builder from `builderId`/`builderConfig`, port, health fields, start command/args, resources, volumes); expose via the effective-config resolver; coordinate with DEPLOY for execution; delete fields that will not be implemented.
+  - Done when: changing port/health path/start command in the service page changes the next deployment; no stored-but-unread field remains.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.5,#3.4,#4.3; ideas-deploy#4.1; bench-dokploy#1 row Build args
+- [ ] `PROJ-041` **Reconcile provider/runner vocabulary with what runtime can execute** · FIX · P1 · M · Deps: `PROJ-040`
+  - Why/Problem: `packages/contracts/common/src/provider-runner.schema.ts` allows runners manual/compose/orchestrator/kubernetes/nomad/static/worker-runtime/mock and providers bitbucket/artifact-bundle/manual; runtime only has docker, dockerfile, nixpacks, buildpack, railpack, docker-compose, swarm; no mapping from `builderId` to a runtime runner; the UI offers nixpacks/buildpack/railpack as if real.
+  - Do: single registry of supported builders/runners from runtime, served to the wizard; mark unsupported ones "unavailable" or remove (kubernetes, nomad, worker-runtime, static, mock until implemented).
+  - Done when: wizard only offers executable combinations; server rejects the rest.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.2,#1.5; ideas-deploy#4.2
+- [ ] `PROJ-042` **Wire resource limits, replicas and restart policy from service config to swarm** · FIX · P1 · M · Deps: `PROJ-040` · See also: `DEPLOY-061`, `CLUSTER-038`, `CLUSTER-039`
+  - Why/Problem: limits are stored and edited (`configuration/general/page.tsx`); swarm runner accepts `memoryLimitBytes` (`swarm-runtime-runner.service.ts:211`) but report says swarm reservations are always `{}` and replicas hardcoded to 1; parity says "runners consume" while bench-coolify says ignored (conflicting; verify the service->runner path). Missing: cpu/memory reservations, cpuset/shares, swap, stop grace period, restart policy and max-restart alert, replicas.
+  - Do: carry service `resources`/`replicas`/`restartPolicy` through the resolved config into runner options; add reservation fields; surface max restart count.
+  - Done when: `docker service inspect` reflects service config limits, reservations and replicas.
+  - Status: todo · Verified-in-code: partial · Source: parity#1.2; bench-coolify#1; bench-market#C; ideas-deploy#0
+- [ ] `PROJ-043` **Replicas / manual scale as a first-class service field and UI control** · NEW · P1 · S · Deps: `PROJ-042` · See also: `DEPLOY-060`, `FEAT-034`, `CLUSTER-037`
+  - Why/Problem: no scale control (bench-market C P0); environment `rules.replicas` is only displayed.
+  - Do: `replicas` on service (overridable per environment rule), scale action wired to swarm `scaleService`.
+  - Done when: scaling changes the running replica count without a redeploy.
+  - Status: todo · Verified-in-code: no · Source: bench-market#C; projects-services#1.3
+- [ ] `PROJ-044` **Persistent volumes: contract field, UI, stable names and lifecycle** · NEW · P1 · L · Deps: `PROJ-040`,`CLUSTER-043` · See also: `DEPLOY-062`, `CLUSTER-044`, `CLUSTER-061`
+  - Why/Problem: storage config only from `service.metadata.storage` or trigger `customData`; no contract field, no UI; runner-config `volumeMounts: string[]` is dead; swarm supports volume only, s3 is metadata (`docker-runtime-runner.service.ts:230-276`, `swarm-runtime-runner.service.ts:451-470`); a new volume per deployment loses data on redeploy (docker-cluster 3 #8).
+  - Do: volume entity per service (name, mount path, type local/volume/nfs, placement), stable per-service volume name, list/browse/orphan detection, delete policy tied to PROJ-100; later backups (FEAT).
+  - Done when: data survives redeploy; volumes visible and attachable in service config.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.5; ideas-deploy#4.30; bench-market#D
+- [ ] `PROJ-045` **Service "Build" configuration tab (edit builder/runner config after creation)** · NEW · P2 · M · Deps: `PROJ-040`
+  - Why/Problem: v2 had a build sub-tab; v3 `builderConfig`/runner editing not exposed after creation (`WEB/.../services/[serviceId]/configuration`).
+  - Do: build tab (builder, Dockerfile path, root path, build context, watch paths, build args, cleanCache, submodules) writing typed config.
+  - Done when: builder config editable and honoured by deploy.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.6; bench-dokploy#1
+- [ ] `PROJ-046` **Pre-deploy / release command and watch paths as typed service fields** · NEW · P2 · M · Deps: `PROJ-040` · See also: `DEPLOY-054`, `DEPLOY-041`, `FEAT-066`
+  - Why/Problem: Railway `preDeployCommand`, Heroku release phase, Render deploy hook; Dokploy/Railway watch paths (monorepo).
+  - Do: add typed fields (`preDeployCommand`, `watchPaths`, `rootPath`) evaluated by the plan; mark migration-ran for rollback awareness (DEPLOY).
+  - Done when: command runs before the flip; watch paths filter push triggers.
+  - Status: todo · Verified-in-code: no · Source: bench-market#A quick wins #6,#7; ideas-deploy#4.8; projects-services#6
+- [ ] `PROJ-047` **Richer health-check config (method, scheme, host, port, start period, expected status/text, cmd)** · ENHANCE · P2 · S · Deps: `PROJ-040`
+  - Why/Problem: Coolify supports path/port/method/scheme/host/interval/timeout/retries/start_period/return_code/response_text/cmd; v3 only path/interval/timeout/retries and unread.
+  - Do: extend schema + form; runtime gate reads them.
+  - Done when: health gate uses the configured probe.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify#1 row Rolling update; parity#1.2
+- [ ] `PROJ-048` **Multiple processes per service (roles/workers) and extra ports/port mappings** · NEW · P2 · L · Deps: `PROJ-040`
+  - Why/Problem: no process-type model (Procfile/Kamal roles/Render workers); Dokploy extra ports, mounts incl. file mounts, redirects.
+  - Do: process types on a service (web/worker) with own command/replicas/resources; extra port mapping UI.
+  - Done when: a service can run a web and a worker process from one build.
+  - Status: todo · Verified-in-code: no · Source: bench-market#C; bench-dokploy#1
+- [ ] `PROJ-049` **Enforce unique service name per project (DB constraint + check)** · FIX · P1 · S · Deps: none
+  - Why/Problem: no name-uniqueness check or DB unique constraint (`service.service.ts:104-386`).
+  - Do: unique (project_id, name) with migration + `ConflictException`.
+  - Done when: duplicate create returns 409.
+  - Status: todo · Verified-in-code: no · Source: projects-services#1.2,#5
+- [ ] `PROJ-050` **Add missing unique constraints to Drizzle schema; unique environment slug/name per project** · FIX · P1 · S · Deps: none
+  - Why/Problem: `service_environments_unique` exists in migration 0020 but not in the Drizzle schema; no unique on environments (project, slug)/(project, name); `resolveEnvironmentId` (`RT/deployment/repositories/deployment.repository.ts:386`) picks the first row by name; slug is name-lowercased.
+  - Do: declare constraints in Drizzle schema, migrate dedupe, return `ConflictException`; make `resolveEnvironmentId` deterministic.
+  - Done when: duplicate environment create fails; schema/migration drift check passes.
+  - Status: todo · Verified-in-code: no · Source: projects-services#1.3,#5
+- [ ] `PROJ-051` **Swarm service spec editor (placement, update/rollback config, ulimits, labels, networks)** · NEW · P3 · M · Deps: `PROJ-040` · See also: `FEAT-045`, `CLUSTER-045`
+  - Why/Problem: Dokploy exposes health/restart/placement/update/rollback/mode/labels/networks/ulimits/endpoint spec/stop grace; `deployer.placement` policies exist in `packages/nest/swarm`.
+  - Do: typed form + YAML view of the swarm spec that the swarm runner consumes.
+  - Done when: placement constraints and update config set in UI appear on the swarm service.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy#1
+- [ ] `PROJ-052` **Persist and edit configuration dispatch rules (config by branch/env/actor/tags)** · NEW · P2 · M · Deps: none
+  - Why/Problem: the resolver has a dispatch-rule engine (`when` scope/env/trigger/branch/actorRole/tags -> `apply` patch, `SH/configuration/services/configuration-resolver.service.ts:304`) but nothing persists or edits rules; also the base for policy gates.
+  - Do: rule store (per project/environment), contract + UI to author and dry-run rules, show `dispatchAudit.appliedRuleIds`.
+  - Done when: a rule "branch=main -> replicas 2" takes effect and is visible in the resolved-config view.
+  - Status: todo · Verified-in-code: yes (engine present, no producer) · Source: ideas-deploy#0.2,#3
+- [ ] `PROJ-053` **Declarative `deployer.yaml` as one schema read by UI, CLI and API** · NEW · P2 · L · Deps: `PROJ-040` · See also: `FEAT-087`, `IDEA-064`
+  - Why/Problem: Render Blueprints, Railway IaC, Kamal, Fly, Dokku: one repo file; `deployer.yaml` greps to 0; it would remove the "stored but ignored" class. Overlaps FEAT/IDEA; coordinate, this item owns the service/project config schema side.
+  - Do: zod schema shared with the contracts, generate-from-existing, plan/apply with destructive-change guard, secrets by reference; precedence environment-specific file settings > base file > dashboard settings.
+  - Done when: a repo file creates/updates a service and `plan` shows the diff.
+  - Status: todo · Verified-in-code: yes (absent) · Source: bench-market#E,#6; ideas-deploy#4.17
+
+### Environments
+- [ ] `PROJ-060` **Seed default environments on project creation** · FIX · P1 · S · Deps: none · See also: `JRN-023`, `DEC-PROJ-6`
+  - Why/Problem: `createProject` (`project.service.ts:75-100`) creates none; deploy dialog shows "No environments defined", deployments get null `environment_id`; v2 created them.
+  - Do: seed production/staging/preview/development with sensible kinds and rules in the same transaction; backfill existing projects.
+  - Done when: a new project lists four environments; deploy dialog offers them.
+  - Status: todo · Verified-in-code: yes (read `createProject`, no env seeding) · Source: projects-services#1.3,#4.6; journeys quick win 14; ideas-deploy#4.13
+- [ ] `PROJ-061` **Enforce environment `isActive`, link `isEnabled`, `rules` and `overrides` at deploy** · FIX · P1 · M · Deps: `PROJ-040` · See also: `DEPLOY-008`
+  - Why/Problem: rules (autoDeploy, strategy, replicas, trafficPolicy, healthGate, startupMode) are only displayed (`WEB/[projectId]/configuration/environments/[environmentId]/page.tsx`); `isActive` ("deployments paused") not checked by `triggerDeployment`; `service_environments.isEnabled` not checked; link `overrides` JSON never applied.
+  - Do: validate and apply in the resolver/`triggerDeployment` (execution with DEPLOY); show "paused" in deploy dialog.
+  - Done when: deploying to an inactive environment or disabled link is rejected with a reason; overrides change the resolved config.
+  - Status: todo · Verified-in-code: partial (isActive appears only in listing in runtime) · Source: projects-services#1.3; ideas-deploy#4.14
+- [ ] `PROJ-062` **Compute real environment status; remove fabricated health data** · FIX · P1 · M · Deps: none
+  - Why/Problem: status created `pending` and never updated; `getEnvironmentStatus` fabricates `healthyServicesCount` and `lastChecked: new Date()` (`project.controller.ts:347-383`).
+  - Do: derive status from running replicas/health of linked services (deployments + container state) and drive `environments.status`; drop fabricated fields.
+  - Done when: status changes with service health; no invented timestamps.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.3,#5; ideas-deploy#4.13
+- [ ] `PROJ-063` **Implement or remove `refreshEnvironmentStatus` and its UI Refresh button** · FIX · P1 · S · Deps: `PROJ-062`
+  - Why/Problem: `project.controller.ts:385-392` throws `NotImplementedException`; UI Refresh button (`WEB/[projectId]/environments/page.tsx:172`) calls it and toasts an error. Both backend copies.
+  - Do: implement as a status recompute (PROJ-062) or remove the procedure + button.
+  - Done when: button works or is gone; no `NotImplementedException` in handlers.
+  - Status: todo · Verified-in-code: yes (`project.controller.ts:388`) · Source: projects-services#1.3; parity#2.2
+- [ ] `PROJ-064` **Fix service-page environment "Config" link (env name passed instead of UUID)** · FIX · P1 · S · Deps: none · See also: `WEB-002`
+  - Why/Problem: `configuration/environment/page.tsx:165-166` links with `environmentId={env}` (name); target calls `getEnvironment(projectId, "production")` with a non-UUID -> "Environment not found".
+  - Do: pass the environment id (or accept slug server-side).
+  - Done when: link opens the correct environment page.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.3; journeys quick win 13, step 19
+- [ ] `PROJ-065` **Validate `updateEnvironment` with a typed patch (rules/trigger schemas); stop defaulting `type` silently** · ENHANCE · P2 · S · Deps: none
+  - Why/Problem: `updateEnvironment` accepts unvalidated `Record<string, unknown>` (`project.service.ts:320-334`); `type` silently defaults to `development`.
+  - Do: use entity schemas for rules/trigger; reject unknown keys; require explicit type.
+  - Done when: invalid rules patch -> 400.
+  - Status: todo · Verified-in-code: no · Source: projects-services#1.3,#5
+- [ ] `PROJ-066` **Accept free-form/id environments end to end (drop 4-value enum on deployments)** · FIX · P1 · M · Deps: none · See also: `DEPLOY-007`, `JRN-037`
+  - Why/Problem: deployment `environment` is a strict 4-name enum (`environment.schema.ts:60` -> `crud.ts:93`) while UI/environments advertise free-form names.
+  - Do: use environment id or slug; migrate existing rows.
+  - Done when: a custom-named environment can be deployed to.
+  - Status: todo · Verified-in-code: no · Source: journeys#J2 W2.14, new finding 1
+- [ ] `PROJ-067` **Environment promotion by digest with approvals (use `environment_promotions`)** · NEW · P2 · M · Deps: `SUB-B`,`PROJ-024` · See also: `FEAT-070`, `IDEA-040`, `IDEA-091`
+  - Why/Problem: table exists (`.../environment.ts:343-368`, metadata approvedBy/approvalRequired/rollbackPlan) but unused; Heroku/Vercel promote without rebuild; v2 had promotions.
+  - Do: promotion service copying a manifest to a target environment with env-scoped config; UI with gate results (gates are DEPLOY).
+  - Done when: promoting staging -> production redeploys the same digest with production env values.
+  - Status: todo · Verified-in-code: yes (schema only) · Source: parity#1.2,#3 rank16; ideas-deploy#3,#4.21; bench-market#B
+- [ ] `PROJ-068` **Decide fate of unused environment tables (`environment_templates`, `environment_access_logs`, `environment_services`)** · ENHANCE · P3 · S · Deps: none
+  - Why/Problem: schema only (`packages/nest/schema/src/global/project/environment.ts`), no module uses them; v2 had access logs, bulk delete, cleanup of expired previews.
+  - Do: implement (access logs -> audit) or drop with migration.
+  - Done when: each table has a consumer or is removed.
+  - Status: todo · Verified-in-code: yes · Source: projects-services#1.3; parity#2.2
+- [ ] `PROJ-069` **Environment-aware service operations: clone/move service across environments and projects** · NEW · P3 · M · Deps: `PROJ-024` · See also: `FEAT-089`, `WEB-086`
+  - Why/Problem: Coolify ResourceOperations clone/move incl. volume cloning; Dokploy project move/duplicate; only environment clone exists.
+  - Do: clone service (with env vars as refs), move between environments/projects with authz on both.
+  - Done when: a service can be cloned into another environment.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify#4; ideas-deploy#4.26; bench-dokploy#1
+
+### Previews (config and model; PR webhook resolution, build and push handling belong to DEPLOY)
+- [ ] `PROJ-070` **Consume preview topology (execute resolver output) and wire `PreviewEnvOverlayService`** · FIX · P1 · L · Deps: `PROJ-034` · See also: `IDEA-046`, `IDEA-090`, `DEPLOY-066`, `DEPLOY-105`
+  - Why/Problem: `PS/service/services/preview-topology.{resolver,service}.ts` is pure and unconsumed; the web has no endpoint for `servicePreviewTopologyContract` (`apps/web/src/domains/service/endpoints.ts`); `service.preview`/`implementsContract` are saved by the UI ("CONFIGURATION ONLY") and no deployment code reads `backendResolution`/`linkedServices`; `PreviewEnvOverlayService` provided in `RT/deployment/deployment.module.ts:26,79,92` but injected nowhere; runner type `mock` has no executor.
+  - Do: topology executor turning link/mock/fixed decisions into N deployments with overlay env; add web endpoint + dry-run view; mock = another project service first.
+  - Done when: a PR preview of service A links to the staging B (or deploys mock B) per config.
+  - Status: todo · Verified-in-code: yes (grep per report) · Source: projects-services#1.2,#1.4; ideas-deploy#1.6
+- [ ] `PROJ-071` **Preview limits and TTL from project settings (`maxPreviewEnvironments`, `autoCleanupDays`) and naming parity** · FIX · P1 · M · Deps: none · See also: `DEPLOY-104`, `DEPLOY-108`
+  - Why/Problem: TTL hardcoded 168h (`github-webhook-dispatch.service.ts:174`); settings inert; cleanup uses `pr-${n}` while creation used a naming-service name so names can diverge.
+  - Do: read limits/TTL from effective config; share one naming function between create and cleanup; enforce quota at creation.
+  - Done when: exceeding the cap is rejected and TTL follows the setting.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.4,#1.1; journeys W2.10
+- [ ] `PROJ-072` **Implement or remove environment `trigger` schema (kind preview/ephemeral PR/branch/webhook/schedule)** · FIX · P2 · M · Deps: none
+  - Why/Problem: schema and CRUD only; nothing reads `environments.trigger`; `enablePreviewEnvironments` only gates `triggerDeployment(environment="preview")`.
+  - Do: use `trigger` for branch->environment mapping (auto-deploy targets and preview selection) read by webhook dispatch (DEPLOY side).
+  - Done when: pushing branch X deploys to the environment whose trigger matches.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.4
+- [ ] `PROJ-073` **Per-project preview list with TTL, PR link, extend/destroy and public-PR (fork) toggle** · NEW · P2 · M · Deps: `PROJ-071` · See also: `WEB-048`, `DEPLOY-106`, `FEAT-065`
+  - Why/Problem: previews page exists only per service (`WEB/.../services/[serviceId]/previews/page.tsx`); Coolify `is_pr_deployments_public_enabled`, Dokploy label gate.
+  - Do: project-level previews page, extend/destroy buttons, resource chip, fork-PR policy setting.
+  - Done when: a project's previews can be managed from one page.
+  - Status: todo · Verified-in-code: partial · Source: ideas-deploy#4.22; bench-coolify#1 row Preview
+- [ ] `PROJ-074` **Wire GitHub deployment rules: store project id on provider config and expose rules CRUD + UI** · NEW · P2 · M · Deps: none · See also: `DEPLOY-097`, `FEAT-063`
+  - Why/Problem: `github_deployment_rules` backend exists (`fleet/github-provider.ts:123`, rule service/repo) with no contract/controller/UI; `projectId` never passed so rules are never evaluated (`github-webhook-dispatch.service.ts:68-81`); repo->service lookup needs repo `full_name` stored/indexed on provider config.
+  - Do: contract + UI for rules (branch/glob, priority); index repo on service providerConfig; pass `projectId` (dispatch itself is DEPLOY).
+  - Done when: a rule editable in UI changes which pushes/PRs deploy.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.4,#6; parity#1.3
+
+### Inert settings: enforce, hide or delete
+- [ ] `PROJ-080` **Honest settings: hide or tag every unenforced project/service setting now** · FIX · P1 · S · Deps: none · See also: `FEAT-141`, `OBS-020`
+  - Why/Problem: `ProjectConfigSections.tsx` promises notifications, quotas, resource defaults, basic auth, IP allowlist, rollback, timeouts, retention that do nothing; UI claims behaviours that do not exist.
+  - Do: mark "not enforced yet" or hide until PROJ-081..084 land; track a list of enforced keys in the resolver.
+  - Done when: no visible setting lacks an enforcing consumer or a "not enforced" tag.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#3.9,#4.10; ideas-deploy#4.17; journeys quick win (bench-market quick win 9)
+- [ ] `PROJ-081` **Prune or schedule dead schema/columns** · ENHANCE · P3 · S · Deps: none
+  - Why/Problem: dynamic variable columns (`isDynamic/resolvedValue/resolutionStatus`), `health_check_jobs`, health alert columns, deprecated `getProjectSettings/updateProjectSettings` (`project.service.ts:709-734`, no callers), `development-session.ts` planner (only its own test).
+  - Do: delete or implement each; drop unused hooks (`useServiceChildren/useServiceSubtree`, `useProjectEnvironmentConfig` if unused).
+  - Done when: grep shows no dead artifacts left.
+  - Status: todo · Verified-in-code: yes · Source: projects-services#1.1,#1.6; parity#2.2,#4.12
+- [ ] `PROJ-082` **Enforce project quotas and default resource limits (`maxServicesPerProject`, `defaultCpu/Memory/StorageLimit`, preview cap)** · FIX · P1 · M · Deps: `PROJ-042` · See also: `FEAT-114`
+  - Why/Problem: not consumed anywhere (grep per report); `createService` does not enforce `maxServicesPerProject`; project limit constraints exist in resolver (`configuration-resolver.service.ts:~259`).
+  - Do: enforce in `createService`, apply defaults when a service sets none, surface violations as resolver `constraints.reasons`.
+  - Done when: exceeding the cap returns an actionable error; defaults appear in effective config.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.1,#4.10,#5
+- [ ] `PROJ-083` **Per-service/project basic auth, IP allowlist, allowed domains, redirects, gzip/strip-prefix via the Traefik middleware library** · NEW · P2 · M · Deps: `NET-022` · See also: `FEAT-133`
+  - Why/Problem: `enableBasicAuth`, `ipWhitelist`, `allowedDomains` stored and ignored; a middleware library exists in `SH/traefik/services/traefik-middleware-library.service.ts`; Dokploy/Coolify expose these per app (route-rendering side is NET).
+  - Do: map settings to middleware attached to routes; store basic-auth credentials hashed/encrypted (PROJ-022); surface per-route UI.
+  - Done when: enabling basic auth makes the route return 401 without credentials.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.1,#3.9; bench-dokploy#1; bench-coolify#1 row Domains
+- [ ] `PROJ-084` **Enforce `enableRollback`, `deploymentTimeout`, `healthCheckTimeout`, `deploymentRetention`, `enableHttpsRedirect` consumers** · FIX · P2 · M · Deps: `PROJ-040` · See also: `FEAT-050`, `DEPLOY-078`, `DEPLOY-021`
+  - Why/Problem: all stored/edited; `deploymentRetention` merged in `service-effective-config.ts` and edited in UI but nothing enforces it (no image/container prune); only autoDeployEnabled, enablePreviewEnvironments, deploymentStrategy, requireApprovalForProduction, enableHttpsRedirect, defaultEnvironmentVariables feed the resolver, and the first four have no enforcing consumer in deploy path.
+  - Do: wire timeouts into the workflow, retention into the cleanup worker (DEPLOY/OPS), `enableRollback` into rollback gating.
+  - Done when: each setting has an observable effect and a test.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.1; parity#1.2,#3 rank7
+- [ ] `PROJ-085` **Wire stored notification settings (slackWebhookUrl, emailRecipients, notifyOn*) to the notification dispatcher** · FIX · P1 · M · Deps: `SUB-C`,`OBS-012` · See also: `OBS-022`, `FEAT-120`
+  - Why/Problem: settings stored/edited but no consumer anywhere (grep slackWebhookUrl in runtime/fleet/shared empty); dispatcher itself is OBS.
+  - Do: subscribe a notification dispatcher to deployment/health events using these per-project settings; secrets via PROJ-022; "test" button.
+  - Done when: a failed deployment sends to the configured channel.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.1,#4.10; parity#1.2,#3 rank2
+- [ ] `PROJ-086` **Replace the `projects.settings` JSONB blob with typed columns or a versioned validated schema** · ENHANCE · P2 · M · Deps: none
+  - Why/Problem: `merged = {...current, ...patch}` accepts anything the contract lets through.
+  - Do: per-section schemas (zod) validate patches; add `settingsVersion` and migrations.
+  - Done when: unknown keys rejected; versioned upgrade path.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#5
+- [ ] `PROJ-088` **Decide and implement project-level API keys and outbound webhooks (or delete)** · NEW · P3 · M · Deps: `PROJ-007` · See also: `AUTH-022`, `FEAT-080`, `FEAT-082`
+  - Why/Problem: services exist unwired (PROJ-007); competitors offer scoped deploy tokens and outbound webhooks.
+  - Do: expose through contracts with scoped abilities (read/write/deploy) and retry/backoff or delete.
+  - Done when: a project deploy token can trigger a deploy; or code removed.
+  - Status: todo · Verified-in-code: yes · Source: projects-services#6; bench-coolify#2 rank6
+- [ ] `PROJ-089` **Production approval gate (`requireApprovalForProduction`) with `awaiting_approval` state** · NEW · P1 · L · Deps: `SUB-A`,`SUB-C` · See also: `DEPLOY-009`, `IDEA-040`, `IDEA-042`
+  - Why/Problem: setting saved and resolved (`configuration-resolver.service.ts:733,814`) and read by nothing that blocks a deploy; no `awaiting_approval` status or approver model (journeys W6.7).
+  - Do: `deployment_approvals` table, gate in `triggerDeployment` and webhook/system-actor path, approver rules (no self-approval unless sole owner), expiry, inbox/banner; gate engine itself is DEPLOY.
+  - Done when: production deploys from UI and webhook wait until a maintainer approves.
+  - Status: todo · Verified-in-code: yes · Source: journeys#J6 step 10, W6.7; projects-services#1.1; ideas-deploy#3
+
+### Service dependencies
+- [ ] `PROJ-090` **Dependency editor UI (add/remove edges, required/optional, waves, failure policy)** · NEW · P1 · M · Deps: none · See also: `WEB-049`
+  - Why/Problem: dependency CRUD with cycle checks exists (`service.service.ts:394-528`) but the Dependencies tab is read-only (`WEB/[projectId]/dependencies/page.tsx`, `ServiceDependencyGraphPanel.tsx`); hooks `useAddServiceDependency/useRemoveServiceDependency` unused.
+  - Do: edit edges in the graph, mark `isRequired`, show computed waves and cascade plan; delete the N+1 per-service dependency fetch (PROJ-123).
+  - Done when: edges can be added/removed in UI and cycles are rejected with a message.
+  - Status: todo · Verified-in-code: yes · Source: projects-services#1.2,#1.6; parity#1.2; ideas-deploy#4.15
+- [ ] `PROJ-091` **Feed the dependency graph to deploy: cascade, ordering, required-dependency gating** · FIX · P1 · L · Deps: `SUB-B`,`PROJ-090` · See also: `DEPLOY-080`, `IDEA-043`, `DEC-DEPLOY-6`
+  - Why/Problem: `dependencyGraph` is put in the queue payload (`RT/deployment/services/deployment.service.ts:543`) and read by nothing: no cascade, no start order, no gating (v1/v2 lost); fleet DAG/rollout/rollback services exist and are unwired (execution saga is DEPLOY/CLUSTER).
+  - Do: PROJ side: expose the resolved graph with `isRequired` and failure-isolation policy; dependency graph edit constraints; coordinate saga with DEPLOY.
+  - Done when: deploying service A with a required dependency B deploys B first (or fails with reason).
+  - Status: todo · Verified-in-code: yes (single producer) · Source: projects-services#1.2,#3.5,#4.8; parity#1.2; ideas-deploy#2 idea 4
+- [ ] `PROJ-092` **Wire `children`/`subtree` endpoints into the UI** · ENHANCE · P3 · S · Deps: none
+  - Why/Problem: endpoints exist; `useServiceChildren/useServiceSubtree` hooks unused (`projects-services.md` 1.2).
+  - Do: show sub-service tree in service pages and graph, or remove the dead hooks.
+  - Done when: sub-service tree visible on the service page.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.2
+
+### Lifecycle and teardown
+- [ ] `PROJ-100` **Teardown runtime resources on service/project delete with confirmation** · FIX · P1 · L · Deps: `SUB-C` · See also: `DEPLOY-079`, `NET-041`, `WEB-050`
+  - Why/Problem: delete removes only DB rows (`project.service.ts:75-154`); no consumer of `project.deleted`/`service.deleted` events (grep outside project service returns nothing); containers, swarm services, Traefik routes, DNS records, volumes and previews remain; outbox has no consumers.
+  - Do: emit and consume events (stop swarm service/containers, remove routes, DNS records, previews; volumes keep|delete); typed-confirmation "Danger" dialog listing what will be destroyed (N containers, M routes, DNS X, volumes) and failure handling/retry.
+  - Done when: deleting a service leaves no containers/routes/DNS; dialog states exact impact.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.1,#3.7,#4.9; ideas-deploy#4.18; bench-coolify#4
+- [ ] `PROJ-101` **"Danger" tab with typed confirmation for destructive project/service actions** · ENHANCE · P3 · S · Deps: `PROJ-100`
+  - Why/Problem: Coolify/Dokploy pattern; viewers currently see destructive buttons.
+  - Do: consolidate delete/transfer/archive into a Danger tab with two-step confirm; hide for non-admins (PROJ-114).
+  - Done when: destructive actions require typing the resource name.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify#4; ideas-deploy#4.26
+
+### Collaborators and team
+- [ ] `PROJ-110` **Collaborator invitation flow: pending/accepted, non-user invites, resend/revoke** · ENHANCE · P1 · M · Deps: `PROJ-006`,`AUTH-015` · See also: `AUTH-011`, `WEB-027`
+  - Why/Problem: invite requires an existing user (`NotFound` otherwise) and membership is immediate (`project.service.ts:165-206`); no acceptance flow (`acceptedAt` stays null), no email/notification.
+  - Do: pending invite row claimed on sign-up/accept, resend/revoke/copy link, expiry; mail delivery is AUTH (copyable link when SMTP absent).
+  - Done when: inviting an email without an account creates a pending invite visible in Team.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.1,#5; journeys#J6 W6.4, step 6
+- [ ] `PROJ-111` **Project ownership transfer operation** · NEW · P2 · S · Deps: `PROJ-006`
+  - Why/Problem: no transfer; owner-grant is blocked by PROJ-006.
+  - Do: explicit owner-only transfer with confirmation and event.
+  - Done when: ownership moves atomically and old owner becomes maintainer.
+  - Status: todo · Verified-in-code: no · Source: projects-services#5; journeys#J6 W6.4
+- [ ] `PROJ-112` **Team page shows name/email/avatar, last active, pending state, role descriptions** · FIX · P2 · S · Deps: none · See also: `WEB-027`, `WEB-114`
+  - Why/Problem: shows `userId` instead of name/email (`team/page.tsx:86`).
+  - Do: join user profile in list response; confirm role changes with before/after; role permission matrix.
+  - Done when: members shown by name/email with role help text.
+  - Status: todo · Verified-in-code: partial · Source: journeys#J6 step 13, W6.10, quick win 20
+- [ ] `PROJ-114` **Project-role-aware UI (`useProjectPermissions`, `<RequireProjectRole>`)** · NEW · P1 · M · Deps: `SUB-A` · See also: `WEB-016`, `WEB-115`
+  - Why/Problem: only platform-role gating exists; viewers see Delete/Deploy/Rollback/exec; coordinate with WEB.
+  - Do: hook mirroring the platform components; hide/disable destructive controls; "You are a viewer" badge; no-access state for non-members.
+  - Done when: viewer sees no destructive controls and API also returns 403.
+  - Status: todo · Verified-in-code: partial · Source: journeys#J6 step 9, W6.6
+- [ ] `PROJ-115` **Audit trail for project/service/environment changes (events + field diff, secrets redacted)** · NEW · P2 · M · Deps: `SUB-C`,`PROJ-029`,`FEAT-110` · See also: `IDEA-014`, `FEAT-156`
+  - Why/Problem: no audit table/writer/UI (parity 1.1); typed domain events already emitted (`project.service.ts:91,121,137,204,252`); the audit log itself is owned by SEC/AUTH, this item feeds it with project-domain events and per-resource History tab.
+  - Do: ensure every mutation emits an event with actor and redacted diff; show History tab on project/service/environment.
+  - Done when: each mutation yields exactly one event/revision visible in History.
+  - Status: todo · Verified-in-code: partial · Source: parity#1.1; journeys#J6 W6.8; projects-services#5
+
+### Web (projects/services pages)
+- [ ] `PROJ-120` **Server-side `projectId` filter on all project pages** · FIX · P1 · S · Deps: `PROJ-002` · See also: `WEB-034`
+  - Why/Problem: pages fetch ALL services (`limit:100`, no `projectId`) and filter client-side (`WEB/[projectId]/_hooks/use-project-detail.ts:23-30`, `services/page.tsx:41`, `page.tsx:36`): wrong past 100 services and every user downloads every service.
+  - Do: add `projectId` filter to `service.list` contract and hooks.
+  - Done when: project pages only request their own services.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.6; ideas-deploy#4.24
+- [ ] `PROJ-121` **Pagination for project/service/deployment lists (no silent truncation at 100)** · FIX · P1 · S · Deps: none · See also: `WEB-034`
+  - Why/Problem: `/dashboard/projects` fetches `limit:100` projects, services and deployments with no pagination (`WEB/page.tsx`).
+  - Do: server-side pagination/sorting/filters, total counts.
+  - Done when: lists beyond 100 rows work.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.6; ideas-deploy#4.23
+- [ ] `PROJ-122` **Service overview status from reality (latest deployment + task state)** · FIX · P1 · S · Deps: none · See also: `WEB-003`, `JRN-021`, `OBS-031`
+  - Why/Problem: `WEB/[projectId]/services/[serviceId]/page.tsx:63-71,127` reads `s.status ?? s.state` and `runnerType` which the entity lacks (`service.schema.ts`) so status is always "unknown", runner badge never renders.
+  - Do: use latest deployment/BFF `serviceDetail` or add derived fields to the contract.
+  - Done when: badge shows actual status and runner.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.2,#3.10; journeys quick win 12; ideas-deploy#4.16
+- [ ] `PROJ-123` **Aggregate project-detail endpoint in the BFF screen layer (services + deps + latest deployments)** · ENHANCE · P2 · M · Deps: none
+  - Why/Problem: N+1 client queries; stats endpoint does 4 queries (`project.repository.ts:399-455`); dependencies fetched N+1 per service.
+  - Do: BFF screen procedure returning project detail in one call; reuse unused BFF screen hooks (`apps/web/src/domains/bff/hooks.ts`); batch dependency query.
+  - Done when: project page loads with one aggregate call.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#5,#1.1,#1.6; ideas-deploy#4.24
+- [ ] `PROJ-124` **Remove dead web code (`trigger-dialog.tsx`, `trigger-source.ts`, `development-session.ts`) or adopt `trigger-source.ts`** · ENHANCE · P3 · S · Deps: `DEC-PROJ-5` · See also: `DEPLOY-110`, `JRN-027`
+  - Why/Problem: projects-services says delete; journeys quick win 18 says adopt `projects/_utils/trigger-source.ts` in the deploy page and drop `as any` (conflict, see DEC-PROJ-5).
+  - Do: follow DEC-PROJ-5.
+  - Done when: no unused deploy-trigger helpers remain.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#4.11; journeys#7 win 18
+- [ ] `PROJ-125` **Project-level tabs from v2: Activity, Monitoring, Jobs, SSL, Orchestration** · NEW · P2 · L · Deps: `OBS-068` · See also: `WEB-080`, `OBS-067`
+  - Why/Problem: v2 had them; v3 lacks project-level equivalents (analytics activity contract exists but no tab; service-level monitoring only). Data owners are OBS/NET/FEAT; this item is the project page integration.
+  - Do: Activity and Monitoring first (aggregate across services), then Jobs/SSL once their backends exist.
+  - Done when: project page has an Activity tab fed by real events.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#1.6; parity#1.5
+- [ ] `PROJ-126` **Project clone/move and project tags** · NEW · P3 · M · Deps: `PROJ-069` · See also: `FEAT-089`
+  - Why/Problem: Dokploy project duplicate/tags, Coolify Tags.
+  - Do: duplicate a project's config (no secrets values), tag filter on list.
+  - Done when: a project can be duplicated and filtered by tag.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy#1; bench-coolify#4
+- [ ] `PROJ-127` **Config import/export UI (service/project config) from the Danger/Advanced area** · NEW · P3 · S · Deps: `PROJ-053`
+  - Why/Problem: Coolify `UploadConfig`; useful until `deployer.yaml` exists.
+  - Do: export/import JSON of non-secret config.
+  - Done when: exported config re-imports into another project.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify#4
+
+### Duplicates and hygiene
+- [ ] `PROJ-140` **Port or delete the frozen monolith project/service copy** · FIX · P2 · S · Deps: `ARCH-031` · See also: `ARCH-037`
+  - Why/Problem: `apps/api/src/modules/{project,service}` still passes `["owner","admin"]` and misses role fixes; every fix must land twice until the cutover is declared.
+  - Do: delete with the cutover; until then do not patch it, note in AGENTS.
+  - Done when: no project/service module remains in `apps/api`.
+  - Status: todo · Verified-in-code: partial · Source: projects-services#0,#3.11,#4.13
+- [ ] `PROJ-141` **Clear the type-check errors in svc-project and shared** · FIX · P2 · S · Deps: `OPS-024`
+  - Why/Problem: `.turbo/turbo-type-check.log` shows 20 errors (partly shared) at last run; not re-run.
+  - Do: fix under the OPS quality gate; re-run `bun run check`.
+  - Done when: svc-project type-check is clean.
+  - Status: todo · Verified-in-code: unverified · Source: projects-services#0,#3.12
+
+## Decisions needed
+- [ ] DEC-PROJ-1 Env var store: route UI through the encrypted `environment_variables` table, or apply the `encryptedText` codec to the existing JSONB columns? — options: (a) table with per-environment rows, (b) codec on JSONB — recommendation: (a), because it is the natural home for per-environment/secret flags (PROJ-020/021/024) and the table already exists.
+- [ ] DEC-PROJ-2 Per-project role model: keep owner/maintainer/deployer/viewer with `permissions` JSON, or drop the JSON and rely on levels? — options: enforce JSON overrides / remove JSON — recommendation: remove JSON, map procedures to levels (PROJ-011).
+- [ ] DEC-PROJ-3 Organizations/teams: in or out? Affects collaborator model, shared variables scope and quotas (journeys decision, README 6.3) — options: single-tenant platform roles + project roles / org layer — recommendation: single-tenant (matches the mesh-first solo-operator principle); delete org promises.
+- [ ] DEC-PROJ-4 Fate of unwired scaffolding: project webhooks/API keys services, `environment_promotions`, `environment_templates`, dynamic variables, `health_check_jobs` — options: implement now / delete / keep with a roadmap tag — recommendation: delete webhooks/API-key services and dynamic columns, implement promotions with the gate engine.
+- [ ] DEC-PROJ-5 Deploy-trigger helpers: delete `trigger-source.ts`/`trigger-dialog.tsx` (projects-services) or adopt them (journeys quick win 18) — options: delete / adopt — recommendation: adopt once the server resolves source from the saved service (PROJ-040), otherwise delete.
+- [ ] DEC-PROJ-6 Default environments set on project creation and whether `preview` is a kind or a separate concept — options: production+staging+development / plus preview — recommendation: all four, preview as kind with auto-created per-PR children.
+
+## Test coverage to add
+- [ ] `PROJ-150` **Authz negative tests for every project/service/environment/network/stream/dependency procedure** · NEW · P0 · M · Deps: `SUB-A` · See also: `SEC-044`, `SEC-038`
+  - Why/Problem: svc-project's 139 tests are mock-level; no non-member read/write tests exist.
+  - Do: table-driven tests (non-member, viewer, deployer, maintainer, owner) per procedure incl. DNS record provisioning and sub-service cross-project create.
+  - Done when: every procedure has a 403/404 case; gate green.
+  - Status: todo · Verified-in-code: yes (gap) · Source: projects-services#3.12,#4.12
+- [ ] `PROJ-151` **ServiceService spec (CRUD, sub-service tree, dependencies, uniqueness, quotas)** · NEW · P1 · M · Deps: none
+  - Why/Problem: no spec for `ServiceService`.
+  - Do: happy/conflict/not-found/null cases per method.
+  - Done when: spec exists and covers cycle detection and same-project rule.
+  - Status: todo · Verified-in-code: yes · Source: projects-services#0
+- [ ] `PROJ-152` **PreviewTopologyService/resolver and effective-config specs** · NEW · P2 · S · Deps: none
+  - Why/Problem: no spec for `PreviewTopologyService` (resolver is pure, so easy).
+  - Do: link/mock/fixed/contractRef mismatch cases.
+  - Done when: spec covers each backendResolution mode.
+  - Status: todo · Verified-in-code: yes · Source: projects-services#0; ideas-deploy#0
+- [ ] `PROJ-153` **ProjectNetworkService and ServiceNetworkService specs (zone validation, record allowlist)** · NEW · P1 · S · Deps: `PROJ-004`
+  - Why/Problem: no specs for either network service.
+  - Do: authz + validation tests.
+  - Done when: out-of-zone and bad type rejected in tests.
+  - Status: todo · Verified-in-code: yes · Source: projects-services#0,#4.12
+- [ ] `PROJ-154` **Repository tests against a real/test DB (project, service, environment, templates)** · NEW · P1 · M · Deps: none
+  - Why/Problem: no repository specs; constraints (PROJ-049/050) and membership filters need real SQL.
+  - Do: testcontainers Postgres suite incl. unique constraints, membership-scoped list, cascades.
+  - Done when: suite runs in CI.
+  - Status: todo · Verified-in-code: yes · Source: projects-services#0,#4.12
+- [ ] `PROJ-155` **Collaborator role matrix tests (invite/update/remove/ownership transfer)** · NEW · P0 · S · Deps: `PROJ-006`
+  - Why/Problem: assertions defined but never called or tested.
+  - Do: matrix of actor role x target role x operation.
+  - Done when: maintainer->owner escalation test fails before the fix and passes after.
+  - Status: todo · Verified-in-code: yes · Source: projects-services#1.1; journeys#J6 W6.1
+- [ ] `PROJ-156` **Secrets redaction tests (API responses, logs, job payloads, DB ciphertext)** · NEW · P0 · S · Deps: `PROJ-021`
+  - Why/Problem: journeys acceptance 5 requires plaintext never appear.
+  - Do: integration test setting a secret and grepping API output, deployment logs, queue payload and DB.
+  - Done when: no plaintext hits.
+  - Status: todo · Verified-in-code: no · Source: journeys#J2 acceptance 5
+- [ ] `PROJ-157` **Environment behaviour tests: seeding, isActive/isEnabled enforcement, status derivation** · NEW · P1 · S · Deps: `PROJ-060`,`PROJ-061`
+  - Why/Problem: none exist; behaviours are decorative.
+  - Do: service-level tests plus one e2e via API.
+  - Done when: tests fail without the enforcement.
+  - Status: todo · Verified-in-code: yes · Source: projects-services#1.3
+- [ ] `PROJ-158` **Teardown tests: delete service/project removes containers, routes, DNS, previews** · NEW · P1 · M · Deps: `PROJ-100`
+  - Why/Problem: no consumer exists to test.
+  - Do: integration test with fake runner/DNS/route adapters asserting calls and retries.
+  - Done when: delete triggers all cleanup calls and failures are surfaced.
+  - Status: todo · Verified-in-code: no · Source: projects-services#3.7
+- [ ] `PROJ-159` **Web tests: no-access state, viewer UI, service status badge, env link, pagination** · NEW · P2 · M · Deps: `PROJ-114`
+  - Why/Problem: phantom-status and env-link bugs shipped untested (web.md/journeys); e2e harness is OPS/JRN.
+  - Do: component tests for status badge, env link target, truncation, viewer controls; one Playwright path in the J2/J6 specs (owned by JRN).
+  - Done when: regressions for PROJ-064/122/121 are caught.
+  - Status: todo · Verified-in-code: no · Source: projects-services#1.6; journeys#J2,J6 e2e outlines
+
+### Coverage-pass additions
+- [ ] `PROJ-160` **Resolver tests: env layering (default < environment < service < user), build/runtime scope, preview overlay, dispatch rules** · NEW · P1 · S · Deps: `PROJ-024`
+  - Why/Problem: the merge chain and its new layers are untested at the behaviour level.
+  - Do: table-driven resolver specs for each layer, secrets masked in outputs, scope filtering for build vs runtime.
+  - Done when: specs fail without the environment layer and pass with it.
+  - Status: todo · Verified-in-code: yes (gap) · Source: projects-services#1.2,#1.3; ideas-deploy#0
+- [ ] `PROJ-161` **Settings enforcement tests and an "every UI setting has an enforcer or a tag" guard** · NEW · P2 · S · Deps: `PROJ-080`
+  - Why/Problem: 20+ project settings are stored and unread; nothing prevents new inert settings.
+  - Do: test listing the enforced keys in the resolver against the settings schema; per-setting behaviour tests (quotas, retention, notifications wiring).
+  - Done when: adding a setting without enforcer or tag fails the test.
+  - Status: todo · Verified-in-code: yes (gap) · Source: projects-services#1.1,#4.10
+- [ ] `PROJ-162` **Dependency tests: edit-edge cycle rejection, required-dependency gating, cross-project rejection** · NEW · P2 · S · Deps: `PROJ-090`,`PROJ-091`
+  - Why/Problem: no ServiceService spec covers edge edits or the cascade contract with DEPLOY.
+  - Do: unit tests for add/remove edges, cycle, same-project rule, and resolved-graph output with `isRequired`.
+  - Done when: specs green and referenced from DEPLOY-080 acceptance.
+  - Status: todo · Verified-in-code: yes (gap) · Source: projects-services#1.2,#4.8
+- [ ] `PROJ-163` **Preview config tests: quota cap, TTL from settings, one shared naming function for create and cleanup** · NEW · P2 · S · Deps: `PROJ-071`
+  - Why/Problem: create and cleanup use different names and TTL is hardcoded; untested.
+  - Do: service tests over the naming function, quota rejection and TTL read from effective config.
+  - Done when: create/cleanup resolve identical names; cap enforced.
+  - Status: todo · Verified-in-code: yes (gap) · Source: projects-services#1.4; See also: `DEPLOY-128`
+
+> Effect-impact pass: 2026-10-26 — 3 items annotated

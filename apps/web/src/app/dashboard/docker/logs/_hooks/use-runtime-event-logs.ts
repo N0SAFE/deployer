@@ -4,7 +4,7 @@ import { dockerEndpoints } from '@/domains/docker/endpoints'
 import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
 import { shortId } from '../../_utils/format'
 import { RUNTIME_EVENT_LOG_LIMIT, type LogLineProjection } from '../_models/logs.types'
-import type { DockerEntityStreamChunk } from '@repo/contracts-entities'
+import type { DockerEntityStreamChunk } from '@deployer/contracts-entities'
 
 const debugRuntimeLogs = createContextFilterDebugLogger(
   'DockerRuntimeEventLogsHook',
@@ -110,17 +110,19 @@ export function useRuntimeEventLogs() {
       containerName: line.containerName,
     })
     bufferRef.current.push(line)
+    // Throttle: not reset by later events, so a steady stream still flushes.
+    debounceTimerRef.current ??= setTimeout(() => {
+      debounceTimerRef.current = null
+      flush()
+    }, 100)
+  }, [streamQuery.data, flush])
+
+  useEffect(() => () => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current)
+      debounceTimerRef.current = null
     }
-    debounceTimerRef.current = setTimeout(flush, 100)
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current)
-        debounceTimerRef.current = null
-      }
-    }
-  }, [streamQuery.data, flush])
+  }, [])
 
   return {
     runtimeEventLogs,

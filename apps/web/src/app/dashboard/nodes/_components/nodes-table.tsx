@@ -1,10 +1,11 @@
 'use client'
 
 import { ArrowRight, Server } from 'lucide-react'
-import { AuthDashboardNodesNodeId } from '@/routes'
+import { useRouter } from 'next/navigation'
+import { AuthDashboardNetworkMesh, AuthDashboardNodesNodeId } from '@/routes'
 import { cn } from '@/lib/utils'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@repo/ui/components/shadcn/table'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@deployer/ui/components/shadcn/table'
 import { EmptyState, FilteredEmptyState } from '@/components/dashboard'
 import { Age } from '../../network/_components/network-copy'
 import { CopyButton } from '../../network/_components/copy-button'
@@ -52,12 +53,14 @@ export function NodesTable({
   totalCount: number
   onClearFilter: () => void
 }) {
+  const router = useRouter()
   if (totalCount === 0) {
     return (
       <EmptyState
         icon={Server}
         title="No nodes registered yet"
         description="A node appears here once it joins the mesh. Use a join path from Network → Mesh to add one."
+        action={{ label: 'Add a node', onClick: () => { router.push(AuthDashboardNetworkMesh()) } }}
       />
     )
   }

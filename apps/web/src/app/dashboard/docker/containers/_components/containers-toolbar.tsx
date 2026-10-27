@@ -1,8 +1,8 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Input } from '@repo/ui/components/shadcn/input'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Input } from '@deployer/ui/components/shadcn/input'
 import { Plus, RefreshCw, Search } from 'lucide-react'
 import { statusLabel } from '@/components/dashboard'
 import { cn } from '@/lib/utils'

@@ -16,13 +16,13 @@
  */
 
 import { ArrowLeft, ArrowRight, Info } from "lucide-react";
-import { Button } from "@repo/ui/components/shadcn/button";
+import { Button } from "@deployer/ui/components/shadcn/button";
 import { useState } from "react";
-import type { SwarmPolicyDocument } from "@repo/contracts-entities";
+import type { SwarmPolicyDocument } from "@deployer/contracts-entities";
 import {
   SwarmParticipationForm,
   type SwarmParticipationDraft,
-} from "@repo/ui/components/setup/swarm-participation-form";
+} from "@deployer/ui/components/setup/swarm-participation-form";
 
 /** Roles a joining node can take (copy mirrors the API's policy documents). */
 const JOINING_POLICIES: SwarmPolicyDocument[] = [

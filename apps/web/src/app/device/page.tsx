@@ -21,19 +21,19 @@
 import * as React from 'react'
 import { KeyRound, Loader2, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import {
     Card,
     CardContent,
     CardDescription,
     CardHeader,
     CardTitle,
-} from '@repo/ui/components/shadcn/card'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Label } from '@repo/ui/components/shadcn/label'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+} from '@deployer/ui/components/shadcn/card'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Label } from '@deployer/ui/components/shadcn/label'
+import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 import { authClient } from '@/lib/auth'
 
 type Outcome =
@@ -151,7 +151,6 @@ function DeviceApprovalForm() {
                     id="user-code"
                     value={userCode}
                     autoComplete="off"
-                    autoFocus
                     spellCheck={false}
                     placeholder="ABCD-1234"
                     className="font-mono tracking-widest uppercase"
@@ -160,7 +159,7 @@ function DeviceApprovalForm() {
                         if (e.key === 'Enter') void submit(true)
                     }}
                 />
-                <p className="text-muted-foreground text-sm">
+                <p className="text-muted-foreground text-xs">
                     Shown on the device that requested access.
                 </p>
             </div>
@@ -168,10 +167,10 @@ function DeviceApprovalForm() {
             <div className="flex gap-2">
                 <Button disabled={busy} onClick={() => void submit(true)}>
                     {busy && <Loader2 className="size-4 animate-spin" />}
-                    <span className="ml-2">Approve this device</span>
+                    <span className="ml-2">Approve</span>
                 </Button>
                 <Button variant="outline" disabled={busy} onClick={() => void submit(false)}>
-                    Deny request
+                    Deny
                 </Button>
             </div>
         </div>

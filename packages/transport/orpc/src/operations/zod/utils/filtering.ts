@@ -21,13 +21,13 @@ import {
     NUMERIC_OPERATORS as BASE_NUMERIC_OPERATORS,
     ARRAY_OPERATORS as BASE_ARRAY_OPERATORS,
     NULL_OPERATORS as BASE_NULL_OPERATORS,
-} from "@repo/orpc-utils/operations/base/utils/filtering";
+} from "@deployer/orpc-utils/operations/base/utils/filtering";
 import {
     CONFIG_SYMBOL,
     withConfig,
     getConfig,
     type ZodSchemaWithConfig,
-} from "@repo/orpc-utils/operations/zod/utils/pagination";
+} from "@deployer/orpc-utils/operations/zod/utils/pagination";
 
 // Re-export base types for external use
 export type { BaseFilterOperator, BaseFieldFilterConfig, BaseFilteringConfig };

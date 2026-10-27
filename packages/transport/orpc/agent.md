@@ -1,4 +1,4 @@
-# ORPC Builder Agent Guide (`@repo/orpc-utils`)
+# ORPC Builder Agent Guide (`@deployer/orpc-utils`)
 
 This guide explains the **intended usage** of the ORPC builder API in this package, especially when extending `standard.zod(...)` operations.
 

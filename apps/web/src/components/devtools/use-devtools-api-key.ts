@@ -1,11 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState, useSyncExternalStore } from 'react'
 import { authClient } from '@/lib/auth'
 import {
     getMasterTokenEnabled,
     setDevtoolsApiKeyProvider,
-} from '@repo/auth/client'
+} from '@deployer/auth/client'
 
 /**
  * Dev-only API key for the TanStack DevTools "act as user" panel.
@@ -54,7 +54,7 @@ function readStoredKey(): string | null {
             return null
         }
 
-        const { key, expiresAt } = parsed as { key: unknown; expiresAt: unknown }
+        const { key, expiresAt } = parsed
         if (typeof key !== 'string' || typeof expiresAt !== 'number') return null
         if (Date.now() >= expiresAt) {
             window.sessionStorage.removeItem(STORAGE_KEY)
@@ -87,11 +87,26 @@ function readStoredKeyId(): string | null {
         if (!raw) return null
         const parsed: unknown = JSON.parse(raw)
         if (typeof parsed !== 'object' || parsed === null || !('keyId' in parsed)) return null
-        const { keyId } = parsed as { keyId: unknown }
+        const { keyId } = parsed
         return typeof keyId === 'string' ? keyId : null
     } catch {
         return null
     }
+}
+
+const keyListeners = new Set<() => void>()
+
+function subscribeToKey(listener: () => void): () => void {
+    keyListeners.add(listener)
+    return () => {
+        keyListeners.delete(listener)
+    }
+}
+
+function notifyKeyChanged(): void {
+    keyListeners.forEach((listener) => {
+        listener()
+    })
 }
 
 function clearStoredKey(): void {
@@ -123,20 +138,13 @@ export function readDevtoolsApiKey(): string | null {
 setDevtoolsApiKeyProvider(readDevtoolsApiKey)
 
 export function useDevtoolsApiKey(enabled: boolean): UseDevtoolsApiKeyResult {
-    const [key, setKey] = useState<string | null>(null)
+    // sessionStorage is the source of truth; the store re-reads it whenever this
+    // module mints or revokes a key. Deliberately not auto-minting: minting is an
+    // explicit user action so the panel never silently creates credentials.
+    const stored = useSyncExternalStore(subscribeToKey, readStoredKey, () => null)
+    const key = enabled ? stored : null
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
-
-    // Hydrate from sessionStorage on mount. Deliberately not auto-minting:
-    // minting is an explicit user action so the panel never silently creates
-    // credentials in the background.
-    useEffect(() => {
-        if (!enabled) {
-            setKey(null)
-            return
-        }
-        setKey(readStoredKey())
-    }, [enabled])
 
     const mintKey = useCallback(async () => {
         setIsLoading(true)
@@ -154,13 +162,13 @@ export function useDevtoolsApiKey(enabled: boolean): UseDevtoolsApiKeyResult {
             }
 
             const created = result.data
-            if (!created?.key) {
+            if (!created.key) {
                 setError('API key response contained no key')
                 return
             }
 
             storeKey(created.key, created.id)
-            setKey(created.key)
+            notifyKeyChanged()
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to mint API key')
         } finally {
@@ -171,7 +179,7 @@ export function useDevtoolsApiKey(enabled: boolean): UseDevtoolsApiKeyResult {
     const revokeKey = useCallback(async () => {
         const keyId = readStoredKeyId()
         clearStoredKey()
-        setKey(null)
+        notifyKeyChanged()
 
         if (!keyId) return
 

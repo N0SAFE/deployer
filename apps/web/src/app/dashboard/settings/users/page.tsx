@@ -1,17 +1,17 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import type { PlatformRole } from '@repo/auth'
+import type { PlatformRole } from '@deployer/auth'
 import { useAdminListUsers, useAdminActions } from '@/domains/admin/hooks'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Badge } from '@repo/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@repo/ui/components/shadcn/card'
+} from '@deployer/ui/components/shadcn/card'
 import {
   Table,
   TableBody,
@@ -19,16 +19,16 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@repo/ui/components/shadcn/table'
+} from '@deployer/ui/components/shadcn/table'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@repo/ui/components/shadcn/select'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+} from '@deployer/ui/components/shadcn/select'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 import { Ban, ShieldCheck, UserX, RefreshCw } from 'lucide-react'
 import { useSession } from '@/lib/auth'
 import { PageHeader, PageErrorState } from '@/components/dashboard'

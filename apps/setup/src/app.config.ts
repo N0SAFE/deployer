@@ -2,7 +2,7 @@ import { NestFactory } from "@nestjs/core";
 import type { NestApplicationOptions } from "@nestjs/common";
 import { ExpressAdapter } from "@nestjs/platform-express";
 import express from "express";
-import { createViteAssetsMiddleware } from "@repo/vite-assets";
+import { createViteAssetsMiddleware } from "@deployer/vite-assets";
 
 import { SetupAppModule } from "./app.module";
 import { setupEnvSchema } from "./config/env/env.schema";
@@ -84,7 +84,7 @@ export async function createSetupApp() {
   //
   // The address goes through `resolveApiBaseUrl` — the SAME resolver the wizard's
   // forwards use. Passing the raw `SETUP_API_URL` here is what made the sign-in
-  // step target `api-dev:3005` (a compose-only name that nothing owns under
+  // step target `bff:3005` (a compose-only name that nothing owns under
   // `SETUP_MODE=prod`) while every other forward correctly used the swarm
   // service name. It is `undefined` only when nothing is configured, in which
   // case there is no API to proxy to and the middleware stands down.

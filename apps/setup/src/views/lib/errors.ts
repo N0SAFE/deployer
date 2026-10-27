@@ -1,7 +1,7 @@
 "use client";
 
 import { isDefinedError, ORPCError } from "@orpc/client";
-import { standardDomainErrorPayloadSchema } from "@repo/orpc-utils";
+import { standardDomainErrorPayloadSchema } from "@deployer/orpc-utils";
 
 /**
  * A DEFINED ORPC error (one the contract declares).

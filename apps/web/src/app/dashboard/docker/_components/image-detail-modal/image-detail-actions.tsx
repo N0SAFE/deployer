@@ -2,7 +2,7 @@
 
 import type { LucideIcon } from 'lucide-react'
 import { Download, Play, ScanSearch, Tag, Trash2, Upload } from 'lucide-react'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Button } from '@deployer/ui/components/shadcn/button'
 
 export type ImageQueuedOp = 'pull' | 'tag' | 'push' | 'export'
 

@@ -1,4 +1,4 @@
-import type { QueryKeys } from '@repo/orpc-utils/hooks/merge/types';
+import type { QueryKeys } from '@deployer/orpc-utils/hooks/merge/types';
 
 export function extractRouterQueryKeys(router: Record<string, unknown>): QueryKeys {
   return (router as { queryKeys?: QueryKeys }).queryKeys ?? {};

@@ -2,27 +2,27 @@ export {
   dockerStackStatusSchema,
   dockerStackServiceRefSchema,
   dockerStackSchema,
-} from '@deployer/contracts-entities/entities/docker/stacks/base.schema'
+} from './base.schema'
 
 export type {
   DockerStackStatus,
   DockerStackServiceRef,
   DockerStack,
-} from '@deployer/contracts-entities/entities/docker/stacks/base.schema'
+} from './base.schema'
 
 export {
   dockerStackListSchema,
   dockerStackRelationsSchema,
   dockerStackEntitySchema,
   dockerStackEntityListSchema,
-} from '@deployer/contracts-entities/entities/docker/stacks/relations.schema'
+} from './relations.schema'
 
 export type {
   DockerStackList,
   DockerStackRelations,
   DockerStackEntity,
   DockerStackEntityList,
-} from '@deployer/contracts-entities/entities/docker/stacks/relations.schema'
+} from './relations.schema'
 
 export {
   dockerStackSummarySchema,
@@ -35,7 +35,7 @@ export {
   dockerStackLogEntrySchema,
   dockerStackGitWebhookStatusSchema,
   dockerStackGitSyncStateSchema,
-} from '@deployer/contracts-entities/entities/docker/stacks/details.schema'
+} from './details.schema'
 
 export type {
   DockerStackSummary,
@@ -48,4 +48,4 @@ export type {
   DockerStackLogEntry,
   DockerStackGitWebhookStatus,
   DockerStackGitSyncState,
-} from '@deployer/contracts-entities/entities/docker/stacks/details.schema'
+} from './details.schema'

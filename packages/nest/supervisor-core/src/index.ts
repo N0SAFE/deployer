@@ -1,5 +1,5 @@
 /**
- * @repo/nest-supervisor-core — the supervisor FRAMEWORK.
+ * @deployer/nest-supervisor-core — the supervisor FRAMEWORK.
  *
  * WHAT THIS PACKAGE IS
  * The primitives any supervised resource is built from:
@@ -7,7 +7,7 @@
  *   - `BaseMultiSupervisorService` — a supervisor owning N keyed instances
  *   - `SupervisorOrchestratorService` — registry + boot convergence
  *   - `SupervisorEventBus`        — RxJS pub/sub for lifecycle + health events
- *   - the payload/process-info schemas, and the process-wide registry singletons
+ *   - the payload/process-info schemas
  *
  * WHY IT IS ITS OWN PACKAGE (and why that matters for the DI graph)
  * `docker` imports this framework, and the concrete supervisor implementations
@@ -40,5 +40,4 @@ export type { SupervisorEvent, SupervisorEventType, SupervisorEventFilter } from
 export { SupervisorOrchestratorService } from "./supervisor-orchestrator.service";
 export type { AnySupervisor } from "./supervisor-orchestrator.service";
 export { baseSupervisorProcessInfoSchema, swarmProcessInfoSchema } from "./supervisor-process-info";
-export { getSharedSupervisorEventBus, getSharedSupervisorRegistry } from "./supervisor-shared";
 export { SupervisorsModule } from "./supervisors.module";

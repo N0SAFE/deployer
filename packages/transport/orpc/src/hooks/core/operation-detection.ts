@@ -1,8 +1,8 @@
 import type { AnySchema } from '@orpc/contract';
-import { getAsyncIteratorObjectSchemaDetails } from '@orpc/contract';
-import { hasRouteMethodMeta, getRouteMethod } from '@repo/orpc-utils/types/route-method-meta';
-import { isContractProcedure } from '@repo/orpc-utils/types/type-helpers';
-import { getObservableSchemaDetails } from '@repo/orpc-utils/observable/contract';
+import { getAsyncIteratorObjectSchemasDetails } from '@orpc/contract';
+import { hasRouteMethodMeta, getRouteMethod } from '@deployer/orpc-utils/types/route-method-meta';
+import { isContractProcedure } from '@deployer/orpc-utils/types/type-helpers';
+import { getObservableSchemaDetails } from '@deployer/orpc-utils/observable/contract';
 
 /**
  * Extended operation type supporting all ORPC operation types.
@@ -27,7 +27,7 @@ export type ContractProcedureMetadata = {
  */
 export function isEventIteratorOutput(outputSchema: AnySchema | undefined): boolean {
   if (!outputSchema) return false;
-  return getAsyncIteratorObjectSchemaDetails(outputSchema) !== undefined || getObservableSchemaDetails(outputSchema) !== undefined;
+  return getAsyncIteratorObjectSchemasDetails([outputSchema]) !== undefined || getObservableSchemaDetails(outputSchema) !== undefined;
 }
 
 /**

@@ -1,5 +1,5 @@
-import type { DockerRuntimeActivityEntity } from '@repo/contracts-entities'
-import { isRecord } from '@repo/type-guards'
+import type { DockerRuntimeActivityEntity } from '@deployer/contracts-entities'
+import { isRecord } from '@deployer/type-guards'
 
 /** Best human name for the resource an event is about. */
 export function resolveResourceName(activity: DockerRuntimeActivityEntity): string {

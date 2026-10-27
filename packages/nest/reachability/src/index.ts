@@ -1,5 +1,5 @@
 /**
- * @repo/nest-reachability — generic network probing.
+ * @deployer/nest-reachability — generic network probing.
  *
  * WHAT THIS PACKAGE IS
  * Two primitives, consumed by both apps:
@@ -49,4 +49,6 @@ export type {
 	PeerIdentity,
 	PeerProbeResult,
 	PeerProbeOptions,
+	ProbeHttp,
+	ProbeResponse,
 } from "./services/network-probe";

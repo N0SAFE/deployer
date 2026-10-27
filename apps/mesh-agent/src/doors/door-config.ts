@@ -14,7 +14,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { doorContainerName, type DoorLane, type NodeDoorsSetting } from "@repo/mesh-network";
+import { doorContainerName, type DoorLane, type NodeDoorsSetting } from "@deployer/mesh-network";
 
 /** The local lane binds loopback only: reachable from this machine and nowhere else. */
 export const LOOPBACK_DOOR_ADDRESS = "127.0.0.1";

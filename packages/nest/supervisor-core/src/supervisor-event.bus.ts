@@ -1,11 +1,11 @@
 /**
  * SupervisorEventBus — OBSERVABLE-based pub/sub for supervisor events,
- * aligned with the core events module (@repo/nest-events, RxJS).
+ * aligned with the core events module (@deployer/nest-events, RxJS).
  *
  * Every event is pushed through a `Subject` and exposed as `events$` — an
  * Observable consumers can pipe (filter, first, debounce, …) just like the
  * rest of the platform's event streams. See the shared events module
- * (`@repo/nest-events`) for the same pattern used on domain events.
+ * (`@deployer/nest-events`) for the same pattern used on domain events.
  *
  *   bus.events$.pipe(filter(e => e.supervisorId === traefikId)).subscribe(...)
  *   await bus.once({ supervisorId, type: "health-snapshot" })
@@ -29,7 +29,7 @@ export type SupervisorEventType =
 	| "removed";
 
 /** A supervisor lifecycle/health event. */
-export interface SupervisorEvent {
+export type SupervisorEvent = {
 	/** The supervisor instance that emitted the event. */
 	supervisorId: string;
 	/** What happened. */
@@ -45,7 +45,7 @@ export interface SupervisorEvent {
 }
 
 /** Filter a query by supervisor id and/or event type. */
-export interface SupervisorEventFilter {
+export type SupervisorEventFilter = {
 	supervisorId?: string;
 	type?: SupervisorEventType;
 }

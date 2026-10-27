@@ -315,7 +315,7 @@ We chose **Pino** because:
 
 ```typescript
 // In any package or app
-import { logger } from '@repo/logger'
+import { logger } from '@deployer/logger'
 
 // Basic logging
 logger.info('User logged in', { userId: '123' })
@@ -336,7 +336,7 @@ const isDev = process.env.NODE_ENV === 'development'
 
 ### Enhancement: Structured Logging Service with Pino
 
-Create `@repo/logger` package using **Pino** for NestJS compatibility.
+Create `@deployer/logger` package using **Pino** for NestJS compatibility.
 Provides structured logging across web and API with the same interface.
 
 **Create:** `packages/infrastructure/logger/src/index.ts`
@@ -410,7 +410,7 @@ export type {
   AppContract, 
   UserContract, 
   OrgContract 
-} from '@repo/api-contracts'
+} from '@deployer/api-contracts'
 
 // Re-export permission types
 export type {
@@ -418,7 +418,7 @@ export type {
   OrganizationRole,
   PlatformResource,
   OrganizationResource,
-} from '@repo/auth-utils'
+} from '@deployer/auth-utils'
 
 // Component prop types
 export type { RequirePermissionProps } from '@/components/permissions/RequirePermission'

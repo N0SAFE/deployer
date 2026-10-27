@@ -2,37 +2,21 @@
  * The full API contract, composed from its modules for the setup app's SSR
  * client.
  *
- * `@repo/api-contracts` deliberately does not export a combined router: the
- * inferred type of a 21-module router exceeds TypeScript's declaration
- * serialization limit (TS7056), so it cannot live in a package that emits
- * declarations. Applications compose it locally; setup never emits
+ * the per-service contract packages deliberately do not export a combined
+ * router: the inferred type of a 23-module router exceeds TypeScript's
+ * declaration serialization limit (TS7056), so it cannot live in a package
+ * that emits declarations. Applications compose it locally; setup never emits
  * declarations, so the type is never serialized.
  */
 
 import { oc } from "@orpc/contract";
-import {
-    userContract,
-    healthContract,
-    pushContract,
-    testContract,
-    domainContract,
-    projectContract,
-    serviceContract,
-    servicePreviewTopologyContract,
-    deploymentContract,
-    analyticsContract,
-    providerSchemaContract,
-    templateContract,
-    dockerContract,
-    setupAppContract,
-    nodesContract,
-    reachabilityContract,
-    providersContract,
-    meshContract,
-    clusterContract,
-    platformContract,
-} from "@repo/api-contracts";
-import { meshBaseResourceContract } from "@repo/api-contracts/modules/mesh/resource/mesh-base-resource.contract";
+import { testContract, templateContract, setupAppContract } from "@deployer/bff-contracts";
+import { providerSchemaContract, nodesContract, reachabilityContract, providersContract, meshContract, clusterContract, platformContract } from "@deployer/fleet-contracts";
+import { healthContract } from "@deployer/health-contracts";
+import { userContract, pushContract, analyticsContract } from "@deployer/identity-contracts";
+import { domainContract, projectContract, serviceContract, servicePreviewTopologyContract } from "@deployer/project-contracts";
+import { deploymentContract, dockerContract } from "@deployer/runtime-contracts";
+import { meshBaseResourceContract } from "@deployer/fleet-contracts/modules/mesh/resource/mesh-base-resource.contract";
 
 export const appContract = oc.router({
     user: userContract,

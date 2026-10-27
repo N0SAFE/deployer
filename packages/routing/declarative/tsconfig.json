@@ -13,7 +13,7 @@
         ],
         "noEmit": true,
         "paths": {
-            "@repo/declarative-routing/*": [
+            "@deployer/declarative-routing/*": [
                 "./src/*"
             ]
         }

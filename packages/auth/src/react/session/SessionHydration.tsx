@@ -2,7 +2,7 @@ import "server-only";
 
 import React, { type ReactNode } from "react";
 import { QueryClient, HydrationBoundary, dehydrate } from "@tanstack/react-query";
-import { DEFAULT_SESSION_QUERY_KEY } from "@repo/auth/react/session/shared";
+import { DEFAULT_SESSION_QUERY_KEY } from "@deployer/auth/react/session/shared";
 
 /**
  * Props for SessionHydration component.
@@ -47,7 +47,7 @@ export interface SessionHydrationProps<TSession> {
  * @example
  * ```tsx
  * // In layout.tsx (server component)
- * import { SessionHydration } from '@repo/auth/react/session/server'
+ * import { SessionHydration } from '@deployer/auth/react/session/server'
  * import { getSession } from '../../../../../lib/auth'
  *
  * export default function RootLayout({ children }) {
@@ -111,7 +111,7 @@ export async function SessionHydration<TSession>({
  * @example
  * ```tsx
  * // In your auth module
- * import { createSessionHydration } from '@repo/auth/react/session/server'
+ * import { createSessionHydration } from '@deployer/auth/react/session/server'
  * import { getSession } from '@/react/session/auth'
  *
  * export const SessionHydration = createSessionHydration({

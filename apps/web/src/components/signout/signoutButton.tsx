@@ -1,7 +1,7 @@
 'use client'
 
 import { signOut } from '@/lib/auth'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import { LogOut } from 'lucide-react'
 import { revalidateAllAction } from './revalidateAll.action'
 

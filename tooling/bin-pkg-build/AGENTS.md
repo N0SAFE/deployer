@@ -217,7 +217,7 @@ makes subpath exports such as `./react/session/client` resolve to a real file.
 
 ## Declaration emit (`dist/types`)
 
-The types pass runs `tsc -p .pkg-build-types.tsconfig.json`, a config generated
+The types pass runs `tsc -p .pkg-build-types.<pid>.tsconfig.json` (per process, so the concurrent `compile` and `build:types` turbo tasks never share one), a config generated
 beside `package.json` and deleted when the compiler exits. It extends the
 package's own `tsconfig.json` (same `paths`, decorators, JSX settings) and
 overrides only output:
@@ -234,6 +234,41 @@ Layout is the source tree mirrored under `dist/types`, one tree shared by every
 format/variant: `src/a/b.ts` → `dist/types/a/b.d.ts`. `build:types` clears only
 that subtree, so running it alone never touches the JS output (and a symlinked
 `dist` — dependency-builder — is preserved).
+
+**Source aliases are rewritten to relative paths.** `tsc` writes import
+specifiers verbatim, so `@/entities/foo` — which resolves perfectly in source
+because the package's own `paths` maps it — would land in `dist/types` as a
+specifier no consumer can resolve: `paths` is per-project, and the consumer has
+no `@/` mapping. The declarations tree mirrors the source tree, so the repair is
+mechanical, and `rewriteDeclarationAliases` does it after the compiler exits:
+
+```text
+dist/types/entities/foo.d.ts     from '@/entities/foo'  ->  from './foo'
+dist/types/index.d.ts            from '@/entities/foo'  ->  from './entities/foo'
+```
+
+- The alias set comes from the package's own `tsconfig.json` — the same file the
+  declaration pass extends — and only entries whose `*` maps **inside** the
+  package's source root are used. An alias pointing outside the package is
+  resolved through `exports` and is left as authored.
+- Every specifier form `tsc` emits is covered: `from`, `import type … from`,
+  `export * from`, `typeof import(…)` and `import(…)`.
+- A JSDoc example (`* import { x } from '@/client/options'`) is prose, not a
+  specifier, and is left alone.
+- An alias that names no emitted file is reported as a warning rather than
+  failing the build: it is usually a type-only helper outside the entry set, and
+  failing would break a build that used to succeed.
+
+This is why `packages/auth` can keep `"@deployer/auth/*": ["./src/*"]` — a
+self-name alias, so its internal imports resolve through `exports` — and still
+ship declarations a consumer can read.
+
+**A cross-package import must use the package name.** `@/` is a *within-package*
+alias; using it to reach another workspace (`@/entities/…` from
+`@deployer/fleet-contracts`) is a source error the compiler reports as TS2307,
+because that package's tsconfig has no such mapping. Write
+`@deployer/contracts-entities` instead — resolution then goes through `exports`,
+which is portable.
 
 **Recursive types must be named.** TypeScript's declaration emitter cannot name
 an anonymous self-referential type; it replaces the self-reference with `any`
@@ -267,7 +302,7 @@ declarations from inference. Two fixes, both used in this repo:
 
 - Split the value: `@deployer/contracts-entities` no longer exports a combined
   `appContract`; each app composes the router locally where `declaration` is
-  false (`apps/api/src/core/orpc/app-contract.ts`).
+  false (`apps/api/bff/src/orpc/app-contract.ts`).
 - Annotate the return type: `@deployer/auth` annotates plugin wrappers and factories
   with `ReturnType<typeof …>` / `Auth<ReturnType<typeof createAuthConfig<…>>>`
   so declarations reference names instead of expanding the inference.
@@ -389,11 +424,16 @@ different TypeScripts.
 - **Keep the `exports` shape uniform** across packages (see
   `scripts/normalize-package-exports.ts`): `"."` and `"./*"` both expose
   `types` from `dist/types` and `import`/`require` from `dist`.
-- **`types` must point at emitted declarations that avoid `@/`** in any module
-  reachable through `exports` subpaths, because those files become part of the
-  consumer's program. Package-internal imports must use the package's own name
+- **`types` points at emitted declarations, and aliases in them are rewritten.**
+  `exports.types` points at `./dist/types/*.d.ts` so a consumer type-checks
+  declarations instead of re-compiling package sources. `type-check` and `lint`
+  (type-aware) depend on `^build:types` in `turbo.json`. Any `@/…` a declaration
+  carries is made relative by the build (see *Declaration emit* above), so a
+  package-internal alias is free to appear in source.
+- **Package-internal imports may use the package's own name**
   (`@deployer/<pkg>/<path>`) so resolution goes through `exports`, which is
-  per-package and therefore portable.
+  per-package and therefore portable. A cross-package import **must** use that
+  form — `@/` names nothing outside the package that declares it.
 - **Bundled apps/CLIs keep relative imports.** A single-entry bundle that imports
   itself by package name makes every internal module an _external_ dependency,
   which the bundle cannot satisfy at runtime.

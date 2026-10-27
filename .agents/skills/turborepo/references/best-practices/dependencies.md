@@ -8,7 +8,7 @@ Dependencies belong in the package that uses them, not the root.
 
 ```bash
 # Good: Install in specific package
-pnpm add react --filter=@repo/ui
+pnpm add react --filter=@deployer/ui
 pnpm add next --filter=web
 
 # Avoid: Installing in root
@@ -78,13 +78,13 @@ Only repository-level tools:
 
 ```bash
 # pnpm
-pnpm add lodash --filter=@repo/utils
+pnpm add lodash --filter=@deployer/utils
 
 # npm
-npm install lodash --workspace=@repo/utils
+npm install lodash --workspace=@deployer/utils
 
 # yarn
-yarn workspace @repo/utils add lodash
+yarn workspace @deployer/utils add lodash
 
 # bun
 cd packages/utils && bun add lodash
@@ -94,25 +94,25 @@ cd packages/utils && bun add lodash
 
 ```bash
 # pnpm
-pnpm add jest --save-dev --filter=web --filter=@repo/ui
+pnpm add jest --save-dev --filter=web --filter=@deployer/ui
 
 # npm
-npm install jest --save-dev --workspace=web --workspace=@repo/ui
+npm install jest --save-dev --workspace=web --workspace=@deployer/ui
 
 # yarn (v2+)
-yarn workspaces foreach -R --from '{web,@repo/ui}' add jest --dev
+yarn workspaces foreach -R --from '{web,@deployer/ui}' add jest --dev
 ```
 
 ### Internal Packages
 
 ```bash
 # pnpm
-pnpm add @repo/ui --filter=web
+pnpm add @deployer/ui --filter=web
 
 # This updates package.json:
 {
   "dependencies": {
-    "@repo/ui": "workspace:*"
+    "@deployer/ui": "workspace:*"
   }
 }
 ```
@@ -172,10 +172,10 @@ catalog:
 
 ```json
 // pnpm/bun
-{ "@repo/ui": "workspace:*" }
+{ "@deployer/ui": "workspace:*" }
 
 // npm/yarn
-{ "@repo/ui": "*" }
+{ "@deployer/ui": "*" }
 ```
 
 Turborepo understands these relationships and orders builds accordingly.

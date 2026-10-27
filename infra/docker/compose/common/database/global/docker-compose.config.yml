@@ -1,0 +1,85 @@
+# =====================================================================
+# Global Postgres BASE config — INCLUDE-ONLY.
+#
+# ── WHY COMPOSE OWNS THIS IN DEV ────────────────────────────────────────
+# `dev:services` sets `MANAGED_GLOBAL_DB_ENABLED=true` on every app, which means
+# "compose owns the global database, take the URL from env, do NOT supervise
+# one." For that flag to mean anything, compose has to actually run the database
+# it promises. This file is that database.
+#
+# ── WHY IT MUST ALSO BE THE ONE SETUP TARGETS ───────────────────────────
+# Running a database is only half of it. The setup wizard CREATES the global
+# Postgres when the operator provides none — and it only knows not to if it is
+# told a database already exists, via `MANAGED_GLOBAL_DB_URL`
+# (`SetupGateService.managedDatabaseUrl`, which persists it as
+# `databaseProvisioning: "external"`).
+#
+# With no such URL, setup provisions its own `deployer-postgres` swarm task and
+# TWO databases answer to the alias `global-db`. Measured on the broken stack:
+#
+#   nextjs-nestjs-global-db                         172.27.0.4   (compose, 0 tables)
+#   deployer-postgres.1.<id>                        10.0.1.2     (swarm, migrated)
+#
+# The services resolved 172.27.0.4 — the empty one — and issued ~3.5k
+# `relation "docker_runtime_activities" does not exist` queries, while the
+# correctly migrated database sat unreachable behind an alias nothing resolved to.
+# So this file and the `MANAGED_GLOBAL_DB_URL` handed to setup are ONE fix: the
+# compose database exists AND setup is pointed at it.
+#
+# The supervised profile (`docker-compose.services.dev-supervised.yml`) leaves the
+# database to the wizard — it sets `MANAGED_GLOBAL_DB_ENABLED=false` and has no such
+# include, so it keeps exercising the supervisor + swarm path.
+# =====================================================================
+services:
+  global-db:
+    image: postgres:16-alpine
+    # This IS the dependency, not a process that "refuses to serve without" one,
+    # so `unless-stopped` is right here where it was wrong for the apps: there is
+    # no clean exit to preserve and a crash is the only reason to restart.
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${MANAGED_GLOBAL_DB_USER:-deployer}
+      POSTGRES_PASSWORD: ${MANAGED_GLOBAL_DB_PASSWORD:-deployer}
+      POSTGRES_DB: ${MANAGED_GLOBAL_DB_NAME:-deployer}
+    # No published host port: consumers reach it by service name on the platform
+    # network. Publishing 5432 would collide with a local Postgres, and the SQL
+    # surface is `drizzle-gateway`, which already is that surface.
+    healthcheck:
+      # `-h 127.0.0.1` forces the TCP path. Postgres runs a temporary init server
+      # on a unix socket while it initialises, so a healthcheck without it can
+      # pass before the real server accepts TCP — which is the path apps use.
+      test:
+        - CMD-SHELL
+        - pg_isready -h 127.0.0.1 -U ${MANAGED_GLOBAL_DB_USER:-deployer} -d ${MANAGED_GLOBAL_DB_NAME:-deployer}
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      # Covers `initdb` on a cold volume.
+      start_period: 30s
+    volumes:
+      # ── ITS OWN VOLUME. NOT `deployer_postgres_data`. ────────────────────
+      # This used to mount `deployer_postgres_data` on purpose, reasoning that
+      # "a deployment switching between compose-owned and swarm-owned Postgres
+      # should read the same data". That is wrong, and it corrupted the database:
+      #
+      #   FATAL: checkpoint request failed
+      #   ERROR: xlog flush request 0/3372648 is not satisfied
+      #   startup process (PID 29) exited with exit code 1
+      #   → global-db: "Restarting (1)", every service then ENOTFOUND global-db
+      #
+      # Two Postgres instances must never share a data directory. The swarm
+      # service `deployer-postgres` mounts that volume too, and when its 5 failed
+      # tasks respawned against the SAME files this container was running on,
+      # both wrote the same WAL and the cluster became unrecoverable.
+      #
+      # Confirmed by enumerating the mounters:
+      #
+      #   deployer-postgres.1.doo8fvsnzni5…   ← swarm task
+      #   deployer-postgres.1.n00wf856h6uy…   ← swarm task
+      #   nextjs-nestjs-global-db             ← this container
+      #
+      # Separate volumes, separate clusters. They are still interchangeable to
+      # CONSUMERS — same alias, same credentials, same database name — which is
+      # the contract that actually matters. They are not the same DATA, and
+      # pretending otherwise is what broke it.
+      - deployer_global_db_data:/var/lib/postgresql/data

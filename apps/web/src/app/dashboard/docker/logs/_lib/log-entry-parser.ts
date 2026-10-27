@@ -1,5 +1,5 @@
-import { dockerContainerLogEntrySchema, type DockerContainerLogEntry } from '@repo/contracts-entities'
-import { isRecord } from "@repo/type-guards"
+import { dockerContainerLogEntrySchema, type DockerContainerLogEntry } from '@deployer/contracts-entities'
+import { isRecord } from "@deployer/type-guards"
 
 function inferLogLevel(message: string): DockerContainerLogEntry['level'] {
   if (/\b(error|fatal|panic)\b/iu.test(message)) return 'error'

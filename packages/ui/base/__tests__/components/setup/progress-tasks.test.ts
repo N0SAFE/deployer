@@ -5,8 +5,8 @@ import {
 	isPipelineComplete,
 	isSetupRunFinished,
 	type ProgressTask,
-} from "@repo/ui/components/setup/progress-tasks"
-import type { SetupStreamEvent } from "@repo/contracts-entities"
+} from "@deployer/ui/components/setup/progress-tasks"
+import type { SetupStreamEvent } from "@deployer/contracts-entities"
 
 /**
  * `buildTasksFromEvents` merges TWO producers into one timeline: the setup app

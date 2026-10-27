@@ -3,7 +3,7 @@ import { firstValueFrom, take } from "rxjs";
 
 import { OrchestrationStreamService } from "./orchestration-stream.service";
 import type { EnvService } from "@/config/env/env.module";
-import type { SetupStreamEvent } from "@repo/contracts-entities";
+import type { SetupStreamEvent } from "@deployer/contracts-entities";
 
 /**
  * `OrchestrationStreamService` is the re-sync source for the setup stream.
@@ -109,7 +109,7 @@ describe("OrchestrationStreamService — reconnect re-sync", () => {
 					logs: [],
 				},
 			],
-		} as SetupStreamEvent);
+		});
 
 		const snapshot = service.currentSnapshot();
 		if (snapshot?.type !== "snapshot") throw new Error("expected a snapshot");
@@ -178,7 +178,7 @@ describe("OrchestrationStreamService — how the run ended", () => {
 		service.forward({
 			type: "completed",
 			result: { nodeId: "00000000-0000-4000-8000-000000000001", strategy: "local", databaseUrl: "x", completedAt: new Date().toISOString() },
-		} as SetupStreamEvent);
+		});
 
 		// A re-sync is a snapshot plus the live tail, which skips history — so the
 		// terminal event has to be remembered, or the client never learns the run
@@ -240,7 +240,7 @@ describe("OrchestrationStreamService — how the run ended", () => {
 		service.forward({
 			type: "completed",
 			result: { nodeId: "00000000-0000-4000-8000-000000000001", strategy: "local", databaseUrl: "x", completedAt: new Date().toISOString() },
-		} as SetupStreamEvent);
+		});
 		service.fail("handover failed");
 		expect(service.terminalEvent()?.type).toBe("error");
 

@@ -38,8 +38,8 @@ describe('instant navigation — static shell contracts', () => {
         expect(status).toBe(200)
 
         // Shell content (LCP + static sections) must be IN the prerendered HTML.
-        expect(html).toContain('Deployer Platform')
-        expect(html).toContain('Features')
+        expect(html).toContain('Deploy to your own servers')
+        expect(html).toContain('What you get')
 
         // Streamed content (session-dependent nav) must NOT be in the shell:
         // the Sign In / Dashboard nav controls resolve after the auth read.
@@ -55,16 +55,11 @@ describe('instant navigation — static shell contracts', () => {
         // The whole form lives in the static shell. If any of these markers
         // disappear, something re-introduced a render-time URL-data read above
         // the form and pushed it out of the prerender.
-        expect(html).toContain('Welcome Back')
-        expect(html).toContain('Email Address')
-        expect(html).toContain('Demo Credentials')
+        expect(html).toContain('Sign in to Deployer')
+        expect(html).toContain('Email address')
+        expect(html).toContain('Sign in with a passkey')
         expect(html).toMatch(/type="email"/)
         expect(html).toMatch(/type="password"/)
-
-        // The deferred leaves render a fallback skeleton in the initial HTML,
-        // which resolves to the real link after hydration — so the fallback
-        // text 'Create one here' IS present from the start.
-        expect(html).toContain('Create one here')
     })
 
     it('sign-in page serves ?redirectTo dynamically with full content', async () => {
@@ -74,7 +69,7 @@ describe('instant navigation — static shell contracts', () => {
             '/auth/signin?redirectTo=%2Fdashboard%2Fprojects',
         )
         expect(status).toBe(200)
-        expect(html).toContain('Welcome Back')
+        expect(html).toContain('Sign in to Deployer')
     })
 
     it('auth error page serves the shell with its Suspense fallback', async () => {

@@ -1,9 +1,9 @@
 'use client'
 
 import { CheckCircle2, DoorOpen, XCircle } from 'lucide-react'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import type { IngressState } from '@repo/api-contracts/modules/reachability/index'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import type { IngressState } from '@deployer/fleet-contracts/modules/reachability/index'
 import { Mono } from './network-copy'
 
 /**

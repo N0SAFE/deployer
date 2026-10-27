@@ -2,7 +2,7 @@ import type {
   DockerContainer,
   DockerContainerInspectDetail,
   DockerContainerMetricPoint,
-} from '@repo/contracts-entities'
+} from '@deployer/contracts-entities'
 
 export const METRIC_CHART_WINDOW_SIZE = 40
 export const METRIC_HISTORY_LIMIT = 120

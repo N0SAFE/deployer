@@ -222,8 +222,8 @@ function checkDependencyResolution(): void {
 
   const paths: string[] = [
     'packages/contracts/common',
-    'apps/api-services/bff',
-    'apps/api-services/shared',
+    'apps/api/bff',
+    'apps/api/shared',
     'apps/web',
   ]
 
@@ -264,7 +264,7 @@ function checkSourceFiles(): void {
   const criticalFiles: string[] = [
     'packages/contracts/bff/index.ts',
     'packages/contracts/runtime/index.ts',
-    'apps/api-services/bff/src/main.ts',
+    'apps/api/bff/src/main.ts',
     'packages/nest/schema/drizzle.config.ts',
   ]
 
@@ -377,8 +377,8 @@ function generateReport(): void {
   checkSourceFiles()
   checkDependencyResolution()
   checkNodeModules('packages/contracts/bff', 'BFF Contracts Package')
-  checkNodeModules('apps/api-services/bff', 'BFF Application')
-  checkNodeModules('apps/api-services/shared', 'API Services Shared Package')
+  checkNodeModules('apps/api/bff', 'BFF Application')
+  checkNodeModules('apps/api/shared', 'API Services Shared Package')
   checkNodeModules('apps/web', 'Web Application')
   checkDockerEnvironment()
 

@@ -4,8 +4,8 @@ import { toast } from 'sonner'
 import {
     getMasterTokenEnabled,
     MasterTokenManager,
-} from '@repo/auth/client/plugins/masterToken/state'
-import { MasterTokenContext } from '@repo/auth/client/plugins/masterToken/components/context'
+} from '@deployer/auth/client/plugins/masterToken/state'
+import { MasterTokenContext } from '@deployer/auth/client/plugins/masterToken/components/context'
 
 interface MasterTokenProviderProps {
     refetch: () => void | Promise<void>

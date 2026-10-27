@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { toast } from 'sonner'
-import type { MeshNodeRole, MeshRoutingMode, MeshPartitionConsistencyMode } from '@repo/contracts-entities'
+import type { MeshNodeRole, MeshRoutingMode, MeshPartitionConsistencyMode } from '@deployer/contracts-entities'
 import { getErrorMessage, isDefinedORPCError } from '@/lib/orpc/typed-errors'
 import { useMeshUpdateNodeConfig } from '@/domains/mesh/hooks'
 

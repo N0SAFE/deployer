@@ -1,9 +1,9 @@
 'use client'
 
-import { Field } from '@repo/ui/components/shadcn/field'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Field } from '@deployer/ui/components/shadcn/field'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import { Globe, ShieldCheck, Cloud, Rocket, Loader2, Plus, CheckCircle2, XCircle, Radio } from 'lucide-react'
 import { useDNSProviders } from '@/domains/dns-providers/hooks'
 import { AuthDashboardNetworkDomains } from '@/routes'
@@ -74,18 +74,18 @@ function DnsProvidersCard() {
                         ? <XCircle className="size-3.5 text-destructive" />
                         : <Radio className="size-3.5 text-muted-foreground" />}
                   </div>
-                  <p className="truncate text-[11px] text-muted-foreground">{p.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{p.name}</p>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">
-                  {p.features.dnsManagement && <Badge variant="outline" className="text-[10px]">DNS mgmt</Badge>}
-                  {p.features.tunnelManagement && <Badge variant="outline" className="text-[10px] text-primary">Tunnels</Badge>}
+                  {p.features.dnsManagement && <Badge variant="outline" className="text-xs">DNS mgmt</Badge>}
+                  {p.features.tunnelManagement && <Badge variant="outline" className="text-xs text-primary">Tunnels</Badge>}
                 </div>
               </div>
             ))}
           </div>
         )}
         {providers.some((p) => p.features.tunnelManagement) && (
-          <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Rocket className="size-3" /> A tunnel-capable provider is connected — services can be exposed via tunnel without a public IP.
           </p>
         )}

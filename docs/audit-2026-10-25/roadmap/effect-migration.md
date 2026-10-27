@@ -1,0 +1,1782 @@
+# EFFECT-TS MIGRATION roadmap
+> Owner prefix: EFF · Sources: effect-architecture.md, effect-health-identity.md, effect-ecosystem-research.md (samples/api-sample, packages/nest/effect, services/health, services/identity) · Last verified: 2026-10-26
+
+## Summary
+The operator is migrating the service tier to a hybrid Effect-TS architecture: Nest keeps construction/modules/lifecycle, Effect runs handler logic through `@orpc/effect` `.effect()` handlers and the `@deployer/nest-effect` bridge (6 source files, 3 root exports). `svc-health` is rewritten (but copied the `uptime / 1000` and `supervisors: []` bugs and has no explicit authz stance), `svc-identity` is mid-rewrite (user domain only, 7 of 34 procedures; analytics/push/permission untouched; error model collapsed into one opaque `UserServiceFailure`). What exists is a proof of concept, not yet a template: sample and package diverged (Nest 12 / TS 5.9 vs Nest 11 / TS 7), no central error mapping, no request-scoped actor/correlation context, service methods leak `R`, no transaction/cancellation/streaming/logging/OTel story, no docs, and the two version gates `@effect/vitest` (needs Vitest 5) and oRPC 2 beta are unresolved. Recommendation from the audits: finish a "Template v1" increment, then migrate `project` (first service with transactions), BFF orchestrators, fleet, runtime; mesh-agent in parallel on an Effect-native template. Effect also enables the roadmap substrates (SUB-A authz middleware, SUB-B interruption-based worker, SUB-C Stream consumers, Schedule/Cron probes, `Config.redacted`) but every module beyond core (workflow, cluster, persistence, process, sql, http-api, rpc) is `@stability unstable`, so those are prototypes first.
+Counts: 297 items = P0 9 / P1 154 / P2 101 / P3 33; FIX 43 / ENHANCE 71 / NEW 183 (plus 38 decisions, all 38 resolved 2026-10-26 (17 earlier, 21 in the decisions pass); 13 items are `[~]`: 5 avoid-list wontfix-unless and 8 obsolete under the full-Effect decision: EFF-005, 006, 007, 010, 021, 046, 068, 100). Operator decision 2026-10-26: FULL Effect Layer architecture (services as Layers, Effect owns the process, Nest = transitional shell then shrinking island, oRPC stays); see `effect-target-architecture.md`, `effect-layers-catalog.md`, `docs/qa/effect/architecture.md`.
+> Full-Effect pass: 2026-10-26 — 138 items added (EFF-159..EFF-296), 144 re-scoped (Design-impact; 3 of them also Priority-review), 8 obsolete; 21 decisions added (DEC-EFF-18..38); EFF-001/012/014 promoted to P0 (Priority-review: P0 SEC/AUTH items depend on them).
+> Coverage pass: 2026-10-26 — created from the three Effect reports; every finding, risk, recommendation, checklist point, outline point, version problem, open decision (D1-D13), prototype step and new-finding (N-1..N-11, D-1..D-3) is an item or is listed in the `Do` of the item that owns it. Spot-verified in code: `collectEffectLayer` first-wins duplicate skip and `instance === undefined` skip; `EffectRuntime` lazy `build()`; `effect` is a dependency (not peer) in `packages/nest/effect/package.json`; `health.controller.ts:72` `uptime: process.uptime() / 1000`, `:77` `supervisors: []`, no `requireAuth`/`AllowAnonymous` in that file; `PushService` has no `@Injectable()` and `import type { PushRepository }` (`push.service.ts:4`); `health.module.ts:58` `heartbeats` defined; `orpc-host.ts:144` injects `REQUEST`; sample `auth.ts:19` hard-coded default secret; health `build` uses `--packages=external`; root workspaces globs exclude `samples/`; catalog `vitest ^4.1.9`, `@orpc/openapi-client 1.14.6` beside `2.0.0-beta.46`, `@nestjs/core ^11.1.27` vs sample `^12.2.0`, `better-auth 1.7.7` vs `^1.7.13`; `docs/architecture/13-readiness-and-preflight.md` already exists so the conventions doc must be `14-effect-services.md`. Identity files drift (the error mapper moved to `controllers/user.error-mapper.ts`, `user.failures.ts` exists): re-check before acting on identity items.
+
+## Items
+
+### Template v1 and conventions (gate before migrating further services)
+- [ ] `EFF-001` **Template v1 gate: no migration of `project`, `fleet`, `runtime` until Template v1 (package hardening + error mapping + request context + transaction/cancel primitive + conventions doc) lands** · NEW · P0 · S · Deps: none · See also: `EFF-103`, `EFF-010`
+  - Why/Problem: the architecture audit concludes the sample + package are a proof of concept plus one finished service plus one half-finished one; migrating more services now would copy three divergent error styles and the shallow health reference. Source rule: "do not start `runtime` or `fleet` before that".
+  - Do: record Template v1 as a milestone in `docs/architecture/14-effect-services.md` and in `apps/api-services/AGENTS.md`; list its exit criteria (`EFF-003`..`EFF-021`, `EFF-035`..`EFF-039`, `EFF-048`); block PRs that port a new service before it is ticked.
+  - Done when: the exit list exists and every entry is done or consciously deferred with a DEC id.
+  - Status: todo · Verified-in-code: n/a · Source: effect-architecture.md#1, #8
+  - Priority-review (2026-10-26): promoted P1 to P0: P0 items `SEC-048`, `SEC-061`, `SEC-063` list `EFF-001` in Deps (verified in auth-security.md).
+  - Design-impact (2026-10-26): Template v1 is redefined by the full-Effect decision: its exit criteria are target step 0 (`EFF-197`: effect-core/orpc/infra/testing/nest packages, Vitest 5, ESLint preset, conventions doc) plus step 1 (`EFF-198`: health re-done on Layers, uptime failing-first test, `bun check --no-script` green). The old exit list `EFF-003`..`EFF-021` is partly obsolete (`EFF-005`, `EFF-006`, `EFF-007`, `EFF-010`, `EFF-021` are `[~]`). `project`, `fleet`, `runtime` stay gated on it, except the runtime job worker (`EFF-202`) which only needs step 0.
+- [ ] `EFF-002` **Reconcile the Effect migration with the monolith cutover plan (ARCH cutover steps) so the two are sequenced, not interleaved** · ENHANCE · P1 · M · Deps: `ARCH-001`, `ARCH-018`, `ARCH-031`, `ARCH-032`, `ARCH-037` · See also: `ARCH-010`, `ARCH-036`, `DEC-EFF-1`
+  - Why/Problem: `apps/api` (monolith) is being edited in the working tree to import `@deployer/health-contracts` while svc-health is rewritten; the cutover (14 steps, ~2-3 weeks) ports unit specs, e2e harness and builders in the OLD Nest style (`ARCH-014`, `ARCH-036`, `ARCH-019`) which the Effect convention changes; migrating in both directions at once doubles the work and lets copies diverge (N-10). The Effect audit also notes `apps/api-services/ARCHITECTURE.md` bundling rule and AGENTS test conventions conflict with the new code.
+  - Do: write a sequencing note in `monolith-cutover.md`/`ARCH`: cutover steps that port code (builders step 4, specs step 5/6, e2e step 8) port INTO the Effect style only for modules already migrated, otherwise port as classic Nest and migrate later; freeze monolith health/user/push/analytics (`EFF-070`); decide that `ARCH-031` (`git rm -r apps/api`) does not wait for Effect work; list which ARCH items change wording under Effect (controller specs, error types).
+  - Done when: the cutover doc contains a per-step "Effect impact" column and the ARCH items it changes are cross-referenced; no step is blocked on an undecided Effect topic.
+  - Status: todo · Verified-in-code: partial · Source: effect-architecture.md#1, #4.7, effect-health-identity.md#6 N-10, effect-ecosystem-research.md#5
+  - Design-impact (2026-10-26): sequencing detail now in `EFF-207` (cutover steps 4-6 move to weeks 4-9, claim before step 5, builders and trigger registry written directly in Layer style, `scripts/check-di-graph.ts` retired not retargeted `EFF-194`); `ARCH-031` still does not wait on Effect work.
+- [ ] `EFF-003` **Write the `@deployer/nest-effect` README: contract of the bridge (what is discovered, timing, `EffectServices` registration, testing subpaths)** · NEW · P1 · S · Deps: `EFF-004` · See also: `EFF-035`
+  - Why/Problem: no README in `packages/nest/effect/` and no mention in `docs/`, `apps/`, `packages/` or any AGENTS.md (only code and `package.json` hits).
+  - Do: add `packages/nest/effect/README.md` covering the 3 root exports (`EffectRuntime`, `collectEffectLayer`, `EffectRuntimeModule`), `./testing` (`effectContext`), `./orpc-context` (global `EffectServices` augmentation), the "token is a `Context.Service` key" rule, and limits (request-scoped providers skipped).
+  - Done when: README exists and matches code; linked from the conventions doc.
+  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#2
+  - Design-impact (2026-10-26): the README now targets the temporary `@deployer/effect-nest` (explicit `AppLive` host, `NestIsland`, `facade`) plus one README per new package (`EFF-160`..`EFF-165`); the discovery contract it described dies with `collectEffectLayer`.
+- [ ] `EFF-004` **Unify `EffectRuntime` build timing (eager at `onApplicationBootstrap`, fail fast) between the package (lazy first `context()`) and the sample (eager)** · FIX · P1 · S · Deps: none · See also: `EFF-006`
+  - Why/Problem: same name, different timing (`packages/nest/effect/src/effect-runtime.ts` builds lazily in `build()`; sample builds in `onApplicationBootstrap`); a lazily built `ManagedRuntime` is cached for the whole process and a bad layer only fails on the first request.
+  - Do: build in `onApplicationBootstrap` (all providers resolved, so `instance` is defined), keep `context()`/`runPromise()` as accessors, cover with a test; document the timing.
+  - Done when: boot with a broken layer fails at startup; test covers timing.
+  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#3.2, #7.2
+  - Design-impact (2026-10-26): TRANSITIONAL. The build-timing fix is subsumed by the eager `EffectHost` built from an explicit `AppLive` (`EFF-166`); do not invest in the old lazy `EffectRuntime` beyond a one-line eager build if a service ships before `EFF-166`.
+- [~] `EFF-005` **`collectEffectLayer`: stop silently skipping duplicate tokens and providers with `instance === undefined` (request-scoped/transient/unresolved)** · FIX · P1 · S · Deps: none · See also: `EFF-033`
+  - Why/Problem: `collect-effect-layer.ts` `continue`s on `instance === undefined` and on an already-registered token (first one wins in discovery order); a forgotten or mis-scoped provider compiles and fails at request time as a defect.
+  - Do: throw (or at least log with the key id) on duplicate tokens; detect request-scoped Effect providers (instance undefined) and fail with an actionable message; keep first-wins only if an explicit override flag is set.
+  - Done when: specs for duplicate token and scoped provider fail loudly with the key id.
+  - Status: obsolete (collectEffectLayer is replaced by an explicit AppLive, EFF-166) · Verified-in-code: yes · Source: effect-architecture.md#5.1
+  - Design-impact (2026-10-26): OBSOLETE. `collectEffectLayer` (first-wins duplicate skip, `instance === undefined` skip) is replaced by an explicit `AppLive` (`EFF-166`) and deleted (`EFF-289`); fixing it is wasted work.
+- [~] `EFF-006` **Boot-time dependency validation: every key declared in `EffectServices` has a provider; every Effect-key provider is reachable; fail fast naming the missing key id** · NEW · P1 · M · Deps: `EFF-004`, `EFF-005` · See also: `EFF-047`
+  - Why/Problem: the returned layer is `Layer<unknown>` and the app re-asserts its service union via a cast or the global `EffectServices` interface; neither is checked against real providers, so a forgotten `{ provide: Key, useClass: Impl }` fails at request time (silent wiring failure). Dependencies via `yield*` are invisible to `scripts/check-di-graph.ts`.
+  - Do: in `EffectRuntime.onApplicationBootstrap` compare the keys declared by the app (registered through `src/orpc/effect-context.ts`) with discovered tokens; check Effect-to-Effect requirements resolve; fail with the missing key id.
+  - Done when: removing a provider makes the app fail at boot with that id; a spec proves it.
+  - Status: obsolete (wiring is verified by construction: AppLive types, EFF-211, EFF-186) · Verified-in-code: partial · Source: effect-architecture.md#5.1, #7.2, #4.4
+  - Design-impact (2026-10-26): OBSOLETE. Boot-time provider validation is by construction: `AppServices = Layer.Success<typeof AppLive>`, eager build fails listing all missing config (`EFF-211`), per-service wiring spec (`EFF-186`).
+- [~] `EFF-007` **Remove the `Layer<unknown>` / `Context<unknown>` type erasure and the per-app casts (`as Context.Context<AppServices>`)** · ENHANCE · P2 · M · Deps: `EFF-006` · See also: `EFF-034`
+  - Why/Problem: `collectEffectLayer` is typed `Layer<unknown>`, `context()` `Context<unknown>`; the sample casts in `effect-layer.ts`, the package relies on a hand-maintained global `EffectServices` interface (fragile global augmentation, `orpc-context.ts:19-28`). Hand-maintained unions are an anti-pattern.
+  - Do: derive the app service type from the module's declared keys (a typed `defineEffectServices([...])`) and give `context()` that type; keep the global augmentation only if no alternative; ban `as` casts at the Effect boundary (checklist).
+  - Done when: no cast at the boundary in health/identity; adding a key without a provider is a type or boot error.
+  - Status: obsolete (no Layer-of-unknown and no EffectServices augmentation in the Layer model) · Verified-in-code: partial · Source: effect-architecture.md#3.4, #5.1, #6, #7.2
+  - Design-impact (2026-10-26): OBSOLETE. Type erasure and per-app casts disappear: no `Layer<unknown>`, no global `EffectServices` augmentation (`EFF-224`, `EFF-181`).
+- [ ] `EFF-008` **Shutdown semantics: handler fibers are root fibers, not children of the runtime; `dispose()` neither interrupts nor awaits them** · ENHANCE · P2 · M · Deps: `EFF-004` · See also: `EFF-021`
+  - Why/Problem: `@orpc/effect` runs each handler with `Effect.runPromiseExitWith(context)`; `ManagedRuntime` is only a context holder (layers are `Layer.succeed`, no finalizers), so in-flight handlers survive `onApplicationShutdown` and there is no drain; the sample has no `enableShutdownHooks`.
+  - Do: define the drain rule (readiness gating via `PreflightModule`, then wait for in-flight handlers) and either track fibers or rely on Nest drain; document who disposes what; test shutdown (currently untested).
+  - Done when: a shutdown test shows in-flight handler finishing or being interrupted by policy.
+  - Status: todo · Verified-in-code: partial · Source: effect-architecture.md#3.2, #3.5, #5.12
+  - Design-impact (2026-10-26): re-scoped. Shutdown is owned by `runMain` and the `HttpEdge` `FiberSet` drain (`EFF-180`, `EFF-179`) and `AbortBridge` (`EFF-224`); during phase 1 `EffectHost.onApplicationShutdown` disposes the runtime and closes scoped resources (`EFF-166`).
+- [ ] `EFF-009` **Infra-layer runtime: `EffectRuntimeModule.forRoot({ layer })` merging Config + Logger + `OtelTracer.layerGlobal` + `Db` under the discovered service layer; `runFork` for background fibers (prototype step 1)** · NEW · P1 · L · Deps: `EFF-004`, `EFF-018`, `EFF-024`, `EFF-026`, `EFF-028` · See also: `EFF-148`
+  - Why/Problem: Nest constructs everything, so there are no Layer-managed resources (acquireRelease pools, background fibers, Config, tracer); Effect-to-Effect dependencies are resolved by Nest then erased. Research recommends extending the bridge, not dropping Nest during cutover.
+  - Do: add the `forRoot({ layer })` API, eager build at bootstrap (fail fast on bad Config), `runFork` tied to the runtime scope; prove a `.effect` handler yields nested spans and fails fast on missing Config.
+  - Done when: prototype passes the tests in `EFF-151`; `health` or `identity` consumes it.
+  - Status: todo · Verified-in-code: no · Source: effect-ecosystem-research.md#2.6, #6.1, #1 row 9
+  - Design-impact (2026-10-26): re-scoped. This item is now the whole design: `InfraLive`/`DomainLive`/`AppLive` live in `@deployer/effect-infra` (`EFF-162`) and are proven by step 0 (`EFF-197`); Config, Logger, Tracer, Db are layers (`EFF-211`, `EFF-214`, `EFF-215`, `EFF-217`); acceptance tests stay in `EFF-151`.
+- [~] `EFF-010` **Ruling and implementation: services as Layers vs Nest instances; public service methods must have `R = never`** · ENHANCE · P1 · M · Deps: `DEC-EFF-1` · See also: `EFF-048`, `EFF-001`
+  - Why/Problem: every method signature carries `R = Repository | DatabasePort` (`user.service.ts` `UserServiceShape.list`, `PlanetServiceShape`); consumers and tests must provide transitive requirements; swapping an implementation changes the public type. Root cause: services are zero-arg Nest classes, not `Layer.effect`s.
+  - Do: apply DEC-EFF-1 (constructor-injected Effect services with `R = never`, or `Layer.effect` owned by Effect); rewrite the health/identity ports accordingly; add a type-level spec that service method requirements are `never`.
+  - Done when: no public service method names its dependencies in `R`; a type spec enforces it.
+  - Status: obsolete (superseded by DEC-EFF-1 option b: services are Layers; see EFF-183, EFF-185) · Verified-in-code: yes · Source: effect-architecture.md#5.2, #9 D1
+  - Design-impact (2026-10-26): OBSOLETE. The "R = never classes built by Nest" option (a) is superseded by DEC-EFF-1 = (b) Layers: services are `Layer.effect`, method `R` limited to Ambient (`CurrentActor | Correlation`); enforced by `EFF-183` and the `AssertNoLeak` type tests `EFF-185`.
+- [ ] `EFF-011` **Package manifest hygiene: `effect` as a peer dependency (single copy), `@orpc/effect` pinned exactly, `@nestjs/core` not both dependency and peer** · FIX · P1 · S · Deps: `EFF-141` · See also: `EFF-140`
+  - Why/Problem: `effect` is a dependency of `packages/nest/effect` (`"effect": "catalog:effect"`); a version skew with an app's `effect` creates two `Context.Service` identities and silent "service not found" failures; `@nestjs/core` is declared in both `dependencies` and `peerDependencies`.
+  - Do: move `effect` (and `@orpc/effect`/`@orpc/server` as appropriate) to peers resolved from the catalog, drop the duplicate `@nestjs/core` dependency, add a check that all workspaces resolve one `effect`.
+  - Done when: `bun why effect` shows one copy; manifest has no dependency+peer duplicates.
+  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#4.6, #7.2
+  - Design-impact (2026-10-26): also applies to all `@deployer/effect-*` packages and to `@orpc/*` (exact peers); the single-copy CI check is `EFF-169`.
+- [ ] `EFF-012` **Central error mapping: install `effect/wrap` and one `_tag -> ORPCError` table (`toOrpcError`) in `@deployer/nest-effect`, targeting `standardErrorActions`** · NEW · P0 · M · Deps: `EFF-014`, `DEC-EFF-2` · See also: `EFF-080`, `EFF-155`
+  - Why/Problem: `@orpc/effect` exposes `effect/wrap` (zero usages repo-wide); three styles today: sample per-error `catchTag` to `errors.X`, health `FAILED_DEPENDENCY(error.message)` helper, identity opaque failure + `instanceof` ladder (new error types fall into `INTERNAL_SERVER_ERROR`). Widened code types lose the compile-time contract alignment the sample proves.
+  - Do: shared mapper keyed by `_tag` (`NotFound -> NOT_FOUND`, `Conflict -> CONFLICT`, `Forbidden -> FORBIDDEN`, ...) applied once through `effect/wrap` (or `.pipe(toOrpc(errors))`); keep domain errors transport-free; do NOT use `Effect.provide` inside the wrap hook (rebuilds layers per call); exhaustive test.
+  - Done when: health and identity controllers contain no hand-written mapping; an unmapped tag is a compile or test error.
+  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#5.3, #7.2, effect-ecosystem-research.md#2.13
+  - Priority-review (2026-10-26): promoted P1 to P0: P0 item `SEC-057` lists `EFF-012` in Deps (verified in auth-security.md).
+  - Design-impact (2026-10-26): re-scoped. Mapping is BY KIND (six kinds from `standard-errors.ts`, exhaustive switch) with `domainError(tag, kind)` in `@deployer/effect-core` (`EFF-182`), applied once in the `handle` wrapper (`EFF-181`); no per-tag table and no per-controller `effect/wrap` installs.
+- [ ] `EFF-013` **Defect policy: what a non-declared failure returns (500 body), how it is logged, correlation id, cause preserved; configure `RethrowHandlerPlugin` accordingly** · NEW · P1 · S · Deps: `EFF-012`, `EFF-014`, `EFF-024` · See also: `EFF-062`
+  - Why/Problem: anything that is not an `ORPCError` is rethrown raw (`Cause.squash`); the sample surfaces it as 500 plus a console line; identity returns a bare `INTERNAL_SERVER_ERROR` with a `cause`; no policy for logging or ids. Infrastructure errors (DB down) should be `Effect.orDie` with a logged cause.
+  - Do: define 500 body shape with correlation id, log the full `Cause`, never leak `cause`, document `orDie` use for infra errors; test.
+  - Done when: a forced defect returns the documented body and one structured log line with the id.
+  - Status: todo · Verified-in-code: partial · Source: effect-architecture.md#3.3, #5.3, #7.1.6
+  - Design-impact (2026-10-26): re-scoped. The defect policy lives in `handle` (`EFF-181`): 500 with `data.correlationId`, full `Cause` logged, never the cause to the client, infra errors `orDie`.
+- [ ] `EFF-014` **Request-scoped Effect context: `CurrentActor`, `CorrelationId`, request `Logger` as Effect services provided per request via `effect/wrap`; ban passing raw oRPC `context` into services** · NEW · P0 · M · Deps: `EFF-004` · See also: `EFF-119`, `SEC-001`, `OBS-005`, `IDEA-067`
+  - Why/Problem: `EffectRuntime.context()` is process-global; the actor is threaded by hand (`actorFromContext(context)` in every identity handler, first argument of each service method), not enforced by types, no correlation id, no per-request logger or tracer (N-8; blocker 1 for identity).
+  - Do: build `CurrentActor`/`CorrelationId` in `effect/wrap` from `context.auth` (anonymous default via `Context.Reference` or explicit type), provide per request, then drop `actorFromContext` parameters from the service signatures; do not store per-request data in the cached runtime context.
+  - Done when: services read the actor from the environment; a service that omits it does not compile.
+  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#5.4, #7.1.7, effect-health-identity.md#4.2, #4.5, #5 ARCH-NEW-A, N-8
+  - Priority-review (2026-10-26): promoted P1 to P0: P0 items `SEC-057`, `SEC-062`, `AUTH-054` list `EFF-014` in Deps (verified in auth-security.md).
+  - Design-impact (2026-10-26): re-scoped. Request-scoped facts come from the `requestContext` middleware merged into `effect/context` (`EFF-224`); `CurrentActor` has no default and is part of `Ambient`; the verified claim comes from `EFF-226`; passing the raw oRPC `context` into services is banned.
+- [ ] `EFF-015` **Verify and fix probable request-scope bubbling: shared host injects `REQUEST` into the ORPC config factory (`orpc-host.ts:144`)** · FIX · P1 · M · Deps: none · See also: `EFF-014`
+  - Why/Problem: a provider depending on `REQUEST` is request-scoped and scope propagates to dependents; `ImplementInterceptor` injects that config, so controllers may be request-scoped and the factory (including `new InternalErrorInsightService()`, `orpc-host.ts:75`) re-runs per request; the sample avoids it by passing a context function. Inference only.
+  - Do: boot-time check with `Test.createTestingModule` + scope inspection; if confirmed, switch `createOrpcModule` to the context-function form (the "new context-function form" in the template checklist) and re-verify identity `extraContext` (`app.module.ts:71-74`, awaits `runtime.context()` per request).
+  - Done when: scope inspection shows singleton controllers, or the finding is closed as false.
+  - Status: todo · Verified-in-code: partial · Source: effect-architecture.md#5.4, #3.5, #7.2
+  - Design-impact (2026-10-26): TRANSITIONAL. The phase-1 Nest shell passes a context function (receives `ExecutionContext`, no `REQUEST` injection); the problem disappears with `HttpEdge` (`EFF-179`).
+- [ ] `EFF-016` **Credential/actor forwarding design for service-to-service calls: Effect-native `ForwardedCredentials`/actor claim replacing AsyncLocalStorage; pick cookie vs signed actor claim** · NEW · P2 · M · Deps: `ARCH-056`, `DEC-ARCH-4`, `DEC-EFF-3` · See also: `EFF-017`, `EFF-108`
+  - Why/Problem: BFF uses ALS (`service-auth-context.ts`) to carry credentials to fan-out legs; ALS across Effect fibers is probably fine in Bun/Node but unverified; the sample demo forwards the cookie by hand; `ARCHITECTURE.md` says "explicit actor claim" while code forwards cookie/authorization.
+  - Do: verify ALS survival across fibers (test), then provide an Effect service replacing it, aligned with the inter-service auth decision; remove ALS afterwards.
+  - Done when: fan-out calls forward the actor through the Effect context; ALS gone or proven necessary.
+  - Status: todo · Verified-in-code: partial · Source: effect-architecture.md#4.2, #9 D3
+  - Design-impact (2026-10-26): decision made (DEC-EFF-3): signed actor claim, ALS removed. Implemented by `EFF-226` (claims), `EFF-239` (`ServiceClients`), `EFF-199` (BFF step 2), key publication `EFF-191`, security review `EFF-192`.
+- [ ] `EFF-017` **Adopt `createEffectClient` over `ServiceClientRegistry` for peer calls (typed oRPC errors without try/catch)** · ENHANCE · P2 · M · Deps: `EFF-016` · See also: `EFF-107`
+  - Why/Problem: `ServiceClient`/`ServiceClientRegistry` return Promise clients; `createEffectClient` wraps them as Effects with abort-signal propagation (demo in `samples/api-sample/.../demo.controller.ts:28-45`); needed by `project -> fleet`.
+  - Do: wrap the registry once in the package (Effect client factory), document usage, keep generated BFF delegation Promise-based.
+  - Done when: svc-project fleet calls use it; interruption aborts the HTTP call.
+  - Status: todo · Verified-in-code: partial · Source: effect-architecture.md#4.2, #6.10, #7.1.11
+  - Design-impact (2026-10-26): design superseded by `ServiceClients` (`EFF-239`), which wraps `ServiceClientRegistry` with `createEffectClient`, claims and resilience classes; tick both.
+- [ ] `EFF-018` **Transaction primitive: `Db`/`Transaction` Effect service with fiber-scoped `tx` and `withTransaction`; repository method granularity rule** · NEW · P1 · L · Deps: `EFF-019`, `EFF-020`, `DEC-EFF-4` · See also: `EFF-106`, `EFF-113`, `EFF-156`
+  - Why/Problem: no design for transactions; 7 non-spec `db.transaction(async tx => ...)` sites in project (`service.repository.ts:183,502,623,659`; `project.repository.ts:241,297,335`) and 4 in runtime (`deployment.repository.ts:399,456,588,738`) are the hardest repositories to migrate; cross-repository units of work need a fiber-scoped tx.
+  - Do: implement `Db` in `@deployer/nest-database-core` exposing `use(fn)` and `transaction(...)` (research: keep Drizzle 0.45, thin wrapper, `Effect.tryPromise` + typed `DbError`), repositories use `yield* Db` which resolves to `tx` inside `withTransaction`; document when a repository method is one unit of work instead.
+  - Done when: a repository spec shows commit, rollback and nested use; `project` can use it.
+  - Status: todo (unblocked 2026-10-26: DEC-EFF-4 resolved) · Verified-in-code: yes · Source: effect-architecture.md#5.5, #7.1.9, effect-ecosystem-research.md#2.4
+  - Design-impact (2026-10-26): implemented by `EFF-217` (`Db<Owner>`: dedicated-connection transaction, `CurrentTx` Reference, savepoints, `pg_cancel_backend`), home `@deployer/effect-infra` not `nest-database-core`; spike S2 `EFF-174` first; tick both.
+- [ ] `EFF-019` **`BaseDatabaseService.db` throws `AppError` synchronously when uninitialised: make it a typed failure inside Effect (not a defect)** · FIX · P1 · S · Deps: none · See also: `EFF-018`
+  - Why/Problem: `base-database.service.ts:41-47` throws synchronously; inside `Effect.gen` that becomes a defect rather than a typed failure.
+  - Do: expose `DatabasePort` access via `Effect.try`/`Effect.suspend` mapping to a `DbUnavailable` tagged error; keep the re-initialisable getter semantics.
+  - Done when: an uninitialised DB yields a typed error asserted in a spec.
+  - Status: todo · Verified-in-code: partial · Source: effect-architecture.md#5.5, #4.4
+  - Design-impact (2026-10-26): TRANSITIONAL. The island adapter wraps the `BaseDatabaseService.db` getter in `Effect.try` mapping to `DbUnavailable` until `PgDbLive` owns the pool (`EFF-217`, island `EFF-280`).
+- [ ] `EFF-020` **`fromAbortableSignal` helper and mandatory use of `AbortSignal` in `Effect.tryPromise` so fiber interruption reaches Drizzle / registry / Docker calls** · NEW · P1 · M · Deps: none · See also: `EFF-018`, `EFF-021`
+  - Why/Problem: `Effect.tryPromise({ try: operation })` ignores the `signal` argument (`user.repository.ts:184-189`, `health.service.ts:41-49`), so the fiber is interrupted but the DB query/`registry.runOnce()`/Docker call keeps running (D4).
+  - Do: helper in the package that forwards the fiber signal; use it in the `Db` primitive and the health port; lint/convention: `tryPromise` must take the signal; test that interruption aborts the operation.
+  - Done when: an interruption test shows the abortable operation cancelled.
+  - Status: todo · Verified-in-code: partial · Source: effect-architecture.md#4.4, #5.6, #7.2
+  - Design-impact (2026-10-26): re-scoped. `fromAbortable` lives in `@deployer/effect-core` (`EFF-160`, transformer T2 in `EFF-265`); the ESLint ban on signal-less `tryPromise` is part of `EFF-168`.
+- [~] `EFF-021` **Resource policy: which resources stay Nest providers (DB pool, Docker client, mesh sockets) vs scoped Layers with `Effect.acquireRelease` (child processes, streams)** · NEW · P2 · M · Deps: `EFF-009`, `DEC-EFF-1` · See also: `EFF-110`, `EFF-111`
+  - Why/Problem: layer-less design cannot express acquire/release at service level; long runtime/fleet operations (deployments, Docker streams) need explicit cancellation and scoped cleanup; handlers have no `Scope` (wrap `acquireRelease` in `Effect.scoped`).
+  - Do: decide per resource class; document the pattern with a worked example; wire into fleet prerequisites.
+  - Done when: policy section exists in the conventions doc and one service uses it.
+  - Status: obsolete (resource policy replaced by principle P6: scoped layers; Nest providers only inside islands) · Verified-in-code: n/a · Source: effect-architecture.md#5.6, #8, effect-ecosystem-research.md#2.2
+  - Design-impact (2026-10-26): OBSOLETE. Resource policy is now principle P6: pool, server, child processes and subscriptions are scoped layers (`EFF-217`, `EFF-179`, `EFF-240`); Nest providers survive only inside islands (`EFF-273`..`EFF-288`).
+- [ ] `EFF-022` **Streaming ruling and one SSE bridge: RxJS stays the lingua franca or adopt `Stream`; reconcile the sample's `RxJSHandlerPlugin`/client wrapper/`observable()` schema with `packages/transport/orpc/src/observable/*`** · NEW · P1 · M · Deps: `DEC-EFF-5` · See also: `EFF-110`, `ARCH-067`
+  - Why/Problem: contracts use RxJS `Observable` (`packages/nest/events`, `cluster-swarm-events.service.ts`, `deployment-stream-bridge.service.ts`); the sample has a ~340-line second implementation and keeps streaming outside Effect; SSE consumer interruption reaches RxJS (`iterator.return()`), not fibers. "Do not do both silently."
+  - Do: apply DEC-EFF-5; implement a single bridge in `packages/transport/orpc`; migrate streams one at a time; in-process fan-out only (`PubSub`), multi-replica still needs LISTEN/NOTIFY.
+  - Done when: one bridge; sample plugin deleted or folded; fleet/runtime stream rule documented.
+  - Status: todo (unblocked 2026-10-26: DEC-EFF-5 resolved) · Verified-in-code: yes · Source: effect-architecture.md#4.4, #5.7, #9 D5, effect-ecosystem-research.md#2.11
+  - Design-impact (2026-10-26): decision resolved (DEC-EFF-5): RxJS at the transport edge, `Stream` inside domains; the single bridge is `EFF-187` in `@deployer/effect-orpc`; the sample's plugin is folded or deleted.
+- [ ] `EFF-023` **Confirm the Effect `Stream` -> oRPC event-iterator helper (name and interruption semantics) and the SSE consumer disconnect path** · NEW · P2 · S · Deps: `EFF-022` · See also: `EFF-153`
+  - Why/Problem: the research could not verify the exact `Stream`-to-async-iterable helper (`Stream.toAsyncIterable`-style, `[mem; verify]`).
+  - Do: spike against the installed `effect@4.0.6`, record the name and test that disconnect interrupts the stream fiber.
+  - Done when: the doc names the helper and a spec asserts interruption on disconnect.
+  - Status: todo · Verified-in-code: no · Source: effect-ecosystem-research.md#2.11, #7
+  - Design-impact (2026-10-26): stays as the confirmation spike; disconnect interruption on Bun is also covered by `EFF-173` (S1).
+- [ ] `EFF-024` **Effect `Logger` layer bridged to `@deployer/logger`, per-request annotations (request id, actor) via `Effect.annotateLogs`** · NEW · P1 · M · Deps: `EFF-014` · See also: `OBS-005`
+  - Why/Problem: no Effect `Logger` layer; sample logs with `console.error` (`app.module.ts:63`); `@deployer/logger`/Nest `Logger` used in shared code; no home for per-request data.
+  - Do: Logger layer in the infra layer that delegates to `@deployer/logger`; correlation id format decided; document.
+  - Done when: a handler log line carries request id and actor id.
+  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#5.9, #7.1.13, effect-ecosystem-research.md#2.8
+  - Design-impact (2026-10-26): implemented as layer `EFF-214` (`Logger` + `Correlation` + `Tracer` + `Metrics`); annotations are applied once in the `handle` wrapper.
+- [ ] `EFF-025` **Span naming convention: `Effect.fn("Service.method")` for every service method; `withSpan` rules** · NEW · P2 · S · Deps: `EFF-026` · See also: `EFF-042`
+  - Why/Problem: no `Effect.fn`/`withSpan` convention; named spans come "for free" with `Effect.fn`.
+  - Do: document and lint-encourage `Effect.fn`; apply to health/identity services.
+  - Done when: spans named `<Service>.<method>` appear in a trace.
+  - Status: todo · Verified-in-code: n/a · Source: effect-architecture.md#5.9, effect-ecosystem-research.md#2.8
+  - Design-impact (2026-10-26): `Effect.fn("Service.method")` is now a hard convention (`EFF-183`); lint in `EFF-168`.
+- [ ] `EFF-026` **Tracing: `@effect/opentelemetry` `OtelTracer.layerGlobal` plus existing `ORPCInstrumentation`; decide OTel now or correlation-id logging first (D12)** · NEW · P2 · M · Deps: `DEC-EFF-12`, `EFF-145` · See also: `OBS-049`, `FEAT-126`
+  - Why/Problem: nothing in the repo uses OpenTelemetry (no hit in `apps/`/`packages/` source or manifests), so there is no precedent; the sample has only `ORPCInstrumentation` + `ConsoleSpanExporter`; `trace.getActiveSpan()` inside fibers works only while OTel async context survives the fiber scheduler (uncertain across `Effect.sleep`/forks). Unknown whether `NodeSdk.layer` installs the global tracer.
+  - Do: decide per DEC-EFF-12; add the tracer layer to the infra layer so Effect spans nest under oRPC spans; verify context survival across forks/sleeps.
+  - Done when: a trace shows nested spans from a `.effect` handler incl. across `Effect.sleep`.
+  - Status: todo (unblocked 2026-10-26: DEC-EFF-12 resolved) · Verified-in-code: partial · Source: effect-architecture.md#5.9, effect-ecosystem-research.md#2.8, #7
+  - Design-impact (2026-10-26): unblocked by DEC-EFF-12: correlation-id logging first (`EFF-214`), OTel traces next; spike S4 `EFF-176`; exporter `EFF-215`; enablement date is open as `DEC-EFF-32`.
+- [ ] `EFF-027` **Metrics: `Metric` exported to OTel/Prometheus, deferred until the exporter exists** · NEW · P3 · M · Deps: `EFF-026`, `OBS-049` · See also: `OBS-045`
+  - Why/Problem: no metrics layer and no sampling in the sample or package.
+  - Do: define counters/histograms for handlers; export once `OBS-049` provides the endpoint.
+  - Done when: a handler latency histogram is scraped.
+  - Status: todo · Verified-in-code: no · Source: effect-architecture.md#5.9, effect-ecosystem-research.md#2.8
+  - Design-impact (2026-10-26): becomes part of `EFF-215` (`TelemetryExporter`).
+- [ ] `EFF-028` **Config as an Effect service: `Config` + `Config.redacted` read at runtime build (fail fast listing all missing keys), `EnvService` zod values exposed, no raw `process.env`, unwrap-at-edge rule** · NEW · P1 · M · Deps: `EFF-009` · See also: `SEC-016`, `PROJ-020`, `PROJ-021`, `EFF-130`
+  - Why/Problem: sample reads raw `process.env` (`main.ts:6`, `auth.ts:17-19`); health redis indicator reads `process.env.DEPLOYER_REDIS_URL` directly; `Redacted` hides values from logs/`toString`/JSON, which fixes the secret-in-logs bug class.
+  - Do: Config layer in the infra layer; secrets as `Config.redacted`, unwrapped only at the point of use (docker auth, GitHub token); add the lint rule; test no leak.
+  - Done when: a service starts with a missing key and fails listing all missing keys; `Redacted` not leaking is tested (`EFF-151`).
+  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#7.1.12, effect-ecosystem-research.md#2.9
+  - Design-impact (2026-10-26): implemented by `EFF-211` (`AppConfig` + `ConfigSource`; `EnvService` zod values become the schema source; all missing keys reported in one error).
+- [ ] `EFF-029` **Sample hygiene: hard-coded default secret `orpc-nest-showcase-dev-secret-please-change`, raw env, `console` logging** · FIX · P2 · S · Deps: `EFF-044` · See also: `EFF-028`
+  - Why/Problem: `samples/api-sample/src/auth/auth.ts:19` falls back to a known secret; the sample is the copy-paste origin for new services.
+  - Do: fail without the secret outside demo mode, use the Config pattern, or delete per `EFF-044`.
+  - Done when: no default secret remains in the sample or the sample is removed.
+  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#2
+  - Design-impact (2026-10-26): folded into `EFF-172` (sample becomes a thin workspace consumer); the default secret is removed there.
+- [ ] `EFF-030` **Interim deterministic time tests without `@effect/vitest`: plain Vitest + `Effect.runPromise` + `TestClock` from `effect/testing`** · NEW · P2 · S · Deps: none · See also: `EFF-138`
+  - Why/Problem: no `@effect/vitest` (`it.effect`, `TestClock`, `TestContext`) so retries/timeouts/leases cannot be tested deterministically; the package needs Vitest 5.
+  - Do: add a small testing helper in `@deployer/nest-effect/testing` and one example spec (retry/lease expiry), until `EFF-138` lands.
+  - Done when: a time-based spec runs without wall-clock waits.
+  - Status: todo · Verified-in-code: no · Source: effect-architecture.md#5.12, effect-ecosystem-research.md#2.10
+  - Design-impact (2026-10-26): the interim helper stays until Vitest 5 lands (`EFF-178`); afterwards `@effect/vitest` `TestClock` replaces it.
+- [ ] `EFF-031` **Middleware-including `callProcedure` helper (`callWithMiddleware`): today `callProcedure` calls `~orpc.handler` directly and skips validation and middleware** · FIX · P1 · M · Deps: none · See also: `EFF-032`, `SEC-038`, `OBS-083`
+  - Why/Problem: `packages/transport/orpc/src/testing/index.ts:29-35` bypasses validation and `requireAuth()`; health's controller spec therefore never exercises auth; the sample's `call()` from `@orpc/server` does run middleware.
+  - Do: add a helper in the package/`@deployer/orpc-utils` testing subpath that runs middleware (auth, context) with a fake session; migrate health/identity controller specs; keep `callProcedure` only for pure handler tests and rename it to say so.
+  - Done when: a controller spec fails when `requireAuth()` is removed.
+  - Status: todo · Verified-in-code: partial · Source: effect-architecture.md#5.12, #7.2
+  - Design-impact (2026-10-26): re-scoped. Replaced by `ContractHarness` (`EFF-260`) which runs the real `requestContext` + `authzFromMeta` + validation + handler + error mapping; `callProcedure` is deleted (`EFF-289`).
+- [ ] `EFF-032` **Testing kit: shared `TestLayer` builders per port (fakes) and `effectContext` helpers instead of ad-hoc object literals** · NEW · P2 · M · Deps: `EFF-010` · See also: `EFF-035`
+  - Why/Problem: fakes are ad-hoc object literals per test; root AGENTS.md service-spec convention (`vi.fn()` literals, `vi.clearAllMocks`) differs from `Effect.provideService` fakes.
+  - Do: a `TestLayer` builder per port exported next to the port; update the testing convention (service spec = Effect providers, controller spec = middleware-inclusive call, repository spec = test DB/e2e harness).
+  - Done when: health and identity specs use the kit.
+  - Status: todo · Verified-in-code: partial · Source: effect-architecture.md#4.7, #5.12, #7.2
+  - Design-impact (2026-10-26): re-scoped. One `Test` layer per Tag shipped with the Live layer (`EFF-183`, `EFF-259`); rule "no `vi.fn()` for ports".
+- [ ] `EFF-033` **Package tests for what the bridge does not cover: duplicate tokens, request-scoped providers (skipped), shutdown, `orpc-context` typing; plus a Nest wiring spec that resolves all keys** · NEW · P1 · M · Deps: `EFF-005`, `EFF-004` · See also: `EFF-085`
+  - Why/Problem: 2 tests, both happy path; no Nest integration test proves discovery wiring for a real service; the one fragile piece (runtime discovering a `useExisting` alias) is untested (health spec never boots the module).
+  - Do: specs in `effect-runtime.spec.ts` and a `Test.createTestingModule` wiring spec template per service.
+  - Done when: all four gaps have specs; template reused by health and identity.
+  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#2, #5.12, effect-health-identity.md#2
+  - Design-impact (2026-10-26): partly obsolete (duplicate-token and request-scoped specs die with `collectEffectLayer`); the shutdown, typing and wiring specs continue as `EFF-186` and `EFF-157`.
+- [ ] `EFF-034` **Generalise the type-level spec: handler failures must equal declared contract errors (`health.contract.spec.ts` only checks the client side)** · NEW · P2 · S · Deps: `EFF-012` · See also: `EFF-007`
+  - Why/Problem: sample proves compile-time alignment (`contract-errors.test.ts`); health's spec only checks the client; widened `ORPCError<string, unknown>` (identity `mapUserFailure`) loses the alignment.
+  - Do: reusable type-test helper in the testing subpath; apply to every migrated controller.
+  - Done when: an undeclared failure code in a handler is a type error in each migrated service.
+  - Status: todo · Verified-in-code: partial · Source: effect-architecture.md#3.3, #7.2
+  - Design-impact (2026-10-26): implemented as `EFF-185` (handler `E` is a closed union of `DomainError`, `R` within `RequestR | AppServices`).
+- [ ] `EFF-035` **Conventions doc part A (`docs/architecture/14-effect-services.md`): purpose/non-goals, versions and pinning policy, anatomy of a domain (+ one-class-per-file), ports and keys (id format `<service>/<Name>`), requirements policy** · NEW · P1 · M · Deps: `EFF-010`, `EFF-040`, `EFF-140` · See also: `EFF-001`
+  - Why/Problem: no doc mentions Effect; `docs/architecture/13-readiness-and-preflight.md` already exists so the conventions file must be `14-effect-services.md`, not `13` as the audit proposed. Outline points 1-5: purpose and non-goals (Effect for logic, Nest for construction/lifecycle; no `Layer`/`HttpApi`/`Schema` unless decided); versions and pinning (Effect 4.x, oRPC beta exact, Nest/TS aligned with catalog, sample uses catalog); anatomy and file naming (`*.tag.ts` + `*.impl.ts` unless rule amended); ports/keys registration `{ provide: Key, useClass|useExisting }`, boot verification, `EffectServices` per app; requirements policy `R = never`.
+  - Do: write the sections with the health example; update the Fumadocs docs per root rule "update docs in the same change set".
+  - Done when: points 1-5 exist and are linked from AGENTS.md.
+  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#7.1
+  - Design-impact (2026-10-26): re-scoped part A: also covers strata L0-L3, principles P1-P12, the composition root, tag + `Live` in one file with no `Impl` class, ids `<service>/<Feature>/<Name>`; tracked by `EFF-159`.
+- [ ] `EFF-036` **Conventions doc part B: errors (tagged catalogue, `cause` rules, shared mapping table, defects, `effect/wrap`, correlation id), request context (`CurrentActor`, `CorrelationId`, `Logger`), authorization (checks in service via `CurrentActor`, policy functions, ownership, what a controller may do), persistence (`Db` port, `tx`, repository granularity, `withTransaction`, driver error mapping, signal use)** · NEW · P1 · M · Deps: `EFF-012`, `EFF-014`, `EFF-018`, `EFF-119` · See also: `EFF-035`
+  - Why/Problem: outline points 6-9; three divergent error styles and no authz idiom in the reference.
+  - Do: write the sections after the primitives exist; include the rule "no authz check inside repositories".
+  - Done when: points 6-9 exist with code samples from health/identity.
+  - Status: todo · Verified-in-code: n/a · Source: effect-architecture.md#7.1, effect-ecosystem-research.md#2.14
+  - Design-impact (2026-10-26): re-scoped part B: errors by kind (`EFF-182`), request context (`EFF-224`), authorization witness `Authorized<P>` (authz-authn-design.md 5.5), persistence `Db<Owner>` / `CurrentTx` (`EFF-217`).
+- [ ] `EFF-037` **Conventions doc part C: streaming ruling and one SSE bridge, cross-service calls (`createEffectClient` over `ServiceClientRegistry`, credential forwarding replacing ALS), config (`EnvService` as Effect service), observability (logger/tracer/metrics/span naming/correlation id format), lifecycle and shutdown (who disposes what, drain, readiness gating via `PreflightModule`)** · NEW · P2 · M · Deps: `EFF-022`, `EFF-017`, `EFF-028`, `EFF-026`, `EFF-008` · See also: `EFF-036`
+  - Why/Problem: outline points 10-14.
+  - Do: write after the respective rulings.
+  - Done when: points 10-14 exist.
+  - Status: todo · Verified-in-code: n/a · Source: effect-architecture.md#7.1
+  - Design-impact (2026-10-26): re-scoped part C: streaming = RxJS at the edge and `Stream` inside (`EFF-187`), `ServiceClients` + claims (`EFF-239`), `AppConfig` (`EFF-211`), observability (`EFF-214`), lifecycle = `runMain` and `Readiness` (`EFF-180`, `EFF-251`).
+- [ ] `EFF-038` **Conventions doc part D: testing (pyramid, `@effect/vitest`, shared `TestLayer`, `call()` vs `callProcedure`, type-level contract specs, e2e harness binding, Nest wiring spec), tooling (Effect lint rules, bundling policy, knip entries), mixed-mode rules (facade), migration playbook + checklist with the health worked example and anti-patterns** · NEW · P2 · M · Deps: `EFF-031`, `EFF-032`, `EFF-042`, `EFF-043`, `EFF-049`, `EFF-048` · See also: `EFF-051`
+  - Why/Problem: outline points 15-18.
+  - Do: write last; include the migration playbook per service.
+  - Done when: points 15-18 exist; doc is complete (18 points).
+  - Status: todo · Verified-in-code: n/a · Source: effect-architecture.md#7.1
+  - Design-impact (2026-10-26): re-scoped part D: testing is layer substitution (`@effect/vitest`, `ContractHarness`, `PgTestDb`, `TestApp`); facade and island rules replace the mixed-mode text; the playbook is the `create-service` generator checklist (`EFF-170`).
+- [ ] `EFF-039` **Update `apps/api-services/AGENTS.md`, `ARCHITECTURE.md` and root/v3 AGENTS.md testing conventions that conflict with Effect code, plus a pointer to the `ai-docs/` shipped in `node_modules/effect`** · FIX · P1 · S · Deps: `EFF-035` · See also: `ARCH-007`, `EFF-040`
+  - Why/Problem: conflicts table: domain errors "extend `AppError`" (new code uses `Data.TaggedError`); controller specs "mock `implement`/`Implement`" (health spec uses `callProcedure`); service specs `vi.fn()` literals vs `Effect.provideService`; constructor injection in services/controllers (new ones have none); bundling breaks Nest DI (health/identity use `bun build --packages=external`); the "typed NestJS exceptions" migration rule contradicts tagged errors. `ARCHITECTURE.md` also says BFF forwards an actor claim (code forwards cookie). Docs/LLM drift: assistants emit Effect v3 syntax, the package ships `AGENTS.md`/`CLAUDE.md`/`ai-docs/` to counter it.
+  - Do: amend each rule (local AGENTS overrides root per scope) in the same change as the doc; reference `node_modules/effect/ai-docs`; warn that mintlify/effect-smol mirrors are stale.
+  - Done when: no AGENTS/ARCHITECTURE sentence contradicts migrated code.
+  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#4.7, #1.6, effect-ecosystem-research.md#2.15, #4.5
+  - Design-impact (2026-10-26): also amend root `AGENTS.md` service-adapter-repository and testing sections (`EFF-210`); the `v3/AGENTS.md` rule "no temporary compatibility layers" is the deletion rule for the Nest shell and `effect-nest`.
+- [ ] `EFF-040` **Decide and enforce the one-class-per-file rule for key + implementation (health has 3 classes in `health.service.ts`; `user.repository.ts` 3)** · ENHANCE · P2 · S · Deps: `DEC-EFF-8` · See also: `EFF-039`
+  - Why/Problem: `apps/api-services/AGENTS.md` says "One class per file. No multiple exported classes in one file", the sample README makes key+impl in one file the convention.
+  - Do: apply DEC-EFF-8 (amend the rule for tag+impl, or split `*.tag.ts`/`*.impl.ts`) and refactor health/identity consistently; also decide the `.sql.ts`/`.types.ts` split naming.
+  - Done when: rule text and code agree; lint or review checklist enforces.
+  - Status: todo (unblocked 2026-10-26: DEC-EFF-8 resolved) · Verified-in-code: yes · Source: effect-architecture.md#4.7, #9 D8
+  - Design-impact (2026-10-26): unblocked by DEC-EFF-8: tag + `Live` in one file, no `Impl` class, `*.test-layer.ts` importable only from specs (`EFF-183`).
+- [ ] `EFF-041` **zod vs Effect Schema ruling: zod only at contracts and config boundary, no Effect Schema or `Schema.Class` in domains; `Schema.TaggedError` vs `Data.TaggedError` ruling; lint it** · ENHANCE · P2 · S · Deps: `DEC-EFF-6` · See also: `EFF-042`
+  - Why/Problem: today duality is invisible (zod at the boundary, Effect for control flow) but `@orpc/effect` ships `EffectSchemaToJsonSchemaConverter`, making a second validator easy; both TaggedError flavours appear in installed docs; the official migration guide fetch returned 404. Effect Schema is still the right tool inside Effect-only code (workflow payloads, queue messages, Config).
+  - Do: write the rule, add a lint restriction for `effect/Schema` imports outside allowed folders, decide the tagged error flavour (serialised across processes => `Schema.TaggedError`).
+  - Done when: ruling in docs; lint catches a stray Effect Schema domain.
+  - Status: todo (unblocked 2026-10-26: DEC-EFF-6 resolved) · Verified-in-code: partial · Source: effect-architecture.md#5.8, #9 D6, effect-ecosystem-research.md#2.3, #7
+  - Design-impact (2026-10-26): unblocked by DEC-EFF-6 (adjusted): zod at contract and config edges; Effect Schema is explicitly allowed in workflow/queue/outbox payloads, claims and config code; lint restricts Effect Schema imports to those folders (`EFF-168`).
+- [ ] `EFF-042` **ESLint rules for Effect: floating Effects, forbid `Effect.runPromise` outside boundaries, no `any`/`as` at the Effect boundary, no raw `process.env`, unwrap `Redacted` only at edges, no `Effect.provide` in `effect/wrap`** · NEW · P2 · M · Deps: `EFF-028` · See also: `EFF-041`
+  - Why/Problem: sample lint is recommended presets only (no type-aware rules, no Effect rules, no formatter); the repo lint config is in `tooling/eslint` (`@deployer/config-eslint`).
+  - Do: add an Effect preset in `tooling/eslint` and enable it in migrated workspaces; `bun lint` only (never raw eslint).
+  - Done when: each rule has a failing fixture.
+  - Status: todo · Verified-in-code: partial · Source: effect-architecture.md#2, #7.1.16, #7.2
+  - Design-impact (2026-10-26): re-scoped. Becomes the `effectService` preset (`EFF-168`): boundaries, banned v3 syntax, signal-less `tryPromise`, raw `process.env`, `Effect.runPromise` outside `main.ts`/tests/facades, `console`.
+- [ ] `EFF-043` **Build/bundling policy: accept or revert `bun build src/main.ts --target=bun --packages=external` (health/identity) vs the "never `bun build` an app" rule; verify Nest `design:paramtypes` metadata under that build** · FIX · P1 · S · Deps: `DEC-EFF-9` · See also: `EFF-039`
+  - Why/Problem: `health/package.json:18` bundles with `--packages=external`; `ARCHITECTURE.md` says bundling breaks Nest DI; Effect-style classes need no `design:paramtypes` but shared infra classes still do; unverified under `bun build`.
+  - Do: boot the built health/identity output (operator's call to run it), record the result and update the rule.
+  - Done when: the build script and the rule agree and a boot test of the built artifact is recorded.
+  - Status: todo (unblocked 2026-10-26: DEC-EFF-9 resolved) · Verified-in-code: yes · Source: effect-architecture.md#4.6, #4.7, #9 D9
+  - Design-impact (2026-10-26): unblocked by DEC-EFF-9: Effect-only services use a full `bun build --target=bun` bundle; `--packages=external` stays allowed for services with unbundleable deps; CI boots the built artifact (`EFF-295`).
+- [ ] `EFF-044` **Fate and workspace wiring of `samples/api-sample` (keep as non-CI showcase / fold into docs and delete / promote into workspace + CI)** · ENHANCE · P2 · S · Deps: `DEC-EFF-10` · See also: `EFF-045`, `EFF-029`
+  - Why/Problem: untracked, outside workspaces (root globs `apps/**`, `packages/**`, `tooling/**`, `infra/**`), own `bun.lock`/`node_modules`, not CI-gated (`bun run check` only sees workspaces), type-level proofs were established on Nest 12/TS 5.9 not the repo versions.
+  - Do: apply DEC-EFF-10; if promoted: move under a workspace glob, use catalog versions, add to turbo `check`; if deleted: fold README content into the conventions doc first.
+  - Done when: sample is either gated by `bun check --no-script` on catalog versions or removed.
+  - Status: todo (unblocked 2026-10-26: DEC-EFF-10 resolved) · Verified-in-code: yes · Source: effect-architecture.md#3.6, #9 D10, #7.2
+  - Design-impact (2026-10-26): resolved by DEC-EFF-10 (adjusted): delete the duplicated runtime and make the sample a thin consumer inside the workspace with tests in CI (`EFF-172`).
+- [ ] `EFF-045` **Sample must consume `@deployer/nest-effect` instead of re-implementing the runtime and layer collector in `src/effect/`** · FIX · P2 · S · Deps: `EFF-044`, `EFF-004` · See also: `EFF-007`
+  - Why/Problem: the sample reimplements runtime and collector (and builds eagerly), so the template has two implementations that already diverged.
+  - Do: import the package; keep only demo-specific code; unify timing.
+  - Done when: no duplicate `EffectRuntime` in the repo.
+  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#3.6, #6 anti-patterns, #7.2
+  - Design-impact (2026-10-26): implemented inside `EFF-172`; consume `@deployer/nest-effect` now and the `effect-*` packages once they exist.
+- [~] `EFF-046` **If the sample is kept: close its gaps (database/Drizzle transactions, authorization roles/ownership, Nest integration + auth-flow test, type-aware lint/formatter, Effect tracer, logging, config)** · ENHANCE · P3 · L · Deps: `EFF-044` · See also: `EFF-018`
+  - Why/Problem: sample status table: database MISSING (in-memory `Map`), authorization MISSING (`isLoggedIn` only), lifecycle PARTIAL, logging/config STUB, OTel PARTIAL, only `demo.ts` is an e2e.
+  - Do: only if DEC-EFF-10 keeps it as showcase; otherwise skip.
+  - Done when: the sample demonstrates every Template v1 primitive or is deleted.
+  - Status: obsolete (sample is a thin consumer, not a primitives showcase; see EFF-172, EFF-170) · Verified-in-code: yes · Source: effect-architecture.md#2
+  - Design-impact (2026-10-26): OBSOLETE. With DEC-EFF-10 (adjusted) the sample is a thin consumer, not a showcase of every primitive; primitives are demonstrated by the `create-service` template (`EFF-170`).
+- [ ] `EFF-047` **knip and `check-di-graph` support for Effect: the DI-graph gate analyses `@Module` imports only, Effect `yield*` dependencies are invisible** · ENHANCE · P2 · M · Deps: `EFF-006`, `ARCH-027` · See also: `OPS-033`
+  - Why/Problem: `scripts/check-di-graph.ts` cannot see Effect-level cycles or missing providers; knip has a `packages/**` entry for `@deployer/nest-effect`.
+  - Do: either teach the script about Effect keys (declared `EffectServices` vs providers) or rely on `EFF-006` at boot; add knip entries for the new subpaths (`./testing`, `./orpc-context`).
+  - Done when: a missing Effect provider is caught statically or at boot in CI; knip clean for the package.
+  - Status: todo · Verified-in-code: partial · Source: effect-architecture.md#4.4, #4.6, #5.1
+  - Design-impact (2026-10-26): re-scoped. `scripts/check-di-graph.ts` is retired once BFF and services are on Layers (`EFF-194`), replaced by the per-service wiring spec (`EFF-186`); knip entries for the new package subpaths remain.
+- [ ] `EFF-048` **Per-service template checklist as a scaffold/checklist doc: `main.ts` (import `@orpc/effect/extensions/effect`, context augmentation, `bootstrapApiServer`), `app.module.ts` (imports-only root with `EffectRuntimeModule` and `createOrpcModule({ extraContext })`), `src/orpc/effect-context.ts`, per-domain files, `requireAuth()` + `CurrentActor`, no `any`/casts, specs set, e2e binding, `bun lint`/`bun check --no-script`, delete old files** · NEW · P1 · M · Deps: `EFF-014`, `EFF-012`, `EFF-031` · See also: `EFF-035`
+  - Why/Problem: the template checklist: main.ts as `health/src/main.ts:1-52`; app.module imports-only root; `effect-context.ts` registering keys; per domain: contract (existing), tagged errors, ports, implementations, controller, module, fixtures, specs; each handler `requireAuth()` (or documented public) with the actor from `CurrentActor`; no `any`, no `as` casts at the Effect boundary + type-level spec; specs: service (Effect providers), controller (`call()` with middleware), repository (test DB or e2e harness), wiring (Nest testing module resolves all keys); e2e binding via `src/e2e/runtime.ts` unchanged; `bun lint`/`bun check --no-script` clean, docs updated in the same change; delete old files in the same change (no shims, per `v3/AGENTS.md`).
+  - Do: publish the checklist in `14-effect-services.md` and a PR template section; consider a generator (`create-service`-style MCP tool).
+  - Done when: health and identity satisfy every box.
+  - Status: todo · Verified-in-code: n/a · Source: effect-architecture.md#7.2
+  - Design-impact (2026-10-26): re-scoped. The checklist is produced by the `create-service` generator and its tests (`EFF-170`, `EFF-184`); the doc keeps it as the review list.
+- [ ] `EFF-049` **Mixed-mode rules: how non-Effect Nest code consumes Effect services (plain facade or `runtime.runPromise`) and vice versa (ports via `useExisting`)** · NEW · P1 · S · Deps: `DEC-EFF-11` · See also: `EFF-092`, `EFF-157`
+  - Why/Problem: `UserDomainModule` exports `UserService`; consumers outside Effect that `@Inject(UserService)` get an Effect tag class typed impl, which is confusing; supervisors/lifecycle/events/docker/swarm are Nest class-based and enter Effect as ports.
+  - Do: apply DEC-EFF-11 (are partially migrated services acceptable on `main`); define the facade pattern and where it lives; test it (`EFF-157`).
+  - Done when: rule documented; no consumer injects an Effect tag class directly.
+  - Status: todo (unblocked 2026-10-26: DEC-EFF-11 resolved) · Verified-in-code: partial · Source: effect-architecture.md#5.13, #4.4, #9 D11
+  - Design-impact (2026-10-26): TRANSITIONAL (not the end state). `facade(Tag)` (Effect to Nest, runs as `Actor.system("legacy:<module>")`, deprecated, banned from new code) and `NestIsland.port` (Nest to Effect) live in `EFF-166` and are deleted with it (`EFF-167`).
+- [ ] `EFF-050` **Document oRPC-Effect integration caveats: no `Effect.provide` in `effect/wrap`, wrap `acquireRelease` in `Effect.scoped`, `unstable_rethrow` in Next, interruption only-exit semantics, `RethrowHandlerPlugin`** · NEW · P2 · S · Deps: `EFF-035` · See also: `EFF-012`
+  - Why/Problem: caveats from orpc.dev: providing layers per call rebuilds them; handlers have no `Scope`; Interruption-only exits become the abort reason or `AbortError`; Next needs `unstable_rethrow`.
+  - Do: add to the conventions doc and the lint rule list.
+  - Done when: documented with an example each.
+  - Status: todo · Verified-in-code: n/a · Source: effect-ecosystem-research.md#2.2, effect-architecture.md#3.3
+  - Design-impact (2026-10-26): largely absorbed by the `handle` wrapper (`Effect.scoped`, interruption mapping, `EFF-181`); the doc part stays.
+- [ ] `EFF-051` **Anti-pattern catalogue for reviews: `R` leaking implementation deps, one opaque `cause: unknown` failure, `tryPromise` ignoring `AbortSignal`, throwing rule helpers lifted by `Effect.try`, hand-maintained `AppServices`/`EffectServices` unions without boot check, hard-coded values in controllers, reimplementing the runtime in the sample, plus `Effect.gen` for trivial logic** · NEW · P3 · S · Deps: `EFF-038` · See also: `EFF-042`
+  - Why/Problem: observed anti-patterns (effect-architecture.md §6) must be a checklist so the next service does not copy them.
+  - Do: add as the review checklist in the conventions doc, each with the good counterpart.
+  - Done when: checklist exists and is referenced from the PR template.
+  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#6, #5.2
+  - Design-impact (2026-10-26): add to the catalogue: `Effect.provide` inside methods, `Layer.succeed` of class instances, `vi.fn()` port mocks, signal-less `tryPromise`, v3 syntax (`Context.Tag`, `Effect.Service`, `Layer.scoped`).
+- [ ] `EFF-052` **Measure, do not assume: Effect on Bun (sample README claim only), cold start of ~7 service processes, dependency size, `ManagedRuntime` first-request cost** · NEW · P2 · S · Deps: none · See also: `EFF-116`
+  - Why/Problem: nothing was executed in the audits; "works on Bun" is only a README claim; Effect adds a sizeable dependency and a runtime build at first request (lazy in the package).
+  - Do: measure boot time and RSS for svc-health with and without the Effect path; record in the doc.
+  - Done when: numbers recorded and compared to a budget.
+  - Status: todo · Verified-in-code: no · Source: effect-architecture.md#5.11
+  - Design-impact (2026-10-26): same work as spike S3 `EFF-175`; tick both.
+- [ ] `EFF-053` **Learning-curve and bus-factor mitigation: written conventions plus one "Effect champion" review per PR for the first migrated modules** · NEW · P3 · S · Deps: `EFF-039` · See also: `EFF-051`
+  - Why/Problem: Effect 4 is novel enough that most examples target Effect 3 (`Context.Tag`, `Effect.Service`); single-champion risk; hiring-market data not found.
+  - Do: add the review rule to CONTRIBUTING/PR template; list the v3-to-v4 renames seen (`Context.Service`, `Effect.catch*`).
+  - Done when: PR template mentions it.
+  - Status: todo · Verified-in-code: n/a · Source: effect-architecture.md#5.10, effect-ecosystem-research.md#2.15, #4.9
+  - Design-impact (2026-10-26): risk R5 mitigation: generator (`EFF-170`) plus one Effect reviewer per PR for the first three services (health, identity, project).
+
+### Health rewrite follow-ups
+- [ ] `EFF-054` **Fix `svc-health` `uptime` in the service (not the controller) and add a test that fails on the bug** · FIX · P1 · S · Deps: none · See also: `OBS-028`, `OBS-086`, `EFF-055`
+  - Why/Problem: `health.controller.ts:72` `uptime: process.uptime() / 1000` is carried over into the Effect handler (reports 1000x too small, contract says seconds); the new spec "reports uptime in seconds" asserts only `> 0`, which the bug satisfies (N-1). The line moved from `:64` to `:72`.
+  - Do: add `HealthService.report()` returning a domain object with uptime seconds, stub the clock in the test with an exact expectation; delete the `/1000`.
+  - Done when: the new test fails on the old code and passes now; `OBS-028`/`OBS-086` ticked.
+  - Status: todo · Verified-in-code: yes · Source: effect-health-identity.md#1 row 15, #5, #6 N-1, #7.1
+  - Design-impact (2026-10-26): done inside step 1 (`EFF-198`): `HealthService.report()` domain object on Layers; keep the failing-first test.
+- [ ] `EFF-055` **Move business-ish logic out of the health controller into `HealthService`: `status === "up" ? "ok" : "degraded"` (twice), `service: "svc-health"` literal (twice, plus fixtures), uptime computation** · FIX · P1 · S · Deps: none · See also: `EFF-054`
+  - Why/Problem: breaks "no logic in controllers"; hard-coded values in controllers are a listed anti-pattern; the uptime bug lives there.
+  - Do: service returns a domain report; controller only maps; service name from config/env.
+  - Done when: controller contains no mapping logic; one source for service name.
+  - Status: todo · Verified-in-code: partial · Source: effect-health-identity.md#2, effect-architecture.md#6
+  - Design-impact (2026-10-26): done inside step 1 (`EFF-198`); the service name comes from `AppConfig` (`EFF-211`).
+- [ ] `EFF-056` **Decide `supervisors` in `svc-health.detailed`: BFF-side roll-up, service token call to the BFF, or drop the field (supervisors run in the BFF process)** · FIX · P2 · S · Deps: `ARCH-056`, `DEC-EFF-14` · See also: `OBS-029`, `ARCH-065`
+  - Why/Problem: `health.controller.ts:77` `supervisors: []` is a stub; svc-health cannot reach `SupervisorOrchestratorService` (N-3); decide before anyone "fixes the stub".
+  - Do: pick per DEC-EFF-14; update the contract/field accordingly; re-scope `OBS-029`.
+  - Done when: the field is populated by a documented path or removed from the contract.
+  - Status: todo (unblocked 2026-10-26: DEC-EFF-14 resolved) · Verified-in-code: yes · Source: effect-health-identity.md#1 row 14, #6 N-3
+  - Design-impact (2026-10-26): unblocked by DEC-EFF-14: drop the field from the `svc-health` contract; supervisors stay in the BFF (scoped fibers at step 8, `EFF-205`).
+- [ ] `EFF-057` **Fix `HealthStreamController` SSE: dead 15 s heartbeat (`heartbeats` defined at `health.module.ts:58`, never merged) and duplicate first emit** · FIX · P1 · S · Deps: none · See also: `EFF-058`, `EFF-061`
+  - Why/Problem: D-2: the comment promises a heartbeat so proxies do not close idle connections, none is sent; D-3: the snapshot is emitted twice on subscribe (from `snapshots$` then replayed `changes$`) and `switchMap` tears down the first branch.
+  - Do: merge the heartbeat into the returned stream, emit the snapshot once, comment the intended behaviour; test with fake timers.
+  - Done when: an idle SSE connection receives heartbeats; first subscribe emits once.
+  - Status: todo · Verified-in-code: partial · Source: effect-health-identity.md#1 rows 12, defects D-2/D-3, #6 N-2
+  - Design-impact (2026-10-26): fixed by construction in `HttpEdge`/`Readiness` (`Stream.concat(Stream.make(current), changes)` merged with an edge heartbeat, `EFF-187`, `EFF-251`); keep the test.
+- [ ] `EFF-058` **Remove or wire the inert refresh API: `HealthRegistry.requestRefresh()`, `pushRefreshRequests()`, `refreshStream()` have no callers, nothing subscribes to `refreshRequests`** · FIX · P2 · S · Deps: none · See also: `EFF-057`
+  - Why/Problem: D-1: the "ask for a pass now" API is inert and documented as a feature.
+  - Do: wire it to the oRPC `check` (force pass) or delete it.
+  - Done when: no dead API remains.
+  - Status: todo · Verified-in-code: partial · Source: effect-health-identity.md#1 defects D-1, #6 N-2
+  - Design-impact (2026-10-26): disappears with `Probes`/`Readiness` (`EFF-251`): the refresh API is not ported.
+- [ ] `EFF-059` **Explicit authz stance per health procedure (`check` public + rate limit parity with the monolith's 300/min; `detailed` `requireAuth()`/role) and an access test** · FIX · P1 · S · Deps: `EFF-031` · See also: `SEC-011`, `OBS-052`, `OBS-083`
+  - Why/Problem: N-5: neither `check` nor `detailed` declares `requireAuth()`/`publicAccess()` (confirmed no match in `health.controller.ts`); the global `APP_GUARD` probably session-gates both while the BFF delegation header claims "service enforces `requireAuth()` where needed"; web dev middleware (`WithHealthCheck.tsx`, `/api/server/health/route.ts`) relies on cookie pass-through; monolith had `check` explicitly public with `rateLimit(300/min)` and `detailed` `requireAuth()`. Also the reference lacks an authz idiom, which SUB-A needs.
+  - Do: declare the stance on each procedure, port the rate limit, add anonymous/authenticated tests through the middleware-inclusive helper; verify at runtime (unverified).
+  - Done when: tests prove anonymous accept/reject as designed.
+  - Status: todo · Verified-in-code: partial · Source: effect-health-identity.md#1 rows 3-4, #6 N-5, #7.2, #5 OBS-NEW-E
+  - Design-impact (2026-10-26): re-scoped. The stance is declared as contract `meta.authz` (`check` = `public({reason})` with `RateLimiter` 300/min `EFF-230`; `detailed` = an authenticated `node:read`-class permission) and enforced by `authzFromMeta` (`EFF-188`).
+- [ ] `EFF-060` **Fix the BFF delegation generator header that claims services enforce `requireAuth()` where needed (false for svc-health `detailed`)** · FIX · P2 · S · Deps: `EFF-059` · See also: `ARCH-090`
+  - Why/Problem: generated `health.delegation.ts` header misleads reviewers; generated files must be fixed in the generator (`scripts/gen-bff-delegation.py`), never edited directly.
+  - Do: correct the header text in the generator and regenerate.
+  - Done when: header matches reality.
+  - Status: todo · Verified-in-code: partial · Source: effect-health-identity.md#1 row 20, #6 N-5
+  - Design-impact (2026-10-26): generator header fix stays; re-pointed together with the delegation regeneration (`EFF-190`).
+- [ ] `EFF-061` **Health wiring and HTTP tests: boot the module and resolve `HealthService` + the registry alias through `EffectRuntime`; HTTP-level tests for `/health`, `/health/ready`, `/health/stream` (SSE controller test); use the existing `src/e2e/runtime.ts`** · NEW · P1 · M · Deps: `EFF-033`, `EFF-057` · See also: `ARCH-104`, `OBS-NEW-F`
+  - Why/Problem: no test boots the Nest module (fragile: `useExisting` alias discovery, lazy `ManagedRuntime` cached for the process); no SSE controller test; e2e runtime exists but no spec uses it.
+  - Do: specs as listed; include the double `HealthModule.forRoot` dedupe check.
+  - Done when: specs green in the e2e harness; a missing alias provider fails them.
+  - Status: todo · Verified-in-code: partial · Source: effect-health-identity.md#1 row 22, #2, #7.3
+  - Design-impact (2026-10-26): re-scoped. HTTP-level tests via `TestApp` (`EFF-261`) and the wiring spec (`EFF-186`).
+- [ ] `EFF-062` **Log the dropped `HealthCheckFailed.cause` at the controller boundary (server-side log with cause, not only `FAILED_DEPENDENCY(error.message)`)** · FIX · P1 · S · Deps: `EFF-013`, `EFF-024` · See also: `EFF-012`
+  - Why/Problem: N-4: the one domain error loses its cause; no log or trace of why the registry failed.
+  - Do: covered by the defect/error policy; add a spec that the cause is logged.
+  - Done when: failing registry produces a log line with the cause.
+  - Status: todo · Verified-in-code: partial · Source: effect-health-identity.md#1 row 18, #6 N-4
+  - Design-impact (2026-10-26): re-scoped. Covered by the defect policy in `handle` (`EFF-181`) and the `dependency_missing` kind mapping (`EFF-182`).
+- [ ] `EFF-063` **Indicator parity: redis via `EnvService` (not raw `process.env.DEPLOYER_REDIS_URL`), env knobs for the 15 s refresh / 5 s per-check timeout / memory 0.95 / disk 0.05 thresholds, migrations indicator detecting pending journal entries** · ENHANCE · P2 · M · Deps: `EFF-028`, `ARCH-101` · See also: `ARCH-041`
+  - Why/Problem: rows 8, 9, 11, 17, 7: constants only; the migrations check is "journal count > 0" (does not detect pending entries, ARCH-101).
+  - Do: Config-driven thresholds, `EnvService` for redis, pending-journal detection.
+  - Done when: thresholds configurable with defaults documented; migration lag shows as degraded.
+  - Status: todo · Verified-in-code: partial · Source: effect-health-identity.md#1 rows 7-9, 11, 17
+  - Design-impact (2026-10-26): re-scoped. Thresholds through `AppConfig` (`EFF-211`), redis via config not raw `process.env`, pending-journal detection is `MigrationsProbe` (`EFF-219`).
+- [ ] `EFF-064` **Commit and test the uncommitted database indicator fix (inject `GLOBAL_DATABASE_POOL`; the old drizzle-handle injection made `pool.query` fail)** · FIX · P1 · S · Deps: none · See also: `EFF-061`
+  - Why/Problem: row 6: the fix exists only in the working tree.
+  - Do: add a unit test and commit with the health rewrite.
+  - Done when: indicator reports version/latency against a pool in a spec.
+  - Status: todo · Verified-in-code: no · Source: effect-health-identity.md#1 row 6
+  - Design-impact (2026-10-26): re-scoped. The pool is acquired by `PgDbLive("health")` (`EFF-217`); the indicator becomes a `Probe` over `Db`.
+- [ ] `EFF-065` **Decide parity of the monolith's swarm / services (supervised service health) / mesh readiness indicators and the lifecycle `{phase, step, message}` in liveness/check** · ENHANCE · P2 · M · Deps: `DEC-ARCH-5` · See also: `ARCH-038`, `ARCH-109`
+  - Why/Problem: rows 1, 10: the monolith `readiness.indicators.ts` had `swarm`, `services`, `mesh` and `getHealth()` returned lifecycle info; svc-health has none (never in HEAD svc either).
+  - Do: restore as registry indicators where the data is reachable from svc-health or drop with a recorded decision; keep consistent with `ARCH-038`.
+  - Done when: decision recorded and indicators/fields present or documented absent.
+  - Status: todo · Verified-in-code: yes · Source: effect-health-identity.md#1 rows 1, 10, #5 ARCH-038
+  - Design-impact (2026-10-26): re-scoped. Swarm, services and mesh indicators become `Probe` tags contributed by features (`EFF-251`); lifecycle phases become `Readiness` states.
+- [ ] `EFF-066` **Give `changes$` a real subscriber as an Effect `Layer` (log/persist/emit transitions), restoring the monolith's once-per-transition log** · NEW · P2 · M · Deps: `OBS-001` · See also: `OBS-003`, `ARCH-062`
+  - Why/Problem: row 13: only `HealthStreamController` subscribes; transitions are not logged or persisted; Effect gives a natural place for a subscribing Layer.
+  - Do: implement after the event bus (`OBS-001`); log first, persist later.
+  - Done when: a transition produces one log/event.
+  - Status: todo · Verified-in-code: partial · Source: effect-health-identity.md#1 row 13, #5 ARCH-062/OBS-003
+  - Design-impact (2026-10-26): implemented as a `PubSub` plus an `OutboxConsumer`/`AuditLog` subscriber (`EFF-231`, `EFF-233`, `EFF-251`).
+- [ ] `EFF-067` **`timeoutAfter` never clears its 5 s timers (up to 5 timers leak per pass until they fire)** · FIX · P3 · S · Deps: none
+  - Why/Problem: row 16 minor leak.
+  - Do: clear the timer on settle.
+  - Done when: no pending timers after a pass in a test.
+  - Status: todo · Verified-in-code: no · Source: effect-health-identity.md#1 row 16
+  - Design-impact (2026-10-26): the leaking `timeoutAfter` disappears with `HealthRegistry`; replaced by per-probe `Effect.timeout` in `Probes` (`EFF-251`).
+- [~] `EFF-068` **Health reference hygiene: dedupe the double `HealthModule.forRoot({indicators:"platform"})` import (app.module + health.module), rename `HealthRegistryRepository` (it is an adapter), move fixtures from `src/modules/health/testing/` per the sample README rule, fix mixed 2-space/tab formatting** · ENHANCE · P3 · S · Deps: none · See also: `EFF-040`
+  - Why/Problem: reference quality: duplicate import works only if Nest dedupes identical dynamic modules by hash (unverified); misnomer; fixture location conflicts with the sample rule; formatting inconsistent.
+  - Do: single import with re-export, rename, relocate fixtures, run `bun fmt`.
+  - Done when: single import and consistent naming/format.
+  - Status: obsolete (Nest-module hygiene is moot once health is rewritten on Layers, EFF-198) · Verified-in-code: partial · Source: effect-health-identity.md#2
+  - Design-impact (2026-10-26): OBSOLETE. `HealthModule.forRoot` dedupe, class rename, fixture location and formatting are moot once health is rewritten on Layers (`EFF-198`).
+- [ ] `EFF-069` **Verify swarm probing: tier provisions `healthcheck: null` (`services-tier-provisioner.service.ts:220`) so the image HEALTHCHECK `localhost:3001/health` (`Dockerfile.api.prod:380`) applies to tasks on 3101+; rolling update/rollback may be driven by the wrong probe** · FIX · P1 · S · Deps: `ARCH-051` · See also: `ARCH-105`
+  - Why/Problem: N-11 and ARCH-051 matter more with the rewritten health: unverified, not run.
+  - Do: confirm in a swarm boot test and fix with `ARCH-051`; add the readiness endpoint per service port.
+  - Done when: swarm tasks converge healthy using their own port.
+  - Status: todo · Verified-in-code: partial · Source: effect-health-identity.md#1 row 21, #6 N-11
+  - Design-impact (2026-10-26): the per-service-port healthcheck is fixed in the `create-service` Dockerfile fragment (`EFF-170`) together with `ARCH-051`.
+- [ ] `EFF-070` **Freeze the monolith `apps/api/src/modules/health/*` (now importing `@deployer/health-contracts`) so the monolith and svc copies stop diverging** · ENHANCE · P2 · S · Deps: `ARCH-037` · See also: `EFF-002`
+  - Why/Problem: N-10: monolith is edited in the working tree as well; roadmap `OBS-011` is only PARTIAL.
+  - Do: apply `ARCH-037` policy to health/user/push/analytics copies.
+  - Done when: freeze rule recorded and enforced.
+  - Status: todo · Verified-in-code: partial · Source: effect-health-identity.md#6 N-10, #7.10
+  - Design-impact (2026-10-26): stands and is more urgent: the monolith health/user/push/analytics are superseded, not maintained.
+- [ ] `EFF-071` **Make health the richer Effect showcase (typed multi-error flow, config as a service, a scoped resource, tracing) so it is a faithful reference, not shallow `Effect.tryPromise(runOnce)`** · ENHANCE · P3 · M · Deps: `EFF-009`, `EFF-025` · See also: `EFF-010`
+  - Why/Problem: Effect adoption is shallow: no `Layer`s, config, scoped resources or tracing; the next services will imitate it.
+  - Do: after Template v1 add the missing demonstrations where natural.
+  - Done when: reference covers errors, config, tracing, authz.
+  - Status: todo · Verified-in-code: yes · Source: effect-health-identity.md#2
+  - Design-impact (2026-10-26): delivered by step 1 (`EFF-198`): typed multi-error flow, `AppConfig`, scoped pool and server, correlation logging.
+- [ ] `EFF-072` **Re-scope and update affected roadmap items for the health rewrite (OBS-028 line `:64` -> `:72`, OBS-029 re-scoped, OBS-037 re-scoped, OBS-011 PARTIAL, ARCH-036 PARTIAL, ARCH-051 matters more) and keep the migration table honest** · ENHANCE · P3 · S · Deps: none · See also: `OBS-028`, `OBS-029`, `OBS-037`
+  - Why/Problem: section 5 of the health/identity audit lists the effect on ~35 existing items; none became obsolete.
+  - Do: edit the cited items' text/status in their area files with a dated note.
+  - Done when: each cited item reflects the audit.
+  - Status: todo · Verified-in-code: n/a · Source: effect-health-identity.md#5
+
+### Identity rewrite follow-ups
+- [ ] `EFF-073` **SECURITY: role-hierarchy rule in `userRules` — an actor may not delete/ban/update-email on a target whose role >= theirs unless `superAdmin`; matrix tests** · FIX · P0 · S · Deps: none · See also: `AUTH-006`, `AUTH-045`, `SEC-001`
+  - Why/Problem: N-7: `assertCanAdminister` is the only check for `delete`, `update` (non-role fields, email) and `setBanned` (`user.rules.ts:64`; `user.service.ts:46,63,93,173,194`); `assertRoleIsAssignable` guards only the NEW role, so an `admin` can delete/ban/change the email of a `superAdmin` (email change + password reset is an account-takeover path once a mail transport exists). Same gap `AUTH-006` fixes in Better Auth (AUTH-NEW-C).
+  - Do: add the target-role comparison (needs a target lookup before authorize), keep error ordering consistent, add allow/deny matrix specs.
+  - Done when: matrix spec shows admin cannot act on superAdmin or equal.
+  - Status: todo · Verified-in-code: yes · Source: effect-health-identity.md#4.3, #6 N-7, #5 AUTH-NEW-C
+  - Design-impact (2026-10-26): stays P0 and first: implement the hierarchy rule now as a pure rule with matrix tests on the current code; it becomes `UserPolicy` (`outranksOrIsSuper`, authz-authn-design.md 5.5) in step 3 (`EFF-200`).
+- [ ] `EFF-074` **`user.update` lacks `assertNotSelfDestruct` for `banned` (admin can ban themselves); the guarded `setBanned` is exposed by no controller** · FIX · P1 · S · Deps: none · See also: `EFF-073`
+  - Why/Problem: `user.service.ts:138` only `assertRoleIsAssignable`; `setBanned` (line 164-174, applies the guard) is dead code.
+  - Do: apply the self-destruct guard in `update` or expose `setBanned` as a procedure (contract change) and remove the field from `update`.
+  - Done when: self-ban through any path is refused (spec).
+  - Status: todo · Verified-in-code: yes · Source: effect-health-identity.md#3, #4.3, #7.6
+  - Design-impact (2026-10-26): moves to `UserPolicy`/`UserService` in step 3 (`EFF-200`); do not wait if a quick guard is cheaper.
+- [ ] `EFF-075` **Role at create is unreachable: contract has no `role` field and the controller does not pass `input.role`, but the service supports it — decide and align** · FIX · P2 · S · Deps: `DEC-EFF-15` · See also: `AUTH-024`
+  - Why/Problem: `contracts/identity/modules/user/create.ts` omits role; service `assertRoleIsAssignable(actor, input.role)` is dead.
+  - Do: per decision, add the field with the assignability rule or remove the service path.
+  - Done when: contract, controller and service agree; spec covers.
+  - Status: todo (unblocked 2026-10-26: DEC-EFF-15 resolved) · Verified-in-code: partial · Source: effect-health-identity.md#3, #4.3, #7.6
+  - Design-impact (2026-10-26): unblocked by DEC-EFF-15: add `role` to the contract with the hierarchy rule enforced (`UserPolicy.canSetRole`).
+- [ ] `EFF-076` **Session and API-key revocation on ban/role change (raw DB writes today, 5-minute cookie cache)** · FIX · P1 · M · Deps: `EFF-077` · See also: `AUTH-013`
+  - Why/Problem: bans and role changes are raw DB writes with no session revocation; the cookie cache keeps access for minutes.
+  - Do: revoke sessions through Better Auth APIs on ban/role change; bypass the cookie cache for sensitive checks.
+  - Done when: a banned user's session stops working immediately (test).
+  - Status: todo · Verified-in-code: partial · Source: effect-health-identity.md#4.3, #5 AUTH-013
+  - Design-impact (2026-10-26): re-scoped. Ban or role change is one transaction {grant revoke, session revoke, token revoke, epoch bump} per authz-authn-design.md section 7 (`AUTH-013`), performed through Better Auth (DEC-EFF-16).
+- [ ] `EFF-077` **Identity writes `user` rows directly, bypassing Better Auth hooks (no credential handling, audit, event): route changes through Better Auth admin API or emit equivalents** · ENHANCE · P1 · M · Deps: `DEC-EFF-16` · See also: `OBS-071`, `AUTH-006`
+  - Why/Problem: service-level writes skip hooks; ownership registry says auth tables are BFF/Better Auth owned (`ARCH-047`).
+  - Do: decide per DEC-EFF-16 (call Better Auth vs keep direct writes plus audit event).
+  - Done when: no write path to auth tables without audit/hook parity.
+  - Status: todo (unblocked 2026-10-26: DEC-EFF-16 resolved) · Verified-in-code: partial · Source: effect-health-identity.md#4.3
+  - Design-impact (2026-10-26): unblocked by DEC-EFF-16: route bans and roles through Better Auth so hooks and session revocation apply.
+- [ ] `EFF-078` **Consistent authorize/lookup ordering: `findById` authorises before lookup, `update`/`delete` after (documented rule was "resolve then authorise"); `findById` returns `null` for unknown id for admins and self-on-self** · FIX · P3 · S · Deps: none
+  - Why/Problem: 404/403 ordering differs between procedures (information-leak/consistency).
+  - Do: pick one order, document, add specs.
+  - Done when: all procedures follow the rule.
+  - Status: todo · Verified-in-code: no · Source: effect-health-identity.md#4.3
+- [ ] `EFF-079` **Land unit specs for the new user domain immediately: rules matrix, service with fake repository via `Effect.provideService`, controller via the middleware-inclusive helper; negative cases for viewer/user and admin-on-superAdmin** · NEW · P1 · M · Deps: `EFF-031` · See also: `AUTH-045`, `ARCH-036`, `SEC-038`
+  - Why/Problem: no `user.*.spec.ts` on disk; last test run was 2026-10-24 against the OLD Nest user code; rules are pure and extracted (`domain/user.rules.ts`), so this is cheap and increasingly urgent.
+  - Do: write the three spec layers plus 403 cases; use `EFF-032` kit.
+  - Done when: specs green and cover happy path, conflict, not-found, forbidden.
+  - Status: todo · Verified-in-code: yes · Source: effect-health-identity.md#3, #4.5, #7.5
+  - Design-impact (2026-10-26): re-scoped. Specs written in the target style (`@effect/vitest`, `UserRepositoryTest`, `ContractHarness`); use the interim helper `EFF-030` until Vitest 5 (`EFF-178`).
+- [ ] `EFF-080` **Identity error model: tagged-per-failure (`NotFound`, `Conflict`, `Forbidden`, `Validation`, `RepositoryFailure`) replacing the single opaque `UserServiceFailure { cause: unknown }` and the `instanceof` ladder (`mapUserFailure`)** · FIX · P1 · M · Deps: `EFF-012` · See also: `EFF-081`
+  - Why/Problem: unified failure discards the typed error channel; forbidden/not-found/conflict become runtime checks; a new error type compiles and becomes `INTERNAL_SERVER_ERROR`; settle before porting analytics/push (blocker 2; ARCH-NEW-B). Mapper now lives in `controllers/user.error-mapper.ts`.
+  - Do: decide model (D2/DEC-EFF-2), refactor rules, service, repository and mapper to tagged errors, use the shared mapping from `EFF-012`.
+  - Done when: no `instanceof` mapping; a new failure without mapping is a compile/test error.
+  - Status: todo · Verified-in-code: yes · Source: effect-health-identity.md#4.2, #4.5, #5 ARCH-NEW-B, effect-architecture.md#5.3
+  - Design-impact (2026-10-26): resolved by design: `domainError(tag, kind)` classes (`EFF-182`); delete `UserServiceFailure` and the `instanceof` ladder in step 3 (`EFF-200`).
+- [ ] `EFF-081` **Replace throwing rule helpers (`rule(() => { userRules.assert... })` lifted with `Effect.try`) with pure rules returning typed failures** · ENHANCE · P2 · M · Deps: `EFF-080` · See also: `EFF-051`
+  - Why/Problem: `Effect.try` over throwing asserts turns every business error into an untyped `cause`; `mapErrors`/`rule` shims in `user.service.ts`.
+  - Do: rules return `Effect`/`Either` of tagged failures; delete the shims.
+  - Done when: no `rule()` helper; domain errors typed.
+  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#5.2, #6, effect-health-identity.md#4.2
+  - Design-impact (2026-10-26): resolved by principle P7: pure rules returning typed failures, no `throw` lifted by `Effect.try`.
+- [ ] `EFF-082` **Role vocabulary: `actorOf` defaults `role ?? "user"` but `user` is not a `PLATFORM_ROLES` enum value; `ADMIN_ROLES` is a string set not tied to `PLATFORM_ROLES`** · FIX · P1 · S · Deps: `DEC-AUTH-4` · See also: `AUTH-024`
+  - Why/Problem: role strings drift; hierarchy rule needs a real ordering.
+  - Do: derive `ADMIN_ROLES` and the ordering from `PLATFORM_ROLES`; align `userSchema.role`.
+  - Done when: a type error appears if a role is added without ordering.
+  - Status: todo · Verified-in-code: partial · Source: effect-health-identity.md#4.2
+  - Design-impact (2026-10-26): role vocabulary comes from the authz catalog (authz-authn-design.md 3.3-3.4, `AUTH-024`); the `member` baseline replaces the undefined `user` role.
+- [ ] `EFF-083` **Port the permission module next as the policy service SUB-A needs: fail loud on loader errors, seed default `role_rules`, then wire behind the user domain in shadow mode** · ENHANCE · P1 · M · Deps: `EFF-014`, `SEC-001` · See also: `AUTH-025`, `SEC-033`, `AUTH-026`
+  - Why/Problem: `permission.service.ts:35` swallows loader errors (`catch(() => [])`); no contract, no consumer; only `PermissionDomainModule` imported; small and pure (13 specs).
+  - Do: Effect port (rules engine stays pure TS as a port), fail-loud, seed rules, shadow mode via `EFF-119`.
+  - Done when: permission service is an Effect port consumed by the authz middleware.
+  - Status: todo · Verified-in-code: partial · Source: effect-health-identity.md#3, #4.2, #7.8
+  - Design-impact (2026-10-26): re-scoped. The permission engine becomes the `Authz`/`PolicyStore`/`PermissionResolver` layers (`EFF-227`), a rewritten shell over the kept filter machinery; loader errors fail closed (503).
+- [ ] `EFF-084` **Verify and fix `PushService` DI: no `@Injectable()` and `import type { PushRepository }` (`push.service.ts:1-4,68`), unit tests construct it by hand and no e2e exercises push — possibly all push calls fail** · FIX · P1 · S · Deps: none · See also: `OBS-080`, `EFF-085`
+  - Why/Problem: N-6: Nest would inject nothing so `this.subscriptions` fails; masked by hand-built tests. Verified `@Injectable` absent; runtime effect unverified.
+  - Do: add `@Injectable()` and a value import, boot the root module (operator's call) or add a DI test.
+  - Done when: a DI smoke test resolves `PushService` with its repository.
+  - Status: todo · Verified-in-code: yes · Source: effect-health-identity.md#4.4, #6 N-6, #7.7
+  - Design-impact (2026-10-26): moot by rewrite: push is rewritten as Layers in step 3 (`EFF-200`); add `@Injectable()` only if push must ship before then.
+- [ ] `EFF-085` **DI smoke test per service root module: boot and resolve every provider (catches the `PushService` class of bugs)** · NEW · P1 · S · Deps: `EFF-033` · See also: `ARCH-104`, `OBS-080`
+  - Why/Problem: OBS-NEW-F: classic Nest DI mistakes are invisible to hand-constructed unit tests.
+  - Do: reusable harness resolving all providers for health/identity/project...
+  - Done when: it fails when `@Injectable()` is removed from any provider.
+  - Status: todo · Verified-in-code: no · Source: effect-health-identity.md#5 OBS-NEW-F, #7.7
+  - Design-impact (2026-10-26): TRANSITIONAL. Nest DI smoke tests only for services still on the shell; Layer services use the wiring spec (`EFF-186`).
+- [ ] `EFF-086` **Push port step 1-2: VAPID identity decision implemented (server-wide keypair vs encrypted per-user keys, real subject instead of `mailto:user-<id>@notifications.local`)** · FIX · P1 · M · Deps: `DEC-OBS-1`, `EFF-084` · See also: `OBS-007`, `OBS-009`
+  - Why/Problem: per-user keypair stored plaintext (`push.service.ts` `publicKey()`, `push.repository.ts:260`), fake subject; DEC gates the real work.
+  - Do: implement the decision, encrypt private keys at rest, secret via `Config.redacted`.
+  - Done when: no plaintext private key; subject valid.
+  - Status: blocked(DEC-OBS-1) · Verified-in-code: yes · Source: effect-health-identity.md#3, #4.1, #7.7
+  - Design-impact (2026-10-26): re-scoped. The push port is built in step 3 (`EFF-200`) on `Outbox`/`OutboxConsumer`/`Notifier` (`EFF-232`, `EFF-233`, `EFF-237`); private keys sealed with `SecretBox` (`EFF-212`).
+- [ ] `EFF-087` **Push port step 3-5: real send with 404/410 pruning, stop the fabricated `sendTestNotification` report (`min(total, deliverable)`), fix endpoint re-bind (`onConflictDoUpdate` sets `userId`, `push.repository.ts:163-172`), then push integration tests** · FIX · P1 · M · Deps: `EFF-086` · See also: `OBS-008`, `OBS-006`, `OBS-010`, `OBS-080`
+  - Why/Problem: order from the audit: DI fix, VAPID decision, real send with pruning, stop fake report, endpoint-rebind fix.
+  - Do: implement in that order inside the Effect port; mock `web-push` in tests.
+  - Done when: items `OBS-006/008/010` closed on the Effect implementation.
+  - Status: todo · Verified-in-code: yes · Source: effect-health-identity.md#3, #7.7
+  - Design-impact (2026-10-26): re-scoped. Same as `EFF-086`: real send with pruning as a `NotificationChannel` Layer (`EFF-237`), integration tests with `SafeHttp.Fake` (`EFF-244`).
+- [ ] `EFF-088` **Plan the analytics split before the port: `analytics.service.ts` (934 lines, `systeminformation` + direct Drizzle) into repositories as Effect services + host-metrics adapter + report service** · ENHANCE · P1 · L · Deps: `EFF-014`, `DEC-OBS-3`, `DEC-OBS-6` · See also: `OBS-043`, `OBS-044`, `OBS-055`
+  - Why/Problem: 21 procedures with `requireAuth()` only; blockers: DEC-OBS-1/6/3 and report window `OBS-055`.
+  - Do: split then port; host-metrics source decision (mesh agent vs identity container) applies.
+  - Done when: analytics is Effect-based with unit specs; no 900-line service.
+  - Status: blocked(DEC-OBS-3) · Verified-in-code: yes · Source: effect-health-identity.md#3, #4.5, #7.9
+  - Design-impact (2026-10-26): re-scoped. Step 3 (`EFF-200`): repositories as Layers + `HostMetrics` port + report service; no 900-line service.
+- [ ] `EFF-089` **Analytics resolves the actor and ignores it (leftover `context;` no-op statements, unused `actorOf`): scope by role/project membership as part of the port** · FIX · P1 · S · Deps: `EFF-014` · See also: `OBS-052`, `OBS-083`
+  - Why/Problem: 21 procedures are `requireAuth()` only; no `requirePlatformRole` anywhere in identity (0 uses).
+  - Do: apply `CurrentActor` and policy checks; add 403 tests.
+  - Done when: a viewer cannot read cross-project analytics.
+  - Status: todo · Verified-in-code: partial · Source: effect-health-identity.md#4.1, #4.4
+  - Design-impact (2026-10-26): via `CurrentActor` and `Authz.filter` (`EFF-227`, `EFF-218`).
+- [ ] `EFF-090` **Serve the analytics report download (`downloadUrl=/analytics/reports/:id/content` has no route) and honour the report window as part of the analytics port, not before** · FIX · P1 · S · Deps: `EFF-088`, `DEC-OBS-6` · See also: `OBS-053`, `ARCH-016`, `OBS-055`
+  - Why/Problem: `analytics.controller.ts:310` dangling URL; no route in BFF or identity.
+  - Do: add the route in identity and BFF delegation, fix the window, formats per DEC-OBS-6.
+  - Done when: the download link returns the file.
+  - Status: todo · Verified-in-code: yes · Source: effect-health-identity.md#3, #7.9
+  - Design-impact (2026-10-26): the download is an `HttpEdge` raw route (`EFF-209`).
+- [ ] `EFF-091` **Host-metrics fix in the analytics port: measures the identity container, flat series, wrong network field — source via mesh agent** · FIX · P1 · M · Deps: `EFF-088`, `DEC-OBS-3` · See also: `OBS-043`, `OBS-044`
+  - Why/Problem: `takeSnapshot()` in `analytics.service.ts`.
+  - Do: introduce a `HostMetrics` port with agent-backed adapter.
+  - Done when: series reflect nodes, not the container.
+  - Status: blocked(DEC-OBS-3) · Verified-in-code: partial · Source: effect-health-identity.md#5, #4.5
+- [ ] `EFF-092` **Resolve the two-idioms problem inside identity: Effect user domain vs constructor-DI Nest analytics/push/permission; `EffectServices.identity` only lists user services** · ENHANCE · P1 · S · Deps: `DEC-EFF-11`, `EFF-049` · See also: `EFF-104`
+  - Why/Problem: N-9: two testing approaches and two mental models in one process; contributors cannot tell which pattern to follow.
+  - Do: ports in order permission, push, analytics; until done, label modules and register keys; keep a status table.
+  - Done when: each module is labelled and the registration matches.
+  - Status: todo · Verified-in-code: yes · Source: effect-health-identity.md#6 N-9, effect-architecture.md#5.13
+  - Design-impact (2026-10-26): TRANSITIONAL. Mixed-mode labelling plus `NestIsland`/`facade` rules; ends with step 3 (`EFF-200`).
+- [ ] `EFF-093` **Identity e2e: fix the stale import (`e2e/module-workflows/module-happy-path-workflows.e2e-spec.ts:21` imports the renamed `user.errors`), add negative (403) cases and an `effect/context` wiring test** · FIX · P1 · S · Deps: `EFF-079` · See also: `OBS-083`
+  - Why/Problem: rename mid-audit (`user.errors.ts` to `user.failures.ts`); existing e2e uses an admin actor only; verify against current files (transient breakage).
+  - Do: re-check, fix, add negative tests.
+  - Done when: e2e green with negative cases.
+  - Status: todo · Verified-in-code: partial · Source: effect-architecture.md (intro), effect-health-identity.md#4.5
+  - Design-impact (2026-10-26): re-scoped. Identity e2e moves to `TestApp` (`EFF-261`) when ported; fix the stale import now only if the old harness still runs.
+- [ ] `EFF-094` **Naming consistency in the user module: two failure files (`user.failures.ts` vs `domain/user.errors.ts`) with confusing names; `.sql.ts`/`.types.ts`/`.utils.ts` splits follow no sample convention** · ENHANCE · P3 · S · Deps: `EFF-040`
+  - Why/Problem: §4.4.
+  - Do: rename/consolidate per the conventions.
+  - Done when: one naming rule applied.
+  - Status: todo · Verified-in-code: yes · Source: effect-health-identity.md#4.4
+- [ ] `EFF-095` **Close the check-then-write races in identity `update` (`findById -> emailExists -> update`) with a unique-constraint mapping or transaction** · FIX · P2 · S · Deps: `EFF-018` · See also: `EFF-080`
+  - Why/Problem: unprotected separate calls allow uniqueness races regardless of Effect.
+  - Do: rely on the unique constraint mapped to a tagged `Conflict`, or use the tx primitive.
+  - Done when: concurrent update test shows one conflict.
+  - Status: todo · Verified-in-code: partial · Source: effect-architecture.md#5.5
+  - Design-impact (2026-10-26): by construction: write and let the constraint speak (`mapDbError` to a typed `EmailTaken`, `EFF-217`, `EFF-267`).
+- [ ] `EFF-096` **Record the scope boundary: API keys (Better Auth `apiKey` in `packages/auth`), sessions/sign-in/passkeys/invites/admin set-role/ban, setup wizard are NOT identity procedures; notifications do not exist yet** · ENHANCE · P3 · S · Deps: none · See also: `AUTH-006`
+  - Why/Problem: "Not in identity" section: avoid migrating the wrong thing and keep roadmap items pointed at the BFF/Better Auth.
+  - Do: add a scope note to the conventions/migration doc.
+  - Done when: note exists.
+  - Status: todo · Verified-in-code: partial · Source: effect-health-identity.md#3
+- [ ] `EFF-097` **Build the notifications module in the Effect style (new, no legacy)** · NEW · P2 · L · Deps: `OBS-012`, `EFF-127` · See also: `OBS-013`
+  - Why/Problem: no notification module exists; OBS-012..027 are NEW work and should start Effect-native.
+  - Do: follow `OBS-012` with the template.
+  - Done when: module uses Template v1.
+  - Status: todo · Verified-in-code: yes · Source: effect-health-identity.md#3
+- [ ] `EFF-098` **Re-check cross-service callers modified in the working tree (BFF `service-auth-context`, identity clients) and the e2e harness shared-runtime root module before identity ports finish** · ENHANCE · P2 · S · Deps: `EFF-016`
+  - Why/Problem: blocker 5: those files are in flux; e2e needs a shared-runtime root module.
+  - Do: review after the operator's edits land.
+  - Done when: callers consistent with `EFF-016`.
+  - Status: todo · Verified-in-code: no · Source: effect-health-identity.md#4.5
+- [ ] `EFF-099` **Retire the monolith user CRUD controller once identity covers it (identity rules are the intended replacement)** · FIX · P1 · M · Deps: `EFF-073`, `EFF-079` · See also: `AUTH-007`, `ARCH-031`
+  - Why/Problem: the monolith user module remains; the stray `apps/api/services/identity` copy is already deleted.
+  - Do: remove/redirect after specs and hierarchy rule land.
+  - Done when: one user CRUD implementation.
+  - Status: todo · Verified-in-code: yes · Source: effect-health-identity.md#3, #4.1, #5 AUTH-007
+  - Design-impact (2026-10-26): stands; part of step 3 (`EFF-200`).
+- [~] `EFF-100` **Identity Effect wiring for the remaining modules: register ports in `src/orpc/effect-context.ts` and `extraContext` as each domain converts** · ENHANCE · P2 · S · Deps: `EFF-092`
+  - Why/Problem: `EffectServices.identity = UserService | UserRepository | DatabasePort` only.
+  - Do: extend per port.
+  - Done when: boot validation (`EFF-006`) passes for all registered keys.
+  - Status: obsolete (no effect-context.ts key registration in the Layer model; AppServices derives from AppLive) · Verified-in-code: yes · Source: effect-health-identity.md#3
+  - Design-impact (2026-10-26): OBSOLETE. There is no `src/orpc/effect-context.ts` key registration in the Layer model; `AppServices` is derived from `AppLive`.
+- [ ] `EFF-101` **Identity push/analytics/permission unit specs survive the port (21 / 25 / 13 existing tests) and are rewritten for Effect providers** · ENHANCE · P2 · M · Deps: `EFF-032`
+  - Why/Problem: existing specs construct services by hand.
+  - Do: port tests with the kit while keeping coverage.
+  - Done when: equal or greater coverage under the new style.
+  - Status: todo · Verified-in-code: yes · Source: effect-health-identity.md#3, #4.5
+  - Design-impact (2026-10-26): re-scoped. Port the tests with Test layers; the coverage rule is unchanged.
+- [ ] `EFF-102` **Draw the decision on cost vs value of a third error flavour: keep `@deployer/errors` classes only as `cause` in migrated modules, then remove** · ENHANCE · P3 · S · Deps: `EFF-080`
+  - Why/Problem: `Data.TaggedError` plus `@deployer/errors` classes still used as `cause` (`user.rules.ts`).
+  - Do: remove the legacy errors from migrated modules.
+  - Done when: no `@deployer/errors` in migrated domains.
+  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#4.7
+  - Design-impact (2026-10-26): re-scoped. `DomainError` is the only error base; legacy `AppError` is converted by `fromLegacyError` (T10, `EFF-268`) only inside islands.
+
+### Per-service migration plan (order and prerequisites)
+- [ ] `EFF-103` **Migration order and gating: finish identity -> Template v1 -> project -> BFF orchestrators -> fleet -> runtime; mesh-agent in parallel; record sizes and prerequisites per service** · NEW · P1 · S · Deps: `EFF-001` · See also: `EFF-002`
+  - Why/Problem: sizes (non-spec `src/` lines): identity 27 files/4.3k, project 30/6.8k, fleet 65/9.6k, runtime 117/28.6k, BFF 77/7.6k, mesh-agent 12/1.5k, shared 367/62.6k.
+  - Do: publish the table with prerequisites in the migration doc and PR template.
+  - Done when: table published; each service row links its items.
+  - Status: todo · Verified-in-code: n/a · Source: effect-architecture.md#8
+  - Design-impact (2026-10-26): the order is replaced by the target plan: health (`EFF-198`) -> BFF claim and `ServiceClients` (`EFF-199`) -> identity (`EFF-200`) -> project (`EFF-201`) -> runtime job worker (`EFF-202`) -> fleet (`EFF-203`) -> runtime remainder (`EFF-204`) -> BFF edge (`EFF-205`) -> mesh-agent deferred (`EFF-206`); 38-46 ew sequential, about 28-32 calendar weeks for two engineers.
+- [ ] `EFF-104` **Identity completion umbrella (size M): specs, error model, hierarchy rule, then permission, push, analytics ports** · ENHANCE · P1 · M · Deps: `EFF-073`, `EFF-079`, `EFF-080`, `EFF-083`, `EFF-087`, `EFF-088` · See also: `EFF-092`
+  - Why/Problem: `user` done structurally; others classic; prerequisites: error mapping + `CurrentActor`.
+  - Do: track the sub-items above to completion.
+  - Done when: all identity modules are Effect-based or explicitly left classic by DEC-EFF-11.
+  - Status: in-progress · Verified-in-code: yes · Source: effect-architecture.md#8, effect-health-identity.md#3
+  - Design-impact (2026-10-26): re-scoped. The umbrella is now step 3 (`EFF-200`); permission, push and analytics are ported as Layers, not left classic.
+- [ ] `EFF-105` **Migrate `project` (size L): 4 modules (project, service, domain, network), cascade/dependency logic, cross-service calls to fleet** · NEW · P1 · L · Deps: `EFF-001`, `EFF-018`, `EFF-020`, `EFF-017`, `EFF-106` · See also: `DEPLOY-080`, `PROJ-020`
+  - Why/Problem: first service that forces transactions; 30 files / 6.8k lines.
+  - Do: port module by module with the template checklist; contracts untouched.
+  - Done when: project procedures served by `.effect()` handlers, specs green.
+  - Status: blocked(EFF-001) · Verified-in-code: yes · Source: effect-architecture.md#8
+  - Design-impact (2026-10-26): re-scoped as step 4 (`EFF-201`, about 4 ew): 7 transaction sites rewritten with `Db.transaction`, fleet calls via `ServiceClients`, outbox emits in the transaction.
+- [ ] `EFF-106` **Convert the project repository transaction sites to the primitive (`service.repository.ts:183,502,623,659`; `project.repository.ts:241,297,335`)** · NEW · P1 · M · Deps: `EFF-018` · See also: `EFF-156`
+  - Why/Problem: 7 callback `db.transaction(async tx => ...)` sites, the hardest repositories.
+  - Do: one unit of work per repository method or `withTransaction` across repositories.
+  - Done when: no raw `db.transaction` in project.
+  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#1.5, #5.5
+  - Design-impact (2026-10-26): via `EFF-217` (`Db.transaction`; no tx parameter threading; cross-repository unit of work).
+- [ ] `EFF-107` **`project -> fleet` calls through the Effect client with the actor forwarded (ties to the anonymous DnsProviderGateway fix)** · NEW · P1 · S · Deps: `EFF-017`, `ARCH-057` · See also: `ARCH-056`
+  - Why/Problem: svc-project -> svc-fleet is anonymous (401) today; the migration must not preserve that.
+  - Do: use `createEffectClient` with credentials/actor from the Effect context.
+  - Done when: project create -> network record via fleet succeeds.
+  - Status: todo · Verified-in-code: partial · Source: effect-architecture.md#8, #4.2
+  - Design-impact (2026-10-26): via `ServiceClients` with service claims (`EFF-239`, `EFF-226`).
+- [ ] `EFF-108` **BFF orchestrators/screens (size M): `Effect.all` with concurrency, timeouts, partial failures; preserve credential forwarding** · ENHANCE · P2 · M · Deps: `EFF-016`, `EFF-105` · See also: `ARCH-078`, `ARCH-080`
+  - Why/Problem: only orchestrators benefit from Effect in the BFF.
+  - Do: port orchestration/screens, record section errors instead of swallowing.
+  - Done when: partial failures surface as section errors with timeouts.
+  - Status: todo · Verified-in-code: partial · Source: effect-architecture.md#8, #4.2
+  - Design-impact (2026-10-26): re-scoped. Orchestrators as `Effect.all` with concurrency and timeouts in step 8 (`EFF-205`) over `ServiceClients`.
+- [ ] `EFF-109` **BFF delegation (size S): leave the 18 generated passthrough controllers Promise-based; no Effect there** · ENHANCE · P3 · S · Deps: none · See also: `ARCH-090`
+  - Why/Problem: `bff/src/modules/delegation/generated/*` are generated one-line forwarders; Effect adds nothing.
+  - Do: record the rule; revisit with `ARCH-090`.
+  - Done when: rule documented.
+  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#4.2, #8
+  - Design-impact (2026-10-26): the default flips (D-L4, `DEC-EFF-21`): regenerate the 18 delegation controllers as `.effect(handle(...))` over `ServiceClients` (`EFF-190`); leaving them Promise-based is no longer the recommendation.
+- [ ] `EFF-110` **Migrate `fleet` (size L/XL): Docker/Swarm adapters, reachability, Rx event services (`cluster-swarm-events.service.ts`), streaming `reachability.controller.ts`; many external resources needing `acquireRelease`** · NEW · P2 · XL · Deps: `EFF-022`, `EFF-021`, `EFF-020`, `EFF-105` · See also: `CLUSTER-018`
+  - Why/Problem: 65 files / 9.6k lines; prerequisites: streaming ruling, resource policy, cancellation.
+  - Do: port controllers/services first; leave docker/swarm engines as ports initially.
+  - Done when: fleet procedures Effect-based; streams per the ruling.
+  - Status: blocked(EFF-022) · Verified-in-code: yes · Source: effect-architecture.md#8
+  - Design-impact (2026-10-26): re-scoped as step 6 (`EFF-203`, 5-6 ew); Docker, Swarm, Traefik, Wireguard as ports behind islands (`EFF-273`..`EFF-278`).
+- [ ] `EFF-111` **Fleet streaming and resource semantics: Docker streams, reachability SSE, mesh sockets with explicit cancellation and scoped cleanup** · NEW · P2 · L · Deps: `EFF-110`, `EFF-023`
+  - Why/Problem: layer-less design cannot express these at service level.
+  - Do: apply `EFF-021`/`EFF-022` to each stream.
+  - Done when: client disconnect closes the Docker stream (test).
+  - Status: todo · Verified-in-code: no · Source: effect-architecture.md#5.6, #8
+  - Design-impact (2026-10-26): re-scoped. Streams are `Stream` inside ports with `fromAbortable` and scoped acquisition (`EFF-265`, `EFF-245`).
+- [ ] `EFF-112` **Migrate `runtime` (size XL) controllers/services first, leaving queue lifecycle and Docker engines as ports (`deployment-queue-lifecycle.service.ts`, Docker/mesh stream bridges)** · NEW · P2 · XL · Deps: `EFF-110`, `EFF-122` · See also: `DEPLOY-014`
+  - Why/Problem: 117 files / 28.6k; heaviest concurrency/cancellation needs; do not start before all prerequisites.
+  - Do: staged port: controllers/services, then repositories, then engines.
+  - Done when: runtime handlers Effect-based; engines wrapped as ports.
+  - Status: blocked(EFF-110) · Verified-in-code: yes · Source: effect-architecture.md#8
+  - Design-impact (2026-10-26): re-scoped. Split: the job worker is greenfield first (step 5, `EFF-202`), the remainder is step 7 (`EFF-204`, 8-10 ew); builders registry and trigger registry are written directly in Layer style.
+- [ ] `EFF-113` **Runtime transaction sites (`deployment.repository.ts:399,456,588,738`) onto the primitive** · NEW · P2 · M · Deps: `EFF-018`, `EFF-112`
+  - Why/Problem: 4 tx sites; DEPLOY-018 guarded updates must be preserved.
+  - Do: port with tests for terminal-state guards.
+  - Done when: no raw transaction in runtime.
+  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#1.5, #8
+  - Design-impact (2026-10-26): via `EFF-217`; terminal-state guards via `Repository.guardedUpdate` (`EFF-218`).
+- [ ] `EFF-114` **Rewrite the 32 runtime specs to the Effect style as modules migrate (no big-bang)** · NEW · P2 · L · Deps: `EFF-112`, `EFF-032`
+  - Why/Problem: 32 specs mock constructor DI.
+  - Do: convert per module with the kit.
+  - Done when: coverage not reduced.
+  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#8
+  - Design-impact (2026-10-26): re-scoped. Rewritten per module with `@effect/vitest` and Test layers as modules migrate.
+- [ ] `EFF-115` **Mesh-agent (size M): Effect-native template (real `Layer`/`Scope`/`Schedule` for agent loop, gossip, door converger), no Nest bridge** · NEW · P3 · M · Deps: `DEC-EFF-13` · See also: `EFF-052`
+  - Why/Problem: plain Bun, 1.5k lines / 12 files, timers/signal handlers in `main.ts:101-106`, `endpoint-discovery.ts:62`; `@deployer/nest-effect` irrelevant; independent of the Nest work so it can run in parallel.
+  - Do: apply DEC-EFF-13; if yes, create the template and convert one loop.
+  - Done when: one loop runs on `Schedule`/`Scope` with a shutdown test.
+  - Status: todo (DEFERRED 2026-10-26 by DEC-EFF-13: start only after ROADMAP Phase 2; low priority) · Verified-in-code: yes · Source: effect-architecture.md#4.5, #8, #9 D13
+  - Design-impact (2026-10-26): DEFERRED by DEC-EFF-13 (adjusted): Effect-native on `effect-core` plus the Bun-only subset of `effect-infra`, started only after Phase 2; priority lowered P2 to P3; tracked by `EFF-206`.
+- [ ] `EFF-116` **Mesh-agent binary size check (`bun build --compile`) before and after Effect** · NEW · P3 · S · Deps: `EFF-115`
+  - Why/Problem: Effect's footprint matters more in a single compiled binary.
+  - Do: measure both builds, set a budget.
+  - Done when: numbers recorded.
+  - Status: todo · Verified-in-code: no · Source: effect-architecture.md#4.5, #8
+  - Design-impact (2026-10-26): deferred with `EFF-115`; the footprint measurement is also spike S3 `EFF-175` (budget default +8 MB, `DEC-EFF-34`).
+- [ ] `EFF-117` **`shared` (367 files / 62.6k lines) stays class-based and is consumed as ports (`useExisting`); `supervisor-core`, `lifecycle`, `events`, `docker`, `swarm` not migrated; map `AppLifecycleService` phases into Effect for readiness gating only if needed** · ENHANCE · P3 · S · Deps: `EFF-049`
+  - Why/Problem: they need not be Effect-aware; lifecycle is an Rx state observer.
+  - Do: record the policy and the port list.
+  - Done when: policy documented.
+  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#4.4, #8
+  - Design-impact (2026-10-26): TRANSITIONAL. Class-based `shared` stays behind ports (islands `EFF-273`..`EFF-288`).
+- [ ] `EFF-118` **Migration status tracker per service/module (Effect / classic / mixed) in the conventions doc** · NEW · P3 · S · Deps: `EFF-103`
+  - Why/Problem: mixed-mode services need a visible status (N-9).
+  - Do: maintain a table updated per PR.
+  - Done when: table exists.
+  - Status: todo · Verified-in-code: n/a · Source: effect-health-identity.md#6 N-9
+  - Design-impact (2026-10-26): stands: the status table is the mixed-mode and island tracker, one issue per mixed service.
+
+### Platform capabilities enabled by Effect (for the roadmap substrates)
+- [ ] `EFF-119` **SUB-A skeleton on Effect (prototype step 2): `Actor` + `Authz` middleware on 3 procedures (read, mutation, admin), `meta {resource, action, risk}`, default-deny when meta missing, shadow-mode logging, 403 matrix generated from contract metadata** · NEW · P1 · L · Deps: `EFF-014`, `EFF-083`, `SEC-001` · See also: `SEC-033`, `SEC-038`, `IDEA-001`
+  - Why/Problem: Effect makes SUB-A cheaper (`Actor` as a `Context.Service`, `Policy` service, single oRPC middleware instead of repeating `assertX()`); validates the `effect/context` plumbing with Better Auth `getSession` (`Effect.tryPromise` once per request, failures to `UNAUTHORIZED`). The check can read project membership through repositories in the same trace.
+  - Do: implement the skeleton, keep authz in service/middleware (never repositories).
+  - Done when: 3 procedures covered with shadow log and generated matrix (`EFF-154`).
+  - Status: todo · Verified-in-code: no · Source: effect-ecosystem-research.md#2.14, #5, #6.2, effect-health-identity.md#4.2
+  - Design-impact (2026-10-26): re-scoped. SUB-A skeleton = `Authz` layers (`EFF-227`), `authzFromMeta` + mandatory `meta.authz` (`EFF-188`), `Actor` and verifiers (`EFF-225`); shadow mode first on 3 procedures.
+- [ ] `EFF-120` **Compile-time default-deny: encode authorization in `R` (e.g. `Authorized<"user","delete">`) so an unguarded handler fails to compile — investigate** · NEW · P2 · M · Deps: `EFF-119` · See also: `SEC-001`
+  - Why/Problem: Nest decorators cannot give this property; Effect's typed requirements can.
+  - Do: time-boxed type spike on the user domain; keep only if it stays readable.
+  - Done when: spike result recorded with an example.
+  - Status: todo · Verified-in-code: no · Source: effect-health-identity.md#4.2
+  - Design-impact (2026-10-26): adopted incrementally: the `Authorized<P>` witness is required by mutating service methods (`risk>=high` first, D14 of authz-authn-design.md); `CurrentActor` in `R` is the compile-time marker.
+- [ ] `EFF-121` **`Actor.system("scheduler")` provided with `Effect.provideService` for background fibers (supervisors, schedulers, webhooks) — no hidden global** · NEW · P2 · S · Deps: `EFF-014`, `ARCH-056`
+  - Why/Problem: system actor/service tokens are needed by background callers (`ARCH-056`).
+  - Do: define the system actor and use it in worker fibers.
+  - Done when: a scheduler fiber calls a peer with a system actor.
+  - Status: todo · Verified-in-code: no · Source: effect-ecosystem-research.md#2.14, #5
+  - Design-impact (2026-10-26): realised as `Actor.system(job)` through `runAs` in `Worker` and `Scheduler` (`EFF-235`, `EFF-236`) plus the `Actor` test fixtures.
+- [ ] `EFF-122` **SUB-B durable job worker with interruption-based cancel (prototype step 3): `deployment_jobs` claim/lease/heartbeat in Drizzle (`FOR UPDATE SKIP LOCKED`), one `Scope` + fiber per claimed job, `Fiber.interrupt` on cancel, terminal state written in `Effect.onExit`** · NEW · P1 · L · Deps: `DEPLOY-003`, `EFF-018`, `EFF-123` · See also: `DEPLOY-014`, `DEPLOY-015`, `DEPLOY-016`, `DEPLOY-017`, `DEPLOY-018`
+  - Why/Problem: the roadmap's SQL plan is robust and independent of unstable Effect APIs; the worker as an Effect program gives structured-concurrency cancel without adopting `effect/workflow`. Cancel = set `cancel_requested`, worker interrupts the fiber.
+  - Do: build the prototype with a fake 30 s "build" via `CommandRunner`, cancel kills the child within 1 s, crash-restart reclaims by lease; never overwrite a terminal state.
+  - Done when: tests in `EFF-152` pass.
+  - Status: todo · Verified-in-code: no · Source: effect-ecosystem-research.md#2.7, #5, #6.3
+  - Design-impact (2026-10-26): re-scoped as step 5 (`EFF-202`) using `JobQueue`/`Worker` layers (`EFF-234`, `EFF-235`) with `CommandRunner` (`EFF-240`); the default S5 outcome is the SQL worker (`DEC-EFF-30`).
+- [ ] `EFF-123` **`CommandRunner` service for `docker build`, `docker buildx`, `git clone`, wg: Effect `ChildProcess` or Bun spawn wrapped with `Effect.acquireRelease` that kills on interrupt; typed errors (`DockerError`, `BuildFailed{exitCode, tail}`); streaming `handle.all` to a line `Stream` to the log sink** · NEW · P1 · M · Deps: `EFF-021` · See also: `DEPLOY-017`
+  - Why/Problem: makes real cancel of in-flight builds true; `effect/process` is unstable so wrap it behind our own interface (one file churn); kill-on-interrupt is inferred, not tested; `ChildProcessSpawner` on Bun unverified; repo recently moved to Bun builtins for process execution.
+  - Do: implement with one adapter file; test kill-on-interrupt on Bun.
+  - Done when: cancelling a running fake build kills the child process.
+  - Status: todo · Verified-in-code: no · Source: effect-ecosystem-research.md#2.12, #4.6, #7
+  - Design-impact (2026-10-26): re-scoped. `CommandRunner` = `EFF-240`, Bun spawn behind our own port (no `node:child_process`, no unstable `effect/process`); Wave Q, P0 vehicle.
+- [ ] `EFF-124` **Retry and heartbeat with `Schedule`: `Schedule.exponential` for job retries, `Effect.repeat(Schedule.spaced)` heartbeat forked in the job scope; `Activity.retry` only if workflow is adopted** · NEW · P2 · S · Deps: `EFF-122` · See also: `DEPLOY-004`
+  - Why/Problem: `Schedule` is stable and covers retries; retry must carry the persisted plan (DEPLOY-004).
+  - Do: implement inside the worker; test with `TestClock`.
+  - Done when: lease expiry/retry tests pass deterministically.
+  - Status: todo · Verified-in-code: no · Source: effect-ecosystem-research.md#2.7, #5
+  - Design-impact (2026-10-26): lives inside the `Worker` retry policy (`EFF-235`).
+- [ ] `EFF-125` **Time-boxed `effect/workflow` + `SingleRunner.layer` spike on the project's Postgres (prototype step 4): deploy pipeline as workflow, steps as activities with `Activity.retry`, compensation for rollback** · NEW · P2 · L · Deps: `EFF-122` · See also: `EFF-149`, `DEPLOY-014`
+  - Why/Problem: matches needs (idempotency key, interrupt, `withCompensation`, durable clock) but is `@stability unstable` with no production reports on Postgres; finalizers are skipped when a cluster owner abandons a run for replay, so compensation is not a guaranteed saga rollback.
+  - Do: measure migrations it creates (extra migration system vs drizzle-kit), behaviour on `kill -9` mid-activity, interrupt, compensation, resume; compare code size to `EFF-122`.
+  - Done when: decision gate `EFF-149` evaluated.
+  - Status: todo · Verified-in-code: no · Source: effect-ecosystem-research.md#2.7, #6.4
+  - Design-impact (2026-10-26): same work as spike S5 `EFF-177`; tick both.
+- [ ] `EFF-126` **Sagas after the workflow spike: cascade deploy (DEPLOY-080) and node-removal saga (CLUSTER-018) with `withCompensation` — design activities idempotently regardless (at-least-once)** · NEW · P3 · L · Deps: `EFF-125` · See also: `DEPLOY-080`, `CLUSTER-018`
+  - Why/Problem: sagas map to `withCompensation` (top-level steps only) but only after the prototype; every activity/consumer must be idempotent; docker service updates need idempotency keys.
+  - Do: design only after `EFF-149`.
+  - Done when: idempotency keys specified for each step.
+  - Status: blocked(EFF-149) · Verified-in-code: no · Source: effect-ecosystem-research.md#2.7, #4.7, #5
+  - Design-impact (2026-10-26): re-scoped. `Saga` is custom behind a stable interface (`EFF-249`, `DEC-EFF-24`).
+- [ ] `EFF-127` **SUB-C outbox consumers with `Stream` poller and per-consumer cursor table (prototype step 5): keep the Postgres outbox, no Redis** · NEW · P2 · L · Deps: `OBS-001`, `OBS-002` · See also: `ARCH-062`, `OBS-003`, `DEC-ARCH-6`
+  - Why/Problem: existing code is a Postgres outbox with a local dispatcher that does not dispatch; `Stream.repeat`/`Schedule.spaced` poller + cursors is enough; Redis default dropped (DEC-ARCH-3).
+  - Do: implement with own tables; compare with `EFF-128`.
+  - Done when: a named consumer receives events exactly-once-per-cursor in a test.
+  - Status: todo · Verified-in-code: no · Source: effect-ecosystem-research.md#2.7, #5, #6.5
+  - Design-impact (2026-10-26): implemented by `Outbox` + `OutboxConsumer` (`EFF-232`, `EFF-233`).
+- [ ] `EFF-128` **Compare `PersistedQueue` (SQL store) for notification-delivery consumers only: dedupe, retries, but at-least-once, `unstable`, and it needs its own migrator** · NEW · P3 · S · Deps: `EFF-127`
+  - Why/Problem: avoid a second migration system unless the prototype shows clear savings.
+  - Do: time-boxed comparison; default is own tables.
+  - Done when: decision noted.
+  - Status: todo · Verified-in-code: no · Source: effect-ecosystem-research.md#2.7, #6.5
+- [ ] `EFF-129` **Health probe scheduler with `Schedule.spaced`/`Cron` and `Effect.forEach` concurrency + timeouts; multi-replica leader-only execution via a Postgres advisory-lock lease wrapper (defer `ClusterCron`)** · NEW · P2 · M · Deps: `EFF-009`, `OBS-001` · See also: `OBS-030`
+  - Why/Problem: `Schedule`/`Cron` are stable; single-leader semantics need a DB lease anyway.
+  - Do: implement the lease wrapper and probe loop as a Layer; test with `TestClock`.
+  - Done when: two replicas run one probe loop.
+  - Status: todo · Verified-in-code: no · Source: effect-ecosystem-research.md#2.7, #5
+  - Design-impact (2026-10-26): implemented by `Scheduler` + `Lease` (`EFF-236`) and `ProbeScheduler` (`EFF-251`).
+- [ ] `EFF-130` **Apply `Config.redacted` to platform secrets: key derivation (SEC-016), env-var encryption keys (PROJ-020/021), webhook secrets (HMAC verify then idempotency-row insert then enqueue), GitHub/docker tokens** · NEW · P1 · M · Deps: `EFF-028` · See also: `SEC-016`, `PROJ-020`, `PROJ-021`, `PROJ-022`, `DEPLOY-091`
+  - Why/Problem: Effect `Redacted` directly supports "no secrets in reads/logs"; webhook handling is mostly Nest/Express (raw-body HMAC); timing-safe equality helper not verified.
+  - Do: wire secrets as `Redacted` and unwrap at the edge; verify the timing-safe helper exists or use `crypto.timingSafeEqual`.
+  - Done when: no secret is a plain string in a log or serialised object in a spec.
+  - Status: todo · Verified-in-code: no · Source: effect-ecosystem-research.md#2.9, #2.7, #5
+  - Design-impact (2026-10-26): implemented by redacted `AppConfig` plus `SecretBox`/`SecretVault` (`EFF-211`, `EFF-212`, `EFF-257`).
+- [ ] `EFF-131` **Audit-log middleware via `Effect.fn`, annotated with actor and trace id** · NEW · P3 · M · Deps: `EFF-014`, `EFF-025` · See also: `OBS-071`
+  - Why/Problem: a natural fit for the oRPC middleware writing append-only events.
+  - Do: implement after `OBS-071` schema.
+  - Done when: each mutation writes an audit row with actor and trace id.
+  - Status: todo · Verified-in-code: no · Source: effect-ecosystem-research.md#5
+  - Design-impact (2026-10-26): implemented by `AuditLog` + `DecisionLog` (`EFF-229`).
+- [ ] `EFF-132` **Multi-replica streams stay on Postgres LISTEN/NOTIFY; Effect `PubSub` only in-process** · ENHANCE · P3 · S · Deps: `EFF-022` · See also: `ARCH-067`
+  - Why/Problem: Effect gives little for cross-replica fan-out.
+  - Do: document in the streaming ruling.
+  - Done when: ruling states it.
+  - Status: todo · Verified-in-code: n/a · Source: effect-ecosystem-research.md#5, #2.11
+  - Design-impact (2026-10-26): stands: in-process `EventBus` only (`EFF-231`).
+- [~] `EFF-133` **Avoid-list (revisit only if conditions change): `effect/http-api`, `effect/rpc`, `effect/http` server instead of oRPC/Nest** · NEW · P3 · S · Deps: none · See also: `ARCH-090`
+  - Why/Problem: unstable modules, loses oRPC contract/openapi/tanstack tooling, rewrite of 315 forwarders and web hooks.
+  - Do: no action; revisit only if oRPC 2 stalls (`DEC-EFF-17`).
+  - Done when: n/a (wontfix-unless: oRPC 2 stalls).
+  - Status: wontfix (unless oRPC 2 stalls) · Verified-in-code: n/a · Source: effect-ecosystem-research.md#1 row 3, #2.2
+  - Design-impact (2026-10-26): confirmed as a permanent non-goal by DEC-EFF-17 (full Effect, oRPC stays); the "oRPC 2 stalls" trigger is kept only as risk R1 (`EFF-290`).
+- [~] `EFF-134` **Avoid-list: migrate `packages/contracts` entities from zod to Effect Schema** · NEW · P3 · S · Deps: `EFF-041`
+  - Why/Problem: every drizzle-zod, `@orpc/zod`, web form and codegen consumer would change; not worth it during the cutover; coexistence via Standard Schema.
+  - Do: none; revisit after the cutover only if the Config/workflow schemas need a single source.
+  - Done when: n/a (wontfix-unless: single-schema need proven).
+  - Status: wontfix (unless a single-schema need is proven) · Verified-in-code: n/a · Source: effect-ecosystem-research.md#1 row 4, #2.3
+- [~] `EFF-135` **Avoid-list: `effect/sql` + `@effect/sql-pg` and Drizzle's native `drizzle-orm/effect-postgres` driver (needs `drizzle-orm@rc` 1.0; no transaction docs; two migration systems)** · NEW · P3 · S · Deps: `EFF-018`
+  - Why/Problem: unstable, drizzle 1.0 is rc only (`latest` 0.45.4); `@effect/sql-drizzle` for v4 not found.
+  - Do: keep Drizzle 0.45 behind the `Db` service; revisit when drizzle 1.0 is `latest` and transaction semantics are documented.
+  - Done when: n/a (wontfix-unless: drizzle 1.0 stable).
+  - Status: wontfix (unless drizzle 1.0 is latest) · Verified-in-code: n/a · Source: effect-ecosystem-research.md#1 rows 6-7, #2.4
+  - Design-impact (2026-10-26): confirmed non-goal; `Db<Owner>` is built over Drizzle 0.45 (`EFF-217`).
+- [~] `EFF-136` **Avoid-list: `schema/Model`/`SqlModel`, `effect/eventlog`, cluster Entities, `effect/ai`, `ClusterCron` (unless cluster is adopted)** · NEW · P3 · S · Deps: `EFF-125`
+  - Why/Problem: scope creep and unstable.
+  - Do: none; `ClusterCron` only if the workflow spike adopts cluster.
+  - Done when: n/a.
+  - Status: wontfix (unless cluster adopted via EFF-149) · Verified-in-code: n/a · Source: effect-ecosystem-research.md#1 rows 12, 20
+  - Design-impact (2026-10-26): `effect/workflow` and cluster stay behind spike S5 (`EFF-177`); no commitment.
+- [~] `EFF-137` **Avoid-list: `@effect/platform-bun` as the HTTP server; third-party `effect-orpc`, `artimath/better-auth-effect` (unverified maturity)** · NEW · P3 · S · Deps: none · See also: `EFF-115`
+  - Why/Problem: server stays Nest/Express; `BunRuntime`/FileSystem fine in agents/CLIs; `effect-orpc` could not be fetched; better-auth-effect uses a Kysely adapter (`@orpc/effect` and our `Actor` middleware cover the need).
+  - Do: none; allow platform-bun helpers in mesh-agent if useful.
+  - Done when: n/a.
+  - Status: wontfix (unless needs change) · Verified-in-code: n/a · Source: effect-ecosystem-research.md#1 row 16, #2.2, #2.5, #2.11
+  - Design-impact (2026-10-26): `@effect/platform-bun` is still not the server; `runMain` is hand-rolled (`EFF-180`).
+
+### Dependency and version hygiene
+- [ ] `EFF-138` **Vitest 5 upgrade branch to unlock `@effect/vitest` (`it.effect`, `TestClock`, `TestContext`): peer is `vitest >=5 <6`, catalog has `^4.1.9` (latest 5.0.5; `V4` tag 4.1.12)** · ENHANCE · P2 · L · Deps: none · See also: `EFF-030`, `OPS-026`
+  - Why/Problem: version problem 1; the AGENTS controller convention (mocking `implement`) also breaks with `.effect` handlers.
+  - Do: upgrade across the monorepo (`tooling/vitest`, `unplugin-swc`), then add `@effect/vitest`; update the AGENTS testing section.
+  - Done when: `bun check --no-script` passes on Vitest 5 and one spec uses `it.effect`.
+  - Status: todo · Verified-in-code: yes · Source: effect-ecosystem-research.md#2.10, #3, #6.6
+  - Design-impact (2026-10-26): same work as spike S6 `EFF-178`; now the first prerequisite of Template v1 (1-2 ew, parallel).
+- [ ] `EFF-139` **oRPC catalog mismatch: `@orpc/openapi-client` pinned `1.14.6` next to `2.0.0-beta.46` for the other packages — verify compatibility and align** · FIX · P1 · S · Deps: none · See also: `EFF-150`
+  - Why/Problem: catalog line `"@orpc/openapi-client": "1.14.6"`; mismatch risk in the service client used by the BFF.
+  - Do: test the client against the beta server, then bump or document.
+  - Done when: one oRPC generation in the catalog or a recorded exception.
+  - Status: todo · Verified-in-code: yes · Source: effect-ecosystem-research.md#2.2, #3, #6.7
+  - Design-impact (2026-10-26): stays; the BFF client stack is being replaced by `ServiceClients` (`EFF-239`), keep the compatibility check until then.
+- [ ] `EFF-140` **oRPC 2.0.0-beta.N exact pin policy and ownership of bumps (`@orpc/effect` dist-tag `latest` 2.0.0-beta.45 vs `beta` .46; whole 2.x line pre-release)** · ENHANCE · P1 · S · Deps: `DEC-EFF-7` · See also: `EFF-011`
+  - Why/Problem: any beta bump can break `.effect()` typing; 12 `@orpc/*` packages pinned `2.0.0-beta.46` (`package.json:164-176`).
+  - Do: pin exactly, name the bump owner, bump only with the typed-error and wrap tests green; keep handler bodies as plain services so the adapter can change.
+  - Done when: policy in the doc; bump checklist exists.
+  - Status: todo (unblocked 2026-10-26: DEC-EFF-7 resolved) · Verified-in-code: partial · Source: effect-architecture.md#5.10, #9 D7, effect-ecosystem-research.md#2.2, #4.2
+  - Design-impact (2026-10-26): unblocked by DEC-EFF-7: exact pin, named bump owner, all oRPC specifics isolated in `effect-orpc` (`EFF-290`).
+- [ ] `EFF-141` **Pin `effect` to an exact patch (not `^4.0.6`) while unstable modules are used; upgrade deliberately and run workflow/queue/worker tests on each bump** · ENHANCE · P1 · S · Deps: none · See also: `EFF-011`
+  - Why/Problem: unstable modules can break in minors (4.0.6 changed SQL transaction mode, `SqlClient.make` signature, persistence format); `effect@4.0.0` stable 2026-10-01, 4.0.6 on 2026-10-22; wrap each unstable module in one file.
+  - Do: change the catalog entry; add an upgrade checklist.
+  - Done when: catalog is exact; checklist exists.
+  - Status: todo · Verified-in-code: yes · Source: effect-ecosystem-research.md#2.1, #4.1
+  - Design-impact (2026-10-26): stands; `effect` and `@orpc/*` are exact peers of the `effect-*` packages (`EFF-169`).
+- [ ] `EFF-142` **Decide the Nest major once: catalog `^11.1.27` vs sample `^12.2.0` (12.2.0 is `latest`); verify the bridge on the chosen version and plan the catalog move** · ENHANCE · P1 · M · Deps: `DEC-EFF-7` · See also: `EFF-044`
+  - Why/Problem: `nest-effect` resolves 11.2.7; the sample's type-level proofs were established on Nest 12; the cutover argues against dropping/changing Nest mid-flight.
+  - Do: apply the decision; if Nest 12, schedule the upgrade after the cutover and re-verify `@orpc/nest` + the shared host.
+  - Done when: one Nest major across catalog and sample.
+  - Status: todo (unblocked 2026-10-26: DEC-EFF-7 resolved) · Verified-in-code: yes · Source: effect-architecture.md#3.6, #9 D7, effect-ecosystem-research.md#2.6, #3
+  - Design-impact (2026-10-26): unblocked by DEC-EFF-7: stay on Nest 11 and TS 7 through the cutover; with Nest shrinking to islands, Nest 12 is low value.
+- [ ] `EFF-143` **TypeScript: sample on 5.9.3 vs repo `^7.0.2` — re-verify the type-level proofs (`contract-errors.test.ts`) under the repo's TS 7 config; Effect needs >= 5.9** · ENHANCE · P2 · S · Deps: none
+  - Why/Problem: proofs established on a different compiler; the "new typed error" guarantee depends on inference.
+  - Do: run the sample type tests under TS 7 (operator's call to run), or the equivalent health spec.
+  - Done when: type specs pass under TS 7.
+  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#3.6, effect-ecosystem-research.md#3
+- [ ] `EFF-144` **Better Auth versions: catalog pins `1.7.7`, sample runs `^1.7.13` (latest 1.7.13; beta 1.8.0-beta.2) — align the catalog and re-verify the auth plugin** · FIX · P2 · S · Deps: none · See also: `AUTH-006`
+  - Why/Problem: version skew between sample and repo; auth is the seam for `Actor`.
+  - Do: bump the catalog after a smoke test; ignore beta.
+  - Done when: single version.
+  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#3.6, effect-ecosystem-research.md#2.5, #3
+- [ ] `EFF-145` **OTel peer ranges: `@effect/opentelemetry@4.0.6` peers `sdk-logs`/`api-logs >=0.203 <0.300` (optional) vs repo/sample `@opentelemetry/sdk-node ^0.300.0`: use traces-only, verify at install** · FIX · P2 · S · Deps: none · See also: `EFF-026`
+  - Why/Problem: would conflict if OTel logs are enabled through Effect; not verified at install level.
+  - Do: install in a scratch workspace (operator's call) and record resolution; stay traces-only.
+  - Done when: resolution recorded.
+  - Status: todo · Verified-in-code: no · Source: effect-ecosystem-research.md#2.8, #3, #4.10
+  - Design-impact (2026-10-26): input to spike S4 (`EFF-176`); traces only.
+- [ ] `EFF-146` **Unchecked versions: `drizzle-kit ^0.31.6`, `zod ^4.0.0` (sample 4.6.7) compatibility with Standard Schema and `@orpc/zod`** · ENHANCE · P3 · S · Deps: none
+  - Why/Problem: marked "not checked" in the version matrix.
+  - Do: check and record.
+  - Done when: matrix complete.
+  - Status: todo · Verified-in-code: no · Source: effect-ecosystem-research.md#3
+- [ ] `EFF-147` **Close the research "could not verify" list with evidence: production reports of workflow/cluster/`PersistedQueue` on Postgres; `ChildProcessSpawner` on Bun; kill-on-interrupt semantics; `@effect/platform-bun` known issues; Postgres tx notes (`BEGIN IMMEDIATE` only cited for sqlite); `NodeSdk.layer` global tracer; Effect migration guide; re-run `npm view` for every version before acting** · NEW · P3 · M · Deps: none · See also: `EFF-125`, `EFF-123`
+  - Why/Problem: registry data was summarised by a fetch tool; many claims are `[mem]`/`[search]`.
+  - Do: verify each in the relevant prototype; record results.
+  - Done when: each bullet verified or marked permanently unknown.
+  - Status: todo · Verified-in-code: no · Source: effect-ecosystem-research.md#7, #3
+
+### Prototype order (from the research doc)
+- [ ] `EFF-148` **Run the prototypes in order, each 0.5-3 days: (1) infra-layer runtime `EFF-009`; (2) Actor + Authz `EFF-119`; (3) job worker with interruption `EFF-122`; (4) workflow spike `EFF-125`; (5) outbox consumer `EFF-127`; (6) Vitest 5 branch `EFF-138`; (7) compatibility checks `EFF-150`** · NEW · P2 · S · Deps: `EFF-001` · See also: `EFF-149`
+  - Why/Problem: ordering prevents building unstable-module work before the infra layer and tests exist; learning from each prototype feeds the template.
+  - Do: schedule in this order; record outcomes in this file.
+  - Done when: all seven have an outcome note.
+  - Status: todo · Verified-in-code: n/a · Source: effect-ecosystem-research.md#6
+  - Design-impact (2026-10-26): re-scoped. Prototypes 1 and 2 are step 0 of the migration (`EFF-197`); run order becomes S2 `EFF-174`, S1 `EFF-173`, S6 `EFF-178`, then Template v1; S5 stays after the worker.
+- [ ] `EFF-149` **Decision gate for `effect/workflow`: adopt only if it passes kill/interrupt/resume tests and `bun check --no-script` stays fast; otherwise keep `EFF-122` SQL worker** · NEW · P2 · S · Deps: `EFF-125` · See also: `DEC-EFF-17`
+  - Why/Problem: no sunk cost if the spike fails; unstable APIs.
+  - Do: write the go/no-go with measured numbers.
+  - Done when: decision recorded.
+  - Status: blocked(EFF-125) · Verified-in-code: n/a · Source: effect-ecosystem-research.md#6.4
+  - Design-impact (2026-10-26): this is the S5 gate (`EFF-177`).
+- [ ] `EFF-150` **Compatibility checks (prototype 7): oRPC beta + `openapi-client 1.14.6`, `@effect/opentelemetry` with `sdk-node 0.300`** · NEW · P2 · S · Deps: `EFF-139`, `EFF-145`
+  - Why/Problem: last step in the research order.
+  - Do: run both checks and record.
+  - Done when: both resolved.
+  - Status: todo · Verified-in-code: no · Source: effect-ecosystem-research.md#6.7
+
+## Test coverage to add
+- [ ] `EFF-151` **Infra-layer tests: `Redacted` never leaks in logs/JSON, missing Config fails fast listing all keys, nested spans under `ORPCInstrumentation`** · NEW · P1 · M · Deps: `EFF-009`, `EFF-028`
+  - Why/Problem: prototype 1 acceptance.
+  - Do: Vitest in `packages/nest/effect`.
+  - Done when: three tests green.
+  - Status: todo · Verified-in-code: no · Source: effect-ecosystem-research.md#6.1
+  - Design-impact (2026-10-26): re-scoped. The tests live in `effect-infra` against the `AppConfig` and `Logger` layers.
+- [ ] `EFF-152` **Worker interruption tests with `TestClock`: cancel kills the child within 1 s, `kill -9` restart reclaims via lease, lease expiry, terminal state never overwritten** · NEW · P1 · M · Deps: `EFF-122`, `EFF-030`
+  - Why/Problem: prototype 3 acceptance (DEPLOY-014/017/018).
+  - Do: tests with fake build via `CommandRunner`.
+  - Done when: scenarios pass.
+  - Status: todo · Verified-in-code: no · Source: effect-ecosystem-research.md#6.3
+  - Design-impact (2026-10-26): re-scoped. Run with `JobQueue.InMemory` and `@effect/vitest` `TestClock`; acceptance of `EFF-202`.
+- [ ] `EFF-153` **Workflow spike tests: `kill -9` mid-activity, interrupt, compensation, resume; and SSE disconnect interrupts the stream fiber** · NEW · P2 · M · Deps: `EFF-125`, `EFF-023`
+  - Why/Problem: evidence for `EFF-149`.
+  - Do: scripted scenarios against Postgres.
+  - Done when: results tabulated.
+  - Status: todo · Verified-in-code: no · Source: effect-ecosystem-research.md#6.4
+  - Design-impact (2026-10-26): stands; also covers the S1 disconnect case (`EFF-173`).
+- [ ] `EFF-154` **Authz matrix tests: shadow-mode decision log, default-deny on missing meta, 403 matrix generated from contract metadata for the 3 prototype procedures** · NEW · P1 · M · Deps: `EFF-119`, `EFF-031` · See also: `SEC-038`
+  - Why/Problem: prototype 2 acceptance.
+  - Do: generated tests.
+  - Done when: a deliberately unannotated procedure fails the suite.
+  - Status: todo · Verified-in-code: no · Source: effect-ecosystem-research.md#6.2
+  - Design-impact (2026-10-26): re-scoped. Generated through `ContractHarness` (`EFF-260`) from contract `meta.authz`.
+- [ ] `EFF-155` **Exhaustive error-mapping tests: every domain `_tag` maps to a declared contract error; unmapped tag is a type or test failure; defect body/log asserted** · NEW · P1 · S · Deps: `EFF-012`, `EFF-013`
+  - Why/Problem: today a new error becomes 500 silently.
+  - Do: table-driven test plus type test.
+  - Done when: adding a tag without a mapping fails.
+  - Status: todo · Verified-in-code: no · Source: effect-architecture.md#5.3
+  - Design-impact (2026-10-26): re-scoped. Exhaustive by kind (`EFF-182`).
+- [ ] `EFF-156` **Transaction primitive tests: commit, rollback on failure, interrupt mid-transaction, nested use, driver-error mapping** · NEW · P1 · M · Deps: `EFF-018`, `EFF-020`
+  - Why/Problem: unit of work correctness for project/runtime.
+  - Do: tests against the test DB.
+  - Done when: all five pass.
+  - Status: todo · Verified-in-code: no · Source: effect-architecture.md#5.5
+  - Design-impact (2026-10-26): re-scoped. Runs against `EFF-217` including savepoints, `pg_cancel_backend` and interrupt.
+- [ ] `EFF-157` **Mixed-mode facade test: non-Effect Nest consumer calls an Effect service through the facade; and a boot validation test for missing keys** · NEW · P2 · S · Deps: `EFF-049`, `EFF-006`
+  - Why/Problem: confusing injection of Effect tag classes by non-Effect code.
+  - Do: Nest testing module spec.
+  - Done when: both scenarios covered.
+  - Status: todo · Verified-in-code: no · Source: effect-architecture.md#5.13, #5.1
+  - Design-impact (2026-10-26): TRANSITIONAL. Tests `facade(Tag)` in `effect-nest` (`EFF-166`).
+- [ ] `EFF-158` **Lint-rule fixtures and the generated-contract type spec for every migrated controller (handler failure union equals contract errors)** · NEW · P2 · S · Deps: `EFF-042`, `EFF-034`
+  - Why/Problem: rules without failing fixtures rot.
+  - Do: fixtures per rule; apply type helper to health and identity.
+  - Done when: each rule and controller has a covering test.
+  - Status: todo · Verified-in-code: no · Source: effect-architecture.md#7.2
+  - Design-impact (2026-10-26): re-scoped. Fixtures for the `effectService` lint preset (`EFF-168`).
+
+## Full-Effect architecture program (added 2026-10-26)
+> Source of every item below: `effect-target-architecture.md` (target doc), `effect-layers-catalog.md` (catalog), `authz-authn-design.md` (authz design; its SEC/AUTH items live in `auth-security.md` and are only referenced by ID here). Operator decision 2026-10-26: full Effect Layer architecture (DEC-EFF-1 flipped to option b, DEC-EFF-17 flipped to full Effect). Nothing below has been built or run; `effect@4.0.6` API names are design sketches that must be compiled against `node_modules/effect/ai-docs` first (`EFF-197`).
+
+### Program, packages, hosting
+- [ ] `EFF-159` **Adopt the full-Effect target as the binding architecture in the conventions doc: strata L0-L3, principles P1-P12, composition root, hybrid option superseded** · ENHANCE · P1 · S · Deps: `EFF-035`, `DEC-EFF-1`, `DEC-EFF-17` · See also: `EFF-001`, `EFF-183`, `EFF-184`
+  - Why/Problem: the operator chose Layers and Effect-owns-the-process; the audits' hybrid recommendation (`effect-architecture.md` section 9 D1, `DEC-EFF-17`) is superseded and the docs, AGENTS and PR template still describe it.
+  - Do: write the strata/principles/composition-root sections of `docs/architecture/14-effect-services.md` from target doc sections 0-2; record "Nest = transitional shell then island, oRPC stays, `effect/http` rejected"; link `docs/qa/effect/architecture.md`; list the 12 principles as review criteria.
+  - Done when: `14-effect-services.md` states the decision and no AGENTS/ARCHITECTURE file still recommends the hybrid.
+  - Status: todo · Verified-in-code: n/a · Source: effect-target-architecture.md#0, #1, #2
+- [ ] `EFF-160` **Create `@deployer/effect-core`: `DomainError`/`domainError`, `ErrorKind` + mapping table, `Actor`/`CurrentActor`/`Correlation`/`Ambient`, `IdGen`, `fromAbortable`, `AssertNoLeak`, claim types, `ResiliencePolicy` types, `Redacted`/`Config` helpers, branded ids** · NEW · P1 · M · Deps: `EFF-141`, `EFF-011`, `DEC-EFF-37` · See also: `EFF-182`, `EFF-185`, `EFF-213`
+  - Why/Problem: pure, Bun-free foundation that every other package and mesh-agent import; replaces parts of `packages/nest/effect`.
+  - Do: scaffold with `create-package`, `effect` as exact peer, zero Nest/Bun imports, README, knip entry; port only what step 0 needs first.
+  - Done when: package builds with 0 type/lint errors and is consumed by `effect-orpc`; `bun why effect` shows one copy.
+  - Status: partial (package created: `packages/effect/core`, so far only `fromAbortable`; errors/Actor/Correlation/IdGen/AssertNoLeak pending) — updated 2026-10-26 · Verified-in-code: no · Source: effect-target-architecture.md#10.1
+  - Design-impact (2026-10-26): `DEC-EFF-37` resolved: scope is `@deployer/effect-*`. Prerequisite check (add to Do): verify with a repo grep that no code still imports `@repo/*` (the rename to `@deployer` per `scripts/migrate-repo-scope.ts` may be incomplete); if any remain, finish the rename first (see `EFF-297`).
+- [ ] `EFF-161` **Create `@deployer/effect-orpc`: `makeApi`, `handle`, `requestContext`, `authzFromMeta`, `HttpEdge`, stream bridge, `ServiceClients`, claim verifier/signer glue, `standardErrorActions` bridge** · NEW · P1 · L · Deps: `EFF-160`, `EFF-169`, `EFF-140` · See also: `EFF-181`, `EFF-179`, `EFF-187`, `EFF-239`
+  - Why/Problem: every oRPC-specific detail must live in one package so a beta bump touches one place (risk R1) and handlers only import `api`/`handle`.
+  - Do: scaffold with `@orpc/*` as exact peers; move `nest-effect/orpc-context` and the shared host logic here; keep `packages/transport/orpc` as the contract/builder side.
+  - Done when: health handlers import nothing oRPC-internal except `api`/`handle`; type tests of `EFF-185` pass.
+  - Status: todo · Verified-in-code: no · Source: effect-target-architecture.md#10.1, #11.5 R1
+- [ ] `EFF-162` **Create `@deployer/effect-infra`: `Db`/`PgDbLive`/`SqliteDbLive`, Logger/Observability, `KeyRing`, `CommandRunner`, `FileSystem`, `EventBus`, `Outbox`, `OutboxConsumer`, `JobQueue`/`Worker`, `Scheduler`/`Lease`, `Probes`/`Readiness`, `runMain`, `CircuitBreaker`, `AppConfig`** · NEW · P1 · L · Deps: `EFF-160` · See also: `EFF-009`, `EFF-211`..`EFF-251`
+  - Why/Problem: the infrastructure stratum L0 and the L3 leaves; replaces `shared/server/{preflight,health}` and the Effect part of `database-core`; mesh-agent will use only its Bun-only subset.
+  - Do: scaffold; layers land one by one with their Test layer (`EFF-263` wave gate); keep Drizzle schema owners out of the package surface except through `Db<Owner>` generics.
+  - Done when: package exports every layer of waves 0-2 with Test layers; `InfraTest` composes them.
+  - Status: partial (package created: `packages/effect/infra` with `KeyRing`, `SecretBox`, `CommandRunner`, `SafeHttp` + IP policy, `FileSystem` port; 100 tests; Db/Logger/EventBus/JobQueue/Scheduler/Probes/runMain/CircuitBreaker pending) — updated 2026-10-26 · Verified-in-code: no · Source: effect-target-architecture.md#10.1, effect-layers-catalog.md#0.2
+- [ ] `EFF-163` **Create `@deployer/effect-testing`: `ContractHarness`, `TestApp`, `PgTestContainer`/`PgTestDb`, `InfraTest`, `Actor` fixtures, type-test helpers, `wiringSpec()`, `Corpus`** · NEW · P1 · L · Deps: `EFF-160`, `EFF-178` · See also: `EFF-259`, `EFF-260`, `EFF-261`, `EFF-262`
+  - Why/Problem: replaces `nest-effect/testing`, `orpc-utils/testing#callProcedure`, `shared/e2e-harness`, per-service `src/e2e/runtime.ts`.
+  - Do: scaffold after Vitest 5 lands (`EFF-178`); depends on `@effect/vitest`; only imported from specs/`testing/`.
+  - Done when: health's specs run on it; lint prevents production imports.
+  - Status: todo · Verified-in-code: no · Source: effect-target-architecture.md#10.1, #7
+- [ ] `EFF-164` **Create `@deployer/effect-platform` (adapters: Docker, Swarm, Git, Traefik, WireGuard/mesh, DNS, registries, archive extraction, notifier channels) as ports with fakes** · NEW · P2 · M · Deps: `EFF-160`, `EFF-162`, `DEC-EFF-18` · See also: `EFF-245`..`EFF-256`
+  - Why/Problem: runtime and fleet both need `DockerEngine`; today that duplication lives in `packages/nest/docker` and the 62k-line `shared`; a service imports `Tag + Test`, never a concrete client.
+  - Do: scaffold; direction core -> infra -> authz -> platform enforced by lint (`EFF-168`); first inhabitants: `ArchiveExtractor` (`EFF-242`), `GitClient` (`EFF-241`).
+  - Done when: package exists, wave-Q adapters live in it, runtime imports only Tags.
+  - Status: partial (package created: `packages/effect/platform` with `ArchiveExtractor` only; Docker/Swarm/Git/Traefik/DNS/registry/notifier adapters pending) — updated 2026-10-26 · Verified-in-code: no · Source: effect-layers-catalog.md#0.2, #8.1 D-L1
+  - Design-impact (2026-10-26): `DEC-EFF-18` accepted (a): `@deployer/effect-platform` is a separate package (not folded into `effect-infra`); keeps "mesh-agent depends on effect-core plus the Bun-only subset of infra".
+- [ ] `EFF-165` **Create `@deployer/effect-authz`: `Authn` verifiers, `Authz`, `PermissionResolver`, `PolicyStore`, `ApprovalStore`, `StepUpStore`, `DecisionLog`, pure decision core** · NEW · P1 · M · Deps: `EFF-160`, `EFF-162`, `DEC-EFF-18` · See also: `EFF-225`..`EFF-229`, `SEC-001`
+  - Why/Problem: identity, BFF and every service must import the client side (`Authz`, `CurrentActor`, `Authorized`) without pulling the stores or Better Auth types; maps to `packages/auth/src/authz/**` of authz-authn-design.md section 5.
+  - Do: scaffold; split client-side tags from store implementations; pure `evaluate(Facts)` has no Effect import.
+  - Done when: a service can depend on `Authz` without importing Better Auth; `effect-infra` stays free of Drizzle schema owners and Better Auth types.
+  - Status: todo (DEC-EFF-18 resolved 2026-10-26) · Verified-in-code: no · Source: effect-layers-catalog.md#0.2, authz-authn-design.md#5.1
+  - Design-impact (2026-10-26): `DEC-EFF-18` accepted (a): `@deployer/effect-authz` is a separate package (not folded into `effect-infra`), so infra never imports Drizzle schema owners or Better Auth types.
+- [ ] `EFF-166` **Temporary `@deployer/effect-nest` bridge: `EffectHost` (eager `ManagedRuntime` built from an explicit `AppLive`), `NestIsland.port(Token, Tag)`, `facade(Tag)`; replaces `collectEffectLayer`, `EffectServices` augmentation** · NEW · P1 · L · Deps: `EFF-160`, `EFF-004` · See also: `EFF-049`, `EFF-092`, `EFF-157`, `EFF-268`
+  - Why/Problem: phase 1 keeps a thin Nest shell hosting HTTP; the runtime must be built eagerly from `AppLive` (fail fast, no discovery, no duplicate skip) and `AppServices` must be `Layer.Success<typeof AppLive>`; Nest classes enter Effect only through `NestIsland`, Effect enters Nest only through `facade`.
+  - Do: rename and shrink `packages/nest/effect`; `EffectHost` builds in `onApplicationBootstrap` and disposes on shutdown; `NestIsland` = `createApplicationContext` with `acquireRelease` (no HTTP, no guards); `facade` runs as `Actor.system("legacy:<module>")`, `@deprecated`, banned from new code by lint.
+  - Done when: health and identity boot from `AppLive`; a missing config key fails boot listing all keys; no `Layer<unknown>` remains.
+  - Status: todo · Verified-in-code: partial · Source: effect-target-architecture.md#2.5, #3.3, #10.1, #11.2
+- [ ] `EFF-167` **Step 10: retire `effect-nest`, `@deployer/nest-effect`, every Nest island, SWC test config and `check-di-graph.ts`; delete shims in the same change** · ENHANCE · P2 · M · Deps: `EFF-205`, `EFF-273`..`EFF-289` · See also: `EFF-194`, `EFF-195`
+  - Why/Problem: v3 rule: no temporary compatibility layers; the bridge and islands exist only to migrate.
+  - Do: delete packages and old files, update docs, remove `createServiceTestConfig()`; the exit check is `grep -r "@nestjs" apps/api-services` showing only island adapters, then nothing.
+  - Done when: no Nest import remains in `apps/api-services` and no bridge package exists.
+  - Status: todo · Verified-in-code: n/a · Source: effect-target-architecture.md#11.1 step 10
+- [ ] `EFF-168` **`effectService` ESLint preset in `tooling/eslint`: layer boundaries, banned v3 syntax, signal-less `tryPromise`, raw `process.env`, `console`, `Effect.runPromise` outside `main.ts`/tests/facades, no `Effect.provide` in handlers, Effect Schema import restriction, test layers importable only from specs, repositories not exported from feature barrels** · NEW · P1 · M · Deps: `EFF-160`, `EFF-041` · See also: `EFF-042`, `EFF-158`, `EFF-291`
+  - Why/Problem: rules that are not machine-enforced rot (assistants emit Effect v3 syntax, risk R13); boundaries `http -> application -> domain`, `application -> infrastructure` only through Tags, import direction core -> infra -> authz -> platform.
+  - Do: implement as `no-restricted-imports`/`no-restricted-syntax` config with failing fixtures; ban `Context.Tag`, `Effect.Service`, `Layer.scoped`; allow Effect Schema only in workflow/queue/outbox/claims/config folders (DEC-EFF-6); run via `bun lint` only.
+  - Done when: each rule has a failing fixture and is enabled in every migrated workspace.
+  - Status: todo · Verified-in-code: partial · Source: effect-target-architecture.md#5.1, #10.1, #11.5 R13, effect-layers-catalog.md#0.1
+- [ ] `EFF-169` **Single `effect` copy and exact peers across all `effect-*` packages: CI check (`bun why effect`) plus wiring-spec boot assertion on `Context.Service` identity** · FIX · P1 · S · Deps: `EFF-011`, `EFF-141` · See also: `EFF-186`
+  - Why/Problem: two copies give two `Context.Service` identities and silent "service not found" (risk R11); `effect` is a dependency of `packages/nest/effect` today.
+  - Do: peers resolved from the catalog, exact pins (`effect@4.0.6`, `@orpc/*@2.0.0-beta.46`); a CI step fails on a second copy; the wiring spec asserts key identity.
+  - Done when: one copy proven in CI.
+  - Status: todo · Verified-in-code: yes · Source: effect-target-architecture.md#10.1, #11.5 R11
+- [ ] `EFF-170` **`create-service` generator (MCP tool + script, next to `create-app`/`create-package`): a service that compiles and passes `bun check --no-script` on day one** · NEW · P1 · L · Deps: `EFF-184`, `EFF-186`, `EFF-195`, `EFF-168` · See also: `EFF-048`, `EFF-053`, `DEC-EFF-10`
+  - Why/Problem: the template must be generated, not copied from a sample; it carries the layout, `main.ts`, `app.layer.ts`, `config.ts`, `http/{api,router}.ts`, `wiring.spec.ts`, `test/harness.ts`, service specs, `AssertNoLeak` specs.
+  - Do: `create-service { name, owner, features }` emits the tree, `package.json` with peers and scripts (`build` = `bun build src/main.ts --target=bun`), `vitest.config.mts` via `createEffectServiceConfig()`, `eslint.config.ts` with the preset, a Dockerfile fragment with the corrected HEALTHCHECK per service port (`ARCH-051`), registration lines (`apiServicePort`, compose, `TABLE_OWNERSHIP` with a failing test until a table is claimed), contract package skeleton with mandatory `meta.authz`.
+  - Done when: a generated service passes `bun check --no-script` and its wiring spec without edits.
+  - Status: todo · Verified-in-code: no · Source: effect-target-architecture.md#10.2
+- [ ] `EFF-171` **Package versioning: lockstep `bump-version`, workspace-internal `"*"`, no publishing, per-package `CHANGELOG.md`, breaking changes in one change set with all consumers** · ENHANCE · P3 · S · Deps: `EFF-160` · See also: `EFF-141`
+  - Why/Problem: v3 rule: no shims; consumers must move with the package.
+  - Do: document the policy; add the changelog stubs.
+  - Done when: policy in `14-effect-services.md` and each package has a changelog.
+  - Status: todo · Verified-in-code: n/a · Source: effect-target-architecture.md#10.1
+- [ ] `EFF-172` **Sample as a thin workspace consumer (DEC-EFF-10 adjusted): delete its duplicated runtime, move `samples/api-sample` under a workspace glob, catalog versions, tests in CI, no default secret** · ENHANCE · P2 · S · Deps: `EFF-166` · See also: `EFF-044`, `EFF-045`, `EFF-029`, `EFF-143`
+  - Why/Problem: today it is untracked, outside workspaces, own lockfile, not CI-gated and re-implements `EffectRuntime` and the layer collector; the operator wants it kept but thin and gated.
+  - Do: import `@deployer/nest-effect` now and `effect-core`/`effect-orpc` later; remove `src/effect/*` duplicates; add to turbo `check`; remove `orpc-nest-showcase-dev-secret-please-change`; keep it until the generator output replaces it (`EFF-170`).
+  - Done when: `bun check --no-script` runs the sample's tests on catalog versions and no duplicate `EffectRuntime` exists.
+  - Status: todo · Verified-in-code: yes · Source: effect-target-architecture.md#10.2, docs/qa/effect/architecture.md DEC-EFF-10
+
+### Spikes S1-S6 (time-boxed, step 0)
+- [ ] `EFF-173` **S1: `OpenAPIHandler` (`@orpc/openapi/fetch`, beta.46) on `Bun.serve`: parity with `@orpc/nest` routing, SSE/event iterator under load, CORS/compression plugins, 25 MB zip upload route, abort interrupts the handler fiber** · NEW · P1 · M · Deps: `EFF-160` · See also: `EFF-179`, `EFF-023`, `EFF-292`, `DEC-EFF-26`
+  - Why/Problem: the only real cost of the Nest-free end state is a new HTTP edge (CORS, body parsing, cookies, compression, large uploads, `Set-Cookie` exposure, SSE keep-alive, request timeouts).
+  - Do: serve health + one stream + one upload; measure under load; record the outcome as DEC-EFF-26; if it fails the end state stays a thin Nest shell for HTTP only.
+  - Done when: exit criterion met and written down; request abort interrupts the handler fiber (test).
+  - Status: todo · Verified-in-code: no · Source: effect-target-architecture.md#11.4 S1, #3
+  - Design-impact (2026-10-26): `DEC-EFF-26` resolved-as-default (thin Nest shell for HTTP until S1 passes); S1 remains the actual gate for the flip in `EFF-179`/`EFF-198`: its outcome (not the DEC) unblocks them.
+- [ ] `EFF-174` **S2: DB cancellation via `pg_cancel_backend` and dedicated-connection transactions with Drizzle 0.45** · NEW · P1 · M · Deps: none · See also: `EFF-217`, `EFF-018`, `EFF-293`
+  - Why/Problem: node-postgres has no per-query abort that cancels server work; the transaction design depends on this.
+  - Do: spike with Testcontainers: a 30 s `pg_sleep` query cancelled less than 1 s after fiber interruption, no leaked connection, rollback verified; measure `SET LOCAL statement_timeout`.
+  - Done when: exit criterion proven; else fallback R4 (`EFF-293`) is chosen.
+  - Status: todo · Verified-in-code: no · Source: effect-target-architecture.md#6.3, #11.4 S2
+- [ ] `EFF-175` **S3: Effect footprint: mesh-agent `bun build --compile` delta (budget default +8 MB) and boot time of the 7-process tier** · NEW · P2 · S · Deps: `DEC-EFF-34` · See also: `EFF-052`, `EFF-116`, `EFF-206`
+  - Why/Problem: Effect adds size and a runtime build; the measurement is a precondition of the (deferred) mesh-agent step.
+  - Do: record size and boot numbers with and without the Effect path.
+  - Done when: numbers recorded and compared to the budget.
+  - Status: todo · Verified-in-code: no · Source: effect-target-architecture.md#11.4 S3
+  - Design-impact (2026-10-26): `DEC-EFF-34` accepted: budget +8 MB over today's `bun build --compile`.
+- [ ] `EFF-176` **S4: OTel context across `Effect.sleep`/forks and `OtelTracer.layerGlobal` with `@opentelemetry/sdk-node ^0.300.0` (traces only)** · NEW · P2 · S · Deps: `EFF-214` · See also: `EFF-026`, `EFF-145`, `EFF-215`, `DEC-EFF-32`
+  - Why/Problem: `trace.getActiveSpan()` inside fibers works only if OTel async context survives the scheduler; the `sdk-logs <0.300` peer range conflicts with logs.
+  - Do: nested spans in one trace across a sleep and a fork; record resolution at install.
+  - Done when: exit criterion met and written down.
+  - Status: todo · Verified-in-code: no · Source: effect-target-architecture.md#8, #11.4 S4
+  - Design-impact (2026-10-26): `DEC-EFF-32` accepted: OTel traces are enabled after step 3 (identity), once correlation-id logging is in.
+- [ ] `EFF-177` **S5: `effect/workflow` + `SingleRunner` on Postgres vs the SQL worker (decision gate)** · NEW · P2 · L · Deps: `EFF-234`, `EFF-235` · See also: `EFF-125`, `EFF-149`, `DEC-EFF-30`
+  - Why/Problem: workflow is `@stability unstable`; default is the SQL worker; adopt only if kill/interrupt/resume pass and `bun check --no-script` stays fast.
+  - Do: same scope as `EFF-125`/`EFF-149`; outcome recorded as DEC-EFF-30 (and DEC-EFF-24 for `Saga`).
+  - Done when: go/no-go with measured numbers.
+  - Status: todo · Verified-in-code: no · Source: effect-target-architecture.md#11.4 S5, effect-ecosystem-research.md#6.4
+  - Design-impact (2026-10-26): `DEC-EFF-30` accepted: default outcome is the SQL worker; this spike only overturns it if `effect/workflow` is clearly better.
+- [ ] `EFF-178` **S6: Vitest 5 + `@effect/vitest@4.0.6` + `unplugin-swc` + `server.deps.inline` workaround; Vitest 5 is the first prerequisite of the architecture** · ENHANCE · P1 · L · Deps: none · See also: `EFF-138`, `EFF-195`, `DEC-EFF-33`
+  - Why/Problem: `it.effect`, `it.layer`, `TestClock` and `it.effect.prop` are the backbone of layer-substitution testing; `@effect/vitest` peers `vitest >=5 <6`, catalog has `^4.1.9`; risk R6 (destabilising 40+ suites).
+  - Do: upgrade across the monorepo (1-2 ew, parallel with step 0); keep `createServiceTestConfig()` for shell-phase services; exit: the existing suites of one Nest service and `packages/nest/effect` pass on Vitest 5 unchanged.
+  - Done when: exit criterion met; `bun check --no-script` green on Vitest 5; one spec uses `it.effect`.
+  - Status: todo · Verified-in-code: yes · Source: effect-target-architecture.md#7.2, #11.4 S6, #11.5 R6
+  - Design-impact (2026-10-26): `DEC-EFF-33` accepted: keep the SWC config for shell-phase services (see `EFF-195`).
+
+### Hosting, boundary and conventions
+- [ ] `EFF-179` **`HttpEdge` layer (L3): `Bun.serve` + `OpenAPIHandler`, liveness first, readiness 503 while starting, drain on close, CORS/compression, Better Auth mount (BFF); `HOST=nest|edge` flag for one release; delete the Nest shell per service** · NEW · P1 · L · Deps: `EFF-173`, `EFF-180`, `EFF-187`, `DEC-EFF-26` · See also: `EFF-198`, `EFF-292`, `EFF-189`
+  - Why/Problem: the end state of the HTTP host is (b); (a) the thin shell is only the transition; replaces the Express `mountLiveness` trick in `shared/server/bootstrap.ts` and `createOrpcModule`.
+  - Do: implement `HttpEdge.layer({ router, port })` and `HttpEdge.Ephemeral` (port 0) for tests; first the health service proves the flip, then identity; keep one release with both entrypoints, then delete the shell (no compat layers).
+  - Done when: health runs under `HttpEdge` in the e2e and Playwright journeys; shell deleted for health.
+  - Status: blocked(EFF-173) · Verified-in-code: no · Source: effect-target-architecture.md#2.5, #3.3
+  - Design-impact (2026-10-26): `DEC-EFF-26` is resolved as the DEFAULT (thin Nest shell for HTTP only until spike S1 passes), but the flip itself stays gated on the S1 outcome: this item remains `blocked(EFF-173)` (S1), not on the DEC. If S1 fails the shell stays permanently for HTTP only and islands remain.
+- [ ] `EFF-180` **`runMain` + `ShutdownGrace` (hand-rolled, about 15 lines in `effect-infra`): signal handlers, exit codes (5 = dependency/config class as `health/src/main.ts` does), reverse-order finalizers, `FiberSet` drain** · NEW · P1 · S · Deps: `EFF-162` · See also: `EFF-008`, `EFF-137`
+  - Why/Problem: `Layer.launch(MainLive)` needs a process entry; `@effect/platform-bun` is not adopted as server; handler fibers are currently root fibers that nobody awaits.
+  - Do: implement `runMain(Layer.launch(MainLive), { name, grace })`; SIGTERM -> `Readiness draining` -> `HttpEdge` stops accepting -> await in-flight up to `grace` -> interrupt rest -> workers write terminal state -> DB pool closes last.
+  - Done when: a shutdown test shows in-flight requests finishing or being interrupted by policy; exit code 5 preserved.
+  - Status: todo · Verified-in-code: no · Source: effect-target-architecture.md#2.5 (6), #11.1
+  - Design-impact (2026-10-26): `DEC-EFF-38` accepted (batch); skim-later flag: the hand-rolled `runMain` stays hand-rolled (no `@effect/platform-bun` adoption) but the operator wants to revisit its shape later.
+- [ ] `EFF-181` **`makeApi`/`handle` wrapper: handler failure channel is a closed union of `DomainError`, `R` within `RequestR | AppServices`, `Effect.scoped`, span, central error mapping, defect policy (500 + `correlationId`), timeout from `meta.timeout`, interruption mapping** · NEW · P1 · M · Deps: `EFF-161`, `EFF-182`, `EFF-224` · See also: `EFF-012`, `EFF-013`, `EFF-050`
+  - Why/Problem: today three error styles and per-controller mappers; handlers must not touch oRPC internals.
+  - Do: implement per target doc 4.1-4.3; `Effect.orDie` for infra errors; a raw `ORPCError` or untagged error must not compile.
+  - Done when: health and identity controllers contain no hand-written mapping, no `actorFromContext`, no `catchTag`.
+  - Status: todo · Verified-in-code: no · Source: effect-target-architecture.md#4.1, #4.3
+- [ ] `EFF-182` **Error model by kind: `ErrorKind` (`not_found`, `validation`, `conflict`, `unauthorized`, `forbidden`, `dependency_missing`) + `domainError(tag, kind)` + exhaustive `mapDomainError` + `publicData()`; add `STEP_UP_REQUIRED`, `APPROVAL_REQUIRED`, gateway-timeout kinds to the standard defs (transformer T8)** · NEW · P1 · M · Deps: `EFF-160` · See also: `EFF-012`, `EFF-080`, `EFF-155`, `EFF-102`
+  - Why/Problem: mapping is by kind, total by construction; a new tagged error needs no mapper entry; the six-row table already exists in `packages/transport/orpc/src/standard-errors.ts`.
+  - Do: implement in `effect-core`; adding a seventh kind is a compile error until the table has a row; never include `cause` in `publicData`.
+  - Done when: exhaustiveness test (`EFF-155`) and type test (`EFF-185`) pass; identity's `UserServiceFailure` is gone (`EFF-200`).
+  - Status: todo · Verified-in-code: partial · Source: effect-target-architecture.md#4.3, effect-layers-catalog.md#6 T8
+- [ ] `EFF-183` **Layer authoring conventions: Tag + `Live` in one file (no `Impl` class), `Live` leaves dependencies open, `XTest` in `*.test-layer.ts`, ids `<service>/<Feature>/<Name>`, `Effect.fn("Service.method")`, naming (`XLive`, `XTest`, `<Feature>Live`, `InfraLive`, `DomainLive`, `AppLive`), composition operators, no `Layer.succeed` of class instances** · NEW · P1 · S · Deps: `EFF-159`, `EFF-040` · See also: `EFF-025`, `EFF-032`, `EFF-168`
+  - Why/Problem: one way to do each thing (P9); ids are stable strings checked by the wiring test; test layers must never enter the production bundle.
+  - Do: write the rules with the `UserService` worked example into `14-effect-services.md`; encode in lint (`EFF-168`) and generator (`EFF-170`).
+  - Done when: doc + lint agree and health follows them.
+  - Status: todo · Verified-in-code: n/a · Source: effect-target-architecture.md#2.3, #5.2, #7.3
+- [ ] `EFF-184` **Per-service layout (feature-first): `main.ts`, `config.ts`, `app.layer.ts`, `http/{api,router,<feature>.handlers}.ts`, `<feature>/{domain,application,infrastructure}`, `<feature>.feature.ts`, `test/harness.ts`; direction `http -> application -> domain`** · NEW · P1 · S · Deps: `EFF-159` · See also: `EFF-048`, `EFF-170`
+  - Why/Problem: replaces the Nest module/controller/service/repository folder shape for Layer services; `domain` imports nothing from the other folders.
+  - Do: document and enforce by `EFF-168`; handler files stay thin (`yield*` service, return, no rules, no mapping).
+  - Done when: health and identity follow the layout; the generator emits it.
+  - Status: todo · Verified-in-code: n/a · Source: effect-target-architecture.md#5.1-5.3
+- [ ] `EFF-185` **Type tests for Ambient R: `AssertNoLeak<Shape>` per Tag, handler `E` closed union of `DomainError`, handler `R` within `RequestR | AppServices`, every `DomainError` subclass declares a `kind`, `Ambient = CurrentActor | Correlation` is the only allowed `R` leak** · NEW · P1 · S · Deps: `EFF-160`, `EFF-163` · See also: `EFF-034`, `EFF-158`, `EFF-010`
+  - Why/Problem: the compile-time answer to "which actor is acting here" and "no infra requirement leaks into public methods" (P2); today `UserServiceShape.list` returns `Effect<..., UserRepository | DatabasePort>`.
+  - Do: helper in `effect-testing`, one `*.types.spec.ts` per feature, generated by the template; run by `bun check --no-script`.
+  - Done when: adding an infra requirement to a service method fails the type spec.
+  - Status: todo · Verified-in-code: no · Source: effect-target-architecture.md#5.4, #7.6
+- [ ] `EFF-186` **Per-service wiring spec (`wiringSpec()`): builds `AppLive` with `InfraTest`, asserts unique `Context.Service` ids across the workspace, every contract leaf has a handler and `meta.authz`, every `Probe` registered, layer builds in less than 2 s** · NEW · P1 · M · Deps: `EFF-163`, `EFF-188` · See also: `EFF-047`, `EFF-085`, `EFF-169`
+  - Why/Problem: replaces `scripts/check-di-graph.ts` (which only sees `@Module` imports) for Effect services; `packages/nest/service-client/src/contract-leaves.ts` already computes the leaves.
+  - Do: implement as a shared spec factory; one file per service, no DB.
+  - Done when: removing a handler, a `meta.authz` or a provider fails the spec.
+  - Status: todo · Verified-in-code: partial · Source: effect-target-architecture.md#5.7
+- [ ] `EFF-187` **Edge stream bridge (single): `streamHandler(stream)` to the oRPC event iterator, `asObservable(stream)` for contracts typed with the repo `Observable` schema, `Stream.fromObservable` adapters for legacy producers, edge keep-alive heartbeats; transformer T4** · NEW · P1 · M · Deps: `EFF-161`, `EFF-023` · See also: `EFF-022`, `EFF-057`, `EFF-266`
+  - Why/Problem: two SSE bridges exist (sample plugin vs `packages/transport/orpc/src/observable/*`); disconnect must interrupt the stream fiber; heartbeats are dead in shared `HealthStreamController`.
+  - Do: implement in `effect-orpc`; client disconnect (`iterator.return()`) interrupts the fiber; heartbeat configured once in `HttpEdge`; `PubSub` in-process only (multi-replica stays LISTEN/NOTIFY, `ARCH-067`).
+  - Done when: one bridge; sample plugin deleted/folded; disconnect test green on Bun (`EFF-173`).
+  - Status: todo · Verified-in-code: partial · Source: effect-target-architecture.md#4.4, effect-layers-catalog.md#6 T4
+- [ ] `EFF-188` **`standard.zod` builder makes `meta.authz` (`.access()`) mandatory at `build()`; `authzFromMeta` middleware (default-deny, shadow mode flag per area, `allowSystem`) in `effect-orpc`; public list snapshot-tested** · NEW · P1 · M · Deps: `EFF-161`, `EFF-227`, `SEC-001` · See also: `SEC-033`, `SEC-038`, `EFF-119`, `EFF-154`
+  - Why/Problem: SUB-A's default-deny must be a type error at contract build, a runtime gate, and a CI check; oRPC meta/input ordering must be confirmed (authz-authn-design.md D18).
+  - Do: extend `@repo/orpc-utils` builder; middleware reads meta, asks `Authorizer`, shadow logs would-be denials; confirm gate-after-validation ordering in the Template v1 spike.
+  - Done when: an unannotated procedure cannot be built; shadow log shows decisions on the 3 pilot procedures.
+  - Status: todo · Verified-in-code: no · Source: effect-target-architecture.md#4.6, authz-authn-design.md#5.4, #10 D18
+- [ ] `EFF-189` **Services stop mounting `AuthModule`/Better Auth: authority comes from the verified claim; `createBetterAuth` leaves the services' dependency set (Better Auth stays BFF-only)** · ENHANCE · P1 · M · Deps: `EFF-226`, `EFF-199` · See also: `EFF-282`, `ARCH-054`, `ARCH-055`
+  - Why/Problem: services import `AuthModule` only to satisfy `createOrpcModule` (documented as an opaque failure in `orpc-host.ts`); they re-resolve sessions with the shared secret (double lookup).
+  - Do: remove the module per service once its handlers read `CurrentActor`; images get smaller and boot faster.
+  - Done when: no service package depends on Better Auth.
+  - Status: todo · Verified-in-code: partial · Source: effect-target-architecture.md#9.2, #12.1 D-J
+- [ ] `EFF-190` **Regenerate the 18 BFF delegation controllers as `.effect(handle(...))` over `ServiceClients` (`scripts/gen-bff-delegation.py`)** · ENHANCE · P2 · M · Deps: `EFF-239`, `DEC-EFF-21` · See also: `EFF-109`, `ARCH-058`, `ARCH-090`, `EFF-060`
+  - Why/Problem: collapses the second Promise client stack; fixes the delegation header that claims services enforce `requireAuth()`.
+  - Do: change the generator only (generated files are never edited by hand), mechanical, 18 files.
+  - Done when: no Promise `ServiceClient` remains in the BFF delegation layer.
+  - Status: todo (DEC-EFF-21 resolved 2026-10-26) · Verified-in-code: partial · Source: effect-target-architecture.md#9.1, effect-layers-catalog.md#8.1 D-L4
+  - Design-impact (2026-10-26): `DEC-EFF-21` accepted: the 18 BFF delegation controllers regenerate as effect handlers (`.effect(handle(...))` over `ServiceClients`) via the generator only; the Promise client stack goes (`ARCH-058`); `EFF-109`/`EFF-287` follow this.
+- [ ] `EFF-191` **Claim key publication and rotation: BFF `/.well-known/keys`, public keys fetched at boot, cached, refreshed on `kid` miss with a rate limit; rotation = add key, wait one TTL, retire; tests with `TestClock`** · NEW · P1 · M · Deps: `EFF-212`, `EFF-226`, `DEC-EFF-28` · See also: `SEC-030`, `SEC-019`, `ARCH-054`
+  - Why/Problem: verifiers need the BFF's public keys without a shared secret; rotation must not break in-flight requests.
+  - Do: implement `KeyRing.jwks()` endpoint and the cached fetcher; current + previous accepted for one TTL; keyring table owned by identity plus env bootstrap.
+  - Done when: a rotation test (add, wait one TTL, retire) passes with `kid` lookup and no downtime.
+  - Status: todo (DEC-EFF-28 resolved 2026-10-26) · Verified-in-code: no · Source: effect-target-architecture.md#9.2
+  - Design-impact (2026-10-26): `DEC-EFF-28` accepted with refinement: the BFF serves `/.well-known/keys` AND trust in the signer key is pinned in the mesh roster at setup (consistent with `DEC-AUTH-11`); services verify fetched keys against the roster-pinned anchor, not blind TLS-to-BFF.
+- [ ] `EFF-192` **Security review of the signed actor claim before enforcing: 30 s TTL, `aud`, `jti` replay cache for writes, `kid` rotation, deputy rule, service claims** · NEW · P1 · S · Deps: `EFF-226`, `EFF-191` · See also: `SEC-030`, `SEC-031`, `EFF-016`
+  - Why/Problem: risk R8 (replay, rotation flaw); enforcement must follow a review and a shadow period.
+  - Do: write a threat note and checklist; property tests for replay and rotation.
+  - Done when: review recorded; enforcement allowed by SUB-A shadow results.
+  - Status: todo · Verified-in-code: n/a · Source: effect-target-architecture.md#11.5 R8
+- [ ] `EFF-193` **Per-service Postgres roles generated from `TABLE_OWNERSHIP` (only hard ownership boundary)** · NEW · P2 · L · Deps: `EFF-220`, `DEC-EFF-29` · See also: `ARCH-063`, `ARCH-047`
+  - Why/Problem: type-level and lint ownership is review-time only; per-owner roles make "identity cannot read deployments" true at the database.
+  - Do: generator `generate:pg-roles` emitting GRANTs; wire per-service connection URLs; default timing is after the cutover.
+  - Done when: a service connection cannot write another owner's table (test).
+  - Status: todo (DEC-EFF-29 resolved 2026-10-26: after cutover) · Verified-in-code: no · Source: effect-target-architecture.md#6.1, effect-layers-catalog.md#B4
+  - Design-impact (2026-10-26): `DEC-EFF-29` accepted: per-service roles land after the cutover, BUT add the ownership-guard test now (a test that fails when a service touches a table outside `TABLE_OWNERSHIP`), so the boundary is enforced before the roles exist.
+- [ ] `EFF-194` **Retire `scripts/check-di-graph.ts` once the BFF and services are on Layers; retarget minimally until then** · ENHANCE · P2 · S · Deps: `EFF-186` · See also: `EFF-047`, `ARCH-027`, `EFF-167`
+  - Why/Problem: the script only sees `@Module` imports; cutover step 12 should not invest in retargeting it.
+  - Do: minimal retarget now (shell-phase services), delete at step 10; wiring spec takes over.
+  - Done when: script deleted and CI uses the wiring specs.
+  - Status: todo · Verified-in-code: yes · Source: effect-target-architecture.md#5.7, #11.6 step 12
+- [ ] `EFF-195` **`createEffectServiceConfig()` Vitest config (default oxc/esbuild transform, no SWC, `globals: false`); keep `createServiceTestConfig()` for shell-phase services until phase 2** · NEW · P1 · M · Deps: `EFF-178` · See also: `EFF-170`, `DEC-EFF-33`
+  - Why/Problem: `tooling/vitest/src/service.ts` forces `esbuild: false`, SWC decorator metadata and `server.deps.inline` workarounds that Effect-only services do not need.
+  - Do: add the new config; leave the old one until `EFF-167`.
+  - Done when: a generated service runs on the new config and is faster.
+  - Status: todo · Verified-in-code: partial · Source: effect-target-architecture.md#7.2
+  - Design-impact (2026-10-26): `DEC-EFF-33` accepted: `createServiceTestConfig()` (SWC) stays for shell-phase services until phase 2.
+- [ ] `EFF-196` **Fix `resolveWorkspacePaths()` throwing unless `apps/api` exists (`tooling/vitest/src/service.ts:37-47,71,214-215`) and move the shared-postgres e2e global setup now (cutover blocker #1)** · FIX · P1 · S · Deps: none · See also: `ARCH-036`, `ARCH-018`, `EFF-207`
+  - Why/Problem: blocks every workspace test run once `apps/api` is removed; independent of Effect work.
+  - Do: minimal fix and port only the Postgres container/global-setup logic of `apps/api/vitest.shared-postgres.e2e.ts`, `vitest.global-setup.e2e.ts`, `vitest.teardown.e2e.ts` into the shared tooling; the full `TestApp` comes later (`EFF-261`).
+  - Done when: workspace tests run with `apps/api` absent.
+  - Status: partial — done 2026-10-27 (see `ARCH-018`): harness moved to `shared/src/e2e-harness/vitest`, `resolveWorkspacePaths` no longer needs `apps/api`; verified with the fleet e2e project; not yet checked with `apps/api` physically absent · Verified-in-code: yes · Source: effect-target-architecture.md#7.2, #11.6 step 7
+
+### Migration steps (target plan; about 38-46 ew sequential, 28-32 calendar weeks for two engineers)
+- [ ] `EFF-197` **Step 0 — Template v1 foundation (5-6 ew, Vitest 5 is 1-2 of it in parallel): effect-core, effect-orpc, effect-infra, effect-testing, effect-nest, ESLint preset, docs, AGENTS/ARCHITECTURE reconciliation** · NEW · P1 · XL · Deps: `EFF-160`..`EFF-166`, `EFF-168`, `EFF-174`, `EFF-178`, `EFF-210` · See also: `EFF-001`, `EFF-148`
+  - Why/Problem: nothing else can be migrated before the primitives exist; first task: compile every design sketch against `node_modules/effect/ai-docs`.
+  - Do: build the packages with the wave-0 layers (`EFF-211`, `EFF-213`, `EFF-214`, `EFF-217`, `EFF-224`, `EFF-251`, `EFF-259`); port health's 9 existing tests.
+  - Done when: exit criterion of step 1 (`EFF-198`) is reachable: health re-done on the template, uptime bug has a failing-first test, `bun check --no-script` green.
+  - Status: todo · Verified-in-code: no · Source: effect-target-architecture.md#11.1 step 0
+- [ ] `EFF-198` **Step 1 — health (reference service, 1.5 ew): rewrite onto Layers, `HealthService.report()`, `Probes` replace `HealthRegistry`, authz stance, heartbeat fix, supervisors field dropped, `HOST=edge` proof** · NEW · P1 · L · Deps: `EFF-197`, `EFF-179` · See also: `EFF-054`, `EFF-055`, `EFF-056`, `EFF-057`, `EFF-059`, `EFF-071`, `OBS-028`
+  - Why/Problem: health becomes the template-conforming reference; it carries the uptime x1000 bug, hard-coded service name, dead heartbeat and no authz stance.
+  - Do: re-express shared `HealthModule`/`ServiceHealthModule`/`PreflightModule` as `Probes`/`Readiness` first; phase-2 flip behind `HOST=edge`; spike S1 passed.
+  - Done when: service runs under `HttpEdge` and the shell is deleted for health.
+  - Status: todo · Verified-in-code: partial · Source: effect-target-architecture.md#11.1 step 1
+  - Design-impact (2026-10-26): the phase-2 flip to `HttpEdge` stays gated on the S1 test outcome (`EFF-173`), not on `DEC-EFF-26` (resolved as the thin-Nest-shell default).
+- [ ] `EFF-199` **Step 2 — BFF claim issue + `ServiceClients` (2 ew, parallel with step 3): `KeyRing`, claim minting, correlation id, ALS relay deleted behind a flag; BFF stays on the Nest shell** · NEW · P1 · L · Deps: `EFF-197`, `EFF-212`, `EFF-226`, `EFF-239` · See also: `EFF-016`, `SEC-030`, `SEC-031`, `ARCH-054`, `ARCH-056`
+  - Why/Problem: authority must come from a claim before identity and the runtime worker can drop Better Auth and anonymous calls.
+  - Do: resolve the Better Auth session once per inbound request, mint per-audience claims, set `x-correlation-id`; delete `service-auth-context.ts` after verification.
+  - Done when: services verify claims; fan-out e2e green; ALS relay gone behind the flag.
+  - Status: todo · Verified-in-code: partial · Source: effect-target-architecture.md#11.1 step 2
+- [ ] `EFF-200` **Step 3 — identity finish (4-5 ew): user domain on tagged-per-failure (delete `UserServiceFailure`), hierarchy rule, `Db`, permission -> `Policy`/`Authorizer` (SUB-A skeleton on 3 procedures), push (rewritten, VAPID decision), analytics (934-line service split), remove `AuthModule`, `HttpEdge`** · NEW · P1 · XL · Deps: `EFF-197`, `EFF-073`, `EFF-182`, `EFF-217`, `EFF-227`, `EFF-189` · See also: `EFF-104`, `EFF-083`, `EFF-086`, `EFF-087`, `EFF-088`, `EFF-209`
+  - Why/Problem: identity is the second consumer of the template and the first adopter of SUB-A.
+  - Do: all 34 procedures on Layers; generated 403 matrix; identity on `HttpEdge`.
+  - Done when: exit criterion of the target doc (34 procedures on Layers, matrix generated, `HttpEdge`).
+  - Status: in-progress · Verified-in-code: partial · Source: effect-target-architecture.md#11.1 step 3
+- [ ] `EFF-201` **Step 4 — project (4 ew): 4 modules, 7 transaction sites rewritten with `Db.transaction`, cascade/dependency logic, fleet calls via `ServiceClients`, outbox emits in the transaction** · NEW · P1 · XL · Deps: `EFF-198`, `EFF-217`, `EFF-232`, `EFF-239` · See also: `EFF-105`, `EFF-106`, `EFF-107`
+  - Why/Problem: first service forcing transactions; no `db.transaction(async` may remain.
+  - Do: port module by module with the generated template; contracts unchanged.
+  - Done when: no raw transaction left; cancel test (S2) in CI.
+  - Status: blocked(EFF-197) · Verified-in-code: yes · Source: effect-target-architecture.md#11.1 step 4
+- [ ] `EFF-202` **Step 5 — runtime job worker (SUB-B), greenfield (3-4 ew, parallel with step 4): `deployment_jobs`, `JobQueue`/`Worker` (lease, heartbeat, `FiberMap`, cancel -> interrupt), `CommandRunner` scoped children, terminal-state CAS; the first Effect module inside runtime** · NEW · P1 · XL · Deps: `EFF-197`, `EFF-217`, `EFF-234`, `EFF-235`, `EFF-240`, `DEPLOY-003` · See also: `EFF-122`, `EFF-152`, `DEPLOY-014`, `DEPLOY-015`, `DEPLOY-016`, `DEPLOY-017`, `DEPLOY-018`
+  - Why/Problem: SUB-B must not be built on Nest code that will be rewritten; runtime otherwise stays on the shell plus islands.
+  - Do: build with a fake 30 s build via `CommandRunner`; kill -9 mid-job reclaims via lease; cancel kills the child in under 1 s; S5 decision recorded (`EFF-177`).
+  - Done when: exit criteria met; the P0 items DEPLOY-014..018 are ticked on this implementation.
+  - Status: blocked(EFF-197) · Verified-in-code: no · Source: effect-target-architecture.md#11.1 step 5, #11.7
+- [ ] `EFF-203` **Step 6 — fleet (5-6 ew): cluster/fleet/platform/providers/reachability; Docker/Swarm/WireGuard/Traefik ports (island first), reachability streams as `Stream`, node-removal saga** · NEW · P2 · XL · Deps: `EFF-201`, `EFF-245`, `EFF-246`, `EFF-249`, `EFF-187` · See also: `EFF-110`, `EFF-111`, `CLUSTER-018`
+  - Why/Problem: 65 files, 9.6k lines, islands-heavy; streams must interrupt on client disconnect.
+  - Do: port controllers/services first; islands reduced to pure ports.
+  - Done when: islands are pure ports; streams interrupt on disconnect.
+  - Status: blocked(EFF-201) · Verified-in-code: yes · Source: effect-target-architecture.md#11.1 step 6
+- [ ] `EFF-204` **Step 7 — runtime remainder (8-10 ew): deployment, docker, providers, runners (117 files, 28.6k lines, 32 specs, 4 tx sites); builders registry (cutover step 4) and trigger registry (step 5) written directly in the target style** · NEW · P2 · XL · Deps: `EFF-202`, `EFF-203`, `EFF-248` · See also: `EFF-112`, `EFF-113`, `EFF-114`, `DEPLOY-011`
+  - Why/Problem: the largest service; must not start before all prerequisites.
+  - Do: staged: controllers/services, repositories, engines as ports.
+  - Done when: runtime is off the shell.
+  - Status: blocked(EFF-203) · Verified-in-code: yes · Source: effect-target-architecture.md#11.1 step 7
+- [ ] `EFF-205` **Step 8 — BFF HTTP edge (3-4 ew): orchestrators/screens as Effect (`Effect.all` with concurrency/timeouts/partial failures), regenerated delegation, Better Auth routes + setup SSE + docs routes onto `HttpEdge`, supervisors as scoped fibers or port, shell removed** · NEW · P2 · XL · Deps: `EFF-190`, `EFF-179`, `EFF-203`, `DEC-EFF-35` · See also: `EFF-108`, `EFF-275`
+  - Why/Problem: BFF is last (26 controllers, Better Auth routes, setup SSE, 22 injectables).
+  - Do: move auth/setup routes at this step unless D-10 answers earlier.
+  - Done when: no Nest HTTP host anywhere.
+  - Status: blocked(EFF-203) · Verified-in-code: partial · Source: effect-target-architecture.md#11.1 step 8
+  - Design-impact (2026-10-26): `DEC-EFF-35` accepted: Better Auth routes and setup SSE stay on Nest until this step 8. Delegation regenerates per `DEC-EFF-21` (`EFF-190`).
+- [ ] `EFF-206` **Step 9 — mesh-agent (DEFERRED until after Phase 2, low priority; 1.5-2 ew): `Layer`/`Scope`/`Schedule` for agent loop, gossip, door converger, wireguard driver; effect-core only; binary-size gate; SIGTERM semantics preserved (leave WireGuard up)** · NEW · P3 · M · Deps: `EFF-175`, `EFF-160`, `DEC-EFF-34` · See also: `EFF-115`, `EFF-116`
+  - Why/Problem: independent of Nest work but deferred by DEC-EFF-13 (adjusted).
+  - Do: after Phase 2; tick loop and SIGTERM tests preserved.
+  - Done when: one loop on `Schedule`/`Scope` with the shutdown test and size within budget.
+  - Status: todo (deferred until after ROADMAP Phase 2) · Verified-in-code: yes · Source: effect-target-architecture.md#11.1 step 9
+  - Design-impact (2026-10-26): `DEC-EFF-34` accepted: +8 MB binary-size budget (gate via S3, `EFF-175`).
+- [ ] `EFF-207` **Monolith-cutover impact (target 11.6): steps 4-6 move from weeks 1-3 to weeks 4-9, "claim before step 5", code-porting steps land in target style, features-lost list stays the gate, `ARCH-031` does not wait for Effect work** · ENHANCE · P1 · S · Deps: `EFF-002`, `ARCH-014`, `ARCH-018`, `ARCH-032` · See also: `EFF-196`, `EFF-070`
+  - Why/Problem: cutover step 7 must not extract the old harness; step 8 specs port only for already-migrated services; infra-only steps (1, 2, 9-11) proceed now.
+  - Do: add the per-step Effect-impact column to `monolith-cutover.md`; freeze monolith health/user/push/analytics (`EFF-070`).
+  - Done when: no cutover step is blocked on an undecided Effect topic and the column exists.
+  - Status: todo · Verified-in-code: n/a · Source: effect-target-architecture.md#11.6
+- [ ] `EFF-208` **Cutover step 3: port `backfill-env-secrets` to the BFF CLI against `SecretBox` + `KeyRing` (`kid`, legacy reader T20), +2-3 days** · ENHANCE · P1 · S · Deps: `EFF-212`, `EFF-272` · See also: `ARCH-013`, `ARCH-040`, `SEC-016`
+  - Why/Problem: a backfill written against the old codec would have to be redone.
+  - Do: write it against `Crypto`/`SecretBox`; resealing sweep reports zero legacy rows.
+  - Done when: backfill runs with `kid`-tagged ciphertexts; legacy count zero.
+  - Status: superseded 2026-10-27 — `reseal-secrets --apply --seal-plaintext` (SecretBox + KeyRing, `kid`-tagged `enc:v1:`) is the backfill (see `ARCH-013`)
+  - Status: todo · Verified-in-code: n/a · Source: effect-target-architecture.md#11.6 step 3
+- [ ] `EFF-209` **Cutover step 6: analytics report download as a raw `HttpEdge` route (stream a stored report), landing with the identity analytics rewrite** · ENHANCE · P1 · S · Deps: `EFF-179`, `EFF-200` · See also: `EFF-090`, `ARCH-016`
+  - Why/Problem: the download URL `/analytics/reports/:id/content` has no route today.
+  - Do: implement as a non-oRPC route on `HttpEdge` with authz and stream; no Nest controller.
+  - Done when: the link returns the file.
+  - Status: todo · Verified-in-code: yes · Source: effect-target-architecture.md#11.6 step 6
+- [ ] `EFF-210` **Amend root `AGENTS.md`, `v3/AGENTS.md`, `apps/api-services/AGENTS.md`/`ARCHITECTURE.md` for Layer services: service-adapter-repository -> feature layers, "typed NestJS exceptions" -> tagged errors by kind, controller/service test conventions -> layer substitution, "never bun build an app" -> boot-tested full bundle, pointer to `node_modules/effect/ai-docs`** · FIX · P1 · S · Deps: `EFF-159`, `EFF-039` · See also: `EFF-183`
+  - Why/Problem: root conventions section 2 (Service-Adapter-Repository), section 7 (testing) and the migration upgrade checklist contradict the decision; assistants follow AGENTS first.
+  - Do: edit in the same change as the conventions doc; local AGENTS overrides root only for its scope; keep the Nest rules for shell-phase services labelled transitional.
+  - Done when: no AGENTS sentence contradicts migrated code.
+  - Status: todo · Verified-in-code: yes · Source: effect-target-architecture.md#7.3, #11.1 step 0
+
+## Effect layer catalog (added 2026-10-26)
+> One item per layer or tight cluster of `effect-layers-catalog.md` (49 layers, groups A-K). Wave: Q = parallel quick wins (needs only effect-core); 0 = template v1; 1 = SUB-A spine; 2 = SUB-B/SUB-C spine; 3 = platform product layers; 4 = mesh/runtime tail. Priority P0 only where the layer is itself the fix of P0 items (Wave Q). Rule (catalog 0.1): a layer lands with its Test layer, its lint rule and its first consumer in the same PR; `Redacted` from entry to the last adapter; no layer introduces a central always-on coordinator (mesh-first).
+
+### A. Foundation
+- [ ] `EFF-211` **A1 `AppConfig` + `ConfigSource` + secrets (`Redacted`): fails once listing ALL missing/invalid keys, `*_FILE` sources, no raw `process.env`** · NEW · P1 · M · Deps: `EFF-160`, `SEC-017` · See also: `EFF-028`, `EFF-130`, `SEC-018`, `SEC-020`, `EFF-151`
+  - Why/Problem: [Wave 0, L0] 116 raw `process.env` reads (grep), e.g. `shared/src/config/drizzle/schema-codecs.ts:41-50`, `redis.indicator.ts:35`, `shared/server/bootstrap.ts:22,23,62`; `EnvService` is a Nest provider.
+  - Do: `AppConfig.fromEnv(schema)`/`fromRecord`, `ConfigSource` (Docker secret file, env, `.env` dev only), per-feature slices by `AppConfig.pick`; `EnvService` zod values become the schema source; exit code 5 on config failure.
+  - Done when: a service starts with missing keys and fails listing all; a `Redacted` never leaks in logs/JSON (tested).
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#A1
+- [ ] `EFF-212` **A2 `KeyRing` + `SecretBox` + `Signer` (key ids, AAD, HKDF per purpose, rotation, reseal sweep) — Wave Q, closes SEC-016/SEC-039** · NEW · P0 · L · Deps: `EFF-160`, `SEC-016`, `SEC-019`, `SEC-039` · See also: `SEC-018`, `SEC-022`, `PROJ-020`, `PROJ-021`, `IDEA-027`, `IDEA-028`, `AUTH-008`, `ARCH-013`, `ARCH-040`, `EFF-272`
+  - Why/Problem: [Wave Q, L0] process-global `registry` + `configureEncryption`, single key derived from `AUTH_SECRET`, per-call `scryptSync` with random salt, no key id, no AAD, no rotation (`packages/nest/schema/src/codecs/codec-registry.ts:26-45,98-116`, `shared/src/config/drizzle/schema-codecs.ts:31-50`); ad-hoc HMAC in `ingress-provider-token.ts:37-45`, `mesh-trust.service.ts:60-71`.
+  - Do: `KeyRing.current/byId/rotate/jwks`, `SecretBox.seal/open/reseal` (AES-GCM, AAD = table+column+row+scope, `{v, kid, nonce, ct}`), `Signer` (EdDSA JWS, constant-time compares only here); legacy `salt:iv:tag:ct` reader (`EFF-272`); explicit `seal/open` in repository mappers (D-L2, `DEC-EFF-19`); Tests: `KeyRing.Fixed`, `SecretBox.Identity`/`Real`.
+  - Done when: ciphertexts carry `kid`; a ciphertext copied to another row fails to open; rotation resealing sweep works; SEC-016/SEC-039 tests green.
+  - Status: partial -> KeyRing + SecretBox (async) and `SyncSecretBox` (sync twin for drizzle column codecs; same HKDF derivation, key ids, AAD and stored form, proven interoperable both ways) built and wired into the live tier via `registerSchemaCodecs()` (`apps/api-services/shared/src/config/drizzle/schema-codecs.ts`). The only `node:crypto` use in the package is `SyncSecretBox`/legacy reader: drizzle codecs are synchronous, WebCrypto is async-only and Bun has no sync AES builtin. NOT done: `Signer`, table-backed ring with online `rotate`/`jwks`, env surface for key generations — updated 2026-10-26 · Verified-in-code: yes · Source: effect-layers-catalog.md#A2, #3.1 wave Q
+  - Decision (2026-10-26): `DEC-EFF-19` accepted: explicit async `seal`/`open` in repository mappers (no global registry, no Drizzle custom type); keep a thin sync adapter only for the transition of already-typed columns.
+- [ ] `EFF-213` **A3 `Clock`/`Random`/`IdGen` (uuidv7, correlation, tokens) and the "time/ids are services" rule (T15)** · NEW · P1 · S · Deps: `EFF-160` · See also: `EFF-030`, `EFF-152`, `OBS-086`, `DEPLOY-015`, `DEPLOY-020`, `DEPLOY-021`
+  - Why/Problem: [Wave 0, L0] 787 `Date.now()`/`new Date()`/`randomUUID()` sites (grep), e.g. `docker.repository.ts` (41), `project.repository.ts` (35), `deployment-queue.worker.service.ts:122,407`, `deployment-queue-lifecycle.service.ts:124,179,192,595`, uptime bug `health.controller.ts:72`.
+  - Do: `IdGen { next, correlation, token }`, `IdGen.Sequential`, `TestClock`, seeded `Random`; lint bans `Date.now`/`randomUUID` in L1-L3.
+  - Done when: lease/retry specs run on `TestClock`.
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#A3
+- [ ] `EFF-214` **A4 `Observability`: `Logger` (JSON prod/pretty dev, delegating to `@deployer/logger`) + `Correlation` + `Tracer` + `Metrics`; annotations `{service, correlationId, actorId, route, deploymentId?}`** · NEW · P1 · M · Deps: `EFF-211`, `EFF-213` · See also: `EFF-024`..`EFF-027`, `OBS-005`, `SEC-045`, `IDEA-067`, `ARCH-066`
+  - Why/Problem: [Wave 0, L0] 32 `console.*` calls (grep) in `preflight.service.ts:170`, `services/*/src/main.ts`, `mesh-query-builder.ts`; `codec-registry.ts` logs error shape; correlation id first (DEC-EFF-12).
+  - Do: `ObservabilityLive`, `Logger.Test`, metric names fixed in one file, flush on scope exit; every outgoing client call forwards the id.
+  - Done when: a handler log line carries request id and actor id; defect responses return the id.
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#A4
+- [ ] `EFF-215` **A5 `TelemetryExporter`: Prometheus text endpoint, OTLP traces behind a flag (traces only), log drain `LogSink` adapters** · NEW · P2 · M · Deps: `EFF-214`, `EFF-244`, `EFF-176` · See also: `OBS-049`, `OBS-045`, `OBS-064`, `OBS-065`, `EFF-026`, `EFF-027`, `EFF-145`
+  - Why/Problem: [Wave 4, L0] no exporter exists; `@effect/opentelemetry` peer range conflicts for logs.
+  - Do: `PrometheusLive`, `OtlpLive`, `LogSink.Http`/in-memory; scoped batcher flushing on close.
+  - Done when: a handler latency histogram is scraped.
+  - Status: todo · Verified-in-code: no · Source: effect-layers-catalog.md#A5
+  - Design-impact (2026-10-26): `DEC-EFF-32` accepted: traces enabled after step 3 (identity).
+- [ ] `EFF-216` **A6 `FileSystem` + `Workspace` (typed errors, per-deployment temp dirs with byte quota, deleted on scope exit, mtime sweeper)** · NEW · P1 · S · Deps: `EFF-162` · See also: `DEPLOY-040`, `DEPLOY-055`, `DEPLOY-022`
+  - Why/Problem: [Wave 1, L0] `GitService.cleanupDeployment` has no callers (`git.service.ts:115-118`), sync `fs` calls in `extractTar` (`git.service.ts:141-165`), mesh-agent `state-store.ts:25` atomic write.
+  - Do: Bun/`node:fs/promises` adapter with in-memory Test; workspace quota and cleanup.
+  - Done when: a failed build leaks no disk.
+  - Status: partial (the `FileSystem` port is built in `packages/effect/infra/src/fs`: reads via `Bun.file().bytes()`, writes via `Bun.write`, create-only (`O_EXCL`) opens; `node:fs/promises` only for `lstat`/`mkdir -p`/`readdir`/`realpath`/`rm -r`/`mkdtemp`/exclusive `open`, which have no Bun builtin; live + in-memory layers; `Workspace` (byte quota, mtime sweeper) pending) — updated 2026-10-26 · Verified-in-code: yes · Source: effect-layers-catalog.md#A6
+
+### B. Data
+- [ ] `EFF-217` **B1 `Db<Owner>` + `CurrentTx`: `use(fn(db, signal))`, `transaction(effect)` on a dedicated connection, savepoints for nesting, `mode: "join"`, serialization-only retry, `pg_cancel_backend` on interrupt, typed `DbError`, `OwnerDb<Owner>` typing; `PgDbLive(owner)`, `PgTestDb`, `Db.InMemory`; the migration-as-readiness-probe lives in `EFF-219`** · NEW · P1 · L · Deps: `EFF-174`, `EFF-211`, `EFF-213`, `EFF-160` · See also: `EFF-018`, `EFF-019`, `EFF-020`, `EFF-156`, `EFF-106`, `EFF-113`, `ARCH-045`, `DEPLOY-018`
+  - Why/Problem: [Wave 0, L0, spike S2] `BaseDatabaseService.db` throws synchronously (`database-core/src/base-database.service.ts:41-47`); 11 callback `db.transaction(async tx => ...)` sites (project: `service.repository.ts:183,502,623,659`, `project.repository.ts:241,297,335`; runtime: `deployment.repository.ts:399,456,588,738`); `GlobalDatabaseService` placeholder pool gated on lifecycle phases.
+  - Do: implement per target doc 6.1-6.3 (pool via `acquireRelease`, closed last; `CurrentTx` as `Context.Reference`; nested = SAVEPOINT; retry only if the caller declares the effect idempotent; `ServiceClients` fails fast on external call inside a tx in dev/test); `mapDbError` (T9, `EFF-267`).
+  - Done when: S2 exit criterion and `EFF-156` (commit, rollback, interrupt, nested, driver error) pass; project can use it.
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#B1, effect-target-architecture.md#6
+- [ ] `EFF-218` **B2 `Repository` base (`makeRepository`: filter/sort compiler, `guardedUpdate` CAS, `list` requires `Authz` so an unscoped list cannot be written)** · NEW · P1 · M · Deps: `EFF-217`, `EFF-227` · See also: `SEC-034`, `IDEA-008`, `ARCH-081`, `PROJ-001`, `PROJ-002`, `SEC-006`, `DEPLOY-018`, `EFF-095`, `EFF-267`
+  - Why/Problem: [Wave 1, L1] per-service hand-written queries with inline clocks, N+1 in `fleetOverview` (`ARCH-081`), ad hoc guarded updates in `deployment.repository.ts`.
+  - Do: reuse `listBuilder`/`createFilterConfig` and wrap `Authz.filter` (T17); `Repository.Test` (`Ref<Map>`-backed with the same constraint errors).
+  - Done when: an unscoped list is a type error; `guardedUpdate` refuses terminal-state overwrite.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#B2
+- [ ] `EFF-219` **B3 `Migrator` + `MigrationsProbe` + `MigrationLock`: services never migrate at boot, they verify the journal head as a readiness probe; migrations run from the BFF `setup-db` / init job under a Postgres advisory lock** · NEW · P1 · M · Deps: `EFF-217`, `EFF-251` · See also: `ARCH-041`, `ARCH-042`, `ARCH-043`, `ARCH-044`, `ARCH-101`, `EFF-063`
+  - Why/Problem: [Wave 1, L0/L3] boot-time migration with substring error matching ("already"), no lock, weak readiness `count(*) > 0` (per audit); `setup-db.command.ts` becomes a thin caller; vehicle for ARCH-042 (P0).
+  - Do: `Migrator.apply(owner)` requiring `Lease`; `MigrationsProbe` compares `__drizzle_migrations` last hash to the expected head and fails `Readiness`; failed migration prevents ready.
+  - Done when: two concurrent boots apply once; pending entries make readiness fail (ARCH-101 tests).
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#B3, effect-target-architecture.md#6.4
+- [ ] `EFF-220` **B4 `OwnershipGuard`: `TABLE_OWNERSHIP` checked at `Db` construction, import-boundary lint, per-owner Postgres roles generator (hard boundary is `EFF-193`)** · NEW · P2 · M · Deps: `EFF-217` · See also: `ARCH-047`, `ARCH-063`, `SEC-011`, `EFF-193`
+  - Why/Problem: [Wave 1, L0] ownership is convention-only; `"monolith"` owner member remains.
+  - Do: `assertRegistryMatchesSchema(owner)` at layer build (unclaimed/duplicate table = build failure); `no-restricted-imports` of other owners' barrels.
+  - Done when: a table claimed twice fails layer build; lint blocks foreign barrels.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#B4
+- [ ] `EFF-221` **B5 `LocalDb` (bun:sqlite) restricted to node-local reconstructible state (build cache, process table); job queue and outbox move to Postgres** · NEW · P2 · M · Deps: `EFF-217`, `DEC-EFF-31` · See also: `ARCH-068`, `EFF-021`, `ARCH-052`, `DEPLOY-025`
+  - Why/Problem: [Wave 3, L0] `packages/nest/database-local`, `local-db-supervisor.service.ts`, `local_*` tables; node-local `node_config` holding DB URL/mesh secret (mesh-first guard: node-local state is never the system of record for cluster facts).
+  - Do: same shape as `Db` over `bun:sqlite`; long local work chunked with `Effect.yieldNow`; no cross-store atomicity promised.
+  - Done when: nodes restart without a reachable central store for local concerns.
+  - Status: todo (DEC-EFF-31 resolved 2026-10-26) · Verified-in-code: partial · Source: effect-layers-catalog.md#B5
+  - Design-impact (2026-10-26): `DEC-EFF-31` accepted: Postgres for outbox and job queue; sqlite only for build cache and process table. The architecture note must state that platform state in Postgres is a coordinator while the data plane stays peer-equal (mesh-first).
+- [ ] `EFF-222` **B6 `Idempotency` store (`claim(scope, key, requestHash)`/`complete`, TTL 24 h): inbound webhooks, `Idempotency-Key` on writes, job enqueue dedupe** · NEW · P1 · S · Deps: `EFF-217`, `DEC-EFF-36` · See also: `DEPLOY-093`, `ARCH-078`, `DEPLOY-118`
+  - Why/Problem: [Wave 2, L0] `WebhookIdempotencyService.claim()` is unwired (DEPLOY-093 is P0); no idempotency on retried writes.
+  - Do: Postgres insert-on-conflict atomic claim; `Ref<Map>` + `TestClock` Test; table `idempotency_keys` per owner.
+  - Done when: a replayed delivery produces one deployment (with `EFF-238`).
+  - Status: todo (DEC-EFF-36 resolved 2026-10-26) · Verified-in-code: partial · Source: effect-layers-catalog.md#B6
+  - Design-impact (2026-10-26): `DEC-EFF-36` accepted: `Idempotency-Key` header, 24 h TTL, table `idempotency_keys` per owner.
+- [ ] `EFF-223` **B7 `ClusterSettings` (CAS) + `FeatureFlags`: replicated cluster setting store, never node-local** · NEW · P2 · M · Deps: `EFF-217` · See also: `NET-049`, `AUTH-004`, `NET-043`, `NET-044`, `IDEA-036`, `IDEA-041`, `DEPLOY-065`, `DEPLOY-046`, `EFF-279`
+  - Why/Problem: [Wave 3, L0/L1] `EdgeStateStore` (`edge-state.store.ts:25-39`) read/write with no CAS; ad hoc flags (`ENABLE_MASTER_TOKEN`, `MANAGED_TRAEFIK_ENABLED`, `MESH_AGENT_DATAPLANE`).
+  - Do: `read`, `write(expect revision)`, `changes(key): Stream`; `FeatureFlags.enabled(flag)` default-off for unknown; island adapter over `ClusterSettingsService` first.
+  - Done when: a concurrent write fails with `StaleRevision`.
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#B7
+
+### C. Identity and authorization (SUB-A; SEC/AUTH items own the policy work)
+- [ ] `EFF-224` **C1 `RequestContext` + `AbortBridge`: `requestContext` middleware builds `RequestInfo`/`Correlation`/`CurrentActor` and merges into `effect/context` (never `Effect.provide`); signal -> fiber interruption; `FiberSet`-tracked roots for shutdown (T1)** · NEW · P1 · M · Deps: `EFF-161`, `EFF-213`, `EFF-225` · See also: `EFF-014`, `EFF-015`, `EFF-008`, `EFF-031`, `EFF-264`
+  - Why/Problem: [Wave 0, L2] `orpc-context.ts:19-28` global augmentation; shared host injects `REQUEST` (`orpc-host.ts`); per-controller `context.auth` plumbing.
+  - Do: `RequestContext.Test({ actor, headers })` for `ContractHarness`; origin via trusted-proxy rule (T22).
+  - Done when: correlation id and actor appear on every log line without controller code.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#C1, effect-target-architecture.md#4.2
+- [ ] `EFF-225` **C2 `Authn` + verifiers + `CurrentActor` + `Principal`/`Credential`: exactly-one-credential rule; `ActorClaimVerifier` and `SessionVerifier` first, then api token, service token, mesh, webhook, setup claim** · NEW · P1 · L · Deps: `EFF-226`, `EFF-165` · See also: `EFF-014`, `EFF-082`, `EFF-121`, `ARCH-054`, `ARCH-055`, `ARCH-056`, `AUTH-019`, `AUTH-022`, `AUTH-034`, `AUTH-016`, `DEPLOY-013`
+  - Why/Problem: [Waves 1 and 3, L2] `actorFromContext(context)` (`identity/src/core/utils/actor.utils.ts:23-28`, role default `"user"`), AsyncLocalStorage relay (`bff/src/clients/service-auth-context.ts:38-60`), double session lookup, `ORPCAuthContext<true>` plumbing.
+  - Do: shape of `Actor`/`Ceiling`/`Delegation` verbatim from authz-authn-design.md 2.3; `Actor.admin/user/system/service` fixtures signed by the test `KeyRing`; `BetterAuthSession` port wrapped (T7, `EFF-270`).
+  - Done when: services use only the claim verifier; ALS deleted.
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#C2, authz-authn-design.md#2
+- [ ] `EFF-226` **C3 `ClaimIssuer`/`ClaimVerifier`: EdDSA JWS, 30 s TTL, per-audience, `kid` rotation, service claims for background callers, `jti` replay cache for write procedures** · NEW · P1 · M · Deps: `EFF-212`, `DEC-EFF-27` · See also: `SEC-030`, `SEC-031`, `ARCH-054`..`ARCH-057`, `IDEA-011`, `EFF-016`, `EFF-191`, `EFF-192`
+  - Why/Problem: [Wave 1, L0] cookie/authorization/mesh-key relay and anonymous `svc-project -> svc-fleet` calls.
+  - Do: `Claims.Fixed` and `Claims.Permissive` Test layers; verifiers accept service claims only for procedures whose `meta.authz.allowSystem` lists the issuer; mesh-internal key becomes a claim of `kind: "mesh"`.
+  - Done when: wrong `aud`/`kid`/expired/replayed claims are rejected (`Corpus`).
+  - Status: todo (DEC-EFF-27 resolved 2026-10-26) · Verified-in-code: partial · Source: effect-layers-catalog.md#C3, effect-target-architecture.md#9.2
+  - Design-impact (2026-10-26): `DEC-EFF-27` accepted: EdDSA JWS via `KeyRing` (not Better Auth JWT plugin keys).
+- [ ] `EFF-227` **C4 `Authz` + `PolicyStore` + `PermissionResolver` + `ResourceResolver`: pure `evaluate`, `check/require/filter/capabilities/explain/simulate`, `Authorized<P>` witness, fail closed (503), epoch-based cache** · NEW · P1 · L · Deps: `EFF-165`, `EFF-217`, `EFF-225`, `SEC-001` · See also: `SEC-002`..`SEC-010`, `SEC-033`..`SEC-038`, `IDEA-001`, `IDEA-006`, `EFF-119`, `EFF-120`, `EFF-154`, `AUTH-006`, `AUTH-024`, `AUTH-025`
+  - Why/Problem: [Wave 1, L1] the Effect vehicle of SUB-A (canonical P0 work stays in SEC-001); `requireAuth()`-only handlers, unwired `PermissionEngine` and its `superAdmin -> ALLOW` shortcut, empty `role_rules`, per-service hand rules (`user.service.ts:44`).
+  - Do: consumption contract: handlers never call `Authz.require` (contract `meta.access` + `authzFromMeta` do); resource checks happen in service methods taking the witness; repositories use `Authz.filter`; background fibers run as `Actor.system(job)`; Test layers `Authz.Scripted`, `Authz.InMemory`, `Authz.AllowAll` (importable only from `testing/`).
+  - Done when: shadow mode on 3 pilot procedures, then area-by-area enforce per authz-authn-design.md 9.2.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#C4, authz-authn-design.md#5
+- [ ] `EFF-228` **C5 `ApprovalStore` + `StepUpStore` + elevation (atomic single-use consume bound to action hash)** · NEW · P2 · M · Deps: `EFF-227`, `EFF-217` · See also: `DEPLOY-009`, `AUTH-030`, `AUTH-050`, `IDEA-023`, `IDEA-025`, `IDEA-042`
+  - Why/Problem: [Wave 3, L1] `requireApprovalForProduction` is stored-but-inert; no step-up evidence.
+  - Do: `request/approve/reject/matching/consume` (`UPDATE ... WHERE status='approved' AND action_hash=$h RETURNING`), `StepUpStore.latest/record`; in-memory Test with `TestClock` expiry.
+  - Done when: an approval is consumed at most once and only for an identical action hash (property test P-APPROVAL).
+  - Status: todo · Verified-in-code: no · Source: effect-layers-catalog.md#C5
+- [ ] `EFF-229` **C6 `AuditLog` + `DecisionLog` (append-only, in the caller's transaction, denies always logged, bounded queue never failing the request)** · NEW · P1 · M · Deps: `EFF-217`, `EFF-232`, `EFF-227` · See also: `OBS-071`, `OBS-072`, `OBS-073`, `OBS-074`, `OBS-075`, `OBS-076`, `OBS-085`, `EFF-131`, `AUTH-029`, `IDEA-014`
+  - Why/Problem: [Wave 2, L1] zero audit today (no producer); exec/terminal sessions unaudited.
+  - Do: `AuditLog.record`; `AuditLog.Recording` Test; guard "every mutating procedure writes exactly one audit row" satisfied by the gate.
+  - Done when: OBS-085 guard passes on migrated services.
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#C6
+- [ ] `EFF-230` **C7 `RateLimiter` + `Quota` (Postgres unlogged table or Redis per decision, `Ref`+`Clock` token bucket single-process; `.use(rateLimit("check", 300/min))`)** · NEW · P2 · S · Deps: `EFF-213` · See also: `SEC-041`, `ARCH-076`, `AUTH-033`, `IDEA-035`, `IDEA-036`
+  - Why/Problem: [Wave 2, L0] `rateLimit(options)` with an in-memory `Map` and `Date.now()` per process (`shared/src/core/modules/rate-limit/rate-limit.middleware.ts:59-85`), per-replica counters lost on restart.
+  - Do: `RateLimiter.InMemory` + `TestClock` Test; replaces health `check` 300/min parity.
+  - Done when: limit survives restart on the chosen store.
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#C7
+
+### D. Messaging and jobs (SUB-B, SUB-C)
+- [ ] `EFF-231` **D1 `EventBus` (in-process `PubSub`, scoped subscriptions, never cross-process)** · NEW · P1 · S · Deps: `EFF-162` · See also: `OBS-003`, `EFF-066`, `EFF-132`, `ARCH-067`
+  - Why/Problem: [Wave 2, L0] RxJS subject buses (`packages/nest/events/*`, `supervisor-event.bus.ts`, `health-registry.service.ts`).
+  - Do: `publish`, `subscribe(filter): Stream`; Test identical with `TestClock`.
+  - Done when: health `changes$` has a real subscriber.
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#D1
+- [ ] `EFF-232` **D2 `Outbox` (`emit` inside the caller's `Db.transaction`; envelope with `eventId`, `correlationId`, actor, schema-versioned body; T18 bridge)** · NEW · P1 · M · Deps: `EFF-217`, `EFF-213` · See also: `OBS-001`, `OBS-002`, `OBS-004`, `OBS-088`, `ARCH-062`, `IDEA-003`, `EFF-127`, `EFF-269`
+  - Why/Problem: [Wave 2, L0] node-local SQLite outbox with a 3 s interval poll gated on lifecycle phase, `maxRetries = 8`, one global dispatcher publishing to no named consumer (`events/outbox/local-event-outbox-dispatcher.service.ts`); without `CurrentTx` the outbox is not atomic (SUB-C at-most-once).
+  - Do: `OutboxLive`, `Outbox.Recording`; Effect Schema bodies allowed (DEC-EFF-6).
+  - Done when: a rolled-back business write emits no event.
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#D2
+  - Design-impact (2026-10-26): `DEC-EFF-31` accepted: the outbox lives in Postgres (not `LocalDb`).
+- [ ] `EFF-233` **D3 `OutboxConsumer`: named consumers, cursor table, `FOR UPDATE SKIP LOCKED`, idempotent by `eventId`, poison to `outbox_dead_letters`, backoff** · NEW · P1 · M · Deps: `EFF-232`, `EFF-231` · See also: `OBS-001`, `OBS-002`, `OBS-088`, `EFF-127`, `EFF-128`, `OBS-082`
+  - Why/Problem: [Wave 2, L3] `DeploymentReadModelProjectorService` in-memory cursor (OBS-002), `core-event-sync.service.ts`, `traefik-event.service.ts`; no consumers exist.
+  - Do: `OutboxConsumer.layer({ name, handler, batch: 50, poll, maxAttempts })`; stop claiming on shutdown; `Consumer.Test` over `TestClock`.
+  - Done when: a named consumer receives events exactly once per cursor (test); first consumers: identity notifications/push, health SLO feed, audit.
+  - Status: todo · Verified-in-code: no · Source: effect-layers-catalog.md#D3
+- [ ] `EFF-234` **D4 `JobQueue` (Postgres lease + heartbeat, `claim` SKIP LOCKED, terminal CAS, `cancel` sets `cancel_requested`, `reapExpired` re-emits) — SUB-B foundation** · NEW · P1 · L · Deps: `EFF-217`, `EFF-213`, `EFF-222`, `DEPLOY-003` · See also: `DEPLOY-014`, `DEPLOY-015`, `DEPLOY-016`, `DEPLOY-017`, `DEPLOY-018`, `DEPLOY-019`, `DEPLOY-020`, `DEPLOY-021`, `DEPLOY-022`, `DEPLOY-027`, `EFF-122`
+  - Why/Problem: [Wave 2, L0, spike S5] canonical P0 work stays in DEPLOY-014..022; today in-process queue (`DeploymentQueueLifecycleService`, `deployment-queue.worker.service.ts:120-180`, `local_queue_jobs`, ISO-string lease arithmetic at `:214,319,615`).
+  - Do: `PgJobQueueLive` (`deployment_jobs`), `JobQueue.InMemory` + `TestClock`; payloads are Effect Schemas (DEC-EFF-6), never zod contract entities.
+  - Done when: a job survives kill -9 and a terminal state is never overwritten (tests).
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#D4
+  - Design-impact (2026-10-26): `DEC-EFF-31` (job queue in Postgres) and `DEC-EFF-30` (SQL worker default) accepted.
+- [ ] `EFF-235` **D5 `Worker<J>`: `FiberMap`, heartbeat fiber per job, cancel watcher interrupts the job fiber, terminal state in `onExit` with CAS, runs as `Actor.system(workerName)`, per-key `Semaphore`, retry via `Schedule`** · NEW · P1 · L · Deps: `EFF-234`, `EFF-240`, `EFF-225` · See also: `DEPLOY-016`, `DEPLOY-017`, `DEPLOY-018`, `DEPLOY-020`, `DEPLOY-021`, `EFF-122`, `EFF-124`, `EFF-152`, `DEPLOY-117`
+  - Why/Problem: [Wave 2, L3] `DeploymentExecutionWorkflowService` glue, `DeploymentQueueReconciliationService`, ad hoc `setInterval`/`setTimeout`.
+  - Do: shutdown = stop claiming, interrupt, `onExit` writes `interrupted`, reaper requeues; `Worker.Test` steps `TestClock`.
+  - Done when: "cancel kills child < 1 s" and "lease lost" tests pass.
+  - Status: todo · Verified-in-code: no · Source: effect-layers-catalog.md#D5
+- [ ] `EFF-236` **D6 `Scheduler` + `Cron` + `Lease` (leader-only via Postgres advisory lock, jittered, overlap guard, runs as `Actor.system`)** · NEW · P2 · M · Deps: `EFF-217`, `EFF-213` · See also: `FEAT-030`, `FEAT-031`, `FEAT-032`, `DEPLOY-082`, `OBS-030`, `OBS-056`, `CLUSTER-059`, `IDEA-041`, `EFF-129`, `FEAT-012`, `EFF-067`
+  - Why/Problem: [Wave 3, L0/L3] `setInterval` loops (outbox ticker, `deployment-queue.worker.service.ts:180`, supervisors' timers, `DomainVerificationService` timer at `domain-verification.service.ts:22-27`).
+  - Do: `Scheduler.every(name, Schedule, effect, { leader })`, `Cron.at(expr, tz)`, durable user cron enqueued through D4, `Lease.acquire(name, ttl)`; Lease stays in the control tier (mesh-first).
+  - Done when: two replicas run one probe loop.
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#D6
+- [ ] `EFF-237` **D7 `Notifier` + channel adapters (webhook, Slack/Discord, SMTP first) + `DeliveryLog`: rule matrix, dedupe/hysteresis/quiet hours, channels registered as layers** · NEW · P1 · L · Deps: `EFF-233`, `EFF-244`, `EFF-257`, `DEC-EFF-23` · See also: `OBS-012`..`OBS-026`, `OBS-081`, `FEAT-120`, `FEAT-082`, `IDEA-071`, `EFF-097`, `OBS-008`, `OBS-009`, `OBS-010`, `CLUSTER-025`, `NET-064`
+  - Why/Problem: [Wave 3, L1] nothing real exists: push "delivery report" is fabricated (`push.service.ts:233`), web-push has no sender (`push.service.ts:2`), project notification settings stored-but-inert (PROJ-085); J1 before D7 or channel configs land in plaintext.
+  - Do: `NotificationChannel<K>` with `configSchema`, `send`, `test`; `Channel.Recording`, `SafeHttp.Fake`; adding Telegram = one file + `Layer.merge`.
+  - Done when: a signed webhook and a Slack message are delivered in an e2e on fakes; no plaintext channel config.
+  - Status: todo (DEC-EFF-23 resolved 2026-10-26) · Verified-in-code: yes · Source: effect-layers-catalog.md#D7
+  - Design-impact (2026-10-26): `DEC-EFF-23` accepted: channel config stored per channel as `SecretVault` sealed JSON (not one blob per project).
+- [ ] `EFF-238` **D8 `WebhookInbound` (raw-body HMAC constant-time, delivery-id idempotency, normalise to `TriggerEvent`, trigger rules, enqueue as `Actor.webhook(projectId)`, `TriggerRegistry`)** · NEW · P1 · M · Deps: `EFF-222`, `EFF-234`, `EFF-212`, `EFF-225` · See also: `DEPLOY-091`, `DEPLOY-092`, `DEPLOY-093`, `DEPLOY-012`, `DEPLOY-013`, `DEPLOY-096`, `DEPLOY-098`, `DEPLOY-100`, `DEPLOY-101`, `FEAT-081`, `FEAT-082`, `OBS-076`, `ARCH-015`, `ARCH-035`
+  - Why/Problem: [Wave 2, L1/L3] vehicle for P0 DEPLOY-091..093; `git/github/utils/webhook-verification.ts` only reads headers; `WebhookIdempotencyService` unwired; the monolith webhook controller is not ported.
+  - Do: `WebhookInboundLive`, `WebhookInbound.Test` with signed fixtures (`Corpus`).
+  - Done when: one replayed GitHub delivery produces one deployment.
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#D8
+
+### E. Service-to-service
+- [ ] `EFF-239` **E1 `ServiceClients` + `ResiliencePolicy` (`read`/`write`/`stream`/`probe` classes) + `CircuitBreaker` + `Bulkhead`: per-call claim mint, `x-correlation-id`, `traceparent`, signal, typed `ServiceCallError`** · NEW · P1 · L · Deps: `EFF-226`, `EFF-214`, `EFF-161` · See also: `EFF-016`, `EFF-017`, `ARCH-058`, `ARCH-076`, `ARCH-078`, `ARCH-079`, `SEC-031`, `ARCH-057`, `ARCH-080`, `EFF-108`, `EFF-107`
+  - Why/Problem: [Wave 1, L0] headers injected into a cached client's `fetch` (`service-client.registry.ts:~122-130`), `serviceAuthHeaders()`/ALS, raw `fetch` in business code (`reachability.service.ts:264,302,334,342`, `reachability.controller.ts:47,246`, `deployment-execution-workflow.service.ts:1011`, `mesh-initialization.service.ts:351-374`, `ownership-resolver.service.ts:42`), no timeouts/retries/breaker in the BFF.
+  - Do: build on `createEffectClient` over the existing `ServiceClientRegistry`; ~60-line `CircuitBreaker` (Ref, `Clock`-driven) and `Semaphore` bulkheads (docker 4 builds per node, git 8); never retry a 4xx/domain error; writes retry only with `Idempotency-Key`; `ServiceClients.Fake(routers)` serves siblings in process.
+  - Done when: a project test runs real identity logic with in-memory repos through the fake; breaker tests on `TestClock`.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#E1, effect-target-architecture.md#9.1, #9.3
+  - Design-impact (2026-10-26): `DEC-EFF-38` accepted (batch); skim-later flag: the in-house `CircuitBreaker` should be a simple `Schedule`-based one (not a bespoke ~60-line state machine). `DEC-EFF-36` fixes the write-retry contract (`Idempotency-Key`, 24 h); `DEC-EFF-21` makes this the only service client stack (BFF delegation regenerates over it, `EFF-190`).
+
+### F. Process, source, network egress (Wave Q: F1, F3, F5 are P0 vehicles)
+- [ ] `EFF-240` **F1 `CommandRunner`/`Process` (Bun spawn, no shell, allow-listed `exe`, args array, scoped child, SIGTERM -> grace -> SIGKILL on interrupt, output cap, `stream` of lines) — Wave Q, closes SEC-014/DEPLOY-031 shell injection** · NEW · P0 · M · Deps: `EFF-162`, `EFF-213`, `SEC-014`, `DEPLOY-031` · See also: `EFF-123`, `DEPLOY-049`, `DEPLOY-044`, `DEPLOY-017`, `SEC-040`, `DEPLOY-119`, `EFF-152`, `EFF-265`
+  - Why/Problem: [Wave Q, L0] `execSync` of the interpolated shell string `unzip -q "<filePath>" -d "<extractPath>"` (`shared/src/core/modules/git/git/services/git.service.ts:131-139` and the monolith copy), `Bun.spawn(["docker", ...])` in `DockerService` (`packages/nest/docker/src/services/docker.service.ts:~492-500`), `Bun.spawnSync` in `apps/setup/.../swarm-bootstrap.service.ts:173-287`, three separate spawn wrappers; mesh-agent `command-runner.ts:11-40` is the good port shape to promote.
+  - Do: `Command = { exe: AllowedExe; args; cwd?; env?: Redacted values; stdin? }`; `Redacted` env unwrapped only inside `run` and scrubbed from errors; `CommandRunner.Script` Test with argv/cwd assertions.
+  - Done when: `git.service.ts` no longer imports `child_process`; cancelling a running fake build kills the child (test).
+  - Status: partial (CommandRunner built on `Bun.spawn` in `packages/effect/infra/src/process`: no shell, per-consumer allow-list, parent env NOT inherited (`Bun.env`), Redacted env scrubbed from lines/errors, output cap, timeout, `detached` process group killed SIGTERM->SIGKILL on interrupt (`process.kill(-pid)`: the only way to signal a group, `Subprocess#kill` hits just the child), `stream`, `script` test double; 13 tests incl. grandchild-kill, run under the Bun runtime. NOT wired into git.service/docker.service/swarm-bootstrap/mesh-agent yet) — updated 2026-10-26 · Verified-in-code: yes · Source: effect-layers-catalog.md#F1, #3.1 wave Q
+- [ ] `EFF-241` **F2 `GitClient` (clone by sha/PR ref, credentials per call as `Redacted` via `GIT_ASKPASS` helper never in URL or argv, `--` terminators, validated branch names, URL validation through `SafeHttp` policy)** · NEW · P1 · M · Deps: `EFF-240`, `EFF-216`, `EFF-244` · See also: `DEPLOY-028`, `DEPLOY-029`, `DEPLOY-040`, `DEPLOY-043`, `SEC-013`, `SEC-040`, `DEPLOY-129`, `DEPLOY-102`, `DEPLOY-103`
+  - Why/Problem: [Wave 2, L0] `simpleGit()` in `git.service.ts` (`validateRepository` at `:119-129` with an unvalidated user URL, branch option injection), GitHub-app token plumbing in `git/github/**`.
+  - Do: `GitClient.Fixture({ repos })` Test; redact tokens from errors and build logs.
+  - Done when: private clone and PR ref clone work in tests; no token in argv.
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#F2
+- [ ] `EFF-242` **F3 `ArchiveExtractor` (pure TS zip/tar readers, magic-byte sniff, containment checked on the resolved path, symlink/hardlink rejection, setuid stripped, entry/byte/ratio/depth caps, `O_EXCL`, abortable) + hostile-archive Corpus — Wave Q, closes SEC-014/DEPLOY-031/SEC-040** · NEW · P0 · M · Deps: `EFF-240`, `EFF-216`, `SEC-014`, `DEPLOY-031`, `SEC-040` · See also: `DEPLOY-119`, `DEPLOY-032`, `DEPLOY-033`
+  - Why/Problem: [Wave Q, L0] `extractZip` shells out (injection, no traversal guard) and `extractTar` does `path.join(extractPath, header.name)` with no containment check (Zip-Slip, `git.service.ts:131-165`), sync `fs` calls, non-file entries silently skipped, `tar-stream` `next` not called on a write error.
+  - Do: `ArchiveError = UnsafePath | SymlinkEscape | TooManyEntries | TooLarge | UnsupportedFormat | Corrupt | NestingTooDeep`; run the same implementation over the in-memory `FileSystem`; fixtures: zip-slip, symlink escape, zip bomb; delete the monolith copy.
+  - Done when: hostile archives rejected; SEC-040/DEPLOY-119 archive tests green; `extractZip`/`extractTar` deleted.
+  - Status: partial -> WIRED in the live tier: `apps/api-services/shared/.../git.service.ts` now calls `ArchiveExtractor` (layer run at the Nest edge; `tar-stream` import and `execSync(unzip)` removed). Package: pure TS zip/tar/tar.gz readers; decompression via the web-standard `DecompressionStream` with a HARD output cap and abort support (`Bun.inflateSync`/`gunzipSync` have no cap); CRC via `Bun.hash.crc32`; containment on the resolved path + realpath of the parent, links/devices/fifos refused, setuid/setgid stripped, entry/byte/ratio/path/depth limits, create-only writes, rollback; 56 package tests + 8 GitService specs. Known limits: archive read into memory (bounded by maxArchiveBytes), zip names UTF-8 only, no zip64/encryption. NOT done: monolith copy (frozen), `tar-stream` is now an unused dependency of `shared` (remove via knip pass) — updated 2026-10-26 · Verified-in-code: yes · Source: effect-layers-catalog.md#F3, #3.1 wave Q
+- [ ] `EFF-243` **F4 `UploadStore` (server-owned upload path, size cap while streaming, sha256 + content sniff, durable registry, role check via Authz, expiry sweeper)** · NEW · P1 · M · Deps: `EFF-242`, `EFF-227`, `EFF-236` · See also: `DEPLOY-031`, `DEPLOY-032`, `DEPLOY-033`, `SEC-010`
+  - Why/Problem: [Wave 2, L0/L1] `uploadBundle` takes client-controlled paths, has no role check, no size cap, in-memory registry.
+  - Do: disk-backed under a configured root / in-memory Test; permission `deployment:upload`.
+  - Done when: oversized and cross-role uploads are refused (tests).
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#F4
+- [ ] `EFF-244` **F5 `SafeHttp` (SSRF-safe: scheme allow-list, DNS resolved once and pinned, private/metadata denied, redirects re-validated, size cap; `EgressPolicy.userSupplied`/`internal`) — Wave Q, closes NET-004 (P0) and SEC-013** · NEW · P0 · S · Deps: `EFF-162`, `NET-004`, `SEC-013` · See also: `OBS-019`, `NET-040`, `DEPLOY-049`, `NET-003`
+  - Why/Problem: [Wave Q, L0] raw `fetch` to user-influenced targets: `reachability.service.ts:264,302,334,342`, `reachability.controller.ts:47,246`, `network-probe.ts:119,195,233`, `swarm-route-verifier.ts:84`, `deployment-execution-workflow.service.ts:1011`, `docker.service.ts:886`.
+  - Do: `SafeHttp.request(req, policy)` with `signal`; `SafeHttp.Fake(routes)` and `.Record`; replace the call sites.
+  - Done when: `reachability.check`/`checkDomain`/`probePeer` cannot reach link-local/metadata hosts (tests).
+  - Status: partial (SafeHttp built Bun-native in `packages/effect/infra/src/net`: `Bun.dns.lookup` once per hop, EVERY answer validated, then `fetch` to the validated IP with the original authority as `Host`/SNI (`tls.serverName`), `redirect: "manual"` re-validated per hop, `proxy: false`, size cap, timeout, scheme/host allow-lists, injectable resolver, optional extra CA; verified with a real openssl-generated TLS server under Bun 1.4.4: the certificate is checked against the ORIGINAL hostname, a cert for another name is refused; 22 tests; `fake` test double. NOT wired into reachability/network-probe/route-verifier callers) — updated 2026-10-26 · Verified-in-code: yes · Source: effect-layers-catalog.md#F5, #3.1 wave Q
+
+### G. Container platform
+- [ ] `EFF-245` **G1 `DockerEngine` port (build/pull as `Stream`, container lifecycle, `inspectRedacted`, logs/exec/events streams, `waitHealthy` via `Schedule`, `listByLabel`); island adapter first, `FakeDocker`** · NEW · P1 · L · Deps: `EFF-240`, `EFF-244`, `EFF-262` · See also: `CLUSTER-006`, `CLUSTER-034`, `CLUSTER-057`, `CLUSTER-064`, `DEPLOY-056`, `DEPLOY-057`, `DEPLOY-059`..`DEPLOY-062`, `OBS-036`, `OBS-059`..`OBS-061`, `SEC-003`, `OBS-075`, `EFF-273`
+  - Why/Problem: [Wave 3, L0] `DockerService` (`buildImage:402`, `buildCompose:467`, `createAndStartContainer:517`, `performHealthCheck:859` with raw fetch `:886`, `waitForContainerHealth:915` fixed 30x2 s, `pullImage:1118` callbacks, `getDockerClient():1198` leaking dockerode), `docker.repository.ts`, supervisors; internals are not rewritten in this program (ports only).
+  - Do: `DockerError = EngineUnavailable | NotFound | Conflict | ImageNotFound | AuthRequired | CommandFailed`; `NestIsland.port(DockerService, DockerEngine)` first; per-node targets via the mesh agent (D-L8).
+  - Done when: the Docker UI domain is testable end to end without a daemon.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#G1
+- [ ] `EFF-246` **G2 `Swarm` port (services create/update/rollback/`waitConverged`, nodes, secrets/configs, join token, `leader()`) with pure `SwarmSpec` mapper kept; `FakeSwarm`** · NEW · P2 · L · Deps: `EFF-245` · See also: `CLUSTER-018`, `CLUSTER-042`, `CLUSTER-055`, `CLUSTER-056`, `CLUSTER-058`, `DEPLOY-058`..`DEPLOY-063`, `DEPLOY-127`, `SEC-005`, `CLUSTER-003`, `EFF-274`
+  - Why/Problem: [Wave 4, L0] swarm access is scattered across `packages/nest/{docker,swarm}` and runtime runners; join tokens are returned to every user.
+  - Do: island adapter over `packages/nest/swarm/src/services/*` then native; `swarm-spec.mapper.ts` stays a pure module.
+  - Done when: rolling update with auto-rollback is a tested behaviour on `FakeSwarm`.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#G2
+- [ ] `EFF-247` **G3 `Registry` + `RegistryAccounts` + `ImageStore` (retention GC pinned by manifests) + `ImageScanner`** · NEW · P2 · L · Deps: `EFF-245`, `EFF-257` · See also: `CLUSTER-049`..`CLUSTER-052`, `CLUSTER-057`, `CLUSTER-066`, `DEPLOY-037`, `DEPLOY-051`, `DEPLOY-052`, `DEPLOY-005`, `IDEA-016`..`IDEA-019`, `NET-079`
+  - Why/Problem: [Wave 4, L0] no registry credential store at all (CLUSTER-050), `scanner-container-manager.service.ts`, `removeImage` swallows errors, image GC without retention.
+  - Do: distribution-spec client + docker CLI; `FakeRegistry`; P2P image distribution (NET-079) is a second `Registry` implementation.
+  - Done when: multi-node deploys pull by digest on any node.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#G3
+- [ ] `EFF-248` **G4 `BuildPipeline` + `BuilderRegistry` + `RunnerRegistry` + `ReleaseManifestStore` (SUB-B domain): stages as `Effect.fn`, no `nginx:alpine` fallback, sealed content-addressed manifest, `FakeBuilder`/`FakeRunner`/`InMemory`** · NEW · P1 · L · Deps: `EFF-235`, `EFF-245`, `EFF-241`, `EFF-257`, `EFF-258`, `EFF-249`, `DEC-EFF-20` · See also: `DEPLOY-001`..`DEPLOY-006`, `DEPLOY-010`, `DEPLOY-011`, `DEPLOY-026`, `DEPLOY-038`, `DEPLOY-044`..`DEPLOY-050`, `DEPLOY-054`, `DEPLOY-076`, `IDEA-002`, `IDEA-039`, `IDEA-040`, `IDEA-042`, `IDEA-043`, `ARCH-034`, `EFF-125`
+  - Why/Problem: [Wave 3, L1] canonical P0 work stays in DEPLOY-001/011/044; today `RuntimeRunnerRegistryService` (`runtime-runner-registry.service.ts:12-40`, seven constructor-injected runners, string switch), `DeploymentArtifactBuilderService`, `DeploymentExecutionWorkflowService`, the three-way state-machine service, the monolith builder registry not ported, retry that re-resolves config.
+  - Do: `Builder<K>`/`Runner<K>` registries as Layers; `ReleaseManifestStore.seal/byId/latestFor/replayInput`; manifest store is runtime-owned, project reads via `ServiceClients` (default D-L3); builders written directly in this style (cutover step 4).
+  - Done when: a deploy runs end to end in a test on fakes in under a second; missing image fails the deploy.
+  - Status: todo (DEC-EFF-20 resolved 2026-10-26) · Verified-in-code: partial · Source: effect-layers-catalog.md#G4
+  - Design-impact (2026-10-26): `DEC-EFF-20` accepted: `ReleaseManifestStore` is runtime-owned (one owner per table); project reads it via `ServiceClients` (E1).
+- [ ] `EFF-249` **G5 `Saga` (compensation scope, persisted step log resumes compensation after a crash) behind a stable interface so `effect/workflow` can swap in** · NEW · P2 · M · Deps: `EFF-234`, `DEC-EFF-24` · See also: `CLUSTER-018`, `NET-062`, `DEPLOY-080`, `IDEA-043`, `IDEA-107`, `EFF-126`
+  - Why/Problem: [Wave 4, L1] ad hoc try/catch compensation in node removal and cascade deploy (DEPLOY-080 stored-but-inert).
+  - Do: `Saga.run(steps)` with `compensate` per step, uninterruptible, log in the `JobQueue` row; `Saga.Test` records order.
+  - Done when: remove-node saga resumes after a crash.
+  - Status: todo (DEC-EFF-24 resolved 2026-10-26) · Verified-in-code: no · Source: effect-layers-catalog.md#G5
+  - Design-impact (2026-10-26): `DEC-EFF-24` accepted: custom `Saga` behind a stable interface; a swap to `effect/workflow` after S5 (`EFF-177`) stays local.
+- [ ] `EFF-250` **G6 `Storage` (s3/local/nfs/volume) + `Backup`/`BackupSchedule` (encrypted with `SecretBox`, verified restore, retention) and a restore-drill harness** · NEW · P1 · L · Deps: `EFF-240`, `EFF-212`, `EFF-236`, `EFF-244` · See also: `FEAT-010`..`FEAT-016`, `IDEA-029`, `IDEA-030`, `IDEA-113`, `NET-091`, `CLUSTER-087`, `OPS-013`
+  - Why/Problem: [Wave 4, L0/L1] storage providers are class-based with Nest tokens (`runtime/.../deployment/storage/{local,nfs,s3,volume}/*`, `storage-provider-registry.service.ts`); no backup code exists (FEAT-010 is P0).
+  - Do: `BackupTarget = PostgresDb | Volume | PlatformSelf`; mesh-peer backup is `Storage.mesh` later; `Backup.Fake`.
+  - Done when: restore drill into a throwaway container passes its verification query.
+  - Status: todo · Verified-in-code: no · Source: effect-layers-catalog.md#G6
+
+### H. Health
+- [ ] `EFF-251` **H1 `Probe` + `Probes` + `Readiness` (`starting|ready|degraded|draining`) + `ProbeScheduler` + `HealthStore`: replaces `HealthRegistry`/`PreflightService`; `/health` liveness, `/health/ready` no I/O, `/health/detailed` last snapshot, `changes` via `EventBus`; T19 adapters during migration** · NEW · P1 · M · Deps: `EFF-231`, `EFF-213`, `EFF-217` · See also: `EFF-054`..`EFF-069`, `OBS-003`, `OBS-030`, `OBS-031`, `OBS-035`, `OBS-036`, `OBS-037`, `OBS-041`, `OBS-042`, `ARCH-065`, `ARCH-043`, `ARCH-051`, `NET-087`, `OBS-040`, `EFF-266`
+  - Why/Problem: [Waves 0 to 3, L0/L3] `HealthRegistry` (RxJS `BehaviorSubject` + `scan` + `shareReplay`, 5 `timeoutAfter` timers never cleared), `PreflightService` (`console.log`), Terminus adapters, `redis.indicator.ts:35` raw env, weak migrations check, inert `requestRefresh()`.
+  - Do: probes never fail (return `up|degraded|down`); jittered per-probe `Effect.timeout`; user-defined service probes run under a leader `Lease`; `Probes.Test` scripted with `TestClock`.
+  - Done when: health on Layers (`EFF-198`) with a heartbeat and no duplicate first emit.
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#H1
+
+### I. Edge and network
+- [ ] `EFF-252` **I1 `EdgeProvider` registry + `IngressPlan` + `EdgeState`: a provider is a Layer, not an `@Injectable` self-registering from its constructor; `EdgeState` over `ClusterSettings` with CAS, secrets sealed** · NEW · P2 · M · Deps: `EFF-223`, `EFF-212` · See also: `NET-007`, `SEC-022`, `NET-042`, `NET-049`, `NET-050`, `NET-051`, `NET-080`, `NET-081`, `IDEA-022`, `NET-002`, `NET-037`, `EFF-278`
+  - Why/Problem: [Wave 4, L0/L1] contract `shared/src/core/modules/edge/edge-provider.ts:1-118`, `edge-provider.registry.ts`, `EdgeStateStore` without CAS, header comment at `edge-provider.ts:20-26` documents the constructor-registration workaround.
+  - Do: re-type the contract with `Effect` and tagged errors; `Edge.Fake` from `edge-registry.fixture.ts`; provider by provider.
+  - Done when: adding an edge provider is a one-file Layer.
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#I1
+- [ ] `EFF-253` **I2 `Traefik` (config writer + `RouteVerifier`): routes from live service-domain mappings** · NEW · P2 · M · Deps: `EFF-223`, `EFF-240`, `EFF-244` · See also: `NET-015`, `NET-016`, `NET-023`, `NET-026`, `NET-043`, `SEC-047`, `NET-022`, `IDEA-044`, `IDEA-045`, `IDEA-035`, `EFF-277`
+  - Why/Problem: [Wave 4, L0] `shared/src/core/modules/traefik/**` (`traefik.repository.ts` 26 clock/id sites, `swarm-route-verifier.ts:84` raw fetch, `traefik-event.service.ts` console/Rx), legacy writers, `MANAGED_TRAEFIK_ENABLED` profile, config endpoint on the public host.
+  - Do: `applyRoutes`, `effectiveConfig`, `validate`; behaviour must not change before NET-015/016.
+  - Done when: weighted canary and per-route middlewares are expressible.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#I2
+- [ ] `EFF-254` **I3 `Dns` + `DnsAccounts` + Cloudflare adapter (converges exactly, tags records it created, tokens `Redacted` end to end)** · NEW · P1 · M · Deps: `EFF-244`, `EFF-212`, `EFF-227` · See also: `NET-001`, `NET-002`, `NET-005`, `NET-008`, `NET-017`, `NET-018`, `NET-030`, `NET-035`, `NET-036`, `NET-038`, `NET-039`, `NET-041`, `NET-103`, `SEC-002`
+  - Why/Problem: [Wave 4, L0] class-based providers in `fleet/src/modules/providers/dns/{cloudflare,shared}`, tunnel token returned to clients, anonymous `DnsProviderGateway` (`SEC-031` via E1), reachability DNS `fetch`.
+  - Do: `ensureRecordSet(zone, set, { owner })`, `remove`, `diff`; `Dns.Fake` plus the `mock-cloudflare` fixture.
+  - Done when: "create records for me" and wildcard certs work against the fake.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#I3
+- [ ] `EFF-255` **I4 `DomainVerification` (challenge, verify with `CurrentActor`, worker as `Worker` on a `Scheduler` with exponential backoff, ownership enforced at routing)** · NEW · P1 · M · Deps: `EFF-235`, `EFF-236`, `EFF-254` · See also: `NET-010`, `NET-011`, `NET-012`, `NET-013`, `NET-014`, `NET-024`, `NET-094`, `NET-006`, `NET-028`..`NET-033`, `OBS-041`, `NET-027`
+  - Why/Problem: [Wave 4, L1] `DomainVerificationService` (`domain-verification.service.ts:20-27`) with a `setInterval` auto-verification timer, dead helpers, `verifyProjectDomain` without the real requester.
+  - Do: store "what we saw" detail; retries of `failed`.
+  - Done when: custom domains are verified before routing (journey J3 / NET-100).
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#I4
+- [ ] `EFF-256` **I5 Mesh clients: `AgentApi`, `RosterReader`/`RosterWriter`, `MeshTrust`, `ReachabilityProbe`; `MeshFake` (roster + N fake agents + partitions); nodes never need an inbound port** · NEW · P2 · L · Deps: `EFF-240`, `EFF-212`, `EFF-244`, `DEC-EFF-25` · See also: `NET-072`..`NET-093`, `IDEA-004`, `IDEA-005`, `NET-057`..`NET-069`, `NET-044`, `NET-045`, `NET-047`, `SEC-036`, `EFF-115`, `EFF-276`, `NET-099`, `NET-102`
+  - Why/Problem: [Wave 4, L0] `shared/src/core/modules/mesh-agent/{mesh-agent.client.ts,mesh-admission.service.ts,cluster-settings.service.ts}`, `mesh/**` entity framework, hand-rolled HMAC in `mesh-trust.service.ts:60-71`, `mesh-peer-session.service.ts:175-179`, `fetch` + `x-mesh-internal-key` in `mesh-initialization.service.ts:351-374`.
+  - Do: control tier talks to nodes only via `AgentApi` (D-L8); capability-scoped authority and quorum belong to SUB-D (`IDEA-004`); mesh-first review checklist `EFF-296`.
+  - Done when: NET-099/NET-102 become testable with `MeshFake`.
+  - Status: todo (DEC-EFF-25 resolved 2026-10-26) · Verified-in-code: partial · Source: effect-layers-catalog.md#I5
+  - Design-impact (2026-10-26): `DEC-EFF-25` accepted (mesh-first invariant): control-tier services reach nodes only via `AgentApi` over the mesh, never SSH or direct Docker TCP; direct engine access is local-socket only.
+
+### J. Secrets and environment
+- [ ] `EFF-257` **J1 `SecretVault` (envelope encryption, `put/reveal/use/rotate/mask`, plaintext only inside `use`, reveal discipline with step-up and audit)** · NEW · P1 · L · Deps: `EFF-212`, `EFF-217`, `EFF-227`, `EFF-229` · See also: `PROJ-020`, `PROJ-021`, `PROJ-022`, `PROJ-023`, `PROJ-035`, `DEPLOY-023`, `DEPLOY-048`, `DEPLOY-063`, `CLUSTER-055`, `CLUSTER-056`, `SEC-021`, `IDEA-024`, `IDEA-027`, `IDEA-028`, `OBS-013`, `ARCH-013`, `ARCH-040`
+  - Why/Problem: [Wave 3, L1] vehicle of P0 PROJ-020; plaintext env JSONB (service/deployment/preview stores), `basicAuthPassword` and `webhookSecret` returned in clear, join tokens persisted in clear, `authSecretRef`/`secretRefs` unimplemented, half-shipped `0040_encrypt_environment_variable_values.sql`.
+  - Do: `SecretVault.InMemory` over the real `SecretBox.Real(KeyRing.Fixed)` so crypto paths are exercised.
+  - Done when: env vars are encrypted with AAD; no plaintext secret in specs, logs or reads.
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#J1
+- [ ] `EFF-258` **J2 `EnvStore` + `EnvResolver` (layers: project groups, environment, service, preview; `${{service.VAR}}` refs; build vs runtime; `ResolvedEnv` values redacted with a hash into the release manifest)** · NEW · P1 · L · Deps: `EFF-257`, `EFF-217` · See also: `PROJ-021`, `PROJ-024`..`PROJ-030`, `PROJ-034`, `DEPLOY-004`, `DEPLOY-048`, `IDEA-059`, `PROJ-029`, `PROJ-008`
+  - Why/Problem: [Wave 3, L1] inline env resolution in `deployment.service.ts` and runners (`runtime/.../runners/base`, `preview-env-overlay.service.ts`), template variables not scoped, no env-level variables.
+  - Do: `EnvResolver.resolve(service, env, { phase, preview? })`; env hash vs sealed manifest is the drift signal.
+  - Done when: a retry carries the same env hash (DEPLOY-004).
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#J2
+
+### K. Testing
+- [ ] `EFF-259` **K1 `TestKit` core: `InfraTest` (`AppConfig.fromRecord`, `IdGen.Sequential`, `Logger.Test`, `KeyRing.Fixed`, `SecretBox.Identity`, `Outbox.Recording`, `EventBus`, `RateLimiter.InMemory`, `Idempotency.InMemory`, `Claims.Fixed`), `Actor` fixtures, `Corpus` (hostile archives, malformed webhooks, signed GitHub/GitLab fixtures, JWS with wrong `aud`/`kid`/expiry), `TestClock` helpers** · NEW · P1 · L · Deps: `EFF-163`, `EFF-178`, `EFF-213` · See also: `EFF-030`, `EFF-032`, `EFF-151`..`EFF-158`, `SEC-044`, `OBS-081`, `OBS-082`, `DEPLOY-117`..`DEPLOY-119`, `DEPLOY-129`, `NET-099`, `AUTH-045`, `AUTH-046`
+  - Why/Problem: [Waves 0 to 4, all strata] the claim "0 type errors, high coverage" for the service tier needs fakes that land with each port; `vi.fn()` + `vi.clearAllMocks()` (root AGENTS section 7) is replaced by Test layers.
+  - Do: items land with the layer they test; behaviour-faithful fakes (same errors, same idempotency), no `vi.fn()` for ports.
+  - Done when: health and identity specs use the kit.
+  - Status: todo · Verified-in-code: no · Source: effect-layers-catalog.md#K1
+- [ ] `EFF-260` **`ContractHarness` (replaces `callProcedure`): runs the real `requestContext` + `authzFromMeta` + validation + handler + error mapping + output validation; `as(actor)`; generated 403 matrix from contract `meta.authz`; mutation test of the gate** · NEW · P1 · M · Deps: `EFF-163`, `EFF-188`, `EFF-224` · See also: `EFF-031`, `EFF-154`, `SEC-038`, `SEC-044`, `AUTH-045`, `OBS-083`
+  - Why/Problem: `callProcedure` (`packages/transport/orpc/src/testing/index.ts:29-35`) calls `~orpc.handler` directly, so health's controller spec never exercises auth.
+  - Do: `ContractHarness.make(router, infra)`; the oracle for the matrix is the role-definition table, independent of `evaluate`; removing `meta.authz` or the middleware must fail a test.
+  - Done when: a controller spec fails when the gate is removed from one controller (mutation test).
+  - Status: todo · Verified-in-code: partial · Source: effect-target-architecture.md#7.4, effect-layers-catalog.md#K1
+- [ ] `EFF-261` **e2e harness: `PgTestContainer` (one container per run, migrations once) + `PgTestDb` (rolled-back transaction per test, schema-per-file clone for commit-needing tests) + `TestApp` (several services' real `HttpEdge` on port 0, `ServiceClients.Fake` wired in process); replaces the shared e2e harness** · NEW · P1 · L · Deps: `EFF-217`, `EFF-179`, `EFF-196`, `EFF-163` · See also: `ARCH-036`, `ARCH-018`, `EFF-093`, `EFF-061`
+  - Why/Problem: `apps/api-services/shared/src/e2e-harness/shared-api-runtime` and per-service `src/e2e/runtime.ts` are the old harness; cutover steps 7-8 land here, not in the old files.
+  - Do: port the Postgres container logic (`EFF-196` is the minimal first slice); Playwright journeys (JRN-*) stay above.
+  - Done when: identity and project e2e run on `TestApp`.
+  - Status: todo · Verified-in-code: partial · Source: effect-target-architecture.md#7.5, #11.6 steps 7-8
+- [ ] `EFF-262` **Behavioural fakes with failure injection and nightly contract tests: `FakeDocker`, `FakeSwarm`, `FakeRegistry`, `GitClient.Fixture`, `CommandRunner.Script`, `MeshFake`** · NEW · P2 · L · Deps: `EFF-240`, `EFF-241`, `EFF-245`, `EFF-246`, `EFF-247`, `EFF-256`, `DEC-EFF-22` · See also: `NET-099`, `NET-102`, `NET-103`
+  - Why/Problem: fakes drift from real engines (catalog risk); `FakeDocker` is the highest-value fake in the repo (`fakeDocker.failNext("buildImage", ImageNotFound)`).
+  - Do: hand-rolled in-memory engines (default D-L5), the same suite runs against the fake and, nightly, against real Docker.
+  - Done when: the pipeline spec (`EFF-248`) cancels a held build on `FakeDocker` and asserts `cancelled` terminal CAS.
+  - Status: todo (DEC-EFF-22 resolved 2026-10-26) · Verified-in-code: no · Source: effect-layers-catalog.md#K1, #8.2
+  - Design-impact (2026-10-26): `DEC-EFF-22` accepted: hand-rolled behavioural `FakeDocker` with a nightly contract test against real Docker in CI (no recorded-fixture replay).
+- [ ] `EFF-263` **Wave gate and build order: Q (F3, F1, A2, F5) / 0 / 1 / 2 / 3 / 4; a layer lands with its Test layer, lint rule and first consumer (no consumer in the same wave = not built yet); the five pivots (A3+A1+A4+B1, A2+F1+F3+F5, C3+C2+C4, D2+D4+D5, K1)** · ENHANCE · P1 · S · Deps: `EFF-159` · See also: `EFF-197`
+  - Why/Problem: the catalog is not a mandate to build all 49 layers before shipping product; skipping A3 before D4, C3 before E1, `CurrentTx` before D2, F1 before G1/F2, D1 before H1 changes, J1 before D7 has named consequences.
+  - Do: encode the wave table and the "if you skip X" table in the conventions doc and PR template; Waves 3-4 are demand-driven.
+  - Done when: each layer item carries its wave and a PR cannot land a layer without Test + first consumer (review rule).
+  - Status: todo · Verified-in-code: n/a · Source: effect-layers-catalog.md#3, #8.2
+
+## Transformers T1-T22 (added 2026-10-26)
+> Small composable helpers that move a value or computation across a boundary; each boundary crossed in one named place, tested once, lint-enforced as the only allowed way. Source: `effect-layers-catalog.md` section 6.
+
+- [ ] `EFF-264` **T1 oRPC context -> Effect ambient (`requestContext`) and T22 request -> `Origin` (trusted-proxy rule)** · NEW · P1 · S · Deps: `EFF-224` · See also: `AUTH-012`, `AUTH-033`, `EFF-014`
+  - Why/Problem: [Wave 0/1, orpc] kills `actorFromContext`, `context.auth` plumbing, the `EffectServices` augmentation and trusting `x-forwarded-for`.
+  - Do: `originOf(req, trustedProxies)` with `via` web/cli/mcp/service from the claim.
+  - Done when: IP allow-lists use the verified origin only.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#6 T1, T22
+- [ ] `EFF-265` **T2 `fromAbortable` (+ stream variant), T3 callback/EventEmitter/Node stream -> scoped Effect/Stream, T13 child process -> line `Stream`, T14 Docker progress/NDJSON -> `Stream`** · NEW · P1 · M · Deps: `EFF-160`, `EFF-240` · See also: `EFF-020`, `DEPLOY-044`, `EFF-168`
+  - Why/Problem: [Wave 0/2/3] `Effect.tryPromise({ try })` ignoring the signal; manual `new Promise` + `.on("finish")` with no error path (`git.service.ts:141-165`); `pullImage` callback at `docker.service.ts:1118-1160`; build output not captured.
+  - Do: one helper per boundary in core/infra/platform; lint bans the unsafe forms.
+  - Done when: interruption reaches DB, child process and HTTP calls (tests).
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#6 T2, T3, T13, T14
+- [ ] `EFF-266` **T4 RxJS <-> `Stream` (`Stream.fromObservable` scoped unsubscribe, `toObservable`, `streamHandler`, `asObservable`) and T19 Terminus indicator -> `Probe`** · NEW · P1 · M · Deps: `EFF-187`, `EFF-251` · See also: `EFF-022`, `EFF-057`
+  - Why/Problem: [Wave 0/2] legacy producers (`packages/nest/events`, swarm events, `deployment-stream-bridge.service.ts`) and `HealthIndicatorResult` entries (`health-registry.service.ts`).
+  - Do: adapters live inside ports; `HealthIndicatorResult` wire shape kept during migration.
+  - Done when: domain code sees a `Stream`, never an `Observable`.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#6 T4, T19
+- [ ] `EFF-267` **T9 DB driver error -> typed error (`mapDbError` by SQLSTATE 23505/23503/40001 and constraint name) and T17 contract filter -> SQL predicate composed with `Authz.filter`** · NEW · P1 · M · Deps: `EFF-217`, `EFF-218` · See also: `EFF-095`, `SEC-034`, `EFF-080`
+  - Why/Problem: [Wave 0/1] check-then-write races and `UserServiceFailure({cause: unknown})`; per-service hand-written `where` builders.
+  - Do: `listBuilder`/`createFilterConfig` stay, wrapped once.
+  - Done when: a unique violation maps to a typed domain error with no pre-check.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#6 T9, T17
+- [ ] `EFF-268` **T5 Nest provider <-> Layer (`NestIsland.port`, `facade`, `EffectHost`), T10 legacy `AppError`/Nest exception -> tagged error, T11 class-method lifter (`liftMethods`), T12 Effect -> Promise facade (`runLegacy`)** · NEW · P1 · M · Deps: `EFF-166`, `EFF-182` · See also: `EFF-049`, `EFF-102`, `EFF-019`
+  - Why/Problem: [Wave 0, nest] hand-written wrappers around `DockerService`, `SwarmClusterService`, `ClusterSettingsService`; `Effect.runPromise` scattered in app code (CLI scripts, `apps/setup`, Playwright fixtures).
+  - Do: methods wrapped with T2 and mapped to `InfraError`; `runLegacy` only in `main.ts`, tests, facades.
+  - Done when: no hand-written island wrapper remains outside these helpers.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#6 T5, T10, T11, T12
+- [ ] `EFF-269` **T6 zod -> Effect bridges (`decodeZod`, `Config.zod`; no automatic zod-to-Schema conversion of domain entities) and T18 event envelope codec (`encodeEnvelope`/`decodeEnvelope` bridging `coreDomainEventEnvelopeSchema`)** · NEW · P2 · S · Deps: `EFF-160`, `EFF-232`, `EFF-041` · See also: `EFF-134`
+  - Why/Problem: [Wave 0/2] ad hoc `schema.parse()` throws inside `Effect.try`; ad hoc parsing in `local-event-outbox-dispatcher.service.ts`; DEC-EFF-6 (Effect Schema allowed in Effect-only payloads).
+  - Do: boundary decode returns typed `ValidationError`.
+  - Done when: no `parse()` throw inside `Effect.try` remains in migrated code.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#6 T6, T18
+- [ ] `EFF-270` **T7 Better Auth session -> `Actor` (`sessionToActor` + `BetterAuthSession` port, BFF only) and T21 contract meta -> authz catalog / 403 matrix / web capability manifest** · NEW · P1 · M · Deps: `EFF-225`, `EFF-188` · See also: `ARCH-055`, `EFF-082`, `SEC-038`, `FEAT-084`
+  - Why/Problem: [Wave 1] `createAuthMiddleware`/`AuthGuard` + `AuthPlugin` double lookup, `role ?? "user"`, `assertAuthenticated`; hand-written permission lists; `contract-leaves.ts` already walks leaves and is reused.
+  - Do: `accessFromContract(router)` generator for `it.each` matrices and web `useCan`.
+  - Done when: Better Auth is imported in exactly one place.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#6 T7, T21
+- [ ] `EFF-271` **T15 ISO string/`Date` -> `Clock`-aware time (`nowIso`, `parseIso`, `addDuration`) and T16 redaction guard (`redactDeep`, `Redacted` JSON-safe, lint on `Redacted.value` outside adapters)** · NEW · P1 · S · Deps: `EFF-213`, `EFF-160` · See also: `CLUSTER-006`, `DEPLOY-129`, `OBS-072`
+  - Why/Problem: [Wave 0] `new Date(now.getTime() + extendLeaseSec * 1000).toISOString()` (`deployment-queue-lifecycle.service.ts:214,319,615`); container inspect returning env in clear; tokens in clone errors.
+  - Do: repositories take `DateTime`/epoch, never `new Date()`; `redactDeep` for logs/errors/inspect/audit diffs.
+  - Done when: lint blocks both patterns in L1-L3.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#6 T15, T16
+- [ ] `EFF-272` **T20 legacy ciphertext reader (`LegacyCodecReader.open` for `salt:iv:tag:ct`, `upgrade(row)` to `SealedBox`), retired when the sweep reports zero legacy rows — Wave Q with A2** · NEW · P0 · S · Deps: `EFF-212` · See also: `SEC-016`, `ARCH-040`, `ARCH-013`, `EFF-208`
+  - Why/Problem: [Wave Q] existing ciphertexts must stay readable and be resealed lazily (`decryptSecret` at `codec-registry.ts:153+` with the `AUTH_SECRET`-derived key).
+  - Do: read old format, write new `{v, kid, ...}` format; count legacy rows.
+  - Done when: old values open and reseal; counter reaches zero.
+  - Status: partial: the legacy reader exists (`readLegacyCiphertext`, `isLegacyCiphertext`, verified against known-answer vectors from the old algorithm) and the registry still routes non-`enc:v1:` values to the unchanged legacy key provider; `reseal-secrets` reports remaining legacy rows. Retire both once every column reports remaining=0 — updated 2026-10-26 · Verified-in-code: partial · Source: effect-layers-catalog.md#6 T20, #3.1 wave Q
+
+## Nest islands during the migration (added 2026-10-26)
+> Rule: new code is always Layer-style; Nest code reaches Effect only through `facade(Tag)`; Effect reaches Nest only through `NestIsland.port(Token, Tag)`; islands are ports with a fake, so tests of new code never boot Nest. An island is deleted when the layer in "closed by" reaches its exit criterion. Source: `effect-layers-catalog.md` section 7. Each item is transitional.
+
+- [ ] `EFF-273` **Island: Docker engine access (`packages/nest/docker/src/services/docker.service.ts` ~1,300 lines, `abstract-docker-container.service.ts`, `base-docker-supervisor.service.ts`, `scanner-container-manager.service.ts`) exposed as `DockerEngine` port; closed by G1 native client** · ENHANCE · P2 · M · Deps: `EFF-166`, `EFF-245` · See also: `EFF-117`
+  - Why/Problem: heavy dockerode surface; rewriting internals is a non-goal of this program.
+  - Do: `NestIsland.port(DockerService, DockerEngine)` with `FakeDocker` for consumers; closes with the native socket client (Wave 4).
+  - Done when: no consumer imports `DockerService` directly.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#7
+- [ ] `EFF-274` **Island: Swarm services and election (`packages/nest/swarm/src/{services,election}`) exposed as `Swarm` port; closed by G2 native** · ENHANCE · P2 · S · Deps: `EFF-166`, `EFF-246`
+  - Why/Problem: election is tied to supervisors.
+  - Do: port over the existing services; `FakeSwarm`.
+  - Done when: consumers depend only on the `Swarm` tag.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#7
+- [ ] `EFF-275` **Island: supervisors and lifecycle (`packages/nest/supervisor-core`, `packages/nest/lifecycle`, `shared/src/core/modules/supervisors/**`) stay in the BFF process; each supervisor becomes a forked scoped fiber when its owner migrates; closed by D6 + H1 + D5 and BFF step 8** · ENHANCE · P2 · M · Deps: `EFF-166`, `EFF-236`, `EFF-251`, `EFF-205` · See also: `EFF-117`, `EFF-056`
+  - Why/Problem: Rx state machines; replaced per supervisor, not wholesale.
+  - Do: `AppLifecycleService` phases map to `Readiness` states for gating only.
+  - Done when: no supervisor depends on RxJS lifecycle classes.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#7, effect-target-architecture.md#8
+- [ ] `EFF-276` **Island: mesh entity framework and mesh services (`shared/src/core/modules/mesh/**`, `mesh-agent/*`) consumed as `AgentApi`/`RosterReader`/`RosterWriter` ports; closed by I5 and the NET-072 bundle** · ENHANCE · P2 · S · Deps: `EFF-166`, `EFF-256` · See also: `NET-072`
+  - Why/Problem: large, owned by the mesh moat track; ports only.
+  - Do: port over the existing client.
+  - Done when: control tier uses only the ports (D-L8).
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#7
+- [ ] `EFF-277` **Island: Traefik module (`shared/src/core/modules/traefik/**`, 11 interface files) exposed as `Traefik` port; behaviour must not change before NET-015/016; closed by I2** · ENHANCE · P2 · S · Deps: `EFF-166`, `EFF-253` · See also: `NET-015`, `NET-016`
+  - Why/Problem: wide interface surface.
+  - Do: port; no behavioural change.
+  - Done when: consumers use the `Traefik` tag.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#7
+- [ ] `EFF-278` **Island: edge providers and ingress services (`shared/src/core/modules/edge/**`, `platform-ingress/**`, `fleet/.../providers/**`) as an `EdgeProviders` registry Layer over class providers; closed by I1 provider by provider** · ENHANCE · P2 · S · Deps: `EFF-166`, `EFF-252`
+  - Why/Problem: constructor self-registration pattern.
+  - Do: migrate provider by provider.
+  - Done when: no provider registers itself from a constructor.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#7
+- [ ] `EFF-279` **Island: `ClusterSettingsService` (`shared/src/core/modules/mesh-agent/cluster-settings.service.ts`) as `ClusterSettings` port; closed by B7 native once NET-049 CAS lands** · ENHANCE · P2 · S · Deps: `EFF-166`, `EFF-223` · See also: `NET-049`
+  - Why/Problem: replicated through the agent; no CAS yet.
+  - Do: port, add CAS later.
+  - Done when: edge state uses the port.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#7
+- [ ] `EFF-280` **Island: global DB pool and local SQLite (`GlobalDatabaseService`, `BaseDatabaseService`, `packages/nest/database-local`, `local-db-supervisor.service.ts`): `Db` built from the pool through an `Effect.try` adapter (EFF-019) until `PgDbLive` owns the pool; closed by B1 (Wave 0 to 2) and `LocalDb` (B5, Wave 3)** · ENHANCE · P1 · M · Deps: `EFF-166`, `EFF-217`, `EFF-221` · See also: `EFF-019`, `ARCH-068`
+  - Why/Problem: pool initialisation is driven by lifecycle phases and SQLite config.
+  - Do: adapter then native pool ownership.
+  - Done when: no lifecycle-phase gating of DB access remains.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#7
+- [ ] `EFF-281` **Island: `EnvService` (`packages/nest/env/src/env.service.ts`) kept only as the zod schema source of `AppConfig`; deleted after A1 (Wave 0)** · ENHANCE · P2 · S · Deps: `EFF-211`
+  - Why/Problem: no use after A1 except as the zod source.
+  - Do: re-export schema, delete provider.
+  - Done when: no `EnvService` injection remains.
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#7
+- [ ] `EFF-282` **Island: Better Auth + its Nest plugin glue (`packages/auth`, `shared/src/core/modules/auth/**`, `shared/src/auth.ts`) BFF-only behind the `BetterAuthSession` port; services drop `AuthModule`; Better Auth is wrapped, never rewritten as a Layer (D-J)** · ENHANCE · P1 · M · Deps: `EFF-225`, `EFF-226`, `EFF-189`
+  - Why/Problem: it is a library with its own HTTP routes.
+  - Do: wrap (T7), mount its handler at `/api/auth/*` on `HttpEdge` at BFF step 8.
+  - Done when: only the BFF imports Better Auth.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#7
+  - Design-impact (2026-10-26): `DEC-EFF-35` accepted: Better Auth routes and setup SSE move at step 8 (`EFF-205`).
+- [ ] `EFF-283` **Island: Terminus health indicators (`shared/src/server/health/indicators/*`) via T19 adapters until each becomes a `Probe`; closed by H1 (Wave 0)** · ENHANCE · P2 · S · Deps: `EFF-251`, `EFF-266`
+  - Why/Problem: trivial, short-lived.
+  - Do: adapt then convert.
+  - Done when: no Terminus import remains.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#7
+- [ ] `EFF-284` **Island: RxJS event services (`packages/nest/events/*`, `shared/src/core/modules/events/**`, `triggers/base-bridge.service.ts`) behind T4 `Stream.fromObservable` ports; consumers move first, producers last; closed by D1/D2/D3 (Wave 2)** · ENHANCE · P2 · M · Deps: `EFF-266`, `EFF-231`, `EFF-232`, `EFF-233`
+  - Why/Problem: one mechanism must replace several Subject buses.
+  - Do: consumers on `Stream` first.
+  - Done when: no `Subject` bus remains in migrated services.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#7
+- [ ] `EFF-285` **Island: class-based domain services of unmigrated modules (project, runtime, fleet, identity analytics/push/permission): in-place Nest code; new procedures beside them are Layer-style; Nest -> Effect only through `facade`; strangler per procedure** · ENHANCE · P2 · S · Deps: `EFF-166`, `EFF-200`..`EFF-204` · See also: `EFF-092`, `EFF-117`
+  - Why/Problem: 143 `@Injectable` in `shared`, 83 in runtime, 36 in fleet (per audit); a service is "mixed" only between its first Effect module and its step.
+  - Do: label mixed services and remaining islands in `14-effect-services.md` (`EFF-118`); classic modules extended only for bug fixes.
+  - Done when: each service step reaches its exit criterion.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#7, effect-target-architecture.md#11.3
+- [ ] `EFF-286` **Island: runners, builders, storage providers (`runtime/.../runners/*`, `deployment/builders`, `deployment/storage/**`) wrapped as `Runner`/`Builder`/`Storage` Layers by thin adapters, swarm first; closed by G4/G6 (Waves 3-4)** · ENHANCE · P2 · M · Deps: `EFF-166`, `EFF-248`, `EFF-250`
+  - Why/Problem: seven runners and four storage providers.
+  - Do: port one at a time.
+  - Done when: registries are Layers.
+  - Status: todo · Verified-in-code: partial · Source: effect-layers-catalog.md#7
+- [ ] `EFF-287` **Island: BFF delegation generator output (`bff/src/modules/delegation/generated/*`, 18 files) stays Promise passthrough until the generator emits `.effect(handle(...))` over E1 (see `EFF-190`)** · ENHANCE · P3 · S · Deps: `EFF-190`, `EFF-239` · See also: `EFF-109`
+  - Why/Problem: mechanical; this catalog prefers regenerating once `ServiceClients` exists (D-L4).
+  - Do: regenerate at E1.
+  - Done when: see `EFF-190`.
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#7
+- [ ] `EFF-288` **Island: `apps/setup` (separate Nest app) calls Effect services through `runLegacy` (T12); out of scope of this program; `Bun.spawnSync` code moves to F1 later; `apps/web` is not an island (generated oRPC hooks unchanged, contract shapes do not change because of Effect)** · ENHANCE · P3 · S · Deps: `EFF-268` · See also: `EFF-096`
+  - Why/Problem: one-shot wizard; web keeps its hooks.
+  - Do: no action beyond T12 and the F1 move.
+  - Done when: `swarm-bootstrap.service.ts` uses `CommandRunner`.
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#7
+- [ ] `EFF-289` **Delete outright when their Layer lands (no shim): `collectEffectLayer`, `EffectServices` augmentation, `service-auth-context.ts`, `rate-limit.middleware.ts`, `local-event-outbox-*`, `callProcedure`, `codec-registry.ts` registry singleton, `HealthRegistry`/`PreflightService`, the monolith `extractZip`/`extractTar`** · ENHANCE · P2 · S · Deps: `EFF-166`, `EFF-226`, `EFF-230`, `EFF-233`, `EFF-260`, `EFF-212`, `EFF-251`, `EFF-242`
+  - Why/Problem: v3 rule: no compatibility layers; these are not islands.
+  - Do: delete each in the change that lands its replacement, with all consumers.
+  - Done when: none of the listed files exists.
+  - Status: todo · Verified-in-code: yes · Source: effect-layers-catalog.md#7
+
+## Risk-register mitigations (added 2026-10-26)
+> Source: `effect-target-architecture.md` 11.5 (R1-R13) and `effect-layers-catalog.md` 8.2. Mitigations already covered elsewhere: R5 `EFF-053`/`EFF-170`, R6 `EFF-178`, R8 `EFF-192`, R9 `EFF-118`, R10 `EFF-207`, R11 `EFF-169`, R13 `EFF-168`; catalog risks: fake drift `EFF-262`, package cycle `EFF-168`, pre-existing Nest classes rewritten twice (ports are the final shape, `EFF-273`..`EFF-288`).
+
+- [ ] `EFF-290` **R1 mitigation: oRPC 2 beta bump safety: exact pin, one named bump owner, every oRPC specific isolated in `effect-orpc`, contract type tests in CI, bump checklist; keep the "oRPC 2 stalls" trigger as the only reason to reopen DEC-EFF-17** · ENHANCE · P1 · S · Deps: `EFF-161`, `EFF-185`, `EFF-140` · See also: `EFF-139`, `EFF-133`
+  - Why/Problem: any beta bump can break `.effect()`/`effect/context` typing; likelihood M, impact H.
+  - Do: bump only with the typed-error and `handle` tests green.
+  - Done when: checklist exists and the policy is in the conventions doc.
+  - Status: todo · Verified-in-code: n/a · Source: effect-target-architecture.md#11.5 R1
+- [ ] `EFF-291` **R2 mitigation: depend on STABLE Effect modules only (Effect, Layer, Schema for payloads, Schedule, Config, Redacted, Stream, Scope, Metric, Logger, TestClock); wrap each unstable module (`process`, `sql`, `workflow`, `persistence`) behind our own port in one file; pin `effect` exactly** · ENHANCE · P2 · S · Deps: `EFF-141`, `EFF-168` · See also: `EFF-147`
+  - Why/Problem: unstable modules churn in minors (4.0.6 changed SQL transaction mode and persistence format).
+  - Do: lint import restriction for unstable subpaths outside one adapter file each.
+  - Done when: lint rule with a failing fixture.
+  - Status: todo · Verified-in-code: n/a · Source: effect-target-architecture.md#11.5 R2
+- [ ] `EFF-292` **R3 mitigation: `HttpEdge` regression guard: Playwright journeys (JRN-*) run against BOTH hosts before the shell is deleted; one-release `HOST` flag; CORS, `Set-Cookie`, compression, upload and SSE keep-alive checks** · ENHANCE · P1 · S · Deps: `EFF-173`, `EFF-179` · See also: `JRN-001`
+  - Why/Problem: new HTTP edge is the only real cost of the end state.
+  - Do: add a host matrix to the journey harness.
+  - Done when: journeys green on both hosts for health and identity.
+  - Status: todo · Verified-in-code: n/a · Source: effect-target-architecture.md#11.5 R3
+- [ ] `EFF-293` **R4 mitigation (fallback plan for S2 failure): transactions via `client.query` with manual repositories for the 11 transaction sites, `statement_timeout` as the safety net** · NEW · P3 · S · Deps: `EFF-174`
+  - Why/Problem: DB cancel/tx design may fail on Drizzle 0.45 (L likelihood, H impact).
+  - Do: document the fallback and the decision trigger.
+  - Done when: fallback documented; used only if S2 fails.
+  - Status: todo · Verified-in-code: n/a · Source: effect-target-architecture.md#11.5 R4
+- [ ] `EFF-294` **R7 mitigation: scope-creep gate: "migrate what the next substrate needs" per step, no rewrite of `packages/nest/*` internals or schemas, PR template question "which substrate or P0 item does this unblock?"** · ENHANCE · P2 · S · Deps: `EFF-159` · See also: `EFF-263`
+  - Why/Problem: scope creep is H likelihood, H impact.
+  - Do: add the gate to the PR template and non-goals list.
+  - Done when: template updated.
+  - Status: todo · Verified-in-code: n/a · Source: effect-target-architecture.md#0 Non-goals, #11.5 R7
+- [ ] `EFF-295` **R12 mitigation: boot test of the built artifact in CI (`bun dist/main.js` + `/health/ready`); `--packages=external` stays allowed for services with unbundleable deps (Drizzle drivers, Better Auth)** · NEW · P1 · S · Deps: `EFF-170`, `EFF-179` · See also: `EFF-043`
+  - Why/Problem: a full `bun build` bundle can miss dynamic requires.
+  - Do: CI step per service; record exceptions per service.
+  - Done when: each migrated service has a built-artifact boot test.
+  - Status: todo · Verified-in-code: no · Source: effect-target-architecture.md#11.5 R12, DEC-EFF-9
+- [ ] `EFF-296` **Mesh-first review checklist for every layer: no central always-on coordinator, `Lease` only within the control tier's Postgres, node-facing work only through `AgentApi`, node-local layers never the system of record for cluster facts** · NEW · P2 · S · Deps: `EFF-263` · See also: `EFF-256`, `EFF-221`
+  - Why/Problem: a convenience layer could violate the operator's mesh-first, no-inbound-ports invariant (MEMORY.md).
+  - Do: add to the PR template and the conventions doc review list.
+  - Done when: checklist referenced from the PR template.
+  - Status: todo · Verified-in-code: n/a · Source: effect-layers-catalog.md#0.1 rule 10, #8.2
+- [ ] `EFF-297` **Verify no code still imports `@repo/*` after the `@deployer` scope rename (`scripts/migrate-repo-scope.ts`); add a CI/lint check that fails on any `@repo/` import or dependency** · NEW · P1 · S · Deps: none · See also: `EFF-160`, `ARCH-010`
+  - Why/Problem: `DEC-EFF-37` fixes the scope `@deployer/effect-*` but the rename is known to be incomplete (e.g. 4 imports in `apps/api/src/app.module.ts`, `ARCH-010`); new packages must not land on a half-renamed workspace.
+  - Do: grep `@repo/` across all workspaces (imports, `package.json` deps, tsconfig paths, vitest/eslint configs); finish the rename where hits remain; add a guard (lint rule or script wired into `bun check --no-script`) so it cannot regress.
+  - Done when: grep returns zero hits and the guard runs in `bun check --no-script`.
+  - Status: todo · Verified-in-code: partial · Source: DEC-EFF-37 resolution (2026-10-26), effect-target-architecture.md#12 D-12
+
+## Decisions needed
+- [x] DEC-EFF-1 Services as Layers or as Nest instances (D1)? — (a) keep Nest-built classes but inject dependencies by constructor and expose methods with `R = never`; (b) `Layer.effect` owned by Effect (cleaner types, scoped resources, loses Nest DI/module override testing); (c) status quo with `R` leaking — recommendation: (a) now, revisit (b) when the infra layer exists; blocks `EFF-010`, `EFF-021`. **Resolved: 2026-10-26 FLIPPED to option (b): services are Effect Layers (`Layer.effect`), Effect owns construction and lifecycle; option (a) survives only as the transition (thin Nest shell during the cutover); public service method `R` is limited to Ambient (`CurrentActor | Correlation`), enforced by type tests. Answer given in chat; recorded in `docs/qa/effect/architecture.md`. Design: `effect-target-architecture.md`, `effect-layers-catalog.md`; items `EFF-159`..`EFF-296`.**
+- [x] DEC-EFF-2 Error model and mapping (D2): `effect/wrap` plus `_tag -> ORPCError` table, tagged-per-failure vs one wrapper; defect policy? — recommendation: tagged-per-failure with one shared table; 500 + correlation id for defects; refactor identity before porting more. **Resolved: 2026-10-26 accepted as recommended: tagged-per-failure with one shared table (realised BY KIND, `EFF-182`); 500 + correlation id for defects; refactor identity before porting more. Answer given in chat.**
+- [x] DEC-EFF-3 Actor/request context (D3): `CurrentActor` Effect service populated by `effect/wrap`, replacing `actorOf(context)`; BFF forwards cookie (today) or signed actor claim (what `ARCHITECTURE.md` says); remove ALS? — recommendation: Effect service plus signed actor claim aligned with `DEC-ARCH-4`; ALS removed after verification. **Resolved: 2026-10-26 accepted as recommended: Effect service plus signed actor claim aligned with `DEC-ARCH-4`; ALS removed after verification (`EFF-226`, `EFF-239`, `EFF-199`). Answer given in chat.**
+- [x] DEC-EFF-4 Transactions and cancellation (D4): fiber-scoped `tx` service vs per-repository units of work; mandatory `AbortSignal` in `tryPromise`? — recommendation: fiber-scoped `Db` service for cross-repository units, per-repository for simple cases, signal mandatory. **Resolved: 2026-10-26 accepted as recommended: fiber-scoped `Db` service for cross-repository units, per-repository for simple cases, signal mandatory (`EFF-217`). Answer given in chat.**
+- [x] DEC-EFF-5 Streaming (D5): RxJS stays (reconcile sample plugin with `packages/transport/orpc/src/observable`) or move to Effect `Stream`? — recommendation: RxJS remains the transport lingua franca (consistent with `packages/nest/events`), Effect wraps construction; migrate stream by stream only for new code. **Resolved: 2026-10-26 accepted as recommended: RxJS remains the transport lingua franca, Effect wraps construction; migrate stream by stream only for new code (`EFF-187`). Answer given in chat.**
+- [x] DEC-EFF-6 zod vs Effect Schema (D6): confirm zod only at contracts and config; no Effect Schema in domains; which TaggedError flavour? — recommendation: confirm and lint; `Data.TaggedError` in-process, `Schema.TaggedError` only if serialised across processes. **Resolved: 2026-10-26 accepted WITH ADJUSTMENT: zod at contract and config edges; Effect Schema is ALLOWED inside workflow, queue and config code (job payloads, outbox event bodies, claims, config) and this is stated explicitly in the conventions doc and lint (`EFF-041`, `EFF-168`); `Data.TaggedError` in-process, `Schema.TaggedError` only if serialised across processes. Answer given in chat.**
+- [x] DEC-EFF-7 Versions (D7): Nest 12 vs 11 and TS 7 vs 5.9 target, when the catalog moves, exact `@orpc/*` beta pin and who owns bumps? — recommendation: keep Nest 11/TS 7 through the cutover, pin oRPC and effect exactly, sample moves to the catalog; revisit Nest 12 after cutover. **Resolved: 2026-10-26 accepted as recommended: keep Nest 11 and TS 7 through the cutover, pin oRPC and effect exactly, sample moves to the catalog; revisit Nest 12 after cutover. Answer given in chat.**
+- [x] DEC-EFF-8 One class per file (D8): amend `apps/api-services/AGENTS.md` to allow key+impl together or split `*.tag.ts`/`*.impl.ts`? — recommendation: amend the rule for tag+impl pairs only (health/sample already do this). **Resolved: 2026-10-26 accepted as recommended: amend the rule for tag+impl pairs only; under full Effect there is no `Impl` class (tag and `Live` in one file, `*.test-layer.ts` apart; `EFF-183`). Answer given in chat.**
+- [x] DEC-EFF-9 Bundling (D9): is `bun build --packages=external` accepted, superseding "never `bun build` an app"; verify Nest metadata? — recommendation: accept after a boot test of the built output. **Resolved: 2026-10-26 accepted as recommended: accept after a boot test of the built output (`EFF-295`). Answer given in chat.**
+- [x] DEC-EFF-10 Sample's fate (D10): keep as non-CI showcase, fold into `docs/` and delete, or promote into the workspace and CI? — recommendation: fold into docs and delete after Template v1. **Resolved: 2026-10-26 accepted WITH ADJUSTMENT (instead of fold-and-delete): delete the sample's duplicated runtime and make it a thin consumer of `@deployer/nest-effect` (later the `effect-*` packages) inside the workspace, with its tests in CI (`EFF-172`). Answer given in chat.**
+- [x] DEC-EFF-11 Mixed-mode services (D11): are partially migrated services (identity) acceptable on `main`, and what is the facade for non-Effect consumers? — recommendation: acceptable if labelled and tracked (`EFF-118`), facade for consumers. **Resolved: 2026-10-26 accepted as recommended: acceptable if labelled and tracked (`EFF-118`), facade for consumers (transitional, `EFF-166`). Answer given in chat.**
+- [x] DEC-EFF-12 Observability (D12): adopt OTel (none in the repo today) with an Effect tracer, or defer and standardise on correlation-id logging first? — recommendation: correlation-id logging first, OTel traces-only next. **Resolved: 2026-10-26 accepted as recommended: correlation-id logging first, OTel traces-only next (`EFF-214`, `EFF-215`, `EFF-176`). Answer given in chat.**
+- [x] DEC-EFF-13 mesh-agent (D13): own Effect-native template or leave non-Effect? — recommendation: Effect-native template, in parallel, after a binary-size check. **Resolved: 2026-10-26 accepted WITH ADJUSTMENT: Effect-native template, but DEFER the mesh-agent Effect migration until after Phase 2; low priority (`EFF-115`, `EFF-206`). Answer given in chat.**
+- [x] DEC-EFF-14 Health supervisors field: BFF roll-up, service-token call to the BFF, or drop? — recommendation: drop from `svc-health` and keep supervisors in the BFF platform view. **Resolved: 2026-10-26 accepted as recommended: drop from `svc-health`, keep supervisors in the BFF platform view (`EFF-056`). Answer given in chat.**
+- [x] DEC-EFF-15 Role assignment at `user.create`: add `role` to the contract or remove the dead service path? — recommendation: add it with the hierarchy rule enforced. **Resolved: 2026-10-26 accepted as recommended: add `role` to `user.create` with the hierarchy rule enforced (`EFF-075`). Answer given in chat.**
+- [x] DEC-EFF-16 Identity writes to auth tables: via Better Auth admin API or direct writes plus audit event? — recommendation: via Better Auth for bans/roles so hooks and session revocation apply. **Resolved: 2026-10-26 accepted as recommended: via Better Auth for bans and roles so hooks and session revocation apply (`EFF-077`). Answer given in chat.**
+- [x] DEC-EFF-17 Effect everywhere vs hybrid, and oRPC 2 beta pin: remain hybrid (Nest + oRPC + Effect for logic) vs adopt `effect/http-api`/`effect/workflow` if oRPC 2 stalls or the workflow spike passes? — recommendation: hybrid; revisit only on those triggers. **Resolved: 2026-10-26 FLIPPED to full Effect: Effect owns the process, Nest is a transitional shell then an application-context-only island that shrinks to zero, oRPC stays the contract and transport, `effect/http`/`effect/http-api`/`effect/rpc` stay rejected; the old revisit triggers (oRPC 2 stalls, workflow spike passes) are kept only as risk notes (`EFF-290`, `EFF-177`). Answer given in chat.**
+
+### Decisions raised by the full-Effect design docs (added 2026-10-26; all resolved 2026-10-26 by the operator's "accept all" with refinements)
+- [x] DEC-EFF-18 (D-L1, catalog) Create `@deployer/effect-platform` (adapters) and `@deployer/effect-authz` as separate packages beside the four planned? — (a) yes, both; (b) fold both into `effect-infra` (breaks "mesh-agent depends on effect-core plus the Bun-only subset of infra" and drags Drizzle schema owners and Better Auth types into infra) — recommendation: (a) yes, both; needed by Wave Q/1; affects `EFF-164`, `EFF-165`. Resolved: 2026-10-26 accepted (a): both packages, separate.
+- [x] DEC-EFF-19 (D-L2, catalog) Column encryption: explicit `seal/open` in repository mappers (async, no global registry) vs a Drizzle custom type with a sync codec over a pre-resolved key — recommendation: explicit seal/open; keep a thin sync adapter only for the transition of already-typed columns; needed by Wave Q; affects `EFF-212`. Resolved: 2026-10-26 accepted: explicit seal/open in repository mappers; thin sync adapter only for the transition of already-typed columns.
+- [x] DEC-EFF-20 (D-L3, catalog) Where does `ReleaseManifestStore` live: runtime-owned table with project reading through `ServiceClients`, vs a shared table? — recommendation: runtime-owned, project reads via E1 (one owner per table); needed by Wave 3; affects `EFF-248`. Resolved: 2026-10-26 accepted: runtime-owned, project reads via E1.
+- [x] DEC-EFF-21 (D-L4, catalog) Regenerate the 18 BFF delegation controllers as `.effect(handle(...))` over `ServiceClients` (kills the Promise client stack, `ARCH-058`) vs leave them (`EFF-109`)? — recommendation: regenerate (script change only); needed by Wave 1; affects `EFF-190`, `EFF-109`, `EFF-287`. Resolved: 2026-10-26 accepted: regenerate (script change only).
+- [x] DEC-EFF-22 (D-L5, catalog) `FakeDocker`: hand-rolled behavioural in-memory engine vs recorded-fixture replay? — recommendation: hand-rolled, with a contract test run against real Docker nightly in CI; needed by Wave 3; affects `EFF-262`, `EFF-245`. Resolved: 2026-10-26 accepted: hand-rolled with nightly real-Docker contract test.
+- [x] DEC-EFF-23 (D-L6, catalog) Notification channel config storage: `SecretVault` per-channel sealed JSON vs one encrypted blob per project? — recommendation: per-channel; needed by Wave 3; affects `EFF-237`, `EFF-257`. Resolved: 2026-10-26 accepted: per-channel sealed JSON.
+- [x] DEC-EFF-24 (D-L7, catalog) `Saga` custom (G5) vs `effect/workflow` (S5 outcome)? — recommendation: custom behind the same interface so a swap is local; needed by Wave 3/4; affects `EFF-249`, `EFF-126`, `EFF-177`. Resolved: 2026-10-26 accepted: custom Saga behind the same interface.
+- [x] DEC-EFF-25 (D-L8, catalog) Do control-tier services talk to nodes only via `AgentApi` (mesh), never SSH or direct Docker TCP (mesh-first invariant)? — recommendation: yes; any direct engine access is local-socket only; needed by Wave 4; affects `EFF-256`, `EFF-245`. Resolved: 2026-10-26 accepted: yes, `AgentApi` only; direct engine access local-socket only.
+- [x] DEC-EFF-26 (D-1, target) Does S1 pass (`OpenAPIHandler` on `Bun.serve` with SSE and uploads)? If not, stay on the thin Nest shell (a) permanently for HTTP only and keep islands — recommendation/default: (a) as fallback; blocks the phase-2 flip in `EFF-179`, `EFF-198`. Resolved: 2026-10-26 accepted as default: thin Nest shell for HTTP only until spike S1 passes; the flip in `EFF-179`/`EFF-198` stays gated on the S1 test outcome (`EFF-173`), so those items remain blocked on S1 itself.
+- [x] DEC-EFF-27 (D-2, target) Claim signature scheme final: EdDSA JWS (recommended) vs reusing Better Auth's JWT plugin keys — recommendation/default: EdDSA JWS via `KeyRing`; needed by step 2; affects `EFF-226`, `EFF-199`. Resolved: 2026-10-26 accepted: EdDSA JWS via `KeyRing`.
+- [x] DEC-EFF-28 (D-3, target) Where `KeyRing` public keys are published to services: BFF `/.well-known/keys` (recommended) vs a shared table read by every service — recommendation/default: BFF endpoint; needed by step 2; affects `EFF-191`. Resolved: 2026-10-26 accepted with refinement: BFF serves `/.well-known/keys` while trust is pinned in the mesh roster at setup (reconciles with `DEC-AUTH-11`).
+- [x] DEC-EFF-29 (D-4, target) Per-service Postgres roles generated from `TABLE_OWNERSHIP` (the only hard ownership boundary): do it now or after cutover? — recommendation/default: after cutover; affects `EFF-193`, `EFF-220`. Resolved: 2026-10-26 accepted: after cutover, but add the ownership-guard test now.
+- [x] DEC-EFF-30 (D-5, target) S5 outcome: SQL worker vs `effect/workflow` — recommendation/default: SQL worker; needed by step 5; affects `EFF-177`, `EFF-234`, `EFF-202`. Resolved: 2026-10-26 accepted: SQL worker default (S5 may only overturn it).
+- [x] DEC-EFF-31 (D-6, target) Outbox/job store per service: Postgres everywhere vs `LocalDb` (sqlite) for the runtime-local queue and outbox (no cross-store atomicity either way) — recommendation/default: Postgres for outbox and job queue; sqlite only for build cache and process table; needed by steps 4-5; affects `EFF-221`, `EFF-232`, `EFF-234`. Resolved: 2026-10-26 accepted: Postgres for outbox/job queue; the architecture note must state that platform state in Postgres is a coordinator while the data plane stays peer-equal.
+- [x] DEC-EFF-32 (D-7, target) OTel enablement date (traces) after correlation-id logging is in — recommendation/default: after step 3 (identity); affects `EFF-026`, `EFF-176`, `EFF-215`. Resolved: 2026-10-26 accepted: after step 3.
+- [x] DEC-EFF-33 (D-8, target) Vitest 5 compatibility of the SWC toolchain (S6) and whether to keep SWC for the shell phase or force services off decorators faster — recommendation/default: keep the SWC config for shell-phase services; affects `EFF-178`, `EFF-195`. Resolved: 2026-10-26 accepted: keep SWC for shell-phase services.
+- [x] DEC-EFF-34 (D-9, target) mesh-agent binary-size budget (S3) — recommendation/default: +8 MB over today's `bun build --compile`; needed by step 9 (deferred); affects `EFF-175`, `EFF-206`, `EFF-116`. Resolved: 2026-10-26 accepted: +8 MB.
+- [x] DEC-EFF-35 (D-10, target) BFF HTTP edge: keep Nest for Better Auth routes and setup SSE until step 8, or move them earlier? — recommendation/default: step 8; affects `EFF-205`, `EFF-282`. Resolved: 2026-10-26 accepted: step 8.
+- [x] DEC-EFF-36 (D-11, target) Idempotency-key contract for write procedures called by workers (header name, storage, TTL) — recommendation/default: `Idempotency-Key` header, 24 h, table `idempotency_keys` per owner; affects `EFF-222`, `EFF-239`. Resolved: 2026-10-26 accepted as recommended.
+- [x] DEC-EFF-37 (D-12, target) Naming: confirm the `@deployer/effect-*` package scope (repo rename to `@deployer` is done per `scripts/migrate-repo-scope.ts` but some code still imports `@repo/*`, cutover section 1) — recommendation/default: `@deployer/effect-*`; needed by step 0; affects `EFF-160`..`EFF-165`. Resolved: 2026-10-26 accepted: `@deployer/effect-*`, but first verify no code still imports `@repo/*` (check item added: `EFF-297`).
+- [x] DEC-EFF-38 (D-A..D-Q, target 12.1) Confirm the decisions made by the target-architecture doc itself (Effect owns the process; `HttpEdge` end state; errors by kind; `CurrentActor` without default and `Ambient` in `R`; per-request context merged by middleware; tag + `Live` in one file; transaction design with `CurrentTx` and savepoints; services never migrate at boot and verify the journal head; EdDSA claims with 30 s TTL; services drop Better Auth; five `effect-*` packages; Vitest 5 first; hand-rolled `runMain`; probes/readiness replace `HealthRegistry`; resilience classes and in-house `CircuitBreaker`; mandatory `meta.authz`; polled outbox consumers) — recommendation: accept as written; the operator accepted the headline (full Effect) but not each sub-decision explicitly; recorded in `docs/qa/effect/architecture.md`. Resolved: 2026-10-26 accepted as written (batch); two items to skim later: in-house `CircuitBreaker` should be a simple `Schedule`-based one (`EFF-239`), and `runMain` stays hand-rolled (`EFF-180`). Recorded in `docs/qa/effect/target-architecture-and-catalog.md`.
+
+> Decisions pass: 2026-10-26 — 21 decisions resolved, 13 items unblocked

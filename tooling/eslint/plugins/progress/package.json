@@ -18,7 +18,10 @@
         "build": "bun --bun pkg-build",
         "build:types": "bun --bun pkg-build --types",
         "dev": "bun --bun pkg-build --watch",
-        "type-check": "bun --check"
+        "prettify": "bun fmt .",
+        "format": "bun run prettify",
+        "format:check": "bun fmt --check .",
+        "type-check": "bun check --no-script"
     },
     "dependencies": {
         "nanospinner": "^1.2.2",

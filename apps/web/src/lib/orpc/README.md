@@ -98,8 +98,8 @@ abortController.abort()
 import { useState } from 'react'
 import { orpc } from '@/lib/orpc'
 import { withFileUploads, type FileUploadProgressEvent } from '@/lib/orpc/withFileUploads'
-import { Button } from '@repo/ui/button'
-import { Progress } from '@repo/ui/progress'
+import { Button } from '@deployer/ui/button'
+import { Progress } from '@deployer/ui/progress'
 
 export function FileUploadExample() {
   const orpcWithUploads = withFileUploads(orpc)

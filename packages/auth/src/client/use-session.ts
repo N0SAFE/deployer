@@ -105,7 +105,7 @@ export interface CreateUseSessionOptions<TData> {
  * @example
  * ```ts
  * // In your app's auth setup
- * import { createUseSession } from '@repo/auth/client/index'
+ * import { createUseSession } from '@deployer/auth/client/index'
  * import { authClient } from '@/client/options'
  * 
  * export const useSession = createUseSession({

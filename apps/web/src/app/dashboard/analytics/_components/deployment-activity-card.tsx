@@ -1,9 +1,11 @@
 'use client'
 
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@repo/ui/components/shadcn/chart'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@deployer/ui/components/shadcn/chart'
 import { CardBody, DataSourceBadge } from './card-states'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { AuthDashboardProjects } from '@/routes'
 
 const config = {
 	deployments: { label: 'Deployments', color: 'var(--chart-1)' },
@@ -28,7 +30,8 @@ export function DeploymentActivityCard({
 			</CardHeader>
 			<CardContent>
 				<CardBody loading={loading} error={error} onRetry={onRetry} empty={total === 0 && rollbacks === 0} height="h-64"
-					emptyText="No deployments were recorded in this range. Deploy a service, or pick a longer range.">
+					emptyText="No deployments were recorded in this range. Deploy a service, or pick a longer range."
+					emptyAction={<Button asChild size="sm" variant="outline"><AuthDashboardProjects.Link>Go to projects</AuthDashboardProjects.Link></Button>}>
 					<ChartContainer
 						config={config} className="h-64 w-full" role="img"
 						aria-label={`Bar chart: ${String(total)} deployments and ${String(rollbacks)} rollbacks over ${rangeLabel}. The same numbers are in the table below for screen readers.`}

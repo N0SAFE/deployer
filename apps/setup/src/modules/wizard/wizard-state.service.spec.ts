@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { WizardStateService } from "./wizard-state.service";
-import type { NodeConfigRepository } from "@repo/nest-nodes/node-config.repository";
+import type { NodeConfigRow } from "@deployer/nest-nodes/node-config.repository";
+import type { NodeConfigReader } from "./node-config.port";
 
 /**
  * These are the wizard's PRE-GATE reads — the first thing its first render asks
@@ -17,9 +18,21 @@ import type { NodeConfigRepository } from "@repo/nest-nodes/node-config.reposito
  * reporting `not_started` for a genuinely complete node would re-run onboarding
  * on a working platform.
  */
+/**
+ * A service backed by a partial row.
+ *
+ * The input is a loose record on purpose: a fixture sets only the two or three
+ * columns the assertion is about, while `NodeConfigRow` requires every column of
+ * the table. The cast lives HERE, once, at the boundary between "the columns this
+ * test cares about" and "the full row type" — rather than at each call site, which
+ * is what the previous `Record<string, unknown>` signature forced and why the port
+ * could not be satisfied.
+ */
 function makeService(row: Record<string, unknown> | null) {
-  const repo = { find: vi.fn(() => row) };
-  return new WizardStateService(repo as unknown as NodeConfigRepository);
+  const repo: NodeConfigReader = {
+    find: () => (row === null ? null : (row as NodeConfigRow)),
+  };
+  return new WizardStateService(repo);
 }
 
 describe("WizardStateService", () => {

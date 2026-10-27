@@ -13,7 +13,7 @@ import {
     getZodDefault,
     getZodKind,
     unwrapZodSchema,
-} from '@repo/use-safe-query-param-states-from-zod/schema'
+} from '@deployer/use-safe-query-param-states-from-zod/schema'
 
 /**
  * Recursively compute defaults for a Zod object schema.

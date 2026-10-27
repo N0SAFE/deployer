@@ -1,0 +1,556 @@
+# DOCKER / SWARM / CLUSTER / FLEET roadmap
+> Owner prefix: CLUSTER · Sources: docker-cluster.md, journeys.md (J5, quick wins #6/#7/#16, §8-9), bench-dokploy-dockhand.md, bench-coolify.md, parity.md (docker rows, gaps #6/#7/#14) · Last verified: 2026-10-26
+
+## Summary
+The Docker/Swarm layer is broad but largely unguarded and partly facade. Swarm bring-up, join grants, supervisors, container list/inspect/logs/exec/files over the mesh and the image scan pipeline are real. Everything else is thin: every docker/cluster/fleet procedure is `requireAuth()` only, join tokens leak to any logged-in user, node health is wrong (crashed nodes show active), election is a per-node SQLite CAS with fake metrics, node lifecycle (drain/promote/remove) does not exist, remote container actions fail on peers, and several UI paths lie (create container, pull, approve allocation, role label, cluster page without quorum guard).
+Multi-node swarm cannot work for real because images are never pushed to a registry, registries have no credentials, volumes are per-deployment and replicas are hardcoded to 1. Fleet rollout/readiness/drift services are dead code, capacity/allocations are not enforced, nothing frees disk. All fixes land twice until `apps/api` is deleted (ARCH).
+Cross-area references (owned elsewhere): installer join mode `install.sh --join` (SETUP/W5.4), mesh `declaredAddresses`/relay/leave (NET/W5.12), event bus for notifications and audit (SUB-C, OBS), backup before removing the last manager (OPS), monolith deletion (ARCH).
+Counts: 89 items; P0 7 / P1 37 / P2 31 / P3 14; FIX 31 / ENHANCE 13 / NEW 45 (totals line at end of file).
+
+> Coverage pass: 2026-10-26 — 4 items added, 13 deps resolved
+
+## Items
+
+### Security and authorization (blocking)
+- [ ] `CLUSTER-001` **Gate every docker/cluster/fleet procedure behind a role policy** · FIX · P0 · M · Deps: `SEC-001`
+  - Why/Problem: `docker.controller.ts`, `cluster.controller.ts`, `fleet.controller.ts` use only `requireAuth()`. Any authenticated Viewer can open a shell, write/delete files, kill/remove containers, change swarm participation, node roles, ingress labels, node capacity, create allocations and approve their own admission request. The BFF delegation header claims the service enforces role gates; false. Verified: `apps/api-services/services/fleet/src/modules/cluster/controllers/cluster.controller.ts:19-40` are `requireAuth()` only.
+  - Do: read = any member; container lifecycle/exec/files/terminal, swarm config, node labels, capacity, allocations, admission resolution = admin/operator via `requirePlatformRole(["superAdmin","admin"])` (or the SUB-A policy). Apply in monolith and services copies. Hide the matching controls in the web for non-admins.
+  - Done when: a Viewer gets 403 on every mutating/exec procedure; controls absent in UI; negative test per controller (see CLUSTER-081).
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#3.1, #4.1; journeys#J5 step 13, W5.2, quick win 7
+  - See also: `SEC-003`, `SEC-004`, `JRN-016`, `WEB-017`, `WEB-019`
+- [ ] `CLUSTER-002` **Remove swarm join tokens from snapshot/streamSnapshot/getSwarmConfig responses** · FIX · P0 · S · Deps: `CLUSTER-001`
+  - Why/Problem: `cluster.getSnapshot`/`streamSnapshot` return `joinTokens {worker, manager}` and `getSwarmConfig` returns them in the view; a manager token plus a mesh address is full cluster takeover. Verified: `swarm-cluster.service.ts:176,208`, `swarm-participation.service.ts:426-445`; web reads `view.joinTokens` at `swarm-config-panel.tsx:94`; schema `packages/contracts/entities/src/entities/swarm/cluster.schema.ts:75`.
+  - Do: drop the field from the entity schema and all three responses and from the panel; expose tokens only through an explicit admin "issue join token / grant" procedure (the `mesh.issueJoinGrant` flow exists). Scrub tokens from logs.
+  - Done when: JSON-schema assertion that no token field exists in any non-admin response or log line; panel still renders.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#3.2, #4.2; journeys#J5 step 12, W5.1, quick win 6
+  - See also: `SEC-005`, `JRN-015`
+- [ ] `CLUSTER-003` **Stop storing join tokens in plaintext; rotate after use** · FIX · P1 · M · Deps: `CLUSTER-002`
+  - Why/Problem: tokens persisted in node_config SQLite `swarmConfig` and in `cluster_node.joinTokenWorker/Manager` columns (`cluster-node.repository.ts`).
+  - Do: do not persist (fetch from engine on demand) or encrypt with the existing `encryptedText` codec; rotate worker/manager tokens (`swarm update --rotate`) after each grant redemption.
+  - Done when: no token columns/values at rest in plaintext; a used grant's token no longer joins.
+  - Status: todo · Verified-in-code: unverified · Source: docker-cluster#1.2 (participation editor), #3.2
+- [ ] `CLUSTER-004` **Protect platform containers/services from kill/remove/exec** · FIX · P0 · M · Deps: `CLUSTER-001`
+  - Why/Problem: no protected set; a user can `remove`/`kill` the API, Postgres, Traefik, mesh containers (`docker-containers-orchestrator.service.ts:121-168`).
+  - Do: mark platform containers via labels (`deployer.managed`, supervisor-owned); deny kill/remove/stop/exec/file-write on them unless superAdmin; same for swarm services.
+  - Done when: admin gets a typed error removing the Postgres container; superAdmin can with confirmation.
+  - Status: todo · Verified-in-code: no · Source: docker-cluster#1.1, #4.1
+  - See also: `SEC-003`
+- [ ] `CLUSTER-005` **Project-scope container exec/files/actions (container -> project label -> membership)** · FIX · P1 · M · Deps: `SEC-001`
+  - Why/Problem: no tenancy check ties a container to a project, so any member reaches any container.
+  - Do: resolve container -> project label -> membership; require project role for exec/files/actions, platform admin for unlabelled containers; scope list/stream results too.
+  - Done when: a member of project A cannot list, exec into or read files of project B's containers.
+  - Status: todo · Verified-in-code: no · Source: docker-cluster#4.1; journeys#F1
+  - See also: `SEC-003`
+- [ ] `CLUSTER-006` **Redact secrets in container inspect output** · FIX · P0 · S · Deps: `CLUSTER-001`
+  - Why/Problem: `docker.repository.ts:1085` returns `Config.Env` unredacted; redaction at `:598-606` applies only to service entities.
+  - Do: mask env values (and secret-looking labels/mounts) for non-admin and by default for all; reveal on explicit admin action (audited).
+  - Done when: inspect for a container with `DB_PASSWORD` shows masked value for a Viewer/Developer.
+  - Status: todo · Verified-in-code: unverified · Source: docker-cluster#3.1
+  - See also: `SEC-003`, `SEC-021`
+- [ ] `CLUSTER-007` **Sanitize executor labels in swarm and docker runners** · FIX · P0 · S · Deps: none
+  - Why/Problem: executor labels copied verbatim into service labels incl. `traefik.*` and `deployer.*`, spread LAST so a deployment owner can override `deployer.managed` or inject Traefik routers (`swarm-runtime-runner.service.ts:114,429-441`; same in docker runner `sanitizeExecutorLabels`).
+  - Do: allow-list `deployer.placement`; put user labels under a reserved prefix (e.g. `user.`); never accept `traefik.*` or `deployer.managed*` from user input; spread platform labels last.
+  - Done when: unit test shows a user label `traefik.http.routers.x.rule` is dropped and `deployer.managed` cannot be overridden, in both runners.
+  - Status: todo · Verified-in-code: partial · Source: docker-cluster#3.3, #4.10; journeys (security P0 #6)
+  - See also: `SEC-028`
+- [ ] `CLUSTER-008` **Fix fleet "my*" queries and admission semantics** · FIX · P1 · M · Deps: `CLUSTER-001`
+  - Why/Problem: `listMyAllocations` (`fleet.service.ts:104`) and `listMyAdmissionRequests` (`:169`) return EVERYONE's rows; `checkMyAdmission` ignores `userId` and compares against one row; `reviewedByUserId` always written `null` (`fleet.repository.ts:227`); a user can approve their own request.
+  - Do: filter by authenticated user id; record the reviewer from `context.auth.session.user.id`; forbid self-approval; per-user capacity math.
+  - Done when: tests show user A sees only own rows, reviewer id persisted, self-approve rejected.
+  - Status: todo · Verified-in-code: unverified · Source: docker-cluster#1.2 (capacity/allocations), #3.1
+  - See also: `SEC-004`
+
+### Truthful node health, election and streams
+- [ ] `CLUSTER-009` **Derive node status from the engine (`Status.State`, `Spec.Availability`)** · FIX · P0 · M · Deps: none
+  - Why/Problem: `upsertFromEngine` forces `state:"active"` every sweep; a node is marked down only if it vanishes from `docker node ls`; swarm keeps crashed nodes listed as `down`, so a dead node shows active. Verified: `packages/nest/nodes/src/cluster-node-inventory.repository.ts:70,86` (`state: "active"`). `cluster.listNodes` default `includeDown` hides down nodes, which depends on this being correct.
+  - Do: map `Status.State` -> ready/down and `Spec.Availability` -> active/pause/drain in `toEngineNodeRow`; keep `markMissingNodeDown` for vanished nodes; reconsider the `includeDown` default.
+  - Done when: stopping a node's engine shows Down within 60 s in UI and `docker node ls` parity test passes.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.2, #3.5, #4.3; journeys#J5 step 7, W5.9, AC 6
+  - See also: `WEB-067`
+- [ ] `CLUSTER-010` **Stop `enrollLocalNode` overriding status/healthy** · FIX · P1 · S · Deps: `CLUSTER-009`
+  - Why/Problem: `global-cluster-nodes.repository.ts` forces `status:"active", healthy:true` on every sweep, overriding `draining/suspect/revoked`.
+  - Do: set status only on first enrollment; never overwrite lifecycle states.
+  - Done when: a node set to draining/revoked stays so after the next sweep.
+  - Status: todo · Verified-in-code: unverified · Source: docker-cluster#1.2 (fleet servers list), #3.5
+- [ ] `CLUSTER-011` **Fix `cluster_node_metrics` duplicate rows and unbounded growth** · FIX · P1 · S · Deps: none
+  - Why/Problem: no unique key on `node_id` (`packages/nest/schema/src/global/fleet/cluster.ts:134-158`); `persistNodeHeartbeat` INSERTs per heartbeat (`system-mesh-cluster.repository.ts:203-213`); `listServersWithMetrics` LEFT JOINs all of them so each server is returned once per heartbeat; no retention.
+  - Do: upsert on `node_id` (or latest-row subquery) plus retention job; migration to dedupe; (history table only if CLUSTER-080 is done).
+  - Done when: fleet servers list returns exactly one row per node regardless of heartbeats; table size bounded.
+  - Status: todo · Verified-in-code: unverified · Source: docker-cluster#1.2, #3.5, #4.3; journeys W5.9
+- [ ] `CLUSTER-012` **Replace mislabelled "CPU/memory" with real node stats; stop synthesizing link metrics** · FIX · P1 · M · Deps: `CLUSTER-011`
+  - Why/Problem: cpuUsage/memoryUsage/activeStreams/queueDepth are packet loss, `1 - reliabilityScore`, Mbps and latency+jitter; `mesh-cluster-sync.service.ts:195-225` invents link metrics from constants (40 ms, 800 Mbps, 0.99); the UI labels them CPU/memory.
+  - Do: real node stats (engine `info` NCPU/MemTotal + container stats, or mesh agent as "sentinel" pushing over the mesh); rename the link-quality fields honestly; remove constant fabrication.
+  - Done when: nodes UI shows real CPU/mem/disk; no field is computed from constants.
+  - Status: todo · Verified-in-code: unverified · Source: docker-cluster#1.2, #3.5, #4.3; bench-coolify (Sentinel)
+  - See also: `OBS-044`, `OBS-043`
+- [ ] `CLUSTER-013` **Stop swallowing cluster errors; surface failures** · FIX · P1 · M · Deps: none
+  - Why/Problem: `participation.applyConfig` swallows converge failures (~`:404`) and returns the view as applied; `persistSnapshot` swallows; `SwarmBootstrapService.converge` never throws; `refreshAllState` swallows; `listAllSwarmTasks().catch(() => [])` (`swarm-fleet.service.ts:41`) makes services show 0 running tasks on error.
+  - Do: return/log typed errors; UI shows failure and degraded state; distinguish "no tasks" from "error".
+  - Done when: a failing converge returns an error to `setSwarmConfig`; a task-list failure renders an error state, not 0 tasks.
+  - Status: todo · Verified-in-code: unverified · Source: docker-cluster#3.11, #4.15
+- [ ] `CLUSTER-014` **Make master election honest (decide: delete or make distributed)** · FIX · P1 · L · Deps: `DEC-CLUSTER-1`
+  - Why/Problem: (a) no `metricsProvider` passed (`swarm.module.ts:69-110`) so `engineMetrics()` (`swarm-leadership.service.ts:243-262`) invents constants and the quorum-loss guard never fires; (b) `claimMaster` is a CAS on the node's OWN SQLite row, so each node elects itself; the docs promise shared PG (SW-045); (c) `persistSnapshot` -> `upsertFromSnapshot` overwrites `masterNodeId/masterTerm` with a fabricated raft leader (`swarm-cluster.service.ts:188-202`, `term: 1`), resetting the term; (d) `eventSink` null so `master-changed` notifies nobody; plus `planQuorum(snapshot.nodeCount, snapshot.managerCount)` passes manager count as `quorumMax` (meaningless plan).
+  - Do: Option A: delete the custom election, use the swarm raft leader, remove "elected master" UI claims. Option B: store term/CAS in shared PG, real metrics provider (mesh RTT), stop `persistSnapshot` overwriting term, wire event sink, fix `planQuorum` args. Either way UI must not present it as authoritative until true.
+  - Done when: no decision depends on the fake election; two nodes cannot both believe they are master; master change emits an event.
+  - Status: todo · Verified-in-code: partial · Source: docker-cluster#1.2, #3.4, #3.14, #4.4
+- [ ] `CLUSTER-015` **Unify cluster SSE/REST shapes and wire `notifyMutation`** · FIX · P2 · S · Deps: `CLUSTER-014`
+  - Why/Problem: master SSE hardcodes `state:"healthy"` and raft leader/term 1 while `getMaster` reads the elected row; `readNodes()` (`cluster-swarm-events.service.ts:~330`) omits `availability/capacity/labels` so a drained node looks active with null capacity on the stream; `notifyMutation()` is never called so label/config changes appear only on the next engine event.
+  - Do: single source for master; include omitted fields; call `notifyMutation()` after label/config writes.
+  - Done when: stream and REST return identical node/master data; label edit reflects immediately.
+  - Status: todo · Verified-in-code: unverified · Source: docker-cluster#1.2, #5
+  - Effect-impact (2026-10-26): fleet is L/XL to migrate (65 files, Rx event services such as `cluster-swarm-events.service.ts`, streaming `reachability.controller.ts`): unify the SSE/REST shapes in the current Rx/Nest idiom first; the RxJS vs Effect `Stream` ruling (D5) must precede any stream rewrite. Deps: `EFF-022`, `EFF-103`.
+
+### Node lifecycle
+- [ ] `CLUSTER-016` **Add node lifecycle procedures: drain, activate, pause, promote, demote, remove, leave** · NEW · P1 · L · Deps: `CLUSTER-001`,`CLUSTER-017`
+  - Why/Problem: only the local node is ever drained/promoted as a side effect of policy (`swarm-participation.service.ts:293-333`); `DockerService.updateSwarmNodeRoleAvailability` (`docker.service.ts:3032`) has no remote caller; `swarmLeave` only auto-leaves a lone cluster; no `node rm` anywhere; `contracts/fleet/modules/cluster/index.ts:204-219` only has `updateNode` labels.
+  - Do: contract procedures `drainNode`, `activateNode`, `pauseNode`, `promoteNode`, `demoteNode`, `removeNode({force})`, operator `leave`; add `docker.getNode(id).remove` wrapper; drain-before-demote safety; admin-only.
+  - Done when: each is callable by admin only, idempotent, and reflected in `docker node ls`.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.2, #4.6, #6; journeys#J5 steps 8/10, W5.5; bench-dokploy#1 (swarm cluster mgmt)
+  - See also: `WEB-065`
+- [ ] `CLUSTER-017` **Quorum pre-check and manager routing for node operations** · NEW · P1 · M · Deps: none
+  - Why/Problem: no quorum safety in the product path; node/label updates run against the local engine and fail on a worker; no routing to a manager.
+  - Do: use `packages/nest/swarm` quorum planner (fix its args, see CLUSTER-014) to refuse demote/drain/remove of the last manager or quorum loss; route manager-only ops to a manager over the mesh when local engine is a worker.
+  - Done when: demoting the only manager is refused with a quorum explanation; label update from a worker node's API succeeds via a manager.
+  - Status: todo · Verified-in-code: no · Source: journeys#J5 steps 14-15, AC 4; docker-cluster#4.6
+- [ ] `CLUSTER-018` **Remove-node saga (drain -> demote -> node rm -> mesh revoke -> cleanup)** · NEW · P1 · L · Deps: `CLUSTER-016`,`OBS-001`
+  - Why/Problem: UI says "Removing them needs an API that does not exist yet" (`dashboard/nodes/page.tsx:135`); mesh revoke is real but cleans nothing else.
+  - Do: idempotent, resumable saga: drain, demote if manager, `node rm`, mesh revoke, delete `node_network_config` row, drop DNS A records (direct edge), reschedule edge connector / rotate tunnel token (NET), write audit entry; type-the-name confirmation.
+  - Done when: after removal the node is absent from `docker node ls`, roster, fleet list, DNS provider and `node_network_config`.
+  - Status: todo · Verified-in-code: yes · Source: journeys#J5 step 10, W5.7, AC 5
+  - Effect-impact (2026-10-26): saga maps to `withCompensation` (top-level steps only; finalizers skipped when a cluster owner abandons a run) once the `effect/workflow` prototype (DEPLOY-014) is evaluated; until then implement as an ordered idempotent procedure with explicit state. Deps: `EFF-122`.
+- [ ] `CLUSTER-019` **Add-node dialog (issue grant, one-liner, QR, live stages)** · NEW · P1 · M · Deps: `CLUSTER-001`,`CLUSTER-002`
+  - Why/Problem: no "Add node" in the UI (`network/mesh/page.tsx:116-127`); `mesh.issueJoinGrant` (`packages/contracts/fleet/modules/mesh/index.ts:316,474`) exists but the web never calls it.
+  - Do: admin-only dialog: role + labels (region/tenant), single-use 15-min grant, join one-liner + QR, countdown/regenerate/revoke, live stages (mesh admitted -> swarm joined -> ready) from mesh SSE + `cluster.streamNodes`; after 2 min of no activity show likely causes (UDP 51820, clock skew, Docker < 24); one-node empty state "Add a second node". Depends on installer join mode (SETUP).
+  - Done when: a fresh VM joins from the UI within 3 minutes; viewer sees no control.
+  - Status: todo · Verified-in-code: yes · Source: journeys#J5 steps 1-3, W5.3, UX details; bench-coolify#24; bench-dokploy#21
+  - See also: `WEB-064`, `SETUP-027`, `OPS-007`
+- [ ] `CLUSTER-020` **Drain progress and "safe to remove" state; drain impact confirmation** · NEW · P2 · M · Deps: `CLUSTER-016`
+  - Why/Problem: no drain flow; `cluster.streamTasks` exists.
+  - Do: confirmation quantifies tasks to move, manager count before/after, and node-local volumes that will NOT move; blocks with reason when quorum breaks; progress bar via tasks-per-node; end state "Safe to remove"; undo = Re-activate; engine errors translated.
+  - Done when: draining a node with a 2-replica service shows moving tasks and ends at "Safe to remove".
+  - Status: todo · Verified-in-code: no · Source: journeys#J5 W5.6, UX details
+- [ ] `CLUSTER-021` **Replace-node wizard** · NEW · P3 · M · Deps: `CLUSTER-019`,`CLUSTER-018`
+  - Why/Problem: no replace flow.
+  - Do: checklist: add new node copying labels/region -> wait ready -> drain old -> remove old, per-step status; old node kept until new is ready.
+  - Done when: replacing a node completes with labels copied.
+  - Status: todo · Verified-in-code: no · Source: journeys#J5 W5.10
+  - See also: `WEB-066`
+- [ ] `CLUSTER-022` **Make `deployer.node.role` real (control-only nodes get no user workloads) or relabel as advisory** · FIX · P1 · M · Deps: `CLUSTER-016`,`DEC-CLUSTER-5`
+  - Why/Problem: the label is written for real, but nothing adds a placement constraint on `deployer.node.role` (only helpers in `packages/nest/nodes/src/swarm-node-labels.ts`); UI text "control - control plane only, no user workloads" and the confirm text "managers go from N to N-1" describe changes that do not happen.
+  - Do: add constraint to user workload specs excluding `control` nodes; or change the copy to advisory. Quorum-aware confirmation per CLUSTER-023.
+  - Done when: a service never schedules on a control-only node; copy matches behaviour.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.2, #3.6, #4.6; journeys#J5 step 9, W5.8
+- [ ] `CLUSTER-023` **Use the guarded cluster table + confirm dialog on `/dashboard/cluster`; delete the unsafe inline table** · FIX · P1 · S · Deps: none
+  - Why/Problem: `cluster/page.tsx:63,82-86` calls `updateNode.mutate` immediately with no quorum confirmation; `_components/cluster-nodes-table.tsx`, `confirm-node-change-dialog.tsx`, `cluster-summary.tsx` are imported nowhere (dead). Verified: components present in the folder.
+  - Do: switch page to `ClusterNodesTable` + `ConfirmNodeChangeDialog` + `ClusterSummary`; delete inline table; keep `node-change-guard.ts` copy truthful (see CLUSTER-022).
+  - Done when: changing role/ingress shows the quorum confirmation; no dead components remain.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.2 (cluster page UI), #4.5; journeys quick win 16, step 9
+  - See also: `WEB-004`, `JRN-025`, `IDEA-098`
+- [ ] `CLUSTER-024` **Node editing UI: rename, region/zone/tenant labels** · NEW · P2 · S · Deps: `CLUSTER-001`
+  - Why/Problem: nodes pages have no rename/region/zone/tenant label editing; region/zone shown read-only.
+  - Do: editable labels via `cluster.updateNode` with validation; these feed placement (CLUSTER-041).
+  - Done when: setting region on a node persists as engine label and shows on stream.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.2 (placement, nodes pages)
+- [ ] `CLUSTER-025` **Node-down / joined / drained / quorum-risk notifications and alerts** · NEW · P2 · M · Deps: `OBS-001`,`CLUSTER-009`
+  - Why/Problem: no alert when a node dies; no node timeline; `master-changed` event sink null.
+  - Do: emit node events (joined, down, drained, removed, quorum risk, task flapping) on the event bus; consumer = notifications (OBS). Also node timeline from the activity store.
+  - Done when: stopping a node's engine triggers a webhook/alert within 60 s.
+  - Status: todo · Verified-in-code: no · Source: journeys#J5 W5.13, AC 6; docker-cluster#6
+  - See also: `FEAT-124`, `OBS-048`, `FEAT-036`
+- [ ] `CLUSTER-026` **Node detail: real CPU/memory/disk, per-node container list, `system df`** · ENHANCE · P2 · M · Deps: `CLUSTER-012`
+  - Why/Problem: images/networks/volumes returned only for the API's own engine; other nodes `[]` (`swarm-fleet.service.ts:86-167`), UI admits it (`node-fleet-tab.tsx`).
+  - Do: per-node data via mesh handlers (see CLUSTER-034); live engine stream; disk usage `docker system df`-style.
+  - Done when: node detail for a remote node lists its images/volumes/networks and real resource usage.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.2, #5
+  - See also: `WEB-063`
+- [ ] `CLUSTER-027` **Cluster page: quorum health, per-node `Status.State`, supervisor degraded state** · ENHANCE · P2 · S · Deps: `CLUSTER-009`
+  - Why/Problem: page lacks quorum health (reachable managers vs required), last-seen from the swarm and supervisor degraded state.
+  - Do: show those plus node timeline from the activity store.
+  - Done when: quorum and supervisor degradation are visible on the page.
+  - Status: todo · Verified-in-code: no · Source: docker-cluster#4.15, #5
+- [ ] `CLUSTER-028` **Fix swarm participation editor behaviour** · FIX · P2 · S · Deps: `CLUSTER-013`
+  - Why/Problem: choosing `join` while in a non-lone cluster does nothing (`swarm-participation.service.ts:170`, falls to "policy only") and no feedback; convergence errors swallowed (see 013).
+  - Do: either perform leave+join with confirmation or reject with an explanatory error; return real outcome to the UI.
+  - Done when: choosing join in a non-lone cluster yields a clear result.
+  - Status: todo · Verified-in-code: unverified · Source: docker-cluster#1.2
+- [ ] `CLUSTER-029` **Node-local-only per-node resources: serve remote node images/networks/volumes** · FIX · P2 · M · Deps: `CLUSTER-034`
+  - Why/Problem: see 026; duplicate of data path. Tracked separately as the backend half.
+  - Do: mesh handler for image/network/volume list per node in `swarm-fleet.service.ts`.
+  - Done when: remote-node lists are non-empty and correct.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.2 (per-node resources)
+
+### Fake UI and honesty
+- [ ] `CLUSTER-030` **"Create container" modal: wire to a real contract or remove it** · FIX · P1 · M · Deps: `CLUSTER-001`
+  - Why/Problem: `use-create-container-submit.ts` does not call the API; `containers/page.tsx:243-252` still toasts "Container X created". Also the Edit container modal in Dockhand parity is absent.
+  - Do: add `docker.container.create` (+ edit/recreate-from-inspect) contract and implementation with role gate, or delete the modal. Remove the false toast either way.
+  - Done when: UI never reports success for something that did not happen; created container appears in list.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.1, #3.6, #4.5; bench-dokploy#2 (Create/Edit modal)
+  - See also: `FEAT-137`, `WEB-069`
+- [ ] `CLUSTER-031` **Pull image: add a real pull procedure and honest UI** · NEW · P1 · M · Deps: `CLUSTER-051`
+  - Why/Problem: no pull procedure; `use-pull-scan-flow.ts:136` fails with "Pull API wiring is not available from this modal"; progress watches events of an image that must already exist.
+  - Do: `docker.image.pull` with streamed progress, optional registry credential, node target; wire the modal; optional tag/export/history later (CLUSTER-053).
+  - Done when: pulling a public and a private image works with progress in the UI.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.1, #4.5; bench-dokploy#2 (images)
+  - See also: `FEAT-137`, `WEB-069`
+- [ ] `CLUSTER-032` **Fleet admission/allocation: make "Approving grants an allocation" true or remove the claim** · FIX · P2 · S · Deps: `DEC-CLUSTER-3`
+  - Why/Problem: `fleet.repository.ts:218-235` approving only flips status though `admissions-panel.tsx` says it grants an allocation; one allocation per node (no owner/tenant) so `dedicated_*` vs `shared_slice` is meaningless.
+  - Do: create allocation on approve with owner/tenant, or relabel; model per decision.
+  - Done when: UI copy matches behaviour; allocation row created on approve if kept.
+  - Status: todo · Verified-in-code: unverified · Source: docker-cluster#1.2, #3.6, #4.5
+- [ ] `CLUSTER-033` **Admission request creation UI** · NEW · P3 · S · Deps: `CLUSTER-032`
+  - Why/Problem: `useCreateMyFleetAdmissionRequest/useCheckMyFleetAdmission` hooks have no page; requests can only be created via raw API.
+  - Do: add page/dialog using the hooks, or delete hooks if the model is deleted (DEC-CLUSTER-3).
+  - Done when: a user can request admission from the UI, or the hooks are gone.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.2; parity#fleet-admission UI
+
+### Remote operations over the mesh
+- [ ] `CLUSTER-034` **Route container lifecycle actions over the mesh (start/stop/restart/pause/unpause/kill/remove)** · FIX · P1 · M · Deps: `CLUSTER-001`
+  - Why/Problem: actions call `CoreDockerService` on the LOCAL engine only; `docker-mesh-handler-registrar.service.ts:23-217` registers list/inspect/logs/processes/files/terminal/image-inspect but no action handler; a container listed from a peer cannot be acted on.
+  - Do: add an action mesh handler mirroring logs/files/terminal; orchestrator resolves owning node and relays; same for image remove/prune (CLUSTER-057).
+  - Done when: stopping a peer-node container from node 1's UI works and is audited.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.1, #3.7, #4.11; bench-dokploy#1 (Dockhand multi-env)
+  - See also: `ARCH-088`, `WEB-062`, `OBS-061`
+- [ ] `CLUSTER-035` **Make every Docker page node-aware** · ENHANCE · P2 · M · Deps: `CLUSTER-034`
+  - Why/Problem: Docker pages see only the API node for several resources; node selector exists (`docker-node-context.tsx`) but not applied everywhere.
+  - Do: apply node selector to images/volumes/networks/scan/activity pages with mesh fan-out.
+  - Done when: all docker pages can target any node.
+  - Status: todo · Verified-in-code: partial · Source: bench-dokploy#2 (multi-environment), #3 (#11)
+  - See also: `WEB-062`
+- [ ] `CLUSTER-036` **Build/publish the scanner runner image; do not rely on a locally built one** · FIX · P1 · S · Deps: `CLUSTER-049`
+  - Why/Problem: scanner uses locally built `deployer-scanner-runner:latest` (`infra/docker/scanner-runner/build.sh`) which will not exist on other nodes; the scanner container also mounts the Docker socket (`scanner-container-manager.service.ts:289`).
+  - Do: publish via CI to the registry and pull like any image; review socket mount risk.
+  - Done when: scanning works on a node that never built the image.
+  - Status: todo · Verified-in-code: partial · Source: docker-cluster#1.1, #3.9, #4.7
+  - See also: `SEC-027`
+
+### Swarm services, scheduling and capacity
+- [ ] `CLUSTER-037` **Expose swarm service scale / remove / rollback through contract, controller and UI** · NEW · P1 · M · Deps: `CLUSTER-001`
+  - Why/Problem: `DockerService.scaleSwarmService/removeSwarmService/rollbackSwarmService` (`docker.service.ts:2738-2806`) and runner wrappers (`swarm-runtime-runner.service.ts:69-95`) are real but nothing calls them; `deployment-execution-workflow.service.ts:214-218` re-deploys instead of `rollbackService`.
+  - Do: procedures + service-operations UI (scale, rollback, remove); use `rollbackService` in the deployment rollback path where appropriate.
+  - Done when: an admin scales a service 1 -> 3 from the UI and sees tasks spread.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.2, #4.9, #6; journeys (unused assets #8)
+  - See also: `IDEA-100`, `FEAT-034`
+- [ ] `CLUSTER-038` **Replace hardcoded `replicas: 1`; add replicas/placement/resources to service config** · FIX · P1 · M · Deps: `PROJ-040`
+  - Why/Problem: `swarm-runtime-runner.service.ts:198` `replicas: 1`; replicas/limits stored but ignored (bench).
+  - Do: read replicas, placement, max replicas per node, spread, CPU/mem from the saved service config; wire restart policy.
+  - Done when: a service configured with 3 replicas runs 3 tasks.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.2, #4.9; bench-dokploy#1; bench-coolify#2 (#13)
+  - See also: `PROJ-042`, `DEPLOY-002`, `DEPLOY-059`
+- [ ] `CLUSTER-039` **Real resource reservations and capacity guard; fix `cpuShares` semantics** · FIX · P1 · M · Deps: `CLUSTER-038`
+  - Why/Problem: `resourcesReservations: {}` always empty so the scheduler does not account for load; capacity guard SW-033 open; `cpuShares*1e9` -> NanoCPUs is semantically wrong; user workloads can starve Raft managers.
+  - Do: set reservations; rename/convert cpu units properly; guard managers (control role, CLUSTER-022); close SW-033.
+  - Done when: a workload exceeding free capacity stays pending with a clear message; managers cannot be starved.
+  - Status: todo · Verified-in-code: partial · Source: docker-cluster#1.2, #3.10
+  - See also: `PROJ-042`, `OPS-011`
+- [ ] `CLUSTER-040` **Enforce fleet allocations in deployment admission, or delete the allocation model** · FIX · P2 · M · Deps: `DEC-CLUSTER-3`
+  - Why/Problem: nothing consumes `cluster_server_allocations` (no deployment/placement/runner reads it); not enforced.
+  - Do: if kept, deployment admission reads allocations and per-project quotas; if not, delete tables/contracts/UI.
+  - Done when: a deployment beyond allocation is refused (or the model is removed).
+  - Status: todo · Verified-in-code: unverified · Source: docker-cluster#1.2, #3.10, #4.9
+- [ ] `CLUSTER-041` **Placement labels API/UI: tenant, region, dedicated nodes, per-service policy** · NEW · P2 · M · Deps: `CLUSTER-024`
+  - Why/Problem: nothing sets `deployer.tenant.<id>` or `deployer.region` (no API/UI) so `dedicated` = unschedulable and `prefer-region` = no-op; no per-service policy picker (`node-placement.service.ts`, label `deployer.placement`).
+  - Do: node label editor (024) + per-service placement editor (policy, region/zone/tenant, max replicas per node, spread); "dedicated node for project" workflow.
+  - Done when: a service set to `dedicated` for a tenant schedules only on its labelled nodes.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.2, #5, #6
+  - See also: `IDEA-100`
+- [ ] `CLUSTER-042` **Make the swarm runner the default when a swarm is active (stable service name, start-first, health gate, auto-rollback, old-task cleanup)** · ENHANCE · P1 · L · Deps: `CLUSTER-049`,`DEPLOY-003`
+  - Why/Problem: default runner is `"docker"` (`deployment-queue.worker.service.ts:242`, `runtime-runner-registry.service.ts`); swarm runner is opt-in and not selectable in UI; F7.
+  - Do: auto-select swarm when active; expose runner choice; fix flaws (CLUSTER-007, 043, 049); document if not default. Pass `X-Registry-Auth`. DEPLOY owns the pipeline side.
+  - Done when: a deployment on a swarm runs as a swarm service with rolling update; tasks reschedule after node loss.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.2, #4.13; journeys F7, W5.11; bench-coolify#31
+  - See also: `DEPLOY-058`, `DEPLOY-059`
+- [ ] `CLUSTER-043` **Stable per-service storage volume name (data survives redeploy)** · FIX · P1 · S · Deps: none
+  - Why/Problem: volume named `deployer-storage-${deploymentId}` (`swarm-runtime-runner.service.ts:468`) so each deployment gets a new volume; data does not survive a redeploy. Must land before CLUSTER-042 makes swarm the default.
+  - Do: key volume by service id; migrate/adopt old volumes; document retention.
+  - Done when: redeploy keeps data written by the previous deployment.
+  - Status: todo · Verified-in-code: unverified · Source: docker-cluster#1.2, #3.8, #4.8
+  - See also: `DEPLOY-062`, `PROJ-044`
+- [ ] `CLUSTER-044` **Volume node pinning or shared-storage driver; orphan detection** · NEW · P2 · L · Deps: `DEC-CLUSTER-4`,`CLUSTER-061`
+  - Why/Problem: local volumes are node-pinned with no placement pinning; no volume cleanup UI to notice orphans.
+  - Do: pin services with local volumes to their node (or NFS/shared driver); orphan detection and "lives only on this node" warnings (used by drain, CLUSTER-020).
+  - Done when: a task with a local volume never reschedules to a node without the data silently.
+  - Status: todo · Verified-in-code: no · Source: docker-cluster#3.8, #4.8; journeys#J5 UX
+  - See also: `OPS-014`
+- [ ] `CLUSTER-045` **Service operations UI and typed swarm spec editor** · NEW · P2 · M · Deps: `CLUSTER-037`
+  - Why/Problem: no rolling restart, pause/resume, update-config (parallelism/delay/order); Dokploy exposes health check, restart policy, placement, update/rollback config, mode, labels, networks, ulimits, endpoint spec, stop grace.
+  - Do: typed form + YAML view for the swarm spec; rolling restart, pause/resume; max restart count + alert.
+  - Done when: an admin edits update-config and the service updates accordingly.
+  - Status: todo · Verified-in-code: no · Source: docker-cluster#6; bench-dokploy#1; bench-coolify (resource limits row)
+  - See also: `FEAT-045`, `PROJ-051`, `WEB-074`
+- [ ] `CLUSTER-046` **Drift reconciliation that acts** · NEW · P3 · L · Deps: `DEPLOY-003`,`OBS-001`
+  - Why/Problem: `drift-reconciliation.service.ts` is a pure diff with no scheduler, data source or actor.
+  - Do: scheduler comparing desired deployments with `docker service ls`; alert or redeploy; or replace.
+  - Done when: a manually deleted service is detected and alerted/redeployed.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.2, #6
+  - See also: `IDEA-049`, `IDEA-089`
+- [ ] `CLUSTER-047` **Dead fleet services (rollout planner, readiness gate, rollback, failure containment, cross-project gate, DAG): wire or delete** · FIX · P2 · M · Deps: none
+  - Why/Problem: `modules/fleet/fleet.module.ts:12-31` provides/exports 7 pure-logic services (~900 lines + specs) injected by nothing outside the module (monolith and services copies); cascade deploy unproven.
+  - Do: decide per service; wire cascade deploys/rollout into the deployment path or delete code + specs + providers.
+  - Done when: no unreferenced fleet service remains; cascade deploy proven or removed from claims.
+  - Status: todo · Verified-in-code: unverified · Source: docker-cluster#1.2; parity (cascade deploy PARTIAL)
+  - See also: `IDEA-089`
+- [ ] `CLUSTER-048` **Compose -> swarm realizer: wire to the compose runner or delete** · FIX · P2 · L · Deps: `CLUSTER-055`
+  - Why/Problem: `swarm-compose-realizer.service.ts` (709 lines, 10 tests) has no production caller; `executeComposePlan` never invoked (`runners.module.ts:41`, `docker-compose-builder.strategy.ts:24`).
+  - Do: wire for compose/template deploys (`docker stack deploy`, domain-per-service mapping) or remove.
+  - Done when: a compose deployment creates swarm services via the realizer.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.1, #1.2; bench-coolify#43
+  - See also: `DEPLOY-047`
+
+### Registries and image distribution
+- [ ] `CLUSTER-049` **Registry push after build so tasks can start on any node** · NEW · P1 · L · Deps: `CLUSTER-050`,`DEC-CLUSTER-2`
+  - Why/Problem: images built locally (`DockerService.buildImage`), no push; a task scheduled on another node fails to pull (J5 step 11). Also enables digest pull, N-image retention for rollback and digest dedupe for scans.
+  - Do: platform-run or external registry; push builds, record digest (SUB-B), pin by digest.
+  - Done when: a built service starts on a second node that never built it.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#3.9, #4.7; journeys#J5 step 11, F5/W5.11; bench-dokploy#1 (Registry), #3 (#12); bench-coolify#20
+  - See also: `DEPLOY-051`, `FEAT-043`, `NET-079`
+- [ ] `CLUSTER-050` **Registries CRUD with encrypted credentials (contract + UI)** · NEW · P1 · L · Deps: `SEC-001`
+  - Why/Problem: registries contract procedures were removed; `docker.repository.ts:4056-4116` fabricates registries from image names (`authMode:"anonymous"`, `status:"unknown"`); UI page `admin/providers/code/docker-hub` says unavailable / "no place to store credentials"; private images cannot be deployed.
+  - Do: encrypted credential table (pattern: dns/github providers), registries CRUD contract, real UI page replacing the fake list, test-connection.
+  - Done when: a private registry can be added and listed with no secret returned.
+  - Status: todo · Verified-in-code: partial · Source: docker-cluster#1.1, #4.7; parity gap #6, rec #6, gap #14; bench-dokploy#1; bench-coolify
+  - See also: `FEAT-041`, `DEPLOY-037`, `WEB-061`
+- [ ] `CLUSTER-051` **Pass `registryAuth` on pulls and `X-Registry-Auth`/with-registry-auth on service create/update** · FIX · P1 · S · Deps: `CLUSTER-050`
+  - Why/Problem: `registryAuth` exists only as a parameter on `DockerService.pullImage` (`docker.service.ts:1118`); nothing supplies it.
+  - Do: resolve credentials by image host; pass in pull and swarm service create/update.
+  - Done when: private image deploy works on a worker node.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.1, #4.7; parity rec #6
+  - See also: `DEPLOY-037`
+- [ ] `CLUSTER-052` **Per-project pull credentials** · NEW · P2 · M · Deps: `CLUSTER-050`
+  - Why/Problem: only global notion; need per-project scoping.
+  - Do: credential scope field and policy; used by 051.
+  - Done when: project A cannot use project B's registry credential.
+  - Status: todo · Verified-in-code: no · Source: docker-cluster#6
+- [ ] `CLUSTER-053` **Image management parity: tag, push, export, history; registry browser (search/catalog/tags)** · NEW · P3 · M · Deps: `CLUSTER-050`
+  - Why/Problem: images PARTIAL: list/inspect/scan only; Dockhand has pull/tag/remove/export/history/push/prune and a registry browser.
+  - Do: procedures + UI for these; remove image from UI.
+  - Done when: tag/push/export work from the images page.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy#2 (Images, Registry browser)
+  - See also: `FEAT-042`
+- [ ] `CLUSTER-054` **Registry mirror/cache per node** · NEW · P3 · M · Deps: `CLUSTER-049`
+  - Why/Problem: nodes pull repeatedly from remote registries.
+  - Do: optional per-node pull-through cache.
+  - Done when: second node pull hits the cache.
+  - Status: todo · Verified-in-code: no · Source: docker-cluster#6
+  - See also: `FEAT-043`
+
+### Docker secrets and configs
+- [ ] `CLUSTER-055` **Swarm secrets/configs: emit `ContainerSpec.Secrets/Configs`, add API and UI, rotation** · NEW · P1 · L · Deps: `CLUSTER-001`
+  - Why/Problem: `createSwarmSecret/listSwarmSecrets/createSwarmConfig/listSwarmConfigs` (`docker.service.ts:3074-3150`) used only by the dead realizer; `swarm-spec.mapper.ts` never emits `Secrets/Configs`, so created secrets can never be mounted; no API/UI.
+  - Do: extend `toDockerServiceSpec`, add contract + UI for secrets/configs, rotation workflow.
+  - Done when: a secret created in the UI is mounted at `/run/secrets/x` in a service.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.1, #6; parity gap #14
+  - See also: `SEC-020`
+- [ ] `CLUSTER-056` **Move sensitive user env values from plaintext `Env` to swarm secrets (SW-073)** · ENHANCE · P2 · M · Deps: `CLUSTER-055`
+  - Why/Problem: user env vars go in plaintext `Env` of service specs, visible in `docker service inspect`.
+  - Do: secret-flagged variables become swarm secrets (PROJ owns the store/flag).
+  - Done when: secret env not visible in service inspect.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.1, #3.12
+
+### Cleanup and disk
+- [ ] `CLUSTER-057` **Image remove / prune / dangling cleanup (and make `removeImage` report errors)** · NEW · P1 · M · Deps: `CLUSTER-001`,`CLUSTER-034`
+  - Why/Problem: `DockerService.removeImage` (`docker.service.ts:1018`) has zero callers and swallows errors; only "prune" is inside the scanner container; contract enums list `prune` actions nothing issues; disk fills on a VPS.
+  - Do: procedures with dry-run, in-use protection, per-node targeting; surface errors.
+  - Done when: prune frees disk and reports reclaimed size; errors are returned.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.1, #4.12; parity gap #7 / rec #3; bench-dokploy#1, #3 (#9)
+  - See also: `DEPLOY-052`, `FEAT-051`
+- [ ] `CLUSTER-058` **Volume, network and builder-cache prune** · NEW · P2 · M · Deps: `CLUSTER-057`
+  - Why/Problem: no create/remove/prune mutations in `contracts/runtime/modules/docker/{networks,volumes}`.
+  - Do: dry-run + confirm; exclude in-use/labelled platform resources.
+  - Done when: orphaned volumes/networks listed and prunable safely.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.1; bench-coolify (cleanup row); bench-dokploy#1
+- [ ] `CLUSTER-059` **Scheduled cleanup policies with thresholds and execution history** · NEW · P2 · M · Deps: `CLUSTER-057`,`OBS-001`
+  - Why/Problem: nothing frees disk; Coolify `DockerCleanupJob` is threshold-driven with execution history; also image GC by age/usage, orphan preview GC, stale workspaces.
+  - Do: per-node schedule + disk threshold, execution history, notifications; enforce `deploymentRetention` is PROJ/DEPLOY.
+  - Done when: crossing the threshold triggers a prune and a history row.
+  - Status: todo · Verified-in-code: no · Source: docker-cluster#6; bench-coolify#2 (#15), cleanup row
+  - See also: `FEAT-051`, `FEAT-052`, `WEB-091`
+- [ ] `CLUSTER-060` **Disk usage panel and disk-pressure alerts** · NEW · P2 · S · Deps: `CLUSTER-012`
+  - Why/Problem: no `docker system df`; no disk-pressure alert.
+  - Do: per-node disk panel + threshold alert; optional cordon on pressure (CLUSTER-078).
+  - Done when: low disk raises an alert.
+  - Status: todo · Verified-in-code: no · Source: docker-cluster#5, #6; bench-dokploy#1; bench-coolify (server settings)
+
+### Docker pages parity
+- [ ] `CLUSTER-061` **Volumes management: create/inspect/browse/clone/export/remove with in-use detection** · NEW · P2 · M · Deps: `CLUSTER-001`
+  - Why/Problem: list only. Volume browse can reuse the container file browser via helper container.
+  - Do: procedures + pages.
+  - Done when: a volume can be browsed and cloned from the UI.
+  - Status: todo · Verified-in-code: yes · Source: bench-dokploy#2 (Volumes), #3 (#10)
+  - See also: `FEAT-137`, `WEB-069`
+- [ ] `CLUSTER-062` **Networks management: create/inspect/connect/disconnect/duplicate** · NEW · P2 · S · Deps: `CLUSTER-001`
+  - Why/Problem: list only.
+  - Do: procedures + UI; prune in 058.
+  - Done when: a network can be created and a container connected.
+  - Status: todo · Verified-in-code: yes · Source: bench-dokploy#2 (Networks), #3 (#10)
+  - See also: `FEAT-137`, `WEB-069`
+- [ ] `CLUSTER-063` **Container batch operations, rename and pause surfaced in the UI** · ENHANCE · P3 · S · Deps: `CLUSTER-034`
+  - Why/Problem: Dockhand has batch ops and rename; ours exposes fewer.
+  - Do: multi-select actions, rename, pause/unpause buttons.
+  - Done when: batch stop works on selected containers.
+  - Status: todo · Verified-in-code: partial · Source: bench-dokploy#2
+  - See also: `FEAT-137`
+- [ ] `CLUSTER-064` **Binary-safe file transfer (putArchive/getArchive), upload/download, chmod, volume mode** · ENHANCE · P2 · M · Deps: `CLUSTER-001`
+  - Why/Problem: file edits use shell exec + `escapeShellArg` + base64 (`docker-container-runtime.service.ts:281-397`); needs shell, no upload/download/chmod, text only; fails in distroless images.
+  - Do: use archive APIs; add upload/download, chmod, CodeMirror editor; volume mode via helper container.
+  - Done when: a binary file uploads to a distroless container.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#5; bench-dokploy#4
+  - See also: `WEB-070`
+- [ ] `CLUSTER-065` **Terminal audit log, idle timeout, role allow-list, shell auto-detect, reconnect** · ENHANCE · P1 · M · Deps: `CLUSTER-001`,`OBS-001`
+  - Why/Problem: no auditing of shell sessions; viewer can exec (see 001); Dockhand has shell detection.
+  - Do: log who/container/duration/commands metadata; idle timeout; optional per-role allow-list; shell/user detection; reconnect.
+  - Done when: each session produces an audit entry.
+  - Status: todo · Verified-in-code: no · Source: docker-cluster#5; bench-dokploy#4; bench-coolify (Logs/terminal)
+  - See also: `OBS-075`, `IDEA-026`
+- [ ] `CLUSTER-066` **Image scan enhancements: SBOM, deploy policy gate, rescan schedule, history per digest, grype+trivy side-by-side, digest dedupe** · ENHANCE · P2 · M · Deps: `CLUSTER-049`
+  - Why/Problem: scan runs but is not surfaced in deploy flow or gated.
+  - Do: SBOM export, policy "block deploy on critical", scheduled rescans, history keyed by digest.
+  - Done when: a deploy with a critical CVE is blocked per policy.
+  - Status: todo · Verified-in-code: no · Source: docker-cluster#5; bench-dokploy#4; parity gap #19
+  - See also: `IDEA-018`, `FEAT-067`
+- [ ] `CLUSTER-067` **Scan-gated container/service update with digest check and pending-updates list** · NEW · P2 · M · Deps: `CLUSTER-066`
+  - Why/Problem: missing; Dockhand `shouldBlockUpdate`, recreate-from-inspect, per-container schedule.
+  - Do: update check across containers, auto-update with vulnerability criteria, pending updates page.
+  - Done when: update applied only if criteria met.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy#2, #3 (#7)
+  - See also: `FEAT-069`, `WEB-093`
+- [ ] `CLUSTER-068` **Compose stacks management (list contract, adopt foreign stacks, edit, up/down, env, graph)** · NEW · P2 · L · Deps: `CLUSTER-048`
+  - Why/Problem: stacks list derived from labels with no contract procedure (`docker.repository.ts:4118+`, `stacks/list.ts` type-only); no web page; Dockhand stacks/git stacks.
+  - Do: stacks contract + page; reuse service dependency graph.
+  - Done when: a foreign compose stack is adopted and restarted from the UI.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#1.1; parity gap #14; bench-dokploy#2, #3 (#14)
+  - See also: `WEB-073`
+- [ ] `CLUSTER-069` **Docker events/activity page: saved filters, date presets, export** · ENHANCE · P3 · S · Deps: none
+  - Why/Problem: page lacks them; parity also lists no events page.
+  - Do: filters + export.
+  - Done when: filter saved and export downloads.
+  - Status: todo · Verified-in-code: partial · Source: bench-dokploy#4; parity (events page)
+- [ ] `CLUSTER-070` **Per-node environment policies (disk warning, timezone, prune schedule, labels/icons)** · NEW · P3 · S · Deps: `CLUSTER-059`
+  - Why/Problem: Dockhand environment policy panel; Coolify server settings.
+  - Do: node policy panel.
+  - Done when: policy persists and drives prune/alert thresholds.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy#2; bench-coolify#29
+  - See also: `FEAT-140`, `WEB-068`
+
+### Duplication, hygiene, docs
+- [ ] `CLUSTER-071` **Land every CLUSTER fix in both trees until `apps/api` is deleted** · ENHANCE · P1 · S · Deps: `ARCH-031`
+  - Why/Problem: `modules/{docker,cluster,fleet}` in the monolith and `apps/api-services/services/{runtime,fleet}` are near-verbatim copies (~20k lines; diff = import paths only); monolith does not compile per journeys.
+  - Do: apply fixes in the surviving tree only once decided (DEC-CLUSTER-8); otherwise mirror each fix.
+  - Done when: single copy of docker/cluster/fleet code.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#0, #3.13, #4.13; journeys#0
+  - See also: `ARCH-037`, `NET-052`
+- [ ] `CLUSTER-072` **Contract hygiene: drop or finish type-only registries/stacks modules; one shared docker/cluster contract package** · ENHANCE · P2 · S · Deps: `CLUSTER-050`,`CLUSTER-068`
+  - Why/Problem: type-only contracts expose nothing; BFF and services duplicate contracts.
+  - Do: delete or implement; share package.
+  - Done when: no type-only contract module remains.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#5
+- [ ] `CLUSTER-073` **Minor code defects** · FIX · P3 · S · Deps: none
+  - Why/Problem: `docker.service.ts` nginx fallback assigns lowercase `options.image` so the fallback never applies; `app-lifecycle.service.ts` no-op `error; message;` statements (~line 100) and no-op `completeStep`.
+  - Do: fix/remove (the nginx fallback itself is removed by DEPLOY honest-deploy).
+  - Done when: lint clean, no dead statements.
+  - Status: todo · Verified-in-code: unverified · Source: docker-cluster#1.2 (lifecycle), #3.14
+- [ ] `CLUSTER-074` **Docs: update swarm-orchestration README and close/prune open SW-* TODOs** · ENHANCE · P2 · S · Deps: `CLUSTER-014`
+  - Why/Problem: `docs/swarm-orchestration/README.md` says "Design finalized, implementation pending"; IMPLEMENTATION_TODO leaves SW-015/033/045/054/055/056/061/062/063/072/073 open; term-in-PG documented but local SQLite; secrets-to-swarm-secrets (SW-073) not done.
+  - Do: update status; close or schedule each SW item matching CLUSTER items here; quorum repair = SW-054.
+  - Done when: doc matches code and each SW item has an owner or is removed.
+  - Status: todo · Verified-in-code: unverified · Source: docker-cluster#3.12, #4.14
+  - See also: `DOC-012`
+- [ ] `CLUSTER-075` **Node security audit page (ssh/ufw/docker checks)** · NEW · P3 · M · Deps: `CLUSTER-012`
+  - Why/Problem: Dokploy `server-audit.ts`.
+  - Do: per-node checks surfaced on node detail.
+  - Done when: audit report per node.
+  - Status: todo · Verified-in-code: no · Source: bench-dokploy#3 (#21)
+  - See also: `WEB-068`
+- [ ] `CLUSTER-076` **Server onboarding polish: pre-flight (OS/Docker version), cloud-init, provider provisioning, patch check** · NEW · P3 · L · Deps: `CLUSTER-019`
+  - Why/Problem: Coolify validate-and-install, Hetzner create, patch check; ours replaces SSH with mesh join.
+  - Do: join pre-flight, cloud-init snippet, optional provider create, OS patch check.
+  - Done when: join dialog offers cloud-init output and a pre-flight.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify#24, #29
+  - See also: `SETUP-028`, `SETUP-023`, `FEAT-138`
+- [ ] `CLUSTER-077` **Remote build nodes (build servers on any mesh node + registry push)** · NEW · P3 · L · Deps: `CLUSTER-049`
+  - Why/Problem: remote builders missing; Coolify `is_build_server`.
+  - Do: designate builder nodes; DEPLOY consumes.
+  - Done when: a build runs on a designated node and pushes to the registry.
+  - Status: todo · Verified-in-code: no · Source: bench-coolify (multi-server + build servers)
+  - See also: `DEPLOY-053`, `IDEA-051`, `NET-093`
+- [ ] `CLUSTER-078` **Capacity-aware scheduling: reservations from allocations, admission control, quotas, cordon on disk/memory pressure** · NEW · P3 · L · Deps: `CLUSTER-039`,`CLUSTER-040`,`CLUSTER-060`
+  - Why/Problem: no capacity safety (right-sizing ideas are IDEA-owned; this is the platform mechanism).
+  - Do: admission control, per-project quotas, auto-cordon.
+  - Done when: a pressured node is cordoned automatically.
+  - Status: todo · Verified-in-code: no · Source: docker-cluster#6
+- [ ] `CLUSTER-079` **Multi-region spread presets** · NEW · P3 · S · Deps: `CLUSTER-041`
+  - Why/Problem: listed as new feature.
+  - Do: presets that set placement preferences.
+  - Done when: preset yields spread across regions.
+  - Status: todo · Verified-in-code: no · Source: docker-cluster#6
+- [ ] `CLUSTER-080` **Node metrics history (time series) and threshold alerts** · NEW · P2 · M · Deps: `CLUSTER-012`,`OBS-001`
+  - Why/Problem: live streams only, no history; Dokploy monitoring, Coolify Sentinel; mesh agent can push over the mesh. Alerting itself is OBS.
+  - Do: time-series store with retention days setting; node-down/task-flapping/quorum-risk alerts.
+  - Done when: a 24 h CPU graph per node and a threshold alert work.
+  - Status: todo · Verified-in-code: no · Source: docker-cluster#6; bench-dokploy#3 (#13); bench-coolify#23
+  - See also: `OBS-044`, `OBS-048`, `WEB-078`
+
+## Test coverage to add
+- [ ] `CLUSTER-081` **Controller authorization negative tests (Viewer gets FORBIDDEN) for docker/cluster/fleet** · NEW · P0 · M · Deps: `CLUSTER-001`
+  - Why/Problem: controllers have no authorization tests.
+  - Do: per-procedure role matrix test; include "no token in response" JSON-schema assertion (CLUSTER-002).
+  - Done when: matrix test green in CI.
+  - Status: todo · Verified-in-code: yes · Source: docker-cluster#5; journeys quick win 7
+  - See also: `SEC-038`
+- [ ] `CLUSTER-082` **Multi-node DinD e2e (SW-056): join, drain, node loss, election** · NEW · P1 · L · Deps: `CLUSTER-016`
+  - Why/Problem: no e2e; uses `docker-compose.mesh-6.dev-supervised.yml` and `e2e-netns.sh`.
+  - Do: `node-lifecycle.spec.ts` flow: add node, 2-replica deploy with 10 req/s prober (0 failures during drain), refuse last-manager demote, remove node (absent in engine/roster/DNS fixture), engine stop -> Down <= 60 s + webhook, replace node, viewer controls absent.
+  - Done when: spec passes nightly.
+  - Status: todo · Verified-in-code: no · Source: journeys#J5 E2E outline; docker-cluster#4.15
+  - See also: `JRN-007`
+- [ ] `CLUSTER-083` **Unit tests for status mapping, enrollLocalNode, metrics upsert and retention** · NEW · P1 · S · Deps: `CLUSTER-009`,`CLUSTER-011`
+  - Why/Problem: down/draining states and duplicate metrics are untested.
+  - Do: repository tests with engine `down` node, drained node, repeated heartbeats.
+  - Done when: tests fail on the current behaviour.
+  - Status: todo · Verified-in-code: no · Source: docker-cluster#3.5
+- [ ] `CLUSTER-084` **Tests for label sanitization, swarm spec mapping (secrets/configs, replicas, reservations) and volume naming** · NEW · P1 · S · Deps: `CLUSTER-007`
+  - Why/Problem: runner label injection and spec fields untested.
+  - Do: runner/mapper unit tests, both runners.
+  - Done when: injected `traefik.*` label dropped; stable volume name asserted.
+  - Status: todo · Verified-in-code: no · Source: docker-cluster#3.3, #4
+- [ ] `CLUSTER-085` **Tests for mesh container-action handler, node quorum pre-check, my* fleet scoping, remote-node procedures** · NEW · P1 · M · Deps: `CLUSTER-034`,`CLUSTER-017`,`CLUSTER-008`
+  - Why/Problem: remote actions, quorum refusal and per-user scoping have no coverage.
+  - Do: handler + service specs, including cluster page component test that confirm dialog is shown.
+  - Done when: specs green.
+  - Status: todo · Verified-in-code: no · Source: docker-cluster#3.7; journeys#J5 AC 4
+
+### Coverage-pass additions
+- [ ] `CLUSTER-086` **Quorum repair flow (guided `--force-new-cluster`, SW-054) for lost-majority clusters** · NEW · P2 · M · Deps: `CLUSTER-017`
+  - Why/Problem: "Quorum repair" is listed as a new feature and open SW-054; when a manager majority is lost the operator has no product path back (raft cannot schedule or accept node changes).
+  - Do: detect lost quorum (reachable managers < required), explain impact, offer a guided, typed-confirmation break-glass that runs force-new-cluster on a chosen surviving manager and re-adds the rest; admin-only, audited.
+  - Done when: in the DinD e2e a cluster that lost 2 of 3 managers is repaired from the UI and services reschedule.
+  - Status: todo · Verified-in-code: no · Source: docker-cluster#6, #4 (SW-054)
+  - See also: `NET-083`
+- [ ] `CLUSTER-087` **Backup/snapshot gate before removing or demoting the last manager or the founder** · NEW · P1 · S · Deps: `CLUSTER-018`,`OPS-013`
+  - Why/Problem: removing the last manager or founder node destroys control state; journeys W5.13 requires a backup of founder/roster/Postgres first.
+  - Do: node remove/demote saga refuses (or forces a fresh state snapshot) when the target holds the last manager, the Postgres volume or the founder identity; show backup age in the confirmation.
+  - Done when: removing the last manager without a recent snapshot is blocked with an explanation.
+  - Status: todo · Verified-in-code: no · Source: journeys#J5 W5.13, section 8 (P0 #10)
+- [ ] `CLUSTER-088` **Election and quorum-planner honesty tests (term not reset, planQuorum args, SSE == REST master)** · NEW · P1 · S · Deps: `CLUSTER-014`
+  - Why/Problem: the 64 existing swarm tests pass while production wiring is fake; `persistSnapshot` resetting the term, wrong `planQuorum` args and master SSE/REST disagreement are untested.
+  - Do: integration tests with a fake engine: persistSnapshot keeps masterTerm, planQuorum receives quorum size, master stream equals `getMaster`, master-changed emits an event.
+  - Done when: tests fail on the current behaviour.
+  - Status: todo · Verified-in-code: no · Source: docker-cluster#1.2, #3.4, #3.14
+- [ ] `CLUSTER-089` **Tests: join tokens never persisted/returned and rotated after grant; registry credentials never returned and project-scoped** · NEW · P1 · S · Deps: `CLUSTER-003`,`CLUSTER-050`,`CLUSTER-052`
+  - Why/Problem: token and credential leaks are the highest-impact regressions and have no tests beyond the CLUSTER-081 matrix.
+  - Do: repository tests asserting no plaintext token column; grant redemption rotates tokens; registry list/get contain no secret; project A cannot use project B's credential.
+  - Done when: each assertion has a failing-first test.
+  - Status: todo · Verified-in-code: no · Source: docker-cluster#3.2, #4.2, #4.7
+
+## Decisions needed
+- [ ] DEC-CLUSTER-1 Master election: delete the custom election and use the swarm raft leader, or make it truly distributed (shared PG, real metrics) — options: A raft leader only / B distributed election — recommendation: A (mesh-first, no source of truth; the custom election adds no value today).
+- [ ] DEC-CLUSTER-2 Image distribution: platform-run registry vs external registry (or both) — options: built-in registry service / user-supplied registry / both — recommendation: external-or-built-in behind one registry abstraction, credentials encrypted.
+- [ ] DEC-CLUSTER-3 Fleet capacity/allocations/admission: enforce in deployment admission or delete the model (single-tenant solo operator) — options: enforce / delete — recommendation: delete unless multi-tenant is chosen (JRN decision 5).
+- [ ] DEC-CLUSTER-4 Volume strategy for multi-node: node-pinning vs shared storage driver (NFS) vs "stateless only" — options: pin / NFS / document — recommendation: pin by default, NFS optional.
+- [ ] DEC-CLUSTER-5 `platformRole` (control/worker) semantics: enforce as placement constraint or relabel as advisory — options: enforce / advisory — recommendation: enforce.
+- [ ] DEC-CLUSTER-6 Swarm as default runner when a swarm is active — options: default / opt-in documented — recommendation: default after 043 and 049.
+- [ ] DEC-CLUSTER-7 Relay vs documented NAT limitation for node join (NET owner decides; affects CLUSTER-019 pre-flight) — options: relay / pre-flight warning — recommendation: pre-flight first, relay later.
+- [ ] DEC-CLUSTER-8 Which backend tree survives (BFF tier vs monolith) before fixing CLUSTER items — options: tier, delete `apps/api` / mirror — recommendation: tier, delete `apps/api`.
+
+Totals: 89 items. Priority: P0 7, P1 37, P2 31, P3 14. Type: FIX 31, ENHANCE 13, NEW 45.
+
+> Effect-impact pass: 2026-10-26 — 2 items annotated

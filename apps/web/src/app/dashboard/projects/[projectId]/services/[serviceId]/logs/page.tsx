@@ -8,12 +8,21 @@ import {
   useDockerDeploymentList,
 } from '@/domains/docker/hooks'
 import { useMeshSseState } from '@/domains/mesh/hooks'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Input } from '@repo/ui/components/shadcn/input'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { ReplicaSidebar } from './_components/replica-sidebar'
+import {
+  filterServiceActivity,
+  formatActivityLines,
+  projectServiceActivity,
+  type DeploymentLite,
+  type DockerContainerLite,
+  type ServiceLogLine,
+} from './_utils/service-activity'
 import { PageSkeleton } from '@/components/dashboard/Skeletons'
 import { InlineError, SectionHeading } from '../../../../_components/workload/WorkloadStates'
-import { Toggle } from '@repo/ui/components/shadcn/toggle'
+import { Toggle } from '@deployer/ui/components/shadcn/toggle'
 import { Check, Copy, Pause, Play, Search, WrapText } from 'lucide-react'
 import { formatDateTime as formatDate } from '@/lib/format/date'
 
@@ -23,36 +32,6 @@ const LIST_INPUT = {
     offset: 0,
   },
 } as const
-
-interface ServiceLogLine {
-  id: string
-  containerId: string | null
-  containerName: string
-  source: 'deployment' | 'mesh' | 'replica'
-  status: string
-  message: string
-  timestamp: string
-}
-
-interface DockerContainerLite {
-  id: string
-  name: string
-  projectId: string
-  serviceId: string
-  status: string
-  health: string
-  updatedAt: string
-  startedAt?: string | null
-}
-
-interface DeploymentLite {
-  id: string
-  serviceId: string
-  containerName?: string | null
-  status: string
-  environment: string
-  updatedAt: string
-}
 
 export default function DashboardServiceLogsPage() {
   const params = useParams<{ projectId: string; serviceId: string }>()
@@ -117,100 +96,21 @@ export default function DashboardServiceLogsPage() {
 
   const effectiveSelectedReplicaNames = selectionTouched ? selectedReplicaNames : preselectedReplicaNames
 
-  /**
-   * KNOWN GAP — these are not log lines.
-   *
-   * Every entry below is a sentence composed from a deployment status, a
-   * container status, or the mesh state, so a page whose whole job is "show me
-   * what this service printed" contains none of its actual output and cannot
-   * answer "why did it fail". Real evidence is already fetchable —
-   * `useDeploymentLogs` (domains/deployment/hooks) for build/deploy output and
-   * `useDockerContainerLogsSnapshot` for a replica's stdout. Wiring those in is
-   * the fix; this list is what the page showed before them.
-   */
-  const logs = useMemo<ServiceLogLine[]>(() => {
-    const projected: ServiceLogLine[] = []
-    const serviceDeployments = allDeployments.filter(
-      (deployment: DeploymentLite) => deployment.serviceId === serviceId,
-    )
+  const logs = useMemo(
+    () => projectServiceActivity({ deployments: allDeployments, serviceContainers, meshState, meshSseStatus, serviceId }),
+    [allDeployments, meshSseStatus, meshState, serviceContainers, serviceId],
+  )
 
-    for (const deployment of serviceDeployments.slice(0, 120)) {
-      const containerName = deployment.containerName ?? `service-${deployment.id.slice(0, 8)}`
-      const message =
-        deployment.status === 'failed'
-          ? `Deployment failed in ${deployment.environment}`
-          : deployment.status === 'success'
-            ? `Deployment completed in ${deployment.environment}`
-            : `Deployment ${deployment.status} in ${deployment.environment}`
-
-      projected.push({
-        id: deployment.id,
-        containerId: null,
-        containerName,
-        source: 'deployment',
-        status: deployment.status,
-        message,
-        timestamp: deployment.updatedAt,
-      })
-    }
-
-    for (const container of serviceContainers) {
-      projected.push({
-        id: `${container.id}-runtime`,
-        containerId: container.id,
-        containerName: container.name,
-        source: 'replica',
-        status: container.status,
-        message: `${container.name} runtime ${container.status} · health ${container.health}`,
-        timestamp: container.updatedAt,
-      })
-
-      if (container.startedAt) {
-        projected.push({
-          id: `${container.id}-started`,
-          containerId: container.id,
-          containerName: container.name,
-          source: 'replica',
-          status: 'started',
-          message: `${container.name} started at ${formatDate(container.startedAt)}`,
-          timestamp: container.startedAt,
-        })
-      }
-    }
-
-    if (meshState) {
-      projected.push({
-        id: `mesh-state-${String(meshState.revision)}-${serviceId}`,
-        containerId: null,
-        containerName: serviceId,
-        source: 'mesh',
-        status: meshSseStatus,
-        message: `Mesh ${meshState.reason.replaceAll('_', ' ')} · ${String(meshState.sessions.length)} sessions · ${String(meshState.peers.length)} peers`,
-        timestamp: meshState.emittedAt,
-      })
-    }
-
-    return projected.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-  }, [allDeployments, meshSseStatus, meshState, serviceContainers, serviceId])
-
-  const filteredLogs = useMemo(() => {
-    const normalized = logsSearchTerm.trim().toLowerCase()
-
-    return logs.filter((log) => {
-      if (logsSourceFilter !== 'all' && log.source !== logsSourceFilter) return false
-      if (logsReplicaFilter !== 'all' && log.containerName !== logsReplicaFilter) return false
-      if (effectiveSelectedReplicaNames.size > 0 && !effectiveSelectedReplicaNames.has(log.containerName)) return false
-      if (clearedAt && new Date(log.timestamp).getTime() < clearedAt) return false
-
-      if (!normalized) return true
-
-      return (
-        log.containerName.toLowerCase().includes(normalized)
-        || log.message.toLowerCase().includes(normalized)
-        || log.status.toLowerCase().includes(normalized)
-      )
-    })
-  }, [clearedAt, effectiveSelectedReplicaNames, logs, logsReplicaFilter, logsSearchTerm, logsSourceFilter])
+  const filteredLogs = useMemo(
+    () => filterServiceActivity(logs, {
+      searchTerm: logsSearchTerm,
+      source: logsSourceFilter,
+      replica: logsReplicaFilter,
+      selectedReplicaNames: effectiveSelectedReplicaNames,
+      clearedAt,
+    }),
+    [clearedAt, effectiveSelectedReplicaNames, logs, logsReplicaFilter, logsSearchTerm, logsSourceFilter],
+  )
 
   const displayedLogs = isPaused ? (pausedSnapshot ?? filteredLogs) : filteredLogs
 
@@ -242,91 +142,32 @@ export default function DashboardServiceLogsPage() {
         description="Status events for this service: deployment results, replica state and mesh changes. This is not the process output of your containers — open a replica in Docker for that."
       />
       <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="overflow-hidden rounded-2xl border border-border/60 bg-card/50 backdrop-blur-xl">
-          <div className="border-b border-border/60 px-3 py-3">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={replicaSearchTerm}
-                onChange={(event) => {
-                  setReplicaSearchTerm(event.target.value)
-                }}
-                placeholder="Filter replicas..."
-                className="h-9 border-border/70 bg-background/70 pl-9"
-              />
-            </div>
-            <div className="mt-2 flex items-center gap-3 text-xs">
-              <button
-                type="button"
-                className="text-muted-foreground transition-colors hover:text-foreground"
-                onClick={() => {
-                  setSelectionTouched(true)
-                  setSelectedReplicaNames(new Set(filteredReplicaNames))
-                }}
-              >
-                Select all
-              </button>
-              <button
-                type="button"
-                className="text-muted-foreground transition-colors hover:text-foreground"
-                onClick={() => {
-                  setSelectionTouched(true)
-                  setSelectedReplicaNames(new Set())
-                }}
-              >
-                Clear
-              </button>
-            </div>
-          </div>
-
-          <div className="max-h-[60vh] space-y-1 overflow-auto px-2 py-2">
-            {filteredReplicaNames.map((replicaName: string) => {
-              const isSelected = effectiveSelectedReplicaNames.has(replicaName)
-              return (
-                <div
-                  key={replicaName}
-                  className={`flex items-center gap-2 rounded-md border px-2 py-1.5 transition-colors ${isSelected ? 'border-primary/40 bg-primary/10' : 'border-transparent hover:border-border/50 hover:bg-muted/30'}`}
-                >
-                  <DockerSelectionToggle
-                    ariaLabel={`Select logs for ${replicaName}`}
-                    shape="round"
-                    pressed={isSelected}
-                    onPressedChange={(pressed: boolean) => {
-                      setSelectedReplicaNames((previous) => {
-                        setSelectionTouched(true)
-                        const next = new Set(previous)
-                        if (pressed) next.add(replicaName)
-                        else next.delete(replicaName)
-                        return next
-                      })
-                    }}
-                  />
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-medium">{replicaName}</p>
-                    <p className="text-xs text-muted-foreground">service replica</p>
-                  </div>
-                </div>
-              )
-            })}
-            {filteredReplicaNames.length === 0 ? (
-              <p className="px-2 py-4 text-xs text-muted-foreground">No replicas match your filter.</p>
-            ) : null}
-          </div>
-
-          <div className="border-t border-border/60 px-3 py-2">
-            <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-              <span>{effectiveSelectedReplicaNames.size} selected</span>
-              <span>{replicaNames.length} replicas</span>
-            </div>
-            <Badge variant="outline" className="text-xs">
-              {allVisibleReplicasSelected
-                ? 'All visible selected'
-                : someVisibleReplicasSelected
-                  ? 'Partial visible selected'
-                  : 'None visible selected'}
-            </Badge>
-          </div>
-        </aside>
+        <ReplicaSidebar
+          searchTerm={replicaSearchTerm}
+          onSearchTermChange={setReplicaSearchTerm}
+          visibleReplicaNames={filteredReplicaNames}
+          totalReplicaCount={replicaNames.length}
+          selectedReplicaNames={effectiveSelectedReplicaNames}
+          allVisibleSelected={allVisibleReplicasSelected}
+          someVisibleSelected={someVisibleReplicasSelected}
+          onSelectAllVisible={() => {
+            setSelectionTouched(true)
+            setSelectedReplicaNames(new Set(filteredReplicaNames))
+          }}
+          onClearSelection={() => {
+            setSelectionTouched(true)
+            setSelectedReplicaNames(new Set())
+          }}
+          onToggleReplica={(replicaName, pressed) => {
+            setSelectionTouched(true)
+            setSelectedReplicaNames((previous) => {
+              const next = new Set(previous)
+              if (pressed) next.add(replicaName)
+              else next.delete(replicaName)
+              return next
+            })
+          }}
+        />
 
         <section className="overflow-hidden rounded-2xl border border-border/60 bg-card/50 backdrop-blur-xl">
           <div className="border-b border-border/60 bg-background/70 px-4 py-2.5">
@@ -396,9 +237,7 @@ export default function DashboardServiceLogsPage() {
                   size="sm"
                   className="h-8 gap-1.5"
                   onClick={() => {
-                    const text = displayedLogs
-                      .map((log) => `${formatDate(log.timestamp)}\t${log.containerName}\t${log.source}\t${log.message}`)
-                      .join('\n')
+                    const text = formatActivityLines(displayedLogs)
                     void navigator.clipboard.writeText(text).then(() => {
                       setCopied(true)
                       window.setTimeout(() => { setCopied(false) }, 1500)
@@ -415,9 +254,7 @@ export default function DashboardServiceLogsPage() {
                   size="sm"
                   className="h-8"
                   onClick={() => {
-                    const payload = displayedLogs
-                      .map((log) => `${formatDate(log.timestamp)}\t${log.containerName}\t${log.source}\t${log.message}`)
-                      .join('\n')
+                    const payload = formatActivityLines(displayedLogs)
                     const blob = new Blob([payload], { type: 'text/plain;charset=utf-8' })
                     const url = URL.createObjectURL(blob)
                     const anchor = document.createElement('a')

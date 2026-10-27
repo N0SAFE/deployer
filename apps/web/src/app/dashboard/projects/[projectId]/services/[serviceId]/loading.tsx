@@ -1,4 +1,4 @@
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
+import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 
 /**
  * Service detail loading state.

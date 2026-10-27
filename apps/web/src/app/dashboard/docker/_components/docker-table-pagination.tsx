@@ -1,6 +1,6 @@
 'use client'
 
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface DockerTablePaginationProps {

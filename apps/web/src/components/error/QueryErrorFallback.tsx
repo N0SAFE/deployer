@@ -10,7 +10,7 @@
 import { isDefinedORPCError, getErrorMessage } from "@/lib/orpc/typed-errors";
 import React from 'react'
 import { AlertCircle, RefreshCw, WifiOff } from 'lucide-react'
-import { Button } from '@repo/ui/components/shadcn/button'
+import { Button } from '@deployer/ui/components/shadcn/button'
 import { cn } from '@/lib/utils'
 
 interface QueryErrorFallbackProps {

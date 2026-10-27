@@ -1,22 +1,22 @@
 'use client'
 
 import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import { useService, useUpdateService } from '@/domains/service/hooks'
-import { Alert, AlertDescription, AlertTitle } from '@repo/ui/components/shadcn/alert'
-import { Badge } from '@repo/ui/components/shadcn/badge'
-import { Button } from '@repo/ui/components/shadcn/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@repo/ui/components/shadcn/card'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Label } from '@repo/ui/components/shadcn/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@repo/ui/components/shadcn/select'
-import { Separator } from '@repo/ui/components/shadcn/separator'
-import { Skeleton } from '@repo/ui/components/shadcn/skeleton'
-import { Siren, Save, Rocket, Link2, FileCheck, Plus, X } from 'lucide-react'
+import { Badge } from '@deployer/ui/components/shadcn/badge'
+import { Button } from '@deployer/ui/components/shadcn/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Label } from '@deployer/ui/components/shadcn/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@deployer/ui/components/shadcn/select'
+import { Separator } from '@deployer/ui/components/shadcn/separator'
+import { Save, Rocket, Link2, FileCheck, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { PageSkeleton } from '@/components/dashboard'
+import { InlineError } from '@/app/dashboard/projects/_components/workload/WorkloadStates'
 import { ServiceConfigSubNav } from '../../_components/service-config-subnav'
-import { ENV_NAMES, type EnvName } from '@repo/contracts-common'
+import { ENV_NAMES, type EnvName } from '@deployer/contracts-common'
 
 /**
  * Service Configuration → Preview
@@ -34,93 +34,50 @@ import { ENV_NAMES, type EnvName } from '@repo/contracts-common'
  * This is CONFIGURATION ONLY — the deployment lifecycle that consumes it comes
  * in a later phase.
  */
+type ServiceData = NonNullable<ReturnType<typeof useService>['data']>
+type ResolutionMode = 'linked-preview' | 'fixed' | 'mock' | 'derive'
+type Compatibility = 'http' | 'grpc' | 'events'
+interface LinkedServiceDraft {
+  serviceId: string
+  mode: 'inherit' | 'mock' | 'fixed'
+  mockRef?: string
+  fixedEnvironment?: EnvName
+}
+
+const FIXED_ENV_OPTIONS: string[] = [...new Set<string>([...ENV_NAMES, 'staging'])]
+
 export default function DashboardServiceConfigurationPreviewPage() {
-  const params = useParams<{ projectId: string; serviceId: string }>()
-  const projectId = params.projectId ?? ''
-  const serviceId = params.serviceId ?? ''
+  const { projectId, serviceId } = useParams<{ projectId: string; serviceId: string }>()
+  const query = useService(serviceId)
 
-  const { data: serviceData, isLoading: serviceLoading } = useService(serviceId)
+  if (query.isLoading) return <PageSkeleton blocks={3} withStrip={false} label="Loading preview configuration" />
+  if (query.error) return <InlineError title="Could not load the service" error={query.error} onRetry={() => { void query.refetch() }} />
+  if (!query.data) return <InlineError title="Service not found" error={new Error('This service does not exist or was deleted.')} />
+  // Keyed so the form seeds once per service; a refetch never overwrites what is being typed.
+  return <PreviewForm key={query.data.id} projectId={projectId} serviceId={serviceId} service={query.data} />
+}
+
+function PreviewForm({ projectId, serviceId, service }: { projectId: string; serviceId: string; service: ServiceData }) {
   const updateService = useUpdateService()
+  const resolution = service.preview?.backendResolution
 
-  // ── Local state (loaded once from the service) ──
-  const [contractRef, setContractRef] = useState('')
-  const [compatibility, setCompatibility] = useState<'http' | 'grpc' | 'events'>('http')
-  const [resolutionMode, setResolutionMode] = useState<'linked-preview' | 'fixed' | 'mock' | 'derive'>('linked-preview')
-  const [fixedTarget, setFixedTarget] = useState<EnvName>('staging')
-  const [mockRef, setMockRef] = useState('')
-  const [deriveKey, setDeriveKey] = useState('pullRequestNumber')
-  const [deriveFallback, setDeriveFallback] = useState<EnvName>('staging')
-  const [subdomainTemplate, setSubdomainTemplate] = useState('{branch}-{service}')
-  const [linkedServices, setLinkedServices] = useState<Array<{
-    serviceId: string
-    mode: 'inherit' | 'mock' | 'fixed'
-    mockRef?: string
-    fixedEnvironment?: EnvName
-  }>>([])
-  const [loaded, setLoaded] = useState(false)
+  const [contractRef, setContractRef] = useState(service.implementsContract?.contractRef ?? '')
+  const [compatibility, setCompatibility] = useState<Compatibility>(service.implementsContract?.compatibility ?? 'http')
+  const [resolutionMode, setResolutionMode] = useState<ResolutionMode>(resolution?.mode ?? 'linked-preview')
+  const [fixedTarget, setFixedTarget] = useState<EnvName>(resolution?.mode === 'fixed' ? resolution.targetEnvironment : 'staging')
+  const [mockRef, setMockRef] = useState(resolution?.mode === 'mock' ? resolution.mockRef : '')
+  const [deriveKey, setDeriveKey] = useState(resolution?.mode === 'derive' ? resolution.fromInputKey : 'pullRequestNumber')
+  const [deriveFallback, setDeriveFallback] = useState<EnvName>(resolution?.mode === 'derive' ? resolution.fallbackEnvironment : 'staging')
+  const [subdomainTemplate, setSubdomainTemplate] = useState(service.preview?.subdomainTemplate ?? '{branch}-{service}')
+  const [linkedServices, setLinkedServices] = useState<LinkedServiceDraft[]>(() =>
+    (service.preview?.linkedServices ?? []).map((l) => ({
+      serviceId: l.serviceId,
+      mode: l.mode,
+      mockRef: l.mockRef,
+      fixedEnvironment: l.fixedEnvironment,
+    })),
+  )
   const [saving, setSaving] = useState(false)
-
-  // ── Load existing config once ──
-  useEffect(() => {
-    if (loaded || !serviceData) return
-    const s = serviceData as Record<string, unknown>
-    const contract = (s.implementsContract ?? null) as { contractRef?: string; compatibility?: 'http' | 'grpc' | 'events' } | null
-    if (contract?.contractRef) {
-      setContractRef(contract.contractRef)
-      setCompatibility(contract.compatibility ?? 'http')
-    }
-    const preview = (s.preview ?? null) as {
-      backendResolution?: { mode?: string; targetEnvironment?: EnvName; mockRef?: string; fromInputKey?: string; fallbackEnvironment?: EnvName }
-      linkedServices?: Array<{ serviceId: string; mode?: string; mockRef?: string; fixedEnvironment?: EnvName }>
-      subdomainTemplate?: string
-    } | null
-    if (preview?.backendResolution?.mode) {
-      const mode = preview.backendResolution.mode
-      if (mode === 'linked-preview' || mode === 'fixed' || mode === 'mock' || mode === 'derive') {
-        setResolutionMode(mode)
-      }
-      if (mode === 'fixed' && preview.backendResolution.targetEnvironment) {
-        setFixedTarget(preview.backendResolution.targetEnvironment)
-      }
-      if (mode === 'mock' && preview.backendResolution.mockRef) {
-        setMockRef(preview.backendResolution.mockRef)
-      }
-      if (mode === 'derive') {
-        if (preview.backendResolution.fromInputKey) setDeriveKey(preview.backendResolution.fromInputKey)
-        if (preview.backendResolution.fallbackEnvironment) setDeriveFallback(preview.backendResolution.fallbackEnvironment)
-      }
-    }
-    if (preview?.subdomainTemplate) setSubdomainTemplate(preview.subdomainTemplate)
-    if (preview?.linkedServices?.length) {
-      setLinkedServices(preview.linkedServices.map((l) => ({
-        serviceId: l.serviceId,
-        mode: (l.mode as 'inherit' | 'mock' | 'fixed' | undefined) ?? 'inherit',
-        mockRef: l.mockRef,
-        fixedEnvironment: l.fixedEnvironment,
-      })))
-    }
-    setLoaded(true)
-  }, [loaded, serviceData])
-
-  if (serviceLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-4 w-64" />
-        <Skeleton className="h-48 w-full rounded-xl" />
-      </div>
-    )
-  }
-
-  if (!serviceData) {
-    return (
-      <Alert variant="destructive">
-        <Siren className="size-4" />
-        <AlertTitle>Service not found</AlertTitle>
-        <AlertDescription>This service does not exist.</AlertDescription>
-      </Alert>
-    )
-  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -178,15 +135,15 @@ export default function DashboardServiceConfigurationPreviewPage() {
             <Input
               id="contractRef"
               value={contractRef}
-              onChange={(e) => setContractRef(e.target.value)}
+              onChange={(e) => { setContractRef(e.target.value) }}
               placeholder="api.oas3"
               className="font-mono"
             />
-            <p className="text-[11px] text-muted-foreground">e.g. api.oas3, checkout.payment, user.events</p>
+            <p className="text-xs text-muted-foreground">e.g. api.oas3, checkout.payment, user.events</p>
           </div>
           <div className="space-y-1.5">
             <Label>Compatibility</Label>
-            <Select value={compatibility} onValueChange={(v) => setCompatibility(v as 'http' | 'grpc' | 'events')}>
+            <Select value={compatibility} onValueChange={(v) => { setCompatibility(v as Compatibility) }}>
               <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="http">HTTP</SelectItem>
@@ -209,7 +166,7 @@ export default function DashboardServiceConfigurationPreviewPage() {
         <CardContent className="space-y-4">
           <div className="space-y-1.5">
             <Label>Resolution mode</Label>
-            <Select value={resolutionMode} onValueChange={(v) => setResolutionMode(v as typeof resolutionMode)}>
+            <Select value={resolutionMode} onValueChange={(v) => { setResolutionMode(v as ResolutionMode) }}>
               <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="linked-preview">Linked preview — spin up the dependency's own preview (recurse)</SelectItem>
@@ -223,10 +180,10 @@ export default function DashboardServiceConfigurationPreviewPage() {
           {resolutionMode === 'fixed' && (
             <div className="space-y-1.5">
               <Label>Target environment</Label>
-              <Select value={fixedTarget} onValueChange={(v) => setFixedTarget(v as EnvName)}>
+              <Select value={fixedTarget} onValueChange={(v) => { setFixedTarget(v as EnvName) }}>
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {[...ENV_NAMES, 'staging'].filter((v, i, a) => a.indexOf(v) === i).map((env) => (
+                  {FIXED_ENV_OPTIONS.map((env) => (
                     <SelectItem key={env} value={env} className="capitalize">{env}</SelectItem>
                   ))}
                 </SelectContent>
@@ -240,11 +197,11 @@ export default function DashboardServiceConfigurationPreviewPage() {
               <Input
                 id="mockRef"
                 value={mockRef}
-                onChange={(e) => setMockRef(e.target.value)}
+                onChange={(e) => { setMockRef(e.target.value) }}
                 placeholder="api-stub"
                 className="font-mono"
               />
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Service id or name of the mock (spec-driven or DI-style code mock) implementing the same contract.
               </p>
             </div>
@@ -257,17 +214,17 @@ export default function DashboardServiceConfigurationPreviewPage() {
                 <Input
                   id="deriveKey"
                   value={deriveKey}
-                  onChange={(e) => setDeriveKey(e.target.value)}
+                  onChange={(e) => { setDeriveKey(e.target.value) }}
                   placeholder="pullRequestNumber"
                   className="font-mono"
                 />
               </div>
               <div className="space-y-1.5">
                 <Label>Fallback environment</Label>
-                <Select value={deriveFallback} onValueChange={(v) => setDeriveFallback(v as EnvName)}>
+                <Select value={deriveFallback} onValueChange={(v) => { setDeriveFallback(v as EnvName) }}>
                   <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {[...ENV_NAMES, 'staging'].filter((v, i, a) => a.indexOf(v) === i).map((env) => (
+                    {FIXED_ENV_OPTIONS.map((env) => (
                       <SelectItem key={env} value={env} className="capitalize">{env}</SelectItem>
                     ))}
                   </SelectContent>
@@ -287,7 +244,7 @@ export default function DashboardServiceConfigurationPreviewPage() {
               Services to spin up alongside this preview (Railway Focused-PR style). Each resolves independently.
             </CardDescription>
           </div>
-          <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px]" onClick={() => setLinkedServices((prev) => [...prev, { serviceId: '', mode: 'inherit' }])}>
+          <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={() => { setLinkedServices((prev) => [...prev, { serviceId: '', mode: 'inherit' }]) }}>
             <Plus className="size-3" /> Add linked service
           </Button>
         </CardHeader>
@@ -337,7 +294,7 @@ export default function DashboardServiceConfigurationPreviewPage() {
                   >
                     <SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {[...ENV_NAMES, 'staging'].filter((v, i, a) => a.indexOf(v) === i).map((env) => (
+                      {FIXED_ENV_OPTIONS.map((env) => (
                         <SelectItem key={env} value={env} className="capitalize">{env}</SelectItem>
                       ))}
                     </SelectContent>
@@ -347,8 +304,8 @@ export default function DashboardServiceConfigurationPreviewPage() {
                   size="icon"
                   variant="ghost"
                   className="ml-auto size-7 p-0 text-destructive hover:text-destructive"
-                  aria-label="Remove linked service"
-                  onClick={() => setLinkedServices((prev) => prev.filter((_, i) => i !== idx))}
+                  aria-label={`Remove linked service ${ls.serviceId || String(idx + 1)}`}
+                  onClick={() => { setLinkedServices((prev) => prev.filter((_, i) => i !== idx)) }}
                 >
                   <X className="size-3.5" />
                 </Button>
@@ -367,7 +324,7 @@ export default function DashboardServiceConfigurationPreviewPage() {
         <CardContent>
           <Input
             value={subdomainTemplate}
-            onChange={(e) => setSubdomainTemplate(e.target.value)}
+            onChange={(e) => { setSubdomainTemplate(e.target.value) }}
             placeholder="{branch}-{service}"
             className="font-mono"
           />

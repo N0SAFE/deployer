@@ -26,11 +26,11 @@
     "scripts": {
         "build": "bun --bun pkg-build",
         "compile": "bun --bun pkg-build",
-        "prettify": "prettier . --write --no-error-on-unmatched-pattern",
+        "prettify": "bun fmt .",
         "format": "bun run prettify",
-        "format:check": "prettier . --check --no-error-on-unmatched-pattern",
+        "format:check": "bun fmt --check .",
         "clean": "rimraf dist",
-        "type-check": "bun --check",
+        "type-check": "bun check --no-script",
         "test": "echo 'vitest-config package ready'",
         "dev": "bun --bun pkg-build --watch",
         "build:types": "bun --bun pkg-build --types"

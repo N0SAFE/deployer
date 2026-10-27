@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import type { SetupVerificationTarget } from "@repo/contracts-entities"
+import type { SetupVerificationTarget } from "@deployer/contracts-entities"
 
 import {
   buildVerificationTasks,
@@ -9,9 +9,9 @@ import {
   probeFromBrowser,
   verificationFailed,
   type BrowserProbe,
-} from "@repo/ui/components/setup/platform-verification"
-import type { ProgressTask } from "@repo/ui/components/setup/progress-tasks"
-import type { SetupWizardApi } from "@repo/ui/components/setup/types"
+} from "@deployer/ui/components/setup/platform-verification"
+import type { ProgressTask } from "@deployer/ui/components/setup/progress-tasks"
+import type { SetupWizardApi } from "@deployer/ui/components/setup/types"
 
 /**
  * How long the platform has to start answering before the check gives up.

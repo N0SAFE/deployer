@@ -1,0 +1,301 @@
+---
+title: Deployment Capabilities — What Works, What Does Not
+---
+
+**Last verified:** 2026-10-24, by reading the code (not by running it).
+**Scope:** the deployment path end to end — trigger → build → run → route — plus the
+extension points that decide how far it can grow.
+
+> **How to read the extension points.** Every seam in section 5 is a NestJS
+> provider behind a `Symbol` token. Adding behaviour means registering one more
+> implementation in the module — never editing a `switch`, an `if` chain, or the
+> consumer that calls the seam. The tests that guard this are listed per seam.
+
+This page exists because the deployment surface is **wide and uneven**: most of it is real,
+several parts are the shape of a feature without the effect, and a few are extension points
+that look pluggable and are not. Each claim names the file that proves it, so a reader can
+check rather than trust.
+
+**Read the status column literally.** `WORKS` means a deployment actually changes the
+running system. `PARTIAL` means something durable happens but the operator-visible effect
+does not (usually: a row is written and nothing else). `ABSENT` means the surface exists
+with no behaviour behind it.
+
+---
+
+## 1. The happy path, as it actually runs
+
+```
+POST /deployments
+  └─ DeploymentController.trigger
+       └─ DeploymentService.triggerDeployment        deployment.service.ts:368
+            ├─ authz + runtime-config constraints     :370-422
+            ├─ state machine → builder/runner         :448-478
+            └─ enqueueQueueJob({type:"deploy"})       :519-565
+                 └─ DeploymentQueueLifecycleService.enqueueQueueJob
+                      └─ in-memory Map + RxJS channel → Map, not a table
+                           └─ DeploymentQueueWorkerService.processQueueJob
+                                ├─ claim (idempotency key, 120 s lease, 30 s heartbeat)
+                                ├─ checkout   ← GitService.cloneRepository | extractUploadedFile
+                                ├─ build      ← BuilderRegistryService.resolve(kind).build(ctx)
+                                ├─ artifact persisted (tag or null for compose)
+                                └─ completeQueueJob
+                                     └─ run  ← RuntimeRunnerRegistryService.execute(kind, input)
+                                          └─ DockerRuntimeRunner | SwarmRuntimeRunner
+                                               ├─ create/update service or container
+                                               ├─ Traefik route sync
+                                               └─ readiness gate (poll to running)
+```
+
+Two facts about that path matter more than any table below:
+
+1. **The queue is in memory.** `deployment-queue-lifecycle.service.ts:44-45` holds a `Map`.
+   A restart between claim and complete strands the deployment row at `building` forever.
+   `DeploymentQueueReconciliationService` marks those rows failed at boot — it does not
+   resume them.
+2. **Every builder and every runner dispatches through a registry now** (§5). That is the
+   one part of this subsystem that is properly extensible.
+
+---
+
+## 2. Status table — deployment lifecycle
+
+| Capability | Status | Evidence / what is missing |
+|---|---|---|
+| Trigger a deploy | **WORKS** | `deployment.service.ts:368-565`; real clone + real `dockerode.buildImage` |
+| Retry | **WORKS** | `deployment.service.ts:875-945`; restricted to `failed`/`cancelled` |
+| Logs (read) | **WORKS** | DB-backed, filters, 4 s polling (`deployment-logs-viewer.tsx:40-46`) |
+| Log **streaming** (SSE) | **PARTIAL** | Backend is complete (`deployment.service.ts:1811-2010`); **no frontend consumer** — the endpoints are exported and nothing calls them, so the UI polls |
+| Queue claim / heartbeat / dead-letter / replay | **WORKS** | `deployment-queue-lifecycle.service.ts:116-560` — but **in-memory** (§1) |
+| **Cancel** | **PARTIAL** | Flips status + emits events. **No queue cancel exists**, the worker keeps building, and `completeQueueJob` then overwrites `cancelled` with `success`. No container stop. |
+| **Rollback** | **WORKS** | `completeQueueJob` now calls `executeRollbackDeployment` (`deployment-execution-workflow.service.ts`), which redeploys the TARGET deployment's recorded image through the runtime-runner registry before recording success. The `rollback` job skips the build path entirely (`deployment-queue.worker.service.ts`) — the artifact already built. A target with no image fails loudly (`ROLLBACK_TARGET_HAS_NO_IMAGE`) instead of claiming success, and a failed revert goes through `failQueueJob` → `persistRollbackExecutionFailure`. |
+| Rollback history | **PARTIAL** | API + repository work (`deployment.repository.ts:826`); `useDeploymentRollbackHistory` exists with **zero consumers** — no UI |
+| Plan compilation / preview | **PARTIAL** | Deterministic DAG + `planHash` (`deployment.service.ts:1195-1293`), but **nothing in the execution path calls it**; `compilePlanPreview` is byte-identical to `compilePlan` |
+| Template provenance / plan snapshots | **PARTIAL** | Backed by `Map`s (`deployment.service.ts:177-181`) — lost on restart, never written during a deploy, no tables |
+| State machine | **PARTIAL** | `applyPhaseTransition` trusts the **caller-supplied** `currentPhase` instead of reading the row; execution writes `phase` directly, bypassing it |
+| Approval gates | **ABSENT** | `requireApprovalForProduction` is resolved into effective config and **never read** at trigger (`deployment.service.ts:406-419`). No `pending_approval` state, no approve endpoint, no UI. |
+| Concurrency limits | **ABSENT** | No in-flight check anywhere in `triggerDeployment` |
+| Deployment retention / pruning | **ABSENT** | `deploymentRetention` is persisted and editable in the service config UI; **zero consumers** — nothing is ever pruned |
+| Deployment strategies (rolling/blue-green/canary) | **ABSENT** | Resolved into `effective.deployment.strategy`, then dropped. The swarm runner **hardcodes** `order:"start-first", parallelism:1` (`swarm-runtime-runner.service.ts:221-226`) |
+| Execution cancel / resume / checkpoint | **ABSENT** | Writes into two `Map`s; never touches the queue, the runner, or a container |
+| Preview deployments | **PARTIAL** | DNS + Traefik route + `preview_environments` row, with TTL cleanup — but **no deployment is triggered for the PR commit**. `preview-provisioning.service.ts` never enqueues; it attaches the latest existing deployment. |
+
+---
+
+## 3. Status table — build and source
+
+| Capability | Status | Evidence / what is missing |
+|---|---|---|
+| Build from Dockerfile | **WORKS** | `DockerfileBuilderStrategy` → `dockerode.buildImage` on the node's socket |
+| Build from compose | **PARTIAL** | `DockerComposeBuilderStrategy` → `docker compose build`. **Running is broken**: the compose runtime runner delegates to the single-container runner and falls back to **`nginx:alpine`**; `SwarmComposeRealizerService` (the real pipeline) is implemented and called by nothing |
+| Buildpack family (nixpacks/buildpack/railpack) | **PARTIAL — works only with custom commands** | These ran through the Docker fall-through with no Dockerfile and failed. They succeed **only when custom build/run commands are supplied** (the caller then writes `Dockerfile.deployer.custom`). No `nixpacks`/`pack`/`railpack` CLI is ever invoked. `BuildpackFamilyBuilderStrategy` now rejects the no-commands case with an actionable message instead of "Dockerfile not found". |
+| `static` builder | **ABSENT** | In the provider-schema catalog with no builder branch and no runner |
+| Custom build/run commands | **WORKS** | Generates `Dockerfile.deployer.custom` with a CLI allow-list; covered by specs |
+| Build logs | **PARTIAL** | `buildImage` is called with **no** progress callback (`docker.service.ts:447`), so layer output goes only to `logger.debug`. `deployment_logs` gets phase markers. `buildLogsUrl` is a contract field that is always `null`. |
+| Build cache | **ABSENT** | No `--cache-from`; `cacheStrategy` column is written by nothing |
+| Auto-deploy on push | **ABSENT** | `push` is explicitly skipped (`github.webhooks.controller.ts:74-78`); repo→service resolution is a `TODO(T032)` placeholder |
+| Private repository clone | **ABSENT** | `git.clone(url)` with no auth; `getInstallationAccessToken` exists and is **never called** |
+| Webhook receipt + HMAC | **WORKS** | Verified fail-closed when secret/signature is missing |
+| Webhook idempotency | **PARTIAL** | `WebhookIdempotencyService.claim()` (atomic, durable) exists and is **never called**; the middleware uses an in-memory set, so a restart re-executes duplicates |
+| GitHub App create/install | **WORKS** | Three paths, all real |
+| GitLab | **PARTIAL** | Stores a PAT; no repo list, branch list, webhook, or clone auth |
+| Upload bundle | **PARTIAL** | API real; the registry is a `Map` (lost on restart); **no UI caller** |
+
+---
+
+## 4. Status table — runtime, routing, observability
+
+| Capability | Status | Note |
+|---|---|---|
+| Docker runner | **WORKS** | create/replace container, route sync, readiness gate |
+| Swarm runner | **WORKS** | create-or-update service, task polling — but `replicas: 1` hardcoded and strategy ignored |
+| `replicas` from config | **PARTIAL** | Resolved and validated, then **dropped** — `RuntimeExecutionInput` has no replicas field |
+| Placement policy | **PARTIAL** | 4 policies mapped correctly, but the label that selects them (`deployer.placement`) is **never set** by the deploy pipeline → unreachable |
+| Capacity / admission | **ABSENT** | Feasibility math is real; the deploy path never consults allocations. Approving an admission does **not** create one, though the UI says it does |
+| Traefik route sync | **WORKS** | via the HTTP provider |
+| `TraefikSyncService.writeRealFile()` | **DEAD** | Writes YAML into a directory nothing reads — the ingress runs with `--providers.http` only. Executed on **every** deployment. |
+| Rollback of a service (swarm) | **WORKS** | Delivered via `executeRollbackDeployment` → `runtimeRunnerRegistryService.execute` with the target's image. Note it redeploys the target artifact rather than calling `SwarmRuntimeRunnerService.rollbackService()`, which applies the engine's own `RollbackConfig` — a different contract that cannot target a specific deployment. |
+| Deployment health gating | **PARTIAL** | `computeTaskStateCheck` polls to `running`; there is no post-deploy smoke check |
+
+---
+
+## 5. The extension points (what is actually pluggable)
+
+Full audit: `tmp/PLUGGABILITY-AUDIT.md`. Summary of the deploy-relevant ones:
+
+| Seam | Level | Adding a variant requires |
+|---|---|---|
+| **Edge provider** (tunnel/direct) | **P3 — self-registering** | one file; the catalog is derived from the registry |
+| **Code/source provider** | **P2** | one file + one array entry |
+| **Storage provider / policy** | **P2** | one file + one array entry |
+| **Builder** | **P2** | one file + one array entry; `supportedBuilders()` drives the catalog |
+| **DNS provider** | **P2** | one file + one array entry |
+| **Runner** | **P2** | one file + one array entry; `supportedRunners()` reports the set |
+| **Deployment trigger source** | **P2** | one file + one array entry; `supportedSources()` reports enabled/disabled |
+| **Notification channel** | **P0** ❌ | nothing exists; `alertOnFailure`/`alertWebhookUrl` are read by nothing |
+
+Every seam named in the original request — trigger, runner (the "deployer method"), code
+source, DNS provider, builder — is now a `Symbol` token bound to a factory array. Dispatch
+happens in one registry per seam; no caller names a concrete implementation.
+
+**The `multi: true` trap.** Nest 11's runtime honours `multi`, but
+`@nestjs/common@11.2.7` **does not declare it on `Provider`** — `{ …, multi: true }` fails
+`tsc` with *"Object literal may only specify known properties"*. Verified in
+`interfaces/modules/provider.interface.d.ts`, where the word `multi` does not appear. The
+repo convention is therefore **one `Symbol` token + a `useFactory` returning the array**,
+typed `satisfies FactoryProvider`. Both new seams follow it.
+
+### Adding a DNS provider
+
+The same two edits against `DNS_PROVIDERS` in `providers.module.ts`. Note three callers still
+hardcode `providerType: "cloudflare"` (`project-network.service.ts:73`,
+`service-network.service.ts:190`, `preview-provisioning.service.ts:91`), so a second provider
+also needs those to read the configured provider instead of the literal.
+
+### Adding a builder (worked example)
+
+Two edits, no shared code touched:
+
+```ts
+// 1. new file — implement the interface
+@Injectable()
+export class RemoteBuilderStrategy implements BuilderStrategy {
+    readonly builderType = "remote-builder";
+    isAvailable() { return ENV.REMOTE_BUILDER_URL !== undefined; }
+    unavailableReason() { return "REMOTE_BUILDER_URL is not configured"; }
+    async build(ctx) { /* produce ctx.imageTag */ return { image: ctx.imageTag }; }
+}
+
+// 2. one entry in deployment.module.ts's BUILDER_STRATEGIES array
+new RemoteBuilderStrategy(),
+```
+
+`BuilderRegistryService.resolve()` then dispatches to it, `isAvailable()` decides whether the
+API accepts it, and `supportedBuilders()` reports it to the catalog.
+
+### Adding a trigger source
+
+`triggers/base/deployment-trigger-source.interface.ts` defines the contract. A source answers
+four questions: which `sourceId` is it, does it `matches()` this event, is it `isEnabled()`
+(and if not, why), and what `DeploymentTriggerInput` does it produce.
+
+Two rules make this safe:
+
+1. **A source returns input, never performs a deploy.** Every validation path — authz,
+   runtime constraints, state machine, storage, builder — stays inside `triggerDeployment`,
+   so a new source cannot bypass or drift from them.
+2. **`isEnabled()` is separate from `matches()`.** A source can be registered but inert.
+   `GithubPushTriggerSource` reports itself **disabled** today because repo→service linking
+   is not wired; the registry logs
+   `Trigger source 'github-push' is registered but disabled: …` instead of the source
+   silently never matching. That honesty is the point of the seam.
+
+Adding one is a class plus an entry in the `DEPLOYMENT_TRIGGER_SOURCES` array in
+`deployment.module.ts`.
+
+### Adding a runner
+
+Implement `RuntimeRunner` (`runnerType` + `executeRuntime`) and add it to the
+`RUNTIME_RUNNERS` array in `runners.module.ts`. The registry builds its map from the
+collection, so no edit to the registry is needed — which is what makes a Kubernetes or Nomad
+runner a one-file change instead of a three-place edit inside a single file.
+
+---
+
+## 6. What to fix, in order
+
+**Correctness (these mislead the operator today)**
+
+1. ~~**Make rollback redeploy.**~~ **Done.** `executeRollbackDeployment` redeploys the
+   target deployment's recorded image (no rebuild — the artifact already exists) and runs
+   *before* success is recorded. Missing target image, or a failed revert, now fails the
+   job instead of reporting green. Covered by tests for both the success path and the
+   missing-image guard.
+2. **Make cancel authoritative.** Add `cancelQueueJob`, call it from `cancelDeployment`, and
+   make `completeQueueJob` refuse to resurrect a cancelled deployment.
+3. **Stop writing the dead Traefik YAML** (`TraefikSyncService.writeRealFile`). It runs on
+   every deploy and nothing reads it.
+4. **Make compose run the right artifact** — wire `SwarmComposeRealizerService`, or make the
+   compose runner fail loudly rather than shipping `nginx:alpine`.
+
+**Durability (these lose work)**
+
+5. Persist the queue + checkpoints (a table, replacing the `Map`s).
+6. Persist plan/provenance/snapshots — or delete the endpoints that imply they exist.
+
+**Truthfulness (these promise without delivering)**
+
+7. Trigger a real deployment for previews, or rename the feature.
+8. Enforce `deploymentRetention`, or remove it from the service config UI.
+9. Implement approval gates, or remove `requireApprovalForProduction`.
+10. Thread `replicas` and `strategy` into `RuntimeExecutionInput`, or remove them from config.
+
+**Extensibility**
+
+11. ~~Runner registry → the same `Symbol` + factory shape as builders/DNS.~~ **Done.**
+    `RUNTIME_RUNNERS` is a `Symbol` token bound to a factory array; the registry builds its
+    map from the collection and exposes `supportedRunners()`.
+12. ~~Deployment trigger source registry.~~ **Done.** `DEPLOYMENT_TRIGGER_SOURCES` +
+    `DeploymentTriggerRegistryService`, with `api` and `github-push` sources. The GitHub
+    webhook controller now consults it instead of logging `unhandled event type` and
+    dropping pushes.
+13. ~~Point the web builder picker at `supportedBuilders()`.~~ **Done.** The service
+    configuration page renders the catalog from the API (`getAllBuilders` +
+    `getBuilderSchema`), and the catalog now lists exactly the six builders
+    `deploymentBuilderKindSchema` accepts. Build detection is additionally validated
+    against that schema before an option is offered, so the wizard cannot suggest a
+    builder the deploy path rejects.
+
+    The catalog had drifted in the worst way: it offered a `static` builder that no
+    strategy registers and the schema rejects, while omitting `docker_compose`,
+    `buildpack`, `railpack` and `external`. The existing integrity test could not catch
+    it because it only checked that the catalog agreed with *itself*; there is now an
+    assertion that it matches the deployment enum.
+
+    **Still open:** `supportedBuilders()` per-builder *availability* is not yet surfaced
+    in the UI. A registered-but-unavailable builder (e.g. a buildpack family member with
+    no custom build/run commands) appears without that warning until submit.
+
+**Corrections to earlier versions of this page**
+
+- **GitHub push triggering works.** An earlier revision of
+  `github-push-trigger.source.ts` reported itself *disabled*, claiming the repo→service
+  bridge did not exist. It did: `GithubAppsRepository.findServiceBySourceUrl` queries
+  `services` and matches the normalized `providerConfig.sourceUrl`. The source is now
+  enabled and covered by tests for both the matched and unmatched cases.
+- **PR previews resolve a real service.** `github.webhooks.controller.ts` passed
+  `repository.full_name` as a `serviceId` behind a `TODO(T032)`. A `full_name` is not an id,
+  so every PR preview dispatched against a service that could not exist. It now calls the
+  same bridge.
+- **Build detection no longer invents builder names.** It could return `"static"`,
+  `"docker-compose"` and `"worker-runtime"` — none of which are members of
+  `deploymentBuilderKindSchema`. Fixed at source and validated before returning.
+
+**Still open on this page's list:** items 1–10 and the DNS leftovers below.
+
+14. **DNS seam is wired but not yet the only path.** `DnsProviderRegistryService` is now
+    the sole route used by project/service network views and preview provisioning
+    (`resolveAccount` reads the provider type from the row, `findFirstActiveAccount`
+    replaces the Cloudflare-specific method). `ProjectNetworkService` still injects
+    `CloudflareAppService` for the provider *catalog* — that is a DB + live-state view, not
+    provider dispatch — and `cloudflare.controller.ts` remains Cloudflare-specific by design.
+
+---
+
+## 7. Known-good, so it does not get "simplified" away
+
+Worth stating, because these are the parts a refactor could easily break:
+
+- **The idempotency-key claim** with a 120 s lease and 30 s heartbeat is correct and tested.
+- **Webhook HMAC fails closed** when the secret or signature is absent.
+- **The custom-command Dockerfile path** with a CLI allow-list is real and covered by specs.
+- **Readiness gating** (`computeTaskStateCheck`) actually polls to `running` rather than
+  assuming success.
+- **Environment variable values are encrypted at rest.** `environment_variables.value` is
+  an `encryptedText` column. Rows written before that change are plaintext and must be
+  migrated with `bun --bun run --cwd apps/api db:backfill:env-secrets` — the ciphertext is
+  `salt:iv:authTag:data` with an app-held key, so the database cannot convert them itself.
+
+- **The builder registry pattern** (this pass) keeps the shared prologue — checkout,
+  extraction, guard, custom Dockerfile — in one place, so a new builder cannot
+  accidentally reimplement it.

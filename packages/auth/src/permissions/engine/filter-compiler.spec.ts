@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { sql as rawSql, type SQL } from "drizzle-orm";
-import { compileDFilter, type ColumnResolver } from "@repo/auth/permissions/engine/filter-compiler";
-import { MAX_FILTER_DEPTH } from "@repo/auth/permissions/engine/filter-matcher";
-import type { DFilter } from "@repo/auth/permissions/engine/types";
-import { Variable } from "@repo/auth/permissions/engine/types";
+import { compileDFilter, type ColumnResolver } from "@deployer/auth/permissions/engine/filter-compiler";
+import { MAX_FILTER_DEPTH } from "@deployer/auth/permissions/engine/filter-matcher";
+import type { DFilter } from "@deployer/auth/permissions/engine/types";
+import { Variable } from "@deployer/auth/permissions/engine/types";
 
 // ---------------------------------------------------------------------------
 // Test schema

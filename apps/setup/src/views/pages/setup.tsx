@@ -5,7 +5,7 @@ import type { PageProps } from "@nestjs-ssr/react";
 
 // ONE wizard implementation, shared by the API and the web app. This page only
 // supplies the API's data access (the adapter), never a second copy of the UI.
-import { SetupWizard } from "@repo/ui/components/setup/setup-wizard";
+import { SetupWizard } from "@deployer/ui/components/setup/setup-wizard";
 import { setupApi } from "@/views/setup-adapters/api";
 import { resolvePostSetupRedirect } from "@/views/setup-adapters/redirect-target";
 

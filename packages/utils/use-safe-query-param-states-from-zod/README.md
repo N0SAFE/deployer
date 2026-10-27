@@ -1,4 +1,4 @@
-# @repo/use-safe-query-param-states-from-zod
+# @deployer/use-safe-query-param-states-from-zod
 
 Type-safe, reactive accessor for a route's URL search state. Built on top
 of [`nuqs`](https://nuqs.47ng.com/) so updates flow through the address
@@ -7,7 +7,7 @@ bar and any subscribed components.
 ## Installation
 
 This package is part of the monorepo and is consumed via the workspace
-alias `@repo/use-safe-query-param-states-from-zod`.
+alias `@deployer/use-safe-query-param-states-from-zod`.
 
 ## API
 
@@ -15,7 +15,7 @@ alias `@repo/use-safe-query-param-states-from-zod`.
 
 ```ts
 import { z } from 'zod'
-import { useSafeQueryParamStatesFromZod } from '@repo/use-safe-query-param-states-from-zod'
+import { useSafeQueryParamStatesFromZod } from '@deployer/use-safe-query-param-states-from-zod'
 
 const Filters = z.object({
     q: z.string().default(''),
@@ -51,7 +51,7 @@ Drop-in helper that combines `useSafeQueryParamStatesFromZod` with a
 `reset`, `buildUrl`).
 
 ```ts
-import { useRouteSearchBuilder } from '@repo/use-safe-query-param-states-from-zod'
+import { useRouteSearchBuilder } from '@deployer/use-safe-query-param-states-from-zod'
 
 const search = useRouteSearchBuilder(MyRoute, { delay: 300 })
 search.push({ page: 2 })

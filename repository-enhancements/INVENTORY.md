@@ -142,11 +142,11 @@ apps/doc/
 
 | Package | Purpose | Files |
 |---------|---------|-------|
-| `@repo/config-eslint` | ESLint configuration | eslint.config.ts |
-| `@repo/config-prettier` | Prettier configuration | prettier.config.ts |
-| `@repo/config-typescript` | TypeScript configs | base.json, react.json |
-| `@repo/config-vitest` | Vitest configuration | vitest.config.ts |
-| `@repo/config-tailwind` | Tailwind configuration | tailwind.config.ts |
+| `@deployer/config-eslint` | ESLint configuration | eslint.config.ts |
+| `@deployer/config-prettier` | Prettier configuration | prettier.config.ts |
+| `@deployer/config-typescript` | TypeScript configs | base.json, react.json |
+| `@deployer/config-vitest` | Vitest configuration | vitest.config.ts |
+| `@deployer/config-tailwind` | Tailwind configuration | tailwind.config.ts |
 
 ---
 
@@ -385,12 +385,12 @@ packages/transport/orpc/src/
 
 | File | Lines | Package |
 |------|-------|---------|
-| `standard-operations.ts` | 1697 | @repo/orpc-utils |
-| `route-builder.ts` | 1423 | @repo/orpc-utils |
-| `generate-hooks.ts` | 999 | @repo/orpc-utils |
+| `standard-operations.ts` | 1697 | @deployer/orpc-utils |
+| `route-builder.ts` | 1423 | @deployer/orpc-utils |
+| `generate-hooks.ts` | 999 | @deployer/orpc-utils |
 | `tanstack-query.ts` | 800+ | web |
 | `useUsers.ts` | 632 | web (DEPRECATED) |
-| `config.ts` | 440 | @repo/auth-utils |
+| `config.ts` | 440 | @deployer/auth-utils |
 | `useAdmin.ts` | 290 | web |
 | `usePermissions.ts` | 270 | web |
 | `RequirePermission.tsx` | 227 | web/permissions |
@@ -404,8 +404,8 @@ packages/transport/orpc/src/
 
 | Package | Test Directory | Status |
 |---------|---------------|--------|
-| `@repo/orpc-utils` | `src/hooks/__tests__/` | 🔴 45/54 failing |
-| `@repo/types` | `__tests__/` | ✅ Passing |
+| `@deployer/orpc-utils` | `src/hooks/__tests__/` | 🔴 45/54 failing |
+| `@deployer/types` | `__tests__/` | ✅ Passing |
 | `web` | Various | ⚠️ Unknown |
 | `api` | Various | ⚠️ Unknown |
 

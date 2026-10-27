@@ -2,7 +2,7 @@
 
 import { getErrorMessage } from "@/lib/orpc/typed-errors";
 import * as React from 'react'
-import { logger } from '@repo/logger'
+import { logger } from '@deployer/logger'
 
 /**
  * Global error boundary — the last line of defence.
@@ -10,7 +10,7 @@ import { logger } from '@repo/logger'
  * This REPLACES the root layout, so the app's stylesheet, fonts and theme
  * provider may never have mounted. Everything here is therefore inline and
  * self-contained: literal values from the shared token sheet
- * (`@repo/ui/styles/globals.css`, brand violet `oklch(0.5600 0.2250 304.00)`
+ * (`@deployer/ui/styles/globals.css`, brand violet `oklch(0.5600 0.2250 304.00)`
  * plus the light/dark surfaces), no Tailwind classes, and a
  * `prefers-color-scheme` query so it stays readable either way.
  *

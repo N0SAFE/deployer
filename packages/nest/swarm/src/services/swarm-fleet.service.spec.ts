@@ -9,8 +9,8 @@ import type {
     DockerodeSwarmInfo,
     DockerodeImageSummary,
     DockerodeNetworkSummary,
-} from "@repo/contracts-entities";
-import type { DockerService } from "@repo/nest-docker/services/docker.service";
+} from "@deployer/contracts-entities";
+import type { DockerService } from "@deployer/nest-docker/services/docker.service";
 import { SwarmFleetService } from "./swarm-fleet.service";
 
 type ServiceTaskTemplate = NonNullable<DockerodeServiceSummary["Spec"]["TaskTemplate"]>;

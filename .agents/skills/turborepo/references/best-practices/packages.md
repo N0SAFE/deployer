@@ -20,7 +20,7 @@ Export TypeScript directly. The consuming app's bundler compiles it.
 ```json
 // packages/ui/package.json
 {
-  "name": "@repo/ui",
+  "name": "@deployer/ui",
   "exports": {
     "./button": "./src/button.tsx",
     "./card": "./src/card.tsx"
@@ -51,7 +51,7 @@ Package handles its own compilation.
 ```json
 // packages/ui/package.json
 {
-  "name": "@repo/ui",
+  "name": "@deployer/ui",
   "exports": {
     "./button": {
       "types": "./src/button.tsx",
@@ -68,7 +68,7 @@ Package handles its own compilation.
 ```json
 // packages/ui/tsconfig.json
 {
-  "extends": "@repo/typescript-config/library.json",
+  "extends": "@deployer/typescript-config/library.json",
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src"
@@ -93,10 +93,10 @@ Package handles its own compilation.
 ```json
 {
   "exports": {
-    ".": "./src/index.ts", // @repo/ui
-    "./button": "./src/button.tsx", // @repo/ui/button
-    "./card": "./src/card.tsx", // @repo/ui/card
-    "./hooks": "./src/hooks/index.ts" // @repo/ui/hooks
+    ".": "./src/index.ts", // @deployer/ui
+    "./button": "./src/button.tsx", // @deployer/ui/button
+    "./card": "./src/card.tsx", // @deployer/ui/card
+    "./hooks": "./src/hooks/index.ts" // @deployer/ui/hooks
   }
 }
 ```
@@ -124,8 +124,8 @@ Package handles its own compilation.
 // apps/web/package.json
 {
   "dependencies": {
-    "@repo/ui": "workspace:*" // pnpm/bun
-    // "@repo/ui": "*"         // npm/yarn
+    "@deployer/ui": "workspace:*" // pnpm/bun
+    // "@deployer/ui": "*"         // npm/yarn
   }
 }
 ```
@@ -140,7 +140,7 @@ pnpm install  # Updates lockfile with new dependency
 
 ```typescript
 // apps/web/src/page.tsx
-import { Button } from '@repo/ui/button';
+import { Button } from '@deployer/ui/button';
 
 export default function Page() {
   return <Button>Click me</Button>;
@@ -190,7 +190,7 @@ packages/
 ```json
 // packages/typescript-config/package.json
 {
-  "name": "@repo/typescript-config",
+  "name": "@deployer/typescript-config",
   "exports": {
     "./base.json": "./base.json",
     "./nextjs.json": "./nextjs.json",
@@ -204,7 +204,7 @@ packages/
 ```json
 // packages/eslint-config/package.json
 {
-  "name": "@repo/eslint-config",
+  "name": "@deployer/eslint-config",
   "exports": {
     "./base": "./base.js",
     "./next": "./next.js"
@@ -223,12 +223,12 @@ packages/
 ```json
 // BAD: No exports defined
 {
-  "name": "@repo/ui"
+  "name": "@deployer/ui"
 }
 
 // GOOD: Clear exports
 {
-  "name": "@repo/ui",
+  "name": "@deployer/ui",
   "exports": {
     "./button": "./src/button.tsx"
   }
@@ -239,11 +239,11 @@ packages/
 
 ```json
 // pnpm/bun
-{ "@repo/ui": "workspace:*" }  // Correct
+{ "@deployer/ui": "workspace:*" }  // Correct
 
 // npm/yarn
-{ "@repo/ui": "*" }            // Correct
-{ "@repo/ui": "workspace:*" }  // Wrong for npm/yarn!
+{ "@deployer/ui": "*" }            // Correct
+{ "@deployer/ui": "workspace:*" }  // Wrong for npm/yarn!
 ```
 
 ### Missing from turbo.json Outputs

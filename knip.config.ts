@@ -10,16 +10,21 @@ const config: KnipConfig = {
       ],
       project: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx'],
     },
-    'apps/api': {
-      entry: [
-        'src/main.ts',
-        'src/entrypoint.prod.ts',
-        'drizzle.config.ts',
-        'debug-cli.ts',
-        'scripts/**/*.ts',
-        'vitest.config.mts',
-      ],
-      project: ['src/**/*.ts', 'scripts/**/*.ts'],
+    // ── WHY EVERY api APP NEEDS ITS OWN ENTRY ──────────────────────
+    // Without these, the root `.` workspace's `**/*.ts` glob picks the files up
+    // as PROJECT files with no ENTRY, so knip reports the whole tree as unused
+    // (84 files) purely for want of a declared start point. An entry is the
+    // root module and the boot script; everything reachable from those is live.
+    //
+    // `shared/` is not an app: it is a package, and is covered by the
+    // `packages/**` entry below.
+    'apps/api/bff': {
+      entry: ['src/main.ts', 'src/cli.ts', 'vitest.config.mts'],
+      project: ['src/**/*.ts', 'src/**/*.tsx'],
+    },
+    'apps/api/services/*': {
+      entry: ['src/main.ts', 'vitest.config.mts'],
+      project: ['src/**/*.ts'],
     },
     'apps/web': {
       entry: [

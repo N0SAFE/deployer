@@ -6,7 +6,7 @@
     ],
     "compilerOptions": {
         "paths": {
-            "@repo/type-guards/*": [
+            "@deployer/type-guards/*": [
                 "./src/*"
             ]
         }

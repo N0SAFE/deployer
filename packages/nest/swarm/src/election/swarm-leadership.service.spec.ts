@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import type { ClusterSnapshot } from "@repo/contracts-entities";
-import type { ClusterNodeRow } from "@repo/nest-schema/local";
-import type { ClusterNodeRepository } from "@repo/nest-nodes/cluster-node.repository";
+import type { ClusterSnapshot } from "@deployer/contracts-entities";
+import type { ClusterNodeRow } from "@deployer/nest-schema/local";
+import type { ClusterNodeRepository } from "@deployer/nest-nodes/cluster-node.repository";
 import type { SwarmElectionConfig } from "../swarm-config";
 import type { SwarmClusterService } from "../services/swarm-cluster.service";
 import {
@@ -103,7 +103,7 @@ describe("SwarmLeadershipService", () => {
 
         service = new SwarmLeadershipService(
             clusterService as unknown as SwarmClusterService,
-            repository as unknown as ClusterNodeRepository,
+            repository,
             electionConfig,
             provider as unknown as ClusterMetricsProvider,
             sink,

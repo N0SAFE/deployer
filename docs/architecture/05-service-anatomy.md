@@ -187,7 +187,7 @@ Each app is a workspace package under `apps/api/`, matched by the root glob
   "dev":       "bun --bun --watch src/main.ts",
   "start":     "bun --bun src/main.ts",
   "type-check":"tsc --noEmit",
-  "lint":      "eslint . --fix --cache",
+  "lint":      "bun lint --fix",
   "test":      "vitest run"
 }
 ```
@@ -197,7 +197,7 @@ TC39 decorator path, which writes no `design:paramtypes`, so Nest resolves every
 plain typed constructor parameter to `undefined`. The build rewrites `@/`
 specifiers to relative paths (per-file output makes `@/x` and `./x` two module
 instances) and fails if zero decorator metadata was emitted. Every app reuses
-`apps/api-services/shared/server` for the bootstrap, so this is configured once.
+`apps/api/shared/server` for the bootstrap, so this is configured once.
 
 ## 5.7 The tsconfig alias contract
 

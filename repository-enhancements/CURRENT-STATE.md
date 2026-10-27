@@ -7,14 +7,14 @@
 ### ✅ Linting Status
 All 11 linted packages pass:
 ```
-✔ @repo/api-contracts (ESLint)
-✔ @repo/types (ESLint)
-✔ @repo/prettier-config (ESLint)
-✔ @repo/orpc-utils (ESLint)
-✔ @repo/auth-utils (ESLint)
-✔ @repo/ui (ESLint)
-✔ @repo/env (ESLint)
-✔ @repo/declarative-routing (ESLint)
+✔ @deployer/api-contracts (ESLint)
+✔ @deployer/types (ESLint)
+✔ @deployer/prettier-config (ESLint)
+✔ @deployer/orpc-utils (ESLint)
+✔ @deployer/auth-utils (ESLint)
+✔ @deployer/ui (ESLint)
+✔ @deployer/env (ESLint)
+✔ @deployer/declarative-routing (ESLint)
 ✔ api (ESLint)
 ✔ web (ESLint)
 ✔ doc (ESLint)
@@ -23,21 +23,21 @@ All 11 linted packages pass:
 ### ✅ TypeScript Status
 All 19 packages pass type-checking (33.1s total):
 ```
-✔ @repo/declarative-routing-utils
-✔ @repo/prettier-config
-✔ @repo/auth-utils
-✔ @repo/types
-✔ @repo/orpc-utils
-✔ @repo/api-contracts
-✔ @repo/ui
-✔ @repo/config-eslint
-✔ @repo/env
-✔ @repo/declarative-routing
-✔ @repo/config-vitest
-✔ @repo/config-typescript
-✔ @repo/config-tailwind
-✔ @repo/runthenkill
-✔ @repo/tanstack-start (stub)
+✔ @deployer/declarative-routing-utils
+✔ @deployer/prettier-config
+✔ @deployer/auth-utils
+✔ @deployer/types
+✔ @deployer/orpc-utils
+✔ @deployer/api-contracts
+✔ @deployer/ui
+✔ @deployer/config-eslint
+✔ @deployer/env
+✔ @deployer/declarative-routing
+✔ @deployer/config-vitest
+✔ @deployer/config-typescript
+✔ @deployer/config-tailwind
+✔ @deployer/runthenkill
+✔ @deployer/tanstack-start (stub)
 ✔ web
 ✔ api
 ✔ doc
@@ -241,11 +241,11 @@ packages/
 ```
 
 ### Configuration Packages ✅
-- `@repo/config-eslint` - ESLint configuration
-- `@repo/config-prettier` - Prettier configuration
-- `@repo/config-typescript` - TypeScript configuration
-- `@repo/config-vitest` - Vitest configuration
-- `@repo/config-tailwind` - Tailwind configuration
+- `@deployer/config-eslint` - ESLint configuration
+- `@deployer/config-prettier` - Prettier configuration
+- `@deployer/config-typescript` - TypeScript configuration
+- `@deployer/config-vitest` - Vitest configuration
+- `@deployer/config-tailwind` - Tailwind configuration
 
 ---
 

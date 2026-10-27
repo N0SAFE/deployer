@@ -1,7 +1,7 @@
 # 13 — Readiness & Boot Gating
 
 > **Status:** canonical — describes the mechanism implemented in
-> `apps/api-services/shared/src/server/preflight/**` and `bootstrap.ts`.
+> `apps/api/shared/src/server/preflight/**` and `bootstrap.ts`.
 > **Answers:** how an app proves it can serve, why the port binds first, and who
 > answers "is it healthy?".
 

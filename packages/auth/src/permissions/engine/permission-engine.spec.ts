@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { PermissionEngine, ForbiddenError } from "@repo/auth/permissions/engine/permission-engine";
+import { PermissionEngine, ForbiddenError } from "@deployer/auth/permissions/engine/permission-engine";
 import type {
     RoleRuleLoader,
     ResourceRecordLoader,
-} from "@repo/auth/permissions/engine/permission-engine";
-import type { EngineContext, ResourceRule } from "@repo/auth/permissions/engine/types";
+} from "@deployer/auth/permissions/engine/permission-engine";
+import type { EngineContext, ResourceRule } from "@deployer/auth/permissions/engine/types";
 
 // ---------------------------------------------------------------------------
 // Test helpers

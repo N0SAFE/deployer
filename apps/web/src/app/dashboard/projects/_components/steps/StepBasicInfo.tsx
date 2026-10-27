@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import { TagInput } from 'emblor'
-import { Input } from '@repo/ui/components/shadcn/input'
-import { Textarea } from '@repo/ui/components/shadcn/textarea'
-import { Field, FieldLabel, FieldDescription, FieldError, FieldGroup, FieldSet, FieldLegend } from '@repo/ui/components/shadcn/field'
+import { Input } from '@deployer/ui/components/shadcn/input'
+import { Textarea } from '@deployer/ui/components/shadcn/textarea'
+import { Field, FieldLabel, FieldDescription, FieldError, FieldGroup, FieldSet, FieldLegend } from '@deployer/ui/components/shadcn/field'
 import type { CreateServiceFormApi } from '../CreateService.hook'
+import { RequiredError } from './required-error'
 
 /* ─── TagField wrapper ─── */
 function TagField({ value, onChange }: { value: string[]; onChange: (next: string[]) => void }) {
@@ -29,7 +30,7 @@ export function StepBasicInfo({ form }: { form: CreateServiceFormApi }) {
   return (
     <FieldSet>
       <FieldLegend>Service details</FieldLegend>
-      <FieldDescription>Define the basic identity of your service.</FieldDescription>
+      <FieldDescription>Name your service. Where its code comes from and how it runs are set in the next steps.</FieldDescription>
       <FieldGroup>
         <form.Field name="basicInfo.name" children={(field) => {
           const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
@@ -37,7 +38,9 @@ export function StepBasicInfo({ form }: { form: CreateServiceFormApi }) {
             <Field data-invalid={isInvalid || undefined}>
               <FieldLabel>Service name <span className="text-destructive">*</span></FieldLabel>
               <Input value={field.state.value} onBlur={field.handleBlur} onChange={(e) => { field.handleChange(e.target.value) }} aria-invalid={isInvalid || undefined} placeholder="api-gateway" />
+              <FieldDescription>Shown across the dashboard. Pick something your team will recognise.</FieldDescription>
               {isInvalid && <FieldError errors={field.state.meta.errors} />}
+              {!isInvalid && <RequiredError touched={field.state.meta.isTouched} value={field.state.value} message="Give the service a name." />}
             </Field>
           )
         }} />

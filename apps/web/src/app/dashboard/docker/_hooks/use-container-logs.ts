@@ -1,12 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
   useDockerContainerLogsSnapshot,
   useDockerContainerLogsStream,
 } from '@/domains/docker/hooks'
 import { createContextFilterDebugLogger } from '@/lib/logging/context-filter-debug'
-import type { DockerContainerLogEntry } from '@repo/contracts-entities'
+import type { DockerContainerLogEntry } from '@deployer/contracts-entities'
 import {
   explodeCompositeLogEntry,
   mergeContainerLogsWithLimit,

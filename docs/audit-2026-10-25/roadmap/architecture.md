@@ -1,0 +1,624 @@
+# ARCHITECTURE + MONOLITH CUTOVER roadmap
+> Owner prefix: ARCH · Sources: architecture.md, monolith-cutover.md, docker-cluster.md (duplication), deployments.md (runtime fork), setup.md (topology), ideas-dx-ai.md (outbox note) · Last verified: 2026-10-26
+
+## Summary
+The platform has three competing runtime shapes (monolith `deployer-api`, BFF + 5 `svc-*` tier, stray `deployer-bff`); only the tier is coherent, but the monolith `apps/api` is still the default dev compose, the Dockerfile default and the root of the vitest/CI toolchain, and it does not even compile (4 `@repo/*` imports). The cutover is a 14-step, ~2-3 week job whose long poles are the trigger-registry/system-actor port and the e2e port. Several lost-on-delete features exist only in the monolith (builder registry, trigger registry, rollback execution, analytics download, backfill, drizzle toolchain). Migrations fail open, race, and 0040 is unjournaled. Inter-service auth forwards the raw browser cookie (design says signed actor claim), svc-project -> svc-fleet is anonymous (always 401), the BFF client has no timeout/retry/breaker, and nothing is replica-safe. Redis is a phantom hard dependency; the outbox does not dispatch (consumer work owned by OBS, substrate SUB-C).
+Counts: 104 items = P0 16 / P1 53 / P2 26 / P3 9; FIX 60 / ENHANCE 14 / NEW 30 (plus 15 decisions).
+> Coverage pass: 2026-10-26 — 2 items added, 6 deps resolved Spot-verified in code: `@repo/*` imports (app.module.ts:18,25,28,69), journal ends at 0039 (0040 unjournaled), HEALTHCHECK `:3001` (Dockerfile.api.prod:381). Security/authz items (anonymous setup surface, logged-in-not-allowed, default admin backdoor) are owned by SEC/SETUP/AUTH and only referenced here.
+
+## Items
+
+### Topology and provisioning (one coherent shape)
+- [ ] `ARCH-001` **Decide and freeze ONE runtime topology (tier = BFF + 5 svc, `DEPLOYER_API_TARGET=svc-bff`)** · FIX · P0 · S · Deps: none
+  - Why/Problem: three shapes coexist (A monolith `deployer-api`, B tier `svc-*`, C stray `deployer-bff`) and the cutover docs describe dead switches. `architecture.md#1`, `#4.7`, `monolith-cutover.md#6 step 1`
+  - Do: record the decision (see DEC-ARCH-1) in `apps/api-services/ARCHITECTURE.md` and `docs/architecture/`; declare shape B the only supported shape; every later step below assumes it.
+  - Done when: one doc states the topology; grep shows no code path creating `deployer-api` or `deployer-bff`.
+  - Status: done 2026-10-27 — decision recorded in `docs/qa/api-services/topology.md` (single `DEPLOYER_API_TARGET=svc-bff`; shapes A and C dropped; `apps/api` legacy and never edited). STILL OPEN: restate it in `apps/api-services/ARCHITECTURE.md` / `docs/architecture/`; grep still finds `deployer-api` in historical comments, a web test fixture (`apps/web/src/test-support/fixtures/docker.ts`) and the frozen monolith/mesh-6 rig · Verified-in-code: yes · Source: architecture.md#1, monolith-cutover.md#6
+  - Effect-impact (2026-10-26): topology unchanged (tier stays the target) but the service layer is now mixed: svc-health and svc-identity `user` run on Effect via `@deployer/nest-effect` (`packages/nest/effect`), the rest is classic Nest. Record the idiom + migration order (identity -> template v1 -> project -> BFF orchestrators -> fleet -> runtime) in the same decision doc. Deps: `EFF-103`, `EFF-035`. Evidence: `effect-architecture.md` §8, §9 D11.
+- [x] `ARCH-002` **Delete shape C: `provision_api` step / `BffServiceProvisioner` creating mount-less 2-replica `deployer-bff`** · FIX · P0 · M · Deps: `ARCH-001`
+  - Why/Problem: `LocalInitializationService.provisionBffService` (`apps/api-services/shared/src/core/modules/setup/services/local-initialization.service.ts:582-639`) + `packages/nest/docker/src/containers/bff/bff-service.provisioner.ts` (mounts `[]` l.94, 2 replicas l.84, minimal env) yields a BFF with no `node_config`, no docker.sock, no agent socket, no `svc-*` behind it; in tier mode it is a second BFF with a different name than the ingress target. [unverified at runtime]
+  - Do: remove the `provision_api` step and the provisioner (or, only if DEC-ARCH-1 picks "C as only path", make it mount socket/volumes, schedule svc-*, set `DEPLOYER_API_TARGET`); delete related specs/docs; update wizard step list.
+  - Done when: a wizard run on tier shape creates exactly `svc-bff` + 5 `svc-*`; no `deployer-bff` service exists.
+  - Status: done (verified 2026-10-27) — `provision_api`, `BffServiceProvisioner`, `PLATFORM_BFF_BASE_NAME` and `platformBffServiceName` no longer exist anywhere outside `apps/api` (grep over apps/packages/docs; see `docs/API-CUTOVER-STATUS.md`). The wizard schedules exactly the tier through `ApiServiceProvisioner` -> `ServicesTierProvisioner`; not verified on a live swarm · Verified-in-code: yes · Source: architecture.md#1, #4.7, setup.md#3.8
+- [x] `ARCH-003` **Delete or wire `platformIngressApiBackend()` / `DEPLOYER_INGRESS_BACKEND=bff`** · FIX · P1 · S · Deps: `ARCH-001`
+  - Why/Problem: `apps/api-services/shared/src/core/modules/platform-ingress/services/platform-names.ts:98` is called by nothing outside its own definition/tests; the real switch is `DEPLOYER_API_TARGET` (`services-tier-provisioner.service.ts:302`, `traefik-supervisor.service.ts:313`, `platform-self-resolver.ts:20`). `docs/API-CUTOVER-STATUS.md` §0b "Blocker 4 made reversible" documents dead code. `[unverified]` re-grep
+  - Do: remove the function, env var and `.env`/compose mentions; correct the status doc to name `DEPLOYER_API_TARGET` as the single flip (or implement the canary flip, see `ARCH-072`).
+  - Done when: no reference to `DEPLOYER_INGRESS_BACKEND` remains; status doc matches executing code.
+  - Status: done (verified 2026-10-27) — `platformIngressApiBackend` and `DEPLOYER_INGRESS_BACKEND` have no references outside `apps/api`; `DEPLOYER_API_TARGET` is the single flip · Verified-in-code: yes · Source: architecture.md#1, setup.md#3.8 · See also: `DOC-013`
+- [ ] `ARCH-004` **Align service names: `svc-bff` vs `deployer-bff` vs `deployer-api`; fix stale defaults** · FIX · P1 · S · Deps: `ARCH-001`
+  - Why/Problem: `apps/setup/src/config/api-address.ts:59,69-106` defaults to `deployer-api` and `SETUP_API_URL` to `api-dev:3005`; prod trusts `SETUP_API_URL` verbatim so a wrong value silently mis-targets handover. Image fallbacks `deployer-svc-bff:dev` / `${COMPOSE_PROJECT_NAME}-bff:latest` are dev-only.
+  - Do: default the API target to `svc-bff`; validate `SETUP_API_URL` against the tier; remove `apiServiceName()`; make image fallback explicit-fail in prod.
+  - Done when: grep for `deployer-api` in `apps/setup` returns only test fixtures; handover targets `svc-bff` with no env override.
+  - Status: partial — DONE 2026-10-27 in `apps/setup`: `apiServiceName()` removed, no `deployer-api` default anywhere in setup code, prod requires `DEPLOYER_BFF_IMAGE` (fails by name), `SETUP_API_URL` examples/specs are `bff:3005`/`svc-bff`. STILL OPEN: validate `SETUP_API_URL` against the tier in prod (it is still trusted verbatim); the mesh-6 compose rig and `apps/api` still use the monolith names · Verified-in-code: yes · Source: monolith-cutover.md#2.5, #6 step 9
+- [ ] `ARCH-005` **Single service catalog consumed by setup, compose, BFF and docs (ports/names/images)** · ENHANCE · P2 · S · Deps: `ARCH-001`
+  - Why/Problem: ports duplicated in `apps/api-services/shared/src/server/service-address.ts:63` and `services-tier-provisioner.service.ts:servicePort` (BFF 3005, svc 3101-3105).
+  - Do: one catalog module (name, port, image env, dependencies profile) imported by all; generate compose/doc tables from it.
+  - Done when: changing a port is a one-file change; a spec asserts provisioner == address resolver == compose.
+  - Status: todo · Verified-in-code: yes · Source: architecture.md#6
+- [ ] `ARCH-006` **Reconcile "BFF is not a proxy / owns no entities" doctrine with reality (BFF hosts supervisors, swarm core, traefik core, mesh agent, bootstrap, wizard)** · ENHANCE · P2 · L · Deps: `ARCH-001`
+  - Why/Problem: `bff/src/bff.module.ts:42-57,85-195` makes `svc-bff` the control plane + wizard host + gateway, contradicting `apps/api-services/ARCHITECTURE.md:38-48`; blocks docker.sock isolation (`ARCH-060`) and BFF scaling.
+  - Do: per DEC-ARCH-7 either update the doctrine to match, or move supervisors/SwarmCore/TraefikCore/MeshAgent/Bootstrap into fleet/runtime (or a dedicated `svc-control`).
+  - Done when: doc and process responsibilities agree; BFF image no longer needs docker.sock if split chosen.
+  - Status: todo · Verified-in-code: yes · Source: architecture.md#1, #2.1, monolith-cutover.md#7 cap.1
+  - Effect-impact (2026-10-26): BFF delegation controllers are generated one-line passthroughs (`bff/src/modules/delegation/generated/*.delegation.ts`) so Effect adds nothing there; only orchestrators/screens benefit (`Effect.all`, timeouts, partial failures). Effort for the BFF split S (delegation) + M (orchestrators); fold into the DEC-ARCH-7 outcome. Deps: `EFF-103`.
+- [ ] `ARCH-007` **Fix `ARCHITECTURE.md` claims that do not exist: `configurator` service, `deployer start/status` CLI, `src/screens/**`, `app.config.ts`, `scripts/build.ts`, `nest-cli.json`, `dto/`, `*.errors.ts`, "no bundling" rule, actor-claim claim** · FIX · P2 · S · Deps: `ARCH-001`
+  - Why/Problem: `apps/api-services/ARCHITECTURE.md:22,159-160,184-191,196`; bundle keeps `design:paramtypes` (397 occurrences in `bff/dist/main.js`) so the bundling rule is stale; plan items unchecked at `docs/architecture/09-implementation-plan.md:100,146-150`. Real CLI is FEAT/SETUP-owned.
+  - Do: rewrite to what executes; mark unbuilt pieces as planned with pointers to FEAT/SETUP items.
+  - Done when: every path/command named in ARCHITECTURE.md exists or is labelled planned.
+  - Status: todo · Verified-in-code: yes · Source: architecture.md#1, #3, #4.15
+  - Effect-impact (2026-10-26): extra stale claim to fix: ARCHITECTURE.md:196-197 says 'Never `bun build` an app' / `scripts/build.ts`, yet all six api-services apps now build with `bun build src/main.ts --target=bun --outdir=dist --packages=external` (e.g. `apps/api-services/services/health/package.json:18`, also fleet/identity/project/runtime/bff). Also still states one-class-per-file and `AppError` domain errors, which the Effect code (`Data.TaggedError`, key+impl in one file) breaks. Verified-in-code: yes. Deps: `EFF-043`, `EFF-035` (D8, D9).
+
+### Monolith cutover (ordered checklist; step numbers from monolith-cutover.md §6)
+- [ ] `ARCH-010` **Cutover step 0 (advised first): repair the 4 `@repo/*` imports in `apps/api/src/app.module.ts` for one last green baseline** · FIX · P1 · S · Deps: none
+  - Why/Problem: `apps/api/src/app.module.ts:18,25,28,69` import `@repo/nest-lifecycle`, `@repo/nest-database-core/database-connection`, `@repo/nest-schema/global`, `@repo/nest-supervisor-core/supervisors.module`; no `@repo` scope exists, packages are `@deployer/*` (all 29 other deps resolve). The monolith "rollback" fallback cannot boot; stale `apps/api/dist/app.module.js` has the same imports; `apps/api/nest-cli.json` lists a nonexistent library `api-contracts` at `../../packages/api-contracts`. VERIFIED by grep.
+  - Do: rename the 4 imports to `@deployer/*`; drop the dead nest-cli library entry; run the 21 e2e specs once as a baseline against the new tier (execution of tests is the operator's call).
+  - Done when: `apps/api` boots and its e2e baseline result is recorded in the cutover doc.
+  - Status: todo · Verified-in-code: yes · Source: architecture.md#4.1, monolith-cutover.md#1, #6 step 15
+  - Effect-impact (2026-10-26): the monolith `apps/api/src/modules/health/*` is being edited in the working tree (it imports the new `@deployer/health-contracts`); the 'one last green baseline' must be taken after `ARCH-037` freeze or it will not stay green. Evidence: `effect-health-identity.md` N-10.
+- [ ] `ARCH-011` **Cutover step 1: topology decision recorded** · FIX · P0 · S · Deps: none
+  - Why/Problem: gate for every later step.
+  - Do: satisfied by `ARCH-001`; tick together.
+  - Done when: `ARCH-001` done.
+  - Status: todo · Verified-in-code: partial · Source: monolith-cutover.md#6 step 1
+- [ ] `ARCH-012` **Cutover step 2: move drizzle toolchain (`drizzle.config.ts`, `db:generate/push/studio`, `auth:generate`) into `packages/nest/schema`, delete stale mirror** · FIX · P0 · M · Deps: `ARCH-001`
+  - Why/Problem: `apps/api/drizzle.config.ts:10` writes to `./src/config/drizzle/global/migrations` (stale mirror, journal ends `0038_breezy_absorbing_man` vs canonical `0038_awesome_stature`); `packages/nest/schema` has no drizzle config; only `apps/api` has `auth:generate` (`auth generate --config src/auth.ts` -> `packages/nest/schema/src/global/auth.ts`; `apps/api/src/auth.ts` is untracked). Deleting `apps/api` deletes the only generation path. Local config `drizzle.config.local.ts` already targets the package dir.
+  - Do: add `drizzle.config.ts` in `packages/nest/schema` with `out` = canonical `migrations/global`; move scripts and `auth:generate` there; delete `apps/api/src/config/drizzle/global/*` mirror; update AGENTS/MCP `api-db` and `auth-generate` tools to the new location; track `auth.ts` in git.
+  - Done when: `db:generate` produces a migration in the canonical dir and the runtime applies it; mirror dir gone.
+  - Status: partial — DONE 2026-10-27: `packages/nest/schema` now owns `drizzle.config.ts` (out = canonical `migrations/global`) and `drizzle.config.local.ts`, scripts `db:generate|push|studio` (+ `db:global:*`, `db:local:*`) and the `drizzle-kit` devDependency (lockfile synced). Verified: `drizzle-kit generate` against a copy of the canonical dir reports "No schema changes"; all 41 migrations (0000-0040) apply on a throwaway Postgres 16. Migration `0040` is now journaled and its guard no longer flags sealed values. `auth:generate` is NOT ported on purpose: the Better Auth tables are hand-maintained in `src/global/identity/auth.ts` (its header explains why the generated file was read by nobody). STILL OPEN: deleting `apps/api` removes the stale mirror (not edited: frozen); update AGENTS/MCP `api-db` tool text · Verified-in-code: yes · Source: architecture.md#2.5, monolith-cutover.md#4, #6 step 2
+  - Effect-impact (2026-10-26): if the Effect `Db` port lands, it belongs in `@deployer/nest-database-core` (wrapping Drizzle via `Effect.tryPromise` + `DbError`); keep drizzle-orm 0.45 and drizzle-kit as the single migration system (native Drizzle-Effect driver needs drizzle 1.0 rc). No change to this step, but moving the toolchain must not collide with that package. Deps: `EFF-018`. Evidence: `effect-ecosystem-research.md` §2.4.
+- [ ] `ARCH-013` **Cutover step 3: port `backfill-env-secrets` to the BFF CLI with a real encrypted-marker (replace 4-segment `looksEncrypted` heuristic)** · FIX · P0 · M · Deps: `ARCH-012`, `ARCH-040`
+  - Why/Problem: `apps/api/src/cli/commands/backfill-env-secrets.command.ts` (93 lines, untracked) is absent from `bff/src/cli*`; `looksEncrypted` treats any value with four `:` segments as encrypted, so plaintext like `postgres://u:p@h:5432/db` is skipped and then throws on every read; existing env-var values are unreadable after the codec change.
+  - Do: port command to BFF CLI; use an explicit prefix/`kid:` marker or a decrypt-try strategy; make it idempotent and dry-run capable; document in operator runbook; add spec with URL-shaped plaintext.
+  - Done when: running it on a DB with mixed plaintext/encrypted values leaves all values readable; URL-shaped plaintext is encrypted.
+  - Status: partial — decided 2026-10-27: NOT ported, superseded. `reseal-secrets --apply --seal-plaintext` covers every encrypted column including `environment_variables.value`, is idempotent and dry-run by default, and its marker is the explicit `enc:v1:` prefix (the 4-segment heuristic is gone). Migration `0040` is journaled and its warning now points at the new command. STILL OPEN: a regression spec with URL-shaped plaintext (`postgres://u:p@h:5432/db`) through `--seal-plaintext` — updated 2026-10-27 · Verified-in-code: partial · Source: architecture.md#2.5, #4.5, monolith-cutover.md#3, #5.4
+  - Effect-impact (2026-10-26): BFF CLI stays Nest (commander); read the encryption key through `Config.redacted` only if the Effect infra layer exists by then, otherwise port Nest-style and keep the codec pure so the later swap is mechanical. Deps: `EFF-028`.
+- [x] `ARCH-014` **Cutover step 4: port the builder strategy registry to `runtime/modules/deployment/builders` (+ spec)** · FIX · P0 · M · Deps: none
+  - Why/Problem: `apps/api/src/modules/deployment/builders/{builder-registry.service.ts,base/builder-strategy.interface.ts,strategies/{buildpack-family,docker-compose,dockerfile}-builder.strategy.ts}` do not exist in runtime; runtime `deployment-artifact-builder.service.ts` still uses the old if-chain that threw "Dockerfile not found" for nixpacks/buildpack/railpack. A real build-correctness fix exists only in the monolith; a naive "new tier wins" merge drops it. (Builder behaviour itself is DEPLOY-owned.)
+  - Do: port registry + strategies + specs into `apps/api-services/services/runtime/src/modules/deployment/builders`; wire `DeploymentArtifactBuilderService` to it; diff the ~20 other deployment files first (see `ARCH-033`).
+  - Done when: runtime resolves builders via the registry; spec parity with monolith builder specs.
+  - Status: done 2026-10-27 — registry, 3 strategies (dockerfile, docker_compose, buildpack-family x3) and interface ported to `runtime/.../deployment/builders` (interfaces converted to `type`), wired in `deployment.module.ts` (`BUILDER_STRATEGIES` + `BuilderRegistryService`), `DeploymentArtifactBuilderService.buildContainerizedArtifact` dispatches through `registry.resolve()`, `createImageTag` public, `findComposeFile` lives in the compose strategy. Monolith spec ported (replaced the runtime one) + new `builder-registry.service.spec.ts` (19 specs total); runtime suite 301 pass; runtime type errors 11 -> 10 (the artifact-builder spec error is gone). NOT done: `supportedBuilders()` is not yet served to the catalog (`DEPLOY-038`); the ~20 other differing deployment files were not diffed (`ARCH-033`) · Verified-in-code: yes · Source: monolith-cutover.md#3 deployment, #5.1, #6 step 4, deployments.md#duplicate
+  - Effect-impact (2026-10-26): target is the runtime tier, which is classic Nest/Promise code and is LAST in the Effect migration order (117 files / 28.6k lines, `effect-architecture.md` §8): port the registry Nest-style, keep strategy selection pure/framework-free, and put the actual build commands behind a future `CommandRunner` port (interrupt-safe spawn). Do not block the cutover on Effect. Deps: `EFF-123`, `EFF-103`.
+- [x] `ARCH-015` **Cutover step 5: port trigger registry + webhook routing, add a system-actor concept, fix fleet webhook `serviceId` placeholder** · NEW · P1 · L · Deps: `ARCH-014`, `ARCH-056`, `SEC-001`
+  - Why/Problem: `apps/api/src/modules/deployment/triggers/*` (`api-trigger.source`, `github-push-trigger.source`, registry + spec, `base/`) has no counterpart under `apps/api-services`; monolith `github.webhooks.controller.ts:77-110` routes unmatched events through `DeploymentTriggerRegistryService` (still only logs "no system actor"); fleet copy has placeholder `serviceId = repository.full_name` (`apps/api-services/services/fleet/.../github.webhooks.controller.ts:138-140`, TODO T032) so PR preview dispatch resolves the wrong id. The webhook is in fleet, the registry in runtime, so it needs service-to-service auth. The webhook secret/raw-body/idempotency defects are DEPLOY-owned.
+  - Do: port registry into runtime; expose a typed trigger procedure; give fleet a service identity to call it (`ARCH-056`); introduce a system actor for non-user triggers; replace the placeholder with a repo -> service resolution.
+  - Done when: a push webhook results in a queued deployment attributed to the system actor; PR preview resolves the real serviceId.
+  - Status: done 2026-10-27 — registry + `api` / `github-push` sources ported into `svc-runtime` (`deployment/triggers`), new peer-only procedure `deployment.triggerFromEvent` guarded by `requireSystemActor("runtime")`; fleet relays verified webhooks through `DeploymentTriggerGateway` (contract only, via `ServiceClient.systemActorClientFor`) with a signed, 60 s, audience-bound HMAC claim (`shared/core/modules/auth/system-actor`); `DeploymentService.triggerDeploymentAsSystem` skips the membership check and stores `triggeredBy = null`; PR handler resolves the real service by repository URL (no more `full_name` placeholder; an unlinked repo is a logged skip). Tests: claim sign/verify, event-trigger service, controller, gateway, webhook controller. NOT done: the secret is the shared platform secret (no per-service keys, ARCH-056), no replay cache on `deliveryId`, no PR-deploys source, not exercised against a live runtime, the procedure IS on the public surface (the BFF composes every service contract, so `deployment.triggerFromEvent` is routable; an anonymous call is rejected with 401, pinned in `module-contract-surfaces`, but it should not be advertised: `ARCH-109`) · Verified-in-code: yes · Source: monolith-cutover.md#2.5
+  - Effect-impact (2026-10-26): design the system actor as a value type that can later be provided as an Effect `Actor.system('scheduler')` service per background fiber (`effect-ecosystem-research.md` §2.14); the trigger registry itself is runtime-tier Nest code, port Nest-style. Deps: `EFF-014`.
+- [ ] `ARCH-016` **Cutover step 6a: port analytics report download endpoint (`GET api/analytics/reports/:id/download`) to identity** · FIX · P2 · S · Deps: none
+  - Why/Problem: `apps/api/src/modules/analytics/controllers/analytics-download.controller.ts` (AuthGuard) has no counterpart; no consumer found in `apps/web` or new tier; may be unused if oRPC `downloadReport` envelope URL is unused. `[unverified]` consumer
+  - Do: confirm whether `downloadReport` URL is used; port controller to `svc-identity` (and route through BFF) or delete from contract.
+  - Done when: report download works through the BFF or the URL is removed from the contract.
+  - Status: todo · Verified-in-code: partial · Source: monolith-cutover.md#3 analytics, #5.3, #6 step 6 · See also: `OBS-053`
+  - Effect-impact (2026-10-26): analytics is still untouched classic Nest in identity (`analytics.controller.ts:310` dangling `downloadUrl`); serve the route as part of the analytics split/port (repository + host-metrics adapter + report service), not before. It is a plain Express route, no Effect handler needed; effort stays S for the route, the split is separate (`analytics.service.ts` is 934 lines). Evidence: `effect-health-identity.md` §4.5, §7.9. Deps: `EFF-104`.
+- [ ] `ARCH-017` **Cutover step 6b: decide and port the offline OpenAPI generation script (`apps/api/src/openapi.ts` + `scripts/generate-openapi.ts`)** · ENHANCE · P2 · S · Deps: none
+  - Why/Problem: BFF serves `/openapi.json` live (`bff/src/modules/docs`) but no script produces the spec offline (needed for CI, SDK/CLI generation); `apps/web openapi:yaml` is unrelated.
+  - Do: move script to BFF or `packages/contracts` (DEC-ARCH-14), generate from `appContract`.
+  - Done when: `bun run openapi:generate` emits JSON without booting the API.
+  - Status: todo · Verified-in-code: partial · Source: monolith-cutover.md#3 Other, #5.5
+- [x] `ARCH-018` **Cutover step 7: extract the e2e harness and fix `tooling/vitest/src/service.ts` so it no longer requires `apps/api`** · FIX · P0 · M · Deps: none
+  - Why/Problem: `tooling/vitest/src/service.ts:37-47,71,214-215` `resolveWorkspacePaths()` throws unless `apps/api` exists and is used by every service/bff vitest config; globalSetup/setupFiles point at `apps/api/vitest.global-setup.e2e.ts` and `vitest.setup.e2e.ts` (which import `vitest.shared-postgres.e2e.ts`, `vitest.teardown.e2e.ts`, `src/e2e/utils/shared-api-runtime`); harness half-forked (`apps/api-services/shared/src/e2e-harness/shared-api-runtime` exists, the four vitest.*.ts and shared-Postgres container logic exist only in apps/api). Deleting before this step breaks every test at config load.
+  - Do: move the four vitest files + shared-Postgres logic into `apps/api-services/shared` (or a `tooling/e2e` package); make `resolveWorkspacePaths` not depend on `apps/api`.
+  - Done when: all service/bff vitest configs load with `apps/api` absent (checked on a branch/worktree, not by deleting).
+  - Status: partial — DONE 2026-10-27: the four harness files and the `bun:sqlite` shim now live in `apps/api-services/shared/src/e2e-harness/vitest/` (`global-setup`, `setup`, `shared-postgres`, `teardown`, `bun-sqlite-shim`); `tooling/vitest/src/service.ts` `resolveWorkspacePaths` needs only `apps/api-services/shared/src` and points `globalSetup`/`setupFiles`/the shim there. Verified: fleet e2e project (real Postgres container through the relocated harness) 6/6 pass, `tooling/vitest` type-check clean, shared type-check unchanged (7 baseline errors). STILL OPEN: confirm on a worktree with `apps/api` absent (not by deleting); the `bun-sqlite-loader.mjs` (VS Code/Node loader) was not copied · Verified-in-code: yes · Source: monolith-cutover.md#2.1, #6 step 7, #8
+  - Update 2026-10-27: the BFF's vitest config was the one app that could not boot its root module in e2e (its source imports `@/auth`, `@/config/*`, `@/core/*`, which the shared `createServiceTestConfig` does not alias; its harness wrapper also used a BFF-local path). Fixed in `bff/vitest.config.mts` (aliases mirroring its tsconfig) and `bff/src/e2e/runtime.ts`. All six apps' e2e now boot and pass (bff 26, identity 13, fleet 6, runtime 15, project 2, health 2). Still unchecked with `apps/api` actually absent.
+  - Effect-impact (2026-10-26): harness must also support Effect services: health has `src/e2e/runtime.ts` but no spec uses it, identity e2e was adapted to run Effects (`run(...)`) and at audit time still imported the renamed `user.errors` (`identity/src/e2e/module-workflows/module-happy-path-workflows.e2e-spec.ts:21`). Requires a shared-runtime root module with `EffectRuntimeModule`. Effort M -> M/L. Deps: `EFF-030`, `EFF-038`.
+- [x] `ARCH-019` **Cutover step 8: port or consciously drop the 16 monolith-only e2e specs (mesh-workflows first)** · NEW · P1 · L · Deps: `ARCH-018`
+  - Why/Problem: 21 `*.e2e-spec.ts` in apps/api vs 5 in the new tree; missing: all 11 mesh-workflow specs, `module-contract-surfaces`, `module-http-guards`, `deployment-workflows/support`, `setup-workflows` (2 specs + support), `traefik-routing`, `debug-compile-full` (`auth-workflows` exists in BFF). Test-coverage loss, not runtime loss.
+  - Do: port mesh-workflows to a service-tier e2e (fleet), HTTP-guards and contract-surfaces against the BFF, setup-workflows and traefik-routing; explicitly list any dropped spec with reason in a table.
+  - Done when: every monolith e2e spec has a ported counterpart or a recorded drop decision.
+  - Status: done 2026-10-27 — every spec has a recorded decision in `docs/audit-2026-10-25/e2e-port-plan.md`. PORTED: mesh unit specs into `shared` (registry additions, `StreamManagerService`, `MeshSubscriptionManager`, `OwnershipResolverService`, `defineResource`), `module-contract-surfaces` and `contract-inspect` into the BFF, `multi-instance` (2 instances) into the BFF e2e. DROPPED: `mesh-stream-manager-persistence`, `mesh-promotion-control`, `mesh-reactive-subquery` (duplicates), `mesh-event-namespace` and `mesh-doc-compliance-matrix` (assert only local mocks/RxJS), `module-http-guards` (duplicate), `traefik-routing` (tests the stock Traefik image). REPLACED: `debug-compile-full` by boot e2e for `project` and `health`. Also rewrote the missing unit specs for the identity `user` (rules, service, error mapper, filters, SQL builder), `analytics` service and `push` (rules, error mapper, repository against real Postgres). Not ported: a real multi-node mesh e2e (`NET-107`) · Verified-in-code: yes · Source: monolith-cutover.md#3 e2e, #5.6, #6 step 8
+  - Effect-impact (2026-10-26): port target idiom differs per service: specs for identity `user` / health must run Effects (provide `EffectRuntime`), specs for project/runtime/fleet stay Promise/Nest until those services migrate. Decide per spec; do not port 16 specs twice. Deps: `EFF-103`.
+- [x] `ARCH-020` **Cutover step 9a: make the services compose the default in root `docker-compose.yml`; remove `api-dev`** · FIX · P1 · M · Deps: `ARCH-001`, `ARCH-018`
+  - Why/Problem: `docker-compose.dev.yml:62` defines `api-dev` (extends `common/api/docker-compose.config.dev.yml:27`, `APP=@deployer/api`); root `docker-compose.yml` includes it so the DEFAULT `docker compose up` runs the monolith; `docker-compose.services.dev.yml` already on bff+svc-*. The services profile needs a validation run first (not booted by auditors).
+  - Do: switch default include, delete `api-dev`, `common/api/docker-compose.config.dev.yml`; announce the dev-loop change.
+  - Done when: `docker:up dev` starts BFF+5 svc; no `api-dev` anywhere.
+  - Status: done 2026-10-27 — root `docker-compose.yml` now includes `docker-compose.services.dev.yml` (BFF + 5 svc); `bun run dev*` scripts target it and `dev:supervised*` target `docker-compose.services.dev-supervised.yml`; `docker-compose.dev.yml` and `api-dev` deleted; `dev:services*` and `dev:api:run` scripts folded into `dev*` / `dev:bff:run`. Verified: `docker compose config` renders for the root file and both services files. NOT verified: a full boot (`ARCH-106`) · Verified-in-code: partial · Source: monolith-cutover.md#2.5, #6 step 9, #8
+- [ ] `ARCH-021` **Cutover step 9b: remove `build-api`, `DEPLOYER_API_IMAGE`, supervised-dev monolith refs from prod/supervised compose** · FIX · P1 · M · Deps: `ARCH-020`, `ARCH-050`
+  - Why/Problem: `docker-compose.dev-supervised.yml:234` (`APP=@deployer/api`), `:113` (`DEPLOYER_API_IMAGE`); `docker-compose.prod.yml:40-58` `build-api` monolith default; `common/api/docker-compose.config.prod.yml` monolith-only.
+  - Do: replace with BFF+5 builds; delete `common/api/*.dev|prod.yml`; keep `services.dev*.yml`.
+  - Done when: grep `@deployer/api` in `infra/docker/compose` is empty.
+  - Status: partial — DONE 2026-10-27: `build-api` and `DEPLOYER_API_IMAGE`/`DEPLOYER_API_REPLICAS` removed from `docker-compose.prod.yml` and `common/setup/docker-compose.config.prod.yml`; prod now has six `build-svc-*` producers (`Dockerfile.api.prod`, one anchor) and setup receives `DEPLOYER_BFF_IMAGE` + `DEPLOYER_SVC_*_IMAGE` + `DEPLOYER_SVC_REPLICAS`; `docker-compose.dev-supervised.yml` and `common/api/docker-compose.config.prod.yml` deleted. STILL OPEN: `common/api/docker-compose.config.dev.yml` + `docker-compose.config.yml` are KEPT because the mesh-6 rigs (`docker-compose.mesh-6.dev*.yml`) extend them with the monolith (goes with `ARCH-019` mesh-workflows port); `docker-compose.deployer.yml` (unified single-container install) still builds the monolith · Verified-in-code: partial · Source: monolith-cutover.md#2.5
+- [ ] `ARCH-022` **Cutover step 9c / 12: re-point root `package.json` scripts (`@deployer/api` runner :314, `docker:build:api` :289, `dev:api:run` :251, `check-env:api` :261, `prod:api*` :299-311)** · FIX · P1 · S · Deps: `ARCH-020`
+  - Why/Problem: scripts target the monolith; `prod:api*` actually point at the mesh-6 compose.
+  - Do: retarget to bff/services or remove; update AGENTS.md command list.
+  - Done when: no root script references `@deployer/api`.
+  - Status: partial — DONE 2026-10-27: `@deployer/api` runner, `dev:api:run` and `docker:build:api` removed (now `docker:build:bff` with the right build args). `check-env:api` kept: `api` there is the env schema name, not the monolith. STILL OPEN: `prod:api*` scripts point at the mesh-6 compose (`build-api` service that no longer exists there); AGENTS.md command list · Verified-in-code: yes · Source: monolith-cutover.md#2.6
+- [x] `ARCH-023` **Cutover step 10a: `deploy.yml` version source (`jq .version apps/api/package.json`, line 57)** · FIX · P1 · S · Deps: none
+  - Why/Problem: release version read from the monolith package; breaks on delete. (CI/CD owner is OPS; change is one line.)
+  - Do: read version from root `package.json` or a dedicated version file.
+  - Done when: workflow resolves version without `apps/api`.
+  - Status: done 2026-10-27 — `deploy.yml` reads the release version from `apps/api-services/bff/package.json`. The image step still builds the unified `Dockerfile.prod` (monolith); publishing the six tier images from CI is open · Verified-in-code: yes · Source: monolith-cutover.md#2.2
+- [x] `ARCH-024` **Cutover step 10b: `infra/docker/builder/deployer/Dockerfile.prod` (turbo prune `@deployer/api`, build `@deployer/api`, copy `apps/api/dist`, lines 61,177,231-232)** · FIX · P1 · M · Deps: `ARCH-020`
+  - Why/Problem: all-in-one deployer image bakes in the monolith.
+  - Do: build BFF + web (or split images) per DEC-ARCH-1; update copy paths.
+  - Done when: image builds from `@deployer/bff` + `@deployer/web` and boots.
+  - Status: done 2026-10-27 — `infra/docker/builder/deployer/Dockerfile.prod` and `docker-compose.deployer.yml` deleted (the single-container install contradicted the tier topology). `deploy.yml` now builds and pushes the six tier images (`svc-bff`, `svc-health`, `svc-identity`, `svc-project`, `svc-fleet`, `svc-runtime`) from `Dockerfile.api.prod` via a matrix, one gha cache scope each; the release notes list all six pulls. `deploy.sh` points at `docker-compose.prod.yml`. Not run: the workflow itself (needs a tag push) · Verified-in-code: yes · Source: monolith-cutover.md#2.3
+- [x] `ARCH-025` **Cutover step 10c: `Dockerfile.api.prod` defaults (`PRUNE_SCOPE=@deployer/api`, `APP_DIR=apps/api`)** · FIX · P1 · S · Deps: `ARCH-020`
+  - Why/Problem: parameterised already (bff/svc builds work via args) but defaults point at the monolith. The HEALTHCHECK bug is `ARCH-051`.
+  - Do: make `PRUNE_SCOPE`/`APP_DIR` required build args (no default) or default to bff.
+  - Done when: a build without args fails loudly or builds bff.
+  - Status: done 2026-10-27 — the image HEALTHCHECK now targets `http://localhost:${APP_PORT}/health` (3005 BFF, 3101-3105 services) instead of the monolith's hard-wired `:3001`; liveness on purpose (readiness would make the engine restart an app that is merely waiting for its database). Verified: the BFF container reached `healthy` · Verified-in-code: yes · Source: architecture.md, monolith-cutover.md#2.4
+- [x] `ARCH-026` **Cutover step 11: `apps/setup` remove `ApiServiceProvisioner` (shape A), `apiServiceName`, `api-dev`/`deployer-api` defaults; target `svc-bff`; `/setup/trigger|stream|done` routes now live in BFF** · FIX · P1 · M · Deps: `ARCH-001`, `ARCH-020`
+  - Why/Problem: `api-service-provisioner.service.ts` (`DEPLOYER_API_IMAGE`, `deployer-api` service), `config/api-address.ts:59`, `ingress-handover.service.ts`, `wizard.controller.ts`. Monolith has no `/setup/done` controller (setup.md#3.7), so handover to monolith lands on 404; resolved once the monolith is gone.
+  - Do: delete shape A provisioner and its spec; handover targets BFF paths only; keep `ServicesTierProvisioner`.
+  - Done when: `apps/setup` has one provisioner; handover test asserts `svc-bff`.
+  - Status: done 2026-10-27 — `ApiServiceProvisioner` now has ONE path (dev: compose BFF address; prod: overlay + attach + `ServicesTierProvisioner`, hand over to `svc-bff`); shape A (monolith swarm service, `DEPLOYER_API_IMAGE`, `DEPLOYER_API_REPLICAS`, `serviceName()`, `apiServiceName()`, mesh-first upgrade, monolith env builder) deleted; env parity the monolith path had and the tier lacked was PORTED into the tier (`DEPLOYER_PREFIX`, `MESH_AGENT_DATAPLANE`, `TRUSTED_ORIGINS`, `APP_URL`, `DEPLOYER_DIRECT_PROXY_IMAGE`, and the wizard's managed-web choice, which now overrides the env default and clears EXTERNAL). Specs: setup 152 tests pass (provisioner rewritten, new tier provisioner spec), type-check clean. NOT verified on a live swarm · Verified-in-code: yes · Source: monolith-cutover.md#2.10, #6 step 11, setup.md#3.7
+- [ ] `ARCH-027` **Cutover step 12a: retarget `scripts/check-di-graph.ts` (hard-codes `apps/api/src`, line 21) to bff + services** · FIX · P1 · M · Deps: `ARCH-018`
+  - Why/Problem: CI DI-graph check disappears or breaks on delete; largest script.
+  - Do: iterate every `apps/api-services/*` app module.
+  - Done when: DI check covers bff + 5 services in CI.
+  - Status: todo · Verified-in-code: partial · Source: monolith-cutover.md#2.8
+  - Effect-impact (2026-10-26): re-scope: `scripts/check-di-graph.ts` analyses `@Module` imports only, so Effect dependencies expressed via `yield*` / `{ provide: Key, useClass }` are invisible; retargeting to bff + services is necessary but not sufficient. Add a boot-time check that every declared `EffectServices` key has a provider (`effect-architecture.md` §4.4, §5.1). Effort M -> M/L. Deps: `EFF-047`, `EFF-085`.
+- [ ] `ARCH-028` **Cutover step 12b: other scripts/tooling (`verify-mesh-master-decision.ts:12` imports `apps/api/src/core/modules/swarm`, `check-swarm-cli-lock.sh:11-12`, `diagnose-build.ts:225-379`, `sync-api-vitest-aliases.py`, `tooling/dependency-builder application-detector.service.ts:76` `PROFILE_TO_WORKSPACES.api`, `knip.config.ts:13`)** · FIX · P1 · M · Deps: `ARCH-018`, `ARCH-020`
+  - Why/Problem: each hard-references `apps/api`; also verify whether `check-service-surface-parity.py` and `gen-bff-delegation.py` read `apps/api` (NOT VERIFIED).
+  - Do: re-point or delete each; retarget `verify-mesh-master-decision.ts` to `shared/src/core/modules/swarm`.
+  - Done when: `grep -r "apps/api/" scripts tooling knip.config.ts` returns nothing.
+  - Status: todo · Verified-in-code: partial · Source: monolith-cutover.md#2.7-2.9
+- [ ] `ARCH-029` **Cutover step 12c: fixtures/comments in `apps/mesh-agent` (`doors.spec.ts:17` `deployer-api`), `apps/web` (`test-support/fixtures/docker.ts`, `lib/redirects.ts`, `lib/setup-url.ts` `api-dev:3005`, `vitest.*.e2e.ts` comments), packages (`nest-schema ownership/table-ownership.ts:19-45`, `nest/nodes`, `nest/env`, `nest/events`, `tooling/eslint/src/nestjs.ts:70`)** · FIX · P3 · S · Deps: `ARCH-026`
+  - Why/Problem: only fixtures/comments reference the monolith; no import dependency (verified: nothing in api-services/setup/web imports apps/api).
+  - Do: update names/comments; real code changes are `ARCH-031`.
+  - Done when: grep `api-dev|deployer-api` in these workspaces is empty or fixture-only.
+  - Status: todo · Verified-in-code: partial · Source: monolith-cutover.md#2.11-2.13
+- [ ] `ARCH-030` **Cutover step 13: move still-useful docs out of `apps/api` and fix the doc site** · FIX · P2 · M · Deps: `ARCH-012`..`ARCH-028`
+  - Why/Problem: `apps/api/{ARCHITECTURE.md,AGENTS.md,docs/,README.openapi.md,src/e2e/E2E_*.md}` (E2E_HANDBOOK/strategy valuable); ~15 `apps/doc/content/docs/**` pages, `FULL_MESH_HISTORY.md` (e2e paths `apps/api/src/e2e/mesh-workflows/`), root `AGENTS.md` ("API (apps/api)", `auth-generate`, `api-db`), `.github/instructions`, `packages/contracts/AGENTS.md` (paths `apps/api/bff`, `apps/api/services`).
+  - Do: relocate handbook to `apps/api-services/shared` or `docs/`; run `grep -r "apps/api"` and fix every hit; update MCP tool docs.
+  - Done when: grep `apps/api[^-]` over docs/AGENTS is empty except historical notes.
+  - Status: todo · Verified-in-code: partial · Source: monolith-cutover.md#2.14, #5.10, #6 step 13, architecture.md#4.15
+- [ ] `ARCH-031` **Cutover step 14: `git rm -r apps/api`; drop the `"monolith"` `TableOwner` member and eslint carve-outs** · FIX · P1 · S · Deps: `ARCH-010`..`ARCH-030`, `ARCH-033`
+  - Why/Problem: `packages/nest/schema/src/ownership/table-ownership.ts:45` still has `"monolith"`; `tooling/eslint/src/nestjs.ts:70` has monolith carve-outs; deleting also removes the apps/api e2e and shared-fork duplication (364 differing files, `ARCH-037`). Working tree is a ~1060-delete / ~1677-modify uncommitted restructure; HEAD still tracks stale `apps/api/{bff,services,shared}`.
+  - Do: delete after all deps; remove monolith owner/carve-outs; tighten ownership registry.
+  - Done when: `apps/api` absent, `bun check --no-script` green, ownership spec passes without `"monolith"`.
+  - Status: todo · Verified-in-code: partial · Source: monolith-cutover.md#6 step 14, #4
+  - Effect-impact (2026-10-26): deleting `apps/api` is now also the cheapest way to stop monolith/service divergence while health/identity are rewritten (the monolith health module already imports `@deployer/health-contracts`, uncommitted). A stray duplicate `apps/api/services/identity/*` is already deleted in the working tree. Evidence: `effect-health-identity.md` N-10, §3 last row.
+- [ ] `ARCH-032` **Pre-delete safety: commit/branch/tag the working tree so the monolith is recoverable before any deletion** · NEW · P0 · S · Deps: none
+  - Why/Problem: huge uncommitted restructure; `apps/api/src/core`, `config`, `auth.ts` untracked; deleting first loses the monolith irrecoverably. `monolith-cutover.md#8`
+  - Do: commit the restructure (or tag `pre-monolith-delete`) and record the SHA in the cutover doc before step 14.
+  - Done when: a tag/commit containing `apps/api` exists on a pushed branch.
+  - Status: todo · Verified-in-code: no · Source: monolith-cutover.md#8, architecture.md header
+- [ ] `ARCH-033` **Pre-delete audit: full semantic diff of the ~150 "likely identical" core files and ~60 module files** · NEW · P1 · L · Deps: none
+  - Why/Problem: verdicts rest on spot checks (bootstrap, outbox, default-admin, edge-provider, fleet-rollback, runners, webhooks controller). NOT VERIFIED: `core/modules/{mesh/*,domain/*,reachability/*,auth/orpc/*}`, `deployment/{queue,services,mesh}` (~20 differing deployment files: queue worker, lifecycle, execution workflow, read-model projector, stream bridge), `project` (10 files), `service` (5 files, which side newer), `docker` (21 files). Monolith-newer in deployment (2 places) found; none else found.
+  - Do: produce a per-file table (newer side, ported yes/no); port monolith-newer fixes.
+  - Done when: table committed under `docs/` with no "unknown" rows.
+  - Status: todo · Verified-in-code: no · Source: monolith-cutover.md#3 Core, #8
+  - Effect-impact (2026-10-26): the 'likely identical' file diff no longer holds for health and identity `user`: they are deliberately rewritten (Effect service/controller/repository, new `packages/contracts/{health,identity}`), so diff them semantically against the parity matrix in `effect-health-identity.md` §1/§3, not byte-wise. Effort L unchanged, scope for those two shrinks to behaviour parity.
+- [ ] `ARCH-034` **Port the rollback-execution fix to `apps/api-services/services/runtime` before the ingress flip** · FIX · P0 · M · Deps: `ARCH-033`
+  - Why/Problem: the runtime fork lacks `executeRollbackDeployment` in service/workflow and the worker's rollback branch; it marks rollback success without touching the system. Monolith redeploys the target image (`workflow:231-304`, `service:1400-1436`). Flipping ingress to the BFF regresses deployment behaviour. `deployments.md#duplicate, #3.5`
+  - Do: port `executeRollbackDeployment` + worker branch + `rollbackCompleted` event + specs to runtime.
+  - Done when: runtime rollback actually redeploys the target image (e2e).
+  - Status: todo · Verified-in-code: no · Source: deployments.md#1 Lifecycle, #Duplicate code base, #4.10
+  - Effect-impact (2026-10-26): rollback-execution fix lands in the runtime tier (Nest, last in migration order): port Nest-style now; interruption-safe cancel semantics are handled separately by the durable worker (DEPLOY-014/017). Deps: `EFF-122`.
+- [ ] `ARCH-035` **Port remaining runtime-fork gaps: GitHub webhook controller, provider-schema module, preview/trigger bits** · FIX · P1 · M · Deps: `ARCH-014`, `ARCH-015`, `ARCH-033`
+  - Why/Problem: runtime fork "diverged OLDER": no rollback fix, no builder registry/strategies, no trigger registry, no GitHub webhook controller, no provider-schema module (`apps/api/src/modules/provider-schema`, `packages/utils/provider-schema`).
+  - Do: decide per module whether it belongs in runtime or fleet and port with specs (health-indicator/repos see `ARCH-038`).
+  - Done when: each missing module has a counterpart or a recorded drop.
+  - Status: todo · Verified-in-code: partial · Source: deployments.md#Duplicate code base, monolith-cutover.md#3
+- [ ] `ARCH-036` **Port missing unit specs: identity user (4: controller/service/repository/module; identity user has 0), analytics, push, service, `health.module.spec`, `github-source-provider.service.spec`** · NEW · P2 · M · Deps: none
+  - Why/Problem: 153 specs in apps/api vs fewer per service; identity user logic has 0 specs.
+  - Do: port/rewrite specs against the new modules.
+  - Done when: each listed spec has a counterpart.
+  - Status: todo · Verified-in-code: partial · Source: monolith-cutover.md#3 User, Unit specs
+  - Effect-impact (2026-10-26): Status -> partial: health now has 3 spec files (`health.controller.spec.ts`, `health.service.spec.ts`, `health.contract.spec.ts`, verified on disk); identity user still has 0 unit specs (no `user.*.spec.ts`; `user.service.ts`, `domain/user.rules.ts` exist). New specs must follow the Effect idiom (`Effect.provideService` fakes, `effectContext` + `callProcedure`), not the 'mock `implement`' rule of root AGENTS §7; `health.module.spec` (wiring) still missing. Deps: `EFF-030`, `EFF-038`.
+
+### Duplicate code (interim until delete)
+- [ ] `ARCH-037` **Interim fix policy: freeze `apps/api`, land fixes only in `apps/api-services`, or add CI drift check between monolith and fork** · ENHANCE · P1 · S · Deps: none
+  - Why/Problem: `apps/api/src/core`+`config` vs `shared/src/core`+`config` (364 differing files), docker/cluster/fleet copies (~20k lines, differ mostly in imports), deployment fork older; every fix must land twice (setup/bootstrap code also diverged: DB URL resolution via `MANAGED_GLOBAL_DB_*` only in shared). `architecture.md#4.21`, `docker-cluster.md#0, #3.13`
+  - Do: declare `apps/api-services` the only place to fix; add a CI check listing files changed in both trees; or make `apps/api` import `@deployer/shared` meanwhile.
+  - Done when: policy in AGENTS.md; CI flags monolith-only edits.
+  - Status: todo · Verified-in-code: yes · Source: architecture.md#4.21, #6, docker-cluster.md#0, deployments.md#duplicate
+  - Effect-impact (2026-10-26): stronger case now: the monolith health module and the svc-health copy are diverging (monolith edited to use `@deployer/health-contracts`, svc rewritten onto Effect). Freeze `apps/api` health/user/push/analytics immediately. Evidence: `effect-health-identity.md` N-10.
+- [ ] `ARCH-038` **Decide health module parity: restore monolith health indicators/repos/services or formally drop and clean dead tables** · FIX · P2 · M · Deps: `DEC-ARCH-5`
+  - Why/Problem: monolith health (7 files: indicators, repositories, services, `health.module.spec.ts`) reduced to process+DB probes (2 files); tables `health_checks`, `health_check_jobs`, `service_health_configs` are owned by `health` in `TABLE_OWNERSHIP` but `svc-health` never touches them. Whether the features were user-facing NOT VERIFIED. (Health features themselves are OBS-owned.)
+  - Do: confirm user-facing status; port or drop; update ownership registry.
+  - Done when: no table is owned by a service that never touches it.
+  - Status: todo · Verified-in-code: partial · Source: monolith-cutover.md#3 health, #5.8, architecture.md#2.3 · See also: `OBS-030`, `OBS-035`
+  - Effect-impact (2026-10-26): re-scoped with data: svc-health lacks swarm/services/mesh indicators, supervisors and lifecycle phase (parity matrix rows 10, 14; `health.controller.ts:77` `supervisors: []`). Supervisors run in the BFF process so svc-health cannot call `SupervisorOrchestratorService`: parity needs a BFF-side roll-up or a service token (`ARCH-056`). Put the mapping logic in `HealthService` (domain report), not the controller. Evidence: `effect-health-identity.md` N-3, §7.1.
+- [ ] `ARCH-039` **Scalar API reference UI: wire `@scalar/nestjs-api-reference` in BFF or drop; BFF `/reference` is a plain table** · ENHANCE · P3 · S · Deps: none
+  - Why/Problem: dependency only in apps/api (UNVERIFIED wired in `main.ts`); BFF `/reference` (`bff/src/modules/docs/openapi-docs.controller.ts`) is a downgrade. Gating the anonymous docs is SEC-owned.
+  - Do: add Scalar to the BFF docs module or document the drop.
+  - Done when: `/reference` renders an interactive reference (behind auth per SEC).
+  - Status: todo · Verified-in-code: partial · Source: monolith-cutover.md#3 Other, #5.9
+
+### Migrations and database
+- [ ] `ARCH-040` **Journal migration `0040_encrypt_environment_variable_values.sql` (or delete it); do not ship half-done env encryption** · FIX · P0 · S · Deps: `ARCH-012`
+  - Why/Problem: file exists in `packages/nest/schema/migrations/global/` but is NOT in `_journal.json` (last entry `0039_gitlab_apps`, VERIFIED) => never applied; even if applied it only emits `RAISE WARNING` — real work is the backfill command (`ARCH-013`). Existing environments' variable values are unreadable after the codec change.
+  - Do: generate/journal it properly via drizzle with correct `when`, or delete it and rely on the backfill; add a journal-vs-files consistency test (`ARCH-100`).
+  - Done when: every `.sql` file in the migrations dir is in the journal (or removed) and CI asserts it.
+  - Status: todo · Verified-in-code: yes · Source: architecture.md#2.5, #4.5
+- [ ] `ARCH-041` **Make boot-time migration failures fatal; stop substring error matching ("already"/"duplicate")** · FIX · P0 · M · Deps: none
+  - Why/Problem: `apps/api-services/shared/src/core/modules/bootstrap/bootstrap-orchestrator.service.ts:351-358,229` logs migration errors "non-fatal" then `markReady()`; error classification by substring; `MigrateCommand` exits 2 but boot path swallows. Services pass readiness against a partially migrated schema.
+  - Do: fail boot (exit non-zero) on migration error except typed idempotent cases (pg error codes `42P07`, `42710`...); remove substring matching.
+  - Done when: a forced failing migration prevents `markReady()` and the container exits non-zero.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#2.5, #4.4
+  - Effect-impact (2026-10-26): no Effect change, but note the Effect `ManagedRuntime` is built lazily on first request (`effect-runtime.ts`); boot failures in the infra layer would surface late unless the runtime is built eagerly at `onApplicationBootstrap` (sample does). Deps: `EFF-028`.
+- [ ] `ARCH-042` **Take a `pg_advisory_lock` around migrations, default-admin creation and supervisor start** · FIX · P0 · M · Deps: `ARCH-041`
+  - Why/Problem: no advisory lock; every BFF replica runs migration + supervisors + default-admin at boot (shape C provisions 2 replicas). Concurrent migrations race.
+  - Do: wrap bootstrap migration in `pg_advisory_lock(<const>)`; election for the rest is `ARCH-064`.
+  - Done when: two BFFs started simultaneously apply migrations once, no duplicate admin.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#4.4, #4.10
+  - Effect-impact (2026-10-26): implement the advisory lock once as a Scope-based Effect helper (`acquireRelease` on `pg_advisory_lock`) reusable by migrations, default-admin creation, supervisor start, the probe scheduler (OBS-030) and leader election (ARCH-064). `ClusterCron`/cluster not adopted (unstable). Deps: `EFF-129`. Evidence: `effect-ecosystem-research.md` §2.7.
+- [ ] `ARCH-043` **Readiness/preflight must verify "all journal entries applied", not `count(*) > 0`** · FIX · P1 · S · Deps: `ARCH-041`
+  - Why/Problem: `apps/api-services/shared/src/server/preflight/checks.ts` only checks `count(*)` in `drizzle.__drizzle_migrations`.
+  - Do: compare journal hashes/idx with applied rows (expected-vs-applied), report missing; expose version/migration level in `/health`.
+  - Done when: a service with one pending migration is not ready.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#2.5, #4.4
+  - Effect-impact (2026-10-26): still open: `migrations.indicator.ts` in shared health indicators reports journal count > 0 only (matrix row 7); the Effect rewrite did not touch it (shared Nest/RxJS code).
+- [ ] `ARCH-044` **Regenerate drizzle snapshots (stop at 0038); fix hand-written 0039 `when: 1792000000000`; remove dead unjournaled `0010_backfill_service_configs.sql`** · FIX · P2 · M · Deps: `ARCH-012`
+  - Why/Problem: snapshots end at 0038; 0039/0040 hand-written; 0010 unjournaled (dead).
+  - Do: regenerate snapshots after the toolchain move; delete dead SQL; verify journal ordering by `when`.
+  - Done when: `drizzle-kit generate` produces no diff on a clean tree.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#2.5
+- [ ] `ARCH-045` **Fix `BaseDatabaseService.isHealthy` (un-awaited `execute()`; always true on Postgres; unhandled rejection on failure)** · FIX · P2 · S · Deps: none
+  - Why/Problem: `packages/nest/database-core/src/base-database.service.ts`; only the e2e harness uses it today.
+  - Do: `await` the probe, return false on throw, add spec.
+  - Done when: spec shows false when the DB is down.
+  - Status: todo · Verified-in-code: no · Source: architecture.md#4.18
+  - Effect-impact (2026-10-26): scope +: `BaseDatabaseService.db` throws `AppError` synchronously when uninitialised (`packages/nest/database-core/src/base-database.service.ts:41-47`); inside `Effect.gen` that becomes a defect, not a typed failure. Fix alongside `isHealthy` when the Effect `DatabasePort`/`Db` service is shaped. `database.indicator.ts` now injects `GLOBAL_DATABASE_POOL` (uncommitted fix). Deps: `EFF-018`.
+- [ ] `ARCH-046` **BFF CLI `seed` is a no-op that logs success — implement or remove** · FIX · P2 · S · Deps: none
+  - Why/Problem: `bff/src/cli/commands/seed.command/local.ts`; violates AGENTS "no stub that only logs".
+  - Do: port real seed from monolith or delete the command and `api-db seed` references.
+  - Done when: `seed` creates data or does not exist.
+  - Status: todo · Verified-in-code: no · Source: architecture.md#4.19
+- [ ] `ARCH-047` **Ownership registry honesty: auth tables written by BFF (Better Auth) but registered to `identity`; resolve `SHARED_TABLES` writers** · ENHANCE · P2 · S · Deps: none
+  - Why/Problem: `packages/nest/schema/src/ownership/table-ownership.ts` ownership is a convention, not a boundary; BFF writes auth tables.
+  - Do: reassign auth tables to `bff`/`platform` (or move Better Auth into identity); update the lint rule.
+  - Done when: ownership spec matches real writers.
+  - Status: todo · Verified-in-code: yes · Source: architecture.md#2.3, monolith-cutover.md#7 cap.4
+
+### Images, health checks, publishing
+- [ ] `ARCH-050` **Build + publish BFF and 5 svc images; add a tier build target to `docker-compose.prod.yml` and CI; match `DEPLOYER_BFF_IMAGE` / `DEPLOYER_SVC_*_IMAGE`** · FIX · P1 · M · Deps: `ARCH-025`
+  - Why/Problem: prod compose builds only the monolith; tier provisioner expects images that nothing builds/pushes; fallback `deployer-svc-bff:dev` is dev-only. (Registry/release workflow itself is OPS.)
+  - Do: matrix build over 6 apps with `PRUNE_SCOPE`/`APP_DIR` args; tag/push; document the env contract.
+  - Done when: CI produces 6 tagged images and a fresh swarm pulls them via the provisioner.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#4.6, #5.6, setup.md#1(37)
+  - Effect-impact (2026-10-26): build path to verify: all six api-services apps build with `bun build ... --packages=external` (package.json:18), contradicting ARCHITECTURE.md:196-197; Nest `design:paramtypes` metadata under that build is unverified (D9). Add 'boot the built image' to Done when. Deps: `EFF-043`.
+- [x] `ARCH-051` **Fix image HEALTHCHECK hard-wired to the monolith (`localhost:3001/health`; BFF is 3005, services 3101-3105)** · FIX · P0 · S · Deps: none
+  - Why/Problem: `infra/docker/builder/api/Dockerfile.api.prod:377-381` (VERIFIED line 381) probes `:3001`; tier spec sets `healthcheck: null` (`services-tier-provisioner.service.ts:220`) which does not disable an image-inherited check => likely restart loop (which one wins UNVERIFIED). `start-first` rolling updates have no healthcheck gate.
+  - Do: use `ARG/ENV PORT` in HEALTHCHECK (or `/health/ready` on `$PORT`) and/or have the provisioner pass a per-service healthcheck from the catalog (`ARCH-005`).
+  - Done when: each of 6 containers reports healthy in `docker ps`; swarm does not restart-loop.
+  - Status: todo · Verified-in-code: yes · Source: architecture.md#4.8, monolith-cutover.md#2.4
+  - Effect-impact (2026-10-26): matters more: the swarm tier provisions `healthcheck: null` (`apps/setup/src/modules/handover/services/services-tier-provisioner.service.ts:220`) so the image HEALTHCHECK applies, and `infra/docker/builder/api/Dockerfile.api.prod:380` still probes `:3001`; compose already uses `/health/ready` (`docker-compose.config.services.yml:234`). Unverified at runtime. Evidence: `effect-health-identity.md` N-11.
+- [ ] `ARCH-052` **Resolve `USER nestjs` vs bind-mounted `/var/run/docker.sock` and shared SQLite volume permissions** · FIX · P1 · M · Deps: none
+  - Why/Problem: image runs non-root while apps mount docker.sock and write the shared SQLite/volume; permission outcome UNVERIFIED (`appMounts`, `services-tier-provisioner.service.ts:395-430`).
+  - Do: verify on a swarm; set supplementary group (`group_add` docker gid) or socket proxy (`ARCH-060`); fix volume ownership.
+  - Done when: svc-runtime can use the socket and all six can read/write `local.db` as non-root.
+  - Status: todo · Verified-in-code: no · Source: architecture.md#4.8, monolith-cutover.md#7 cap.1
+- [ ] `ARCH-053` **Remove stray monolith leftovers: `deploy.sh` ("The Gossip Club"), `infra/docker/compose/deployer/docker-compose.deployer.yml` (tgclub), `packages/contracts/entities/probe2.ts`, dead `entities/setup/{state,node,initialize}.schema.ts` shadow files, `bff/src/e2e/runtime.ts`** · FIX · P3 · S · Deps: none
+  - Why/Problem: `architecture.md#4.16,#4.20`; shadows have the same exported names as `entities/setup/index.ts` (wrong-import risk). Installer replacement is SETUP-owned.
+  - Do: delete after confirming no importers.
+  - Done when: files gone; type-check green.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#4.16, #4.20, setup.md#1(36,38)
+
+### Inter-service auth and BFF client
+- [ ] `ARCH-054` **Forward a BFF-signed Actor claim instead of the raw browser cookie/authorization/`x-mesh-internal-key`; services verify the claim** · ENHANCE · P1 · L · Deps: `ARCH-058`, `DEC-ARCH-4`
+  - Why/Problem: design says "explicit signed Actor claim, services never read the cookie" (`ARCHITECTURE.md:159-160`, plan item checked `09-implementation-plan.md:100`); reality: raw `cookie`, `authorization`, `x-mesh-internal-key` are copied onto each fan-out call via AsyncLocalStorage (`bff/src/clients/service-auth-context.ts:59-66`, `service-registry.ts:23-28`, `service-auth-context.middleware.ts`). A stolen/valid cookie reaching `svc-*:310x` is accepted.
+  - Do: BFF mints a short-lived signed claim (user id, platform role, session id, request id, audience=service); services verify (shared secret/asymmetric key distinct from `AUTH_SECRET`) and build `context.auth` from it; stop forwarding cookie and `x-mesh-internal-key`.
+  - Done when: a service rejects a request with only a cookie; spec for claim verify/expiry/audience.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#2.4, #4.4, #6, monolith-cutover.md#7 cap.5
+  - Effect-impact (2026-10-26): decision D3: carry the actor as an Effect `CurrentActor`/`Actor` service populated once per request (oRPC `effect/wrap` or `createOrpcModule({ extraContext })`), replacing hand-threaded `actorOf(context)`; BFF today forwards cookie/authorization (`bff/src/clients/service-auth-context.ts:29-36`) while ARCHITECTURE.md claims an actor claim; AsyncLocalStorage across Effect fibers is unverified. Effort L + S for the Effect service. Deps: `EFF-014`. Evidence: `effect-architecture.md` §4.2, §5.4.
+- [ ] `ARCH-055` **Drop the duplicate session lookup per call (AuthGuard + AuthPlugin both call `getSession`; each service runs a full Better Auth + DB lookup)** · ENHANCE · P2 · M · Deps: `ARCH-054`
+  - Why/Problem: every one of 6 processes imports full Better Auth, DB, env schema; each call re-validates the session (cookieCache 5 min mitigates). `architecture.md#2.4, #2.2 shared`
+  - Do: once claims are verified (`ARCH-054`) services skip Better Auth; slim the shared import graph.
+  - Done when: services start without Better Auth session code and per-call DB session query disappears.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#2.4, #2.2
+  - Effect-impact (2026-10-26): with a per-request Actor service the session is resolved once in the oRPC plugin and provided into the Effect context; do not re-fetch in services. Deps: `EFF-014`.
+- [ ] `ARCH-056` **Service identity + service tokens so background/system callers (supervisors, schedulers, webhooks, fleet -> runtime triggers) can call peers** · NEW · P1 · L · Deps: `ARCH-058`, `SEC-001`
+  - Why/Problem: background paths have no inbound request, hence no cookie, hence cannot call peers; no service identity, token, mTLS or network policy exists (`architecture.md#2.4`). This is also the "no system actor" blocker for push auto-deploy (`ARCH-015`). (Capability #5)
+  - Do: per-service identity (token/mTLS) minted at provisioning from the service catalog, a `system` actor kind with explicit scopes, and policy hook so SUB-A can allow/deny system callers.
+  - Done when: svc-project can call svc-fleet and fleet webhooks can enqueue a deployment with no user session.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#2.4, monolith-cutover.md#7 cap.5, #6 step 5
+  - Effect-impact (2026-10-26): system callers (supervisors, schedulers, webhooks) get `Actor.system('<name>')` provided per background fiber via `Effect.provideService`; peer calls can use `createEffectClient` from `@orpc/effect`. svc-health also needs this token if supervisors are to be read from the BFF (OBS-029). Deps: `EFF-014`.
+- [ ] `ARCH-057` **Fix `DnsProviderGateway`: svc-project -> svc-fleet DNS calls are anonymous so every project network/zone/record call is a 401** · FIX · P0 · S · Deps: `ARCH-058` (full fix `ARCH-056`)
+  - Why/Problem: `DnsProviderGateway` uses shared `ServiceClient` (`apps/api-services/shared/src/server/service-client.ts:57`, `createORPCClient(new OpenAPILink(contract,{origin}))`, no headers, no fetch hook) while fleet DNS procedures (`dns-providers.controller.ts`, `cloudflare.controller.ts`) all `requireAuth()`. Only service->service edge in the system. `[unverified at runtime]`
+  - Do: route the call through the registry client with actor claim or service token; add contract test.
+  - Done when: an integration test creating a network record via svc-project succeeds against a real fleet.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#4.6
+- [ ] `ARCH-058` **Unify the two client stacks (`@deployer/shared` `ServiceClient` vs `@deployer/nest-service-client` registry)** · ENHANCE · P1 · M · Deps: none
+  - Why/Problem: two parallel stacks with different auth behaviour (cookie propagation vs none); `FleetClient`/`AnalyticsClient`/`HealthClient` dead (`ARCH-083`).
+  - Do: one registry (`packages/nest/service-client/src/service-client.registry.ts`) used by BFF and services; one place for timeouts/retries/auth (`ARCH-078`).
+  - Done when: only one client stack remains and all callers use it.
+  - Status: todo · Verified-in-code: yes · Source: architecture.md#4.6, #6, monolith-cutover.md#7 cap.5
+  - Effect-impact (2026-10-26): the unified client should expose a Promise client plus an optional `createEffectClient` wrapper (`@orpc/effect`) over `ServiceClientRegistry`; the sample hand-forwards the cookie (`samples/api-sample/src/modules/demo/demo.controller.ts:34`). Deps: `EFF-014`.
+- [ ] `ARCH-059` **Restrict `svc-*:310x` ports by overlay/network policy (only BFF may reach services)** · FIX · P1 · S · Deps: none
+  - Why/Problem: any caller on the overlay can reach services (vip endpoint mode, no published ports, but shared overlay with user workloads?). No network-policy reference. `[unverified]` overlay membership of user workloads
+  - Do: dedicate an internal overlay for the tier (attachable=false, not joined by user apps); document and test.
+  - Done when: a user container cannot connect to `svc-project:3103`.
+  - Status: todo · Verified-in-code: no · Source: architecture.md#2.4, #5.4
+
+### Capabilities enabled by the service/mesh architecture (monolith-cutover.md §7, 12 items)
+- [ ] `ARCH-060` **Isolate the docker.sock holder: only svc-runtime (docker domain) and the supervisor host mount the socket; add a narrow socket proxy** · NEW · P1 · L · Deps: `ARCH-006`, `ARCH-052`
+  - Why/Problem: `appMounts` (`services-tier-provisioner.service.ts:395-430`) mounts docker.sock + agent socket + shared SQLite volume into every app; any BFF/identity RCE equals host root. (Capability #1, High)
+  - Do: remove mounts from all but runtime/supervisor host; add a read-only-by-default socket proxy; move swarm/supervisor ownership out of the BFF.
+  - Done when: `docker service inspect` shows the socket only on the designated services.
+  - Status: todo · Verified-in-code: yes · Source: monolith-cutover.md#7 cap.1, architecture.md#2.1
+- [ ] `ARCH-061` **Independent scaling and per-service rolling deploy (replicas, `start-first` with real readiness)** · NEW · P2 · L · Deps: `ARCH-051`, `ARCH-064`, `ARCH-067`
+  - Why/Problem: all services 1 replica (`DEPLOYER_SVC_REPLICAS` default 1, `apps/setup/src/config/env/env.schema.ts:199`); `start-first` has no healthcheck gate. (Capability #2, High)
+  - Do: per-service replica/update config from the catalog; runtime scales for builds, identity for read traffic; readiness-gated rollout.
+  - Done when: BFF and identity run at 2 replicas with a zero-error rolling update test.
+  - Status: todo · Verified-in-code: yes · Source: monolith-cutover.md#7 cap.2, architecture.md#6, #7
+- [ ] `ARCH-062` **Event outbox consumers: make the dispatcher publish to named consumers (identity push/notifications, health SLO feed, audit); durable consumer cursors** · NEW · P1 · L · Deps: `OBS-001`
+  - Why/Problem: `LocalEventOutboxDispatcherService.dispatchClaimed` only calls `markSent` (`.../events/outbox/local-event-outbox-dispatcher.service.ts:125-148`); runtime projector uses in-memory `Map` + in-memory cursor (`deployment-read-model-projector.service.ts`); no cross-service event bus. `eventId` dedup and `claimDue` already exist. Detailed OBS notification/consumers work is OBS-owned; this item is the architecture-level subscriber registry. (Capability #3, High)
+  - Do: subscriber registry, per-consumer cursors in DB, remove the in-memory projector cursor; or rename to event log per DEC-ARCH-6.
+  - Done when: an emitted deployment event is delivered exactly-once-effective to a consumer in another service across restarts.
+  - Status: todo · Verified-in-code: yes · Source: architecture.md#4.12, monolith-cutover.md#7 cap.3, ideas-dx-ai.md#event outbox · See also: `OBS-001`, `OBS-002`
+  - Effect-impact (2026-10-26): approach set (SUB-C): keep the Postgres outbox, consumers as an Effect `Stream` poller (`Schedule.spaced`) with per-consumer cursor tables; `PersistedQueue` (SQL) only for notification delivery, optional, unstable. Open ruling D5 (RxJS vs Effect `Stream`); identity is mixed-idiom today. Effort L unchanged. Deps: `EFF-127`, `EFF-022`. Evidence: `effect-ecosystem-research.md` §2.7.
+- [ ] `ARCH-063` **Per-service Postgres roles generated from `TABLE_OWNERSHIP` (grant write only to owner), optionally schemas per service** · NEW · P2 · L · Deps: `ARCH-047`, `DEC-ARCH-10`
+  - Why/Problem: ownership is declared and lint-tested but every service connects with the same credentials/pool and can read/write any table (`architecture.md#2.3`); a per-role boundary would expose cross-ownership writes (auth tables). (Capability #4, High)
+  - Do: generate `GRANT`s from the registry in a migration/CLI step; per-service DB URL in preflight/provisioner env.
+  - Done when: a service attempting a write to a non-owned table fails in an integration test.
+  - Status: todo · Verified-in-code: yes · Source: monolith-cutover.md#7 cap.4, architecture.md#2.3, #6
+- [ ] `ARCH-065` **Per-service SLOs and health dashboards (`svc-health` as SLO aggregator; replace `supervisors: []` stub)** · NEW · P2 · L · Deps: `ARCH-062`, `ARCH-066`
+  - Why/Problem: `health.detailed.supervisors: []` hardcoded (`health.controller.ts:71`); svc-health probes only itself; real roll-up in BFF `PlatformHealthService`. (Capability #6; health features OBS-owned.)
+  - Do: consume outbox/metrics events, store latency and error budget per procedure; request-id propagation; metrics from the service client.
+  - Done when: dashboard shows per-service error budget fed by events.
+  - Status: todo · Verified-in-code: yes · Source: monolith-cutover.md#7 cap.6, architecture.md#2.2 health, #7 · See also: `OBS-042`, `OBS-029`, `OBS-028`
+  - Effect-impact (2026-10-26): re-scoped: replacing `supervisors: []` (`health.controller.ts:77`) needs a BFF-side join or a service token, because supervisors run in the BFF process (N-3); SLO aggregation itself can be an Effect `Layer` subscribing to registry `changes$`. Deps: `EFF-054`, `EFF-057`, `EFF-066`, `EFF-127`.
+- [ ] `ARCH-066` **Request-id propagation and a service-to-service audit log (BFF -> services -> docker)** · NEW · P2 · M · Deps: `ARCH-054`
+  - Why/Problem: no traceability across the fan-out; recommended new feature in architecture.md#7.
+  - Do: carry request id in the actor claim/headers; log structured caller/callee/procedure/outcome; persist optional audit rows.
+  - Done when: one request id appears in BFF, service and docker-domain logs.
+  - Status: todo · Verified-in-code: no · Source: architecture.md#7, monolith-cutover.md#7 cap.6 · See also: `OBS-005`, `IDEA-067`
+  - Effect-impact (2026-10-26): the hook exists but is unused: `@orpc/effect` `effect/wrap` is the place for correlation id + `Effect.annotateLogs`/`annotateSpans`; neither correlation id nor Effect logger/tracer exist in `@deployer/nest-effect`. Build it once there. Deps: `EFF-014`, `EFF-026`. Evidence: `effect-architecture.md` §5.3, §5.9.
+- [ ] `ARCH-072` **Canary / blue-green of the platform itself (per-request or percentage `ServiceClientRegistry` address override, ingress backend flip)** · NEW · P3 · L · Deps: `ARCH-078`, `ARCH-051`
+  - Why/Problem: tier provisioner already creates named `svc-*`; run `svc-X-canary` and shift by percentage/user, compare errors, promote/rollback. The dead `platformIngressApiBackend` was meant for this (`ARCH-003`). (Capability #7)
+  - Do: registry address override per request; health gate; rollback via provisioner; canary flip of `DEPLOYER_API_TARGET`.
+  - Done when: a canary BFF receives N% of traffic and is auto-rolled back on error rate.
+  - Status: todo · Verified-in-code: no · Source: monolith-cutover.md#7 cap.7, architecture.md#7
+- [ ] `ARCH-073` **Per-node services: svc-runtime as a per-node sidecar for local docker with fleet routing via `meshInternal`** · NEW · P3 · XL · Deps: `ARCH-086`, `ARCH-087`, `ARCH-088`
+  - Why/Problem: mesh-agent + swarm placement allow it; prerequisites (meshInternal routing, MeshNodeCaller, single mesh home) unmet. (Capability #8)
+  - Do: global-mode runtime with node affinity; fleet resolves node-local runtime via mesh.
+  - Done when: container actions on a peer node execute on that node's runtime.
+  - Status: todo · Verified-in-code: no · Source: monolith-cutover.md#7 cap.8
+- [ ] `ARCH-074` **Plugin services: a service implementing a published contract (git/DNS/builders/runners providers) registered in a catalog; BFF proxy loads contract leaves at runtime** · NEW · P3 · XL · Deps: `ARCH-090`, `ARCH-077`
+  - Why/Problem: builder/runner strategy registries become remote; needs generic proxy (replacing 315 forwarders), plugin auth, schema versioning; uses `service-client/contract-leaves.ts`. (Capability #9, strategic)
+  - Do: design plugin manifest + registration + auth; prototype with one provider kind.
+  - Done when: an out-of-tree service registers and serves a provider contract.
+  - Status: todo · Verified-in-code: no · Source: monolith-cutover.md#7 cap.9
+- [ ] `ARCH-075` **Multi-region / multi-tenant control plane (one BFF per region over the shared fleet mesh)** · NEW · P3 · XL · Deps: `ARCH-063`
+  - Why/Problem: mesh CRDT primitives exist (`lww-map`, HLC, fencing token in `core/modules/mesh/shared/primitives`); ownership registry decides writers. (Capability #10, Low)
+  - Do: research spike; document constraints vs MEMORY "mesh first, no source of truth".
+  - Done when: design note accepted or dropped.
+  - Status: todo · Verified-in-code: no · Source: monolith-cutover.md#7 cap.10
+- [ ] `ARCH-076` **Rate limiting and bulkheads per service (concurrency caps) in the BFF registry** · NEW · P1 · S · Deps: `ARCH-078`
+  - Why/Problem: one slow service hangs every composed screen; cheap and fixes today's hang risk. (Capability #11, High)
+  - Do: per-service semaphore/queue limits and shedding (429/503) in the shared client; configurable via catalog.
+  - Done when: saturating one service does not delay calls to others (test).
+  - Status: todo · Verified-in-code: yes · Source: monolith-cutover.md#7 cap.11, architecture.md#4.13
+- [ ] `ARCH-077` **Independent release cadence and contract versioning (`@deployer/*-contracts` versions + CI compatibility check via parity script)** · NEW · P2 · M · Deps: `ARCH-091`
+  - Why/Problem: contracts are not versioned per package; compat check depends on wiring `check-service-surface-parity.py` into CI. (Capability #12)
+  - Do: version each contract package; CI job compares delegated vs implemented sets and breaking-change diff.
+  - Done when: a breaking contract change fails CI unless version bumped.
+  - Status: todo · Verified-in-code: no · Source: monolith-cutover.md#7 cap.12
+
+### BFF client resilience and composition quality
+- [ ] `ARCH-078` **Add timeouts, retries (idempotent only), circuit breaker and bulkhead to the BFF `fetch` in `service-client.registry.ts`** · FIX · P1 · M · Deps: `ARCH-058`
+  - Why/Problem: no timeout/retry/breaker on registry fetch; one slow service hangs every composed screen and each hung leg ties up a request; down service surfaces as generic 500 from delegation handlers; only the health roll-up has a 3 s timeout. `architecture.md#4.13`
+  - Do: per-service timeout config, abort signal, retry with jitter for safe verbs, half-open breaker; bulkheads per `ARCH-076`.
+  - Done when: a hung service yields a typed 503/504 within the timeout and others stay responsive.
+  - Status: todo · Verified-in-code: yes · Source: architecture.md#4.13, #5.10
+  - Effect-impact (2026-10-26): timeouts/retries/breaker map naturally to `Effect.timeout` + `Schedule`; if the BFF client stack adopts `createEffectClient` implement them as combinators, otherwise keep Promise code. Decide with ARCH-058. Deps: `EFF-014`.
+- [ ] `ARCH-079` **Standardise error mapping through delegation (ProblemDetails-style), surface upstream status, never leak internal URLs** · ENHANCE · P1 · M · Deps: `ARCH-078`
+  - Why/Problem: `optional()` returns raw `error.message` (internal service URLs) to the client (`bff/src/modules/shared/services/screen-read.service.ts`); delegation errors become generic 500s.
+  - Do: central mapper; sanitise messages; preserve upstream code/status.
+  - Done when: an upstream 404/403 arrives as such at the web; no `http://svc-` strings in responses.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#2.1, #4.13, #6
+  - Effect-impact (2026-10-26): re-scope: central `effect/wrap` + one `_tag -> ORPCError` table (D2); today three styles coexist: health `standardErrorActions.FAILED_DEPENDENCY(error.message)` (cause dropped), identity opaque `UserServiceFailure{cause}` + `instanceof` ladder (`user.error-mapper.ts`), sample `catchTag`. Undeclared failures rethrow as 500 (`Cause.squash`), so the leak policy lives in the mapper. Deps: `EFF-012`.
+- [ ] `ARCH-080` **Record swallowed failures as `Section` errors in screen composition** · FIX · P1 · S · Deps: none
+  - Why/Problem: `bff/src/modules/dashboard/controllers/orchestration.controller.ts:76,92` `.catch(() => [])` / `.catch(() => null)` on deployments and realtime without a `Section`; `fleetOverview` swallows per-project failures (l.310). Users see empty data instead of "unavailable". (Web "faking unavailable" fixed in a1990f59 for part.)
+  - Do: wrap each leg in the existing section mechanism; surface partial-failure state.
+  - Done when: a failing leg shows an error section; spec asserts it.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#2.1
+- [ ] `ARCH-081` **`fleetOverview` N+1 (`serviceRollUps` per project, up to 100)** · ENHANCE · P2 · M · Deps: none
+  - Why/Problem: `orchestration.controller.ts:310` loops per project; slow and amplifies failures.
+  - Do: add a batched roll-up procedure in svc-project and call once.
+  - Done when: fleetOverview issues O(1) service calls per screen.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#2.1
+- [ ] `ARCH-082` **`accountOverview.notificationCount` hardcoded 0** · FIX · P3 · S · Deps: `ARCH-062`, `OBS-025`
+  - Why/Problem: `orchestration.controller.ts:290`; real count needs notification store (`OBS-025`).
+  - Do: wire to the real count or remove the field from the contract.
+  - Done when: the field reflects real data or is gone.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#2.1
+- [ ] `ARCH-083` **Remove dead clients `FleetClient`, `AnalyticsClient`, `HealthClient` and the module-load `new HealthClient(new ServiceClientRegistry())` side effect** · FIX · P2 · S · Deps: `ARCH-058`
+  - Why/Problem: provided but injected nowhere; `bff/src/clients/health/health.client.ts:24` constructs a registry at import time.
+  - Do: delete or inject properly.
+  - Done when: no import-time construction; DI graph clean.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#2.1
+- [ ] `ARCH-084` **Do not ship `test.*` in the production BFF (mounted at `bff.module.ts:161`); remove contract groups with no implementation (CRUD/upload/download/stream)** · FIX · P1 · S · Deps: none
+  - Why/Problem: `domains/test/controllers/test.controller.ts` implements 8 procedures + plain REST `test/*` routes; contract declares groups nobody implements; exposed anonymously-ish in prod. (Anonymous `/openapi.json` gating is SEC.)
+  - Do: mount only when `NODE_ENV!=="production"` (or delete); trim the contract.
+  - Done when: prod OpenAPI lists no `test.*`.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#2.1, #4.17, monolith-cutover.md#3 test
+- [ ] `ARCH-085` **Dead `template.*` contract (16 procedures) with no controller: remove from `appContract` or return explicit 501 until FEAT implements it** · FIX · P1 · S · Deps: none
+  - Why/Problem: `templateContract` mounted in `bff/src/orpc/app-contract.ts` and `packages/contracts/bff/modules/template`; no controller anywhere (grep), web does not call it; 404 at runtime and advertised in OpenAPI. (The feature itself is FEAT.)
+  - Do: unmount until implemented; keep the contract in a non-mounted folder or delete; parity script should flag mounted-but-unimplemented.
+  - Done when: every mounted contract procedure has a handler (parity check green).
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#2.1
+- [ ] `ARCH-086` **Route `meshInternal` (publishControlEnvelope, streamSession, planQueuePartition, registerNode, consumeJoinGrant) through the BFF or add a direct ingress rule to svc-fleet** · FIX · P1 · M · Deps: `ARCH-087`
+  - Why/Problem: implemented at `shared/src/core/modules/mesh/controllers/mesh.controller.ts:552-603` (served by svc-fleet and svc-runtime) but not delegated and not in `appContract` (`shared/src/core/orpc/app-contract.ts:43` "intentionally NOT here"); a peer joining via another node's public URL (`mesh-initialization.service.ts:116`) hits the BFF and gets 404. UNVERIFIED end to end (no ingress rule found).
+  - Do: delegate the 5 procedures in the BFF with the service-identity auth, or document + add the Traefik rule; add an HTTP contract test.
+  - Done when: a peer can `consumeJoinGrant` through the public URL in an e2e.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#2.1, #4.9, #5.8, monolith-cutover.md#7 cap.8
+- [ ] `ARCH-087` **One home for `MeshCoreModule` (fleet); remove it from runtime** · FIX · P1 · M · Deps: none
+  - Why/Problem: imported by fleet (`fleet/src/app.module.ts`, `SwarmInventoryModule`) and by runtime (`deployment.module.ts`, docker modules): two separate mesh runtimes with separate in-memory topology/stream registries/health monitor in two processes, while the BFF routes only to fleet.
+  - Do: runtime consumes mesh via typed client to fleet (or a thin port); delete the runtime import and duplicate state.
+  - Done when: only fleet instantiates mesh controllers/state; runtime build has no `MeshCoreModule`.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#4.9, #5.8
+- [ ] `ARCH-088` **Replace `StubMeshNodeCaller` (returns `[]`) so cross-node resource queries work** · FIX · P1 · L · Deps: `ARCH-087`
+  - Why/Problem: `mesh-core.module.ts:58,150` stub in both trees; cross-node queries return nothing. (Mesh semantics NET-owned; the DI wiring is ARCH.)
+  - Do: implement the caller over mesh envelopes; remove stub.
+  - Done when: a cross-node container list returns remote data via the caller.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#2.2 fleet, #4.9, #5.8
+- [ ] `ARCH-089` **Decide `/manage/*` SSR pages: wire (`RenderModule`, `SsrAuthGuardMiddleware`, anonymous login) or delete** · FIX · P2 · S · Deps: `DEC-ARCH-11`
+  - Why/Problem: `PlatformConsoleController` uses `@SsrRender` but `BffModule` has no `RenderModule`; `SsrAuthGuardMiddleware` registered nowhere; global AuthGuard would 401 `/manage/login`; `bff/src/views/**` sources exist (3 pages differ from monolith). UNVERIFIED at runtime.
+  - Do: verify at runtime; remove dead code or finish wiring; `layout.tsx:14` links `/manage/web-app` only served by web.
+  - Done when: either pages render or code deleted.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#2.1, monolith-cutover.md#3 SSR views
+- [ ] `ARCH-090` **Replace the 315 generated forwarders by one contract-driven proxy router with a single auth/policy hook; keep generator output out of the repo** · ENHANCE · P2 · L · Deps: `SEC-001`, `ARCH-054`
+  - Why/Problem: `bff/src/modules/delegation/generated/*.ts` (315 `@Implement`, 18 namespaces) with no BFF-level authz, relies entirely on each service; drift risk and boilerplate. Counts match for deployment/docker/project/service/domain/user/push/analytics/cluster/nodes/providers/providerSchema/mesh today.
+  - Do: generic proxy over `service-client/contract-leaves.ts` with a policy hook (SUB-A) and registry resolution; delete generator + forwarders.
+  - Done when: adding a service procedure needs no BFF code; parity test green.
+  - Status: todo · Verified-in-code: yes · Source: architecture.md#2.1, #6, monolith-cutover.md#7 cap.9
+  - Effect-impact (2026-10-26): generated delegation controllers are Promise passthroughs, not Effect candidates; keep them Promise-based and put the single auth/policy hook in the proxy router. Deps: `EFF-014`.
+- [ ] `ARCH-091` **Wire `scripts/check-service-surface-parity.py` + delegation generator drift check + `bun check --no-script` into CI** · FIX · P1 · S · Deps: none
+  - Why/Problem: CI runs turbo lint/type-check/test `--affected` and the DI-graph check only; nothing builds images or checks delegation parity (`architecture.md#4.16`). (CI ownership OPS; the parity gate is ARCH.)
+  - Do: add job(s); fail on mounted-but-unimplemented and delegated-vs-implemented mismatches.
+  - Done when: a deliberate drift fails CI.
+  - Status: todo · Verified-in-code: yes · Source: architecture.md#4.16, #5.12, #6
+
+### Replica safety, statefulness, Redis
+- [ ] `ARCH-064` **Leader election for control-plane duties (supervisors, migrations, default-admin) so the BFF can scale beyond 1 replica** · NEW · P1 · L · Deps: `ARCH-042`
+  - Why/Problem: every BFF replica runs migration + supervisors + default-admin at boot; `BootstrapModule` + `SupervisorsModule` are in the BFF. (Capability-adjacent; also "Leader-elected control plane" in `architecture.md#7`.)
+  - Do: PG advisory-lock based leader (or swarm placement); non-leaders skip supervisors/migrations.
+  - Done when: 2 BFF replicas never double-run supervisors; failover test.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#4.4, #4.10, #5.9, #7
+  - Effect-impact (2026-10-26): leader lease = advisory-lock Effect helper (see ARCH-042); `ClusterCron`/`SingleRunner` deferred (unstable, no production reports). Deps: `EFF-129`.
+- [ ] `ARCH-067` **Externalise in-process streams/event buses (SSE, subjects) via Postgres LISTEN/NOTIFY, NATS or Redis streams so replicas >1 are safe** · NEW · P1 · L · Deps: `OBS-001`, `DEC-ARCH-6`
+  - Why/Problem: streams and event buses are in-process (replicas >1 break SSE/streams); realtime depends on shared-DB reads and per-process subjects; runtime projector in-memory. `architecture.md#4.10, #4.12, #6`
+  - Do: choose transport (DEC-ARCH-6), implement a bus abstraction in `packages/nest/events`, migrate subjects.
+  - Done when: an SSE client on replica A sees events emitted on replica B.
+  - Status: todo · Verified-in-code: yes · Source: architecture.md#4.10, #6 · See also: `OBS-001`
+  - Effect-impact (2026-10-26): Effect `PubSub` helps in-process only; cross-replica still needs LISTEN/NOTIFY. The RxJS (`packages/nest/events`, `packages/transport/orpc/src/observable/*`) vs Effect `Stream` ruling (D5) must precede any stream rewrite; the sample's RxJS bridge duplicates the transport package and must be reconciled, not copied. Deps: `EFF-022`.
+- [ ] `ARCH-068` **Node affinity for the tier or externalise `node_config` (local.db holds DB URL, mesh secret, node identity)** · FIX · P1 · M · Deps: `ARCH-001`
+  - Why/Problem: tier has no placement constraints but depends on a node-local named volume + node docker.sock; a task scheduled on a node without the volume has no DB URL (`architecture.md#4.10`). `[unverified]` multi-node run
+  - Do: add placement constraint (node with the volume / manager) or move bootstrap config to an injected secret/config; document single-node assumption otherwise.
+  - Done when: scheduling on a second node either works or is prevented.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#4.10, #5.9
+- [ ] `ARCH-069` **Make setup/bootstrap in-memory state replica-safe (`initializationPromise`, setup event replay buffer in BFF)** · ENHANCE · P2 · M · Deps: `ARCH-064`
+  - Why/Problem: in-BFF memory; breaks with >1 replica or restart mid-setup.
+  - Do: persist progress in DB/SQLite; stream from persisted log.
+  - Done when: setup progress survives a BFF restart.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#4.10
+- [ ] `ARCH-070` **Redis: remove the phantom hard dependency or implement a real use (queues/event bus)** · FIX · P1 · S · Deps: `DEC-ARCH-3`
+  - Why/Problem: `DEPENDENCIES.platform` (BFF, identity, runtime, health) requires `DEPLOYER_REDIS_URL` TCP-reachable (`preflight.service.ts:181-194`) and a Redis supervisor runs it, but no workspace depends on `ioredis`/`redis`/`bull*` and no code uses it; AGENTS.md "Bull queues" do not exist. Readiness is gated on an unused service.
+  - Do: per DEC-ARCH-3: drop from `DEPENDENCIES.platform`, delete Redis supervisor, fix AGENTS/docs; or make it the bus (`ARCH-067`).
+  - Design-impact (2026-10-26): leaning drop per DEC-AUTH-19 (quotas/rate limiting use an unlogged Postgres table, so auth no longer gives Redis a purpose; `SEC-071`, `SEC-024`); still confirm Redis removal.
+  - Done when: services become ready with Redis absent (drop) or Redis carries the events (keep).
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#4.11, #5.11, #6, monolith-cutover.md#7 cap.2
+  - Effect-impact (2026-10-26): if Redis is dropped, also remove `redis.indicator.ts` (raw PING, reads `process.env.DEPLOYER_REDIS_URL` directly, not `EnvService`) from the health indicator set. Evidence: `effect-health-identity.md` §1 row 8.
+
+### Coverage-pass additions
+- [ ] `ARCH-109` **Aggregated platform health view in `svc-health`: dependency graph, per-service version and migration level** · ENHANCE · P3 · M · Deps: `ARCH-043`, `ARCH-065`
+  - Why/Problem: `architecture.md#7` recommends a `/health` view with supervisor states, dependency graph and per-service version/migration level; today `svc-health` only probes itself and the real roll-up is in the BFF `PlatformHealthService`.
+  - Do: extend the roll-up (and `svc-health.detailed`) to report each service's version, applied-vs-journaled migration level and dependency edges.
+  - Done when: one response shows all six services with version, migration level and dependency status.
+  - Status: todo · Verified-in-code: partial · Source: architecture.md#7 · See also: `OBS-037`
+  - Effect-impact (2026-10-26): Status -> partial: a BFF roll-up of every service's `/health/ready` (3 s timeout) and `GET /health/platform/ready` exist uncommitted (`bff/.../platform-health.service.ts`); dependency graph, per-service version and migration level are still missing.
+- [ ] `ARCH-110` **Cutover rehearsal: delete `apps/api` in a scratch worktree, run `bun check --no-script`, record the result before step 14** · NEW · P1 · S · Deps: `ARCH-032`, `ARCH-018`
+  - Why/Problem: verdicts rest on grep and spot checks; the risks section requires proving that vitest configs load and builds pass with `apps/api` absent, without deleting the real tree.
+  - Do: in a throwaway worktree remove `apps/api`, run the quality gate and the e2e baseline, log every failure back into the cutover items.
+  - Done when: a recorded green (or fully itemised) run exists and `ARCH-031` cites it.
+  - Status: todo · Verified-in-code: no · Source: monolith-cutover.md#8, architecture.md#5.7
+
+## Test coverage to add
+- [x] `ARCH-111` **Stop module-level singletons being duplicated by package self-imports (registry loaded twice under Bun)** · FIX · P1 · M · Deps: none · See also: `SEC-016`, `EFF-212`
+  - Why/Problem: found 2026-10-26 while verifying SEC-016. `nest-schema`'s built chunks imported the codec registry through the package's own name; Bun resolved that specifier to `packages/nest/schema/src/...` (the package's tsconfig `paths`) while consumers got `dist/...`: two copies of the module-level registry, so `registerSchemaCodecs()` configured one and the real encrypted columns used the other (every real column threw "used before the encryption key was configured"; 0 of 11 discoverable). Fixed for the registry by importing it relatively in the 11 schema files (15 lines) + a regression spec (`schema-codecs.spec.ts`, real-schema probe). The same pattern (`@deployer/<self>/...` imports of stateful modules, tsconfig self `paths`) may exist in other packages.
+  - Do: audit other packages for stateful modules (registries, singletons, DI tokens as module-level state) imported through their own package name; import them relatively; consider a lint/boot check that fails when two instances of a registry module are loaded.
+  - Done when: no stateful module is reachable through two specifiers; a spec per registry asserts a single instance.
+  - Status: done 2026-10-27 (static, not booted) — `svc-runtime` now mounts `api_uploads_dev` at `/app/uploads` and sets `DEPLOYMENT_UPLOAD_DIR=/app/uploads` (the variable `deployment.uploadBundle` reads); the dead BFF mount and `UPLOADS_DIR` (compose config, `.env.template`) are removed. Verified by rendering the compose config: runtime has the env and the mount, the BFF has no uploads mount. NOT verified live (upload a bundle, restart runtime, check it survives); the swarm/prod path (shared volume or object storage) is still undecided · Verified-in-code: yes · Source: step 13 reference sweep
+
+- [ ] `ARCH-100` **Migration consistency tests: every SQL in `migrations/global` is journaled; journal order/`when` monotonic; ownership registry vs schema** · NEW · P1 · S · Deps: `ARCH-040`
+  - Why/Problem: 0040 was missed by hand-writing; no test guards.
+  - Do: Vitest in `packages/nest/schema`.
+  - Done when: test fails on an unjournaled SQL.
+  - Status: todo · Verified-in-code: no · Source: architecture.md#2.5
+- [ ] `ARCH-101` **Migration failure/lock tests: forced failing migration prevents ready; two concurrent boots apply once; readiness detects pending journal entries** · NEW · P1 · M · Deps: `ARCH-041`, `ARCH-042`, `ARCH-043`
+  - Why/Problem: fail-open path untested.
+  - Do: integration tests with testcontainers Postgres.
+  - Done when: all three scenarios pass.
+  - Status: todo · Verified-in-code: no · Source: architecture.md#4.4
+- [ ] `ARCH-102` **BFF contract test over HTTP for every delegated procedure (would have caught the mesh 404 and DNS 401 defects)** · NEW · P0 · L · Deps: `ARCH-091`
+  - Why/Problem: delegation parity is only checked by a script no CI runs; BFF has 5 specs and zero for orchestration controller, delegation, `ServiceAuthContextMiddleware`, registry, health roll-up. `architecture.md#2.1, #5.12`
+  - Do: spin BFF + stub services (or real) and call each procedure; assert routing, auth propagation, error mapping; include `meshInternal` and `DnsProviderGateway`.
+  - Done when: a deliberately broken forwarder/route fails the suite.
+  - Status: todo · Verified-in-code: no · Source: architecture.md#2.1, #5.12
+  - Effect-impact (2026-10-26): contract tests must go over HTTP or via oRPC `call()`: `callProcedure` (`packages/transport/orpc/src/testing/index.ts:29-35`) invokes the handler directly and skips validation and middleware, so `requireAuth()` is never exercised by controller specs.
+- [ ] `ARCH-103` **Unit specs: orchestration controller (sections on failure), `ServiceAuthContextMiddleware`, service-client registry (timeouts/breaker), `PlatformHealthService` roll-up** · NEW · P1 · M · Deps: `ARCH-078`, `ARCH-080`
+  - Why/Problem: zero specs today in BFF for these.
+  - Do: add specs next to each unit.
+  - Done when: specs green and cover failure paths.
+  - Status: todo · Verified-in-code: no · Source: architecture.md#2.1
+  - Effect-impact (2026-10-26): re-scope: also cover the new uncommitted `GET /health/platform/ready` (200/503) gate and the `@AllowAnonymous()` on `PlatformHealthController`; still no spec in `bff/src/modules/health`.
+- [ ] `ARCH-104` **e2e for project and health services (procedures over HTTP) and svc-project -> svc-fleet edge** · NEW · P1 · M · Deps: `ARCH-057`
+  - Why/Problem: project has 9 specs with no e2e of procedures; health 1 spec; service-to-service edge untested.
+  - Do: tier e2e harness tests.
+  - Done when: project create -> network record via fleet succeeds in CI.
+  - Status: todo · Verified-in-code: no · Source: architecture.md#2.2, #5.12
+  - Effect-impact (2026-10-26): Status -> partial (harness only): health has `src/e2e/runtime.ts` but no spec uses it; identity e2e exists for `user`/analytics (admin actor only, no negative cases).
+- [ ] `ARCH-105` **Real boot test of the tier in swarm (6 services healthy, readiness, rolling update, 2 replicas for BFF once supported)** · NEW · P1 · L · Deps: `ARCH-050`, `ARCH-051`
+  - Why/Problem: nobody has booted the tier in CI; HEALTHCHECK/permission bugs would only show there; auditors did not boot either stack.
+  - Do: DinD swarm job that runs `ServicesTierProvisioner.ensureTier` against built images.
+  - Done when: CI shows all `svc-*` converged and `/health/platform/ready` OK.
+  - Status: todo · Verified-in-code: no · Source: architecture.md#5.12, monolith-cutover.md#8
+  - Effect-impact (2026-10-26): add a per-service DI/boot smoke test (resolve every provider and every `EffectServices` key through `EffectRuntime`): would catch a missing `{ provide: Key, useClass }` (compiles, fails at request time) and the probable `PushService` missing `@Injectable()`. Deps: `EFF-047`, `EFF-085`.
+- [ ] `ARCH-106` **Services-profile validation run before switching the dev default (compose services profile has not been booted)** · NEW · P1 · S · Deps: none
+  - Why/Problem: switching root compose changes every developer's loop; NOT VERIFIED here.
+  - Do: boot `docker-compose.services.dev.yml` end to end and log the result.
+  - Done when: runbook records a green boot before `ARCH-020`.
+  - Status: partial 2026-10-27 — FULL `api` profile boots: 11 containers `healthy` (BFF, svc-health/identity/project/runtime/fleet, setup, global-db, redis, dependency-builder, drizzle-gateway; traefik up), disk low-water 158 GB. BFF `/health` 200, `/health/ready` `{"status":"ready"}`, `/health/detailed` 401 anon, `/openapi.json` 200, `/setup/state` 200 (completed). Delegation works for some routes with a real session (signed in as the seed admin from `.env.example`, cookie scoped to `.deployer.localhost`, so the host must be `api.deployer.localhost`): `/nodes/servers` (fleet) 200 with real data, `/analytics/metrics/deployments` (identity) 200, `/providers` 200. BUT 5 of 8 delegated routes return 500 `Output validation failed`: see `ARCH-115`. Earlier crash fixed (`ARCH-113`). NOT verified: web, the wizard flow, deploying anything, the mesh · Verified-in-code: yes · Source: architecture.md
+- [ ] `ARCH-107` **Actor-claim and service-token tests: reject cookie-only, expired, wrong-audience; system actor scoped** · NEW · P1 · M · Deps: `ARCH-054`, `ARCH-056`
+  - Why/Problem: new auth path needs negative tests (authorization role matrices are SEC/SUB-A).
+  - Do: unit + integration tests in service-client and shared server.
+  - Done when: negative cases fail closed.
+  - Status: todo · Verified-in-code: no · Source: architecture.md#2.4
+- [ ] `ARCH-108` **Specs for mesh single-home and `meshInternal` routing (HTTP-level join through public URL)** · NEW · P1 · M · Deps: `ARCH-086`, `ARCH-087`
+  - Why/Problem: `meshInternal` 404 path unverified.
+  - Do: ported mesh-workflow e2e (`ARCH-019`) covering join.
+  - Done when: join via BFF origin succeeds in e2e.
+  - Status: todo · Verified-in-code: no · Source: architecture.md#2.1
+
+- [ ] `ARCH-109` **Keep peer-only procedures (`deployment.triggerFromEvent`) off the BFF's public surface and OpenAPI document** · FIX · P2 · S · Deps: `ARCH-015`
+  - Why/Problem: the BFF composes every service contract, so a procedure meant only for a peer service (called with a signed system-actor claim) is routable from outside and listed in `/openapi.json`. Runtime rejects an unsigned call (401, tested), so this is exposure of surface, not of access.
+  - Do: mark peer-only procedures in the contract metadata and have the BFF delegation generator and the spec generator skip them.
+  - Done when: `/openapi.json` and the BFF router do not contain `trigger-event`; the boundary e2e asserts 404 instead of 401.
+  - Status: todo · Verified-in-code: yes · Source: e2e-port-plan.md (found while porting `module-contract-surfaces`)
+- [ ] `ARCH-110` **`health.check` returns `{ status, uptime }` but its contract requires `timestamp`** · FIX · P2 · S · Deps: none
+  - Why/Problem: `packages/contracts/health/modules/health/check.ts` declares `timestamp: z.date()` (required); the service answers without it and oRPC does not validate outputs, so the mismatch is invisible until a client reads the field. The ported boundary e2e deliberately does not assert it.
+  - Do: return the timestamp, or fix the contract; consider output validation in the e2e harness so this class of drift fails a test.
+  - Done when: a client reading `timestamp` gets a date and the e2e asserts it.
+  - Status: todo · Verified-in-code: yes · Source: e2e-port-plan.md
+
+- [ ] `ARCH-111` **The upload bundle directory is wired to the wrong service: `api_uploads_dev` is mounted on the BFF at `/app/apps/api/uploads` (and `UPLOADS_DIR` defaults there), but nothing reads it; the runtime writes to `DEPLOYMENT_UPLOAD_DIR` (default under `/tmp`)** · FIX · P1 · S · Deps: none
+  - Why/Problem: `deployment.service.ts:232` stores uploaded bundles in `process.env.DEPLOYMENT_UPLOAD_DIR ?? "/tmp/…"` inside `svc-runtime`. The volume meant for uploads is mounted into the BFF at a path of the retired monolith, and `UPLOADS_DIR` (`common/api/docker-compose.config.yml`, `.env.template`) is read by no code. An uploaded bundle therefore lives in the container's `/tmp`: lost on restart and not shared between runtime replicas.
+  - Do: mount the uploads volume into `svc-runtime`, point `DEPLOYMENT_UPLOAD_DIR` at it, delete `UPLOADS_DIR` and the BFF mount; decide where it lives on a swarm (shared volume or object storage).
+  - Done when: an uploaded bundle survives a runtime restart and `grep UPLOADS_DIR` is empty.
+  - Status: todo · Verified-in-code: yes (grep) · Source: step 13 reference sweep
+- [x] `ARCH-112` **`E2E_DOCKER_CLEANUP` (default true) force-removes every container whose name contains `deployer` at e2e teardown** · FIX · P1 · S · Deps: none
+  - Why/Problem: `shared/src/e2e-harness/vitest/setup.ts` runs `docker ps --filter name=deployer` and removes all matches as an orphan safety net. A developer running e2e next to a running stack (swarm services are named `deployer-…`) can lose it.
+  - Do: label the harness's own containers (Testcontainers labels) and clean up by label, or default the flag off.
+  - Done when: running e2e leaves unrelated containers untouched.
+  - Status: done 2026-10-27 — the e2e teardown now removes only containers that carry the Testcontainers label (`org.testcontainers=true`) AND are named `deployer*`; a real stack's swarm/compose containers never carry it, so they are not touched. Trade-off: containers an app starts through the Docker API during a test are no longer swept (a leak, not a deletion). Guide and testing page updated · Verified-in-code: yes (not exercised against a live stack) · Source: step 13
+
+- [x] `ARCH-113` **The BFF e2e passes under Vitest/SWC while the BFF could not boot under `bun`: nothing runs the real runtime** · FIX · P1 · S · Deps: `ARCH-106`
+  - Why/Problem: e2e boots `BffModule` through SWC with `emitDecoratorMetadata`; the dev and prod images run `bun`, which emits `design:paramtypes` differently, so a type-only import of an injected class (`ScreenReadService`) passed every test and crashed the container. Found only by booting the compose stack.
+  - Do: add a boot smoke that starts each app with `bun src/main.ts` (no Docker) against the e2e Postgres and waits for `/health/ready`, in CI; optionally a lint rule against `import type` of a class used as a constructor parameter.
+  - Done when: reintroducing the `import type` fails CI.
+  - Status: done 2026-10-27 (static variant) — `scripts/check-di-imports.ts` (`bun run check:di-imports`, a CI step) fails when a Nest constructor injects a class imported with `import type`, exempting parameters with `@Inject(TOKEN)` and array parameters (factory-built). 7 tests; mutation-tested against the original `ScreenReadService` bug (fails with it, passes without); the real tree passes. NOT done: a boot smoke that actually starts each app under `bun` against Postgres · Verified-in-code: yes · Source: ARCH-106 boot
+- [x] `ARCH-114` **`tooling/eslint` cannot be rebuilt (`pkg-build`: `Cannot find module 'zod/v4'` from `bin-pkg-build`), so source changes to the shared lint config do not reach `dist`** · FIX · P2 · S · Deps: none
+  - Why/Problem: `consistent-type-definitions` was turned off in `tooling/eslint/src/library.ts` (its autofix turned the BFF clients' merging interfaces into type aliases, which broke their types: `Duplicate identifier` plus lost members; HEAD had them as interfaces). The build could not run, so the built `dist/library.mjs` was patched by hand (git-ignored). Seen while the workspace `node_modules` was being cleaned externally, so it may be an install state problem rather than a code one.
+  - Do: reinstall, rebuild `tooling/eslint` (`bun run build:types`) and confirm `dist/library.mjs` matches the source.
+  - Done when: `grep consistent-type-definitions tooling/eslint/dist/library.mjs` shows `"off"` from a clean build.
+  - Status: done 2026-10-27 — after `bun install` (the earlier failure was a wiped `node_modules`, not the code) `tooling/eslint` rebuilds; a clean `bun run build` produces `"@typescript-eslint/consistent-type-definitions": "off"` in `dist/library.mjs`, with the hand patch reset first. `bun lint` leaves the BFF clients' merging interfaces alone · Verified-in-code: yes · Source: ARCH-106 boot
+
+- [x] `ARCH-115` **Delegated BFF routes fail with `500 Output validation failed` for lists and anything carrying a date: `/projects`, `/user`, `/deployments`, `/services`, `/health/detailed`** · FIX · P0 · M · Deps: none
+  - Why/Problem: found booting the full profile and calling the BFF with a real admin session. (1) The BFF validates each delegated response against the contract and the response carries dates as ISO strings while the schema says `z.date()`: `bff` log `expected date, received string → data[0].createdAt / updatedAt` (`/user`) and `→ timestamp` (`/health/detailed`). oRPC's OpenAPI transport does not revive dates; only routes whose schemas are strings/coerced pass (`/nodes/servers`, `/analytics/...`, `/providers` return 200). (2) `/deployments` and `/projects` fail on `meta.limit` / `meta.offset` `expected number, received undefined` in `svc-runtime`/`svc-project` even when `limit` and `offset` are sent: pagination input does not reach the handler (or the handler reads it from the wrong place); not isolated. No test covers a delegated success path (the BFF e2e only asserts 401), so none of this fails CI. Dev-key bearer (`DEV_AUTH_KEY`) calls also 500 because the service answers a plain-text `Unauthorized` that the BFF cannot decode as oRPC JSON (a service 401 must reach the client as a 401).
+  - Do: decide one date policy for the contracts (coerced dates on output, or ISO strings) and apply it at the entity schemas; find why pagination input is lost on the BFF to service hop (compare the BFF's forwarded request with a direct service call); make a service auth failure surface as 401 through the BFF; add authenticated delegated-success e2e per service (list, findById) to the BFF suite.
+  - Done when: `GET /projects`, `/user`, `/deployments`, `/services`, `/health/detailed` return 200 with a session on the compose stack, and the e2e covers them.
+  - Status: done 2026-10-27 — FIXED and verified live. Root causes: (1) dates: service JSON carries ISO strings, the BFF handler's output is validated against `z.date()`; fixed by a schema-guided `reviveDates` client interceptor in `packages/nest/service-client` (only positions the schema declares as dates are converted). (2) pagination: list input was `query: inputSchema.optional()`, so a bare list skipped every default and the repository read limit/offset from nothing; fixed in the shared builder (`packages/transport/orpc`, `prefault({})`), which fixes every list contract. (My earlier claim that pagination was lost even when sent was wrong: list routes take a single nested `query` parameter, not `?limit=`.) (3) a service's 401 guard answered a bare string (plain text, or JSON `\"Unauthorized\"`) the client could not decode, so the BFF returned 500: `normalizeErrorResponse` rewrites any error whose BODY is not an oRPC error. Also found: Effect-based controllers (identity, project, health) never worked over HTTP in e2e, because the harness skips `main.ts`, which installs `.effect()`; fixed in their `e2e/runtime.ts`. Tests: transport unit tests; a `createAuthenticatedSession` helper; authenticated e2e per service (identity 4, runtime 2, project 3, fleet 2, health 1); a BFF delegation e2e against a stub upstream with the real wire format (4); each fix mutation-tested (reverting it fails the matching tests). Live on the compose stack: `/projects`, `/user`, `/deployments`, `/services`, `/health/detailed`, `/nodes/servers`, `/analytics/metrics/deployments`, `/providers` all 200 (5 were 500); an explicit `query[limit]=2` is honoured; anonymous and a bad bearer give 401. NOT covered: delegated writes, streams, the other ~300 delegated procedures beyond these 8 · Verified-in-code: yes (live) · Source: ARCH-106 full boot
+
+## Decisions needed
+- [ ] DEC-ARCH-1 Which runtime topology is final? — (a) tier BFF+5 svc only, delete monolith + shape C; (b) keep shape C as the only path; (c) keep the monolith — recommendation: (a), kills three names and the monolith in one decision.
+- [ ] DEC-ARCH-2 Keep `apps/setup` or replace with the planned CLI configurator (`deployer start`)? — (a) keep setup for the tier now, build CLI later; (b) build CLI first and delete setup — recommendation: (a) (CLI not started, setup is the only working onboarding path).
+- [ ] DEC-ARCH-3 Redis keep or drop? — (a) drop dependency + supervisor; (b) keep as event bus/queue transport — recommendation: decide with DEC-ARCH-6; default drop (nothing uses it). Design-impact (2026-10-26): leaning drop per DEC-AUTH-19 (quotas/rate limiting use an unlogged Postgres table, not Redis); still confirm Redis removal.
+- [ ] DEC-ARCH-4 Inter-service auth mechanism? — (a) BFF-signed actor claim + service tokens; (b) mTLS between services; (c) keep cookie forwarding — recommendation: (a), then optionally (b).
+- [ ] DEC-ARCH-5 Health domain: restore monolith health indicators/repos or drop with their tables? — recommendation: drop unless OBS needs the per-service health configs; clean ownership registry either way.
+- [ ] DEC-ARCH-6 Outbox: build a real bus or rename to event log; transport? — options PG LISTEN/NOTIFY, NATS, Redis streams — recommendation: PG LISTEN/NOTIFY + outbox (no new infra; aligns with "no inbound ports / no new control plane").
+- [ ] DEC-ARCH-7 BFF stays the control plane (supervisors, swarm/traefik core, mesh agent, bootstrap) or split out? — recommendation: split supervisors/swarm into fleet/runtime to enable docker.sock isolation and BFF scaling; accept doc update as interim.
+- [ ] DEC-ARCH-8 `template.*` contract: unmount now or stub 501? — recommendation: unmount until FEAT implements.
+- [ ] DEC-ARCH-9 Mesh home: fleet only vs per-node runtime (cap #8)? — recommendation: fleet only for now.
+- [ ] DEC-ARCH-10 Enforce table ownership via per-service PG roles and/or schemas? — recommendation: roles first, schemas later.
+- [ ] DEC-ARCH-11 `/manage/*` SSR pages: keep or delete? — recommendation: delete if runtime check confirms dead (web owns the UI).
+- [ ] DEC-ARCH-12 Cutover recovery: tag vs branch before `git rm -r apps/api`? — recommendation: annotated tag + keep branch.
+- [ ] DEC-ARCH-13 Replica target (is >1 BFF/service replica a goal)? — options: single-replica documented limit; or full replica safety (`ARCH-064/067/068`) — recommendation: document single replica now, do replica safety after cutover.
+- [ ] DEC-ARCH-14 Where does offline OpenAPI generation live? — BFF script vs `packages/contracts` — recommendation: `packages/contracts` (also feeds CLI/MCP codegen owned by FEAT/IDEA).
+- [ ] DEC-ARCH-15 Dev default compose switch timing? — before or after e2e port (`ARCH-019`) — recommendation: after `ARCH-106` validation, before `ARCH-031`.
+
+> Effect-impact pass: 2026-10-26 — 42 items annotated

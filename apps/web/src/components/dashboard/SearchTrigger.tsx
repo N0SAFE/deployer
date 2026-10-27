@@ -11,7 +11,9 @@ export function SearchTrigger() {
   return (
     <button
       type="button"
-      onClick={() => openCommandPalette()}
+      onClick={() => {
+        openCommandPalette()
+      }}
       className="group inline-flex h-8 w-full max-w-64 items-center gap-2 rounded-lg border border-border/60 bg-background/60 px-2.5 text-sm text-muted-foreground transition-colors hover:border-border hover:bg-background/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
       aria-label="Open command palette"
     >

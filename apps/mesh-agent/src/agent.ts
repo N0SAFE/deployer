@@ -49,7 +49,7 @@ import {
 	type SettingRecord,
 	type SignedMemberEntry,
 	type WireguardDump,
-} from "@repo/mesh-network";
+} from "@deployer/mesh-network";
 
 import type { AgentConfig } from "./config";
 import type { DoorConverger } from "./doors/door-converger";

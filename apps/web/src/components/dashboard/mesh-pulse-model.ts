@@ -1,4 +1,4 @@
-import type { ClusterNodeInventoryRow } from '@repo/api-contracts'
+import type { ClusterNodeInventoryRow } from "@deployer/fleet-contracts";
 
 /** A node that has not been heard from for this long is no longer "live". */
 export const NODE_STALE_AFTER_MS = 5 * 60 * 1000

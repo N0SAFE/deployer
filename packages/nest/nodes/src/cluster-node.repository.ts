@@ -11,14 +11,14 @@
 
 import { Injectable } from "@nestjs/common";
 import { eq } from "drizzle-orm";
-import { ConflictError } from "@repo/errors";
-import type { ClusterSnapshot } from "@repo/contracts-entities";
+import { ConflictError } from "@deployer/errors";
+import type { ClusterSnapshot } from "@deployer/contracts-entities";
 import {
     clusterNode,
     clusterMasterHistory,
     type ClusterNodeRow,
-} from "@repo/nest-schema/local";
-import { LocalDatabaseService } from "@repo/nest-database-local/local-database.service";
+} from "@deployer/nest-schema/local";
+import { LocalDatabaseService } from "@deployer/nest-database-local/local-database.service";
 
 @Injectable()
 export class ClusterNodeRepository {

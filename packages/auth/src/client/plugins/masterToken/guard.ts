@@ -1,13 +1,13 @@
-import type { MasterTokenManager as _MasterTokenManager } from '@repo/auth/client/plugins/masterToken/state'
+import type { MasterTokenManager as _MasterTokenManager } from '@deployer/auth/client/plugins/masterToken/state'
 
 // The runtime plugin exposes these actions on the auth client.
 export interface MasterTokenActions {
   // $masterTokenSignOut is a factory function that wraps the original signOut
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   $masterTokenSignOut: <TSignOut extends (...args: any[]) => Promise<any>>(signOutFn: TSignOut) => (...args: Parameters<TSignOut>) => Promise<Awaited<ReturnType<TSignOut>> | null>
-  getMasterTokenEnabled: typeof import('@repo/auth/client/plugins/masterToken/state').getMasterTokenEnabled
-  setMasterTokenEnabled: typeof import('@repo/auth/client/plugins/masterToken/state').setMasterTokenEnabled
-  clearMasterToken: typeof import('@repo/auth/client/plugins/masterToken/state').clearMasterToken
+  getMasterTokenEnabled: typeof import('@deployer/auth/client/plugins/masterToken/state').getMasterTokenEnabled
+  setMasterTokenEnabled: typeof import('@deployer/auth/client/plugins/masterToken/state').setMasterTokenEnabled
+  clearMasterToken: typeof import('@deployer/auth/client/plugins/masterToken/state').clearMasterToken
   MasterTokenManager: typeof _MasterTokenManager
 }
 

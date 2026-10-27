@@ -41,8 +41,8 @@ export {
 	type PreviewBackendResolution,
 	previewLinkedServiceSchema,
 	type PreviewLinkedService,
-} from '@deployer/contracts-entities/entities/configuration/index'
-export * from '@deployer/contracts-entities/entities/project/index'
+} from './entities/configuration/index'
+export * from './entities/project/index'
 export {
 	serviceSchema,
 	serviceObjectShape,
@@ -68,7 +68,7 @@ export {
 	mockEngineSchema,
 	mockServiceConfigSchema,
 	implementedContractSchema,
-} from '@deployer/contracts-entities/entities/service.schema'
+} from './entities/service.schema'
 
 export type {
 	Service,
@@ -77,9 +77,9 @@ export type {
 	MockEngine,
 	MockServiceConfig,
 	ImplementedContract,
-} from '@deployer/contracts-entities/entities/service.schema'
-export * from '@deployer/contracts-entities/entities/deployment/index'
-export * from '@deployer/contracts-entities/entities/provider/index'
+} from './entities/service.schema'
+export * from './entities/deployment/index'
+export * from './entities/provider/index'
 export {
 	dockerContainerStatusSchema,
 	dockerContainerHealthSchema,
@@ -249,7 +249,7 @@ export {
 	dockerImageSecurityScanStageSchema,
 	dockerImageSecurityScanEventTypeSchema,
 	dockerImageSecurityScanEventSchema,
-} from '@deployer/contracts-entities/entities/docker.schema'
+} from './entities/docker.schema'
 
 export type {
 	DockerContainerStatus,
@@ -416,15 +416,15 @@ export type {
 	DockerImageSecurityScanStage,
 	DockerImageSecurityScanEventType,
 	DockerImageSecurityScanEvent,
-} from '@deployer/contracts-entities/entities/docker.schema'
-export * from '@deployer/contracts-entities/entities/docker/dockerode/index'
-export * from '@deployer/contracts-entities/entities/user/index'
-export * from '@deployer/contracts-entities/entities/template/index'
-export * from '@deployer/contracts-entities/entities/setup/index'
-export * from '@deployer/contracts-entities/entities/event-stream/index'
-export * from '@deployer/contracts-entities/entities/mesh/index'
-export * from '@deployer/contracts-entities/entities/ingress/index'
-export * from '@deployer/contracts-entities/entities/traefik/index'
-export * from '@deployer/contracts-entities/entities/swarm/index'
-export * from '@deployer/contracts-entities/contracts/platform-domain.builder'
-export * from '@deployer/contracts-entities/types/domain.types'
+} from './entities/docker.schema'
+export * from './entities/docker/dockerode/index'
+export * from './entities/user/index'
+export * from './entities/template/index'
+export * from './entities/setup/index'
+export * from './entities/event-stream/index'
+export * from './entities/mesh/index'
+export * from './entities/ingress/index'
+export * from './entities/traefik/index'
+export * from './entities/swarm/index'
+export * from './contracts/platform-domain.builder'
+export * from './types/domain.types'

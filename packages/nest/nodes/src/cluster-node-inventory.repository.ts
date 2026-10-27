@@ -8,12 +8,12 @@
 
 import { Injectable } from "@nestjs/common";
 import { eq } from "drizzle-orm";
-import type { DockerodeNodeSummary } from "@repo/contracts-entities";
-import { clusterNodes, type ClusterNodesRow } from "@repo/nest-schema/local";
-import { LocalDatabaseService } from "@repo/nest-database-local/local-database.service";
+import type { DockerodeNodeSummary } from "@deployer/contracts-entities";
+import { clusterNodes, type ClusterNodesRow } from "@deployer/nest-schema/local";
+import { LocalDatabaseService } from "@deployer/nest-database-local/local-database.service";
 import { ingressFromLabels, platformRoleFromLabels, resolveSwarmNodeRole } from "./swarm-node-labels";
 
-export interface EngineNodeRow {
+export type EngineNodeRow = {
     nodeId: string;
     hostname: string;
     swarmRole: "manager" | "worker";

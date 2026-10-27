@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@repo/ui/components/shadcn/button";
+import { Button } from "@deployer/ui/components/shadcn/button";
 import { WifiOff, RefreshCw } from "lucide-react";
 
 export default function OfflinePage() {

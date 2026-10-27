@@ -61,14 +61,29 @@
 #
 # Build:
 #   docker build -f docker/builder/app/Dockerfile.app.dev --build-arg APP=@deployer/bff .
+#
+# `APP` is the workspace PACKAGE NAME (not the directory) — see the note on
+# `APP_SRC_DIR` below, which exists precisely because the two differ once a
+# package is scoped.
 
 ARG APP
-ARG BUN_VERSION=1.4.2
+ARG BUN_VERSION=1.4.3
 
 # ===================================
 # Stage 1: Base — shared by every application
 # ===================================
 FROM oven/bun:${BUN_VERSION}-alpine AS base
+
+# ── BUILDKIT CACHE MOUNTS BREAK `install.globalStore` — TURN IT OFF ──────────
+# `bunfig.toml` sets `globalStore = true`, which points every
+# `node_modules/.bun/<pkg>` at an absolute path UNDER the bun cache mount used
+# below. A BuildKit cache mount is not committed to the image layer, so those
+# links would ship without their targets and every runtime import would fail
+# with ENOENT. Measured in a built image: with the store on, `test -d
+# node_modules/.bun/zod@4.6.7` is false. The env var overrides bunfig.toml, so
+# the host keeps the fast `rm -rf node_modules` install and the image gets real
+# directories. Full reasoning: AGENTS.md → "One bun download cache".
+ENV BUN_INSTALL_GLOBAL_STORE=0
 
 # The UNION of what the four applications need, so there is one list and one set
 # of layers instead of two:
@@ -93,7 +108,28 @@ COPY --from=node:22-alpine /usr/local /usr/local
 # `@nestjs/cli` is used only by api/setup. A conditional install would make this
 # layer per-application and cost more than the unused CLI does, since BuildKit
 # stores it once for all four.
-RUN --mount=type=cache,target=/root/.bun,sharing=locked \
+# ── `sharing=shared`, NOT `locked` ──────────────────────────────────────────
+# `locked` holds an exclusive lock on the bun cache for the WHOLE RUN, so the
+# four application images build SERIALLY at every bun step: one waits for the
+# other's command to finish before its own begins. Bun's cache is
+# content-addressed and written atomically, so concurrent installs can share
+# it safely.
+#
+# The OTHER caches keep `locked` — `/var/cache/apk`, `/tmp/turbo-restore` and
+# `.next/cache` are mutable and write-heavy, where concurrent writers corrupt
+# existing entries rather than adding new ones.
+#
+# ── WHY THE TARGET IS THE CACHE SUBDIR AND THE `id` IS EXPLICIT ─────────────
+# Mounting the WHOLE `/root/.bun` hides what the install just wrote: bun's global
+# bin dir is `/root/.bun/install/global` and `/usr/local/bin/<tool>` is a symlink
+# into it, so with the mount on the parent the symlink dangles and
+# `command -v turbo` finds nothing (measured). Mounting only the cache keeps the
+# global install in the layer, where the symlink resolves.
+# The `id` is explicit because the cache id DEFAULTS TO THE MOUNT TARGET
+# (`/root/.bun` and `/root/.bun/install/cache` are different ids, i.e. two
+# separate download caches). One id, shared with every other Dockerfile here,
+# is what makes the packages downloadable once for the whole repository.
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
     ln -sf /usr/local/bin/node /usr/bin/node && \
     ln -sf /usr/local/bin/npm /usr/bin/npm && \
     ln -sf /usr/local/bin/npx /usr/bin/npx && \
@@ -137,10 +173,10 @@ COPY apps/doc/source.config.ts /tmp/doc-source.config.ts
 # Declared last, so every layer above stays shared.
 ARG APP
 
-RUN --mount=type=cache,target=/root/.bun,sharing=locked \
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
     if [ -z "$APP" ]; then echo "APP build-arg is required" >&2; exit 1; fi && \
     bun x turbo prune "$APP" --docker && \
-    if [ "$APP" = "doc" ]; then \
+    if [ "$APP" = "@deployer/doc" ]; then \
         mkdir -p /app/out/json/apps/doc && \
         cp /tmp/doc-source.config.ts /app/out/json/apps/doc/source.config.ts ; \
     fi
@@ -166,19 +202,26 @@ ARG APP
 # (turbo prune then filters to only the workspaces needed for the target app.)
 #
 # `tooling` IS INCLUDED, and that is not optional: the workspace globs reach it
-# (`tooling/**`), so `@repo/pkg-build` and the shared config packages live there.
+# (`tooling/**`), so `@deployer/pkg-build` and the shared config packages live there.
 # Copying only `apps packages` left turbo unable to resolve them, and the baked
 # build then died with:
 #
-#   @repo/pkg-build:build: error: Module not found "src/main.ts"
+#   @deployer/pkg-build:build: error: Module not found "src/main.ts"
 #
 # because the pruned tree contained the package's manifest but not its source.
 RUN --mount=type=bind,target=/src \
-    --mount=type=cache,target=/root/.bun,sharing=locked \
+    --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
     cp /src/turbo.json . && \
     cp /src/bun.lock* . 2>/dev/null || true ; \
     tar -C /src -cf - apps packages tooling 2>/dev/null | tar -xf - 2>/dev/null || true ; \
     bun x turbo prune "$APP" --docker && \
+    # THE PRUNING TURBO IS NOT THE BUILDING TURBO — see AGENTS.md, "The pruning
+    # turbo writes the turbo.json the build parses". `turbo prune` re-serialises
+    # turbo.json from ITS OWN version, and this stage does not necessarily run
+    # the lockfile-pinned one. A different prune writes futureFlags another
+    # version rejects outright, and drops `remoteCache`. Restoring the
+    # repository's OWN file makes the prune binary's version irrelevant.
+    cp /app/turbo.json /app/out/full/turbo.json && \
     cp /app/bun.lock /app/out/full/bun.lock
 
 # `out/full/` has no lockfile of its own (verified for every application), so the
@@ -198,6 +241,19 @@ FROM base AS installer
 # out/json/ ALSO carries a pruned bun.lock, consistent with those manifests.
 COPY --from=pruner-json /app/out/json/ .
 
+# ── WHY THE ROOT `scripts/` DIRECTORY ───────────────────────────────────────
+# `bun ci` runs the root `postinstall`, which is
+# `scripts/link-workspace-self-references.ts` — it creates the
+# `node_modules/<own-name> -> ../..` self-link that `bun install` never makes, and
+# without it a package's own emitted `dist` cannot resolve its own name (the reason
+# `db:generate` failed outside the container).
+#
+# `turbo prune` includes only what the PRUNED TARGET needs, and a root script is not
+# one of its dependencies, so the file was absent here and `bun ci` died with
+# `Module not found "scripts/link-workspace-self-references.ts"` — an error that names
+# the script but not the pruning decision behind it.
+COPY scripts ./scripts
+
 # ── USE THE ORIGINAL LOCKFILE, NOT THE PRUNED ONE ───────────────────────────
 # `turbo prune` rewrites bun.lock and HOISTS packages that were nested, losing
 # their nested resolutions. Measured on `api`: it hoists `log-symbols@4.1.0` to
@@ -216,8 +272,20 @@ COPY --from=pruner-json /app/out/json/ .
 # a fallback never triggers and the wrong tree is installed silently.
 COPY --from=pruner-full /app/bun.lock ./bun.lock
 
-RUN --mount=type=cache,target=/root/.bun,sharing=locked \
-    --mount=type=cache,target=/root/.cache,sharing=locked \
+# ── THE INSTALL IS ALWAYS FULL. THE PRUNE OF devDeps HAPPENS IN THE RUNNER. ──
+# `bun ci --production` here would be wrong, and measurably so: the `baked` build
+# below runs `turbo run build` over every internal package, and those packages'
+# build scripts use `@deployer/pkg-build`, `typescript`, `tsup`… — all
+# devDependencies. A production install at THIS stage therefore fails the bake:
+#
+#   @deployer/pkg-build:build: error: script "build" exited with code 1
+#   ERROR run failed: command exited (1)
+#
+# So the order must be: install everything → build the packages → THEN drop what
+# only the build needed. See `APP_INSTALL_PRODUCTION` in the runner stage, which
+# does the removal AFTER the bake and after this stage's tree is copied across.
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
+    --mount=type=cache,target=/root/.cache,sharing=shared \
     bun ci
 
 # ===================================
@@ -260,12 +328,35 @@ COPY --from=pruner-full /app/out/full/ .
 # /app they would only match node_modules that already exist in the pruned source,
 # and `apps/<app>/node_modules` is NOT part of the source, so it would be silently
 # skipped and never copied — breaking module resolution at runtime.
+#
+# ── WHY `apps/*/*/node_modules` IS IN THE LIST ──────────────────────────────
+# `bunfig.toml` sets `linker = "isolated"`, so every workspace resolves its
+# dependencies from its OWN `node_modules` — there is no hoisted root to fall back
+# on. The list must therefore name EVERY workspace that can own one, at the depth
+# it actually sits at:
+#
+#   apps/api/node_modules               apps/*/node_modules
+#   apps/api/services/health/…          apps/*/*/node_modules   <- was missing
+#   apps/api/shared/…                   apps/*/*/node_modules   (already covered)
+#
+# Without the three-level pattern the SERVICE workspaces' node_modules were never
+# copied. The container then started, found no `reflect-metadata` next to its own
+# package, and died with:
+#
+#   error: Cannot find package 'reflect-metadata' from '/app/apps/api/services/health'
+#
+# which reads like a missing dependency rather than a missing COPY — the package
+# was installed the whole time, in the installer stage, and simply not carried
+# across.
 RUN --mount=type=bind,from=installer,source=/app,target=/mnt/installer \
     cd /mnt/installer && \
-    PATHS="node_modules"; \
-    for d in apps/*/node_modules packages/*/node_modules packages/*/*/node_modules tooling/*/node_modules tooling/*/*/node_modules; do \
-        [ -d "$d" ] && PATHS="$PATHS $d"; \
-    done; true; \
+    # Depth-agnostic discovery (`find -prune`), not a hand-written glob list.
+    # The list this replaced named `apps/*/*/*/node_modules` and stopped at
+    # `tooling/*/*/node_modules`, so the workspace at
+    # `tooling/eslint/plugins/progress` was silently skipped and the build died
+    # with `Cannot find module 'nanospinner'` from a workspace whose
+    # node_modules was never copied.
+    PATHS="node_modules $(find apps packages tooling -type d -name node_modules -prune -print | tr '\n' ' ')"; \
     tar -cf - --exclude='*.map' --exclude='.cache' --exclude='.turbo' $PATHS | \
     tar -xf - -C /app --owner=root --group=root
 
@@ -303,6 +394,27 @@ ENV APP_DEPS_MODE=${APP_DEPS_MODE}
 # below resolve to `web...` rather than `...`.
 ARG APP
 
+# ── WHY THE PATH IS A SECOND ARG AND NOT DERIVED FROM `APP` ─────────────────
+# `APP` is a workspace PACKAGE NAME, because that is what `turbo prune` and
+# `turbo run --filter` accept — neither takes a directory. The runner stage needs
+# the source DIRECTORY to `WORKDIR` into, and for a service the two do not agree:
+# the name is `@deployer/svc-health` and the path is `api/services/health`.
+#
+# They coincided for the four original apps (`api` → `api`), which is why one arg
+# was enough until services arrived; deriving the path from the name would now
+# produce `/app/apps/@deployer/svc-health`, a directory that never exists.
+#
+# `APP_SRC_DIR` and not `APP_DIR`: `APP_DIR` is already an environment variable
+# meaning the repository ROOT (`/app`), read by `entrypoint-app.sh`. Two meanings
+# for one name is how a later edit points one of them at the wrong tree.
+#
+# NO DEFAULT. A default would have to be `${APP}`, which relies on ARG-default
+# expansion inside the Dockerfile — so a build that forgot to pass the arg would
+# silently work for the four original apps and silently fail for a service, which
+# is the failure this arg exists to prevent. Every caller states it explicitly
+# instead, so `grep APP_SRC_DIR infra/docker/compose` enumerates the truth.
+ARG APP_SRC_DIR
+
 # `PKG_BUILD_KEEP_DIST` is deliberately NOT set: in baked mode there is no
 # published volume to detach from, so the packages' own destructive clean is the
 # correct behaviour.
@@ -313,10 +425,72 @@ RUN if [ "$APP_DEPS_MODE" = "baked" ]; then \
         echo "volume mode: internal packages are read from dep-output" ; \
     fi
 
+# ── DROP THE BUILD TOOLCHAIN, NOW THAT THE BUILD IS DONE ────────────────────
+# This MUST come after the bake above and before the app starts. Order is the
+# whole point:
+#
+#   install everything   → the bake needs turbo, @deployer/pkg-build, typescript
+#   build the packages   → the bake runs here
+#   delete dev-only dirs → nothing needs them again
+#
+# Measured on `deployer-svc-health`, whose entire job is a liveness probe: its
+# image carried 1082 MB of `node_modules/.bun`, of which ~575 MB was toolchain
+# that never runs —
+#
+#   next + @next/swc (gnu AND musl)       300 MB
+#   eslint + @typescript-eslint           152 MB
+#   turbo + @turbo/linux-64                84 MB
+#   typescript (three versions)            71 MB
+#   @tsc-rs, prettier, vitest, vite…      ~120 MB
+#
+# Next is pulled in only because `@deployer/ui` lists it in devDependencies and
+# bun's ISOLATED linker (this repo's `linker = "isolated"`) installs a
+# dependency's devDependencies when the dependency is a workspace. No NestJS
+# service imports it.
+#
+# ── THIS SHRINKS THE FILESYSTEM, NOT THE IMAGE SIZE ────────────────────────
+# Be precise about what this achieves. The 1.14 GB `node_modules` layer is written
+# by the COPY above, and deleting files in a LATER layer only adds a whiteout — the
+# bytes remain in the layer, so `docker images` still reports ~2.8 GB. Measured:
+# `.bun` went 1082 MB → 507 MB inside a running container while the image size did
+# not move at all.
+#
+# What it DOES buy: a smaller writable layer at runtime, faster `docker cp`/`export`,
+# and a smaller CVE-scan surface. It is kept because it is free.
+#
+# SHRINKING THE IMAGE ITSELF requires the toolchain to never enter a layer — i.e.
+# a multi-stage split where a BUILD-ONLY stage installs everything and bakes, and
+# the final stage copies ONLY the app's runtime dependency closure out of it. That
+# image does not exist yet; this one is the dev image and stays a full build
+# environment by design. `docs/` records the numbers so that work can be scoped.
+#
+# ── WHY `APP_INSTALL_PRODUCTION` STAYS OPT-IN ──────────────────────────────
+# With the toolchain gone, `bun --watch`, `bun run test` and `bun run lint` no
+# longer work inside the container — which a DEVELOPER wants from a dev image.
+# Only deployment targets set it.
+ARG APP_INSTALL_PRODUCTION=0
+RUN if [ "$APP_INSTALL_PRODUCTION" = "1" ]; then \
+        echo "production image: removing the build toolchain" && \
+        cd /app/node_modules/.bun 2>/dev/null && \
+        rm -rf \
+            next@* @next+* \
+            typescript@* @typescript+* @tsc-rs+* \
+            eslint@* @typescript-eslint+* \
+            turbo@* @turbo+* \
+            prettier@* @deployer+config-prettier* \
+            vitest@* @vitest+* vite@* @rolldown+* \
+            knip@* nyc@* rimraf@* \
+            unplugin-swc@* @swc+* \
+        2>/dev/null ; \
+        echo "toolchain removed — .bun is now $(du -sm /app/node_modules/.bun 2>/dev/null | cut -f1) MB" ; \
+    else \
+        echo "dev image: toolchain kept (watch / test / lint work)" ; \
+    fi
+
 # The application's own directory. This is what lets the entrypoint identify the
 # application from its working directory in BOTH modes, so neither compose nor a
 # swarm service spec needs to pass the name.
-WORKDIR /app/apps/${APP}
+WORKDIR /app/apps/${APP_SRC_DIR}
 
 ENTRYPOINT ["/usr/local/bin/entrypoint-app"]
 

@@ -15,12 +15,11 @@ const sharedRules: Partial<Linter.RulesRecord> = {
             "@typescript-eslint/no-explicit-any": "off",
             "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
             "no-unused-vars": "off",
-            "@typescript-eslint/consistent-type-imports": [
-                "error",
-                {
-                    prefer: "type-imports",
-                },
-            ],
+            // Off for Nest: constructor-injected classes must stay VALUE imports
+            // (`emitDecoratorMetadata` reads them at runtime). With this rule on,
+            // `lint --fix` rewrote them to `import type` and every provider failed
+            // to resolve ("can't resolve dependencies ... index [0]").
+            "@typescript-eslint/consistent-type-imports": "off",
             "@darraghor/nestjs-typed/param-decorator-name-matches-route-param": "off",
             "@darraghor/nestjs-typed/controllers-should-supply-api-tags": "off",
             "@darraghor/nestjs-typed/injectable-should-be-provided": "off",
@@ -67,10 +66,9 @@ const all = (options: BaseConfigOptions = {}) => defineConfig([
  *
  * ── WHY A LINT RULE AND NOT PACKAGE BOUNDARIES ──────────────────────────────
  * One schema package per service would make the violation unrepresentable, but
- * `packages/auth` sits BELOW the services and needs the auth tables, and
- * `apps/api` (the monolith being retired) reads every table — splitting the
- * package would force splitting both, in the same change. Until the monolith
- * goes, the boundary is stated in `TABLE_OWNERSHIP` and enforced here.
+ * `packages/auth` sits BELOW the services and needs the auth tables, so splitting
+ * the package would make the dependency `auth → identity → auth`. Until that is
+ * resolved, the boundary is stated in `TABLE_OWNERSHIP` and enforced here.
  *
  * Ownership is PHYSICAL: `packages/nest/schema/src/global/<owner>/` holds exactly
  * the tables that owner owns, so an illegal import is an illegal PATH and this rule

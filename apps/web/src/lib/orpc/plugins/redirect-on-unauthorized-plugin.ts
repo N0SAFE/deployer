@@ -1,4 +1,4 @@
-import { AppLogger } from '@repo/logger'
+import { AppLogger } from '@deployer/logger'
 import { StandardLinkOptions, StandardLinkPlugin } from '@orpc/client/standard'
 import clientRedirect from '@/actions/redirect'
 import { redirect, RedirectType, unstable_rethrow } from 'next/navigation'

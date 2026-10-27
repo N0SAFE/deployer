@@ -49,7 +49,7 @@
         "prettify": "bun fmt .",
         "format": "bun run prettify",
         "format:check": "bun fmt --check .",
-        "type-check": "bun --check",
+        "type-check": "bun check --no-script",
         "check": "bun src/cli.ts check",
         "load": "bun src/cli.ts load",
         "mock": "bun src/cli.ts mock",
