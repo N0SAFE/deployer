@@ -23,25 +23,20 @@ import { DnsProviderGateway } from "@/modules/network/dns-provider.gateway";
 import { ProjectDomainModule } from "@/modules/project/project.module";
 
 import { ServiceController } from "./controllers/service.controller";
-import { ServiceStore, ServiceStoreImpl } from "./repositories/service.repository";
+import { ServiceStore } from "./repositories/service.repository";
 import { ServiceEventAdapter } from "./services/service-event-adapter";
 import { ServiceEventService } from "./services/service-event.service";
-import {
-	PreviewTopologyService,
-	PreviewTopologyServiceImpl,
-} from "./services/preview-topology.service";
-import {
-	ServiceNetworkService,
-	ServiceNetworkServiceImpl,
-} from "./services/service-network.service";
-import { ServiceService, ServiceServiceImpl } from "./services/service.service";
+import { PreviewTopologyService } from "./services/preview-topology.service";
+import { ServiceNetworkService } from "./services/service-network.service";
+import { ServiceService } from "./services/service.service";
 
 /**
  * Services: the deployable units inside a project, their hierarchy, their
  * dependency graph, their network config and their event stream.
  *
- * Shared core services stay as they are; each one is exposed to the Effect layer
- * through a port so the services above can `yield*` them. `ProjectStore` comes
+ * Shared core services stay Nest providers; each one is exposed to the Effect layer through a
+ * port so the services can `yield*` them. The store and use cases are Layers (`ServiceLive`, see
+ * `service.layers.ts`) built by the app's Effect runtime. `ProjectStore` comes
  * from `ProjectDomainModule` — a service lives inside a project, so the store is
  * read, never re-provided (two `useClass` providers would mean two instances).
  * The module's Effect context is derived from these providers by
@@ -71,11 +66,7 @@ export class ServiceDomainModule extends createModuleContext({
 			useExisting: ServiceDomainMappingRepository,
 		},
 		ServiceEventAdapter,
-		{ provide: ServiceStore, useClass: ServiceStoreImpl },
-		{ provide: ServiceService, useClass: ServiceServiceImpl },
-		{ provide: PreviewTopologyService, useClass: PreviewTopologyServiceImpl },
-		{ provide: ServiceNetworkService, useClass: ServiceNetworkServiceImpl },
 			{ provide: CoreEventStreamPool, useExisting: CoreEventStreamPoolService },
 	],
-	exports: [ServiceService, ServiceStore, ServiceNetworkService],
-}, DatabasePort, ServiceEventService) {}
+	exports: [],
+}, DatabasePort, ServiceEventService, ServiceStore, ServiceService, PreviewTopologyService, ServiceNetworkService) {}

@@ -1,9 +1,10 @@
 import { BadRequestError, ForbiddenError, ValidationError } from "@deployer/errors";
+import { ConflictException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Effect, Exit } from "effect";
 import { z } from "zod/v4";
 import { describe, expect, it } from "vitest";
 
-import { ProjectForbidden, ProjectInvalid } from "./domain/project.errors";
+import { ProjectConflict, ProjectForbidden, ProjectInvalid, ResourceMissing } from "./domain/project.errors";
 import { ProjectInfraFailure } from "./project.failures";
 import { attempt, rule } from "./project-effects";
 
@@ -46,5 +47,17 @@ describe("attempt", () => {
 		const error = await failure(attempt(() => Promise.reject(cause)));
 		expect(error).toBeInstanceOf(ProjectInfraFailure);
 		expect(error.cause).toBe(cause);
+	});
+});
+
+describe("attempt and Nest exceptions", () => {
+	it.each([
+		["a 404", new NotFoundException("Project not found"), ResourceMissing],
+		["a 403", new ForbiddenException("not yours"), ProjectForbidden],
+		["a 409", new ConflictException("taken"), ProjectConflict],
+	])("maps %s to its domain failure, keeping the message", async (_label, exception, Expected) => {
+		const error = await failure(attempt(() => Promise.reject(exception)));
+		expect(error).toBeInstanceOf(Expected);
+		expect((error as ResourceMissing).publicMessage()).toBe(exception.message);
 	});
 });

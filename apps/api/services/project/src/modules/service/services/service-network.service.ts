@@ -1,3 +1,5 @@
+import { layerOfClass, type Discharged } from "@deployer/effect-core";
+import { ResourceNotFound, ProjectInvalid } from "@/modules/project/domain/project.errors";
 import { Logger } from "@nestjs/common";
 import z from "zod/v4";
 import {
@@ -7,9 +9,8 @@ import {
     type ServiceNetworkConfig,
 } from "@deployer/contracts-entities";
 import { type ServiceNetworkView, type ServiceProvisionDnsRecordInput } from "@deployer/project-contracts";
-import { BadRequestError, NotFoundError } from "@deployer/errors";
 import { Context, Effect } from "effect";
-import { attempt } from "@project/core/effect/attempt";
+import { attempt } from "@/modules/project/project-effects";
 import { DnsProvider } from "@project/core/ports/dns-provider.port";
 import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
 import { ServiceDomainMappingLookup } from "@project/core/ports/service-domain-mapping-lookup.port";
@@ -81,7 +82,7 @@ function loadNetworkView(serviceId: string) {
 
         const service = yield* services.findById(serviceId);
         if (!service) {
-            return yield* Effect.fail(new NotFoundError("Service", serviceId));
+            return yield* Effect.fail(new ResourceNotFound({ entity: "Service", id: serviceId }));
         }
 
         const network = service.network
@@ -147,7 +148,7 @@ function persistNetwork(serviceId: string, input: Record<string, unknown>) {
 
         const service = yield* services.findById(serviceId);
         if (!service) {
-            return yield* Effect.fail(new NotFoundError("Service", serviceId));
+            return yield* Effect.fail(new ResourceNotFound({ entity: "Service", id: serviceId }));
         }
 
         const current = service.network
@@ -206,15 +207,13 @@ export class ServiceNetworkServiceImpl {
 
             const service = yield* services.findById(serviceId);
             if (!service) {
-                return yield* Effect.fail(new NotFoundError("Service", serviceId));
+                return yield* Effect.fail(new ResourceNotFound({ entity: "Service", id: serviceId }));
             }
 
             const scope = yield* resolveScope(service);
             if (!scope.providerId || !scope.zoneId || !scope.zoneName) {
                 return yield* Effect.fail(
-                    new BadRequestError(
-                        "No DNS provider/zone configured. Configure the project network config first (DNS provider + zone).",
-                    ),
+                    new ProjectInvalid({ reason: "No DNS provider/zone configured. Configure the project network config first (DNS provider + zone)." }),
                 );
             }
 
@@ -257,10 +256,13 @@ export class ServiceNetworkServiceImpl {
 }
 
 /** The service's public surface is exactly the implementation's methods. */
-export type ServiceNetworkServiceShape = ServiceNetworkServiceImpl;
+export type ServiceNetworkServiceShape = Discharged<ServiceNetworkServiceImpl>;
 
 /** Effect key = NestJS token. */
 export class ServiceNetworkService extends Context.Service<
     ServiceNetworkService,
     ServiceNetworkServiceShape
->()("project/ServiceNetworkService") {}
+>()("project/ServiceNetworkService") {
+    /** Resolves the requirements the methods name when the layer is built. */
+    static readonly Live = layerOfClass(ServiceNetworkService, () => new ServiceNetworkServiceImpl());
+}

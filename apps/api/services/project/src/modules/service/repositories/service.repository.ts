@@ -1,4 +1,5 @@
-import { ConflictError } from "@deployer/errors";
+import { layerOfClass, type Discharged } from "@deployer/effect-core";
+import { ProjectConflict } from "@/modules/project/domain/project.errors";
 import { services, serviceDependencies, projects } from "@deployer/nest-schema/global/project/deployment";
 import { localEventOutbox } from "@deployer/nest-schema/global/runtime/runtime";
 import { and, eq, ilike, asc, isNull, inArray } from "drizzle-orm";
@@ -15,7 +16,7 @@ import { isRecord } from "@deployer/type-guards"
 import { readTraefikConfig } from "@deployer/nest-schema/codecs/codec-registry";
 import { Context, Effect } from "effect";
 import { DatabasePort } from "@project/core/database/database.port";
-import { attempt } from "@project/core/effect/attempt";
+import { attempt } from "@/modules/project/project-effects";
 
 
 
@@ -512,7 +513,7 @@ export class ServiceStoreImpl {
 
             const firstRow = rows[0];
             if (!firstRow) {
-                return yield* Effect.fail(new ConflictError("Failed to create service"));
+                return yield* Effect.fail(new ProjectConflict({ reason: "Failed to create service" }));
             }
             return toDto(firstRow);
         });
@@ -810,7 +811,7 @@ export class ServiceStoreImpl {
                 return row;
             });
             if (!row) {
-                return yield* Effect.fail(new ConflictError("Failed to add dependency"));
+                return yield* Effect.fail(new ProjectConflict({ reason: "Failed to add dependency" }));
             }
             return {
                 id: row.id,
@@ -856,9 +857,12 @@ export class ServiceStoreImpl {
 }
 
 /** The store's public surface is exactly the implementation's methods. */
-export type ServiceStoreShape = ServiceStoreImpl;
+export type ServiceStoreShape = Discharged<ServiceStoreImpl>;
 
 /** Effect key = NestJS token. */
 export class ServiceStore extends Context.Service<ServiceStore, ServiceStoreShape>()(
     "project/ServiceStore",
-) {}
+) {
+    /** Resolves the requirements the methods name when the layer is built. */
+    static readonly Live = layerOfClass(ServiceStore, () => new ServiceStoreImpl());
+}

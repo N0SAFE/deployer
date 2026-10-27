@@ -1,4 +1,5 @@
-import { NotFoundError } from "@deployer/errors";
+import { layerOfClass, type Discharged } from "@deployer/effect-core";
+import { ResourceNotFound } from "@/modules/project/domain/project.errors";
 import { Context, Effect } from "effect";
 import { ServiceStore } from "../repositories/service.repository";
 import {
@@ -24,7 +25,7 @@ export class PreviewTopologyServiceImpl {
 
             const root = yield* store.findById(serviceId);
             if (!root) {
-                return yield* Effect.fail(new NotFoundError("Service", serviceId));
+                return yield* Effect.fail(new ResourceNotFound({ entity: "Service", id: serviceId }));
             }
 
             // 1) Load project contract registry (DI interfaces).
@@ -90,10 +91,13 @@ export class PreviewTopologyServiceImpl {
 }
 
 /** The service's public surface is exactly the implementation's methods. */
-export type PreviewTopologyServiceShape = PreviewTopologyServiceImpl;
+export type PreviewTopologyServiceShape = Discharged<PreviewTopologyServiceImpl>;
 
 /** Effect key = NestJS token. */
 export class PreviewTopologyService extends Context.Service<
     PreviewTopologyService,
     PreviewTopologyServiceShape
->()("project/PreviewTopologyService") {}
+>()("project/PreviewTopologyService") {
+    /** Resolves the requirements the methods name when the layer is built. */
+    static readonly Live = layerOfClass(PreviewTopologyService, () => new PreviewTopologyServiceImpl());
+}

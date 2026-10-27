@@ -1,12 +1,13 @@
+import { layerOfClass, type Discharged } from "@deployer/effect-core";
+import { ResourceNotFound, ProjectConflict, ProjectInvalid } from "@/modules/project/domain/project.errors";
 import { EMPTY, type Observable, concat, defer, from, map, mergeMap } from "rxjs";
 import { filter as rxFilter } from "rxjs/operators";
-import { BadRequestError, ConflictError, NotFoundError } from "@deployer/errors";
 import { Context, Effect } from "effect";
 import { CoreEventSync } from "@project/core/ports/core-event-sync.port";
 import { ProjectAccess } from "@project/core/ports/project-access.port";
 import { RuntimeConfigurationAccessor } from "@project/core/ports/runtime-configuration-accessor.port";
 import { DatabasePort } from "@project/core/database/database.port";
-import { attempt, guard } from "@project/core/effect/attempt";
+import { attempt, rule } from "@/modules/project/project-effects";
 import { ServiceStore, type ServiceStoreShape } from "../repositories/service.repository";
 import {
 	ServiceEventService,
@@ -86,7 +87,7 @@ function assertServiceAccess(
         const services = yield* ServiceStore;
         const service = yield* services.findById(serviceId);
         if (!service) {
-            return yield* Effect.fail(new NotFoundError("Service", serviceId));
+            return yield* Effect.fail(new ResourceNotFound({ entity: "Service", id: serviceId }));
         }
         yield* assertProjectAccess(service.projectId, requesterId, allowedRoles);
         return service;
@@ -99,7 +100,7 @@ function loadServiceWithConfig(id: string) {
         const services = yield* ServiceStore;
         const service = yield* services.findById(id);
         if (!service) {
-            return yield* Effect.fail(new NotFoundError("Service", id));
+            return yield* Effect.fail(new ResourceNotFound({ entity: "Service", id: id }));
         }
         const ancestors = yield* services.findAncestors(id);
         return {
@@ -121,7 +122,7 @@ function resolveCreatePayload(input: ServiceCreateInput): Effect.Effect<
     return Effect.gen(function* () {
         const configuration = yield* RuntimeConfigurationAccessor;
 
-        const resolvedRuntimeConfiguration = yield* guard(() =>
+        const resolvedRuntimeConfiguration = yield* rule(() =>
             configuration.resolveStrict({
                 scope: "project",
                 context: {
@@ -147,13 +148,13 @@ function resolveCreatePayload(input: ServiceCreateInput): Effect.Effect<
 
         if (!resolvedRuntimeConfiguration.effective.constraints.providerAllowed) {
             return yield* Effect.fail(
-                new BadRequestError("Configured provider is not allowed by runtime configuration"),
+                new ProjectInvalid({ reason: "Configured provider is not allowed by runtime configuration" }),
             );
         }
 
         if (!resolvedRuntimeConfiguration.effective.constraints.runnerAllowed) {
             return yield* Effect.fail(
-                new BadRequestError("Configured runner is not allowed by runtime configuration"),
+                new ProjectInvalid({ reason: "Configured runner is not allowed by runtime configuration" }),
             );
         }
 
@@ -504,25 +505,25 @@ export class ServiceServiceImpl {
             if (input.parentId !== undefined && input.parentId !== null && input.parentId !== existing.parentId) {
                 if (input.parentId === id) {
                     return yield* Effect.fail(
-                        new BadRequestError("A service cannot be its own parent"),
+                        new ProjectInvalid({ reason: "A service cannot be its own parent" }),
                     );
                 }
                 const descendant = yield* isDescendant(id, input.parentId);
                 if (descendant) {
                     return yield* Effect.fail(
-                        new BadRequestError("A service cannot be moved under one of its own children"),
+                        new ProjectInvalid({ reason: "A service cannot be moved under one of its own children" }),
                     );
                 }
                 // Moving across projects is forbidden — children stay in the parent's project.
                 const newParent = yield* loadServiceWithConfig(input.parentId);
                 if (newParent.projectId !== existing.projectId) {
                     return yield* Effect.fail(
-                        new BadRequestError("A sub-service must belong to the same project as its parent"),
+                        new ProjectInvalid({ reason: "A sub-service must belong to the same project as its parent" }),
                     );
                 }
             }
 
-            const resolvedRuntimeConfiguration = yield* guard(() =>
+            const resolvedRuntimeConfiguration = yield* rule(() =>
                 configuration.resolveStrict({
                     scope: "service",
                     context: {
@@ -552,19 +553,19 @@ export class ServiceServiceImpl {
 
             if (!resolvedRuntimeConfiguration.effective.constraints.providerAllowed) {
                 return yield* Effect.fail(
-                    new BadRequestError("Configured provider is not allowed by runtime configuration"),
+                    new ProjectInvalid({ reason: "Configured provider is not allowed by runtime configuration" }),
                 );
             }
 
             if (!resolvedRuntimeConfiguration.effective.constraints.runnerAllowed) {
                 return yield* Effect.fail(
-                    new BadRequestError("Configured runner is not allowed by runtime configuration"),
+                    new ProjectInvalid({ reason: "Configured runner is not allowed by runtime configuration" }),
                 );
             }
 
             const updated = yield* services.update(id, input);
             if (!updated) {
-                return yield* Effect.fail(new NotFoundError("Service", id));
+                return yield* Effect.fail(new ResourceNotFound({ entity: "Service", id: id }));
             }
 
             const changedFields = Object.keys(input).filter(
@@ -700,7 +701,7 @@ export class ServiceServiceImpl {
             yield* assertServiceAccess(id, requesterId, ["owner", "maintainer", "deployer"]);
             const updated = yield* services.toggleActive(id, isActive);
             if (!updated) {
-                return yield* Effect.fail(new NotFoundError("Service", id));
+                return yield* Effect.fail(new ResourceNotFound({ entity: "Service", id: id }));
             }
 
             yield* events.emitEffect(
@@ -762,7 +763,7 @@ export class ServiceServiceImpl {
             const events = yield* ServiceEventService;
 
             if (serviceId === dependsOnServiceId) {
-                return yield* Effect.fail(new BadRequestError("A service cannot depend on itself"));
+                return yield* Effect.fail(new ProjectInvalid({ reason: "A service cannot depend on itself" }));
             }
 
             const service = yield* assertServiceAccess(serviceId, requesterId, ["owner", "maintainer", "deployer"]);
@@ -770,19 +771,19 @@ export class ServiceServiceImpl {
 
             if (service.projectId !== dependsOnService.projectId) {
                 return yield* Effect.fail(
-                    new BadRequestError("Service dependencies must reference services in the same project"),
+                    new ProjectInvalid({ reason: "Service dependencies must reference services in the same project" }),
                 );
             }
 
             const exists = yield* services.dependencyExists(serviceId, dependsOnServiceId);
             if (exists) {
-                return yield* Effect.fail(new ConflictError("Dependency already exists"));
+                return yield* Effect.fail(new ProjectConflict({ reason: "Dependency already exists" }));
             }
 
             const introducesCycle = yield* wouldIntroduceDependencyCycle(serviceId, dependsOnServiceId);
             if (introducesCycle) {
                 return yield* Effect.fail(
-                    new BadRequestError("Dependency introduces a cycle in the service graph"),
+                    new ProjectInvalid({ reason: "Dependency introduces a cycle in the service graph" }),
                 );
             }
 
@@ -933,9 +934,12 @@ export class ServiceServiceImpl {
 }
 
 /** The service's public surface is exactly the implementation's methods. */
-export type ServiceServiceShape = ServiceServiceImpl;
+export type ServiceServiceShape = Discharged<ServiceServiceImpl>;
 
 /** Effect key = NestJS token. */
 export class ServiceService extends Context.Service<ServiceService, ServiceServiceShape>()(
     "project/ServiceService",
-) {}
+) {
+    /** Resolves the requirements the methods name when the layer is built. */
+    static readonly Live = layerOfClass(ServiceService, () => new ServiceServiceImpl());
+}

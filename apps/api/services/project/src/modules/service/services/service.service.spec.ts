@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Effect, Stream } from "effect";
 import type { Service } from "@deployer/contracts-entities";
-import { BadRequestError, ConflictError, NotFoundError } from "@deployer/errors";
+import { ProjectConflict, ProjectInvalid, ResourceNotFound } from "@/modules/project/domain/project.errors";
 import type { ProjectAccessShape } from "@project/core/ports/project-access.port";
 import { ProjectAccess } from "@project/core/ports/project-access.port";
 import type { RuntimeConfigurationAccessorShape } from "@project/core/ports/runtime-configuration-accessor.port";
@@ -17,7 +17,7 @@ import { DEFAULT_HEALTH_CHECK } from "./service-effective-config";
 import { ServiceServiceImpl } from "./service.service";
 
 type Fn = ReturnType<typeof vi.fn>;
-type Fakes<T> = { [K in keyof T]: Fn };
+type Fakes<T> = { -readonly [K in keyof T]: Fn };
 
 const now = "2024-01-01T00:00:00.000Z";
 
@@ -164,8 +164,8 @@ describe("ServiceService", () => {
 	// ========================================
 
 	describe("getServiceById", () => {
-		it("fails with NotFoundError when the service does not exist", async () => {
-			await expect(run(service.getServiceById("svc-1"))).rejects.toBeInstanceOf(NotFoundError);
+		it("fails with ResourceNotFound when the service does not exist", async () => {
+			await expect(run(service.getServiceById("svc-1"))).rejects.toBeInstanceOf(ResourceNotFound);
 		});
 
 		it("folds the ancestor chain into effectiveConfig", async () => {
@@ -228,7 +228,7 @@ describe("ServiceService", () => {
 						"user-1",
 					),
 				),
-			).rejects.toBeInstanceOf(BadRequestError);
+			).rejects.toBeInstanceOf(ProjectInvalid);
 			expect(store.create).not.toHaveBeenCalled();
 		});
 	});
@@ -245,7 +245,7 @@ describe("ServiceService", () => {
 		it("rejects making a service its own parent", async () => {
 			await expect(
 				run(service.updateService("svc-1", { parentId: "svc-1" }, "user-1")),
-			).rejects.toBeInstanceOf(BadRequestError);
+			).rejects.toBeInstanceOf(ProjectInvalid);
 			expect(store.update).not.toHaveBeenCalled();
 		});
 
@@ -256,16 +256,16 @@ describe("ServiceService", () => {
 
 			await expect(
 				run(service.updateService("svc-1", { parentId: "svc-child" }, "user-1")),
-			).rejects.toBeInstanceOf(BadRequestError);
+			).rejects.toBeInstanceOf(ProjectInvalid);
 			expect(store.update).not.toHaveBeenCalled();
 		});
 
-		it("fails with NotFoundError when the update matched nothing", async () => {
+		it("fails with ResourceNotFound when the update matched nothing", async () => {
 			store.update = vi.fn(() => Effect.succeed(null));
 
 			await expect(
 				run(service.updateService("svc-1", { name: "renamed" }, "user-1")),
-			).rejects.toBeInstanceOf(NotFoundError);
+			).rejects.toBeInstanceOf(ResourceNotFound);
 		});
 	});
 
@@ -308,12 +308,12 @@ describe("ServiceService", () => {
 	});
 
 	describe("toggleActive", () => {
-		it("fails with NotFoundError when the row disappeared", async () => {
+		it("fails with ResourceNotFound when the row disappeared", async () => {
 			store.findById = vi.fn(() => Effect.succeed(mockService()));
 			store.toggleActive = vi.fn(() => Effect.succeed(null));
 
 			await expect(run(service.toggleActive("svc-1", false, "user-1"))).rejects.toBeInstanceOf(
-				NotFoundError,
+				ResourceNotFound,
 			);
 		});
 	});
@@ -330,7 +330,7 @@ describe("ServiceService", () => {
 		it("rejects a self dependency", async () => {
 			await expect(
 				run(service.addDependency("svc-1", "svc-1", true, "user-1")),
-			).rejects.toBeInstanceOf(BadRequestError);
+			).rejects.toBeInstanceOf(ProjectInvalid);
 			expect(store.addDependency).not.toHaveBeenCalled();
 		});
 
@@ -339,7 +339,7 @@ describe("ServiceService", () => {
 
 			await expect(
 				run(service.addDependency("svc-1", "svc-2", true, "user-1")),
-			).rejects.toBeInstanceOf(ConflictError);
+			).rejects.toBeInstanceOf(ProjectConflict);
 			expect(store.addDependency).not.toHaveBeenCalled();
 		});
 
