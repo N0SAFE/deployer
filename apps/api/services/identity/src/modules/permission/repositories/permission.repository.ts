@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common'
-import { Context, Effect } from 'effect'
+import { Context, Effect, Layer } from 'effect'
 import { eq, inArray } from 'drizzle-orm'
 import { roleRules } from '@deployer/nest-schema/global/identity/permissions'
 import type { ResourceRule } from '@deployer/auth/permissions'
-import { DatabasePort } from '@identity/core/database/database.port'
+import {
+    DatabasePort,
+    type DatabaseShape,
+} from '@identity/core/database/database.port'
 
 import { PermissionRepositoryFailure } from '../permission.failures'
 import type { RoleRuleRow } from '../permission.types'
@@ -19,22 +21,17 @@ import type { RoleRuleRow } from '../permission.types'
 export type PermissionRepositoryShape = {
     readonly getRoleRules: (
         roleNames: string[]
-    ) => Effect.Effect<
-        ResourceRule[],
-        PermissionRepositoryFailure,
-        DatabasePort
-    >
+    ) => Effect.Effect<ResourceRule[], PermissionRepositoryFailure>
     readonly upsertRoleRules: (
         roleName: string,
         rules: ResourceRule[]
-    ) => Effect.Effect<void, PermissionRepositoryFailure, DatabasePort>
+    ) => Effect.Effect<void, PermissionRepositoryFailure>
     readonly deleteRoleRules: (
         roleName: string
-    ) => Effect.Effect<void, PermissionRepositoryFailure, DatabasePort>
+    ) => Effect.Effect<void, PermissionRepositoryFailure>
     readonly listRoleRules: () => Effect.Effect<
         RoleRuleRow[],
-        PermissionRepositoryFailure,
-        DatabasePort
+        PermissionRepositoryFailure
     >
 }
 
@@ -42,7 +39,20 @@ export type PermissionRepositoryShape = {
 export class PermissionRepository extends Context.Service<
     PermissionRepository,
     PermissionRepositoryShape
->()('identity/PermissionRepository') {}
+>()('identity/PermissionRepository') {
+    /** Resolves the database at layer build, so no method carries it in `R`. */
+    static readonly Live: Layer.Layer<
+        PermissionRepository,
+        never,
+        DatabasePort
+    > = Layer.effect(
+        PermissionRepository,
+        Effect.gen(function* () {
+            const { db } = yield* DatabasePort
+            return makePermissionRepository(db)
+        })
+    )
+}
 
 /** One async database boundary; driver errors become `PermissionRepositoryFailure`. */
 function attempt<T>(
@@ -54,43 +64,29 @@ function attempt<T>(
     })
 }
 
-/** Drizzle implementation. No constructor injection: every method yields `DatabasePort`. */
-@Injectable()
-export class PermissionRepositoryImpl implements PermissionRepositoryShape {
-    /**
-     * Returns the merged ResourceRule[] for all of the given role names.
-     * Rules from multiple matched rows are concatenated.
-     */
-    getRoleRules(
-        roleNames: string[]
-    ): Effect.Effect<
-        ResourceRule[],
-        PermissionRepositoryFailure,
-        DatabasePort
-    > {
-        return Effect.gen(function* () {
-            if (roleNames.length === 0) return []
-            const { db } = yield* DatabasePort
+/** Drizzle implementation over one database handle. */
+export function makePermissionRepository(
+    db: DatabaseShape['db']
+): PermissionRepositoryShape {
+    return {
+        /**
+         * Returns the merged ResourceRule[] for all of the given role names.
+         * Rules from multiple matched rows are concatenated.
+         */
+        getRoleRules: (roleNames) =>
+            roleNames.length === 0
+                ? Effect.succeed([])
+                : attempt(async () => {
+                      const rows = await db
+                          .select({ resourceRules: roleRules.resourceRules })
+                          .from(roleRules)
+                          .where(inArray(roleRules.roleName, roleNames))
 
-            return yield* attempt(async () => {
-                const rows = await db
-                    .select({ resourceRules: roleRules.resourceRules })
-                    .from(roleRules)
-                    .where(inArray(roleRules.roleName, roleNames))
+                      return rows.flatMap((r) => r.resourceRules ?? [])
+                  }),
 
-                return rows.flatMap((r) => r.resourceRules ?? [])
-            })
-        })
-    }
-
-    upsertRoleRules(
-        roleName: string,
-        rules: ResourceRule[]
-    ): Effect.Effect<void, PermissionRepositoryFailure, DatabasePort> {
-        return Effect.gen(function* () {
-            const { db } = yield* DatabasePort
-
-            return yield* attempt(async () => {
+        upsertRoleRules: (roleName, rules) =>
+            attempt(async () => {
                 await db
                     .insert(roleRules)
                     .values({
@@ -102,32 +98,15 @@ export class PermissionRepositoryImpl implements PermissionRepositoryShape {
                         target: [roleRules.roleName],
                         set: { resourceRules: rules, updatedAt: new Date() },
                     })
-            })
-        })
-    }
+            }),
 
-    deleteRoleRules(
-        roleName: string
-    ): Effect.Effect<void, PermissionRepositoryFailure, DatabasePort> {
-        return Effect.gen(function* () {
-            const { db } = yield* DatabasePort
-
-            return yield* attempt(async () => {
+        deleteRoleRules: (roleName) =>
+            attempt(async () => {
                 await db
                     .delete(roleRules)
                     .where(eq(roleRules.roleName, roleName))
-            })
-        })
-    }
+            }),
 
-    listRoleRules(): Effect.Effect<
-        RoleRuleRow[],
-        PermissionRepositoryFailure,
-        DatabasePort
-    > {
-        return Effect.gen(function* () {
-            const { db } = yield* DatabasePort
-            return yield* attempt(async () => db.select().from(roleRules))
-        })
+        listRoleRules: () => attempt(async () => db.select().from(roleRules)),
     }
 }

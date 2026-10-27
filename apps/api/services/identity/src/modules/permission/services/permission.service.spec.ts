@@ -3,8 +3,11 @@ import { Effect } from 'effect'
 import { ForbiddenError, type ResourceRule } from '@deployer/auth/permissions'
 
 import { PermissionRepository } from '../repositories/permission.repository'
-import { PermissionService, PermissionServiceImpl } from './permission.service'
-import { DatabasePort } from '@identity/core/database/database.port'
+import {
+    makePermissionService,
+    PermissionService,
+    type PermissionServiceShape,
+} from './permission.service'
 import type { PermissionRepositoryShape } from '../repositories/permission.repository'
 
 // ---------------------------------------------------------------------------
@@ -27,7 +30,27 @@ const row = {
     updatedAt: new Date('2024-01-01'),
 }
 
-const service = new PermissionServiceImpl()
+type RepoBound = {
+    [K in keyof PermissionServiceShape]: PermissionServiceShape[K] extends (
+        ...args: infer P
+    ) => Effect.Effect<infer A, infer E>
+        ? (...args: P) => Effect.Effect<A, E, PermissionRepository>
+        : never
+}
+
+/** The service, built over whichever repository the run provides. */
+const service = new Proxy({} as RepoBound, {
+    get:
+        (_target, key: keyof PermissionServiceShape) =>
+        (...args: unknown[]) =>
+            Effect.flatMap(PermissionRepository, (repo) =>
+                (
+                    makePermissionService(repo)[key] as (
+                        ...a: unknown[]
+                    ) => Effect.Effect<unknown, unknown>
+                )(...args)
+            ),
+})
 
 /** Fake repository whose methods are plain Effects — no DB needed. */
 function fakeRepository(rules: ResourceRule[] = [readAllRule]) {
@@ -43,14 +66,11 @@ function fakeRepository(rules: ResourceRule[] = [readAllRule]) {
 
 /** Run a service Effect with the fake repository and an unused database. */
 function run<A, E>(
-    effect: Effect.Effect<A, E, PermissionRepository | DatabasePort>,
+    effect: Effect.Effect<A, E, PermissionRepository>,
     repo: PermissionRepositoryShape
 ): Promise<A> {
     return Effect.runPromise(
-        effect.pipe(
-            Effect.provideService(PermissionRepository, repo),
-            Effect.provideService(DatabasePort, { db: {} as never })
-        )
+        effect.pipe(Effect.provideService(PermissionRepository, repo))
     )
 }
 
