@@ -234,6 +234,8 @@ export class AnalyticsService {
 	 * healthy one, which is the most dangerous possible answer — an operator seeing 0%
 	 * errors stops looking. The empty series with `unavailable` is the truth, and the UI
 	 * is expected to say "not instrumented" rather than draw a flat line.
+		// How many durations each bucket's mean already holds: the incremental mean needs it.
+		const durationSamples = new Map<number, number>();
 	 */
 	async applicationMetrics(query: MetricsQuery) {
 		query;
@@ -303,15 +305,14 @@ export class AnalyticsService {
 
 			if (deployment.status === SUCCESS_STATUS) {
 				const duration = analyticsRules.deploymentDurationMs(deployment.createdAt, deployment.deployCompletedAt);
-				// `deploymentsCount - 1` is the number of PRIOR samples, which is what the
-				// incremental mean needs. Unfinished deployments contribute nothing here
-				// (`duration` is 0 and is skipped), so they cannot drag the mean down.
+				// Unfinished deployments contribute nothing here (`duration` is 0 and is
+				// skipped), so they cannot drag the mean down. The prior-sample count is the
+				// number of DURATIONS already averaged, not of deployments seen: counting
+				// deployments would weight a bucket's mean by deployments that had no duration.
 				if (duration > 0) {
-					bucket.averageDeployTime = analyticsRules.rollingAverage(
-						bucket.averageDeployTime,
-						0,
-						duration,
-					);
+					const prior = durationSamples.get(index) ?? 0;
+					bucket.averageDeployTime = analyticsRules.rollingAverage(bucket.averageDeployTime, prior, duration);
+					durationSamples.set(index, prior + 1);
 				}
 			}
 

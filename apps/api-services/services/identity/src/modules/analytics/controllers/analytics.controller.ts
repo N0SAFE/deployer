@@ -317,6 +317,26 @@ export class AnalyticsController {
 					// bar without a second call — it is the stored report's size, from the same row
 					// the content comes from.
 					size: report.sizeBytes,
+	/**
+	 * The report itself, as a JSON attachment: what `downloadReport`'s handle points at.
+	 *
+	 * Authenticated like every other procedure here, which is what makes the handle safe
+	 * without being signed. The service refuses a report that did not complete, so the file
+	 * a caller saves is never an empty shell of a failed run.
+	 */
+	@Implement(analyticsContract.getReportContent)
+	getReportContent() {
+		return implement(analyticsContract.getReportContent)
+			.use(requireAuth())
+			.handler(async ({ input }) => {
+				const report = await this.analytics.downloadReport(input.params.reportId);
+				const body = JSON.stringify(report.content ?? {}, null, 2);
+				return new File([body], `report-${input.params.reportId}.json`, {
+					type: "application/json; charset=utf-8",
+				});
+			});
+	}
+
 				};
 			});
 	}
