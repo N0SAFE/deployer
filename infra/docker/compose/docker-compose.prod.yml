@@ -1,36 +1,132 @@
 # =====================================================================
 # PROD profile — production build, EVERYTHING API-managed (final build).
 #
-# SETUP BOOTS FIRST, THEN CREATES THE API ON THE SWARM.
+# SETUP BOOTS FIRST, THEN CREATES THE API TIER ON THE SWARM.
 # `setup` is the entry point in production: it founds or joins the cluster and
-# schedules the API as a swarm service from `DEPLOYER_API_IMAGE`. The API is NOT
-# a compose service here — a compose-managed container would not be part of the
-# cluster setup just built, so it would have no placement, no restart policy
-# across nodes, and no `service ls` visibility.
+# schedules the microservices tier (`svc-bff` plus five `svc-*`) as swarm services
+# from `DEPLOYER_BFF_IMAGE` and `DEPLOYER_SVC_*_IMAGE`. The tier is NOT compose
+# services here — a compose-managed container would not be part of the cluster
+# setup just built, so it would have no placement, no restart policy across
+# nodes, and no `service ls` visibility.
 #
-# `build-api` exists so `docker compose up --build` produces that image tag
-# locally; setup consumes the TAG, not the build. In a real deployment the tag
-# points at a registry instead and nothing else changes.
+# `build-svc-*` exist so `docker compose up --build` produces those image tags
+# locally; setup consumes the TAGS, not the builds. In a real deployment the tags
+# point at a registry instead and nothing else changes.
+#
+# ── PROFILES: WHICH IMAGES THIS RUN PRODUCES ────────────────────────────
+#
+#   COMPOSE_PROFILES=all    setup + every app image (the default)
+#   COMPOSE_PROFILES=api    setup + the tier images (BFF and five services), and the swarm it builds
+#   COMPOSE_PROFILES=web    setup + the web image
+#   COMPOSE_PROFILES=doc    setup + the doc image
+#
+# Here a profile selects which IMAGES are produced, not which containers stay
+# up: `setup-prod` is the only long-running service, and `web-prod`/`doc-prod`
+# build their image, print the tag, and exit. Building all three on a run that
+# only needs the API would be minutes of work for an unused tag.
+#
+# `setup-prod` carries every profile because it IS the entry point: a run that
+# selected `web` alone would produce an image for a swarm nothing founded.
 # =====================================================================
 
 name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}
 
+# Shared shape of the six image producers (see `build-svc-bff` below).
+x-tier-build: &tier-build
+  context: ../../..
+  dockerfile: ./infra/docker/builder/api/Dockerfile.api.prod
+  secrets:
+    - turbo_token
+    - turbo_team
+    - turbo_api
+
+x-tier-producer: &tier-producer
+  # Every profile, because `setup-prod` gates on these services
+  # (`service_completed_successfully`) and `setup-prod` carries every profile —
+  # a `depends_on` to a service whose profile is inactive makes the whole
+  # compose project invalid, so the dependency's profiles must be a superset of
+  # its dependents'.
+  profiles: ["all", "api", "web", "doc"]
+  # Runs once, ensures the tag exists, exits. `restart: "no"` is required —
+  # the default restart policy would loop it forever.
+  restart: "no"
+
 services:
-  # ── 1. Build-only: produces the API image, then exits ─────────────────────
+  # ── 1. Build-only: produces the tier images: produces the tier images, then exits ───────────────────
   #
-  # A compose service rather than a build step on `setup`, because a health-gated
+  # Compose services rather than a build step on `setup`, because a health-gated
   # startup must not CONTAIN a multi-minute build: it would make the healthcheck's
   # start_period meaningless, and it would put two responsibilities (produce an
   # image, then run onboarding) in one container.
-  build-api:
+  #
+  # One definition (`x-tier-producer`) and six small overrides: the app (scope,
+  # directory, port) and the tag. `APP_PORT` only drives EXPOSE and the image
+  # HEALTHCHECK; the app binds the port setup configures it with.
+  build-svc-bff:
+    <<: *tier-producer
     build:
-      context: ../../..
-      dockerfile: ./infra/docker/builder/api/Dockerfile.api.prod
-    image: ${DEPLOYER_API_IMAGE:-deployer-api:local}
-    # Runs once, ensures the tag exists, exits. `restart: "no"` is required —
-    # the default restart policy would loop it forever.
-    command: ["echo", "api image built: ${DEPLOYER_API_IMAGE:-deployer-api:local}"]
-    restart: "no"
+      <<: *tier-build
+      args:
+        PRUNE_SCOPE: "@deployer/bff"
+        APP_DIR: apps/api-services/bff
+        APP_PORT: "3005"
+    image: ${DEPLOYER_BFF_IMAGE:-deployer-svc-bff:local}
+    command: ["echo", "bff image built: ${DEPLOYER_BFF_IMAGE:-deployer-svc-bff:local}"]
+
+  build-svc-health:
+    <<: *tier-producer
+    build:
+      <<: *tier-build
+      args:
+        PRUNE_SCOPE: "@deployer/svc-health"
+        APP_DIR: apps/api-services/services/health
+        APP_PORT: "3101"
+    image: ${DEPLOYER_SVC_HEALTH_IMAGE:-deployer-svc-health:local}
+    command: ["echo", "health image built: ${DEPLOYER_SVC_HEALTH_IMAGE:-deployer-svc-health:local}"]
+
+  build-svc-identity:
+    <<: *tier-producer
+    build:
+      <<: *tier-build
+      args:
+        PRUNE_SCOPE: "@deployer/svc-identity"
+        APP_DIR: apps/api-services/services/identity
+        APP_PORT: "3102"
+    image: ${DEPLOYER_SVC_IDENTITY_IMAGE:-deployer-svc-identity:local}
+    command: ["echo", "identity image built: ${DEPLOYER_SVC_IDENTITY_IMAGE:-deployer-svc-identity:local}"]
+
+  build-svc-project:
+    <<: *tier-producer
+    build:
+      <<: *tier-build
+      args:
+        PRUNE_SCOPE: "@deployer/svc-project"
+        APP_DIR: apps/api-services/services/project
+        APP_PORT: "3103"
+    image: ${DEPLOYER_SVC_PROJECT_IMAGE:-deployer-svc-project:local}
+    command: ["echo", "project image built: ${DEPLOYER_SVC_PROJECT_IMAGE:-deployer-svc-project:local}"]
+
+  build-svc-fleet:
+    <<: *tier-producer
+    build:
+      <<: *tier-build
+      args:
+        PRUNE_SCOPE: "@deployer/svc-fleet"
+        APP_DIR: apps/api-services/services/fleet
+        APP_PORT: "3104"
+    image: ${DEPLOYER_SVC_FLEET_IMAGE:-deployer-svc-fleet:local}
+    command: ["echo", "fleet image built: ${DEPLOYER_SVC_FLEET_IMAGE:-deployer-svc-fleet:local}"]
+
+  build-svc-runtime:
+    <<: *tier-producer
+    build:
+      <<: *tier-build
+      args:
+        PRUNE_SCOPE: "@deployer/svc-runtime"
+        APP_DIR: apps/api-services/services/runtime
+        APP_PORT: "3105"
+    image: ${DEPLOYER_SVC_RUNTIME_IMAGE:-deployer-svc-runtime:local}
+    command: ["echo", "runtime image built: ${DEPLOYER_SVC_RUNTIME_IMAGE:-deployer-svc-runtime:local}"]
 
   # ── 2. Setup: founds the cluster, schedules the API, hands over, exits ────
   setup-prod:
@@ -38,10 +134,23 @@ services:
       file: ./common/setup/docker-compose.config.prod.yml
       service: setup
     container_name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}-setup-prod
+    # Every profile: setup is the entry point, so a run that selected only an
+    # image producer would still have nothing to schedule that image onto.
+    profiles: ["all", "api", "web", "doc"]
     depends_on:
-      # Only the IMAGE is a prerequisite. Setup itself founds the swarm, so it
+      # Only the IMAGES are a prerequisite. Setup itself founds the swarm, so it
       # cannot wait for anything cluster-related — that is the work.
-      build-api:
+      build-svc-bff:
+        condition: service_completed_successfully
+      build-svc-health:
+        condition: service_completed_successfully
+      build-svc-identity:
+        condition: service_completed_successfully
+      build-svc-project:
+        condition: service_completed_successfully
+      build-svc-fleet:
+        condition: service_completed_successfully
+      build-svc-runtime:
         condition: service_completed_successfully
     volumes:
       # The swarms it creates live on the host engine, so it drives the socket.
@@ -92,6 +201,7 @@ services:
       file: ./common/web/docker-compose.config.prod.yml
       service: web
     image: ${DEPLOYER_WEB_IMAGE:-deployer-web:local}
+    profiles: ["all", "web"]
     command: ["echo", "web image built: ${DEPLOYER_WEB_IMAGE:-deployer-web:local}"]
     restart: "no"
     networks:
@@ -102,6 +212,7 @@ services:
       file: ./common/doc/docker-compose.config.prod.yml
       service: doc
     image: ${DEPLOYER_DOC_IMAGE:-deployer-doc:local}
+    profiles: ["all", "doc"]
     command: ["echo", "doc image built: ${DEPLOYER_DOC_IMAGE:-deployer-doc:local}"]
     restart: "no"
     networks:
@@ -143,3 +254,14 @@ volumes:
   # schedules mount it by this exact name.
   deployer-mesh-run:
     name: deployer-mesh-run
+
+# Turbo remote-cache credentials, read from the project environment (`.env`).
+# Consumed by `RUN --mount=type=secret` in the Dockerfiles, so they never land
+# in an image layer or in `docker history`. Unset/empty = local cache only.
+secrets:
+  turbo_token:
+    environment: TURBO_TOKEN
+  turbo_team:
+    environment: TURBO_TEAM
+  turbo_api:
+    environment: TURBO_API
