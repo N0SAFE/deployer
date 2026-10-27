@@ -1,5 +1,6 @@
+import { FleetInvalid } from "../../../core/fleet.errors";
 import { Injectable } from "@nestjs/common";
-import { BadRequestError } from "@deployer/errors";
+
 import type { DependencyTemplateConfig } from "@deployer/contracts-entities";
 
 export type ServiceDagEdge = {
@@ -53,7 +54,7 @@ export class ServiceDagService {
             }
             const node = nodeMap.get(id);
             if (node === undefined) {
-                throw new BadRequestError(`[ServiceDagService] invariant violation: node '${id}' missing after ensureNode`);
+                throw new FleetInvalid({ reason: `[ServiceDagService] invariant violation: node '${id}' missing after ensureNode` });
             }
             return node;
         };
@@ -163,7 +164,7 @@ export class ServiceDagService {
                 inDegree.delete(id);
                 const node = nodes.get(id);
                 if (node === undefined) {
-                    throw new BadRequestError(`[ServiceDagService] invariant violation: node '${id}' in inDegree but missing from nodes map`);
+                    throw new FleetInvalid({ reason: `[ServiceDagService] invariant violation: node '${id}' in inDegree but missing from nodes map` });
                 }
                 for (const dep of node.dependents) {
                     const cur = inDegree.get(dep);

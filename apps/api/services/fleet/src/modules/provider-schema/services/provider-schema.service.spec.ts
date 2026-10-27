@@ -1,4 +1,4 @@
-import { NotFoundException } from "@nestjs/common";
+import { FleetNotFound } from "@/core/fleet.errors";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ProviderSchemaService } from "./provider-schema.service";
 
@@ -22,7 +22,7 @@ describe("ProviderSchemaService", () => {
     });
 
     it("throws when provider schema is missing", () => {
-        expect(() => service.getProviderSchema("missing-provider")).toThrow(NotFoundException);
+        expect(() => service.getProviderSchema("missing-provider")).toThrow(FleetNotFound);
     });
 
     it("returns compatible builders for provider", () => {
@@ -60,6 +60,6 @@ describe("ProviderSchemaService", () => {
     });
 
     it("throws when validating unknown builder", () => {
-        expect(() => service.validateBuilderConfig("unknown-builder", {})).toThrow(NotFoundException);
+        expect(() => service.validateBuilderConfig("unknown-builder", {})).toThrow(FleetNotFound);
     });
 });

@@ -28,4 +28,14 @@ describe("Fleet routes e2e: an authenticated admin", () => {
 		const providers = (response.body as { providers: { id: string }[] }).providers;
 		expect(providers.map((provider) => provider.id)).toContain("github");
 	});
+
+	// A domain error thrown from a Promise-based service reaches the client as its declared code,
+	// through the shared host's `domainErrorInterceptor`, with the sentence the error carries.
+	it("answers an unknown provider schema as a defined NOT_FOUND carrying the service's message", async () => {
+		const response = await context.http.get("/providers/no-such-provider/schema").set("cookie", admin.cookie).expect(404);
+
+		const body = response.body as { code: string; message: string };
+		expect(body.code).toBe("NOT_FOUND");
+		expect(body.message).toContain("no-such-provider");
+	});
 });

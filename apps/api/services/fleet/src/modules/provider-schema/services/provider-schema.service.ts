@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { FleetNotFound } from "../../../core/fleet.errors";
+import { Injectable } from "@nestjs/common";
 import {
     buildersCatalog,
     builderConfigValidators,
@@ -24,7 +25,7 @@ export class ProviderSchemaService {
     getProviderSchema(id: string) {
         const schema = this.providerSchemas[id];
         if (!schema) {
-            throw new NotFoundException(`Provider schema '${id}' not found`);
+            throw new FleetNotFound({ reason: `Provider schema '${id}' not found` });
         }
         return schema;
     }
@@ -32,7 +33,7 @@ export class ProviderSchemaService {
     getCompatibleBuilders(providerId: string) {
         const provider = this.providers.find((item) => item.id === providerId);
         if (!provider) {
-            throw new NotFoundException(`Provider '${providerId}' not found`);
+            throw new FleetNotFound({ reason: `Provider '${providerId}' not found` });
         }
 
         return this.builders.filter((builder) => provider.supportedBuilders.includes(builder.id));
@@ -45,7 +46,7 @@ export class ProviderSchemaService {
     getBuilderSchema(id: string) {
         const schema = this.builderSchemas[id];
         if (!schema) {
-            throw new NotFoundException(`Builder schema '${id}' not found`);
+            throw new FleetNotFound({ reason: `Builder schema '${id}' not found` });
         }
         return schema;
     }
@@ -53,7 +54,7 @@ export class ProviderSchemaService {
     getCompatibleProviders(builderId: string) {
         const builder = this.builders.find((item) => item.id === builderId);
         if (!builder) {
-            throw new NotFoundException(`Builder '${builderId}' not found`);
+            throw new FleetNotFound({ reason: `Builder '${builderId}' not found` });
         }
 
         return this.providers.filter((provider) => builder.compatibleProviders.includes(provider.id));
@@ -62,7 +63,7 @@ export class ProviderSchemaService {
     validateProviderConfig(providerId: string, config: Record<string, unknown>) {
         const validator = this.providerConfigValidators[providerId];
         if (!validator) {
-            throw new NotFoundException(`Provider '${providerId}' not found`);
+            throw new FleetNotFound({ reason: `Provider '${providerId}' not found` });
         }
 
         const parsed = validator.safeParse(config);
@@ -82,7 +83,7 @@ export class ProviderSchemaService {
     validateBuilderConfig(builderId: string, config: Record<string, unknown>) {
         const validator = this.builderConfigValidators[builderId];
         if (!validator) {
-            throw new NotFoundException(`Builder '${builderId}' not found`);
+            throw new FleetNotFound({ reason: `Builder '${builderId}' not found` });
         }
 
         const parsed = validator.safeParse(config);

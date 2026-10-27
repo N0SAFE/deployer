@@ -1,3 +1,4 @@
+import { FleetInvalid } from "../../../core/fleet.errors";
 /**
  * PlatformManagedWebService — the SINGLE shared implementation behind the
  * managed web app console. Both visuals of the one console URL
@@ -15,7 +16,7 @@
  */
 
 import { Injectable, Logger } from "@nestjs/common";
-import { BadRequestError, ServiceUnavailableError } from "@deployer/errors";
+import { ServiceUnavailableError } from "@deployer/errors";
 
 import { EnvService } from "@deployer/shared/config/env/env.module";
 import { HostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
@@ -114,7 +115,7 @@ export class PlatformManagedWebService {
 			await this.tunnelService
 				.deleteTunnel(provider.providerId, created.tunnel.id)
 				.catch(() => undefined);
-			throw new BadRequestError(`could not resolve "${hostname}" to a zone on the Cloudflare account — the tunnel was rolled back`);
+			throw new FleetInvalid({ reason: `could not resolve "${hostname}" to a zone on the Cloudflare account — the tunnel was rolled back` });
 		}
 
 		// Ingress → the platform TRAEFIK (web:80): cloudflared delivers to
@@ -182,7 +183,7 @@ export class PlatformManagedWebService {
 		const apps = await this.cloudflareApps.listTunnelCapableApps();
 		const first = apps[0];
 		if (first === undefined) {
-			throw new BadRequestError("no Cloudflare app is configured for tunnels — add one in Providers → DNS → Cloudflare first");
+			throw new FleetInvalid({ reason: "no Cloudflare app is configured for tunnels — add one in Providers → DNS → Cloudflare first" });
 		}
 		return { providerId: first.id };
 	}

@@ -1,10 +1,11 @@
+import { FleetInvalid } from "../../../../core/fleet.errors";
 /**
  * DNS Provider Registry
  *
  * The public API for DNS provider operations: callers invoke ONE shared
  * method and the registry resolves the right provider adapter by type.
  */
-import { BadRequestException, Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import type {
     CreateDnsRecordInput,
     DnsProvider,
@@ -46,7 +47,7 @@ export class DnsProviderRegistryService {
     getProvider(providerType: string): DnsProvider {
         const provider = this.providersByType.get(providerType.toLowerCase());
         if (!provider) {
-            throw new BadRequestException(`Unsupported DNS provider '${providerType}'`);
+            throw new FleetInvalid({ reason: `Unsupported DNS provider '${providerType}'` });
         }
         return provider;
     }

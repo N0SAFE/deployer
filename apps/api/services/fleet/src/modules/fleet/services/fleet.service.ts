@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
+import { FleetInvalid, FleetNotFound } from "../../../core/fleet.errors";
+import { Injectable } from "@nestjs/common";
 import {
   clusterNodes,
   clusterServerAllocations,
@@ -77,7 +78,7 @@ export class FleetService {
             input.maxMemoryMb,
         );
         if (!row) {
-            throw new NotFoundException(`Cluster node ${input.serverNodeId} not found`);
+            throw new FleetNotFound({ reason: `Cluster node ${input.serverNodeId} not found` });
         }
         const allocations = await this.fleetRepository.listEnabledAllocations();
         const allocationSummary = allocations.reduce(
@@ -161,7 +162,7 @@ export class FleetService {
             requesterNote: input.requesterNote ?? null,
         });
         if (!row) {
-            throw new BadRequestException("Failed to create admission request");
+            throw new FleetInvalid({ reason: "Failed to create admission request" });
         }
         return this.toAdmissionRequest(row);
     }
@@ -200,7 +201,7 @@ export class FleetService {
 
         const [row] = rows;
         if (!row) {
-            throw new BadRequestException("Failed to upsert allocation");
+            throw new FleetInvalid({ reason: "Failed to upsert allocation" });
         }
         return this.toAllocation(row, null);
     }
@@ -224,7 +225,7 @@ export class FleetService {
             input.decisionServerNodeId ?? null,
         );
         if (!row) {
-            throw new NotFoundException(`Admission request ${input.requestId} not found`);
+            throw new FleetNotFound({ reason: `Admission request ${input.requestId} not found` });
         }
         return this.toAdmissionRequest(row);
     }

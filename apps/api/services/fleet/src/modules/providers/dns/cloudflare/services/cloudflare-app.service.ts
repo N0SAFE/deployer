@@ -1,3 +1,4 @@
+import { FleetConflict, FleetInvalid, FleetNotFound } from "../../../../../core/fleet.errors";
 /**
  * Cloudflare App Service — the "app" model for a Cloudflare DNS provider.
  *
@@ -13,7 +14,7 @@
  * Tunnel + zone/record operations live in CloudflareTunnelService and
  * CloudflareDnsProviderService respectively.
  */
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { Cloudflare } from "cloudflare";
 import z from "zod/v4";
 import { DnsProvidersRepository } from "../../shared/repositories/dns-providers.repository";
@@ -95,9 +96,7 @@ export class CloudflareAppService {
         // route53/google-dns/etc. rows in legacy forms — those must NEVER be
         // persisted with Cloudflare credentials (credential-smuggling CF-2).
         if (input.providerType !== "cloudflare") {
-            throw new BadRequestException(
-                `DNS provider '${input.providerType}' is not supported yet — only 'cloudflare' is available`,
-            );
+            throw new FleetInvalid({ reason: `DNS provider '${input.providerType}' is not supported yet — only 'cloudflare' is available` });
         }
 
         // Verify the token at runtime BEFORE persisting anything.
@@ -105,14 +104,11 @@ export class CloudflareAppService {
         try {
             const verify = await client.user.tokens.verify();
             if (verify.status !== "active") {
-                throw new BadRequestException(`Token status is "${verify.status}" — expected "active"`);
+                throw new FleetInvalid({ reason: `Token status is "${verify.status}" — expected "active"` });
             }
         } catch (err) {
-            if (err instanceof BadRequestException) throw err;
-            throw new BadRequestException(
-                `Invalid Cloudflare API token: ${err instanceof Error ? err.message : "verification failed"}`,
-                { cause: err },
-            );
+            if (err instanceof FleetInvalid) throw err;
+            throw new FleetInvalid({ reason: `Invalid Cloudflare API token: ${err instanceof Error ? err.message : "verification failed"}` });
         }
 
         const credentials = JSON.stringify({
@@ -143,7 +139,7 @@ export class CloudflareAppService {
         input: { name?: string; isActive?: boolean; features?: Partial<DnsProviderFeatures> },
     ): Promise<DnsProviderAppView> {
         const existing = await this.getRow(providerId);
-        if (!existing) throw new NotFoundException(`DNS provider not found: ${providerId}`);
+        if (!existing) throw new FleetNotFound({ reason: `DNS provider not found: ${providerId}` });
 
         const features = input.features
             ? featuresSchema.parse({ ...existing.features, ...input.features })
@@ -154,7 +150,7 @@ export class CloudflareAppService {
             ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
             ...(features ? { features } : {}),
         });
-        if (!row) throw new NotFoundException(`DNS provider not found: ${providerId}`);
+        if (!row) throw new FleetNotFound({ reason: `DNS provider not found: ${providerId}` });
         this.stateCache.delete(providerId);
         return { ...this.toView(row), state: await this.getLiveState(providerId, true) };
     }
@@ -165,9 +161,7 @@ export class CloudflareAppService {
         // gone and fail with no obvious cause. Generic: the registry knows which
         // lane options are DNS accounts, whatever the edge provider.
         if (this.edges.accountsInUse(await this.ingressLanes.getLanes()).includes(providerId)) {
-            throw new ConflictException(
-                "Cannot delete: the stack's public edge runs on this account. Switch or tear down the public edge in Network → Ingress first.",
-            );
+            throw new FleetConflict({ reason: "Cannot delete: the stack's public edge runs on this account. Switch or tear down the public edge in Network → Ingress first." });
         }
         await this.dnsProvidersRepository.deleteById(providerId);
         this.stateCache.delete(providerId);
@@ -188,10 +182,10 @@ export class CloudflareAppService {
 
     async getCredentials(providerId: string): Promise<CloudflareCredentials> {
         const row = await this.getRow(providerId);
-        if (!row) throw new NotFoundException(`DNS provider not found: ${providerId}`);
-        if (!row.isActive) throw new BadRequestException(`DNS provider is inactive: ${providerId}`);
+        if (!row) throw new FleetNotFound({ reason: `DNS provider not found: ${providerId}` });
+        if (!row.isActive) throw new FleetInvalid({ reason: `DNS provider is inactive: ${providerId}` });
         const creds = this.parseCredentials(row.credentials);
-        if (!creds) throw new BadRequestException(`DNS provider has no valid API token: ${providerId}`);
+        if (!creds) throw new FleetInvalid({ reason: `DNS provider has no valid API token: ${providerId}` });
         return creds;
     }
 
@@ -212,9 +206,7 @@ export class CloudflareAppService {
         const client = await this.buildClient(providerId);
         const accountId = await this.resolveAccountId(client);
         if (!accountId) {
-            throw new BadRequestException(
-                `Could not resolve a Cloudflare account for this token. Grant "Account:Read" or "Zone:Read" permission to the API token.`,
-            );
+            throw new FleetInvalid({ reason: `Could not resolve a Cloudflare account for this token. Grant "Account:Read" or "Zone:Read" permission to the API token.` });
         }
         await this.updateConfig(providerId, { accountId });
         return accountId;

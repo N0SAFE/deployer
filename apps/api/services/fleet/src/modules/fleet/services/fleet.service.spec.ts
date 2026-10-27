@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { NotFoundException, BadRequestException } from "@nestjs/common";
+import { FleetInvalid, FleetNotFound } from "@/core/fleet.errors";
 import { FleetService } from "./fleet.service";
 import type { FleetRepository } from "../repositories/fleet.repository";
 
@@ -191,7 +191,7 @@ describe("FleetService", () => {
 
             await expect(
                 service.setServerCapacity({ serverNodeId: "ghost", maxCpuMillicores: 1, maxMemoryMb: 1 }),
-            ).rejects.toBeInstanceOf(NotFoundException);
+            ).rejects.toBeInstanceOf(FleetNotFound);
         });
     });
 
@@ -298,7 +298,7 @@ describe("FleetService", () => {
                     requestedMemoryMb: 1,
                     requestedServices: 1,
                 }),
-            ).rejects.toBeInstanceOf(BadRequestException);
+            ).rejects.toBeInstanceOf(FleetInvalid);
         });
 
         it("throws NotFound when resolving an unknown request", async () => {
@@ -306,7 +306,7 @@ describe("FleetService", () => {
 
             await expect(
                 service.resolveAdmissionRequest({ requestId: "missing", decision: "approved" }),
-            ).rejects.toBeInstanceOf(NotFoundException);
+            ).rejects.toBeInstanceOf(FleetNotFound);
         });
     });
 
@@ -375,7 +375,7 @@ describe("FleetService", () => {
                     cpuMillicores: 1,
                     memoryMb: 1,
                 }),
-            ).rejects.toBeInstanceOf(BadRequestException);
+            ).rejects.toBeInstanceOf(FleetInvalid);
         });
     });
 

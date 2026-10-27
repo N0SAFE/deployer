@@ -1,3 +1,4 @@
+import { FleetInvalid } from "../../../../core/fleet.errors";
 /**
  * Cloudflare Tunnel — the public lane carried by connectors that dial OUT.
  *
@@ -15,7 +16,7 @@
  * connector) and never reaches a client.
  */
 
-import { BadRequestException, Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import type {
 	EdgeProviderDescriptor,
 	EdgeStatus,
@@ -76,7 +77,7 @@ type TunnelState = z.output<typeof stateSchema>;
 
 function accountOf(lane: PublicLane): string {
 	const value = lane.options[ACCOUNT_OPTION];
-	if (typeof value !== "string" || value === "") throw new BadRequestException("Cloudflare Tunnel needs a Cloudflare account");
+	if (typeof value !== "string" || value === "") throw new FleetInvalid({ reason: "Cloudflare Tunnel needs a Cloudflare account" });
 	return value;
 }
 

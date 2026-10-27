@@ -1,3 +1,4 @@
+import { FleetInvalid, FleetNotFound } from "../../../../../core/fleet.errors";
 /**
  * Cloudflare Tunnel Service — tunnel management on a Cloudflare provider app.
  *
@@ -5,7 +6,7 @@
  * `tunnelManagement` feature enabled (checked at runtime). The Cloudflare
  * account id is resolved at runtime (never from env vars).
  */
-import { BadGatewayException, BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { BadGatewayException, Injectable, Logger } from "@nestjs/common";
 import { Cloudflare } from "cloudflare";
 import type { Client } from "cloudflare/resources/zero-trust/tunnels/cloudflared/connections";
 import type { ConfigurationUpdateParams } from "cloudflare/resources/zero-trust/tunnels/cloudflared/configurations";
@@ -51,12 +52,10 @@ export class CloudflareTunnelService {
     /** App view with the tunnelManagement feature gate applied. */
     private async requireTunnelApp(providerId: string): Promise<DnsProviderAppView> {
         const app = await this.appService.getAppView(providerId);
-        if (!app) throw new NotFoundException(`DNS provider not found: ${providerId}`);
-        if (!app.isActive) throw new BadRequestException(`DNS provider is inactive: ${providerId}`);
+        if (!app) throw new FleetNotFound({ reason: `DNS provider not found: ${providerId}` });
+        if (!app.isActive) throw new FleetInvalid({ reason: `DNS provider is inactive: ${providerId}` });
         if (!app.features.tunnelManagement) {
-            throw new BadRequestException(
-                `Tunnel management is not enabled on "${app.name}". Enable it in the Cloudflare app configuration first.`,
-            );
+            throw new FleetInvalid({ reason: `Tunnel management is not enabled on "${app.name}". Enable it in the Cloudflare app configuration first.` });
         }
         return app;
     }

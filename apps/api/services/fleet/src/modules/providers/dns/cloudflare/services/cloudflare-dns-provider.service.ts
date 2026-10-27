@@ -1,3 +1,4 @@
+import { FleetInvalid } from "../../../../../core/fleet.errors";
 /**
  * Cloudflare DNS Provider — implements the shared `DnsProvider` contract.
  *
@@ -10,7 +11,7 @@
  * (server-side DNS record creation for preview domains). No domain value ever
  * comes from env vars.
  */
-import { BadRequestException, Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { CloudflareAppService } from "./cloudflare-app.service";
 import {
     buildRecordCreateParams,
@@ -154,7 +155,7 @@ export class CloudflareDnsProviderService implements DnsProvider {
         const isSupported = (type: string): type is SupportedRecordType =>
             ["A", "AAAA", "CNAME", "TXT"].includes(type);
         if (!isSupported(input.type)) {
-            throw new BadRequestException(`Unsupported DNS record type for Cloudflare: ${input.type}`);
+            throw new FleetInvalid({ reason: `Unsupported DNS record type for Cloudflare: ${input.type}` });
         }
         const params = buildRecordCreateParams({
             zoneId: input.zoneId,
@@ -165,7 +166,7 @@ export class CloudflareDnsProviderService implements DnsProvider {
             proxied: input.proxied,
         });
         if (!params) {
-            throw new BadRequestException(`Unsupported DNS record type: ${input.type}`);
+            throw new FleetInvalid({ reason: `Unsupported DNS record type: ${input.type}` });
         }
         const client = await this.appService.buildClient(account.providerId);
         const record = await client.dns.records.create(params);

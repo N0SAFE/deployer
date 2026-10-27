@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { FleetInvalid } from "../../../../../core/fleet.errors";
+import { Injectable } from "@nestjs/common";
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import z from "zod/v4";
 import type {
@@ -90,7 +91,7 @@ export class UploadSourceProviderService extends CodeProvider {
 
         const parsed = uploadSourceContextSchema.safeParse(input.source);
         if (!parsed.success) {
-            throw new BadRequestException("Upload source requires valid source with customData.uploadId");
+            throw new FleetInvalid({ reason: "Upload source requires valid source with customData.uploadId" });
         }
 
         // `uploadId`/`uploadPath` are declared BOTH at the root of the source and
@@ -107,9 +108,7 @@ export class UploadSourceProviderService extends CodeProvider {
             : this.uploadBundleRegistryService.findByUploadId(uploadId);
 
         if (!declaredUploadPath && !registryRecord) {
-            throw new BadRequestException(
-                `Upload bundle with id '${uploadId}' was not found. Upload the archive first via /deployments/upload-bundle.`,
-            );
+            throw new FleetInvalid({ reason: `Upload bundle with id '${uploadId}' was not found. Upload the archive first via /deployments/upload-bundle.` });
         }
 
         const resolvedUploadPath = declaredUploadPath ?? registryRecord?.uploadPath;
@@ -117,9 +116,7 @@ export class UploadSourceProviderService extends CodeProvider {
         const resolvedFileSize = typeof fileSize === "number" ? fileSize : registryRecord?.fileSize;
 
         if (!resolvedUploadPath) {
-            throw new BadRequestException(
-                `Upload source with id '${uploadId}' is missing a resolved upload path`,
-            );
+            throw new FleetInvalid({ reason: `Upload source with id '${uploadId}' is missing a resolved upload path` });
         }
 
         const runtimeRunnerOptions = buildRuntimeRunnerOptionsFallback({

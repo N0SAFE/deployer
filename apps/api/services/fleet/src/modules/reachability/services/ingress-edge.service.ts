@@ -1,3 +1,4 @@
+import { FleetInvalid } from "../../../core/fleet.errors";
 /**
  * IngressEdgeService — what the Network pages read and change: the lanes, the
  * public edge, the DNS records they need, and the mesh they ride on.
@@ -23,7 +24,7 @@
  * switch, the teardown is cleanup.
  */
 
-import { BadRequestException, Injectable, Logger, type OnApplicationBootstrap, type OnModuleDestroy } from "@nestjs/common";
+import { Injectable, Logger, type OnApplicationBootstrap, type OnModuleDestroy } from "@nestjs/common";
 import type { IngressState, UpdateIngressInput } from "@deployer/fleet-contracts/modules/reachability/contracts";
 import {
 	ingressExposure,
@@ -120,7 +121,7 @@ export class IngressEdgeService implements OnApplicationBootstrap, OnModuleDestr
 			consoleVisibility: input.consoleVisibility ?? current.consoleVisibility,
 		};
 		const parsed = ingressLanesSchema.safeParse(next);
-		if (!parsed.success) throw new BadRequestException(`Invalid lanes: ${parsed.error.message}`);
+		if (!parsed.success) throw new FleetInvalid({ reason: `Invalid lanes: ${parsed.error.message}` });
 		const lanes = parsed.data;
 
 		const retired = await this.retiredNames(current);
@@ -128,7 +129,7 @@ export class IngressEdgeService implements OnApplicationBootstrap, OnModuleDestr
 		// 1. The new edge must exist before the lanes claim it.
 		if (lanes.public !== null) {
 			const resolved = await this.publicEdge.resolve(lanes);
-			if (resolved === null) throw new BadRequestException(`Unknown edge provider '${lanes.public.provider}'`);
+			if (resolved === null) throw new FleetInvalid({ reason: `Unknown edge provider '${lanes.public.provider}'` });
 			await resolved.provider.provision(resolved.ctx);
 		}
 		// 2. The switch.
@@ -160,10 +161,10 @@ export class IngressEdgeService implements OnApplicationBootstrap, OnModuleDestr
 	async revokeMeshMember(memberId: string, reason: string): Promise<IngressState> {
 		const status = await this.mesh.status();
 		if (status.memberId === memberId) {
-			throw new BadRequestException("A node cannot revoke itself. Revoke it from another member's console.");
+			throw new FleetInvalid({ reason: "A node cannot revoke itself. Revoke it from another member's console." });
 		}
 		if (!status.members.some((member) => member.memberId === memberId)) {
-			throw new BadRequestException(`No mesh member ${memberId}`);
+			throw new FleetInvalid({ reason: `No mesh member ${memberId}` });
 		}
 		await this.mesh.revoke(memberId, reason);
 		this.logger.log(`Revoked mesh member ${memberId}: ${reason}`);
