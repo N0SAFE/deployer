@@ -11,7 +11,7 @@ vi.mock("@orpc/server", () => {
 vi.mock("@deployer/nest-effect", () => ({
 	EffectContextOf: Symbol("effect/context"),
 }));
-vi.mock("@/core/modules/auth/orpc/middlewares", () => ({
+vi.mock("@deployer/shared/core/modules/auth/orpc/middlewares", () => ({
 	requireAuth: () => ({}),
 }));
 vi.mock("../domain.module", () => ({ DomainModule: {} }));
