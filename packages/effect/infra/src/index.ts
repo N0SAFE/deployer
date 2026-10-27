@@ -10,3 +10,4 @@ export * from "./fs/file-system";
 export * from "./crypto/legacy-ciphertext";
 export * from "./crypto/sealed-text";
 export * from "./crypto/sync-secret-box";
+export * from "./db/pg-db";
