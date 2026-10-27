@@ -24,6 +24,7 @@
         "@deployer/contracts-common": "*",
         "@deployer/contracts-entities": "*",
         "@deployer/effect-core": "*",
+        "@deployer/effect-infra": "*",
         "@deployer/effect-orpc": "*",
         "@deployer/errors": "*",
         "@deployer/fleet-contracts": "*",

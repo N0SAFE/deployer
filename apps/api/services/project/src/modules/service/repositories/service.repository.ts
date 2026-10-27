@@ -3,7 +3,7 @@ import { ProjectConflict } from "@/modules/project/domain/project.errors";
 import { services, serviceDependencies, projects } from "@deployer/nest-schema/global/project/deployment";
 import { localEventOutbox } from "@deployer/nest-schema/global/runtime/runtime";
 import { and, eq, ilike, asc, isNull, inArray } from "drizzle-orm";
-import type { GlobalTransaction } from "@deployer/shared/core/modules/database/global/global-database.service";
+import type { GlobalDatabase } from "@deployer/shared/core/modules/database/global/global-database.service";
 import { listBuilder } from "@deployer/shared/core/utils/drizzle-filter.utils";
 import { TraefikConfigBuilder } from "@deployer/shared/core/modules/traefik/config-builder/builders/index";
 import type { ServiceListInput } from "@deployer/project-contracts/modules/service/list";
@@ -15,6 +15,7 @@ import * as crypto from "node:crypto";
 import { isRecord } from "@deployer/type-guards"
 import { readTraefikConfig } from "@deployer/nest-schema/codecs/codec-registry";
 import { Context, Effect } from "effect";
+import { ProjectDb } from "@project/core/database/project-db";
 import { DatabasePort } from "@project/core/database/database.port";
 import { attempt } from "@/modules/project/project-effects";
 
@@ -24,7 +25,8 @@ const DEFAULT_NODE_ID = "00000000-0000-4000-8000-000000000000";
 
 type ServiceRow = typeof services.$inferSelect;
 
-type DbTransaction = GlobalTransaction;
+/** The query builder bound to the transaction's connection (see `ProjectDb`). */
+type DbTransaction = GlobalDatabase;
 
 function toDto(row: ServiceRow) {
     // The schema package's column is typed `unknown` (it cannot name this app's
@@ -439,9 +441,9 @@ export class ServiceStoreImpl {
      */
     create(input: ServiceCreateInput & { parentId?: string | null; children?: ServiceCreateInput[] }) {
         return Effect.gen(function* () {
-            const { db } = yield* DatabasePort;
-            const rows = yield* attempt(async () => {
-                return db.transaction(async (tx) => {
+            const database = yield* ProjectDb;
+            const rows = yield* database.transaction(database.use(async (db) => {
+                return (async (tx: typeof db) => {
                     // 1) Resolve the parent row (if any) to compute path/depth.
                     let parentRow: ServiceRow | undefined;
                     if (input.parentId) {
@@ -508,8 +510,8 @@ export class ServiceStoreImpl {
                     }
 
                     return allRows;
-                });
-            });
+                })(db);
+            }));
 
             const firstRow = rows[0];
             if (!firstRow) {
@@ -588,10 +590,10 @@ export class ServiceStoreImpl {
 
     update(id: string, input: Omit<ServiceUpdateInput, 'id'> & { parentId?: string | null }) {
         return Effect.gen(function* () {
-            const { db } = yield* DatabasePort;
-            return yield* attempt(async () => {
+            const database = yield* ProjectDb;
+            return yield* database.transaction(database.use(async (db) => {
                 const { traefikConfig: rawTraefikConfig, metadata, ...restInput } = input;
-                const rows = await db.transaction(async (tx) => {
+                const rows = await (async (tx: typeof db) => {
                     const [current] = await tx
                         .select()
                         .from(services)
@@ -677,17 +679,17 @@ export class ServiceStoreImpl {
                     });
 
                     return [updated];
-                });
+                })(db);
                 return rows[0] ? toDto(rows[0]) : null;
-            });
+            }));
         });
     }
 
     delete(id: string) {
         return Effect.gen(function* () {
-            const { db } = yield* DatabasePort;
-            yield* attempt(async () => {
-                await db.transaction(async (tx) => {
+            const database = yield* ProjectDb;
+            yield* database.transaction(database.use(async (db) => {
+                await (async (tx: typeof db) => {
                     const [existing] = await tx
                         .select()
                         .from(services)
@@ -719,16 +721,16 @@ export class ServiceStoreImpl {
                         createdAt: new Date(),
                         updatedAt: new Date(),
                     });
-                });
-            });
+                })(db);
+            }));
         });
     }
 
     toggleActive(id: string, isActive: boolean) {
         return Effect.gen(function* () {
-            const { db } = yield* DatabasePort;
-            const row = yield* attempt(async () => {
-                const [updated] = await db.transaction(async (tx) => {
+            const database = yield* ProjectDb;
+            const row = yield* database.transaction(database.use(async (db) => {
+                const [updated] = await (async (tx: typeof db) => {
                     const [updated] = await tx
                         .update(services)
                         .set({ isActive, updatedAt: new Date() })
@@ -761,9 +763,9 @@ export class ServiceStoreImpl {
                     });
 
                     return [updated];
-                });
+                })(db);
                 return updated;
-            });
+            }));
             return row ? toDto(row) : null;
         });
     }

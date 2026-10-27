@@ -11,6 +11,7 @@ import { Context, Effect } from "effect";
 import { layerOfClass, type Discharged } from "@deployer/effect-core";
 import type { ProjectListInput } from "@deployer/project-contracts/modules/project/list";
 import { DatabasePort } from "@project/core/database/database.port";
+import { ProjectDb } from "@project/core/database/project-db";
 import { attempt } from "../project-effects";
 
 import {
@@ -55,6 +56,26 @@ function buildDomainEventEnvelope(input: {
 		metadata: {
 			source: "project.repository",
 		},
+	};
+}
+
+/** The `project.<event>` outbox row, written in the same transaction as the change it announces. */
+function outboxRow(eventType: string, aggregate: { id: string }, payload: Record<string, unknown>) {
+	return {
+		id: randomUUID(),
+		nodeId: resolveNodeId(),
+		topic: eventType,
+		payload: buildDomainEventEnvelope({
+			aggregateType: "project",
+			aggregateId: aggregate.id,
+			eventType,
+			payload,
+		}),
+		state: "pending" as const,
+		retryCount: 0,
+		nextRetryAt: new Date(),
+		createdAt: new Date(),
+		updatedAt: new Date(),
 	};
 }
 
@@ -122,53 +143,40 @@ export class ProjectStoreImpl {
 
 	create(data: ProjectCreateInput) {
 		return Effect.gen(function* () {
-			const { db } = yield* DatabasePort;
-			const row = yield* attempt(async () => {
-				const [created] = await db.transaction(async (tx) => {
-					const [created] = await tx
-						.insert(projects)
-						.values({
-							id: randomUUID(),
-							name: data.name,
-							description: data.description ?? null,
-							baseDomain: data.baseDomain ?? null,
-							network: data.network ?? null,
-							ownerId: data.ownerId,
-							settings: data.settings ?? null,
-							createdAt: new Date(),
-							updatedAt: new Date(),
-						})
-						.returning();
+			const database = yield* ProjectDb;
+			// The project and its `project.created` outbox row commit together or not at all.
+			const row = yield* database.transaction(
+				Effect.gen(function* () {
+					const [created] = yield* database.use((tx) =>
+						tx
+							.insert(projects)
+							.values({
+								id: randomUUID(),
+								name: data.name,
+								description: data.description ?? null,
+								baseDomain: data.baseDomain ?? null,
+								network: data.network ?? null,
+								ownerId: data.ownerId,
+								settings: data.settings ?? null,
+								createdAt: new Date(),
+								updatedAt: new Date(),
+							})
+							.returning(),
+					);
+					if (!created) return undefined;
 
-					if (!created) {
-						return [];
-					}
-
-					await tx.insert(localEventOutbox).values({
-						id: randomUUID(),
-						nodeId: resolveNodeId(),
-						topic: "project.created",
-						payload: buildDomainEventEnvelope({
-							aggregateType: "project",
-							aggregateId: created.id,
-							eventType: "project.created",
-							payload: {
+					yield* database.use((tx) =>
+						tx.insert(localEventOutbox).values(
+							outboxRow("project.created", created, {
 								projectId: created.id,
 								ownerId: created.ownerId,
 								name: created.name,
-							},
-						}),
-						state: "pending",
-						retryCount: 0,
-						nextRetryAt: new Date(),
-						createdAt: new Date(),
-						updatedAt: new Date(),
-					});
-
-					return [created];
-				});
-				return created;
-			});
+							}),
+						),
+					);
+					return created;
+				}),
+			);
 			if (!row) return yield* Effect.fail(new ProjectConflict({ reason: "Failed to create project" }));
 			return transformProject(row);
 		});
@@ -176,92 +184,59 @@ export class ProjectStoreImpl {
 
 	update(id: string, data: ProjectUpdateInput) {
 		return Effect.gen(function* () {
-			const { db } = yield* DatabasePort;
-			const row = yield* attempt(async () => {
-				const updates: Partial<typeof projects.$inferInsert> = { updatedAt: new Date() };
-				if (data.name !== undefined) updates.name = data.name;
-				if (data.description !== undefined) updates.description = data.description;
-				if (data.baseDomain !== undefined) updates.baseDomain = data.baseDomain;
-				if (data.network !== undefined) updates.network = data.network;
-				if (data.settings !== undefined) updates.settings = data.settings;
+			const database = yield* ProjectDb;
+			const updates: Partial<typeof projects.$inferInsert> = { updatedAt: new Date() };
+			if (data.name !== undefined) updates.name = data.name;
+			if (data.description !== undefined) updates.description = data.description;
+			if (data.baseDomain !== undefined) updates.baseDomain = data.baseDomain;
+			if (data.network !== undefined) updates.network = data.network;
+			if (data.settings !== undefined) updates.settings = data.settings;
 
-				const [updated] = await db.transaction(async (tx) => {
-					const [updated] = await tx
-						.update(projects)
-						.set(updates)
-						.where(eq(projects.id, id))
-						.returning();
+			const row = yield* database.transaction(
+				Effect.gen(function* () {
+					const [updated] = yield* database.use((tx) =>
+						tx.update(projects).set(updates).where(eq(projects.id, id)).returning(),
+					);
+					if (!updated) return undefined;
 
-					if (!updated) {
-						return [];
-					}
-
-					await tx.insert(localEventOutbox).values({
-						id: randomUUID(),
-						nodeId: resolveNodeId(),
-						topic: "project.updated",
-						payload: buildDomainEventEnvelope({
-							aggregateType: "project",
-							aggregateId: updated.id,
-							eventType: "project.updated",
-							payload: {
+					yield* database.use((tx) =>
+						tx.insert(localEventOutbox).values(
+							outboxRow("project.updated", updated, {
 								projectId: updated.id,
 								ownerId: updated.ownerId,
-							},
-						}),
-						state: "pending",
-						retryCount: 0,
-						nextRetryAt: new Date(),
-						createdAt: new Date(),
-						updatedAt: new Date(),
-					});
-
-					return [updated];
-				});
-				return updated;
-			});
+							}),
+						),
+					);
+					return updated;
+				}),
+			);
 			return row ? transformProject(row) : null;
 		});
 	}
 
 	delete(id: string) {
 		return Effect.gen(function* () {
-			const { db } = yield* DatabasePort;
-			yield* attempt(async () => {
-				await db.transaction(async (tx) => {
-					const [existing] = await tx
-						.select()
-						.from(projects)
-						.where(eq(projects.id, id))
-						.limit(1);
+			const database = yield* ProjectDb;
+			yield* database.transaction(
+				Effect.gen(function* () {
+					const [existing] = yield* database.use((tx) =>
+						tx.select().from(projects).where(eq(projects.id, id)).limit(1),
+					);
 
-					await tx.delete(projects).where(eq(projects.id, id));
+					yield* database.use((tx) => tx.delete(projects).where(eq(projects.id, id)));
 
-					if (!existing) {
-						return;
-					}
+					if (!existing) return;
 
-					await tx.insert(localEventOutbox).values({
-						id: randomUUID(),
-						nodeId: resolveNodeId(),
-						topic: "project.deleted",
-						payload: buildDomainEventEnvelope({
-							aggregateType: "project",
-							aggregateId: existing.id,
-							eventType: "project.deleted",
-							payload: {
+					yield* database.use((tx) =>
+						tx.insert(localEventOutbox).values(
+							outboxRow("project.deleted", existing, {
 								projectId: existing.id,
 								ownerId: existing.ownerId,
-							},
-						}),
-						state: "pending",
-						retryCount: 0,
-						nextRetryAt: new Date(),
-						createdAt: new Date(),
-						updatedAt: new Date(),
-					});
-				});
-			});
+							}),
+						),
+					);
+				}),
+			);
 		});
 	}
 
