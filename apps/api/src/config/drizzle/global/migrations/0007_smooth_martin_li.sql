@@ -1,1 +1,0 @@
-ALTER TABLE "cluster_nodes" ADD CONSTRAINT "cluster_nodes_node_id_unique" UNIQUE USING INDEX "cluster_nodes_node_id_uidx";

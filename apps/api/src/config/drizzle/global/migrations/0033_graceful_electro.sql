@@ -1,1 +1,0 @@
-ALTER TABLE "cluster_nodes" ADD COLUMN "swarm_node_id" text;

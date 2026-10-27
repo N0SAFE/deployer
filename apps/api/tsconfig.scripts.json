@@ -1,9 +1,0 @@
-{
-  "extends": "@deployer/config-typescript/scripts",
-  "compilerOptions": {
-    "emitDecoratorMetadata": true,
-    "experimentalDecorators": true,
-    "outDir": "./dist"
-  },
-  "include": ["scripts/**/*.ts"]
-}
