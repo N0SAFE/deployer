@@ -485,4 +485,32 @@ describe("DockerRuntimeRunnerService", () => {
 
         expect(traefikService.syncServiceConfiguration).toHaveBeenCalledTimes(2);
     });
+
+    it("fails loudly instead of running nginx when the build produced no image", async () => {
+        // Regression (DEPLOY-001): `?? "nginx:alpine"` made a builder-less deploy
+        // start a stock nginx and report success.
+        await expect(
+            service.executeRuntime({
+                deployment: {
+                    deploymentId: "deployment-no-image",
+                    serviceId: "service-no-image",
+                    deploymentContainerName: null,
+                    deploymentContainerImage: null,
+                    healthCheckUrl: null,
+                },
+                artifact: {
+                    containerImage: null,
+                    containerName: null,
+                    artifactDigest: null,
+                    artifactSizeBytes: null,
+                    buildLogsUrl: null,
+                },
+                healthGateConfig: { maxRetries: 1, retryIntervalMs: 1 },
+                storageBinding: null,
+            }),
+        ).rejects.toThrow(/No container image was produced/);
+
+        expect(dockerService.createContainer).not.toHaveBeenCalled();
+        expect(traefikService.syncServiceConfiguration).not.toHaveBeenCalled();
+    });
 });

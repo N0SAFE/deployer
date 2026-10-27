@@ -145,6 +145,22 @@ describe("SwarmRuntimeRunnerService", () => {
         expect(result.managedRuntime?.managedBy).toBe("deployment_service");
     });
 
+    it("fails loudly instead of running nginx when the build produced no image", async () => {
+        // Regression (DEPLOY-001): the runner used to fall back to `nginx:alpine`,
+        // so a deploy whose builder produced nothing started a stock nginx and
+        // reported success.
+        await expect(
+            service.executeRuntime({
+                ...baseInput,
+                deployment: { ...baseInput.deployment, deploymentContainerImage: null },
+                artifact: { ...baseInput.artifact, containerImage: null },
+            }),
+        ).rejects.toThrow(/No container image was produced/);
+
+        expect(dockerService.createSwarmService).not.toHaveBeenCalled();
+        expect(dockerService.updateSwarmService).not.toHaveBeenCalled();
+    });
+
     it("updates the service in place when it already exists", async () => {
         dockerService.inspectSwarmService.mockResolvedValue(serviceSummary);
 

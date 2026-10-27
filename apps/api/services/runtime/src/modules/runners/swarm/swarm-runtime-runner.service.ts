@@ -34,6 +34,7 @@ import {
     type RuntimeExecutionInput,
     type RuntimeExecutionResult,
 } from "../runtime-runner.interface";
+import { resolveContainerImage } from "../base/container-image.guard";
 import { toDockerServiceSpec } from "@deployer/nest-docker/services/swarm-spec.mapper";
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -95,8 +96,7 @@ export class SwarmRuntimeRunnerService implements DeploymentRuntimeRunner {
         await this.clusterService.assertClusterReady();
 
         const { deployment, artifact, healthGateConfig, executorOptions, convergenceConfig } = input;
-        const containerImage =
-            artifact.containerImage ?? deployment.deploymentContainerImage ?? "nginx:alpine";
+        const containerImage = resolveContainerImage(artifact, deployment, this.runnerType);
         const serviceName =
             deployment.deploymentContainerName
             ?? `deployer-${deployment.serviceId.slice(0, 12)}-${deployment.deploymentId.slice(0, 8)}`;

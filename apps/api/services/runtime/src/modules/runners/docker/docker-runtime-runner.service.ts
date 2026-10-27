@@ -12,6 +12,7 @@ import type {
     RuntimeExecutionInput,
     RuntimeExecutionResult,
 } from "../runtime-runner.interface";
+import { resolveContainerImage } from "../base/container-image.guard";
 import type { DeploymentStorageBinding } from "@/modules/deployment/storage/base/storage-provider.interface";
 
 @Injectable()
@@ -35,7 +36,7 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
         const resolvedConvergenceConfig = this.resolveRuntimeConvergenceConfig(convergenceConfig);
         const fallbackName = `deployer-${deployment.serviceId.slice(0, 12)}-${deployment.deploymentId.slice(0, 8)}`;
         const containerName = artifact.containerName ?? deployment.deploymentContainerName ?? fallbackName;
-        const containerImage = artifact.containerImage ?? deployment.deploymentContainerImage ?? "nginx:alpine";
+        const containerImage = resolveContainerImage(artifact, deployment, this.runnerType);
         const managedLabels = {
             "deployer.managed": "true",
             "deployer.managed_by": "deployment_service",

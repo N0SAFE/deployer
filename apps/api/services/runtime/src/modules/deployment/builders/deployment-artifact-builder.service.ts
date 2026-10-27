@@ -3,6 +3,7 @@ import { stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { DeploymentSourceCheckoutContext } from "@deployer/contracts-entities";
+import { BadRequestError } from "@deployer/errors";
 import { GitService } from "@deployer/shared/core/modules/git/git/services/git.service";
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
 import { DeploymentProviderBuilderRunnerStateMachineService } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
@@ -63,11 +64,7 @@ export class DeploymentArtifactBuilderService {
         }
 
         const isCustomManagedBuilder = !input.builder && hasCustomCommands;
-        const effectiveBuilder = stateMachine.normalizedBuilder;
-
-        if (!effectiveBuilder) {
-            return input.fallbackContainerImage;
-        }
+        let effectiveBuilder: DeploymentBuilderKind | null = stateMachine.normalizedBuilder;
 
         if (effectiveBuilder === "external") {
             if (hasCustomCommands) {
@@ -113,8 +110,30 @@ export class DeploymentArtifactBuilderService {
                 : uploadPath;
         } else {
             throw new BadRequestException(
-                `Provider '${sourceCheckout?.provider ?? "none"}' is not supported for builder '${effectiveBuilder}'. ` +
+                `Provider '${sourceCheckout?.provider ?? "none"}' is not supported for builder '${effectiveBuilder ?? "none"}'. ` +
                     "Supported providers: github, upload",
+            );
+        }
+
+        // With no builder configured, a context that ships a Dockerfile is a
+        // Dockerfile build — not a reason to give up. Before this, `undefined`
+        // builder fell straight through to the (then-`nginx:alpine`) runner.
+        if (!effectiveBuilder && existsSync(path.join(buildContextPath, "Dockerfile"))) {
+            effectiveBuilder = "dockerfile";
+        }
+
+        if (!effectiveBuilder) {
+            if (input.fallbackContainerImage?.trim()) {
+                return input.fallbackContainerImage;
+            }
+            throw new BadRequestError(
+                "No builder could be resolved and the build context has no Dockerfile at its root. " +
+                    "Add a Dockerfile, choose a builder explicitly, or provide a prebuilt container image.",
+                {
+                    deploymentId: input.deploymentId,
+                    serviceId: input.serviceId,
+                    provider: sourceCheckout.provider,
+                },
             );
         }
 
