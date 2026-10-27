@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { NotFoundError } from "@deployer/errors";
+import { AnalyticsReportNotFound, AnalyticsReportNotReady } from "../domain/analytics.errors";
 import * as systeminformation from "systeminformation";
 import type { z } from "zod/v4";
 import type {
@@ -660,7 +660,7 @@ export class AnalyticsService {
 	/** One stored report, or a typed 404. */
 	async findReport(id: string): Promise<ReportRow> {
 		const report = await this.repository.findReport(id);
-		if (report === null) throw new NotFoundError("analytics report", id);
+		if (report === null) throw new AnalyticsReportNotFound({ what: "analytics report", id });
 		return report;
 	}
 
@@ -680,7 +680,7 @@ export class AnalyticsService {
 		// A 404 rather than `{ success: false }`: the contract declares an error for an
 		// unknown report, and a success-shaped body with `false` makes a typo
 		// indistinguishable from a real deletion.
-		if (!removed) throw new NotFoundError("analytics report", id);
+		if (!removed) throw new AnalyticsReportNotFound({ what: "analytics report", id });
 		return { success: true };
 	}
 
@@ -694,7 +694,7 @@ export class AnalyticsService {
 	async downloadReport(id: string): Promise<{ name: string; format: string; content: unknown; sizeBytes: number }> {
 		const report = await this.findReport(id);
 		if (report.status !== "completed") {
-			throw new NotFoundError("completed analytics report", `${id} (status: ${report.status})`);
+			throw new AnalyticsReportNotReady({ id, status: report.status });
 		}
 		return {
 			name: report.name,
@@ -735,13 +735,13 @@ export class AnalyticsService {
 			...(updates.schedule === undefined ? {} : { schedule: updates.schedule }),
 			...(updates.recipients === undefined ? {} : { recipients: [...updates.recipients] }),
 		});
-		if (updated === null) throw new NotFoundError("analytics report config", id);
+		if (updated === null) throw new AnalyticsReportNotFound({ what: "analytics report config", id });
 		return updated;
 	}
 
 	async deleteReportConfig(id: string): Promise<{ success: boolean }> {
 		const removed = await this.repository.deleteReportConfig(id);
-		if (!removed) throw new NotFoundError("analytics report config", id);
+		if (!removed) throw new AnalyticsReportNotFound({ what: "analytics report config", id });
 		return { success: true };
 	}
 

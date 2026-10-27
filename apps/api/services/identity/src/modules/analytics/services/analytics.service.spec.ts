@@ -1,4 +1,4 @@
-import { NotFoundError } from "@deployer/errors";
+import { AnalyticsReportNotFound } from "../domain/analytics.errors";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AnalyticsService } from "./analytics.service";
@@ -235,14 +235,14 @@ describe("AnalyticsService", () => {
 			repo.findReport.mockResolvedValueOnce(completed).mockResolvedValueOnce(null);
 
 			await expect(service.findReport("r-1")).resolves.toBe(completed);
-			await expect(service.findReport("ghost")).rejects.toBeInstanceOf(NotFoundError);
+			await expect(service.findReport("ghost")).rejects.toBeInstanceOf(AnalyticsReportNotFound);
 		});
 
 		it("deleteReport confirms a deletion and answers not found for an unknown report", async () => {
 			repo.deleteReport.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
 
 			await expect(service.deleteReport("r-1")).resolves.toEqual({ success: true });
-			await expect(service.deleteReport("ghost")).rejects.toBeInstanceOf(NotFoundError);
+			await expect(service.deleteReport("ghost")).rejects.toBeInstanceOf(AnalyticsReportNotFound);
 		});
 
 		it("downloadReport hands back the content of a completed report", async () => {
@@ -259,7 +259,7 @@ describe("AnalyticsService", () => {
 		it("downloadReport refuses a report that did not complete, naming its status", async () => {
 			repo.findReport.mockResolvedValue({ ...completed, status: "failed" });
 
-			await expect(service.downloadReport("r-1")).rejects.toThrow(/status: failed/);
+			await expect(service.downloadReport("r-1")).rejects.toMatchObject({ kind: "not_found", status: "failed" });
 		});
 	});
 
@@ -290,8 +290,8 @@ describe("AnalyticsService", () => {
 			repo.updateReportConfig.mockResolvedValue(null);
 			repo.deleteReportConfig.mockResolvedValue(false);
 
-			await expect(service.updateReportConfig("ghost", { name: "x" })).rejects.toBeInstanceOf(NotFoundError);
-			await expect(service.deleteReportConfig("ghost")).rejects.toBeInstanceOf(NotFoundError);
+			await expect(service.updateReportConfig("ghost", { name: "x" })).rejects.toBeInstanceOf(AnalyticsReportNotFound);
+			await expect(service.deleteReportConfig("ghost")).rejects.toBeInstanceOf(AnalyticsReportNotFound);
 		});
 	});
 });

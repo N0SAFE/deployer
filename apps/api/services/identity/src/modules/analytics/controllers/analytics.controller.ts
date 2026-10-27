@@ -3,7 +3,7 @@ import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
 
 import { analyticsContract } from "@deployer/identity-contracts";
-import { ValidationError } from "@deployer/errors";
+import { AnalyticsFieldRequired } from "../domain/analytics.errors";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
 import { AnalyticsService, type Actor, type MetricsQuery } from "../services/analytics.service";
@@ -497,14 +497,7 @@ function readOptionalString(source: unknown, field: string): Record<string, stri
  */
 function requireField<T>(value: T | undefined, field: string): T {
 	if (value === undefined) {
-		throw new ValidationError(`${field} is required`, [
-			{
-				path: field,
-				code: "invalid_type",
-				severity: "error",
-				message: `a report configuration needs a ${field}`,
-			},
-		]);
+		throw new AnalyticsFieldRequired({ field });
 	}
 	return value;
 }
