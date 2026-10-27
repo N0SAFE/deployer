@@ -1,87 +1,57 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import "@orpc/effect/extensions/effect";
 
-import { EgressRequestError } from "@deployer/shared/core/modules/egress/egress.service";
+import { effectContext } from "@deployer/nest-effect/testing";
+import { callProcedure } from "@deployer/orpc-utils/testing";
+import { Context, Effect } from "effect";
+import { describe, expect, it, vi } from "vitest";
 
 import { ReachabilityController } from "./reachability.controller";
+import { IngressEdgeService, type IngressEdgeServiceShape } from "../services/ingress-edge.service";
+import { NodeReachabilityService, type NodeReachabilityServiceShape } from "../services/node-reachability.service";
 
-const implementChainable = {
-    use: vi.fn().mockReturnThis(),
-    handler: vi.fn((fn: unknown) => ({ handler: fn })),
+// Authentication and role checks are the shared middlewares' concern; here they let the call
+// through so the rest of the chain (Effect context, `serve`, failure handling) runs for real.
+vi.mock("@deployer/shared/core/modules/auth/orpc/middlewares", async () => {
+    const { os } = await import("@orpc/server");
+    const passThrough = () => os.$context().middleware(({ next }) => next());
+    return { requireAuth: passThrough, requirePlatformRole: passThrough };
+});
+
+const reachability = {
+    check: vi.fn((url: string) => Effect.succeed({ url, reachable: true, latencyMs: 3, statusCode: 200 })),
+    probePublicUrl: vi.fn(() => Effect.succeed({ publicUrl: null, lastCheckedAt: null, lastStatus: null, reachable: null })),
+} as unknown as NodeReachabilityServiceShape;
+
+const ingress = {
+    revokeMeshMember: vi.fn(() => Effect.fail(Object.assign(new Error("platform said no"), { name: "Legacy" }))),
+} as unknown as IngressEdgeServiceShape;
+
+const context = {
+    ...effectContext(Context.make(NodeReachabilityService, reachability).pipe(Context.add(IngressEdgeService, ingress))),
+    auth: { user: { id: "u1", role: "admin" } },
+    request: { headers: { "x-correlation-id": "c-1" } },
 };
 
-vi.mock("@orpc/nest", () => ({ Implement: vi.fn(() => () => undefined) }));
-vi.mock("@orpc/server", async (importOriginal) => ({
-    ...(await importOriginal<typeof import("@orpc/server")>()),
-    implement: vi.fn(() => implementChainable),
-}));
-vi.mock("@deployer/shared/core/modules/auth/orpc/middlewares", () => ({
-    requireAuth: vi.fn(() => ({})),
-    requirePlatformRole: vi.fn(() => ({})),
-}));
+const controller = new ReachabilityController();
+const call = <T>(implementation: unknown, input: unknown = {}) => callProcedure<T>(implementation, input, context);
 
-type Handler = (args: { input: { url: string } }) => Promise<Record<string, unknown>>;
-
-describe("ReachabilityController outbound probes", () => {
-    let egress: { operator: ReturnType<typeof vi.fn> };
-    let reachability: { getNodePublicUrl: ReturnType<typeof vi.fn> };
-    let controller: ReachabilityController;
-
-    const lastHandler = (): Handler => implementChainable.handler.mock.calls.at(-1)?.[0] as Handler;
-    const res = (status: number) => ({ status, headers: {}, body: new Uint8Array(), url: "" });
-
-    beforeEach(() => {
-        egress = { operator: vi.fn() };
-        reachability = { getNodePublicUrl: vi.fn() };
-        controller = new ReachabilityController(reachability as never, {} as never, {} as never, {} as never, egress as never);
+describe("ReachabilityController", () => {
+    it("runs a probe through the service and returns its answer", async () => {
+        const result = await call<{ reachable: boolean }>(controller.check(), { url: "http://10.0.0.5:3005" });
+        expect(result.reachable).toBe(true);
+        expect(reachability.check).toHaveBeenCalledWith("http://10.0.0.5:3005");
     });
 
-    describe("check", () => {
-        it("probes {url}/mesh/ping through the operator policy and reports the status", async () => {
-            egress.operator.mockResolvedValue(res(200));
-            controller.check();
-            const result = await lastHandler()({ input: { url: "http://10.0.0.5:3005/" } });
-            expect(egress.operator).toHaveBeenCalledWith({ url: "http://10.0.0.5:3005/mesh/ping" });
-            expect(result).toMatchObject({ reachable: true, statusCode: 200 });
-        });
-
-        it("reports a non-2xx as unreachable", async () => {
-            egress.operator.mockResolvedValue(res(502));
-            controller.check();
-            const result = await lastHandler()({ input: { url: "http://10.0.0.5:3005" } });
-            expect(result).toMatchObject({ reachable: false, statusCode: 502, error: "HTTP 502" });
-        });
-
-        it("a refused target returns the generic reason: an authenticated user cannot use this as a port scanner", async () => {
-            egress.operator.mockRejectedValue(new EgressRequestError("Target not allowed by the network policy", "operator"));
-            controller.check();
-            const result = await lastHandler()({ input: { url: "http://169.254.169.254" } });
-            expect(result).toMatchObject({ reachable: false, error: "Target not allowed by the network policy" });
-        });
-
-        it("a transport failure is a category, not the raw error", async () => {
-            egress.operator.mockRejectedValue(new EgressRequestError("Connection failed", "operator", { cause: new Error("ECONNREFUSED 10.1.2.3:3005") }));
-            controller.check();
-            const result = await lastHandler()({ input: { url: "http://10.1.2.3:3005" } });
-            expect(result.error).toBe("Connection failed");
-        });
+    it("answers the node's public URL probe on both config endpoints", async () => {
+        await call(controller.getConfig());
+        await call(controller.updateConfig(), { params: { id: "config" }, body: { publicUrl: "https://api.example.com" } });
+        expect(reachability.probePublicUrl).toHaveBeenCalledTimes(2);
     });
 
-    describe("getConfig (the node's own public URL)", () => {
-        it("probes /health through the operator policy", async () => {
-            reachability.getNodePublicUrl.mockResolvedValue("https://api.example.com");
-            egress.operator.mockResolvedValue(res(200));
-            controller.getConfig();
-            const result = await lastHandler()({ input: { url: "" } });
-            expect(egress.operator).toHaveBeenCalledWith({ url: "https://api.example.com/health" });
-            expect(result).toMatchObject({ reachable: true, lastStatus: "reachable" });
-        });
-
-        it("makes no request when there is no public URL", async () => {
-            reachability.getNodePublicUrl.mockResolvedValue(null);
-            controller.getConfig();
-            const result = await lastHandler()({ input: { url: "" } });
-            expect(egress.operator).not.toHaveBeenCalled();
-            expect(result).toMatchObject({ publicUrl: null, reachable: null });
+    it("lets a platform collaborator's own refusal through unchanged, for the host to translate", async () => {
+        await expect(call(controller.revokeMeshMember(), { memberId: "m1", reason: "x" })).rejects.toMatchObject({
+            message: "platform said no",
+            name: "Legacy",
         });
     });
 });

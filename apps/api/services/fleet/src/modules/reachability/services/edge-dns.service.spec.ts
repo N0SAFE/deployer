@@ -1,10 +1,11 @@
+import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
 
 import type { DnsProviderRegistryService } from "@/modules/providers/dns/shared/dns-provider-registry.service";
 import type { DnsProviderRecord } from "@/modules/providers/dns/shared/dns-provider.interface";
 
-import { EdgeDnsService } from "./edge-dns.service";
+import { makeEdgeDnsService } from "./edge-dns.service";
 import { isPubliclyResolvable, planLaneDnsRecords } from "./lane-dns-plan";
 
 const tunnelRecord = { name: "*.apps.example.com", type: "CNAME" as const, contents: ["tun-1.cfargotunnel.com"], proxied: true, preferredAccountId: "acc-1" };
@@ -71,7 +72,7 @@ describe("EdgeDnsService", () => {
 
 	it("converges the record set to exactly the planned contents", async () => {
 		const { service, created, deleted } = registry([record("keep", "A", "1.1.1.1"), record("stale", "A", "9.9.9.9"), record("old-cname", "CNAME", "x.cfargotunnel.com", true)]);
-		const [result] = await new EdgeDnsService(service).reconcile([plan]);
+		const [result] = await Effect.runPromise(makeEdgeDnsService(service).reconcile([plan]));
 		expect(result?.status).toBe("synced");
 		expect(deleted.sort()).toEqual(["old-cname", "stale"]);
 		expect(created).toEqual([{ zoneId: "z1", type: "A", name: "*.apps.example.com", content: "2.2.2.2", ttl: 1, proxied: false }]);
@@ -79,7 +80,7 @@ describe("EdgeDnsService", () => {
 
 	it("reports `manual` with the exact record when no provider owns the zone", async () => {
 		const { service } = registry([], null);
-		const [result] = await new EdgeDnsService(service).reconcile([plan]);
+		const [result] = await Effect.runPromise(makeEdgeDnsService(service).reconcile([plan]));
 		expect(result).toMatchObject({ status: "manual" });
 		expect(result?.detail).toContain("A *.apps.example.com → 1.1.1.1, 2.2.2.2");
 	});
@@ -87,9 +88,9 @@ describe("EdgeDnsService", () => {
 	it("reports provider failures per record instead of throwing", async () => {
 		const { service } = registry([]);
 		(service.listRecords as unknown as { mockRejectedValueOnce(e: Error): void }).mockRejectedValueOnce(new Error("rate limited"));
-		const dns = new EdgeDnsService(service);
-		const [result] = await dns.reconcile([plan]);
+		const dns = makeEdgeDnsService(service);
+		const [result] = await Effect.runPromise(dns.reconcile([plan]));
 		expect(result).toMatchObject({ status: "error", detail: "rate limited" });
-		expect(dns.results()).toEqual([result]);
+		expect(await Effect.runPromise(dns.results())).toEqual([result]);
 	});
 });

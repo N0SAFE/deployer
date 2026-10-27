@@ -38,4 +38,23 @@ describe("Fleet routes e2e: an authenticated admin", () => {
 		expect(body.code).toBe("NOT_FOUND");
 		expect(body.message).toContain("no-such-provider");
 	});
+
+	// Exercises the reachability Layers end to end. The whole FleetLive graph is built on the first call,
+	// over platform services that are Nest providers (some created late in startup), so these two routes
+	// prove the ports are real instances: the lanes are read from Postgres and the mesh view is built
+	// even when no agent answers.
+	it("reads the ingress lanes through the Effect services", async () => {
+		const response = await context.http.get("/reachability/ingress").set("cookie", admin.cookie).expect(200);
+
+		const body = response.body as { lanes: { entryPort: number }; mesh: { available: boolean }; edge: { providers: unknown[] } };
+		expect(typeof body.lanes.entryPort).toBe("number");
+		expect(typeof body.mesh.available).toBe("boolean");
+		expect(body.edge.providers.length).toBeGreaterThan(0);
+	});
+
+	it("lists the node network configs through the Effect services", async () => {
+		const response = await context.http.get("/reachability/node-network/all").set("cookie", admin.cookie).expect(200);
+
+		expect(Array.isArray((response.body as { configs: unknown[] }).configs)).toBe(true);
+	});
 });

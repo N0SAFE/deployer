@@ -1,4 +1,3 @@
-import { FleetInvalid } from "../../../core/fleet.errors";
 /**
  * IngressEdgeService — what the Network pages read and change: the lanes, the
  * public edge, the DNS records they need, and the mesh they ride on.
@@ -24,7 +23,6 @@ import { FleetInvalid } from "../../../core/fleet.errors";
  * switch, the teardown is cleanup.
  */
 
-import { Injectable, Logger, type OnApplicationBootstrap, type OnModuleDestroy } from "@nestjs/common";
 import type { IngressState, UpdateIngressInput } from "@deployer/fleet-contracts/modules/reachability/contracts";
 import {
 	ingressExposure,
@@ -33,15 +31,25 @@ import {
 	type IngressLanes,
 	type PublicLane,
 } from "@deployer/contracts-entities/entities/ingress/index";
+import type { EdgeProviderRegistry } from "@deployer/shared/core/modules/edge/edge-provider.registry";
+import type { MeshAgentClient } from "@deployer/shared/core/modules/mesh-agent/mesh-agent.client";
+import type { HostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
+import type { IngressLanesService } from "@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service";
+import type { PublicEdgeService } from "@deployer/shared/core/modules/reachability/services/public-edge.service";
+import type { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
+import { Context, Effect, Layer } from "effect";
 
-import { EdgeProviderRegistry } from "@deployer/shared/core/modules/edge/edge-provider.registry";
-import { MeshAgentClient } from "@deployer/shared/core/modules/mesh-agent/mesh-agent.client";
-import { HostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
-import { IngressLanesService } from "@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service";
-import { PublicEdgeService } from "@deployer/shared/core/modules/reachability/services/public-edge.service";
-import { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
-
-import { EdgeDnsService } from "./edge-dns.service";
+import { attempt, attemptSync } from "../../../core/effects";
+import { FleetInvalid } from "../../../core/fleet.errors";
+import {
+	EdgeProvidersPort,
+	HostnamesPort,
+	IngressLanesPort,
+	MeshAgentPort,
+	PublicEdgePort,
+	TraefikRefresherPort,
+} from "../reachability.ports";
+import { EdgeDnsService, type EdgeDnsServiceShape } from "./edge-dns.service";
 import { planLaneDnsRecords } from "./lane-dns-plan";
 
 /** Converge DNS on this cadence too: mesh addresses and public addresses change. */
@@ -53,201 +61,86 @@ type MeshView = IngressState["mesh"];
 type RetiredDnsName = {
 	name: string;
 	accountId: string | null;
+};
+
+const describe = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
+/**
+ * A use case fails with a `FleetInvalid` refusal of its own, or with what a platform collaborator
+ * refused with (left as thrown; `serve` lets it through for the host to translate).
+ */
+export type IngressEdgeServiceShape = {
+	readonly getState: () => Effect.Effect<IngressState, unknown>;
+	/** Apply a partial lanes change; only the fields sent change. */
+	readonly update: (input: UpdateIngressInput) => Effect.Effect<IngressState, unknown>;
+	/** Delete everything the public edge created, then turn the public lane off. */
+	readonly teardownPublicEdge: () => Effect.Effect<IngressState, unknown>;
+	/** Revoke a mesh member from this node's agent; every member drops it on the next gossip round. */
+	readonly revokeMeshMember: (memberId: string, reason: string) => Effect.Effect<IngressState, unknown>;
+	/** Converge the DNS records the lanes need. Never fails. */
+	readonly reconcileDns: (retired?: readonly RetiredDnsName[]) => Effect.Effect<void>;
+};
+
+type Ports = {
+	readonly lanes: IngressLanesService;
+	readonly edges: EdgeProviderRegistry;
+	readonly publicEdge: PublicEdgeService;
+	readonly mesh: MeshAgentClient;
+	readonly hostnames: HostnameService;
+	readonly refresher: TraefikConfigRefresher;
+	readonly dns: EdgeDnsServiceShape;
+};
+
+/** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
+export class IngressEdgeService extends Context.Service<IngressEdgeService, IngressEdgeServiceShape>()(
+	"fleet/IngressEdgeService",
+) {
+	/**
+	 * Built over the platform ports. It also owns the periodic DNS reconcile: a fiber scoped to the
+	 * layer, so it starts with the runtime and is interrupted when the runtime is disposed.
+	 */
+	static readonly Live: Layer.Layer<
+		IngressEdgeService,
+		never,
+		IngressLanesPort | EdgeProvidersPort | PublicEdgePort | MeshAgentPort | HostnamesPort | TraefikRefresherPort | EdgeDnsService
+	> = Layer.effect(
+		IngressEdgeService,
+		Effect.gen(function* () {
+			const service = makeIngressEdgeService({
+				lanes: yield* IngressLanesPort,
+				edges: yield* EdgeProvidersPort,
+				publicEdge: yield* PublicEdgePort,
+				mesh: yield* MeshAgentPort,
+				hostnames: yield* HostnamesPort,
+				refresher: yield* TraefikRefresherPort,
+				dns: yield* EdgeDnsService,
+			});
+			yield* Effect.forkScoped(
+				Effect.forever(Effect.sleep(DNS_RECONCILE_INTERVAL_MS).pipe(Effect.andThen(service.reconcileDns()))),
+			);
+			return service;
+		}),
+	);
 }
 
-@Injectable()
-export class IngressEdgeService implements OnApplicationBootstrap, OnModuleDestroy {
-	private readonly logger = new Logger(IngressEdgeService.name);
-	private dnsTimer: ReturnType<typeof setInterval> | null = null;
+export function makeIngressEdgeService(ports: Ports): IngressEdgeServiceShape {
+	const { lanes: lanesPort, edges, publicEdge, mesh, hostnames, refresher, dns } = ports;
 
-	constructor(
-		private readonly lanes: IngressLanesService,
-		private readonly edges: EdgeProviderRegistry,
-		private readonly publicEdge: PublicEdgeService,
-		private readonly dns: EdgeDnsService,
-		private readonly mesh: MeshAgentClient,
-		private readonly hostnames: HostnameService,
-		private readonly refresher: TraefikConfigRefresher,
-	) {}
-
-	onApplicationBootstrap(): void {
-		this.dnsTimer = setInterval(() => {
-			void this.reconcileDns();
-		}, DNS_RECONCILE_INTERVAL_MS);
-	}
-
-	onModuleDestroy(): void {
-		if (this.dnsTimer !== null) clearInterval(this.dnsTimer);
-	}
-
-	async getState(): Promise<IngressState> {
-		const lanes = await this.lanes.getLanes();
-		const [mesh, edge, publicPath] = await Promise.all([this.meshView(), this.publicEdge.view(lanes), this.publicEdge.joinPath(lanes)]);
-		return {
-			lanes,
-			exposure: ingressExposure(lanes, edge?.provider ?? null),
-			domains: {
-				local: this.hostnames.localDomain(),
-				private: lanes.private.enabled ? lanes.private.domain : null,
-				public: lanes.public?.domain ?? null,
-			},
-			consoleUrls: this.consoleUrls(lanes),
-			edge: { providers: this.edges.descriptors(), active: edge },
-			dns: this.dns.results(),
-			mesh,
-			// Counts NODE members only: an operator laptop is a member but serves no entry.
-			entryPoints: joinEntryPoints({
-				lanes,
-				memberCount: mesh.members.filter((member) => member.kind === "node" && member.state === "active").length,
-				publicPath,
-			}),
-		};
-	}
-
-	/** Apply a partial lanes change; only the fields sent change. */
-	async update(input: UpdateIngressInput): Promise<IngressState> {
-		const current = await this.lanes.getLanes();
-		const next: IngressLanes = {
-			entryPort: input.entryPort ?? current.entryPort,
-			private:
-				input.private === undefined
-					? current.private
-					: {
-							enabled: input.private.enabled,
-							domain: input.private.domain ?? current.private.domain,
-							exposeOnLan: input.private.exposeOnLan ?? current.private.exposeOnLan,
-						},
-			public: input.public === undefined ? current.public : this.toPublicLane(input.public, current.public),
-			consoleVisibility: input.consoleVisibility ?? current.consoleVisibility,
-		};
-		const parsed = ingressLanesSchema.safeParse(next);
-		if (!parsed.success) throw new FleetInvalid({ reason: `Invalid lanes: ${parsed.error.message}` });
-		const lanes = parsed.data;
-
-		const retired = await this.retiredNames(current);
-
-		// 1. The new edge must exist before the lanes claim it.
-		if (lanes.public !== null) {
-			const resolved = await this.publicEdge.resolve(lanes);
-			if (resolved === null) throw new FleetInvalid({ reason: `Unknown edge provider '${lanes.public.provider}'` });
-			await resolved.provider.provision(resolved.ctx);
-		}
-		// 2. The switch.
-		await this.lanes.setLanes(lanes);
-		// 3. The old edge carries nothing any more; clean it up.
-		if (current.public !== null && current.public.provider !== lanes.public?.provider) {
-			await this.teardownProvider(current.public.provider, false);
-		}
-
-		await this.reconcileDns(retired);
-		this.refresher.refresh();
-		return this.getState();
-	}
-
-	/** Delete everything the public edge created, then turn the public lane off. */
-	async teardownPublicEdge(): Promise<IngressState> {
-		const lanes = await this.lanes.getLanes();
-		if (lanes.public === null) return this.getState();
-		const retired = await this.retiredNames(lanes);
-		// Explicit request: a provider failure is reported, not swallowed.
-		await this.teardownProvider(lanes.public.provider, true);
-		await this.lanes.setLanes({ ...lanes, public: null });
-		await this.reconcileDns(retired);
-		this.refresher.refresh();
-		return this.getState();
-	}
-
-	/** Revoke a mesh member from this node's agent; every member drops it on the next gossip round. */
-	async revokeMeshMember(memberId: string, reason: string): Promise<IngressState> {
-		const status = await this.mesh.status();
-		if (status.memberId === memberId) {
-			throw new FleetInvalid({ reason: "A node cannot revoke itself. Revoke it from another member's console." });
-		}
-		if (!status.members.some((member) => member.memberId === memberId)) {
-			throw new FleetInvalid({ reason: `No mesh member ${memberId}` });
-		}
-		await this.mesh.revoke(memberId, reason);
-		this.logger.log(`Revoked mesh member ${memberId}: ${reason}`);
-		return this.getState();
-	}
-
-	/**
-	 * Converge the DNS records the lanes need. Never throws.
-	 *
-	 * `retired` are names a previous edge owned; any that the new plan no longer
-	 * covers are removed, so a domain or provider change does not leave a record
-	 * pointing at an edge that is gone.
-	 */
-	async reconcileDns(retired: readonly RetiredDnsName[] = []): Promise<void> {
-		try {
-			const lanes = await this.lanes.getLanes();
-			const status = await this.mesh.status().catch(() => null);
-			const meshAddresses = (status?.members ?? []).filter((m) => m.kind === "node" && m.state === "active").map((m) => m.address);
-			const publicEdgeRecords = await this.publicEdge.dnsRecords(lanes);
-			const plans = planLaneDnsRecords(lanes, { publicEdgeRecords, meshAddresses });
-			const planned = new Set(plans.map((plan) => plan.name.toLowerCase()));
-			for (const old of retired) {
-				if (!planned.has(old.name.toLowerCase())) await this.dns.removeRecords(old.name, old.accountId);
-			}
-			await this.dns.reconcile(plans);
-		} catch (error) {
-			this.logger.warn(`DNS reconcile skipped: ${error instanceof Error ? error.message : String(error)}`);
-		}
-	}
-
-	/** The names the current public edge owns — candidates for removal after a change. */
-	private async retiredNames(lanes: IngressLanes): Promise<RetiredDnsName[]> {
-		try {
-			return (await this.publicEdge.dnsRecords(lanes)).map((record) => ({ name: record.name, accountId: record.preferredAccountId }));
-		} catch {
-			return [];
-		}
-	}
-
-	private async teardownProvider(providerId: string, strict: boolean): Promise<void> {
-		const provider = this.edges.find(providerId);
-		if (provider === null) return;
-		try {
-			await provider.teardown();
-		} catch (error) {
-			if (strict) throw error;
-			this.logger.warn(
-				`${provider.descriptor.label} not torn down (it no longer carries the public lane): ${error instanceof Error ? error.message : String(error)}`,
-			);
-		}
-	}
-
-	/**
-	 * The requested public lane, validated against its provider. Options sent for the
-	 * SAME provider replace the current ones; omitted options keep them, so toggling
-	 * the domain does not require re-sending the account.
-	 */
-	private toPublicLane(input: NonNullable<UpdateIngressInput["public"]> | null, current: PublicLane | null): PublicLane | null {
-		if (input === null) return null;
-		const sameProvider = current?.provider === input.provider;
-		return this.edges.normalize({
-			provider: input.provider,
-			domain: input.domain,
-			acknowledgedInboundPorts: input.acknowledgedInboundPorts ?? (sameProvider ? current.acknowledgedInboundPorts : false),
-			options: input.options ?? (sameProvider ? current.options : {}),
-		});
-	}
-
-	private consoleUrls(lanes: IngressLanes): IngressState["consoleUrls"] {
+	const consoleUrls = (lanes: IngressLanes): IngressState["consoleUrls"] => {
 		const port = lanes.entryPort === 80 ? "" : `:${String(lanes.entryPort)}`;
 		const publicLane = lanes.public;
-		const scheme = this.edges.ingressPlan(lanes).tls === "none" ? "http" : "https";
+		const scheme = edges.ingressPlan(lanes).tls === "none" ? "http" : "https";
 		return {
-			local: `${this.hostnames.webOrigin()}${port}`,
+			local: `${hostnames.webOrigin()}${port}`,
 			private: lanes.private.enabled ? `http://web.${lanes.private.domain}${port}` : null,
 			public: publicLane !== null && lanes.consoleVisibility === "public" ? `${scheme}://web.${publicLane.domain}` : null,
 		};
-	}
+	};
 
-	private async meshView(): Promise<MeshView> {
-		try {
-			const status = await this.mesh.status();
-			return {
+	/** The mesh as this node sees it; an unreachable agent is reported, not raised. */
+	const meshView: Effect.Effect<MeshView> = attempt(() => mesh.status()).pipe(
+		Effect.map(
+			(status): MeshView => ({
 				available: true,
 				clusterId: status.cluster?.clusterId ?? null,
 				cidr: status.cluster?.cidr ?? null,
@@ -268,9 +161,10 @@ export class IngressEdgeService implements OnApplicationBootstrap, OnModuleDestr
 				doors: status.doors,
 				lastGossipAt: status.lastGossipAt,
 				lastError: status.lastError,
-			};
-		} catch (error) {
-			return {
+			}),
+		),
+		Effect.catch((error) =>
+			Effect.succeed<MeshView>({
 				available: false,
 				clusterId: null,
 				cidr: null,
@@ -280,8 +174,166 @@ export class IngressEdgeService implements OnApplicationBootstrap, OnModuleDestr
 				members: [],
 				doors: [],
 				lastGossipAt: null,
-				lastError: error instanceof Error ? error.message : String(error),
+				lastError: describe(error),
+			}),
+		),
+	);
+
+	const getState = Effect.fn("IngressEdgeService.getState")(function* () {
+		const lanes = yield* attempt(() => lanesPort.getLanes());
+		const [mesh_, edge, publicPath] = yield* Effect.all(
+			[meshView, attempt(() => publicEdge.view(lanes)), attempt(() => publicEdge.joinPath(lanes))],
+			{ concurrency: "unbounded" },
+		);
+		const state: IngressState = {
+			lanes,
+			exposure: ingressExposure(lanes, edge?.provider ?? null),
+			domains: {
+				local: hostnames.localDomain(),
+				private: lanes.private.enabled ? lanes.private.domain : null,
+				public: lanes.public?.domain ?? null,
+			},
+			consoleUrls: consoleUrls(lanes),
+			edge: { providers: edges.descriptors(), active: edge },
+			dns: yield* dns.results(),
+			mesh: mesh_,
+			// Counts NODE members only: an operator laptop is a member but serves no entry.
+			entryPoints: joinEntryPoints({
+				lanes,
+				memberCount: mesh_.members.filter((member) => member.kind === "node" && member.state === "active").length,
+				publicPath,
+			}),
+		};
+		return state;
+	});
+
+	/** The names the current public edge owns: candidates for removal after a change. */
+	const retiredNames = (lanes: IngressLanes): Effect.Effect<RetiredDnsName[]> =>
+		attempt(() => publicEdge.dnsRecords(lanes)).pipe(
+			Effect.map((records) => records.map((record) => ({ name: record.name, accountId: record.preferredAccountId }))),
+			Effect.orElseSucceed((): RetiredDnsName[] => []),
+		);
+
+	const teardownProvider = (providerId: string, strict: boolean): Effect.Effect<void, unknown> => {
+		const provider = edges.find(providerId);
+		if (provider === null) return Effect.void;
+		return attempt(() => provider.teardown()).pipe(
+			Effect.catch((error) =>
+				strict
+					? Effect.fail(error)
+					: Effect.logWarning(
+							`${provider.descriptor.label} not torn down (it no longer carries the public lane): ${describe(error)}`,
+						),
+			),
+		);
+	};
+
+	/**
+	 * The requested public lane, validated against its provider. Options sent for the SAME provider
+	 * replace the current ones; omitted options keep them, so toggling the domain does not require
+	 * re-sending the account.
+	 */
+	const toPublicLane = (
+		input: NonNullable<UpdateIngressInput["public"]> | null,
+		current: PublicLane | null,
+	): Effect.Effect<PublicLane | null, unknown> => {
+		if (input === null) return Effect.succeed(null);
+		const sameProvider = current?.provider === input.provider;
+		return attemptSync(() =>
+			edges.normalize({
+				provider: input.provider,
+				domain: input.domain,
+				acknowledgedInboundPorts: input.acknowledgedInboundPorts ?? (sameProvider ? current.acknowledgedInboundPorts : false),
+				options: input.options ?? (sameProvider ? current.options : {}),
+			}),
+		);
+	};
+
+	const reconcileDns = Effect.fn("IngressEdgeService.reconcileDns")(function* (retired: readonly RetiredDnsName[] = []) {
+		yield* Effect.gen(function* () {
+			const lanes = yield* attempt(() => lanesPort.getLanes());
+			const status = yield* attempt(() => mesh.status()).pipe(Effect.orElseSucceed(() => null));
+			const meshAddresses = (status?.members ?? []).filter((m) => m.kind === "node" && m.state === "active").map((m) => m.address);
+			const publicEdgeRecords = yield* attempt(() => publicEdge.dnsRecords(lanes));
+			const plans = planLaneDnsRecords(lanes, { publicEdgeRecords, meshAddresses });
+			const planned = new Set(plans.map((plan) => plan.name.toLowerCase()));
+			for (const old of retired) {
+				if (!planned.has(old.name.toLowerCase())) yield* dns.removeRecords(old.name, old.accountId);
+			}
+			yield* dns.reconcile(plans);
+		}).pipe(Effect.catch((error) => Effect.logWarning(`DNS reconcile skipped: ${describe(error)}`)));
+	});
+
+	return {
+		getState,
+		reconcileDns,
+
+		update: Effect.fn("IngressEdgeService.update")(function* (input) {
+			const current = yield* attempt(() => lanesPort.getLanes());
+			const next: IngressLanes = {
+				entryPort: input.entryPort ?? current.entryPort,
+				private:
+					input.private === undefined
+						? current.private
+						: {
+								enabled: input.private.enabled,
+								domain: input.private.domain ?? current.private.domain,
+								exposeOnLan: input.private.exposeOnLan ?? current.private.exposeOnLan,
+							},
+				public: input.public === undefined ? current.public : yield* toPublicLane(input.public, current.public),
+				consoleVisibility: input.consoleVisibility ?? current.consoleVisibility,
 			};
-		}
-	}
+			const parsed = ingressLanesSchema.safeParse(next);
+			if (!parsed.success) return yield* new FleetInvalid({ reason: `Invalid lanes: ${parsed.error.message}` });
+			const lanes = parsed.data;
+
+			const retired = yield* retiredNames(current);
+
+			// 1. The new edge must exist before the lanes claim it.
+			if (lanes.public !== null) {
+				const resolved = yield* attempt(() => publicEdge.resolve(lanes));
+				if (resolved === null) {
+					return yield* new FleetInvalid({ reason: `Unknown edge provider '${lanes.public.provider}'` });
+				}
+				yield* attempt(() => resolved.provider.provision(resolved.ctx));
+			}
+			// 2. The switch.
+			yield* attempt(() => lanesPort.setLanes(lanes));
+			// 3. The old edge carries nothing any more; clean it up.
+			if (current.public !== null && current.public.provider !== lanes.public?.provider) {
+				yield* teardownProvider(current.public.provider, false);
+			}
+
+			yield* reconcileDns(retired);
+			refresher.refresh();
+			return yield* getState();
+		}),
+
+		teardownPublicEdge: Effect.fn("IngressEdgeService.teardownPublicEdge")(function* () {
+			const lanes = yield* attempt(() => lanesPort.getLanes());
+			if (lanes.public === null) return yield* getState();
+			const retired = yield* retiredNames(lanes);
+			// Explicit request: a provider failure is reported, not swallowed.
+			yield* teardownProvider(lanes.public.provider, true);
+			yield* attempt(() => lanesPort.setLanes({ ...lanes, public: null }));
+			yield* reconcileDns(retired);
+			refresher.refresh();
+			return yield* getState();
+		}),
+
+		revokeMeshMember: Effect.fn("IngressEdgeService.revokeMeshMember")(function* (memberId, reason) {
+			const status = yield* attempt(() => mesh.status());
+			if (status.memberId === memberId) {
+				return yield* new FleetInvalid({
+					reason: "A node cannot revoke itself. Revoke it from another member's console.",
+				});
+			}
+			if (!status.members.some((member) => member.memberId === memberId)) {
+				return yield* new FleetInvalid({ reason: `No mesh member ${memberId}` });
+			}
+			yield* attempt(() => mesh.revoke(memberId, reason));
+			yield* Effect.logInfo(`Revoked mesh member ${memberId}: ${reason}`);
+			return yield* getState();
+		}),
+	};
 }
