@@ -9,6 +9,11 @@ class UserNotFound extends domainError("UserNotFound", "not_found")<{ readonly i
 		return { id: this.id };
 	}
 }
+class Teapot extends domainError("Teapot", "conflict")() {
+	override publicMessage() {
+		return "short and stout";
+	}
+}
 class EmailTaken extends domainError("EmailTaken", "conflict")<{ readonly email: string }>() {}
 
 describe("domainError", () => {
@@ -23,6 +28,11 @@ describe("domainError", () => {
 	it("exposes nothing by default, never the cause", () => {
 		const error = new EmailTaken({ email: "a@b.c", cause: new Error("secret") });
 		expect(error.publicData()).toEqual({});
+	});
+
+	it("defaults the public message to the tag and lets an error override it", () => {
+		expect(new EmailTaken({ email: "x" }).publicMessage()).toBe("EmailTaken");
+		expect(new Teapot({}).publicMessage()).toBe("short and stout");
 	});
 
 	it("is recognised by isDomainError and catchable by tag", async () => {

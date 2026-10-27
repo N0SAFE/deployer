@@ -15,6 +15,11 @@ const CODES: Record<ErrorKind, [string, number]> = {
 };
 
 class Missing extends domainError("Missing", "not_found")<{ readonly id: string }>() {}
+class Wordy extends domainError("Wordy", "forbidden")() {
+	override publicMessage() {
+		return "you may not do that";
+	}
+}
 class Plain extends Error {}
 
 describe("mapDomainError", () => {
@@ -25,6 +30,10 @@ describe("mapDomainError", () => {
 		expect(mapped.code).toBe(code);
 		expect((mapped.data as { statusCode: number }).statusCode).toBe(status);
 	});
+});
+
+it("puts the error's public message on the wire", () => {
+	expect(mapDomainError(new Wordy({})).message).toBe("you may not do that");
 });
 
 describe("catchDomainErrors", () => {

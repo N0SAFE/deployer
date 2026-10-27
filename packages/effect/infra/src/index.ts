@@ -2,6 +2,7 @@ export * from "./crypto/errors";
 export * from "./crypto/key-ring";
 export * from "./crypto/secret-box";
 export * from "./process/command-runner";
+export * from "./net/address";
 export * from "./net/ip-policy";
 export * from "./net/safe-http";
 export * from "./net/safe-http-client";

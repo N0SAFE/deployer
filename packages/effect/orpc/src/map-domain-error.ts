@@ -16,12 +16,12 @@ const ACTION_BY_KIND: Record<ErrorKind, ErrorAction> = {
 
 /**
  * One domain error to one oRPC error, by kind. The table is a `Record<ErrorKind, ...>`, so a
- * seventh kind is a compile error until it gets a row. The message is the error's tag, and the
- * public payload is never put on the wire beyond that: `cause` and `publicData` stay server-side
- * until a contract declares a shape for them.
+ * seventh kind is a compile error until it gets a row. The wire message is `publicMessage()` (the tag unless
+ * the error overrides it); `cause` and `publicData` stay server-side until a contract declares a
+ * shape for them.
  */
 export function mapDomainError(error: DomainError) {
-	return ACTION_BY_KIND[error.kind](error._tag);
+	return ACTION_BY_KIND[error.kind](error.publicMessage());
 }
 
 /**

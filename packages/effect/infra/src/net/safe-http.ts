@@ -1,6 +1,7 @@
 import { fromAbortable } from "@deployer/effect-core";
 import { Context, Data, Duration, Effect, Layer } from "effect";
 
+import { stripBrackets } from "./address";
 import { classifyAddress, isIpLiteral, type AddressClass } from "./ip-policy";
 
 /** The target (or a redirect hop, or a DNS answer) violates the egress policy. */
@@ -145,8 +146,6 @@ const hostAllowed = (host: string, allow: EgressPolicy["allowHosts"]): boolean =
     return e.startsWith("*.") ? h.endsWith(e.slice(1)) && h.length > e.length - 1 : h === e;
   });
 };
-
-const stripBrackets = (host: string): string => host.replace(/^\[|\]$/g, "");
 
 /** Validate scheme, host allow-list and credentials. Addresses are validated after resolution. */
 const checkTarget = (url: URL, policy: EgressPolicy): EgressDenied | undefined => {

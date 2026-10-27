@@ -16,6 +16,8 @@ export interface DomainErrorFields<Tag extends string, K extends ErrorKind> {
 	readonly cause?: unknown;
 	/** What a client may see. Defaults to nothing; never include `cause`. */
 	publicData(): Record<string, unknown>;
+	/** The message a client may see. Defaults to the tag; override with a sentence safe to expose. */
+	publicMessage(): string;
 }
 
 /**
@@ -26,7 +28,7 @@ export interface DomainErrorFields<Tag extends string, K extends ErrorKind> {
  */
 export const domainError =
 	<const Tag extends string, const K extends ErrorKind>(tag: Tag, kind: K) =>
-	<Fields extends Record<string, unknown> = Record<string, never>>(): {
+	<Fields extends object = object>(): {
 		readonly kind: K;
 		new (args: Fields & { readonly cause?: unknown }): Readonly<Fields> &
 			DomainErrorFields<Tag, K> &
@@ -39,6 +41,9 @@ export const domainError =
 			publicData(): Record<string, unknown> {
 				return {};
 			}
+			publicMessage(): string {
+				return tag;
+			}
 		} as never;
 	};
 
@@ -47,6 +52,7 @@ export type DomainError = {
 	readonly _tag: string;
 	readonly kind: ErrorKind;
 	publicData(): Record<string, unknown>;
+	publicMessage(): string;
 };
 
 export const isDomainError = (value: unknown): value is DomainError =>
