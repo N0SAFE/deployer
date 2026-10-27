@@ -1,11 +1,12 @@
 import { Controller } from "@nestjs/common";
-import { catchDomainErrors } from "@deployer/effect-orpc";
+import { Actor } from "@deployer/effect-core";
+import { handle, provideRequest, type RequestContextInput } from "@deployer/effect-orpc";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
 import { EffectContextOf } from "@deployer/nest-effect";
 
 import { HealthDomainModule } from "../health.module";
-import { Effect } from "effect";
+import { Cause, Effect } from "effect";
 
 import { healthContract } from "@deployer/health-contracts";
 
@@ -17,12 +18,17 @@ import { HealthService } from "../services/health.service";
  * (`dependency_missing`) maps to the declared `FAILED_DEPENDENCY`, so the client sees it as a defined error.
  * A DOWN indicator is not an error — it is the report.
  */
-function snapshot() {
+function snapshot(context: RequestContextInput) {
   return Effect.gen(function* () {
     const health = yield* HealthService;
     return yield* health.check();
   }).pipe(
-    catchDomainErrors,
+    // `handle` reads the correlation id, so the request provider wraps it.
+    handle((cause, correlationId) => {
+      console.error(`[svc-health] defect ${correlationId}`, Cause.pretty(cause));
+    }),
+    // `check` is public: an anonymous caller acts as a named anonymous user.
+    provideRequest(context, () => Effect.succeed(Actor.user("anonymous", "anonymous"))),
   );
 }
 
@@ -43,8 +49,8 @@ export class HealthController {
    */
   @Implement(healthContract.check)
   check() {
-    return implement(healthContract.check).use(HealthDomainModule[EffectContextOf]).effect(function* () {
-      const result = yield* snapshot();
+    return implement(healthContract.check).use(HealthDomainModule[EffectContextOf]).effect(function* ({ context }) {
+      const result = yield* snapshot(context);
 
       return {
         status: result.status === "up" ? "ok" : "degraded",
@@ -63,8 +69,8 @@ export class HealthController {
    */
   @Implement(healthContract.detailed)
   detailed() {
-    return implement(healthContract.detailed).use(HealthDomainModule[EffectContextOf]).effect(function* () {
-      const result = yield* snapshot();
+    return implement(healthContract.detailed).use(HealthDomainModule[EffectContextOf]).effect(function* ({ context }) {
+      const result = yield* snapshot(context);
 
       return {
         status: result.status === "up" ? "ok" : "degraded",

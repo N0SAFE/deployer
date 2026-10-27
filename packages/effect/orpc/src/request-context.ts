@@ -1,6 +1,18 @@
 import { Actor, Correlation, CurrentActor, type Ambient } from "@deployer/effect-core";
 import { Effect } from "effect";
 
+type HeadersLike =
+	| { get(name: string): string | null }
+	| Readonly<Record<string, string | readonly string[] | undefined>>;
+
+const readHeader = (headers: HeadersLike, name: string): string | undefined => {
+	if (typeof (headers as { get?: unknown }).get === "function") {
+		return (headers as { get(name: string): string | null }).get(name) ?? undefined;
+	}
+	const value = (headers as Record<string, string | readonly string[] | undefined>)[name];
+	return typeof value === "string" ? value : value?.[0];
+};
+
 export const CORRELATION_HEADER = "x-correlation-id";
 
 /**
@@ -9,7 +21,8 @@ export const CORRELATION_HEADER = "x-correlation-id";
  * can use it.
  */
 export type RequestContextInput = {
-	readonly request?: { readonly headers: { get(name: string): string | null } };
+	/** Web `Headers` (fetch hosts) or a plain Node header record (Nest's HTTP adapter). */
+	readonly request?: { readonly headers: HeadersLike };
 	readonly auth?: { readonly user?: { readonly id: string; readonly role?: string | null } | null };
 	readonly systemActor?: { readonly kind: "system"; readonly source: string } | null;
 };
@@ -23,8 +36,8 @@ export function actorFromContext(context: RequestContextInput): Actor | null {
 
 /** The caller's correlation id, or a fresh one when it sent none. */
 export function correlationFromContext(context: RequestContextInput): string {
-	const sent = context.request?.headers.get(CORRELATION_HEADER);
-	return sent !== null && sent !== undefined && sent !== "" ? sent : crypto.randomUUID();
+	const sent = context.request ? readHeader(context.request.headers, CORRELATION_HEADER) : undefined;
+	return sent !== undefined && sent !== "" ? sent : crypto.randomUUID();
 }
 
 /**

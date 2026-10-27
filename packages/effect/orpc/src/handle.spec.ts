@@ -60,6 +60,11 @@ describe("request context", () => {
 		expect(correlationFromContext({ request: { headers: headers({}) } })).toMatch(/[0-9a-f-]{36}/);
 	});
 
+	it("reads the correlation id from a plain Node header record too", () => {
+		expect(correlationFromContext({ request: { headers: { "x-correlation-id": "node-1" } } })).toBe("node-1");
+		expect(correlationFromContext({ request: { headers: { "x-correlation-id": ["a", "b"] } } })).toBe("a");
+	});
+
 	it("provides the ambient services, and fails through onAnonymous without an actor", async () => {
 		const read = Effect.gen(function* () {
 			const actor = yield* CurrentActor;
