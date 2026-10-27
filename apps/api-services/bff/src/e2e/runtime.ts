@@ -5,8 +5,8 @@ import {
 	type SharedApiRuntimeOptions,
 	type SharedRuntimeOrpcClientOptions,
 	type DescribeSharedRuntimeScope,
-} from "@/e2e-harness/shared-api-runtime";
-import { createSharedSetupOrpcClient as createSharedSetupOrpcClientRaw } from "@/e2e-harness/shared-api-runtime";
+} from "@deployer/shared/e2e-harness/shared-api-runtime";
+import { createSharedSetupOrpcClient as createSharedSetupOrpcClientRaw } from "@deployer/shared/e2e-harness/shared-api-runtime";
 
 /**
  * The shared e2e harness, bound to the BFF's root module.
@@ -40,7 +40,7 @@ export function useDescribeSharedApiRuntime(
 }
 
 export type { SharedApiRuntimeContext, SharedApiRuntimeOptions, DescribeSharedRuntimeScope };
-export { stopSharedApiRuntime } from "@/e2e-harness/shared-api-runtime";
+export { stopSharedApiRuntime } from "@deployer/shared/e2e-harness/shared-api-runtime";
 
 /**
  * The setup-surface client, bound to the BFF's root module.

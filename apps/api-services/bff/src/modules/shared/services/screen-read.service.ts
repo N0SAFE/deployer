@@ -1,8 +1,7 @@
+import { IdentityClient } from "@/clients/identity/identity.client";
+import { ProjectClient } from "@/clients/project/project.client";
+import { RuntimeClient } from "@/clients/runtime/runtime.client";
 import { Injectable } from "@nestjs/common";
-
-import { IdentityClient } from "../../../clients/identity/identity.client";
-import { ProjectClient } from "../../../clients/project/project.client";
-import { RuntimeClient } from "../../../clients/runtime/runtime.client";
 
 /** A per-source outcome, so one dead dependency degrades instead of failing. */
 export interface Section {

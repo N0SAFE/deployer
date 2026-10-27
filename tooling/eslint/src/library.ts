@@ -11,7 +11,10 @@ const base = (options: BaseConfigOptions = {}) => defineConfig([
             "no-unused-vars": "off",
             "@typescript-eslint/no-unused-vars": ["error"],
             "typescript-eslint/no-namespace": "off",
-            "@typescript-eslint/consistent-type-definitions": ["error", "type"],
+            // OFF, not "type": its autofix rewrites an `interface` into a `type` alias, and an
+            // interface that merges with a class (the BFF service clients) stops merging, which
+            // surfaces as `Duplicate identifier` and silently drops the class's typed members.
+            "@typescript-eslint/consistent-type-definitions": "off",
         },
     },
 ]);

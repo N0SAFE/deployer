@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-declaration-merging -- the interface/class merge below is how the flattened procedures get their types */
 import { Injectable } from "@nestjs/common";
 import type { ContractRouterClient } from "@orpc/contract";
 
@@ -11,6 +12,10 @@ import { ServiceClientRegistry } from "../service-registry";
  * Bound to the service's combined contract, so `check` and `detailed` are reachable as
  * `this.health.check(...)` — the same short form every other client offers.
  */
+// An interface, not a type alias, ON PURPOSE: only an interface merges with the class below, which is how
+// the flattened procedures reach the class's type. Do not turn it into a `type` alias: the merge
+// breaks with `Duplicate identifier`.
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface HealthClient
 	extends FlatLeaves<ContractRouterClient<typeof healthContract>> {}
 
