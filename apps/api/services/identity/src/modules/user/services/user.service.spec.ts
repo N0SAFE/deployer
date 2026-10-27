@@ -1,12 +1,11 @@
 import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DatabasePort, type DatabaseShape } from "@identity/core/database/database.port";
+import { Actor, Correlation, CurrentActor } from "@deployer/effect-core";
 import type { User } from "../domain/user.types";
-import { UserRepository, type UserRepositoryShape } from "../repositories/user.repository";
+import type { UserRepositoryShape } from "../repositories/user.repository";
 import { EmailTaken, UserForbidden, UserInvalid, UserNotFound } from "../domain/user.errors";
-import type { UserFailure } from "./user.service";
-import { UserServiceImpl } from "./user.service";
+import { makeUserService, type UserFailure, type UserServiceShape } from "./user.service";
 
 const admin = { userId: "admin-1", role: "admin" };
 const root = { userId: "root-1", role: "superAdmin" };
@@ -31,27 +30,39 @@ function makeRepository() {
 	return repo;
 }
 
-describe("UserServiceImpl", () => {
-	const database = {} as DatabaseShape;
-	const service = new UserServiceImpl();
+describe("UserService", () => {
 	let repo: ReturnType<typeof makeRepository>;
 
 	beforeEach(() => {
 		repo = makeRepository();
 	});
 
-	/** Run a use case against the fake repository. */
-	const run = <A, E>(effect: Effect.Effect<A, E, UserRepository | DatabasePort>) =>
-		Effect.runPromise(
-			effect.pipe(
-				Effect.provideService(UserRepository, repo as unknown as UserRepositoryShape),
-				Effect.provideService(DatabasePort, database),
-			),
-		);
+	type Acting = { userId: string; role: string };
+	type ActingService = {
+		[K in keyof UserServiceShape]: UserServiceShape[K] extends (...args: infer P) => Effect.Effect<infer A, infer E, any>
+			? (actor: Acting, ...args: P) => Effect.Effect<A, E>
+			: never;
+	};
+
+	/** The service over the fake repository; each call names the actor it runs as. */
+	const service = new Proxy({} as ActingService, {
+		get:
+			(_target, key: keyof UserServiceShape) =>
+			(actor: Acting, ...args: unknown[]) => {
+				const method = makeUserService(repo as unknown as UserRepositoryShape)[key] as (
+					...a: unknown[]
+				) => Effect.Effect<unknown, UserFailure, CurrentActor | Correlation>;
+				return method(...args).pipe(
+					Effect.provideService(CurrentActor, Actor.user(actor.userId, actor.role)),
+					Effect.provideService(Correlation, { id: "test" }),
+				);
+			},
+	});
+
+	const run = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(effect);
 
 	/** The domain error a use case failed with. */
-	const failureOf = (effect: Effect.Effect<unknown, UserFailure, UserRepository | DatabasePort>) =>
-		run(Effect.flip(effect));
+	const failureOf = (effect: Effect.Effect<unknown, UserFailure>) => run(Effect.flip(effect));
 
 	describe("list / count", () => {
 		it("forbids an ordinary user", async () => {
@@ -109,7 +120,7 @@ describe("UserServiceImpl", () => {
 		it("checks the normalised address", async () => {
 			repo.emailExists.mockReturnValue(Effect.succeed(true));
 
-			await expect(run(service.checkEmail("  Ada@Example.COM "))).resolves.toBe(true);
+			await expect(run(service.checkEmail(member, "  Ada@Example.COM "))).resolves.toBe(true);
 			expect(repo.emailExists).toHaveBeenCalledWith("ada@example.com");
 		});
 	});

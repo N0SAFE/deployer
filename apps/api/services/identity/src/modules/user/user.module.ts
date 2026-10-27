@@ -2,28 +2,17 @@ import { createModuleContext } from '@deployer/nest-effect'
 import { DatabasePort } from '@identity/core/database/database.port'
 
 import { UserController } from './controllers/user.controller'
-import {
-    UserRepository,
-    UserRepositoryImpl,
-} from './repositories/user.repository'
-import { UserService, UserServiceImpl } from './services/user.service'
+import { UserService } from './services/user.service'
 
 /**
  * The user domain.
  *
- * Every dependency is an Effect token backed by a normal NestJS provider:
- * - `DatabasePort` is provided once by the root module;
- * - `UserRepository` is the Drizzle implementation, with no constructor DI;
- * - `UserService` is the domain use case.
+ * `UserService` and `UserRepository` are Layers (`UserService.Live`, `UserRepository.Live`), built
+ * by the app's Effect runtime over `DatabasePort`; the module only declares the controller and
+ * which services its handlers may use.
  */
 export class UserDomainModule extends createModuleContext(
-    {
-        controllers: [UserController],
-        providers: [
-            { provide: UserRepository, useClass: UserRepositoryImpl },
-            { provide: UserService, useClass: UserServiceImpl },
-        ],
-        exports: [UserService],
-    },
+    { controllers: [UserController] },
+    UserService,
     DatabasePort
 ) {}

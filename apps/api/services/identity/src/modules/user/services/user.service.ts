@@ -1,5 +1,7 @@
-import { Context, Effect } from 'effect'
+import { CurrentActor, type Ambient } from '@deployer/effect-core'
+import { Context, Effect, Layer } from 'effect'
 
+import { actorFromCurrent } from '@identity/core/utils/actor.utils'
 import {
     EmailTaken,
     UserNotFound,
@@ -7,81 +9,88 @@ import {
 } from '../domain/user.errors'
 import { userRules } from '../domain/user.rules'
 import type { NewUser, User, UserPatch } from '../domain/user.types'
+import {
+    UserRepository,
+    type UserRepositoryShape,
+} from '../repositories/user.repository'
 import type {
     UserFilter,
     UserPage,
 } from '../repositories/user.repository.types'
-import { UserRepository } from '../repositories/user.repository'
-import { DatabasePort } from '@identity/core/database/database.port'
 import type { UserRepositoryFailure } from '../user.failures'
-import { rule } from './user.service.utils'
-import type { Actor } from '@identity/core/utils/actor.utils'
 import type { UserQuery } from './user.service.types'
+import { rule } from './user.service.utils'
 
 /** What a user use case can fail with: its own refusals, or the database. */
 export type UserFailure = UserDomainFailure | UserRepositoryFailure
 
-export interface UserServiceShape {
+/**
+ * Every method leaves only the ambient requirements open (`CurrentActor`, `Correlation`): who is
+ * acting comes from the request boundary, never from a parameter, and the repository is resolved
+ * when the layer is built.
+ */
+export type UserServiceShape = {
     readonly list: (
-        actor: Actor,
         query: UserQuery
-    ) => Effect.Effect<UserPage, UserFailure, UserRepository | DatabasePort>
+    ) => Effect.Effect<UserPage, UserFailure, Ambient>
     readonly count: (
-        actor: Actor,
         filter: UserFilter
-    ) => Effect.Effect<number, UserFailure, UserRepository | DatabasePort>
+    ) => Effect.Effect<number, UserFailure, Ambient>
     readonly findById: (
-        actor: Actor,
         id: string
-    ) => Effect.Effect<User | null, UserFailure, UserRepository | DatabasePort>
+    ) => Effect.Effect<User | null, UserFailure, Ambient>
     readonly checkEmail: (
         email: string
-    ) => Effect.Effect<boolean, UserFailure, UserRepository | DatabasePort>
+    ) => Effect.Effect<boolean, UserFailure, Ambient>
     readonly create: (
-        actor: Actor,
         input: NewUser
-    ) => Effect.Effect<User, UserFailure, UserRepository | DatabasePort>
+    ) => Effect.Effect<User, UserFailure, Ambient>
     readonly update: (
-        actor: Actor,
         id: string,
         patch: UserPatch,
         raw: Record<string, unknown>
-    ) => Effect.Effect<User, UserFailure, UserRepository | DatabasePort>
+    ) => Effect.Effect<User, UserFailure, Ambient>
     readonly setBanned: (
-        actor: Actor,
         id: string,
         banned: boolean
-    ) => Effect.Effect<User, UserFailure, UserRepository | DatabasePort>
-    readonly delete: (
-        actor: Actor,
-        id: string
-    ) => Effect.Effect<void, UserFailure, UserRepository | DatabasePort>
+    ) => Effect.Effect<User, UserFailure, Ambient>
+    readonly delete: (id: string) => Effect.Effect<void, UserFailure, Ambient>
 }
 
-/** Effect key = NestJS token. The implementation is below. */
+/** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
 export class UserService extends Context.Service<
     UserService,
     UserServiceShape
->()('identity/UserService') {}
+>()('identity/UserService') {
+    /** Leaves `UserRepository` open, so a test swaps it without touching the database. */
+    static readonly Live: Layer.Layer<UserService, never, UserRepository> =
+        Layer.effect(
+            UserService,
+            Effect.gen(function* () {
+                const users = yield* UserRepository
+                return makeUserService(users)
+            })
+        )
+}
+
+const actingUser = Effect.gen(function* () {
+    return actorFromCurrent(yield* CurrentActor)
+})
 
 /**
  * The User domain's rules, composed as Effects.
  *
- * Rules stay synchronous and are lifted with `rule`; database work is already
- * an Effect from `UserRepository`. Each refusal is its own tagged `DomainError`, which the
- * boundary maps by kind (`catchDomainErrors`); a repository failure is left unmapped on purpose.
+ * Rules stay synchronous and are lifted with `rule`; database work is an Effect from the
+ * repository. Each refusal is its own tagged `DomainError`, which the boundary maps by kind; a
+ * repository failure is left unmapped on purpose.
  */
-export class UserServiceImpl implements UserServiceShape {
-    list(
-        actor: Actor,
-        query: UserQuery
-    ): Effect.Effect<UserPage, UserFailure, UserRepository | DatabasePort> {
-        return Effect.gen(function* () {
+export function makeUserService(users: UserRepositoryShape): UserServiceShape {
+    return {
+        list: Effect.fn('UserService.list')(function* (query) {
+            const actor = yield* actingUser
             yield* rule(() => {
                 userRules.assertCanAdminister(actor)
             })
-            const users = yield* UserRepository
-
             return yield* users.list({
                 ...query.filter,
                 limit: query.limit,
@@ -89,49 +98,30 @@ export class UserServiceImpl implements UserServiceShape {
                 sortField: query.sortField,
                 sortDirection: query.sortDirection,
             })
-        })
-    }
+        }),
 
-    count(
-        actor: Actor,
-        filter: UserFilter
-    ): Effect.Effect<number, UserFailure, UserRepository | DatabasePort> {
-        return Effect.gen(function* () {
+        count: Effect.fn('UserService.count')(function* (filter) {
+            const actor = yield* actingUser
             yield* rule(() => {
                 userRules.assertCanAdminister(actor)
             })
-            const users = yield* UserRepository
             return yield* users.count(filter)
-        })
-    }
+        }),
 
-    findById(
-        actor: Actor,
-        id: string
-    ): Effect.Effect<User | null, UserFailure, UserRepository | DatabasePort> {
-        return Effect.gen(function* () {
+        findById: Effect.fn('UserService.findById')(function* (id) {
+            const actor = yield* actingUser
             yield* rule(() => {
                 userRules.assertSelfOrAdmin(actor, id)
             })
-            const users = yield* UserRepository
             return yield* users.findById(id)
-        })
-    }
+        }),
 
-    checkEmail(
-        email: string
-    ): Effect.Effect<boolean, UserFailure, UserRepository | DatabasePort> {
-        return Effect.gen(function* () {
-            const users = yield* UserRepository
+        checkEmail: Effect.fn('UserService.checkEmail')(function* (email) {
             return yield* users.emailExists(userRules.normaliseEmail(email))
-        })
-    }
+        }),
 
-    create(
-        actor: Actor,
-        input: NewUser
-    ): Effect.Effect<User, UserFailure, UserRepository | DatabasePort> {
-        return Effect.gen(function* () {
+        create: Effect.fn('UserService.create')(function* (input) {
+            const actor = yield* actingUser
             yield* rule(() => {
                 userRules.assertCanAdminister(actor)
                 userRules.assertRoleIsAssignable(actor, input.role)
@@ -143,10 +133,8 @@ export class UserServiceImpl implements UserServiceShape {
                 userRules.assertNameIsUsable(input.name)
             })
 
-            const users = yield* UserRepository
-            if (yield* users.emailExists(email)) {
-                return yield* Effect.fail(new EmailTaken({ email }))
-            }
+            if (yield* users.emailExists(email))
+                return yield* new EmailTaken({ email })
 
             return yield* users.insert({
                 name: input.name.trim(),
@@ -154,25 +142,16 @@ export class UserServiceImpl implements UserServiceShape {
                 ...(input.image === undefined ? {} : { image: input.image }),
                 ...(input.role === undefined ? {} : { role: input.role }),
             })
-        })
-    }
+        }),
 
-    update(
-        actor: Actor,
-        id: string,
-        patch: UserPatch,
-        raw: Record<string, unknown>
-    ): Effect.Effect<User, UserFailure, UserRepository | DatabasePort> {
-        return Effect.gen(function* () {
+        update: Effect.fn('UserService.update')(function* (id, patch, raw) {
+            const actor = yield* actingUser
             yield* rule(() => {
                 userRules.assertNoAuditFields(raw)
             })
 
-            const users = yield* UserRepository
             const current = yield* users.findById(id)
-            if (current === null) {
-                return yield* Effect.fail(new UserNotFound({ id }))
-            }
+            if (current === null) return yield* new UserNotFound({ id })
 
             const isSelf = actor.userId === id
             yield* rule(() => {
@@ -202,24 +181,18 @@ export class UserServiceImpl implements UserServiceShape {
                 yield* rule(() => {
                     userRules.assertEmailIsUsable(email)
                 })
-                if (yield* users.emailExists(email, id)) {
-                    return yield* Effect.fail(new EmailTaken({ email }))
-                }
+                if (yield* users.emailExists(email, id))
+                    return yield* new EmailTaken({ email })
                 next.email = email
             }
 
             if (Object.keys(next).length === 0) return current
 
             return yield* users.update(id, next)
-        })
-    }
+        }),
 
-    setBanned(
-        actor: Actor,
-        id: string,
-        banned: boolean
-    ): Effect.Effect<User, UserFailure, UserRepository | DatabasePort> {
-        return Effect.gen(function* () {
+        setBanned: Effect.fn('UserService.setBanned')(function* (id, banned) {
+            const actor = yield* actingUser
             yield* rule(() => {
                 userRules.assertCanAdminister(actor)
                 userRules.assertNotSelfDestruct(
@@ -229,35 +202,24 @@ export class UserServiceImpl implements UserServiceShape {
                 )
             })
 
-            const users = yield* UserRepository
             const current = yield* users.findById(id)
-            if (current === null) {
-                return yield* Effect.fail(new UserNotFound({ id }))
-            }
-
+            if (current === null) return yield* new UserNotFound({ id })
             if ((current.banned ?? false) === banned) return current
 
             return yield* users.update(id, { banned })
-        })
-    }
+        }),
 
-    delete(
-        actor: Actor,
-        id: string
-    ): Effect.Effect<void, UserFailure, UserRepository | DatabasePort> {
-        return Effect.gen(function* () {
+        delete: Effect.fn('UserService.delete')(function* (id) {
+            const actor = yield* actingUser
             yield* rule(() => {
                 userRules.assertCanAdminister(actor)
                 userRules.assertNotSelfDestruct(actor, id, 'delete')
             })
 
-            const users = yield* UserRepository
             const current = yield* users.findById(id)
-            if (current === null) {
-                return yield* Effect.fail(new UserNotFound({ id }))
-            }
+            if (current === null) return yield* new UserNotFound({ id })
 
             yield* users.delete(id)
-        })
+        }),
     }
 }

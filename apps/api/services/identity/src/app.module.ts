@@ -21,6 +21,7 @@ import { GlobalDatabaseService } from '@deployer/shared/core/modules/database/se
 import { DatabasePort } from '@identity/core/database/database.port'
 
 import { UserDomainModule } from './modules/user/user.module'
+import { UserLive } from './modules/user/user.layers'
 import { PushDomainModule } from './modules/push/push.module'
 import { AnalyticsDomainModule } from './modules/analytics/analytics.module'
 import { PermissionDomainModule } from './modules/permission/permission.module'
@@ -81,7 +82,7 @@ export class IdentityServiceModule extends createModuleContext({
             },
         }),
 
-        EffectRuntimeModule,
+        EffectRuntimeModule.forRoot({ layers: [UserLive] }),
 
         UserDomainModule,
         PushDomainModule,

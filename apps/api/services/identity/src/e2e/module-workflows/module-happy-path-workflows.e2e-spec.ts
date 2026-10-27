@@ -11,25 +11,28 @@ import { getSharedApiRuntimeContext, type SharedApiRuntimeContext } from "@/e2e/
 import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
 import { user } from "@deployer/nest-schema/global/identity/auth";
 import { projects, services } from "@deployer/nest-schema/global/project/deployment";
-import { UserService, UserServiceImpl } from "@/modules/user/services/user.service";
-import {
-	UserRepository,
-	type UserRepositoryShape,
-} from "@/modules/user/repositories/user.repository";
+import { UserService, type UserServiceShape } from "@/modules/user/services/user.service";
+import { UserLive } from "@/modules/user/user.layers";
+import { Actor, Correlation, CurrentActor, type Ambient } from "@deployer/effect-core";
 import { DatabasePort, type DatabaseShape } from "@identity/core/database/database.port";
 import type { UserFailure } from "@/modules/user/services/user.service";
 import { AnalyticsService } from "@/modules/analytics/services/analytics.service";
 
-/** Run a user use case with the real repository, outside the oRPC context. */
-function run<T>(
-	repository: UserRepositoryShape,
+/** Run a user use case as `actor` against the real repository, outside the oRPC context. */
+function runUsers<T>(
 	database: DatabaseShape,
-	effect: Effect.Effect<T, UserFailure, UserRepository | DatabasePort>,
+	actor: { userId: string; role: string },
+	use: (users: UserServiceShape) => Effect.Effect<T, UserFailure, Ambient>,
 ): Promise<T> {
 	return Effect.runPromise(
-		effect.pipe(
-			Effect.provideService(UserRepository, repository),
+		Effect.gen(function* () {
+			const users = yield* UserService;
+			return yield* use(users);
+		}).pipe(
+			Effect.provide(UserLive),
 			Effect.provideService(DatabasePort, database),
+			Effect.provideService(CurrentActor, Actor.user(actor.userId, actor.role)),
+			Effect.provideService(Correlation, { id: "e2e" }),
 		),
 	);
 }
@@ -46,8 +49,6 @@ function run<T>(
 describe("Identity happy-path workflows e2e: the domains this service owns", () => {
 	let runtime: SharedApiRuntimeContext;
 	let admin: { userId: string; role: string };
-	let userService: UserServiceImpl;
-	let userRepository: UserRepositoryShape;
 	let database: DatabaseShape;
 	let analyticsService: AnalyticsService;
 
@@ -76,8 +77,6 @@ describe("Identity happy-path workflows e2e: the domains this service owns", () 
 			role: "admin",
 		});
 
-		userService = runtime.serviceMapper.get(UserService) as unknown as UserServiceImpl;
-		userRepository = runtime.serviceMapper.get(UserRepository) as unknown as UserRepositoryShape;
 		database = { db: globalDatabase.db };
 		analyticsService = runtime.serviceMapper.get(AnalyticsService);
 
@@ -116,7 +115,7 @@ describe("Identity happy-path workflows e2e: the domains this service owns", () 
 
 	it("creates, reads, updates and deletes a user", async () => {
 		const email = `e2e-user-${randomUUID()}@example.test`;
-		const created = await run(userRepository, database, userService.create(admin, {
+		const created = await runUsers(database, admin, (users) => users.create({
 			name: "Module E2E User",
 			email,
 			// `viewer` is a real platform role; "user" is not in the enum, which is why the
@@ -124,25 +123,23 @@ describe("Identity happy-path workflows e2e: the domains this service owns", () 
 			role: "viewer",
 		}));
 
-		const fetched = await run(userRepository, database, userService.findById(admin, created.id));
+		const fetched = await runUsers(database, admin, (users) => users.findById(created.id));
 		expect(fetched?.email).toBe(email);
 
-		const updated = await run(userRepository, database, userService.update(
-			admin,
-			created.id,
+		const updated = await runUsers(database, admin, (users) => users.update(created.id,
 			{ name: "Module E2E User Updated" },
 			{},
 		));
 		expect(updated.name).toBe("Module E2E User Updated");
 
-		await run(userRepository, database, userService.delete(admin, created.id));
+		await runUsers(database, admin, (users) => users.delete(created.id));
 		// Read back rather than trusting the delete's return value: "it was removed" is the
 		// claim being made.
-		await expect(run(userRepository, database, userService.findById(admin, created.id))).resolves.toBeNull();
+		await expect(runUsers(database, admin, (users) => users.findById(created.id))).resolves.toBeNull();
 	});
 
 	it("returns a paginated user collection with a total", async () => {
-		const page = await run(userRepository, database, userService.list(admin, {
+		const page = await runUsers(database, admin, (users) => users.list({
 			limit: 20,
 			offset: 0,
 			sortField: "createdAt",
