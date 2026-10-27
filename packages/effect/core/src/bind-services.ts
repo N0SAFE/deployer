@@ -1,0 +1,34 @@
+import { Effect, type Context } from "effect";
+
+/**
+ * A class-style implementation whose methods return Effects, with `Deps` taken out of every
+ * method's requirements `R`.
+ */
+export type Bound<T, Deps> = {
+	readonly [K in keyof T]: T[K] extends (...args: infer P) => Effect.Effect<infer A, infer E, infer R>
+		? (...args: P) => Effect.Effect<A, E, Exclude<R, Deps>>
+		: T[K];
+};
+
+/**
+ * Resolve an implementation's dependencies once, at layer build.
+ *
+ * Existing services were written as classes whose methods `yield*` their collaborators, so every
+ * method carried them in `R`. `bindServices(impl, context)` provides `context` to every Effect a
+ * method returns, so a Layer can hand out the service with those requirements already discharged,
+ * without rewriting the method bodies. Methods that do not return an Effect are passed through.
+ *
+ * It is a bridge, not a destination: a service moved onto `makeX(deps)` closures no longer needs it.
+ */
+export function bindServices<T extends object, Deps>(impl: T, context: Context.Context<Deps>): Bound<T, Deps> {
+	return new Proxy(impl, {
+		get(target, key) {
+			const value: unknown = Reflect.get(target, key, target);
+			if (typeof value !== "function") return value;
+			return (...args: unknown[]) => {
+				const result: unknown = (value as (...a: unknown[]) => unknown).apply(target, args);
+				return Effect.isEffect(result) ? Effect.provideContext(result, context) : result;
+			};
+		},
+	}) as unknown as Bound<T, Deps>;
+}
