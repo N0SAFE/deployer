@@ -1,6 +1,5 @@
-import { Injectable } from "@nestjs/common";
 import type { HealthSnapshot } from "@deployer/shared/server";
-import { Context, Effect } from "effect";
+import { Context, Effect, Layer } from "effect";
 
 import { HealthCheckFailed } from "../health.errors";
 
@@ -18,24 +17,20 @@ export type HealthServiceShape = {
 }
 
 /**
- * Effect key AND NestJS token.
- *
- * A `Context.Service` tag is a pure key: it has a `never` constructor by design
- * and is never instantiated. The implementation below is the normal class Nest
- * constructs, registered under this token.
+ * Tag and implementation together: the tag is the contract, `Live` the one
+ * implementation. No class, no decorator: the service is a plain record built
+ * by `makeHealthService`, so it needs no Nest to exist.
  */
 export class HealthService extends Context.Service<HealthService, HealthServiceShape>()(
   "health/HealthService",
-) {}
+) {
+  static readonly Live: Layer.Layer<HealthService> = Layer.succeed(HealthService, makeHealthService());
+}
 
-/**
- * The implementation. No constructor injection: the registry is an Effect
- * service (`HealthRegistryRepository`), yielded inside `check()`.
- */
-@Injectable()
-export class HealthServiceImpl implements HealthServiceShape {
-  check(): Effect.Effect<HealthSnapshot, HealthCheckFailed, HealthRegistryRepository> {
-    return Effect.gen(function* () {
+/** The registry is an Effect service, yielded inside `check()`. */
+export function makeHealthService(): HealthServiceShape {
+  return {
+    check: Effect.fn("HealthService.check")(function* () {
       const registry = yield* HealthRegistryRepository;
 
       return yield* Effect.tryPromise({
@@ -46,6 +41,6 @@ export class HealthServiceImpl implements HealthServiceShape {
             cause,
           }),
       });
-    });
-  }
+    }),
+  };
 }

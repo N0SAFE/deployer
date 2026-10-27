@@ -2,10 +2,10 @@ import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import { HealthRegistryRepository } from "../services/health.service";
-import { HealthServiceImpl } from "./health.service";
+import { makeHealthService } from "./health.service";
 import { healthRegistryFake, healthSnapshot } from "../testing/health.fixtures";
 
-const service = new HealthServiceImpl();
+const service = makeHealthService();
 
 function check(runOnce: () => Promise<ReturnType<typeof healthSnapshot>>) {
   return Effect.runPromise(
