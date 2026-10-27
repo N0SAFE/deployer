@@ -1,14 +1,27 @@
-import { Data } from "effect";
+import { domainError } from '@deployer/effect-core'
+import { Data } from 'effect'
 
-/** A permission database call failed; wraps the driver error for the service boundary. */
-export class PermissionRepositoryFailure extends Data.TaggedError("PermissionRepositoryFailure")<{
-  readonly cause: unknown;
-}> {}
+/** The engine denied the action. `reason` is the engine's sentence, written for the client. */
+export class PermissionDenied extends domainError(
+    'PermissionDenied',
+    'forbidden'
+)<{
+    readonly reason: string
+}>() {
+    override publicMessage() {
+        return this.reason
+    }
+}
 
 /**
- * The single failure the permission domain produces. An engine denial
- * (`ForbiddenError`) is preserved as `cause`, so callers can still discriminate.
+ * A permission database call failed; wraps the driver error. Deliberately not a `DomainError`: the
+ * boundary answers it with a generic internal error carrying a correlation id.
  */
-export class PermissionServiceFailure extends Data.TaggedError("PermissionServiceFailure")<{
-  readonly cause: unknown;
+export class PermissionRepositoryFailure extends Data.TaggedError(
+    'PermissionRepositoryFailure'
+)<{
+    readonly cause: unknown
 }> {}
+
+/** What a permission use case can fail with. */
+export type PermissionFailure = PermissionDenied | PermissionRepositoryFailure
