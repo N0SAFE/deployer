@@ -1,5 +1,4 @@
 import { FleetInvalid } from "../../../core/fleet.errors";
-import { Injectable } from "@nestjs/common";
 
 import type { DependencyTemplateConfig } from "@deployer/contracts-entities";
 
@@ -38,7 +37,6 @@ export type ServiceDependencyInput = {
  * Detects cycles, computes execution layers via Kahn's algorithm, and applies
  * ordering strategy constraints from a DependencyTemplateConfig.
  */
-@Injectable()
 export class ServiceDagService {
     build(
         edges: ServiceDependencyInput[],

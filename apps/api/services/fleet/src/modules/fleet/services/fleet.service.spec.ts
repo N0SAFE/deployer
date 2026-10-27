@@ -1,7 +1,25 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { FleetInvalid, FleetNotFound } from "@/core/fleet.errors";
-import { FleetService } from "./fleet.service";
-import type { FleetRepository } from "../repositories/fleet.repository";
+import { Cause, Effect, Exit } from "effect";
+import { makeFleetService } from "./fleet.service";
+import type { FleetRepositoryShape } from "../repositories/fleet.repository";
+
+/** Run an Effect and reject with the ORIGINAL failure, so `rejects.toBeInstanceOf(...)` reads the real error. */
+async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
+    const exit = await Effect.runPromiseExit(effect);
+    if (Exit.isSuccess(exit)) return exit.value;
+    throw Cause.squash(exit.cause);
+}
+
+/** The promise-returning fakes below, lifted the way the real repository lifts its queries. */
+function asEffects(fakes: object): FleetRepositoryShape {
+    return Object.fromEntries(
+        Object.entries(fakes as Record<string, (...args: unknown[]) => unknown>).map(([name, fake]) => [
+            name,
+            (...args: unknown[]) => Effect.tryPromise(() => Promise.resolve(fake(...args))),
+        ]),
+    ) as unknown as FleetRepositoryShape;
+}
 
 /**
  * FleetService had no spec despite being the backing service for the `nodes.*`
@@ -53,7 +71,7 @@ function mkAllocationRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe("FleetService", () => {
-    let service: FleetService;
+    let service: ReturnType<typeof makeFleetService>;
     let repo: {
         listServersWithMetrics: ReturnType<typeof vi.fn>;
         listEnabledAllocations: ReturnType<typeof vi.fn>;
@@ -86,7 +104,7 @@ describe("FleetService", () => {
             insertAllocation: vi.fn().mockResolvedValue([]),
             deleteAllocation: vi.fn().mockResolvedValue({ rowCount: 0 }),
         };
-        service = new FleetService(repo as unknown as FleetRepository);
+        service = makeFleetService(asEffects(repo));
     });
 
     describe("listServers — allocation aggregation", () => {
@@ -97,7 +115,7 @@ describe("FleetService", () => {
                 { serverNodeId: "node-1", cpuMillicores: 250, memoryMb: 128 },
             ]);
 
-            const { items } = await service.listServers();
+            const { items } = await run(service.listServers());
 
             expect(items).toHaveLength(1);
             expect(items[0]?.allocationSummary).toEqual({
@@ -116,7 +134,7 @@ describe("FleetService", () => {
                 { serverNodeId: "node-2", cpuMillicores: 900, memoryMb: 512 },
             ]);
 
-            const { items } = await service.listServers();
+            const { items } = await run(service.listServers());
 
             const one = items.find((i: { nodeId: string }) => i.nodeId === "node-1");
             const two = items.find((i: { nodeId: string }) => i.nodeId === "node-2");
@@ -130,7 +148,7 @@ describe("FleetService", () => {
                 { serverNodeId: "node-1", cpuMillicores: null, memoryMb: null },
             ]);
 
-            const { items } = await service.listServers();
+            const { items } = await run(service.listServers());
 
             expect(items[0]?.allocationSummary).toEqual({ services: 1, cpuMillicores: 0, memoryMb: 0 });
         });
@@ -138,7 +156,7 @@ describe("FleetService", () => {
         it("reports metrics as null when none were reported", async () => {
             repo.listServersWithMetrics.mockResolvedValue([mkServerRow({ cpuUsage: null })]);
 
-            const { items } = await service.listServers();
+            const { items } = await run(service.listServers());
 
             expect(items[0]?.metrics).toBeNull();
             expect(items[0]?.lastSeenAt).toBe("2026-09-17T10:00:00.000Z");
@@ -149,7 +167,7 @@ describe("FleetService", () => {
                 mkServerRow({ cpuUsage: { cpuUsage: 12 }, reportedAt: iso("2026-09-17T11:00:00.000Z") }),
             ]);
 
-            const { items } = await service.listServers();
+            const { items } = await run(service.listServers());
 
             expect(items[0]?.metrics).toEqual({
                 cpuUsage: 12,
@@ -170,11 +188,11 @@ describe("FleetService", () => {
                 { serverNodeId: "other", cpuMillicores: 9999, memoryMb: 9999 },
             ]);
 
-            const summary = await service.setServerCapacity({
+            const summary = await run(service.setServerCapacity({
                 serverNodeId: "node-1",
                 maxCpuMillicores: 8000,
                 maxMemoryMb: 16384,
-            });
+            }));
 
             // The other server's allocation must not leak into this summary —
             // the pre-P1-7 code returned a hardcoded zero object here.
@@ -190,7 +208,7 @@ describe("FleetService", () => {
             repo.updateServerCapacity.mockResolvedValue(null);
 
             await expect(
-                service.setServerCapacity({ serverNodeId: "ghost", maxCpuMillicores: 1, maxMemoryMb: 1 }),
+                run(service.setServerCapacity({ serverNodeId: "ghost", maxCpuMillicores: 1, maxMemoryMb: 1 })),
             ).rejects.toBeInstanceOf(FleetNotFound);
         });
     });
@@ -201,7 +219,7 @@ describe("FleetService", () => {
         it("allows when an allocation has room", async () => {
             repo.findEnabledAllocations.mockResolvedValue([mkAllocationRow()]);
 
-            const result = await service.checkMyAdmission("user-1", request);
+            const result = await run(service.checkMyAdmission("user-1", request));
 
             expect(result.allowed).toBe(true);
             expect(result.reason).toBeNull();
@@ -210,7 +228,7 @@ describe("FleetService", () => {
         it("denies with a node-specific reason when there are no enabled allocations", async () => {
             repo.findEnabledAllocations.mockResolvedValue([]);
 
-            const result = await service.checkMyAdmission("user-1", request);
+            const result = await run(service.checkMyAdmission("user-1", request));
 
             expect(result.allowed).toBe(false);
             expect(result.reason).toBe("No enabled allocation for the requested node");
@@ -225,7 +243,7 @@ describe("FleetService", () => {
                 }),
             ]);
 
-            const result = await service.checkMyAdmission("user-1", request);
+            const result = await run(service.checkMyAdmission("user-1", request));
 
             expect(result.allowed).toBe(false);
             expect(result.reason).toBe(
@@ -242,7 +260,7 @@ describe("FleetService", () => {
                 }),
             ]);
 
-            const result = await service.checkMyAdmission("user-1", request);
+            const result = await run(service.checkMyAdmission("user-1", request));
 
             expect(result.candidates[0]?.availableCpuMillicores).toBe(0);
             expect(result.candidates[0]?.availableMemoryMb).toBe(0);
@@ -253,10 +271,10 @@ describe("FleetService", () => {
                 mkAllocationRow({ allocation: { ...mkAllocationRow().allocation, maxServices: 0 } }),
             ]);
 
-            const result = await service.checkMyAdmission("user-1", {
+            const result = await run(service.checkMyAdmission("user-1", {
                 ...request,
                 requestedServices: 0,
-            });
+            }));
 
             expect(result.allowed).toBe(true);
         });
@@ -266,10 +284,10 @@ describe("FleetService", () => {
                 mkAllocationRow({ allocation: { ...mkAllocationRow().allocation, maxServices: 2 } }),
             ]);
 
-            const result = await service.checkMyAdmission("user-1", {
+            const result = await run(service.checkMyAdmission("user-1", {
                 ...request,
                 requestedServices: 5,
-            });
+            }));
 
             expect(result.allowed).toBe(false);
         });
@@ -279,10 +297,10 @@ describe("FleetService", () => {
                 mkAllocationRow({ allocation: { ...mkAllocationRow().allocation, maxServices: null } }),
             ]);
 
-            const result = await service.checkMyAdmission("user-1", {
+            const result = await run(service.checkMyAdmission("user-1", {
                 ...request,
                 requestedServices: 999,
-            });
+            }));
 
             expect(result.allowed).toBe(true);
         });
@@ -293,11 +311,11 @@ describe("FleetService", () => {
             repo.insertAdmissionRequest.mockResolvedValue([]);
 
             await expect(
-                service.createMyAdmissionRequest("user-1", {
+                run(service.createMyAdmissionRequest("user-1", {
                     requestedCpuMillicores: 1,
                     requestedMemoryMb: 1,
                     requestedServices: 1,
-                }),
+                })),
             ).rejects.toBeInstanceOf(FleetInvalid);
         });
 
@@ -305,7 +323,7 @@ describe("FleetService", () => {
             repo.updateAdmissionRequestDecision.mockResolvedValue(null);
 
             await expect(
-                service.resolveAdmissionRequest({ requestId: "missing", decision: "approved" }),
+                run(service.resolveAdmissionRequest({ requestId: "missing", decision: "approved" })),
             ).rejects.toBeInstanceOf(FleetNotFound);
         });
     });
@@ -326,13 +344,13 @@ describe("FleetService", () => {
                 },
             ]);
 
-            const result = await service.upsertAllocation({
+            const result = await run(service.upsertAllocation({
                 serverNodeId: "node-1",
                 allocationMode: "dedicated",
                 cpuMillicores: 2000,
                 memoryMb: 4096,
                 maxServices: 5,
-            });
+            }));
 
             expect(repo.insertAllocation).not.toHaveBeenCalled();
             expect(result.cpuMillicores).toBe(2000);
@@ -353,12 +371,12 @@ describe("FleetService", () => {
                 },
             ]);
 
-            await service.upsertAllocation({
+            await run(service.upsertAllocation({
                 serverNodeId: "node-1",
                 allocationMode: "shared",
                 cpuMillicores: 100,
                 memoryMb: 100,
-            });
+            }));
 
             expect(repo.updateAllocation).not.toHaveBeenCalled();
             expect(repo.insertAllocation).toHaveBeenCalledOnce();
@@ -369,12 +387,12 @@ describe("FleetService", () => {
             repo.insertAllocation.mockResolvedValue([]);
 
             await expect(
-                service.upsertAllocation({
+                run(service.upsertAllocation({
                     serverNodeId: "node-1",
                     allocationMode: "shared",
                     cpuMillicores: 1,
                     memoryMb: 1,
-                }),
+                })),
             ).rejects.toBeInstanceOf(FleetInvalid);
         });
     });
@@ -382,12 +400,12 @@ describe("FleetService", () => {
     describe("deleteAllocation", () => {
         it("reports deleted=true only when a row was removed", async () => {
             repo.deleteAllocation.mockResolvedValue({ rowCount: 1 });
-            await expect(service.deleteAllocation({ serverNodeId: "node-1" })).resolves.toEqual({
+            await expect(run(service.deleteAllocation({ serverNodeId: "node-1" }))).resolves.toEqual({
                 deleted: true,
             });
 
             repo.deleteAllocation.mockResolvedValue({ rowCount: 0 });
-            await expect(service.deleteAllocation({ serverNodeId: "node-1" })).resolves.toEqual({
+            await expect(run(service.deleteAllocation({ serverNodeId: "node-1" }))).resolves.toEqual({
                 deleted: false,
             });
         });
@@ -395,7 +413,7 @@ describe("FleetService", () => {
         it("treats a null rowCount as not deleted", async () => {
             repo.deleteAllocation.mockResolvedValue({ rowCount: null });
 
-            await expect(service.deleteAllocation({ serverNodeId: "node-1" })).resolves.toEqual({
+            await expect(run(service.deleteAllocation({ serverNodeId: "node-1" }))).resolves.toEqual({
                 deleted: false,
             });
         });

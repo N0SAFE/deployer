@@ -1,4 +1,3 @@
-import { Injectable } from "@nestjs/common";
 
 export type CrossProjectGateMode = "block" | "warn" | "skip";
 
@@ -38,7 +37,6 @@ export type CrossProjectGateServiceResult = {
  * - `warn`:  unhealthy dependencies emit a warning but do not block
  * - `skip`:  gate is entirely bypassed (no checks run)
  */
-@Injectable()
 export class CrossProjectGateService {
     async evaluate(
         dependencies: CrossProjectDependency[],

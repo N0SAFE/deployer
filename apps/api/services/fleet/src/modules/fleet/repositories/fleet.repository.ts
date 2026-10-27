@@ -1,6 +1,7 @@
-import { Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
-import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
+import { and, asc, desc, eq } from "drizzle-orm";
+import { Context, Effect, Layer } from "effect";
+import type { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
+import { attempt } from "../../../core/effects";
 import {
   clusterNodes,
   clusterServerAllocations,
@@ -16,20 +17,14 @@ import {
  * Extracted from FleetService, which mixed ~16 raw Drizzle queries with
  * business logic. All query construction lives here; FleetService owns
  * aggregation, feasibility checks and view mapping.
+ *
+ * Each method is lifted into an Effect that fails with whatever the driver raised (an
+ * infrastructure failure the boundary answers as internal). The query builders return rows when awaited.
  */
-@Injectable()
-export class FleetRepository {
-    constructor(private readonly databaseService: GlobalDatabaseService) {}
-
-    private get db() {
-        return this.databaseService.db;
-    }
-
-    // ── Servers ────────────────────────────────────────────────────
-
-    /** Nodes joined with their latest metrics row (one row per node). */
-    listServersWithMetrics() {
-        return this.db
+export function makeFleetRepository(database: GlobalDatabaseService) {
+    return {
+        listServersWithMetrics: () => attempt(async () => {
+        return database.db
             .select({
                 nodeId: clusterNodes.nodeId,
                 serverUrl: clusterNodes.serverUrl,
@@ -46,11 +41,10 @@ export class FleetRepository {
             .from(clusterNodes)
             .leftJoin(clusterNodeMetrics, eq(clusterNodeMetrics.nodeId, clusterNodes.nodeId))
             .orderBy(asc(clusterNodes.displayName ?? clusterNodes.serverUrl));
-    }
+    }),
 
-    /** All enabled allocations (used to aggregate per-server summaries). */
-    listEnabledAllocations() {
-        return this.db
+        listEnabledAllocations: () => attempt(async () => {
+        return database.db
             .select({
                 serverNodeId: clusterServerAllocations.serverNodeId,
                 cpuMillicores: clusterServerAllocations.cpuMillicores,
@@ -58,27 +52,23 @@ export class FleetRepository {
             })
             .from(clusterServerAllocations)
             .where(eq(clusterServerAllocations.isEnabled, true));
-    }
+    }),
 
-    /** Update node capacity. Returns the updated row or null when missing. */
-    async updateServerCapacity(nodeId: string, maxCpuMillicores: number | null, maxMemoryMb: number | null) {
-        const [row] = await this.db
+        updateServerCapacity: (nodeId: string, maxCpuMillicores: number | null, maxMemoryMb: number | null) => attempt(async () => {
+        const [row] = await database.db
             .update(clusterNodes)
             .set({ maxCpuMillicores, maxMemoryMb, updatedAt: new Date() })
             .where(eq(clusterNodes.nodeId, nodeId))
             .returning();
         return row ?? null;
-    }
+    }),
 
-    // ── Allocations ────────────────────────────────────────────────
-
-    /** Allocations joined with server URL, optional filters. */
-    listAllocationsWithNames(filters: { serverNodeId?: string }) {
+        listAllocationsWithNames: (filters: { serverNodeId?: string }) => attempt(async () => {
         const conditions = [
             filters.serverNodeId ? eq(clusterServerAllocations.serverNodeId, filters.serverNodeId) : undefined,
         ].filter(Boolean);
 
-        return this.db
+        return database.db
             .select({
                 allocation: clusterServerAllocations,
                 serverUrl: clusterNodes.serverUrl,
@@ -87,11 +77,10 @@ export class FleetRepository {
             .leftJoin(clusterNodes, eq(clusterNodes.nodeId, clusterServerAllocations.serverNodeId))
             .where(conditions.length > 0 ? and(...conditions) : undefined)
             .orderBy(desc(clusterServerAllocations.updatedAt));
-    }
+    }),
 
-    /** All enabled allocations (server-scoped view). */
-    listAllocations() {
-        return this.db
+        listAllocations: () => attempt(async () => {
+        return database.db
             .select({
                 allocation: clusterServerAllocations,
                 serverUrl: clusterNodes.serverUrl,
@@ -99,16 +88,15 @@ export class FleetRepository {
             .from(clusterServerAllocations)
             .leftJoin(clusterNodes, eq(clusterNodes.nodeId, clusterServerAllocations.serverNodeId))
             .orderBy(desc(clusterServerAllocations.updatedAt));
-    }
+    }),
 
-    /** Enabled allocations (feasibility candidates), optional server filter. */
-    findEnabledAllocations(serverNodeId?: string) {
+        findEnabledAllocations: (serverNodeId?: string) => attempt(async () => {
         const conditions = [
             eq(clusterServerAllocations.isEnabled, true),
             serverNodeId ? eq(clusterServerAllocations.serverNodeId, serverNodeId) : undefined,
         ].filter(Boolean);
 
-        return this.db
+        return database.db
             .select({
                 allocation: clusterServerAllocations,
                 serverUrl: clusterNodes.serverUrl,
@@ -118,25 +106,24 @@ export class FleetRepository {
             .from(clusterServerAllocations)
             .leftJoin(clusterNodes, eq(clusterNodes.nodeId, clusterServerAllocations.serverNodeId))
             .where(conditions.length > 0 ? and(...conditions) : undefined);
-    }
+    }),
 
-    /** Find an allocation for a server (for upsert). */
-    findAllocation(serverNodeId: string) {
-        return this.db
+        findAllocation: (serverNodeId: string) => attempt(async () => {
+        return database.db
             .select()
             .from(clusterServerAllocations)
             .where(eq(clusterServerAllocations.serverNodeId, serverNodeId))
             .limit(1);
-    }
+    }),
 
-    updateAllocation(id: string, values: {
+        updateAllocation: (id: string, values: {
         allocationMode: string;
         cpuMillicores: number;
         memoryMb: number;
         maxServices: number | null;
         isEnabled: boolean;
-    }) {
-        return this.db
+    }) => attempt(async () => {
+        return database.db
             .update(clusterServerAllocations)
             .set({
                 allocationMode: values.allocationMode as never,
@@ -148,17 +135,17 @@ export class FleetRepository {
             })
             .where(eq(clusterServerAllocations.id, id))
             .returning();
-    }
+    }),
 
-    insertAllocation(values: {
+        insertAllocation: (values: {
         serverNodeId: string;
         allocationMode: string;
         cpuMillicores: number;
         memoryMb: number;
         maxServices: number | null;
         isEnabled: boolean;
-    }) {
-        return this.db
+    }) => attempt(async () => {
+        return database.db
             .insert(clusterServerAllocations)
             .values({
                 serverNodeId: values.serverNodeId,
@@ -169,25 +156,23 @@ export class FleetRepository {
                 isEnabled: values.isEnabled,
             })
             .returning();
-    }
+    }),
 
-    deleteAllocation(serverNodeId: string) {
-        return this.db
+        deleteAllocation: (serverNodeId: string) => attempt(async () => {
+        return database.db
             .delete(clusterServerAllocations)
             .where(eq(clusterServerAllocations.serverNodeId, serverNodeId));
-    }
+    }),
 
-    // ── Admission requests ─────────────────────────────────────────
-
-    insertAdmissionRequest(values: {
+        insertAdmissionRequest: (values: {
         requestedServerNodeId: string | null;
         requestedCpuMillicores: number;
         requestedMemoryMb: number;
         requestedServices: number;
         requesterUserId: string;
         requesterNote: string | null;
-    }) {
-        return this.db
+    }) => attempt(async () => {
+        return database.db
             .insert(clusterAdmissionRequests)
             .values({
                 status: "pending",
@@ -199,26 +184,24 @@ export class FleetRepository {
                 requesterNote: values.requesterNote,
             })
             .returning();
-    }
+    }),
 
-    /** Admission requests (mesh-wide), optional status filter. */
-    listAdmissionRequests(status?: string) {
+        listAdmissionRequests: (status?: string) => attempt(async () => {
         const conditions = [
             status ? eq(clusterAdmissionRequests.status, status as never) : undefined,
         ].filter(Boolean);
 
-        return this.db
+        return database.db
             .select({
                 request: clusterAdmissionRequests,
             })
             .from(clusterAdmissionRequests)
             .where(conditions.length > 0 ? and(...conditions) : undefined)
             .orderBy(desc(clusterAdmissionRequests.createdAt));
-    }
+    }),
 
-    /** Apply a review decision. Returns the updated row or null. */
-    async updateAdmissionRequestDecision(requestId: string, decision: string, reviewerNote: string | null, decisionServerNodeId: string | null) {
-        const [row] = await this.db
+        updateAdmissionRequestDecision: (requestId: string, decision: string, reviewerNote: string | null, decisionServerNodeId: string | null) => attempt(async () => {
+        const [row] = await database.db
             .update(clusterAdmissionRequests)
             .set({
                 status: decision as never,
@@ -231,5 +214,25 @@ export class FleetRepository {
             .where(eq(clusterAdmissionRequests.id, requestId))
             .returning();
         return row ?? null;
-    }
+    }),
+    };
+}
+
+export type FleetRepositoryShape = ReturnType<typeof makeFleetRepository>;
+
+/** The database the fleet module reads and writes: the shared global one (a Nest provider). */
+export class FleetDatabasePort extends Context.Service<FleetDatabasePort, GlobalDatabaseService>()(
+    "fleet/FleetDatabasePort",
+) {}
+
+/** Tag and implementation together: the tag is the contract, `Live` the Drizzle implementation. */
+export class FleetRepository extends Context.Service<FleetRepository, FleetRepositoryShape>()(
+    "fleet/FleetRepository",
+) {
+    static readonly Live: Layer.Layer<FleetRepository, never, FleetDatabasePort> = Layer.effect(
+        FleetRepository,
+        Effect.gen(function* () {
+            return makeFleetRepository(yield* FleetDatabasePort);
+        }),
+    );
 }

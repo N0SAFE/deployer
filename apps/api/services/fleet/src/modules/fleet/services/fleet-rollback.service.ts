@@ -1,4 +1,3 @@
-import { Injectable } from "@nestjs/common";
 import type { DependencyTemplateConfig } from "@deployer/contracts-entities";
 import type { ServiceDag } from "./service-dag.service";
 
@@ -45,7 +44,6 @@ export type FleetRollbackDecision = {
  * Services without a `lastGoodDeploymentId` are excluded from rollback
  * and flagged in `excludedServices`.
  */
-@Injectable()
 export class FleetRollbackService {
     decide(request: FleetRollbackRequest): FleetRollbackDecision {
         const { failedServiceId, fleet, dag, failureIsolation } = request;

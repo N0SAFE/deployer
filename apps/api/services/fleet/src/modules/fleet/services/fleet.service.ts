@@ -1,10 +1,12 @@
 import { FleetInvalid, FleetNotFound } from "../../../core/fleet.errors";
-import { Injectable } from "@nestjs/common";
 import {
   clusterNodes,
   clusterServerAllocations,
   clusterAdmissionRequests,
 } from "@deployer/nest-schema/global/fleet/cluster";
+import { Context, Effect, Layer } from "effect";
+
+import type { FleetRepositoryShape } from "../repositories/fleet.repository";
 import { FleetRepository } from "../repositories/fleet.repository";
 
 type ServerRow = typeof clusterNodes.$inferSelect;
@@ -20,13 +22,66 @@ type AdmissionRequestRow = typeof clusterAdmissionRequests.$inferSelect;
  * aggregation, capacity feasibility and view mapping. Backs the
  * `nodes.*` ORPC contract.
  */
-@Injectable()
-export class FleetService {
-    constructor(private readonly fleetRepository: FleetRepository) {}
+/**
+ * Fleet Service — business logic over the cluster fleet data model
+ * (cluster_nodes, cluster_server_allocations, cluster_org_admission_requests).
+ *
+ * All data access is delegated to the repository; this owns aggregation, capacity feasibility and
+ * view mapping. Backs the `nodes.*` ORPC contract. A use case fails with `FleetNotFound` or
+ * `FleetInvalid` of its own, or with whatever the database raised.
+ */
+const toServerSummary = <M>(row: ServerRow, metrics: M, summary: { services: number; cpuMillicores: number; memoryMb: number }) => {
+        return {
+            nodeId: row.nodeId,
+            serverUrl: row.serverUrl,
+            displayName: row.displayName,
+            status: row.status,
+            healthy: row.healthy,
+            lastSeenAt: row.lastSeenAt ? row.lastSeenAt.toISOString() : null,
+            maxCpuMillicores: row.maxCpuMillicores,
+            maxMemoryMb: row.maxMemoryMb,
+            metrics,
+            allocationSummary: summary,
+        };
+    };
 
-    // ── Servers ────────────────────────────────────────────────────
-    async listServers() {
-        const rows = await this.fleetRepository.listServersWithMetrics();
+const toAllocation = (row: AllocationRow, serverUrl: string | null) => {
+        return {
+            id: row.id,
+            serverNodeId: row.serverNodeId,
+            serverUrl,
+            allocationMode: row.allocationMode,
+            cpuMillicores: row.cpuMillicores ?? 0,
+            memoryMb: row.memoryMb ?? 0,
+            maxServices: row.maxServices,
+            isEnabled: row.isEnabled,
+            updatedAt: row.updatedAt.toISOString(),
+        };
+    };
+
+const toAdmissionRequest = (row: AdmissionRequestRow) => {
+        return {
+            id: row.id,
+            status: row.status,
+            requestedServerNodeId: row.requestedServerNodeId,
+            decisionServerNodeId: row.decisionServerNodeId,
+            requestedCpuMillicores: row.requestedCpuMillicores ?? 0,
+            requestedMemoryMb: row.requestedMemoryMb ?? 0,
+            requestedServices: row.requestedServices ?? 1,
+            requesterUserId: row.requesterUserId,
+            requesterNote: row.requesterNote,
+            reviewedByUserId: row.reviewedByUserId,
+            reviewerNote: row.reviewerNote,
+            reviewedAt: row.reviewedAt ? row.reviewedAt.toISOString() : null,
+            createdAt: row.createdAt.toISOString(),
+            updatedAt: row.updatedAt.toISOString(),
+        };
+    };
+
+export function makeFleetService(fleetRepository: FleetRepositoryShape) {
+    return {
+        listServers: Effect.fn("FleetService.listServers")(function* () {
+        const rows = yield* fleetRepository.listServersWithMetrics();
 
         const items = rows.map((row) => {
             const metrics = row.cpuUsage;
@@ -54,7 +109,7 @@ export class FleetService {
         });
 
         // Aggregate allocation summary per server.
-        const allocations = await this.fleetRepository.listEnabledAllocations();
+        const allocations = yield* fleetRepository.listEnabledAllocations();
         const summaryByServer = new Map<string, { services: number; cpuMillicores: number; memoryMb: number }>();
         for (const allocation of allocations) {
             const current = summaryByServer.get(allocation.serverNodeId) ?? { services: 0, cpuMillicores: 0, memoryMb: 0 };
@@ -69,18 +124,18 @@ export class FleetService {
         }
 
         return { items };
-    }
+    }),
 
-    async setServerCapacity(input: { serverNodeId: string; maxCpuMillicores: number | null; maxMemoryMb: number | null }) {
-        const row = await this.fleetRepository.updateServerCapacity(
+        setServerCapacity: Effect.fn("FleetService.setServerCapacity")(function* (input: { serverNodeId: string; maxCpuMillicores: number | null; maxMemoryMb: number | null }) {
+        const row = yield* fleetRepository.updateServerCapacity(
             input.serverNodeId,
             input.maxCpuMillicores,
             input.maxMemoryMb,
         );
         if (!row) {
-            throw new FleetNotFound({ reason: `Cluster node ${input.serverNodeId} not found` });
+            return yield* new FleetNotFound({ reason: `Cluster node ${input.serverNodeId} not found` });
         }
-        const allocations = await this.fleetRepository.listEnabledAllocations();
+        const allocations = yield* fleetRepository.listEnabledAllocations();
         const allocationSummary = allocations.reduce(
             (summary, allocation) => {
                 if (allocation.serverNodeId !== input.serverNodeId) return summary;
@@ -91,31 +146,30 @@ export class FleetService {
             },
             { services: 0, cpuMillicores: 0, memoryMb: 0 },
         );
-        return this.toServerSummary(row, null, allocationSummary);
-    }
+        return toServerSummary(row, null, allocationSummary);
+    }),
 
-    // ── Allocations ────────────────────────────────────────────────
-    async listAllocations(query: { serverNodeId?: string }) {
-        const rows = await this.fleetRepository.listAllocationsWithNames(query);
+        listAllocations: Effect.fn("FleetService.listAllocations")(function* (query: { serverNodeId?: string }) {
+        const rows = yield* fleetRepository.listAllocationsWithNames(query);
         return {
-            items: rows.map((row) => this.toAllocation(row.allocation, row.serverUrl)),
+            items: rows.map((row) => toAllocation(row.allocation, row.serverUrl)),
         };
-    }
+    }),
 
-    async listMyAllocations() {
-        const rows = await this.fleetRepository.listAllocations();
+        listMyAllocations: Effect.fn("FleetService.listMyAllocations")(function* () {
+        const rows = yield* fleetRepository.listAllocations();
         return {
-            items: rows.map((row) => this.toAllocation(row.allocation, row.serverUrl)),
+            items: rows.map((row) => toAllocation(row.allocation, row.serverUrl)),
         };
-    }
+    }),
 
-    async checkMyAdmission(userId: string, input: {
+        checkMyAdmission: Effect.fn("FleetService.checkMyAdmission")(function* (userId: string, input: {
         requestedCpuMillicores: number;
         requestedMemoryMb: number;
         requestedServices: number;
         serverNodeId?: string;
     }) {
-        const rows = await this.fleetRepository.findEnabledAllocations(input.serverNodeId);
+        const rows = yield* fleetRepository.findEnabledAllocations(input.serverNodeId);
 
         const candidates = rows.map((row) => ({
             allocationId: row.allocation.id,
@@ -144,16 +198,16 @@ export class FleetService {
             evaluatedAt: new Date().toISOString(),
             candidates,
         };
-    }
+    }),
 
-    async createMyAdmissionRequest(userId: string, input: {
+        createMyAdmissionRequest: Effect.fn("FleetService.createMyAdmissionRequest")(function* (userId: string, input: {
         requestedCpuMillicores: number;
         requestedMemoryMb: number;
         requestedServices: number;
         requestedServerNodeId?: string;
         requesterNote?: string | null;
     }) {
-        const [row] = await this.fleetRepository.insertAdmissionRequest({
+        const [row] = yield* fleetRepository.insertAdmissionRequest({
             requestedServerNodeId: input.requestedServerNodeId ?? null,
             requestedCpuMillicores: input.requestedCpuMillicores,
             requestedMemoryMb: input.requestedMemoryMb,
@@ -162,17 +216,17 @@ export class FleetService {
             requesterNote: input.requesterNote ?? null,
         });
         if (!row) {
-            throw new FleetInvalid({ reason: "Failed to create admission request" });
+            return yield* new FleetInvalid({ reason: "Failed to create admission request" });
         }
-        return this.toAdmissionRequest(row);
-    }
+        return toAdmissionRequest(row);
+    }),
 
-    async listMyAdmissionRequests(userId: string, query: { status?: string }) {
-        const rows = await this.fleetRepository.listAdmissionRequests(query.status);
-        return { items: rows.map((row) => this.toAdmissionRequest(row.request)) };
-    }
+        listMyAdmissionRequests: Effect.fn("FleetService.listMyAdmissionRequests")(function* (userId: string, query: { status?: string }) {
+        const rows = yield* fleetRepository.listAdmissionRequests(query.status);
+        return { items: rows.map((row) => toAdmissionRequest(row.request)) };
+    }),
 
-    async upsertAllocation(input: {
+        upsertAllocation: Effect.fn("FleetService.upsertAllocation")(function* (input: {
         serverNodeId: string;
         allocationMode: string;
         cpuMillicores: number;
@@ -180,17 +234,17 @@ export class FleetService {
         maxServices?: number | null;
         isEnabled?: boolean;
     }) {
-        const [existing] = await this.fleetRepository.findAllocation(input.serverNodeId);
+        const [existing] = yield* fleetRepository.findAllocation(input.serverNodeId);
 
         const rows = existing
-            ? await this.fleetRepository.updateAllocation(existing.id, {
+            ? yield* fleetRepository.updateAllocation(existing.id, {
                   allocationMode: input.allocationMode,
                   cpuMillicores: input.cpuMillicores,
                   memoryMb: input.memoryMb,
                   maxServices: input.maxServices ?? null,
                   isEnabled: input.isEnabled ?? true,
               })
-            : await this.fleetRepository.insertAllocation({
+            : yield* fleetRepository.insertAllocation({
                   serverNodeId: input.serverNodeId,
                   allocationMode: input.allocationMode,
                   cpuMillicores: input.cpuMillicores,
@@ -201,81 +255,45 @@ export class FleetService {
 
         const [row] = rows;
         if (!row) {
-            throw new FleetInvalid({ reason: "Failed to upsert allocation" });
+            return yield* new FleetInvalid({ reason: "Failed to upsert allocation" });
         }
-        return this.toAllocation(row, null);
-    }
+        return toAllocation(row, null);
+    }),
 
-    async deleteAllocation(input: { serverNodeId: string }) {
-        const deleted = await this.fleetRepository.deleteAllocation(input.serverNodeId);
+        deleteAllocation: Effect.fn("FleetService.deleteAllocation")(function* (input: { serverNodeId: string }) {
+        const deleted = yield* fleetRepository.deleteAllocation(input.serverNodeId);
         return { deleted: (deleted.rowCount ?? 0) > 0 };
-    }
+    }),
 
-    // ── Admission requests ─────────────────────────────────────────
-    async listAdmissionRequests(query: { status?: string }) {
-        const rows = await this.fleetRepository.listAdmissionRequests(query.status);
-        return { items: rows.map((row) => this.toAdmissionRequest(row.request)) };
-    }
+        listAdmissionRequests: Effect.fn("FleetService.listAdmissionRequests")(function* (query: { status?: string }) {
+        const rows = yield* fleetRepository.listAdmissionRequests(query.status);
+        return { items: rows.map((row) => toAdmissionRequest(row.request)) };
+    }),
 
-    async resolveAdmissionRequest(input: { requestId: string; decision: string; reviewerNote?: string | null; decisionServerNodeId?: string | null }) {
-        const row = await this.fleetRepository.updateAdmissionRequestDecision(
+        resolveAdmissionRequest: Effect.fn("FleetService.resolveAdmissionRequest")(function* (input: { requestId: string; decision: string; reviewerNote?: string | null; decisionServerNodeId?: string | null }) {
+        const row = yield* fleetRepository.updateAdmissionRequestDecision(
             input.requestId,
             input.decision,
             input.reviewerNote ?? null,
             input.decisionServerNodeId ?? null,
         );
         if (!row) {
-            throw new FleetNotFound({ reason: `Admission request ${input.requestId} not found` });
+            return yield* new FleetNotFound({ reason: `Admission request ${input.requestId} not found` });
         }
-        return this.toAdmissionRequest(row);
-    }
+        return toAdmissionRequest(row);
+    }),
+    };
+}
 
-    // ── Helpers ────────────────────────────────────────────────────
-    private toServerSummary<M>(row: ServerRow, metrics: M, summary: { services: number; cpuMillicores: number; memoryMb: number }) {
-        return {
-            nodeId: row.nodeId,
-            serverUrl: row.serverUrl,
-            displayName: row.displayName,
-            status: row.status,
-            healthy: row.healthy,
-            lastSeenAt: row.lastSeenAt ? row.lastSeenAt.toISOString() : null,
-            maxCpuMillicores: row.maxCpuMillicores,
-            maxMemoryMb: row.maxMemoryMb,
-            metrics,
-            allocationSummary: summary,
-        };
-    }
+export type FleetServiceShape = ReturnType<typeof makeFleetService>;
 
-    private toAllocation(row: AllocationRow, serverUrl: string | null) {
-        return {
-            id: row.id,
-            serverNodeId: row.serverNodeId,
-            serverUrl,
-            allocationMode: row.allocationMode,
-            cpuMillicores: row.cpuMillicores ?? 0,
-            memoryMb: row.memoryMb ?? 0,
-            maxServices: row.maxServices,
-            isEnabled: row.isEnabled,
-            updatedAt: row.updatedAt.toISOString(),
-        };
-    }
-
-    private toAdmissionRequest(row: AdmissionRequestRow) {
-        return {
-            id: row.id,
-            status: row.status,
-            requestedServerNodeId: row.requestedServerNodeId,
-            decisionServerNodeId: row.decisionServerNodeId,
-            requestedCpuMillicores: row.requestedCpuMillicores ?? 0,
-            requestedMemoryMb: row.requestedMemoryMb ?? 0,
-            requestedServices: row.requestedServices ?? 1,
-            requesterUserId: row.requesterUserId,
-            requesterNote: row.requesterNote,
-            reviewedByUserId: row.reviewedByUserId,
-            reviewerNote: row.reviewerNote,
-            reviewedAt: row.reviewedAt ? row.reviewedAt.toISOString() : null,
-            createdAt: row.createdAt.toISOString(),
-            updatedAt: row.updatedAt.toISOString(),
-        };
-    }
+/** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
+export class FleetService extends Context.Service<FleetService, FleetServiceShape>()("fleet/FleetService") {
+    /** Leaves the repository open, so a test swaps it without a database. */
+    static readonly Live: Layer.Layer<FleetService, never, FleetRepository> = Layer.effect(
+        FleetService,
+        Effect.gen(function* () {
+            return makeFleetService(yield* FleetRepository);
+        }),
+    );
 }

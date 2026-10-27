@@ -1,4 +1,3 @@
-import { Injectable } from "@nestjs/common";
 import type { DependencyTemplateConfig } from "@deployer/contracts-entities";
 
 export type GateStatus = "pending" | "passing" | "failing" | "timeout";
@@ -63,7 +62,6 @@ export type GateEvaluation = {
  * This service is pure-logic; it does **not** hold timers or subscriptions.
  * Callers are responsible for injecting the `checkFn` and awaiting the result.
  */
-@Injectable()
 export class FleetReadinessGateService {
     async evaluate(options: ReadinessGateOptions): Promise<GateEvaluation> {
         const {

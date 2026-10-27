@@ -1,5 +1,4 @@
 import { FleetInvalid } from "../../../core/fleet.errors";
-import { Injectable } from "@nestjs/common";
 
 import type { DependencyTemplateConfig } from "@deployer/contracts-entities";
 import type { ServiceDag } from "./service-dag.service";
@@ -51,7 +50,6 @@ export type RolloutPlan = {
  * - `rolling`   → DAG layers respected but max-concurrent per wave is bounded
  * - `canary`    → first service in the first layer gets canary; rest are promoted after window
  */
-@Injectable()
 export class FleetRolloutPlannerService {
     plan(
         dag: ServiceDag,

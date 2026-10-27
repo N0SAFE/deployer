@@ -1,4 +1,3 @@
-import { Injectable } from "@nestjs/common";
 import type { DependencyTemplateConfig } from "@deployer/contracts-entities";
 import type { ServiceDag } from "./service-dag.service";
 
@@ -44,7 +43,6 @@ export type ContainmentResult = {
  * Cross-domain risk services are those with a transitive dependency path crossing
  * into a different domain — these are flagged for manual review.
  */
-@Injectable()
 export class FleetFailureContainmentService {
     assess(input: ContainmentInput): ContainmentResult {
         const { failedServiceId, domains, dag, failureIsolation } = input;

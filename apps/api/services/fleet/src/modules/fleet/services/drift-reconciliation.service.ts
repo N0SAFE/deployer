@@ -1,4 +1,3 @@
-import { Injectable } from "@nestjs/common";
 
 export type DeploymentStatus = "pending" | "queued" | "building" | "deploying" | "success" | "failed" | "cancelled";
 
@@ -51,7 +50,6 @@ export type DriftReconciliationReport = {
  * This service is a pure-logic detector. Acting on drift (re-triggering deployments)
  * is a concern of the caller (e.g. a scheduled job, webhook, or fleet controller).
  */
-@Injectable()
 export class DriftReconciliationService {
     reconcile(
         desired: ServiceDesiredState[],
