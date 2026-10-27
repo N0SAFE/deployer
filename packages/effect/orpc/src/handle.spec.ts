@@ -41,6 +41,25 @@ describe("handle", () => {
 	});
 });
 
+describe("handle with passThroughFailures", () => {
+	class Legacy extends Error {}
+
+	it("lets a typed non-domain failure through unchanged, without logging a defect", async () => {
+		const onDefect = vi.fn();
+		const legacy = new Legacy("from a platform service");
+		const error = await run(handle(onDefect, { passThroughFailures: true })(Effect.fail(legacy)));
+		expect(error).toBe(legacy);
+		expect(onDefect).not.toHaveBeenCalled();
+	});
+
+	it("still maps domain errors and still hides defects", async () => {
+		const options = { passThroughFailures: true };
+		expect((await run(handle(vi.fn(), options)(Effect.fail(new Missing({}))))).code).toBe("NOT_FOUND");
+		const hidden = await run(handle(vi.fn(), options)(Effect.die(new Error("secret"))));
+		expect(hidden.code).toBe("INTERNAL_SERVER_ERROR");
+	});
+});
+
 describe("request context", () => {
 	it("prefers a system claim over a user session", () => {
 		const actor = actorFromContext({

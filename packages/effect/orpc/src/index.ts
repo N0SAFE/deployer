@@ -1,4 +1,4 @@
-export { handle, type DefectLogger } from "./handle";
+export { handle, type DefectLogger, type HandleOptions } from "./handle";
 export { catchDomainErrors, mapDomainError } from "./map-domain-error";
 export {
 	actorFromContext,

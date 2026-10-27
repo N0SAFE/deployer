@@ -10,6 +10,8 @@ export type ServeOptions = {
 	readonly service: string;
 	/** Where defects are written. Defaults to `console.error`. */
 	readonly onDefect?: DefectLogger;
+	/** See `HandleOptions.passThroughFailures`. */
+	readonly passThroughFailures?: boolean;
 };
 
 /**
@@ -31,7 +33,7 @@ export function createServe(options: ServeOptions) {
 		(context: RequestContextInput) =>
 		<A, E, R>(effect: Effect.Effect<A, E, R>) =>
 			effect.pipe(
-				handle(onDefect),
+				handle(onDefect, { passThroughFailures: options.passThroughFailures === true }),
 				provideRequest(context, () => Effect.fail(standardErrorActions.UNAUTHORIZED("authentication required"))),
 			);
 
@@ -39,7 +41,7 @@ export function createServe(options: ServeOptions) {
 		(context: RequestContextInput) =>
 		<A, E, R>(effect: Effect.Effect<A, E, R>) =>
 			effect.pipe(
-				handle(onDefect),
+				handle(onDefect, { passThroughFailures: options.passThroughFailures === true }),
 				provideRequest(context, () => Effect.succeed(Actor.user("anonymous", "anonymous"))),
 			);
 
