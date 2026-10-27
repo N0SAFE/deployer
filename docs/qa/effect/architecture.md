@@ -175,3 +175,13 @@ These are roadmap lines `DEC-EFF-18..38` (from `effect-layers-catalog.md` 8.1 an
 | DEC-EFF-38 | D-A..D-Q | Confirm the decisions made by the target-architecture doc itself (Effect owns the process, `HttpEdge` end state, errors by kind, `CurrentActor` without default, per-request context by middleware, tag+Live in one file, tx design, services never migrate at boot, EdDSA claims 30 s, services drop Better Auth, five `effect-*` packages, Vitest 5 first, hand-rolled `runMain`, probes/readiness, resilience classes, mandatory `meta.authz`, polled outbox consumers) | accept as written | pending |
 
 ---
+
+---
+
+## Scope of the migration off `packages/nest/*` (2026-10-27)
+
+**Q**: Replace every `packages/nest/*` package with a Nest-agnostic Effect package, or follow the audit and keep docker/swarm/supervisor internals as ports?
+
+**A**: Follow the audit: keep docker/swarm/etc. internals as ports; migrate `nest-effect`, then health, identity, project.
+
+---
