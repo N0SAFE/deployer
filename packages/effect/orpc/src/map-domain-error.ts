@@ -1,0 +1,40 @@
+import { isDomainError, type DomainError, type ErrorKind } from "@deployer/effect-core";
+import { standardErrorActions } from "@deployer/orpc-utils";
+import type { ORPCError } from "@orpc/client";
+import { Effect } from "effect";
+
+type ErrorAction = (message: string) => ORPCError<string, unknown>;
+
+const ACTION_BY_KIND: Record<ErrorKind, ErrorAction> = {
+	not_found: standardErrorActions.NOT_FOUND,
+	validation: standardErrorActions.BAD_REQUEST,
+	conflict: standardErrorActions.CONFLICT,
+	unauthorized: standardErrorActions.UNAUTHORIZED,
+	forbidden: standardErrorActions.FORBIDDEN,
+	dependency_missing: standardErrorActions.FAILED_DEPENDENCY,
+};
+
+/**
+ * One domain error to one oRPC error, by kind. The table is a `Record<ErrorKind, ...>`, so a
+ * seventh kind is a compile error until it gets a row. The message is the error's tag, and the
+ * public payload is never put on the wire beyond that: `cause` and `publicData` stay server-side
+ * until a contract declares a shape for them.
+ */
+export function mapDomainError(error: DomainError) {
+	return ACTION_BY_KIND[error.kind](error._tag);
+}
+
+/**
+ * Turn every `DomainError` in the failure channel into its oRPC error; other failures pass through
+ * unchanged. Apply at the handler boundary, once.
+ */
+export const catchDomainErrors = <A, E, R>(
+	effect: Effect.Effect<A, E, R>,
+): Effect.Effect<A, Exclude<E, DomainError> | ReturnType<typeof mapDomainError>, R> =>
+	Effect.catch(
+		effect,
+		(error: E): Effect.Effect<never, Exclude<E, DomainError> | ReturnType<typeof mapDomainError>> =>
+			isDomainError(error)
+				? Effect.fail(mapDomainError(error))
+				: Effect.fail(error as Exclude<E, DomainError>),
+	);
