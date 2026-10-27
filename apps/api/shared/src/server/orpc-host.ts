@@ -103,11 +103,11 @@ export function createOrpcModule<ExtraD extends ExtraTokens = []>(
 
 			return {
 				interceptors: [
-					// A thrown `DomainError` (Promise-based services) becomes its oRPC error by kind,
-					// before the legacy Nest/AppError translation sees it.
-					domainErrorInterceptor(),
 					transformNestJSErrorToOrpcError(),
 					logOrpcErrors(new Logger("ORPC Errors"), internalErrorInsightService),
+					// Innermost, so a thrown `DomainError` (Promise-based services) is already its oRPC error
+					// by kind when the translation and logging interceptors above see it.
+					domainErrorInterceptor(),
 				],
 				plugins: [
 					// Request compression is symmetric with the web app's
