@@ -247,3 +247,147 @@ describe("ServerConnectionConsumerRegistry", () => {
     });
   });
 });
+
+describe("MeshConnectionRegistry: stream identity, promotion and lifecycle", () => {
+  const prod: MeshFilterDescriptor = { op: "eq", field: "env", value: "prod" };
+  const staging: MeshFilterDescriptor = { op: "eq", field: "env", value: "staging" };
+  const prodOrStaging: MeshFilterDescriptor = { op: "in", field: "env", values: ["prod", "staging"] };
+
+  let registry: MeshConnectionRegistry;
+  beforeEach(() => {
+    registry = new MeshConnectionRegistry();
+  });
+
+  /** Lets the registry's asynchronous close propagate. */
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
+
+  describe("stream identity (node + entity + method)", () => {
+    it("keeps streams for different entities apart", async () => {
+      const c1 = generateConsumerId();
+      const deployments = await registry.open("node-a", "deployments", "list", c1, prod);
+      const services = await registry.open("node-a", "services", "list", c1, prod);
+
+      expect(deployments.id).not.toBe(services.id);
+      expect(registry.lookup("node-a", "deployments", "list")?.id).toBe(deployments.id);
+      expect(registry.lookup("node-a", "services", "list")?.id).toBe(services.id);
+    });
+
+    it("keeps streams for different nodes apart", async () => {
+      const c1 = generateConsumerId();
+      const a = await registry.open("node-a", "deployments", "list", c1, prod);
+      const b = await registry.open("node-b", "deployments", "list", c1, prod);
+
+      expect(a.id).not.toBe(b.id);
+      expect(registry.lookup("node-a", "deployments", "list")?.id).toBe(a.id);
+      expect(registry.lookup("node-b", "deployments", "list")?.id).toBe(b.id);
+    });
+
+    it("keeps streams for different methods apart", async () => {
+      const c1 = generateConsumerId();
+      const list = await registry.open("node-a", "deployments", "list", c1, prod);
+      const stream = await registry.open("node-a", "deployments", "stream", c1, prod);
+
+      expect(list.id).not.toBe(stream.id);
+      expect(registry.lookup("node-a", "deployments", "stream")?.id).toBe(stream.id);
+    });
+
+    it("serves a second consumer from the same connection instead of opening another", async () => {
+      const conn = await registry.open("node-a", "deployments", "list", generateConsumerId(), prod);
+      await registry.attach(conn.id, generateConsumerId(), prod);
+
+      expect(registry.listOpen()).toHaveLength(1);
+      expect(conn.consumers.size).toBe(2);
+    });
+  });
+
+  describe("decidePromotion", () => {
+    it("attaches when the incoming filter is a subset of the open connection's", async () => {
+      const conn = await registry.open("node-a", "deployments", "list", generateConsumerId(), prodOrStaging);
+
+      const decision = registry.decidePromotion(prod, [conn]);
+
+      expect(decision).toMatchObject({ action: "attach", connectionId: conn.id });
+    });
+
+    it("promotes when the incoming filter is a superset, carrying the wider filter", async () => {
+      const conn = await registry.open("node-a", "deployments", "list", generateConsumerId(), prod);
+
+      const decision = registry.decidePromotion(prodOrStaging, [conn]);
+
+      expect(decision).toMatchObject({ action: "promote", connectionId: conn.id, newFilter: prodOrStaging });
+    });
+
+    it("opens a new connection when the filters do not overlap", async () => {
+      const conn = await registry.open("node-a", "deployments", "list", generateConsumerId(), prod);
+
+      expect(registry.decidePromotion(staging, [conn]).action).toBe("new");
+    });
+  });
+
+  describe("reference-counted lifecycle", () => {
+    it("tracks the consumer count as consumers attach and release", async () => {
+      const c1 = generateConsumerId();
+      const conn = await registry.open("node-a", "deployments", "list", c1, prod);
+      expect(conn.consumers.size).toBe(1);
+
+      await registry.attach(conn.id, generateConsumerId(), prod);
+      expect(conn.consumers.size).toBe(2);
+
+      registry.release(conn.id, c1);
+      expect(conn.consumers.size).toBe(1);
+    });
+
+    it("opens a fresh connection after the last consumer closed the old one", async () => {
+      const first = await registry.open("node-a", "deployments", "list", generateConsumerId(), prod);
+      const [consumer] = [...first.consumers.keys()];
+      registry.release(first.id, consumer!);
+      await settle();
+      expect(registry.listOpen().some((c) => c.id === first.id)).toBe(false);
+
+      const second = await registry.open("node-a", "deployments", "list", generateConsumerId(), prod);
+
+      expect(second.id).not.toBe(first.id);
+      expect(registry.listOpen().some((c) => c.id === second.id)).toBe(true);
+    });
+
+    it("ignores a release for a connection or consumer it does not know", async () => {
+      const conn = await registry.open("node-a", "deployments", "list", generateConsumerId(), prod);
+
+      expect(() => { registry.release(generateConnectionId(), generateConsumerId()); }).not.toThrow();
+      expect(() => { registry.release(conn.id, generateConsumerId()); }).not.toThrow();
+      expect(conn.consumers.size).toBe(1);
+    });
+  });
+
+  describe("lifecycle$ events", () => {
+    it("emits detached and closed, with the reason, when the last consumer leaves", async () => {
+      const c1 = generateConsumerId();
+      const conn = await registry.open("node-a", "deployments", "list", c1, prod);
+      const events: { type: string; reason?: string }[] = [];
+      const sub = registry.lifecycle$.subscribe((evt) => events.push(evt));
+
+      registry.release(conn.id, c1);
+      await settle();
+      sub.unsubscribe();
+
+      expect(events.map((e) => e.type)).toEqual(expect.arrayContaining(["consumer_detached", "connection_closed"]));
+      expect(events.find((e) => e.type === "connection_closed")?.reason).toBe("empty");
+    });
+
+    it("describes the connection on opened and the new count on attached", async () => {
+      const events: Record<string, unknown>[] = [];
+      const sub = registry.lifecycle$.subscribe((evt) => events.push(evt));
+
+      const conn = await registry.open("node-a", "deployments", "list", generateConsumerId(), prod);
+      await settle();
+      await registry.attach(conn.id, generateConsumerId(), prod);
+      sub.unsubscribe();
+
+      expect(events.find((e) => e.type === "connection_opened")).toMatchObject({
+        nodeId: "node-a",
+        entityKey: "deployments",
+      });
+      expect(events.find((e) => e.type === "consumer_attached")).toMatchObject({ consumerCount: 2 });
+    });
+  });
+});
