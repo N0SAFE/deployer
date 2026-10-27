@@ -4,21 +4,39 @@
  * SC1: emits machine-readable DI graph (roots + per-root closure + nodes + edges with file:line).
  * SC2: executable acyclicity gate - exits non-zero on any violation.
  *
- * NODES = every *.module.ts under apps/api/src and packages/.
+ * NODES = every *.module.ts under the API tier (apps/api-services: bff, services/*, shared) and packages/.
  * EDGES = DI nesting. A -> B when a class referenced in A's top-level @Module({ imports: [...] })
  *         is imported via a specifier that RESOLVES to B.module.ts.
  *         Dynamic modules are NOT inlined: an inner `imports:` array belongs to the dynamic
  *         module's own context, not to the host module's.
  *
- * EDGE RULE = resolution-based, never specifier-text-based. `../modules/setup/...` written inside
- * apps/api/src/core/orchestrator resolves to apps/api/src/core/modules/setup/... and is therefore
- * core->core, NOT a SC7 violation.
+ * EDGE RULE = resolution-based, never specifier-text-based: a specifier counts for what it
+ * RESOLVES to, so `../x` written inside a service that lands in another service's tree IS a
+ * cross-service import, and the same text landing inside the service itself is not.
+ *
+ * RULES (SC7): the tier's layering. `shared` is the base every app builds on, so it must not
+ * import any app (bff or a service); and a service must not import another service's internals
+ * (the coupling the split exists to remove; peers are reached by CONTRACT through ServiceClient).
  */
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs"
 import { dirname, relative, resolve } from "node:path"
 
 const ROOT = resolve(import.meta.dir, "..")
-const API_SRC = resolve(ROOT, "apps/api/src")
+// The API tier: one source root per app. `shared` is the base; the rest are apps.
+const TIER = resolve(ROOT, "apps/api-services")
+const SHARED_SRC = resolve(TIER, "shared/src")
+const BFF_SRC = resolve(TIER, "bff/src")
+const SERVICES_DIR = resolve(TIER, "services")
+const SERVICE_SRCS = existsSync(SERVICES_DIR)
+	? readdirSync(SERVICES_DIR)
+			.map((n) => resolve(SERVICES_DIR, n, "src"))
+			.filter((d) => existsSync(d))
+			.sort()
+	: []
+const APP_SRCS = [BFF_SRC, ...SERVICE_SRCS]
+const TIER_SRCS = [SHARED_SRC, ...APP_SRCS]
+/** The source root a file lives under: what its own `@/` alias means. */
+const srcRootOf = (file: string): string | null => TIER_SRCS.find((d) => file.startsWith(`${d}/`)) ?? null
 const OUT_JSON = resolve(ROOT, "graphify-out/di-graph.json")
 const EDGE_RULE = "resolution-based statement-level; dynamic-module inner imports NOT inlined"
 
@@ -249,7 +267,10 @@ function tryFile(p: string): string | null {
 
 function resolveSpec(spec: string, fromFile: string, pkgMap: Map<string, string>): string | null {
 	if (spec.startsWith(".")) return tryFile(resolve(dirname(fromFile), spec))
-	if (spec.startsWith("@/")) return tryFile(resolve(API_SRC, spec.slice(2)))
+	if (spec.startsWith("@/")) {
+		const own = srcRootOf(fromFile)
+		return own ? tryFile(resolve(own, spec.slice(2))) : null
+	}
 	if (spec.startsWith("~/")) return tryFile(resolve(ROOT, spec.slice(2)))
 	for (const [name, dir] of pkgMap) {
 		if (spec === name) return tryFile(dir)
@@ -258,7 +279,7 @@ function resolveSpec(spec: string, fromFile: string, pkgMap: Map<string, string>
 	return null
 }
 const pkgMap = packageMap()
-const moduleFiles = [...walkModuleFiles(API_SRC), ...walkModuleFiles(resolve(ROOT, "packages"))].sort()
+const moduleFiles = [...TIER_SRCS.flatMap((d) => walkModuleFiles(d)), ...walkModuleFiles(resolve(ROOT, "packages"))].sort()
 const moduleSet = new Set(moduleFiles)
 
 type NodeInfo = { file: string; rel: string; classes: string[]; global: boolean; importsItems: string[]; declLine: number }
@@ -402,46 +423,26 @@ for (const e of diEdges) {
 	;(diAdj.get(e.from) as Edge[]).push(e)
 }
 
-// Roots are derived, not hardcoded: anchor file + class name at the boot call site, then the
-// class is resolved through that anchor's own import bindings (alias or relative both work).
+// Roots are derived, not hardcoded: anchor file + class name, resolved through the anchor's own
+// import bindings (alias or relative both work), or declared in the anchor itself.
 //
-// THE TWO ENTRIES THIS USED TO HAVE ARE GONE, along with the sub-app pipeline they
-// described. They were:
-//
-//   { main.ts, OrchestrationModule }        — `main.ts` built the gateway; it now
-//                                             builds `AppModule` like everything else.
-//   { orchestrator.service.ts, SetupDevModule / SetupSubAppModule /
-//     MeshInitializerAppModule / AppModule } — the four contexts the orchestrator
-//                                             spawned on ports 3010/3011/3012.
-//   { sub-app-runner.module.ts, SubAppHostModule } — the runtime context factory.
-//
-// Keeping them would have left three anchors permanently `anchor-missing`, which is
-// worse than removing them: a missing anchor reports zero reachability, so the gate
-// would keep SAYING "no cycles" while checking nothing for those roots.
-//
-// What replaces them is the honest description of the new shape: ONE application
-// graph. That means one root, and the graph check is strictly stronger for it —
-// every module is now reachable from that single root, where before a module could
-// hide in a sub-app the anchor list forgot to name.
-//
-// The root is anchored at `app.config.ts`, NOT `main.ts`: the factory is what calls
-// `NestFactory.create(AppModule, …)`, and `main.ts` merely consumes the factory. An
-// anchor on `main.ts` cannot resolve `AppModule` because the identifier is not in
-// that file — which is how this was caught: the gate reported
-// `main.ts:0 AppModule [unresolved]`, i.e. a root that silently contributed no graph.
+// One root per app, anchored at the file that DECLARES its root module: the BFF, each service,
+// and the BFF's CLI. A root whose anchor goes missing reports zero reachability, which would
+// keep the gate SAYING "no cycles" while checking nothing for it, so a missing anchor is
+// printed as `anchor-missing` rather than skipped.
 type RootDef = { anchorRel: string; cls: string; site: string }
 const ROOT_DEFS: RootDef[] = [
-{ anchorRel: "app.config.ts", cls: "AppModule", site: "NestFactory.create(AppModule) via createApiApp" },
-{ anchorRel: "cli.ts", cls: "CLIModule", site: "CommandFactory.run(CLIModule)" },
+	{ anchorRel: "apps/api-services/bff/src/bff.module.ts", cls: "BffModule", site: "NestFactory.create(BffModule)" },
+	{ anchorRel: "apps/api-services/bff/src/cli/cli.module.ts", cls: "CLIModule", site: "CommandFactory.run(CLIModule)" },
+	...SERVICE_SRCS.map((dir): RootDef => {
+		const anchor = resolve(dir, "app.module.ts")
+		// A service's root class is named after the service (`RuntimeServiceModule`); read it from
+		// the anchor so a rename needs no edit here. Empty = the anchor declares no `*Module`,
+		// which the report shows as `unresolved` rather than hiding.
+		const cls = existsSync(anchor) ? (readFileSync(anchor, "utf8").match(/export class (\w+Module)\b/)?.[1] ?? "") : ""
+		return { anchorRel: relative(ROOT, anchor), cls, site: `NestFactory.create(${cls || "?"})` }
+	}),
 ]
-
-function findLine(file: string, needle: string): number {
-const masked = fileMasked.get(file)
-const starts = fileStarts.get(file)
-if (!masked || !starts) return 0
-const idx = masked.indexOf(needle)
-return idx === -1 ? 0 : lineAt(starts, idx)
-}
 
 type RootInfo = {
 cls: string
@@ -478,7 +479,7 @@ function ensureLoaded(f: string): void {
 }
 const roots: RootInfo[] = []
 for (const d of ROOT_DEFS) {
-	const anchor = resolve(API_SRC, d.anchorRel)
+	const anchor = resolve(ROOT, d.anchorRel)
 	if (!existsSync(anchor)) {
 		roots.push({ cls: d.cls, site: d.site, anchor: d.anchorRel, resolvedModule: null, refLine: 0, status: "anchor-missing", closure: [], touches: [], dockerode: false, globalPostgres: false })
 		continue
@@ -530,35 +531,46 @@ for (const r of roots) {
 	console.log(`      root=${r.resolvedModule ?? "-"} closure=${r.closure.length} touches=[${r.touches.join(",")}] dockerode=${String(r.dockerode)} globalPostgres=${String(r.globalPostgres)}`)
 }
 
-// ── SC7: core -> modules reverse imports (resolution-based) ───────────────────
-const CORE_PREFIX = `${resolve(API_SRC, "core")}/`
-const MODULES_PREFIX = `${resolve(API_SRC, "modules")}/`
+// ── SC7: tier layering (resolution-based) ────────────────────────────────────
+// `shared` is the base: it must not import an app. An app (bff or a service) must not import a
+// PEER app's internals: peers are reached by contract. Both are the same shape of violation,
+// "this file's source root imports a different APP's source root".
+const isAppFile = (f: string): boolean => APP_SRCS.some((d) => f.startsWith(`${d}/`))
+const violates = (from: string, to: string): boolean => {
+	const fromRoot = srcRootOf(from)
+	const toRoot = srcRootOf(to)
+	if (!fromRoot || !toRoot || fromRoot === toRoot) return false
+	if (fromRoot === SHARED_SRC) return isAppFile(to) // shared -> app
+	return toRoot !== SHARED_SRC // app -> peer app
+}
 
 function listAllTs(dir: string, out: string[] = []): string[] {
 	for (const e of readdirSync(dir, { withFileTypes: true })) {
-		if (e.name === "node_modules") continue
+		if (e.name === "node_modules" || e.name === "dist") continue
 		const p = resolve(dir, e.name)
 		if (e.isDirectory()) listAllTs(p, out)
 		else if (e.isFile() && e.name.endsWith(".ts") && !e.name.endsWith(".spec.ts")) out.push(p)
 	}
 	return out
 }
+const tierFiles = TIER_SRCS.flatMap((d) => listAllTs(d))
 
 const sc7: { file: string; line: number; spec: string; resolved: string; kind: string }[] = []
-for (const f of listAllTs(resolve(API_SRC, "core"))) {
+for (const f of tierFiles) {
+	ensureLoaded(f)
 	const masked = fileMasked.get(f) ?? maskComments(readFileSync(f, "utf8"))
 	const starts = fileStarts.get(f) ?? lineStarts(readFileSync(f, "utf8"))
 	for (const s of collectSpecs(masked, starts)) {
 		if (s.kind === "dynamic" || s.kind === "require") {
 			const resolved = resolveSpec(s.spec, f, pkgMap)
-			if (resolved && resolved.startsWith(MODULES_PREFIX)) {
+			if (resolved && violates(f, resolved)) {
 				sc7.push({ file: relative(ROOT, f), line: s.line, spec: s.spec, resolved: relative(ROOT, resolved), kind: s.kind })
 			}
 		}
 	}
 	for (const [local, b] of importBindings(masked, starts)) {
 		const resolved = resolveSpec(b.spec, f, pkgMap)
-		if (resolved && resolved.startsWith(MODULES_PREFIX)) {
+		if (resolved && violates(f, resolved)) {
 			sc7.push({ file: relative(ROOT, f), line: b.line, spec: b.spec, resolved: relative(ROOT, resolved), kind: `import:${local}` })
 		}
 	}
@@ -566,15 +578,14 @@ for (const f of listAllTs(resolve(API_SRC, "core"))) {
 const sc7List = [...new Map(sc7.map((v) => [`${v.file}:${v.line}:${v.spec}`, v])).values()].sort(
 	(a, b) => a.file.localeCompare(b.file) || a.line - b.line,
 )
-console.log(`\n=== SC7 core->modules REVERSE IMPORTS (resolution-based): ${sc7List.length} ===`)
+console.log(`\n=== SC7 tier layering: shared->app and app->peer-app imports (resolution-based): ${sc7List.length} ===`)
 for (const v of sc7List) console.log(`  ${v.file}:${v.line} "${v.spec}" -> ${v.resolved}  [${v.kind}]`)
-void CORE_PREFIX
 
 // ── SC7 transitive variant (informational) ────────────────────────────────────
-// Build a static-import graph over ALL .ts files (core + modules) and count core files whose
-// transitive closure reaches apps/api/src/modules — directly or indirectly.
+// Static-import graph over every tier .ts file: count `shared` files whose transitive closure
+// reaches an app, directly or indirectly.
 const importGraph = new Map<string, string[]>()
-for (const f of [...listAllTs(resolve(API_SRC, "core")), ...listAllTs(resolve(API_SRC, "modules")), ...moduleFiles]) {
+for (const f of [...tierFiles, ...moduleFiles]) {
 	ensureLoaded(f)
 	const adj: string[] = []
 	for (const b of (fileBindings.get(f) ?? new Map()).values()) {
@@ -583,7 +594,7 @@ for (const f of [...listAllTs(resolve(API_SRC, "core")), ...listAllTs(resolve(AP
 	}
 	importGraph.set(f, adj)
 }
-const coreFileList = listAllTs(resolve(API_SRC, "core"))
+const coreFileList = listAllTs(SHARED_SRC)
 const directSet = new Set(sc7List.map((v) => resolve(ROOT, v.file)))
 function transReaches(start: string): boolean {
 	const seen = new Set<string>([start])
@@ -592,7 +603,7 @@ function transReaches(start: string): boolean {
 		const cur = stack.pop() as string
 		for (const w of importGraph.get(cur) ?? []) {
 			if (seen.has(w)) continue
-			if (w.startsWith(MODULES_PREFIX)) return true
+			if (isAppFile(w)) return true
 			seen.add(w)
 			stack.push(w)
 		}
@@ -602,7 +613,7 @@ function transReaches(start: string): boolean {
 const transitiveFiles = coreFileList.filter((f) => transReaches(f))
 console.log(`\n=== SC7 EDGE-RULE COMPARISON ===`)
 console.log(`  statement-level (direct specifier parse): ${sc7List.length} edges in ${directSet.size} file(s)`)
-console.log(`  transitive (closure through all .ts):      ${transitiveFiles.length} core file(s) reach modules/`)
+console.log(`  transitive (closure through all .ts):      ${transitiveFiles.length} shared file(s) reach an app`)
 
 // ── SC8: node-repo provider duplication ──────────────────────────────────────
 const NODE_REPOS = ["NodeConfigRepository", "ClusterNodeRepository", "ClusterNodeInventoryRepository"]
@@ -680,4 +691,4 @@ if (cycleFail || (gate === "all" && advisoryFail)) {
 	if (gate === "all" && !cycleFail) console.log("  (only advisory rules failed; run with DI_GATE=cycles to gate on acyclicity alone)")
 	process.exit(1)
 }
-console.log(gate === "cycles" ? "\nPASS (DI_GATE=cycles): no DI-nesting cycles" : "\nPASS (DI_GATE=all): no DI cycles, no core->modules reverse imports, no duplicate node-repo providers")
+console.log(gate === "cycles" ? "\nPASS (DI_GATE=cycles): no DI-nesting cycles" : "\nPASS (DI_GATE=all): no DI cycles, no shared->app or cross-app imports, no duplicate node-repo providers")

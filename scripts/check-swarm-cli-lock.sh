@@ -8,9 +8,19 @@
 set -euo pipefail
 
 paths=(
-  "apps/api/src/core/modules/swarm"
-  "apps/api/src/modules/runners/swarm"
+  "apps/api-services/shared/src/core/modules/swarm"
+  "packages/nest/swarm/src"
+  "apps/api-services/services/runtime/src/modules/runners/swarm"
 )
+
+# A path that no longer exists must FAIL the guard: grep's errors are swallowed below, so a
+# moved directory would otherwise turn this check into a silent pass over nothing.
+for path in "${paths[@]}"; do
+  if [ ! -d "${path}" ]; then
+    echo "❌ Swarm CLI-lock: ${path} does not exist — update the paths in this script" >&2
+    exit 1
+  fi
+done
 
 match="$(grep -rEn 'spawn\(|execFile\(|execSync\(|child_process' "${paths[@]}" 2>/dev/null || true)"
 

@@ -19,12 +19,17 @@ import { fileURLToPath } from "node:url";
 
 import { AppError } from "@deployer/errors";
 // ─── Resolve path ──────────────────────────────────────────────────────────────
-// This file lives at: apps/api/src/core/utils/deployer-version.ts
-// Target:          apps/api/package.json
+// This file lives at: apps/api-services/shared/src/core/utils/deployer-version.ts
+// Target:          apps/api-services/shared/package.json
+//
+// `shared` is the one package every tier app (and so every image) carries, which is why the
+// version is read from it rather than from an app's own package.json. The path used to climb
+// one level too far (to `apps/api-services/package.json`, which does not exist), so the
+// version silently resolved to "0.0.0" in every tier process.
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const PKG_PATH = join(__dirname, "..", "..", "..", "..", "package.json");
+const PKG_PATH = join(__dirname, "..", "..", "..", "package.json");
 
 // ─── Singleton ─────────────────────────────────────────────────────────────────
 

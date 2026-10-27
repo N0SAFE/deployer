@@ -9,7 +9,7 @@
  * Run: bun --bun scripts/verify-mesh-master-decision.ts
  */
 
-import { SwarmJoinGrantService } from "../apps/api/src/core/modules/swarm/services/swarm-join-grant.service";
+import { SwarmJoinGrantService } from "../packages/nest/swarm/src/services/swarm-join-grant.service";
 
 interface FakeCluster {
 	managerCount: number;
@@ -26,16 +26,18 @@ function makeService(cluster: FakeCluster): SwarmJoinGrantService {
 			nodeCount: cluster.nodeCount,
 		}),
 		getJoinTokens: async () => cluster.joinTokens,
+		// The control-plane addresses a joiner may reach the cluster on.
+		managerAddresses: async () => ["10.0.0.1:2377"],
 	};
-	return new SwarmJoinGrantService(stub as never);
+	// The package reads no environment: the quorum target and the advertise address are DATA
+	// the app supplies, so the trace supplies them the same way (target 3 = the documented default).
+	return new SwarmJoinGrantService(stub as never, { quorumMax: 3 }, { advertiseAddr: "10.0.0.1" });
 }
 
 /** The wizard's three selections. "auto" IS "can be master or worker". */
 const SELECTIONS = ["auto", "manager", "worker"] as const;
 
 async function main(): Promise<void> {
-	process.env.SWARM_ADVERTISE_ADDR = "10.0.0.1";
-
 	const active = { localNodeState: "active", nodeCount: 3, joinTokens: { worker: "W", manager: "M" } };
 
 	console.log("=== FLEET DECIDES THE ROLE OF A JOINING NODE ===");
@@ -44,7 +46,10 @@ async function main(): Promise<void> {
 	const cases: Array<{ managers: number; expect: "manager" | "worker" }> = [
 		{ managers: 2, expect: "manager" }, // even + below target(3) → 2→3 gains tolerance
 		{ managers: 3, expect: "worker" }, //  at target               → decline
-		{ managers: 1, expect: "worker" }, // odd                      → 1→2 gains nothing
+		// A lone founding manager ADMITS a joiner even though 1→2 gains no tolerance: a strict
+		// parity rule would decline every joiner at 1 and the fleet could never reach its target
+		// (the "founding exception" in `swarm-join-grant.service.spec.ts`).
+		{ managers: 1, expect: "manager" },
 		{ managers: 4, expect: "worker" }, // even but ≥ target        → decline
 	];
 
