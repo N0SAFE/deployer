@@ -571,6 +571,8 @@ export function requirePlatformRole(allowedRoles: string[]) {
                 )
             }
 
-            return next({ context })
+            // `next()` with no argument keeps the context the previous middlewares built (the Effect context
+            // among them); passing `{ context }` would narrow it to this middleware's own input type.
+            return next()
         })
 }

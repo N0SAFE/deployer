@@ -95,11 +95,18 @@ export function createOrpcModule<ExtraD extends ExtraTokens = []>(
 			 * type them, so the assembled object is asserted once here. Apps that
 			 * augment `DefaultInitialContext` provide the matching `extraContext`.
 			 */
-			const context = {
-				request,
-				auth: emptyAuthUtils,
-				...(extra ? await extra.resolve(...deps) : {}),
-			} as unknown as DefaultInitialContext;
+			/**
+			 * A function, not an object: `@orpc/nest` evaluates `config.context` for every request, so the
+			 * Effect context is read from the runtime then, over the finished container. Computed here
+			 * (this factory runs once, while routes are being registered) it was a snapshot taken before
+			 * every provider existed.
+			 */
+			const context = async (): Promise<DefaultInitialContext> =>
+				({
+					request,
+					auth: emptyAuthUtils,
+					...(extra ? await extra.resolve(...deps) : {}),
+				}) as unknown as DefaultInitialContext;
 
 			return {
 				interceptors: [
