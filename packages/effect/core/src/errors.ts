@@ -35,7 +35,7 @@ export const domainError =
 			Cause.YieldableError;
 	} => {
 		const Base = Data.TaggedError(tag) as unknown as new (args: object) => Error;
-		return class extends Base {
+		const Class = class extends Base {
 			static readonly kind = kind;
 			readonly kind = kind;
 			publicData(): Record<string, unknown> {
@@ -44,7 +44,19 @@ export const domainError =
 			publicMessage(): string {
 				return tag;
 			}
-		} as never;
+		};
+		// `message` defaults to the public message, so logs, stacks and `toThrow(/text/)` are readable.
+		// A field named `message` still wins: assigning it defines an own property over this accessor.
+		Object.defineProperty(Class.prototype, "message", {
+			configurable: true,
+			get(this: { publicMessage(): string }) {
+				return this.publicMessage();
+			},
+			set(this: object, value: unknown) {
+				Object.defineProperty(this, "message", { value, writable: true, configurable: true, enumerable: false });
+			},
+		});
+		return Class as never;
 	};
 
 /** Anything produced by `domainError(...)`. */

@@ -44,6 +44,13 @@ describe("domainError", () => {
 		expect(new Teapot({}).publicMessage()).toBe("short and stout");
 	});
 
+	it("uses the public message as the Error message, unless a field named message is given", () => {
+		expect(new UserNotFound({ id: "u9" }).message).toBe("UserNotFound");
+		expect(new Teapot({}).message).toBe("short and stout");
+		class WithMessage extends domainError("WithMessage", "validation")<{ readonly message: string }>() {}
+		expect(new WithMessage({ message: "explicit" }).message).toBe("explicit");
+	});
+
 	it("is recognised by isDomainError and catchable by tag", async () => {
 		expect(isDomainError(new EmailTaken({ email: "x" }))).toBe(true);
 		expect(isDomainError(new Error("plain"))).toBe(false);
