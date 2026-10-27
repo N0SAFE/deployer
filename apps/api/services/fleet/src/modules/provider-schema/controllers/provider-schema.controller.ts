@@ -2,23 +2,31 @@ import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
 import { providerSchemaContract } from "@deployer/fleet-contracts";
+import { EffectContextOf } from "@deployer/nest-effect";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
+
+import { serve } from "../../../core/orpc/serve";
+import { ProviderSchemaModule } from "../provider-schema.module";
 import { ProviderSchemaService } from "../services/provider-schema.service";
 
+/**
+ * The provider and builder catalog surface.
+ *
+ * Every handler resolves `ProviderSchemaService` from the module's Effect context and runs its use
+ * case through `serve`, which provides the actor and correlation id and maps failures to the errors
+ * the contract declares. The controller holds no rule: it only shapes results to the contract.
+ */
 @Controller()
 export class ProviderSchemaController {
-    constructor(private readonly providerSchemaService: ProviderSchemaService) {}
-
     @Implement(providerSchemaContract.getAllProviders)
     getAllProviders() {
         return implement(providerSchemaContract.getAllProviders)
             .use(requireAuth())
-            .handler(() => {
-                const providers = this.providerSchemaService.getAllProviders();
-                return {
-                    providers,
-                    total: providers.length,
-                };
+            .use(ProviderSchemaModule[EffectContextOf])
+            .effect(function* ({ context }) {
+                const schemas = yield* ProviderSchemaService;
+                const providers = yield* serve(context)(schemas.getAllProviders());
+                return { providers, total: providers.length };
             });
     }
 
@@ -26,19 +34,22 @@ export class ProviderSchemaController {
     getProviderSchema() {
         return implement(providerSchemaContract.getProviderSchema)
             .use(requireAuth())
-            .handler(({ input }) => this.providerSchemaService.getProviderSchema(input.params.id));
+            .use(ProviderSchemaModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const schemas = yield* ProviderSchemaService;
+                return yield* serve(context)(schemas.getProviderSchema(input.params.id));
+            });
     }
 
     @Implement(providerSchemaContract.getCompatibleBuilders)
     getCompatibleBuilders() {
         return implement(providerSchemaContract.getCompatibleBuilders)
             .use(requireAuth())
-            .handler(({ input }) => {
-                const builders = this.providerSchemaService.getCompatibleBuilders(input.params.providerId);
-                return {
-                    builders,
-                    total: builders.length,
-                };
+            .use(ProviderSchemaModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const schemas = yield* ProviderSchemaService;
+                const builders = yield* serve(context)(schemas.getCompatibleBuilders(input.params.providerId));
+                return { builders, total: builders.length };
             });
     }
 
@@ -46,12 +57,11 @@ export class ProviderSchemaController {
     getAllBuilders() {
         return implement(providerSchemaContract.getAllBuilders)
             .use(requireAuth())
-            .handler(() => {
-                const builders = this.providerSchemaService.getAllBuilders();
-                return {
-                    builders,
-                    total: builders.length,
-                };
+            .use(ProviderSchemaModule[EffectContextOf])
+            .effect(function* ({ context }) {
+                const schemas = yield* ProviderSchemaService;
+                const builders = yield* serve(context)(schemas.getAllBuilders());
+                return { builders, total: builders.length };
             });
     }
 
@@ -59,19 +69,22 @@ export class ProviderSchemaController {
     getBuilderSchema() {
         return implement(providerSchemaContract.getBuilderSchema)
             .use(requireAuth())
-            .handler(({ input }) => this.providerSchemaService.getBuilderSchema(input.params.id));
+            .use(ProviderSchemaModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const schemas = yield* ProviderSchemaService;
+                return yield* serve(context)(schemas.getBuilderSchema(input.params.id));
+            });
     }
 
     @Implement(providerSchemaContract.getCompatibleProviders)
     getCompatibleProviders() {
         return implement(providerSchemaContract.getCompatibleProviders)
             .use(requireAuth())
-            .handler(({ input }) => {
-                const providers = this.providerSchemaService.getCompatibleProviders(input.params.builderId);
-                return {
-                    providers,
-                    total: providers.length,
-                };
+            .use(ProviderSchemaModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const schemas = yield* ProviderSchemaService;
+                const providers = yield* serve(context)(schemas.getCompatibleProviders(input.params.builderId));
+                return { providers, total: providers.length };
             });
     }
 
@@ -79,17 +92,25 @@ export class ProviderSchemaController {
     validateProviderConfig() {
         return implement(providerSchemaContract.validateProviderConfig)
             .use(requireAuth())
-            .handler(({ input }) =>
-                this.providerSchemaService.validateProviderConfig(input.params.providerId, input.body.config),
-            );
+            .use(ProviderSchemaModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const schemas = yield* ProviderSchemaService;
+                return yield* serve(context)(
+                    schemas.validateProviderConfig(input.params.providerId, input.body.config),
+                );
+            });
     }
 
     @Implement(providerSchemaContract.validateBuilderConfig)
     validateBuilderConfig() {
         return implement(providerSchemaContract.validateBuilderConfig)
             .use(requireAuth())
-            .handler(({ input }) =>
-                this.providerSchemaService.validateBuilderConfig(input.params.builderId, input.body.config),
-            );
+            .use(ProviderSchemaModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const schemas = yield* ProviderSchemaService;
+                return yield* serve(context)(
+                    schemas.validateBuilderConfig(input.params.builderId, input.body.config),
+                );
+            });
     }
 }

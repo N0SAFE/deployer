@@ -1,3 +1,7 @@
+// Installs `.effect()` on oRPC's procedure builder: the e2e harness loads the root module directly and
+// never runs `main.ts`, so without this import every Effect-based controller fails with
+// `.effect is not a function`.
+import "@orpc/effect/extensions/effect";
 import {
 	getSharedApiRuntimeContext as getShared,
 	useDescribeSharedApiRuntime as useDescribeShared,

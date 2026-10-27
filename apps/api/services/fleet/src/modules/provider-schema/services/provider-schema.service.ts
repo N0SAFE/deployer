@@ -1,5 +1,3 @@
-import { FleetNotFound } from "../../../core/fleet.errors";
-import { Injectable } from "@nestjs/common";
 import {
     buildersCatalog,
     builderConfigValidators,
@@ -8,95 +6,112 @@ import {
     providerConfigValidators,
     providerSchemasCatalog,
 } from "@deployer/provider-schema";
+import { Context, Effect, Layer } from "effect";
 
-@Injectable()
-export class ProviderSchemaService {
-    private readonly providers = providersCatalog;
-    private readonly builders = buildersCatalog;
-    private readonly providerSchemas = providerSchemasCatalog;
-    private readonly builderSchemas = builderSchemasCatalog;
-    private readonly providerConfigValidators = providerConfigValidators;
-    private readonly builderConfigValidators = builderConfigValidators;
+import { FleetNotFound } from "../../../core/fleet.errors";
 
-    getAllProviders() {
-        return this.providers;
-    }
+/** The outcome of validating a config against a provider's or builder's schema. */
+export type ConfigValidation = {
+    readonly valid: boolean;
+    readonly errors: string[];
+};
 
-    getProviderSchema(id: string) {
-        const schema = this.providerSchemas[id];
-        if (!schema) {
-            throw new FleetNotFound({ reason: `Provider schema '${id}' not found` });
-        }
-        return schema;
-    }
+/** A zod-like validator, as the catalogs expose it. */
+type Validator = {
+    safeParse(config: unknown): {
+        success: boolean;
+        error?: { issues: { path: PropertyKey[]; message: string }[] };
+    };
+};
 
-    getCompatibleBuilders(providerId: string) {
-        const provider = this.providers.find((item) => item.id === providerId);
-        if (!provider) {
-            throw new FleetNotFound({ reason: `Provider '${providerId}' not found` });
-        }
+const validate = (validator: Validator, config: Record<string, unknown>): ConfigValidation => {
+    const parsed = validator.safeParse(config);
+    if (parsed.success) return { valid: true, errors: [] };
+    return {
+        valid: false,
+        errors: (parsed.error?.issues ?? []).map((issue) => {
+            const path = issue.path.length > 0 ? `${issue.path.map(String).join(".")}: ` : "";
+            return `${path}${issue.message}`;
+        }),
+    };
+};
 
-        return this.builders.filter((builder) => provider.supportedBuilders.includes(builder.id));
-    }
+/**
+ * Read-only access to the provider and builder catalogs. Nothing here touches I/O, so no method
+ * needs a requirement: an unknown id is a typed `FleetNotFound`, not a throw.
+ */
+export type ProviderSchemaServiceShape = {
+    readonly getAllProviders: () => Effect.Effect<typeof providersCatalog>;
+    readonly getProviderSchema: (id: string) => Effect.Effect<(typeof providerSchemasCatalog)[string], FleetNotFound>;
+    readonly getCompatibleBuilders: (providerId: string) => Effect.Effect<typeof buildersCatalog, FleetNotFound>;
+    readonly getAllBuilders: () => Effect.Effect<typeof buildersCatalog>;
+    readonly getBuilderSchema: (id: string) => Effect.Effect<(typeof builderSchemasCatalog)[string], FleetNotFound>;
+    readonly getCompatibleProviders: (builderId: string) => Effect.Effect<typeof providersCatalog, FleetNotFound>;
+    readonly validateProviderConfig: (
+        providerId: string,
+        config: Record<string, unknown>,
+    ) => Effect.Effect<ConfigValidation, FleetNotFound>;
+    readonly validateBuilderConfig: (
+        builderId: string,
+        config: Record<string, unknown>,
+    ) => Effect.Effect<ConfigValidation, FleetNotFound>;
+};
 
-    getAllBuilders() {
-        return this.builders;
-    }
+/** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
+export class ProviderSchemaService extends Context.Service<ProviderSchemaService, ProviderSchemaServiceShape>()(
+    "fleet/ProviderSchemaService",
+) {
+    static readonly Live: Layer.Layer<ProviderSchemaService> = Layer.sync(ProviderSchemaService, () =>
+        makeProviderSchemaService(),
+    );
+}
 
-    getBuilderSchema(id: string) {
-        const schema = this.builderSchemas[id];
-        if (!schema) {
-            throw new FleetNotFound({ reason: `Builder schema '${id}' not found` });
-        }
-        return schema;
-    }
+/** The service over the shipped catalogs; a plain record, so it needs no Nest to exist. */
+export function makeProviderSchemaService(): ProviderSchemaServiceShape {
+    const notFound = (what: string, id: string) => new FleetNotFound({ reason: `${what} '${id}' not found` });
 
-    getCompatibleProviders(builderId: string) {
-        const builder = this.builders.find((item) => item.id === builderId);
-        if (!builder) {
-            throw new FleetNotFound({ reason: `Builder '${builderId}' not found` });
-        }
+    return {
+        getAllProviders: () => Effect.succeed(providersCatalog),
 
-        return this.providers.filter((provider) => builder.compatibleProviders.includes(provider.id));
-    }
+        getProviderSchema: Effect.fn("ProviderSchemaService.getProviderSchema")(function* (id) {
+            const schema = providerSchemasCatalog[id];
+            if (!schema) return yield* notFound("Provider schema", id);
+            return schema;
+        }),
 
-    validateProviderConfig(providerId: string, config: Record<string, unknown>) {
-        const validator = this.providerConfigValidators[providerId];
-        if (!validator) {
-            throw new FleetNotFound({ reason: `Provider '${providerId}' not found` });
-        }
+        getCompatibleBuilders: Effect.fn("ProviderSchemaService.getCompatibleBuilders")(function* (providerId) {
+            const provider = providersCatalog.find((item) => item.id === providerId);
+            if (!provider) return yield* notFound("Provider", providerId);
+            return buildersCatalog.filter((builder) => provider.supportedBuilders.includes(builder.id));
+        }),
 
-        const parsed = validator.safeParse(config);
-        if (parsed.success) {
-            return { valid: true, errors: [] };
-        }
+        getAllBuilders: () => Effect.succeed(buildersCatalog),
 
-        return {
-            valid: false,
-            errors: parsed.error.issues.map((issue) => {
-                const path = issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
-                return `${path}${issue.message}`;
-            }),
-        };
-    }
+        getBuilderSchema: Effect.fn("ProviderSchemaService.getBuilderSchema")(function* (id) {
+            const schema = builderSchemasCatalog[id];
+            if (!schema) return yield* notFound("Builder schema", id);
+            return schema;
+        }),
 
-    validateBuilderConfig(builderId: string, config: Record<string, unknown>) {
-        const validator = this.builderConfigValidators[builderId];
-        if (!validator) {
-            throw new FleetNotFound({ reason: `Builder '${builderId}' not found` });
-        }
+        getCompatibleProviders: Effect.fn("ProviderSchemaService.getCompatibleProviders")(function* (builderId) {
+            const builder = buildersCatalog.find((item) => item.id === builderId);
+            if (!builder) return yield* notFound("Builder", builderId);
+            return providersCatalog.filter((provider) => builder.compatibleProviders.includes(provider.id));
+        }),
 
-        const parsed = validator.safeParse(config);
-        if (parsed.success) {
-            return { valid: true, errors: [] };
-        }
+        validateProviderConfig: Effect.fn("ProviderSchemaService.validateProviderConfig")(function* (
+            providerId,
+            config,
+        ) {
+            const validator = providerConfigValidators[providerId];
+            if (!validator) return yield* notFound("Provider", providerId);
+            return validate(validator, config);
+        }),
 
-        return {
-            valid: false,
-            errors: parsed.error.issues.map((issue) => {
-                const path = issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
-                return `${path}${issue.message}`;
-            }),
-        };
-    }
+        validateBuilderConfig: Effect.fn("ProviderSchemaService.validateBuilderConfig")(function* (builderId, config) {
+            const validator = builderConfigValidators[builderId];
+            if (!validator) return yield* notFound("Builder", builderId);
+            return validate(validator, config);
+        }),
+    };
 }

@@ -1,102 +1,68 @@
-import type { TestingModule } from "@nestjs/testing";
-import { Test } from "@nestjs/testing";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import "@orpc/effect/extensions/effect";
+
+import { effectContext } from "@deployer/nest-effect/testing";
+import { callProcedure } from "@deployer/orpc-utils/testing";
+import { Context } from "effect";
+import { describe, expect, it, vi } from "vitest";
+
 import { ProviderSchemaController } from "./provider-schema.controller";
-import { ProviderSchemaService } from "../services/provider-schema.service";
+import { makeProviderSchemaService, ProviderSchemaService } from "../services/provider-schema.service";
 
-/**
- * Resolve a built procedure's handler.
- *
- * oRPC v2 keeps it on the `~orpc` descriptor; v1 exposed it as a top-level
- * property. Reading both keeps this assertion about the CONTRACT ("the
- * controller exposes a callable handler") rather than about the internal layout
- * of whichever oRPC version is installed.
- */
-function procedureHandler(procedure: unknown): (...args: never[]) => unknown {
-    const p = procedure as { handler?: unknown; "~orpc"?: { handler?: unknown } };
-    const handler = p?.handler ?? p?.["~orpc"]?.handler;
-    if (typeof handler !== "function") {
-        throw new TypeError("procedure does not expose a handler");
-    }
-    return handler as (...args: never[]) => unknown;
-}
+// Authentication is the shared middleware's concern; here it lets the call through so the rest of
+// the chain (Effect context, `serve`, error mapping) runs for real.
+vi.mock("@deployer/shared/core/modules/auth/orpc/middlewares", async () => {
+    const { os } = await import("@orpc/server");
+    return { requireAuth: () => os.$context().middleware(({ next }) => next()) };
+});
 
+const context = {
+    ...effectContext(Context.make(ProviderSchemaService, makeProviderSchemaService())),
+    auth: { user: { id: "u1", role: "admin" } },
+    request: { headers: { "x-correlation-id": "c-1" } },
+};
 
-function createImplementMock() {
-    type HandlerFn = (opts: { input: unknown; context: unknown }) => unknown;
-
-    return {
-        use: vi.fn().mockReturnThis(),
-        handler: vi.fn((fn: HandlerFn) => ({ handler: fn })),
-    };
-}
-
-// oRPC v2 split these across packages: the `Implement` DECORATOR stays
-// in `@orpc/nest`, lowercase `implement` lives in `@orpc/server`.
-vi.mock("@orpc/nest", () => ({
-    Implement: vi.fn(() => () => {}),
-}));
-vi.mock("@orpc/server", async (importOriginal) => ({
-    // Spread the REAL module: these specs also import `ORPCError` from
-    // here, and replacing the module wholesale would make it undefined.
-    ...(await importOriginal<typeof import("@orpc/server")>()),
-    implement: vi.fn(() => createImplementMock()),
-}));
-
-vi.mock("@deployer/shared/core/modules/auth/orpc/middlewares", () => ({
-    requireAuth: vi.fn(() => ({})),
-}));
+const controller = new ProviderSchemaController();
+const call = <T>(implementation: unknown, input: unknown = {}) => callProcedure<T>(implementation, input, context);
 
 describe("ProviderSchemaController", () => {
-    let controller: ProviderSchemaController;
-
-    beforeEach(async () => {
-        const mockProviderSchemaService = {
-            getAllProviders: vi.fn(),
-            getProviderSchema: vi.fn(),
-            getCompatibleBuilders: vi.fn(),
-            getAllBuilders: vi.fn(),
-            getBuilderSchema: vi.fn(),
-            getCompatibleProviders: vi.fn(),
-            validateProviderConfig: vi.fn(),
-            validateBuilderConfig: vi.fn(),
-        };
-
-        const module: TestingModule = await Test.createTestingModule({
-            controllers: [ProviderSchemaController],
-            providers: [
-                {
-                    provide: ProviderSchemaService,
-                    useFactory: () => mockProviderSchemaService,
-                },
-            ],
-        }).compile();
-
-        controller = module.get<ProviderSchemaController>(ProviderSchemaController);
+    it("shapes the provider list to the contract, with its total", async () => {
+        const result = await call<{ providers: unknown[]; total: number }>(controller.getAllProviders());
+        expect(result.total).toBe(result.providers.length);
+        expect(result.total).toBeGreaterThan(0);
     });
 
-    it("should be defined", () => {
-        expect(controller).toBeDefined();
+    it("lists the builders compatible with a provider", async () => {
+        const result = await call<{ builders: { id: string }[]; total: number }>(controller.getCompatibleBuilders(), {
+            params: { providerId: "github" },
+        });
+        expect(result.total).toBe(result.builders.length);
+        expect(result.builders.length).toBeGreaterThan(0);
     });
 
-    describe("ORPC implementation methods", () => {
-        const methods: (keyof ProviderSchemaController)[] = [
-            "getAllProviders",
-            "getProviderSchema",
-            "getCompatibleBuilders",
-            "getAllBuilders",
-            "getBuilderSchema",
-            "getCompatibleProviders",
-            "validateProviderConfig",
-            "validateBuilderConfig",
-        ];
+    it("validates a config and reports the failing field", async () => {
+        const result = await call<{ valid: boolean; errors: string[] }>(controller.validateProviderConfig(), {
+            params: { providerId: "github" },
+            body: { config: { repositoryUrl: "not-a-url" } },
+        });
+        expect(result.valid).toBe(false);
+        expect(result.errors.some((line) => line.startsWith("repositoryUrl"))).toBe(true);
+    });
 
-        for (const method of methods) {
-            it(`${method} should return an implementation with a handler`, () => {
-                const implementation = (controller[method] as () => any)();
-                expect(implementation).toBeDefined();
-                expect(typeof procedureHandler(implementation)).toBe("function");
-            });
-        }
+    it("answers an unknown provider as the contract's NOT_FOUND, with the service's sentence", async () => {
+        await expect(
+            call(controller.getProviderSchema(), { params: { id: "no-such-provider" } }),
+        ).rejects.toMatchObject({
+            code: "NOT_FOUND",
+            message: "Provider schema 'no-such-provider' not found",
+        });
+    });
+
+    it("answers an unknown builder the same way, for every lookup that takes one", async () => {
+        await expect(call(controller.getCompatibleProviders(), { params: { builderId: "nope" } })).rejects.toMatchObject({
+            code: "NOT_FOUND",
+        });
+        await expect(
+            call(controller.validateBuilderConfig(), { params: { builderId: "nope" }, body: { config: {} } }),
+        ).rejects.toMatchObject({ code: "NOT_FOUND" });
     });
 });

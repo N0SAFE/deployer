@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { EffectRuntime, EffectRuntimeModule } from "@deployer/nest-effect";
 import { AppLifecycleModule } from "@deployer/nest-lifecycle";
 import {
 	DEPENDENCIES,
@@ -15,6 +16,7 @@ import { DatabaseModule } from "@deployer/shared/core/modules/database/database.
 import { AuthModule } from "@deployer/shared/core/modules/auth/auth.module";
 import { createBetterAuth } from "@deployer/shared/config/auth/auth";
 
+import { FleetLive } from "./app.layers";
 import { ClusterModule } from "./modules/cluster/cluster.module";
 import { FleetModule } from "./modules/fleet/fleet.module";
 import { MeshCoreModule } from "@deployer/shared/core/modules/mesh/mesh-core.module";
@@ -92,7 +94,16 @@ registerSchemaCodecs();
 		PreflightModule.forRoot({ dependencies: DEPENDENCIES.database }),
 		ServiceHealthModule,
 		HealthModule.forRoot({ indicators: "database" }),
-		createOrpcModule(),
+		// `.effect()` handlers resolve services from `effect/context`; the runtime contributes that
+		// context per request without changing the shared transport policy.
+		createOrpcModule({
+			extraContext: {
+				inject: [EffectRuntime],
+				resolve: async (runtime) => ({ "effect/context": await runtime.context() }),
+			},
+		}),
+		// The Effect services of the modules already migrated (see `app.layers.ts`).
+		EffectRuntimeModule.forRoot({ layers: [FleetLive] }),
 		// Fleet receives the webhooks; runtime owns deployments, so fleet reaches it by contract.
 		ServiceClientModule.forRoot(),
 
