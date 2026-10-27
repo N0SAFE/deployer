@@ -1,4 +1,4 @@
-import { Effect, type Context } from "effect";
+import { Effect, Layer, type Context } from "effect";
 
 /**
  * A class-style implementation whose methods return Effects, with `Deps` taken out of every
@@ -31,4 +31,35 @@ export function bindServices<T extends object, Deps>(impl: T, context: Context.C
 			};
 		},
 	}) as unknown as Bound<T, Deps>;
+}
+
+/** Everything the methods of `T` leave open in `R`. */
+export type RequirementsOf<T> = {
+	[K in keyof T]: T[K] extends (...args: never[]) => Effect.Effect<unknown, unknown, infer R> ? R : never;
+}[keyof T];
+
+/** `T` as `bindServices` hands it out: every requirement discharged. */
+export type Discharged<T> = Bound<T, RequirementsOf<T>>;
+
+/**
+ * The Layer for a class-style service: the requirements its methods name are resolved when the
+ * layer is built, and the service is handed out with none left.
+ *
+ * ```ts
+ * export class WebhookService extends Context.Service<WebhookService, Discharged<WebhookServiceImpl>>()("x") {
+ *   static readonly Live = layerOfClass(WebhookService, () => new WebhookServiceImpl());
+ * }
+ * ```
+ */
+export function layerOfClass<Id, Impl extends object>(
+	tag: Context.Service<Id, Discharged<Impl>>,
+	make: () => Impl,
+): Layer.Layer<Id, never, RequirementsOf<Impl>> {
+	return Layer.effect(
+		tag,
+		Effect.gen(function* () {
+			const context = yield* Effect.context<RequirementsOf<Impl>>();
+			return bindServices(make(), context);
+		}),
+	);
 }
