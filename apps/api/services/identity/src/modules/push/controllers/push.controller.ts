@@ -1,14 +1,13 @@
 import { Controller } from '@nestjs/common'
 import { Implement } from '@orpc/nest'
 import { implement } from '@orpc/server'
-import { catchDomainErrors } from '@deployer/effect-orpc'
 import { EffectContextOf } from '@deployer/nest-effect'
 
 import { PushDomainModule } from '../push.module'
 
 import { pushContract } from '@deployer/identity-contracts'
 import { requireAuth } from '@deployer/shared/core/modules/auth/orpc/middlewares'
-import { actorFromContext } from '@identity/core/utils/actor.utils'
+import { serve } from '@identity/core/orpc/serve'
 
 import { pushRules } from '../domain/push.rules'
 import { PushService } from '../services/push.service'
@@ -40,9 +39,7 @@ export class PushController {
             .use(PushDomainModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const push = yield* PushService
-                return yield* push
-                    .publicKey(actorFromContext(context))
-                    .pipe(catchDomainErrors)
+                return yield* serve(context)(push.publicKey())
             })
     }
 
@@ -60,9 +57,7 @@ export class PushController {
             .use(PushDomainModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const push = yield* PushService
-                return yield* push
-                    .subscribe(actorFromContext(context), input)
-                    .pipe(catchDomainErrors)
+                return yield* serve(context)(push.subscribe(input))
             })
     }
 
@@ -74,9 +69,7 @@ export class PushController {
             .use(PushDomainModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const push = yield* PushService
-                return yield* push
-                    .unsubscribe(actorFromContext(context), input.endpoint)
-                    .pipe(catchDomainErrors)
+                return yield* serve(context)(push.unsubscribe(input.endpoint))
             })
     }
 
@@ -88,9 +81,7 @@ export class PushController {
             .use(PushDomainModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const push = yield* PushService
-                const subscriptions = yield* push
-                    .list(actorFromContext(context))
-                    .pipe(catchDomainErrors)
+                const subscriptions = yield* serve(context)(push.list())
                 return { subscriptions }
             })
     }
@@ -108,9 +99,7 @@ export class PushController {
             .use(PushDomainModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const push = yield* PushService
-                return yield* push
-                    .stats(actorFromContext(context))
-                    .pipe(catchDomainErrors)
+                return yield* serve(context)(push.stats())
             })
     }
 
@@ -131,12 +120,11 @@ export class PushController {
             .use(PushDomainModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const push = yield* PushService
-                const actor = actorFromContext(context)
 
-                const devices = yield* push.list(actor).pipe(catchDomainErrors)
-                const deliverable = yield* push
-                    .deliverableCount()
-                    .pipe(catchDomainErrors)
+                const devices = yield* serve(context)(push.list())
+                const deliverable = yield* serve(context)(
+                    push.deliverableCount()
+                )
 
                 return pushRules.deliveryReport(devices.length, deliverable)
             })

@@ -1,7 +1,7 @@
 import { Effect } from 'effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { DatabasePort } from '@identity/core/database/database.port'
+import { Actor, Correlation, CurrentActor } from '@deployer/effect-core'
 
 import {
     PushRepository,
@@ -12,8 +12,11 @@ import type {
     VapidKeys,
 } from '../repositories/push.repository.types'
 import { PushInvalid, PushSubscriptionNotFound } from '../domain/push.errors'
-import type { PushFailure } from './push.service'
-import { PushServiceImpl, type Actor } from './push.service'
+import {
+    makePushService,
+    type PushFailure,
+    type PushServiceShape,
+} from './push.service'
 
 /**
  * The push domain's RULES.
@@ -23,8 +26,9 @@ import { PushServiceImpl, type Actor } from './push.service'
  * the statistics mean — not about SQL. If any of them needed a database, the
  * layering would be wrong.
  */
-const owner: Actor = { userId: 'user-owner', role: 'user' }
-const other: Actor = { userId: 'user-other', role: 'user' }
+type Acting = { userId: string; role: string }
+const owner: Acting = { userId: 'user-owner', role: 'user' }
+const other: Acting = { userId: 'user-other', role: 'user' }
 
 /** A valid HTTPS endpoint, as a browser would produce. */
 const ENDPOINT = 'https://fcm.googleapis.com/fcm/send/abc123'
@@ -33,7 +37,32 @@ const ENDPOINT = 'https://fcm.googleapis.com/fcm/send/abc123'
 const P256DH = 'B'.repeat(80)
 const AUTH = 'a'.repeat(20)
 
-const service = new PushServiceImpl()
+type ActingService = {
+    [K in keyof PushServiceShape]: PushServiceShape[K] extends (
+        ...args: infer P
+    ) => Effect.Effect<infer A, infer E, any>
+        ? (actor: Acting, ...args: P) => Effect.Effect<A, E, PushRepository>
+        : never
+}
+
+/** The service, built over whichever repository the run provides; each call names its actor. */
+const service = new Proxy({} as ActingService, {
+    get:
+        (_target, key: keyof PushServiceShape) =>
+        (actor: Acting, ...args: unknown[]) =>
+            Effect.flatMap(PushRepository, (repo) => {
+                const method = makePushService(repo)[key] as (
+                    ...a: unknown[]
+                ) => Effect.Effect<unknown, PushFailure, CurrentActor | Correlation>
+                return method(...args)
+            }).pipe(
+                Effect.provideService(
+                    CurrentActor,
+                    Actor.user(actor.userId, actor.role)
+                ),
+                Effect.provideService(Correlation, { id: 'test' })
+            ),
+})
 
 /** A stored row; only the fields a test cares about are overridden. */
 function subscription(
@@ -89,27 +118,25 @@ function fakeRepository() {
 
 /** Run a service Effect with the fake repository and an unused database. */
 function run<A, E>(
-    effect: Effect.Effect<A, E, PushRepository | DatabasePort>,
+    effect: Effect.Effect<A, E, PushRepository>,
     repository: PushRepositoryShape
 ): Promise<A> {
     return Effect.runPromise(
         effect.pipe(
-            Effect.provideService(PushRepository, repository),
-            Effect.provideService(DatabasePort, { db: {} as never })
+            Effect.provideService(PushRepository, repository)
         )
     )
 }
 
 /** Run a service Effect that MUST fail, resolving with its typed failure. */
 function runFailing<E>(
-    effect: Effect.Effect<unknown, E, PushRepository | DatabasePort>,
+    effect: Effect.Effect<unknown, E, PushRepository>,
     repository: PushRepositoryShape
 ): Promise<PushFailure> {
     return Effect.runPromise(
         Effect.flip(effect).pipe(
             Effect.map((error) => error as PushFailure),
-            Effect.provideService(PushRepository, repository),
-            Effect.provideService(DatabasePort, { db: {} as never })
+            Effect.provideService(PushRepository, repository)
         )
     )
 }
@@ -408,7 +435,7 @@ describe('PushService', () => {
     describe('recordDelivery', () => {
         it('records a successful delivery as usage', async () => {
             await run(
-                service.recordDelivery('sub-1', {
+                service.recordDelivery(owner, 'sub-1', {
                     delivered: true,
                     gone: false,
                 }),
@@ -424,7 +451,7 @@ describe('PushService', () => {
             // future send. Marking it inactive keeps the row (a re-subscribe can re-activate it)
             // while removing it from the delivery set.
             await run(
-                service.recordDelivery('sub-1', {
+                service.recordDelivery(owner, 'sub-1', {
                     delivered: false,
                     gone: true,
                 }),
@@ -439,7 +466,7 @@ describe('PushService', () => {
             // A 500 or a timeout is worth retrying, so neither the usage stamp nor the
             // retirement should happen.
             await run(
-                service.recordDelivery('sub-1', {
+                service.recordDelivery(owner, 'sub-1', {
                     delivered: false,
                     gone: false,
                 }),
@@ -459,7 +486,7 @@ describe('PushService', () => {
             repository.countDeliverable.mockReturnValueOnce(Effect.succeed(7))
 
             await expect(
-                run(service.deliverableCount(), repository)
+                run(service.deliverableCount(owner), repository)
             ).resolves.toBe(7)
             expect(repository.countDeliverable).toHaveBeenCalled()
         })

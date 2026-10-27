@@ -5,8 +5,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { getSharedApiRuntimeContext, type SharedApiRuntimeContext } from "@/e2e/runtime";
 import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
 import { user } from "@deployer/nest-schema/global/identity/auth";
-import { DatabasePort, type DatabaseShape } from "@identity/core/database/database.port";
-import { PushRepository, type PushRepositoryShape } from "@/modules/push/repositories/push.repository";
+import { makePushRepository, type PushRepositoryShape } from "@/modules/push/repositories/push.repository";
 import type { PushRepositoryFailure } from "@/modules/push/push.failures";
 
 /**
@@ -18,11 +17,9 @@ import type { PushRepositoryFailure } from "@/modules/push/push.failures";
  */
 describe("Push repository e2e: the SQL rules", () => {
 	let repository: PushRepositoryShape;
-	let database: DatabaseShape;
 	let db: GlobalDatabaseService["db"];
 
-	const run = <A>(effect: Effect.Effect<A, PushRepositoryFailure, DatabasePort>) =>
-		Effect.runPromise(effect.pipe(Effect.provideService(DatabasePort, database)));
+	const run = <A>(effect: Effect.Effect<A, PushRepositoryFailure>) => Effect.runPromise(effect);
 
 	const newUser = async (overrides: { banned?: boolean } = {}) => {
 		const id = `e2e-push-${randomUUID()}`;
@@ -52,8 +49,7 @@ describe("Push repository e2e: the SQL rules", () => {
 		const runtime: SharedApiRuntimeContext = await getSharedApiRuntimeContext();
 		const globalDatabase = runtime.serviceMapper.get(GlobalDatabaseService);
 		db = globalDatabase.db;
-		database = { db };
-		repository = runtime.serviceMapper.get(PushRepository) as unknown as PushRepositoryShape;
+		repository = makePushRepository(db);
 	});
 
 	it("stores a subscription and finds it by endpoint", async () => {

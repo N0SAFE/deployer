@@ -2,33 +2,17 @@ import { createModuleContext } from '@deployer/nest-effect'
 import { DatabasePort } from '@identity/core/database/database.port'
 
 import { PushController } from './controllers/push.controller'
-import {
-    PushRepository,
-    PushRepositoryImpl,
-} from './repositories/push.repository'
-import { PushService, PushServiceImpl } from './services/push.service'
+import { PushService } from './services/push.service'
 
 /**
- * The push domain.
+ * The push domain: web-push subscriptions.
  *
- * Web-push subscriptions.
- *
- * Every dependency is an Effect token backed by a normal NestJS provider:
- * - `DatabasePort` is provided once by the root module;
- * - `PushRepository` is the Drizzle implementation, with no constructor DI;
- * - `PushService` is the domain use case.
- *
- * Exports the SERVICE — not the repository. A repository is this domain's private
- * data access, and exporting it would let a sibling domain couple to these tables.
+ * `PushService` and `PushRepository` are Layers (see `push.layers.ts`) built by the app's Effect
+ * runtime over `DatabasePort`; the module declares the controller and which services its handlers
+ * may use. A repository is this domain's private data access: nothing exports it.
  */
 export class PushDomainModule extends createModuleContext(
-    {
-        controllers: [PushController],
-        providers: [
-            { provide: PushRepository, useClass: PushRepositoryImpl },
-            { provide: PushService, useClass: PushServiceImpl },
-        ],
-        exports: [PushService],
-    },
+    { controllers: [PushController] },
+    PushService,
     DatabasePort
 ) {}

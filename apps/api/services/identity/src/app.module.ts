@@ -22,6 +22,7 @@ import { DatabasePort } from '@identity/core/database/database.port'
 
 import { UserDomainModule } from './modules/user/user.module'
 import { UserLive } from './modules/user/user.layers'
+import { PushLive } from './modules/push/push.layers'
 import { PushDomainModule } from './modules/push/push.module'
 import { AnalyticsDomainModule } from './modules/analytics/analytics.module'
 import { PermissionDomainModule } from './modules/permission/permission.module'
@@ -82,7 +83,7 @@ export class IdentityServiceModule extends createModuleContext({
             },
         }),
 
-        EffectRuntimeModule.forRoot({ layers: [UserLive] }),
+        EffectRuntimeModule.forRoot({ layers: [UserLive, PushLive] }),
 
         UserDomainModule,
         PushDomainModule,
