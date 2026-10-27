@@ -303,6 +303,28 @@ export class DeploymentRepository {
         return row?.projectId ?? null;
     }
 
+    /**
+     * The service whose configured `providerConfig.sourceUrl` is this repository URL.
+     *
+     * Compared normalised (trimmed, lowercased, no trailing slash) because the URL a webhook
+     * reports and the one an operator typed rarely agree on case or a trailing `/`. Selects
+     * only what the trigger path needs rather than the whole service row.
+     */
+    async findServiceBySourceUrl(
+        sourceUrl: string,
+    ): Promise<{ id: string; providerConfig: unknown } | null> {
+        const normalize = (value: string) => value.trim().toLowerCase().replace(/\/+$/, "");
+        const target = normalize(sourceUrl);
+        const rows = await this.databaseService.db
+            .select({ id: services.id, providerConfig: services.providerConfig })
+            .from(services);
+        const match = rows.find((row) => {
+            const source = isRecord(row.providerConfig) ? row.providerConfig.sourceUrl : undefined;
+            return typeof source === "string" && normalize(source) === target;
+        });
+        return match ?? null;
+    }
+
     async getRuntimeConfigurationSeed(serviceId: string): Promise<{
         projectId: string;
         projectSettings: Record<string, unknown> | null;

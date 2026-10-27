@@ -5,6 +5,7 @@ import { ORPCError } from "@orpc/server";
 import type { GithubWebhookDispatchService } from "../services/github-webhook-dispatch.service";
 import type { WebhookIdempotencyService } from "../services/webhook-idempotency.service";
 import type { GithubAppsRepository } from "../repositories/github-apps.repository";
+import type { DeploymentTriggerGateway } from "../services/deployment-trigger.gateway";
 import { type GithubWebhookInput } from "@deployer/fleet-contracts";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────
@@ -24,7 +25,12 @@ const makeMockRepo = (): GithubAppsRepository =>
     ({
         setInstallation: vi.fn().mockResolvedValue(true),
         getWebhookSecret: vi.fn().mockResolvedValue(null),
+        findServiceBySourceUrl: vi.fn().mockResolvedValue({ id: "svc-1" }),
     }) as unknown as GithubAppsRepository;
+
+const makeMockGateway = () => ({
+    relay: vi.fn().mockResolvedValue({ dispatched: false, sourceId: null, deploymentId: null, reason: "no_trigger_source:github/push" }),
+});
 
 const prPayload = {
     action: "opened",
@@ -33,7 +39,7 @@ const prPayload = {
         head: { ref: "feat/preview", sha: "abc1234" },
         merged: false,
     },
-    repository: { full_name: "org/repo" },
+    repository: { full_name: "org/repo", html_url: "https://github.com/org/repo" },
 };
 
 // The DETAILED webhook input the contract produces:
@@ -92,11 +98,20 @@ describe("GithubWebhooksController", () => {
     let controller: GithubWebhooksController;
     let dispatch: GithubWebhookDispatchService;
     let idempotency: WebhookIdempotencyService;
+    let repo: GithubAppsRepository;
+    let gateway: ReturnType<typeof makeMockGateway>;
 
     beforeEach(() => {
         dispatch = makeMockDispatch();
         idempotency = makeMockIdempotency();
-        controller = new GithubWebhooksController(idempotency, dispatch, makeMockRepo());
+        repo = makeMockRepo();
+        gateway = makeMockGateway();
+        controller = new GithubWebhooksController(
+            idempotency,
+            dispatch,
+            repo,
+            gateway as unknown as DeploymentTriggerGateway,
+        );
     });
 
     it("returns received=true for a valid pull_request event", async () => {
@@ -122,14 +137,49 @@ describe("GithubWebhooksController", () => {
         expect(dispatch.dispatchPrEvent).not.toHaveBeenCalled();
     });
 
-    it("returns skipped for unhandled event types", async () => {
+    it("dispatches a pull_request with the service the repository is linked to, not its name", async () => {
+        await runHandler(controller, {
+            eventType: "pull_request",
+            deliveryId: "delivery-pr",
+            input: makeInput(prPayload),
+        });
+        expect(repo.findServiceBySourceUrl).toHaveBeenCalledWith("https://github.com/org/repo");
+        expect(dispatch.dispatchPrEvent).toHaveBeenCalledWith(expect.objectContaining({ serviceId: "svc-1" }));
+    });
+
+    it("ignores a pull_request on a repository no service is linked to", async () => {
+        vi.mocked(repo.findServiceBySourceUrl).mockResolvedValue(null);
         const result = await runHandler(controller, {
-            eventType: "push",
+            eventType: "pull_request",
+            deliveryId: "delivery-pr-2",
+            input: makeInput(prPayload),
+        });
+        expect(result.reason).toBe("pull_request:no_linked_service");
+        expect(dispatch.dispatchPrEvent).not.toHaveBeenCalled();
+    });
+
+    it("returns skipped when no trigger source claims the event", async () => {
+        const result = await runHandler(controller, {
+            eventType: "issues",
             deliveryId: "delivery-3",
             input: makeInput({}),
         });
+        expect(gateway.relay).toHaveBeenCalledWith(
+            expect.objectContaining({ provider: "github", eventName: "issues", deliveryId: "delivery-3" }),
+        );
         expect(result.action).toBe("skipped");
-        expect(result.reason).toContain("push");
+        expect(result.reason).toBe("no_trigger_source:github/push");
+    });
+
+    it("reports a deployment the registry queued for a push", async () => {
+        gateway.relay.mockResolvedValue({ dispatched: true, sourceId: "github-push", deploymentId: "dep-1", reason: null });
+        const result = await runHandler(controller, {
+            eventType: "push",
+            deliveryId: "delivery-4",
+            input: makeInput({ ref: "refs/heads/main" }),
+        });
+        expect(result.action).toBe("deployed");
+        expect(result.reason).toBe("trigger:github-push:dep-1");
     });
 
     it("throws ORPCError BAD_REQUEST for malformed pull_request payload", async () => {

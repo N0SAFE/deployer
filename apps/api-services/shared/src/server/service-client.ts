@@ -4,6 +4,7 @@ import { OpenAPILink } from "@orpc/openapi/fetch";
 import type { ContractRouterClient, RouterContract } from "@orpc/contract";
 
 import { apiServiceUrl, type ApiServiceName } from "./service-address";
+import { SYSTEM_ACTOR_HEADER } from "../core/modules/auth/system-actor/system-actor";
 
 /**
  * Reaching another SERVICE over its contract.
@@ -58,6 +59,26 @@ export class ServiceClient {
 		);
 		perContract.set(name, client);
 		return client;
+	}
+
+	/**
+	 * A client that calls `name` AS THE SYSTEM: every request carries `token`, a signed
+	 * system-actor claim (see `auth/system-actor`), for procedures no user session may reach.
+	 *
+	 * Not cached, unlike `clientFor`: a claim is short-lived and per event, so a cached link
+	 * would keep presenting an expired one. Building a link is a handful of allocations.
+	 */
+	systemActorClientFor<TContract extends RouterContract>(
+		name: ApiServiceName,
+		contract: TContract,
+		token: string,
+	): ContractRouterClient<TContract> {
+		return createORPCClient<ContractRouterClient<TContract>>(
+			new OpenAPILink(contract, {
+				origin: apiServiceUrl(name),
+				headers: { [SYSTEM_ACTOR_HEADER]: token },
+			}),
+		);
 	}
 }
 

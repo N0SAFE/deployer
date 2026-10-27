@@ -20,6 +20,7 @@ import { githubWebhookAuth } from "@/modules/providers/middleware/github-webhook
 import { GithubWebhookDispatchService } from "../services/github-webhook-dispatch.service";
 import { WebhookIdempotencyService } from "../services/webhook-idempotency.service";
 import { GithubAppsRepository } from "../repositories/github-apps.repository";
+import { DeploymentTriggerGateway } from "../services/deployment-trigger.gateway";
 
 // T032: Webhook-driven preview create/update orchestration.
 // T036: Webhook idempotency keys and duplicate-delivery handling.
@@ -31,6 +32,7 @@ export class GithubWebhooksController {
         private readonly idempotencyService: WebhookIdempotencyService,
         private readonly dispatchService: GithubWebhookDispatchService,
         private readonly githubAppsRepository: GithubAppsRepository,
+        private readonly triggerGateway: DeploymentTriggerGateway,
     ) {}
 
     @Implement(providersContract.code.github.webhook)
@@ -74,9 +76,24 @@ export class GithubWebhooksController {
                     return this.handleInstallation(payload, deliveryId, eventType);
                 }
 
-                // Other event types (push, create, etc.) are acknowledged but not acted on
-                this.logger.log(`Received unhandled GitHub event type=${eventType} delivery=${deliveryId}`);
-                return { received: true, deliveryId, action: "skipped", reason: `unhandled_event:${eventType}` };
+                // Everything else is offered to runtime's trigger registry: a `push` that
+                // matches a linked service deploys it, anything no source claims (issues,
+                // stars, releases…) is a normal skip.
+                const relayed = await this.triggerGateway.relay({
+                    provider: "github",
+                    eventName: eventType,
+                    deliveryId,
+                    payload,
+                });
+                if (!relayed.dispatched) {
+                    return { received: true, deliveryId, action: "skipped", reason: relayed.reason ?? `unhandled_event:${eventType}` };
+                }
+                return {
+                    received: true,
+                    deliveryId,
+                    action: "deployed",
+                    reason: `trigger:${relayed.sourceId ?? "unknown"}:${relayed.deploymentId ?? ""}`,
+                };
             });
     }
 
@@ -135,9 +152,20 @@ export class GithubWebhooksController {
         const branchName = head.ref;
         const commitSha = head.sha;
 
-        // TODO(T032): resolve actual serviceId from repository identifier once
-        // the github provider registry is wired. Using repository full_name as placeholder.
-        const serviceId = payload.repository?.full_name ?? "unknown";
+        // Resolve the service the repository is linked to. Without a link there is nothing to
+        // provision a preview for: say so rather than pass the repository name as a service id.
+        const repositoryUrl = payload.repository?.html_url;
+        const linked =
+            typeof repositoryUrl === "string"
+                ? await this.githubAppsRepository.findServiceBySourceUrl(repositoryUrl)
+                : null;
+        if (!linked) {
+            this.logger.warn(
+                `pull_request ${action} on ${payload.repository?.full_name ?? "unknown repository"} ignored: no service is linked to it`,
+            );
+            return { received: true, deliveryId, action, reason: "pull_request:no_linked_service" };
+        }
+        const serviceId = linked.id;
 
         const result = await this.dispatchService.dispatchPrEvent({
             // Narrowed by the equality checks above to GithubPrAction.

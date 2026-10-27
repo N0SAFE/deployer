@@ -374,6 +374,23 @@ export class DeploymentService implements OnModuleInit {
             "maintainer",
             "deployer",
         ], actorPlatformRole);
+        return this.queueTriggeredDeployment(input, userId);
+    }
+
+    /**
+     * Trigger a deployment on behalf of the SYSTEM (a webhook, a schedule): nobody is
+     * logged in, so there is no membership to check and no user to attribute it to.
+     *
+     * The caller must already have established the right to act — the controller only
+     * reaches this with a verified system-actor claim. Everything else (runtime constraints,
+     * state machine, storage) still runs, because it lives in `queueTriggeredDeployment`.
+     * `triggeredBy` is stored as null, which the column allows "for webhook triggers".
+     */
+    async triggerDeploymentAsSystem(input: DeploymentTriggerInput) {
+        return this.queueTriggeredDeployment(input, null);
+    }
+
+    private async queueTriggeredDeployment(input: DeploymentTriggerInput, triggeredBy: string | null) {
         const runtimeConfigurationSeed =
             await this.deploymentRepository.getRuntimeConfigurationSeed(input.serviceId);
 
@@ -490,7 +507,7 @@ export class DeploymentService implements OnModuleInit {
 
         const deployment = await this.deploymentRepository.create({
             serviceId: input.serviceId,
-            triggeredBy: userId,
+            triggeredBy,
             environment: input.environment,
             environmentId: await this.deploymentRepository.resolveEnvironmentId(input.serviceId, input.environment),
             sourceType: input.source.sourceType,
@@ -529,7 +546,7 @@ export class DeploymentService implements OnModuleInit {
                 },
                 context: {
                     sourceType: deployment.sourceType,
-                    triggeredBy: userId,
+                    triggeredBy,
                     correlationId,
                     executionPlan: {
                         builder: resolvedBuilder,

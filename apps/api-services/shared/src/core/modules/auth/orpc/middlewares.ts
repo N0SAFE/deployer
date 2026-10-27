@@ -17,6 +17,7 @@ import { standardErrorOptions, STANDARD_DOMAIN_ERROR_DEFS } from '@deployer/orpc
 import { verifyMeshToken, verifyPeerServiceToken } from '@deployer/auth/mesh'
 import { EnvService as BaseEnvService } from "@deployer/nest-env"
 import { apiEnvSchema, type ApiEnv as Env } from '@deployer/env'
+import { SYSTEM_ACTOR_HEADER, verifySystemActorClaim } from '../system-actor'
 import type { ORPCGlobalContext } from '@/core/modules/auth/orpc/orpc-context'
 
 /**
@@ -488,6 +489,51 @@ export function requirePlatformRole(allowedRoles: string[]) {
                         'forbidden',
                         'Insufficient permissions. Required role: ' +
                         allowedRoles.join(', '),
+/**
+ * Require a SYSTEM ACTOR: a call that no person made (a webhook, a schedule), vouched for by
+ * a peer service with a signed claim in `X-Deployer-System-Actor`.
+ *
+ * Use it instead of `requireAuth()` on a procedure only a peer service should call. It
+ * narrows `context.systemActor` to the verified claim.
+ *
+ * @param audience - the service name the claim must be addressed to (e.g. `"runtime"`)
+ *
+ * Errors:
+ *   - `UNAUTHORIZED` — no claim, a bad signature, a wrong audience, or an expired claim.
+ *   - `FORBIDDEN` — the platform secret is not configured, so no claim can be verified.
+ */
+export function requireSystemActor(audience: string) {
+    return os
+        .$context<ORPCContextWithAuth>()
+        .errors(STANDARD_DOMAIN_ERROR_DEFS)
+        .middleware(async ({ context, next, errors }) => {
+            const token = toWebHeaders(context.request.headers).get(SYSTEM_ACTOR_HEADER)
+            if (!token) {
+                throw errors.UNAUTHORIZED(
+                    standardErrorOptions('unauthorized', 'System actor claim required'),
+                )
+            }
+
+            const secret = (
+                readEnv('BETTER_AUTH_SECRET') ?? readEnv('AUTH_SECRET')
+            )?.toString().trim()
+            if (!secret) {
+                throw errors.FORBIDDEN(
+                    standardErrorOptions('forbidden', 'Platform secret is not configured'),
+                )
+            }
+
+            const claim = verifySystemActorClaim(token, secret, audience)
+            if (!claim) {
+                throw errors.UNAUTHORIZED(
+                    standardErrorOptions('unauthorized', 'Invalid or expired system actor claim'),
+                )
+            }
+
+            return next({ context: { ...context, systemActor: claim } })
+        })
+}
+
                     ),
                 )
             }

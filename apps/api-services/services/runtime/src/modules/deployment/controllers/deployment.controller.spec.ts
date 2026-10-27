@@ -3,6 +3,7 @@ import { Test } from "@nestjs/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DeploymentController } from "./deployment.controller";
 import { DeploymentService } from "../services/deployment.service";
+import { DeploymentEventTriggerService } from "../triggers/deployment-event-trigger.service";
 import { DeploymentStreamOrchestratorService } from "../mesh/services/deployment-stream-orchestrator.service";
 
 /**
@@ -48,6 +49,7 @@ vi.mock("@/core/modules/auth/orpc/middlewares", () => ({
     requireAuth: vi.fn(() => ({})),
     requireMesh: vi.fn(() => ({})),
     requirePlatformRole: vi.fn(() => ({})),
+    requireSystemActor: vi.fn(() => ({})),
 }));
 
 describe("DeploymentController", () => {
@@ -71,6 +73,7 @@ describe("DeploymentController", () => {
     let mockDeploymentStreamOrchestratorService: {
         openDeploymentStream: ReturnType<typeof vi.fn>;
     };
+    let mockEventTriggerService: { trigger: ReturnType<typeof vi.fn> };
 
     beforeEach(async () => {
         mockDeploymentService = {
@@ -94,6 +97,8 @@ describe("DeploymentController", () => {
             openDeploymentStream: vi.fn(),
         };
 
+        mockEventTriggerService = { trigger: vi.fn() };
+
         const module: TestingModule = await Test.createTestingModule({
             controllers: [DeploymentController],
             providers: [
@@ -102,6 +107,7 @@ describe("DeploymentController", () => {
                     provide: DeploymentStreamOrchestratorService,
                     useFactory: () => mockDeploymentStreamOrchestratorService,
                 },
+                { provide: DeploymentEventTriggerService, useFactory: () => mockEventTriggerService },
             ],
         }).compile();
 
@@ -113,6 +119,7 @@ describe("DeploymentController", () => {
             "list",
             "findById",
             "trigger",
+            "triggerFromEvent",
             "cancel",
             "rollback",
             "getLogs",
@@ -132,6 +139,19 @@ describe("DeploymentController", () => {
             expect(impl).toBeDefined();
             expect(typeof procedureHandler(impl)).toBe("function");
         }
+    });
+
+    it("triggerFromEvent should hand the event and the verified system actor to the trigger service", async () => {
+        const expected = { dispatched: true, sourceId: "github-push", deploymentId: "dep-1", reason: null };
+        mockEventTriggerService.trigger.mockResolvedValue(expected);
+        const actor = { kind: "system", source: "github-push", deliveryId: "d-1", aud: "runtime", exp: 0 };
+        const input = { provider: "github", eventName: "push", payload: {} };
+
+        const impl = controller.triggerFromEvent() as any;
+        const result = await procedureHandler(impl)({ input, context: { systemActor: actor } });
+
+        expect(mockEventTriggerService.trigger).toHaveBeenCalledWith(input, actor);
+        expect(result).toEqual(expected);
     });
 
     it("getLogs should forward pagination and filters to deployment service", async () => {

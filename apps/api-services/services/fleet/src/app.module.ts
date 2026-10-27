@@ -4,6 +4,7 @@ import {
 	DEPENDENCIES,
 	HealthModule,
 	PreflightModule,
+	ServiceClientModule,
 	ServiceHealthModule,
 	createOrpcModule,
 } from "@deployer/shared/server";
@@ -90,3 +91,5 @@ registerSchemaCodecs();
 	],
 })
 export class FleetServiceModule {}
+		// Fleet receives the webhooks; runtime owns deployments, so fleet reaches it by contract.
+		ServiceClientModule.forRoot(),

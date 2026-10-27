@@ -9,6 +9,14 @@ import { DeploymentController } from "./controllers/deployment.controller";
 import { DeploymentRepository } from "./repositories/deployment.repository";
 import { DeploymentService } from "./services/deployment.service";
 import { DeploymentEventService } from "./events/deployment-event.service";
+import { ApiTriggerSource } from "./triggers/api-trigger.source";
+import { GithubPushTriggerSource } from "./triggers/github-push-trigger.source";
+import {
+    DEPLOYMENT_TRIGGER_SOURCES,
+    DeploymentTriggerRegistryService,
+} from "./triggers/deployment-trigger-registry.service";
+import { DeploymentEventTriggerService } from "./triggers/deployment-event-trigger.service";
+import type { DeploymentTriggerSource } from "./triggers/base/deployment-trigger-source.interface";
 import { DeploymentReadModelProjectorService } from "./events/deployment-read-model-projector.service";
 import { DeploymentExecutionWorkflowService } from "./services/deployment-execution-workflow.service";
 import { DeploymentQueueLifecycleService } from "./queue/deployment-queue-lifecycle.service";
@@ -86,6 +94,20 @@ import { EventsModule } from "@/core/modules/events/events.module";
     ],
     exports: [
         DeploymentService,
+        // Trigger sources: one array under one token, same shape as the builders above. A new
+        // origin of deployments (a schedule, a registry webhook) is a class plus one entry here.
+        ApiTriggerSource,
+        GithubPushTriggerSource,
+        {
+            provide: DEPLOYMENT_TRIGGER_SOURCES,
+            useFactory: (api: ApiTriggerSource, githubPush: GithubPushTriggerSource): DeploymentTriggerSource[] => [
+                api,
+                githubPush,
+            ],
+            inject: [ApiTriggerSource, GithubPushTriggerSource],
+        },
+        DeploymentTriggerRegistryService,
+        DeploymentEventTriggerService,
         DeploymentRepository,
         DeploymentEventService,
         DeploymentReadModelProjectorService,

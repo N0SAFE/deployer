@@ -52,6 +52,7 @@ import { CloudflareController } from "./dns/cloudflare/controllers/cloudflare.co
 // GitHub webhook / preview stack (absorbed from the former modules/github)
 import { GithubWebhookDispatchService } from "./code/github/services/github-webhook-dispatch.service";
 import { GithubDeploymentRuleService } from "./code/github/services/github-deployment-rule.service";
+import { DeploymentTriggerGateway } from "./code/github/services/deployment-trigger.gateway";
 import { WebhookIdempotencyService } from "./code/github/services/webhook-idempotency.service";
 import { PreviewProvisioningService } from "./code/github/services/preview-provisioning.service";
 import { PreviewTtlCleanupService } from "./code/github/services/preview-ttl-cleanup.service";
@@ -139,6 +140,7 @@ import { PreviewLifecycleEventService } from "./code/github/events/preview-lifec
         GithubWebhookDispatchService,
         PreviewProvisioningService,
         PreviewLifecycleEventService,
+        DeploymentTriggerGateway,
     ],
 })
 export class ProvidersModule {}

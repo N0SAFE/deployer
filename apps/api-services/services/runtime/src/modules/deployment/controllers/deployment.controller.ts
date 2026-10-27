@@ -4,7 +4,8 @@ import { implement } from "@orpc/server";
 import { deploymentContract } from "@deployer/runtime-contracts";
 import type { PlatformRole } from "@deployer/auth";
 import { DeploymentService } from "../services/deployment.service";
-import { authMiddleware, requireAuth, requireMesh, requirePlatformRole } from "@/core/modules/auth/orpc/middlewares";
+import { authMiddleware, requireAuth, requireMesh, requirePlatformRole, requireSystemActor } from "@deployer/shared/core/modules/auth/orpc/middlewares";
+import { DeploymentEventTriggerService } from "../triggers/deployment-event-trigger.service";
 import { DeploymentStreamOrchestratorService } from "../mesh/services/deployment-stream-orchestrator.service";
 
 @Controller()
@@ -18,6 +19,7 @@ export class DeploymentController {
     constructor(
         private readonly deploymentService: DeploymentService,
         private readonly deploymentStreamOrchestratorService: DeploymentStreamOrchestratorService,
+        private readonly eventTriggerService: DeploymentEventTriggerService,
     ) {}
 
     private resolvePlatformRole(context: unknown): PlatformRole | null {
@@ -94,6 +96,17 @@ export class DeploymentController {
                     status: deployment.status,
                     message: "Deployment queued successfully",
                 };
+            });
+    }
+
+    @Implement(deploymentContract.triggerFromEvent)
+    triggerFromEvent() {
+        // Not `requireAuth()`: the caller is a peer service relaying a provider event, vouched
+        // for by a signed system-actor claim. A user session cannot reach this procedure.
+        return implement(deploymentContract.triggerFromEvent)
+            .use(requireSystemActor("runtime"))
+            .handler(async ({ input, context }) => {
+                return this.eventTriggerService.trigger(input, context.systemActor);
             });
     }
 
