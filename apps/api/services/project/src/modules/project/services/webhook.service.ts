@@ -1,5 +1,5 @@
+import { ResourceNotFound } from "../domain/project.errors";
 import { randomBytes } from "crypto";
-import { NotFoundError } from "@deployer/errors";
 import { Context, Effect } from "effect";
 import { WebhookStore, type WebhookCreateInput } from "../repositories/webhook.repository";
 import { assertProjectAccess } from "./project-access";
@@ -69,7 +69,7 @@ export class WebhookServiceImpl {
 			const webhooks = yield* WebhookStore;
 			const webhook = yield* webhooks.findById(id);
 			if (!webhook) {
-				return yield* Effect.fail(new NotFoundError("Webhook", id));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Webhook", id: id }));
 			}
 			yield* assertProjectAccess(webhook.projectId, requesterId, "admin");
 			return webhook;
@@ -89,7 +89,7 @@ export class WebhookServiceImpl {
 			const webhooks = yield* WebhookStore;
 			const webhook = yield* webhooks.findById(id);
 			if (!webhook) {
-				return yield* Effect.fail(new NotFoundError("Webhook", id));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Webhook", id: id }));
 			}
 			yield* assertProjectAccess(webhook.projectId, requesterId, "admin");
 			return yield* webhooks.update(id, { isActive: false });
@@ -101,7 +101,7 @@ export class WebhookServiceImpl {
 			const webhooks = yield* WebhookStore;
 			const webhook = yield* webhooks.findById(id);
 			if (!webhook) {
-				return yield* Effect.fail(new NotFoundError("Webhook", id));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Webhook", id: id }));
 			}
 			yield* assertProjectAccess(webhook.projectId, requesterId, "admin");
 			return yield* webhooks.update(id, { isActive: true });
@@ -113,7 +113,7 @@ export class WebhookServiceImpl {
 			const webhooks = yield* WebhookStore;
 			const webhook = yield* webhooks.findById(id);
 			if (!webhook) {
-				return yield* Effect.fail(new NotFoundError("Webhook", id));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Webhook", id: id }));
 			}
 			yield* assertProjectAccess(webhook.projectId, requesterId, "admin");
 			yield* webhooks.delete(id);
@@ -135,7 +135,7 @@ export class WebhookServiceImpl {
 			const webhooks = yield* WebhookStore;
 			const webhook = yield* webhooks.findById(id);
 			if (!webhook) {
-				return yield* Effect.fail(new NotFoundError("Webhook", id));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Webhook", id: id }));
 			}
 			yield* assertProjectAccess(webhook.projectId, requesterId, "admin");
 

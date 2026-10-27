@@ -1,5 +1,5 @@
+import { ResourceNotFound, ProjectConflict, ProjectForbidden } from "../domain/project.errors";
 import { createHash, randomBytes } from "crypto";
-import { ConflictError, ForbiddenError, NotFoundError } from "@deployer/errors";
 import { Context, Effect } from "effect";
 import { ApiKeyStore } from "../repositories/api-key.repository";
 import { assertProjectAccess } from "./project-access";
@@ -81,7 +81,7 @@ export class ApiKeyServiceImpl {
 			const keys = yield* ApiKeyStore;
 			const key = yield* keys.findById(id);
 			if (!key) {
-				return yield* Effect.fail(new NotFoundError("API key", id));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "API key", id: id }));
 			}
 			if (key.userId !== requesterId) {
 				// Also allow project admins to revoke project-scoped keys
@@ -89,7 +89,7 @@ export class ApiKeyServiceImpl {
 					yield* assertProjectAccess(key.projectId, requesterId, "admin");
 				} else {
 					return yield* Effect.fail(
-						new ForbiddenError("You do not have permission to revoke this API key"),
+						new ProjectForbidden({ reason: "You do not have permission to revoke this API key" }),
 					);
 				}
 			}
@@ -110,14 +110,14 @@ export class ApiKeyServiceImpl {
 			const keys = yield* ApiKeyStore;
 			const old = yield* keys.findById(id);
 			if (!old) {
-				return yield* Effect.fail(new NotFoundError("API key", id));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "API key", id: id }));
 			}
 			if (old.userId !== requesterId) {
 				if (old.projectId) {
 					yield* assertProjectAccess(old.projectId, requesterId, "admin");
 				} else {
 					return yield* Effect.fail(
-						new ForbiddenError("You do not have permission to rotate this API key"),
+						new ProjectForbidden({ reason: "You do not have permission to rotate this API key" }),
 					);
 				}
 			}
@@ -155,7 +155,7 @@ function issueApiKey(input: CreateApiKeyInput) {
 		// Prevent duplicate hashes (astronomically unlikely, but defensive)
 		const existing = yield* keys.findByHash(keyHash);
 		if (existing) {
-			return yield* Effect.fail(new ConflictError("Key collision — please retry"));
+			return yield* Effect.fail(new ProjectConflict({ reason: "Key collision — please retry" }));
 		}
 
 		const record = yield* keys.create({

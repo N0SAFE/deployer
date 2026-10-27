@@ -1,9 +1,9 @@
-import { ConflictError } from "@deployer/errors";
+import { ProjectConflict } from "../domain/project.errors";
 import { apiKeys } from "@deployer/nest-schema/global/project/deployment";
 import { eq, and } from "drizzle-orm";
 import { Context, Effect } from "effect";
 import { DatabasePort } from "@project/core/database/database.port";
-import { attempt } from "@project/core/effect/attempt";
+import { attempt } from "../project-effects";
 
 // ---------------------------------------------------------------------------
 // Input types
@@ -74,7 +74,7 @@ export class ApiKeyStoreImpl {
 				const results = await db.insert(apiKeys).values(input).returning();
 				return results[0];
 			});
-			if (!row) return yield* Effect.fail(new ConflictError("Failed to create API key"));
+			if (!row) return yield* Effect.fail(new ProjectConflict({ reason: "Failed to create API key" }));
 			return row;
 		});
 	}

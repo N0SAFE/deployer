@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Effect } from "effect";
-import { ForbiddenError, NotFoundError } from "@deployer/errors";
+import { ProjectForbidden, ResourceNotFound } from "../domain/project.errors";
 import type { ProjectStoreShape } from "../repositories/project.repository";
 import { ProjectStore } from "../repositories/project.repository";
 import type { WebhookStoreShape } from "../repositories/webhook.repository";
@@ -97,7 +97,7 @@ describe("WebhookService", () => {
 			expect(webhooks.create).toHaveBeenCalledOnce();
 		});
 
-		it("should throw ForbiddenError for non-admin collaborator", async () => {
+		it("should throw ProjectForbidden for non-admin collaborator", async () => {
 			projects.findById.mockReturnValue(Effect.succeed(mockProject));
 			projects.findCollaboratorByUserAndProject.mockReturnValue(
 				Effect.succeed({ role: "developer" }),
@@ -112,10 +112,10 @@ describe("WebhookService", () => {
 						webhookUrl: "https://example.com/hook",
 					}),
 				),
-			).rejects.toThrow(ForbiddenError);
+			).rejects.toThrow(ProjectForbidden);
 		});
 
-		it("should throw NotFoundError for unknown project", async () => {
+		it("should throw ResourceNotFound for unknown project", async () => {
 			await expect(
 				run(
 					service.createWebhook({
@@ -125,7 +125,7 @@ describe("WebhookService", () => {
 						webhookUrl: "https://example.com/hook",
 					}),
 				),
-			).rejects.toThrow(NotFoundError);
+			).rejects.toThrow(ResourceNotFound);
 		});
 
 		it("should allow maintainer collaborator to create webhook", async () => {
@@ -169,19 +169,19 @@ describe("WebhookService", () => {
 			expect(webhooks.updateSecret).toHaveBeenCalledWith("wh-1", result.rawSecret);
 		});
 
-		it("should throw NotFoundError when webhook not found", async () => {
+		it("should throw ResourceNotFound when webhook not found", async () => {
 			await expect(run(service.rotateWebhookSecret("bad-id", "user-1"))).rejects.toThrow(
-				NotFoundError,
+				ResourceNotFound,
 			);
 		});
 
-		it("should throw ForbiddenError for unauthorized user", async () => {
+		it("should throw ProjectForbidden for unauthorized user", async () => {
 			webhooks.findById.mockReturnValue(Effect.succeed(mockWebhook));
 			projects.findById.mockReturnValue(Effect.succeed(mockProject));
 			projects.findCollaboratorByUserAndProject.mockReturnValue(Effect.succeed(null));
 
 			await expect(run(service.rotateWebhookSecret("wh-1", "outsider"))).rejects.toThrow(
-				ForbiddenError,
+				ProjectForbidden,
 			);
 		});
 	});
@@ -202,9 +202,9 @@ describe("WebhookService", () => {
 			expect(result?.isActive).toBe(false);
 		});
 
-		it("should throw NotFoundError when webhook not found", async () => {
+		it("should throw ResourceNotFound when webhook not found", async () => {
 			await expect(run(service.disableWebhook("bad-id", "user-1"))).rejects.toThrow(
-				NotFoundError,
+				ResourceNotFound,
 			);
 		});
 	});
@@ -222,7 +222,7 @@ describe("WebhookService", () => {
 			expect(webhooks.delete).toHaveBeenCalledWith("wh-1");
 		});
 
-		it("should throw ForbiddenError for developer collaborator", async () => {
+		it("should throw ProjectForbidden for developer collaborator", async () => {
 			webhooks.findById.mockReturnValue(Effect.succeed(mockWebhook));
 			projects.findById.mockReturnValue(Effect.succeed(mockProject));
 			projects.findCollaboratorByUserAndProject.mockReturnValue(
@@ -230,7 +230,7 @@ describe("WebhookService", () => {
 			);
 
 			await expect(run(service.deleteWebhook("wh-1", "dev-user"))).rejects.toThrow(
-				ForbiddenError,
+				ProjectForbidden,
 			);
 		});
 	});

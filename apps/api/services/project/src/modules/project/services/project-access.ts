@@ -1,6 +1,6 @@
-import { NotFoundError } from "@deployer/errors";
+import { ResourceNotFound } from "../domain/project.errors";
 import { Effect } from "effect";
-import { guard } from "@project/core/effect/attempt";
+import { rule } from "../project-effects";
 import { ProjectStore } from "../repositories/project.repository";
 import { projectRules, type ProjectAccess } from "../domain/project.entity";
 
@@ -19,7 +19,7 @@ export function assertProjectAccess(projectId: string, userId: string, access: P
 		const projects = yield* ProjectStore;
 		const project = yield* projects.findById(projectId);
 		if (!project) {
-			return yield* Effect.fail(new NotFoundError("Project", projectId));
+			return yield* Effect.fail(new ResourceNotFound({ entity: "Project", id: projectId }));
 		}
 
 		// The owner is the owner by virtue of the ROW, so a missing collaborator
@@ -29,7 +29,7 @@ export function assertProjectAccess(projectId: string, userId: string, access: P
 				? null
 				: yield* projects.findCollaboratorByUserAndProject(userId, projectId);
 
-		yield* guard(() => projectRules.assertAccess(project, userId, collaborator, access));
+		yield* rule(() => projectRules.assertAccess(project, userId, collaborator, access));
 		return project;
 	});
 }

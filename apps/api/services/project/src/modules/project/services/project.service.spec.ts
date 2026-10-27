@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Effect, Stream } from "effect";
-import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "@deployer/errors";
+import { ProjectConflict, ProjectForbidden, ProjectInvalid, ResourceNotFound } from "../domain/project.errors";
 import { EMPTY } from "rxjs";
 import type { CoreEventSyncShape } from "@project/core/ports/core-event-sync.port";
 import { CoreEventSync } from "@project/core/ports/core-event-sync.port";
@@ -199,8 +199,8 @@ describe("ProjectService", () => {
 			expect(repository.findById).toHaveBeenCalledWith("proj-1");
 		});
 
-		it("should fail with NotFoundError when project not found", async () => {
-			await expect(run(service.getProjectById("missing"))).rejects.toThrow(NotFoundError);
+		it("should fail with ResourceNotFound when project not found", async () => {
+			await expect(run(service.getProjectById("missing"))).rejects.toThrow(ResourceNotFound);
 		});
 	});
 
@@ -275,7 +275,7 @@ describe("ProjectService", () => {
 			expect(result).toEqual(updated);
 		});
 
-		it("should fail with ForbiddenError when requester lacks permission", async () => {
+		it("should fail with ProjectForbidden when requester lacks permission", async () => {
 			// A viewer may read but not reconfigure the project.
 			const viewerCollab = { ...mockCollaborator, role: "viewer" };
 			repository.findById.mockReturnValue(
@@ -287,16 +287,16 @@ describe("ProjectService", () => {
 
 			await expect(
 				run(service.updateProject("proj-1", "user-2", { name: "Fail" })),
-			).rejects.toThrow(ForbiddenError);
+			).rejects.toThrow(ProjectForbidden);
 		});
 
-		it("should fail with NotFoundError when update returns null", async () => {
+		it("should fail with ResourceNotFound when update returns null", async () => {
 			repository.findById.mockReturnValue(Effect.succeed(mockProject)); // owner access
 			repository.update.mockReturnValue(Effect.succeed(null));
 
 			await expect(
 				run(service.updateProject("proj-1", "user-1", { name: "X" })),
-			).rejects.toThrow(NotFoundError);
+			).rejects.toThrow(ResourceNotFound);
 		});
 	});
 
@@ -312,17 +312,17 @@ describe("ProjectService", () => {
 			expect(repository.delete).toHaveBeenCalledWith("proj-1");
 		});
 
-		it("should fail with NotFoundError when project not found", async () => {
+		it("should fail with ResourceNotFound when project not found", async () => {
 			await expect(run(service.deleteProject("missing", "user-1"))).rejects.toThrow(
-				NotFoundError,
+				ResourceNotFound,
 			);
 		});
 
-		it("should fail with ForbiddenError when requester is not owner", async () => {
+		it("should fail with ProjectForbidden when requester is not owner", async () => {
 			repository.findById.mockReturnValue(Effect.succeed(mockProject)); // ownerId: 'user-1'
 
 			await expect(run(service.deleteProject("proj-1", "user-99"))).rejects.toThrow(
-				ForbiddenError,
+				ProjectForbidden,
 			);
 		});
 	});
@@ -364,7 +364,7 @@ describe("ProjectService", () => {
 			expect(result.inviteId).toBe("collab-1");
 		});
 
-		it("should fail with NotFoundError when invited user does not exist", async () => {
+		it("should fail with ResourceNotFound when invited user does not exist", async () => {
 			repository.findById.mockReturnValue(Effect.succeed(mockProject));
 			repository.findUserByEmail.mockReturnValue(Effect.succeed(null));
 
@@ -375,10 +375,10 @@ describe("ProjectService", () => {
 						role: "developer",
 					}),
 				),
-			).rejects.toThrow(NotFoundError);
+			).rejects.toThrow(ResourceNotFound);
 		});
 
-		it("should fail with ConflictError when user is already a collaborator", async () => {
+		it("should fail with ProjectConflict when user is already a collaborator", async () => {
 			repository.findById.mockReturnValue(Effect.succeed(mockProject));
 			repository.findUserByEmail.mockReturnValue(Effect.succeed(mockUser));
 			repository.findCollaboratorByUserAndProject.mockReturnValue(
@@ -392,7 +392,7 @@ describe("ProjectService", () => {
 						role: "developer",
 					}),
 				),
-			).rejects.toThrow(ConflictError);
+			).rejects.toThrow(ProjectConflict);
 		});
 	});
 
@@ -420,16 +420,16 @@ describe("ProjectService", () => {
 			);
 		});
 
-		it("should fail with NotFoundError when collaborator not found", async () => {
+		it("should fail with ResourceNotFound when collaborator not found", async () => {
 			repository.findById.mockReturnValue(Effect.succeed(mockProject));
 			repository.findCollaboratorByUserAndProject.mockReturnValue(Effect.succeed(null));
 
 			await expect(
 				run(service.removeCollaborator("proj-1", "user-1", "user-99")),
-			).rejects.toThrow(NotFoundError);
+			).rejects.toThrow(ResourceNotFound);
 		});
 
-		it("should fail with ForbiddenError when trying to remove owner", async () => {
+		it("should fail with ProjectForbidden when trying to remove owner", async () => {
 			const ownerCollab = { ...mockCollaborator, role: "owner" };
 			repository.findById.mockReturnValue(Effect.succeed(mockProject));
 			repository.findCollaboratorByUserAndProject.mockReturnValue(
@@ -438,7 +438,7 @@ describe("ProjectService", () => {
 
 			await expect(
 				run(service.removeCollaborator("proj-1", "user-1", "user-2")),
-			).rejects.toThrow(ForbiddenError);
+			).rejects.toThrow(ProjectForbidden);
 		});
 	});
 
@@ -469,7 +469,7 @@ describe("ProjectService", () => {
 			expect(result).toEqual(mockEnvironment);
 		});
 
-		it("should fail with NotFoundError when environment belongs to different project", async () => {
+		it("should fail with ResourceNotFound when environment belongs to different project", async () => {
 			repository.findById.mockReturnValue(Effect.succeed(mockProject));
 			repository.findEnvironmentById.mockReturnValue(
 				Effect.succeed({ ...mockEnvironment, projectId: "other-proj" }),
@@ -477,16 +477,16 @@ describe("ProjectService", () => {
 
 			await expect(
 				run(service.getEnvironment("proj-1", "user-1", "env-1")),
-			).rejects.toThrow(NotFoundError);
+			).rejects.toThrow(ResourceNotFound);
 		});
 
-		it("should fail with NotFoundError when environment not found", async () => {
+		it("should fail with ResourceNotFound when environment not found", async () => {
 			repository.findById.mockReturnValue(Effect.succeed(mockProject));
 			repository.findEnvironmentById.mockReturnValue(Effect.succeed(null));
 
 			await expect(
 				run(service.getEnvironment("proj-1", "user-1", "env-1")),
-			).rejects.toThrow(NotFoundError);
+			).rejects.toThrow(ResourceNotFound);
 		});
 	});
 
@@ -546,7 +546,7 @@ describe("ProjectService", () => {
 			expect(repository.deleteTemplate).toHaveBeenCalledWith("tmpl-1");
 		});
 
-		it("should fail with BadRequestError for system template", async () => {
+		it("should fail with ProjectInvalid for system template", async () => {
 			repository.findById.mockReturnValue(Effect.succeed(mockProject));
 			repository.findTemplateById.mockReturnValue(
 				Effect.succeed({ ...mockTemplate, isSystem: true }),
@@ -554,16 +554,16 @@ describe("ProjectService", () => {
 
 			await expect(
 				run(service.deleteVariableTemplate("proj-1", "user-1", "tmpl-1")),
-			).rejects.toThrow(BadRequestError);
+			).rejects.toThrow(ProjectInvalid);
 		});
 
-		it("should fail with NotFoundError when template not found", async () => {
+		it("should fail with ResourceNotFound when template not found", async () => {
 			repository.findById.mockReturnValue(Effect.succeed(mockProject));
 			repository.findTemplateById.mockReturnValue(Effect.succeed(null));
 
 			await expect(
 				run(service.deleteVariableTemplate("proj-1", "user-1", "tmpl-1")),
-			).rejects.toThrow(NotFoundError);
+			).rejects.toThrow(ResourceNotFound);
 		});
 	});
 

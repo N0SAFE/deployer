@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Effect } from "effect";
-import { ConflictError, ForbiddenError, NotFoundError } from "@deployer/errors";
+import { ProjectConflict, ProjectForbidden, ResourceNotFound } from "../domain/project.errors";
 import type { ApiKeyStoreShape } from "../repositories/api-key.repository";
 import { ApiKeyStore } from "../repositories/api-key.repository";
 import type { ProjectStoreShape } from "../repositories/project.repository";
@@ -106,7 +106,7 @@ describe("ApiKeyService", () => {
 			expect(projects.findById).toHaveBeenCalledWith("proj-1");
 		});
 
-		it("should throw ForbiddenError if non-admin requests project key", async () => {
+		it("should throw ProjectForbidden if non-admin requests project key", async () => {
 			projects.findById.mockReturnValue(Effect.succeed(mockProject));
 			projects.findCollaboratorByUserAndProject.mockReturnValue(
 				Effect.succeed({ role: "developer" }),
@@ -114,15 +114,15 @@ describe("ApiKeyService", () => {
 
 			await expect(
 				run(service.createApiKey({ userId: "dev-user", name: "Key", projectId: "proj-1" })),
-			).rejects.toThrow(ForbiddenError);
+			).rejects.toThrow(ProjectForbidden);
 		});
 
-		it("should throw ConflictError on key hash collision", async () => {
+		it("should throw ProjectConflict on key hash collision", async () => {
 			keys.findByHash.mockReturnValue(Effect.succeed(mockKeyRecord)); // hash already exists
 
 			await expect(
 				run(service.createApiKey({ userId: "user-1", name: "Key" })),
-			).rejects.toThrow(ConflictError);
+			).rejects.toThrow(ProjectConflict);
 		});
 	});
 
@@ -139,19 +139,19 @@ describe("ApiKeyService", () => {
 			expect(keys.setActive).toHaveBeenCalledWith("key-1", false);
 		});
 
-		it("should throw NotFoundError for unknown key", async () => {
+		it("should throw ResourceNotFound for unknown key", async () => {
 			await expect(run(service.revokeApiKey("bad-id", "user-1"))).rejects.toThrow(
-				NotFoundError,
+				ResourceNotFound,
 			);
 		});
 
-		it("should throw ForbiddenError when another user owns the key and no project", async () => {
+		it("should throw ProjectForbidden when another user owns the key and no project", async () => {
 			keys.findById.mockReturnValue(
 				Effect.succeed({ ...mockKeyRecord, userId: "other-user", projectId: null }),
 			);
 
 			await expect(run(service.revokeApiKey("key-1", "user-1"))).rejects.toThrow(
-				ForbiddenError,
+				ProjectForbidden,
 			);
 		});
 
@@ -191,19 +191,19 @@ describe("ApiKeyService", () => {
 			expect(keys.create).toHaveBeenCalledOnce();
 		});
 
-		it("should throw NotFoundError when key not found", async () => {
+		it("should throw ResourceNotFound when key not found", async () => {
 			await expect(run(service.rotateApiKey("bad-id", "user-1"))).rejects.toThrow(
-				NotFoundError,
+				ResourceNotFound,
 			);
 		});
 
-		it("should throw ForbiddenError for unauthorized rotate", async () => {
+		it("should throw ProjectForbidden for unauthorized rotate", async () => {
 			keys.findById.mockReturnValue(
 				Effect.succeed({ ...mockKeyRecord, userId: "other-user", projectId: null }),
 			);
 
 			await expect(run(service.rotateApiKey("key-1", "user-1"))).rejects.toThrow(
-				ForbiddenError,
+				ProjectForbidden,
 			);
 		});
 	});

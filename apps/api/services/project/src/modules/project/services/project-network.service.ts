@@ -1,3 +1,4 @@
+import { ResourceNotFound } from "../domain/project.errors";
 import { Logger } from "@nestjs/common";
 import z from "zod/v4";
 import {
@@ -6,9 +7,8 @@ import {
 	type ProjectNetworkConfig,
 } from "@deployer/contracts-entities";
 import { type ProjectNetworkView } from "@deployer/project-contracts";
-import { NotFoundError } from "@deployer/errors";
 import { Context, Effect } from "effect";
-import { attempt } from "@project/core/effect/attempt";
+import { attempt } from "../project-effects";
 import { DnsProvider } from "@project/core/ports/dns-provider.port";
 import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
 import { ProjectStore } from "../repositories/project.repository";
@@ -52,7 +52,7 @@ function loadNetworkView(projectId: string) {
 
 		const project = yield* projects.findById(projectId);
 		if (!project) {
-			return yield* Effect.fail(new NotFoundError("Project", projectId));
+			return yield* Effect.fail(new ResourceNotFound({ entity: "Project", id: projectId }));
 		}
 
 		const network = project.network
@@ -160,7 +160,7 @@ export class ProjectNetworkServiceImpl {
 
 			const project = yield* projects.findById(projectId);
 			if (!project) {
-				return yield* Effect.fail(new NotFoundError("Project", projectId));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Project", id: projectId }));
 			}
 
 			const current = project.network

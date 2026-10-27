@@ -6,20 +6,20 @@ import { EffectContextOf } from "@deployer/nest-effect";
 import { Effect } from "effect";
 
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
+import { serve } from "@project/core/orpc/serve";
 import { actorFromContext } from "@project/core/utils/actor.utils";
 
 import { ProjectDomainModule } from "../project.module";
 import { ProjectStore } from "../repositories/project.repository";
 import { ProjectNetworkService } from "../services/project-network.service";
 import { ProjectService } from "../services/project.service";
-import { mapProjectFailures } from "./project.error-mapper";
 
 /**
  * The project domain's oRPC surface.
  *
  * Every method binds a contract procedure, takes the actor from the context and
  * delegates to a service resolved from the module's Effect context. Rules live
- * in the service; this class only maps failures.
+ * in the service; `serve` is the request boundary that maps failures.
  */
 @Controller()
 export class ProjectController {
@@ -32,9 +32,9 @@ export class ProjectController {
 		return implement(projectContract.list)
 			.use(requireAuth())
 			.use(ProjectDomainModule[EffectContextOf])
-			.effect(function* ({ input }) {
+			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
-				return yield* projects.listProjects(input.query).pipe(mapProjectFailures);
+				return yield* projects.listProjects(input.query).pipe(serve(context));
 			});
 	}
 
@@ -43,9 +43,9 @@ export class ProjectController {
 		return implement(projectContract.findById)
 			.use(requireAuth())
 			.use(ProjectDomainModule[EffectContextOf])
-			.effect(function* ({ input }) {
+			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
-				return yield* projects.getProjectById(input.params.id).pipe(mapProjectFailures);
+				return yield* projects.getProjectById(input.params.id).pipe(serve(context));
 			});
 	}
 
@@ -60,7 +60,7 @@ export class ProjectController {
 				// IS the create payload, not `input.body`.
 				const project = yield* projects
 					.createProject({ ...input, ownerId: actorFromContext(context).userId })
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 				return { status: 201 as const, headers: {}, body: project };
 			});
 	}
@@ -75,7 +75,7 @@ export class ProjectController {
 				const { id, ...data } = input;
 				return yield* projects
 					.updateProject(id, actorFromContext(context).userId, data)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -88,7 +88,7 @@ export class ProjectController {
 				const projects = yield* ProjectService;
 				yield* projects
 					.deleteProject(input.params.id, actorFromContext(context).userId)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 				return { success: true };
 			});
 	}
@@ -106,7 +106,7 @@ export class ProjectController {
 				const projects = yield* ProjectService;
 				const collaborators = yield* projects
 					.getCollaborators(input.params.id, actorFromContext(context).userId)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 				return { collaborators };
 			});
 	}
@@ -124,7 +124,7 @@ export class ProjectController {
 						actorFromContext(context).userId,
 						input.body,
 					)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -143,7 +143,7 @@ export class ProjectController {
 						input.params.userId,
 						input.body ?? {},
 					)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -160,7 +160,7 @@ export class ProjectController {
 						actorFromContext(context).userId,
 						input.params.userId,
 					)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 				return { success: true, message: "Collaborator removed successfully" };
 			});
 	}
@@ -182,7 +182,7 @@ export class ProjectController {
 						actorFromContext(context).userId,
 						input.query?.kind,
 					)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 				return { environments: envs };
 			});
 	}
@@ -200,7 +200,7 @@ export class ProjectController {
 						actorFromContext(context).userId,
 						input.params.environmentId,
 					)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -217,7 +217,7 @@ export class ProjectController {
 						actorFromContext(context).userId,
 						input.body,
 					)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -235,7 +235,7 @@ export class ProjectController {
 						input.params.environmentId,
 						input.body ?? {},
 					)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -252,7 +252,7 @@ export class ProjectController {
 						actorFromContext(context).userId,
 						input.params.environmentId,
 					)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 				return { success: true, message: "Environment deleted successfully" };
 			});
 	}
@@ -271,7 +271,7 @@ export class ProjectController {
 						input.params.environmentId,
 						input.body,
 					)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -291,7 +291,7 @@ export class ProjectController {
 						input.params.id,
 						actorFromContext(context).userId,
 					)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 				return { links };
 			});
 	}
@@ -309,7 +309,7 @@ export class ProjectController {
 						actorFromContext(context).userId,
 						input.body,
 					)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -322,9 +322,9 @@ export class ProjectController {
 		return implement(projectContract.getNetwork)
 			.use(requireAuth())
 			.use(ProjectDomainModule[EffectContextOf])
-			.effect(function* ({ input }) {
+			.effect(function* ({ input, context }) {
 				const network = yield* ProjectNetworkService;
-				return yield* network.getNetwork(input.params.id).pipe(mapProjectFailures);
+				return yield* network.getNetwork(input.params.id).pipe(serve(context));
 			});
 	}
 
@@ -333,11 +333,11 @@ export class ProjectController {
 		return implement(projectContract.updateNetwork)
 			.use(requireAuth())
 			.use(ProjectDomainModule[EffectContextOf])
-			.effect(function* ({ input }) {
+			.effect(function* ({ input, context }) {
 				const network = yield* ProjectNetworkService;
 				return yield* network
 					.updateNetwork(input.params.id, input.body ?? {})
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -354,7 +354,7 @@ export class ProjectController {
 				const projects = yield* ProjectService;
 				const templates = yield* projects
 					.listVariableTemplates(input.params.id, actorFromContext(context).userId)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 				return { templates };
 			});
 	}
@@ -372,7 +372,7 @@ export class ProjectController {
 						actorFromContext(context).userId,
 						input.params.templateId,
 					)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -389,7 +389,7 @@ export class ProjectController {
 						actorFromContext(context).userId,
 						input.body,
 					)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -407,7 +407,7 @@ export class ProjectController {
 						input.params.templateId,
 						input.body ?? {},
 					)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -424,7 +424,7 @@ export class ProjectController {
 						actorFromContext(context).userId,
 						input.params.templateId,
 					)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 				return { success: true, message: "Template deleted successfully" };
 			});
 	}
@@ -442,7 +442,7 @@ export class ProjectController {
 				const projects = yield* ProjectService;
 				return yield* projects
 					.getGeneralConfig(input.params.id, actorFromContext(context).userId)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -459,7 +459,7 @@ export class ProjectController {
 						actorFromContext(context).userId,
 						input.body ?? {},
 					)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -472,7 +472,7 @@ export class ProjectController {
 				const projects = yield* ProjectService;
 				return yield* projects
 					.getEnvironmentConfig(input.params.id, actorFromContext(context).userId)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -489,7 +489,7 @@ export class ProjectController {
 						actorFromContext(context).userId,
 						input.body ?? {},
 					)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -502,7 +502,7 @@ export class ProjectController {
 				const projects = yield* ProjectService;
 				return yield* projects
 					.getDeploymentConfig(input.params.id, actorFromContext(context).userId)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -519,7 +519,7 @@ export class ProjectController {
 						actorFromContext(context).userId,
 						input.body ?? {},
 					)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -532,7 +532,7 @@ export class ProjectController {
 				const projects = yield* ProjectService;
 				return yield* projects
 					.getSecurityConfig(input.params.id, actorFromContext(context).userId)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -549,7 +549,7 @@ export class ProjectController {
 						actorFromContext(context).userId,
 						input.body ?? {},
 					)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -562,7 +562,7 @@ export class ProjectController {
 				const projects = yield* ProjectService;
 				return yield* projects
 					.getResourceConfig(input.params.id, actorFromContext(context).userId)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -579,7 +579,7 @@ export class ProjectController {
 						actorFromContext(context).userId,
 						input.body ?? {},
 					)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -592,7 +592,7 @@ export class ProjectController {
 				const projects = yield* ProjectService;
 				return yield* projects
 					.getNotificationConfig(input.params.id, actorFromContext(context).userId)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -609,7 +609,7 @@ export class ProjectController {
 						actorFromContext(context).userId,
 						input.body ?? {},
 					)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 			});
 	}
 
@@ -632,10 +632,10 @@ export class ProjectController {
 						actorFromContext(context).userId,
 						input.params.environmentId,
 					)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 				const servicesCount = yield* store
 					.countEnabledServicesForEnvironment(env.id)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 
 				return {
 					environmentId: env.id,
@@ -658,14 +658,14 @@ export class ProjectController {
 
 				const envs = yield* projects
 					.listEnvironments(input.params.id, actorFromContext(context).userId)
-					.pipe(mapProjectFailures);
+					.pipe(serve(context));
 
 				const statuses = yield* Effect.all(
 					envs.map((env) =>
 						Effect.gen(function* () {
 							const servicesCount = yield* store
 								.countEnabledServicesForEnvironment(env.id)
-								.pipe(mapProjectFailures);
+								.pipe(serve(context));
 							return {
 								environmentId: env.id,
 								environmentName: env.name,
@@ -704,9 +704,9 @@ export class ProjectController {
 		return implement(projectContract.streamQuery)
 			.use(requireAuth())
 			.use(ProjectDomainModule[EffectContextOf])
-			.effect(function* ({ input }) {
+			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
-				return yield* projects.streamQueryEvents(input.query).pipe(mapProjectFailures);
+				return yield* projects.streamQueryEvents(input.query).pipe(serve(context));
 			});
 	}
 }

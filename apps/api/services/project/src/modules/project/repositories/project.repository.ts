@@ -1,3 +1,4 @@
+import { ProjectConflict } from "../domain/project.errors";
 import { deployments } from "@deployer/nest-schema/global/runtime/deployment";
 import { projectCollaborators, projects, services } from "@deployer/nest-schema/global/project/deployment";
 import { environments, variableTemplates, serviceEnvironments } from "@deployer/nest-schema/global/project/environment";
@@ -6,11 +7,10 @@ import { localEventOutbox } from "@deployer/nest-schema/global/runtime/runtime";
 import { and, asc, count, desc, eq, ilike, inArray } from "drizzle-orm";
 import { listBuilder } from "@deployer/shared/core/utils/drizzle-filter.utils";
 import { randomUUID } from "crypto";
-import { ConflictError } from "@deployer/errors";
 import { Context, Effect } from "effect";
 import type { ProjectListInput } from "@deployer/project-contracts/modules/project/list";
 import { DatabasePort } from "@project/core/database/database.port";
-import { attempt } from "@project/core/effect/attempt";
+import { attempt } from "../project-effects";
 
 import {
 	transformCollaborator,
@@ -168,7 +168,7 @@ export class ProjectStoreImpl {
 				});
 				return created;
 			});
-			if (!row) return yield* Effect.fail(new ConflictError("Failed to create project"));
+			if (!row) return yield* Effect.fail(new ProjectConflict({ reason: "Failed to create project" }));
 			return transformProject(row);
 		});
 	}
@@ -387,7 +387,7 @@ export class ProjectStoreImpl {
 					.returning();
 				return row;
 			});
-			if (!row) return yield* Effect.fail(new ConflictError("Failed to create collaborator"));
+			if (!row) return yield* Effect.fail(new ProjectConflict({ reason: "Failed to create collaborator" }));
 			return transformCollaborator(row);
 		});
 	}
@@ -511,7 +511,7 @@ export class ProjectStoreImpl {
 					.returning();
 				return row;
 			});
-			if (!row) return yield* Effect.fail(new ConflictError("Failed to create environment"));
+			if (!row) return yield* Effect.fail(new ProjectConflict({ reason: "Failed to create environment" }));
 			return transformEnvironment(row);
 		});
 	}
@@ -629,7 +629,7 @@ export class ProjectStoreImpl {
 					.returning();
 				return row;
 			});
-			if (!row) return yield* Effect.fail(new ConflictError("Failed to upsert service-environment link"));
+			if (!row) return yield* Effect.fail(new ProjectConflict({ reason: "Failed to upsert service-environment link" }));
 			return row;
 		});
 	}
@@ -687,7 +687,7 @@ export class ProjectStoreImpl {
 					.returning();
 				return row;
 			});
-			if (!row) return yield* Effect.fail(new ConflictError("Failed to create variable template"));
+			if (!row) return yield* Effect.fail(new ProjectConflict({ reason: "Failed to create variable template" }));
 			return transformTemplate(row);
 		});
 	}

@@ -1,5 +1,5 @@
+import { ResourceNotFound, ProjectConflict, ProjectInvalid } from "../domain/project.errors";
 import { isRecord } from "@deployer/type-guards";
-import { BadRequestError, ConflictError, NotFoundError } from "@deployer/errors";
 import { environmentRulesSchema } from "@deployer/contracts-entities";
 import { environmentTriggerSchema } from "@deployer/contracts-common";
 import type { Observable } from "rxjs";
@@ -9,7 +9,7 @@ import type {
 	ProjectStreamEvent,
 	ProjectStreamQueryInput,
 } from "@deployer/project-contracts/modules/project/stream";
-import { guard } from "@project/core/effect/attempt";
+import { rule } from "../project-effects";
 import type { DatabasePort } from "@project/core/database/database.port";
 import type { CoreEventSync } from "@project/core/ports/core-event-sync.port";
 import { ProjectEventService } from "@project/modules/project/services/project-event.service";
@@ -55,7 +55,7 @@ export class ProjectServiceImpl {
 			const projects = yield* ProjectStore;
 			const project = yield* projects.findById(id);
 			if (!project) {
-				return yield* Effect.fail(new NotFoundError("Project", id));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Project", id: id }));
 			}
 
 			const stats = yield* projects.getProjectStats(id);
@@ -116,7 +116,7 @@ export class ProjectServiceImpl {
 				settings: data.settings,
 			});
 			if (!updated) {
-				return yield* Effect.fail(new NotFoundError("Project", id));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Project", id: id }));
 			}
 
 			const changedFields = Object.keys(data).filter((key) => {
@@ -145,11 +145,11 @@ export class ProjectServiceImpl {
 
 			const project = yield* projects.findById(id);
 			if (!project) {
-				return yield* Effect.fail(new NotFoundError("Project", id));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Project", id: id }));
 			}
 			// Ownership is not an access level: `maintainer` is defined as management
 			// WITHOUT deletion, so this cannot be folded into `assertProjectAccess`.
-			yield* guard(() => { projectRules.assertCanDelete(project, requesterId); });
+			yield* rule(() => { projectRules.assertCanDelete(project, requesterId); });
 			yield* projects.delete(id);
 
 			yield* events.emitEffect(
@@ -189,7 +189,7 @@ export class ProjectServiceImpl {
 
 			const targetUser = yield* projects.findUserByEmail(data.email);
 			if (!targetUser) {
-				return yield* Effect.fail(new NotFoundError("User", data.email));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "User", id: data.email }));
 			}
 
 			const existing = yield* projects.findCollaboratorByUserAndProject(
@@ -198,7 +198,7 @@ export class ProjectServiceImpl {
 			);
 			if (existing) {
 				return yield* Effect.fail(
-					new ConflictError("User is already a collaborator on this project"),
+					new ProjectConflict({ reason: "User is already a collaborator on this project" }),
 				);
 			}
 
@@ -243,17 +243,17 @@ export class ProjectServiceImpl {
 				projectId,
 			);
 			if (!collaborator) {
-				return yield* Effect.fail(new NotFoundError("Collaborator", targetUserId));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Collaborator", id: targetUserId }));
 			}
 
-			yield* guard(() => { projectRules.assertNotOwnerMembership(collaborator, "modify"); });
+			yield* rule(() => { projectRules.assertNotOwnerMembership(collaborator, "modify"); });
 
 			const updated = yield* projects.updateCollaborator(collaborator.id, {
 				role: data.role as ProjectRole | undefined,
 				permissions: data.permissions,
 			});
 			if (!updated) {
-				return yield* Effect.fail(new NotFoundError("Collaborator", targetUserId));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Collaborator", id: targetUserId }));
 			}
 			return updated;
 		});
@@ -271,9 +271,9 @@ export class ProjectServiceImpl {
 				projectId,
 			);
 			if (!collaborator) {
-				return yield* Effect.fail(new NotFoundError("Collaborator", targetUserId));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Collaborator", id: targetUserId }));
 			}
-			yield* guard(() => { projectRules.assertNotOwnerMembership(collaborator, "remove"); });
+			yield* rule(() => { projectRules.assertNotOwnerMembership(collaborator, "remove"); });
 
 			yield* projects.deleteCollaboratorByUserAndProject(targetUserId, projectId);
 
@@ -307,7 +307,7 @@ export class ProjectServiceImpl {
 			const projects = yield* ProjectStore;
 			const env = yield* projects.findEnvironmentById(environmentId);
 			if (env?.projectId !== projectId) {
-				return yield* Effect.fail(new NotFoundError("Environment", environmentId));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Environment", id: environmentId }));
 			}
 			return env;
 		});
@@ -340,11 +340,11 @@ export class ProjectServiceImpl {
 				// Parse loose input rules through the SSOT schema so the DB always
 				// stores the full canonical EnvironmentRules (defaults filled).
 				rules: data.rules
-					? yield* guard(() => environmentRulesSchema.parse(data.rules))
+					? yield* rule(() => environmentRulesSchema.parse(data.rules))
 					: null,
 				// Parse trigger the same way (source required by the schema).
 				trigger: data.trigger
-					? yield* guard(() => environmentTriggerSchema.parse(data.trigger))
+					? yield* rule(() => environmentTriggerSchema.parse(data.trigger))
 					: null,
 				description: data.description ?? null,
 				domainConfig: data.domainConfig as EnvironmentCreateInput["domainConfig"],
@@ -380,14 +380,14 @@ export class ProjectServiceImpl {
 			const projects = yield* ProjectStore;
 			const env = yield* projects.findEnvironmentById(environmentId);
 			if (env?.projectId !== projectId) {
-				return yield* Effect.fail(new NotFoundError("Environment", environmentId));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Environment", id: environmentId }));
 			}
 			const updated = yield* projects.updateEnvironment(
 				environmentId,
 				data,
 			);
 			if (!updated) {
-				return yield* Effect.fail(new NotFoundError("Environment", environmentId));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Environment", id: environmentId }));
 			}
 			return updated;
 		});
@@ -402,7 +402,7 @@ export class ProjectServiceImpl {
 
 			const env = yield* projects.findEnvironmentById(environmentId);
 			if (env?.projectId !== projectId) {
-				return yield* Effect.fail(new NotFoundError("Environment", environmentId));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Environment", id: environmentId }));
 			}
 			yield* projects.deleteEnvironment(environmentId);
 
@@ -430,7 +430,7 @@ export class ProjectServiceImpl {
 			const projects = yield* ProjectStore;
 			const source = yield* projects.findEnvironmentById(sourceEnvironmentId);
 			if (source?.projectId !== projectId) {
-				return yield* Effect.fail(new NotFoundError("Environment", sourceEnvironmentId));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Environment", id: sourceEnvironmentId }));
 			}
 
 			return yield* projects.createEnvironment({
@@ -473,13 +473,13 @@ export class ProjectServiceImpl {
 			const serviceProject = yield* projects.findServiceProjectId(data.serviceId);
 			if (serviceProject !== projectId) {
 				return yield* Effect.fail(
-					new NotFoundError("Service", `${data.serviceId} in project`),
+					new ResourceNotFound({ entity: "Service", id: `${data.serviceId} in project` }),
 				);
 			}
 			const env = yield* projects.findEnvironmentById(data.environmentId);
 			if (env?.projectId !== projectId) {
 				return yield* Effect.fail(
-					new NotFoundError("Environment", `${data.environmentId} in project`),
+					new ResourceNotFound({ entity: "Environment", id: `${data.environmentId} in project` }),
 				);
 			}
 			return yield* projects.upsertServiceEnvironmentLink(data);
@@ -504,7 +504,7 @@ export class ProjectServiceImpl {
 			const projects = yield* ProjectStore;
 			const template = yield* projects.findTemplateById(templateId);
 			if (!template) {
-				return yield* Effect.fail(new NotFoundError("Template", templateId));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Template", id: templateId }));
 			}
 			return template;
 		});
@@ -539,7 +539,7 @@ export class ProjectServiceImpl {
 
 			const template = yield* projects.findTemplateById(templateId);
 			if (!template) {
-				return yield* Effect.fail(new NotFoundError("Template", templateId));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Template", id: templateId }));
 			}
 
 			const updated = yield* projects.updateTemplate(templateId, {
@@ -548,7 +548,7 @@ export class ProjectServiceImpl {
 				variables: data.variables as TemplateUpdateInput["variables"],
 			});
 			if (!updated) {
-				return yield* Effect.fail(new NotFoundError("Template", templateId));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Template", id: templateId }));
 			}
 			return updated;
 		});
@@ -561,10 +561,10 @@ export class ProjectServiceImpl {
 
 			const template = yield* projects.findTemplateById(templateId);
 			if (!template) {
-				return yield* Effect.fail(new NotFoundError("Template", templateId));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Template", id: templateId }));
 			}
 			if (template.isSystem) {
-				return yield* Effect.fail(new BadRequestError("Cannot delete a system template"));
+				return yield* Effect.fail(new ProjectInvalid({ reason: "Cannot delete a system template" }));
 			}
 			yield* projects.deleteTemplate(templateId);
 		});
@@ -613,7 +613,7 @@ export class ProjectServiceImpl {
 
 			const updated = yield* projects.update(projectId, updateData);
 			if (!updated) {
-				return yield* Effect.fail(new NotFoundError("Project", projectId));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Project", id: projectId }));
 			}
 			const s = (updated.settings ?? {}) as ProjectSettings;
 			return {
@@ -655,7 +655,7 @@ export class ProjectServiceImpl {
 				settings: merged,
 			});
 			if (!updated) {
-				return yield* Effect.fail(new NotFoundError("Project", projectId));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Project", id: projectId }));
 			}
 			const s = (updated.settings ?? {}) as ProjectSettings;
 			return {
@@ -674,7 +674,7 @@ export class ProjectServiceImpl {
 			const s = (project.settings ?? {}) as ProjectSettings;
 
 			const projectConfig = configuration.projectConfigFromSettings(project.settings ?? null);
-			const resolved = yield* guard(() =>
+			const resolved = yield* rule(() =>
 				configuration.resolveStrict({
 					scope: "project",
 					context: {
@@ -711,7 +711,7 @@ export class ProjectServiceImpl {
 				settings: merged,
 			});
 			if (!updated) {
-				return yield* Effect.fail(new NotFoundError("Project", projectId));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Project", id: projectId }));
 			}
 			const s = (updated.settings ?? {}) as ProjectSettings;
 			return {
@@ -733,7 +733,7 @@ export class ProjectServiceImpl {
 			const s = (project.settings ?? {}) as ProjectSettings;
 
 			const projectConfig = configuration.projectConfigFromSettings(project.settings ?? null);
-			const resolved = yield* guard(() =>
+			const resolved = yield* rule(() =>
 				configuration.resolveStrict({
 					scope: "project",
 					context: {
@@ -770,7 +770,7 @@ export class ProjectServiceImpl {
 				settings: merged,
 			});
 			if (!updated) {
-				return yield* Effect.fail(new NotFoundError("Project", projectId));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Project", id: projectId }));
 			}
 			const s = (updated.settings ?? {}) as ProjectSettings;
 			return {
@@ -813,7 +813,7 @@ export class ProjectServiceImpl {
 				settings: merged,
 			});
 			if (!updated) {
-				return yield* Effect.fail(new NotFoundError("Project", projectId));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Project", id: projectId }));
 			}
 			const s = (updated.settings ?? {}) as ProjectSettings;
 			return {
@@ -856,7 +856,7 @@ export class ProjectServiceImpl {
 				settings: merged,
 			});
 			if (!updated) {
-				return yield* Effect.fail(new NotFoundError("Project", projectId));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Project", id: projectId }));
 			}
 			const s = (updated.settings ?? {}) as ProjectSettings;
 			return {
@@ -878,7 +878,7 @@ export class ProjectServiceImpl {
 			const projects = yield* ProjectStore;
 			const project = yield* projects.findById(projectId);
 			if (!project) {
-				return yield* Effect.fail(new NotFoundError("Project", projectId));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Project", id: projectId }));
 			}
 			return project.settings ?? {};
 		});
@@ -896,7 +896,7 @@ export class ProjectServiceImpl {
 
 			const project = yield* projects.findById(projectId);
 			if (!project) {
-				return yield* Effect.fail(new NotFoundError("Project", projectId));
+				return yield* Effect.fail(new ResourceNotFound({ entity: "Project", id: projectId }));
 			}
 
 			const current = isRecord(project.settings ?? {}) ? (project.settings ?? {}) : {};
