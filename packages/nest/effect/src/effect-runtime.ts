@@ -34,9 +34,16 @@ export class EffectRuntime implements OnApplicationShutdown {
     private readonly layers: readonly unknown[] = [],
   ) {}
 
-  /** Cached App-wide Effect context. */
+  /**
+   * The app-wide Effect context.
+   *
+   * Built once, over the complete container, and cached. The oRPC host asks for it while it is
+   * still registering routes, before every provider exists; that call gets the discovered services
+   * only (no contributed Layer runs, so none can trip over a provider that is not there yet) and
+   * nothing is cached, so the first call after startup builds the real one.
+   */
   context(): Promise<Context.Context<unknown>> {
-    return this.build().context();
+    return this.runtimeFor().context();
   }
 
   /**
@@ -44,11 +51,19 @@ export class EffectRuntime implements OnApplicationShutdown {
    * Prefer yielding services inside an Effect program and calling this once.
    */
   runPromise<A, E, R>(effect: Effect.Effect<A, E, R>): Promise<A> {
-    return this.build().runPromise(effect);
+    return this.runtimeFor().runPromise(effect);
   }
 
-  private build(): ManagedRuntime.ManagedRuntime<unknown, never> {
-    this.runtime ??= ManagedRuntime.make(this.layer());
+  private runtimeFor(): ManagedRuntime.ManagedRuntime<unknown, never> {
+    if (this.runtime !== undefined) return this.runtime;
+
+    const collected = collectEffectLayer(this.discovery);
+    if (!collected.complete) {
+      // Still starting: answer from what exists, and do not remember the answer.
+      return ManagedRuntime.make(collected.layer);
+    }
+
+    this.runtime = ManagedRuntime.make(this.layer(collected.layer));
     return this.runtime;
   }
 
@@ -59,8 +74,7 @@ export class EffectRuntime implements OnApplicationShutdown {
    * event bus that needs the stream pool), so it is built *over* the collected
    * layer rather than merged beside it.
    */
-  private layer(): Layer.Layer<unknown> {
-    const discovered = collectEffectLayer(this.discovery);
+  private layer(discovered: Layer.Layer<unknown>): Layer.Layer<unknown> {
     if (this.layers.length === 0) {
       return discovered;
     }

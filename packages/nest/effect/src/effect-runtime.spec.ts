@@ -72,4 +72,60 @@ describe("EffectRuntime", () => {
 
     expect(size).toBe(3);
   });
+
+  it("does not build contributed layers, or cache anything, while providers are still being created", async () => {
+    let built = 0;
+    class Slow extends Context.Service<Slow, { readonly ready: true }>()("test/Slow") {}
+    class Probe extends Context.Service<Probe, { readonly seen: boolean }>()("test/Probe") {}
+    const counted = Layer.effect(
+      Probe,
+      Effect.sync(() => {
+        built += 1;
+        return { seen: true };
+      }),
+    );
+
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let earlyContext: Context.Context<unknown> | undefined;
+
+    const module = await Test.createTestingModule({
+      imports: [EffectRuntimeModule.forRoot({ layers: [counted] })],
+      providers: [
+        // A provider that is still being created when the host asks for the context ...
+        {
+          provide: Slow,
+          useFactory: async () => {
+            await gate;
+            return { ready: true as const };
+          },
+        },
+        // ... which is what the oRPC host does while it registers routes.
+        {
+          provide: "EARLY_ASK",
+          inject: [EffectRuntime],
+          useFactory: async (runtime: EffectRuntime) => {
+            earlyContext = await runtime.context();
+            release();
+            return true;
+          },
+        },
+      ],
+    }).compile();
+
+    // The early answer ran no contributed layer, so nothing could dereference a provider that was not there yet.
+    expect(built).toBe(0);
+    expect(earlyContext).toBeDefined();
+
+    // Nothing was cached: the first call after startup builds the real context, once, and keeps it.
+    const runtime = module.get(EffectRuntime);
+    const first = await runtime.context();
+    const second = await runtime.context();
+    expect(built).toBe(1);
+    expect(first).toBe(second);
+    expect(first).not.toBe(earlyContext);
+    expect(await runtime.runPromise(Effect.gen(function* () { return (yield* Slow).ready; }))).toBe(true);
+  });
 });
