@@ -310,6 +310,7 @@
         "rm:node_modules": "concurrently \"bun --bun x rimraf node_modules\" \"bun --bun x rimraf --glob packages/*/node_modules\" \"bun --bun x rimraf --glob apps/*/node_modules\"",
         "check": "bun x turbo run compile lint test type-check --continue",
         "knip": "knip",
+        "check:di-imports": "bun --bun scripts/check-di-imports.ts",
         "knip:fix": "knip --fix",
         "knip:production": "knip --production",
         "knip:watch": "knip --watch",

@@ -205,6 +205,11 @@ jobs:
 
     # Job 3: Build
     build:
+            - name: 💉 Injected classes are value imports
+              # `import type` of a class a Nest constructor injects erases it at runtime and the app
+              # dies at boot under bun (the SWC-based e2e does not see it). Static, no Docker.
+              run: bun --bun run check:di-imports
+
         name: 🏗️ Build
         runs-on: ubuntu-latest
         timeout-minutes: 12
