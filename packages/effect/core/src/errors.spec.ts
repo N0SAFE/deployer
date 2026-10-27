@@ -30,6 +30,15 @@ describe("domainError", () => {
 		expect(error.publicData()).toEqual({});
 	});
 
+	it("can be yielded directly in a generator", async () => {
+		const result = await Effect.runPromise(
+			Effect.gen(function* () {
+				return yield* new UserNotFound({ id: "u3" });
+			}).pipe(Effect.catchTag("UserNotFound", (e) => Effect.succeed(e.id))),
+		);
+		expect(result).toBe("u3");
+	});
+
 	it("defaults the public message to the tag and lets an error override it", () => {
 		expect(new EmailTaken({ email: "x" }).publicMessage()).toBe("EmailTaken");
 		expect(new Teapot({}).publicMessage()).toBe("short and stout");

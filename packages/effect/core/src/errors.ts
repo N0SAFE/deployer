@@ -1,4 +1,4 @@
-import { Data } from "effect";
+import { Data, type Cause } from "effect";
 
 /** The six failure kinds a client can tell apart; the transport maps each to one code and status. */
 export type ErrorKind =
@@ -32,7 +32,7 @@ export const domainError =
 		readonly kind: K;
 		new (args: Fields & { readonly cause?: unknown }): Readonly<Fields> &
 			DomainErrorFields<Tag, K> &
-			Error;
+			Cause.YieldableError;
 	} => {
 		const Base = Data.TaggedError(tag) as unknown as new (args: object) => Error;
 		return class extends Base {
