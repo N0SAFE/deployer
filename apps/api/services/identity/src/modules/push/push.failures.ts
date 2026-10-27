@@ -1,15 +1,11 @@
-import { Data } from "effect";
-
-/** A push database call failed; wraps the driver error for the service boundary. */
-export class PushRepositoryFailure extends Data.TaggedError("PushRepositoryFailure")<{
-	readonly cause: unknown;
-}> {}
+import { Data } from 'effect'
 
 /**
- * The single failure the push domain produces. The original rule error
- * (`NotFoundError`, `ConflictError`, `ValidationError`) is preserved as `cause`,
- * so the controller maps it to the declared ORPC error.
+ * A push database call failed; wraps the driver error. Deliberately not a `DomainError`: the
+ * boundary answers it with a generic internal error carrying a correlation id.
  */
-export class PushServiceFailure extends Data.TaggedError("PushServiceFailure")<{
-	readonly cause: unknown;
+export class PushRepositoryFailure extends Data.TaggedError(
+    'PushRepositoryFailure'
+)<{
+    readonly cause: unknown
 }> {}

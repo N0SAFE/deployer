@@ -1,6 +1,7 @@
 import { Controller } from '@nestjs/common'
 import { Implement } from '@orpc/nest'
 import { implement } from '@orpc/server'
+import { catchDomainErrors } from '@deployer/effect-orpc'
 import { EffectContextOf } from '@deployer/nest-effect'
 
 import { PushDomainModule } from '../push.module'
@@ -11,7 +12,6 @@ import { actorFromContext } from '@identity/core/utils/actor.utils'
 
 import { pushRules } from '../domain/push.rules'
 import { PushService } from '../services/push.service'
-import { mapPushFailures } from './push.error-mapper'
 
 /**
  * The push domain's oRPC surface.
@@ -42,7 +42,7 @@ export class PushController {
                 const push = yield* PushService
                 return yield* push
                     .publicKey(actorFromContext(context))
-                    .pipe(mapPushFailures)
+                    .pipe(catchDomainErrors)
             })
     }
 
@@ -62,7 +62,7 @@ export class PushController {
                 const push = yield* PushService
                 return yield* push
                     .subscribe(actorFromContext(context), input)
-                    .pipe(mapPushFailures)
+                    .pipe(catchDomainErrors)
             })
     }
 
@@ -76,7 +76,7 @@ export class PushController {
                 const push = yield* PushService
                 return yield* push
                     .unsubscribe(actorFromContext(context), input.endpoint)
-                    .pipe(mapPushFailures)
+                    .pipe(catchDomainErrors)
             })
     }
 
@@ -90,7 +90,7 @@ export class PushController {
                 const push = yield* PushService
                 const subscriptions = yield* push
                     .list(actorFromContext(context))
-                    .pipe(mapPushFailures)
+                    .pipe(catchDomainErrors)
                 return { subscriptions }
             })
     }
@@ -110,7 +110,7 @@ export class PushController {
                 const push = yield* PushService
                 return yield* push
                     .stats(actorFromContext(context))
-                    .pipe(mapPushFailures)
+                    .pipe(catchDomainErrors)
             })
     }
 
@@ -133,10 +133,10 @@ export class PushController {
                 const push = yield* PushService
                 const actor = actorFromContext(context)
 
-                const devices = yield* push.list(actor).pipe(mapPushFailures)
+                const devices = yield* push.list(actor).pipe(catchDomainErrors)
                 const deliverable = yield* push
                     .deliverableCount()
-                    .pipe(mapPushFailures)
+                    .pipe(catchDomainErrors)
 
                 return pushRules.deliveryReport(devices.length, deliverable)
             })
