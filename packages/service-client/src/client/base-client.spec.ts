@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { BaseClient } from "../base-client";
-import type { ServiceClient, ServiceClientBinder } from "../types";
+import { BaseClient } from "./base-client";
+
+import type { ServiceClient, ServiceClientBinder } from "./types";
 
 /**
  * A procedure stand-in: CALLABLE, and carrying the library's `~orpc` marker.

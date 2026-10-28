@@ -11,9 +11,15 @@ export const runSyncUnwrapped = <A, E>(effect: Effect.Effect<A, E>): A => {
   throw Cause.squash(exit.cause);
 };
 
-/** Runs an Effect for a Promise caller, rejecting with the original failure rather than a fiber wrapper. */
-export const runPromiseUnwrapped = async <A, E>(effect: Effect.Effect<A, E>): Promise<A> => {
-  const exit = await Effect.runPromiseExit(effect);
+/**
+ * Runs an Effect for a Promise caller, rejecting with the original failure rather than a fiber wrapper.
+ * An aborted `signal` interrupts the Effect.
+ */
+export const runPromiseUnwrapped = async <A, E>(
+  effect: Effect.Effect<A, E>,
+  options?: { readonly signal?: AbortSignal | undefined },
+): Promise<A> => {
+  const exit = await Effect.runPromiseExit(effect, options?.signal === undefined ? undefined : { signal: options.signal });
   if (Exit.isSuccess(exit)) return exit.value;
   throw Cause.squash(exit.cause);
 };

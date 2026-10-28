@@ -3,8 +3,8 @@ import { Injectable } from "@nestjs/common";
 import {
 	ServiceClientRegistry as PackageRegistry,
 	type ServiceClient,
-	type ServiceClientModuleOptions,
-} from "@deployer/nest-service-client";
+	type ServiceClientOptions,
+} from "@deployer/service-client";
 import type { RouterContract } from "@orpc/contract";
 
 import { API_SERVICES, apiServiceUrl, type ApiServiceName } from "@deployer/shared/server";
@@ -20,7 +20,7 @@ import { serviceAuthHeaders } from "./service-auth-context";
  * catalog the services are STARTED from. Keeping the two together is what makes it
  * impossible for a service to be listening on one address and called on another.
  */
-export const bffServiceClientOptions: ServiceClientModuleOptions = {
+export const bffServiceClientOptions: ServiceClientOptions = {
 	resolveOrigin: (service) => apiServiceUrl(service as ApiServiceName),
 	// Per request, not at construction: the credentials belong to the CALLER, and the
 	// client instances are cached across requests.

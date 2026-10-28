@@ -51,7 +51,7 @@
         "@deployer/logger": "*",
         "@deployer/node-state": "*",
         "@deployer/nest-schema": "*",
-        "@deployer/nest-service-client": "*",
+        "@deployer/service-client": "*",
         "@deployer/nest-effect": "*",
         "@deployer/supervision": "*",
         "@deployer/orpc-utils": "*",

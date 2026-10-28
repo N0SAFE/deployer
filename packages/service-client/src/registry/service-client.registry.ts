@@ -1,10 +1,11 @@
-import type { ContractRouterClient, RouterContract } from "@orpc/contract";
 import { createORPCClient } from "@orpc/client";
 import { OpenAPILink } from "@orpc/openapi/fetch";
-import { normalizeErrorResponse } from "./normalize-error-response";
-import { reviveDates } from "./revive-dates";
 
-import type { ServiceClient, ServiceClientBinder } from "./types";
+import { reviveDates } from "../transport/revive-dates";
+import { makeServiceFetch } from "../transport/service-fetch";
+
+import type { ServiceClient, ServiceClientBinder } from "../client/types";
+import type { ContractRouterClient, RouterContract } from "@orpc/contract";
 
 /**
  * How a header is supplied for an outgoing service call.
@@ -26,8 +27,8 @@ export type ServiceRequestHeaderProvider = () => Record<string, string>;
  */
 export type ServiceOriginResolver = (service: string) => string;
 
-/** What `forRoot` needs to address services. */
-export type ServiceClientModuleOptions = {
+/** What the registry needs to address services. */
+export type ServiceClientOptions = {
 	/** Where a service answers, given its name. */
 	readonly resolveOrigin: ServiceOriginResolver;
 	/** Headers to send on every call — read per request. */
@@ -70,7 +71,7 @@ export class ServiceClientRegistry implements ServiceClientBinder {
 	private readonly clientsByService = new Map<string, WeakMap<object, object>>();
 	private readonly origins = new Map<string, string>();
 
-	constructor(private readonly options: ServiceClientModuleOptions) {}
+	constructor(private readonly options: ServiceClientOptions) {}
 
 	/** The bound client for `service`, driven (and typed) by `contract`. */
 	bind<T extends RouterContract>(service: string, contract: T): ServiceClient<T> {
@@ -120,18 +121,14 @@ export class ServiceClientRegistry implements ServiceClientBinder {
 				// ── WHY `fetch` AND NOT A `headers` OPTION ─────────────────────────
 				// The client is CACHED above and outlives the request that created it. A
 				// header set at construction would be whichever request happened to arrive
-				// first, and every later caller would be served as that user. Reading the
-				// headers inside `fetch` keeps one client per service while making the
-				// CREDENTIALS per request.
-				fetch: async (request: RequestInfo | URL, init?: RequestInit) => {
-					const extra = this.options.headers?.() ?? {};
-					const response = await fetch(request, {
-						...init,
-						headers: { ...(init?.headers as Record<string, string>), ...extra },
-					});
-					// A non-oRPC error (a guard's plain-text 401) would otherwise be undecodable.
-					return normalizeErrorResponse(response);
-				},
+				// first, and every later caller would be served as that user. The transport
+				// reads the headers per call, so one client per service serves every caller
+				// with that caller's own credentials.
+				fetch: makeServiceFetch({
+					service,
+					origin: this.originFor(service),
+					headers: () => this.options.headers?.() ?? {},
+				}),
 			}),
 			{
 				interceptors: [

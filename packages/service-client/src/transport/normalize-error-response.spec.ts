@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeErrorResponse } from "../normalize-error-response";
+import { normalizeErrorResponse } from "./normalize-error-response";
 
 describe("normalizeErrorResponse", () => {
 	it("passes a success through untouched", async () => {

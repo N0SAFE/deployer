@@ -1,8 +1,8 @@
 {
-    "name": "@deployer/nest-service-client",
+    "name": "@deployer/service-client",
     "version": "0.0.0",
     "private": true,
-    "description": "Typed service clients for NestJS: extend BaseClient to bind a contract, and call its procedures at the root (this.findService.findById()).",
+    "description": "Typed service clients over oRPC contracts: one cached client per service and contract, flattened procedures, per-request credentials, and an Effect transport that fails with a typed ServiceUnreachable.",
     "main": "./dist/cjs/index.js",
     "module": "./dist/esm/index.mjs",
     "types": "./dist/types/index.d.ts",
@@ -35,15 +35,14 @@
         "test:coverage": "vitest run --coverage"
     },
     "dependencies": {
-        "@nestjs/common": "catalog:api:nest",
+        "@deployer/effect-core": "*",
         "@orpc/client": "catalog:orpc",
         "@orpc/contract": "catalog:orpc",
         "@orpc/openapi": "catalog:orpc",
         "@orpc/openapi-client": "catalog:orpc",
-        "reflect-metadata": "catalog:api:nest"
+        "effect": "catalog:effect"
     },
     "peerDependencies": {
-        "@nestjs/common": "catalog:api:nest",
         "@orpc/client": "catalog:orpc",
         "@orpc/contract": "catalog:orpc"
     },

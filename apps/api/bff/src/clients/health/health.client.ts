@@ -2,7 +2,7 @@
 import { Injectable } from "@nestjs/common";
 import type { ContractRouterClient } from "@orpc/contract";
 
-import { BaseClient, type FlatLeaves } from "@deployer/nest-service-client";
+import { BaseClient, type FlatLeaves } from "@deployer/service-client";
 import { healthContract } from "@deployer/health-contracts";
 import { ServiceClientRegistry } from "../service-registry";
 

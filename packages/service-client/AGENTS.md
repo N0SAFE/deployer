@@ -1,4 +1,4 @@
-# AGENTS.md — @deployer/nest-service-client
+# AGENTS.md — @deployer/service-client
 
 Read the root `AGENTS.md` first. This file adds rules specific to this package.
 

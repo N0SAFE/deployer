@@ -1,7 +1,8 @@
-import type { ContractRouterClient, RouterContract } from "@orpc/contract";
 
 import { collectContractLeaves, resolveAtPath } from "./contract-leaves";
 import { ServiceClientBinder } from "./types";
+
+import type { ContractRouterClient, RouterContract } from "@orpc/contract";
 
 /**
  * A service client whose procedures are callable at the ROOT.

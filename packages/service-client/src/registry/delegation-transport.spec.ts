@@ -4,7 +4,7 @@ import { openapi } from "@orpc/openapi";
 import { afterEach, describe, expect, it } from "vitest";
 import z from "zod/v4";
 
-import { ServiceClientRegistry } from "../service-client.registry";
+import { ServiceClientRegistry } from "./service-client.registry";
 
 /**
  * What a service's answer looks like once it has crossed the wire to the BFF.

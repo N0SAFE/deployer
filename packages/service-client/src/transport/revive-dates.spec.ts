@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import z from "zod/v4";
 
-import { reviveDates } from "../revive-dates";
+import { reviveDates } from "./revive-dates";
 
 const iso = "2026-10-27T10:00:00.000Z";
 

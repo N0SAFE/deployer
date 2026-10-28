@@ -2,7 +2,7 @@ import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
 import { describe, expect, it } from "vitest";
 
-import { ServiceClientRegistry } from "../service-client.registry";
+import { ServiceClientRegistry } from "./service-client.registry";
 
 /**
  * A minimal Standard-Schema object, so the fixture needs no validator dependency.

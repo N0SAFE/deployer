@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { collectContractLeaves, isProcedure, resolveAtPath } from "../contract-leaves";
+import { collectContractLeaves, isProcedure, resolveAtPath } from "./contract-leaves";
 
 /**
  * A two-level router, which is the shape every service contract has: a namespace
