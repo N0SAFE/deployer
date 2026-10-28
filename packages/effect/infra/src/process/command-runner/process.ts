@@ -42,19 +42,21 @@ export const signalGroup = (proc: Proc, signal: NodeJS.Signals): void => {
 export const hasExited = (proc: Proc): boolean => proc.exitCode !== null || proc.signalCode !== null;
 
 /** SIGTERM the group, wait `grace`, then SIGKILL. Always reaps (waits for exit). Never fails. */
-export const terminate = (proc: Proc, grace: Duration.Input): Effect.Effect<void> =>
-  Effect.promise(async () => {
-    if (hasExited(proc)) {
-      await proc.exited;
-      return;
-    }
+export const terminate = (proc: Proc, grace: Duration.Input): Effect.Effect<void> => {
+  const exited = Effect.promise(() => proc.exited).pipe(Effect.asVoid);
+  return Effect.gen(function* () {
+    if (hasExited(proc)) return yield* exited;
     signalGroup(proc, "SIGTERM");
-    const exited = await Promise.race([proc.exited.then(() => true), Bun.sleep(Duration.toMillis(grace)).then(() => false)]);
-    if (!exited) {
+    const outcome = yield* exited.pipe(
+      Effect.as("exited" as const),
+      Effect.timeoutOrElse({ duration: grace, orElse: () => Effect.succeed("timed-out" as const) }),
+    );
+    if (outcome === "timed-out") {
       signalGroup(proc, "SIGKILL");
-      await proc.exited;
+      yield* exited;
     }
   });
+};
 
 /** Scoped process: killed (and reaped) when the scope closes, whether by success, failure or interruption. */
 export const acquire = (

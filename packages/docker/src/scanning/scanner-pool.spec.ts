@@ -17,10 +17,12 @@ function pool(overrides: { config?: Partial<ScannerConfig>; running?: boolean; i
 	const start = vi.fn(() => Effect.void);
 	const stop = vi.fn(() => Effect.void);
 	const capture = vi.fn(() => Effect.succeed({ exitCode: 0, output: "ok" }));
-	const inspect = vi.fn(() =>
+	const inspect = vi.fn((id: string) =>
 		overrides.running === true
 			? Effect.succeed({ Id: "existing-1", State: { Running: true } } as never)
-			: Effect.fail(new DockerInvalid({ reason: "no such container" })),
+			: id === "container-1"
+				? Effect.succeed({ Id: id, State: { Running: true } } as never)
+				: Effect.fail(new DockerInvalid({ reason: "no such container" })),
 	);
 	const docker = {
 		containers: { create, start, stop, inspect, remove: vi.fn(() => Effect.void) },
@@ -106,5 +108,15 @@ describe("ScannerPool", () => {
 
 		expect(stop).toHaveBeenCalledWith("container-1");
 		await expect(run(p.exec("trivy", ["x"]))).rejects.toBeInstanceOf(DockerInvalid);
+	});
+
+	it("shares one start between concurrent callers", async () => {
+		const { pool: p, create } = pool();
+
+		const results = await run(Effect.all([p.ensureRunning("trivy"), p.ensureRunning("trivy"), p.ensureRunning("trivy")], { concurrency: "unbounded" }));
+
+		expect(results).toEqual([true, true, true]);
+		expect(create).toHaveBeenCalledTimes(1);
+		await run(p.stopAll);
 	});
 });

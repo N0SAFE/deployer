@@ -1,6 +1,6 @@
 import { createDecipheriv, scryptSync } from "node:crypto";
 
-import { Data } from "effect";
+import { Data, Effect } from "effect";
 
 import { OpenFailed } from "./errors";
 import { isSealedText } from "./sealed-text";
@@ -27,20 +27,24 @@ export const isLegacyCiphertext = (stored: string): boolean => !isSealedText(sto
  * READ-ONLY by design: nothing in this package can produce this format. It is retired when
  * the reseal sweep reports zero legacy rows (EFF-272).
  *
- * Throws `LegacyFormatInvalid` (shape) or `OpenFailed` (wrong key or tampered).
+ * Fails with `LegacyFormatInvalid` (shape) or `OpenFailed` (wrong key or tampered).
  */
-export const readLegacyCiphertext = (stored: string, key: Uint8Array): string => {
+export const readLegacyCiphertext = (
+  stored: string,
+  key: Uint8Array,
+): Effect.Effect<string, LegacyFormatInvalid | OpenFailed> => {
   const parts = stored.split(":");
   const [saltHex, ivHex, authTagHex, data] = parts;
   if (parts.length !== 4 || saltHex === undefined || ivHex === undefined || authTagHex === undefined || data === undefined) {
-    throw new LegacyFormatInvalid({ message: "Invalid encrypted data format" });
+    return Effect.fail(new LegacyFormatInvalid({ message: "Invalid encrypted data format" }));
   }
-  try {
-    const derived = scryptSync(key, Buffer.from(saltHex, "hex"), KEY_LENGTH);
-    const decipher = createDecipheriv("aes-256-gcm", derived, Buffer.from(ivHex, "hex"));
-    decipher.setAuthTag(Buffer.from(authTagHex, "hex"));
-    return decipher.update(data, "hex", "utf8") + decipher.final("utf8");
-  } catch {
-    throw new OpenFailed({ kid: "legacy" });
-  }
+  return Effect.try({
+    try: () => {
+      const derived = scryptSync(key, Buffer.from(saltHex, "hex"), KEY_LENGTH);
+      const decipher = createDecipheriv("aes-256-gcm", derived, Buffer.from(ivHex, "hex"));
+      decipher.setAuthTag(Buffer.from(authTagHex, "hex"));
+      return decipher.update(data, "hex", "utf8") + decipher.final("utf8");
+    },
+    catch: () => new OpenFailed({ kid: "legacy" }),
+  });
 };

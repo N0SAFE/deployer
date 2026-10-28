@@ -1,5 +1,6 @@
 import { Logger } from "@nestjs/common";
 import { validateApiEnvPath } from "@deployer/env";
+import { runSyncUnwrapped } from "@deployer/effect-core";
 import { makeSyncSecretBox } from "@deployer/effect-infra";
 import { Redacted } from "effect";
 import { scryptSync } from "crypto";
@@ -115,8 +116,9 @@ export function resolveSealer(env: SealerEnv): EncryptedTextSealer {
 }
 
 function sealerFor(root: string, allowInsecureRoot: boolean): EncryptedTextSealer {
-	const box = makeSyncSecretBox({ rootSecret: Redacted.make(root), allowInsecureRoot });
-	return { seal: (plaintext) => box.seal(plaintext), open: (stored) => box.open(stored) };
+	const box = runSyncUnwrapped(makeSyncSecretBox({ rootSecret: Redacted.make(root), allowInsecureRoot }));
+	// A drizzle column codec is synchronous, so the Effects run here, at the codec boundary.
+	return { seal: (plaintext) => runSyncUnwrapped(box.seal(plaintext)), open: (stored) => runSyncUnwrapped(box.open(stored)) };
 }
 
 /**

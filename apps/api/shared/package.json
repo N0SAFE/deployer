@@ -66,6 +66,7 @@
         "@deployer/contracts-common": "*",
         "@deployer/contracts-entities": "*",
         "@deployer/effect-orpc": "*",
+        "@deployer/effect-core": "*",
         "@deployer/effect-infra": "*",
         "@deployer/effect-platform": "*",
         "@deployer/env": "*",

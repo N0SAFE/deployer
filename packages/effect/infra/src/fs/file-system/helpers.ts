@@ -22,7 +22,6 @@ export const kindOfError = (error: unknown): FsError["kind"] => {
 export const fsError = (op: string, path: string) => (cause: unknown) =>
   new FsError({ op, path, kind: kindOfError(cause), message: cause instanceof Error ? cause.message : String(cause) });
 
-export const coded = (message: string, code: string): Error => Object.assign(new Error(message), { code });
 
 export const kindFromStats = (stats: { isFile(): boolean; isDirectory(): boolean; isSymbolicLink(): boolean }): FileKind =>
   stats.isSymbolicLink() ? "symlink" : stats.isFile() ? "file" : stats.isDirectory() ? "directory" : "other";

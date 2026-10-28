@@ -1,4 +1,4 @@
-import { Cause } from "effect";
+import { Cause, Effect } from "effect";
 import { OutputLine } from "./types";
 import { STDERR_TAIL_CHARS } from "./limits";
 
@@ -22,21 +22,27 @@ export const lineSplitter = (stream: OutputLine["stream"], emit: (line: OutputLi
   };
 };
 
-/** Read a pipe to the end, handing each chunk to `onChunk`. A pipe torn down by a kill ends quietly. */
-export const pump = async (source: ReadableStream<Uint8Array>, onChunk: (chunk: Uint8Array) => void): Promise<void> => {
-  const reader = source.getReader();
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) return;
-      onChunk(value);
-    }
-  } catch {
-    /* stream cancelled by the kill */
-  } finally {
-    reader.releaseLock();
-  }
-};
+/**
+ * Reads a pipe to the end, handing each chunk to `onChunk`. A pipe torn down by a kill ends quietly,
+ * and the reader is cancelled and released however the read ends, interruption included.
+ */
+export const pump = (source: ReadableStream<Uint8Array>, onChunk: (chunk: Uint8Array) => void): Effect.Effect<void> =>
+  Effect.acquireUseRelease(
+    Effect.sync(() => source.getReader()),
+    (reader) =>
+      Effect.gen(function* () {
+        for (;;) {
+          const { done, value } = yield* Effect.tryPromise(() => reader.read());
+          if (done) return;
+          onChunk(value);
+        }
+      }).pipe(Effect.ignore),
+    (reader) =>
+      Effect.promise(() => reader.cancel().catch(() => undefined)).pipe(
+        Effect.andThen(Effect.try(() => { reader.releaseLock(); })),
+        Effect.ignore,
+      ),
+  );
 
 export const tail = (text: string): string => (text.length > STDERR_TAIL_CHARS ? text.slice(-STDERR_TAIL_CHARS) : text);
 

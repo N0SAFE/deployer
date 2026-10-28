@@ -56,8 +56,9 @@ export class CommandRunner extends Context.Service<CommandRunner, CommandRunnerS
             });
           };
 
-          yield* Effect.promise(() =>
-            Promise.all([drain(proc.stdout, out, stdoutLines), drain(proc.stderr, err, stderrLines), proc.exited]),
+          yield* Effect.all(
+            [drain(proc.stdout, out, stdoutLines), drain(proc.stderr, err, stderrLines), Effect.promise(() => proc.exited)],
+            { concurrency: "unbounded" },
           );
           stdoutLines.flush();
           stderrLines.flush();
@@ -117,36 +118,48 @@ export class CommandRunner extends Context.Service<CommandRunner, CommandRunnerS
             });
           };
 
-          // Completion and the timeout are delivered through the queue; the scope kills the child on exit.
-          void Promise.all([drain(proc.stdout, stdoutLines, false), drain(proc.stderr, stderrLines, true), proc.exited]).then(() => {
-            stdoutLines.flush();
-            stderrLines.flush();
-            if (state.overflow) {
-              Queue.failCauseUnsafe(queue, failCause(new OutputTooLarge({ exe: command.exe, limitBytes: maxBytes })));
-            } else if (proc.exitCode !== 0) {
-              Queue.failCauseUnsafe(
-                queue,
-                failCause(
-                  new CommandFailed({
-                    exe: command.exe,
-                    code: proc.exitCode,
-                    signal: proc.signalCode,
-                    stderrTail: scrub(stderrTail),
-                  }),
-                ),
-              );
-            } else {
-              Queue.endUnsafe(queue);
-            }
-          });
-          const timer = setTimeout(() => {
-            Queue.failCauseUnsafe(
-              queue,
-              failCause(new CommandTimeout({ exe: command.exe, afterMs: Duration.toMillis(timeout) })),
-            );
-            signalGroup(proc, "SIGTERM");
-          }, Duration.toMillis(timeout));
-          yield* Effect.addFinalizer(() => Effect.sync(() => { clearTimeout(timer); }));
+          // Completion and the timeout are delivered through the queue; the scope interrupts both
+          // fibers and kills the child on exit.
+          yield* Effect.forkScoped(
+            Effect.all(
+              [drain(proc.stdout, stdoutLines, false), drain(proc.stderr, stderrLines, true), Effect.promise(() => proc.exited)],
+              { concurrency: "unbounded" },
+            ).pipe(
+              Effect.tap(() =>
+                Effect.sync(() => {
+                  stdoutLines.flush();
+                  stderrLines.flush();
+                  if (state.overflow) {
+                    Queue.failCauseUnsafe(queue, failCause(new OutputTooLarge({ exe: command.exe, limitBytes: maxBytes })));
+                  } else if (proc.exitCode !== 0) {
+                    Queue.failCauseUnsafe(
+                      queue,
+                      failCause(
+                        new CommandFailed({
+                          exe: command.exe,
+                          code: proc.exitCode,
+                          signal: proc.signalCode,
+                          stderrTail: scrub(stderrTail),
+                        }),
+                      ),
+                    );
+                  } else {
+                    Queue.endUnsafe(queue);
+                  }
+                }),
+              ),
+            ),
+          );
+          yield* Effect.forkScoped(
+            Effect.sleep(timeout).pipe(
+              Effect.tap(() =>
+                Effect.sync(() => {
+                  Queue.failCauseUnsafe(queue, failCause(new CommandTimeout({ exe: command.exe, afterMs: Duration.toMillis(timeout) })));
+                  signalGroup(proc, "SIGTERM");
+                }),
+              ),
+            ),
+          );
         }),
       );
     };

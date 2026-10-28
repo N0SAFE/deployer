@@ -1,4 +1,4 @@
-import { Context, Effect, Fiber, Layer } from "effect";
+import { Context, Effect, Fiber, Layer, Semaphore } from "effect";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
@@ -90,7 +90,8 @@ type ScannerState = {
 	containerId: string | null;
 	lastActivityAt: number;
 	idleTimer: Fiber.Fiber<void> | null;
-	starting: Promise<boolean> | null;
+	/** Concurrent callers share one start: the second sees the container the first created. */
+	readonly startLock: Semaphore.Semaphore;
 };
 
 /** The directories that may hold the scanner-runner Dockerfile: the configured one, then up from the working directory. */
@@ -116,11 +117,11 @@ export function makeScannerPool(deps: {
 }): ScannerPoolShape {
 	const { docker, config, access } = deps;
 	const states: Record<ScannerType, ScannerState> = {
-		trivy: { containerId: null, lastActivityAt: 0, idleTimer: null, starting: null },
-		grype: { containerId: null, lastActivityAt: 0, idleTimer: null, starting: null },
-		dive: { containerId: null, lastActivityAt: 0, idleTimer: null, starting: null },
+		trivy: { containerId: null, lastActivityAt: 0, idleTimer: null, startLock: Semaphore.makeUnsafe(1) },
+		grype: { containerId: null, lastActivityAt: 0, idleTimer: null, startLock: Semaphore.makeUnsafe(1) },
+		dive: { containerId: null, lastActivityAt: 0, idleTimer: null, startLock: Semaphore.makeUnsafe(1) },
 	};
-	const imageBuilds = new Map<string, Promise<boolean>>();
+	const imageBuilds = new Map<string, Effect.Effect<boolean>>();
 	const warnedUnavailable = new Set<string>();
 	let cleanupTimer: Fiber.Fiber<void> | null = null;
 
@@ -209,9 +210,10 @@ export function makeScannerPool(deps: {
 	const ensureImage = (image: string) =>
 		Effect.gen(function* () {
 			if (yield* docker.images.exists(image)) return true;
-			let attempt = imageBuilds.get(image);
-			if (attempt === undefined) {
-				attempt = Effect.runPromise(
+			let build = imageBuilds.get(image);
+			if (build === undefined) {
+				// One attempt per image and process: later callers get the first attempt's answer.
+				build = yield* Effect.cached(
 					Effect.gen(function* () {
 						const context = scannerBuildContext(config);
 						if (context === null) {
@@ -232,9 +234,9 @@ export function makeScannerPool(deps: {
 						);
 					}),
 				);
-				imageBuilds.set(image, attempt);
+				imageBuilds.set(image, build);
 			}
-			return yield* Effect.promise(() => attempt);
+			return yield* build;
 		});
 
 	/** A running container from an earlier process, if there is one; a stopped one is removed. */
@@ -304,18 +306,17 @@ export function makeScannerPool(deps: {
 			yield* Effect.logDebug(`Auto-scan is disabled — not starting ${scanner} container`);
 			return false;
 		}
-		const state = states[scanner];
-		if (state.containerId !== null) {
-			if (yield* isAlive(state.containerId)) return true;
-			yield* Effect.logWarning(`${scanner} container is no longer running — will recreate`);
-			state.containerId = null;
-		}
-		// Concurrent callers share one start.
-		state.starting ??= Effect.runPromise(start(scanner)).finally(() => {
-			state.starting = null;
-		});
-		const starting = state.starting;
-		return yield* Effect.promise(() => starting);
+		return yield* states[scanner].startLock.withPermits(1)(
+			Effect.gen(function* () {
+				const state = states[scanner];
+				if (state.containerId !== null) {
+					if (yield* isAlive(state.containerId)) return true;
+					yield* Effect.logWarning(`${scanner} container is no longer running — will recreate`);
+					state.containerId = null;
+				}
+				return yield* start(scanner);
+			}),
+		);
 	});
 
 	const exec: ScannerPoolShape["exec"] = Effect.fn("ScannerPool.exec")(function* (scanner, cmd) {
