@@ -580,6 +580,9 @@ export class DeploymentService implements OnModuleInit {
             cancelReason: reason ?? "user_requested",
             cancelledAt,
         });
+        // Stop the work, not just the label: the queued job is cancelled and the worker interrupts the fiber that
+        // is building it (killing its child processes).
+        await this.deploymentQueueLifecycleService.cancelJobsForDeployment(id, reason ?? "user_requested");
         const cancelLog = await this.deploymentRepository.insertLog(id, {
             level: "warn",
             message: "Deployment cancelled",

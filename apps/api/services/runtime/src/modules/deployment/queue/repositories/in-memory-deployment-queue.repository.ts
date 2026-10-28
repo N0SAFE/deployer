@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 
-import type { DeploymentDeadLetterJob, DeploymentQueueJob } from "@deployer/contracts-entities";
 import { Effect } from "effect";
+
+import type { DeploymentDeadLetterJob, DeploymentQueueJob } from "@deployer/contracts-entities";
 
 import {
 	DEFAULT_RETRY_DELAY_MS,
@@ -19,7 +20,7 @@ export function makeInMemoryDeploymentQueueRepository(): DeploymentQueueReposito
 	const jobs = new Map<string, DeploymentQueueJob>();
 	const deadLetters = new Map<string, DeploymentDeadLetterJob>();
 	const held = (job: DeploymentQueueJob | undefined, workerId: string, lockToken: string): job is DeploymentQueueJob =>
-		job !== undefined && job.workerId === workerId && job.lockToken === lockToken && (job.status === "claimed" || job.status === "running");
+		job?.workerId === workerId && job.lockToken === lockToken && (job.status === "claimed" || job.status === "running");
 
 	const enqueue: DeploymentQueueRepositoryShape["enqueue"] = (input) =>
 		Effect.sync(() => {
@@ -223,6 +224,9 @@ export function makeInMemoryDeploymentQueueRepository(): DeploymentQueueReposito
 	const hasLiveJobForDeployment: DeploymentQueueRepositoryShape["hasLiveJobForDeployment"] = (deploymentId) =>
 		Effect.sync(() => [...jobs.values()].some((job) => job.payload.deploymentId === deploymentId && ["queued", "claimed", "running"].includes(job.status)));
 
+	const liveJobsForDeployment: DeploymentQueueRepositoryShape["liveJobsForDeployment"] = (deploymentId) =>
+		Effect.sync(() => [...jobs.values()].filter((job) => job.payload.deploymentId === deploymentId && ["queued", "claimed", "running"].includes(job.status)));
+
 	const listDeadLetters: DeploymentQueueRepositoryShape["listDeadLetters"] = (input) =>
 		Effect.sync(() => {
 			const matching = [...deadLetters.values()].filter(
@@ -254,5 +258,5 @@ export function makeInMemoryDeploymentQueueRepository(): DeploymentQueueReposito
 			return { job, deadLetter: updated };
 		});
 
-	return { enqueue, claim, claimByIdempotencyKey, heartbeat, complete, fail, cancel, reapExpiredLeases, findById, list, hasLiveJobForDeployment, listDeadLetters, findDeadLetter, replayDeadLetter };
+	return { enqueue, claim, claimByIdempotencyKey, heartbeat, complete, fail, cancel, reapExpiredLeases, findById, list, hasLiveJobForDeployment, liveJobsForDeployment, listDeadLetters, findDeadLetter, replayDeadLetter };
 }

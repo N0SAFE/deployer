@@ -58,6 +58,7 @@ export class DockerComposeBuilderStrategy implements BuilderStrategy {
                 composeFileName: composeFile,
                 projectName: `deployer-${context.deploymentId.slice(0, 12)}`,
             }),
+            { signal: context.signal },
         );
 
         return { image: null };

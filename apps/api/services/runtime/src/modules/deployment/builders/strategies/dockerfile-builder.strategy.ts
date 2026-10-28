@@ -33,6 +33,7 @@ export class DockerfileBuilderStrategy implements BuilderStrategy {
             this.dockerEngine.build.image(context.buildContextPath, context.imageTag, {
                 ...(context.dockerfileName !== null ? { dockerfileName: context.dockerfileName } : {}),
             }),
+            { signal: context.signal },
         );
         return { image: context.imageTag };
     }

@@ -27,6 +27,7 @@ import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, Unauthor
 
 import type { AppError } from "@deployer/errors";
 import { randomUUID } from "crypto";
+import { Effect } from "effect";
 import type { Subscription } from "rxjs";
 import type { DeploymentQueueJob } from "@deployer/contracts-entities";
 import { DeploymentService } from "../services/deployment.service";
@@ -45,6 +46,13 @@ import {
     type DeploymentBuilderKind,
 } from "../builders/deployment-artifact-builder.service";
 import { DeploymentQueueLifecycleService } from "./deployment-queue-lifecycle.service";
+import { makeJobRunner } from "./worker/job-runner";
+
+/** One async boundary; the original error travels as the failure (never Effect's generic wrapper). */
+const attempt = <A>(operation: () => Promise<A>): Effect.Effect<A, unknown> =>
+    Effect.tryPromise({ try: operation, catch: (error: unknown) => error });
+
+type ClaimedJob = { readonly id: string; readonly lockToken: string; /** The delivered job this claim answers (ids can differ when the queue re-keys). */ readonly deliveredJobId: string };
 import { beginHeavyWork } from "@deployer/shared/core/utils/heavy-work.registry";
 
 const executionPlanSchema = z.object({
@@ -127,7 +135,9 @@ export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestr
     private static readonly LEASE_SEC = 60;
     private static readonly HEARTBEAT_MS = 15_000;
     private readonly workerId = `typed:${randomUUID()}`;
+    private readonly failures = new Map<string, unknown>();
     private subscription: Subscription | null = null;
+    private cancelSubscription: Subscription | null = null;
     /** Serialize execution — one job at a time on this single-node worker. */
     private executionChain: Promise<void> = Promise.resolve();
 
@@ -138,6 +148,10 @@ export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestr
     ) {}
 
     onModuleInit(): void {
+        // A cancelled job stops the fiber executing it (its build and child processes with it).
+        this.cancelSubscription = this.queueLifecycle.onJobCancelled().subscribe((job) => {
+            void this.cancelRunningJob(job.id);
+        });
         this.subscription = this.queueLifecycle.onJobQueued().subscribe((job) => {
             this.executionChain = this.executionChain
                 .then(() => this.processQueueJob(job))
@@ -153,6 +167,8 @@ export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestr
     onModuleDestroy(): void {
         this.subscription?.unsubscribe();
         this.subscription = null;
+        this.cancelSubscription?.unsubscribe();
+        this.cancelSubscription = null;
     }
 
     /**
@@ -179,33 +195,31 @@ export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestr
             return;
         }
 
-        const claimed = await this.deploymentService.claimQueueJobByIdempotencyKey(
-            job.idempotencyKey,
-            {
-                workerId: this.workerId,
-                limit: 1,
-                leaseDurationSec: DeploymentQueueWorkerService.LEASE_SEC,
-                types: [job.type],
-            },
+        const outcome = await Effect.runPromise(
+            this.runner.run(job, () =>
+                Effect.tryPromise({
+                    try: (signal) => this.executeJob(job, signal),
+                    catch: (error: unknown) => error,
+                }),
+            ),
         );
 
-        if (!claimed) {
-            this.logger.warn(
-                `No queued lifecycle job matched '${job.id}' (${job.idempotencyKey}); skipping duplicate or stale delivery.`,
-            );
-            return;
-        }
+        const failure = this.failures.get(job.id);
+        this.failures.delete(job.id);
+        if (outcome === "failed" && failure !== undefined) throw failure;
+    }
 
-        const lockToken = claimed.lockToken;
-        if (!lockToken) {
-            throw new RuntimeInvalid({ reason: `Claimed queue job '${claimed.id}' is missing a lock token` });
-        }
+    /** Cancels the job's fiber when this worker is executing it. */
+    cancelRunningJob(jobId: string): Promise<boolean> {
+        return Effect.runPromise(this.runner.cancel(jobId));
+    }
 
-        const heartbeatTimer = setInterval(() => {
-            void this.sendHeartbeat(claimed.id, lockToken);
-        }, DeploymentQueueWorkerService.HEARTBEAT_MS);
-
-        try {
+    /**
+     * The job's work: resolve the container image under the build retry policy and describe what was built.
+     * `signal` aborts when the job is cancelled or loses its lease, so waits and builds stop with it.
+     */
+    private async executeJob(job: DeploymentQueueJob, signal: AbortSignal): Promise<Record<string, unknown>> {
+        const deploymentId = job.payload.deploymentId ?? "";
             const storageBinding = this.extractStorageBindingFromPayload(job.payload);
             const executionPlan = this.extractExecutionPlanFromPayload(job.payload);
             const buildHealthPolicy = this.resolvePhaseRetryPolicy(executionPlan?.healthChecks?.build);
@@ -226,95 +240,117 @@ export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestr
                 this.extractRuntimeEnvironmentVariablesFromRuntimeConfiguration(job.payload);
             const buildStartedAt = new Date();
             const containerImage = await this.resolveContainerImageWithPolicy({
-                deploymentId: job.payload.deploymentId,
+                deploymentId,
                 serviceId: job.payload.serviceId ?? "",
                 sourceCheckout: parsedSourceCheckout,
                 executionPlan,
                 fallbackContainerImage: this.extractContainerImageFromPayload(job.payload),
-            }, buildHealthPolicy);
+            }, buildHealthPolicy, signal);
             const containerName = this.extractContainerNameFromPayload(job.payload);
             const buildCompletedAt = new Date();
 
-            await this.deploymentService.completeQueueJob(claimed.id, {
-                workerId: this.workerId,
-                lockToken,
-                result: {
-                    queueSource: QUEUE_SOURCE,
-                    jobType: job.type,
-                    runtimeRunner: runtimeRunner ?? "docker",
-                    ...(executionPlan?.builder ? { buildRunner: executionPlan.builder } : {}),
-                    ...(executionPlan?.customCommands?.runCommand
-                        ? { customRunCommand: executionPlan.customCommands.runCommand }
-                        : {}),
-                    buildStartedAt: buildStartedAt.toISOString(),
-                    buildCompletedAt: buildCompletedAt.toISOString(),
-                    ...(runtimeRunnerOptions ? { runtimeRunnerOptions } : {}),
-                    ...(runtimeEnvironmentVariables ? { runtimeEnvironmentVariables } : {}),
-                    ...(executionPlan?.healthChecks?.runtime?.maxRetries
-                        ? { healthCheckMaxRetries: executionPlan.healthChecks.runtime.maxRetries }
-                        : {}),
-                    ...(executionPlan?.healthChecks?.runtime?.retryIntervalMs
-                        ? { healthCheckRetryIntervalMs: executionPlan.healthChecks.runtime.retryIntervalMs }
-                        : {}),
-                    ...(executionPlan?.healthChecks?.build?.maxRetries
-                        ? { buildHealthCheckMaxRetries: executionPlan.healthChecks.build.maxRetries }
-                        : {}),
-                    ...(executionPlan?.healthChecks?.build?.retryIntervalMs
-                        ? { buildHealthCheckRetryIntervalMs: executionPlan.healthChecks.build.retryIntervalMs }
-                        : {}),
-                    ...(executionPlan?.healthChecks?.deploy?.maxRetries
-                        ? { deployHealthCheckMaxRetries: executionPlan.healthChecks.deploy.maxRetries }
-                        : {}),
-                    ...(executionPlan?.healthChecks?.deploy?.retryIntervalMs
-                        ? { deployHealthCheckRetryIntervalMs: executionPlan.healthChecks.deploy.retryIntervalMs }
-                        : {}),
-                    ...(containerImage ? { containerImage } : {}),
-                    ...(containerName ? { containerName } : {}),
-                    ...(storageBinding ? { storageBinding } : {}),
-                },
-            });
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
 
-            try {
-                // W-Queue (Q5): classify the failure — permanent configuration
-                // errors must NOT exhaust retries / pollute the DLQ; transient
-                // execution errors stay retryable.
-                const retryable = this.isTransientQueueFailure(error);
-                await this.deploymentService.failQueueJob(claimed.id, {
-                    workerId: this.workerId,
-                    lockToken,
-                    error: message,
-                    retryable,
-                });
-            } catch (failError) {
-                const failMessage = failError instanceof Error ? failError.message : String(failError);
-                this.logger.error(
-                    `Queue failure transition also failed for lifecycle job '${claimed.id}': ${failMessage}`,
-                );
-            }
-
-            throw error;
-        } finally {
-            clearInterval(heartbeatTimer);
-        }
+        return {
+            queueSource: QUEUE_SOURCE,
+            jobType: job.type,
+            runtimeRunner: runtimeRunner ?? "docker",
+            ...(executionPlan?.builder ? { buildRunner: executionPlan.builder } : {}),
+            ...(executionPlan?.customCommands?.runCommand
+                ? { customRunCommand: executionPlan.customCommands.runCommand }
+                : {}),
+            buildStartedAt: buildStartedAt.toISOString(),
+            buildCompletedAt: buildCompletedAt.toISOString(),
+            ...(runtimeRunnerOptions ? { runtimeRunnerOptions } : {}),
+            ...(runtimeEnvironmentVariables ? { runtimeEnvironmentVariables } : {}),
+            ...(executionPlan?.healthChecks?.runtime?.maxRetries
+                ? { healthCheckMaxRetries: executionPlan.healthChecks.runtime.maxRetries }
+                : {}),
+            ...(executionPlan?.healthChecks?.runtime?.retryIntervalMs
+                ? { healthCheckRetryIntervalMs: executionPlan.healthChecks.runtime.retryIntervalMs }
+                : {}),
+            ...(executionPlan?.healthChecks?.build?.maxRetries
+                ? { buildHealthCheckMaxRetries: executionPlan.healthChecks.build.maxRetries }
+                : {}),
+            ...(executionPlan?.healthChecks?.build?.retryIntervalMs
+                ? { buildHealthCheckRetryIntervalMs: executionPlan.healthChecks.build.retryIntervalMs }
+                : {}),
+            ...(executionPlan?.healthChecks?.deploy?.maxRetries
+                ? { deployHealthCheckMaxRetries: executionPlan.healthChecks.deploy.maxRetries }
+                : {}),
+            ...(executionPlan?.healthChecks?.deploy?.retryIntervalMs
+                ? { deployHealthCheckRetryIntervalMs: executionPlan.healthChecks.deploy.retryIntervalMs }
+                : {}),
+            ...(containerImage ? { containerImage } : {}),
+            ...(containerName ? { containerName } : {}),
+            ...(storageBinding ? { storageBinding } : {}),
+        };
     }
 
-    private async sendHeartbeat(jobId: string, lockToken: string): Promise<void> {
-        try {
-            const heartbeat = await this.deploymentService.heartbeatQueueJob(jobId, {
-                workerId: this.workerId,
-                lockToken,
-                extendLeaseSec: DeploymentQueueWorkerService.LEASE_SEC,
-            });
+    /** What this worker needs from the queue, as the Effect runner's ports. */
+    private readonly runner = makeJobRunner<DeploymentQueueJob, ClaimedJob, Record<string, unknown>, unknown>(
+        {
+            claim: (job) =>
+                attempt(async () => {
+                    const claimed = await this.deploymentService.claimQueueJobByIdempotencyKey(job.idempotencyKey, {
+                        workerId: this.workerId,
+                        limit: 1,
+                        leaseDurationSec: DeploymentQueueWorkerService.LEASE_SEC,
+                        types: [job.type],
+                    });
+                    if (!claimed) {
+                        this.logger.warn(
+                            `No queued lifecycle job matched '${job.id}' (${job.idempotencyKey}); skipping duplicate or stale delivery.`,
+                        );
+                        return null;
+                    }
+                    if (!claimed.lockToken) {
+                        throw new RuntimeInvalid({ reason: `Claimed queue job '${claimed.id}' is missing a lock token` });
+                    }
+                    return { id: claimed.id, lockToken: claimed.lockToken, deliveredJobId: job.id };
+                }),
+            heartbeat: (claimed) =>
+                attempt(async () => {
+                    const heartbeat = await this.deploymentService.heartbeatQueueJob(claimed.id, {
+                        workerId: this.workerId,
+                        lockToken: claimed.lockToken,
+                        extendLeaseSec: DeploymentQueueWorkerService.LEASE_SEC,
+                    });
+                    if (!heartbeat.acknowledged) {
+                        this.logger.warn(`Heartbeat was not acknowledged for lifecycle job '${claimed.id}'`);
+                    }
+                    return heartbeat.acknowledged;
+                }),
+            complete: (claimed, result) =>
+                attempt(() =>
+                    this.deploymentService
+                        .completeQueueJob(claimed.id, { workerId: this.workerId, lockToken: claimed.lockToken, result })
+                        .then(() => true),
+                ).pipe(Effect.catch((error) => (this.isLostLease(error) ? Effect.succeed(false) : Effect.fail(error)))),
+            fail: (claimed, error) =>
+                attempt(() => {
+                    // Kept so `processQueueJob` can reject with the original error, as callers expect.
+                    this.failures.set(claimed.deliveredJobId, error);
+                    return this.deploymentService
+                        .failQueueJob(claimed.id, {
+                            workerId: this.workerId,
+                            lockToken: claimed.lockToken,
+                            error: error instanceof Error ? error.message : String(error),
+                            retryable: this.isTransientQueueFailure(error),
+                        })
+                        .then(() => true);
+                }).pipe(Effect.catch((cause) => (this.isLostLease(cause) ? Effect.succeed(false) : Effect.fail(cause)))),
+        },
+        {
+            heartbeatEvery: DeploymentQueueWorkerService.HEARTBEAT_MS,
+            warn: (message) => {
+                this.logger.warn(message);
+            },
+        },
+    );
 
-            if (!heartbeat.acknowledged) {
-                this.logger.warn(`Heartbeat was not acknowledged for lifecycle job '${jobId}'`);
-            }
-        } catch (error) {
-            // A missed heartbeat is not fatal: the next one renews the lease before it expires.
-            this.logger.warn(`Heartbeat failed for lifecycle job '${jobId}': ${error instanceof Error ? error.message : String(error)}`);
-        }
+    /** The queue refused a write because this worker no longer holds the job. */
+    private isLostLease(error: unknown): boolean {
+        return error instanceof RuntimeInvalid || (error instanceof Error && /worker\/lock token/i.test(error.message));
     }
 
     private extractSourceCheckoutFromPayload(payload: DeploymentQueueJob["payload"] | undefined) {
@@ -331,7 +367,7 @@ export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestr
         sourceCheckout: z.infer<typeof deploymentSourceCheckoutContextSchema> | null;
         executionPlan: DeploymentExecutionPlan | null;
         fallbackContainerImage: string | null;
-    }): Promise<string | null> {
+    }, signal?: AbortSignal): Promise<string | null> {
         if (!this.deploymentArtifactBuilderService) {
             throw new RuntimeInvalid({ reason: "DeploymentArtifactBuilderService is required for builder stage execution" });
         }
@@ -343,6 +379,7 @@ export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestr
             sourceCheckout: input.sourceCheckout,
             fallbackContainerImage: input.fallbackContainerImage,
             customCommands: input.executionPlan?.customCommands ?? null,
+            signal,
         });
     }
 
@@ -381,12 +418,13 @@ export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestr
             fallbackContainerImage: string | null;
         },
         policy: PhaseRetryPolicy,
+        signal?: AbortSignal,
     ): Promise<string | null> {
         let lastError: unknown;
 
         for (let attempt = 1; attempt <= policy.maxRetries; attempt += 1) {
             try {
-                return await this.resolveContainerImage(input);
+                return await this.resolveContainerImage(input, signal);
             } catch (error) {
                 lastError = error;
 
@@ -397,7 +435,7 @@ export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestr
                 this.logger.warn(
                     `Build phase attempt ${String(attempt)}/${String(policy.maxRetries)} failed for deployment '${input.deploymentId}', retrying in ${String(policy.retryIntervalMs)}ms`,
                 );
-                await this.sleep(policy.retryIntervalMs);
+                await this.sleep(policy.retryIntervalMs, signal);
             }
         }
 
@@ -431,9 +469,22 @@ export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestr
         };
     }
 
-    private sleep(delayMs: number): Promise<void> {
-        return new Promise((resolve) => {
-            setTimeout(resolve, delayMs);
+    /** Waits `delayMs`, or rejects as soon as `signal` aborts (the job was cancelled or lost its lease). */
+    private sleep(delayMs: number, signal?: AbortSignal): Promise<void> {
+        return new Promise((resolve, reject) => {
+            if (signal?.aborted) {
+                reject(new Error("aborted"));
+                return;
+            }
+            const onAbort = () => {
+                clearTimeout(timer);
+                reject(new Error("aborted"));
+            };
+            const timer = setTimeout(() => {
+                signal?.removeEventListener("abort", onAbort);
+                resolve();
+            }, delayMs);
+            signal?.addEventListener("abort", onAbort, { once: true });
         });
     }
 

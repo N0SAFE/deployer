@@ -39,6 +39,8 @@ export type BuildArtifactInput = {
     sourceCheckout: DeploymentSourceCheckoutContext | null;
     fallbackContainerImage: string | null;
     customCommands?: CustomCommandsConfig | null;
+    /** Aborts the build (cancel, lost lease). */
+    signal?: AbortSignal | undefined;
 }
 
 @Injectable()
@@ -154,6 +156,7 @@ export class DeploymentArtifactBuilderService {
                     deploymentId: input.deploymentId,
                     builder: effectiveBuilder,
                 }),
+                signal: input.signal,
             });
         } finally {
             releaseBuildSlot();

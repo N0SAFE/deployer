@@ -72,6 +72,8 @@ export type BuilderStrategyContext = {
      * cache tagging and cleanup impossible to implement once for all builders.
      */
     readonly imageTag: string;
+    /** Aborts when the deployment is cancelled or its job loses its lease; a strategy stops its build with it. */
+    readonly signal?: AbortSignal | undefined;
 }
 
 /**

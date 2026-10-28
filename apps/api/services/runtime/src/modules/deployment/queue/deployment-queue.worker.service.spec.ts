@@ -21,11 +21,11 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
     let deploymentArtifactBuilderService: {
         buildContainerizedArtifact: ReturnType<typeof vi.fn>;
     };
-    let queueLifecycle: { onJobQueued: ReturnType<typeof vi.fn> };
+    let queueLifecycle: { onJobQueued: ReturnType<typeof vi.fn>; onJobCancelled: ReturnType<typeof vi.fn> };
     let worker: DeploymentQueueWorkerService;
 
     beforeEach(() => {
-        vi.useFakeTimers();
+        // Effect's scheduler and sleeps run on real timers; the heartbeat cadence is shortened per test instead.
         deploymentService = {
             claimQueueJobByIdempotencyKey: vi.fn(),
             heartbeatQueueJob: vi.fn().mockReturnValue({ acknowledged: true }),
@@ -37,6 +37,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
         };
         queueLifecycle = {
             onJobQueued: vi.fn(),
+            onJobCancelled: vi.fn(),
         };
         worker = new DeploymentQueueWorkerService(
             deploymentService as never,
@@ -46,7 +47,6 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
     });
 
     afterEach(() => {
-        vi.useRealTimers();
         vi.clearAllMocks();
     });
 
@@ -95,9 +95,19 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
         });
         deploymentService.completeQueueJob.mockReturnValue(completionPromise);
 
+        const statics = DeploymentQueueWorkerService as unknown as { HEARTBEAT_MS: number };
+        const previousHeartbeat = statics.HEARTBEAT_MS;
+        statics.HEARTBEAT_MS = 20;
+        worker = new DeploymentQueueWorkerService(
+            deploymentService as never,
+            queueLifecycle as never,
+            deploymentArtifactBuilderService as never,
+        );
+        statics.HEARTBEAT_MS = previousHeartbeat;
+
         const processing = worker.processQueueJob(createQueueJob("job-3", "deploy:job:1"));
 
-        await vi.advanceTimersByTimeAsync(30_000);
+        await new Promise((resolve) => setTimeout(resolve, 120));
 
         expect(deploymentService.heartbeatQueueJob).toHaveBeenCalledWith(
             "queue-job-1",
@@ -326,7 +336,6 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
             }),
         );
 
-        await vi.runAllTimersAsync();
         await processing;
 
         expect(deploymentArtifactBuilderService.buildContainerizedArtifact).toHaveBeenCalledTimes(3);
@@ -363,7 +372,6 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
 
         const rejectionAssertion = expect(processing).rejects.toThrow("build failed permanently");
 
-        await vi.runAllTimersAsync();
         await rejectionAssertion;
         expect(deploymentArtifactBuilderService.buildContainerizedArtifact).toHaveBeenCalledTimes(2);
         expect(deploymentService.failQueueJob).toHaveBeenCalledWith(
@@ -571,4 +579,35 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
             updatedAt: "2026-01-01T00:00:00.000Z",
         };
     }
+
+    it("cancelling the job aborts the build it is running and writes no completion or failure", async () => {
+        deploymentService.claimQueueJobByIdempotencyKey.mockResolvedValue(claimedJob);
+        let aborted = false;
+        deploymentArtifactBuilderService.buildContainerizedArtifact.mockImplementation(
+            (input: { signal?: AbortSignal }) =>
+                new Promise((_resolve, reject) => {
+                    input.signal?.addEventListener("abort", () => {
+                        aborted = true;
+                        reject(new Error("aborted"));
+                    });
+                }),
+        );
+
+        const processing = worker.processQueueJob(
+            createQueueJob("job-cancel", "deploy:job:1", {
+                context: { executionPlan: { builder: "dockerfile" } },
+            }),
+        );
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        const cancelledAt = Date.now();
+        expect(await worker.cancelRunningJob("queue-job-1")).toBe(true);
+        await processing;
+
+        expect(Date.now() - cancelledAt).toBeLessThan(1000);
+        expect(aborted).toBe(true);
+        expect(deploymentService.completeQueueJob).not.toHaveBeenCalled();
+        expect(deploymentService.failQueueJob).not.toHaveBeenCalled();
+        expect(await worker.cancelRunningJob("queue-job-1")).toBe(false);
+    });
 });

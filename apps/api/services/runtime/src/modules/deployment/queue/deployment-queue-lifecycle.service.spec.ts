@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import { RuntimeNotFound } from "../../../core/runtime.errors";
+
 import { DeploymentQueueLifecycleService } from "./deployment-queue-lifecycle.service";
 import { makeInMemoryDeploymentQueueRepository } from "./repositories/in-memory-deployment-queue.repository";
 
@@ -165,5 +167,19 @@ describe("DeploymentQueueLifecycleService", () => {
         await expect(
             service.replayDeadLetterJob({ deadLetterJobId: "00000000-0000-4000-8000-000000000000", replayMode: "same_payload", requestedBy: "op", reason: "x" }),
         ).rejects.toBeInstanceOf(RuntimeNotFound);
+    });
+
+    it("cancelling a deployment cancels its live jobs and tells the worker", async () => {
+        const { job } = await enqueue("k-cancel-deployment");
+        await service.claimQueueJobByIdempotencyKey("k-cancel-deployment", claimInput);
+        const cancelled: string[] = [];
+        service.onJobCancelled().subscribe((item) => cancelled.push(item.id));
+
+        const result = await service.cancelJobsForDeployment(basePayload.deploymentId, "operator");
+
+        expect(result.map((item) => item.id)).toEqual([job.id]);
+        expect(cancelled).toEqual([job.id]);
+        expect((await service.findQueueJobById(job.id))?.status).toBe("cancelled");
+        expect(await service.cancelJobsForDeployment(basePayload.deploymentId, "again")).toEqual([]);
     });
 });

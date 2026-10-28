@@ -110,6 +110,8 @@ export type DeploymentQueueRepositoryShape = {
 	readonly findById: (jobId: string) => Effect.Effect<DeploymentQueueJob | null, DbError>;
 	readonly list: (filters: QueueListFilters) => Effect.Effect<{ items: DeploymentQueueJob[]; total: number }, DbError>;
 	readonly hasLiveJobForDeployment: (deploymentId: string) => Effect.Effect<boolean, DbError>;
+	/** Every queued, claimed or running job of a deployment. */
+	readonly liveJobsForDeployment: (deploymentId: string) => Effect.Effect<DeploymentQueueJob[], DbError>;
 	readonly listDeadLetters: (
 		input: DeploymentDeadLetterListInput,
 	) => Effect.Effect<{ items: DeploymentDeadLetterJob[]; total: number }, DbError>;
@@ -387,6 +389,15 @@ export function makeDeploymentQueueRepository(database: Context.Service.Shape<ty
 			return row !== undefined;
 		});
 
+	const liveJobsForDeployment: DeploymentQueueRepositoryShape["liveJobsForDeployment"] = (deploymentId) =>
+		use(async (db) => {
+			const rows = await db
+				.select()
+				.from(deploymentQueueJobs)
+				.where(and(eq(deploymentQueueJobs.deploymentId, deploymentId), inArray(deploymentQueueJobs.status, [...LIVE_STATUSES])));
+			return rows.map(toQueueJob);
+		});
+
 	const listDeadLetters: DeploymentQueueRepositoryShape["listDeadLetters"] = (input) =>
 		use(async (db) => {
 			const conditions: SQL[] = [];
@@ -447,6 +458,7 @@ export function makeDeploymentQueueRepository(database: Context.Service.Shape<ty
 		findById,
 		list,
 		hasLiveJobForDeployment,
+		liveJobsForDeployment,
 		listDeadLetters,
 		findDeadLetter,
 		replayDeadLetter,

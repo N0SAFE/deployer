@@ -1,8 +1,6 @@
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
-import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { Subject } from "rxjs";
-import type { Observable } from "rxjs";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
+
 import type {
     DeploymentDeadLetterJob,
     DeploymentDeadLetterListInput,
@@ -19,17 +17,22 @@ import type {
     DeploymentQueueJob,
     DeploymentQueueTransitionResult,
 } from "@deployer/contracts-entities";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
 import { MeshQueueTransitionService } from "@deployer/shared/core/modules/mesh/services/mesh-queue-transition.service";
 
 import { makeRuntimeDb } from "../../../core/database/runtime-db";
 import { RuntimeNotFound } from "../../../core/runtime.errors";
+
 import { DeploymentQueueEventService } from "./deployment-queue-event.service";
 import {
     makeDeploymentQueueRepository,
     type DeploymentQueueRepositoryShape,
     type QueueListFilters,
 } from "./repositories/deployment-queue.repository";
+
+import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import type { Observable } from "rxjs";
 
 /** DI token for substituting the repository (specs only). */
 export const DEPLOYMENT_QUEUE_REPOSITORY = Symbol("DEPLOYMENT_QUEUE_REPOSITORY");
@@ -68,6 +71,9 @@ export class DeploymentQueueLifecycleService implements OnModuleInit, OnModuleDe
      */
     private readonly jobQueued$ = new Subject<DeploymentQueueJob>();
 
+    /** Jobs that were cancelled; the worker subscribes to stop the one it is executing. */
+    private readonly jobCancelled$ = new Subject<DeploymentQueueJob>();
+
     constructor(
         private readonly databaseService: GlobalDatabaseService,
         private readonly deploymentQueueEventService: DeploymentQueueEventService,
@@ -97,6 +103,11 @@ export class DeploymentQueueLifecycleService implements OnModuleInit, OnModuleDe
         }
         for (const [, timer] of this.retryTimers) clearTimeout(timer);
         this.retryTimers.clear();
+    }
+
+    /** Observable of cancelled jobs, so the worker can interrupt the one it is running. */
+    onJobCancelled(): Observable<DeploymentQueueJob> {
+        return this.jobCancelled$.asObservable();
     }
 
     /** Observable of newly-claimable typed jobs. */
@@ -226,7 +237,19 @@ export class DeploymentQueueLifecycleService implements OnModuleInit, OnModuleDe
         if (job === null) return null;
         this.clearRetryTimer(job.id);
         this.replicate(job, "running", `${job.id}:cancelled:${job.updatedAt}`);
+        this.jobCancelled$.next(job);
         return job;
+    }
+
+    /** Cancels every live job of a deployment; the worker stops whichever one is executing. */
+    async cancelJobsForDeployment(deploymentId: string, reason: string): Promise<DeploymentQueueJob[]> {
+        const live = await runPromiseUnwrapped(this.queue.liveJobsForDeployment(deploymentId));
+        const cancelled: DeploymentQueueJob[] = [];
+        for (const job of live) {
+            const result = await this.cancelQueueJob(job.id, reason);
+            if (result !== null) cancelled.push(result);
+        }
+        return cancelled;
     }
 
     async findQueueJobById(jobId: string): Promise<DeploymentQueueJob | null> {

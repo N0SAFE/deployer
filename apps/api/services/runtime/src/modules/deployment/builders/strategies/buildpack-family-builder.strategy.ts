@@ -61,6 +61,7 @@ export class BuildpackFamilyBuilderStrategy implements BuilderStrategy {
             this.dockerEngine.build.image(context.buildContextPath, context.imageTag, {
                 dockerfileName: context.dockerfileName,
             }),
+            { signal: context.signal },
         );
 
         return { image: context.imageTag };
