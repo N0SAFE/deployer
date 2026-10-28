@@ -610,4 +610,55 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
         expect(deploymentService.failQueueJob).not.toHaveBeenCalled();
         expect(await worker.cancelRunningJob("queue-job-1")).toBe(false);
     });
+
+    describe("concurrency", () => {
+        const withConcurrency = async (value: string | undefined, body: () => Promise<void>) => {
+            const previous = process.env.DEPLOYMENT_WORKER_CONCURRENCY;
+            if (value === undefined) delete process.env.DEPLOYMENT_WORKER_CONCURRENCY;
+            else process.env.DEPLOYMENT_WORKER_CONCURRENCY = value;
+            try {
+                await body();
+            } finally {
+                if (previous === undefined) delete process.env.DEPLOYMENT_WORKER_CONCURRENCY;
+                else process.env.DEPLOYMENT_WORKER_CONCURRENCY = previous;
+            }
+        };
+
+        /** Delivers three jobs and reports the highest number of builds that were running at once. */
+        const peakParallelBuilds = async (): Promise<number> => {
+            const subscribers: ((job: DeploymentQueueJob) => void)[] = [];
+            queueLifecycle.onJobQueued.mockReturnValue({ subscribe: (next: (job: DeploymentQueueJob) => void) => { subscribers.push(next); return { unsubscribe: vi.fn() }; } });
+            queueLifecycle.onJobCancelled.mockReturnValue({ subscribe: () => ({ unsubscribe: vi.fn() }) });
+            const instance = new DeploymentQueueWorkerService(deploymentService as never, queueLifecycle as never, deploymentArtifactBuilderService as never);
+            let running = 0;
+            let peak = 0;
+            deploymentService.claimQueueJobByIdempotencyKey.mockImplementation((key: string) =>
+                Promise.resolve({ ...claimedJob, id: key, idempotencyKey: key }),
+            );
+            deploymentArtifactBuilderService.buildContainerizedArtifact.mockImplementation(async () => {
+                running += 1;
+                peak = Math.max(peak, running);
+                await new Promise((resolve) => setTimeout(resolve, 60));
+                running -= 1;
+                return null;
+            });
+            instance.onModuleInit();
+            for (const id of ["a", "b", "c"]) subscribers[0]?.(createQueueJob(`job-${id}`, `key-${id}`));
+            await new Promise((resolve) => setTimeout(resolve, 400));
+            instance.onModuleDestroy();
+            return peak;
+        };
+
+        it("runs one job at a time by default", async () => {
+            await withConcurrency(undefined, async () => {
+                expect(await peakParallelBuilds()).toBe(1);
+            });
+        });
+
+        it("runs jobs side by side up to DEPLOYMENT_WORKER_CONCURRENCY", async () => {
+            await withConcurrency("2", async () => {
+                expect(await peakParallelBuilds()).toBe(2);
+            });
+        });
+    });
 });

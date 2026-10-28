@@ -27,7 +27,7 @@ import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, Unauthor
 
 import type { AppError } from "@deployer/errors";
 import { randomUUID } from "crypto";
-import { Effect } from "effect";
+import { Effect, Semaphore } from "effect";
 import type { Subscription } from "rxjs";
 import type { DeploymentQueueJob } from "@deployer/contracts-entities";
 import { DeploymentService } from "../services/deployment.service";
@@ -138,8 +138,16 @@ export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestr
     private readonly failures = new Map<string, unknown>();
     private subscription: Subscription | null = null;
     private cancelSubscription: Subscription | null = null;
-    /** Serialize execution — one job at a time on this single-node worker. */
-    private executionChain: Promise<void> = Promise.resolve();
+    /**
+     * How many jobs execute at once. One by default (a deployment is the heaviest thing this service does);
+     * raise it with `DEPLOYMENT_WORKER_CONCURRENCY` on a host that can take it.
+     */
+    private readonly slots = Semaphore.makeUnsafe(DeploymentQueueWorkerService.resolveConcurrency());
+
+    private static resolveConcurrency(): number {
+        const configured = Number(process.env.DEPLOYMENT_WORKER_CONCURRENCY);
+        return Number.isInteger(configured) && configured >= 1 ? Math.min(configured, 16) : 1;
+    }
 
     constructor(
         private readonly deploymentService: DeploymentService,
@@ -153,13 +161,20 @@ export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestr
             void this.cancelRunningJob(job.id);
         });
         this.subscription = this.queueLifecycle.onJobQueued().subscribe((job) => {
-            this.executionChain = this.executionChain
-                .then(() => this.processQueueJob(job))
-                .catch((error) => {
-                    this.logger.error(
-                        `Queue job ${job.id} (${job.type}) processing failed: ${error instanceof Error ? error.message : String(error)}`,
-                    );
-                });
+            // Each delivery waits for a free slot, then runs as its own job fiber.
+            void Effect.runPromise(
+                this.slots.withPermits(1)(
+                    Effect.tryPromise({ try: () => this.processQueueJob(job), catch: (error: unknown) => error }),
+                ).pipe(
+                    Effect.catch((error: unknown) =>
+                        Effect.sync(() => {
+                            this.logger.error(
+                                `Queue job ${job.id} (${job.type}) processing failed: ${error instanceof Error ? error.message : String(error)}`,
+                            );
+                        }),
+                    ),
+                ),
+            );
         });
         this.logger.log(`Deployment queue worker started (${this.workerId}) — executing typed queue jobs`);
     }
