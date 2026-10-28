@@ -22,19 +22,13 @@
 import { Injectable } from "@nestjs/common";
 import z from "zod/v4";
 
-import { BaseMultiSupervisorService, type AnyChildSupervisor } from "@deployer/nest-supervisor-core/base-multi-supervisor.service";
-import {
-	BaseSupervisorService,
-	baseSupervisorPayloadSchema,
-	type SupervisorProbeResult,
-} from "@deployer/nest-supervisor-core/base-supervisor.service";
+import { BaseMultiSupervisorService, type AnyChildSupervisor } from "@deployer/nest-effect/supervision";
+import { BaseSupervisorService, type SupervisorProbeResult } from "@deployer/nest-effect/supervision";
+import { baseSupervisorPayloadSchema } from "@deployer/supervision";
 import { BaseDockerSupervisorService } from "@deployer/nest-docker/services/base-docker-supervisor.service";
 import { resolveSupervisorRuntime, type DockerSupervisorRuntime } from "@deployer/docker";
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
-import {
-	baseSupervisorProcessInfoSchema,
-	swarmProcessInfoSchema,
-} from "@deployer/nest-supervisor-core/supervisor-process-info";
+import { baseSupervisorProcessInfoSchema, swarmProcessInfoSchema } from "@deployer/supervision";
 import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
 import { EnvService } from "../../../../config/env/env.module";
 import { splitManagedEnv } from "@deployer/env";

@@ -4,7 +4,7 @@ import { EnvModule } from "../../../config/env/env.module"
 import { GlobalDatabaseModule } from '../database/global/global-database.module'
 import { DatabaseModule } from '../database/database.module'
 import { SupervisorsPlatformModule } from '../supervisors/platform/platform-supervisors.module'
-import { SupervisorsModule } from '@deployer/nest-supervisor-core/supervisors.module'
+import { SupervisorsModule } from "@deployer/nest-effect/supervision";
 
 /**
  * BootstrapModule — the global boot coordinator.

@@ -43,7 +43,7 @@ export const baseSupervisorProcessInfoSchema = z.object({
 	/** Non-fatal warnings the operator must act on. */
 	warnings: z.array(z.string()),
 	/** ISO 8601 timestamp of the health probe backing this info. */
-	checkedAt: z.string().datetime(),
+	checkedAt: z.iso.datetime(),
 });
 export type BaseSupervisorProcessInfo = z.infer<typeof baseSupervisorProcessInfoSchema>;
 
@@ -69,7 +69,7 @@ export const dockerProcessInfoSchema = z.object({
 	live: z.object({
 		containerId: z.string().nullable(),
 		running: z.boolean().nullable(),
-		startedAt: z.string().datetime().nullable(),
+		startedAt: z.iso.datetime().nullable(),
 		exitCode: z.number().int().nullable(),
 		restartCount: z.number().int().min(0).nullable(),
 	}),

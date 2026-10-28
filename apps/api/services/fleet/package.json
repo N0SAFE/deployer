@@ -35,7 +35,7 @@
         "@deployer/nest-lifecycle": "*",
         "@deployer/nest-nodes": "*",
         "@deployer/nest-schema": "*",
-        "@deployer/nest-supervisor-core": "*",
+        "@deployer/supervision": "*",
         "@deployer/nest-swarm": "*",
         "@deployer/orpc-utils": "*",
         "@deployer/provider-schema": "*",

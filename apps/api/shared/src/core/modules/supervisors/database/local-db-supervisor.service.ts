@@ -22,15 +22,9 @@ import { stat } from "node:fs/promises";
 import type { Database as BunSqliteDatabase } from "bun:sqlite";
 import z from "zod/v4";
 
-import {
-	BaseSupervisorService,
-	baseSupervisorPayloadSchema,
-	type SupervisorProbeResult,
-} from "@deployer/nest-supervisor-core/base-supervisor.service";
-import {
-	baseSupervisorProcessInfoSchema,
-	sqliteProcessInfoSchema,
-} from "@deployer/nest-supervisor-core/supervisor-process-info";
+import { BaseSupervisorService, type SupervisorProbeResult } from "@deployer/nest-effect/supervision";
+import { baseSupervisorPayloadSchema } from "@deployer/supervision";
+import { baseSupervisorProcessInfoSchema, sqliteProcessInfoSchema } from "@deployer/supervision";
 import { LOCAL_DATABASE_CONNECTION } from "@deployer/nest-database-core/database-connection";
 import type { LocalDatabase } from "@deployer/nest-database-local/local-database.service";
 import { EnvService } from "../../../../config/env/env.module";

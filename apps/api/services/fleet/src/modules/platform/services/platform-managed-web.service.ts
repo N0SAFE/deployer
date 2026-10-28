@@ -1,6 +1,6 @@
 import { ServiceUnavailableError } from "@deployer/errors";
 import { type ManagedWebState } from "@deployer/fleet-contracts";
-import type { SupervisorOrchestratorService } from "@deployer/nest-supervisor-core/supervisor-orchestrator.service";
+import type { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
 import type { EnvService } from "@deployer/shared/config/env/env.module";
 import type { HostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
 import type { PlatformConfigService } from "@deployer/shared/core/modules/platform-ingress/services/platform-config.service";

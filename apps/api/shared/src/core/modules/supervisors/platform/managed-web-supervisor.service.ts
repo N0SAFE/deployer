@@ -30,14 +30,9 @@ import {
 } from "../../platform-ingress/services/platform-names";
 import { BaseDockerSupervisorService } from "@deployer/nest-docker/services/base-docker-supervisor.service";
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
-import {
-	baseSupervisorPayloadSchema,
-	type SupervisorProbeResult,
-} from "@deployer/nest-supervisor-core/base-supervisor.service";
-import {
-	baseSupervisorProcessInfoSchema,
-	swarmProcessInfoSchema,
-} from "@deployer/nest-supervisor-core/supervisor-process-info";
+import { type SupervisorProbeResult } from "@deployer/nest-effect/supervision";
+import { baseSupervisorPayloadSchema } from "@deployer/supervision";
+import { baseSupervisorProcessInfoSchema, swarmProcessInfoSchema } from "@deployer/supervision";
 import { EnvService } from "../../../../config/env/env.module";
 import z from "zod/v4";
 import { resolveSupervisorRuntime, type DockerSupervisorRuntime } from "@deployer/docker";

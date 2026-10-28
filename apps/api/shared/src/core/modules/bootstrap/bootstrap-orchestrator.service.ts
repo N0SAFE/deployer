@@ -63,7 +63,7 @@ import {
 import { DatabaseStartupGuard } from "../database/services/database-startup-guard.service";
 import type { GlobalDatabase } from "../database/global/global-database.service";
 import { SwarmAppWiringSupervisorService } from "../supervisors/platform/swarm-app-wiring.supervisor.service";
-import { SupervisorOrchestratorService } from "@deployer/nest-supervisor-core/supervisor-orchestrator.service";
+import { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
 import { ensureDefaultAdmin } from "../../admin-bootstrap/default-admin.bootstrap";
 import { adminBootstrapDecisionFromProcessEnv } from "../../admin-bootstrap/admin-bootstrap-policy";
 

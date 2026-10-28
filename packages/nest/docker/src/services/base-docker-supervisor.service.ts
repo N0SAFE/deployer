@@ -12,12 +12,10 @@ import z from "zod/v4";
 import { NotFoundException } from "@nestjs/common";
 
 import { DockerService } from "./docker.service";
-import {
-	BaseSupervisorService,
-	baseSupervisorPayloadSchema,
-} from "@deployer/nest-supervisor-core/base-supervisor.service";
-import { type DockerProcessInfo, type SwarmProcessInfo } from "@deployer/nest-supervisor-core/supervisor-process-info";
-import { baseSupervisorProcessInfoSchema } from "@deployer/nest-supervisor-core/supervisor-process-info";
+import { BaseSupervisorService } from "@deployer/nest-effect/supervision";
+import { baseSupervisorPayloadSchema } from "@deployer/supervision";
+import { type DockerProcessInfo, type SwarmProcessInfo } from "@deployer/supervision";
+import { baseSupervisorProcessInfoSchema } from "@deployer/supervision";
 import { platformOverlayNetworkName, type DockerSupervisorRuntime } from "@deployer/docker";
 import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
 import { isSwarmVersionConflict, toDockerServiceSpec } from "@deployer/docker";

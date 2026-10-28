@@ -6,7 +6,7 @@ import type { PostgresServiceProvisioner } from "@deployer/nest-docker/container
 import type { EnvService } from "../../../../config/env/env.module";
 import type { SwarmBootstrapService } from "@deployer/nest-swarm";
 import type { SwarmClusterService } from "@deployer/nest-swarm";
-import type { SupervisorOrchestratorService } from "@deployer/nest-supervisor-core/supervisor-orchestrator.service";
+import type { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
 import type { DockerService } from "@deployer/nest-docker/services/docker.service";
 import type { EmitEvent } from "../utils/setup-runner.utils";
 

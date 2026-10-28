@@ -33,8 +33,9 @@ import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
 import { BaseDockerSupervisorService } from "@deployer/nest-docker/services/base-docker-supervisor.service";
 import { resolveSupervisorRuntime } from "@deployer/docker";
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
-import { baseSupervisorPayloadSchema, type SupervisorProbeResult } from "@deployer/nest-supervisor-core/base-supervisor.service";
-import { baseSupervisorProcessInfoSchema, swarmProcessInfoSchema } from "@deployer/nest-supervisor-core/supervisor-process-info";
+import { type SupervisorProbeResult } from "@deployer/nest-effect/supervision";
+import { baseSupervisorPayloadSchema } from "@deployer/supervision";
+import { baseSupervisorProcessInfoSchema, swarmProcessInfoSchema } from "@deployer/supervision";
 import z from "zod/v4";
 
 import { EnvService } from "../../../../config/env/env.module";

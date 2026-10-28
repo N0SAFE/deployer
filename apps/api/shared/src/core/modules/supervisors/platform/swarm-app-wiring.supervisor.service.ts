@@ -54,12 +54,9 @@ import z from "zod/v4";
 import { EnvService } from "../../../../config/env/env.module";
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
 import { platformNetworkName, platformOverlayForPrefix } from "@deployer/docker";
-import {
-	BaseSupervisorService,
-	baseSupervisorPayloadSchema,
-	type SupervisorProbeResult,
-} from "@deployer/nest-supervisor-core/base-supervisor.service";
-import { baseSupervisorProcessInfoSchema } from "@deployer/nest-supervisor-core/supervisor-process-info";
+import { BaseSupervisorService, type SupervisorProbeResult } from "@deployer/nest-effect/supervision";
+import { baseSupervisorPayloadSchema } from "@deployer/supervision";
+import { baseSupervisorProcessInfoSchema } from "@deployer/supervision";
 
 export const SWARM_APP_WIRING_SUPERVISOR_ID = "platform-app-wiring";
 

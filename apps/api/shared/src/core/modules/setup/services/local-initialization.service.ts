@@ -34,7 +34,7 @@ import { EnvService } from "../../../../config/env/env.module";
 import { splitManagedEnv } from "@deployer/env";
 import { SwarmBootstrapService } from "@deployer/nest-swarm";
 import { SwarmClusterService } from "@deployer/nest-swarm";
-import { SupervisorOrchestratorService } from "@deployer/nest-supervisor-core/supervisor-orchestrator.service";
+import { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
 import { SWARM_APP_WIRING_SUPERVISOR_ID } from "../../supervisors/platform/swarm-app-wiring.supervisor.service";
 import { generateMeshSharedSecret } from "@deployer/auth/mesh";
 import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository";

@@ -28,17 +28,9 @@ import {
 	BaseDockerSupervisorService,
 } from "@deployer/nest-docker/services/base-docker-supervisor.service";
 import { resolveSupervisorRuntime, type DockerSupervisorRuntime } from "@deployer/docker";
-import {
-	BaseSupervisorService,
-	baseSupervisorPayloadSchema,
-	type SupervisorProbeResult,
-} from "@deployer/nest-supervisor-core/base-supervisor.service";
-import {
-	baseSupervisorProcessInfoSchema,
-	dockerProcessInfoSchema,
-	swarmProcessInfoSchema,
-	type DockerProcessInfo,
-} from "@deployer/nest-supervisor-core/supervisor-process-info";
+import { BaseSupervisorService, type SupervisorProbeResult } from "@deployer/nest-effect/supervision";
+import { baseSupervisorPayloadSchema } from "@deployer/supervision";
+import { baseSupervisorProcessInfoSchema, dockerProcessInfoSchema, swarmProcessInfoSchema, type DockerProcessInfo } from "@deployer/supervision";
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
 import { MANAGED_POSTGRES_CONTAINER_NAME, MANAGED_POSTGRES_IMAGE, MANAGED_POSTGRES_PORT, MANAGED_POSTGRES_VOLUME_NAME, managedPostgresServiceName } from "@deployer/docker";
 import { PostgresServiceProvisioner } from "@deployer/nest-docker/containers/postgres/postgres-service.provisioner";
