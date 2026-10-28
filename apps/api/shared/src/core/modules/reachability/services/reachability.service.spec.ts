@@ -20,14 +20,26 @@ describe('ReachabilityService', () => {
   let service: ReachabilityService;
   let lanes: IngressLanes;
   let tunnel: TestTunnelEdgeProvider;
-  let egress: { external: Mock; operator: Mock; fixedExternal: Mock; probeHttp: Mock };
+  let egress: {
+    external: Mock;
+    operator: Mock;
+    fixedExternal: Mock;
+    probeUserAddress: Mock;
+    probeOperatorPeer: Mock;
+  };
 
   beforeEach(async () => {
     lanes = defaultIngressLanes();
     const edges = testEdgeRegistry();
     tunnel = edges.tunnel;
     const env = { get: vi.fn(() => '') };
-    egress = { external: vi.fn(), operator: vi.fn(), fixedExternal: vi.fn(), probeHttp: vi.fn(() => vi.fn()) };
+    egress = {
+      external: vi.fn(),
+      operator: vi.fn(),
+      fixedExternal: vi.fn(),
+      probeUserAddress: vi.fn().mockResolvedValue({ valid: false }),
+      probeOperatorPeer: vi.fn().mockResolvedValue({ url: '', reachable: false, probeUrl: '', latencyMs: 0 }),
+    };
     const nodeConfigs = {
       findByNodeId: vi.fn().mockResolvedValue(null),
       list: vi.fn().mockResolvedValue([]),
@@ -123,16 +135,32 @@ describe('ReachabilityService', () => {
 
     it('verifyPublicAddress probes through the external policy', async () => {
       await service.verifyPublicAddress('203.0.113.10');
-      expect(egress.probeHttp).toHaveBeenCalledWith('external');
+      expect(egress.probeUserAddress).toHaveBeenCalledWith(
+        '203.0.113.10',
+        ['/mesh/ping', '/health'],
+        expect.any(Function),
+      );
     });
 
     it('checkMeshUrlReachability probes through the operator policy', async () => {
       await service.checkMeshUrlReachability('http://10.0.0.5:3005');
-      expect(egress.probeHttp).toHaveBeenCalledWith('operator');
+      expect(egress.probeOperatorPeer).toHaveBeenCalledWith(
+        'http://10.0.0.5:3005',
+        '/mesh/ping',
+        '/health',
+      );
     });
 
     it('a refused mesh target is unreachable with the generic reason, not a resolved address', async () => {
-      egress.probeHttp.mockReturnValue(() => Promise.reject(new EgressRequestError('Target not allowed by the network policy', 'operator')));
+      // The egress layer is where a refusal becomes a generic message; the service only
+      // forwards the probe's verdict, so a caller never sees a resolved address.
+      egress.probeOperatorPeer.mockResolvedValue({
+        url: 'http://169.254.169.254',
+        reachable: false,
+        probeUrl: 'http://169.254.169.254/mesh/ping',
+        latencyMs: 0,
+        error: 'Target not allowed by the network policy',
+      });
       const result = await service.checkMeshUrlReachability('http://169.254.169.254');
       expect(result.reachable).toBe(false);
       expect(result.error).toBe('Target not allowed by the network policy');

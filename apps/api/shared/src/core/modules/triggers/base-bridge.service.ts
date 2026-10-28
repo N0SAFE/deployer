@@ -22,7 +22,7 @@
 
 import { type Observable, type Subscription } from 'rxjs';
 import z from 'zod/v4';
-import { BaseEventService } from '@deployer/nest-effect/events';
+import { BaseEventService } from '../events/base/index';
 import { contractBuilder } from '@deployer/events';
 import type { EventContract } from '@deployer/events';
 

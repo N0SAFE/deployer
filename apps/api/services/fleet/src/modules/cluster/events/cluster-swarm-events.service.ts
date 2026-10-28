@@ -25,8 +25,8 @@ import {
 import { map } from "rxjs/operators";
 import { Cause, Effect, Fiber, Stream } from "effect";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { CoreEventStreamPoolService } from "@deployer/nest-effect/events";
-import { AbstractDomainEventStreamService } from "@deployer/nest-effect/events";
+import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
+import { AbstractDomainEventStreamService } from "@deployer/shared/core/modules/events/base/index";
 import { DockerService } from "@deployer/nest-effect/docker";
 import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm"
 import { SwarmFleet, type SwarmFleetShape } from "@deployer/swarm"

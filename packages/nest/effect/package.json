@@ -3,7 +3,6 @@
 		"@deployer/contracts-entities": "*",
 		"@deployer/docker": "*",
 		"@deployer/effect-core": "*",
-		"@deployer/events": "*",
 		"@deployer/mesh-network": "*",
 		"@deployer/errors": "*",
 		"@deployer/supervision": "*",
@@ -58,11 +57,6 @@
 			"import": "./dist/esm/docker/index.mjs",
 			"require": "./dist/cjs/docker/index.js",
 			"types": "./dist/types/docker/index.d.ts"
-		},
-		"./events": {
-			"import": "./dist/esm/events/index.mjs",
-			"require": "./dist/cjs/events/index.js",
-			"types": "./dist/types/events/index.d.ts"
 		}
 	},
 	"main": "./dist/cjs/index.js",

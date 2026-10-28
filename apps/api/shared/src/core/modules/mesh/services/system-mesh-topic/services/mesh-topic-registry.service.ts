@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { CoreEventStreamPoolService } from "@deployer/nest-effect/events";
+import { CoreEventStreamPoolService } from "../../../../events/base/index";
 import type { EventContracts } from "@deployer/events";
 import {
     MeshTopicNamespaceAlreadyRegisteredError,

@@ -1,7 +1,7 @@
 /**
  * Public Access Point Event Service — the global relay.
  *
- * Extends the core pooled event service (`@deployer/nest-events`) so the node's
+ * Extends the core pooled event service (`../../events/base`) so the node's
  * public access point state is broadcast through the same event system every
  * other domain uses. Any feature can:
  *   - observe the stream (watchAccessPoint$)
@@ -11,9 +11,9 @@
  * structured schema for the whole flow.
  */
 import { Injectable } from "@nestjs/common";
-import { BasePooledEventService } from "@deployer/nest-events";
+import { BasePooledEventService } from "../../events/base/index";
 import { Observable } from "rxjs";
-import { CoreEventStreamPoolService } from "@deployer/nest-events";
+import { CoreEventStreamPoolService } from "../../events/base/index";
 import {
     publicAccessPointEventContracts,
     type PublicAccessPointEventContracts,

@@ -1,6 +1,6 @@
 import z from "zod/v4";
 import type { Observable } from "rxjs";
-import type { AnyEventEmission, EventSubscription } from "@deployer/nest-effect/events";
+import type { AnyEventEmission, EventSubscription } from "../../../../events/base/index";
 import type { EventContracts, EventInput, EventOutput } from "@deployer/events";
 import type { MeshResourceLookupResult } from "@deployer/contracts-entities";
 

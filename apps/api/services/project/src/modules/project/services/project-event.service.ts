@@ -1,11 +1,11 @@
 import * as z from "zod";
 import { projectRoleSchema } from "@deployer/contracts-entities";
-import { BasePooledEventService } from "@deployer/nest-effect/events";
+import { BasePooledEventService } from "@deployer/shared/core/modules/events/base/index";
 import { Context, Effect, Layer } from "effect";
 
 import { CoreEventStreamPool } from "@project/core/ports/core-event-stream-pool.port";
 import { contractBuilder } from "@deployer/events";
-import { CoreEventStreamPoolService } from "@deployer/nest-effect/events";
+import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 
 export const projectEventContracts = {
     projectCreated: contractBuilder()

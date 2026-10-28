@@ -1,7 +1,6 @@
 import { runSyncUnwrapped } from "@deployer/effect-core";
 import type { PublicAccessPointState } from './public-access-point.state'
 import { BadRequestException, Injectable, Logger, Inject } from '@nestjs/common'
-import { probeAddress, probePeer } from "@deployer/nest-reachability"
 import dns from 'node:dns/promises'
 import { isIP } from 'node:net'
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
@@ -214,14 +213,9 @@ export class ReachabilityService {
     const clean = address.trim().replace(/\/+$/, '')
     if (!clean) return { valid: false, reason: 'Address is empty' }
 
-    const result = await probeAddress(clean, {
-      http: this.egress.probeHttp('external'),
-      paths: ['/mesh/ping', '/health'],
-      tryBothSchemes: true,
-      timeoutMs: 5_000,
-      failureReason: (value) =>
-        `Address "${value}" did not respond on this node's /mesh/ping or /health endpoints. DNS may still be propagating, or a firewall/NAT prevents this node from reaching its own public address.`,
-    })
+    const result = await this.egress.probeUserAddress(clean, ['/mesh/ping', '/health'], (value) =>
+      `Address "${value}" did not respond on this node's /mesh/ping or /health endpoints. DNS may still be propagating, or a firewall/NAT prevents this node from reaching its own public address.`,
+    )
 
     return {
       valid: result.valid,
@@ -395,12 +389,7 @@ export class ReachabilityService {
     // Delegated to the shared primitive: the probe mechanics (primary path,
     // liveness fallback, identity extraction) are generic; which paths identify
     // a node is our convention, passed in as options.
-    const result = await probePeer(url, {
-      http: this.egress.probeHttp('operator'),
-      primaryPath: '/mesh/ping',
-      fallbackPath: '/health',
-      timeoutMs: 5_000,
-    })
+    const result = await this.egress.probeOperatorPeer(url, '/mesh/ping', '/health')
 
     if (result.reachable) {
       this.logger.log(`✅ Mesh reachable at ${result.probeUrl} (${String(result.latencyMs)}ms)`)

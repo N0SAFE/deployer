@@ -10,8 +10,8 @@ import {
 } from "@deployer/contracts-entities";
 import { AppLogger } from "@deployer/logger";
 import { DockerService as CoreDockerService } from "@deployer/nest-effect/docker";
-import { AbstractDomainEventStreamService } from "@deployer/nest-effect/events";
-import { CoreEventStreamPoolService } from "@deployer/nest-effect/events";
+import { AbstractDomainEventStreamService } from "@deployer/shared/core/modules/events/base/index";
+import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 import { isRecord, isObjectLike } from "@deployer/type-guards"
 
 type RuntimeEventFilterNode = {

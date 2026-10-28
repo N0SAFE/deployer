@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import { BasePooledEventService } from "@deployer/nest-effect/events";
-import { CoreEventStreamPoolService } from "@deployer/nest-effect/events";
+import { BasePooledEventService } from "../../events/base/index";
+import { CoreEventStreamPoolService } from "../../events/base/index";
 import { observableToAsyncIterable } from "../../../utils/observable.utils";
 import type { MeshRuntimeEvent, MeshTopologyEvent } from "@deployer/contracts-entities";
 import {

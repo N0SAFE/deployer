@@ -1,5 +1,5 @@
-import { BasePooledEventService } from "@deployer/nest-effect/events";
-import type { CoreEventStreamPoolService } from "@deployer/nest-effect/events";
+import { BasePooledEventService } from "../../../../events/base/index";
+import type { CoreEventStreamPoolService } from "../../../../events/base/index";
 import type { EventContracts, EventInput, EventOutput } from "@deployer/events";
 import { MeshTopicContractNotFoundError } from "../domain/mesh-topic-errors";
 

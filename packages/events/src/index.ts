@@ -2,7 +2,7 @@
  * @deployer/events — domain events as Effect.
  *
  * Framework-free: typed contracts, the durable per-namespace journal and the transient-database
- * error classifier. The RxJS services that stream events live in `@deployer/nest-effect/events`.
+ * error classifier. The RxJS services that stream events live in `apps/api/shared` (`core/modules/events/base`).
  */
 export { contractBuilder, EventContractBuilder } from "./contracts/event-contract.builder";
 export type { EventContract, EventContracts, EventInput, EventOutput } from "./contracts/event-contract.builder";
