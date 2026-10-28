@@ -85,7 +85,7 @@ export class DeploymentQueueReconciliationService implements OnModuleInit, OnMod
             // Skip if a queue job for this deployment is somehow still alive
             // (e.g. test harnesses or a sibling process) — only reconcile rows
             // with NO live queue job, so we never fail an actively-running build.
-            if (this.queueLifecycle?.hasLiveJobForDeployment(deployment.id)) {
+            if (await this.queueLifecycle?.hasLiveJobForDeployment(deployment.id)) {
                 continue;
             }
 

@@ -25,11 +25,11 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     context = await createDeploymentQueueWorkflowContext();
   });
 
-  it("deduplicates enqueue by idempotency key and supports typed queue filters", () => {
+  it("deduplicates enqueue by idempotency key and supports typed queue filters", async () => {
     const idempotencyKey = `e2e:queue:dedupe:${randomUUID()}`;
 
     const first = parseEnqueueResult(
-      context.deploymentQueueLifecycleService.enqueueQueueJob({
+      await context.deploymentQueueLifecycleService.enqueueQueueJob({
         type: "cleanup",
         idempotencyKey,
         maxAttempts: 3,
@@ -44,7 +44,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     );
 
     const second = parseEnqueueResult(
-      context.deploymentQueueLifecycleService.enqueueQueueJob({
+      await context.deploymentQueueLifecycleService.enqueueQueueJob({
         type: "cleanup",
         idempotencyKey,
         maxAttempts: 3,
@@ -63,7 +63,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(second.job.id).toBe(first.job.id);
 
     const list = parseQueueListResult(
-      context.deploymentQueueLifecycleService.listQueueJobs({
+      await context.deploymentQueueLifecycleService.listQueueJobs({
         projectId: context.projectId,
         limit: 50,
         offset: 0,
@@ -73,11 +73,11 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(list.items.some((item) => item.id === first.job.id)).toBe(true);
   });
 
-  it("executes retry-to-dead-letter then replay-to-complete workflow", () => {
+  it("executes retry-to-dead-letter then replay-to-complete workflow", async () => {
     const idempotencyKey = `e2e:queue:lifecycle:${randomUUID()}`;
 
     const enqueued = parseEnqueueResult(
-      context.deploymentQueueLifecycleService.enqueueQueueJob({
+      await context.deploymentQueueLifecycleService.enqueueQueueJob({
         type: "cleanup",
         idempotencyKey,
         maxAttempts: 2,
@@ -91,7 +91,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       }),
     );
 
-    const initialClaimRaw = context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(
+    const initialClaimRaw = await context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(
       idempotencyKey,
       {
         workerId: context.workerId,
@@ -115,7 +115,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
 
     assertClaimedByWorker(initialClaim, context.workerId);
 
-    const badHeartbeat = context.deploymentQueueLifecycleService.heartbeatQueueJob(initialClaim.id, {
+    const badHeartbeat = await context.deploymentQueueLifecycleService.heartbeatQueueJob(initialClaim.id, {
       workerId: context.workerId,
       lockToken: "invalid-lock-token",
       extendLeaseSec: 120,
@@ -123,7 +123,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(badHeartbeat).toBeNull();
 
     const heartbeat = parseHeartbeatResult(
-      context.deploymentQueueLifecycleService.heartbeatQueueJob(initialClaim.id, {
+      await context.deploymentQueueLifecycleService.heartbeatQueueJob(initialClaim.id, {
         workerId: context.workerId,
         lockToken: initialClaim.lockToken,
         connectivityStatus: "connected",
@@ -133,7 +133,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(heartbeat.acknowledged).toBe(true);
     expect(heartbeat.observedConnectivityStatus).toBe("connected");
 
-    const firstFailureResult = context.deploymentQueueLifecycleService.failQueueJob(initialClaim.id, {
+    const firstFailureResult = await context.deploymentQueueLifecycleService.failQueueJob(initialClaim.id, {
       workerId: context.workerId,
       lockToken: initialClaim.lockToken,
       error: "transient-failure",
@@ -152,7 +152,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(firstFailure.job.status).toBe("queued");
     expect(firstFailure.job.attempts).toBe(1);
 
-    const secondClaimRaw = context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(
+    const secondClaimRaw = await context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(
       idempotencyKey,
       {
         workerId: context.workerId,
@@ -174,7 +174,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       throw new Error("Expected retried queue job claim with lock token");
     }
 
-    const secondFailureResult = context.deploymentQueueLifecycleService.failQueueJob(secondClaim.id, {
+    const secondFailureResult = await context.deploymentQueueLifecycleService.failQueueJob(secondClaim.id, {
       workerId: context.workerId,
       lockToken: secondClaim.lockToken,
       error: "persistent-failure",
@@ -193,7 +193,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(secondFailure.job.attempts).toBe(2);
 
     const deadLetters = parseDeadLetterListResult(
-      context.deploymentQueueLifecycleService.listDeadLetterJobs({
+      await context.deploymentQueueLifecycleService.listDeadLetterJobs({
         type: "cleanup",
         reason: "max_attempts_exceeded",
         limit: 50,
@@ -211,7 +211,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     const validatedDeadLetter = parseDeadLetterJob(deadLetter);
 
     const replay = parseDeadLetterReplayResult(
-      context.deploymentQueueLifecycleService.replayDeadLetterJob({
+      await context.deploymentQueueLifecycleService.replayDeadLetterJob({
         deadLetterJobId: validatedDeadLetter.id,
         replayMode: "same_payload",
         requestedBy: context.workerId,
@@ -226,7 +226,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       throw new Error("Expected replay job id");
     }
 
-    const replayJobRaw = context.deploymentQueueLifecycleService.findQueueJobById(replay.replayJobId);
+    const replayJobRaw = await context.deploymentQueueLifecycleService.findQueueJobById(replay.replayJobId);
     expect(replayJobRaw).not.toBeNull();
 
     if (!replayJobRaw) {
@@ -236,7 +236,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     const replayJob = parseQueueJob(replayJobRaw);
     expect(replayJob.status).toBe("queued");
 
-    const replayClaimRaw = context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(
+    const replayClaimRaw = await context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(
       `${validatedDeadLetter.idempotencyKey}:replay:1`,
       {
         workerId: context.workerId,
@@ -258,7 +258,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       throw new Error("Expected replayed queue job claim with lock token");
     }
 
-    const completionResult = context.deploymentQueueLifecycleService.completeQueueJob(
+    const completionResult = await context.deploymentQueueLifecycleService.completeQueueJob(
       replayClaim.id,
       context.workerId,
       replayClaim.lockToken,
@@ -279,10 +279,10 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(completion.job.completedAt).toBeTypeOf("string");
   });
 
-  it("supports batch claims with type filters, availability windows, and claim limits", () => {
+  it("supports batch claims with type filters, availability windows, and claim limits", async () => {
     const futureAvailableAt = new Date(Date.now() + 60_000).toISOString();
 
-    context.deploymentQueueLifecycleService.enqueueQueueJob({
+    await context.deploymentQueueLifecycleService.enqueueQueueJob({
       type: "cleanup",
       idempotencyKey: `e2e:queue:batch:cleanup:${randomUUID()}`,
       maxAttempts: 3,
@@ -295,7 +295,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       },
     });
 
-    context.deploymentQueueLifecycleService.enqueueQueueJob({
+    await context.deploymentQueueLifecycleService.enqueueQueueJob({
       type: "deploy",
       idempotencyKey: `e2e:queue:batch:deploy:future:${randomUUID()}`,
       maxAttempts: 3,
@@ -309,7 +309,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       },
     });
 
-    context.deploymentQueueLifecycleService.enqueueQueueJob({
+    await context.deploymentQueueLifecycleService.enqueueQueueJob({
       type: "deploy",
       idempotencyKey: `e2e:queue:batch:deploy:ready:${randomUUID()}`,
       maxAttempts: 3,
@@ -323,7 +323,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     });
 
     const deployClaim = parseClaimResult(
-      context.deploymentQueueLifecycleService.claimQueueJobs({
+      await context.deploymentQueueLifecycleService.claimQueueJobs({
         workerId: context.workerId,
         types: ["deploy"],
         limit: 1,
@@ -335,7 +335,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(deployClaim.claimed[0]?.type).toBe("deploy");
 
     const secondDeployClaim = parseClaimResult(
-      context.deploymentQueueLifecycleService.claimQueueJobs({
+      await context.deploymentQueueLifecycleService.claimQueueJobs({
         workerId: context.workerId,
         types: ["deploy"],
         limit: 2,
@@ -345,7 +345,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(secondDeployClaim.claimed).toHaveLength(0);
 
     const cleanupClaim = parseClaimResult(
-      context.deploymentQueueLifecycleService.claimQueueJobs({
+      await context.deploymentQueueLifecycleService.claimQueueJobs({
         workerId: context.workerId,
         types: ["cleanup"],
         limit: 1,
@@ -356,12 +356,12 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(cleanupClaim.claimed[0]?.type).toBe("cleanup");
   });
 
-  it("replays dead-letter jobs with patched payload and persists replay metadata", () => {
+  it("replays dead-letter jobs with patched payload and persists replay metadata", async () => {
     const idempotencyKey = `e2e:queue:patched-replay:${randomUUID()}`;
     const patchedDeploymentId = randomUUID();
 
     const enqueued = parseEnqueueResult(
-      context.deploymentQueueLifecycleService.enqueueQueueJob({
+      await context.deploymentQueueLifecycleService.enqueueQueueJob({
         type: "cleanup",
         idempotencyKey,
         maxAttempts: 2,
@@ -375,7 +375,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       }),
     );
 
-    const claimRaw = context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(idempotencyKey, {
+    const claimRaw = await context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(idempotencyKey, {
       workerId: context.workerId,
       types: ["cleanup"],
       limit: 1,
@@ -387,7 +387,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       throw new Error("Expected claimed queue job lock token for patched replay test");
     }
 
-    const failure = context.deploymentQueueLifecycleService.failQueueJob(claimRaw.id, {
+    const failure = await context.deploymentQueueLifecycleService.failQueueJob(claimRaw.id, {
       workerId: context.workerId,
       lockToken: claimRaw.lockToken,
       error: "fatal-non-retryable",
@@ -397,7 +397,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(failure).not.toBeNull();
 
     const deadLetters = parseDeadLetterListResult(
-      context.deploymentQueueLifecycleService.listDeadLetterJobs({
+      await context.deploymentQueueLifecycleService.listDeadLetterJobs({
         reason: "non_retryable_error",
         limit: 50,
         offset: 0,
@@ -411,7 +411,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     }
 
     const replay = parseDeadLetterReplayResult(
-      context.deploymentQueueLifecycleService.replayDeadLetterJob({
+      await context.deploymentQueueLifecycleService.replayDeadLetterJob({
         deadLetterJobId: deadLetter.id,
         replayMode: "patched_payload",
         payloadPatch: {
@@ -432,7 +432,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       throw new Error("Expected replay job id for patched replay test");
     }
 
-    const replayJob = context.deploymentQueueLifecycleService.findQueueJobById(replay.replayJobId);
+    const replayJob = await context.deploymentQueueLifecycleService.findQueueJobById(replay.replayJobId);
     expect(replayJob).not.toBeNull();
     if (!replayJob) {
       throw new Error("Expected replayed queue job to exist");
@@ -446,7 +446,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       requestedBy: context.workerId,
     });
 
-    const replayDeadLetterRaw = context.deploymentQueueLifecycleService.findDeadLetterJobById(deadLetter.id);
+    const replayDeadLetterRaw = await context.deploymentQueueLifecycleService.findDeadLetterJobById(deadLetter.id);
     if (!replayDeadLetterRaw) {
       throw new Error("Expected dead-letter job lookup to return replay metadata");
     }
@@ -456,12 +456,12 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(replayDeadLetter.lastReplayAt).toBeTypeOf("string");
   });
 
-  it("paginates dead-letter listings and reports replay errors for unknown jobs", () => {
+  it("paginates dead-letter listings and reports replay errors for unknown jobs", async () => {
     const failingKeyA = `e2e:queue:dead-letter-page:a:${randomUUID()}`;
     const failingKeyB = `e2e:queue:dead-letter-page:b:${randomUUID()}`;
 
-    const failOnce = (idempotencyKey: string) => {
-      context.deploymentQueueLifecycleService.enqueueQueueJob({
+    const failOnce = async (idempotencyKey: string) => {
+      await context.deploymentQueueLifecycleService.enqueueQueueJob({
         type: "cleanup",
         idempotencyKey,
         maxAttempts: 1,
@@ -474,7 +474,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
         },
       });
 
-      const claimed = context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(idempotencyKey, {
+      const claimed = await context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(idempotencyKey, {
         workerId: context.workerId,
         types: ["cleanup"],
         limit: 1,
@@ -485,7 +485,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
         throw new Error(`Expected lock token for job ${idempotencyKey}`);
       }
 
-      const failed = context.deploymentQueueLifecycleService.failQueueJob(claimed.id, {
+      const failed = await context.deploymentQueueLifecycleService.failQueueJob(claimed.id, {
         workerId: context.workerId,
         lockToken: claimed.lockToken,
         error: "pagination-check",
@@ -495,18 +495,18 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       expect(failed).not.toBeNull();
     };
 
-    failOnce(failingKeyA);
-    failOnce(failingKeyB);
+    await failOnce(failingKeyA);
+    await failOnce(failingKeyB);
 
     const firstPage = parseDeadLetterListResult(
-      context.deploymentQueueLifecycleService.listDeadLetterJobs({
+      await context.deploymentQueueLifecycleService.listDeadLetterJobs({
         reason: "non_retryable_error",
         limit: 1,
         offset: 0,
       }),
     );
     const secondPage = parseDeadLetterListResult(
-      context.deploymentQueueLifecycleService.listDeadLetterJobs({
+      await context.deploymentQueueLifecycleService.listDeadLetterJobs({
         reason: "non_retryable_error",
         limit: 1,
         offset: 1,
@@ -518,21 +518,21 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(firstPage.hasMore).toBe(true);
     expect(secondPage.items).toHaveLength(1);
 
-    expect(() =>
+    await expect(
       context.deploymentQueueLifecycleService.replayDeadLetterJob({
         deadLetterJobId: randomUUID(),
         replayMode: "same_payload",
         requestedBy: context.workerId,
         reason: "e2e-missing-dead-letter",
       }),
-    ).toThrow(RuntimeNotFound);
+    ).rejects.toBeInstanceOf(RuntimeNotFound);
   });
 
-  it("preserves claimed job state when completion/failure lock validation fails", () => {
+  it("preserves claimed job state when completion/failure lock validation fails", async () => {
     const idempotencyKey = `e2e:queue:lock-safety:${randomUUID()}`;
 
     const enqueued = parseEnqueueResult(
-      context.deploymentQueueLifecycleService.enqueueQueueJob({
+      await context.deploymentQueueLifecycleService.enqueueQueueJob({
         type: "cleanup",
         idempotencyKey,
         maxAttempts: 2,
@@ -546,7 +546,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       }),
     );
 
-    const claimed = context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(idempotencyKey, {
+    const claimed = await context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(idempotencyKey, {
       workerId: context.workerId,
       types: ["cleanup"],
       limit: 1,
@@ -558,7 +558,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       throw new Error("Expected claimed queue job lock token");
     }
 
-    const rejectedCompletion = context.deploymentQueueLifecycleService.completeQueueJob(
+    const rejectedCompletion = await context.deploymentQueueLifecycleService.completeQueueJob(
       claimed.id,
       context.workerId,
       "invalid-lock-token",
@@ -566,7 +566,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     );
     expect(rejectedCompletion).toBeNull();
 
-    const rejectedFailure = context.deploymentQueueLifecycleService.failQueueJob(claimed.id, {
+    const rejectedFailure = await context.deploymentQueueLifecycleService.failQueueJob(claimed.id, {
       workerId: `${context.workerId}-mismatch`,
       lockToken: claimed.lockToken,
       error: "should-not-apply",
@@ -575,12 +575,12 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(rejectedFailure).toBeNull();
 
     const persistedClaim = parseQueueJob(
-      context.deploymentQueueLifecycleService.findQueueJobById(enqueued.job.id),
+      await context.deploymentQueueLifecycleService.findQueueJobById(enqueued.job.id),
     );
     expect(persistedClaim.status).toBe("claimed");
     expect(persistedClaim.lockToken).toBe(claimed.lockToken);
 
-    const completion = context.deploymentQueueLifecycleService.completeQueueJob(
+    const completion = await context.deploymentQueueLifecycleService.completeQueueJob(
       claimed.id,
       context.workerId,
       claimed.lockToken,
@@ -589,11 +589,11 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(completion).not.toBeNull();
   });
 
-  it("queues retry with default backoff when retryable failure omits retryAt", () => {
+  it("queues retry with default backoff when retryable failure omits retryAt", async () => {
     const idempotencyKey = `e2e:queue:default-retry:${randomUUID()}`;
     const failureStartMs = Date.now();
 
-    context.deploymentQueueLifecycleService.enqueueQueueJob({
+    await context.deploymentQueueLifecycleService.enqueueQueueJob({
       type: "cleanup",
       idempotencyKey,
       maxAttempts: 3,
@@ -606,7 +606,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       },
     });
 
-    const claimed = context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(idempotencyKey, {
+    const claimed = await context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(idempotencyKey, {
       workerId: context.workerId,
       types: ["cleanup"],
       limit: 1,
@@ -617,7 +617,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       throw new Error("Expected queue claim for default retry test");
     }
 
-    const failure = context.deploymentQueueLifecycleService.failQueueJob(claimed.id, {
+    const failure = await context.deploymentQueueLifecycleService.failQueueJob(claimed.id, {
       workerId: context.workerId,
       lockToken: claimed.lockToken,
       error: "default-retry-window",
@@ -635,7 +635,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(retriedJob.lastError).toBe("default-retry-window");
     expect(new Date(retriedJob.availableAt).getTime()).toBeGreaterThanOrEqual(failureStartMs + 4_000);
 
-    const immediateClaim = context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(idempotencyKey, {
+    const immediateClaim = await context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(idempotencyKey, {
       workerId: context.workerId,
       types: ["cleanup"],
       limit: 1,
@@ -644,10 +644,10 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(immediateClaim).toBeNull();
   });
 
-  it("propagates worker connectivity status through claim and heartbeat", () => {
+  it("propagates worker connectivity status through claim and heartbeat", async () => {
     const idempotencyKey = `e2e:queue:connectivity:${randomUUID()}`;
 
-    context.deploymentQueueLifecycleService.enqueueQueueJob({
+    await context.deploymentQueueLifecycleService.enqueueQueueJob({
       type: "cleanup",
       idempotencyKey,
       maxAttempts: 2,
@@ -660,7 +660,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       },
     });
 
-    const claimed = context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(idempotencyKey, {
+    const claimed = await context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(idempotencyKey, {
       workerId: context.workerId,
       types: ["cleanup"],
       limit: 1,
@@ -674,7 +674,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
 
     expect(claimed.connectivityStatus).toBe("degraded");
 
-    const heartbeat = context.deploymentQueueLifecycleService.heartbeatQueueJob(claimed.id, {
+    const heartbeat = await context.deploymentQueueLifecycleService.heartbeatQueueJob(claimed.id, {
       workerId: context.workerId,
       lockToken: claimed.lockToken,
       extendLeaseSec: 120,
@@ -688,12 +688,12 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(heartbeat.observedConnectivityStatus).toBe("degraded");
 
     const persisted = parseQueueJob(
-      context.deploymentQueueLifecycleService.findQueueJobById(claimed.id),
+      await context.deploymentQueueLifecycleService.findQueueJobById(claimed.id),
     );
     expect(persisted.connectivityStatus).toBe("degraded");
 
     const workerScopedList = parseQueueListResult(
-      context.deploymentQueueLifecycleService.listQueueJobs({
+      await context.deploymentQueueLifecycleService.listQueueJobs({
         workerId: context.workerId,
         status: "running",
         limit: 20,
@@ -704,11 +704,11 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(workerScopedList.items.some((item) => item.id === claimed.id)).toBe(true);
   });
 
-  it("preserves existing metadata and appends completion result", () => {
+  it("preserves existing metadata and appends completion result", async () => {
     const idempotencyKey = `e2e:queue:metadata-completion:${randomUUID()}`;
 
     const enqueued = parseEnqueueResult(
-      context.deploymentQueueLifecycleService.enqueueQueueJob({
+      await context.deploymentQueueLifecycleService.enqueueQueueJob({
         type: "cleanup",
         idempotencyKey,
         maxAttempts: 2,
@@ -726,7 +726,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       }),
     );
 
-    const claimed = context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(idempotencyKey, {
+    const claimed = await context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(idempotencyKey, {
       workerId: context.workerId,
       types: ["cleanup"],
       limit: 1,
@@ -737,7 +737,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       throw new Error("Expected claimed queue job with lock token for metadata test");
     }
 
-    const completion = context.deploymentQueueLifecycleService.completeQueueJob(
+    const completion = await context.deploymentQueueLifecycleService.completeQueueJob(
       claimed.id,
       context.workerId,
       claimed.lockToken,
@@ -750,7 +750,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(completion).not.toBeNull();
 
     const persisted = parseQueueJob(
-      context.deploymentQueueLifecycleService.findQueueJobById(enqueued.job.id),
+      await context.deploymentQueueLifecycleService.findQueueJobById(enqueued.job.id),
     );
 
     expect(persisted.status).toBe("succeeded");
@@ -763,14 +763,14 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     });
   });
 
-  it("keeps scheduled dead-letter replays queued until availability window and supports scoped queue filters", () => {
+  it("keeps scheduled dead-letter replays queued until availability window and supports scoped queue filters", async () => {
     const scopedProjectId = randomUUID();
     const scopedServiceId = randomUUID();
     const idempotencyKey = `e2e:queue:scheduled-replay:${randomUUID()}`;
     const scheduledAt = new Date(Date.now() + 120_000).toISOString();
 
     const enqueued = parseEnqueueResult(
-      context.deploymentQueueLifecycleService.enqueueQueueJob({
+      await context.deploymentQueueLifecycleService.enqueueQueueJob({
         type: "cleanup",
         idempotencyKey,
         maxAttempts: 1,
@@ -784,7 +784,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       }),
     );
 
-    const claimed = context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(idempotencyKey, {
+    const claimed = await context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(idempotencyKey, {
       workerId: context.workerId,
       types: ["cleanup"],
       limit: 1,
@@ -795,7 +795,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       throw new Error("Expected claimed queue job for scheduled replay test");
     }
 
-    context.deploymentQueueLifecycleService.failQueueJob(claimed.id, {
+    await context.deploymentQueueLifecycleService.failQueueJob(claimed.id, {
       workerId: context.workerId,
       lockToken: claimed.lockToken,
       error: "schedule-replay",
@@ -803,7 +803,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     });
 
     const deadLetter = parseDeadLetterListResult(
-      context.deploymentQueueLifecycleService.listDeadLetterJobs({
+      await context.deploymentQueueLifecycleService.listDeadLetterJobs({
         type: "cleanup",
         reason: "non_retryable_error",
         limit: 50,
@@ -817,7 +817,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     }
 
     const replay = parseDeadLetterReplayResult(
-      context.deploymentQueueLifecycleService.replayDeadLetterJob({
+      await context.deploymentQueueLifecycleService.replayDeadLetterJob({
         deadLetterJobId: deadLetter.id,
         replayMode: "same_payload",
         scheduledAt,
@@ -830,7 +830,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       throw new Error("Expected replay job id for scheduled replay test");
     }
 
-    const replayJobRaw = context.deploymentQueueLifecycleService.findQueueJobById(replay.replayJobId);
+    const replayJobRaw = await context.deploymentQueueLifecycleService.findQueueJobById(replay.replayJobId);
     if (!replayJobRaw) {
       throw new Error("Expected replay queue job to exist for scheduled replay test");
     }
@@ -839,7 +839,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(replayJob.status).toBe("queued");
     expect(replayJob.availableAt).toBe(scheduledAt);
 
-    const replayClaim = context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(
+    const replayClaim = await context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(
       `${deadLetter.idempotencyKey}:replay:1`,
       {
         workerId: context.workerId,
@@ -851,7 +851,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(replayClaim).toBeNull();
 
     const scopedQueuedList = parseQueueListResult(
-      context.deploymentQueueLifecycleService.listQueueJobs({
+      await context.deploymentQueueLifecycleService.listQueueJobs({
         projectId: scopedProjectId,
         status: "queued",
         limit: 20,
@@ -862,10 +862,10 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(scopedQueuedList.items.every((item) => item.payload.projectId === scopedProjectId)).toBe(true);
   });
 
-  it("respects claim type filters for idempotency-key claims", () => {
+  it("respects claim type filters for idempotency-key claims", async () => {
     const idempotencyKey = `e2e:queue:type-filter:${randomUUID()}`;
 
-    context.deploymentQueueLifecycleService.enqueueQueueJob({
+    await context.deploymentQueueLifecycleService.enqueueQueueJob({
       type: "cleanup",
       idempotencyKey,
       maxAttempts: 2,
@@ -878,7 +878,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       },
     });
 
-    const rejectedByType = context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(
+    const rejectedByType = await context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(
       idempotencyKey,
       {
         workerId: context.workerId,
@@ -890,7 +890,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
 
     expect(rejectedByType).toBeNull();
 
-    const acceptedByType = context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(
+    const acceptedByType = await context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(
       idempotencyKey,
       {
         workerId: context.workerId,
@@ -904,11 +904,11 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(acceptedByType?.type).toBe("cleanup");
   });
 
-  it("transitions claimed job to failed + dead-letter for non-retryable failure", () => {
+  it("transitions claimed job to failed + dead-letter for non-retryable failure", async () => {
     const idempotencyKey = `e2e:queue:non-retryable:${randomUUID()}`;
 
     const enqueued = parseEnqueueResult(
-      context.deploymentQueueLifecycleService.enqueueQueueJob({
+      await context.deploymentQueueLifecycleService.enqueueQueueJob({
         type: "cleanup",
         idempotencyKey,
         maxAttempts: 4,
@@ -922,7 +922,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       }),
     );
 
-    const claimed = context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(idempotencyKey, {
+    const claimed = await context.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(idempotencyKey, {
       workerId: context.workerId,
       types: ["cleanup"],
       limit: 1,
@@ -933,7 +933,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       throw new Error("Expected lock token for non-retryable failure flow");
     }
 
-    const failure = context.deploymentQueueLifecycleService.failQueueJob(claimed.id, {
+    const failure = await context.deploymentQueueLifecycleService.failQueueJob(claimed.id, {
       workerId: context.workerId,
       lockToken: claimed.lockToken,
       error: "fatal-non-retryable-flow",
@@ -952,7 +952,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(failure.transition.job.lastError).toBe("fatal-non-retryable-flow");
 
     const deadLetter = parseDeadLetterListResult(
-      context.deploymentQueueLifecycleService.listDeadLetterJobs({
+      await context.deploymentQueueLifecycleService.listDeadLetterJobs({
         reason: "non_retryable_error",
         limit: 20,
         offset: 0,
@@ -964,13 +964,13 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     expect(deadLetter?.attempts).toBe(1);
   });
 
-  it("supports combined queue filters by deployment + service + type + status", () => {
+  it("supports combined queue filters by deployment + service + type + status", async () => {
     const deploymentId = randomUUID();
     const serviceId = randomUUID();
     const projectId = randomUUID();
 
     const matchingJob = parseEnqueueResult(
-      context.deploymentQueueLifecycleService.enqueueQueueJob({
+      await context.deploymentQueueLifecycleService.enqueueQueueJob({
         type: "deploy",
         idempotencyKey: `e2e:queue:combined-filter:match:${randomUUID()}`,
         maxAttempts: 2,
@@ -986,7 +986,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
       }),
     );
 
-    context.deploymentQueueLifecycleService.enqueueQueueJob({
+    await context.deploymentQueueLifecycleService.enqueueQueueJob({
       type: "cleanup",
       idempotencyKey: `e2e:queue:combined-filter:noise:${randomUUID()}`,
       maxAttempts: 2,
@@ -1001,7 +1001,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
     });
 
     const filtered = parseQueueListResult(
-      context.deploymentQueueLifecycleService.listQueueJobs({
+      await context.deploymentQueueLifecycleService.listQueueJobs({
         deploymentId,
         serviceId,
         projectId,

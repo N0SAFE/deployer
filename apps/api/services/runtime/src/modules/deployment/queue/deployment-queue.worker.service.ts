@@ -123,6 +123,9 @@ const QUEUE_SOURCE = "typed-worker";
 @Injectable()
 export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(DeploymentQueueWorkerService.name);
+    /** A claim lasts 60 s; a heartbeat every 15 s renews it, so a lost worker is reclaimed within a minute. */
+    private static readonly LEASE_SEC = 60;
+    private static readonly HEARTBEAT_MS = 15_000;
     private readonly workerId = `typed:${randomUUID()}`;
     private subscription: Subscription | null = null;
     /** Serialize execution — one job at a time on this single-node worker. */
@@ -181,7 +184,7 @@ export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestr
             {
                 workerId: this.workerId,
                 limit: 1,
-                leaseDurationSec: 120,
+                leaseDurationSec: DeploymentQueueWorkerService.LEASE_SEC,
                 types: [job.type],
             },
         );
@@ -199,8 +202,8 @@ export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestr
         }
 
         const heartbeatTimer = setInterval(() => {
-            this.sendHeartbeat(claimed.id, lockToken);
-        }, 30_000);
+            void this.sendHeartbeat(claimed.id, lockToken);
+        }, DeploymentQueueWorkerService.HEARTBEAT_MS);
 
         try {
             const storageBinding = this.extractStorageBindingFromPayload(job.payload);
@@ -278,7 +281,7 @@ export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestr
                 // errors must NOT exhaust retries / pollute the DLQ; transient
                 // execution errors stay retryable.
                 const retryable = this.isTransientQueueFailure(error);
-                this.deploymentService.failQueueJob(claimed.id, {
+                await this.deploymentService.failQueueJob(claimed.id, {
                     workerId: this.workerId,
                     lockToken,
                     error: message,
@@ -297,15 +300,20 @@ export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestr
         }
     }
 
-    private sendHeartbeat(jobId: string, lockToken: string): void {
-        const heartbeat = this.deploymentService.heartbeatQueueJob(jobId, {
-            workerId: this.workerId,
-            lockToken,
-            extendLeaseSec: 120,
-        });
+    private async sendHeartbeat(jobId: string, lockToken: string): Promise<void> {
+        try {
+            const heartbeat = await this.deploymentService.heartbeatQueueJob(jobId, {
+                workerId: this.workerId,
+                lockToken,
+                extendLeaseSec: DeploymentQueueWorkerService.LEASE_SEC,
+            });
 
-        if (!heartbeat.acknowledged) {
-            this.logger.warn(`Heartbeat was not acknowledged for lifecycle job '${jobId}'`);
+            if (!heartbeat.acknowledged) {
+                this.logger.warn(`Heartbeat was not acknowledged for lifecycle job '${jobId}'`);
+            }
+        } catch (error) {
+            // A missed heartbeat is not fatal: the next one renews the lease before it expires.
+            this.logger.warn(`Heartbeat failed for lifecycle job '${jobId}': ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 

@@ -31,6 +31,7 @@ import { makeDockerRuntimeRunner } from "@/modules/runners/docker/docker-runtime
 import { makeSwarmRuntimeRunner } from "@/modules/runners/swarm/swarm-runtime-runner.service";
 import { run as runEffect } from "@/modules/runners/testing";
 import { DeploymentExecutionWorkflowService } from './deployment-execution-workflow.service';
+import { makeInMemoryDeploymentQueueRepository } from '../queue/repositories/in-memory-deployment-queue.repository';
 import { DeploymentQueueLifecycleService } from '../queue/deployment-queue-lifecycle.service';
 import { DeploymentQueueEventService } from '../queue/deployment-queue-event.service';
 import { StorageProviderRegistryService } from '../storage/storage-provider-registry.service';
@@ -497,7 +498,10 @@ describe('DeploymentService', () => {
                     provide: DeploymentQueueLifecycleService,
                     useFactory: () =>
                         new DeploymentQueueLifecycleService(
+                            undefined as never,
                             mockDeploymentQueueEventService,
+                            undefined,
+                            makeInMemoryDeploymentQueueRepository(),
                         ),
                 },
                 {
@@ -687,7 +691,7 @@ describe('DeploymentService', () => {
             } as any;
             await service.triggerDeployment(input, 'user-1');
 
-            const jobs = Array.from((service as any).queueJobs.values());
+            const jobs = (await service.listQueueJobs({ limit: 100, offset: 0 })).items;
             expect(jobs).toHaveLength(1);
             expect(jobs[0]).toMatchObject({
                 type: 'deploy',
@@ -767,7 +771,7 @@ describe('DeploymentService', () => {
             );
 
             const jobs: { payload?: { context?: { dependencyGraph?: unknown } } }[] = Array.from(
-                (service as any).queueJobs.values(),
+                (await service.listQueueJobs({ limit: 100, offset: 0 })).items,
             );
 
             expect(jobs).toHaveLength(1);
@@ -912,7 +916,7 @@ describe('DeploymentService', () => {
 
             expect(result.id).toBe('deploy-upload-1');
             const jobs: { payload?: { context?: { sourceCheckout?: unknown } } }[] = Array.from(
-                (service as any).queueJobs.values(),
+                (await service.listQueueJobs({ limit: 100, offset: 0 })).items,
             );
             expect(jobs).toHaveLength(1);
             expect(jobs[0]?.payload?.context?.sourceCheckout).toEqual({
@@ -973,7 +977,7 @@ describe('DeploymentService', () => {
             expect(mockUploadBundleRegistryService.findByUploadId).toHaveBeenCalledWith('upload-registry-1');
 
             const jobs: { payload?: { context?: { sourceCheckout?: unknown } } }[] = Array.from(
-                (service as any).queueJobs.values(),
+                (await service.listQueueJobs({ limit: 100, offset: 0 })).items,
             );
             expect(jobs).toHaveLength(1);
             expect(jobs[0]?.payload?.context?.sourceCheckout).toEqual({
@@ -1065,7 +1069,7 @@ describe('DeploymentService', () => {
             await service.triggerDeployment(input, 'user-1');
 
             const jobs: { payload?: { context?: { storageBinding?: unknown } } }[] = Array.from(
-                (service as any).queueJobs.values(),
+                (await service.listQueueJobs({ limit: 100, offset: 0 })).items,
             );
             expect(jobs).toHaveLength(1);
             expect((jobs[0]?.payload)?.context?.storageBinding)
@@ -1157,7 +1161,7 @@ describe('DeploymentService', () => {
 
             expect(result.id).toBe('deploy-upload-builder-1');
             const jobs: { payload?: { context?: { executionPlan?: unknown } } }[] = Array.from(
-                (service as any).queueJobs.values(),
+                (await service.listQueueJobs({ limit: 100, offset: 0 })).items,
             );
             expect(jobs).toHaveLength(1);
             expect(jobs[0]?.payload?.context?.executionPlan).toEqual(
@@ -1201,7 +1205,7 @@ describe('DeploymentService', () => {
             expect(result.id).toBe('deploy-custom-1');
 
             const jobs: { payload?: { context?: { sourceCheckout?: unknown } } }[] = Array.from(
-                (service as any).queueJobs.values(),
+                (await service.listQueueJobs({ limit: 100, offset: 0 })).items,
             );
 
             expect(jobs).toHaveLength(1);
@@ -1375,7 +1379,7 @@ describe('DeploymentService', () => {
         });
 
         it('should mark deployment as building when deploy job is claimed', async () => {
-            const enqueued = service.enqueueQueueJob({
+            const enqueued = await service.enqueueQueueJob({
                 type: 'deploy',
                 idempotencyKey: 'deploy:test:claim',
                 payload: {
@@ -1408,7 +1412,7 @@ describe('DeploymentService', () => {
         });
 
         it('should claim only the targeted queued job by idempotency key', async () => {
-            const first = service.enqueueQueueJob({
+            const first = await service.enqueueQueueJob({
                 type: 'deploy',
                 idempotencyKey: 'deploy:test:target:first',
                 payload: {
@@ -1420,7 +1424,7 @@ describe('DeploymentService', () => {
                 maxAttempts: 3,
             } as any);
 
-            const second = service.enqueueQueueJob({
+            const second = await service.enqueueQueueJob({
                 type: 'deploy',
                 idempotencyKey: 'deploy:test:target:second',
                 payload: {
@@ -1446,8 +1450,8 @@ describe('DeploymentService', () => {
             } as any);
 
             expect(claimed?.id).toBe(second.job.id);
-            expect(service.findQueueJobById(first.job.id)?.status).toBe('queued');
-            expect(service.findQueueJobById(second.job.id)?.status).toBe('claimed');
+            expect((await service.findQueueJobById(first.job.id))?.status).toBe('queued');
+            expect((await service.findQueueJobById(second.job.id))?.status).toBe('claimed');
             expect(mockRepository.persistBuildArtifacts).toHaveBeenCalledWith(
                 'deploy-second',
                 expect.objectContaining({
@@ -1474,7 +1478,7 @@ describe('DeploymentService', () => {
         });
 
         it('should persist artifact metadata when deploy job is completed', async () => {
-            const enqueued = service.enqueueQueueJob({
+            const enqueued = await service.enqueueQueueJob({
                 type: 'deploy',
                 idempotencyKey: 'deploy:test:complete',
                 payload: {
@@ -1549,7 +1553,7 @@ describe('DeploymentService', () => {
                 healthCheckUrl: 'http://service-1.internal/healthz',
             };
 
-            const enqueued = service.enqueueQueueJob({
+            const enqueued = await service.enqueueQueueJob({
                 type: 'deploy',
                 idempotencyKey: 'deploy:test:health-gate-fail',
                 payload: {
@@ -1624,7 +1628,7 @@ describe('DeploymentService', () => {
                 },
             };
 
-            const enqueued = service.enqueueQueueJob({
+            const enqueued = await service.enqueueQueueJob({
                 type: 'deploy',
                 idempotencyKey: 'deploy:test:manual-upload-local-storage',
                 payload: {
@@ -1793,9 +1797,7 @@ describe('DeploymentService', () => {
                 };
             };
 
-            const jobs = Array.from(
-                (service as unknown as { queueJobs: Map<string, QueueJobLike> }).queueJobs.values(),
-            );
+            const jobs = (await service.listQueueJobs({ limit: 100, offset: 0 })).items as unknown as QueueJobLike[];
             expect(jobs.some((job) => job.type === 'rollback' && job.payload.deploymentId === 'deploy-3')).toBe(
                 true,
             );
@@ -1890,7 +1892,7 @@ describe('DeploymentService', () => {
                 },
             };
 
-            service.enqueueQueueJob({
+            await service.enqueueQueueJob({
                 type: 'rollback',
                 idempotencyKey: 'rollback:test:claim',
                 payload: {
@@ -1931,7 +1933,7 @@ describe('DeploymentService', () => {
                 },
             };
 
-            const enqueued = service.enqueueQueueJob({
+            const enqueued = await service.enqueueQueueJob({
                 type: 'rollback',
                 idempotencyKey: 'rollback:test:complete',
                 payload: {
@@ -2142,7 +2144,7 @@ describe('DeploymentService', () => {
 
             await service.retryDeployment('deploy-failed', 'user-1');
 
-            const jobs = Array.from((service as any).queueJobs.values());
+            const jobs = (await service.listQueueJobs({ limit: 100, offset: 0 })).items;
             expect(jobs).toHaveLength(1);
             expect(jobs[0]).toMatchObject({
                 type: 'retry',

@@ -126,7 +126,7 @@ describe("Deployment strategy e2e: service, traefik projection and the upload de
 
 		expect(triggered.status).toBe("queued");
 
-		const queueJobs = deployment.listQueueJobs({
+		const queueJobs = await deployment.listQueueJobs({
 			deploymentId: triggered.id,
 			status: "queued",
 			limit: 20,

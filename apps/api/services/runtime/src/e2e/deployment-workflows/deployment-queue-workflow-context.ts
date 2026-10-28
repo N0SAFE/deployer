@@ -18,32 +18,30 @@ import { DeploymentQueueLifecycleService } from "@/modules/deployment/queue/depl
 import { getSharedApiRuntimeContext } from "@/e2e/runtime";
 
 export type DeploymentQueueLifecyclePort = {
-  enqueueQueueJob(input: DeploymentQueueEnqueueInput): DeploymentQueueEnqueueResult;
-  claimQueueJobs(input: DeploymentQueueClaimInput): DeploymentQueueClaimResult;
+  enqueueQueueJob(input: DeploymentQueueEnqueueInput): Promise<DeploymentQueueEnqueueResult>;
+  claimQueueJobs(input: DeploymentQueueClaimInput): Promise<DeploymentQueueClaimResult>;
   claimQueueJobByIdempotencyKey(
     idempotencyKey: string,
     input: DeploymentQueueClaimInput,
-  ): DeploymentQueueJob | null;
+  ): Promise<DeploymentQueueJob | null>;
   heartbeatQueueJob(
     jobId: string,
     input: DeploymentQueueHeartbeatInput,
-  ): { acknowledged: false } | { acknowledged: true; leaseExpiresAt: string; lastHeartbeatAt: string | null; observedConnectivityStatus: string | null; observedAt: string };
+  ): Promise<{ acknowledged: true; leaseExpiresAt: string | null; lastHeartbeatAt: string | null; observedConnectivityStatus: string | null; observedAt: string } | null>;
   failQueueJob(
     jobId: string,
     input: DeploymentQueueFailInput,
-  ):
-    | {
-        transition: DeploymentQueueTransitionResult;
-        failedJob: DeploymentQueueJob;
-        movedToDeadLetter: boolean;
-      }
-    | null;
+  ): Promise<{
+    transition: DeploymentQueueTransitionResult;
+    failedJob: DeploymentQueueJob;
+    movedToDeadLetter: boolean;
+  } | null>;
   completeQueueJob(
     jobId: string,
     workerId: string,
     lockToken: string,
     result: Record<string, unknown> | undefined,
-  ): DeploymentQueueTransitionResult | null;
+  ): Promise<DeploymentQueueTransitionResult | null>;
   listQueueJobs(input: {
     type?: DeploymentQueueJob["type"];
     status?: DeploymentQueueJob["status"];
@@ -53,11 +51,13 @@ export type DeploymentQueueLifecyclePort = {
     projectId?: string;
     limit: number;
     offset: number;
-  }): { items: DeploymentQueueJob[]; total: number; hasMore: boolean };
-  listDeadLetterJobs(input: DeploymentDeadLetterListInput): DeploymentDeadLetterListResult;
-  findDeadLetterJobById(deadLetterJobId: string): DeploymentDeadLetterJob | null;
-  replayDeadLetterJob(input: DeploymentDeadLetterReplayInput): DeploymentDeadLetterReplayResult;
-  findQueueJobById(jobId: string): DeploymentQueueJob | null;
+  }): Promise<{ items: DeploymentQueueJob[]; total: number; hasMore: boolean }>;
+  listDeadLetterJobs(input: DeploymentDeadLetterListInput): Promise<DeploymentDeadLetterListResult>;
+  findDeadLetterJobById(deadLetterJobId: string): Promise<DeploymentDeadLetterJob | null>;
+  replayDeadLetterJob(input: DeploymentDeadLetterReplayInput): Promise<DeploymentDeadLetterReplayResult>;
+  findQueueJobById(jobId: string): Promise<DeploymentQueueJob | null>;
+  cancelQueueJob(jobId: string, reason: string): Promise<DeploymentQueueJob | null>;
+  reapExpiredLeases(now?: Date): Promise<number>;
 }
 
 export type DeploymentQueueWorkflowContext = {

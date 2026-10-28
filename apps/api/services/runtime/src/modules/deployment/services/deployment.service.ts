@@ -179,8 +179,6 @@ export class DeploymentService implements OnModuleInit {
     private readonly compiledSnapshotsById = new Map<string, DeploymentCompiledPlanSnapshot>();
     private readonly compiledSnapshotsByDeployment = new Map<string, DeploymentCompiledPlanSnapshot[]>();
     private readonly compiledSnapshotsByRun = new Map<string, DeploymentCompiledPlanSnapshot>();
-    private readonly queueJobs: Map<string, DeploymentQueueJob>;
-    private readonly deadLetterJobs: Map<string, DeploymentDeadLetterJob>;
     private readonly executionCheckpointsByDeployment = new Map<string, DeploymentExecutionCheckpoint>();
     private readonly executionCheckpointsByRun = new Map<string, DeploymentExecutionCheckpoint>();
     private readonly nodeLifecycleByRun = new Map<string, DeploymentNodeLifecycleEvent[]>();
@@ -203,10 +201,7 @@ export class DeploymentService implements OnModuleInit {
          *  have changed (a deployment/preview became live, a rollback moved
          *  the backend container). */
         private readonly ingressRefresher: TraefikConfigRefresher,
-    ) {
-        this.queueJobs = this.deploymentQueueLifecycleService.getQueueJobsStore();
-        this.deadLetterJobs = this.deploymentQueueLifecycleService.getDeadLetterJobsStore();
-    }
+    ) {}
 
     onModuleInit(): void {
         this.coreEventSyncService.registerNamespaceAdapter("deployment", ({ definition, replay, replayLimit }) =>
@@ -521,7 +516,7 @@ export class DeploymentService implements OnModuleInit {
 
         await this.emitLifecycleQueued(deployment, null, "Deployment queued");
 
-        this.enqueueQueueJob({
+        await this.enqueueQueueJob({
             type: "deploy",
             idempotencyKey: `deploy:${deployment.id}:trigger`,
             payload: {
@@ -696,7 +691,7 @@ export class DeploymentService implements OnModuleInit {
 
         await this.emitLifecycleQueued(rollback, fromDeployment.status, "Rollback deployment queued");
 
-        this.enqueueQueueJob({
+        await this.enqueueQueueJob({
             type: "rollback",
             idempotencyKey: `rollback:${rollbackRecord.id}`,
             payload: {
@@ -911,7 +906,7 @@ export class DeploymentService implements OnModuleInit {
                   })
                 : null;
 
-        this.enqueueQueueJob({
+        await this.enqueueQueueJob({
             type: "retry",
             idempotencyKey: `retry:${retry.id}`,
             payload: {
@@ -1316,20 +1311,17 @@ export class DeploymentService implements OnModuleInit {
         };
     }
 
-    enqueueQueueJob(input: DeploymentQueueEnqueueInput): DeploymentQueueEnqueueResult {
-        const enqueued = this.deploymentQueueLifecycleService.enqueueQueueJob(input);
-
-        // D-6: the typed channel (`onJobQueued`) fires inside the lifecycle
-        // enqueue → DeploymentQueueWorkerService claims and executes this job.
-        // No external queue IO, no silent swallow: the in-process typed queue
-        // IS the execution path (previously Bull enqueue failed silently
-        // against a missing Redis and deploys stayed queued forever).
-        return enqueued;
+    /**
+     * The job is a row in `deployment_queue_jobs`; the lifecycle service announces it on the typed channel
+     * (`onJobQueued`) once it is stored, and the worker claims and executes it. It survives a restart.
+     */
+    enqueueQueueJob(input: DeploymentQueueEnqueueInput): Promise<DeploymentQueueEnqueueResult> {
+        return this.deploymentQueueLifecycleService.enqueueQueueJob(input);
     }
 
     async claimQueueJobs(input: DeploymentQueueClaimInput): Promise<DeploymentQueueClaimResult> {
         const now = Date.now();
-        const claimResult = this.deploymentQueueLifecycleService.claimQueueJobs(input);
+        const claimResult = await this.deploymentQueueLifecycleService.claimQueueJobs(input);
         for (const job of claimResult.claimed) {
             await this.handleClaimedQueueJob(job, now);
         }
@@ -1342,7 +1334,7 @@ export class DeploymentService implements OnModuleInit {
         input: DeploymentQueueClaimInput,
     ): Promise<DeploymentQueueJob | null> {
         const now = Date.now();
-        const claimed = this.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(
+        const claimed = await this.deploymentQueueLifecycleService.claimQueueJobByIdempotencyKey(
             idempotencyKey,
             input,
         );
@@ -1355,8 +1347,8 @@ export class DeploymentService implements OnModuleInit {
         return claimed;
     }
 
-    heartbeatQueueJob(jobId: string, input: DeploymentQueueHeartbeatInput): DeploymentQueueHeartbeatResult {
-        const heartbeat = this.deploymentQueueLifecycleService.heartbeatQueueJob(jobId, input);
+    async heartbeatQueueJob(jobId: string, input: DeploymentQueueHeartbeatInput): Promise<DeploymentQueueHeartbeatResult> {
+        const heartbeat = await this.deploymentQueueLifecycleService.heartbeatQueueJob(jobId, input);
         if (!heartbeat) {
             return {
                 acknowledged: false,
@@ -1373,7 +1365,7 @@ export class DeploymentService implements OnModuleInit {
         jobId: string,
         input: DeploymentQueueCompleteInput,
     ): Promise<DeploymentQueueTransitionResult> {
-        const existing = this.queueJobs.get(jobId);
+        const existing = await this.deploymentQueueLifecycleService.findQueueJobById(jobId);
         if (existing?.workerId !== input.workerId || existing.lockToken !== input.lockToken) {
             throw new RuntimeInvalid({ reason: "Invalid worker/lock token for queue completion" });
         }
@@ -1404,7 +1396,7 @@ export class DeploymentService implements OnModuleInit {
             );
         }
 
-        const completion = this.deploymentQueueLifecycleService.completeQueueJob(
+        const completion = await this.deploymentQueueLifecycleService.completeQueueJob(
             jobId,
             input.workerId,
             input.lockToken,
@@ -1446,8 +1438,8 @@ export class DeploymentService implements OnModuleInit {
         );
     }
 
-    failQueueJob(jobId: string, input: DeploymentQueueFailInput): DeploymentQueueTransitionResult {
-        const failure = this.deploymentQueueLifecycleService.failQueueJob(jobId, input);
+    async failQueueJob(jobId: string, input: DeploymentQueueFailInput): Promise<DeploymentQueueTransitionResult> {
+        const failure = await this.deploymentQueueLifecycleService.failQueueJob(jobId, input);
         if (!failure) {
             throw new RuntimeInvalid({ reason: "Invalid worker/lock token for queue failure" });
         }
@@ -1472,23 +1464,23 @@ export class DeploymentService implements OnModuleInit {
         return failure.transition;
     }
 
-    findQueueJobById(jobId: string): DeploymentQueueJob | null {
+    findQueueJobById(jobId: string): Promise<DeploymentQueueJob | null> {
         return this.deploymentQueueLifecycleService.findQueueJobById(jobId);
     }
 
-    listQueueJobs(input: DeploymentQueueListInput): DeploymentQueueListResult {
+    listQueueJobs(input: DeploymentQueueListInput): Promise<DeploymentQueueListResult> {
         return this.deploymentQueueLifecycleService.listQueueJobs(input);
     }
 
-    listDeadLetterJobs(input: DeploymentDeadLetterListInput): DeploymentDeadLetterListResult {
+    listDeadLetterJobs(input: DeploymentDeadLetterListInput): Promise<DeploymentDeadLetterListResult> {
         return this.deploymentQueueLifecycleService.listDeadLetterJobs(input);
     }
 
-    findDeadLetterJobById(deadLetterJobId: string): DeploymentDeadLetterJob | null {
+    findDeadLetterJobById(deadLetterJobId: string): Promise<DeploymentDeadLetterJob | null> {
         return this.deploymentQueueLifecycleService.findDeadLetterJobById(deadLetterJobId);
     }
 
-    replayDeadLetterJob(input: DeploymentDeadLetterReplayInput): DeploymentDeadLetterReplayResult {
+    replayDeadLetterJob(input: DeploymentDeadLetterReplayInput): Promise<DeploymentDeadLetterReplayResult> {
         return this.deploymentQueueLifecycleService.replayDeadLetterJob(input);
     }
 

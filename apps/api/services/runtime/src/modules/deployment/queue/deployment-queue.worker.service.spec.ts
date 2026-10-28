@@ -59,7 +59,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
             "deploy:job:1",
             expect.objectContaining({
                 limit: 1,
-                leaseDurationSec: 120,
+                leaseDurationSec: 60,
                 types: ["deploy"],
             }),
         );
@@ -103,7 +103,7 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
             "queue-job-1",
             expect.objectContaining({
                 lockToken: "lock-token-1",
-                extendLeaseSec: 120,
+                extendLeaseSec: 60,
             }),
         );
 
