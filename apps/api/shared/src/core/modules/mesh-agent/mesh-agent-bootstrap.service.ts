@@ -16,8 +16,8 @@
  */
 
 import { Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
-import { dockerodeAgentEngine, ensureMeshAgentContainer, MEMBER_LABEL_NODE_ID, meshAgentContainerEnv, type AgentStatus } from "@deployer/mesh-network";
-import { DockerService } from "@deployer/nest-effect/docker";
+import { ensureMeshAgentContainer, MEMBER_LABEL_NODE_ID, meshAgentContainerEnv, type AgentStatus } from "@deployer/mesh-network";
+import { DockerService, makeMeshAgentEngine } from "@deployer/nest-effect/docker";
 import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 
 import { EnvService } from "../../../config/env/env.module";
@@ -44,7 +44,7 @@ export class MeshAgentBootstrapService implements OnApplicationBootstrap {
 		const node = this.nodeConfig.find();
 		if (node?.setupState !== "setup_done") return;
 
-		const outcome = await ensureMeshAgentContainer(dockerodeAgentEngine(this.docker.getDockerClient()), {
+		const outcome = await ensureMeshAgentContainer(makeMeshAgentEngine(this.docker.getEngine()), {
 			image: this.env.get("MESH_AGENT_IMAGE"),
 			env: meshAgentContainerEnv({ dataplane: this.env.get("MESH_AGENT_DATAPLANE") }),
 		});

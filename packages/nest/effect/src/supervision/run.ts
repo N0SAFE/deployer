@@ -1,11 +1,4 @@
-import { Cause, Effect, Exit } from "effect";
-
-/** Runs an Effect for a Promise caller, rejecting with the original failure rather than a wrapper. */
-export async function runUnwrapped<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
-	const exit = await Effect.runPromiseExit(effect);
-	if (Exit.isSuccess(exit)) return exit.value;
-	throw Cause.squash(exit.cause);
-}
+import { Effect } from "effect";
 
 /**
  * Lifts a Promise-returning call into an Effect that fails with whatever it threw. The Nest

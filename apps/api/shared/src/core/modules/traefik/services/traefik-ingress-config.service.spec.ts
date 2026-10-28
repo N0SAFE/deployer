@@ -21,9 +21,9 @@ async function makeService(options: { lanes?: IngressLanes; routes?: SupervisedR
 	const env = { get: vi.fn((key: string) => values[key]) } as unknown as EnvService;
 	return new TraefikIngressConfigService(
 		env,
-		// The service only calls `getDockerClient()` to hand the client onward; the tests never
-                // touch a Docker API, so an empty client is asserted to the interface.
-                { getDockerClient: () => ({}) } as unknown as DockerService,
+		// `DEPLOYER_API_TARGET` is set, so the self-resolver never inspects a container; the tests
+		// touch no Docker API and an empty engine is asserted to the interface.
+		{ getEngine: () => ({ containers: {} }) } as unknown as DockerService,
 		new EnvHostnameService(env),
 		{ getLanes: () => Promise.resolve(options.lanes ?? defaultIngressLanes()) } as unknown as IngressLanesService,
 		{ resolveWebTarget: () => Promise.resolve(options.webTarget === undefined ? "deployer-managed-web" : options.webTarget) } as unknown as PlatformWebTargetService,

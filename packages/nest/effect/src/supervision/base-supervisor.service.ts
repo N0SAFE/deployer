@@ -15,7 +15,8 @@ import {
 import { Effect } from "effect";
 import type z from "zod/v4";
 
-import { attempt, runUnwrapped } from "./run";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { attempt } from "./run";
 import { SupervisorEventBus } from "./supervisor-event.bus";
 import { SupervisorOrchestratorService } from "./supervisor-orchestrator.service";
 
@@ -145,22 +146,22 @@ export abstract class BaseSupervisorService<
 
 	/** One convergence pass, recording the state it ends in. Never throws. */
 	ensureDesiredState(): Promise<SupervisorState> {
-		return runUnwrapped(this.runtime.ensureDesiredState);
+		return runPromiseUnwrapped(this.runtime.ensureDesiredState);
 	}
 
 	/** Health snapshot; a probe that fails degrades gracefully instead of throwing. */
 	getHealth(): Promise<SupervisorHealthSnapshot<TSchema>> {
-		return runUnwrapped(this.runtime.getHealth);
+		return runPromiseUnwrapped(this.runtime.getHealth);
 	}
 
 	/** `getHealth`, published as a `health-snapshot` event. */
 	getHealthAndNotify(): Promise<SupervisorHealthSnapshot<TSchema>> {
-		return runUnwrapped(this.runtime.getHealthAndNotify);
+		return runPromiseUnwrapped(this.runtime.getHealthAndNotify);
 	}
 
 	/** Health plus the supervisor's process description, validated against `processInfoSchema`. */
 	getProcessInfo(): Promise<z.output<TProcessSchema>> {
-		return runUnwrapped(this.runtime.getProcessInfo);
+		return runPromiseUnwrapped(this.runtime.getProcessInfo);
 	}
 
 	getStateSnapshot(): { state: SupervisorState; detail: string | null } {
@@ -169,7 +170,7 @@ export abstract class BaseSupervisorService<
 
 	/** Retries `fn` with exponential backoff, rethrowing the last error once the attempts run out. */
 	protected async runWithBackoff(label: string, fn: () => Promise<void>, options?: BackoffOptions): Promise<void> {
-		await runUnwrapped(
+		await runPromiseUnwrapped(
 			withBackoff(label, attempt(fn), {
 				...options,
 				isFatal: (error) => this.isFatalConvergenceError(error),

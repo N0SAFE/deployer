@@ -10,18 +10,17 @@
 import type Docker from "dockerode";
 import z from "zod/v4";
 import { NotFoundException } from "@nestjs/common";
+import { Effect } from "effect";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 
 import { DockerService } from "./docker.service";
 import { BaseSupervisorService } from "../supervision";
 import { baseSupervisorPayloadSchema } from "@deployer/supervision";
-import { type DockerProcessInfo, type SwarmProcessInfo } from "@deployer/supervision";
+import { type SwarmProcessInfo } from "@deployer/supervision";
 import { baseSupervisorProcessInfoSchema } from "@deployer/supervision";
-import { platformOverlayNetworkName, type DockerSupervisorRuntime } from "@deployer/docker";
+import { platformOverlayNetworkName, type DockerEngineShape } from "@deployer/docker";
 import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
 import { isSwarmVersionConflict, toDockerServiceSpec } from "@deployer/docker";
-
-/** Dockerode API errors carry an HTTP-style statusCode (404 = not found). */
-type DockerodeError = Error & { statusCode?: number };
 
 /** How many times a version-conflicted swarm update is re-read and retried. */
 const SWARM_UPDATE_MAX_ATTEMPTS = 5;
@@ -34,9 +33,9 @@ export abstract class BaseDockerSupervisorService<
 		super();
 	}
 
-	/** The shared dockerode client for all supervisor operations. */
-	protected get client(): Docker {
-		return this.dockerService.getDockerClient();
+	/** The Effect engine behind every supervisor operation; run its Effects with `runPromiseUnwrapped`. */
+	protected get engine(): DockerEngineShape {
+		return this.dockerService.getEngine();
 	}
 
 	/**
@@ -104,62 +103,21 @@ export abstract class BaseDockerSupervisorService<
 
 
 	/** Inspect a container by name; returns null when it does not exist. */
-	protected async inspectContainer(
-		name: string,
-	): Promise<{
-		Id: string;
-		State: { Running: boolean; ExitCode?: number; StartedAt?: string };
-		RestartCount?: number;
-	} | null> {
-		return await this.client
-			.getContainer(name)
-			.inspect()
-			.catch((error: DockerodeError) => {
-				if (error.statusCode === 404) return null;
-				throw error;
-			});
+	protected async inspectContainer(name: string): Promise<Docker.ContainerInspectInfo | null> {
+		return await runPromiseUnwrapped(
+			this.engine.containers.inspect(name).pipe(Effect.catchTag("DockerNotFound", () => Effect.succeed(null))),
+		);
 	}
 
-
-	/** Ensure a named docker volume exists (config sharing). Resolves the
-	 *  volume name either way. Race-safe (create vs exists). */
+	/** Ensure a named docker volume exists (config sharing). Race-safe (create vs exists). */
 	protected async ensureVolume(name: string): Promise<void> {
-		const existing = await this.client
-			.getVolume(name)
-			.inspect()
-			.catch((error: DockerodeError) => {
-				if (error.statusCode === 404) return null;
-				throw error;
-			});
-		if (existing !== null) return;
-		await this.client.createVolume({ Name: name }).catch(() => undefined);
+		await runPromiseUnwrapped(this.engine.volumes.ensure(name));
 	}
 
-
-
-	/** Force-remove a container by name, tolerating already-gone (no throw). */
+	/** Force-remove a container by name, tolerating already-gone or already-being-removed. */
 	protected async removeContainerIfExists(name: string): Promise<void> {
-		try {
-			await this.client.getContainer(name).remove({ force: true });
-		} catch (error: unknown) {
-			const msg = error instanceof Error ? error.message : String(error);
-			const statusCode = (error as DockerodeError).statusCode;
-			// "no such container" (or a 404 status) means nothing to remove.
-			// A 409 "removal ... already in progress" means a previous
-			// convergence pass is already removing it — the desired end state
-			// (absent) is guaranteed, so treat it like 404 instead of racing.
-			if (
-				msg.includes("no such container") ||
-				statusCode === 404 ||
-				statusCode === 409 ||
-				msg.includes("already in progress")
-			) {
-				return;
-			}
-			throw error;
-		}
+		await runPromiseUnwrapped(this.engine.containers.removeIfExists(name));
 	}
-
 
 	// ─── Swarm-aware reconciliation ──────────────────────────────────────────
 	//
@@ -346,10 +304,7 @@ export abstract class BaseDockerSupervisorService<
 		// Attach the API container to the overlay too — it bridges the
 		// compose-managed (bridge) and swarm (overlay) networks. Uses the
 		// network-level connect API (POST /networks/{id}/connect).
-		await this.client
-			.getNetwork(overlay)
-			.connect({ Container: hostContainerName })
-			.catch(() => undefined);
+		await runPromiseUnwrapped(this.engine.networks.connectContainer(overlay, hostContainerName));
 		return overlay;
 	}
 }

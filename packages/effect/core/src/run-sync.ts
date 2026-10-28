@@ -10,3 +10,10 @@ export const runSyncUnwrapped = <A, E>(effect: Effect.Effect<A, E>): A => {
   if (Exit.isSuccess(exit)) return exit.value;
   throw Cause.squash(exit.cause);
 };
+
+/** Runs an Effect for a Promise caller, rejecting with the original failure rather than a fiber wrapper. */
+export const runPromiseUnwrapped = async <A, E>(effect: Effect.Effect<A, E>): Promise<A> => {
+  const exit = await Effect.runPromiseExit(effect);
+  if (Exit.isSuccess(exit)) return exit.value;
+  throw Cause.squash(exit.cause);
+};

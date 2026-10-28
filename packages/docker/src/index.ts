@@ -12,6 +12,7 @@ export { DockerConflict, DockerInvalid, DockerNotFound, DockerUnavailable } from
 export type { DockerError } from "./errors/errors";
 export type { ContainerSummary, ContainersShape, CreateContainerOptions, HealthWaitOptions } from "./engine/containers/containers";
 export type { ImagePullPolicy, ImagesShape, PullOptions } from "./engine/images/images";
+export type { DockerEvent, EventsOptions, EventsShape } from "./engine/events/events";
 export type { NetworksShape } from "./engine/networking/networks";
 export type { SwarmServicesShape } from "./engine/swarm/swarm-services";
 export { toDockerServiceSpec } from "./engine/swarm/swarm-spec.mapper";

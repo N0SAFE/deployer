@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { Readable } from "node:stream";
+import { DockerNotFound } from "@deployer/docker";
+import { Effect, Stream } from "effect";
 import type { DockerService } from "@deployer/nest-effect/docker";
 import type { EnvService } from "../../../../config/env/env.module";
 import { SwarmAppWiringSupervisorService } from "./swarm-app-wiring.supervisor.service";
@@ -28,58 +29,57 @@ function makeDocker(options: { swarmActive: boolean; containers: FakeContainer[]
 	const containers = new Map(options.containers.map((c) => [c.id, c]));
 	const connects: { container: string; aliases: string[] }[] = [];
 
-	const client = {
-		listContainers: vi.fn(async () =>
-			[...containers.values()]
-				.filter((c) => c.platformAliases.length > 0)
-				.map((c) => ({ Id: c.id })),
-		),
-		getContainer: vi.fn((idOrName: string) => ({
-			inspect: vi.fn(async () => {
-				const found =
-					containers.get(idOrName) ??
-					[...containers.values()].find((c) => c.name === idOrName);
+	const findContainer = (idOrName: string) =>
+		containers.get(idOrName) ?? [...containers.values()].find((c) => c.name === idOrName);
+
+	const engine = {
+		containers: {
+			list: vi.fn(() =>
+				Effect.succeed(
+					[...containers.values()].filter((c) => c.platformAliases.length > 0).map((c) => ({ Id: c.id })),
+				),
+			),
+			inspect: vi.fn((idOrName: string) => {
+				const found = findContainer(idOrName);
 				if (found === undefined) {
-					throw Object.assign(new Error(`No such container: ${idOrName}`), { statusCode: 404 });
+					return Effect.fail(new DockerNotFound({ resource: `container '${idOrName}'` }));
 				}
 				const networks: Record<string, { Aliases: string[] }> = {
 					[PLATFORM_NETWORK]: { Aliases: found.platformAliases },
 				};
-				if (found.onOverlay) {
-					networks[OVERLAY] = { Aliases: found.overlayAliases };
-				}
-				return { Name: `/${found.name}`, NetworkSettings: { Networks: networks } };
+				if (found.onOverlay) networks[OVERLAY] = { Aliases: found.overlayAliases };
+				return Effect.succeed({ Name: `/${found.name}`, NetworkSettings: { Networks: networks } });
 			}),
-		})),
-		getNetwork: vi.fn((overlay: string) => ({
-			connect: vi.fn(async (opts: { Container: string; EndpointConfig?: { Aliases: string[] } }) => {
-				const container = containers.get(opts.Container);
+		},
+		networks: {
+			attachContainer: vi.fn((_overlay: string, id: string, aliases: readonly string[] = []) => {
+				const container = containers.get(id);
 				if (container === undefined) {
-					throw Object.assign(new Error(`No such container: ${opts.Container}`), { statusCode: 404 });
+					return Effect.fail(new DockerNotFound({ resource: `container '${id}'` }));
 				}
-				const aliases = opts.EndpointConfig?.Aliases ?? [];
-				connects.push({ container: container.name, aliases });
+				connects.push({ container: container.name, aliases: [...aliases] });
 				container.onOverlay = true;
-				container.overlayAliases = aliases;
+				container.overlayAliases = [...aliases];
+				return Effect.void;
 			}),
-			disconnect: vi.fn(async (opts: { Container: string }) => {
-				const container = containers.get(opts.Container);
+			detachContainer: vi.fn((_overlay: string, id: string) => {
+				const container = containers.get(id);
 				if (container !== undefined) {
 					container.onOverlay = false;
 					container.overlayAliases = [];
 				}
+				return Effect.void;
 			}),
-			inspect: vi.fn(async () => ({ Id: overlay, Name: overlay })),
-		})),
+		},
 		// Inert event stream: the supervisor subscribes but nothing is emitted.
-		getEvents: vi.fn(async () => new Readable({ read() {} })),
+		events: { stream: vi.fn(() => Stream.never) },
 	};
 
 	const ensureOverlayNetwork = vi.fn(async () => undefined);
 	const dockerService = {
 		getSwarmInfo: vi.fn(async () => ({ LocalNodeState: options.swarmActive ? "active" : "inactive" })),
 		ensureOverlayNetwork,
-		getDockerClient: () => client,
+		getEngine: () => engine,
 	} as unknown as DockerService;
 
 	return { dockerService, containers, connects, ensureOverlayNetwork };

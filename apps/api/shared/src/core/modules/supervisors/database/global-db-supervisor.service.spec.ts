@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { NotFoundException } from "@nestjs/common";
+import { DockerNotFound } from "@deployer/docker";
+import { Effect } from "effect";
 import {
 	GlobalDbSupervisorService,
 	GLOBAL_DB_SUPERVISOR_ID,
@@ -16,6 +18,12 @@ type InspectResult = {
 	SizeRw?: number;
 	SizeRootFs?: number;
 };
+
+/** An engine inspect: the value, or the typed not-found the real engine raises for a 404. */
+const orNotFound = <A>(result: Promise<A | null>, resource: string) =>
+	Effect.promise(() => result).pipe(
+		Effect.flatMap((value) => (value === null ? Effect.fail(new DockerNotFound({ resource })) : Effect.succeed(value))),
+	);
 
 function makeMocks(provisioning: "local" | "external" | null = "local") {
 	// Port 1 is never open: the "unreachable" probe test must not depend on the
@@ -75,14 +83,12 @@ function makeMocks(provisioning: "local" | "external" | null = "local") {
 		UsageData: { Size: 4_567_890, RefCount: 1 },
 	}));
 	const dockerService = {
-		getDockerClient: () => ({
-			getContainer: vi.fn(() => ({
-				inspect: inspectContainer,
-				remove: vi.fn(async () => undefined),
-			})),
-			getVolume: vi.fn(() => ({
-				inspect: inspectVolume,
-			})),
+		getEngine: () => ({
+			containers: {
+				inspect: () => orNotFound(inspectContainer(), "container"),
+				removeIfExists: () => Effect.void,
+			},
+			volumes: { inspect: () => orNotFound(inspectVolume(), "volume") },
 		}),
 		getSwarmInfo: async () => ({
 			NodeID: "n1",

@@ -1,7 +1,8 @@
 import type { SwarmOverlayNetworkRequest } from "@deployer/contracts-entities";
 import { Injectable, Logger } from "@nestjs/common";
 import { DockerService } from "@deployer/nest-effect/docker";
-import { platformOverlayForPrefix } from "@deployer/docker";
+import { DockerConflict, platformOverlayForPrefix } from "@deployer/docker";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 
 import { EnvService } from "@/config/env/env.module";
 import { DEFAULT_API_INTERNAL_PORT, type ApiBackend } from "../handover.types";
@@ -148,20 +149,6 @@ export class ApiServiceProvisioner {
     return this.backendFor(bff.name, bff.image, "microservices tier on the platform overlay");
   }
 
-  /**
-   * The HTTP status the engine attached to an error, when it carried one.
-   *
-   * Dockerode surfaces the engine's response code on `statusCode`, and the message
-   * also embeds it (`(HTTP code 409) …`). Reading the STRUCTURED value is what lets
-   * a conflict be recognised without depending on the engine's wording — see the
-   * `already attached` note in `connectSelfToOverlay`.
-   */
-  private statusCodeOf(error: unknown): number | null {
-    if (typeof error !== "object" || error === null) return null;
-    const code = (error as { statusCode?: unknown }).statusCode;
-    return typeof code === "number" ? code : null;
-  }
-
   private backendFor(name: string, image: string, detail: string): ApiBackend {
     return {
       kind: "swarm",
@@ -261,7 +248,7 @@ export class ApiServiceProvisioner {
 
     while (Date.now() < deadline) {
       try {
-        await this.docker.getDockerClient().getNetwork(overlay).connect({ Container: selfId });
+        await runPromiseUnwrapped(this.docker.getEngine().networks.attachContainer(overlay, selfId));
         this.logger.log(`Connected setup (${selfId.slice(0, 12)}) to the platform overlay ${overlay}`);
         return;
       } catch (error: unknown) {
@@ -290,7 +277,7 @@ export class ApiServiceProvisioner {
         // `409` is the engine's conflict code for exactly this, so it is checked
         // STRUCTURALLY as well as by message — an engine wording change must not
         // turn a success back into a timeout.
-        if (this.statusCodeOf(error) === 409 || /already (exists|connected|attached)/i.test(message)) {
+        if (error instanceof DockerConflict || /already (exists|connected|attached)/i.test(message)) {
           this.logger.log(`Setup is already attached to ${overlay}`);
           return;
         }

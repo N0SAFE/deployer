@@ -3,6 +3,7 @@ import { Context, Effect, Layer } from "effect";
 
 import { DockerClient } from "../client/docker-client";
 import { makeBuild, type BuildShape } from "./images/build";
+import { makeEvents, type EventsShape } from "./events/events";
 import { makeExec, type ExecShape } from "./containers/exec";
 import { makeLogs, type LogsShape } from "./containers/logs";
 import { makeContainers, type ContainersShape } from "./containers/containers";
@@ -33,6 +34,7 @@ export type DockerEngineShape = {
 	readonly volumes: VolumesShape;
 	readonly exec: ExecShape;
 	readonly logs: LogsShape;
+	readonly events: EventsShape;
 	readonly build: BuildShape;
 	/** True when the engine answers a ping. */
 	readonly ping: () => Effect.Effect<boolean>;
@@ -62,6 +64,7 @@ export function makeDockerEngine(client: Docker): DockerEngineShape {
 		volumes: makeVolumes(client),
 		exec: makeExec(client),
 		logs: makeLogs(client),
+		events: makeEvents(client),
 		build: makeBuild(client),
 		ping: () =>
 			// `ping` takes no options, so there is no signal to pass on.

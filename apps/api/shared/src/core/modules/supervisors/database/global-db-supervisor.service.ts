@@ -22,6 +22,8 @@
 
 import { Injectable } from "@nestjs/common";
 import { Pool } from "pg";
+import { Effect } from "effect";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import z from "zod/v4";
 
 import {
@@ -413,8 +415,9 @@ private async depsReady(): Promise<boolean> {
 		const published = this.buildSwarmSpec().endpointPorts[0]?.publishedPort ?? null;
 
 		// Data-volume usage (Size may be null until docker has COW stats).
-		const docker = this.dockerService.getDockerClient();
-		const volumeInspect = await docker.getVolume(MANAGED_POSTGRES_VOLUME_NAME).inspect().catch(() => null);
+		const volumeInspect = await runPromiseUnwrapped(
+			this.dockerService.getEngine().volumes.inspect(MANAGED_POSTGRES_VOLUME_NAME).pipe(Effect.orElseSucceed(() => null)),
+		);
 		const volume = volumeInspect
 			? {
 					name: MANAGED_POSTGRES_VOLUME_NAME,

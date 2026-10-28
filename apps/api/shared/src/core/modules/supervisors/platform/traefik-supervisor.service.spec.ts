@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NotFoundException } from "@nestjs/common";
+import { DockerNotFound } from "@deployer/docker";
+import { Effect } from "effect";
 import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
 
 import { TEST_TUNNEL_ID, testEdgeRegistry } from "../../edge/testing/edge-registry.fixture";
@@ -65,26 +67,24 @@ function makeDockerService(bootstrapLabels: Record<string, string> | null = null
 	});
 
 	const dockerService = {
-		getDockerClient: () => ({
-			getNetwork: vi.fn((name: string) => ({
-				inspect: vi.fn(() => Promise.resolve({ Id: `net-${name}`, Driver: "overlay", Containers: {} })),
-				connect: vi.fn(() => Promise.resolve()),
-			})),
-			getVolume: vi.fn(() => ({ inspect: vi.fn(() => Promise.reject(Object.assign(new Error("nf"), { statusCode: 404 }))) })),
-			createVolume: vi.fn(() => Promise.resolve({ name: "created" })),
-			getContainer: vi.fn((name: string) => ({
-				inspect: vi.fn(() => {
+		getEngine: () => ({
+			containers: {
+				inspect: (name: string) => {
 					if (name === "deployer-ingress-forwarder") {
-						return legacyForwarder ? Promise.resolve({ Id: "fwd", Config: { Labels: {} } }) : Promise.reject(new Error("no such container"));
+						return legacyForwarder
+							? Effect.succeed({ Id: "fwd", Config: { Labels: {} } })
+							: Effect.fail(new DockerNotFound({ resource: name }));
 					}
-					if (bootstrapLabels === null) return Promise.reject(Object.assign(new Error(`No such container: ${name}`), { statusCode: 404 }));
-					return Promise.resolve({ Id: "bootstrap", Config: { Labels: bootstrapLabels } });
-				}),
-				remove: vi.fn(() => {
-					removedContainers.push(name);
-					return Promise.resolve();
-				}),
-			})),
+					if (bootstrapLabels === null) return Effect.fail(new DockerNotFound({ resource: name }));
+					return Effect.succeed({ Id: "bootstrap", Config: { Labels: bootstrapLabels } });
+				},
+				removeIfExists: (name: string) =>
+					Effect.sync(() => {
+						removedContainers.push(name);
+					}),
+			},
+			networks: { connectContainer: () => Effect.void },
+			volumes: { ensure: () => Effect.void },
 		}),
 		getSwarmInfo: vi.fn(() => Promise.resolve({ NodeID: "n1", LocalNodeState: "active", ControlAvailable: true })),
 		inspectSwarmService: vi.fn((name: string) => {

@@ -28,6 +28,7 @@
     "type-check": "bun check --no-script"
   },
   "dependencies": {
+    "effect": "catalog:effect",
     "@nestjs-ssr/react": "^0.3.28",
     "@nestjs/common": "catalog:api:nest",
     "@nestjs/config": "catalog:api:nest",
@@ -49,6 +50,7 @@
     "@deployer/health-contracts": "*",
     "@deployer/identity-contracts": "*",
     "@deployer/logger": "*",
+    "@deployer/effect-core": "*",
     "@deployer/mesh-network": "*",
     "@deployer/docker": "*",
     "@deployer/nest-effect": "*",

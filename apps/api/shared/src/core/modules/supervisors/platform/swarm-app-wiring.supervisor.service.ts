@@ -48,7 +48,8 @@
  */
 
 import { Injectable, type OnModuleDestroy } from "@nestjs/common";
-import type { Readable } from "node:stream";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { Cause, Effect, Fiber, Stream } from "effect";
 import z from "zod/v4";
 
 import { EnvService } from "../../../../config/env/env.module";
@@ -131,7 +132,7 @@ export class SwarmAppWiringSupervisorService
 	readonly processInfoSchema = swarmAppWiringProcessInfoSchema;
 
 	/** Live Docker events stream used to re-wire containers that start later. */
-	private eventStream: Readable | null = null;
+	private eventFiber: Fiber.Fiber<void> | null = null;
 	private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 	private reconcileTimer: ReturnType<typeof setTimeout> | null = null;
 	private disposed = false;
@@ -316,7 +317,7 @@ export class SwarmAppWiringSupervisorService
 		]);
 		const wanted = selfName === null ? declared : [...declared, selfName];
 
-		const client = this.dockerService.getDockerClient();
+		const engine = this.dockerService.getEngine();
 		const network = this.platformNetwork();
 
 		let containers: { Id?: string }[];
@@ -324,10 +325,9 @@ export class SwarmAppWiringSupervisorService
 			// Filter server-side: only RUNNING app containers on this network —
 			// a stopped container cannot serve traffic and re-attaching it would
 			// only add noise (its aliases would compete with the live one).
-			containers = (await client.listContainers({
-				all: false,
-				filters: { network: [network] },
-			}));
+			containers = await runPromiseUnwrapped(
+				engine.containers.list({ all: false, filters: { network: [network] } }),
+			);
 		} catch (error: unknown) {
 			this.logger.debug(`Could not list containers on ${network}: ${String(error)}`);
 			return [];
@@ -383,23 +383,18 @@ export class SwarmAppWiringSupervisorService
 
 	/** Name + per-network aliases of a container; null when it does not exist. */
 	private async inspectContainer(idOrName: string): Promise<ContainerDetail | null> {
-		try {
-			const info = (await this.dockerService.getDockerClient().getContainer(idOrName).inspect()) as {
-				Name?: string;
-				NetworkSettings?: {
-					Networks?: Record<string, { Aliases?: string[] } | null>;
-				};
-			};
-			const name = (info.Name ?? "").replace(/^\//, "");
-			const networkAliases: Record<string, string[]> = {};
-			for (const [network, endpoint] of Object.entries(info.NetworkSettings?.Networks ?? {})) {
-				networkAliases[network] = Array.isArray(endpoint?.Aliases) ? endpoint.Aliases : [];
-			}
-			return { name: name === "" ? idOrName : name, networkAliases };
-		} catch (error: unknown) {
-			if (this.isNotFound(error)) return null;
-			throw error;
+		const info = await runPromiseUnwrapped(
+			this.dockerService.getEngine().containers.inspect(idOrName).pipe(
+				Effect.catchTag("DockerNotFound", () => Effect.succeed(null)),
+			),
+		);
+		if (info === null) return null;
+		const name = info.Name.replace(/^\//, "");
+		const networkAliases: Record<string, string[]> = {};
+		for (const [network, endpoint] of Object.entries(info.NetworkSettings.Networks)) {
+			networkAliases[network] = Array.isArray(endpoint.Aliases) ? endpoint.Aliases : [];
 		}
+		return { name: name === "" ? idOrName : name, networkAliases };
 	}
 
 	/** This API container's canonical name (HOSTNAME is the container id). */
@@ -434,44 +429,20 @@ export class SwarmAppWiringSupervisorService
 			current !== undefined && target.aliases.every((alias) => current.includes(alias));
 		if (alreadyComplete) return "attached";
 
-		const network = this.dockerService.getDockerClient().getNetwork(overlay);
+		const networks = this.dockerService.getEngine().networks;
 		// An endpoint already on the overlay with STALE aliases must be
 		// reconnected — Docker cannot update an endpoint in place.
-		if (current !== undefined) {
-			await network.disconnect({ Container: target.id, Force: true }).catch(() => undefined);
-		}
-		try {
-			await network.connect({
-				Container: target.id,
-				EndpointConfig: { Aliases: target.aliases },
-			});
-			return "wired";
-		} catch (error: unknown) {
-			// 403 "already exists" proves the endpoint is attached with the
-			// aliases we asked for — that is the already-complete case.
-			if (this.isAlreadyAttached(error)) return "attached";
-			if (this.isNotFound(error)) return "absent";
-			throw error;
-		}
-	}
-
-	/** Dockerode errors carry the HTTP status code on the error object. */
-	private statusCodeOf(error: unknown): number | null {
-		if (typeof error !== "object" || error === null) return null;
-		const code = (error as { statusCode?: unknown }).statusCode;
-		return typeof code === "number" ? code : null;
-	}
-
-	private isNotFound(error: unknown): boolean {
-		return this.statusCodeOf(error) === 404;
-	}
-
-	private isAlreadyAttached(error: unknown): boolean {
-		const message = error instanceof Error ? error.message : String(error);
-		return (
-			this.statusCodeOf(error) === 403 ||
-			message.includes("already exists") ||
-			message.includes("already attached")
+		return runPromiseUnwrapped(
+			Effect.gen(function* () {
+				if (current !== undefined) yield* networks.detachContainer(overlay, target.id);
+				yield* networks.attachContainer(overlay, target.id, target.aliases);
+				return "wired" as const;
+			}).pipe(
+				// A conflict proves the endpoint is attached with the aliases we asked for —
+				// that is the already-complete case.
+				Effect.catchTag("DockerConflict", () => Effect.succeed("attached" as const)),
+				Effect.catchTag("DockerNotFound", () => Effect.succeed("absent" as const)),
+			),
 		);
 	}
 
@@ -482,44 +453,33 @@ export class SwarmAppWiringSupervisorService
 	// handled the moment they happen — no polling, no ordering assumptions.
 
 	private startWatchingContainerStarts(): void {
-		void (async (): Promise<void> => {
-			try {
-				const client = this.dockerService.getDockerClient();
-				const stream = (await (client.getEvents as (opts: object) => Promise<Readable>)({
-					filters: {
-						type: ["container"],
-						event: ["start"],
-					},
-				}));
-				if (this.disposed) {
-					stream.destroy();
-					return;
-				}
-				this.eventStream = stream;
-				let buffer = "";
-				stream.on("data", (chunk: Buffer) => {
-					buffer += chunk.toString();
-					const lines = buffer.split("\n");
-					buffer = lines.pop() ?? "";
-					for (const line of lines) this.handleEventLine(line);
-				});
-				stream.on("error", () => { this.scheduleReconnect(); });
-				stream.on("close", () => { this.scheduleReconnect(); });
-			} catch {
-				this.scheduleReconnect();
-			}
-		})();
+		if (this.disposed) return;
+		this.eventFiber = Effect.runFork(
+			this.dockerService
+				.getEngine()
+				.events.stream({ filters: { type: ["container"], event: ["start"] } })
+				.pipe(
+					Stream.runForEach((event) => Effect.sync(() => { this.handleEvent(event); })),
+					Effect.matchCause({
+						onSuccess: () => { this.scheduleReconnect(); },
+						onFailure: (cause) => {
+							if (!Cause.hasInterruptsOnly(cause)) this.scheduleReconnect();
+						},
+					}),
+				),
+		);
 	}
 
-	private handleEventLine(line: string): void {
-		if (line.trim() === "") return;
-		const parsed = dockerEventSchema.safeParse(this.parseJson(line));
+	private handleEvent(event: unknown): void {
+		const parsed = dockerEventSchema.safeParse(event);
 		if (!parsed.success) return;
 
 		const containerName = parsed.data.Actor?.Attributes?.name;
 		if (containerName === undefined || containerName === "") return;
 
-		void this.rewireIfTarget(containerName);
+		void this.rewireIfTarget(containerName).catch((error: unknown) => {
+			this.logger.warn(`Re-wiring after ${containerName} started failed: ${String(error)}`);
+		});
 	}
 
 	/**
@@ -566,17 +526,8 @@ export class SwarmAppWiringSupervisorService
 	}
 
 	private stopEventStream(): void {
-		if (this.eventStream === null) return;
-		this.eventStream.removeAllListeners();
-		this.eventStream.destroy();
-		this.eventStream = null;
-	}
-
-	private parseJson(text: string): unknown {
-		try {
-			return JSON.parse(text);
-		} catch {
-			return null;
-		}
+		if (this.eventFiber === null) return;
+		void Effect.runPromise(Fiber.interrupt(this.eventFiber));
+		this.eventFiber = null;
 	}
 }

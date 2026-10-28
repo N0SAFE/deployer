@@ -1,5 +1,6 @@
 import { AGENT_RUN_VOLUME, AGENT_SOCKET_DIR } from "@deployer/mesh-network";
 import { Injectable, Logger } from "@nestjs/common";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { DockerService } from "@deployer/nest-effect/docker";
 import { toDockerServiceSpec } from "@deployer/docker";
 
@@ -480,7 +481,7 @@ export class ServicesTierProvisioner {
 
 	private async findExistingService(name: string): Promise<{ Version: { Index: number } } | null> {
 		try {
-			const services = await this.docker.getDockerClient().listServices();
+			const services = await runPromiseUnwrapped(this.docker.getEngine().swarmServices.list());
 			const match = services.find((service) => service.Spec?.Name === name);
 			return match === undefined ? null : { Version: { Index: match.Version?.Index ?? 0 } };
 		} catch (error: unknown) {

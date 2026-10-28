@@ -11,3 +11,4 @@ export { BaseDockerSupervisorService } from "./base-docker-supervisor.service";
 export { ScannerContainerManagerService } from "./scanner-container-manager.service";
 export { PostgresServiceProvisioner, toPostgresIdentity } from "./postgres-service.provisioner";
 export type { PostgresIdentityConfig } from "./docker-config";
+export { makeMeshAgentEngine } from "./mesh-agent-engine";

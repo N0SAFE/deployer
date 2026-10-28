@@ -31,6 +31,17 @@ export type RecreateOverlayResult = {
 export type NetworksShape = {
 	/** Attaches a container to a network, best effort: a container that is already attached or gone is left alone. */
 	readonly connectContainer: (networkName: string, containerIdOrName: string) => Effect.Effect<void>;
+	/**
+	 * Attaches a container to a network under `aliases`. `DockerConflict` means the endpoint already
+	 * exists (the engine answers 403), `DockerNotFound` that the container or network is gone.
+	 */
+	readonly attachContainer: (
+		networkName: string,
+		containerIdOrName: string,
+		aliases?: readonly string[],
+	) => Effect.Effect<void, DockerError>;
+	/** Force-detaches a container from a network, best effort: not being attached is not a failure. */
+	readonly detachContainer: (networkName: string, containerIdOrName: string) => Effect.Effect<void>;
 	/** Networks on this engine, including swarm overlays when it is a manager. */
 	readonly list: () => Effect.Effect<DockerodeNetworkSummary[], DockerError>;
 	/**
@@ -195,5 +206,38 @@ export function makeNetworks(client: Docker, swarmServices: SwarmServicesShape):
 			(cause) => cause,
 		).pipe(Effect.ignore);
 
-	return { ensureOverlay, list, recreateOverlay, connectContainer };
+	const attachContainer: NetworksShape["attachContainer"] = (networkName, containerIdOrName, aliases) =>
+		engineCall(
+			`attach container ${containerIdOrName} to network ${networkName}`,
+			async (signal) => {
+				await client.getNetwork(networkName).connect({
+					Container: containerIdOrName,
+					...(aliases === undefined ? {} : { EndpointConfig: { Aliases: [...aliases] } }),
+					abortSignal: signal,
+				} as Parameters<Docker.Network["connect"]>[0]);
+			},
+			`container '${containerIdOrName}' or network '${networkName}'`,
+		).pipe(
+			Effect.catchTag("DockerUnavailable", (error): Effect.Effect<never, DockerError> => {
+				const status = (error.cause as { statusCode?: unknown } | undefined)?.statusCode;
+				return status === 403 || status === 409 || /already (exists|connected|attached)/i.test(error.reason)
+					? Effect.fail(new DockerConflict({ reason: error.reason }))
+					: Effect.fail(error);
+			}),
+			Effect.asVoid,
+		);
+
+	const detachContainer: NetworksShape["detachContainer"] = (networkName, containerIdOrName) =>
+		fromAbortable(
+			async (signal) => {
+				await client.getNetwork(networkName).disconnect({
+					Container: containerIdOrName,
+					Force: true,
+					abortSignal: signal,
+				} as Parameters<Docker.Network["disconnect"]>[0]);
+			},
+			(cause) => cause,
+		).pipe(Effect.ignore);
+
+	return { ensureOverlay, list, recreateOverlay, connectContainer, attachContainer, detachContainer };
 }

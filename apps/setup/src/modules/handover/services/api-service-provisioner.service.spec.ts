@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import { ApiServiceProvisioner } from "./api-service-provisioner.service";
 import { makeEnvService } from "@/test-support/env";
 import type { DockerService } from "@deployer/nest-effect/docker";
+import { DockerUnavailable } from "@deployer/docker";
+import { Effect } from "effect";
 
 /**
  * The provisioner is where `SETUP_MODE` actually forks, so the assertions are
@@ -177,7 +179,16 @@ describe("ApiServiceProvisioner", () => {
           { SETUP_MODE: "prod", DEPLOYER_BFF_IMAGE: "svc-bff:local" },
           {
             recreateOverlayNetwork,
-            getDockerClient: vi.fn(() => ({ getNetwork: vi.fn(() => ({ connect })) })),
+            getEngine: vi.fn(() => ({
+              networks: {
+                // The engine reports a failed attach as a typed error carrying its own words.
+                attachContainer: () =>
+                  Effect.tryPromise({
+                    try: () => (connect as unknown as () => Promise<void>)(),
+                    catch: (cause) => new DockerUnavailable({ reason: cause instanceof Error ? cause.message : String(cause), cause }),
+                  }),
+              },
+            })),
           } as unknown as Partial<DockerService>,
         );
         const statics = ApiServiceProvisioner as unknown as { ATTACH_POLL_MS: number };

@@ -3,6 +3,7 @@
 		"@deployer/contracts-entities": "*",
 		"@deployer/docker": "*",
 		"@deployer/effect-core": "*",
+        "@deployer/mesh-network": "*",
 		"@deployer/errors": "*",
 		"@deployer/nest-database-core": "*",
 		"@deployer/node-state": "*",

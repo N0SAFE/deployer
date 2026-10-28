@@ -45,6 +45,8 @@ import { splitManagedEnv } from "@deployer/env";
 import { resolveDockerHostIp } from "@deployer/docker";
 
 import { EnvService } from "../../../../config/env/env.module";
+import { Effect } from "effect";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { MeshAgentClient } from "../../mesh-agent/mesh-agent.client";
 import { HostnameService } from "../../platform-ingress/services/hostname.service";
 import { buildNodeDoors } from "../../platform-ingress/services/ingress-doors";
@@ -253,13 +255,12 @@ export class TraefikSupervisorService
 	}
 
 	private async bootstrapIngressRunning(): Promise<boolean> {
-		try {
-			const container = await this.client.getContainer(this.swarmServiceName()).inspect();
-			const labels: Record<string, string> = container.Config.Labels;
-			return Object.entries(TraefikSupervisorService.BOOTSTRAP_LABELS).every(([key, value]) => labels[key] === value);
-		} catch {
-			return false;
-		}
+		const container = await runPromiseUnwrapped(
+			this.engine.containers.inspect(this.swarmServiceName()).pipe(Effect.orElseSucceed(() => null)),
+		);
+		if (container === null) return false;
+		const labels: Record<string, string> = container.Config.Labels;
+		return Object.entries(TraefikSupervisorService.BOOTSTRAP_LABELS).every(([key, value]) => labels[key] === value);
 	}
 
 	private scheduleHandoverRetry(): void {
@@ -455,7 +456,7 @@ export class TraefikSupervisorService
 	private async connectSelfToOverlay(overlay: string): Promise<void> {
 		const selfId = process.env.HOSTNAME;
 		if (selfId === undefined || !/^[0-9a-f]{12,64}$/.test(selfId)) return;
-		await this.client.getNetwork(overlay).connect({ Container: selfId }).catch(() => undefined);
+		await runPromiseUnwrapped(this.engine.networks.connectContainer(overlay, selfId));
 	}
 
 	protected async reconcile(): Promise<void> {
@@ -529,14 +530,13 @@ export class TraefikSupervisorService
 	 * place would otherwise keep it forever and the door could never bind.
 	 */
 	private async removeLegacyForwarder(): Promise<void> {
-		try {
-			const container = this.client.getContainer(LEGACY_FORWARDER_CONTAINER);
-			await container.inspect();
-			await container.remove({ force: true });
-			this.logger.log(`Removed the legacy ${LEGACY_FORWARDER_CONTAINER} — the mesh agent's local door replaces it`);
-		} catch {
-			// absent: nothing to clean up
-		}
+		const present = await this.inspectContainer(LEGACY_FORWARDER_CONTAINER).then(
+			(container) => container !== null,
+			() => false,
+		);
+		if (!present) return; // absent: nothing to clean up
+		await this.removeContainerIfExists(LEGACY_FORWARDER_CONTAINER);
+		this.logger.log(`Removed the legacy ${LEGACY_FORWARDER_CONTAINER} — the mesh agent's local door replaces it`);
 	}
 
 	private async verifySwarmConvergence(spec: SwarmServiceSpecInput): Promise<void> {

@@ -16,7 +16,7 @@ import { decideRole, type SwarmJoinGrantShape } from "@deployer/swarm";
 import { runSyncUnwrapped } from "@deployer/effect-core";
 import { Injectable, type OnModuleInit } from "@nestjs/common";
 
-import { runUnwrapped } from "../supervision/run";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { SwarmHost } from "./swarm.host";
 
 /**
@@ -27,40 +27,40 @@ import { SwarmHost } from "./swarm.host";
 export class SwarmClusterService {
 	constructor(private readonly host: SwarmHost) {}
 	assertClusterReady(): Promise<void> {
-		return runUnwrapped(this.host.cluster.assertClusterReady());
+		return runPromiseUnwrapped(this.host.cluster.assertClusterReady());
 	}
 	ensureCluster(options: SwarmInitOptions): Promise<ClusterSnapshot> {
-		return runUnwrapped(this.host.cluster.ensureCluster(options));
+		return runPromiseUnwrapped(this.host.cluster.ensureCluster(options));
 	}
 	joinCluster(options: { joinToken: string; remoteAddrs: string[]; meshAddress?: string | null }): Promise<ClusterSnapshot> {
-		return runUnwrapped(this.host.cluster.joinCluster(options));
+		return runPromiseUnwrapped(this.host.cluster.joinCluster(options));
 	}
 	reanchorLoneCluster(meshAddress: string): Promise<void> {
-		return runUnwrapped(this.host.cluster.reanchorLoneCluster(meshAddress));
+		return runPromiseUnwrapped(this.host.cluster.reanchorLoneCluster(meshAddress));
 	}
 	managerAddresses(): Promise<string[]> {
-		return runUnwrapped(this.host.cluster.managerAddresses());
+		return runPromiseUnwrapped(this.host.cluster.managerAddresses());
 	}
 	getLocalClusterSnapshot(): Promise<ClusterSnapshot> {
-		return runUnwrapped(this.host.cluster.getLocalClusterSnapshot());
+		return runPromiseUnwrapped(this.host.cluster.getLocalClusterSnapshot());
 	}
 	getJoinTokens(): Promise<{ worker: string; manager: string } | null> {
-		return runUnwrapped(this.host.cluster.getJoinTokens());
+		return runPromiseUnwrapped(this.host.cluster.getJoinTokens());
 	}
 	listSwarmServicesForDeployment(deploymentId: string): Promise<DockerodeServiceSummary[]> {
-		return runUnwrapped(this.host.cluster.listSwarmServicesForDeployment(deploymentId));
+		return runPromiseUnwrapped(this.host.cluster.listSwarmServicesForDeployment(deploymentId));
 	}
 	listSwarmNodes(): Promise<DockerodeNodeSummary[]> {
-		return runUnwrapped(this.host.cluster.listSwarmNodes());
+		return runPromiseUnwrapped(this.host.cluster.listSwarmNodes());
 	}
 	inspectSwarmNode(nodeId: string): Promise<DockerodeNodeSummary> {
-		return runUnwrapped(this.host.cluster.inspectSwarmNode(nodeId));
+		return runPromiseUnwrapped(this.host.cluster.inspectSwarmNode(nodeId));
 	}
 	updateSwarmNodeLabels(nodeId: string, version: number, labels: Record<string, string>): Promise<void> {
-		return runUnwrapped(this.host.cluster.updateSwarmNodeLabels(nodeId, version, labels));
+		return runPromiseUnwrapped(this.host.cluster.updateSwarmNodeLabels(nodeId, version, labels));
 	}
 	waitForActiveCluster(): Promise<ClusterSnapshot> {
-		return runUnwrapped(this.host.cluster.waitForActiveCluster());
+		return runPromiseUnwrapped(this.host.cluster.waitForActiveCluster());
 	}
 }
 
@@ -68,13 +68,13 @@ export class SwarmClusterService {
 export class SwarmFleetService {
 	constructor(private readonly host: SwarmHost) {}
 	listServices(): Promise<SwarmServiceRuntime[]> {
-		return runUnwrapped(this.host.fleet.listServices());
+		return runPromiseUnwrapped(this.host.fleet.listServices());
 	}
 	listTasks(filter: { serviceId?: string; nodeId?: string } = {}): Promise<SwarmTaskRuntime[]> {
-		return runUnwrapped(this.host.fleet.listTasks(filter));
+		return runPromiseUnwrapped(this.host.fleet.listTasks(filter));
 	}
 	getNodeResources(nodeId: string): Promise<SwarmNodeResources> {
-		return runUnwrapped(this.host.fleet.getNodeResources(nodeId));
+		return runPromiseUnwrapped(this.host.fleet.getNodeResources(nodeId));
 	}
 }
 
@@ -88,16 +88,16 @@ export class SwarmParticipationService {
 		return runSyncUnwrapped(this.host.participation.setupDone());
 	}
 	converge(): Promise<ClusterSnapshot> {
-		return runUnwrapped(this.host.participation.converge());
+		return runPromiseUnwrapped(this.host.participation.converge());
 	}
 	meshAddress(): Promise<string | null> {
-		return runUnwrapped(this.host.participation.meshAddress());
+		return runPromiseUnwrapped(this.host.participation.meshAddress());
 	}
 	applyConfig(input: SwarmParticipationInput): Promise<SwarmConfigView> {
-		return runUnwrapped(this.host.participation.applyConfig(input));
+		return runPromiseUnwrapped(this.host.participation.applyConfig(input));
 	}
 	view(): Promise<SwarmConfigView> {
-		return runUnwrapped(this.host.participation.view());
+		return runPromiseUnwrapped(this.host.participation.view());
 	}
 }
 
@@ -105,7 +105,7 @@ export class SwarmParticipationService {
 export class SwarmJoinGrantService {
 	constructor(private readonly host: SwarmHost) {}
 	buildGrant(requested: SwarmNodePolicy | undefined): Promise<MeshSwarmJoinGrant | null> {
-		return runUnwrapped(this.host.joinGrant.buildGrant(requested));
+		return runPromiseUnwrapped(this.host.joinGrant.buildGrant(requested));
 	}
 	decideRole(input: Parameters<SwarmJoinGrantShape["decideRole"]>[0]): ReturnType<typeof decideRole> {
 		return decideRole(input);
@@ -116,10 +116,10 @@ export class SwarmJoinGrantService {
 export class SwarmBootstrapService implements OnModuleInit {
 	constructor(private readonly host: SwarmHost) {}
 	async onModuleInit(): Promise<void> {
-		await runUnwrapped(this.host.bootstrap.onBoot);
+		await runPromiseUnwrapped(this.host.bootstrap.onBoot);
 	}
 	converge(trigger: "boot" | "setup"): Promise<void> {
-		return runUnwrapped(this.host.bootstrap.converge(trigger));
+		return runPromiseUnwrapped(this.host.bootstrap.converge(trigger));
 	}
 }
 
@@ -130,6 +130,6 @@ export class SwarmLeadershipService implements OnModuleInit {
 		this.host.startElection();
 	}
 	evaluateNow(): Promise<void> {
-		return runUnwrapped(this.host.leadership.evaluateNow());
+		return runPromiseUnwrapped(this.host.leadership.evaluateNow());
 	}
 }

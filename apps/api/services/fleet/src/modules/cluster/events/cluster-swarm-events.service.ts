@@ -22,6 +22,7 @@ import {
     timer,
 } from "rxjs";
 import { map } from "rxjs/operators";
+import { Cause, Effect, Fiber, Stream } from "effect";
 import { CoreEventStreamPoolService } from "@deployer/nest-events";
 import { AbstractDomainEventStreamService } from "@deployer/nest-events";
 import { DockerService } from "@deployer/nest-effect/docker";
@@ -180,41 +181,22 @@ export class ClusterSwarmEventsService
     }
 
     private createDockerEventObservable(): Promise<Observable<DockerRawEvent>> {
-        return (async (): Promise<Observable<DockerRawEvent>> => {
-            const client = this.dockerService.getDockerClient();
-            const eventStream = await (client.getEvents as Function)({
-                since: Math.floor(Date.now() / 1000).toString(),
-            }) as NodeJS.ReadableStream;
-
-            return new Observable<DockerRawEvent>((subscriber) => {
-                const stream = eventStream as unknown as import("stream").Readable;
-                let buffer = "";
-
-                const onData = (chunk: Buffer) => {
-                    buffer += chunk.toString();
-                    const lines = buffer.split("\n");
-                    buffer = lines.pop() ?? "";
-                    for (const line of lines) {
-                        if (line.trim()) {
-                            try {
-                                subscriber.next(JSON.parse(line) as DockerRawEvent);
-                            } catch {
-                                // partial JSON — skip
-                            }
-                        }
-                    }
-                };
-
-                stream.on("data", onData);
-                stream.on("error", (err: Error) => { subscriber.error(err); });
-                stream.on("end", () => { subscriber.complete(); });
-
-                return () => {
-                    stream.removeListener("data", onData);
-                    stream.destroy();
-                };
-            });
-        })();
+        const events = this.dockerService.getEngine().events;
+        return Promise.resolve(
+            new Observable<DockerRawEvent>((subscriber) => {
+                const fiber = Effect.runFork(
+                    events.stream({ since: Math.floor(Date.now() / 1000) }).pipe(
+                        Stream.runForEach((event) => Effect.sync(() => { subscriber.next(event); })),
+                        Effect.matchCause({
+                            onSuccess: () => { subscriber.complete(); },
+                            onFailure: (cause) => { subscriber.error(Cause.squash(cause)); },
+                        }),
+                    ),
+                );
+                // Interrupting the fiber releases the engine connection.
+                return () => { void Effect.runPromise(Fiber.interrupt(fiber)); };
+            }),
+        );
     }
 
     private handleDockerEvent(event: DockerRawEvent): void {

@@ -1,6 +1,8 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
+import { Effect } from "effect";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import type { Logger as DrizzleLogger } from "drizzle-orm/logger";
@@ -534,20 +536,15 @@ export class LocalInitializationService {
         log(`  user      = ${identity.username}`);
         log(`  db        = ${identity.databaseName}`);
 
-        const client = this.dockerService.getDockerClient();
+        const engine = this.dockerService.getEngine();
 
         // Volume first: recreating the container must reuse the existing data,
         // so the volume is never removed here (only created when absent).
-        await client
-            .createVolume({ Name: MANAGED_POSTGRES_VOLUME_NAME })
-            .catch(() => undefined);
+        await runPromiseUnwrapped(engine.volumes.ensure(MANAGED_POSTGRES_VOLUME_NAME).pipe(Effect.ignore));
 
         // Remove any leftover container by that name: `createContainer` fails on
         // a name collision, and an interrupted earlier run can leave one behind.
-        await client
-            .getContainer(name)
-            .remove({ force: true })
-            .catch(() => undefined);
+        await runPromiseUnwrapped(engine.containers.removeIfExists(name).pipe(Effect.ignore));
 
         const container = await this.dockerService.createContainer({
             name,

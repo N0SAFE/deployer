@@ -39,6 +39,7 @@ import { PlatformConfigService } from "../../platform-ingress/services/platform-
 import { PLATFORM_WEB_INTERNAL_PORT } from "../../platform-ingress/services/platform-names";
 import { PlatformPaths } from "../../platform-ingress/services/platform-paths";
 import { PlatformRoutesSource, type SupervisedRoute } from "../../platform-ingress/services/platform-routes-source.service";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { resolveSelfContainerName } from "../../platform-ingress/services/platform-self-resolver";
 import { PlatformWebTargetService } from "../../platform-ingress/services/platform-web-target.service";
 import { TraefikRepository } from "../repositories/traefik.repository";
@@ -85,7 +86,7 @@ export class TraefikIngressConfigService {
 
 	/** The API's own backend on the platform overlay. */
 	private async apiBackend(): Promise<string> {
-		return `http://${await resolveSelfContainerName(this.dockerService.getDockerClient(), this.env)}:${String(this.env.get("API_PORT"))}`;
+		return `http://${await runPromiseUnwrapped(resolveSelfContainerName(this.dockerService.getEngine().containers, this.env))}:${String(this.env.get("API_PORT"))}`;
 	}
 
 	async buildDynamicConfig(): Promise<LaneTraefikConfig> {
