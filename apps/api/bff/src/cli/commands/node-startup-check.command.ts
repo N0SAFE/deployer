@@ -22,7 +22,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository";
+import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 import type { SetupState } from "@deployer/nest-schema/local/node-config";
 
 // ─── Resolve version from package.json ─────────────────────────────────────────

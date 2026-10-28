@@ -36,7 +36,7 @@ import { MANAGED_POSTGRES_CONTAINER_NAME, MANAGED_POSTGRES_IMAGE, MANAGED_POSTGR
 import { PostgresServiceProvisioner } from "@deployer/nest-docker/containers/postgres/postgres-service.provisioner";
 import type { PostgresIdentity } from "@deployer/docker";
 import { MANAGED_POSTGRES_ALIAS } from "@deployer/docker";
-import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository";
+import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 import { EnvService } from "../../../../config/env/env.module";
 import { splitManagedEnv } from "@deployer/env";
 import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";

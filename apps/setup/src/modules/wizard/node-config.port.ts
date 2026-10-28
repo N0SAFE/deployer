@@ -1,4 +1,4 @@
-import type { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository";
+import type { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 
 /**
  * The slice of `NodeConfigRepository` the setup wizard's own services use.

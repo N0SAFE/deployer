@@ -18,7 +18,7 @@
 import { Command, CommandRunner, Option } from "nest-commander";
 import { Injectable, Logger } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository";
+import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 import type { SetupState } from "@deployer/nest-schema/local/node-config";
 
 type SetupDbOptions = {

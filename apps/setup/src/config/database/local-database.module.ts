@@ -12,10 +12,8 @@
  */
 import { Global, Module } from "@nestjs/common";
 
-import {
-  LocalDatabaseModule as NestLocalDatabaseModule,
-  type LocalDatabaseModuleOptions,
-} from "@deployer/nest-database-local/local-database.module";
+import { type LocalDatabaseModuleOptions } from "@deployer/nest-effect/node-state";
+import { LocalDatabaseModule as NestLocalDatabaseModule } from "@deployer/nest-effect/node-state";
 import { LOCAL_MIGRATIONS_DIR } from "@deployer/nest-schema/migrations";
 
 import { EnvModule, EnvService } from "@/config/env/env.module";

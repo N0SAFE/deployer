@@ -93,7 +93,8 @@
         "@deployer/errors": "*",
         "@deployer/docker": "*",
         "@deployer/nest-docker": "*",
-        "@deployer/nest-nodes": "*",
+        "@deployer/nest-effect": "*",
+        "@deployer/node-state": "*",
         "zod": "catalog:utils"
     },
     "peerDependencies": {

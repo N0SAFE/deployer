@@ -33,7 +33,7 @@
         "@deployer/nest-effect": "*",
         "@deployer/nest-events": "*",
         "@deployer/nest-lifecycle": "*",
-        "@deployer/nest-nodes": "*",
+        "@deployer/node-state": "*",
         "@deployer/nest-schema": "*",
         "@deployer/supervision": "*",
         "@deployer/nest-swarm": "*",

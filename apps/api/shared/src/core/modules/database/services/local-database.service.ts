@@ -1,2 +1,2 @@
-export { LocalDatabaseService } from "@deployer/nest-database-local/local-database.service";
-export type { LocalDatabase } from "@deployer/nest-database-local/local-database.service";
+export { LocalDatabaseService } from "@deployer/nest-effect/node-state";
+export type { LocalDb as LocalDatabase } from "@deployer/node-state";

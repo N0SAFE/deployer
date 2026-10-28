@@ -1,7 +1,7 @@
 import { Logger, Module } from '@nestjs/common';
 import { EnvModule } from "@/config/env/env.module";
 import { GLOBAL_DATABASE_CONNECTION } from "@deployer/nest-database-core/database-connection";
-import { LocalDatabaseModule } from "@deployer/nest-database-local/local-database.module";
+import { LocalDatabaseModule } from "@deployer/nest-effect/node-state";
 import { DatabaseModule } from "@/core/modules/database/database.module";
 import { AuthModule } from '@/core/modules/auth/auth.module';
 import { EnvService } from "@/config/env/env.module";
@@ -15,7 +15,7 @@ import { NodeStartupCheckCommand } from './commands/node-startup-check.command';
 import { SetupDbCommand } from './commands/setup-db.command';
 import { ResealSecretsCommand } from './commands/reseal-secrets.command';
 import { MigrationJournalService } from '@/core/utils/migration-journal.service';
-import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository";
+import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 import { NodeStateModule } from '@/core/modules/node-state/node-state.module';
 
 @Module({

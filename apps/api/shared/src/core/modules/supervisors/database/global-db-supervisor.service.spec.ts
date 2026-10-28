@@ -7,7 +7,7 @@ import {
 import { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
 import type { DockerService } from "@deployer/nest-docker/services/docker.service";
 import type { PostgresServiceProvisioner } from "@deployer/nest-docker/containers/postgres/postgres-service.provisioner";
-import type { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository";
+import type { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 import type { EnvService } from "../../../../config/env/env.module";
 
 type InspectResult = {

@@ -12,7 +12,7 @@ import { CoreEventSyncService } from "../../events/services/core-event-sync.serv
 import { SystemMeshTopologyService } from "../services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { SystemMetricsService } from "../../system-metrics/services/system-metrics.service";
 import { EnvService } from "../../../../config/env/env.module";
-import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository";
+import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 import { SwarmJoinGrantService } from "@deployer/nest-swarm";
 import { signPeerServiceToken } from "@deployer/auth/mesh";
 import * as crypto from "node:crypto";

@@ -1,5 +1,9 @@
 {
 	"dependencies": {
+		"@deployer/contracts-entities": "*",
+		"@deployer/effect-core": "*",
+		"@deployer/nest-database-core": "*",
+		"@deployer/node-state": "*",
 		"@deployer/supervision": "*",
 		"@nestjs/common": "catalog:api:nest",
 		"@nestjs/core": "catalog:api:nest",
@@ -44,6 +48,11 @@
 			"import": "./dist/esm/supervision/index.mjs",
 			"require": "./dist/cjs/supervision/index.js",
 			"types": "./dist/types/supervision/index.d.ts"
+		},
+		"./node-state": {
+			"import": "./dist/esm/node-state/index.mjs",
+			"require": "./dist/cjs/node-state/index.js",
+			"types": "./dist/types/node-state/index.d.ts"
 		}
 	},
 	"main": "./dist/cjs/index.js",

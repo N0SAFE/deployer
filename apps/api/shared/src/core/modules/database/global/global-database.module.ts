@@ -31,8 +31,8 @@ import * as globalSchema from '@deployer/nest-schema/global'
 import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from "@deployer/nest-database-core/database-connection"
 import { GlobalDatabaseService } from './global-database.service'
 import { GlobalDatabaseLifecycleService } from './global-database-lifecycle.service'
-import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository"
-import { LocalDatabaseModule } from "@deployer/nest-database-local/local-database.module"
+import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import { LocalDatabaseModule } from "@deployer/nest-effect/node-state";
 import { NodeStateModule } from '../../node-state/node-state.module'
 import { EnvModule } from "../../../../config/env/env.module"
 import { EnvService } from "../../../../config/env/env.module"

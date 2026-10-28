@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { ClusterSnapshot } from "@deployer/contracts-entities";
 import type { ClusterNodeRow } from "@deployer/nest-schema/local";
-import type { ClusterNodeRepository } from "@deployer/nest-nodes/cluster-node.repository";
+import type { ClusterNodeRepository } from "@deployer/nest-effect/node-state";
 import type { SwarmElectionConfig } from "../swarm-config";
 import type { SwarmClusterService } from "../services/swarm-cluster.service";
 import {

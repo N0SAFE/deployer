@@ -1,7 +1,7 @@
 import { AppError } from "@deployer/errors";
 import { Injectable, Logger } from '@nestjs/common'
 import type { SetupInitializeRemoteInput } from '@deployer/contracts-entities'
-import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository"
+import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 import { MeshInitializationService } from '../../mesh/initialization/services/mesh-initialization.service'
 import { EnvService } from "../../../../config/env/env.module"
 import { runStep, type EmitEvent, SetupStepTracker } from '../utils/setup-runner.utils'

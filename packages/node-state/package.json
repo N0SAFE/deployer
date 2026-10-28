@@ -1,7 +1,7 @@
 {
-    "name": "@deployer/nest-database-local",
+    "name": "@deployer/node-state",
     "version": "1.0.0",
-    "description": "The local SQLite database: Drizzle connection, lifecycle and the @Global module providing its tokens.",
+    "description": "This node's own state as Effect: the local SQLite database with its migrations, the node config, the cluster node row and the fleet inventory cache, plus the swarm node label vocabulary.",
     "main": "./dist/cjs/index.js",
     "types": "./dist/types/index.d.ts",
     "exports": {
@@ -14,21 +14,6 @@
             "types": "./dist/types/*.d.ts",
             "import": "./dist/esm/*.mjs",
             "require": "./dist/cjs/*.js"
-        },
-        "./local-database.service": {
-            "types": "./dist/types/local-database.service.d.ts",
-            "import": "./dist/esm/local-database.service.mjs",
-            "require": "./dist/cjs/local-database.service.js"
-        },
-        "./local-database-lifecycle.service": {
-            "types": "./dist/types/local-database-lifecycle.service.d.ts",
-            "import": "./dist/esm/local-database-lifecycle.service.mjs",
-            "require": "./dist/cjs/local-database-lifecycle.service.js"
-        },
-        "./local-database.module": {
-            "types": "./dist/types/local-database.module.d.ts",
-            "import": "./dist/esm/local-database.module.mjs",
-            "require": "./dist/cjs/local-database.module.js"
         }
     },
     "scripts": {
@@ -39,30 +24,27 @@
         "lint:fix": "bun lint --no-script --fix --type-aware",
         "lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
         "type-check": "bun check --no-script",
-        "test": "vitest run",
-        "test:watch": "vitest",
+        "test": "bun --bun vitest run",
+        "test:watch": "bun --bun vitest",
         "build": "bun --bun pkg-build",
         "dev": "bun --bun pkg-build --watch",
         "clean": "rimraf dist",
         "build:types": "bun --bun pkg-build --types"
     },
     "dependencies": {
-        "@nestjs/common": "catalog:api:nest",
-        "@deployer/nest-database-core": "*",
+        "@deployer/contracts-entities": "*",
+        "@deployer/effect-core": "*",
         "@deployer/nest-schema": "*",
-        "drizzle-orm": "catalog:database"
-    },
-    "peerDependencies": {
-        "@nestjs/common": "catalog:api:nest"
+        "drizzle-orm": "catalog:database",
+        "effect": "catalog:effect"
     },
     "devDependencies": {
-        "@nestjs/testing": "catalog:api:nest",
         "@deployer/config-eslint": "*",
         "@deployer/config-prettier": "*",
         "@deployer/config-typescript": "*",
-        "@deployer/config-vitest": "*",
         "@deployer/pkg-build": "*",
         "@types/bun": "catalog:build",
+        "@types/dockerode": "*",
         "@types/node": "catalog:build",
         "chokidar": "catalog:build",
         "eslint": "catalog:linting",

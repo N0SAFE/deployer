@@ -2,7 +2,7 @@ import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { defaultIngressLanes, type IngressLanes } from '@deployer/contracts-entities/entities/ingress/index';
-import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository";
+import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 
 import { EgressRequestError, EgressService } from '../../egress/egress.service';
 import { EdgeProviderRegistry } from '../../edge/edge-provider.registry';

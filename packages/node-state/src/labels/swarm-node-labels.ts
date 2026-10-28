@@ -71,13 +71,8 @@ export function withPlatformRole(
     role: ClusterPlatformRole | null,
 ): Record<string, string> {
     if (role === null) return labels;
-    const next = { ...labels };
-    if (role === "both") {
-        delete next[SWARM_NODE_LABEL_ROLE];
-    } else {
-        next[SWARM_NODE_LABEL_ROLE] = role;
-    }
-    return next;
+    const without = Object.fromEntries(Object.entries(labels).filter(([key]) => key !== SWARM_NODE_LABEL_ROLE));
+    return role === "both" ? without : { ...without, [SWARM_NODE_LABEL_ROLE]: role };
 }
 
 /**
@@ -90,13 +85,8 @@ export function withIngress(
     ingress: boolean | null,
 ): Record<string, string> {
     if (ingress === null) return labels;
-    const next = { ...labels };
-    if (ingress) {
-        next[SWARM_NODE_LABEL_INGRESS] = "true";
-    } else {
-        delete next[SWARM_NODE_LABEL_INGRESS];
-    }
-    return next;
+    const without = Object.fromEntries(Object.entries(labels).filter(([key]) => key !== SWARM_NODE_LABEL_INGRESS));
+    return ingress ? { ...without, [SWARM_NODE_LABEL_INGRESS]: "true" } : without;
 }
 
 /**

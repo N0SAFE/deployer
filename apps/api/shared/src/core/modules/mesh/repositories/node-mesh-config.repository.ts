@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { LocalDatabaseService } from "@deployer/nest-database-local/local-database.service";
+import { LocalDatabaseService } from "@deployer/nest-effect/node-state";
 import { nodeMeshConfig } from "@deployer/nest-schema/local";
 
 export type NodeMeshConfigRow = typeof nodeMeshConfig.$inferSelect;

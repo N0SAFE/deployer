@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { WizardStateService } from "./wizard-state.service";
-import type { NodeConfigRow } from "@deployer/nest-nodes/node-config.repository";
+import type { NodeConfigRow } from "@deployer/node-state";
 import type { NodeConfigReader } from "./node-config.port";
 
 /**

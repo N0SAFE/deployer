@@ -26,7 +26,7 @@ import { BaseSupervisorService, type SupervisorProbeResult } from "@deployer/nes
 import { baseSupervisorPayloadSchema } from "@deployer/supervision";
 import { baseSupervisorProcessInfoSchema, sqliteProcessInfoSchema } from "@deployer/supervision";
 import { LOCAL_DATABASE_CONNECTION } from "@deployer/nest-database-core/database-connection";
-import type { LocalDatabase } from "@deployer/nest-database-local/local-database.service";
+import type { LocalDb } from "@deployer/node-state";
 import { EnvService } from "../../../../config/env/env.module";
 import { splitManagedEnv } from "@deployer/env";
 
@@ -65,7 +65,7 @@ export class LocalDbSupervisorService extends BaseSupervisorService<
 	readonly processInfoSchema = localDbProcessInfoSchema;
 
 	constructor(
-		@Inject(LOCAL_DATABASE_CONNECTION) private readonly db: LocalDatabase,
+		@Inject(LOCAL_DATABASE_CONNECTION) private readonly db: LocalDb,
 		private readonly env: EnvService,
 	) {
 		super();
@@ -159,7 +159,7 @@ export class LocalDbSupervisorService extends BaseSupervisorService<
 	}> {
 		// Raw sqlite handle for inventory + pragmas. The drizzle bun-sqlite driver
 		// exposes the underlying `bun:sqlite` Database as `$client`.
-		const sqlite = (this.db as LocalDatabase & { $client: BunSqliteDatabase }).$client;
+		const sqlite = (this.db as LocalDb & { $client: BunSqliteDatabase }).$client;
 
 		// Real on-disk path from sqlite itself (works for file + :memory: DBs;
 		// the bun type system does not expose `Database.path`).

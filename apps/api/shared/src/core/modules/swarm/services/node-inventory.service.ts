@@ -12,10 +12,8 @@ import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from "@ne
 import { DatabaseNotReadyReporter } from "../../database/services/db-not-ready";
 import { SwarmClusterService } from "@deployer/nest-swarm";
 import { GlobalClusterNodesRepository } from "../repositories/global-cluster-nodes.repository";
-import {
-    ClusterNodeInventoryRepository,
-    toEngineNodeRow,
-} from "@deployer/nest-nodes/cluster-node-inventory.repository";
+import { ClusterNodeInventoryRepository } from "@deployer/nest-effect/node-state";
+import { toEngineNodeRow } from "@deployer/node-state";
 
 @Injectable()
 export class NodeInventoryService implements OnModuleInit, OnModuleDestroy {

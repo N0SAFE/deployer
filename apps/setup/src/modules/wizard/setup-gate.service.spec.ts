@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { SetupGateService } from "./setup-gate.service";
 import { SetupPhaseService } from "@/modules/health/setup-phase.service";
-import type { NodeConfigRow } from "@deployer/nest-nodes/node-config.repository";
+import type { NodeConfigRow } from "@deployer/node-state";
 import type { NodeConfigStore } from "./node-config.port";
 import type { ClusterOrchestratorService } from "@/modules/cluster/services/cluster-orchestrator.service";
 import { OrchestrationStreamService } from "@/modules/progress/services/orchestration-stream.service";

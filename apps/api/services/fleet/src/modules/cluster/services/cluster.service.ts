@@ -21,15 +21,10 @@ import { clusterNodeInventoryRowSchema } from "@deployer/fleet-contracts";
 import { type ClusterMasterView } from "@deployer/fleet-contracts";
 import { resolveSwarmNodeRole } from "@deployer/docker";
 import type { SwarmClusterService, SwarmFleetService, SwarmParticipationService } from "@deployer/nest-swarm";
-import type { ClusterNodeInventoryRepository } from "@deployer/nest-nodes/cluster-node-inventory.repository";
-import type { ClusterNodeRepository } from "@deployer/nest-nodes/cluster-node.repository";
+import type { ClusterNodeInventoryRepository } from "@deployer/nest-effect/node-state";
+import type { ClusterNodeRepository } from "@deployer/nest-effect/node-state";
 import type { EnvService } from "@deployer/shared/config/env/env.module";
-import {
-    ingressFromLabels,
-    platformRoleFromLabels,
-    withIngress,
-    withPlatformRole,
-} from "@deployer/nest-nodes/swarm-node-labels";
+import { ingressFromLabels, platformRoleFromLabels, withIngress, withPlatformRole } from "@deployer/node-state";
 
 
 type Ports = {

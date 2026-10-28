@@ -4,7 +4,7 @@ import { and, eq, gt, inArray, isNull } from "drizzle-orm";
 import { clusterJoinGrants, clusterNodeMetrics, clusterNodes, clusterSigningKeys, resourceOwnershipIndex } from "@deployer/nest-schema/global";
 import type { MeshResourceIndexUpsertInput, MeshResourceLocation } from "@deployer/contracts-entities";
 import { GlobalDatabaseService } from "../../database/global/global-database.service";
-import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository";
+import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 
 import { AppError } from "@deployer/errors";
 @Injectable()

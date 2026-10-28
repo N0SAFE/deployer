@@ -37,7 +37,7 @@
 
 import { Global, Module } from "@nestjs/common";
 
-import { NodesModule } from "@deployer/nest-nodes/nodes.module";
+import { NodesModule } from "@deployer/nest-effect/node-state";
 import { localDatabaseRegistration } from "../database/local/local-database.module";
 
 @Global()

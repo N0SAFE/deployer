@@ -3,8 +3,8 @@ import { RenderModule } from "@nestjs-ssr/react";
 
 import { EnvModule } from "@/config/env/env.module";
 import { localDatabaseRegistration } from "@/config/database/local-database.module";
-import { NodesModule } from "@deployer/nest-nodes";
-import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository";
+import { NodesModule } from "@deployer/nest-effect/node-state";
+import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 import { NODE_CONFIG_READER, NODE_CONFIG_STORE } from "./node-config.port";
 import { SetupHealthModule } from "@/modules/health/setup-health.module";
 import { SetupClusterModule } from "@/modules/cluster/cluster.module";

@@ -23,10 +23,8 @@
 
 import { Global, Module } from "@nestjs/common";
 
-import {
-	LocalDatabaseModule as NestLocalDatabaseModule,
-	type LocalDatabaseModuleOptions,
-} from "@deployer/nest-database-local/local-database.module";
+import { type LocalDatabaseModuleOptions } from "@deployer/nest-effect/node-state";
+import { LocalDatabaseModule as NestLocalDatabaseModule } from "@deployer/nest-effect/node-state";
 // The local migrations live in the SCHEMA package: they create the tables that
 // `@deployer/nest-schema/local` defines, so the package owning the schema owns them,
 // and both apps read the same set instead of each carrying a copy.

@@ -22,7 +22,7 @@ import {
 import { ServiceUnavailableError, TimeoutError } from "@deployer/errors";
 import { resolveSwarmNodeRole } from "@deployer/docker";
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
-import { ingressFromLabels, platformRoleFromLabels } from "@deployer/nest-nodes/swarm-node-labels";
+import { ingressFromLabels, platformRoleFromLabels } from "@deployer/node-state";
 
 @Injectable()
 export class SwarmClusterService {

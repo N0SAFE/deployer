@@ -3,7 +3,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common'
 import { probeAddress, probePeer } from "@deployer/nest-reachability"
 import dns from 'node:dns/promises'
 import { isIP } from 'node:net'
-import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository"
+import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 import { NodeNetworkConfigRepository } from "../repositories/node-network-config.repository"
 import { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service"
 import { EgressService } from "../../egress/egress.service"

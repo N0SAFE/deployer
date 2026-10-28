@@ -1,7 +1,7 @@
 import { Injectable, type OnModuleInit, Logger } from '@nestjs/common'
 import { EnvService } from "../../../../config/env/env.module"
 import { NodeMeshConfigRepository, type NodeMeshConfigRow } from '../repositories/node-mesh-config.repository'
-import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository"
+import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 import { randomUUID } from 'node:crypto'
 
 export type MeshConfigTrustKeys = {

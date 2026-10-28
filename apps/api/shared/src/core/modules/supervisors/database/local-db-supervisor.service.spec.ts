@@ -6,11 +6,11 @@ import {
 	LocalDbSupervisorService,
 	LOCAL_DB_SUPERVISOR_ID,
 } from "./local-db-supervisor.service";
-import type { LocalDatabase } from "@deployer/nest-database-local/local-database.service";
+import type { LocalDb } from "@deployer/node-state";
 import type { EnvService } from "../../../../config/env/env.module";
 
 /** In-memory sqlite database wrapped by drizzle — no file I/O in tests. */
-function makeInMemoryDb(): LocalDatabase {
+function makeInMemoryDb(): LocalDb {
 	const sqlite = new Database(":memory:");
 	sqlite.run("CREATE TABLE node_config (id integer primary key, node_id text not null)");
 	sqlite.run("CREATE TABLE local_migrations (id integer primary key, name text not null)");
@@ -18,7 +18,7 @@ function makeInMemoryDb(): LocalDatabase {
 	return drizzle(sqlite);
 }
 
-function makeSupervisor(db: LocalDatabase): LocalDbSupervisorService {
+function makeSupervisor(db: LocalDb): LocalDbSupervisorService {
 	const env = {
 		get: vi.fn((key: string) => {
 			const values: Record<string, unknown> = {

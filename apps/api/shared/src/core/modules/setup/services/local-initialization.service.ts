@@ -37,7 +37,7 @@ import { SwarmClusterService } from "@deployer/nest-swarm";
 import { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
 import { SWARM_APP_WIRING_SUPERVISOR_ID } from "../../supervisors/platform/swarm-app-wiring.supervisor.service";
 import { generateMeshSharedSecret } from "@deployer/auth/mesh";
-import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository";
+import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 import {
     SetupStepTracker,
     listMigrationNames,

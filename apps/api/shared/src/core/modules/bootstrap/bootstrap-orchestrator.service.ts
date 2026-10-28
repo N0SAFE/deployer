@@ -48,7 +48,7 @@ import { existsSync } from "node:fs";
 import { migrate as migratePg } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
 import { AppLifecycleService, AppLifecyclePhase } from "@deployer/nest-lifecycle";
-import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository";
+import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 // The migration directory is owned by the schema package; resolving it there is
 // what keeps the restart path's "apply pending migrations" step from silently
 // finding nothing (see `resolveMigrationsFolder`).

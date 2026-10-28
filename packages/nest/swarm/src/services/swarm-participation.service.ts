@@ -37,12 +37,12 @@ import {
     type SwarmConfigView,
 } from "@deployer/contracts-entities";
 import { SWARM_PARTICIPATION_DEFAULTS, type SwarmParticipationDefaults } from "../swarm-config";
-import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository";
+import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 import { resolveSwarmNodeRole } from "@deployer/docker";
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
-import { ClusterNodeRepository } from "@deployer/nest-nodes/cluster-node.repository";
+import { ClusterNodeRepository } from "@deployer/nest-effect/node-state";
 import { SwarmClusterService } from "./swarm-cluster.service";
-import { platformRoleForPolicy, withIngress, withPlatformRole } from "@deployer/nest-nodes/swarm-node-labels";
+import { platformRoleForPolicy, withIngress, withPlatformRole } from "@deployer/node-state";
 
 const POLICY_DOCUMENTS = [
     swarmPolicyDocumentSchema.parse({

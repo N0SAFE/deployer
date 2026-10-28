@@ -28,7 +28,7 @@ import type { MasterCandidateMetrics } from "./master-scorer";
 import { isEligibleAsMaster, scoreCandidate, selectMasterWinner } from "./master-scorer";
 import { planQuorum, isQuorumIntact } from "./quorum-planner";
 import { SwarmClusterService } from "../services/swarm-cluster.service";
-import { ClusterNodeRepository } from "@deployer/nest-nodes/cluster-node.repository";
+import { ClusterNodeRepository } from "@deployer/nest-effect/node-state";
 
 export const MASTER_CHANGED_EVENT = "cluster.master-changed";
 
