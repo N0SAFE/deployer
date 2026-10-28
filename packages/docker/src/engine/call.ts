@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 
-import { engineMessage, isNotFound } from "../classify";
-import { DockerNotFound, DockerUnavailable } from "../errors";
+import { engineMessage, isNotFound } from "../errors/classify";
+import { DockerNotFound, DockerUnavailable } from "../errors/errors";
 
 /**
  * Runs one engine call. A 404 becomes `DockerNotFound` naming `resource` (when the caller says what

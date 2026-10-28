@@ -2,8 +2,8 @@ import { Context, Effect, Fiber, Layer } from "effect";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { DockerEngine, type DockerEngineShape } from "../docker-engine";
-import { DockerInvalid } from "../errors";
+import { DockerEngine, type DockerEngineShape } from "../engine/docker-engine";
+import { DockerInvalid } from "../errors/errors";
 
 export type ScannerType = "trivy" | "grype" | "dive";
 

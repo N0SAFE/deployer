@@ -1,9 +1,9 @@
 import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
 import { Context, Effect, Layer } from "effect";
 
-import { DockerEngine } from "../docker-engine";
-import { DockerUnavailable, type DockerError } from "../errors";
-import { platformNetworkName, platformOverlayNetworkName } from "../supervisor/docker-supervisor-runtime";
+import { DockerEngine } from "../engine/docker-engine";
+import { DockerUnavailable, type DockerError } from "../errors/errors";
+import { platformNetworkName, platformOverlayNetworkName } from "../supervision/docker-supervisor-runtime";
 
 /**
  * The platform's own Postgres, run as a swarm service.

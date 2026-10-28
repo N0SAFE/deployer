@@ -11,7 +11,7 @@ import {
   type HttpReq,
   type HttpRes,
   type SafeHttpOptions,
-} from "./safe-http";
+} from "./safe-http/index";
 
 /**
  * `SafeHttp` for code that is not written in Effect yet (the Promise-API Nest classes).

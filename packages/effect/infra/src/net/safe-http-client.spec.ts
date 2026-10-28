@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { EgressPolicy, EgressDenied, HttpTimeout, ResponseTooLarge, TooManyRedirects, HttpFailed, type EgressPolicy as Policy } from "./safe-http";
+import { EgressPolicy, EgressDenied, HttpTimeout, ResponseTooLarge, TooManyRedirects, HttpFailed, type EgressPolicy as Policy } from "./safe-http/index";
 import { makeSafeHttpClient, publicEgressMessage } from "./safe-http-client";
 
 let server: Bun.Server<undefined>;
