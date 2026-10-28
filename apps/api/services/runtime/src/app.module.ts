@@ -1,3 +1,5 @@
+import { EffectRuntime, EffectRuntimeModule } from "@deployer/nest-effect";
+import { RuntimeLive } from "./app.layers";
 import { Module } from "@nestjs/common";
 import { AppLifecycleModule } from "@deployer/nest-lifecycle";
 import {
@@ -71,7 +73,16 @@ registerSchemaCodecs();
 		PreflightModule.forRoot({ dependencies: DEPENDENCIES.platform }),
 		ServiceHealthModule,
 		HealthModule.forRoot({ indicators: "platform" }),
-		createOrpcModule(),
+		// `.effect()` handlers resolve services from `effect/context`; the runtime contributes that
+		// context per request without changing the shared transport policy.
+		createOrpcModule({
+			extraContext: {
+				inject: [EffectRuntime],
+				resolve: async (runtime) => ({ "effect/context": await runtime.context() }),
+			},
+		}),
+		// The Effect services of the modules already migrated (see `app.layers.ts`).
+		EffectRuntimeModule.forRoot({ layers: [RuntimeLive] }),
 
 		DeploymentDomainModule,
 		DockerDomainModule,

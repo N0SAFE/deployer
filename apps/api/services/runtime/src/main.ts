@@ -1,8 +1,10 @@
 import "reflect-metadata";
+import "@orpc/effect/extensions/effect";
 // The oRPC context augmentation (`context.request`, `context.auth`), imported for
 // its side effect and as `@/core/...` so it is the SAME module identity the shared
 // code resolves. The package name would load a second copy.
 import "@deployer/shared/core/orpc/context";
+// Adds `effect/context` to `DefaultInitialContext` for `.effect()` handlers.
 
 import {
 	DEPENDENCIES,

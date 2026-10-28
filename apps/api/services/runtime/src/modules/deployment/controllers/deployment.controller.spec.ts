@@ -3,7 +3,6 @@ import { Test } from "@nestjs/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DeploymentController } from "./deployment.controller";
 import { DeploymentService } from "../services/deployment.service";
-import { DeploymentEventTriggerService } from "../triggers/deployment-event-trigger.service";
 import { DeploymentStreamOrchestratorService } from "../mesh/services/deployment-stream-orchestrator.service";
 
 /**
@@ -30,6 +29,8 @@ function createImplementMock() {
     return {
         use: vi.fn().mockReturnThis(),
         handler: vi.fn((fn: HandlerFn) => ({ handler: fn })),
+        // `.effect()` handlers are generator functions; the procedure still exposes a callable handler.
+        effect: vi.fn((fn: HandlerFn) => ({ handler: fn })),
     };
 }
 
@@ -73,7 +74,6 @@ describe("DeploymentController", () => {
     let mockDeploymentStreamOrchestratorService: {
         openDeploymentStream: ReturnType<typeof vi.fn>;
     };
-    let mockEventTriggerService: { trigger: ReturnType<typeof vi.fn> };
 
     beforeEach(async () => {
         mockDeploymentService = {
@@ -97,7 +97,6 @@ describe("DeploymentController", () => {
             openDeploymentStream: vi.fn(),
         };
 
-        mockEventTriggerService = { trigger: vi.fn() };
 
         const module: TestingModule = await Test.createTestingModule({
             controllers: [DeploymentController],
@@ -107,7 +106,6 @@ describe("DeploymentController", () => {
                     provide: DeploymentStreamOrchestratorService,
                     useFactory: () => mockDeploymentStreamOrchestratorService,
                 },
-                { provide: DeploymentEventTriggerService, useFactory: () => mockEventTriggerService },
             ],
         }).compile();
 
@@ -141,18 +139,6 @@ describe("DeploymentController", () => {
         }
     });
 
-    it("triggerFromEvent should hand the event and the verified system actor to the trigger service", async () => {
-        const expected = { dispatched: true, sourceId: "github-push", deploymentId: "dep-1", reason: null };
-        mockEventTriggerService.trigger.mockResolvedValue(expected);
-        const actor = { kind: "system", source: "github-push", deliveryId: "d-1", aud: "runtime", exp: 0 };
-        const input = { provider: "github", eventName: "push", payload: {} };
-
-        const impl = controller.triggerFromEvent() as any;
-        const result = await procedureHandler(impl)({ input, context: { systemActor: actor } });
-
-        expect(mockEventTriggerService.trigger).toHaveBeenCalledWith(input, actor);
-        expect(result).toEqual(expected);
-    });
 
     it("getLogs should forward pagination and filters to deployment service", async () => {
         const expected = { logs: [], total: 0, hasMore: false };

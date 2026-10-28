@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { createModuleContext } from "@deployer/nest-effect";
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
 import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configuration/configuration-core.module";
 import { CoreDomainModule } from "@deployer/shared/core/modules/domain/domain.module";
@@ -16,6 +16,7 @@ import {
     DeploymentTriggerRegistryService,
 } from "./triggers/deployment-trigger-registry.service";
 import { DeploymentEventTriggerService } from "./triggers/deployment-event-trigger.service";
+import { SystemDeploymentsPort, TriggerRegistryPort } from "./triggers/deployment-trigger.ports";
 import type { DeploymentTriggerSource } from "./triggers/base/deployment-trigger-source.interface";
 import { DeploymentEventService } from "./events/deployment-event.service";
 import { DeploymentReadModelProjectorService } from "./events/deployment-read-model-projector.service";
@@ -47,7 +48,7 @@ import type { BuilderStrategy } from "./builders/base/builder-strategy.interface
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
 
-@Module({
+export class DeploymentDomainModule extends createModuleContext({
     imports: [
         DatabaseModule,
         ConfigurationCoreModule,
@@ -133,7 +134,9 @@ import { EventsModule } from "@deployer/shared/core/modules/events/events.module
             inject: [ApiTriggerSource, GithubPushTriggerSource],
         },
         DeploymentTriggerRegistryService,
-        DeploymentEventTriggerService,
+        // Event-triggered deployments are an Effect Layer (`deployment-trigger.layers.ts`) over these ports.
+        { provide: TriggerRegistryPort, useExisting: DeploymentTriggerRegistryService },
+        { provide: SystemDeploymentsPort, useExisting: DeploymentService },
         PreviewEnvOverlayService,
         DeploymentContainerLinkService,
         DeploymentsMeshService,
@@ -149,5 +152,4 @@ import { EventsModule } from "@deployer/shared/core/modules/events/events.module
         DeploymentReadModelProjectorService,
         PreviewEnvOverlayService,
     ],
-})
-export class DeploymentDomainModule {}
+}, DeploymentEventTriggerService) {}

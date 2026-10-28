@@ -3,8 +3,12 @@ import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
 import { deploymentContract } from "@deployer/runtime-contracts";
 import type { PlatformRole } from "@deployer/auth";
+import { AllowAnonymous } from "@deployer/shared/core/modules/auth/decorators/decorators";
 import { DeploymentService } from "../services/deployment.service";
 import { authMiddleware, requireAuth, requireMesh, requirePlatformRole, requireSystemActor } from "@deployer/shared/core/modules/auth/orpc/middlewares";
+import { EffectContextOf } from "@deployer/nest-effect";
+import { serve } from "../../../core/orpc/serve";
+import { DeploymentDomainModule } from "../deployment.module";
 import { DeploymentEventTriggerService } from "../triggers/deployment-event-trigger.service";
 import { DeploymentStreamOrchestratorService } from "../mesh/services/deployment-stream-orchestrator.service";
 
@@ -19,7 +23,6 @@ export class DeploymentController {
     constructor(
         private readonly deploymentService: DeploymentService,
         private readonly deploymentStreamOrchestratorService: DeploymentStreamOrchestratorService,
-        private readonly eventTriggerService: DeploymentEventTriggerService,
     ) {}
 
     private resolvePlatformRole(context: unknown): PlatformRole | null {
@@ -35,6 +38,27 @@ export class DeploymentController {
             : null;
     }
 
+
+    // ── ROUTE ORDER MATTERS ──────────────────────────────────────────────────
+    // Nest registers routes in method order, and `trigger` below is `POST /deployments/:serviceId`:
+    // declared first, it captures `POST /deployments/trigger-event` and answers it as a deployment
+    // trigger (a 400 or 401 about `serviceId` and `previewName`). This peer-only procedure therefore
+    // has to be registered before any `/:param` route.
+    // The global session guard would turn a peer's call into a 401 before the claim is read, so the
+    // procedure opts out of it: `requireSystemActor` below is its only gate.
+    @AllowAnonymous()
+    @Implement(deploymentContract.triggerFromEvent)
+    triggerFromEvent() {
+        // Not `requireAuth()`: the caller is a peer service relaying a provider event, vouched
+        // for by a signed system-actor claim. A user session cannot reach this procedure.
+        return implement(deploymentContract.triggerFromEvent)
+            .use(requireSystemActor("runtime"))
+            .use(DeploymentDomainModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const trigger = yield* DeploymentEventTriggerService;
+                return yield* serve(context)(trigger.trigger(input, context.systemActor.deliveryId));
+            });
+    }
 
     @Implement(deploymentContract.list)
     list() {
@@ -96,17 +120,6 @@ export class DeploymentController {
                     status: deployment.status,
                     message: "Deployment queued successfully",
                 };
-            });
-    }
-
-    @Implement(deploymentContract.triggerFromEvent)
-    triggerFromEvent() {
-        // Not `requireAuth()`: the caller is a peer service relaying a provider event, vouched
-        // for by a signed system-actor claim. A user session cannot reach this procedure.
-        return implement(deploymentContract.triggerFromEvent)
-            .use(requireSystemActor("runtime"))
-            .handler(async ({ input, context }) => {
-                return this.eventTriggerService.trigger(input, context.systemActor);
             });
     }
 
