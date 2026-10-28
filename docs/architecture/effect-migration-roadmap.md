@@ -39,6 +39,9 @@ inside the package. Do not rewrite an RxJS bus or SSE pipeline into Effect strea
 | `@deployer/swarm` (`makeSwarmServices` builds every service; each tag is provided) | `nest-swarm` |
 | `@deployer/effect-{core,infra,orpc,platform,reachability}` | the shared Effect layers |
 | identity, project, fleet, runtime services | Effect layers behind `serve` |
+| identity analytics | Effect layer (service, repository, `.effect()` handlers); every identity domain is now on the template |
+| `SessionResolver` | session lookup is an Effect service; Better Auth still does the check inside the oRPC auth plugin |
+| runtime deployment queue (EFF-202) | durable `deployment_queue_jobs` + `DeploymentQueueRepository` (SKIP LOCKED, guarded leases); `makeJobRunner` runs one fiber per job with heartbeat, cancel-as-interrupt and a single terminal write; the build abort signal reaches the docker build |
 
 ## Remaining, in dependency order
 
