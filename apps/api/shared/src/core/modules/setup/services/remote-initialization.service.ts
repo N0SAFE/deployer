@@ -8,8 +8,8 @@ import { runStep, type EmitEvent, SetupStepTracker } from '../utils/setup-runner
 import { DEPLOYER_VERSION, semverCompare } from '../../../utils/deployer-version'
 import { MeshVersionService } from '../../mesh/version/mesh-version.service'
 import type { MeshSwarmJoinGrant } from '@deployer/contracts-entities'
-import { SwarmBootstrapService } from '@deployer/nest-swarm'
-import { SwarmClusterService } from '@deployer/nest-swarm'
+import { SwarmBootstrapService } from "@deployer/nest-effect/swarm";
+import { SwarmClusterService } from "@deployer/nest-effect/swarm";
 import { MeshAdmissionService } from '../../mesh-agent/mesh-admission.service'
 
 @Injectable()

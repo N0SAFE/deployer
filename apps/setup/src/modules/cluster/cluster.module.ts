@@ -2,7 +2,7 @@ import { Module } from "@nestjs/common";
 import { AGENT_SOCKET_PATH, MeshAgentHttpClient } from "@deployer/mesh-network";
 import { DockerModule } from "@deployer/nest-docker/docker.module";
 import { NodesModule } from "@deployer/nest-effect/node-state";
-import { SwarmModule } from "@deployer/nest-swarm";
+import { SwarmModule } from "@deployer/nest-effect/swarm";
 
 import { localDatabaseRegistration } from "@/config/database/local-database.module";
 import { EnvModule, EnvService } from "@/config/env/env.module";

@@ -32,8 +32,8 @@ import { MANAGED_POSTGRES_ALIAS, MANAGED_POSTGRES_PORT, MANAGED_POSTGRES_VOLUME_
 import { PostgresServiceProvisioner } from "@deployer/nest-docker/containers/postgres/postgres-service.provisioner";
 import { EnvService } from "../../../../config/env/env.module";
 import { splitManagedEnv } from "@deployer/env";
-import { SwarmBootstrapService } from "@deployer/nest-swarm";
-import { SwarmClusterService } from "@deployer/nest-swarm";
+import { SwarmBootstrapService } from "@deployer/nest-effect/swarm";
+import { SwarmClusterService } from "@deployer/nest-effect/swarm";
 import { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
 import { SWARM_APP_WIRING_SUPERVISOR_ID } from "../../supervisors/platform/swarm-app-wiring.supervisor.service";
 import { generateMeshSharedSecret } from "@deployer/auth/mesh";

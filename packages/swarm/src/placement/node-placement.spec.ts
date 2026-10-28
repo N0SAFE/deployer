@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePlacementPolicyLabel, toSwarmPlacement } from "./node-placement.service";
+import { parsePlacementPolicyLabel, toSwarmPlacement } from "./node-placement";
 
 describe("toSwarmPlacement", () => {
     it("default = no constraints (shared nodes)", () => {

@@ -108,7 +108,7 @@ describe("SwarmRuntimeRunner", () => {
         };
         networks = { ensureOverlay: vi.fn(() => Effect.void) };
         clusterService = {
-            assertClusterReady: vi.fn().mockResolvedValue(undefined),
+            assertClusterReady: vi.fn(() => Effect.void),
         };
         service = makeSwarmRuntimeRunner({
             docker: { swarmServices, networks } as never,
@@ -252,7 +252,7 @@ describe("SwarmRuntimeRunner", () => {
     });
 
     it("propagates cluster unavailability", async () => {
-        clusterService.assertClusterReady.mockRejectedValue(new Error("swarm inactive"));
+        clusterService.assertClusterReady.mockReturnValue(Effect.fail(new Error("swarm inactive")));
 
         await expect(run(service.executeRuntime(baseInput))).rejects.toThrow("swarm inactive");
         expect(swarmServices.create).not.toHaveBeenCalled();
@@ -287,7 +287,7 @@ describe("SwarmRuntimeRunner", () => {
         });
 
         it("propagates cluster unavailability for lifecycle ops", async () => {
-            clusterService.assertClusterReady.mockRejectedValue(new Error("swarm inactive"));
+            clusterService.assertClusterReady.mockReturnValue(Effect.fail(new Error("swarm inactive")));
 
             await expect(run(service.removeService("x"))).rejects.toThrow("swarm inactive");
             await expect(run(service.scaleService("x", 1))).rejects.toThrow("swarm inactive");

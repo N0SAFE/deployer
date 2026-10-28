@@ -1,5 +1,5 @@
 import { createModuleContext } from "@deployer/nest-effect";
-import { SwarmClusterService, SwarmFleetService, SwarmParticipationService } from "@deployer/nest-swarm";
+import { SwarmClusterService, SwarmFleetService, SwarmParticipationService } from "@deployer/nest-effect/swarm";
 import { ClusterNodeInventoryRepository } from "@deployer/nest-effect/node-state";
 import { ClusterNodeRepository } from "@deployer/nest-effect/node-state";
 import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";

@@ -23,9 +23,13 @@ type NodeConfigInsert = Parameters<NodeConfigRepositoryShape["upsert"]>[0];
  */
 @Injectable()
 export class NodeConfigRepository {
-	private readonly repository: NodeConfigRepositoryShape;
+	/** The Effect repository this face runs, for hosts that compose it with other Effect services. */
+	readonly effect: NodeConfigRepositoryShape;
+	private get repository() {
+		return this.effect;
+	}
 	constructor(host: LocalDatabaseHost) {
-		this.repository = makeNodeConfigRepository(host.database);
+		this.effect = makeNodeConfigRepository(host.database);
 	}
 	find(): NodeConfigRow | null {
 		return runSyncUnwrapped(this.repository.find());
@@ -43,9 +47,13 @@ export class NodeConfigRepository {
 
 @Injectable()
 export class ClusterNodeRepository {
-	private readonly repository: ClusterNodeRepositoryShape;
+	/** The Effect repository this face runs, for hosts that compose it with other Effect services. */
+	readonly effect: ClusterNodeRepositoryShape;
+	private get repository() {
+		return this.effect;
+	}
 	constructor(host: LocalDatabaseHost) {
-		this.repository = makeClusterNodeRepository(host.database);
+		this.effect = makeClusterNodeRepository(host.database);
 	}
 	find() {
 		return runSyncUnwrapped(this.repository.find());

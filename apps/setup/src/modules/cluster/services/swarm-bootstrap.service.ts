@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { SwarmClusterService, SwarmParticipationService } from "@deployer/nest-swarm";
+import { SwarmClusterService, SwarmParticipationService } from "@deployer/nest-effect/swarm";
 
 import type { ClusterBootstrapResult, ClusterEntryMode } from "../cluster.types";
 import { MeshAgentLauncherService } from "./mesh-agent-launcher.service";

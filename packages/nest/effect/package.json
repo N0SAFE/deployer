@@ -3,8 +3,10 @@
 		"@deployer/contracts-entities": "*",
 		"@deployer/effect-core": "*",
 		"@deployer/nest-database-core": "*",
+		"@deployer/nest-docker": "*",
 		"@deployer/node-state": "*",
 		"@deployer/supervision": "*",
+		"@deployer/swarm": "*",
 		"@nestjs/common": "catalog:api:nest",
 		"@nestjs/core": "catalog:api:nest",
 		"@orpc/server": "catalog:orpc",
@@ -53,6 +55,11 @@
 			"import": "./dist/esm/node-state/index.mjs",
 			"require": "./dist/cjs/node-state/index.js",
 			"types": "./dist/types/node-state/index.d.ts"
+		},
+		"./swarm": {
+			"import": "./dist/esm/swarm/index.mjs",
+			"require": "./dist/cjs/swarm/index.js",
+			"types": "./dist/types/swarm/index.d.ts"
 		}
 	},
 	"main": "./dist/cjs/index.js",

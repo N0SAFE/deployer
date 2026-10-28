@@ -87,7 +87,7 @@
         "@deployer/nest-schema": "*",
         "@deployer/nest-effect": "*",
         "@deployer/supervision": "*",
-        "@deployer/nest-swarm": "*",
+        "@deployer/swarm": "*",
         "@deployer/orpc-utils": "*",
         "@deployer/project-contracts": "*",
         "@deployer/runtime-contracts": "*",

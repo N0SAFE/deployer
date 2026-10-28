@@ -1,4 +1,5 @@
 import { DockerClient, DockerEngine } from "@deployer/docker";
+import { SwarmCluster } from "@deployer/swarm";
 import { Effect, Layer } from "effect";
 
 import { RunnerEnvPort } from "./runners.ports";
@@ -18,8 +19,9 @@ const DockerEngineLive = DockerEngine.Live.pipe(
     ),
 );
 
-/** The runners and the registry that picks between them, over the docker engine and the swarm, traefik and env ports. */
+/** The runners and the registry that picks between them, over the docker engine, the swarm cluster, and the traefik and env ports. */
 export const RunnersLive = RuntimeRunnerRegistry.Live.pipe(
     Layer.provideMerge(Layer.mergeAll(DockerRuntimeRunner.Live, SwarmRuntimeRunner.Live)),
+    Layer.provide(SwarmCluster.layer),
     Layer.provide(DockerEngineLive),
 );

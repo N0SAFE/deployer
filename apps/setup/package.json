@@ -57,7 +57,7 @@
     "@deployer/node-state": "*",
     "@deployer/nest-reachability": "*",
     "@deployer/nest-schema": "*",
-    "@deployer/nest-swarm": "*",
+    "@deployer/swarm": "*",
     "@deployer/orpc-utils": "*",
     "@deployer/project-contracts": "*",
     "@deployer/runtime-contracts": "*",

@@ -34,7 +34,7 @@
         "@deployer/nest-events": "*",
         "@deployer/nest-lifecycle": "*",
         "@deployer/nest-schema": "*",
-        "@deployer/nest-swarm": "*",
+        "@deployer/swarm": "*",
         "@deployer/orpc-utils": "*",
         "@deployer/runtime-contracts": "*",
         "@deployer/shared": "*",

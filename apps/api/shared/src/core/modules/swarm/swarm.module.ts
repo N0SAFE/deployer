@@ -35,7 +35,7 @@
  */
 
 import { Module } from "@nestjs/common";
-import { SwarmModule } from "@deployer/nest-swarm";
+import { SwarmModule } from "@deployer/nest-effect/swarm";
 import { splitManagedEnv } from "@deployer/env";
 import { NodeStateModule } from "../node-state/node-state.module";
 import { EnvModule, EnvService } from "../../../config/env/env.module";

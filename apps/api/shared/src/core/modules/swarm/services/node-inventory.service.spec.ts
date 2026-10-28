@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import type { SwarmClusterService } from "@deployer/nest-swarm";
+import type { SwarmClusterService } from "@deployer/nest-effect/swarm";
 import { NodeInventoryService } from "./node-inventory.service";
 import type { ClusterNodeInventoryRepository } from "@deployer/nest-effect/node-state";
 import type { GlobalClusterNodesRepository } from "../repositories/global-cluster-nodes.repository";

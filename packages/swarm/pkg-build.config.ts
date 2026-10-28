@@ -1,4 +1,4 @@
 import { build } from '@deployer/pkg-build/config'
 
-/** Build configuration for `@deployer/nest-swarm` — defaults apply. */
+/** Build configuration for `@deployer/swarm` — defaults apply. */
 export default build({})

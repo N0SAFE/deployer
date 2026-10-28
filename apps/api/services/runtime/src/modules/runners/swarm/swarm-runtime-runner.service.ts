@@ -26,13 +26,13 @@ import type {
 import { platformOverlayForPrefix } from "@deployer/docker";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { toDockerServiceSpec } from "@deployer/docker";
-import type { SwarmClusterService } from "@deployer/nest-swarm";
+import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm";
 import type { EnvService } from "@deployer/shared/config/env/env.module";
 import { verifySwarmRouteAgainstTraefik } from "@deployer/shared/core/modules/traefik/services/swarm-route-verifier";
 import { attempt } from "../../../core/effects";
 import { RuntimeConflict } from "../../../core/runtime.errors";
 import { resolveContainerImage } from "../base/container-image.guard";
-import { RunnerEnvPort, RunnerSwarmClusterPort } from "../runners.ports";
+import { RunnerEnvPort } from "../runners.ports";
 import type { DeploymentRuntimeRunner, RuntimeExecutionInput } from "../runtime-runner.interface";
 import {
     buildStorageMounts,
@@ -61,13 +61,13 @@ export class SwarmRuntimeRunner extends Context.Service<SwarmRuntimeRunner, Swar
     static readonly Live: Layer.Layer<
         SwarmRuntimeRunner,
         never,
-        DockerEngine | RunnerSwarmClusterPort | RunnerEnvPort
+        DockerEngine | SwarmCluster | RunnerEnvPort
     > = Layer.effect(
         SwarmRuntimeRunner,
         Effect.gen(function* () {
             return makeSwarmRuntimeRunner({
                 docker: yield* DockerEngine,
-                cluster: yield* RunnerSwarmClusterPort,
+                cluster: yield* SwarmCluster,
                 env: yield* RunnerEnvPort,
             });
         }),
@@ -76,12 +76,12 @@ export class SwarmRuntimeRunner extends Context.Service<SwarmRuntimeRunner, Swar
 
 export function makeSwarmRuntimeRunner(ports: {
     readonly docker: DockerEngineShape;
-    readonly cluster: SwarmClusterService;
+    readonly cluster: SwarmClusterShape;
     readonly env: EnvService;
 }): SwarmRuntimeRunnerShape {
     const { docker, cluster, env } = ports;
 
-    const assertClusterReady = attempt(() => cluster.assertClusterReady());
+    const assertClusterReady = Effect.suspend(() => cluster.assertClusterReady());
 
     const removeService = Effect.fn("SwarmRuntimeRunner.removeService")(function* (serviceName: string) {
         yield* assertClusterReady;
