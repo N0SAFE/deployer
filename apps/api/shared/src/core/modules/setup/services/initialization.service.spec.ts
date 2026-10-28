@@ -7,7 +7,7 @@ import { RemoteInitializationService } from './remote-initialization.service';
 import { SetupEventService } from './setup-event.service';
 import { MeshInitializationService } from '../../mesh/initialization/services/mesh-initialization.service';
 import { ReachabilityService } from '../../reachability/services/reachability.service';
-import { AppLifecycleService } from '@deployer/nest-effect/lifecycle';
+import { AppLifecycle } from '@deployer/lifecycle';
 
 describe('InitializationService', () => {
   let service: InitializationService;
@@ -53,11 +53,11 @@ describe('InitializationService', () => {
         {
           // Setup completion advances the lifecycle, which is what readiness
           // READS. Stubbed here so the unit tests stay isolated from it.
-          provide: AppLifecycleService,
+          provide: AppLifecycle,
           useFactory: () => ({
-            markReady: vi.fn(),
-            markDatabaseProbe: vi.fn(),
-            markMeshConnected: vi.fn(),
+            markReadyNow: vi.fn(),
+            markDatabaseProbeNow: vi.fn(),
+            markMeshConnectedNow: vi.fn(),
           }),
         },
       ],

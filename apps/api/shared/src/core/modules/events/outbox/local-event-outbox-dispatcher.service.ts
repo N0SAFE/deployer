@@ -1,7 +1,7 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Inject } from "@nestjs/common";
 import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { GlobalDatabaseService } from "../../database/services/global-database.service";
-import { AppLifecycleService, AppLifecyclePhase } from "@deployer/nest-effect/lifecycle";
+import { AppLifecycle, AppLifecyclePhase, type AppLifecycleShape } from "@deployer/lifecycle";
 import { coreDomainEventEnvelopeSchema } from "@deployer/contracts-entities";
 import {
     LocalEventOutboxRepository,
@@ -20,7 +20,7 @@ export class LocalEventOutboxDispatcherService implements OnModuleInit, OnModule
     constructor(
         private readonly databaseService: GlobalDatabaseService,
         private readonly outboxRepository: LocalEventOutboxRepository,
-        private readonly lifecycle: AppLifecycleService,
+        @Inject(AppLifecycle) private readonly lifecycle: AppLifecycleShape,
     ) {}
 
     onModuleInit(): void {
@@ -38,7 +38,7 @@ export class LocalEventOutboxDispatcherService implements OnModuleInit, OnModule
             // Gate on lifecycle phase instead: READY (or DEGRADED, which means
             // the pool exists but had transient failures) implies the pool was
             // re-pointed at the real database.
-            const phase = this.lifecycle.phase;
+            const phase = this.lifecycle.stateNow().phase;
             if (phase !== AppLifecyclePhase.READY && phase !== AppLifecyclePhase.DEGRADED) {
                 return;
             }

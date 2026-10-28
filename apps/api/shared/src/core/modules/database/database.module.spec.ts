@@ -44,7 +44,7 @@ vi.mock("@deployer/nest-effect/node-state", () => {
     },
   };
 });
-vi.mock('@deployer/nest-effect/lifecycle', () => ({
+vi.mock('../lifecycle', () => ({
   // `forRoot` MUST be present: `@Global() @Module({})` classes provide NOTHING
   // when imported bare, so `DatabaseModule` imports this module through
   // `forRoot()` — a stub that omits it fails at import time with

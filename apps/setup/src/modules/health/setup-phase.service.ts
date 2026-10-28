@@ -18,11 +18,11 @@ import type { SetupPhase, SetupPhaseEvent, SetupPhaseSnapshot } from "./setup-ph
  * The phase is only ever moved by the service that does the work; nothing here
  * guesses or infers.
  *
- * WHY NOT `@deployer/nest-effect/lifecycle`'s `AppLifecycleService`
+ * WHY NOT `@deployer/lifecycle`'s `AppLifecycle`
  * Both are RxJS phase state machines, but they answer different questions and
  * must not be merged:
  *
- *   - `AppLifecycleService` describes ONE Nest process booting: config → DB
+ *   - `AppLifecycle` describes ONE Nest process booting: config → DB
  *     probe → mesh join → serving. Its phases end when that process is up.
  *   - This service describes a MULTI-PROCESS handover: found/join the swarm,
  *     drive the API to provision, retarget the ingress, then exit. Its terminal

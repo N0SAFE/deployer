@@ -1,5 +1,5 @@
 import { Module, type MiddlewareConsumer, type NestModule } from "@nestjs/common";
-import { AppLifecycleModule } from "@deployer/nest-effect/lifecycle";
+import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
 import {
 	createOrpcModule,
 	PreflightModule,
@@ -86,7 +86,7 @@ registerSchemaCodecs();
 	imports: [
 		EnvModule,
 		// `forRoot()` IS REQUIRED: the class is `@Module({})`, so importing it bare
-		// registers no providers and every consumer of `AppLifecycleService` fails
+		// registers no providers and every consumer of the `AppLifecycle` tag fails
 		// to resolve at boot.
 		AppLifecycleModule.forRoot(),
 		DatabaseModule,

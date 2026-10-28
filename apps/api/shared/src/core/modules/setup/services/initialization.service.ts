@@ -1,5 +1,5 @@
 import { AppError } from "@deployer/errors";
-import { Injectable, Logger, type OnModuleInit } from '@nestjs/common'
+import { Injectable, Logger, type OnModuleInit, Inject } from '@nestjs/common'
 import { Pool } from 'pg'
 import { ReplaySubject, firstValueFrom, interval, map, merge, Observable } from 'rxjs'
 import type {
@@ -16,7 +16,7 @@ import type { EmitEvent } from '../utils/setup-runner.utils'
 import { runStep } from '../utils/setup-runner.utils'
 import { ReachabilityService } from '../../reachability/services/reachability.service'
 import { MeshInitializationService } from '../../mesh/initialization/services/mesh-initialization.service'
-import { AppLifecycleService } from "@deployer/nest-effect/lifecycle"
+import { AppLifecycle, type AppLifecycleShape } from "@deployer/lifecycle";
 
 
 export type SetupCompletionStatus = {
@@ -63,7 +63,7 @@ export class InitializationService implements OnModuleInit {
          * readiness READS, so setting it at the moment the platform actually
          * becomes usable keeps the fact and the report in one place.
          */
-        private readonly lifecycle: AppLifecycleService,
+        @Inject(AppLifecycle) private readonly lifecycle: AppLifecycleShape,
     ) {}
 
     // ─── Lifecycle ────────────────────────────────────────────────────────────
@@ -469,14 +469,14 @@ export class InitializationService implements OnModuleInit {
         //
         // Publishing both facts here also covers the RESTART path, where setup
         // is already complete and `emitCompleted` is what runs first.
-        this.lifecycle.markDatabaseProbe(status.databaseUrl ?? "", status.databaseUrl !== null)
+        this.lifecycle.markDatabaseProbeNow(status.databaseUrl ?? "", status.databaseUrl !== null)
         // The mesh is SETTLED once onboarding is done, even with no peers: a
         // single-node cluster is legitimately "connected" (see the `mesh`
         // indicator). This is the writer that was lost when the old
         // orchestrator was deleted — without it `meshConnected` stayed null and
         // the indicator reported `down` forever.
-        this.lifecycle.markMeshConnected(true)
-        this.lifecycle.markReady()
+        this.lifecycle.markMeshConnectedNow(true)
+        this.lifecycle.markReadyNow()
 
         this.completedSubject.next(status)
         this.completedSubject.complete()

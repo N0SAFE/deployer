@@ -14,7 +14,7 @@ import { MeshQueryExecutor } from './query/mesh-query-executor';
 import { SystemMeshTopicService } from './services/system-mesh-topic/orchestrator/system-mesh-topic.service'
 import { SystemMeshTopologyService } from './services/system-mesh-topology/orchestrator/system-mesh-topology.service'
 import { MeshStreamRuntimeService } from './services/mesh-stream-runtime.service'
-import { SystemMetricsModule } from '@deployer/nest-effect/system-metrics'
+import { SystemMetricsModule } from '../system-metrics/system-metrics.module'
 import { SystemMeshConfigService } from './services/system-mesh-config.service'
 import { NodeMeshConfigRepository } from './repositories/node-mesh-config.repository'
 import { CoreEventStreamPoolService } from '@deployer/nest-effect/events'

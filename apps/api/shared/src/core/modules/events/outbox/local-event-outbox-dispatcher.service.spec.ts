@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AppLifecyclePhase } from "@deployer/nest-effect/lifecycle";
-import type { AppLifecycleService } from "@deployer/nest-effect/lifecycle";
+import { AppLifecyclePhase, type AppLifecycleShape } from "@deployer/lifecycle";
 import type { LocalEventOutboxRepository } from "./local-event-outbox.repository";
 import { LocalEventOutboxDispatcherService } from "./local-event-outbox-dispatcher.service";
 import type { GlobalDatabaseService } from "../../database/global/global-database.service";
@@ -14,7 +13,7 @@ import type { GlobalDatabaseService } from "../../database/global/global-databas
 const NO_DATABASE = {} as unknown as GlobalDatabaseService;
 
 function createLifecycleMock(phase: AppLifecyclePhase = AppLifecyclePhase.READY) {
-    return { phase } as unknown as AppLifecycleService;
+    return { stateNow: () => ({ phase }) } as unknown as AppLifecycleShape;
 }
 
 type OutboxRow = {

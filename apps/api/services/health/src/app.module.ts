@@ -3,7 +3,7 @@ import {
 	EffectRuntime,
 	EffectRuntimeModule,
 } from "@deployer/nest-effect";
-import { AppLifecycleModule } from "@deployer/nest-effect/lifecycle";
+import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
 import {
 	DEPENDENCIES,
 	HealthModule,

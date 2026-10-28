@@ -5,10 +5,8 @@
 		"@deployer/database": "*",
 		"@deployer/effect-core": "*",
 		"@deployer/events": "*",
-		"@deployer/system-metrics": "*",
 		"@deployer/environment": "*",
-		"@deployer/lifecycle": "*",
-        "@deployer/mesh-network": "*",
+		"@deployer/mesh-network": "*",
 		"@deployer/errors": "*",
 		"@deployer/node-state": "*",
 		"@deployer/supervision": "*",
@@ -75,11 +73,6 @@
 			"require": "./dist/cjs/docker/index.js",
 			"types": "./dist/types/docker/index.d.ts"
 		},
-		"./system-metrics": {
-			"import": "./dist/esm/system-metrics/index.mjs",
-			"require": "./dist/cjs/system-metrics/index.js",
-			"types": "./dist/types/system-metrics/index.d.ts"
-		},
 		"./events": {
 			"import": "./dist/esm/events/index.mjs",
 			"require": "./dist/cjs/events/index.js",
@@ -94,11 +87,6 @@
 			"import": "./dist/esm/env/index.mjs",
 			"require": "./dist/cjs/env/index.js",
 			"types": "./dist/types/env/index.d.ts"
-		},
-		"./lifecycle": {
-			"import": "./dist/esm/lifecycle/index.mjs",
-			"require": "./dist/cjs/lifecycle/index.js",
-			"types": "./dist/types/lifecycle/index.d.ts"
 		}
 	},
 	"main": "./dist/cjs/index.js",

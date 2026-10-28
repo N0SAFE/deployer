@@ -12,7 +12,7 @@
  */
 
 import { Global, Module } from '@nestjs/common'
-import { AppLifecycleModule } from '@deployer/nest-effect/lifecycle'
+import { AppLifecycleModule } from '../lifecycle'
 import { GlobalDatabaseModule } from './global/global-database.module'
 import { LocalDatabaseModule } from "./local/local-database.module";
 import { DatabaseProbeService } from './services/database-probe.service'
@@ -32,7 +32,7 @@ import { DatabaseFailureTracker } from './services/database-failure-tracker.serv
         GlobalDatabaseModule,
         // `forRoot()` IS REQUIRED — the class is `@Module({})`, so importing it
         // bare registers no providers and `DatabaseStartupGuard` (which injects
-        // `AppLifecycleService`) cannot resolve.
+        // the `AppLifecycle` tag) cannot resolve.
         AppLifecycleModule.forRoot(),
     ],
     providers: [

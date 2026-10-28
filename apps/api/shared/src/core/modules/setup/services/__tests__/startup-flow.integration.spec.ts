@@ -35,7 +35,7 @@ import { MeshInitializationService } from '../../../mesh/initialization/services
 import { ReachabilityService } from '../../../reachability/services/reachability.service';
 import { EnvService } from "../../../../../config/env/env.module";
 import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
-import { AppLifecycleService } from "@deployer/nest-effect/lifecycle";
+import { AppLifecycle } from "@deployer/lifecycle";
 
 // ─── Mock implementations ─────────────────────────────────────────────────────
 
@@ -115,9 +115,9 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
     // driven without a Nest lifecycle, and asserted below so a regression that
     // stops advancing it fails here rather than on a live install.
     mockLifecycle = {
-      markReady: vi.fn(),
-      markDatabaseProbe: vi.fn(),
-      markMeshConnected: vi.fn(),
+      markReadyNow: vi.fn(),
+      markDatabaseProbeNow: vi.fn(),
+      markMeshConnectedNow: vi.fn(),
     };
 
     module = await Test.createTestingModule({
@@ -130,7 +130,7 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
         { provide: RemoteInitializationService, useValue: mockRemoteInit },
         { provide: MeshInitializationService, useValue: mockMeshInit },
         { provide: ReachabilityService, useValue: mockReachability },
-        { provide: AppLifecycleService, useValue: mockLifecycle },
+        { provide: AppLifecycle, useValue: mockLifecycle },
       ],
     }).compile();
 
@@ -657,9 +657,9 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
       service.checkConfigAndEmit();
       await service.waitForSetup();
 
-      expect(mockLifecycle.markDatabaseProbe).toHaveBeenCalledWith(TEST_DB_URL, true);
-      expect(mockLifecycle.markMeshConnected).toHaveBeenCalledWith(true);
-      expect(mockLifecycle.markReady).toHaveBeenCalled();
+      expect(mockLifecycle.markDatabaseProbeNow).toHaveBeenCalledWith(TEST_DB_URL, true);
+      expect(mockLifecycle.markMeshConnectedNow).toHaveBeenCalledWith(true);
+      expect(mockLifecycle.markReadyNow).toHaveBeenCalled();
     });
   });
 });

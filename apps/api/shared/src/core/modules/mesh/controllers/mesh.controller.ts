@@ -1,5 +1,5 @@
 import { MeshAdmissionService } from "../../mesh-agent/mesh-admission.service";
-import { Controller } from "@nestjs/common";
+import { Controller, Inject } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
 import { meshContract, meshInternalContract } from "@deployer/fleet-contracts";
@@ -10,7 +10,8 @@ import { requireAuth, requireMesh } from "../../auth/orpc/middlewares";
 import { AllowAnonymous } from "../../auth/decorators/decorators";
 import { CoreEventSyncService } from "../../events/services/core-event-sync.service";
 import { SystemMeshTopologyService } from "../services/system-mesh-topology/orchestrator/system-mesh-topology.service";
-import { SystemMetricsService } from "@deployer/nest-effect/system-metrics";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { SystemMetrics, type SystemMetricsShape } from "@deployer/system-metrics";
 import { EnvService } from "../../../../config/env/env.module";
 import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 import { SwarmJoinGrantService } from "@deployer/nest-effect/swarm";
@@ -37,7 +38,7 @@ export class MeshController {
     constructor(
         private readonly meshTopologyService: SystemMeshTopologyService,
         private readonly coreEventSyncService: CoreEventSyncService,
-        private readonly systemMetricsService: SystemMetricsService,
+        @Inject(SystemMetrics) private readonly systemMetrics: SystemMetricsShape,
         private readonly envService: EnvService,
         private readonly nodeConfigRepository: NodeConfigRepository,
         /** Builds the FLEET's swarm role decision for a joining node. */
@@ -109,7 +110,7 @@ export class MeshController {
         return implement(meshContract.getNodeMetrics)
             .use(requireAuth())
             .handler(async () => {
-                return this.systemMetricsService.getSnapshot();
+                return runPromiseUnwrapped(this.systemMetrics.snapshot());
             });
     }
 

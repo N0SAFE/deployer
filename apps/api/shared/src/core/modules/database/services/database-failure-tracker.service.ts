@@ -1,6 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, Inject } from '@nestjs/common'
 import { Pool } from 'pg'
-import { AppLifecycleService, AppLifecyclePhase } from '@deployer/nest-effect/lifecycle'
+import { AppLifecycle, AppLifecyclePhase, type AppLifecycleShape } from "@deployer/lifecycle";
 
 @Injectable()
 export class DatabaseFailureTracker {
@@ -9,13 +9,13 @@ export class DatabaseFailureTracker {
   private readonly threshold = 5
   private recoveryTimer: ReturnType<typeof setTimeout> | null = null
 
-  constructor(private readonly lifecycle: AppLifecycleService) {}
+  constructor(@Inject(AppLifecycle) private readonly lifecycle: AppLifecycleShape) {}
 
   recordFailure(pool: Pool): void {
     this.failureCount++
-    if (this.failureCount >= this.threshold && this.lifecycle.phase !== AppLifecyclePhase.DEGRADED) {
+    if (this.failureCount >= this.threshold && this.lifecycle.stateNow().phase !== AppLifecyclePhase.DEGRADED) {
       this.logger.warn(`🚨 ${this.failureCount} consecutive DB failures — entering degraded mode`)
-      this.lifecycle.transition(AppLifecyclePhase.DEGRADED, {
+      this.lifecycle.transitionNow(AppLifecyclePhase.DEGRADED, {
         error: `${this.failureCount} consecutive database failures`,
         databaseReachable: false,
       })
@@ -25,8 +25,8 @@ export class DatabaseFailureTracker {
 
   recordSuccess(): void {
     this.failureCount = 0
-    if (this.lifecycle.phase === AppLifecyclePhase.DEGRADED) {
-      this.lifecycle.transition(AppLifecyclePhase.READY, { databaseReachable: true })
+    if (this.lifecycle.stateNow().phase === AppLifecyclePhase.DEGRADED) {
+      this.lifecycle.transitionNow(AppLifecyclePhase.READY, { databaseReachable: true })
     }
     if (this.recoveryTimer) { clearTimeout(this.recoveryTimer); this.recoveryTimer = null }
   }

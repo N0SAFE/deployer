@@ -1,8 +1,8 @@
 import { AppError } from "@deployer/errors";
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, Inject } from '@nestjs/common'
 import { Pool } from 'pg'
 import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
-import { AppLifecycleService, AppLifecyclePhase } from '@deployer/nest-effect/lifecycle'
+import { AppLifecycle, AppLifecyclePhase, type AppLifecycleShape } from "@deployer/lifecycle";
 import { DatabaseProbeService } from './database-probe.service'
 
 @Injectable()
@@ -32,7 +32,7 @@ export class DatabaseStartupGuard {
 
   constructor(
     private readonly nodeConfigRepository: NodeConfigRepository,
-    private readonly lifecycle: AppLifecycleService,
+    @Inject(AppLifecycle) private readonly lifecycle: AppLifecycleShape,
     private readonly probeService: DatabaseProbeService,
   ) {}
 
@@ -42,7 +42,7 @@ export class DatabaseStartupGuard {
       this.logger.log('⏭ No database URL configured — skipping startup guard')
       return
     }
-    this.lifecycle.transition(AppLifecyclePhase.PROBING, { message: 'Testing database connectivity…' })
+    this.lifecycle.transitionNow(AppLifecyclePhase.PROBING, { message: 'Testing database connectivity…' })
 
     const reachable = await this.tryPoolConnect(pool)
     if (reachable) {
@@ -72,13 +72,13 @@ export class DatabaseStartupGuard {
     if (probeResult.reachable) {
       const msg = 'Global database pool has wrong connection string (stale URL) — restart required'
       this.logger.error(msg)
-      this.lifecycle.transition(AppLifecyclePhase.ERROR, { error: msg, databaseReachable: false })
+      this.lifecycle.transitionNow(AppLifecyclePhase.ERROR, { error: msg, databaseReachable: false })
       throw new AppError(msg, "DATABASE_STARTUP_BLOCKED")
     }
 
     const errorMessage = this.buildDiagnostic(url, probeResult.error ?? 'Unreachable')
     this.logger.error(errorMessage)
-    this.lifecycle.transition(AppLifecyclePhase.ERROR, { error: errorMessage, databaseReachable: false })
+    this.lifecycle.transitionNow(AppLifecyclePhase.ERROR, { error: errorMessage, databaseReachable: false })
     throw new AppError(errorMessage, "DATABASE_STARTUP_BLOCKED")
   }
 

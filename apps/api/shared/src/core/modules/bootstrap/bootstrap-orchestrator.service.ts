@@ -47,7 +47,7 @@ import type { OnApplicationBootstrap } from "@nestjs/common";
 import { existsSync } from "node:fs";
 import { migrate as migratePg } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
-import { AppLifecycleService, AppLifecyclePhase } from "@deployer/nest-effect/lifecycle";
+import { AppLifecycle, AppLifecyclePhase, type AppLifecycleShape } from "@deployer/lifecycle";
 import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 // The migration directory is owned by the schema package; resolving it there is
 // what keeps the restart path's "apply pending migrations" step from silently
@@ -85,7 +85,7 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
         @Inject(GLOBAL_DATABASE_POOL) private readonly pool: Pool,
         @Inject(GLOBAL_DATABASE_CONNECTION) private readonly db: GlobalDatabase,
         private readonly nodeConfigRepository: NodeConfigRepository,
-        private readonly lifecycle: AppLifecycleService,
+        @Inject(AppLifecycle) private readonly lifecycle: AppLifecycleShape,
         private readonly startupGuard: DatabaseStartupGuard,
         private readonly appWiring: SwarmAppWiringSupervisorService,
         /**
@@ -222,17 +222,17 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
             //    orphaned install (see `ensureDefaultAdmin`).
             await this.bootstrapSeededAdmin(databaseUrl);
 
-            this.lifecycle.transition(AppLifecyclePhase.READY, {
+            this.lifecycle.transitionNow(AppLifecyclePhase.READY, {
                 message: "Database reachable, migrations applied — the platform is ready",
                 databaseReachable: true,
             });
-            this.lifecycle.markReady();
+            this.lifecycle.markReadyNow();
 
             this.logger.log("✅ Bootstrap completed");
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             this.logger.error(`❌ Bootstrap failed: ${message}`);
-            this.lifecycle.markError(message);
+            this.lifecycle.markErrorNow(message);
             throw err;
         }
     }
