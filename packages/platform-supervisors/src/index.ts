@@ -26,3 +26,25 @@ export type {
 	SwarmAppWiringProcessInfo,
 	SwarmAppWiringTarget,
 } from "./swarm-app-wiring/schemas";
+export { SupervisedResourceMissing, SupervisedResourceUnavailable } from "./errors";
+export {
+	attachOverlay,
+	DEFERRED_UNTIL_SWARM,
+	makeSwarmServiceOps,
+	PLATFORM_ROLE_LABEL,
+} from "./swarm-service/swarm-service-ops";
+export type { SwarmServiceOps } from "./swarm-service/swarm-service-ops";
+export { makeRedisSupervisor } from "./redis/redis-supervisor";
+export type { RedisConfig, RedisManagedConfig, RedisSupervisor, RedisSupervisorDeps } from "./redis/redis-supervisor";
+export {
+	PLATFORM_REDIS_SUPERVISOR_ID,
+	REDIS_CONTAINER_BASE_NAME,
+	REDIS_DATA_MOUNT,
+	REDIS_DATA_VOLUME,
+	REDIS_INTERNAL_PORT,
+	REDIS_SERVICE_IMAGE_DEFAULT,
+	redisProcessInfoSchema,
+	redisRuntimeSchema,
+	redisSupervisorPayloadSchema,
+} from "./redis/schemas";
+export type { RedisProcessInfo, RedisRuntime, RedisSupervisorPayload } from "./redis/schemas";
