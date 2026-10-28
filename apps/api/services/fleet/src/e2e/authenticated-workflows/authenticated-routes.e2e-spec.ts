@@ -63,4 +63,16 @@ describe("Fleet routes e2e: an authenticated admin", () => {
 	it.each(["/cluster/nodes", "/cluster/master"])("reads %s through the Effect services", async (path) => {
 		await context.http.get(path).set("cookie", admin.cookie).expect(200);
 	});
+
+	// The managed-web Layer reads the platform config and the supervisor through the real runtime. The
+	// controller documents itself as public, but nothing marks it `@AllowAnonymous`, so the global guard
+	// answers an anonymous call with 401 (as it did before this module moved onto layers).
+	it("answers the managed web console state through the Effect services", async () => {
+		await context.http.get("/platform/managed-web/state").expect(401);
+		const response = await context.http.get("/platform/managed-web/state").set("cookie", admin.cookie).expect(200);
+
+		const body = response.body as { enabled: boolean; webHostname: string };
+		expect(typeof body.enabled).toBe("boolean");
+		expect(body.webHostname.length).toBeGreaterThan(0);
+	});
 });
