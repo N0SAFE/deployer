@@ -38,6 +38,7 @@ import {
 } from "@deployer/contracts-entities";
 import { SWARM_PARTICIPATION_DEFAULTS, type SwarmParticipationDefaults } from "../swarm-config";
 import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository";
+import { resolveSwarmNodeRole } from "@deployer/docker";
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
 import { ClusterNodeRepository } from "@deployer/nest-nodes/cluster-node.repository";
 import { SwarmClusterService } from "./swarm-cluster.service";
@@ -307,7 +308,7 @@ export class SwarmParticipationService {
         try {
             const node = await this.dockerService.inspectSwarmNode(engineNodeId);
             // Shared resolver: never guess a manager as a worker.
-            const currentRole = DockerService.resolveSwarmNodeRole(node);
+            const currentRole = resolveSwarmNodeRole(node);
             const currentAvail = node.Spec?.Availability ?? "active";
             const effectiveAvail: "active" | "pause" | "drain" =
                 currentAvail === "pause" || currentAvail === "drain" ? currentAvail : "active";

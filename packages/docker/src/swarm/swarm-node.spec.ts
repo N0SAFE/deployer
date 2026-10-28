@@ -1,5 +1,5 @@
 /**
- * `DockerService.buildSwarmNodeSpecPayload` — the FLAT NodeSpec body sent to
+ * `buildSwarmNodeSpecPayload` — the FLAT NodeSpec body sent to
  * `POST /nodes/{id}/update`.
  *
  * Two engine-verified failure modes are pinned here because this shape is only
@@ -15,7 +15,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { DockerodeNodeSummary } from "@deployer/contracts-entities";
-import { DockerService } from "./docker.service";
+import { buildSwarmNodeSpecPayload } from "./swarm-node";
 
 /** The node's current labels, as every caller reads them to build the desired set. */
 const CURRENT_LABELS = { "deployer.ingress": "true", "deployer.node.role": "control" };
@@ -42,7 +42,7 @@ const node = (spec: Partial<DockerodeNodeSummary["Spec"]> = {}): DockerodeNodeSu
 
 describe("buildSwarmNodeSpecPayload", () => {
 	it("returns a FLAT spec (no nested `Spec` wrapper) with the top-level Role set", () => {
-		const payload = DockerService.buildSwarmNodeSpecPayload(node(), {});
+		const payload = buildSwarmNodeSpecPayload(node(), {});
 
 		expect(payload).not.toHaveProperty("Spec");
 		expect(payload.Role).toBe("manager");
@@ -51,7 +51,7 @@ describe("buildSwarmNodeSpecPayload", () => {
 
 	it("REPLACES the label map with the caller's complete desired set (removal works)", () => {
 		// `withPlatformRole(labels, "both")` drops the role key entirely.
-		const payload = DockerService.buildSwarmNodeSpecPayload(node(), {
+		const payload = buildSwarmNodeSpecPayload(node(), {
 			labels: { "deployer.ingress": "true" },
 		});
 
@@ -60,7 +60,7 @@ describe("buildSwarmNodeSpecPayload", () => {
 	});
 
 	it("inherits the current labels when only role/availability change", () => {
-		const payload = DockerService.buildSwarmNodeSpecPayload(node(), {
+		const payload = buildSwarmNodeSpecPayload(node(), {
 			role: "worker",
 			availability: "drain",
 		});
@@ -74,7 +74,7 @@ describe("buildSwarmNodeSpecPayload", () => {
 	});
 
 	it("keeps the current role/availability when they are not overridden", () => {
-		const payload = DockerService.buildSwarmNodeSpecPayload(node(), {
+		const payload = buildSwarmNodeSpecPayload(node(), {
 			labels: { "deployer.ingress": "true" },
 		});
 
@@ -86,19 +86,19 @@ describe("buildSwarmNodeSpecPayload", () => {
 		// A transient post-init payload reports `Role: ""`, which the engine's own
 		// types forbid — demoting a manager to worker can leave the cluster with
 		// no manager at all, so the empty value must be tolerated, not echoed.
-		const payload = DockerService.buildSwarmNodeSpecPayload(node({ Role: "" }), {});
+		const payload = buildSwarmNodeSpecPayload(node({ Role: "" }), {});
 
 		expect(payload.Role).toBe("manager");
 	});
 
 	it("defaults availability to active when the engine reports an unknown value", () => {
-		const payload = DockerService.buildSwarmNodeSpecPayload(node({ Availability: "" }), {});
+		const payload = buildSwarmNodeSpecPayload(node({ Availability: "" }), {});
 
 		expect(payload.Availability).toBe("active");
 	});
 
 	it("falls back to an empty label map when the node has none", () => {
-		const payload = DockerService.buildSwarmNodeSpecPayload(node({ Labels: undefined }), {});
+		const payload = buildSwarmNodeSpecPayload(node({ Labels: undefined }), {});
 
 		expect(payload.Labels).toEqual({});
 	});

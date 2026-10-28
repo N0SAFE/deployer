@@ -20,6 +20,7 @@ import {
     type DockerodeServiceSummary,
 } from "@deployer/contracts-entities";
 import { ServiceUnavailableError, TimeoutError } from "@deployer/errors";
+import { resolveSwarmNodeRole } from "@deployer/docker";
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
 import { ingressFromLabels, platformRoleFromLabels } from "@deployer/nest-nodes/swarm-node-labels";
 
@@ -260,7 +261,7 @@ export class SwarmClusterService {
 
     /**
      * THIS node's view within the engine node list. Role resolution reuses the
-     * shared `DockerService.resolveSwarmNodeRole` (never guess a manager as a
+     * shared `resolveSwarmNodeRole` (never guess a manager as a
      * worker), and the platform role / ingress flag come from the node's own
      * labels — the durable record of that configuration.
      */
@@ -275,7 +276,7 @@ export class SwarmClusterService {
             hostname: self?.Description.Hostname ?? "",
             // `self === null` → this engine's node is not in the list yet
             // (transient right after init): "worker" is the honest report.
-            swarmRole: self === null ? "worker" : DockerService.resolveSwarmNodeRole(self),
+            swarmRole: self === null ? "worker" : resolveSwarmNodeRole(self),
             platformRole: platformRoleFromLabels(labels),
             isMaster: self?.ManagerStatus?.Leader === true,
             isIngress: ingressFromLabels(labels),

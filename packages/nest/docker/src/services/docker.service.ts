@@ -7,7 +7,15 @@ import {
     NotFoundException,
 } from "@nestjs/common";
 import Docker from "dockerode";
-import { makeDockerEngine, resolveDockerClient, type DockerEngineShape, type DockerError } from "@deployer/docker";
+import {
+    makeDockerEngine,
+    resolveDockerClient,
+    type ContainerHealth,
+    type DockerEngineShape,
+    type DockerError,
+    type HttpProbeResult,
+    type SwarmNodeSpecChange,
+} from "@deployer/docker";
 import { Cause, Effect, Exit } from "effect";
 import * as fs from "fs";
 import * as path from "path";
@@ -49,57 +57,6 @@ import type {
     SwarmJoinOptions,
     SwarmOverlayNetworkRequest,
 } from "@deployer/contracts-entities";
-
-/**
- * The engine's OWN swarm vocabulary, kept inside this boundary: business code
- * reads the platform vocabulary (`ClusterSwarmRole`) instead.
- *
- * `Role` has no `none` because the engine only reports nodes that exist.
- */
-export type SwarmNodeRole = "manager" | "worker";
-export type SwarmNodeAvailability = "active" | "pause" | "drain";
-
-/**
- * The node shape the payload builder needs.
- *
- * `Spec` and its fields are OPTIONAL because this also accepts a raw engine
- * payload that has not been through `dockerodeNodeSummarySchema` yet. The engine
- * omits fields it considers default, and echoing an omitted field as `""` is
- * exactly what produced `400 invalid Role: ""` on every node update.
- */
-export type SwarmNodeSpecSource = {
-    Spec?: {
-        Name?: string;
-        Role?: string;
-        Availability?: string;
-        Labels?: Record<string, string>;
-    };
-}
-
-/**
- * The FLAT `NodeSpec` body of `POST /nodes/{id}/update`. A nested `Spec`
- * wrapper makes the daemon read an empty top-level `Role` and reject the call.
- */
-export type SwarmNodeSpecPayload = {
-    /** Left out entirely when the engine reported no name — never sent as `""`. */
-    Name?: string;
-    Role: SwarmNodeRole;
-    Availability: SwarmNodeAvailability;
-    Labels: Record<string, string>;
-}
-
-/** A partial change applied over the node's CURRENT spec. */
-export type SwarmNodeSpecChange = {
-    role?: SwarmNodeRole;
-    availability?: SwarmNodeAvailability;
-    /** COMPLETE desired label map — see `buildSwarmNodeSpecPayload`. */
-    labels?: Record<string, string>;
-}
-
-/** Names the write in logs — the operation, not the values (never log payloads). */
-type SwarmNodeSpecOperation = "labels" | "role/availability";
-
-
 
 @Injectable()
 export class DockerService {
@@ -285,6 +242,22 @@ export class DockerService {
         }
         throw failure;
     }
+
+    /**
+     * Like `runEngine`, for the methods that have always thrown the engine's own error
+     * (callers read `statusCode` off it).
+     */
+    private async runEngineRaw<A>(effect: Effect.Effect<A, DockerError>): Promise<A> {
+        const exit = await Effect.runPromiseExit(effect);
+        if (Exit.isSuccess(exit)) {
+            return exit.value;
+        }
+        const failure = Cause.squash(exit.cause);
+        throw typeof failure === "object" && failure !== null && "cause" in failure && failure.cause !== undefined
+            ? failure.cause
+            : failure;
+    }
+
 
     constructor(config: DockerConnectionConfig) {
         const { client, mode, socketPath, warnings } = resolveDockerClient(config);
@@ -574,20 +547,7 @@ CMD ["npm", "start"]
         await this.runEngine(this.engine.containers.stopByDeployment(deploymentId));
     }
     async startContainersByDeployment(deploymentId: string): Promise<void> {
-        this.logger.log(`Starting containers for deployment ${deploymentId}`);
-        const containers = await this.docker.listContainers({
-            all: true,
-            filters: {
-                label: [`deployer.deployment_id=${deploymentId}`],
-            },
-        });
-        for (const containerInfo of containers) {
-            const container = this.docker.getContainer(containerInfo.Id);
-            if (containerInfo.State !== "running") {
-                await container.start();
-                this.logger.log(`Started container ${containerInfo.Names[0] ?? containerInfo.Id}`);
-            }
-        }
+        await this.runEngine(this.engine.containers.startByDeployment(deploymentId));
     }
     async listContainersByDeployment(deploymentId: string): Promise<
         {
@@ -599,216 +559,29 @@ CMD ["npm", "start"]
         return this.runEngine(this.engine.containers.listByDeployment(deploymentId));
     }
     async checkContainerHealth(containerId: string): Promise<boolean> {
-        try {
-            const container = this.docker.getContainer(containerId);
-            const containerInfo = await container.inspect();
-            // Check if container is running
-            if (containerInfo.State.Status !== "running") {
-                return false;
-            }
-            // If health check is configured, use it
-            if (containerInfo.State.Health) {
-                return containerInfo.State.Health.Status === "healthy";
-            }
-            // Otherwise, just check if it's running
-            return true;
-        } catch (error) {
-            this.logger.error(`Failed to check health for container ${containerId}:`, error);
-            return false;
-        }
+        return Effect.runPromise(this.engine.containers.isHealthy(containerId));
     }
 
-    async getDetailedContainerHealth(containerId: string): Promise<{
-        isHealthy: boolean;
-        status: string;
-        uptime: number;
-        restartCount: number;
-        lastStarted: Date | null;
-        healthChecks?: {
-            status: string;
-            failingStreak: number;
-            log: {
-                start: string;
-                end: string;
-                exitCode: number;
-                output: string;
-            }[];
-        };
-        resources: {
-            cpuUsage?: number;
-            memoryUsage?: number;
-            memoryLimit?: number;
-        };
-    }> {
-        try {
-            const container = this.docker.getContainer(containerId);
-            const containerInfo = await container.inspect();
-
-            // Get container stats for resource usage
-            let resources: { cpuUsage?: number; memoryUsage?: number; memoryLimit?: number } = {};
-            try {
-                const stats = await container.stats({ stream: false });
-                const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - stats.precpu_stats.cpu_usage.total_usage;
-                const systemDelta = stats.cpu_stats.system_cpu_usage - stats.precpu_stats.system_cpu_usage;
-                const cpuUsage = cpuDelta > 0 && systemDelta > 0 ? (cpuDelta / systemDelta) * 100 : 0;
-
-                resources = {
-                    cpuUsage: Math.round(cpuUsage * 100) / 100,
-                    memoryUsage: stats.memory_stats.usage,
-                    memoryLimit: stats.memory_stats.limit,
-                };
-            } catch (statsError) {
-                this.logger.warn(`Could not get stats for container ${containerId}:`, statsError);
-            }
-
-            const uptime = containerInfo.State.StartedAt ? Date.now() - new Date(containerInfo.State.StartedAt).getTime() : 0;
-
-            type HealthCheckLogEntry = {
-                start: string;
-                end: string;
-                exitCode: number;
-                output: string;
-            }
-            type DetailedHealth = {
-                isHealthy: boolean;
-                status: string;
-                uptime: number;
-                restartCount: number;
-                lastStarted: Date | null;
-                resources: { cpuUsage?: number; memoryUsage?: number; memoryLimit?: number };
-                healthChecks?: {
-                    status: string;
-                    failingStreak: number;
-                    log: HealthCheckLogEntry[];
-                };
-            }
-
-            const result: DetailedHealth = {
-                isHealthy: containerInfo.State.Status === "running",
-                status: containerInfo.State.Status,
-                uptime: Math.floor(uptime / 1000), // in seconds
-                restartCount: containerInfo.RestartCount || 0,
-                lastStarted: containerInfo.State.StartedAt ? new Date(containerInfo.State.StartedAt) : null,
-                resources,
-            };
-
-            // Add health check details if available
-            if (containerInfo.State.Health) {
-                // Docker's health log entries use capitalized keys (Start, End, ExitCode, Output)
-                // Normalize them to the shape our callers expect: { start, end, exitCode, output }
-                const rawLog = containerInfo.State.Health.Log;
-                const normalizedLog: HealthCheckLogEntry[] = rawLog.slice(-5).map((entry) => ({
-                    start: entry.Start,
-                    end: entry.End,
-                    exitCode: entry.ExitCode,
-                    output: entry.Output,
-                }));
-                result.healthChecks = {
-                    status: containerInfo.State.Health.Status,
-                    failingStreak: containerInfo.State.Health.FailingStreak || 0,
-                    log: normalizedLog,
-                };
-            }
-
-            return result;
-        } catch (error) {
-            this.logger.error(`Failed to get detailed health for container ${containerId}:`, error);
-            return {
-                isHealthy: false,
-                status: "unknown",
-                uptime: 0,
-                restartCount: 0,
-                lastStarted: null,
-                resources: {},
-            };
-        }
+    async getDetailedContainerHealth(containerId: string): Promise<ContainerHealth> {
+        return Effect.runPromise(this.engine.containers.health(containerId));
     }
 
     async monitorContainersByDeployment(deploymentId: string): Promise<
         {
             containerId: string;
             containerName: string;
-            health: Awaited<ReturnType<DockerService["getDetailedContainerHealth"]>>;
+            health: ContainerHealth;
         }[]
     > {
-        try {
-            const containers = await this.listContainersByDeployment(deploymentId);
-            const results: {
-                containerId: string;
-                containerName: string;
-                health: Awaited<ReturnType<DockerService["getDetailedContainerHealth"]>>;
-            }[] = [];
-
-            for (const container of containers) {
-                const health = await this.getDetailedContainerHealth(container.id);
-                results.push({
-                    containerId: container.id,
-                    containerName: container.name,
-                    health,
-                });
-            }
-
-            return results;
-        } catch (error) {
-            this.logger.error(`Failed to monitor containers for deployment ${deploymentId}:`, error);
-            return [];
-        }
+        return Effect.runPromise(this.engine.containers.monitorByDeployment(deploymentId));
     }
 
     async performHealthCheck(
         containerId: string,
         healthCheckUrl?: string,
         timeout = 30000
-    ): Promise<{
-        isHealthy: boolean;
-        httpStatus?: number;
-        responseTime?: number;
-        error?: string;
-        containerHealth: Awaited<ReturnType<DockerService["getDetailedContainerHealth"]>>;
-    }> {
-        const containerHealth = await this.getDetailedContainerHealth(containerId);
-
-        const result = {
-            isHealthy: containerHealth.isHealthy,
-            containerHealth,
-        };
-
-        // If HTTP health check URL is provided, test it
-        if (healthCheckUrl && containerHealth.isHealthy) {
-            try {
-                const startTime = Date.now();
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => {
-                    controller.abort();
-                }, timeout);
-
-                const response = await fetch(healthCheckUrl, {
-                    signal: controller.signal,
-                    method: "GET",
-                    headers: {
-                        "User-Agent": "Deployer-HealthCheck/1.0",
-                    },
-                });
-
-                clearTimeout(timeoutId);
-                const responseTime = Date.now() - startTime;
-
-                return {
-                    ...result,
-                    isHealthy: response.ok && containerHealth.isHealthy,
-                    httpStatus: response.status,
-                    responseTime,
-                };
-            } catch (error) {
-                return {
-                    ...result,
-                    isHealthy: false,
-                    error: error instanceof Error ? error.message : "Unknown error",
-                };
-            }
-        }
-
-        return result;
+    ): Promise<HttpProbeResult> {
+        return Effect.runPromise(this.engine.containers.probe(containerId, healthCheckUrl, timeout));
     }
 
     async waitForContainerHealth(containerId: string, maxRetries = 30, retryInterval = 2000, healthCheckUrl?: string): Promise<boolean> {
@@ -822,65 +595,19 @@ CMD ["npm", "start"]
     }
 
     async restartContainer(containerId: string): Promise<void> {
-        try {
-            const container = this.docker.getContainer(containerId);
-            await container.restart();
-            this.logger.log(`Container ${containerId} restarted successfully`);
-        } catch (error) {
-            this.logger.error(`Failed to restart container ${containerId}:`, error);
-            throw error;
-        }
+        await this.runEngineRaw(this.engine.containers.restart(containerId));
     }
 
     async pauseContainer(containerIdOrName: string): Promise<void> {
-        try {
-            const container = this.docker.getContainer(containerIdOrName);
-            await container.pause();
-            this.logger.log(`Paused container ${containerIdOrName}`);
-        } catch (error) {
-            const errorMessage = DockerService.getDockerErrMsg(error).toLowerCase();
-            if (errorMessage.includes("already paused")) {
-                this.logger.log(`Container ${containerIdOrName} already paused`);
-                return;
-            }
-
-            this.logger.error(`Failed to pause container ${containerIdOrName}:`, error);
-            throw error;
-        }
+        await this.runEngineRaw(this.engine.containers.pause(containerIdOrName));
     }
 
     async unpauseContainer(containerIdOrName: string): Promise<void> {
-        try {
-            const container = this.docker.getContainer(containerIdOrName);
-            await container.unpause();
-            this.logger.log(`Unpaused container ${containerIdOrName}`);
-        } catch (error) {
-            const errorMessage = DockerService.getDockerErrMsg(error).toLowerCase();
-            if (errorMessage.includes("is not paused") || errorMessage.includes("not paused")) {
-                this.logger.log(`Container ${containerIdOrName} already unpaused`);
-                return;
-            }
-
-            this.logger.error(`Failed to unpause container ${containerIdOrName}:`, error);
-            throw error;
-        }
+        await this.runEngineRaw(this.engine.containers.unpause(containerIdOrName));
     }
 
     async killContainer(containerIdOrName: string): Promise<void> {
-        try {
-            const container = this.docker.getContainer(containerIdOrName);
-            await container.kill();
-            this.logger.log(`Killed container ${containerIdOrName}`);
-        } catch (error) {
-            const errorMessage = DockerService.getDockerErrMsg(error).toLowerCase();
-            if (errorMessage.includes("is not running") || errorMessage.includes("not running")) {
-                this.logger.log(`Container ${containerIdOrName} already stopped`);
-                return;
-            }
-
-            this.logger.error(`Failed to kill container ${containerIdOrName}:`, error);
-            throw error;
-        }
+        await this.runEngineRaw(this.engine.containers.kill(containerIdOrName));
     }
 
     async removeContainer(containerId: string): Promise<void> {
@@ -892,10 +619,9 @@ CMD ["npm", "start"]
         }
     }
     async removeImage(imageTag: string): Promise<void> {
+        // Callers clean up with this and have always been spared its failures.
         try {
-            const image = this.docker.getImage(imageTag);
-            await image.remove({ force: true });
-            this.logger.log(`Removed image ${imageTag}`);
+            await this.runEngine(this.engine.images.remove(imageTag));
         } catch (error) {
             this.logger.error(`Failed to remove image ${imageTag}:`, error);
         }
@@ -982,16 +708,7 @@ CMD ["npm", "start"]
      * Get container information (inspect) by id or name
      */
     async getContainerInfo(containerIdOrName: string): Promise<Docker.ContainerInspectInfo> {
-        try {
-            const container = this.docker.getContainer(containerIdOrName);
-            const info = await container.inspect();
-            return info;
-        } catch (error) {
-            if (!this.isContainerNotFoundError(error)) {
-                this.logger.error(`Failed to get container info for ${containerIdOrName}:`, error);
-            }
-            throw error;
-        }
+        return this.runEngineRaw(this.engine.containers.inspect(containerIdOrName));
     }
 
     private isContainerNotFoundError(error: unknown): boolean {
@@ -1023,27 +740,14 @@ CMD ["npm", "start"]
      * Stop a container by id or name
      */
     async stopContainer(containerIdOrName: string): Promise<void> {
-        try {
-            const container = this.docker.getContainer(containerIdOrName);
-            await container.stop({ t: 10 });
-            this.logger.log(`Stopped container ${containerIdOrName}`);
-        } catch (error) {
-            const errorMessage = DockerService.getDockerErrMsg(error).toLowerCase();
-            if (errorMessage.includes("is not running") || errorMessage.includes("not running")) {
-                this.logger.log(`Container ${containerIdOrName} already stopped`);
-                return;
-            }
-
-            this.logger.error(`Failed to stop container ${containerIdOrName}:`, error);
-            throw error;
-        }
+        await this.runEngineRaw(this.engine.containers.stop(containerIdOrName));
     }
 
     /**
      * Start a container by id or name
      */
     async startContainer(containerIdOrName: string): Promise<Docker.Container> {
-        await this.runEngine(this.engine.containers.start(containerIdOrName));
+        await this.runEngineRaw(this.engine.containers.start(containerIdOrName));
         return this.docker.getContainer(containerIdOrName);
     }
 
@@ -1051,24 +755,12 @@ CMD ["npm", "start"]
      * List containers using dockerode listContainers
      */
     async listContainers(options: Docker.ContainerListOptions = {}): Promise<Docker.ContainerInfo[]> {
-        try {
-            const list = await this.docker.listContainers(options);
-            return list;
-        } catch (error) {
-            this.logger.error("Failed to list containers:", error);
-            return [];
-        }
+        // Callers have always been given an empty list when the engine cannot answer.
+        return Effect.runPromise(this.engine.containers.list(options).pipe(Effect.catch(() => Effect.succeed([]))));
     }
 
     async getContainerStats(containerId: string): Promise<Record<string, any>> {
-        try {
-            const container = this.docker.getContainer(containerId);
-            const stats = await container.stats({ stream: false });
-            return stats;
-        } catch (error) {
-            this.logger.error(`Failed to get container stats for ${containerId}:`, error);
-            throw error;
-        }
+        return this.runEngineRaw(this.engine.containers.stats(containerId));
     }
 
     /**
@@ -2336,15 +2028,7 @@ CMD ["npm", "start"]
      * `LocalNodeState` drives idempotent cluster bootstrap (active → no-op).
      */
     async getSwarmInfo(): Promise<DockerodeSwarmInfo> {
-        try {
-            const info: unknown = await this.docker.info();
-            const swarmRaw = isRecord(info) ? info.Swarm : undefined;
-            return dockerodeSwarmInfoSchema.parse(isRecord(swarmRaw) ? swarmRaw : {});
-        } catch (error: unknown) {
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to read Swarm info: ${message}`);
-            throw new BadGatewayException(`Failed to read Swarm info: ${message}`);
-        }
+        return this.runEngine(this.engine.swarmCluster.info());
     }
 
     /**
@@ -2352,17 +2036,7 @@ CMD ["npm", "start"]
      * when the engine is not part of any cluster.
      */
     async swarmInspect(): Promise<DockerodeSwarmInspect> {
-        try {
-            const raw: unknown = await this.docker.swarmInspect();
-            return dockerodeSwarmInspectSchema.parse(raw);
-        } catch (error: unknown) {
-            if (this.isDockerNotFoundError(error)) {
-                throw new NotFoundException(`Swarm cluster is not initialized on this engine`);
-            }
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to inspect Swarm cluster: ${message}`);
-            throw new BadGatewayException(`Failed to inspect Swarm cluster: ${message}`);
-        }
+        return this.runEngine(this.engine.swarmCluster.inspect());
     }
 
     /**
@@ -2383,28 +2057,14 @@ CMD ["npm", "start"]
      * correlate it.
      */
     async swarmInit(options: SwarmInitOptions): Promise<DockerodeSwarmInitResponse> {
-        try {
-            const raw: unknown = await this.docker.swarmInit(options);
-            return dockerodeSwarmInitResponseSchema.parse(raw);
-        } catch (error: unknown) {
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to initialize Swarm cluster: ${message}`);
-            throw new BadGatewayException(`Failed to initialize Swarm cluster: ${message}`);
-        }
+        return this.runEngine(this.engine.swarmCluster.init(options));
     }
 
     /**
      * Join an existing Swarm cluster (POST /swarm/join) using a join token.
      */
     async swarmJoin(options: SwarmJoinOptions): Promise<void> {
-        try {
-            await this.docker.swarmJoin(options);
-            this.logger.log(`Joined Swarm cluster via ${options.RemoteAddrs.join(", ")}`);
-        } catch (error: unknown) {
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to join Swarm cluster: ${message}`);
-            throw new BadGatewayException(`Failed to join Swarm cluster: ${message}`);
-        }
+        await this.runEngine(this.engine.swarmCluster.join(options));
     }
 
     /**
@@ -2412,28 +2072,14 @@ CMD ["npm", "start"]
      * manager (last resort for decommissioning).
      */
     async swarmLeave(force = false): Promise<void> {
-        try {
-            await this.docker.swarmLeave({ Force: force });
-            this.logger.log(`Left Swarm cluster (force=${String(force)})`);
-        } catch (error: unknown) {
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to leave Swarm cluster: ${message}`);
-            throw new BadGatewayException(`Failed to leave Swarm cluster: ${message}`);
-        }
+        await this.runEngine(this.engine.swarmCluster.leave(force));
     }
 
     /**
      * List all swarm services (GET /services).
      */
     async listSwarmServices(): Promise<DockerodeServiceSummary[]> {
-        try {
-            const raw: unknown = await this.docker.listServices();
-            return z.array(dockerodeServiceSummarySchema).parse(raw);
-        } catch (error: unknown) {
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to list Swarm services: ${message}`);
-            throw new BadGatewayException(`Failed to list Swarm services: ${message}`);
-        }
+        return this.runEngine(this.engine.swarmServices.list());
     }
 
     /**
@@ -2505,18 +2151,7 @@ CMD ["npm", "start"]
         serviceIdOrName: string,
         options: Docker.ContainerLogsOptions = { stdout: true, stderr: true, tail: 200 },
     ): Promise<string> {
-        try {
-            const raw = await this.docker.getService(serviceIdOrName).logs({
-                ...options,
-                follow: false,
-            });
-            return typeof raw === "string" ? raw : String(raw);
-        } catch (error: unknown) {
-            this.logger.debug(
-                `Swarm service logs unavailable for ${serviceIdOrName}: ${DockerService.getErrMsg(error)}`,
-            );
-            return "";
-        }
+        return Effect.runPromise(this.engine.swarmServices.logs(serviceIdOrName, options));
     }
 
     /**
@@ -2532,17 +2167,7 @@ CMD ["npm", "start"]
      * answer per-service / per-node task queries without N+1 service calls.
      */
     async listAllSwarmTasks(filter?: { serviceId?: string; nodeId?: string }): Promise<DockerodeTaskSummary[]> {
-        try {
-            const filters: Record<string, string[]> = {};
-            if (filter?.serviceId) filters.service = [filter.serviceId];
-            if (filter?.nodeId) filters.node = [filter.nodeId];
-            const raw: unknown = await this.docker.listTasks({ filters });
-            return z.array(dockerodeTaskSummarySchema).parse(raw);
-        } catch (error: unknown) {
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to list Swarm tasks: ${message}`);
-            throw new BadGatewayException(`Failed to list Swarm tasks: ${message}`);
-        }
+        return this.runEngine(this.engine.swarmServices.listAllTasks(filter));
     }
 
     /**
@@ -2550,14 +2175,7 @@ CMD ["npm", "start"]
      * Used by the per-node resources aggregation (local scope only).
      */
     async listEngineImages(): Promise<DockerodeImageSummary[]> {
-        try {
-            const raw: unknown = await this.docker.listImages({ all: false });
-            return z.array(dockerodeImageSummarySchema).parse(raw);
-        } catch (error: unknown) {
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to list engine images: ${message}`);
-            throw new BadGatewayException(`Failed to list engine images: ${message}`);
-        }
+        return this.runEngine(this.engine.images.list());
     }
 
     /**
@@ -2565,132 +2183,32 @@ CMD ["npm", "start"]
      * swarm overlay networks from a manager.
      */
     async listEngineNetworks(): Promise<DockerodeNetworkSummary[]> {
-        try {
-            const raw: unknown = await this.docker.listNetworks();
-            return z.array(dockerodeNetworkSummarySchema).parse(raw);
-        } catch (error: unknown) {
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to list engine networks: ${message}`);
-            throw new BadGatewayException(`Failed to list engine networks: ${message}`);
-        }
+        return this.runEngine(this.engine.networks.list());
     }
 
     /**
      * List engine volumes (GET /volumes) for the connected node.
      */
     async listEngineVolumes(): Promise<DockerodeVolumeListResponse["Volumes"]> {
-        try {
-            const raw: unknown = await this.docker.listVolumes();
-            const parsed = dockerodeVolumeListResponseSchema.parse(raw);
-            return parsed.Volumes;
-        } catch (error: unknown) {
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to list engine volumes: ${message}`);
-            throw new BadGatewayException(`Failed to list engine volumes: ${message}`);
-        }
+        return this.runEngine(this.engine.volumes.list());
     }
 
-    /**
-     * Build the body for `POST /nodes/{id}/update` — the FLAT `NodeSpec`.
-     *
-     * The Engine API wants the spec at the TOP LEVEL and `version` in the QUERY
-     * STRING (dockerode routes those through `_query` / `_body`). Wrapping the
-     * spec in a nested `Spec` makes the daemon read an empty top-level `Role` and
-     * reject EVERY node update with `400 invalid Role: ""` — a failure no amount
-     * of correct label logic downstream can recover from, which is why this is
-     * unit-tested without a daemon.
-     *
-     * `change.labels` is the caller's COMPLETE desired map and REPLACES the node's
-     * own. Merging would resurrect every key the caller deliberately dropped — and
-     * dropping the key is how `both` (the default role) is expressed, so merging
-     * made a role change impossible to revert: the write returned 200, the engine
-     * kept `deployer.node.role=control`, and the next inventory sweep read the old
-     * role straight back. Only a role/availability change (no `labels` key)
-     * inherits the current map.
-     */
-    static buildSwarmNodeSpecPayload(
-        node: SwarmNodeSpecSource,
-        change: SwarmNodeSpecChange,
-    ): SwarmNodeSpecPayload {
-        const spec = node.Spec ?? {};
-        const name = spec.Name ?? "";
-        return {
-            // Omitted rather than sent as "": the engine already knows the name, and
-            // the label-only update this replaced never sent one.
-            ...(name.length > 0 ? { Name: name } : {}),
-            // Never echo `""` — a node reports it transiently right after init — and
-            // never fall back to `worker`: demoting a manager can leave the cluster
-            // with no manager at all, so an unreadable role stays `manager`.
-            Role: change.role ?? DockerService.normalizeSwarmNodeRole(spec.Role) ?? "manager",
-            Availability:
-                change.availability ??
-                DockerService.swarmNodeAvailabilityOrDefault(spec.Availability),
-            Labels: change.labels ?? spec.Labels ?? {},
-        };
-    }
 
-    /**
-     * The role of a node, from the ENGINE's own signals.
-     *
-     * `ManagerStatus` is the authoritative one: the engine records it for every
-     * manager and reports `null` for every worker, so it survives the transient
-     * `Role: ""` a freshly-initialised node reports.
-     *
-     * NEVER returns `worker` for an unreadable role. Reading `Spec.Role` alone and
-     * defaulting to `worker` is how the platform demotes its own manager: one
-     * empty read during bootstrap flips the election's view of the control plane,
-     * the inventory sweep then writes that wrong role into the cache (which can
-     * only hold `manager`/`worker`), and the policy pass acts on it. A wrong
-     * promotion is reversible; a wrong demotion can leave no manager at all.
-     */
-    static resolveSwarmNodeRole(node: DockerodeNodeSummary): SwarmNodeRole {
-        if (node.ManagerStatus !== null) return "manager";
-        return DockerService.normalizeSwarmNodeRole(node.Spec.Role) ?? "manager";
-    }
 
-    /** `Spec.Role` narrowed to the engine's enum; `null` when it is unreadable. */
-    private static normalizeSwarmNodeRole(value: string | undefined): SwarmNodeRole | null {
-        const role = (value ?? "").trim().toLowerCase();
-        if (role === "manager" || role === "worker") return role;
-        return null;
-    }
 
-    /** `Spec.Availability` narrowed to the engine's enum; anything else → `active`. */
-    private static swarmNodeAvailabilityOrDefault(
-        value: string | undefined,
-    ): SwarmNodeAvailability {
-        return value === "pause" || value === "drain" ? value : "active";
-    }
 
     /**
      * List all swarm nodes (GET /nodes).
      */
     async listSwarmNodes(): Promise<DockerodeNodeSummary[]> {
-        try {
-            const raw: unknown = await this.docker.listNodes();
-            return z.array(dockerodeNodeSummarySchema).parse(raw);
-        } catch (error: unknown) {
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to list Swarm nodes: ${message}`);
-            throw new BadGatewayException(`Failed to list Swarm nodes: ${message}`);
-        }
+        return this.runEngine(this.engine.swarmNodes.list());
     }
 
     /**
      * Inspect a swarm node (GET /nodes/{id}).
      */
     async inspectSwarmNode(nodeId: string): Promise<DockerodeNodeSummary> {
-        try {
-            const raw: unknown = await this.docker.getNode(nodeId).inspect();
-            return dockerodeNodeSummarySchema.parse(raw);
-        } catch (error: unknown) {
-            if (this.isDockerNotFoundError(error)) {
-                throw new NotFoundException(`Swarm node not found: ${nodeId}`);
-            }
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to inspect Swarm node ${nodeId}: ${message}`);
-            throw new BadGatewayException(`Failed to inspect Swarm node ${nodeId}: ${message}`);
-        }
+        return this.runEngine(this.engine.swarmNodes.inspect(nodeId));
     }
 
     /**
@@ -2706,7 +2224,7 @@ CMD ["npm", "start"]
         version: number,
         labels: Record<string, string>,
     ): Promise<void> {
-        await this.applySwarmNodeSpec(nodeId, version, { labels }, "labels");
+        await this.runEngine(this.engine.swarmNodes.updateLabels(nodeId, version, labels));
     }
 
     /**
@@ -2721,38 +2239,9 @@ CMD ["npm", "start"]
         version: number,
         change: Pick<SwarmNodeSpecChange, "role" | "availability">,
     ): Promise<void> {
-        await this.applySwarmNodeSpec(nodeId, version, change, "role/availability");
+        await this.runEngine(this.engine.swarmNodes.updateRoleAvailability(nodeId, version, change));
     }
 
-    /**
-     * Write a node spec change to the engine.
-     *
-     * `version` travels in the QUERY STRING and the spec in the BODY: the update
-     * endpoint is version-guarded optimistic concurrency, and `version` is not
-     * part of `NodeSpec` — dockerode only separates the two via `_query`/`_body`.
-     */
-    private async applySwarmNodeSpec(
-        nodeId: string,
-        version: number,
-        change: SwarmNodeSpecChange,
-        operation: SwarmNodeSpecOperation,
-    ): Promise<void> {
-        try {
-            const node = await this.inspectSwarmNode(nodeId);
-            await this.docker.getNode(nodeId).update({
-                _query: { version },
-                _body: DockerService.buildSwarmNodeSpecPayload(node, change),
-            });
-            this.logger.log(`Updated ${operation} on Swarm node ${nodeId}`);
-        } catch (error: unknown) {
-            if (this.isDockerNotFoundError(error)) {
-                throw new NotFoundException(`Swarm node not found: ${nodeId}`);
-            }
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to update ${operation} on Swarm node ${nodeId}: ${message}`);
-            throw new BadGatewayException(`Failed to update ${operation} on Swarm node ${nodeId}: ${message}`);
-        }
-    }
 
     /**
      * Create a swarm secret (POST /secrets/create). Data is base64-encoded
@@ -2763,32 +2252,14 @@ CMD ["npm", "start"]
         data: string;
         labels?: Record<string, string>;
     }): Promise<DockerodeSecretSummary> {
-        try {
-            const raw: unknown = await this.docker.createSecret({
-                Name: options.name,
-                Data: Buffer.from(options.data, "utf8").toString("base64"),
-                Labels: options.labels ?? {},
-            });
-            return dockerodeSecretSummarySchema.parse(raw);
-        } catch (error: unknown) {
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to create Swarm secret ${options.name}: ${message}`);
-            throw new BadGatewayException(`Failed to create Swarm secret ${options.name}: ${message}`);
-        }
+        return this.runEngine(this.engine.swarmSecrets.create(options));
     }
 
     /**
      * List swarm secrets (GET /secrets).
      */
     async listSwarmSecrets(): Promise<DockerodeSecretSummary[]> {
-        try {
-            const raw: unknown = await this.docker.listSecrets();
-            return z.array(dockerodeSecretSummarySchema).parse(raw);
-        } catch (error: unknown) {
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to list Swarm secrets: ${message}`);
-            throw new BadGatewayException(`Failed to list Swarm secrets: ${message}`);
-        }
+        return this.runEngine(this.engine.swarmSecrets.list());
     }
 
     /**
@@ -2799,32 +2270,14 @@ CMD ["npm", "start"]
         data: string;
         labels?: Record<string, string>;
     }): Promise<DockerodeConfigSummary> {
-        try {
-            const raw: unknown = await this.docker.createConfig({
-                Name: options.name,
-                Data: Buffer.from(options.data, "utf8").toString("base64"),
-                Labels: options.labels ?? {},
-            });
-            return dockerodeConfigSummarySchema.parse(raw);
-        } catch (error: unknown) {
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to create Swarm config ${options.name}: ${message}`);
-            throw new BadGatewayException(`Failed to create Swarm config ${options.name}: ${message}`);
-        }
+        return this.runEngine(this.engine.swarmConfigs.create(options));
     }
 
     /**
      * List swarm configs (GET /configs).
      */
     async listSwarmConfigs(): Promise<DockerodeConfigSummary[]> {
-        try {
-            const raw: unknown = await this.docker.listConfigs();
-            return z.array(dockerodeConfigSummarySchema).parse(raw);
-        } catch (error: unknown) {
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to list Swarm configs: ${message}`);
-            throw new BadGatewayException(`Failed to list Swarm configs: ${message}`);
-        }
+        return this.runEngine(this.engine.swarmConfigs.list());
     }
 
     private static readonly VXLAN_ID_OPTION = "com.docker.network.driver.overlay.vxlanid_list";
@@ -2849,70 +2302,10 @@ CMD ["npm", "start"]
         request: SwarmOverlayNetworkRequest,
         options: { detachContainerIds?: string[]; avoidVxlanIds?: number[] } = {},
     ): Promise<{ vxlanId: number; avoidedVxlanIds: number[]; removedServices: string[] }> {
-        const network = this.docker.getNetwork(request.name);
-        const poisoned = new Set(options.avoidVxlanIds ?? []);
-        let networkId: string | undefined;
-        try {
-            const info = await network.inspect();
-            networkId = info.Id;
-            for (const id of DockerService.vxlanIdsOf(info.Options)) poisoned.add(id);
-        } catch (error: unknown) {
-            if (!this.isDockerNotFoundError(error)) throw error;
-        }
-
-        const removedServices: string[] = [];
-        if (networkId !== undefined) {
-            for (const service of await this.listSwarmServices()) {
-                const attached = service.Spec?.TaskTemplate?.Networks?.some(
-                    (n) => n.Target === networkId || n.Target === request.name,
-                );
-                const name = service.Spec?.Name;
-                if (attached === true && name !== undefined) {
-                    await this.removeSwarmService(name);
-                    removedServices.push(name);
-                }
-            }
-            for (const containerId of options.detachContainerIds ?? []) {
-                await network.disconnect({ Container: containerId, Force: true }).catch(() => undefined);
-            }
-            await this.removeNetworkWhenReleased(request.name);
-        }
-
-        const used = new Set<number>();
-        for (const net of await this.docker.listNetworks()) {
-            for (const id of DockerService.vxlanIdsOf(net.Options)) used.add(id);
-        }
-        let vxlanId = Math.max(4096, ...poisoned) + 1;
-        while (used.has(vxlanId) || poisoned.has(vxlanId)) vxlanId += 1;
-
-        await this.ensureOverlayNetwork({ ...request, vxlanId });
-        this.logger.warn(
-            `Recreated overlay ${request.name} on VXLAN id ${String(vxlanId)} ` +
-            `(avoiding ${[...poisoned].join(", ") || "none"}); removed services: ${removedServices.join(", ") || "none"}`,
-        );
-        return { vxlanId, avoidedVxlanIds: [...poisoned], removedServices };
+        return this.runEngine(this.engine.networks.recreateOverlay(request, options));
     }
 
-    private static vxlanIdsOf(options: Record<string, string> | undefined): number[] {
-        const raw = options?.[DockerService.VXLAN_ID_OPTION];
-        if (raw === undefined) return [];
-        return raw.split(",").map(Number).filter((n) => Number.isInteger(n));
-    }
 
-    /** Service removal is asynchronous: the engine releases the network once the last task is gone. */
-    private async removeNetworkWhenReleased(name: string, budgetMs = 60_000): Promise<void> {
-        const deadline = Date.now() + budgetMs;
-        for (;;) {
-            try {
-                await this.docker.getNetwork(name).remove();
-                return;
-            } catch (error: unknown) {
-                if (this.isDockerNotFoundError(error)) return;
-                if (Date.now() >= deadline) throw error;
-                await new Promise((resolve) => setTimeout(resolve, 2_000));
-            }
-        }
-    }
 
     /**
      * Idempotently ensure an overlay network exists (create once, reuse by

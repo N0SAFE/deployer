@@ -1,5 +1,10 @@
 import type Docker from "dockerode";
+import {
+	dockerodeImageSummarySchema,
+	type DockerodeImageSummary,
+} from "@deployer/contracts-entities";
 import { Effect } from "effect";
+import z from "zod/v4";
 
 import { engineMessage } from "../classify";
 import { DockerInvalid, DockerUnavailable, type DockerError } from "../errors";
@@ -18,6 +23,10 @@ export type PullOptions = {
 };
 
 export type ImagesShape = {
+	/** Removes an image, forced. One that is already gone counts as removed. */
+	readonly remove: (imageTag: string) => Effect.Effect<void, DockerError>;
+	/** Top-level images on this engine (`GET /images/json`). */
+	readonly list: () => Effect.Effect<DockerodeImageSummary[], DockerError>;
 	/** Pulls `image`, retrying with exponential backoff. */
 	readonly pull: (image: string, options?: PullOptions) => Effect.Effect<void, DockerError>;
 	/** Makes `image` present locally as `policy` allows: nothing when it is there, a pull when it is not. */
@@ -108,5 +117,18 @@ export function makeImages(client: Docker): ImagesShape {
 		yield* pull(image, { registryAuth });
 	});
 
-	return { pull, ensurePresent };
+	const remove: ImagesShape["remove"] = Effect.fn("DockerImages.remove")(function* (imageTag) {
+		yield* engineCall(`remove image ${imageTag}`, () => client.getImage(imageTag).remove({ force: true }), `image '${imageTag}'`).pipe(
+			Effect.catchTag("DockerNotFound", () => Effect.void),
+		);
+		yield* Effect.logInfo(`Removed image ${imageTag}`);
+	});
+
+	const list: ImagesShape["list"] = Effect.fn("DockerImages.list")(function* () {
+		return yield* engineCall("list engine images", async () =>
+			z.array(dockerodeImageSummarySchema).parse(await client.listImages({ all: false })),
+		);
+	});
+
+	return { pull, ensurePresent, remove, list };
 }

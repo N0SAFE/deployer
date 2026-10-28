@@ -1,13 +1,44 @@
 import type Docker from "dockerode";
-import type { SwarmOverlayNetworkRequest } from "@deployer/contracts-entities";
+import {
+	dockerodeNetworkSummarySchema,
+	type DockerodeNetworkSummary,
+	type SwarmOverlayNetworkRequest,
+} from "@deployer/contracts-entities";
 import { Effect } from "effect";
+import z from "zod/v4";
 
-import { DockerConflict, type DockerError } from "../errors";
+import { isNotFound } from "../classify";
+import { DockerConflict, DockerUnavailable, type DockerError } from "../errors";
 import { engineCall } from "./call";
+import type { SwarmServicesShape } from "./swarm-services";
 
 const VXLAN_ID_OPTION = "com.docker.network.driver.overlay.vxlanid_list";
 
+export type RecreateOverlayOptions = {
+	/** Containers to force-disconnect before the network is removed. */
+	readonly detachContainerIds?: string[];
+	/** VXLAN ids the caller already knows are poisoned. */
+	readonly avoidVxlanIds?: number[];
+};
+
+export type RecreateOverlayResult = {
+	readonly vxlanId: number;
+	readonly avoidedVxlanIds: number[];
+	readonly removedServices: string[];
+};
+
 export type NetworksShape = {
+	/** Networks on this engine, including swarm overlays when it is a manager. */
+	readonly list: () => Effect.Effect<DockerodeNetworkSummary[], DockerError>;
+	/**
+	 * Repairs an overlay whose VXLAN id is poisoned: removes the services attached to it, drops the
+	 * network, and creates it again on an unused, different id. Any other endpoint still holding the
+	 * network makes the removal fail with the engine's own message rather than being evicted.
+	 */
+	readonly recreateOverlay: (
+		request: SwarmOverlayNetworkRequest,
+		options?: RecreateOverlayOptions,
+	) => Effect.Effect<RecreateOverlayResult, DockerError>;
 	/**
 	 * Makes sure an overlay network named `request.name` exists: created once, reused by name, and
 	 * tolerant of another node creating it at the same moment.
@@ -27,7 +58,13 @@ const notOverlay = (name: string, driver: string, concurrently: boolean) =>
 				"The network is likely owned by Compose/supervisor, not Deployer workloads.",
 	});
 
-export function makeNetworks(client: Docker): NetworksShape {
+const vxlanIdsOf = (options: Record<string, string> | undefined): number[] => {
+	const raw = options?.[VXLAN_ID_OPTION];
+	if (raw === undefined) return [];
+	return raw.split(",").map(Number).filter((n) => Number.isInteger(n));
+};
+
+export function makeNetworks(client: Docker, swarmServices: SwarmServicesShape): NetworksShape {
 	const inspectDriver = (name: string) =>
 		engineCall(
 			`inspect network ${name}`,
@@ -71,5 +108,76 @@ export function makeNetworks(client: Docker): NetworksShape {
 		yield* Effect.logInfo(`Ensured overlay network ${request.name}`);
 	});
 
-	return { ensureOverlay };
+	const list: NetworksShape["list"] = Effect.fn("DockerNetworks.list")(function* () {
+		return yield* engineCall("list engine networks", async () =>
+			z.array(dockerodeNetworkSummarySchema).parse(await client.listNetworks()),
+		);
+	});
+
+	/** Service removal is asynchronous: the engine releases the network once the last task is gone. */
+	const removeWhenReleased = (name: string, budgetMs = 60_000) =>
+		Effect.gen(function* () {
+			const deadline = Date.now() + budgetMs;
+			for (;;) {
+				const outcome = yield* Effect.tryPromise({ try: () => client.getNetwork(name).remove(), catch: (cause) => cause }).pipe(
+					Effect.map(() => null),
+					Effect.catch((cause) => Effect.succeed({ cause })),
+				);
+				if (outcome === null || isNotFound(outcome.cause)) return;
+				if (Date.now() >= deadline) {
+					return yield* Effect.fail(
+						new DockerUnavailable({ reason: `Failed to remove network ${name}: still in use after ${String(budgetMs)}ms`, cause: outcome.cause }),
+					);
+				}
+				yield* Effect.sleep(2_000);
+			}
+		});
+
+	const recreateOverlay: NetworksShape["recreateOverlay"] = Effect.fn("DockerNetworks.recreateOverlay")(function* (
+		request,
+		options = {},
+	) {
+		const poisoned = new Set(options.avoidVxlanIds ?? []);
+		const network = client.getNetwork(request.name);
+		const existing = yield* engineCall(`inspect network ${request.name}`, () => network.inspect(), `network '${request.name}'`).pipe(
+			Effect.map((info) => ({ id: info.Id, options: info.Options })),
+			Effect.catchTag("DockerNotFound", () => Effect.succeed(null)),
+		);
+
+		const removedServices: string[] = [];
+		if (existing !== null) {
+			for (const id of vxlanIdsOf(existing.options)) poisoned.add(id);
+			for (const service of yield* swarmServices.list()) {
+				const attached = service.Spec.TaskTemplate?.Networks?.some(
+					(n) => n.Target === existing.id || n.Target === request.name,
+				);
+				if (attached === true) {
+					yield* swarmServices.remove(service.Spec.Name);
+					removedServices.push(service.Spec.Name);
+				}
+			}
+			for (const containerId of options.detachContainerIds ?? []) {
+				yield* Effect.tryPromise({ try: () => network.disconnect({ Container: containerId, Force: true }), catch: (cause) => cause }).pipe(
+					Effect.ignore,
+				);
+			}
+			yield* removeWhenReleased(request.name);
+		}
+
+		const used = new Set<number>();
+		for (const net of yield* engineCall("list networks", () => client.listNetworks())) {
+			for (const id of vxlanIdsOf(net.Options)) used.add(id);
+		}
+		let vxlanId = Math.max(4096, ...poisoned) + 1;
+		while (used.has(vxlanId) || poisoned.has(vxlanId)) vxlanId += 1;
+
+		yield* ensureOverlay({ ...request, vxlanId });
+		yield* Effect.logWarning(
+			`Recreated overlay ${request.name} on VXLAN id ${String(vxlanId)} ` +
+				`(avoiding ${[...poisoned].join(", ") || "none"}); removed services: ${removedServices.join(", ") || "none"}`,
+		);
+		return { vxlanId, avoidedVxlanIds: [...poisoned], removedServices };
+	});
+
+	return { ensureOverlay, list, recreateOverlay };
 }

@@ -32,6 +32,15 @@ export type SwarmServicesShape = {
 	/** Re-applies the service's own `RollbackConfig` target, the previous good spec. */
 	readonly rollback: (idOrName: string) => Effect.Effect<void, DockerError>;
 	readonly listTasks: (idOrName: string) => Effect.Effect<DockerodeTaskSummary[], DockerError>;
+	/** Every swarm service on the cluster (`GET /services`). */
+	readonly list: () => Effect.Effect<DockerodeServiceSummary[], DockerError>;
+	/** Tasks cluster-wide (`GET /tasks`), optionally narrowed to a service and/or a node. */
+	readonly listAllTasks: (filter?: { serviceId?: string; nodeId?: string }) => Effect.Effect<DockerodeTaskSummary[], DockerError>;
+	/**
+	 * Tail of the service's aggregated task logs. Empty when the engine has none yet or cannot
+	 * answer: log replay is a convenience, never a gate.
+	 */
+	readonly logs: (idOrName: string, options?: Docker.ContainerLogsOptions) => Effect.Effect<string>;
 };
 
 /** The part of an inspected service that scale and rollback rewrite. */
@@ -114,6 +123,31 @@ export function makeSwarmServices(client: Docker): SwarmServicesShape {
 		);
 	});
 
-	return { inspect, create, update, remove, scale, rollback, listTasks };
+	const list: SwarmServicesShape["list"] = Effect.fn("DockerSwarmServices.list")(function* () {
+		return yield* engineCall("list Swarm services", async () =>
+			z.array(dockerodeServiceSummarySchema).parse(await client.listServices()),
+		);
+	});
+
+	const listAllTasks: SwarmServicesShape["listAllTasks"] = Effect.fn("DockerSwarmServices.listAllTasks")(function* (filter) {
+		const filters: Record<string, string[]> = {};
+		if (filter?.serviceId) filters.service = [filter.serviceId];
+		if (filter?.nodeId) filters.node = [filter.nodeId];
+		return yield* engineCall("list Swarm tasks", async () =>
+			z.array(dockerodeTaskSummarySchema).parse(await client.listTasks({ filters })),
+		);
+	});
+
+	const logs: SwarmServicesShape["logs"] = Effect.fn("DockerSwarmServices.logs")(function* (
+		idOrName,
+		options = { stdout: true, stderr: true, tail: 200 },
+	) {
+		return yield* engineCall(`read logs of Swarm service ${idOrName}`, async () => {
+			const raw: unknown = await client.getService(idOrName).logs({ ...options, follow: false });
+			return typeof raw === "string" ? raw : String(raw);
+		}).pipe(Effect.catch(() => Effect.succeed("")));
+	});
+
+	return { inspect, create, update, remove, scale, rollback, listTasks, list, listAllTasks, logs };
 }
 

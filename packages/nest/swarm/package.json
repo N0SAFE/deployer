@@ -91,6 +91,7 @@
         "@nestjs/common": "catalog:api:nest",
         "@deployer/contracts-entities": "*",
         "@deployer/errors": "*",
+        "@deployer/docker": "*",
         "@deployer/nest-docker": "*",
         "@deployer/nest-nodes": "*",
         "zod": "catalog:utils"

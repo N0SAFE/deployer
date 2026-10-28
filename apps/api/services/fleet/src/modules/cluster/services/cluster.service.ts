@@ -19,7 +19,7 @@ import {
 import type { ClusterPlatformRole, ClusterSnapshot, ClusterNode, SwarmNodeResources, SwarmServiceRuntime, SwarmTaskRuntime, SwarmConfigView, SwarmParticipationInput } from "@deployer/contracts-entities";
 import { clusterNodeInventoryRowSchema } from "@deployer/fleet-contracts";
 import { type ClusterMasterView } from "@deployer/fleet-contracts";
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { resolveSwarmNodeRole } from "@deployer/docker";
 import type { SwarmClusterService, SwarmFleetService, SwarmParticipationService } from "@deployer/nest-swarm";
 import type { ClusterNodeInventoryRepository } from "@deployer/nest-nodes/cluster-node-inventory.repository";
 import type { ClusterNodeRepository } from "@deployer/nest-nodes/cluster-node.repository";
@@ -229,7 +229,7 @@ export function makeClusterService(ports: Ports): ClusterServiceShape {
             const node = yield* attempt(() => swarmClusterService.inspectSwarmNode(nodeId));
             const labels = node.Spec?.Labels ?? {};
             const hostname = node.Description?.Hostname ?? "";
-            const swarmRole = DockerService.resolveSwarmNodeRole(node);
+            const swarmRole = resolveSwarmNodeRole(node);
             const platformRole = platformRoleFromLabels(labels);
             const isIngress = ingressFromLabels(labels);
             const isMaster = node.ManagerStatus?.Leader === true;

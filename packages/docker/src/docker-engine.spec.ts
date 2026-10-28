@@ -18,6 +18,7 @@ function fakeClient(overrides: Record<string, unknown> = {}) {
 		start: vi.fn().mockResolvedValue(undefined),
 		stop: vi.fn().mockResolvedValue(undefined),
 		remove: vi.fn().mockResolvedValue(undefined),
+		pause: vi.fn().mockResolvedValue(undefined),
 		inspect: vi.fn().mockResolvedValue({ State: { Status: "running" } }),
 	};
 	const client = {
@@ -157,5 +158,76 @@ describe("DockerEngine.networks", () => {
 		});
 
 		await expect(run(engine.networks.ensureOverlay(request))).rejects.toBeInstanceOf(DockerConflict);
+	});
+});
+
+describe("DockerEngine.containers (state changes)", () => {
+	it("treats pausing a paused container as paused", async () => {
+		const { container, engine } = fakeClient();
+		container.pause.mockRejectedValue(new Error("Container is already paused"));
+
+		await expect(run(engine.containers.pause("c1"))).resolves.toBeUndefined();
+	});
+
+	it("fails stopping a container the engine cannot find", async () => {
+		const { container, engine } = fakeClient();
+		container.stop.mockRejectedValue(notFound());
+
+		await expect(run(engine.containers.stop("c1"))).rejects.toBeInstanceOf(DockerNotFound);
+	});
+
+	it("reports health from the engine's healthcheck", async () => {
+		const { container, engine } = fakeClient();
+		container.inspect.mockResolvedValue({ State: { Status: "running", Health: { Status: "unhealthy" } } });
+		expect(await run(engine.containers.isHealthy("c1"))).toBe(false);
+
+		container.inspect.mockResolvedValue({ State: { Status: "running" } });
+		expect(await run(engine.containers.isHealthy("c1"))).toBe(true);
+	});
+
+	it("reports an unreadable container as unknown instead of failing", async () => {
+		const { container, engine } = fakeClient();
+		container.inspect.mockRejectedValue(new Error("boom"));
+
+		expect((await run(engine.containers.health("c1"))).status).toBe("unknown");
+	});
+});
+
+describe("DockerEngine.networks.recreateOverlay", () => {
+	it("picks a VXLAN id above every one in use or poisoned", async () => {
+		const network = {
+			inspect: vi.fn().mockRejectedValue(notFound()),
+			remove: vi.fn(),
+			disconnect: vi.fn(),
+		};
+		const { client, engine } = fakeClient({
+			getNetwork: vi.fn(() => network),
+			listNetworks: vi.fn().mockResolvedValue([
+				{ Options: { "com.docker.network.driver.overlay.vxlanid_list": "4100" } },
+			]),
+		});
+
+		const result = await run(
+			engine.networks.recreateOverlay(
+				{ name: "deployer-p1", driver: "overlay", attachable: true, ingress: false, labels: {}, enableIpv6: false },
+				{ avoidVxlanIds: [4200] },
+			),
+		);
+
+		expect(result.vxlanId).toBe(4201);
+		expect(client.createNetwork).toHaveBeenCalledWith(
+			expect.objectContaining({ Options: { "com.docker.network.driver.overlay.vxlanid_list": "4201" } }),
+		);
+	});
+});
+
+describe("DockerEngine.swarmSecrets", () => {
+	it("sends the data base64-encoded", async () => {
+		const createSecret = vi.fn().mockResolvedValue({ ID: "s1" });
+		const { engine } = fakeClient({ createSecret });
+
+		await run(engine.swarmSecrets.create({ name: "db", data: "hunter2" })).catch(() => undefined);
+
+		expect(createSecret).toHaveBeenCalledWith({ Name: "db", Data: Buffer.from("hunter2").toString("base64"), Labels: {} });
 	});
 });

@@ -31,3 +31,27 @@ export type {
 	SupervisorScope,
 	SupervisorTopology,
 } from "./supervisor/docker-supervisor-runtime";
+export type {
+	ContainerHealth,
+	HttpProbeResult,
+} from "./engine/containers";
+export type { RecreateOverlayOptions, RecreateOverlayResult } from "./engine/networks";
+export type {
+	SwarmClusterShape,
+	SwarmConfigsShape,
+	SwarmDataObject,
+	SwarmNodesShape,
+	SwarmSecretsShape,
+} from "./engine/swarm-cluster";
+export type { VolumesShape } from "./engine/volumes";
+export {
+	buildSwarmNodeSpecPayload,
+	resolveSwarmNodeRole,
+} from "./swarm/swarm-node";
+export type {
+	SwarmNodeAvailability,
+	SwarmNodeRole,
+	SwarmNodeSpecChange,
+	SwarmNodeSpecPayload,
+	SwarmNodeSpecSource,
+} from "./swarm/swarm-node";
