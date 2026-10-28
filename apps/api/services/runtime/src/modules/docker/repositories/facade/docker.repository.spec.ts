@@ -26,13 +26,14 @@ function createCleanupHarness(params: {
               ? new DockerNotFound({ resource: "container" })
               : new DockerUnavailable({ reason: "inspect failed", cause }),
         }),
+      // The cleanup removes the container through the engine; failures are logged, never thrown.
+      remove: () => Effect.promise(() => removeContainer()),
       removeIfExists: () =>
         Effect.tryPromise({ try: () => remove(), catch: (cause) => new DockerUnavailable({ reason: "remove failed", cause }) }),
     },
   }));
 
   const dockerService = {
-    removeContainer,
     getEngine,
   };
 

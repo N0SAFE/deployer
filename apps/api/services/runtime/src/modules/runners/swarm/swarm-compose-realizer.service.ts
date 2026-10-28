@@ -23,6 +23,8 @@ import { RuntimeInvalid } from "../../../core/runtime.errors";
  * executor is the only thing touching `DockerService`.
  */
 
+import { Effect } from "effect";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { Injectable, Logger } from "@nestjs/common";
 
 import { parse } from "yaml";
@@ -613,66 +615,58 @@ export class SwarmComposeRealizerService {
         const secrets: string[] = [];
         const configs: string[] = [];
 
-        const dockerService = this.dockerService;
-        for (const network of plan.networks) {
-            await dockerService.ensureOverlayNetwork({
-                name: network.name,
-                driver: network.driver,
-                attachable: network.attachable,
-                ingress: false,
-                enableIpv6: false,
-                labels: network.labels,
-            });
-            networks.push(network.name);
-        }
-
-        const existingSecrets = new Set((await dockerService.listSwarmSecrets()).map((secret) => secret.Spec.Name));
-        for (const secret of plan.secrets) {
-            if (!existingSecrets.has(secret.name)) {
-                await dockerService.createSwarmSecret({
-                    name: secret.name,
-                    data: secret.data,
-                    labels: { "deployer.managed": "true" },
+        const { networks: networkOps, swarmSecrets, swarmConfigs, swarmServices } = this.dockerService.getEngine();
+        const apply = Effect.gen(function* () {
+            for (const network of plan.networks) {
+                yield* networkOps.ensureOverlay({
+                    name: network.name,
+                    driver: network.driver,
+                    attachable: network.attachable,
+                    ingress: false,
+                    enableIpv6: false,
+                    labels: network.labels,
                 });
+                networks.push(network.name);
             }
-            secrets.push(secret.name);
-        }
 
-        const existingConfigs = new Set((await dockerService.listSwarmConfigs()).map((config) => config.Spec.Name));
-        for (const config of plan.configs) {
-            if (!existingConfigs.has(config.name)) {
-                await dockerService.createSwarmConfig({
-                    name: config.name,
-                    data: config.data,
-                    labels: { "deployer.managed": "true" },
-                });
-            }
-            configs.push(config.name);
-        }
-
-        for (const entry of plan.services) {
-            const serviceName = entry.spec.name;
-            const spec = toDockerServiceSpec(entry.spec);
-            try {
-                const existing = await dockerService.inspectSwarmService(serviceName);
-                await dockerService.updateSwarmService(serviceName, existing.Version.Index, spec, false);
-                updatedServices.push(serviceName);
-            } catch (error: unknown) {
-                if (error instanceof Error && error.message.toLowerCase().includes("not found")) {
-                    const created = await dockerService.createSwarmService(spec);
-                    if (created.ID === undefined) {
-                        throw new AppError(
-                        `Swarm service ${serviceName} was created without an ID`,
-                        "SWARM_SERVICE_MISSING_ID",
-                        { serviceName },
-                    );
-                    }
-                    createdServices.push(created.ID);
-                } else {
-                    throw error;
+            const existingSecrets = new Set((yield* swarmSecrets.list()).map((secret) => secret.Spec.Name));
+            for (const secret of plan.secrets) {
+                if (!existingSecrets.has(secret.name)) {
+                    yield* swarmSecrets.create({ name: secret.name, data: secret.data, labels: { "deployer.managed": "true" } });
                 }
+                secrets.push(secret.name);
             }
-        }
+
+            const existingConfigs = new Set((yield* swarmConfigs.list()).map((config) => config.Spec.Name));
+            for (const config of plan.configs) {
+                if (!existingConfigs.has(config.name)) {
+                    yield* swarmConfigs.create({ name: config.name, data: config.data, labels: { "deployer.managed": "true" } });
+                }
+                configs.push(config.name);
+            }
+
+            for (const entry of plan.services) {
+                const serviceName = entry.spec.name;
+                const spec = toDockerServiceSpec(entry.spec);
+                // Updated in place when it exists, created when the engine says it does not.
+                const existing = yield* swarmServices.inspect(serviceName).pipe(
+                    Effect.catchTag("DockerNotFound", () => Effect.succeed(null)),
+                );
+                if (existing !== null) {
+                    yield* swarmServices.update(serviceName, existing.Version.Index, spec, false);
+                    updatedServices.push(serviceName);
+                    continue;
+                }
+                const created = yield* swarmServices.create(spec);
+                if (created.ID === undefined) {
+                    return yield* Effect.fail(
+                        new AppError(`Swarm service ${serviceName} was created without an ID`, "SWARM_SERVICE_MISSING_ID", { serviceName }),
+                    );
+                }
+                createdServices.push(created.ID);
+            }
+        });
+        await runPromiseUnwrapped(apply);
 
         this.logger.log(
             `Compose realization applied: ${String(createdServices.length)} created / ${String(updatedServices.length)} updated services, ` +

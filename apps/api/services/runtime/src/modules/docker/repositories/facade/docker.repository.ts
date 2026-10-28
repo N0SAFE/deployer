@@ -2,6 +2,7 @@ import { Injectable, Inject, Optional, Logger, NotFoundException } from "@nestjs
 import { createHash } from "node:crypto";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { DockerService } from "@deployer/nest-effect/docker";
+import type { ContainersShape } from "@deployer/docker";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { Cause, Effect, Exit } from "effect";
 import { ScannerContainerManagerService } from "@deployer/nest-effect/docker";
@@ -990,9 +991,10 @@ export class DockerRepository {
   }
 
   async inspectContainer(containerId: string) {
-    let inspect: Awaited<ReturnType<DockerService["getContainerInfo"]>>;
+    // The engine's own description of a container, whichever dockerode typings are in scope.
+    let inspect: Effect.Success<ReturnType<ContainersShape["inspect"]>>;
     try {
-      inspect = await this.dockerService.getContainerInfo(containerId);
+      inspect = await runPromiseUnwrapped(this.dockerService.getEngine().containers.inspect(containerId));
     } catch {
       throw new NotFoundException(`Container '${containerId}' not found`);
     }
@@ -3142,12 +3144,18 @@ export class DockerRepository {
     const scannerImageExists = await this.scannerImageExistsLocally(config.image);
     if (!scannerImageExists) {
       try {
-        await this.dockerService.pullImage(config.image, undefined, 3, 2_000, (line) => {
-          const normalized = line.trim();
-          if (normalized.length > 0) {
-            progressOptions.onPullLogLine?.(normalized);
-          }
-        });
+        await runPromiseUnwrapped(
+          this.dockerService.getEngine().images.pull(config.image, {
+            retries: 3,
+            backoffMs: 2_000,
+            onProgressLine: (line) => {
+              const normalized = line.trim();
+              if (normalized.length > 0) {
+                progressOptions.onPullLogLine?.(normalized);
+              }
+            },
+          }),
+        );
       } catch (error) {
         this.logger.debug(`Unable to pre-pull scanner image ${config.image}: ${this.formatError(error)}`);
       }
@@ -3161,7 +3169,7 @@ export class DockerRepository {
       envVars.push(`DOCKER_HOST=unix://${String(hostPath)}`);
     }
 
-    const created = await this.dockerService.createContainer({
+    const created = await runPromiseUnwrapped(this.dockerService.getEngine().containers.create({
       Image: config.image,
       name: containerName,
       Cmd: config.command,
@@ -3171,12 +3179,12 @@ export class DockerRepository {
         Binds: socketBind ? [socketBind] : undefined,
       },
       Tty: false,
-    });
+    }));
 
     const scannerContainerId = created.id;
 
     try {
-      await this.dockerService.startContainer(scannerContainerId);
+      await runPromiseUnwrapped(this.dockerService.getEngine().containers.start(scannerContainerId));
 
       const normalizedLogPollIntervalMs = Math.max(
         200,
@@ -3209,11 +3217,13 @@ export class DockerRepository {
       };
 
       const fetchLatestLogs = async () => {
-        const output = await this.dockerService.getContainerLogs(scannerContainerId, {
-          stdout: true,
-          stderr: true,
-          tail: VULNERABILITY_LOG_TAIL,
-        });
+        const output = await runPromiseUnwrapped(
+          this.dockerService.getEngine().logs.read(scannerContainerId, {
+            stdout: true,
+            stderr: true,
+            tail: VULNERABILITY_LOG_TAIL,
+          }),
+        );
         emitNewLines(output);
       };
 
@@ -3265,7 +3275,14 @@ export class DockerRepository {
     const pause = (attempt: number) => Effect.promise(() => this.delay(200 * attempt));
     const note = (message: string) => Effect.sync(() => { this.logger.debug(message); });
 
-    const removeContainer = Effect.promise(() => this.dockerService.removeContainer(containerId));
+    // Cleanup never fails the caller: a container that cannot be removed is logged and re-checked.
+    const removeContainer = containers.remove(containerId).pipe(
+      Effect.catch((error) =>
+        Effect.sync(() => {
+          this.logger.error(`Failed to remove container ${containerId}: ${this.formatError(error)}`);
+        }),
+      ),
+    );
     const describe = (cause: Cause.Cause<unknown>) => this.formatError(Cause.squash(cause));
 
     const cleanup = Effect.gen(function* () {

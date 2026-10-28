@@ -1,4 +1,5 @@
-import { NotFoundException } from "@nestjs/common";
+import { DockerNotFound } from "@deployer/docker";
+import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import { BootstrapIngressService } from "./bootstrap-ingress.service";
@@ -113,8 +114,12 @@ describe("BootstrapIngressService.waitForSwarmIngressRunning", () => {
 	function makeProbe(tasks: unknown[], portAnswers = false) {
 		const env = { get: vi.fn(() => "") } as unknown as EnvService;
 		const docker = {
-			inspectSwarmService: vi.fn().mockResolvedValue({ ID: "svc" }),
-			listSwarmServiceTasks: vi.fn().mockResolvedValue(tasks),
+			getEngine: () => ({
+				swarmServices: {
+					inspect: () => Effect.succeed({ ID: "svc" }),
+					listTasks: () => Effect.succeed(tasks),
+				},
+			}),
 		} as unknown as DockerService;
 		const service = new BootstrapIngressService(docker, env);
 		vi.spyOn(service as unknown as { portAnswers(ms: number): Promise<boolean> }, "portAnswers").mockResolvedValue(
@@ -161,11 +166,14 @@ describe("BootstrapIngressService.waitForSwarmIngressRunning", () => {
 	 */
 	it("treats a missing service as 'not promoted yet', not as a fault", async () => {
 		const env = { get: vi.fn(() => "") } as unknown as EnvService;
+		const listTasks = vi.fn(() => Effect.succeed([]));
 		const docker = {
-			inspectSwarmService: vi
-				.fn()
-				.mockRejectedValue(new NotFoundException("Swarm service not found")),
-			listSwarmServiceTasks: vi.fn().mockResolvedValue([]),
+			getEngine: () => ({
+				swarmServices: {
+					inspect: () => Effect.fail(new DockerNotFound({ resource: "Swarm service" })),
+					listTasks,
+				},
+			}),
 		} as unknown as DockerService;
 		const service = new BootstrapIngressService(docker, env);
 		vi.spyOn(service as unknown as { portAnswers(ms: number): Promise<boolean> }, "portAnswers").mockResolvedValue(
@@ -176,6 +184,6 @@ describe("BootstrapIngressService.waitForSwarmIngressRunning", () => {
 			(service as unknown as { waitForSwarmIngressRunning(): Promise<boolean> }).waitForSwarmIngressRunning(),
 		).resolves.toBe(false);
 		// The task listing must NOT be reached: that is what logged the 404 as an error.
-		expect(docker.listSwarmServiceTasks).not.toHaveBeenCalled();
+		expect(listTasks).not.toHaveBeenCalled();
 	}, 120_000);
 });

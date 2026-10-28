@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { RuntimeInvalid } from "../../../core/runtime.errors";
 import { describe, expect, it, vi } from "vitest";
 
@@ -42,8 +43,22 @@ describe("BuilderRegistryService", () => {
     });
 });
 
+/**
+ * The strategies reach Docker through `getEngine().build`; the specs keep their `buildImage` /
+ * `buildCompose` mocks (so the assertions read as before) and expose them as the engine's Effects.
+ */
+const withEngine = <T extends { buildImage: unknown; buildCompose?: unknown }>(mocks: T): T =>
+    Object.assign(mocks, {
+        getEngine: () => ({
+            build: {
+                image: (...args: unknown[]) => Effect.promise(async () => (mocks.buildImage as (...a: unknown[]) => unknown)(...args)),
+                compose: (...args: unknown[]) => Effect.promise(async () => (mocks.buildCompose as (...a: unknown[]) => unknown)(...args)),
+            },
+        }),
+    });
+
 describe("builder strategies", () => {
-    const docker = () => ({ buildImage: vi.fn().mockResolvedValue(undefined), buildCompose: vi.fn().mockResolvedValue({ projectName: "p" }) });
+    const docker = () => withEngine({ buildImage: vi.fn().mockResolvedValue(undefined), buildCompose: vi.fn().mockResolvedValue({ projectName: "p" }) });
     const context = { buildContextPath: "/ctx", deploymentId: "0123456789abcdef", serviceId: "s", dockerfileName: null, imageTag: "deployer/s:d-x" };
 
     it("dockerfile builds one image, passing the custom Dockerfile when there is one", async () => {
@@ -52,7 +67,7 @@ describe("builder strategies", () => {
         await expect(s.build(context)).resolves.toEqual({ image: "deployer/s:d-x" });
         expect(d.buildImage).toHaveBeenCalledWith("/ctx", "deployer/s:d-x", {});
         await s.build({ ...context, dockerfileName: "Dockerfile.deployer.custom" });
-        expect(d.buildImage).toHaveBeenLastCalledWith("/ctx", "deployer/s:d-x", { dockerfileName: "Dockerfile.deployer.custom", autoCreateDockerfile: false });
+        expect(d.buildImage).toHaveBeenLastCalledWith("/ctx", "deployer/s:d-x", { dockerfileName: "Dockerfile.deployer.custom" });
     });
 
     it.each(["nixpacks", "buildpack", "railpack"] as const)("%s without custom commands fails with an actionable message, not 'Dockerfile not found'", async (kind) => {
@@ -65,7 +80,7 @@ describe("builder strategies", () => {
     it("a buildpack-family builder with custom commands builds the generated Dockerfile", async () => {
         const d = docker();
         await new BuildpackFamilyBuilderStrategy("nixpacks", d as never).build({ ...context, dockerfileName: "Dockerfile.deployer.custom" });
-        expect(d.buildImage).toHaveBeenCalledWith("/ctx", "deployer/s:d-x", { dockerfileName: "Dockerfile.deployer.custom", autoCreateDockerfile: false });
+        expect(d.buildImage).toHaveBeenCalledWith("/ctx", "deployer/s:d-x", { dockerfileName: "Dockerfile.deployer.custom" });
     });
 
     it("docker_compose refuses custom commands and a missing compose file, and never returns an image", async () => {

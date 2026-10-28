@@ -1,3 +1,4 @@
+import { toDockerServiceSpec } from "@deployer/docker";
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
@@ -19,14 +20,18 @@ type CreatedSpec = { Name: string; TaskTemplate: { ContainerSpec: { Env: string[
 
 async function schedule(env: Record<string, string>, managedWeb: boolean | null = null) {
   const created: CreatedSpec[] = [];
+  // The engine's `reconcile` takes the platform's spec; the Docker spec it becomes is what the
+  // assertions read, so the mapper runs for real.
   const docker = {
-    ensureOverlayNetwork: vi.fn().mockResolvedValue(undefined),
-    createSwarmService: vi.fn((spec: CreatedSpec) => {
-      created.push(spec);
-      return Promise.resolve({});
-    }),
-    updateSwarmService: vi.fn().mockResolvedValue(undefined),
-    getEngine: vi.fn(() => ({ swarmServices: { list: () => Effect.succeed([]) } })),
+    getEngine: vi.fn(() => ({
+      networks: { ensureOverlay: () => Effect.void },
+      swarmServices: {
+        reconcile: (input: Parameters<typeof toDockerServiceSpec>[0]) =>
+          Effect.sync(() => {
+            created.push(toDockerServiceSpec(input) as unknown as CreatedSpec);
+          }),
+      },
+    })),
   };
   const gate = { managedWebEnabled: vi.fn(() => managedWeb) };
   const tier = new ServicesTierProvisioner(

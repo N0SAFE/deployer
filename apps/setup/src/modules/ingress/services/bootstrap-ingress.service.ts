@@ -1,9 +1,10 @@
-import { Injectable, Logger, NotFoundException, type OnApplicationBootstrap } from "@nestjs/common";
+import { Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { readFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { Socket } from "node:net";
 import { DockerService } from "@deployer/nest-effect/docker";
-import { platformNetworkName } from "@deployer/docker";
+import { DockerNotFound, platformNetworkName } from "@deployer/docker";
 
 import { EnvService } from "@/config/env/env.module";
 
@@ -208,7 +209,7 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
       await this.remove();
     }
 
-    await this.docker.pullImage(this.image()).catch((error: unknown) => {
+    await runPromiseUnwrapped(this.docker.getEngine().images.pull(this.image())).catch((error: unknown) => {
       // A pull failure is not fatal when the image is already local (offline
       // node, pre-pulled image): `createContainer` uses the local tag. Only
       // report it, and let creation produce the real error if it is missing too.
@@ -558,9 +559,9 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
     // task listing, which logs an ERROR for a 404 and would make every handover
     // look like it failed.
     try {
-      await this.docker.inspectSwarmService(serviceName);
+      await runPromiseUnwrapped(this.docker.getEngine().swarmServices.inspect(serviceName));
     } catch (error: unknown) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof DockerNotFound) {
         return { running: false, detail: `${serviceName} has not been created yet` };
       }
       const detail = error instanceof Error ? error.message : String(error);
@@ -568,7 +569,7 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
     }
 
     try {
-      const tasks = await this.docker.listSwarmServiceTasks(serviceName);
+      const tasks = await runPromiseUnwrapped(this.docker.getEngine().swarmServices.listTasks(serviceName));
       if (tasks.length === 0) {
         return { running: false, detail: `${serviceName} has no tasks scheduled` };
       }
@@ -677,7 +678,7 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
     const name = BootstrapIngressService.CONTAINER_NAME;
     this.logger.log(`Creating bootstrap ingress ${name} from ${this.image()}`);
 
-    await this.docker.createContainer({
+    await runPromiseUnwrapped(this.docker.getEngine().containers.create({
       name,
       Image: this.image(),
       Cmd: this.command(),
@@ -712,9 +713,9 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
         ],
         NetworkMode: this.platformNetwork(),
       },
-    });
+    }));
 
-    await this.docker.startContainer(name);
+    await runPromiseUnwrapped(this.docker.getEngine().containers.start(name));
   }
 
   // ─── Engine helpers ───────────────────────────────────────────────────────
@@ -728,7 +729,7 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
     networks: string[];
   } | null> {
     try {
-      const info = await this.docker.getContainerInfo(BootstrapIngressService.CONTAINER_NAME);
+      const info = await runPromiseUnwrapped(this.docker.getEngine().containers.inspect(BootstrapIngressService.CONTAINER_NAME));
       const bindings = info.HostConfig?.PortBindings ?? {};
       return {
         running: info.State.Running,
@@ -762,12 +763,8 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
 
   /** Force-remove the container, tolerating "already gone". */
   private async remove(): Promise<void> {
-    try {
-      await this.docker.removeContainer(BootstrapIngressService.CONTAINER_NAME);
-    } catch (error: unknown) {
-      const detail = error instanceof Error ? error.message : String(error);
-      if (!/no such container|404|already in progress/i.test(detail)) throw error;
-    }
+    // `removeIfExists` already treats "no such container" and "removal already in progress" as removed.
+    await runPromiseUnwrapped(this.docker.getEngine().containers.removeIfExists(BootstrapIngressService.CONTAINER_NAME));
   }
 
   /**

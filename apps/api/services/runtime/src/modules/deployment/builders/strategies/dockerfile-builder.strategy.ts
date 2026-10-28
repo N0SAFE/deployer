@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { DockerService } from "@deployer/nest-effect/docker";
 import type {
     BuilderStrategy,
@@ -28,11 +29,11 @@ export class DockerfileBuilderStrategy implements BuilderStrategy {
     }
 
     async build(context: BuilderStrategyContext): Promise<BuilderStrategyResult> {
-        await this.dockerService.buildImage(context.buildContextPath, context.imageTag, {
-            ...(context.dockerfileName !== null
-                ? { dockerfileName: context.dockerfileName, autoCreateDockerfile: false }
-                : {}),
-        });
+        await runPromiseUnwrapped(
+            this.dockerService.getEngine().build.image(context.buildContextPath, context.imageTag, {
+                ...(context.dockerfileName !== null ? { dockerfileName: context.dockerfileName } : {}),
+            }),
+        );
         return { image: context.imageTag };
     }
 }

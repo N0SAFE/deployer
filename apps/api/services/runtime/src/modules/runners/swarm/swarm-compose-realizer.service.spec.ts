@@ -1,3 +1,5 @@
+import { DockerNotFound } from "@deployer/docker";
+import { Effect } from "effect";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { DockerService } from "@deployer/nest-effect/docker";
 import { SwarmComposeRealizerService } from "./swarm-compose-realizer.service";
@@ -83,7 +85,23 @@ describe("SwarmComposeRealizerService", () => {
             createSwarmService: vi.fn().mockResolvedValue({ ID: "svc-1" }),
             updateSwarmService: vi.fn().mockResolvedValue(undefined),
         };
-        realizer = new SwarmComposeRealizerService(dockerService as never);
+        // The realizer reaches Docker through the engine; the mocks above stay the spec's handles on what was
+        // asked of it, and read at call time so a test can replace one.
+        const ds = dockerService;
+        const lift = (fn: unknown, ...args: unknown[]) => Effect.promise(() => (fn as (...a: unknown[]) => Promise<unknown>)(...args));
+        const engine = {
+            networks: { ensureOverlay: (request: unknown) => lift(ds.ensureOverlayNetwork, request) },
+            swarmSecrets: { list: () => lift(ds.listSwarmSecrets), create: (options: unknown) => lift(ds.createSwarmSecret, options) },
+            swarmConfigs: { list: () => lift(ds.listSwarmConfigs), create: (options: unknown) => lift(ds.createSwarmConfig, options) },
+            swarmServices: {
+                // A refused inspect is the engine's "no such service".
+                inspect: (name: string) =>
+                    Effect.tryPromise({ try: () => (ds.inspectSwarmService as unknown as (n: string) => Promise<unknown>)(name), catch: () => new DockerNotFound({ resource: name }) }),
+                update: (...args: unknown[]) => lift(ds.updateSwarmService, ...args),
+                create: (spec: unknown) => lift(ds.createSwarmService, spec),
+            },
+        };
+        realizer = new SwarmComposeRealizerService({ getEngine: () => engine } as never);
     });
 
     describe("parseComposeYaml", () => {

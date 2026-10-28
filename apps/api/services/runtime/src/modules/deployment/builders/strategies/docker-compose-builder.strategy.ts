@@ -1,4 +1,5 @@
 import { RuntimeInvalid } from "../../../../core/runtime.errors";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { Injectable } from "@nestjs/common";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -52,10 +53,12 @@ export class DockerComposeBuilderStrategy implements BuilderStrategy {
             throw new RuntimeInvalid({ reason: "Builder 'docker_compose' requires a compose file in the source context" });
         }
 
-        await this.dockerService.buildCompose(context.buildContextPath, {
-            composeFileName: composeFile,
-            projectName: `deployer-${context.deploymentId.slice(0, 12)}`,
-        });
+        await runPromiseUnwrapped(
+            this.dockerService.getEngine().build.compose(context.buildContextPath, {
+                composeFileName: composeFile,
+                projectName: `deployer-${context.deploymentId.slice(0, 12)}`,
+            }),
+        );
 
         return { image: null };
     }

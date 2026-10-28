@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
 import type { DockerService } from "@deployer/nest-effect/docker";
@@ -37,8 +38,20 @@ function makeDockerService() {
 			UpdateStatus: { Message: null },
 		},
 	]);
+	// The enricher reads through the engine; the mocks stay the spec's handles on what was asked, and a
+	// test may replace one on the returned object (the engine reads it at call time).
+	const dockerService = {
+		listAllSwarmTasks,
+		listSwarmServices,
+		getEngine: () => ({
+			swarmServices: {
+				listAllTasks: (...args: unknown[]) => Effect.promise(() => (dockerService.listAllSwarmTasks as (...a: unknown[]) => Promise<unknown>)(...args)),
+				list: () => Effect.promise(() => dockerService.listSwarmServices() as Promise<unknown>),
+			},
+		}),
+	};
 	return {
-		dockerService: { listAllSwarmTasks, listSwarmServices } as unknown as DockerService,
+		dockerService: dockerService as unknown as DockerService & { listAllSwarmTasks: (...args: never[]) => Promise<unknown> },
 		listAllSwarmTasks,
 		listSwarmServices,
 	};

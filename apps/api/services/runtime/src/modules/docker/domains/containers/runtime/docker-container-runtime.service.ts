@@ -290,7 +290,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
       `ls -la ${pathArg}`,
     ];
 
-    const { output } = await this.coreDockerService.execInContainer(input.containerId, command);
+    const { output } = await this.execInContainer(input.containerId, command);
     const generatedAt = new Date().toISOString();
 
     const entries = output
@@ -320,7 +320,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
       `head -c ${String(maxBytes)} ${pathArg}`,
     ];
 
-    const { output } = await this.coreDockerService.execInContainer(input.containerId, command);
+    const { output } = await this.execInContainer(input.containerId, command);
 
     return {
       containerId: input.containerId,
@@ -345,7 +345,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
       `${mkdirPrefix}printf %s ${this.escapeShellArg(encoded)} | base64 -d > ${this.escapeShellArg(containerPath)}`,
     ];
 
-    await this.coreDockerService.execInContainer(input.containerId, command);
+    await this.execInContainer(input.containerId, command);
 
     return {
       ok: true as const,
@@ -361,7 +361,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
       `rm -rf ${this.escapeShellArg(containerPath)}`,
     ];
 
-    await this.coreDockerService.execInContainer(input.containerId, command);
+    await this.execInContainer(input.containerId, command);
 
     return {
       ok: true as const,
@@ -379,7 +379,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
       `mv ${this.escapeShellArg(sourcePath)} ${this.escapeShellArg(nextPath)}`,
     ];
 
-    await this.coreDockerService.execInContainer(input.containerId, command);
+    await this.execInContainer(input.containerId, command);
 
     return {
       ok: true as const,
@@ -396,7 +396,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
       `mkdir -p ${this.escapeShellArg(containerPath)}`,
     ];
 
-    await this.coreDockerService.execInContainer(input.containerId, command);
+    await this.execInContainer(input.containerId, command);
 
     return {
       ok: true as const,
@@ -695,7 +695,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
       const commandWithWorkingDir = `cd ${this.escapeShellArg(session.workingDir)} && ${command}`;
 
       try {
-        const { output } = await this.coreDockerService.execInContainer(
+        const { output } = await this.execInContainer(
           session.containerId,
           ["sh", "-lc", commandWithWorkingDir],
         );
@@ -754,11 +754,16 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
   }
 
   private async assertContainerDirectoryExists(containerId: string, directory: string): Promise<void> {
-    await this.coreDockerService.execInContainer(containerId, [
+    await this.execInContainer(containerId, [
       "sh",
       "-lc",
       `test -d ${this.escapeShellArg(directory)}`,
     ]);
+  }
+
+  /** Runs `command` in the container; a non-zero exit is a failure carrying the output. */
+  private execInContainer(containerId: string, command: string[]) {
+    return runPromiseUnwrapped(this.coreDockerService.getEngine().exec.run(containerId, command));
   }
 
   private async openTerminalStream(
@@ -915,14 +920,14 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
     sinceSeconds?: number,
     untilSeconds?: number,
   ): Promise<DockerContainerLogEntry[]> {
-    const rawLogs = await this.coreDockerService.getContainerLogs(containerId, {
+    const rawLogs = await runPromiseUnwrapped(this.coreDockerService.getEngine().logs.read(containerId, {
       stdout: true,
       stderr: true,
       tail,
       since: sinceSeconds,
       until: untilSeconds,
       timestamps: true,
-    });
+    }));
 
     const now = new Date().toISOString();
 

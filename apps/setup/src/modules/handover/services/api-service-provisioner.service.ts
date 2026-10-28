@@ -136,7 +136,7 @@ export class ApiServiceProvisioner {
     }
 
     const overlay = this.platformNetworkName();
-    await this.docker.ensureOverlayNetwork(this.overlayRequest(overlay));
+    await runPromiseUnwrapped(this.docker.getEngine().networks.ensureOverlay(this.overlayRequest(overlay)));
     await this.connectSelfToOverlay(overlay);
 
     const apps = await this.tier.ensureTier();
@@ -310,10 +310,10 @@ export class ApiServiceProvisioner {
             this.logger.warn(
               `Overlay ${overlay} has an unusable data path (${message}) — rebuilding it on a fresh VXLAN id (repair ${String(repairs)}/${String(ApiServiceProvisioner.MAX_OVERLAY_REPAIRS)})`,
             );
-            const rebuilt = await this.docker.recreateOverlayNetwork(this.overlayRequest(overlay), {
+            const rebuilt = await runPromiseUnwrapped(this.docker.getEngine().networks.recreateOverlay(this.overlayRequest(overlay), {
               detachContainerIds: [selfId],
               avoidVxlanIds: poisonedVnis,
-            });
+            }));
             poisonedVnis = rebuilt.avoidedVxlanIds;
             deadline = Date.now() + ApiServiceProvisioner.ATTACH_TIMEOUT_MS;
             continue;

@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import { DeploymentArtifactBuilderService } from "./deployment-artifact-builder.service";
 import { BuilderRegistryService } from "./builder-registry.service";
@@ -17,6 +18,20 @@ import { DeploymentProviderBuilderRunnerStateMachineService } from "@deployer/sh
  * registered but UNAVAILABLE, which is the behaviour that replaces the old
  * "Dockerfile not found" failure.
  */
+/**
+ * The strategies reach Docker through `getEngine().build`; the specs keep their `buildImage` /
+ * `buildCompose` mocks (so the assertions read as before) and expose them as the engine's Effects.
+ */
+const withEngine = <T extends { buildImage: unknown; buildCompose?: unknown }>(mocks: T): T =>
+    Object.assign(mocks, {
+        getEngine: () => ({
+            build: {
+                image: (...args: unknown[]) => Effect.promise(async () => (mocks.buildImage as (...a: unknown[]) => unknown)(...args)),
+                compose: (...args: unknown[]) => Effect.promise(async () => (mocks.buildCompose as (...a: unknown[]) => unknown)(...args)),
+            },
+        }),
+    });
+
 const createRegistry = (dockerService: { buildImage: ReturnType<typeof vi.fn>; buildCompose?: ReturnType<typeof vi.fn> }) =>
     new BuilderRegistryService([
         // `as never` at the boundary only: the strategies take the real `DockerService`,
@@ -30,10 +45,11 @@ const createRegistry = (dockerService: { buildImage: ReturnType<typeof vi.fn>; b
     ]);
 
 const createService = (
-    dockerService: { buildImage: ReturnType<typeof vi.fn>; buildCompose?: ReturnType<typeof vi.fn> },
+    rawDockerService: { buildImage: ReturnType<typeof vi.fn>; buildCompose?: ReturnType<typeof vi.fn> },
     gitServiceOverrides?: Partial<{ extractUploadedFile: ReturnType<typeof vi.fn> }>,
-) =>
-    new DeploymentArtifactBuilderService(
+) => {
+    const dockerService = withEngine(rawDockerService);
+    return new DeploymentArtifactBuilderService(
         {
             extractUploadedFile: vi.fn(),
             ...(gitServiceOverrides ?? {}),
@@ -44,6 +60,7 @@ const createService = (
         new DeploymentProviderBuilderRunnerStateMachineService(),
         createRegistry(dockerService),
     );
+};
 
 describe("DeploymentArtifactBuilderService", () => {
     it("uses external builder only with explicit container image", async () => {
@@ -106,7 +123,6 @@ describe("DeploymentArtifactBuilderService", () => {
             expect.stringContaining("deployer/"),
             expect.objectContaining({
                 dockerfileName: "Dockerfile.deployer.custom",
-                autoCreateDockerfile: false,
             }),
         );
     });
@@ -165,7 +181,6 @@ describe("DeploymentArtifactBuilderService", () => {
             expect.stringContaining("deployer/"),
             expect.objectContaining({
                 dockerfileName: "Dockerfile.deployer.custom",
-                autoCreateDockerfile: false,
             }),
         );
     });

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { from, type Observable } from "rxjs";
 import { filter, map, mergeMap } from "rxjs/operators";
 import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
@@ -163,10 +164,9 @@ export class SwarmActivityEnricherService {
   }
 
   private async readTasks(serviceId: string | null): Promise<SwarmTaskState[]> {
-    const tasks = await this.dockerService.listAllSwarmTasks(
-      serviceId === null ? undefined : { serviceId },
-    );
-    const services = await this.dockerService.listSwarmServices();
+    const { swarmServices } = this.dockerService.getEngine();
+    const tasks = await runPromiseUnwrapped(swarmServices.listAllTasks(serviceId === null ? undefined : { serviceId }));
+    const services = await runPromiseUnwrapped(swarmServices.list());
     const nameById = new Map(services.map((service) => [service.ID, service.Spec.Name]));
 
     return tasks.map((task) => ({
@@ -184,11 +184,12 @@ export class SwarmActivityEnricherService {
   }
 
   private async readService(serviceId: string): Promise<SwarmServiceState | null> {
-    const services = await this.dockerService.listSwarmServices();
+    const { swarmServices } = this.dockerService.getEngine();
+    const services = await runPromiseUnwrapped(swarmServices.list());
     const service = services.find((entry) => entry.ID === serviceId);
     if (service === undefined) return null;
 
-    const tasks = await this.dockerService.listAllSwarmTasks({ serviceId });
+    const tasks = await runPromiseUnwrapped(swarmServices.listAllTasks({ serviceId }));
     const runningTasks = tasks.filter((task) => task.Status?.State === "running").length;
     const isGlobal = service.Spec.Mode?.Global !== undefined;
 

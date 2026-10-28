@@ -23,6 +23,7 @@ import {
 } from "rxjs";
 import { map } from "rxjs/operators";
 import { Cause, Effect, Fiber, Stream } from "effect";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { CoreEventStreamPoolService } from "@deployer/nest-effect/events";
 import { AbstractDomainEventStreamService } from "@deployer/nest-effect/events";
 import { DockerService } from "@deployer/nest-effect/docker";
@@ -289,17 +290,12 @@ export class ClusterSwarmEventsService
      * Whether the local engine is an ACTIVE swarm member.
      *
      * Cheap `GET /info` probe, never throws — the same contract as
-     * `BaseDockerSupervisorService.isSwarmActive()`. A node that is not a member
+     * `SwarmCluster.isActive()` in `@deployer/docker`. A node that is not a member
      * (plain compose `dev`) has no swarm state to read, and asking for it fails
      * with `This node is not a swarm manager` rather than returning empty.
      */
     private async isSwarmActive(): Promise<boolean> {
-        try {
-            const info = await this.dockerService.getSwarmInfo();
-            return info.LocalNodeState === "active";
-        } catch {
-            return false;
-        }
+        return await runPromiseUnwrapped(this.dockerService.getEngine().swarmCluster.isActive());
     }
 
     /**

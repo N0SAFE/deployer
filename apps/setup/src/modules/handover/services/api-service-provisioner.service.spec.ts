@@ -31,14 +31,15 @@ function makeProvisioner(
   tierApps: TierApp[] | null = null,
 ): {
   provisioner: ApiServiceProvisioner;
-  docker: Partial<DockerService>;
+  docker: { ensureOverlayNetwork: Mock; createSwarmService: Mock };
   tier: { ensureTier: Mock };
 } {
+  // The provisioner creates the platform OVERLAY before scheduling the tier, because a
+  // service name only resolves on a swarm-scoped network.
+  const ensureOverlayNetwork = vi.fn((_request: unknown) => Effect.void);
+  const createSwarmService = vi.fn();
   const service = {
-    createSwarmService: vi.fn().mockResolvedValue({}),
-    // The provisioner creates the platform OVERLAY before scheduling the tier, because a
-    // service name only resolves on a swarm-scoped network.
-    ensureOverlayNetwork: vi.fn().mockResolvedValue(undefined),
+    getEngine: () => ({ networks: { ensureOverlay: ensureOverlayNetwork }, swarmServices: { reconcile: createSwarmService } }),
     ...docker,
   };
   const prefix = envOverrides.DEPLOYER_PREFIX ?? "";
@@ -54,7 +55,7 @@ function makeProvisioner(
     service as unknown as DockerService,
     tier as unknown as ConstructorParameters<typeof ApiServiceProvisioner>[2],
   );
-  return { provisioner, docker: service, tier };
+  return { provisioner, docker: { ensureOverlayNetwork, createSwarmService }, tier };
 }
 
 describe("ApiServiceProvisioner", () => {
@@ -178,9 +179,11 @@ describe("ApiServiceProvisioner", () => {
         const { provisioner, docker } = makeProvisioner(
           { SETUP_MODE: "prod", DEPLOYER_BFF_IMAGE: "svc-bff:local" },
           {
-            recreateOverlayNetwork,
             getEngine: vi.fn(() => ({
+              swarmServices: { reconcile: vi.fn() },
               networks: {
+                ensureOverlay: () => Effect.void,
+                recreateOverlay: (...args: unknown[]) => Effect.promise(() => recreateOverlayNetwork(...args) as Promise<unknown>),
                 // The engine reports a failed attach as a typed error carrying its own words.
                 attachContainer: () =>
                   Effect.tryPromise({

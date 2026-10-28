@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { Observable } from "rxjs";
 import type {
   DockerContainerCreateDirectoryBodyInput,
@@ -126,31 +127,31 @@ export class DockerContainersOrchestratorService {
 
     switch (input.action) {
       case "start": {
-        await this.coreDockerService.startContainer(input.containerId);
+        await runPromiseUnwrapped(this.coreDockerService.getEngine().containers.start(input.containerId));
         break;
       }
       case "stop": {
-        await this.coreDockerService.stopContainer(input.containerId);
+        await runPromiseUnwrapped(this.coreDockerService.getEngine().containers.stop(input.containerId));
         break;
       }
       case "restart": {
-        await this.coreDockerService.restartContainer(input.containerId);
+        await runPromiseUnwrapped(this.coreDockerService.getEngine().containers.restart(input.containerId));
         break;
       }
       case "pause": {
-        await this.coreDockerService.pauseContainer(input.containerId);
+        await runPromiseUnwrapped(this.coreDockerService.getEngine().containers.pause(input.containerId));
         break;
       }
       case "unpause": {
-        await this.coreDockerService.unpauseContainer(input.containerId);
+        await runPromiseUnwrapped(this.coreDockerService.getEngine().containers.unpause(input.containerId));
         break;
       }
       case "kill": {
-        await this.coreDockerService.killContainer(input.containerId);
+        await runPromiseUnwrapped(this.coreDockerService.getEngine().containers.kill(input.containerId));
         break;
       }
       case "remove": {
-        await this.coreDockerService.removeContainer(input.containerId);
+        await runPromiseUnwrapped(this.coreDockerService.getEngine().containers.remove(input.containerId));
         break;
       }
       default: {

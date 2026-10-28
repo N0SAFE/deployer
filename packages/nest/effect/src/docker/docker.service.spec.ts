@@ -1,9 +1,10 @@
+import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import type { DockerConnectionConfig } from "@deployer/docker";
 import { DockerService } from "./docker.service";
 
 /**
- * Focused unit tests for DockerService.ensureOverlayNetwork's layering guard:
+ * Focused unit tests for the engine's `networks.ensureOverlay` layering guard, reached through `DockerService.getEngine()`:
  * a Deployer-OWNED workload network must ALWAYS be an overlay. If a network
  * with the target name already exists but is NOT an overlay (e.g. a
  * compose-created BRIDGE that shares a name), the guard must FAIL LOUDLY
@@ -15,6 +16,10 @@ import { DockerService } from "./docker.service";
  * non-local TCP URL, then stub the private `this.docker` dockerode client via
  * a cast to inject the fake network operations deterministically.
  */
+
+/** The engine over the stubbed client; failures come back as the engine's typed errors. */
+const ensureOverlay = (service: DockerService, request: Parameters<ReturnType<DockerService["getEngine"]>["networks"]["ensureOverlay"]>[0]) =>
+  Effect.runPromise(service.getEngine().networks.ensureOverlay(request));
 
 function makeService(dockerStub: {
   inspectResolve?: () => Promise<{ Driver?: string }> | { Driver?: string };
@@ -57,10 +62,10 @@ function makeService(dockerStub: {
   return { service, network, createNetwork: (service as unknown as { docker: { createNetwork: ReturnType<typeof vi.fn> } }).docker.createNetwork };
 }
 
-describe("DockerService.ensureOverlayNetwork (layering guard)", () => {
+describe("DockerService engine — ensureOverlay (layering guard)", () => {
   const overlayRequest = {
     name: "deployer-project-1",
-    driver: "overlay",
+    driver: "overlay" as const,
     attachable: true,
     ingress: false,
     enableIpv6: false,
@@ -69,13 +74,13 @@ describe("DockerService.ensureOverlayNetwork (layering guard)", () => {
 
   it("reuses an existing OVERLAY network (idempotent)", async () => {
     const { service, network } = makeService({ inspectResolve: () => ({ Driver: "overlay" }) });
-    await service.ensureOverlayNetwork(overlayRequest);
+    await ensureOverlay(service, overlayRequest);
     expect(network.inspect).toHaveBeenCalledTimes(1);
   });
 
   it("refuses to reuse an existing BRIDGE (non-overlay) network — the compose-ownership conflict", async () => {
     const { service } = makeService({ inspectResolve: () => ({ Driver: "bridge" }) });
-    await expect(service.ensureOverlayNetwork(overlayRequest)).rejects.toThrow(
+    await expect(ensureOverlay(service, overlayRequest)).rejects.toThrow(
       /refusing to use a non-overlay network/,
     );
   });
@@ -87,7 +92,7 @@ describe("DockerService.ensureOverlayNetwork (layering guard)", () => {
       },
       createResolve: () => ({}),
     });
-    await service.ensureOverlayNetwork(overlayRequest);
+    await ensureOverlay(service, overlayRequest);
     expect(createNetwork).toHaveBeenCalledTimes(1);
   });
 
@@ -105,7 +110,7 @@ describe("DockerService.ensureOverlayNetwork (layering guard)", () => {
         throw new Error("create failed (already exists)");
       },
     });
-    await expect(service.ensureOverlayNetwork(overlayRequest)).rejects.toThrow(
+    await expect(ensureOverlay(service, overlayRequest)).rejects.toThrow(
       /refusing to use a non-overlay network/,
     );
     expect(createNetwork).toHaveBeenCalledTimes(1);

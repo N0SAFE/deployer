@@ -17,6 +17,8 @@
 
 import { Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
 import { ensureMeshAgentContainer, MEMBER_LABEL_NODE_ID, meshAgentContainerEnv, type AgentStatus } from "@deployer/mesh-network";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { Effect } from "effect";
 import { DockerService, makeMeshAgentEngine } from "@deployer/nest-effect/docker";
 import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 
@@ -60,7 +62,7 @@ export class MeshAgentBootstrapService implements OnApplicationBootstrap {
 			return;
 		}
 
-		const nodes = await this.docker.listSwarmNodes().catch(() => []);
+		const nodes = await runPromiseUnwrapped(this.docker.getEngine().swarmNodes.list().pipe(Effect.orElseSucceed(() => [])));
 		if (nodes.length > 1) {
 			this.logger.warn(
 				`This node shares a ${String(nodes.length)}-node swarm but is in no mesh — founding one here would split the cluster. Re-run the join flow on this node so a member admits it (see "Upgrading an existing cluster" in docs/edge-mesh-architecture.md)`,

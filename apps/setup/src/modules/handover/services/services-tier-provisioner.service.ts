@@ -1,8 +1,8 @@
+import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
 import { AGENT_RUN_VOLUME, AGENT_SOCKET_DIR } from "@deployer/mesh-network";
 import { Injectable, Logger } from "@nestjs/common";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { DockerService } from "@deployer/nest-effect/docker";
-import { toDockerServiceSpec } from "@deployer/docker";
 
 import { EnvService } from "@/config/env/env.module";
 import { SetupGateService } from "@/modules/wizard/setup-gate.service";
@@ -204,7 +204,7 @@ export class ServicesTierProvisioner {
 			);
 		}
 
-		const spec = toDockerServiceSpec({
+		const spec: SwarmServiceSpecInput = {
 			name: app.name,
 			image: app.image,
 			mode: "replicated",
@@ -237,17 +237,11 @@ export class ServicesTierProvisioner {
 			resourcesLimits: {},
 			resourcesReservations: {},
 			capabilitiesAdd: [],
-		});
+		};
 
-		const existing = await this.findExistingService(app.name);
-		if (existing === null) {
-			this.logger.log(`Creating ${app.name} from image ${app.image} on ${overlay}`);
-			await this.docker.createSwarmService(spec);
-			return app;
-		}
-
-		this.logger.log(`${app.name} already exists — converging it`);
-		await this.docker.updateSwarmService(app.name, existing.Version.Index, spec);
+		// Created when missing, updated in place (retried against a fresh version) when it exists.
+		this.logger.log(`Converging ${app.name} from image ${app.image} on ${overlay}`);
+		await runPromiseUnwrapped(this.docker.getEngine().swarmServices.reconcile(spec));
 		return app;
 	}
 
@@ -469,27 +463,14 @@ export class ServicesTierProvisioner {
 	}
 
 	private async ensureOverlay(overlay: string): Promise<void> {
-		await this.docker.ensureOverlayNetwork({
+		await runPromiseUnwrapped(this.docker.getEngine().networks.ensureOverlay({
 			name: overlay,
 			driver: "overlay",
 			attachable: true,
 			ingress: false,
 			enableIpv6: false,
 			labels: { "deployer.managed": "true", "deployer.platform": "true" },
-		});
-	}
-
-	private async findExistingService(name: string): Promise<{ Version: { Index: number } } | null> {
-		try {
-			const services = await runPromiseUnwrapped(this.docker.getEngine().swarmServices.list());
-			const match = services.find((service) => service.Spec?.Name === name);
-			return match === undefined ? null : { Version: { Index: match.Version?.Index ?? 0 } };
-		} catch (error: unknown) {
-			this.logger.warn(
-				`Could not list swarm services while checking ${name}: ${error instanceof Error ? error.message : String(error)}`,
-			);
-			return null;
-		}
+		}));
 	}
 
 	/** Mirrors `HostnameService`: `api.deployer.localhost`, or `api.<prefix>.deployer.localhost`. */

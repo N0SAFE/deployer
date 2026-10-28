@@ -489,11 +489,11 @@ export class LocalInitializationService {
 
         // Replay the task logs so the user sees Postgres booting.
         log("▸ Replaying recent service output …");
-        const initialLogs = await this.dockerService.getSwarmServiceLogs(spec.name, {
+        const initialLogs = await runPromiseUnwrapped(this.dockerService.getEngine().swarmServices.logs(spec.name, {
             stdout: true,
             stderr: true,
             tail: 30,
-        });
+        }));
         const initialLines = initialLogs
             .split("\n")
             .map((line) => line.trim())
@@ -546,7 +546,7 @@ export class LocalInitializationService {
         // a name collision, and an interrupted earlier run can leave one behind.
         await runPromiseUnwrapped(engine.containers.removeIfExists(name).pipe(Effect.ignore));
 
-        const container = await this.dockerService.createContainer({
+        const container = await runPromiseUnwrapped(engine.containers.create({
             name,
             Image: identity.image,
             Env: [
@@ -575,10 +575,10 @@ export class LocalInitializationService {
                     },
                 },
             },
-        });
+        }));
 
         log(`▸ Starting container ${container.id.slice(0, 12)} …`);
-        await container.start();
+        await runPromiseUnwrapped(engine.containers.start(container.id));
 
         const { username, password, databaseName } = identity;
         const url = `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${MANAGED_POSTGRES_ALIAS}:${String(MANAGED_POSTGRES_PORT)}/${databaseName}`;

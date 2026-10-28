@@ -1,4 +1,5 @@
 import { RuntimeInvalid } from "../../../../core/runtime.errors";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { Injectable } from "@nestjs/common";
 import { DockerService } from "@deployer/nest-effect/docker";
 import type { BuilderStrategy, BuilderStrategyContext, BuilderStrategyResult } from "../base/builder-strategy.interface";
@@ -56,10 +57,11 @@ export class BuildpackFamilyBuilderStrategy implements BuilderStrategy {
                     "committed Dockerfile instead." });
         }
 
-        await this.dockerService.buildImage(context.buildContextPath, context.imageTag, {
-            dockerfileName: context.dockerfileName,
-            autoCreateDockerfile: false,
-        });
+        await runPromiseUnwrapped(
+            this.dockerService.getEngine().build.image(context.buildContextPath, context.imageTag, {
+                dockerfileName: context.dockerfileName,
+            }),
+        );
 
         return { image: context.imageTag };
     }
