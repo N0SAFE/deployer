@@ -43,7 +43,7 @@ Both are expected and intentionally different.
 | `@deployer/nest-docker` | `packages/nest/docker` |
 | `@deployer/nest-nodes` | `packages/nest/nodes` |
 | `@deployer/nest-supervisor-core` | `packages/nest/supervisor-core` |
-| `@deployer/nest-lifecycle` | `packages/nest/lifecycle` |
+| `@deployer/lifecycle` | `packages/lifecycle` |
 | `@deployer/nest-events` | `packages/nest/events` |
 
 ## The `packages/nest/*` family
@@ -62,7 +62,7 @@ These are pre-wired NestJS building blocks shared between the Nest apps (`api`,
 | `nest-docker` | the engine client, container lifecycle, swarm-spec mapping | connection + scanner + Postgres-identity CONFIG as data |
 | `nest-nodes` | node/cluster repositories | — |
 | `nest-supervisor-core` | supervisor base classes + event bus | each supervisor's `buildSwarmSpec()` |
-| `nest-lifecycle` | the app-lifecycle phase/event service | — |
+| `lifecycle` | the app-lifecycle phase and its change stream (Effect); mounted by `nest-effect/lifecycle` | — |
 
 Two consequences worth knowing before you add code:
 

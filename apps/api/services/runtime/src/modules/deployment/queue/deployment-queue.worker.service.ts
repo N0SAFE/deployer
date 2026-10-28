@@ -45,6 +45,7 @@ import {
     type DeploymentBuilderKind,
 } from "../builders/deployment-artifact-builder.service";
 import { DeploymentQueueLifecycleService } from "./deployment-queue-lifecycle.service";
+import { beginHeavyWork } from "@deployer/shared/core/utils/heavy-work.registry";
 
 const executionPlanSchema = z.object({
     builder: z
@@ -151,8 +152,25 @@ export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestr
         this.subscription = null;
     }
 
-    /** Claim + execute ONE typed queue job. Exposed for direct testing. */
+    /**
+     * Claim + execute ONE typed queue job. Exposed for direct testing.
+     *
+     * A deployment is the heaviest thing this service does (checkout, image
+     * build, container rollout), so it is REPORTED while it runs: the image-scan
+     * concurrency planner collapses a scan to serial when a deployment is in
+     * flight, which is the pairing that took the dev host into swap.
+     */
     async processQueueJob(job: DeploymentQueueJob): Promise<void> {
+        const releaseDeploySlot = beginHeavyWork("deploy");
+        try {
+            await this.runQueueJob(job);
+        } finally {
+            releaseDeploySlot();
+        }
+    }
+
+    /** The body of {@link processQueueJob}, without the heavy-work accounting. */
+    private async runQueueJob(job: DeploymentQueueJob): Promise<void> {
         if (!job.payload.deploymentId) {
             this.logger.warn(`Queue job '${job.id}' has no deploymentId — skipping`);
             return;

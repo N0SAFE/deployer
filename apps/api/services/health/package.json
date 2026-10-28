@@ -36,7 +36,6 @@
         "@deployer/effect-core": "*",
         "@deployer/effect-orpc": "*",
         "@deployer/nest-effect": "*",
-        "@deployer/nest-lifecycle": "*",
         "@deployer/orpc-utils": "*",
         "effect": "catalog:effect",
         "express": "catalog:api:nest",

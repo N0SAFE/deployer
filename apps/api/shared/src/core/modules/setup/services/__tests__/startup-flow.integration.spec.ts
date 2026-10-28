@@ -35,7 +35,7 @@ import { MeshInitializationService } from '../../../mesh/initialization/services
 import { ReachabilityService } from '../../../reachability/services/reachability.service';
 import { EnvService } from "../../../../../config/env/env.module";
 import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
-import { AppLifecycleService } from "@deployer/nest-lifecycle";
+import { AppLifecycleService } from "@deployer/nest-effect/lifecycle";
 
 // ─── Mock implementations ─────────────────────────────────────────────────────
 

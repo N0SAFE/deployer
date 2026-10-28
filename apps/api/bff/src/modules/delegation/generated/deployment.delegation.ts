@@ -68,6 +68,11 @@ export class DeploymentDelegationController {
 		return implement(deploymentContract.trigger).handler(({ input }) => this.client.trigger(input));
 	}
 
+	@Implement(deploymentContract.triggerFromEvent)
+	triggerFromEvent() {
+		return implement(deploymentContract.triggerFromEvent).handler(({ input }) => this.client.triggerFromEvent(input));
+	}
+
 	@Implement(deploymentContract.uploadBundle)
 	uploadBundle() {
 		return implement(deploymentContract.uploadBundle).handler(({ input }) => this.client.uploadBundle(input));

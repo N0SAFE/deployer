@@ -8,6 +8,7 @@ import { GitService } from "@deployer/shared/core/modules/git/git/services/git.s
 import { DockerService } from "@deployer/nest-effect/docker";
 import { DeploymentProviderBuilderRunnerStateMachineService } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
 import { BuilderRegistryService } from "./builder-registry.service";
+import { beginHeavyWork } from "@deployer/shared/core/utils/heavy-work.registry";
 
 export type DeploymentBuilderKind =
     | "dockerfile"
@@ -138,17 +139,25 @@ export class DeploymentArtifactBuilderService {
         // Dockerfile); only artifact production lives in a strategy.
         const strategy = this.builderRegistry.resolve(effectiveBuilder);
 
-        const result = await strategy.build({
-            buildContextPath,
-            deploymentId: input.deploymentId,
-            serviceId: input.serviceId,
-            dockerfileName: customDockerfileName,
-            imageTag: this.createImageTag({
-                serviceId: input.serviceId,
+        // An image build is CPU/IO heavy and long-lived; report it so an image scan
+        // started meanwhile plans itself serial (see `docker/services/scan-concurrency.ts`).
+        const releaseBuildSlot = beginHeavyWork("build");
+        let result: Awaited<ReturnType<typeof strategy.build>>;
+        try {
+            result = await strategy.build({
+                buildContextPath,
                 deploymentId: input.deploymentId,
-                builder: effectiveBuilder,
-            }),
-        });
+                serviceId: input.serviceId,
+                dockerfileName: customDockerfileName,
+                imageTag: this.createImageTag({
+                    serviceId: input.serviceId,
+                    deploymentId: input.deploymentId,
+                    builder: effectiveBuilder,
+                }),
+            });
+        } finally {
+            releaseBuildSlot();
+        }
 
         // `null` is a legitimate result for compose: the runtime is addressed by project name.
         return result.image;

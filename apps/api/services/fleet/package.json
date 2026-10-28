@@ -31,7 +31,6 @@
         "@deployer/docker": "*",
         "@deployer/nest-effect": "*",
         "@deployer/nest-events": "*",
-        "@deployer/nest-lifecycle": "*",
         "@deployer/node-state": "*",
         "@deployer/nest-schema": "*",
         "@deployer/supervision": "*",

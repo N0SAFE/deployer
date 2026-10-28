@@ -73,6 +73,26 @@ export class AnalyticsDelegationController {
 		return implement(analyticsContract.getRealTimeMetrics).handler(({ input }) => this.client.getRealTimeMetrics(input));
 	}
 
+	@Implement(analyticsContract.getResourceMetricsStream)
+	getResourceMetricsStream() {
+		return implement(analyticsContract.getResourceMetricsStream).handler(({ input }) => this.client.getResourceMetricsStream(input));
+	}
+
+	@Implement(analyticsContract.getDeploymentMetricsStream)
+	getDeploymentMetricsStream() {
+		return implement(analyticsContract.getDeploymentMetricsStream).handler(({ input }) => this.client.getDeploymentMetricsStream(input));
+	}
+
+	@Implement(analyticsContract.getServiceHealthStream)
+	getServiceHealthStream() {
+		return implement(analyticsContract.getServiceHealthStream).handler(({ input }) => this.client.getServiceHealthStream(input));
+	}
+
+	@Implement(analyticsContract.getRealTimeMetricsStream)
+	getRealTimeMetricsStream() {
+		return implement(analyticsContract.getRealTimeMetricsStream).handler(({ input }) => this.client.getRealTimeMetricsStream(input));
+	}
+
 	@Implement(analyticsContract.getResourceUsage)
 	getResourceUsage() {
 		return implement(analyticsContract.getResourceUsage).handler(({ input }) => this.client.getResourceUsage(input));
@@ -103,6 +123,16 @@ export class AnalyticsDelegationController {
 		return implement(analyticsContract.getStorageUsage).handler(({ input }) => this.client.getStorageUsage(input));
 	}
 
+	@Implement(analyticsContract.getResourceUsageStream)
+	getResourceUsageStream() {
+		return implement(analyticsContract.getResourceUsageStream).handler(({ input }) => this.client.getResourceUsageStream(input));
+	}
+
+	@Implement(analyticsContract.getDeploymentUsageStream)
+	getDeploymentUsageStream() {
+		return implement(analyticsContract.getDeploymentUsageStream).handler(({ input }) => this.client.getDeploymentUsageStream(input));
+	}
+
 	@Implement(analyticsContract.generateReport)
 	generateReport() {
 		return implement(analyticsContract.generateReport).handler(({ input }) => this.client.generateReport(input));
@@ -126,6 +156,11 @@ export class AnalyticsDelegationController {
 	@Implement(analyticsContract.downloadReport)
 	downloadReport() {
 		return implement(analyticsContract.downloadReport).handler(({ input }) => this.client.downloadReport(input));
+	}
+
+	@Implement(analyticsContract.getReportContent)
+	getReportContent() {
+		return implement(analyticsContract.getReportContent).handler(({ input }) => this.client.getReportContent(input));
 	}
 
 	@Implement(analyticsContract.createReportConfig)

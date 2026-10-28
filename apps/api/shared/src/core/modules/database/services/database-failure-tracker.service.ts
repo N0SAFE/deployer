@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { Pool } from 'pg'
-import { AppLifecycleService, AppLifecyclePhase } from '@deployer/nest-lifecycle'
+import { AppLifecycleService, AppLifecyclePhase } from '@deployer/nest-effect/lifecycle'
 
 @Injectable()
 export class DatabaseFailureTracker {

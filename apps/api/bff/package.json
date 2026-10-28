@@ -51,7 +51,6 @@
         "@deployer/logger": "*",
         "@deployer/nest-database-core": "*",
         "@deployer/nest-env": "*",
-        "@deployer/nest-lifecycle": "*",
         "@deployer/node-state": "*",
         "@deployer/nest-schema": "*",
         "@deployer/nest-service-client": "*",

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { GlobalDatabaseService } from "../../database/services/global-database.service";
-import { AppLifecycleService, AppLifecyclePhase } from "@deployer/nest-lifecycle";
+import { AppLifecycleService, AppLifecyclePhase } from "@deployer/nest-effect/lifecycle";
 import { coreDomainEventEnvelopeSchema } from "@deployer/contracts-entities";
 import {
     LocalEventOutboxRepository,

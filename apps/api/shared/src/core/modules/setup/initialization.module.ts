@@ -10,7 +10,7 @@ import { CoreDockerModule } from "../docker/docker.module";
 import { CoreReachabilityModule } from "../reachability/core-reachability.module";
 import { MeshVersionService } from "../mesh/version/mesh-version.service";
 import { SwarmCoreModule } from "../swarm/swarm.module";
-import { AppLifecycleModule } from "@deployer/nest-lifecycle";
+import { AppLifecycleModule } from "@deployer/nest-effect/lifecycle";
 import { SupervisorsModule } from "@deployer/nest-effect/supervision";
 import { EnvModule, EnvService } from "../../../config/env/env.module";
 

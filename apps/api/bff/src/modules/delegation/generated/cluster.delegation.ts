@@ -113,6 +113,11 @@ export class ClusterDelegationController {
 		return implement(clusterContract.getSwarmConfig).handler(({ input }) => this.client.getSwarmConfig(input));
 	}
 
+	@Implement(clusterContract.streamSwarmConfig)
+	streamSwarmConfig() {
+		return implement(clusterContract.streamSwarmConfig).handler(({ input }) => this.client.streamSwarmConfig(input));
+	}
+
 	@Implement(clusterContract.setSwarmConfig)
 	setSwarmConfig() {
 		return implement(clusterContract.setSwarmConfig).handler(({ input }) => this.client.setSwarmConfig(input));

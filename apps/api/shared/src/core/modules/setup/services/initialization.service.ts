@@ -16,7 +16,7 @@ import type { EmitEvent } from '../utils/setup-runner.utils'
 import { runStep } from '../utils/setup-runner.utils'
 import { ReachabilityService } from '../../reachability/services/reachability.service'
 import { MeshInitializationService } from '../../mesh/initialization/services/mesh-initialization.service'
-import { AppLifecycleService } from "@deployer/nest-lifecycle"
+import { AppLifecycleService } from "@deployer/nest-effect/lifecycle"
 
 
 export type SetupCompletionStatus = {

@@ -1,7 +1,7 @@
 import { EffectRuntime, EffectRuntimeModule } from "@deployer/nest-effect";
 import { RuntimeLive } from "./app.layers";
 import { Module } from "@nestjs/common";
-import { AppLifecycleModule } from "@deployer/nest-lifecycle";
+import { AppLifecycleModule } from "@deployer/nest-effect/lifecycle";
 import {
 	DEPENDENCIES,
 	HealthModule,

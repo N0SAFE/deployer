@@ -3,5 +3,5 @@ export {
   AppLifecycleService,
   AppLifecyclePhase,
   BootstrapStep,
-} from '@deployer/nest-lifecycle';
-export type { AppLifecycleEvent } from '@deployer/nest-lifecycle';
+} from '@deployer/nest-effect/lifecycle';
+export type { AppLifecycleEvent } from '@deployer/nest-effect/lifecycle';

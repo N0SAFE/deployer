@@ -13,6 +13,13 @@ import { EgressRequestError, EgressService } from "@/core/modules/egress/egress.
 import { PostSetupDestinationService } from "../services/post-setup-destination.service";
 import { PostSetupVerificationService } from "../services/post-setup-verification.service";
 import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import { liveSnapshot } from "@deployer/shared/core/utils/live-snapshot.utils";
+
+/**
+ * Re-evaluation cadence for `getPostSetupVerificationStream` — the interval the
+ * wizard used to poll at while the ingress is being replaced.
+ */
+const POST_SETUP_VERIFICATION_STREAM_INTERVAL_MS = 2_000;
 
 /**
  * Setup wizard surface — intentionally PRE-AUTH by design (the wizard runs
@@ -397,6 +404,17 @@ export class SetupController {
         return implement(setupContract.getPostSetupVerification)
             .use(publicAccess())
             .handler(async () => this.postSetupVerification.verify());
+    }
+
+    @Implement(setupContract.getPostSetupVerificationStream)
+    getPostSetupVerificationStream() {
+        return implement(setupContract.getPostSetupVerificationStream)
+            .use(publicAccess())
+            .handler(() =>
+                liveSnapshot(() => this.postSetupVerification.verify(), {
+                    intervalMs: POST_SETUP_VERIFICATION_STREAM_INTERVAL_MS,
+                }),
+            );
     }
 }
 

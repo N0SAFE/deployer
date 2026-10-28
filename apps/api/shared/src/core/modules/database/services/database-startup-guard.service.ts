@@ -2,7 +2,7 @@ import { AppError } from "@deployer/errors";
 import { Injectable, Logger } from '@nestjs/common'
 import { Pool } from 'pg'
 import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
-import { AppLifecycleService, AppLifecyclePhase } from '@deployer/nest-lifecycle'
+import { AppLifecycleService, AppLifecyclePhase } from '@deployer/nest-effect/lifecycle'
 import { DatabaseProbeService } from './database-probe.service'
 
 @Injectable()

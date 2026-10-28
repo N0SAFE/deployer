@@ -1,5 +1,5 @@
 import { Module, type MiddlewareConsumer, type NestModule } from "@nestjs/common";
-import { AppLifecycleModule } from "@deployer/nest-lifecycle";
+import { AppLifecycleModule } from "@deployer/nest-effect/lifecycle";
 import {
 	createOrpcModule,
 	PreflightModule,

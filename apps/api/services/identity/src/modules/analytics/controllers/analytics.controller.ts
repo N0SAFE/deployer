@@ -3,10 +3,29 @@ import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
 
 import { analyticsContract } from "@deployer/identity-contracts";
+import { liveSnapshot } from "@deployer/shared/core/utils/live-snapshot.utils";
 import { AnalyticsFieldRequired } from "../domain/analytics.errors";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
 import { AnalyticsService, type Actor, type MetricsQuery } from "../services/analytics.service";
+
+/**
+ * Re-evaluation cadence for the streaming (`…/stream`) siblings.
+ *
+ * These are the intervals the dashboard used to poll at, moved to the server: one
+ * evaluation per stream feeds every subscriber, and only CHANGED payloads are
+ * pushed. A metrics rollup has no domain event to hang an update off, so the
+ * sample interval is the honest mechanism — see `liveSnapshot()`.
+ */
+const STREAM_INTERVAL = {
+	realTime: 10_000,
+	serviceHealth: 15_000,
+	resourceMetrics: 30_000,
+	resourceUsage: 30_000,
+	deploymentMetrics: 60_000,
+	deploymentUsage: 60_000,
+} as const;
+
 
 /**
  * The analytics domain's oRPC surface.
@@ -39,6 +58,17 @@ export class AnalyticsController {
 			});
 	}
 
+	@Implement(analyticsContract.getResourceMetricsStream)
+	getResourceMetricsStream() {
+		return implement(analyticsContract.getResourceMetricsStream)
+			.use(requireAuth())
+			.handler(({ input }) =>
+				liveSnapshot(() => this.analytics.resourceMetrics(readMetricsQuery(input)), {
+					intervalMs: STREAM_INTERVAL.resourceMetrics,
+				}),
+			);
+	}
+
 	@Implement(analyticsContract.getApplicationMetrics)
 	getApplicationMetrics() {
 		return implement(analyticsContract.getApplicationMetrics)
@@ -69,6 +99,17 @@ export class AnalyticsController {
 			});
 	}
 
+	@Implement(analyticsContract.getDeploymentMetricsStream)
+	getDeploymentMetricsStream() {
+		return implement(analyticsContract.getDeploymentMetricsStream)
+			.use(requireAuth())
+			.handler(({ input }) =>
+				liveSnapshot(() => this.analytics.deploymentMetrics(readMetricsQuery(input)), {
+					intervalMs: STREAM_INTERVAL.deploymentMetrics,
+				}),
+			);
+	}
+
 	@Implement(analyticsContract.getServiceHealth)
 	getServiceHealth() {
 		return implement(analyticsContract.getServiceHealth)
@@ -79,6 +120,17 @@ export class AnalyticsController {
 			});
 	}
 
+	@Implement(analyticsContract.getServiceHealthStream)
+	getServiceHealthStream() {
+		return implement(analyticsContract.getServiceHealthStream)
+			.use(requireAuth())
+			.handler(({ input }) =>
+				liveSnapshot(() => this.analytics.serviceHealth(readServices(input)), {
+					intervalMs: STREAM_INTERVAL.serviceHealth,
+				}),
+			);
+	}
+
 	@Implement(analyticsContract.getRealTimeMetrics)
 	getRealTimeMetrics() {
 		return implement(analyticsContract.getRealTimeMetrics)
@@ -87,6 +139,17 @@ export class AnalyticsController {
 				context;
 				return this.analytics.realtimeMetrics(readServices(input));
 			});
+	}
+
+	@Implement(analyticsContract.getRealTimeMetricsStream)
+	getRealTimeMetricsStream() {
+		return implement(analyticsContract.getRealTimeMetricsStream)
+			.use(requireAuth())
+			.handler(({ input }) =>
+				liveSnapshot(() => this.analytics.realtimeMetrics(readServices(input)), {
+					intervalMs: STREAM_INTERVAL.realTime,
+				}),
+			);
 	}
 
 	// ─── Usage ──────────────────────────────────────────────────────────────
@@ -101,6 +164,23 @@ export class AnalyticsController {
 					resource: readString(input, "resource", "all"),
 					aggregation: readString(input, "aggregation", "average"),
 				}),
+			);
+	}
+
+	@Implement(analyticsContract.getResourceUsageStream)
+	getResourceUsageStream() {
+		return implement(analyticsContract.getResourceUsageStream)
+			.use(requireAuth())
+			.handler(({ input }) =>
+				liveSnapshot(
+					() =>
+						this.analytics.resourceUsage({
+							timeRange: readString(input, "timeRange", "1d"),
+							resource: readString(input, "resource", "all"),
+							aggregation: readString(input, "aggregation", "average"),
+						}),
+					{ intervalMs: STREAM_INTERVAL.resourceUsage },
+				),
 			);
 	}
 
@@ -157,6 +237,23 @@ export class AnalyticsController {
 					...readOptionalString(input, "projectId"),
 					...readOptionalString(input, "userId"),
 				}),
+			);
+	}
+
+	@Implement(analyticsContract.getDeploymentUsageStream)
+	getDeploymentUsageStream() {
+		return implement(analyticsContract.getDeploymentUsageStream)
+			.use(requireAuth())
+			.handler(({ input }) =>
+				liveSnapshot(
+					() =>
+						this.analytics.deploymentUsage({
+							timeRange: readString(input, "timeRange", "1d"),
+							...readOptionalString(input, "projectId"),
+							...readOptionalString(input, "userId"),
+						}),
+					{ intervalMs: STREAM_INTERVAL.deploymentUsage },
+				),
 			);
 	}
 

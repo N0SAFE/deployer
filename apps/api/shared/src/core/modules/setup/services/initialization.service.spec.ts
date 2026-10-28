@@ -7,7 +7,7 @@ import { RemoteInitializationService } from './remote-initialization.service';
 import { SetupEventService } from './setup-event.service';
 import { MeshInitializationService } from '../../mesh/initialization/services/mesh-initialization.service';
 import { ReachabilityService } from '../../reachability/services/reachability.service';
-import { AppLifecycleService } from '@deployer/nest-lifecycle';
+import { AppLifecycleService } from '@deployer/nest-effect/lifecycle';
 
 describe('InitializationService', () => {
   let service: InitializationService;

@@ -1,7 +1,7 @@
 {
-    "name": "@deployer/nest-lifecycle",
+    "name": "@deployer/lifecycle",
     "version": "1.0.0",
-    "description": "NestJS lifecycle management — tracks app bootstrap phases, provides typed observables for phase transitions.",
+    "description": "The application lifecycle as Effect: the bootstrap phase, its transitions, and a stream of every change.",
     "main": "./dist/cjs/index.js",
     "types": "./dist/types/index.d.ts",
     "exports": {
@@ -24,28 +24,29 @@
         "lint:fix": "bun lint --no-script --fix --type-aware",
         "lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
         "type-check": "bun check --no-script",
+        "test": "bun --bun vitest run",
+        "test:watch": "bun --bun vitest",
         "build": "bun --bun pkg-build",
         "dev": "bun --bun pkg-build --watch",
         "clean": "rimraf dist",
         "build:types": "bun --bun pkg-build --types"
     },
     "dependencies": {
-        "@nestjs/common": "catalog:api:nest",
-        "rxjs": "catalog:api:nest"
-    },
-    "peerDependencies": {
-        "@nestjs/common": "catalog:api:nest"
+        "effect": "catalog:effect"
     },
     "devDependencies": {
         "@deployer/config-eslint": "*",
         "@deployer/config-prettier": "*",
         "@deployer/config-typescript": "*",
+        "@deployer/pkg-build": "*",
+        "@types/bun": "catalog:build",
+        "@types/dockerode": "*",
         "@types/node": "catalog:build",
-        "eslint": "catalog:linting",
-        "typescript": "catalog:build",
         "chokidar": "catalog:build",
+        "eslint": "catalog:linting",
         "rimraf": "catalog:build",
-        "@deployer/pkg-build": "*"
+        "typescript": "catalog:build",
+        "vitest": "catalog:testing"
     },
     "module": "./dist/esm/index.mjs"
 }

@@ -31,7 +31,6 @@
         "@deployer/nest-database-core": "*",
         "@deployer/nest-effect": "*",
         "@deployer/nest-events": "*",
-        "@deployer/nest-lifecycle": "*",
         "@deployer/nest-schema": "*",
         "@deployer/swarm": "*",
         "@deployer/orpc-utils": "*",

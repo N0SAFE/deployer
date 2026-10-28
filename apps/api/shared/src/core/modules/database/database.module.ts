@@ -12,7 +12,7 @@
  */
 
 import { Global, Module } from '@nestjs/common'
-import { AppLifecycleModule } from '@deployer/nest-lifecycle'
+import { AppLifecycleModule } from '@deployer/nest-effect/lifecycle'
 import { GlobalDatabaseModule } from './global/global-database.module'
 import { LocalDatabaseModule } from "./local/local-database.module";
 import { DatabaseProbeService } from './services/database-probe.service'

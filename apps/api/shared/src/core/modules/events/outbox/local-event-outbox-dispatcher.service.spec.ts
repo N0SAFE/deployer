@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AppLifecyclePhase } from "@deployer/nest-lifecycle";
-import type { AppLifecycleService } from "@deployer/nest-lifecycle";
+import { AppLifecyclePhase } from "@deployer/nest-effect/lifecycle";
+import type { AppLifecycleService } from "@deployer/nest-effect/lifecycle";
 import type { LocalEventOutboxRepository } from "./local-event-outbox.repository";
 import { LocalEventOutboxDispatcherService } from "./local-event-outbox-dispatcher.service";
 import type { GlobalDatabaseService } from "../../database/global/global-database.service";

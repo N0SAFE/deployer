@@ -3,6 +3,7 @@
 		"@deployer/contracts-entities": "*",
 		"@deployer/docker": "*",
 		"@deployer/effect-core": "*",
+		"@deployer/lifecycle": "*",
         "@deployer/mesh-network": "*",
 		"@deployer/errors": "*",
 		"@deployer/nest-database-core": "*",
@@ -70,6 +71,11 @@
 			"import": "./dist/esm/docker/index.mjs",
 			"require": "./dist/cjs/docker/index.js",
 			"types": "./dist/types/docker/index.d.ts"
+		},
+		"./lifecycle": {
+			"import": "./dist/esm/lifecycle/index.mjs",
+			"require": "./dist/cjs/lifecycle/index.js",
+			"types": "./dist/types/lifecycle/index.d.ts"
 		}
 	},
 	"main": "./dist/cjs/index.js",

@@ -181,7 +181,7 @@ export class DeploymentRepository {
         this.runtimeDb ??= makeRuntimeDb(this.databaseService);
         const database = this.runtimeDb;
         const exit = await Effect.runPromiseExit(database.transaction(database.use((tx) => body(tx))));
-        if (Exit.isSuccess(exit)) return exit.value as A;
+        if (Exit.isSuccess(exit)) return exit.value;
         const failure = Cause.squash(exit.cause);
         throw failure instanceof DbError ? failure.cause : failure;
     }
