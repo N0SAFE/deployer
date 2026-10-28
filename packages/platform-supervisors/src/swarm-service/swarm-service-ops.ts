@@ -41,7 +41,14 @@ export type SwarmServiceOps = {
 	readonly describeProcess: (spec: SwarmServiceSpecInput) => Effect.Effect<SwarmProcessInfo, DockerError>;
 	/** The service as the engine has it, with how many of its tasks run; `DockerNotFound` when it does not exist. */
 	readonly serviceHealth: (name: string) => Effect.Effect<
-		{ readonly id: string | undefined; readonly name: string; readonly runningTasks: number; readonly totalTasks: number },
+		{
+			readonly id: string | undefined;
+			readonly name: string;
+			readonly createdAt: string;
+			readonly updatedAt: string;
+			readonly runningTasks: number;
+			readonly totalTasks: number;
+		},
 		DockerError
 	>;
 	/**
@@ -145,7 +152,14 @@ export function makeSwarmServiceOps(engine: DockerEngineShape): SwarmServiceOps 
 			Effect.gen(function* () {
 				const service = yield* swarmServices.inspect(name);
 				const { running, total } = yield* countRunning(name);
-				return { id: service.ID, name: service.Spec.Name, runningTasks: running, totalTasks: total };
+				return {
+					id: service.ID,
+					name: service.Spec.Name,
+					createdAt: service.CreatedAt,
+					updatedAt: service.UpdatedAt,
+					runningTasks: running,
+					totalTasks: total,
+				};
 			}),
 		blockerUntilSwarm: ({ managed, swarmOnly = true }) =>
 			managed || !swarmOnly

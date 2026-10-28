@@ -5,7 +5,7 @@ import { PLATFORM_SUPERVISOR_TOPOLOGY } from "./supervisor-topology";
 import { GLOBAL_DB_SUPERVISOR_ID } from "./database/global-db-supervisor.service";
 import { DATABASE_SERVICE_SUPERVISOR_ID } from "./database/database-service-supervisor.service";
 import { EDGE_CONNECTOR_SUPERVISOR_ID } from "./platform/edge-connector-supervisor.service";
-import { PLATFORM_MANAGED_WEB_SUPERVISOR_ID } from "./platform/managed-web-supervisor.service";
+import { PLATFORM_MANAGED_WEB_SUPERVISOR_ID } from "@deployer/platform-supervisors";
 import { PLATFORM_REDIS_SUPERVISOR_ID } from "@deployer/platform-supervisors";
 import { PLATFORM_INGRESS_SUPERVISOR_ID } from "./platform/traefik-supervisor.service";
 

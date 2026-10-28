@@ -48,3 +48,14 @@ export {
 	redisSupervisorPayloadSchema,
 } from "./redis/schemas";
 export type { RedisProcessInfo, RedisRuntime, RedisSupervisorPayload } from "./redis/schemas";
+export { makeManagedWebSupervisor, HEALTH_PATH, INGRESS_INTERNAL_PORT, REACHABILITY_TIMEOUT_MS } from "./managed-web/managed-web-supervisor";
+export type { ManagedWebConfig, ManagedWebDeps, ManagedWebSupervisor } from "./managed-web/managed-web-supervisor";
+export { probeRoute } from "./managed-web/route-probe";
+export type { RouteObservation, RouteProbeTarget } from "./managed-web/route-probe";
+export {
+	managedWebProcessInfoSchema,
+	managedWebSupervisorPayloadSchema,
+	PLATFORM_MANAGED_WEB_ROLE,
+	PLATFORM_MANAGED_WEB_SUPERVISOR_ID,
+} from "./managed-web/schemas";
+export type { ManagedWebProcessInfo, ManagedWebSupervisorPayload } from "./managed-web/schemas";

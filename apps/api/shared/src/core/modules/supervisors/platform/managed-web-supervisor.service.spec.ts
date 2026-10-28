@@ -1,134 +1,75 @@
+import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import type { DockerService } from "@deployer/nest-effect/docker";
 
-import { ManagedWebSupervisorService } from "./managed-web-supervisor.service";
 import type { EnvService } from "../../../../config/env/env.module";
+import type { AppInstanceService } from "../../platform-ingress/services/app-instance.service";
 import type { HostnameService } from "../../platform-ingress/services/hostname.service";
 import type { PlatformConfigService } from "../../platform-ingress/services/platform-config.service";
-import type { AppInstanceService } from "../../platform-ingress/services/app-instance.service";
+import { ManagedWebSupervisorService } from "./managed-web-supervisor.service";
 
 /**
- * The web app distinguishes two API variables, and swapping them breaks every
- * SERVER-side call while leaving the browser working — which is exactly the kind
- * of bug that survives a manual click-through:
- *
- *   NEXT_PUBLIC_API_URL  BROWSER  the public endpoint the operator reaches
- *   API_URL              SERVER   the private Docker-network endpoint
- *
- * `API_URL` was set to the PUBLIC origin, so the managed web's server-side calls
- * failed: the public hostname does not resolve inside a container at all.
- * Measured on a live managed web task:
- *
- *   getent hosts api.deployer.localhost   -> (nothing)
- *   getent hosts deployer-api             -> 10.0.1.4
- *
- * The visible symptom was the web app's own health route reporting
- * `api: unavailable / Unable to connect` and answering 503 on a stack whose API
- * was perfectly reachable on the overlay.
+ * The host's job is wiring: the environment, hostnames, platform flag and app-instance service reach
+ * the Effect supervisor. The supervisor's own behaviour is tested in `@deployer/platform-supervisors`.
  */
-function makeSupervisor(overrides: Record<string, unknown> = {}) {
-	const values: Record<string, unknown> = {
-		DEPLOYER_PREFIX: "",
-		API_PORT: 3005,
-		DEPLOYER_TRAEFIK_IMAGE: "traefik:v3.6.10",
-		DEPLOYER_TRAEFIK_HTTP_PORT: 80,
-		AUTH_SECRET: "a-shared-secret",
-		...overrides,
-	};
+function makeSupervisor(options: { flag?: boolean; prefix?: string; managed?: { id: string } | null } = {}) {
+	const values: Record<string, unknown> = { DEPLOYER_PREFIX: options.prefix ?? "", API_PORT: 3005, AUTH_SECRET: "a-shared-secret" };
 	const env = { get: vi.fn((key: string) => values[key]) } as unknown as EnvService;
-
-	const hostnameService = {
+	const hostnames = {
 		apiOrigin: () => "http://api.deployer.localhost",
 		webOrigin: () => "http://web.deployer.localhost",
 		webHostname: () => "web.deployer.localhost",
 	} as unknown as HostnameService;
-
-	const platformConfig = {
-		isManagedWebAppEnabled: vi.fn(async () => true),
-	} as unknown as PlatformConfigService;
-
+	const platformConfig = { isManagedWebAppEnabled: vi.fn(async () => options.flag ?? true) } as unknown as PlatformConfigService;
 	const appInstances = {
 		create: vi.fn(async () => ({ instanceId: "inst-1", appToken: "a-minted-token" })),
+		findManaged: vi.fn(async () => options.managed ?? null),
+		revoke: vi.fn(async () => true),
 	};
 
-	const docker = {
-	} as unknown as DockerService;
-
+	const reconciled: { name: string; env: string[] }[] = [];
+	const removed: string[] = [];
+	const engine = {
+		swarmCluster: { isActive: () => Effect.succeed(true) },
+		networks: { ensureOverlay: () => Effect.void },
+		swarmServices: {
+			reconcile: (spec: { name: string; env: string[] }) => Effect.sync(() => { reconciled.push(spec); }),
+			inspect: (name: string) => Effect.succeed({ ID: "svc-1", CreatedAt: "", UpdatedAt: "", Spec: { Name: name } }),
+			listTasks: () => Effect.succeed([]),
+			remove: (name: string) => Effect.sync(() => { removed.push(name); }),
+		},
+	};
 	const supervisor = new ManagedWebSupervisorService(
-		docker,
-		hostnameService,
+		{ getEngine: () => engine } as unknown as DockerService,
+		hostnames,
 		env,
 		platformConfig,
 		appInstances as unknown as AppInstanceService,
 	);
-
-	// `managedWebEnv` is the unit under test; reach it without booting the
-	// supervisor's lifecycle.
-	const env2 = (
-		supervisor as unknown as { managedWebEnv(): Promise<string[]> }
-	).managedWebEnv.bind(supervisor);
-
-	return { env2, hostnameService, appInstances };
+	return { supervisor, reconciled, removed, appInstances };
 }
 
-describe("ManagedWebSupervisorService.managedWebEnv", () => {
-	it("gives the SERVER the private network address, not the public one", async () => {
-		const { env2 } = makeSupervisor();
-
-		const env = await env2();
-
-		// The whole point: server-side calls must dial something that resolves on
-		// the overlay.
-		expect(env).toContain("API_URL=http://deployer-api:3005");
-		expect(env).not.toContain("API_URL=http://api.deployer.localhost");
+describe("ManagedWebSupervisorService (host)", () => {
+	it("runs the console with the platform's own values and a token from the app-instance service", async () => {
+		const { supervisor, reconciled, appInstances } = makeSupervisor({ prefix: "acme" });
+		expect(await supervisor.ensureDesiredState()).toBe("converged");
+		expect(reconciled[0]?.name).toBe("deployer-managed-web-acme");
+		expect(reconciled[0]?.env).toEqual(
+			expect.arrayContaining(["API_URL=http://deployer-api-acme:3005", "AUTH_SECRET=a-shared-secret", "APP_INSTANCE_TOKEN=a-minted-token"]),
+		);
+		expect(appInstances.create).toHaveBeenCalledWith({ label: "managed-web-acme", kind: "managed" });
 	});
 
-	it("gives the BROWSER the public origin", async () => {
-		const { env2 } = await makeSupervisor();
-
-		const env = await env2();
-
-		// The browser cannot reach the overlay, so it must get the public host.
-		expect(env).toContain("NEXT_PUBLIC_API_URL=http://api.deployer.localhost");
-		expect(env).toContain("NEXT_PUBLIC_APP_URL=http://web.deployer.localhost");
+	it("tears down and revokes the managed instance when the flag is off", async () => {
+		const { supervisor, removed, appInstances } = makeSupervisor({ flag: false, managed: { id: "inst-9" } });
+		await supervisor.ensureDesiredState();
+		expect(removed).toEqual(["deployer-managed-web"]);
+		expect(appInstances.revoke).toHaveBeenCalledWith("inst-9");
 	});
 
-	it("derives the private address from the prefix", async () => {
-		const { env2 } = makeSupervisor({ DEPLOYER_PREFIX: "acme" });
-
-		const env = await env2();
-
-		expect(env).toContain("API_URL=http://deployer-api-acme:3005");
-	});
-
-	it("still forwards the shared auth secret to both keys", async () => {
-		const { env2 } = makeSupervisor();
-
-		const env = await env2();
-
-		// The web schema refuses to boot when these differ.
-		expect(env).toContain("AUTH_SECRET=a-shared-secret");
-		expect(env).toContain("BETTER_AUTH_SECRET=a-shared-secret");
-	});
-
-	/**
-	 * `reconcile()` must be IDEMPOTENT, and the platform now relies on it: a full
-	 * sweep re-runs every supervisor on a cadence so out-of-band deletions are
-	 * corrected. Minting a token inside it broke that contract in a way that looked
-	 * like a platform bug rather than a table entry — each fresh token changed the
-	 * service spec, so the scheduler rolled the dashboard task every sweep:
-	 *
-	 *   [AppInstanceService] Created managed app instance … (19:41:09, 19:41:11, 19:42:09…)
-	 *   … deployer-managed-web 4/1
-	 */
-	it("mints the instance token ONCE, so a re-convergence is a no-op", async () => {
-		const { env2, appInstances } = makeSupervisor();
-
-		const first = await env2();
-		const second = await env2();
-
-		expect(appInstances.create).toHaveBeenCalledTimes(1);
-		// Identical specs — which is what makes the sweep safe to re-run.
-		expect(second).toEqual(first);
+	it("revokes nothing when there is no managed instance", async () => {
+		const { supervisor, appInstances } = makeSupervisor({ flag: false, managed: null });
+		await supervisor.ensureDesiredState();
+		expect(appInstances.revoke).not.toHaveBeenCalled();
 	});
 });
