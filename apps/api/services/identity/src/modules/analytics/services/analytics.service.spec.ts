@@ -1,7 +1,17 @@
-import { AnalyticsReportNotFound } from "../domain/analytics.errors";
+import { Cause, Effect, Exit } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AnalyticsService } from "./analytics.service";
+import { AnalyticsReportNotFound } from "../domain/analytics.errors";
+
+
+import { makeAnalyticsService } from "./analytics.service";
+
+/** Run an Effect and reject with the ORIGINAL failure, so `rejects` assertions read the real error. */
+async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
+	const exit = await Effect.runPromiseExit(effect);
+	if (Exit.isSuccess(exit)) return exit.value;
+	throw Cause.squash(exit.cause);
+}
 
 const NOW = new Date("2026-10-27T12:00:00.000Z");
 const minutesAgo = (minutes: number) => new Date(NOW.getTime() - minutes * 60_000);
@@ -18,11 +28,11 @@ const deployment = (overrides: Record<string, unknown> = {}) => ({
 
 function makeRepository() {
 	return {
-		deploymentsInRange: vi.fn().mockResolvedValue([]),
-		rollbacksInRange: vi.fn().mockResolvedValue([]),
-		serviceRows: vi.fn().mockResolvedValue([]),
-		latestDeploymentPerService: vi.fn().mockResolvedValue(new Map()),
-		projectNamesByIds: vi.fn().mockResolvedValue(new Map()),
+		deploymentsInRange: vi.fn().mockReturnValue(Effect.succeed([])),
+		rollbacksInRange: vi.fn().mockReturnValue(Effect.succeed([])),
+		serviceRows: vi.fn().mockReturnValue(Effect.succeed([])),
+		latestDeploymentPerService: vi.fn().mockReturnValue(Effect.succeed(new Map())),
+		projectNamesByIds: vi.fn().mockReturnValue(Effect.succeed(new Map())),
 		insertReport: vi.fn(),
 		findReport: vi.fn(),
 		listReports: vi.fn(),
@@ -36,13 +46,13 @@ function makeRepository() {
 
 describe("AnalyticsService", () => {
 	let repo: ReturnType<typeof makeRepository>;
-	let service: AnalyticsService;
+	let service: ReturnType<typeof makeAnalyticsService>;
 
 	beforeEach(() => {
 		vi.useFakeTimers();
 		vi.setSystemTime(NOW);
 		repo = makeRepository();
-		service = new AnalyticsService(repo as never);
+		service = makeAnalyticsService(repo as never);
 	});
 
 	afterEach(() => {
@@ -53,7 +63,8 @@ describe("AnalyticsService", () => {
 		it.each(["applicationMetrics", "databaseMetrics"] as const)(
 			"%s is empty and says so, rather than reporting zeros",
 			async (method) => {
-				const result = await service[method]({ timeRange: "1d", granularity: "hour" } as never);
+				const call = service[method] as (query: never) => Effect.Effect<{ dataSource: string; data: unknown[]; timeRange: string }>;
+				const result = await run(call({ timeRange: "1d", granularity: "hour" } as never));
 
 				expect(result.dataSource).toBe("unavailable");
 				expect(result.data).toEqual([]);
@@ -66,7 +77,7 @@ describe("AnalyticsService", () => {
 		const query = { timeRange: "1d", granularity: "hour" } as never;
 
 		it("returns one bucket per hour of the window, all empty without deployments", async () => {
-			const result = await service.deploymentMetrics(query);
+			const result = await run(service.deploymentMetrics(query));
 
 			expect(result.dataSource).toBe("deployments");
 			expect(result.data).toHaveLength(24);
@@ -74,12 +85,12 @@ describe("AnalyticsService", () => {
 		});
 
 		it("counts a deployment into its bucket and reports the window success rate", async () => {
-			repo.deploymentsInRange.mockResolvedValue([
+			repo.deploymentsInRange.mockReturnValue(Effect.succeed([
 				deployment({ id: "d-1", status: "success" }),
 				deployment({ id: "d-2", status: "failed", deployCompletedAt: null, errorMessage: "build failed" }),
-			]);
+			]));
 
-			const result = await service.deploymentMetrics(query);
+			const result = await run(service.deploymentMetrics(query));
 
 			const populated = result.data.filter((bucket) => bucket.deploymentsCount > 0);
 			expect(populated).toHaveLength(1);
@@ -87,24 +98,24 @@ describe("AnalyticsService", () => {
 		});
 
 		it("averages the durations of the successful deployments in a bucket", async () => {
-			repo.deploymentsInRange.mockResolvedValue([
+			repo.deploymentsInRange.mockReturnValue(Effect.succeed([
 				deployment({ id: "d-1", createdAt: minutesAgo(30), deployCompletedAt: new Date(minutesAgo(30).getTime() + 10_000) }),
 				deployment({ id: "d-2", createdAt: minutesAgo(31), deployCompletedAt: new Date(minutesAgo(31).getTime() + 30_000) }),
-			]);
+			]));
 
-			const result = await service.deploymentMetrics(query);
+			const result = await run(service.deploymentMetrics(query));
 
 			const bucket = result.data.find((b) => b.deploymentsCount === 2);
 			expect(bucket?.averageDeployTime).toBe(20_000);
 		});
 
 		it("ignores unfinished deployments when averaging", async () => {
-			repo.deploymentsInRange.mockResolvedValue([
+			repo.deploymentsInRange.mockReturnValue(Effect.succeed([
 				deployment({ id: "d-1", createdAt: minutesAgo(30), deployCompletedAt: new Date(minutesAgo(30).getTime() + 10_000) }),
 				deployment({ id: "d-2", createdAt: minutesAgo(31), deployCompletedAt: null }),
-			]);
+			]));
 
-			const result = await service.deploymentMetrics(query);
+			const result = await run(service.deploymentMetrics(query));
 
 			expect(result.data.find((b) => b.deploymentsCount === 2)?.averageDeployTime).toBe(10_000);
 		});
@@ -114,16 +125,16 @@ describe("AnalyticsService", () => {
 				Array.from({ length: count }, (_, i) =>
 					deployment({ id: `${reason}-${String(i)}`, status: "failed", deployCompletedAt: null, errorMessage: reason }),
 				);
-			repo.deploymentsInRange.mockResolvedValue([
+			repo.deploymentsInRange.mockReturnValue(Effect.succeed([
 				...failures("oom", 3),
 				...failures("timeout", 2),
 				...failures("r3", 1),
 				...failures("r4", 1),
 				...failures("r5", 1),
 				...failures("r6", 1),
-			]);
+			]));
 
-			const result = await service.deploymentMetrics(query);
+			const result = await run(service.deploymentMetrics(query));
 
 			const reasons = result.data.find((b) => b.deploymentsCount > 0)?.failureReasons ?? [];
 			expect(reasons).toHaveLength(5);
@@ -134,17 +145,17 @@ describe("AnalyticsService", () => {
 		});
 
 		it("counts rollbacks into their bucket", async () => {
-			repo.rollbacksInRange.mockResolvedValue([{ id: "r-1", createdAt: minutesAgo(30) }]);
+			repo.rollbacksInRange.mockReturnValue(Effect.succeed([{ id: "r-1", createdAt: minutesAgo(30) }]));
 
-			const result = await service.deploymentMetrics(query);
+			const result = await run(service.deploymentMetrics(query));
 
 			expect(result.data.reduce((sum, b) => sum + b.rollbackCount, 0)).toBe(1);
 		});
 
 		it("restricts the deployments to the named services", async () => {
-			repo.serviceRows.mockResolvedValue([{ id: "s-1", name: "web", projectId: "p-1" }]);
+			repo.serviceRows.mockReturnValue(Effect.succeed([{ id: "s-1", name: "web", projectId: "p-1" }]));
 
-			await service.deploymentMetrics({ ...(query as object), services: ["web"] } as never);
+			await run(service.deploymentMetrics({ ...(query as object), services: ["web"] } as never));
 
 			expect(repo.serviceRows).toHaveBeenCalledWith(["web"]);
 			expect(repo.deploymentsInRange).toHaveBeenCalledWith(expect.any(Date), expect.any(Date), ["s-1"]);
@@ -153,10 +164,10 @@ describe("AnalyticsService", () => {
 
 	describe("serviceHealth", () => {
 		it("derives each service's status from its latest deployment", async () => {
-			repo.serviceRows.mockResolvedValue([{ id: "s-1", name: "web", projectId: "p-1" }]);
-			repo.latestDeploymentPerService.mockResolvedValue(new Map([["s-1", deployment()]]));
+			repo.serviceRows.mockReturnValue(Effect.succeed([{ id: "s-1", name: "web", projectId: "p-1" }]));
+			repo.latestDeploymentPerService.mockReturnValue(Effect.succeed(new Map([["s-1", deployment()]])));
 
-			const result = await service.serviceHealth();
+			const result = await run(service.serviceHealth());
 
 			expect(result.dataSource).toBe("services");
 			expect(result.data).toHaveLength(1);
@@ -165,19 +176,19 @@ describe("AnalyticsService", () => {
 		});
 
 		it("reports a service that never deployed as unknown (a warning), not as failed", async () => {
-			repo.serviceRows.mockResolvedValue([{ id: "s-1", name: "web", projectId: "p-1" }]);
+			repo.serviceRows.mockReturnValue(Effect.succeed([{ id: "s-1", name: "web", projectId: "p-1" }]));
 
-			const result = await service.serviceHealth();
+			const result = await run(service.serviceHealth());
 
 			expect(result.data[0]).toMatchObject({ status: "unknown" });
 			expect(result.data[0]?.checks[0]).toMatchObject({ status: "warn", message: "this service has no deployments yet" });
 		});
 
 		it("reports a failed latest deployment as failing", async () => {
-			repo.serviceRows.mockResolvedValue([{ id: "s-1", name: "web", projectId: "p-1" }]);
-			repo.latestDeploymentPerService.mockResolvedValue(new Map([["s-1", deployment({ status: "failed" })]]));
+			repo.serviceRows.mockReturnValue(Effect.succeed([{ id: "s-1", name: "web", projectId: "p-1" }]));
+			repo.latestDeploymentPerService.mockReturnValue(Effect.succeed(new Map([["s-1", deployment({ status: "failed" })]])));
 
-			const result = await service.serviceHealth();
+			const result = await run(service.serviceHealth());
 
 			expect(result.data[0]?.checks[0]?.status).toBe("fail");
 		});
@@ -196,9 +207,9 @@ describe("AnalyticsService", () => {
 		} as const;
 
 		it("stores a completed report with the sections it included and the size of its content", async () => {
-			repo.insertReport.mockImplementation((row: object) => Promise.resolve({ id: "report-1", ...row }));
+			repo.insertReport.mockImplementation((row: object) => Effect.succeed({ id: "report-1", ...row }));
 
-			const report = await service.generateReport(input);
+			const report = await run(service.generateReport(input));
 
 			expect(report).toMatchObject({ id: "report-1", status: "completed", format: "json" });
 			const stored = repo.insertReport.mock.calls[0]?.[0] as { sections: string[]; content: Record<string, unknown>; sizeBytes: number };
@@ -209,9 +220,9 @@ describe("AnalyticsService", () => {
 		});
 
 		it("names the report after its period", async () => {
-			repo.insertReport.mockImplementation((row: object) => Promise.resolve({ id: "report-1", ...row }));
+			repo.insertReport.mockImplementation((row: object) => Effect.succeed({ id: "report-1", ...row }));
 
-			await service.generateReport(input);
+			await run(service.generateReport(input));
 
 			expect(repo.insertReport.mock.calls[0]?.[0]).toMatchObject({
 				name: "Analytics report — 2026-10-26 → 2026-10-27",
@@ -219,10 +230,10 @@ describe("AnalyticsService", () => {
 		});
 
 		it("records a failed report, with the reason, when a section throws", async () => {
-			repo.deploymentsInRange.mockRejectedValue(new Error("db down"));
-			repo.insertReport.mockImplementation((row: object) => Promise.resolve({ id: "report-2", ...row }));
+			repo.deploymentsInRange.mockReturnValue(Effect.fail(new Error("db down")));
+			repo.insertReport.mockImplementation((row: object) => Effect.succeed({ id: "report-2", ...row }));
 
-			const report = await service.generateReport(input);
+			const report = await run(service.generateReport(input));
 
 			expect(report).toMatchObject({ status: "failed", errorMessage: "db down", sizeBytes: 0 });
 		});
@@ -232,23 +243,23 @@ describe("AnalyticsService", () => {
 		const completed = { id: "r-1", name: "R", format: "json", status: "completed", content: { a: 1 }, sizeBytes: 9 };
 
 		it("findReport returns the stored report and answers not found otherwise", async () => {
-			repo.findReport.mockResolvedValueOnce(completed).mockResolvedValueOnce(null);
+			repo.findReport.mockReturnValueOnce(Effect.succeed(completed)).mockReturnValueOnce(Effect.succeed(null));
 
-			await expect(service.findReport("r-1")).resolves.toBe(completed);
-			await expect(service.findReport("ghost")).rejects.toBeInstanceOf(AnalyticsReportNotFound);
+			await expect(run(service.findReport("r-1"))).resolves.toBe(completed);
+			await expect(run(service.findReport("ghost"))).rejects.toBeInstanceOf(AnalyticsReportNotFound);
 		});
 
 		it("deleteReport confirms a deletion and answers not found for an unknown report", async () => {
-			repo.deleteReport.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+			repo.deleteReport.mockReturnValueOnce(Effect.succeed(true)).mockReturnValueOnce(Effect.succeed(false));
 
-			await expect(service.deleteReport("r-1")).resolves.toEqual({ success: true });
-			await expect(service.deleteReport("ghost")).rejects.toBeInstanceOf(AnalyticsReportNotFound);
+			await expect(run(service.deleteReport("r-1"))).resolves.toEqual({ success: true });
+			await expect(run(service.deleteReport("ghost"))).rejects.toBeInstanceOf(AnalyticsReportNotFound);
 		});
 
 		it("downloadReport hands back the content of a completed report", async () => {
-			repo.findReport.mockResolvedValue(completed);
+			repo.findReport.mockReturnValue(Effect.succeed(completed));
 
-			await expect(service.downloadReport("r-1")).resolves.toEqual({
+			await expect(run(service.downloadReport("r-1"))).resolves.toEqual({
 				name: "R",
 				format: "json",
 				content: { a: 1 },
@@ -257,17 +268,17 @@ describe("AnalyticsService", () => {
 		});
 
 		it("downloadReport refuses a report that did not complete, naming its status", async () => {
-			repo.findReport.mockResolvedValue({ ...completed, status: "failed" });
+			repo.findReport.mockReturnValue(Effect.succeed({ ...completed, status: "failed" }));
 
-			await expect(service.downloadReport("r-1")).rejects.toMatchObject({ kind: "not_found", status: "failed" });
+			await expect(run(service.downloadReport("r-1"))).rejects.toMatchObject({ kind: "not_found", status: "failed" });
 		});
 	});
 
 	describe("report configurations", () => {
 		it("stores a config with defaults for the optional fields", async () => {
-			repo.insertReportConfig.mockImplementation((row: object) => Promise.resolve({ id: "cfg-1", ...row }));
+			repo.insertReportConfig.mockImplementation((row: object) => Effect.succeed({ id: "cfg-1", ...row }));
 
-			await service.createReportConfig({ name: "Daily", metrics: ["deployments"], schedule: "daily" });
+			await run(service.createReportConfig({ name: "Daily", metrics: ["deployments"], schedule: "daily" }));
 
 			expect(repo.insertReportConfig).toHaveBeenCalledWith({
 				name: "Daily",
@@ -279,19 +290,19 @@ describe("AnalyticsService", () => {
 		});
 
 		it("updates only the fields it was given", async () => {
-			repo.updateReportConfig.mockResolvedValue({ id: "cfg-1" });
+			repo.updateReportConfig.mockReturnValue(Effect.succeed({ id: "cfg-1" }));
 
-			await service.updateReportConfig("cfg-1", { name: "Weekly", schedule: "weekly" });
+			await run(service.updateReportConfig("cfg-1", { name: "Weekly", schedule: "weekly" }));
 
 			expect(repo.updateReportConfig).toHaveBeenCalledWith("cfg-1", { name: "Weekly", schedule: "weekly" });
 		});
 
 		it("answers not found when updating or deleting an unknown config", async () => {
-			repo.updateReportConfig.mockResolvedValue(null);
-			repo.deleteReportConfig.mockResolvedValue(false);
+			repo.updateReportConfig.mockReturnValue(Effect.succeed(null));
+			repo.deleteReportConfig.mockReturnValue(Effect.succeed(false));
 
-			await expect(service.updateReportConfig("ghost", { name: "x" })).rejects.toBeInstanceOf(AnalyticsReportNotFound);
-			await expect(service.deleteReportConfig("ghost")).rejects.toBeInstanceOf(AnalyticsReportNotFound);
+			await expect(run(service.updateReportConfig("ghost", { name: "x" }))).rejects.toBeInstanceOf(AnalyticsReportNotFound);
+			await expect(run(service.deleteReportConfig("ghost"))).rejects.toBeInstanceOf(AnalyticsReportNotFound);
 		});
 	});
 });

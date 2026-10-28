@@ -1,10 +1,15 @@
-import { Injectable } from "@nestjs/common";
 import { and, asc, count, desc, eq, gte, inArray, lte, type SQL } from "drizzle-orm";
-import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
+import { Context, Effect, Layer } from "effect";
+
+
 import { analyticsReports } from "@deployer/nest-schema/global/identity/analytics";
 import { analyticsReportConfigs } from "@deployer/nest-schema/global/identity/analytics";
-import { deploymentRollbacks, deployments } from "@deployer/nest-schema/global/runtime/deployment";
 import { projects, services } from "@deployer/nest-schema/global/project/deployment";
+import { deploymentRollbacks, deployments } from "@deployer/nest-schema/global/runtime/deployment";
+
+import { DatabasePort, type DatabaseShape } from "@identity/core/database/database.port";
+
+import { AnalyticsRepositoryFailure } from "../analytics.failures";
 
 /**
  * One deployment, reduced to what metrics need.
@@ -85,9 +90,8 @@ export type ReportConfigRow = {
  * read-across concern, so the alternative — asking runtime for every deployment one
  * HTTP call at a time — would turn one dashboard into hundreds of round trips.
  */
-@Injectable()
-export class AnalyticsRepository {
-	constructor(private readonly database: GlobalDatabaseService) {}
+class AnalyticsQueries {
+	constructor(private readonly database: DatabaseShape) {}
 
 	/** Deployments created inside the window, optionally scoped to services. */
 	async deploymentsInRange(start: Date, end: Date, serviceIds?: string[]): Promise<DeploymentRow[]> {
@@ -402,6 +406,47 @@ export class AnalyticsRepository {
 			.returning({ id: analyticsReportConfigs.id });
 		return rows.length > 0;
 	}
+}
+
+/** Every query method, as an Effect that fails with `AnalyticsRepositoryFailure` (driver errors are wrapped, not leaked). */
+type Effectful<T> = {
+	readonly [K in keyof T]: T[K] extends (...args: infer A) => Promise<infer R>
+		? (...args: A) => Effect.Effect<R, AnalyticsRepositoryFailure>
+		: never;
+};
+
+/** The repository contract: the queries below, each an Effect. */
+export type AnalyticsRepositoryShape = Effectful<AnalyticsQueries>;
+
+/** One async database boundary; driver errors become `AnalyticsRepositoryFailure`. */
+const attempt = <T>(operation: () => Promise<T>): Effect.Effect<T, AnalyticsRepositoryFailure> =>
+	Effect.tryPromise({ try: operation, catch: (cause) => new AnalyticsRepositoryFailure({ cause }) });
+
+const makeAnalyticsRepository = (database: DatabaseShape): AnalyticsRepositoryShape => {
+	const queries = new AnalyticsQueries(database);
+	const prototype = Object.getPrototypeOf(queries) as Record<string, unknown>;
+	const entries = Object.getOwnPropertyNames(prototype)
+		.filter((name) => name !== "constructor" && typeof prototype[name] === "function")
+		.map((name) => [
+			name,
+			(...args: unknown[]) =>
+				attempt(async () => (await (prototype[name] as (...a: unknown[]) => Promise<unknown>).apply(queries, args)) as unknown),
+		]);
+	return Object.fromEntries(entries) as AnalyticsRepositoryShape;
+};
+
+/** Tag and implementation together: the tag is the contract, `Live` the Drizzle implementation. */
+export class AnalyticsRepository extends Context.Service<AnalyticsRepository, AnalyticsRepositoryShape>()(
+	"identity/AnalyticsRepository",
+) {
+	/** Resolves the database at layer build, so no method carries it in `R`. */
+	static readonly Live: Layer.Layer<AnalyticsRepository, never, DatabasePort> = Layer.effect(
+		AnalyticsRepository,
+		Effect.gen(function* () {
+			const database = yield* DatabasePort;
+			return makeAnalyticsRepository(database);
+		}),
+	);
 }
 
 /**

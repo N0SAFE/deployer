@@ -1,13 +1,18 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
+import { Effect } from "effect";
 
 import { analyticsContract } from "@deployer/identity-contracts";
-import { liveSnapshot } from "@deployer/shared/core/utils/live-snapshot.utils";
-import { AnalyticsFieldRequired } from "../domain/analytics.errors";
+import { EffectContextOf } from "@deployer/nest-effect";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
+import { liveSnapshot } from "@deployer/shared/core/utils/live-snapshot.utils";
 
-import { AnalyticsService, type Actor, type MetricsQuery } from "../services/analytics.service";
+import { serve } from "@identity/core/orpc/serve";
+
+import { AnalyticsDomainModule } from "../analytics.module";
+import { AnalyticsFieldRequired } from "../domain/analytics.errors";
+import { AnalyticsService, type MetricsQuery } from "../services/analytics.service";
 
 /**
  * Re-evaluation cadence for the streaming (`…/stream`) siblings.
@@ -43,18 +48,16 @@ const STREAM_INTERVAL = {
  */
 @Controller()
 export class AnalyticsController {
-	constructor(private readonly analytics: AnalyticsService) {}
-
-	/** The caller, as the domain sees them. */
 	// ─── Metrics ────────────────────────────────────────────────────────────
 
 	@Implement(analyticsContract.getResourceMetrics)
 	getResourceMetrics() {
 		return implement(analyticsContract.getResourceMetrics)
 			.use(requireAuth())
-			.handler(async ({ input, context }) => {
-				context;
-				return this.analytics.resourceMetrics(readMetricsQuery(input));
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				return yield* serve(context)(analytics.resourceMetrics(readMetricsQuery(input)));
 			});
 	}
 
@@ -62,20 +65,24 @@ export class AnalyticsController {
 	getResourceMetricsStream() {
 		return implement(analyticsContract.getResourceMetricsStream)
 			.use(requireAuth())
-			.handler(({ input }) =>
-				liveSnapshot(() => this.analytics.resourceMetrics(readMetricsQuery(input)), {
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				// Each poll runs through `serve`, so it provides the actor like any request.
+				return liveSnapshot(() => Effect.runPromise(serve(context)(analytics.resourceMetrics(readMetricsQuery(input)))), {
 					intervalMs: STREAM_INTERVAL.resourceMetrics,
-				}),
-			);
+				});
+			});
 	}
 
 	@Implement(analyticsContract.getApplicationMetrics)
 	getApplicationMetrics() {
 		return implement(analyticsContract.getApplicationMetrics)
 			.use(requireAuth())
-			.handler(async ({ input, context }) => {
-				context;
-				return this.analytics.applicationMetrics(readMetricsQuery(input));
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				return yield* serve(context)(analytics.applicationMetrics(readMetricsQuery(input)));
 			});
 	}
 
@@ -83,9 +90,10 @@ export class AnalyticsController {
 	getDatabaseMetrics() {
 		return implement(analyticsContract.getDatabaseMetrics)
 			.use(requireAuth())
-			.handler(async ({ input, context }) => {
-				context;
-				return this.analytics.databaseMetrics(readMetricsQuery(input));
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				return yield* serve(context)(analytics.databaseMetrics(readMetricsQuery(input)));
 			});
 	}
 
@@ -93,9 +101,10 @@ export class AnalyticsController {
 	getDeploymentMetrics() {
 		return implement(analyticsContract.getDeploymentMetrics)
 			.use(requireAuth())
-			.handler(async ({ input, context }) => {
-				context;
-				return this.analytics.deploymentMetrics(readMetricsQuery(input));
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				return yield* serve(context)(analytics.deploymentMetrics(readMetricsQuery(input)));
 			});
 	}
 
@@ -103,20 +112,24 @@ export class AnalyticsController {
 	getDeploymentMetricsStream() {
 		return implement(analyticsContract.getDeploymentMetricsStream)
 			.use(requireAuth())
-			.handler(({ input }) =>
-				liveSnapshot(() => this.analytics.deploymentMetrics(readMetricsQuery(input)), {
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				// Each poll runs through `serve`, so it provides the actor like any request.
+				return liveSnapshot(() => Effect.runPromise(serve(context)(analytics.deploymentMetrics(readMetricsQuery(input)))), {
 					intervalMs: STREAM_INTERVAL.deploymentMetrics,
-				}),
-			);
+				});
+			});
 	}
 
 	@Implement(analyticsContract.getServiceHealth)
 	getServiceHealth() {
 		return implement(analyticsContract.getServiceHealth)
 			.use(requireAuth())
-			.handler(async ({ input, context }) => {
-				context;
-				return this.analytics.serviceHealth(readServices(input));
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				return yield* serve(context)(analytics.serviceHealth(readServices(input)));
 			});
 	}
 
@@ -124,20 +137,24 @@ export class AnalyticsController {
 	getServiceHealthStream() {
 		return implement(analyticsContract.getServiceHealthStream)
 			.use(requireAuth())
-			.handler(({ input }) =>
-				liveSnapshot(() => this.analytics.serviceHealth(readServices(input)), {
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				// Each poll runs through `serve`, so it provides the actor like any request.
+				return liveSnapshot(() => Effect.runPromise(serve(context)(analytics.serviceHealth(readServices(input)))), {
 					intervalMs: STREAM_INTERVAL.serviceHealth,
-				}),
-			);
+				});
+			});
 	}
 
 	@Implement(analyticsContract.getRealTimeMetrics)
 	getRealTimeMetrics() {
 		return implement(analyticsContract.getRealTimeMetrics)
 			.use(requireAuth())
-			.handler(async ({ input, context }) => {
-				context;
-				return this.analytics.realtimeMetrics(readServices(input));
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				return yield* serve(context)(analytics.realtimeMetrics(readServices(input)));
 			});
 	}
 
@@ -145,11 +162,14 @@ export class AnalyticsController {
 	getRealTimeMetricsStream() {
 		return implement(analyticsContract.getRealTimeMetricsStream)
 			.use(requireAuth())
-			.handler(({ input }) =>
-				liveSnapshot(() => this.analytics.realtimeMetrics(readServices(input)), {
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				// Each poll runs through `serve`, so it provides the actor like any request.
+				return liveSnapshot(() => Effect.runPromise(serve(context)(analytics.realtimeMetrics(readServices(input)))), {
 					intervalMs: STREAM_INTERVAL.realTime,
-				}),
-			);
+				});
+			});
 	}
 
 	// ─── Usage ──────────────────────────────────────────────────────────────
@@ -158,59 +178,68 @@ export class AnalyticsController {
 	getResourceUsage() {
 		return implement(analyticsContract.getResourceUsage)
 			.use(requireAuth())
-			.handler(async ({ input }) =>
-				this.analytics.resourceUsage({
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				return yield* serve(context)(analytics.resourceUsage({
 					timeRange: readString(input, "timeRange", "1d"),
 					resource: readString(input, "resource", "all"),
 					aggregation: readString(input, "aggregation", "average"),
-				}),
-			);
+				}));
+			});
 	}
 
 	@Implement(analyticsContract.getResourceUsageStream)
 	getResourceUsageStream() {
 		return implement(analyticsContract.getResourceUsageStream)
 			.use(requireAuth())
-			.handler(({ input }) =>
-				liveSnapshot(
-					() =>
-						this.analytics.resourceUsage({
-							timeRange: readString(input, "timeRange", "1d"),
-							resource: readString(input, "resource", "all"),
-							aggregation: readString(input, "aggregation", "average"),
-						}),
-					{ intervalMs: STREAM_INTERVAL.resourceUsage },
-				),
-			);
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				// Each poll runs through `serve`, so it provides the actor like any request.
+				return liveSnapshot(() => Effect.runPromise(serve(context)(analytics.resourceUsage({
+					timeRange: readString(input, "timeRange", "1d"),
+					resource: readString(input, "resource", "all"),
+					aggregation: readString(input, "aggregation", "average"),
+				}))), {
+					intervalMs: STREAM_INTERVAL.resourceUsage,
+				});
+			});
 	}
 
 	@Implement(analyticsContract.getUserActivity)
 	getUserActivity() {
 		return implement(analyticsContract.getUserActivity)
 			.use(requireAuth())
-			.handler(async ({ input }) =>
-				this.analytics.userActivity({
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				return yield* serve(context)(analytics.userActivity({
 					timeRange: readString(input, "timeRange", "1d"),
 					...readOptionalString(input, "userId"),
 					...readOptionalString(input, "action"),
 					...readOptionalString(input, "resource"),
 					limit: readNumber(input, "limit", 100),
 					offset: readNumber(input, "offset", 0),
-				}),
-			);
+				}));
+			});
 	}
 
 	@Implement(analyticsContract.getActivitySummary)
 	getActivitySummary() {
 		return implement(analyticsContract.getActivitySummary)
 			.use(requireAuth())
-			.handler(async ({ input }) => {
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
 				const query = readQuery(input);
-				return this.analytics.activitySummary({
-					...(typeof query.period === "string" ? { period: query.period } : {}),
-					...(typeof query.granularity === "string" ? { granularity: query.granularity } : {}),
-					...(typeof query.limit === "number" ? { limit: query.limit } : {}),
-				});
+				return yield* serve(context)(
+					analytics.activitySummary({
+						...(typeof query.period === "string" ? { period: query.period } : {}),
+						...(typeof query.granularity === "string" ? { granularity: query.granularity } : {}),
+						...(typeof query.limit === "number" ? { limit: query.limit } : {}),
+					}),
+				);
 			});
 	}
 
@@ -218,83 +247,88 @@ export class AnalyticsController {
 	getApiUsage() {
 		return implement(analyticsContract.getApiUsage)
 			.use(requireAuth())
-			.handler(async ({ input }) =>
-				this.analytics.apiUsage({
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				return yield* serve(context)(analytics.apiUsage({
 					timeRange: readString(input, "timeRange", "1d"),
 					groupBy: readString(input, "groupBy", "endpoint"),
 					limit: readNumber(input, "limit", 20),
-				}),
-			);
+				}));
+			});
 	}
 
 	@Implement(analyticsContract.getDeploymentUsage)
 	getDeploymentUsage() {
 		return implement(analyticsContract.getDeploymentUsage)
 			.use(requireAuth())
-			.handler(async ({ input }) =>
-				this.analytics.deploymentUsage({
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				return yield* serve(context)(analytics.deploymentUsage({
 					timeRange: readString(input, "timeRange", "1d"),
 					...readOptionalString(input, "projectId"),
 					...readOptionalString(input, "userId"),
-				}),
-			);
+				}));
+			});
 	}
 
 	@Implement(analyticsContract.getDeploymentUsageStream)
 	getDeploymentUsageStream() {
 		return implement(analyticsContract.getDeploymentUsageStream)
 			.use(requireAuth())
-			.handler(({ input }) =>
-				liveSnapshot(
-					() =>
-						this.analytics.deploymentUsage({
-							timeRange: readString(input, "timeRange", "1d"),
-							...readOptionalString(input, "projectId"),
-							...readOptionalString(input, "userId"),
-						}),
-					{ intervalMs: STREAM_INTERVAL.deploymentUsage },
-				),
-			);
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				// Each poll runs through `serve`, so it provides the actor like any request.
+				return liveSnapshot(() => Effect.runPromise(serve(context)(analytics.deploymentUsage({
+					timeRange: readString(input, "timeRange", "1d"),
+					...readOptionalString(input, "projectId"),
+					...readOptionalString(input, "userId"),
+				}))), {
+					intervalMs: STREAM_INTERVAL.deploymentUsage,
+				});
+			});
 	}
 
 	@Implement(analyticsContract.getStorageUsage)
 	getStorageUsage() {
 		return implement(analyticsContract.getStorageUsage)
 			.use(requireAuth())
-			.handler(async ({ input }) =>
-				this.analytics.storageUsage({
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				return yield* serve(context)(analytics.storageUsage({
 					timeRange: readString(input, "timeRange", "1d"),
 					breakdown: readString(input, "breakdown", "total"),
-				}),
-			);
+				}));
+			});
 	}
 
 	// ─── Reports ────────────────────────────────────────────────────────────
 
-	/**
-	 * Generate a report and return its id.
-	 *
-	 * ── WHY THIS RETURNS AN ID RATHER THAN THE REPORT ───────────────────────
-	 * The contract declares `{ reportId, status, message }`. Generation is synchronous
-	 * here (there is no queue in this service), but the shape is a handle so a caller
-	 * polls `getReport` and a later move to background generation does not change the
-	 * contract. Returning the content inline would make that change breaking.
-	 */
 	@Implement(analyticsContract.generateReport)
 	generateReport() {
 		return implement(analyticsContract.generateReport)
 			.use(requireAuth())
-			.handler(async ({ input }) => {
-				const report = await this.analytics.generateReport({
-					period: input.period,
-					includeResourceUsage: input.includeResourceUsage,
-					includeApplicationMetrics: input.includeApplicationMetrics,
-					includeDatabaseMetrics: input.includeDatabaseMetrics,
-					includeDeploymentAnalytics: input.includeDeploymentAnalytics,
-					includeServiceHealth: input.includeServiceHealth,
-					includeUserActivity: input.includeUserActivity,
-					format: input.format,
-				});
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				// The contract declares `{ reportId, status, message }`. Generation is synchronous here, but the
+				// shape is a handle so a caller polls `getReport` and a later move to background generation does
+				// not change the contract.
+				const report = yield* serve(context)(
+					analytics.generateReport({
+						period: input.period,
+						includeResourceUsage: input.includeResourceUsage,
+						includeApplicationMetrics: input.includeApplicationMetrics,
+						includeDatabaseMetrics: input.includeDatabaseMetrics,
+						includeDeploymentAnalytics: input.includeDeploymentAnalytics,
+						includeServiceHealth: input.includeServiceHealth,
+						includeUserActivity: input.includeUserActivity,
+						format: input.format,
+					}),
+				);
 
 				return {
 					reportId: report.id,
@@ -307,21 +341,17 @@ export class AnalyticsController {
 			});
 	}
 
-	/**
-	 * One report.
-	 *
-	 * The contract's output is a union: a complete report, or a status stub for one
-	 * still in progress. A `failed` report therefore returns the STUB branch, which
-	 * carries the error — so a caller learns why it failed instead of receiving a
-	 * half-empty report object.
-	 */
 	@Implement(analyticsContract.getReport)
 	getReport() {
 		return implement(analyticsContract.getReport)
 			.use(requireAuth())
-			.handler(async ({ input }) => {
-				const report = await this.analytics.findReport(input.params.reportId);
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				const report = yield* serve(context)(analytics.findReport(input.params.reportId));
 
+				// A `failed` report returns the status stub, which carries the error, so a caller learns why it
+				// failed instead of receiving a half-empty report object.
 				if (report.status !== "completed") {
 					return {
 						id: report.id,
@@ -349,12 +379,12 @@ export class AnalyticsController {
 	listReports() {
 		return implement(analyticsContract.listReports)
 			.use(requireAuth())
-			.handler(async ({ input }) => {
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
 				const limit = input.query?.limit ?? 20;
 				const offset = input.query?.offset ?? 0;
-				// The contract already narrowed `status` to the enum, so this passes it through
-				// rather than re-checking — the compiler holds the controller to the contract.
-				const page = await this.analytics.listReports(limit, offset, input.query?.status);
+				const page = yield* serve(context)(analytics.listReports(limit, offset, input.query?.status));
 
 				return {
 					data: page.data.map((report) => ({
@@ -377,58 +407,45 @@ export class AnalyticsController {
 	deleteReport() {
 		return implement(analyticsContract.deleteReport)
 			.use(requireAuth())
-			.handler(async ({ input }) => {
-				await this.analytics.deleteReport(input.params.reportId);
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				yield* serve(context)(analytics.deleteReport(input.params.reportId));
 				return { success: true, message: "report deleted" };
 			});
 	}
 
-	/**
-	 * A download handle for a stored report.
-	 *
-	 * ── WHY A URL AND NOT THE BYTES ─────────────────────────────────────────
-	 * The contract declares `{ downloadUrl, expiresAt, format }`. Streaming the file
-	 * through this procedure would make a large report a long-held request, and the
-	 * contract is already shaped as a handle. The URL points at this service's own
-	 * report content route, and `sizeBytes` is carried so a client can show a progress
-	 * bar without a second call.
-	 */
 	@Implement(analyticsContract.downloadReport)
 	downloadReport() {
 		return implement(analyticsContract.downloadReport)
 			.use(requireAuth())
-			.handler(async ({ input }) => {
-				const report = await this.analytics.downloadReport(input.params.reportId);
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				const report = yield* serve(context)(analytics.downloadReport(input.params.reportId));
 				return {
 					downloadUrl: `/analytics/reports/${input.params.reportId}/content`,
-					// A SHORT expiry on purpose: the URL is not signed, so it is only safe because
-					// the content route is itself authenticated. The window documents that the
-					// handle is meant to be used immediately, not stored.
+					// A SHORT expiry on purpose: the URL is not signed, so it is only safe because the content route
+					// is itself authenticated. The handle is meant to be used immediately, not stored.
 					expiresAt: new Date(Date.now() + 5 * 60 * 1000),
 					format: report.format as "json" | "pdf" | "csv",
-					// The contract declares `size` on the handle, so a client can show a progress
-					// bar without a second call — it is the stored report's size, from the same row
-					// the content comes from.
 					size: report.sizeBytes,
 				};
 			});
 	}
 
-	/**
-	 * The report itself, as a JSON attachment: what `downloadReport`'s handle points at.
-	 *
-	 * Authenticated like every other procedure here, which is what makes the handle safe
-	 * without being signed. The service refuses a report that did not complete, so the file
-	 * a caller saves is never an empty shell of a failed run.
-	 */
 	@Implement(analyticsContract.getReportContent)
 	getReportContent() {
 		return implement(analyticsContract.getReportContent)
 			.use(requireAuth())
-			.handler(async ({ input }) => {
-				const report = await this.analytics.downloadReport(input.params.reportId);
-				const body = JSON.stringify(report.content ?? {}, null, 2);
-				return new File([body], `report-${input.params.reportId}.json`, {
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				// The service refuses a report that did not complete, so the file a caller saves is never an empty
+				// shell of a failed run.
+				const report = yield* serve(context)(analytics.downloadReport(input.params.reportId));
+				const text = JSON.stringify(report.content ?? {}, null, 2);
+				return new File([text], `report-${input.params.reportId}.json`, {
 					type: "application/json; charset=utf-8",
 				});
 			});
@@ -436,34 +453,29 @@ export class AnalyticsController {
 
 	// ─── Report configurations ──────────────────────────────────────────────
 
-	/**
-	 * Store a report configuration.
-	 *
-	 * ── WHY THE PAYLOAD IS READ FROM `input` DIRECTLY ────────
-	 * This contract declares `.input((input) => input.body(reportConfigurationSchema))`, but it
-	 * uses the COMPACT `create()` builder, which FLATTENS the body into the input — so the
-	 * payload's fields sit on `input` itself. Reading `input.body` yields
-	 * `Property 'body' does not exist`, which is the contract saying where it put the value.
-	 * (The `update` builder does NOT flatten, because it must carry the path parameter too —
-	 * see `updateReportConfig` below.)
-	 *
-	 * ── WHY THE REQUIRED FIELDS ARE CHECKED ────────────────────────────────
-	 * `reportConfigurationSchema` declares every field optional, but a stored configuration is
-	 * meaningless without a name and a metric selection — the columns are `NOT NULL`. The check
-	 * turns a database constraint violation into a readable error naming the missing field.
-	 */
 	@Implement(analyticsContract.createReportConfig)
 	createReportConfig() {
 		return implement(analyticsContract.createReportConfig)
 			.use(requireAuth())
-			.handler(async ({ input }) => {
-				const config = await this.analytics.createReportConfig({
-					name: requireField(input.name, "name"),
-					...(input.description === undefined ? {} : { description: input.description }),
-					metrics: requireField(input.metrics, "metrics"),
-					schedule: input.schedule ?? "none",
-					...(input.recipients === undefined ? {} : { recipients: input.recipients }),
-				});
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				// The compact `create()` builder FLATTENS the body into the input, so the payload's fields sit on `input`.
+				// Every field is optional in the schema, but a stored configuration needs a name and a metric selection:
+				// the check names the missing field instead of surfacing a NOT NULL violation.
+				const config = yield* serve(context)(
+					Effect.gen(function* () {
+						const name = yield* requireField(input.name, "name");
+						const metrics = yield* requireField(input.metrics, "metrics");
+						return yield* analytics.createReportConfig({
+							name,
+							...(input.description === undefined ? {} : { description: input.description }),
+							metrics,
+							schedule: input.schedule,
+							recipients: input.recipients,
+						});
+					}),
+				);
 				return toConfigOutput(config);
 			});
 	}
@@ -472,10 +484,12 @@ export class AnalyticsController {
 	listReportConfigs() {
 		return implement(analyticsContract.listReportConfigs)
 			.use(requireAuth())
-			.handler(async ({ input }) => {
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
 				const limit = input.query?.limit ?? 20;
 				const offset = input.query?.offset ?? 0;
-				const page = await this.analytics.listReportConfigs(limit, offset);
+				const page = yield* serve(context)(analytics.listReportConfigs(limit, offset));
 				return {
 					data: page.data.map(toConfigOutput),
 					total: page.total,
@@ -489,17 +503,20 @@ export class AnalyticsController {
 	updateReportConfig() {
 		return implement(analyticsContract.updateReportConfig)
 			.use(requireAuth())
-			.handler(async ({ input }) => {
-				// Same `body` unwrapping as `createReportConfig` — the update contract also
-				// declares its patch under `body`, alongside the path parameter.
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				// The update contract declares its patch under `body`, alongside the path parameter.
 				const body = input.body ?? {};
-				const updated = await this.analytics.updateReportConfig(input.params.configId, {
-					...(body.name === undefined ? {} : { name: body.name }),
-					...(body.description === undefined ? {} : { description: body.description }),
-					...(body.metrics === undefined ? {} : { metrics: body.metrics }),
-					...(body.schedule === undefined ? {} : { schedule: body.schedule }),
-					...(body.recipients === undefined ? {} : { recipients: body.recipients }),
-				});
+				const updated = yield* serve(context)(
+					analytics.updateReportConfig(input.params.configId, {
+						...(body.name === undefined ? {} : { name: body.name }),
+						...(body.description === undefined ? {} : { description: body.description }),
+						...(body.metrics === undefined ? {} : { metrics: body.metrics }),
+						...(body.schedule === undefined ? {} : { schedule: body.schedule }),
+						...(body.recipients === undefined ? {} : { recipients: body.recipients }),
+					}),
+				);
 				return toConfigOutput(updated);
 			});
 	}
@@ -508,8 +525,10 @@ export class AnalyticsController {
 	deleteReportConfig() {
 		return implement(analyticsContract.deleteReportConfig)
 			.use(requireAuth())
-			.handler(async ({ input }) => {
-				await this.analytics.deleteReportConfig(input.params.configId);
+			.use(AnalyticsDomainModule[EffectContextOf])
+			.effect(function* ({ input, context }) {
+				const analytics = yield* AnalyticsService;
+				yield* serve(context)(analytics.deleteReportConfig(input.params.configId));
 				return { success: true, message: "report configuration deleted" };
 			});
 	}
@@ -592,11 +611,8 @@ function readOptionalString(source: unknown, field: string): Record<string, stri
  * the omission surfaces as a database constraint violation; with it, the caller is told
  * which field is missing.
  */
-function requireField<T>(value: T | undefined, field: string): T {
-	if (value === undefined) {
-		throw new AnalyticsFieldRequired({ field });
-	}
-	return value;
+function requireField<T>(value: T | undefined, field: string): Effect.Effect<T, AnalyticsFieldRequired> {
+	return value === undefined ? Effect.fail(new AnalyticsFieldRequired({ field })) : Effect.succeed(value);
 }
 
 /** Map a config row to the contract's output shape. */
@@ -648,5 +664,3 @@ function summaryOf(content: unknown): {
 	return { totalDeployments, totalUsers: 0, totalRequests: 0, averageResponseTime: 0, errorRate: 0 };
 }
 
-// Re-exported so the module has one import for the domain's vocabulary.
-export type { Actor };

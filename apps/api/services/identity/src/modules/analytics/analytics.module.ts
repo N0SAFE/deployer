@@ -1,22 +1,19 @@
-import { Module } from "@nestjs/common";
+import { createModuleContext } from "@deployer/nest-effect";
+
+import { DatabasePort } from "@identity/core/database/database.port";
 
 import { AnalyticsController } from "./controllers/analytics.controller";
-import { AnalyticsRepository } from "./repositories/analytics.repository";
 import { AnalyticsService } from "./services/analytics.service";
 
 /**
- * The analytics domain.
+ * The analytics domain: usage metrics and reporting.
  *
- * Usage metrics and reporting.
- *
- * Declares the three primitives and exports the SERVICE — not the repository.
- * A repository is this domain's private data access, and exporting it would let a
- * sibling domain couple to these tables, which is the cross-domain coupling the
- * split exists to remove.
+ * `AnalyticsService` and `AnalyticsRepository` are Layers (`AnalyticsLive`), built by the app's Effect
+ * runtime over `DatabasePort`; the module declares the controller and which services its handlers may use.
+ * The repository is this domain's private data access, so it is not in the handler context.
  */
-@Module({
-	controllers: [AnalyticsController],
-	providers: [AnalyticsService, AnalyticsRepository],
-	exports: [AnalyticsService],
-})
-export class AnalyticsDomainModule {}
+export class AnalyticsDomainModule extends createModuleContext(
+	{ controllers: [AnalyticsController] },
+	AnalyticsService,
+	DatabasePort,
+) {}

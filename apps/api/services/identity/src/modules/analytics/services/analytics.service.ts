@@ -1,7 +1,7 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { AnalyticsReportNotFound, AnalyticsReportNotReady } from "../domain/analytics.errors";
+import { Logger } from "@nestjs/common";
+import { Context, Effect, Layer } from "effect";
 import * as systeminformation from "systeminformation";
-import type { z } from "zod/v4";
+
 import type {
 	activitySummarySchema,
 	analyticsApiUsageOutputSchema,
@@ -16,11 +16,11 @@ import type {
 } from "@deployer/identity-contracts";
 
 import { analyticsRules, type AnalyticsDataSource } from "../domain/analytics.entity";
+import { AnalyticsReportNotFound, AnalyticsReportNotReady } from "../domain/analytics.errors";
 import {
 	AnalyticsRepository,
+	type AnalyticsRepositoryShape,
 	type DeploymentRow,
-	type ReportConfigRow,
-	type ReportRow,
 	type ReportSchedule,
 	type ReportStatus,
 } from "../repositories/analytics.repository";
@@ -43,7 +43,8 @@ type ResourceSnapshot = {
 /** The statuses that count as a successful deployment. */
 const SUCCESS_STATUS = "success";
 
-import type { Actor } from "@identity/core/utils/actor.utils";
+
+import type { z } from "zod/v4";
 
 export type { Actor } from "@identity/core/utils/actor.utils";
 
@@ -113,11 +114,8 @@ export type CreateReportConfigInput = {
  * That is why `dataSource` is on every metrics response instead of being implicit:
  * it forces the caller to be able to tell the two apart.
  */
-@Injectable()
-export class AnalyticsService {
-	private readonly logger = new Logger(AnalyticsService.name);
-
-	constructor(private readonly repository: AnalyticsRepository) {}
+export function makeAnalyticsService(repository: AnalyticsRepositoryShape) {
+	const logger = new Logger("AnalyticsService");
 
 	// ─── Metrics ────────────────────────────────────────────────────────────
 
@@ -134,8 +132,8 @@ export class AnalyticsService {
 	 * When the reading fails, the series is EMPTY rather than zero-filled: a host whose
 	 * metrics cannot be read is not a host using 0% CPU.
 	 */
-	async resourceMetrics(query: MetricsQuery) {
-		const snapshot = await this.takeSnapshot();
+	const resourceMetrics = (query: MetricsQuery) => Effect.gen(function* () {
+		const snapshot = yield* takeSnapshot;
 		const plan = analyticsRules.bucketPlan(query.timeRange, query.granularity);
 
 		if (!snapshot.available) {
@@ -163,7 +161,7 @@ export class AnalyticsService {
 		}));
 
 		return { data, timeRange: query.timeRange, granularity: query.granularity, dataSource: "docker" as const };
-	}
+	});
 
 	/**
 	 * Application metrics — request counts, latency percentiles, error rate.
@@ -175,8 +173,7 @@ export class AnalyticsService {
 	 * errors stops looking. The empty series with `unavailable` is the truth, and the UI
 	 * is expected to say "not instrumented" rather than draw a flat line.
 	 */
-	async applicationMetrics(query: MetricsQuery) {
-		query;
+	const applicationMetrics = (query: MetricsQuery) => Effect.sync(() => {
 		return {
 			// The element type is the one this payload WOULD have carried. Naming it keeps
 			// the empty response structurally identical to a populated one, so a caller
@@ -185,7 +182,7 @@ export class AnalyticsService {
 			timeRange: query.timeRange,
 			granularity: query.granularity,
 		};
-	}
+	});
 
 	/**
 	 * Database metrics — connections, slow queries, cache hit ratio.
@@ -194,14 +191,13 @@ export class AnalyticsService {
 	 * `pg_stat_*`, and without one the honest answer is that they are not measured.
 	 * Reporting them as zero would hide a genuinely saturated connection pool.
 	 */
-	async databaseMetrics(query: MetricsQuery) {
-		query;
+	const databaseMetrics = (query: MetricsQuery) => Effect.sync(() => {
 		return {
 			...analyticsRules.unavailable<DatabaseMetricsPoint>(),
 			timeRange: query.timeRange,
 			granularity: query.granularity,
 		};
-	}
+	});
 
 	/**
 	 * Deployment metrics — the one series with a real source.
@@ -213,12 +209,12 @@ export class AnalyticsService {
 	 * plotting against time still sees it. The counts (`deploymentsCount`) remain
 	 * per-bucket, because that IS a per-bucket quantity.
 	 */
-	async deploymentMetrics(query: MetricsQuery) {
+	const deploymentMetrics = (query: MetricsQuery) => Effect.gen(function* () {
 		const plan = analyticsRules.bucketPlan(query.timeRange, query.granularity);
-		const serviceIds = await this.resolveServiceIds(query.services);
-		const [deployments, rollbacks] = await Promise.all([
-			this.repository.deploymentsInRange(plan.start, plan.end, serviceIds),
-			this.repository.rollbacksInRange(plan.start, plan.end),
+		const serviceIds = yield* resolveServiceIds(query.services);
+		const [deployments, rollbacks] = yield* Effect.all([
+			repository.deploymentsInRange(plan.start, plan.end, serviceIds),
+			repository.rollbacksInRange(plan.start, plan.end),
 		]);
 
 		const buckets = Array.from({ length: plan.bucketCount }, (_, index) => ({
@@ -294,7 +290,7 @@ export class AnalyticsService {
 			granularity: query.granularity,
 			dataSource: "deployments" as const,
 		};
-	}
+	});
 
 	/**
 	 * Per-service health, derived from each service's LATEST deployment.
@@ -307,9 +303,9 @@ export class AnalyticsService {
 	 * that has never deployed is not unhealthy — it is `unknown`, and marking it red
 	 * would make red the normal state of a fresh platform.
 	 */
-	async serviceHealth(services?: readonly string[]) {
-		const rows = await this.repository.serviceRows(services === undefined ? undefined : [...services]);
-		const latest = await this.repository.latestDeploymentPerService(rows.map((row) => row.id));
+	const serviceHealth = (services?: readonly string[]) => Effect.gen(function* () {
+		const rows = yield* repository.serviceRows(services === undefined ? undefined : [...services]);
+		const latest = yield* repository.latestDeploymentPerService(rows.map((row) => row.id));
 		const now = new Date();
 
 		const data = rows.map((service) => {
@@ -338,7 +334,7 @@ export class AnalyticsService {
 		});
 
 		return { data, timestamp: now, dataSource: "services" as const };
-	}
+	});
 
 	/**
 	 * A single point-in-time reading for a live dashboard.
@@ -350,10 +346,10 @@ export class AnalyticsService {
 	 * distinction survives. A series has room to be empty; a fixed-shape snapshot does
 	 * not.
 	 */
-	async realtimeMetrics(services?: readonly string[]) {
-		const snapshot = await this.takeSnapshot();
-		const rows = await this.repository.serviceRows(services === undefined ? undefined : [...services]);
-		const latest = await this.repository.latestDeploymentPerService(rows.map((row) => row.id));
+	const realtimeMetrics = (services?: readonly string[]) => Effect.gen(function* () {
+		const snapshot = yield* takeSnapshot;
+		const rows = yield* repository.serviceRows(services === undefined ? undefined : [...services]);
+		const latest = yield* repository.latestDeploymentPerService(rows.map((row) => row.id));
 
 		return {
 			timestamp: new Date(),
@@ -372,17 +368,17 @@ export class AnalyticsService {
 			})),
 			dataSource: snapshot.available ? ("docker" as const) : ("unavailable" as const),
 		};
-	}
+	});
 
 	// ─── Usage ──────────────────────────────────────────────────────────────
 
 	/** Host resource usage with peak/average/minimum rolled up. */
-	async resourceUsage(query: UsageQuery) {
-		const snapshot = await this.takeSnapshot();
+	const resourceUsage = (query: UsageQuery) => Effect.gen(function* () {
+		const snapshot = yield* takeSnapshot;
 		const plan = analyticsRules.bucketPlan(query.timeRange, "hour");
 
 		if (!snapshot.available) {
-			const empty = this.emptyUsage();
+			const empty = emptyUsage();
 			return {
 				data: [],
 				summary: { peak: empty, average: empty, minimum: empty },
@@ -391,7 +387,7 @@ export class AnalyticsService {
 			};
 		}
 
-		const sample = this.snapshotToUsage(snapshot);
+		const sample = snapshotToUsage(snapshot);
 		const data = Array.from({ length: plan.bucketCount }, (_, index) => ({
 			...sample,
 			timestamp: new Date(plan.start.getTime() + index * plan.bucketMs),
@@ -406,33 +402,31 @@ export class AnalyticsService {
 			timeRange: query.timeRange,
 			dataSource: "docker" as const,
 		};
-	}
+	});
 
 	/** User activity — no audit log is written, so this is not measured. */
-	async userActivity(query: ActivityQuery) {
-		query;
+	const userActivity = (query: ActivityQuery) => Effect.sync(() => {
 		return {
 			...analyticsRules.unavailable<UserActivityPoint>(),
 			total: 0,
 			limit: query.limit,
 			offset: query.offset,
 		};
-	}
+	});
 
 	/** Activity summary — same missing source as user activity. */
-	async activitySummary(query: { period?: string; granularity?: string; limit?: number }) {
-		query;
+	const activitySummary = (_query: { period?: string; granularity?: string; limit?: number }) => Effect.sync(() => {
 		return { ...analyticsRules.unavailable<ActivitySummaryPoint>(), totalPeriods: 0 };
-	}
+	});
 
 	/** API usage — no request logging, so not measured. */
-	async apiUsage(query: { timeRange: string; groupBy: string; limit: number }) {
+	const apiUsage = (query: { timeRange: string; groupBy: string; limit: number }) => Effect.sync(() => {
 		return {
 			...analyticsRules.unavailable<ApiUsageRow>(),
 			total: { requests: 0, errors: 0, dataTransferred: 0, uniqueUsers: 0 },
 			timeRange: query.timeRange,
 		};
-	}
+	});
 
 	/**
 	 * Deployment usage per day, with a summary.
@@ -442,12 +436,12 @@ export class AnalyticsService {
 	 * the WHOLE window. Deriving one from the other would make the summary change
 	 * meaning when a quiet day happened to fall inside it.
 	 */
-	async deploymentUsage(query: { timeRange: string; projectId?: string | undefined; userId?: string | undefined }) {
+	const deploymentUsage = (query: { timeRange: string; projectId?: string | undefined; userId?: string | undefined }) => Effect.gen(function* () {
 		const plan = analyticsRules.bucketPlan(query.timeRange, "day");
-		const serviceIds = query.projectId === undefined ? undefined : await this.serviceIdsByProject(query.projectId);
-		const [deployments, rollbacks] = await Promise.all([
-			this.repository.deploymentsInRange(plan.start, plan.end, serviceIds),
-			this.repository.rollbacksInRange(plan.start, plan.end),
+		const serviceIds = query.projectId === undefined ? undefined : yield* serviceIdsByProject(query.projectId);
+		const [deployments, rollbacks] = yield* Effect.all([
+			repository.deploymentsInRange(plan.start, plan.end, serviceIds),
+			repository.rollbacksInRange(plan.start, plan.end),
 		]);
 
 		const rollbacksByBucket = new Map<number, number>();
@@ -496,7 +490,7 @@ export class AnalyticsService {
 		for (const deployment of deployments) {
 			serviceCounts.set(deployment.serviceId, (serviceCounts.get(deployment.serviceId) ?? 0) + 1);
 		}
-		const serviceRows = await this.repository.serviceRows();
+		const serviceRows = yield* repository.serviceRows();
 		const projectIdByService = new Map(serviceRows.map((row) => [row.id, row.projectId]));
 		const countsByProject = new Map<string, number>();
 		for (const [serviceId, value] of serviceCounts) {
@@ -504,7 +498,7 @@ export class AnalyticsService {
 			if (projectId === undefined) continue;
 			countsByProject.set(projectId, (countsByProject.get(projectId) ?? 0) + value);
 		}
-		const projectNames = await this.repository.projectNamesByIds([...countsByProject.keys()]);
+		const projectNames = yield* repository.projectNamesByIds([...countsByProject.keys()]);
 
 		return {
 			data,
@@ -532,12 +526,11 @@ export class AnalyticsService {
 			timeRange: query.timeRange,
 			dataSource: "deployments" as const,
 		};
-	}
+	});
 
 	/** Storage usage — a real host reading, presented as a trend. */
-	async storageUsage(query: { timeRange: string; breakdown: string }) {
-		query;
-		const snapshot = await this.takeSnapshot();
+	const storageUsage = (query: { timeRange: string; breakdown: string }) => Effect.gen(function* () {
+		const snapshot = yield* takeSnapshot;
 		const plan = analyticsRules.bucketPlan(query.timeRange, "day");
 
 		const trends = Array.from({ length: plan.bucketCount }, (_, index) => ({
@@ -564,7 +557,7 @@ export class AnalyticsService {
 			trends,
 			dataSource: snapshot.available ? ("docker" as const) : ("unavailable" as const),
 		};
-	}
+	});
 
 	// ─── Reports ────────────────────────────────────────────────────────────
 
@@ -581,54 +574,52 @@ export class AnalyticsService {
 	 * would leave a caller with nothing to inspect — the failure would be a 500 and the
 	 * reason would be gone.
 	 */
-	async generateReport(input: GenerateReportInput) {
+	const generateReport = (input: GenerateReportInput) => Effect.gen(function* () {
 		const sections: string[] = [];
 		const content: Record<string, unknown> = {};
+		const reportName = `Analytics report — ${input.period.start.toISOString().slice(0, 10)} → ${input.period.end.toISOString().slice(0, 10)}`;
 
-		try {
+		const completed = Effect.gen(function* () {
 			const window = { timeRange: rangeFor(input.period), granularity: "hour" };
 
 			if (input.includeDeploymentAnalytics) {
 				sections.push("deploymentAnalytics");
-				const metrics = await this.deploymentMetrics(window as MetricsQuery);
+				const metrics = yield* deploymentMetrics(window as MetricsQuery);
 				content.deploymentAnalytics = metrics.data;
 			}
 			if (input.includeServiceHealth) {
 				sections.push("serviceHealth");
-				const health = await this.serviceHealth();
+				const health = yield* serviceHealth();
 				content.serviceHealth = health.data;
 			}
 			if (input.includeResourceUsage) {
 				sections.push("resourceUsage");
-				const usage = await this.resourceUsage({ timeRange: "1d", resource: "all", aggregation: "average" });
+				const usage = yield* resourceUsage({ timeRange: "1d", resource: "all", aggregation: "average" });
 				content.resourceUsage = usage.data;
 			}
 			if (input.includeApplicationMetrics) {
 				sections.push("applicationMetrics");
-				// Recorded as an empty section with its data source, so the report states
-				// which parts are not measured instead of omitting them silently.
-				const metrics = await this.applicationMetrics(window as MetricsQuery);
+				const metrics = yield* applicationMetrics(window as MetricsQuery);
 				content.applicationMetrics = metrics.data;
 				content.applicationMetricsDataSource = metrics.dataSource;
 			}
 			if (input.includeDatabaseMetrics) {
 				sections.push("databaseMetrics");
-				const metrics = await this.databaseMetrics(window as MetricsQuery);
+				const metrics = yield* databaseMetrics(window as MetricsQuery);
 				content.databaseMetrics = metrics.data;
 				content.databaseMetricsDataSource = metrics.dataSource;
 			}
 			if (input.includeUserActivity) {
 				sections.push("userActivity");
-				const activity = await this.activitySummary({});
+				const activity = yield* activitySummary({});
 				content.userActivity = activity.data;
 			}
 
-			const deployments = await this.deploymentUsage({ timeRange: rangeFor(input.period) });
+			const deployments = yield* deploymentUsage({ timeRange: rangeFor(input.period) });
 			const serialised = JSON.stringify(content);
-			const name = `Analytics report — ${input.period.start.toISOString().slice(0, 10)} → ${input.period.end.toISOString().slice(0, 10)}`;
 
-			const report = await this.repository.insertReport({
-				name,
+			const report = yield* repository.insertReport({
+				name: reportName,
 				format: input.format,
 				periodStart: input.period.start,
 				periodEnd: input.period.end,
@@ -639,30 +630,37 @@ export class AnalyticsService {
 			});
 
 			return { ...report, summary: deployments.summary };
-		} catch (error: unknown) {
-			const message = error instanceof Error ? error.message : String(error);
-			this.logger.error(`report generation failed: ${message}`);
-			const report = await this.repository.insertReport({
-				name: `Analytics report — ${input.period.start.toISOString().slice(0, 10)} → ${input.period.end.toISOString().slice(0, 10)}`,
-				format: input.format,
-				periodStart: input.period.start,
-				periodEnd: input.period.end,
-				sections,
-				content,
-				sizeBytes: 0,
-				status: "failed",
-				errorMessage: message,
-			});
-			return report;
-		}
-	}
+		});
+
+		// A failure while building a section is recorded on a `failed` report instead of failing the call,
+		// so the caller can read the reason from the report.
+		return yield* completed.pipe(
+			Effect.catch((error: unknown) =>
+				Effect.gen(function* () {
+					const message = error instanceof Error ? error.message : String(error);
+					logger.error(`report generation failed: ${message}`);
+					return yield* repository.insertReport({
+						name: reportName,
+						format: input.format,
+						periodStart: input.period.start,
+						periodEnd: input.period.end,
+						sections,
+						content,
+						sizeBytes: 0,
+						status: "failed",
+						errorMessage: message,
+					});
+				}),
+			),
+		);
+	});
 
 	/** One stored report, or a typed 404. */
-	async findReport(id: string): Promise<ReportRow> {
-		const report = await this.repository.findReport(id);
-		if (report === null) throw new AnalyticsReportNotFound({ what: "analytics report", id });
+	const findReport = (id: string) => Effect.gen(function* () {
+		const report = yield* repository.findReport(id);
+		if (report === null) return yield* new AnalyticsReportNotFound({ what: "analytics report", id });
 		return report;
-	}
+	});
 
 	/**
 	 * A page of stored reports.
@@ -671,18 +669,18 @@ export class AnalyticsService {
 	 * enum: a plain `string` cannot be compared against it, and the failure would name the
 	 * column rather than the value.
 	 */
-	async listReports(limit: number, offset: number, status?: ReportStatus) {
-		return this.repository.listReports(limit, offset, status);
-	}
+	const listReports = (limit: number, offset: number, status?: ReportStatus) => Effect.gen(function* () {
+		return yield* repository.listReports(limit, offset, status);
+	});
 
-	async deleteReport(id: string): Promise<{ success: boolean }> {
-		const removed = await this.repository.deleteReport(id);
+	const deleteReport = (id: string) => Effect.gen(function* () {
+		const removed = yield* repository.deleteReport(id);
 		// A 404 rather than `{ success: false }`: the contract declares an error for an
 		// unknown report, and a success-shaped body with `false` makes a typo
 		// indistinguishable from a real deletion.
-		if (!removed) throw new AnalyticsReportNotFound({ what: "analytics report", id });
+		if (!removed) return yield* new AnalyticsReportNotFound({ what: "analytics report", id });
 		return { success: true };
-	}
+	});
 
 	/**
 	 * The stored content of a report, for download.
@@ -691,10 +689,10 @@ export class AnalyticsService {
 	 * Its content is empty, so streaming it would hand the caller a file that looks like
 	 * a report and contains nothing. The failure is reported instead, with its reason.
 	 */
-	async downloadReport(id: string): Promise<{ name: string; format: string; content: unknown; sizeBytes: number }> {
-		const report = await this.findReport(id);
+	const downloadReport = (id: string) => Effect.gen(function* () {
+		const report = yield* findReport(id);
 		if (report.status !== "completed") {
-			throw new AnalyticsReportNotReady({ id, status: report.status });
+			return yield* new AnalyticsReportNotReady({ id, status: report.status });
 		}
 		return {
 			name: report.name,
@@ -702,23 +700,23 @@ export class AnalyticsService {
 			content: report.content,
 			sizeBytes: report.sizeBytes,
 		};
-	}
+	});
 
-	async createReportConfig(input: CreateReportConfigInput): Promise<ReportConfigRow> {
-		return this.repository.insertReportConfig({
+	const createReportConfig = (input: CreateReportConfigInput) => Effect.gen(function* () {
+		return yield* repository.insertReportConfig({
 			name: input.name,
 			description: input.description ?? null,
 			metrics: [...input.metrics],
 			schedule: input.schedule,
 			recipients: input.recipients === undefined ? [] : [...input.recipients],
 		});
-	}
+	});
 
-	async listReportConfigs(limit: number, offset: number) {
-		return this.repository.listReportConfigs(limit, offset);
-	}
+	const listReportConfigs = (limit: number, offset: number) => Effect.gen(function* () {
+		return yield* repository.listReportConfigs(limit, offset);
+	});
 
-	async updateReportConfig(
+	const updateReportConfig = (
 		id: string,
 		updates: {
 			name?: string | undefined;
@@ -727,23 +725,23 @@ export class AnalyticsService {
 			schedule?: ReportSchedule | undefined;
 			recipients?: readonly string[] | undefined;
 		},
-	): Promise<ReportConfigRow> {
-		const updated = await this.repository.updateReportConfig(id, {
+	) => Effect.gen(function* () {
+		const updated = yield* repository.updateReportConfig(id, {
 			...(updates.name === undefined ? {} : { name: updates.name }),
 			...(updates.description === undefined ? {} : { description: updates.description }),
 			...(updates.metrics === undefined ? {} : { metrics: [...updates.metrics] }),
 			...(updates.schedule === undefined ? {} : { schedule: updates.schedule }),
 			...(updates.recipients === undefined ? {} : { recipients: [...updates.recipients] }),
 		});
-		if (updated === null) throw new AnalyticsReportNotFound({ what: "analytics report config", id });
+		if (updated === null) return yield* new AnalyticsReportNotFound({ what: "analytics report config", id });
 		return updated;
-	}
+	});
 
-	async deleteReportConfig(id: string): Promise<{ success: boolean }> {
-		const removed = await this.repository.deleteReportConfig(id);
-		if (!removed) throw new AnalyticsReportNotFound({ what: "analytics report config", id });
+	const deleteReportConfig = (id: string) => Effect.gen(function* () {
+		const removed = yield* repository.deleteReportConfig(id);
+		if (!removed) return yield* new AnalyticsReportNotFound({ what: "analytics report config", id });
 		return { success: true };
-	}
+	});
 
 	// ─── Internals ──────────────────────────────────────────────────────────
 
@@ -756,56 +754,58 @@ export class AnalyticsService {
 	 * where the honest answer is "this host does not expose metrics" — a condition the
 	 * caller can display, unlike an error page.
 	 */
-	private async takeSnapshot(): Promise<ResourceSnapshot> {
-		try {
-			const [load, memory, disk, network, cpu] = await Promise.all([
-				systeminformation.currentLoad(),
-				systeminformation.mem(),
-				systeminformation.fsSize(),
-				systeminformation.networkStats(),
-				systeminformation.cpu(),
-			]);
+	const unavailableSnapshot: ResourceSnapshot = {
+		available: false,
+		cpuPercent: 0,
+		cores: 0,
+		memoryUsed: 0,
+		memoryTotal: 0,
+		memoryPercent: 0,
+		diskUsed: 0,
+		diskTotal: 0,
+		diskPercent: 0,
+		networkInbound: 0,
+		networkOutbound: 0,
+	};
 
-			const primaryDisk = disk[0];
-			const primaryNetwork = network[0];
-			const memoryUsed = memory.active;
-			const memoryPercent = memory.total > 0 ? (memoryUsed / memory.total) * 100 : 0;
+	const takeSnapshot: Effect.Effect<ResourceSnapshot> = Effect.tryPromise(async (): Promise<ResourceSnapshot> => {
+		const [load, memory, disk, network, cpu] = await Promise.all([
+			systeminformation.currentLoad(),
+			systeminformation.mem(),
+			systeminformation.fsSize(),
+			systeminformation.networkStats(),
+			systeminformation.cpu(),
+		]);
 
-			return {
-				available: true,
-				cpuPercent: load.currentLoad,
-				cores: cpu.cores,
-				memoryUsed,
-				memoryTotal: memory.total,
-				memoryPercent,
-				diskUsed: primaryDisk?.used ?? 0,
-				diskTotal: primaryDisk?.size ?? 0,
-				diskPercent: primaryDisk?.use ?? 0,
-				networkInbound: primaryNetwork?.rx_sec ?? 0,
-				networkOutbound: primaryDisk === undefined ? 0 : (primaryNetwork?.tx_sec ?? 0),
-			};
-		} catch (error: unknown) {
-			this.logger.warn(
-				`host metrics unavailable: ${error instanceof Error ? error.message : String(error)}`,
-			);
-			return {
-				available: false,
-				cpuPercent: 0,
-				cores: 0,
-				memoryUsed: 0,
-				memoryTotal: 0,
-				memoryPercent: 0,
-				diskUsed: 0,
-				diskTotal: 0,
-				diskPercent: 0,
-				networkInbound: 0,
-				networkOutbound: 0,
-			};
-		}
-	}
+		const primaryDisk = disk[0];
+		const primaryNetwork = network[0];
+		const memoryUsed = memory.active;
+		const memoryPercent = memory.total > 0 ? (memoryUsed / memory.total) * 100 : 0;
+
+		return {
+			available: true,
+			cpuPercent: load.currentLoad,
+			cores: cpu.cores,
+			memoryUsed,
+			memoryTotal: memory.total,
+			memoryPercent,
+			diskUsed: primaryDisk?.used ?? 0,
+			diskTotal: primaryDisk?.size ?? 0,
+			diskPercent: primaryDisk?.use ?? 0,
+			networkInbound: primaryNetwork?.rx_sec ?? 0,
+			networkOutbound: primaryDisk === undefined ? 0 : (primaryNetwork?.tx_sec ?? 0),
+		};
+	}).pipe(
+		Effect.catch((error: unknown) =>
+			Effect.sync(() => {
+				logger.warn(`host metrics unavailable: ${error instanceof Error ? error.message : String(error)}`);
+				return unavailableSnapshot;
+			}),
+		),
+	);
 
 	/** The snapshot as a usage point. */
-	private snapshotToUsage(snapshot: ResourceSnapshot) {
+	const snapshotToUsage = (snapshot: ResourceSnapshot) => {
 		return {
 			timestamp: new Date(),
 			cpu: { usage: analyticsRules.round1(snapshot.cpuPercent), cores: snapshot.cores },
@@ -821,10 +821,10 @@ export class AnalyticsService {
 			},
 			network: { inbound: snapshot.networkInbound, outbound: snapshot.networkOutbound },
 		};
-	}
+	};
 
 	/** The zero usage point, for an unavailable reading. */
-	private emptyUsage() {
+	const emptyUsage = () => {
 		return {
 			timestamp: new Date(),
 			cpu: { usage: 0, cores: 0 },
@@ -832,20 +832,43 @@ export class AnalyticsService {
 			disk: { used: 0, total: 0, percentage: 0 },
 			network: { inbound: 0, outbound: 0 },
 		};
-	}
+	};
 
 	/** Service NAMES to ids, or undefined when the caller did not scope. */
-	private async resolveServiceIds(services?: readonly string[]): Promise<string[] | undefined> {
+	const resolveServiceIds = (services?: readonly string[]) => Effect.gen(function* () {
 		if (services === undefined || services.length === 0) return undefined;
-		const rows = await this.repository.serviceRows([...services]);
+		const rows = yield* repository.serviceRows([...services]);
 		return rows.map((row) => row.id);
-	}
+	});
 
 	/** The ids of the services belonging to one project. */
-	private async serviceIdsByProject(projectId: string): Promise<string[]> {
-		const rows = await this.repository.serviceRows();
+	const serviceIdsByProject = (projectId: string) => Effect.gen(function* () {
+		const rows = yield* repository.serviceRows();
 		return rows.filter((row) => row.projectId === projectId).map((row) => row.id);
-	}
+	});
+	return {
+		resourceMetrics,
+		applicationMetrics,
+		databaseMetrics,
+		deploymentMetrics,
+		serviceHealth,
+		realtimeMetrics,
+		resourceUsage,
+		userActivity,
+		activitySummary,
+		apiUsage,
+		deploymentUsage,
+		storageUsage,
+		generateReport,
+		findReport,
+		listReports,
+		deleteReport,
+		downloadReport,
+		createReportConfig,
+		listReportConfigs,
+		updateReportConfig,
+		deleteReportConfig,
+	};
 }
 
 /**
@@ -873,3 +896,19 @@ function rangeFor(period: { start: Date; end: Date }): string {
 
 // Re-exported so the controller has one import for the domain's vocabulary.
 export type { AnalyticsDataSource };
+
+/** Every analytics use case; each leaves nothing open but its own failures. */
+export type AnalyticsServiceShape = ReturnType<typeof makeAnalyticsService>;
+
+/** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
+export class AnalyticsService extends Context.Service<AnalyticsService, AnalyticsServiceShape>()(
+	"identity/AnalyticsService",
+) {
+	/** Leaves `AnalyticsRepository` open, so a test swaps it without touching the database. */
+	static readonly Live: Layer.Layer<AnalyticsService, never, AnalyticsRepository> = Layer.effect(
+		AnalyticsService,
+		Effect.gen(function* () {
+			return makeAnalyticsService(yield* AnalyticsRepository);
+		}),
+	);
+}

@@ -1,22 +1,28 @@
 import { randomUUID } from "node:crypto";
+
 import { Effect } from "effect";
 import { beforeAll, describe, expect, it } from "vitest";
+
 // ── WHY `@/e2e/runtime`, NOT `@/e2e-harness/shared-api-runtime` ─────────────
 // The harness is app-agnostic and REQUIRES `nest.rootModuleLoader` — it lives in
 // `shared`, where `@/app.module` resolves to nothing, so it cannot default. The
 // app-local `@/e2e/runtime` wrapper binds this service's root module; importing the
 // harness directly throws
 // `SharedApiRuntimeOptions.nest.rootModuleLoader is required` at boot.
-import { getSharedApiRuntimeContext, type SharedApiRuntimeContext } from "@/e2e/runtime";
-import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
+import { Actor, Correlation, CurrentActor, type Ambient } from "@deployer/effect-core";
 import { user } from "@deployer/nest-schema/global/identity/auth";
 import { projects, services } from "@deployer/nest-schema/global/project/deployment";
+import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
+
+import { getSharedApiRuntimeContext, type SharedApiRuntimeContext } from "@/e2e/runtime";
+import { AnalyticsLive } from "@/modules/analytics/analytics.layers";
+import { AnalyticsService, type AnalyticsServiceShape } from "@/modules/analytics/services/analytics.service";
 import { UserService, type UserServiceShape } from "@/modules/user/services/user.service";
-import { UserLive } from "@/modules/user/user.layers";
-import { Actor, Correlation, CurrentActor, type Ambient } from "@deployer/effect-core";
-import { DatabasePort, type DatabaseShape } from "@identity/core/database/database.port";
 import type { UserFailure } from "@/modules/user/services/user.service";
-import { AnalyticsService } from "@/modules/analytics/services/analytics.service";
+import { UserLive } from "@/modules/user/user.layers";
+
+import { DatabasePort, type DatabaseShape } from "@identity/core/database/database.port";
+
 
 /** Run a user use case as `actor` against the real repository, outside the oRPC context. */
 function runUsers<T>(
@@ -37,6 +43,19 @@ function runUsers<T>(
 	);
 }
 
+/** Run an analytics use case against the real repository, outside the oRPC context. */
+function runAnalytics<A, E>(
+	database: DatabaseShape,
+	use: (analytics: AnalyticsServiceShape) => Effect.Effect<A, E>,
+): Promise<A> {
+	return Effect.runPromise(
+		Effect.gen(function* () {
+			const analytics = yield* AnalyticsService;
+			return yield* use(analytics);
+		}).pipe(Effect.provide(AnalyticsLive), Effect.provideService(DatabasePort, database)),
+	);
+}
+
 /**
  * The identity service's happy paths.
  *
@@ -50,7 +69,6 @@ describe("Identity happy-path workflows e2e: the domains this service owns", () 
 	let runtime: SharedApiRuntimeContext;
 	let admin: { userId: string; role: string };
 	let database: DatabaseShape;
-	let analyticsService: AnalyticsService;
 
 	beforeAll(async () => {
 		runtime = await getSharedApiRuntimeContext();
@@ -78,7 +96,6 @@ describe("Identity happy-path workflows e2e: the domains this service owns", () 
 		});
 
 		database = { db: globalDatabase.db };
-		analyticsService = runtime.serviceMapper.get(AnalyticsService);
 
 		// The realtime assertion below asks for two services BY NAME, so they have to
 		// exist. Seeded directly rather than through the project service: `identity`
@@ -152,8 +169,8 @@ describe("Identity happy-path workflows e2e: the domains this service owns", () 
 	});
 
 	it("returns resource and deployment metric series of the requested length", async () => {
-		const resources = await analyticsService.resourceMetrics({ timeRange: "1d", granularity: "hour" });
-		const deployments = await analyticsService.deploymentMetrics({ timeRange: "7d", granularity: "day" });
+		const resources = await runAnalytics(database, (analytics) => analytics.resourceMetrics({ timeRange: "1d", granularity: "hour" }));
+		const deployments = await runAnalytics(database, (analytics) => analytics.deploymentMetrics({ timeRange: "7d", granularity: "day" }));
 
 		// The bucket count IS the contract: a series that does not cover the window would make
 		// a chart silently plot less than the range it labels.
@@ -162,12 +179,12 @@ describe("Identity happy-path workflows e2e: the domains this service owns", () 
 	});
 
 	it("returns one realtime sample per requested service", async () => {
-		const realtime = await analyticsService.realtimeMetrics(["api", "cache"]);
+		const realtime = await runAnalytics(database, (analytics) => analytics.realtimeMetrics(["api", "cache"]));
 		expect(realtime.services).toHaveLength(2);
 	});
 
 	it("generates a report and reads it back by id", async () => {
-		const report = await analyticsService.generateReport({
+		const report = await runAnalytics(database, (analytics) => analytics.generateReport({
 			period: {
 				start: new Date(Date.now() - 24 * 60 * 60 * 1000),
 				end: new Date(),
@@ -183,11 +200,11 @@ describe("Identity happy-path workflows e2e: the domains this service owns", () 
 			includeServiceHealth: false,
 			includeUserActivity: false,
 			format: "json",
-		});
+		}));
 
 		expect(report.id).toBeTruthy();
 
-		const status = await analyticsService.findReport(report.id);
+		const status = await runAnalytics(database, (analytics) => analytics.findReport(report.id));
 		expect(status.id).toBe(report.id);
 	});
 });
