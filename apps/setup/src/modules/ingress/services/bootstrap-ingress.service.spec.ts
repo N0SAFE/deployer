@@ -36,7 +36,6 @@ function makeService(options: { restoreError?: Error; promoted?: boolean } = {})
 	} as unknown as EnvService;
 
 	const docker = {
-		getDockerClient: () => ({}),
 	} as unknown as DockerService;
 
 	const service = new BootstrapIngressService(docker, env);
@@ -114,7 +113,6 @@ describe("BootstrapIngressService.waitForSwarmIngressRunning", () => {
 	function makeProbe(tasks: unknown[], portAnswers = false) {
 		const env = { get: vi.fn(() => "") } as unknown as EnvService;
 		const docker = {
-			getDockerClient: () => ({}),
 			inspectSwarmService: vi.fn().mockResolvedValue({ ID: "svc" }),
 			listSwarmServiceTasks: vi.fn().mockResolvedValue(tasks),
 		} as unknown as DockerService;
@@ -164,7 +162,6 @@ describe("BootstrapIngressService.waitForSwarmIngressRunning", () => {
 	it("treats a missing service as 'not promoted yet', not as a fault", async () => {
 		const env = { get: vi.fn(() => "") } as unknown as EnvService;
 		const docker = {
-			getDockerClient: () => ({}),
 			inspectSwarmService: vi
 				.fn()
 				.mockRejectedValue(new NotFoundException("Swarm service not found")),

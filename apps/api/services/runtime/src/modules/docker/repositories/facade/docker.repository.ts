@@ -2,6 +2,8 @@ import { Injectable, Inject, Optional, Logger, NotFoundException } from "@nestjs
 import { createHash } from "node:crypto";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { DockerService } from "@deployer/nest-effect/docker";
+import { DockerNotFound } from "@deployer/docker";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { ScannerContainerManagerService } from "@deployer/nest-effect/docker";
 import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
 import { ContainerDockerodeNormalizer } from "../../shared/container-dockerode-normalizer.service";
@@ -236,7 +238,7 @@ export class DockerRepository {
 
     this.localDockerDaemonIdLoadPromise = (async () => {
       try {
-        const dockerInfo = await this.dockerService.getDockerClient().info();
+        const dockerInfo = await runPromiseUnwrapped(this.dockerService.getEngine().info());
         const daemonId = typeof dockerInfo.ID === "string" && dockerInfo.ID.trim().length > 0
           ? dockerInfo.ID.trim()
           : null;
@@ -824,8 +826,7 @@ export class DockerRepository {
   }
 
   private async listRawContainers(): Promise<DockerodeContainerList[]> {
-    const docker = this.dockerService.getDockerClient();
-    const raw = await docker.listContainers({ all: true });
+    const raw = await runPromiseUnwrapped(this.dockerService.getEngine().containers.list({ all: true }));
     const result = dockerodeContainerListSchema.array().safeParse(raw);
     if (result.success) {
       return result.data;
@@ -1188,7 +1189,7 @@ export class DockerRepository {
 
       for (const imageCandidate of imageCandidates) {
         try {
-          const imageInspect = await this.dockerService.getDockerClient().getImage(imageCandidate).inspect();
+          const imageInspect = await runPromiseUnwrapped(this.dockerService.getEngine().images.inspect(imageCandidate));
           layerIds = this.extractRootFsLayers(imageInspect);
           if (layerIds.length > 0) {
             break;
@@ -2119,12 +2120,12 @@ export class DockerRepository {
   }
 
   private async inspectImageWithCandidates(imageId: string): Promise<DockerodeImageInspect> {
-    const docker = this.dockerService.getDockerClient();
+    const imageApi = this.dockerService.getEngine().images;
     const candidates = this.buildImageInspectCandidates(imageId);
 
     for (const candidate of candidates) {
       try {
-        const raw = await docker.getImage(candidate).inspect();
+        const raw = await runPromiseUnwrapped(imageApi.inspect(candidate));
         const parsed = dockerodeImageInspectSchema.safeParse(raw);
         if (parsed.success) return parsed.data;
       } catch {
@@ -2132,15 +2133,13 @@ export class DockerRepository {
       }
     }
 
-    const imageList = await docker.listImages();
-    const parsedImages = z.array(dockerodeImageSummarySchema).safeParse(imageList);
-    const images = parsedImages.success ? parsedImages.data : [];
+    const images = await runPromiseUnwrapped(this.dockerService.getEngine().images.list());
 
     const resolvedCandidates = this.buildImageInspectCandidatesFromImageList(imageId, images);
 
     for (const candidate of resolvedCandidates) {
       try {
-        const raw = await docker.getImage(candidate).inspect();
+        const raw = await runPromiseUnwrapped(imageApi.inspect(candidate));
         const parsed = dockerodeImageInspectSchema.safeParse(raw);
         if (parsed.success) return parsed.data;
       } catch {
@@ -3093,7 +3092,7 @@ export class DockerRepository {
 
   private async scannerImageExistsLocally(image: string): Promise<boolean> {
     try {
-      await this.dockerService.getDockerClient().getImage(image).inspect();
+      await runPromiseUnwrapped(this.dockerService.getEngine().images.inspect(image));
       return true;
     } catch {
       return false;
@@ -3264,15 +3263,13 @@ export class DockerRepository {
     containerId: string,
     scanner: ScannerExecutionConfig["scanner"],
   ): Promise<void> {
-    const dockerClient = this.dockerService.getDockerClient();
+    const containers = this.dockerService.getEngine().containers;
 
     for (let attempt = 1; attempt <= 3; attempt++) {
       await this.dockerService.removeContainer(containerId);
 
-      const container = dockerClient.getContainer(containerId);
-
       try {
-        await container.inspect();
+        await runPromiseUnwrapped(containers.inspect(containerId));
       } catch (error) {
         if (this.isContainerNotFoundError(error)) {
           return;
@@ -3290,7 +3287,7 @@ export class DockerRepository {
       }
 
       try {
-        await container.remove({ force: true, v: true });
+        await runPromiseUnwrapped(containers.removeIfExists(containerId, { removeVolumes: true }));
       } catch (error) {
         if (this.isContainerNotFoundError(error)) {
           return;
@@ -3302,7 +3299,7 @@ export class DockerRepository {
       }
 
       try {
-        await container.inspect();
+        await runPromiseUnwrapped(containers.inspect(containerId));
       } catch (error) {
         if (this.isContainerNotFoundError(error)) {
           return;
@@ -3326,7 +3323,7 @@ export class DockerRepository {
 
     const record = isRecord(error) ? error : {};
 
-    if (record.statusCode === 404) {
+    if (error instanceof DockerNotFound || record.statusCode === 404) {
       return true;
     }
 
@@ -3357,7 +3354,7 @@ export class DockerRepository {
   }
 
   private async waitForContainerExit(containerId: string, timeoutMs: number): Promise<number> {
-    const container = this.dockerService.getDockerClient().getContainer(containerId);
+    const containers = this.dockerService.getEngine().containers;
     let timeoutId: NodeJS.Timeout | null = null;
 
     const timeoutPromise = new Promise<never>((_, reject) => {
@@ -3366,19 +3363,7 @@ export class DockerRepository {
       }, timeoutMs);
     });
 
-    const waitPromise = container
-      .wait()
-      .then((result) => {
-        if (typeof result === "number") {
-          return result;
-        }
-
-        if (typeof result === "object" && result !== null && typeof (result as { StatusCode?: unknown }).StatusCode === "number") {
-          return (result as { StatusCode: number }).StatusCode;
-        }
-
-        return 1;
-      });
+    const waitPromise = runPromiseUnwrapped(containers.wait(containerId));
 
     try {
       return await Promise.race([waitPromise, timeoutPromise]);
@@ -3857,10 +3842,7 @@ export class DockerRepository {
   }
 
   async listImages(input: DockerImageListInput) {
-    const docker = this.dockerService.getDockerClient();
-    const raw = await docker.listImages();
-    const parsed = z.array(dockerodeImageSummarySchema).safeParse(raw);
-    const rawImages = parsed.success ? parsed.data : [];
+    const rawImages = await runPromiseUnwrapped(this.dockerService.getEngine().images.list());
 
     const mapped: DockerImage[] = [];
 
@@ -3933,10 +3915,7 @@ export class DockerRepository {
   }
 
   async listNetworks(input: DockerNetworkListInput) {
-    const docker = this.dockerService.getDockerClient();
-    const raw = await docker.listNetworks();
-    const parsed = z.array(dockerodeNetworkSummarySchema).safeParse(raw);
-    const rawNetworks: DockerodeNetworkSummary[] = parsed.success ? parsed.data : [];
+    const rawNetworks: DockerodeNetworkSummary[] = await runPromiseUnwrapped(this.dockerService.getEngine().networks.list());
 
     const mapped = rawNetworks.map((network) => {
       const ipamConfig = (network.IPAM?.Config ?? [])[0] ?? {};
@@ -3984,9 +3963,9 @@ export class DockerRepository {
   }
 
   async listVolumes(input: DockerVolumeListInput) {
-    const docker = this.dockerService.getDockerClient();
-    const [volumesResult, rawContainers] = await Promise.all([
-      docker.listVolumes(),
+    const engine = this.dockerService.getEngine();
+    const [rawVolumes, rawContainers] = await Promise.all([
+      runPromiseUnwrapped(engine.volumes.list()),
       this.listRawContainers(),
     ]);
 
@@ -4002,9 +3981,6 @@ export class DockerRepository {
         usedByVolume.set(volumeName, current);
       }
     }
-
-    const parsedVolumes = dockerodeVolumeListResponseSchema.safeParse(volumesResult);
-    const rawVolumes: DockerodeVolumeEntry[] = parsedVolumes.success ? parsedVolumes.data.Volumes : [];
 
     const mapped = rawVolumes.map((volume) =>
       dockerVolumeSchema.parse({

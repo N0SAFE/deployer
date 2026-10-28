@@ -28,7 +28,7 @@ NestJS only mounts those services (a module, a thin host class). No logic lives 
 
 | Order | Package | Size | Consumers | Notes |
 |---|---|---|---|---|
-| 1 | Raw docker callers in runtime | | runtime | `getDockerClient()` is gone from shared, setup, fleet and the base supervisor (the engine gained events, network attach/detach and volume inspect). Left: runtime's docker module (`docker.repository.ts`, container runtime/metrics/events services) and `scanner-container-manager`, then delete `getDockerClient()` and the Promise `DockerService` methods |
+| 1 | Promise `DockerService` methods | | shared, fleet, runtime, setup | `getDockerClient()` is deleted: every caller is on the engine (events, exec.interactive, wait/top, network attach, volume/image inspect, info). Left: callers of the Promise `DockerService` methods (`createContainer`, `removeContainer`, swarm helpers), then delete that adapter |
 | 2 | `nest-lifecycle`, `nest-env`, `nest-database-core` | 0.7k | all apps | env becomes an Effect `Env` service; lifecycle a scoped layer; database-core's tokens move with the global database |
 | 3 | `nest-events` | 1.8k | shared, project, runtime, fleet | RxJS bus to Effect `PubSub`/`Stream` |
 | 4 | `nest-service-client` | 1.4k | bff | |

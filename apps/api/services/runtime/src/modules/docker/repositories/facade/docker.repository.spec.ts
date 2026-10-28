@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import { DockerRepository } from "./docker.repository";
 
@@ -11,12 +12,18 @@ function createCleanupHarness(params: {
   const remove = vi.fn(params.removeImpl ?? (async () => undefined));
 
   const removeContainer = vi.fn(async () => undefined);
-  const getContainer = vi.fn(() => ({ inspect, remove }));
-  const getDockerClient = vi.fn(() => ({ getContainer }));
+  // The engine's containers: the failure of a rejected call travels as the Effect's own error,
+  // which the repository reads back (a 404 means the container is gone).
+  const getEngine = vi.fn(() => ({
+    containers: {
+      inspect: () => Effect.tryPromise({ try: () => inspect(), catch: (cause) => cause }),
+      removeIfExists: () => Effect.tryPromise({ try: () => remove(), catch: (cause) => cause }),
+    },
+  }));
 
   const dockerService = {
     removeContainer,
-    getDockerClient,
+    getEngine,
   };
 
   const scannerContainerManager = {

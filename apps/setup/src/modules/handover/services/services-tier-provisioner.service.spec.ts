@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import { makeEnvService } from "@/test-support/env";
@@ -25,7 +26,7 @@ async function schedule(env: Record<string, string>, managedWeb: boolean | null 
       return Promise.resolve({});
     }),
     updateSwarmService: vi.fn().mockResolvedValue(undefined),
-    getDockerClient: vi.fn(() => ({ listServices: vi.fn().mockResolvedValue([]) })),
+    getEngine: vi.fn(() => ({ swarmServices: { list: () => Effect.succeed([]) } })),
   };
   const gate = { managedWebEnabled: vi.fn(() => managedWeb) };
   const tier = new ServicesTierProvisioner(

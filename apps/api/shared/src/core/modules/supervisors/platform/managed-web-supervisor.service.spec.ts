@@ -52,7 +52,6 @@ function makeSupervisor(overrides: Record<string, unknown> = {}) {
 	};
 
 	const docker = {
-		getDockerClient: () => ({}),
 	} as unknown as DockerService;
 
 	const supervisor = new ManagedWebSupervisorService(

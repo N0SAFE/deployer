@@ -9,7 +9,27 @@ import { extractInlineOutput, isReadableStream, isWritableStream } from "./strea
 
 export type ExecResult = { readonly exitCode: number; readonly output: string };
 
+export type InteractiveExecOptions = {
+	readonly cmd: string[];
+	readonly user?: string;
+	readonly workingDir?: string;
+	readonly env?: string[];
+	/** `true` upgrades the connection (raw TTY); `false` uses the plain-HTTP transport some proxies need. */
+	readonly hijack: boolean;
+	/** Give up on the attach after this long. */
+	readonly timeoutMs: number;
+};
+
 export type ExecShape = {
+	/**
+	 * Starts an interactive TTY command and hands back its duplex stream; the caller owns the stream
+	 * (reads, writes, and destroys it). If the upgraded start fails the callback form is tried once,
+	 * which some daemons need. A start that outlasts `timeoutMs` is a `DockerUnavailable` saying so.
+	 */
+	readonly interactive: (
+		idOrName: string,
+		options: InteractiveExecOptions,
+	) => Effect.Effect<NodeJS.ReadWriteStream, DockerError>;
 	/**
 	 * Runs `cmd` in a running container and returns its combined stdout and stderr. A non-zero exit
 	 * is a failure carrying the output. `input` is written to the command's stdin.
@@ -85,7 +105,59 @@ export function makeExec(client: Docker): ExecShape {
 			),
 		);
 
+	const startInteractive = (
+		exec: Docker.Exec,
+		startOptions: { hijack: boolean; stdin: boolean },
+		signal: AbortSignal,
+	): Promise<unknown> =>
+		(async () => {
+			try {
+				return await exec.start({ ...startOptions, abortSignal: signal });
+			} catch {
+				// Some daemons only hand the stream to the callback form.
+				return await new Promise<unknown>((resolve, reject) => {
+					exec.start(startOptions, (error, stream) => {
+						if (error) reject(error instanceof Error ? error : new Error(String(error)));
+						else resolve(stream);
+					});
+				});
+			}
+		})();
+
+	const interactive: ExecShape["interactive"] = (idOrName, options) =>
+		engineCall(
+			`open an interactive shell in container ${idOrName}`,
+			async (signal) => {
+				const exec = await client.getContainer(idOrName).exec({
+					AttachStdin: true,
+					AttachStdout: true,
+					AttachStderr: true,
+					Tty: true,
+					Cmd: options.cmd,
+					User: options.user,
+					WorkingDir: options.workingDir,
+					Env: options.env,
+					abortSignal: signal,
+				});
+				const stream = await startInteractive(exec, { hijack: options.hijack, stdin: true }, signal);
+				if (!isWritableStream(stream)) throw new Error("exec.start() did not return a duplex stream");
+				return stream;
+			},
+			`container '${idOrName}'`,
+		).pipe(
+			Effect.timeoutOrElse({
+				duration: options.timeoutMs,
+				orElse: () =>
+					Effect.fail(
+						new DockerUnavailable({
+							reason: `Timed out after ${String(options.timeoutMs)}ms opening a shell in container ${idOrName}`,
+						}),
+					),
+			}),
+		);
+
 	return {
+		interactive,
 		run: Effect.fn("DockerExec.run")(function* (idOrName, cmd, input) {
 			const result = yield* attemptExec(idOrName, cmd, input);
 			if (result.exitCode !== 0) {

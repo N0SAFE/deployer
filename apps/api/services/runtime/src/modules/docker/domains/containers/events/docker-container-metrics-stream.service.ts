@@ -1,4 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { Observable, from, interval } from "rxjs";
 import { exhaustMap, mergeMap, startWith, tap } from "rxjs/operators";
 import * as systeminformation from "systeminformation";
@@ -206,15 +207,14 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
       return [];
     }
 
-    const docker = this.dockerService.getDockerClient();
+    const containers = this.dockerService.getEngine().containers;
     const events: DockerRuntimeEvent[] = [];
 
     for (const candidateId of targetIds) {
       try {
-        const container = docker.getContainer(candidateId);
         const [inspect, rawStatsUnknown] = await Promise.all([
-          container.inspect(),
-          container.stats({ stream: false }),
+          runPromiseUnwrapped(containers.inspect(candidateId)),
+          runPromiseUnwrapped(containers.stats(candidateId)),
         ]);
 
         const rawStats = isRecord(rawStatsUnknown) ? rawStatsUnknown : {};

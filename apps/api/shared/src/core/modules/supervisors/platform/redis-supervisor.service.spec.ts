@@ -69,7 +69,6 @@ function makeEnv(overrides: Partial<Record<string, unknown>> = {}): EnvService {
 function makeSupervisor(envOverrides: Partial<Record<string, unknown>> = {}, swarmActive = true) {
 	const { client, services } = makeDockerClient(swarmActive);
 	const dockerService = {
-		getDockerClient: () => client,
 		// The base class gates convergence on `isSwarmActive()`, which calls this
 		// high-level probe — NOT the raw client's `info()`. Without it the probe
 		// throws, is caught, reports "not active", and every reconcile is DEFERRED,
@@ -95,7 +94,7 @@ function makeSupervisor(envOverrides: Partial<Record<string, unknown>> = {}, swa
 	} as unknown as DockerService;
 
 	const env = makeEnv(envOverrides);
-	// Inject swarm helpers onto the same dockerService object used by getDockerClient().
+	// Inject swarm helpers onto the same dockerService object the supervisor reads.
 	(dockerService as unknown as { _client: unknown })._client = client;
 	const supervisor = new RedisSupervisorService(dockerService, env);
 	// The base calls dockerService.ensureOverlayNetwork — ensure it's present.

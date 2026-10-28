@@ -28,6 +28,8 @@ export type ImagesShape = {
 	readonly exists: (image: string) => Effect.Effect<boolean>;
 	/** Removes an image, forced. One that is already gone counts as removed. */
 	readonly remove: (imageTag: string) => Effect.Effect<void, DockerError>;
+	/** The image as the engine describes it, or `DockerNotFound`. */
+	readonly inspect: (image: string) => Effect.Effect<Docker.ImageInspectInfo, DockerError>;
 	/** Top-level images on this engine (`GET /images/json`). */
 	readonly list: () => Effect.Effect<DockerodeImageSummary[], DockerError>;
 	/** Pulls `image`, retrying with exponential backoff. */
@@ -117,5 +119,8 @@ export function makeImages(client: Docker): ImagesShape {
 			Effect.catch(() => Effect.succeed(false)),
 		);
 
-	return { pull, ensurePresent, remove, list, exists };
+	const inspect: ImagesShape["inspect"] = (image) =>
+		engineCall(`inspect image ${image}`, () => client.getImage(image).inspect(), `image '${image}'`);
+
+	return { pull, ensurePresent, remove, list, exists, inspect };
 }

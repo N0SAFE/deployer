@@ -22,7 +22,7 @@ import { Observable } from "rxjs";
 // `bun build` fail with "No matching export in src/docker-config.ts", which is
 // reported as `AggregateError: Bundle failed` with exit code 0 and NO dist/types
 // written — silently breaking every downstream package that needs this one's types.
-import type { DockerConnectionConfig } from "@deployer/docker";
+import type { DockerConnectionConfig, ScannerEngineAccess } from "@deployer/docker";
 import type {
     DockerodeSwarmInitResponse,
     DockerodeSwarmInfo,
@@ -305,10 +305,15 @@ export class DockerService {
 
 
     /**
-     * Expose raw Docker client for advanced operations
+     * How a container started by the scanner pool reaches this engine: the bind-mounted socket, or
+     * the TCP endpoint when the client talks to a remote daemon.
      */
-    getDockerClient(): Docker {
-        return this.docker;
+    getScannerEngineAccess(): ScannerEngineAccess {
+        const { host, port } = this.docker as unknown as { host?: string; port?: number };
+        return {
+            socketBind: this.getDockerSocketBindMount(),
+            ...(host && port ? { tcp: { host, port } } : {}),
+        };
     }
 
     /**

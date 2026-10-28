@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { BadRequestError } from "@deployer/errors";
+import { Cause, Effect, Fiber, Stream } from "effect";
 import {
   Observable,
   defer,
@@ -126,120 +126,37 @@ export class DockerRuntimeEventsSourceService extends AbstractDomainEventStreamS
   }
 
   private createDockerEventsStream(query: StreamQuery): Observable<DockerRuntimeEvent> {
-    const getEventsOptions = this.buildGetEventsOptions(query) as Parameters<
-      ReturnType<CoreDockerService["getDockerClient"]>["getEvents"]
-    >[0];
+    const getEventsOptions = this.buildGetEventsOptions(query);
 
     this.logger.log(
       `[docker-runtime-sse] docker.getEvents options=${JSON.stringify(getEventsOptions)}`,
     );
 
-    return defer(() =>
-      from(
-        Promise.resolve(
-          this.dockerService.getDockerClient().getEvents(getEventsOptions),
+    const events = this.dockerService.getEngine().events;
+
+    return new Observable<DockerRuntimeEvent>((subscriber) => {
+      const fiber = Effect.runFork(
+        events.stream(getEventsOptions).pipe(
+          Stream.runForEach((event) =>
+            Effect.sync(() => {
+              subscriber.next(this.mapDockerEvent(event));
+            }),
+          ),
+          Effect.matchCause({
+            onSuccess: () => {
+              subscriber.complete();
+            },
+            onFailure: (cause) => {
+              subscriber.error(Cause.squash(cause));
+            },
+          }),
         ),
-      ).pipe(
-        mergeMap((eventStream) => {
-          if (!this.isReadableStream(eventStream)) {
-            throw new BadRequestError("docker.getEvents() did not return a readable stream");
-          }
-
-          const bufferState = { value: "" };
-
-          const completed$ = merge(
-            this.observeStreamEvent(eventStream, "end"),
-            this.observeStreamEvent(eventStream, "close"),
-          ).pipe(take(1));
-
-          const errors$ = this.observeStreamEvent(eventStream, "error").pipe(
-            take(1),
-            map((error) => {
-              throw error instanceof Error ? error : new Error(String(error));
-            }),
-          );
-
-          const events$ = this.observeStreamEvent(eventStream, "data").pipe(
-            takeUntil(completed$),
-            mergeMap((chunk) =>
-              from(
-                this.parseDockerEventsChunk(
-                  this.toBufferOrString(chunk),
-                  bufferState,
-                ),
-              ),
-            ),
-          );
-
-          return merge(events$, errors$).pipe(
-            takeUntil(completed$),
-            finalize(() => {
-              if (this.isDestroyableStream(eventStream)) {
-                eventStream.destroy();
-              }
-            }),
-          );
-        }),
-      ),
-    );
-  }
-
-  private observeStreamEvent(
-    stream: NodeJS.ReadableStream,
-    eventName: string,
-  ): Observable<unknown> {
-    return fromEventPattern(
-      (handler) => {
-        stream.on(eventName, handler);
-      },
-      (handler) => {
-        stream.removeListener(eventName, handler);
-      },
-    );
-  }
-
-  private toBufferOrString(value: unknown): Buffer | string {
-    if (typeof value === "string" || Buffer.isBuffer(value)) {
-      return value;
-    }
-
-    return String(value);
-  }
-
-  private parseDockerEventsChunk(
-    chunk: Buffer | string,
-    state: { value: string },
-  ): DockerRuntimeEvent[] {
-    state.value += typeof chunk === "string" ? chunk : chunk.toString("utf8");
-
-    const events: DockerRuntimeEvent[] = [];
-
-    for (;;) {
-      const lineBreakIndex = state.value.indexOf("\n");
-      if (lineBreakIndex < 0) break;
-
-      const line = state.value.slice(0, lineBreakIndex).trim();
-      state.value = state.value.slice(lineBreakIndex + 1);
-
-      if (!line) {
-        continue;
-      }
-
-      try {
-        const parsed: unknown = JSON.parse(line);
-        if (!this.isRecord(parsed)) {
-          continue;
-        }
-
-        events.push(this.mapDockerEvent(parsed));
-      } catch (error) {
-        this.logger.warn(
-          `Skipping malformed Docker event line: ${this.formatError(error)}`,
-        );
-      }
-    }
-
-    return events;
+      );
+      // Interrupting the fiber releases the engine connection.
+      return () => {
+        void Effect.runPromise(Fiber.interrupt(fiber));
+      };
+    });
   }
 
   private mapDockerEvent(rawEvent: DockerRawEvent): DockerRuntimeEvent {
@@ -516,25 +433,6 @@ export class DockerRuntimeEventsSourceService extends AbstractDomainEventStreamS
     }
 
     return options;
-  }
-
-  private isReadableStream(value: unknown): value is NodeJS.ReadableStream {
-    return (
-      typeof value === "object" &&
-      value !== null &&
-      "on" in value &&
-      typeof (value as { on?: unknown }).on === "function"
-    );
-  }
-
-  private isDestroyableStream(
-    value: unknown,
-  ): value is NodeJS.ReadableStream & { destroy: () => void } {
-    return (
-      this.isReadableStream(value) &&
-      "destroy" in value &&
-      typeof value.destroy === "function"
-    );
   }
 
   private isRecord(value: unknown): value is Record<string, unknown> {

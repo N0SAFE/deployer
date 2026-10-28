@@ -47,7 +47,7 @@ export type ContainersShape = {
 	 * Force-removes a container. One that is gone, or already being removed, counts as removed; any
 	 * other refusal is a failure.
 	 */
-	readonly removeIfExists: (idOrName: string) => Effect.Effect<void, DockerError>;
+	readonly removeIfExists: (idOrName: string, options?: { readonly removeVolumes?: boolean }) => Effect.Effect<void, DockerError>;
 	/** Starts every non-running container labelled with the deployment. */
 	readonly startByDeployment: (deploymentId: string) => Effect.Effect<void, DockerError>;
 	/** The engine's full record of the container; `DockerNotFound` when there is none. */
@@ -57,6 +57,13 @@ export type ContainersShape = {
 	/** One resource-usage sample. */
 	readonly stats: (idOrName: string) => Effect.Effect<Record<string, unknown>, DockerError>;
 	/** Stops a container; one that is not running counts as stopped. */
+	/** Blocks until the container exits and returns its exit code (1 when the engine gives none). */
+	readonly wait: (idOrName: string) => Effect.Effect<number, DockerError>;
+	/** The container's process table (`ps` columns as titles, one row per process). */
+	readonly top: (
+		idOrName: string,
+		psArgs?: string,
+	) => Effect.Effect<{ readonly Titles?: string[]; readonly Processes?: string[][] }, DockerError>;
 	readonly stop: (idOrName: string) => Effect.Effect<void, DockerError>;
 	readonly restart: (idOrName: string) => Effect.Effect<void, DockerError>;
 	/** Pauses a container; one that is already paused counts as paused. */
@@ -216,9 +223,9 @@ export function makeContainers(client: Docker, images: ImagesShape): ContainersS
 		return false;
 	});
 
-	const removeIfExists: ContainersShape["removeIfExists"] = (idOrName) =>
+	const removeIfExists: ContainersShape["removeIfExists"] = (idOrName, options) =>
 		fromAbortable(async (signal) => {
-			await client.getContainer(idOrName).remove({ force: true, abortSignal: signal } as Docker.ContainerRemoveOptions);
+			await client.getContainer(idOrName).remove({ force: true, v: options?.removeVolumes === true, abortSignal: signal } as Docker.ContainerRemoveOptions);
 		}, (cause) => cause).pipe(
 			Effect.catch((cause) => {
 				const statusCode = typeof cause === "object" && cause !== null && "statusCode" in cause ? cause.statusCode : undefined;
@@ -239,6 +246,31 @@ export function makeContainers(client: Docker, images: ImagesShape): ContainersS
 			}
 		},
 	);
+
+	const wait: ContainersShape["wait"] = (idOrName) =>
+		engineCall(
+			`wait for container ${idOrName}`,
+			async (signal) => {
+				const result: unknown = await (client.getContainer(idOrName).wait as (o: object) => Promise<unknown>)({ abortSignal: signal });
+				if (typeof result === "number") return result;
+				if (typeof result === "object" && result !== null && "StatusCode" in result && typeof result.StatusCode === "number") {
+					return result.StatusCode;
+				}
+				return 1;
+			},
+			`container '${idOrName}'`,
+		);
+
+	const top: ContainersShape["top"] = (idOrName, psArgs = "aux") =>
+		engineCall(
+			`list processes of container ${idOrName}`,
+			async (signal) =>
+				(await (client.getContainer(idOrName).top as (o: object) => Promise<unknown>)({
+					ps_args: psArgs,
+					abortSignal: signal,
+				})) as { Titles?: string[]; Processes?: string[][] },
+			`container '${idOrName}'`,
+		);
 
 	const inspect: ContainersShape["inspect"] = (idOrName) =>
 		engineCall(`inspect container ${idOrName}`, () => client.getContainer(idOrName).inspect(), `container '${idOrName}'`);
@@ -379,6 +411,8 @@ export function makeContainers(client: Docker, images: ImagesShape): ContainersS
 		removeIfExists,
 		startByDeployment,
 		inspect,
+		wait,
+		top,
 		list,
 		stats,
 		stop,

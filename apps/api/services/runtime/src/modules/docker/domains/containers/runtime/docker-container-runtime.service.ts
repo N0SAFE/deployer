@@ -2,6 +2,8 @@ import { Injectable, type OnModuleDestroy, NotFoundException } from "@nestjs/com
 import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import { Observable, ReplaySubject, from, interval, startWith, switchMap } from "rxjs";
+import type { ExecShape } from "@deployer/docker";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import type Docker from "dockerode";
 import type {
   DockerContainerCreateDirectoryBodyInput,
@@ -525,16 +527,11 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
   }
 
   private async attachTerminalStream(session: TerminalSession): Promise<"stream" | "command"> {
-    const docker = this.coreDockerService.getDockerClient();
-    const container = docker.getContainer(session.containerId);
+    const exec = this.coreDockerService.getEngine().exec;
 
     let rawStream: unknown;
     try {
-      const primaryExec = await this.createTerminalExec(container, session);
-      rawStream = await this.startTerminalExecStream(primaryExec, {
-        hijack: true,
-        stdin: true,
-      });
+      rawStream = await this.openTerminalStream(exec, session, true);
     } catch (error) {
       if (this.isRecoverableAttachError(error)) {
         this.emitTerminalEvent(
@@ -544,11 +541,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
         );
 
         try {
-          const fallbackExec = await this.createTerminalExec(container, session);
-          rawStream = await this.startTerminalExecStream(fallbackExec, {
-            hijack: false,
-            stdin: true,
-          });
+          rawStream = await this.openTerminalStream(exec, session, false);
         } catch (fallbackError) {
           this.emitTerminalEvent(
             session,
@@ -768,56 +761,21 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
     ]);
   }
 
-  private async createTerminalExec(container: Docker.Container, session: TerminalSession): Promise<Docker.Exec> {
-    const shellCommand = this.buildInteractiveShellCommand(session.shell, session.workingDir);
-
-    return container.exec({
-      AttachStdin: true,
-      AttachStdout: true,
-      AttachStderr: true,
-      Tty: true,
-      Cmd: shellCommand,
-      User: session.user,
-      WorkingDir: session.workingDir,
-      Env: ["TERM=xterm-256color"],
-    });
-  }
-
-  private async startTerminalExecStream(
-    exec: Docker.Exec,
-    options: {
-      hijack: boolean;
-      stdin: boolean;
-    },
+  private async openTerminalStream(
+    exec: ExecShape,
+    session: TerminalSession,
+    hijack: boolean,
   ): Promise<unknown> {
-    try {
-      return await this.withTimeout(
-        Promise.resolve(exec.start(options)),
-        TERMINAL_ATTACH_TIMEOUT_MS,
-      );
-    } catch (error) {
-      if (!this.isRecoverableAttachError(error)) {
-        throw error;
-      }
-
-      return this.withTimeout(
-        new Promise<unknown>((resolve, reject) => {
-          try {
-            exec.start(options, (callbackError, stream) => {
-              if (callbackError) {
-                reject(callbackError);
-                return;
-              }
-
-              resolve(stream);
-            });
-          } catch (callbackStartError) {
-            reject(callbackStartError);
-          }
-        }),
-        TERMINAL_ATTACH_TIMEOUT_MS,
-      );
-    }
+    return await runPromiseUnwrapped(
+      exec.interactive(session.containerId, {
+        cmd: this.buildInteractiveShellCommand(session.shell, session.workingDir),
+        user: session.user,
+        workingDir: session.workingDir,
+        env: ["TERM=xterm-256color"],
+        hijack,
+        timeoutMs: TERMINAL_ATTACH_TIMEOUT_MS,
+      }),
+    );
   }
 
   private emitTerminalEvent(
@@ -935,25 +893,6 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
     return message.includes("timed out") || message.includes("timeout");
   }
 
-  private async withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
-
-    try {
-      return await Promise.race<T>([
-        promise,
-        new Promise<T>((_, reject) => {
-          timeoutHandle = setTimeout(() => {
-            reject(new Error(`Operation timed out after ${String(timeoutMs)}ms`));
-          }, timeoutMs);
-        }),
-      ]);
-    } finally {
-      if (timeoutHandle) {
-        clearTimeout(timeoutHandle);
-      }
-    }
-  }
-
   private toTerminalChunk(chunk: unknown): string {
     if (typeof chunk === "string") {
       return chunk;
@@ -1047,10 +986,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
   }
 
   private async collectContainerProcesses(containerId: string, generatedAt: string): Promise<DockerContainerProcessEntry[]> {
-    const docker = this.coreDockerService.getDockerClient();
-    const container = docker.getContainer(containerId);
-
-    const topResult = await container.top({ ps_args: "aux" });
+    const topResult = await runPromiseUnwrapped(this.coreDockerService.getEngine().containers.top(containerId, "aux"));
 
     const titles = topResult.Titles ?? [];
     const rows = topResult.Processes ?? [];

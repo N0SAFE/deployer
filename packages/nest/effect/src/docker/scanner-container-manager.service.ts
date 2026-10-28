@@ -9,7 +9,6 @@ import {
   type ScannerType,
 } from "@deployer/docker";
 import { AppError } from "@deployer/errors";
-import { isRecord } from "@deployer/type-guards";
 import { Cause, Effect, Exit } from "effect";
 import { DockerService } from "./docker.service";
 
@@ -25,15 +24,7 @@ export class ScannerContainerManagerService implements OnModuleDestroy {
   private readonly pool: ScannerPoolShape;
 
   constructor(dockerService: DockerService, config: ScannerConfig) {
-    const socketBind = dockerService.getDockerSocketBindMount();
-    const client = dockerService.getDockerClient();
-    const record = isRecord(client) ? client : {};
-    const host = Reflect.get(record, "host") as string | undefined;
-    const port = Reflect.get(record, "port") as number | undefined;
-    const access: ScannerEngineAccess = {
-      socketBind,
-      ...(host && port ? { tcp: { host, port } } : {}),
-    };
+    const access: ScannerEngineAccess = dockerService.getScannerEngineAccess();
     this.pool = makeScannerPool({ docker: dockerService.getEngine(), config, access });
   }
 

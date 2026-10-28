@@ -16,8 +16,10 @@ export type DockerEvent = {
 export type EventsOptions = {
 	/** Engine-side filters, e.g. `{ type: ["container"], event: ["start"] }`. */
 	readonly filters?: Readonly<Record<string, readonly string[]>>;
-	/** Unix seconds; omit to receive only events from now on. */
-	readonly since?: number;
+	/** Unix seconds (or a timestamp string); omit to receive only events from now on. */
+	readonly since?: number | string;
+	/** Stop point in the same format; omit to follow indefinitely. */
+	readonly until?: number | string;
 };
 
 export type EventsShape = {
@@ -54,6 +56,7 @@ export function makeEvents(client: Docker): EventsShape {
 					const raw: unknown = await (client.getEvents as (opts: Record<string, unknown>) => Promise<unknown>)({
 						filters: options.filters,
 						since: options.since,
+						until: options.until,
 					});
 					if (!isReadableStream(raw)) throw new Error("getEvents() returned an unexpected non-stream value");
 					return raw;

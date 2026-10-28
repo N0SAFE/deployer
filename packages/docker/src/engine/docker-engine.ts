@@ -1,6 +1,8 @@
 import type Docker from "dockerode";
 import { Context, Effect, Layer } from "effect";
 
+import type { DockerError } from "../errors/errors";
+import { engineCall } from "./call";
 import { DockerClient } from "../client/docker-client";
 import { makeBuild, type BuildShape } from "./images/build";
 import { makeEvents, type EventsShape } from "./events/events";
@@ -36,6 +38,8 @@ export type DockerEngineShape = {
 	readonly logs: LogsShape;
 	readonly events: EventsShape;
 	readonly build: BuildShape;
+	/** The daemon's `GET /info`. */
+	readonly info: () => Effect.Effect<Awaited<ReturnType<Docker["info"]>>, DockerError>;
 	/** True when the engine answers a ping. */
 	readonly ping: () => Effect.Effect<boolean>;
 	readonly swarmCluster: SwarmClusterShape;
@@ -66,6 +70,7 @@ export function makeDockerEngine(client: Docker): DockerEngineShape {
 		logs: makeLogs(client),
 		events: makeEvents(client),
 		build: makeBuild(client),
+		info: () => engineCall("read engine info", () => client.info()),
 		ping: () =>
 			// `ping` takes no options, so there is no signal to pass on.
 			Effect.tryPromise({ try: () => client.ping(), catch: (cause) => cause }).pipe(
