@@ -114,6 +114,11 @@ contains a rule.
 
 **One class per file.** No multiple exported classes in one file.
 
+## Effect services are provided as tags
+
+A package's Effect service reaches Nest as `{ provide: Tag, useFactory: make<X> }` and is injected with
+`@Inject(Tag)`; there is no `nest-effect` host or Promise face per feature (see `shared/AGENTS.md`).
+
 ## Effect contexts belong to the module
 
 A module declares what its `.effect()` handlers may `yield*` by extending

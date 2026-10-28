@@ -29,7 +29,7 @@ shape.
 | n/a | `managed` | `MANAGED_*_ENABLED=true`: link-only wiring, never spawn |
 | n/a | `unavailable` | engine is not a swarm member: **degrade**, never fall back to a container |
 
-`SwarmBootstrapService` (`packages/nest/swarm`) converges the engine at boot, so a swarm is normally
+The `SwarmBootstrap` Effect service (`@deployer/swarm`, provided by `SwarmCoreModule`) converges the engine at boot, so a swarm is normally
 available; a supervisor that still finds none reports `unavailable` with an actionable message
 instead of spawning a second, container-based copy of its process.
 
@@ -46,20 +46,23 @@ node-local services:
   bind conflicts must stay visible rather than be load-balanced away;
 - **`capabilitiesAdd`**: WireGuard needs `NET_ADMIN`.
 
-The global Postgres spec lives in `PostgresServiceProvisioner`, ONE builder shared by setup and
-`GlobalDbSupervisorService`, so the two cannot drift into two different databases.
+The global Postgres spec lives in `@deployer/docker` (`buildPostgresSpec` / `PostgresProvisioner`), ONE builder shared by setup and
+the global-db supervisor, so the two cannot drift into two different databases.
 
 ### Rules when touching supervisors (`src/core/modules/supervisors/`)
 
-- A supervisor NEVER spawns a plain container. Declare `buildSwarmSpec()` (+ `scope`) and call
-  `reconcileSwarmService()`; the base class throws if the removed `buildContainerSpec()` path is
-  reached. `swarm-only-supervision.acceptance.spec.ts` guards this.
+- A supervisor is a `SupervisorSpec` in `@deployer/platform-supervisors` plus a `make…Registration`
+  function here (`*.supervisor.ts`) that builds the Effect `Supervisor` and decides whether it
+  registers. There is no base class and no Promise face; `SupervisorRegistrar` activates a module's
+  registrations and `SupervisorsModule` provides the `SupervisorOrchestrator` tag. Specs drive a
+  registration through `supervisor-test-harness.ts`.
+- A supervisor NEVER spawns a plain container: its spec declares a `scope` and reconciles a swarm
+  service. `swarm-only-supervision.acceptance.spec.ts` guards this.
 - A `true` `MANAGED_<SERVICE>_ENABLED` MUST skip the supervisor entirely (no registration, no spawn,
-  no convergence): gate in `onModuleInit` by reading `splitManagedEnv(this.env).<service>.enabled`
-  (see `RedisSupervisorService`, `GlobalDbSupervisorService`, `LocalDbSupervisorService`,
-  `TraefikSupervisorService`, `WireGuardSupervisorService`, `DatabaseServiceSupervisorService`).
-- Consumers resolve a managed URL through the supervisor's typed accessor (for example
-  `RedisSupervisorService.getConnectionUrl()`), never by scattering `redis://` strings.
+  no convergence): return `null` from the registration's `activate` after reading
+  `splitManagedEnv(env).<service>.enabled`.
+- Other code converges or inspects a supervisor through the orchestrator tag
+  (`convergeNow(id)`, `getById(id)`), using the exported id constants, never a class reference.
 - The global Postgres URL comes from `node_config.databaseUrl`, WRITTEN BY SETUP
   (`SetupGateService`, the wizard's choice) and read here. `databaseProvisioning: "external"` means
   the URL was provided (compose-managed or pasted), so the global DB supervisor never supervises
@@ -74,12 +77,24 @@ The global Postgres spec lives in `PostgresServiceProvisioner`, ONE builder shar
   ("Compose-managed platform services", "WireGuard: private mesh overlay", "Database service
   primitive").
 
+## Effect services in Nest: provide the tag, do not wrap it
+
+There is no `nest-effect` host layer and no Promise face over a package service. A feature package
+exports a `Context.Service` tag and a `make<X>(deps)` factory; the module provides it with
+`{ provide: Tag, useFactory: make<X>, inject: [...] }`, and callers `@Inject(Tag)` the shape and run its
+Effects (`runPromiseUnwrapped` / `runSyncUnwrapped` at a Promise edge, `yield*` in Effect code).
+Examples: `AppLifecycle`, `SystemMetrics`, `NodeConfigRepository`, `LocalDatabase`, `DockerEngine`,
+`ScannerPool`, `PostgresProvisioner`, the `Swarm*` services (`makeSwarmServices`), the
+`SupervisorOrchestrator`. Process-lifetime work (closing a handle, a background fiber) lives in a small
+provider next to the tag. RxJS stays the streaming/observability surface (`core/modules/events/base`,
+`SupervisorEventBus`).
+
 ## Edge providers (plugins)
 
 The public lane is served by ONE edge provider, chosen by the operator. Providers implement
 `EdgeProvider` (`src/core/modules/edge/edge-provider.ts`) and register themselves into
 `EdgeProviderRegistry` from their constructor. Core code (the Traefik supervisor,
-`EdgeConnectorSupervisorService`, the DNS plane, the domain gate) only ever talks to the registry or
+the edge-connector supervisor, the DNS plane, the domain gate) only ever talks to the registry or
 `PublicEdgeService`: never name a provider in core. Built in: `direct` (`core/modules/edge/providers`)
 and `cloudflare-tunnel` (`services/fleet/src/modules/providers/edge/cloudflare-tunnel`).
 Cluster-wide state goes through `ClusterSettingsService` (replicated by the mesh), never a
