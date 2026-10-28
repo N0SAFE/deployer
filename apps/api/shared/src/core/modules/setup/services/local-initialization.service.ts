@@ -36,8 +36,8 @@ import { EnvService } from "../../../../config/env/env.module";
 import { splitManagedEnv } from "@deployer/env";
 import { SwarmBootstrap, type SwarmBootstrapShape } from "@deployer/swarm"
 import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm"
-import { SupervisorOrchestratorService } from "../../supervision/index";
-import { SWARM_APP_WIRING_SUPERVISOR_ID } from "../../supervisors/platform/swarm-app-wiring.supervisor.service";
+import { SupervisorOrchestrator, type SupervisorOrchestratorShape } from "@deployer/supervision";
+import { SWARM_APP_WIRING_SUPERVISOR_ID } from "../../supervisors/platform/swarm-app-wiring.supervisor";
 import { generateMeshSharedSecret } from "@deployer/auth/mesh";
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 import {
@@ -117,7 +117,7 @@ export class LocalInitializationService {
          * attach below happens BEFORE the DSN is used rather than on the
          * supervisor's 30s cadence (see the call site).
          */
-        private readonly supervisors: SupervisorOrchestratorService,
+        @Inject(SupervisorOrchestrator) private readonly supervisors: SupervisorOrchestratorShape,
     ) {}
 
     /**
@@ -473,7 +473,7 @@ export class LocalInitializationService {
         // ── Attach THIS container to the overlay BEFORE using the DSN ──────
         // The DSN below addresses the database by its overlay alias
         // (`global-db`), which only resolves for containers attached to the
-        // overlay. `SwarmAppWiringSupervisorService` does that wiring, but it
+        // overlay. the swarm app-wiring supervisor does that wiring, but it
         // converges on a 30s CADENCE — so on a fresh setup the probe below
         // could run first and fail with `getaddrinfo ENOTFOUND global-db` even
         // though the database was healthy (observed: wiring at 3:55:06, probe
@@ -484,7 +484,7 @@ export class LocalInitializationService {
         // the aliases, handles the stale-endpoint re-attach case, and skips
         // cleanly when the engine is not swarm-active), so this triggers its
         // idempotent reconcile rather than duplicating the network call here.
-        await this.supervisors.convergeNow(SWARM_APP_WIRING_SUPERVISOR_ID);
+        await runPromiseUnwrapped(this.supervisors.convergeNow(SWARM_APP_WIRING_SUPERVISOR_ID));
         log("▸ Wired this container onto the platform overlay (global-db resolvable)");
 
         // Replay the task logs so the user sees Postgres booting.

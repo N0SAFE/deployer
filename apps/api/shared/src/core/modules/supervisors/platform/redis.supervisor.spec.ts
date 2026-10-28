@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { DockerEngineShape } from "@deployer/docker";
 
 import type { EnvService } from "../../../../config/env/env.module";
-import { RedisSupervisorService } from "./redis-supervisor.service";
+import { makeRedisRegistration } from "./redis.supervisor";
+import { harness, testBus } from "../supervisor-test-harness";
 
 function makeEnv(overrides: Partial<Record<string, unknown>> = {}): EnvService {
 	const values: Record<string, unknown> = {
@@ -29,10 +30,11 @@ function makeSupervisor(envOverrides: Partial<Record<string, unknown>> = {}) {
 		},
 	};
 	const dockerService = engine as unknown as DockerEngineShape;
-	return { supervisor: new RedisSupervisorService(dockerService, makeEnv(envOverrides)), reconcile, connectContainer };
+	const { registration, redis } = makeRedisRegistration({ engine: dockerService, env: makeEnv(envOverrides), bus: testBus() });
+	return { supervisor: harness(registration), redis, reconcile, connectContainer };
 }
 
-describe("RedisSupervisorService (host)", () => {
+describe("redis supervisor registration", () => {
 	it("converges a swarm service through the engine when API-owned", async () => {
 		const { supervisor, reconcile } = makeSupervisor();
 		expect(await supervisor.ensureDesiredState()).toBe("converged");
@@ -55,8 +57,8 @@ describe("RedisSupervisorService (host)", () => {
 	});
 
 	it("exposes the typed connection URL", () => {
-		expect(makeSupervisor().supervisor.getConnectionUrl()).toBe("redis://deployer-redis:6379");
-		expect(makeSupervisor({ DEPLOYER_REDIS_URL: "", DEPLOYER_REDIS_PASSWORD: "s3cret" }).supervisor.getConnectionUrl()).toBe(
+		expect(makeSupervisor().redis.connectionUrl()).toBe("redis://deployer-redis:6379");
+		expect(makeSupervisor({ DEPLOYER_REDIS_URL: "", DEPLOYER_REDIS_PASSWORD: "s3cret" }).redis.connectionUrl()).toBe(
 			"redis://s3cret@deployer-redis:6379",
 		);
 	});

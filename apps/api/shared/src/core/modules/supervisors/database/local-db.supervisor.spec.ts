@@ -2,11 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 
-import {
-	LocalDbSupervisorService,
-	LOCAL_DB_SUPERVISOR_ID,
-} from "./local-db-supervisor.service";
-import { SupervisorOrchestratorService } from "../../supervision/index";
+import { LOCAL_DB_SUPERVISOR_ID, makeLocalDbRegistration } from "./local-db.supervisor";
+import { makeSupervisorOrchestrator } from "@deployer/supervision";
+import { harness, testBus } from "../supervisor-test-harness";
 import type { LocalDb } from "@deployer/node-state";
 import type { EnvService } from "../../../../config/env/env.module";
 
@@ -19,39 +17,27 @@ function makeInMemoryDb(): LocalDb {
 	return drizzle(sqlite);
 }
 
-function makeSupervisor(db: LocalDb): LocalDbSupervisorService {
-	const env = {
-		get: vi.fn((key: string) => {
-			const values: Record<string, unknown> = {
-				MANAGED_LOCAL_DB_ENABLED: false,
-			};
-			return values[key];
-		}),
-	} as unknown as EnvService;
-	return new LocalDbSupervisorService(db, env);
+function makeSupervisor(db: LocalDb, values: Record<string, unknown> = { MANAGED_LOCAL_DB_ENABLED: false }) {
+	const env = { get: vi.fn((key: string) => values[key]) } as unknown as EnvService;
+	return harness(makeLocalDbRegistration({ db, env, bus: testBus() }));
 }
 
-describe("LocalDbSupervisorService", () => {
-	it("registers with the orchestrator unless the deployment owns the file", () => {
+describe("local-db supervisor registration", () => {
+	it("registers with the orchestrator unless the deployment owns the file", async () => {
 		const registered = makeSupervisor(makeInMemoryDb());
-		const orchestrator = new SupervisorOrchestratorService();
-		(registered as unknown as { orchestrator: SupervisorOrchestratorService }).orchestrator = orchestrator;
-		registered.onModuleInit();
+		const orchestrator = makeSupervisorOrchestrator();
+		await registered.register(orchestrator);
 		expect(orchestrator.has(LOCAL_DB_SUPERVISOR_ID)).toBe(true);
 
-		const composeOwned = new LocalDbSupervisorService(makeInMemoryDb(), {
-			get: vi.fn((key: string) => (key === "MANAGED_LOCAL_DB_ENABLED" ? true : undefined)),
-		} as unknown as EnvService);
-		const other = new SupervisorOrchestratorService();
-		(composeOwned as unknown as { orchestrator: SupervisorOrchestratorService }).orchestrator = other;
-		composeOwned.onModuleInit();
+		const composeOwned = makeSupervisor(makeInMemoryDb(), { MANAGED_LOCAL_DB_ENABLED: true });
+		const other = makeSupervisorOrchestrator();
+		await composeOwned.register(other);
 		expect(other.has(LOCAL_DB_SUPERVISOR_ID)).toBe(false);
 	});
 
-	it("exposes a stable identity + schema for registry + health reporting", () => {
+	it("exposes a stable identity for registry + health reporting", () => {
 		const supervisor = makeSupervisor(makeInMemoryDb());
 		expect(supervisor.supervisorId).toBe(LOCAL_DB_SUPERVISOR_ID);
-		expect(supervisor.payloadSchema).toBeDefined();
 	});
 
 	it("converges by proving the sqlite handle is usable", async () => {

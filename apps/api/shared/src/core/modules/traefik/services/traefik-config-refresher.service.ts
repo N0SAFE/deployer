@@ -14,23 +14,25 @@
  */
 
 import { Injectable, Logger } from "@nestjs/common";
-import { SupervisorOrchestratorService } from "../../supervision/index";
+import { Inject } from "@nestjs/common";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { SupervisorOrchestrator, type SupervisorOrchestratorShape } from "@deployer/supervision";
 
-import { EdgeConnectorSupervisorService } from "../../supervisors/platform/edge-connector-supervisor.service";
-import { TraefikSupervisorService } from "../../supervisors/platform/traefik-supervisor.service";
+import { EDGE_CONNECTOR_SUPERVISOR_ID } from "../../supervisors/platform/edge-connector.supervisor";
+import { PLATFORM_INGRESS_SUPERVISOR_ID } from "../../supervisors/platform/traefik.supervisor";
 
 @Injectable()
 export class TraefikConfigRefresher {
 	private readonly logger = new Logger(TraefikConfigRefresher.name);
 
-	constructor(private readonly orchestrator: SupervisorOrchestratorService) {}
+	constructor(@Inject(SupervisorOrchestrator) private readonly orchestrator: SupervisorOrchestratorShape) {}
 
 	/** Re-converge the ingress and the edge connector. Never throws. */
 	refresh(): void {
 		void (async () => {
-			for (const id of [TraefikSupervisorService.getIdentifier(), EdgeConnectorSupervisorService.getIdentifier()]) {
+			for (const id of [PLATFORM_INGRESS_SUPERVISOR_ID, EDGE_CONNECTOR_SUPERVISOR_ID]) {
 				try {
-					const state = await this.orchestrator.convergeNow(id);
+					const state = await runPromiseUnwrapped(this.orchestrator.convergeNow(id));
 					if (state === "degraded") this.logger.warn(`${id} DEGRADED after an ingress refresh — see supervisor health`);
 				} catch (error) {
 					this.logger.warn(`${id} re-converge failed: ${error instanceof Error ? error.message : String(error)}`);

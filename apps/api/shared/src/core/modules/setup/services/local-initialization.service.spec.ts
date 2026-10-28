@@ -7,13 +7,13 @@ import type { PostgresProvisionerShape } from "@deployer/docker";
 import type { EnvService } from "../../../../config/env/env.module";
 import type { SwarmBootstrapShape } from "@deployer/swarm"
 import type { SwarmClusterShape } from "@deployer/swarm"
-import type { SupervisorOrchestratorService } from "../../supervision/index";
+import type { SupervisorOrchestratorShape } from "@deployer/supervision";
 import type { DockerEngineShape } from "@deployer/docker";
 import type { EmitEvent } from "../utils/setup-runner.utils";
 
 /**
  * Unit test for the `databaseProvisioning` marker persisted during
- * `register_node`. This marker drives GlobalDbSupervisorService activation:
+ * `register_node`. This marker drives global-db supervisor activation:
  * "local" → container supervised; "external" → no supervision.
  *
  * Heavy steps (provision, migrate, seed) are short-circuited via private-method
@@ -70,7 +70,7 @@ function makeService(mocks: ReturnType<typeof makeMocks>): LocalInitializationSe
 		// before the DSN is used so the overlay attach is not left to the
 		// supervisor's 30s cadence. These specs assert marker persistence, not
 		// network wiring, so a resolved no-op keeps them deterministic.
-		{ convergeNow: vi.fn(async () => null) } as unknown as SupervisorOrchestratorService,
+		{ convergeNow: vi.fn(() => Effect.succeed(null)) } as unknown as SupervisorOrchestratorShape,
 	);
 
 	// Short-circuit the DB-heavy steps. The provision step sets the URL; the

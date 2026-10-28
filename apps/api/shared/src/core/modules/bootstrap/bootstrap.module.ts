@@ -36,9 +36,9 @@ import { SupervisorsModule } from "../supervision/index";
     // Provides `DatabaseStartupGuard` and the global database tokens the service
     // injects.
     DatabaseModule,
-    // Provides `SwarmAppWiringSupervisorService` (swarm overlay wiring).
+    // Registers the swarm overlay wiring supervisor.
     SupervisorsPlatformModule,
-    // Provides `SupervisorOrchestratorService`, which the boot pipeline uses to
+    // Provides the `SupervisorOrchestrator`, which the boot pipeline uses to
     // CONVERGE THE GLOBAL POSTGRES SUPERVISOR before waiting for the database.
     // On a swarm-managed profile that supervisor is what creates the Postgres
     // service, so waiting without converging first waits for something nothing

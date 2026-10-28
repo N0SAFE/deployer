@@ -31,7 +31,7 @@ inside the package. Do not rewrite an RxJS bus or SSE pipeline into Effect strea
 | `@deployer/lifecycle` (`AppLifecycleModule.forRoot()` provides `AppLifecycle`) | `nest-lifecycle` |
 | `@deployer/environment` (each app's `EnvModule` provides its `EnvService` token) | `nest-env` |
 | `@deployer/database` | `nest-database-core` |
-| `@deployer/platform-supervisors` | every `apps/api/shared` supervisor (app-wiring, redis, managed-web, global-db, database-service, edge-connector, local-db, traefik); the Promise `BaseSupervisorService`, `BaseDockerSupervisorService` and `BaseMultiSupervisorService` are deleted |
+| `@deployer/platform-supervisors` (each supervisor is a `make…Registration` in `apps/api/shared/.../supervisors`; `SupervisorsModule` provides the `SupervisorOrchestrator` tag, the RxJS `SupervisorEventBus` stays the observability surface) | every `apps/api/shared` supervisor (app-wiring, redis, managed-web, global-db, database-service, edge-connector, local-db, traefik); the Promise `BaseSupervisorService`, `BaseDockerSupervisorService` and `BaseMultiSupervisorService` are deleted |
 | `@deployer/system-metrics` (provided as the `SystemMetrics` tag) | `apps/api/shared` system-metrics module |
 | `@deployer/rate-limit` | the duplicated `rate-limit` middleware (shared, unused) and fleet's copy |
 | `@deployer/service-client` | `nest-service-client` (no Nest host: only the bff uses it, through its own module) |
@@ -44,7 +44,7 @@ inside the package. Do not rewrite an RxJS bus or SSE pipeline into Effect strea
 
 | Order | Package | Size | Consumers | Notes |
 |---|---|---|---|---|
-| 0 | Nest classes still in `apps/api/shared` | medium | supervisors, events | the `SupervisorHost` base class and orchestrator (`core/modules/supervision`) and the RxJS event services (`core/modules/events/base`) are app code now, still Promise-shaped; supervisors should become specs registered by a lifecycle provider, and the fleet/runtime services still `runPromiseUnwrapped` the swarm and docker Effects at their edges |
+| 0 | RxJS event services in `apps/api/shared` (`core/modules/events/base`) | medium | events | stay RxJS by design (streaming/observability); fleet/runtime still `runPromiseUnwrapped` swarm and docker Effects at their edges |
 | 1 | `apps/api/shared` modules | large | everything | traefik, mesh, platform-ingress, setup, supervisors' bodies (Promise inside the Effect framework today), global database |
 | 2 | `apps/setup`, `apps/api/bff` wiring | | | after the shared modules |
 | n/a | `nest-schema` | 5.9k | all | Drizzle table definitions and migrations are data, not Nest logic; it only needs renaming |

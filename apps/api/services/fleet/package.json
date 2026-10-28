@@ -32,6 +32,7 @@
         "@deployer/nest-effect": "*",
         "@deployer/node-state": "*",
         "@deployer/nest-schema": "*",
+        "@deployer/platform-supervisors": "*",
         "@deployer/supervision": "*",
         "@deployer/swarm": "*",
         "@deployer/orpc-utils": "*",

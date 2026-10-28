@@ -6,7 +6,7 @@
  */
 
 import { createModuleContext } from "@deployer/nest-effect";
-import { SupervisorOrchestratorService } from "@deployer/shared/core/modules/supervision/index";
+import { SupervisorOrchestrator } from "@deployer/supervision";
 import { HostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
 import { PlatformConfigService } from "@deployer/shared/core/modules/platform-ingress/services/platform-config.service";
 import { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
@@ -47,7 +47,7 @@ export class PlatformModule extends createModuleContext(
             { provide: PlatformEnvPort, useExisting: EnvService },
             { provide: PlatformHostnamesPort, useExisting: HostnameService },
             { provide: PlatformConfigPort, useExisting: PlatformConfigService },
-            { provide: SupervisorsPort, useExisting: SupervisorOrchestratorService },
+            { provide: SupervisorsPort, useExisting: SupervisorOrchestrator },
             { provide: WebTunnelPort, useExisting: CloudflareTunnelService },
             { provide: CloudflareAppsPort, useExisting: CloudflareAppService },
             { provide: PlatformRefresherPort, useExisting: TraefikConfigRefresher },

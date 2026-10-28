@@ -1,26 +1,27 @@
 import { describe, expect, it, vi } from "vitest";
-import type { SupervisorOrchestratorService } from "../../supervision/index";
+import { Effect } from "effect";
+import type { SupervisorOrchestratorShape } from "@deployer/supervision";
 
-import { EdgeConnectorSupervisorService } from "../../supervisors/platform/edge-connector-supervisor.service";
-import { TraefikSupervisorService } from "../../supervisors/platform/traefik-supervisor.service";
+import { EDGE_CONNECTOR_SUPERVISOR_ID } from "../../supervisors/platform/edge-connector.supervisor";
+import { PLATFORM_INGRESS_SUPERVISOR_ID } from "../../supervisors/platform/traefik.supervisor";
 import { TraefikConfigRefresher } from "./traefik-config-refresher.service";
 
 describe("TraefikConfigRefresher", () => {
 	it("re-converges the ingress and the tunnel connectors", async () => {
-		const convergeNow = vi.fn(() => Promise.resolve("converged" as const));
-		new TraefikConfigRefresher({ convergeNow } as unknown as SupervisorOrchestratorService).refresh();
+		const convergeNow = vi.fn(() => Effect.succeed("converged" as const));
+		new TraefikConfigRefresher({ convergeNow } as unknown as SupervisorOrchestratorShape).refresh();
 
 		await vi.waitFor(() => { expect(convergeNow).toHaveBeenCalledTimes(2); });
-		expect(convergeNow).toHaveBeenNthCalledWith(1, TraefikSupervisorService.getIdentifier());
-		expect(convergeNow).toHaveBeenNthCalledWith(2, EdgeConnectorSupervisorService.getIdentifier());
+		expect(convergeNow).toHaveBeenNthCalledWith(1, PLATFORM_INGRESS_SUPERVISOR_ID);
+		expect(convergeNow).toHaveBeenNthCalledWith(2, EDGE_CONNECTOR_SUPERVISOR_ID);
 	});
 
 	it("never throws, and still re-converges the connectors when the ingress fails", async () => {
 		const convergeNow = vi
 			.fn()
-			.mockRejectedValueOnce(new Error("engine down"))
-			.mockResolvedValueOnce("converged");
-		const refresher = new TraefikConfigRefresher({ convergeNow } as unknown as SupervisorOrchestratorService);
+			.mockReturnValueOnce(Effect.fail(new Error("engine down")))
+			.mockReturnValueOnce(Effect.succeed("converged"));
+		const refresher = new TraefikConfigRefresher({ convergeNow } as unknown as SupervisorOrchestratorShape);
 		// `logger` is private by design; the test asserts on a logged warning, so it reads
                 // the instance through a typed view rather than widening the member for tests.
                 const warn = vi.spyOn(refresher["logger"], "warn").mockImplementation(() => undefined);

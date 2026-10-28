@@ -1,0 +1,60 @@
+import { Logger } from "@nestjs/common";
+import type { DockerEngineShape } from "@deployer/docker";
+import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
+import {
+	EDGE_CONNECTOR_SUPERVISOR_ID,
+	edgeConnectorProcessInfoSchema,
+	edgeConnectorSupervisorPayloadSchema,
+	makeEdgeConnectorSupervisor,
+	type EdgeConnectorSupervisor,
+} from "@deployer/platform-supervisors";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { Effect } from "effect";
+
+import { EnvService } from "../../../../config/env/env.module";
+import { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service";
+import { PublicEdgeService } from "../../reachability/services/public-edge.service";
+
+export { EDGE_CONNECTOR_SUPERVISOR_ID };
+
+export type EdgeConnectorSupervisorDeps = {
+	readonly engine: DockerEngineShape;
+	readonly env: EnvService;
+	readonly lanes: IngressLanesService;
+	readonly edge: PublicEdgeService;
+	readonly bus: SupervisorEventBus;
+};
+
+/**
+ * The supervisor of the public edge's connector. It registers once the connector has been resolved from
+ * the provider (the first `reload`); boot does not wait for that, since a slow provider must not hold
+ * the app back.
+ */
+export function makeEdgeConnectorRegistration({ engine, env, lanes, edge, bus }: EdgeConnectorSupervisorDeps): SupervisorRegistration {
+	const logger = new Logger("EdgeConnectorSupervisor");
+	const edgeConnector = makeEdgeConnectorSupervisor({
+		engine,
+		logger,
+		config: {
+			prefix: () => env.get("DEPLOYER_PREFIX"),
+			desired: Effect.tryPromise(async () => await edge.connector(await lanes.getLanes())),
+			routeTarget: () => edge.ingressTarget(),
+			runtimeOverride: () => process.env.SUPERVISOR_RUNTIME,
+		},
+	});
+	return {
+		supervisor: buildSupervisor(edgeConnector.spec, bus, "EdgeConnectorSupervisor"),
+		blocking: false,
+		activate: edgeConnector.reload.pipe(
+			Effect.catch((error: unknown) =>
+				Effect.sync(() => {
+					logger.warn(`Edge connector not resolved at boot: ${error instanceof Error ? error.message : String(error)}`);
+				}),
+			),
+			Effect.map(() => {
+				logger.log(`Edge connector supervisor registering — runtime=${edgeConnector.runtime()}`);
+				return {};
+			}),
+		),
+	};
+}

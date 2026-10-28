@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { resolveSupervisorRuntime, swarmRuntimeForScope } from "@deployer/docker";
 import { PLATFORM_SUPERVISOR_TOPOLOGY } from "./supervisor-topology";
-import { GLOBAL_DB_SUPERVISOR_ID } from "./database/global-db-supervisor.service";
-import { DATABASE_SERVICE_SUPERVISOR_ID } from "./database/database-service-supervisor.service";
-import { EDGE_CONNECTOR_SUPERVISOR_ID } from "./platform/edge-connector-supervisor.service";
+import { GLOBAL_DB_SUPERVISOR_ID } from "./database/global-db.supervisor";
+import { DATABASE_SERVICE_SUPERVISOR_ID } from "./database/database-service.supervisor";
+import { EDGE_CONNECTOR_SUPERVISOR_ID } from "./platform/edge-connector.supervisor";
 import { PLATFORM_MANAGED_WEB_SUPERVISOR_ID } from "@deployer/platform-supervisors";
 import { PLATFORM_REDIS_SUPERVISOR_ID } from "@deployer/platform-supervisors";
-import { PLATFORM_INGRESS_SUPERVISOR_ID } from "./platform/traefik-supervisor.service";
+import { PLATFORM_INGRESS_SUPERVISOR_ID } from "./platform/traefik.supervisor";
 
 /**
  * ACCEPTANCE TEST — "every supervisor runs on the swarm, and the global

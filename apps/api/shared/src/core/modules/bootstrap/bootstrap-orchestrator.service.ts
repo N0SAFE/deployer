@@ -1,3 +1,4 @@
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { runSyncUnwrapped } from "@deployer/effect-core";
 /**
  * BootstrapOrchestratorService — the API's post-start provisioning sequence.
@@ -63,8 +64,8 @@ import {
 
 import { DatabaseStartupGuard } from "../database/services/database-startup-guard.service";
 import type { GlobalDatabase } from "../database/global/global-database.service";
-import { SwarmAppWiringSupervisorService } from "../supervisors/platform/swarm-app-wiring.supervisor.service";
-import { SupervisorOrchestratorService } from "../supervision/index";
+import { SupervisorOrchestrator, type SupervisorOrchestratorShape } from "@deployer/supervision";
+import { SWARM_APP_WIRING_SUPERVISOR_ID } from "../supervisors/platform/swarm-app-wiring.supervisor";
 import { ensureDefaultAdmin } from "../../admin-bootstrap/default-admin.bootstrap";
 import { adminBootstrapDecisionFromProcessEnv } from "../../admin-bootstrap/admin-bootstrap-policy";
 
@@ -88,7 +89,6 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
         @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
         @Inject(AppLifecycle) private readonly lifecycle: AppLifecycleShape,
         private readonly startupGuard: DatabaseStartupGuard,
-        private readonly appWiring: SwarmAppWiringSupervisorService,
         /**
          * Converges the GLOBAL POSTGRES supervisor during boot.
          *
@@ -97,7 +97,7 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
          * for something nothing has made — see the step-2 note in
          * `onApplicationBootstrap`.
          */
-        private readonly orchestrator: SupervisorOrchestratorService,
+        @Inject(SupervisorOrchestrator) private readonly orchestrator: SupervisorOrchestratorShape,
     ) {}
 
     async onApplicationBootstrap(): Promise<void> {
@@ -151,7 +151,7 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
             //    fails against a database that is actually running. No-op while
             //    the engine is not in a swarm.
             try {
-                await this.appWiring.ensureDesiredState();
+                await runPromiseUnwrapped(this.orchestrator.convergeNow(SWARM_APP_WIRING_SUPERVISOR_ID));
             } catch (error: unknown) {
                 // Non-fatal by design: pre-swarm on a single node there is
                 // nothing to wire, and failing the boot for it would make the
@@ -189,7 +189,7 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
             //    there is no supervisor to converge, and the guard is the correct
             //    authority on whether the database is usable.
             try {
-                const databaseState = await this.orchestrator.convergeNow("global-db-postgres");
+                const databaseState = await runPromiseUnwrapped(this.orchestrator.convergeNow("global-db-postgres"));
                 if (databaseState !== null) {
                     this.logger.log(`Global Postgres supervisor converged (state=${databaseState})`);
                 }

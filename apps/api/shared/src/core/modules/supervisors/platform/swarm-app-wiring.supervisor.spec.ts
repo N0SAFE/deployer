@@ -3,7 +3,8 @@ import { DockerNotFound } from "@deployer/docker";
 import { Effect, Stream } from "effect";
 import type { DockerEngineShape } from "@deployer/docker";
 import type { EnvService } from "../../../../config/env/env.module";
-import { SwarmAppWiringSupervisorService } from "./swarm-app-wiring.supervisor.service";
+import { makeSwarmAppWiringRegistration } from "./swarm-app-wiring.supervisor";
+import { harness, testBus } from "../supervisor-test-harness";
 
 const PLATFORM_NETWORK = "deployer-platform";
 const OVERLAY = "deployer-platform-overlay";
@@ -118,7 +119,7 @@ function webContainer(overrides: Partial<FakeContainer> = {}): FakeContainer {
 	};
 }
 
-describe("SwarmAppWiringSupervisorService", () => {
+describe("swarm app-wiring supervisor", () => {
 	let originalHostname: string | undefined;
 
 	beforeEach(() => {
@@ -133,13 +134,12 @@ describe("SwarmAppWiringSupervisorService", () => {
 
 	it("is a no-op while the engine is not swarm-active (container phase)", async () => {
 		const docker = makeDocker({ swarmActive: false, containers: [apiContainer()] });
-		const supervisor = new SwarmAppWiringSupervisorService(docker.dockerService, makeEnv());
+		const supervisor = harness(makeSwarmAppWiringRegistration({ engine: docker.dockerService, env: makeEnv(), bus: testBus() }));
 
 		await supervisor.ensureDesiredState();
 
 		expect(docker.ensureOverlayNetwork).not.toHaveBeenCalled();
 		expect(docker.connects).toHaveLength(0);
-		supervisor.onModuleDestroy();
 	});
 
 	it("resolves compose ALIASES to real containers and wires them", async () => {
@@ -147,7 +147,7 @@ describe("SwarmAppWiringSupervisorService", () => {
 			swarmActive: true,
 			containers: [apiContainer(), webContainer()],
 		});
-		const supervisor = new SwarmAppWiringSupervisorService(docker.dockerService, makeEnv());
+		const supervisor = harness(makeSwarmAppWiringRegistration({ engine: docker.dockerService, env: makeEnv(), bus: testBus() }));
 
 		await supervisor.ensureDesiredState();
 
@@ -160,29 +160,26 @@ describe("SwarmAppWiringSupervisorService", () => {
 			"nextjs-nestjs-api-dev",
 			"nextjs-nestjs-web-dev",
 		]);
-		supervisor.onModuleDestroy();
 	});
 
 	it("carries the container aliases onto the overlay (ingress resolves web-dev there)", async () => {
 		const docker = makeDocker({ swarmActive: true, containers: [webContainer()] });
-		const supervisor = new SwarmAppWiringSupervisorService(docker.dockerService, makeEnv());
+		const supervisor = harness(makeSwarmAppWiringRegistration({ engine: docker.dockerService, env: makeEnv(), bus: testBus() }));
 
 		await supervisor.ensureDesiredState();
 
 		const webConnect = docker.connects.find((c) => c.container === "nextjs-nestjs-web-dev");
 		expect(webConnect?.aliases).toContain("web-dev");
 		expect(webConnect?.aliases).toContain("nextjs-nestjs-web-dev");
-		supervisor.onModuleDestroy();
 	});
 
 	it("does not fail when the web container has not started yet", async () => {
 		const docker = makeDocker({ swarmActive: true, containers: [apiContainer()] });
-		const supervisor = new SwarmAppWiringSupervisorService(docker.dockerService, makeEnv());
+		const supervisor = harness(makeSwarmAppWiringRegistration({ engine: docker.dockerService, env: makeEnv(), bus: testBus() }));
 
 		// `web-dev` is declared but not created — converging must stay green.
 		await expect(supervisor.ensureDesiredState()).resolves.toBe("converged");
 		expect(docker.connects.map((c) => c.container)).toEqual(["nextjs-nestjs-api-dev"]);
-		supervisor.onModuleDestroy();
 	});
 
 	it("is idempotent when already attached with the expected aliases", async () => {
@@ -195,11 +192,10 @@ describe("SwarmAppWiringSupervisorService", () => {
 				}),
 			],
 		});
-		const supervisor = new SwarmAppWiringSupervisorService(docker.dockerService, makeEnv());
+		const supervisor = harness(makeSwarmAppWiringRegistration({ engine: docker.dockerService, env: makeEnv(), bus: testBus() }));
 
 		await expect(supervisor.ensureDesiredState()).resolves.toBe("converged");
 		expect(docker.connects).toHaveLength(0);
-		supervisor.onModuleDestroy();
 	});
 
 	it("repairs an overlay attachment that is missing the alias", async () => {
@@ -209,18 +205,17 @@ describe("SwarmAppWiringSupervisorService", () => {
 			// build. It must be reconnected so the ingress can resolve it.
 			containers: [webContainer({ onOverlay: true, overlayAliases: ["nextjs-nestjs-web-dev"] })],
 		});
-		const supervisor = new SwarmAppWiringSupervisorService(docker.dockerService, makeEnv());
+		const supervisor = harness(makeSwarmAppWiringRegistration({ engine: docker.dockerService, env: makeEnv(), bus: testBus() }));
 
 		await supervisor.ensureDesiredState();
 
 		expect(docker.connects).toHaveLength(1);
 		expect(docker.connects[0]?.aliases).toContain("web-dev");
-		supervisor.onModuleDestroy();
 	});
 
 	it("reports unhealthy when a running container is not wired", async () => {
 		const docker = makeDocker({ swarmActive: true, containers: [apiContainer()] });
-		const supervisor = new SwarmAppWiringSupervisorService(docker.dockerService, makeEnv());
+		const supervisor = harness(makeSwarmAppWiringRegistration({ engine: docker.dockerService, env: makeEnv(), bus: testBus() }));
 		await supervisor.ensureDesiredState();
 
 		// The web container appears AFTER convergence (its start event re-wires).
@@ -236,30 +231,27 @@ describe("SwarmAppWiringSupervisorService", () => {
 
 		expect(health.healthy).toBe(false);
 		expect(health.detail).toContain("nextjs-nestjs-web-dev");
-		supervisor.onModuleDestroy();
 	});
 
 	it("reports healthy with an inactive engine (container mode is a valid state)", async () => {
 		const docker = makeDocker({ swarmActive: false, containers: [apiContainer()] });
-		const supervisor = new SwarmAppWiringSupervisorService(docker.dockerService, makeEnv());
+		const supervisor = harness(makeSwarmAppWiringRegistration({ engine: docker.dockerService, env: makeEnv(), bus: testBus() }));
 		await supervisor.ensureDesiredState();
 
 		const health = await supervisor.getHealth();
 
 		expect(health.healthy).toBe(true);
 		expect(health.payload.swarmActive).toBe(false);
-		supervisor.onModuleDestroy();
 	});
 
 	it("exposes the overlay and per-target wiring through process info", async () => {
 		const docker = makeDocker({ swarmActive: true, containers: [apiContainer(), webContainer()] });
-		const supervisor = new SwarmAppWiringSupervisorService(docker.dockerService, makeEnv());
+		const supervisor = harness(makeSwarmAppWiringRegistration({ engine: docker.dockerService, env: makeEnv(), bus: testBus() }));
 		await supervisor.ensureDesiredState();
 
 		const info = await supervisor.getProcessInfo();
 
 		expect(info.overlay).toBe(OVERLAY);
 		expect(info.targets.map((target) => target.name)).toContain("nextjs-nestjs-web-dev");
-		supervisor.onModuleDestroy();
 	});
 });

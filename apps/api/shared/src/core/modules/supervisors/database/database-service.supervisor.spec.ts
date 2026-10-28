@@ -1,10 +1,11 @@
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import type { DockerEngineShape } from "@deployer/docker";
-import { SupervisorOrchestratorService } from "../../supervision/index";
+import { makeSupervisorOrchestrator } from "@deployer/supervision";
+import { harness, testBus } from "../supervisor-test-harness";
 
 import type { EnvService } from "../../../../config/env/env.module";
-import { DATABASE_SERVICE_SUPERVISOR_ID, DatabaseServiceSupervisorService } from "./database-service-supervisor.service";
+import { DATABASE_SERVICE_SUPERVISOR_ID, makeDatabaseServiceRegistration } from "./database-service.supervisor";
 
 /**
  * The host's job is wiring and the registration decision: the `MANAGED_DATABASE_*` environment reaches
@@ -24,31 +25,30 @@ function makeSupervisor(values: Record<string, unknown>) {
 		},
 	};
 	const env = { get: vi.fn((key: string) => values[key]) } as unknown as EnvService;
-	const supervisor = new DatabaseServiceSupervisorService(engine as unknown as DockerEngineShape, env);
-	const orchestrator = new SupervisorOrchestratorService();
-	(supervisor as unknown as { orchestrator: SupervisorOrchestratorService }).orchestrator = orchestrator;
+	const supervisor = harness(makeDatabaseServiceRegistration({ engine: engine as unknown as DockerEngineShape, env, bus: testBus() }));
+	const orchestrator = makeSupervisorOrchestrator();
 	return { supervisor, orchestrator, reconciled };
 }
 
-describe("DatabaseServiceSupervisorService (host)", () => {
+describe("database-service supervisor registration", () => {
 	it("registers and converges the instances named in MANAGED_DATABASE_INSTANCES, trimmed and deduplicated", async () => {
 		const { supervisor, orchestrator, reconciled } = makeSupervisor({ MANAGED_DATABASE_INSTANCES: " db-a, db-b ,db-a," });
-		supervisor.onModuleInit();
+		await supervisor.register(orchestrator);
 		expect(orchestrator.has(DATABASE_SERVICE_SUPERVISOR_ID)).toBe(true);
 
 		expect(await supervisor.ensureDesiredState()).toBe("converged");
 		expect(reconciled.sort()).toEqual(["deployer-database-db-a", "deployer-database-db-b"]);
 	});
 
-	it("does not register when the deployment owns the instances", () => {
+	it("does not register when the deployment owns the instances", async () => {
 		const { supervisor, orchestrator } = makeSupervisor({ MANAGED_DATABASE_ENABLED: "true", MANAGED_DATABASE_INSTANCES: "db-a" });
-		supervisor.onModuleInit();
+		await supervisor.register(orchestrator);
 		expect(orchestrator.has(DATABASE_SERVICE_SUPERVISOR_ID)).toBe(false);
 	});
 
-	it("does not register when no instance is configured", () => {
+	it("does not register when no instance is configured", async () => {
 		const { supervisor, orchestrator } = makeSupervisor({});
-		supervisor.onModuleInit();
+		await supervisor.register(orchestrator);
 		expect(orchestrator.has(DATABASE_SERVICE_SUPERVISOR_ID)).toBe(false);
 	});
 });

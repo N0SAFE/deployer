@@ -1,11 +1,11 @@
 import { ServiceUnavailableError } from "@deployer/errors";
 import { type ManagedWebState } from "@deployer/fleet-contracts";
-import type { SupervisorOrchestratorService } from "@deployer/shared/core/modules/supervision/index";
+import type { SupervisorOrchestratorShape } from "@deployer/supervision";
 import type { EnvService } from "@deployer/shared/config/env/env.module";
 import type { HostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
 import type { PlatformConfigService } from "@deployer/shared/core/modules/platform-ingress/services/platform-config.service";
 import { platformTraefikContainerName } from "@deployer/shared/core/modules/platform-ingress/services/platform-names";
-import { ManagedWebSupervisorService } from "@deployer/shared/core/modules/supervisors/platform/managed-web-supervisor.service";
+import { PLATFORM_MANAGED_WEB_SUPERVISOR_ID } from "@deployer/platform-supervisors";
 import type { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
 import { Context, Effect, Layer } from "effect";
 
@@ -42,7 +42,7 @@ import {
 
 /** Identifier of the managed-web supervisor — referenced via the class static so it can never drift
  *  from the registered instance. */
-const CONSOLE_SUPERVISOR_ID = ManagedWebSupervisorService.getIdentifier();
+const CONSOLE_SUPERVISOR_ID = PLATFORM_MANAGED_WEB_SUPERVISOR_ID;
 
 /**
  * A use case fails with `FleetInvalid` of its own, a `ServiceUnavailableError` when the tunnel's
@@ -72,7 +72,7 @@ type Ports = {
 	readonly env: EnvService;
 	readonly hostnameService: HostnameService;
 	readonly platformConfig: PlatformConfigService;
-	readonly orchestrator: SupervisorOrchestratorService;
+	readonly orchestrator: SupervisorOrchestratorShape;
 	readonly tunnelService: CloudflareTunnelService;
 	readonly cloudflareApps: CloudflareAppService;
 	readonly ingressRefresher: TraefikConfigRefresher;
@@ -113,12 +113,12 @@ const describe = (error: unknown) => (error instanceof Error ? error.message : S
 export function makePlatformManagedWebService(ports: Ports): PlatformManagedWebServiceShape {
 	const { env, hostnameService, platformConfig, orchestrator, tunnelService, cloudflareApps, ingressRefresher } = ports;
 
-	const supervisor = () => orchestrator.list().find((s) => s.supervisorId === CONSOLE_SUPERVISOR_ID);
+	const supervisor = () => orchestrator.list().find((s) => s.id === CONSOLE_SUPERVISOR_ID);
 
 	const state = Effect.fn("PlatformManagedWebService.state")(function* () {
 		const current = supervisor();
-		const snapshot = current?.getStateSnapshot() ?? null;
-		const health = current !== undefined ? yield* attempt(() => current.getHealth()) : null;
+		const snapshot = current !== undefined ? yield* current.getStateSnapshot : null;
+		const health = current !== undefined ? yield* current.getHealth : null;
 
 		return {
 			enabled: yield* attempt(() => platformConfig.isManagedWebAppEnabled()),
@@ -137,7 +137,7 @@ export function makePlatformManagedWebService(ports: Ports): PlatformManagedWebS
 	const converge = Effect.fn("PlatformManagedWebService.converge")(function* () {
 		ingressRefresher.refresh();
 		const current = supervisor();
-		if (current !== undefined) yield* attempt(() => current.ensureDesiredState());
+		if (current !== undefined) yield* current.ensureDesiredState;
 	});
 
 	/**

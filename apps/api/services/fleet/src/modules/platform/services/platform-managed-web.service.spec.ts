@@ -18,12 +18,14 @@ describe("PlatformManagedWebService", () => {
 	let tunnel: Record<"createTunnel" | "configureIngress" | "deleteTunnel", Fn>;
 	let apps: { listTunnelCapableApps: ReturnType<typeof vi.fn> };
 	let refresher: { refresh: ReturnType<typeof vi.fn> };
-	let supervisor: { supervisorId: string; getStateSnapshot: ReturnType<typeof vi.fn>; getHealth: ReturnType<typeof vi.fn>; ensureDesiredState: ReturnType<typeof vi.fn> };
+	let supervisor: { id: string; getStateSnapshot: unknown; getHealth: unknown; ensureDesiredState: unknown };
+	const ensured = vi.fn();
 	let service: ReturnType<typeof makePlatformManagedWebService>;
 	let enabled: boolean;
 
 	beforeEach(() => {
 		enabled = false;
+		ensured.mockClear();
 		delete process.env.CLOUDFLARE_WEB_TUNNEL_PROVIDER_ID;
 		platformConfig = {
 			isManagedWebAppEnabled: vi.fn(() => Promise.resolve(enabled)),
@@ -45,10 +47,10 @@ describe("PlatformManagedWebService", () => {
 		apps = { listTunnelCapableApps: vi.fn(() => Promise.resolve([{ id: "cf-1" }])) };
 		refresher = { refresh: vi.fn() };
 		supervisor = {
-			supervisorId: "managed-web",
-			getStateSnapshot: vi.fn(() => ({ state: "running" })),
-			getHealth: vi.fn(() => Promise.resolve({ healthy: true, detail: "ok" })),
-			ensureDesiredState: vi.fn(() => Promise.resolve()),
+			id: "managed-web",
+			getStateSnapshot: Effect.succeed({ state: "running" }),
+			getHealth: Effect.succeed({ healthy: true, detail: "ok" }),
+			ensureDesiredState: Effect.sync(() => { ensured(); }),
 		};
 		service = makePlatformManagedWebService({
 			env: { get: vi.fn(() => false) } as never,
@@ -63,10 +65,8 @@ describe("PlatformManagedWebService", () => {
 
 	// `getIdentifier()` is read at module load, so rebind the fake supervisor to whatever it returns.
 	beforeEach(async () => {
-		const { ManagedWebSupervisorService } = await import(
-			"@deployer/shared/core/modules/supervisors/platform/managed-web-supervisor.service"
-		);
-		supervisor.supervisorId = ManagedWebSupervisorService.getIdentifier();
+		const { PLATFORM_MANAGED_WEB_SUPERVISOR_ID } = await import("@deployer/platform-supervisors");
+		supervisor.id = PLATFORM_MANAGED_WEB_SUPERVISOR_ID;
 	});
 
 	it("reports the console state from the config, the hostname and the supervisor", async () => {
@@ -84,7 +84,7 @@ describe("PlatformManagedWebService", () => {
 		const state = await run(service.toggle());
 		expect(platformConfig.setManagedWebAppEnabled).toHaveBeenCalledWith(true);
 		expect(refresher.refresh).toHaveBeenCalledOnce();
-		expect(supervisor.ensureDesiredState).toHaveBeenCalledOnce();
+		expect(ensured).toHaveBeenCalledOnce();
 		expect(state.enabled).toBe(true);
 	});
 
@@ -94,7 +94,7 @@ describe("PlatformManagedWebService", () => {
 			expect(tunnel.createTunnel).toHaveBeenCalledWith("cf-1", { name: "deployer-web-web-example-com", hostname: "web.example.com" });
 			expect(tunnel.configureIngress).toHaveBeenCalledOnce();
 			expect(platformConfig.setManagedWebTunnel).toHaveBeenCalledWith({ tunnelId: "t1", hostname: "web.example.com", providerId: "cf-1" });
-			expect(supervisor.ensureDesiredState).toHaveBeenCalled();
+			expect(ensured).toHaveBeenCalled();
 		});
 
 		it("rolls the tunnel back and refuses when no zone owns the hostname", async () => {
@@ -140,7 +140,7 @@ describe("PlatformManagedWebService", () => {
 			tunnel.deleteTunnel.mockRejectedValue(new Error("provider down"));
 			await run(service.disableTunnel());
 			expect(platformConfig.clearManagedWebTunnel).toHaveBeenCalledOnce();
-			expect(supervisor.ensureDesiredState).toHaveBeenCalled();
+			expect(ensured).toHaveBeenCalled();
 		});
 	});
 });

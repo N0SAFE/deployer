@@ -23,7 +23,8 @@ import { EnvHostnameService } from "../../platform-ingress/services/hostname.ser
 import type { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service";
 import { deriveIngressProviderToken } from "../../platform-ingress/services/ingress-provider-token";
 import type { PlatformWebTargetService } from "../../platform-ingress/services/platform-web-target.service";
-import { TraefikSupervisorService } from "./traefik-supervisor.service";
+import { makeTraefikRegistration } from "./traefik.supervisor";
+import { harness, testBus } from "../supervisor-test-harness";
 
 /**
  * The ingress is one GLOBAL swarm service with one entrypoint per lane. These tests
@@ -171,7 +172,18 @@ function makeSupervisor(options: {
 	const writeSetting = vi.fn(options.meshWrite ?? (() => Promise.resolve()));
 	const mesh = { writeSetting } as unknown as MeshAgentClient;
 	const webTarget = { resolveWebTarget: vi.fn(() => Promise.resolve("deployer-managed-web")) } as unknown as PlatformWebTargetService;
-	const supervisor = new TraefikSupervisorService(mocks.dockerService, new EnvHostnameService(env), env, lanes, mesh, webTarget, testEdgeRegistry().registry);
+	const supervisor = harness(
+		makeTraefikRegistration({
+			engine: mocks.dockerService,
+			hostnameService: new EnvHostnameService(env),
+			env,
+			lanes,
+			mesh,
+			webTarget,
+			edges: testEdgeRegistry().registry,
+			bus: testBus(),
+		}).registration,
+	);
 	return { supervisor, writeSetting, ...mocks };
 }
 
@@ -184,7 +196,7 @@ const directLanes = (tls: boolean): IngressLanes => ({
 	public: { provider: "direct", domain: "apps.example.com", acknowledgedInboundPorts: true, options: { tls } },
 });
 
-describe("TraefikSupervisorService", () => {
+describe("traefik supervisor registration", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 	});
@@ -198,7 +210,6 @@ describe("TraefikSupervisorService", () => {
 			expect(await supervisor.ensureDesiredState()).toBe("pending");
 			expect(createSwarmService.calls).toHaveLength(0);
 			expect(supervisor.getStateSnapshot().detail).toContain("bootstrap ingress");
-			supervisor.onModuleDestroy();
 			expect(vi.getTimerCount()).toBe(0);
 		});
 

@@ -1,4 +1,4 @@
-import type { SupervisorOrchestratorService } from "@deployer/shared/core/modules/supervision/index";
+import type { SupervisorOrchestratorShape } from "@deployer/supervision";
 import type { EnvService } from '@deployer/shared/config/env/env.module'
 import type { HostnameService } from '@deployer/shared/core/modules/platform-ingress/services/hostname.service'
 import type { PlatformConfigService } from '@deployer/shared/core/modules/platform-ingress/services/platform-config.service'
@@ -26,7 +26,7 @@ export class PlatformConfigPort extends Context.Service<
 >()('fleet/PlatformConfigPort') {}
 export class SupervisorsPort extends Context.Service<
     SupervisorsPort,
-    SupervisorOrchestratorService
+    SupervisorOrchestratorShape
 >()('fleet/SupervisorsPort') {}
 export class WebTunnelPort extends Context.Service<
     WebTunnelPort,

@@ -6,7 +6,8 @@ import type { EnvService } from "../../../../config/env/env.module";
 import type { AppInstanceService } from "../../platform-ingress/services/app-instance.service";
 import type { HostnameService } from "../../platform-ingress/services/hostname.service";
 import type { PlatformConfigService } from "../../platform-ingress/services/platform-config.service";
-import { ManagedWebSupervisorService } from "./managed-web-supervisor.service";
+import { makeManagedWebRegistration } from "./managed-web.supervisor";
+import { harness, testBus } from "../supervisor-test-harness";
 
 /**
  * The host's job is wiring: the environment, hostnames, platform flag and app-instance service reach
@@ -39,17 +40,20 @@ function makeSupervisor(options: { flag?: boolean; prefix?: string; managed?: { 
 			remove: (name: string) => Effect.sync(() => { removed.push(name); }),
 		},
 	};
-	const supervisor = new ManagedWebSupervisorService(
-		engine as unknown as DockerEngineShape,
-		hostnames,
-		env,
-		platformConfig,
-		appInstances as unknown as AppInstanceService,
+	const supervisor = harness(
+		makeManagedWebRegistration({
+			engine: engine as unknown as DockerEngineShape,
+			hostnameService: hostnames,
+			env,
+			platformConfig,
+			appInstances: appInstances as unknown as AppInstanceService,
+			bus: testBus(),
+		}),
 	);
 	return { supervisor, reconciled, removed, appInstances };
 }
 
-describe("ManagedWebSupervisorService (host)", () => {
+describe("managed web supervisor registration", () => {
 	it("runs the console with the platform's own values and a token from the app-instance service", async () => {
 		const { supervisor, reconciled, appInstances } = makeSupervisor({ prefix: "acme" });
 		expect(await supervisor.ensureDesiredState()).toBe("converged");

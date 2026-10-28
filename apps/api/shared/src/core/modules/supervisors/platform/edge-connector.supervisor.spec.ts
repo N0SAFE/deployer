@@ -2,13 +2,14 @@ import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import { defaultIngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
 import type { DockerEngineShape } from "@deployer/docker";
-import { SupervisorOrchestratorService } from "../../supervision/index";
+import { makeSupervisorOrchestrator } from "@deployer/supervision";
+import { harness, testBus } from "../supervisor-test-harness";
 
 import type { EnvService } from "../../../../config/env/env.module";
 import type { EdgeConnectorSpec } from "../../edge/edge-provider";
 import type { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service";
 import type { PublicEdgeService } from "../../reachability/services/public-edge.service";
-import { EDGE_CONNECTOR_SUPERVISOR_ID, EdgeConnectorSupervisorService } from "./edge-connector-supervisor.service";
+import { EDGE_CONNECTOR_SUPERVISOR_ID, makeEdgeConnectorRegistration } from "./edge-connector.supervisor";
 
 const connector: EdgeConnectorSpec = { image: "tunnel:1", env: ["TOKEN=secret"], command: ["tunnel"], args: ["run"], replicas: 2 };
 
@@ -34,20 +35,22 @@ function make(options: { desired?: { providerId: string; spec: EdgeConnectorSpec
 		ingressTarget: () => "http://deployer-traefik:8002",
 	} as unknown as PublicEdgeService;
 	const lanes = { getLanes: vi.fn(() => Promise.resolve(defaultIngressLanes())) } as unknown as IngressLanesService;
-	const supervisor = new EdgeConnectorSupervisorService(
-		engine as unknown as DockerEngineShape,
-		{ get: vi.fn(() => "") } as unknown as EnvService,
-		lanes,
-		edge,
+	const supervisor = harness(
+		makeEdgeConnectorRegistration({
+			engine: engine as unknown as DockerEngineShape,
+			env: { get: vi.fn(() => "") } as unknown as EnvService,
+			lanes,
+			edge,
+			bus: testBus(),
+		}),
 	);
-	const orchestrator = new SupervisorOrchestratorService();
-	(supervisor as unknown as { orchestrator: SupervisorOrchestratorService }).orchestrator = orchestrator;
+	const orchestrator = makeSupervisorOrchestrator();
 	return { supervisor, orchestrator, reconciled, edge, lanes };
 }
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 10));
 
-describe("EdgeConnectorSupervisorService (host)", () => {
+describe("edge connector supervisor registration", () => {
 	it("asks the provider with the current lanes, then runs its connector", async () => {
 		const { supervisor, reconciled, edge, lanes } = make({ desired: { providerId: "some-tunnel", spec: connector } });
 		expect(await supervisor.ensureDesiredState()).toBe("converged");
@@ -58,14 +61,14 @@ describe("EdgeConnectorSupervisorService (host)", () => {
 
 	it("registers once the provider's answer is primed", async () => {
 		const { supervisor, orchestrator } = make({ desired: { providerId: "some-tunnel", spec: connector } });
-		supervisor.onModuleInit();
+		await supervisor.register(orchestrator);
 		await settle();
 		expect(orchestrator.has(EDGE_CONNECTOR_SUPERVISOR_ID)).toBe(true);
 	});
 
 	it("still registers when the provider cannot be asked at boot", async () => {
 		const { supervisor, orchestrator } = make({ connectorFails: true });
-		supervisor.onModuleInit();
+		await supervisor.register(orchestrator);
 		await settle();
 		expect(orchestrator.has(EDGE_CONNECTOR_SUPERVISOR_ID)).toBe(true);
 	});
