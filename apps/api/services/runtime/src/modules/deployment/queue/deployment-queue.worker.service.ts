@@ -28,6 +28,7 @@ import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, Unauthor
 import type { AppError } from "@deployer/errors";
 import { randomUUID } from "crypto";
 import { Effect, Semaphore } from "effect";
+import { EnvService } from "@deployer/shared/config/env/env.module";
 import type { Subscription } from "rxjs";
 import type { DeploymentQueueJob } from "@deployer/contracts-entities";
 import { DeploymentService } from "../services/deployment.service";
@@ -142,18 +143,16 @@ export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestr
      * How many jobs execute at once. One by default (a deployment is the heaviest thing this service does);
      * raise it with `DEPLOYMENT_WORKER_CONCURRENCY` on a host that can take it.
      */
-    private readonly slots = Semaphore.makeUnsafe(DeploymentQueueWorkerService.resolveConcurrency());
-
-    private static resolveConcurrency(): number {
-        const configured = Number(process.env.DEPLOYMENT_WORKER_CONCURRENCY);
-        return Number.isInteger(configured) && configured >= 1 ? Math.min(configured, 16) : 1;
-    }
+    private readonly slots: Semaphore.Semaphore;
 
     constructor(
         private readonly deploymentService: DeploymentService,
         private readonly queueLifecycle: DeploymentQueueLifecycleService,
         @Optional() private readonly deploymentArtifactBuilderService?: DeploymentArtifactBuilderService,
-    ) {}
+        @Optional() env?: EnvService,
+    ) {
+        this.slots = Semaphore.makeUnsafe(env?.get("DEPLOYMENT_WORKER_CONCURRENCY") ?? 1);
+    }
 
     onModuleInit(): void {
         // A cancelled job stops the fiber executing it (its build and child processes with it).

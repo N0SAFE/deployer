@@ -490,6 +490,8 @@ export const apiEnvSchema = zod
         ENABLE_DEV_BOOTSTRAP: booleanEnv().default(true),
         SKIP_MIGRATIONS: booleanEnv().optional().default(false),
 
+        // How many deployment queue jobs the runtime executes at once.
+        DEPLOYMENT_WORKER_CONCURRENCY: zod.coerce.number().int().min(1).max(16).optional().default(1),
         // Scanner runner shared container
         SCANNER_RUNNER_IMAGE: zod.string().optional().default("deployer-scanner-runner:latest"),
         SCANNER_APP_IDLE_TIMEOUT_MS: zod.coerce.number().int().min(60_000).optional().default(600_000),

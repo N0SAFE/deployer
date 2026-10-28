@@ -612,24 +612,12 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
     });
 
     describe("concurrency", () => {
-        const withConcurrency = async (value: string | undefined, body: () => Promise<void>) => {
-            const previous = process.env.DEPLOYMENT_WORKER_CONCURRENCY;
-            if (value === undefined) delete process.env.DEPLOYMENT_WORKER_CONCURRENCY;
-            else process.env.DEPLOYMENT_WORKER_CONCURRENCY = value;
-            try {
-                await body();
-            } finally {
-                if (previous === undefined) delete process.env.DEPLOYMENT_WORKER_CONCURRENCY;
-                else process.env.DEPLOYMENT_WORKER_CONCURRENCY = previous;
-            }
-        };
-
         /** Delivers three jobs and reports the highest number of builds that were running at once. */
-        const peakParallelBuilds = async (): Promise<number> => {
+        const peakParallelBuilds = async (concurrency?: number): Promise<number> => {
             const subscribers: ((job: DeploymentQueueJob) => void)[] = [];
             queueLifecycle.onJobQueued.mockReturnValue({ subscribe: (next: (job: DeploymentQueueJob) => void) => { subscribers.push(next); return { unsubscribe: vi.fn() }; } });
             queueLifecycle.onJobCancelled.mockReturnValue({ subscribe: () => ({ unsubscribe: vi.fn() }) });
-            const instance = new DeploymentQueueWorkerService(deploymentService as never, queueLifecycle as never, deploymentArtifactBuilderService as never);
+            const instance = new DeploymentQueueWorkerService(deploymentService as never, queueLifecycle as never, deploymentArtifactBuilderService as never, concurrency === undefined ? undefined : ({ get: () => concurrency } as never));
             let running = 0;
             let peak = 0;
             deploymentService.claimQueueJobByIdempotencyKey.mockImplementation((key: string) =>
@@ -650,15 +638,11 @@ describe("DeploymentQueueWorkerService (typed, Bull-free)", () => {
         };
 
         it("runs one job at a time by default", async () => {
-            await withConcurrency(undefined, async () => {
-                expect(await peakParallelBuilds()).toBe(1);
-            });
+            expect(await peakParallelBuilds()).toBe(1);
         });
 
         it("runs jobs side by side up to DEPLOYMENT_WORKER_CONCURRENCY", async () => {
-            await withConcurrency("2", async () => {
-                expect(await peakParallelBuilds()).toBe(2);
-            });
+            expect(await peakParallelBuilds(2)).toBe(2);
         });
     });
 });
