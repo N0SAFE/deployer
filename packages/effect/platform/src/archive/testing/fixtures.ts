@@ -1,4 +1,4 @@
-import { crc32 } from "./entry";
+import { crc32 } from "../entry";
 
 /**
  * Archive builders for specs and for the hostile-archive corpus. They can produce

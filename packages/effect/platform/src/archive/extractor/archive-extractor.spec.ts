@@ -6,8 +6,8 @@ import { Effect, Exit, Layer } from "effect";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { ArchiveExtractor, type ExtractReport } from "./archive-extractor";
-import { buildTar, buildZip, gzip, zeros, type TarSpec, type ZipSpec } from "./fixtures";
-import type { ExtractLimits } from "./limits";
+import { buildTar, buildZip, gzip, zeros, type TarSpec, type ZipSpec } from "../testing/fixtures";
+import type { ExtractLimits } from "../limits";
 
 const layer = ArchiveExtractor.layer.pipe(Layer.provideMerge(FileSystem.layer));
 

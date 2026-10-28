@@ -1,9 +1,14 @@
+import type { Effect } from "effect";
+
+import type { ArchiveError } from "./errors";
+
 export type EntryType = "file" | "directory" | "symlink" | "hardlink" | "other";
 
 /**
  * One archive member. `size` and `compressedSize` are the DECLARED values (the
  * readers verify the actual content against them, so budgets can trust them).
- * `read()` returns the full content and rejects with an `ArchiveError` on a mismatch.
+ * `read` yields the full content and fails with an `ArchiveError` on a mismatch; interrupting it
+ * cancels an in-flight decompression.
  */
 export type ArchiveEntry = {
   readonly path: string;
@@ -12,8 +17,7 @@ export type ArchiveEntry = {
   readonly mode: number;
   readonly size: number;
   readonly compressedSize: number;
-  /** Aborting `signal` cancels an in-flight decompression. */
-  readonly read: (signal?: AbortSignal) => Promise<Uint8Array>;
+  readonly read: Effect.Effect<Uint8Array, ArchiveError>;
 };
 
 /** CRC-32 (zip variant) via the Bun builtin. */
