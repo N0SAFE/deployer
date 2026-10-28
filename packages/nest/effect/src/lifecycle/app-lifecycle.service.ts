@@ -1,6 +1,9 @@
 import { Injectable } from "@nestjs/common";
+import { Cause, Effect, Fiber, Stream } from "effect";
+import { Observable, filter } from "rxjs";
 import {
 	makeAppLifecycle,
+	type AppLifecycleEvent,
 	type AppLifecyclePhase,
 	type AppLifecycleShape,
 	type TransitionDetails,
@@ -19,6 +22,32 @@ export class AppLifecycleService {
 	/** Current lifecycle phase. */
 	get phase(): AppLifecyclePhase {
 		return this.effect.stateNow().phase;
+	}
+
+	/**
+	 * Every lifecycle change as an RxJS stream: RxJS is the streaming surface for Nest callers, the
+	 * Effect `events` stream is its source. Each subscriber sees changes from the moment it subscribes.
+	 */
+	get events(): Observable<AppLifecycleEvent> {
+		return new Observable<AppLifecycleEvent>((subscriber) => {
+			const fiber = Effect.runFork(
+				this.effect.events.pipe(
+					Stream.runForEach((event) => Effect.sync(() => { subscriber.next(event); })),
+					Effect.matchCause({
+						onSuccess: () => { subscriber.complete(); },
+						onFailure: (cause) => { subscriber.error(Cause.squash(cause)); },
+					}),
+				),
+			);
+			return () => {
+				void Effect.runPromise(Fiber.interrupt(fiber));
+			};
+		});
+	}
+
+	/** The changes that move to `event.phase`. */
+	on(event: { phase: AppLifecyclePhase }): Observable<AppLifecycleEvent> {
+		return this.events.pipe(filter((change) => change.phase === event.phase));
 	}
 
 	/** Moves to `phase`; never exits the process. */

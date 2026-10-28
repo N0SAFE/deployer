@@ -3,6 +3,12 @@
 The target: every piece of platform logic is an Effect service in a framework-free package, and
 NestJS only mounts those services (a module, a thin host class). No logic lives in a Nest class.
 
+## Streaming stays RxJS
+
+Logic and state are Effect; streaming and observability stay RxJS. A host exposes changes to Nest
+callers as `Observable`s (SSE, subscriptions, `on(...)`), sourced from the Effect `Stream`/`PubSub`
+inside the package. Do not rewrite an RxJS bus or SSE pipeline into Effect streams.
+
 ## The pattern
 
 1. **Package by feature**, not by framework: `packages/<feature>` exporting `Context.Service` tags,
@@ -32,7 +38,7 @@ NestJS only mounts those services (a module, a thin host class). No logic lives 
 | Order | Package | Size | Consumers | Notes |
 |---|---|---|---|---|
 | 1 | Promise `DockerService` methods (last, with the shared modules) | | shared, fleet, runtime, setup | `getDockerClient()` is deleted: every caller is on the engine (events, exec.interactive, wait/top, network attach, volume/image inspect, info). Left: callers of the Promise `DockerService` methods (`createContainer`, `removeContainer`, swarm helpers), then delete that adapter |
-| 2 | `nest-events` | 1.8k | shared, project, runtime, fleet | RxJS bus to Effect `PubSub`/`Stream` |
+| 2 | `nest-events` | 1.8k | shared, project, runtime, fleet | stays RxJS; only its non-streaming logic (outbox, event log, dedupe) moves into a feature package |
 | 3 | `nest-service-client` | 1.4k | bff | |
 | 4 | `apps/api/shared` modules | large | everything | traefik, mesh, platform-ingress, setup, supervisors' bodies (Promise inside the Effect framework today), global database |
 | 5 | `apps/setup`, `apps/api/bff` wiring | | | after the shared modules |
