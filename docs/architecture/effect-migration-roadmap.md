@@ -17,7 +17,7 @@ NestJS only mounts those services (a module, a thin host class). No logic lives 
 
 | Package | Replaces |
 |---|---|
-| `@deployer/docker` (engine, provisioning, scanner pool) | most of `nest-docker` |
+| `@deployer/docker` (engine, provisioning, scanner pool) + `nest-effect/docker` | `nest-docker` (the Promise `DockerService` adapter, supervisor base class and scanner/postgres hosts now live in `nest-effect/docker`) |
 | `@deployer/supervision` + `nest-effect/supervision` | `nest-supervisor-core` |
 | `@deployer/node-state` + `nest-effect/node-state` | `nest-database-local`, `nest-nodes` |
 | `@deployer/swarm` + `nest-effect/swarm` | `nest-swarm` (the runtime swarm runner uses `SwarmCluster` directly) |
@@ -28,7 +28,7 @@ NestJS only mounts those services (a module, a thin host class). No logic lives 
 
 | Order | Package | Size | Consumers | Notes |
 |---|---|---|---|---|
-| 1 | `nest-docker` remainder | 1.5k | shared, fleet, runtime, setup | `DockerService` adapter, `BaseDockerSupervisorService`, `getDockerClient()` raw access (33 callers) |
+| 1 | Raw docker callers | | shared, fleet, runtime, setup | `getDockerClient()` raw dockerode access (swarm-app-wiring, traefik, global-db, mesh-agent, setup provisioners, fleet swarm events) and Promise `DockerService` method callers move onto the `@deployer/docker` engine; needs events-stream, network connect and container inspect ops |
 | 2 | `nest-lifecycle`, `nest-env`, `nest-database-core` | 0.7k | all apps | env becomes an Effect `Env` service; lifecycle a scoped layer; database-core's tokens move with the global database |
 | 3 | `nest-events` | 1.8k | shared, project, runtime, fleet | RxJS bus to Effect `PubSub`/`Stream` |
 | 4 | `nest-service-client` | 1.4k | bff | |
