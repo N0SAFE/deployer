@@ -89,6 +89,8 @@
     "dependencies": {
         "@nestjs/common": "catalog:api:nest",
         "@deployer/contracts-entities": "*",
+        "@deployer/docker": "*",
+        "effect": "catalog:effect",
         "@deployer/errors": "*",
         "@deployer/nest-supervisor-core": "*",
         "@deployer/type-guards": "*",

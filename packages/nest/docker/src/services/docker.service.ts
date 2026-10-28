@@ -7,6 +7,8 @@ import {
     NotFoundException,
 } from "@nestjs/common";
 import Docker from "dockerode";
+import { makeDockerEngine, resolveDockerClient, type DockerEngineShape, type DockerError } from "@deployer/docker";
+import { Cause, Effect, Exit } from "effect";
 import * as fs from "fs";
 import * as path from "path";
 import { PassThrough } from "stream";
@@ -103,6 +105,10 @@ type SwarmNodeSpecOperation = "labels" | "role/availability";
 export class DockerService {
     private readonly logger = new Logger(DockerService.name);
     private readonly docker: Docker;
+    /** The Effect-native engine over the current client; the methods below that it covers delegate to it. */
+    private get engine(): DockerEngineShape {
+        return makeDockerEngine(this.docker);
+    }
     private static readonly DEFAULT_DOCKER_SOCKET_PATH = "/var/run/docker.sock";
 
     /** The resolved Docker socket path in use (null when using TCP). */
@@ -255,121 +261,38 @@ export class DockerService {
         return Buffer.concat(frames);
     }
 
-    private resolveDockerClientConfig(
-        dockerHost: unknown,
-        dockerPort: unknown,
-    ): { client: Docker; mode: string; socketPath?: string } {
-        const hasMountedSocket = fs.existsSync(DockerService.DEFAULT_DOCKER_SOCKET_PATH);
-        const parsedEnvPort = typeof dockerPort === "number" ? dockerPort : undefined;
-        const hostRaw = typeof dockerHost === "string" ? dockerHost.trim() : "";
-
-        if (hostRaw.length > 0) {
-            if (hostRaw.startsWith("unix://")) {
-                const socketPath = hostRaw.slice("unix://".length);
-                return {
-                    client: new Docker({ socketPath }),
-                    mode: `DOCKER_HOST unix socket (${socketPath})`,
-                    socketPath,
-                };
-            }
-
-            if (hostRaw.startsWith("/")) {
-                return {
-                    client: new Docker({ socketPath: hostRaw }),
-                    mode: `DOCKER_HOST socket path (${hostRaw})`,
-                    socketPath: hostRaw,
-                };
-            }
-
-            if (
-                (hostRaw === "localhost" || hostRaw === "127.0.0.1" || hostRaw === "::1")
-                && parsedEnvPort === undefined
-                && hasMountedSocket
-            ) {
-                this.logger.warn(
-                    `DOCKER_HOST=${hostRaw} has no DOCKER_PORT. Falling back to mounted Docker socket at ${DockerService.DEFAULT_DOCKER_SOCKET_PATH}.`,
-                );
-                return {
-                    client: new Docker({ socketPath: DockerService.DEFAULT_DOCKER_SOCKET_PATH }),
-                    mode: "mounted Docker socket fallback",
-                    socketPath: DockerService.DEFAULT_DOCKER_SOCKET_PATH,
-                };
-            }
-
-            if (
-                hostRaw.startsWith("tcp://")
-                || hostRaw.startsWith("http://")
-                || hostRaw.startsWith("https://")
-            ) {
-                const normalized = hostRaw.startsWith("tcp://")
-                    ? `http://${hostRaw.slice("tcp://".length)}`
-                    : hostRaw;
-
-                const parsedUrl = new URL(normalized);
-                const resolvedPort =
-                    parsedEnvPort
-                    ?? (parsedUrl.port.length > 0 ? Number(parsedUrl.port) : undefined);
-
-                if (
-                    (parsedUrl.hostname === "localhost"
-                        || parsedUrl.hostname === "127.0.0.1"
-                        || parsedUrl.hostname === "::1")
-                    && resolvedPort === undefined
-                    && hasMountedSocket
-                ) {
-                    this.logger.warn(
-                        `DOCKER_HOST=${hostRaw} points to localhost without port. Falling back to mounted Docker socket at ${DockerService.DEFAULT_DOCKER_SOCKET_PATH}.`,
-                    );
-                    return {
-                        client: new Docker({ socketPath: DockerService.DEFAULT_DOCKER_SOCKET_PATH }),
-                        mode: "mounted Docker socket fallback",
-                        socketPath: DockerService.DEFAULT_DOCKER_SOCKET_PATH,
-                    };
-                }
-
-                return {
-                    client: new Docker({
-                        host: parsedUrl.hostname,
-                        port: resolvedPort,
-                        protocol: parsedUrl.protocol === "https:" ? "https" : "http",
-                    }),
-                    mode: `DOCKER_HOST URL (${hostRaw})`,
-                    // No socket path when using TCP
-                };
-            }
-
-            return {
-                client: new Docker({
-                    host: hostRaw,
-                    port: parsedEnvPort,
-                }),
-                mode: `DOCKER_HOST host (${hostRaw})`,
-                // No socket path when using TCP
-            };
+    /**
+     * Runs an engine Effect for a Promise caller, translating its typed failure back to the Nest
+     * exceptions this service has always thrown. Goes away with the Promise API.
+     */
+    private async runEngine<A>(effect: Effect.Effect<A, DockerError>): Promise<A> {
+        const exit = await Effect.runPromiseExit(effect);
+        if (Exit.isSuccess(exit)) {
+            return exit.value;
         }
-
-        if (hasMountedSocket) {
-            return {
-                client: new Docker({ socketPath: DockerService.DEFAULT_DOCKER_SOCKET_PATH }),
-                mode: "mounted Docker socket",
-                socketPath: DockerService.DEFAULT_DOCKER_SOCKET_PATH,
-            };
+        const failure = Cause.squash(exit.cause);
+        if (typeof failure === "object" && failure !== null && "_tag" in failure) {
+            const message = failure instanceof Error ? failure.message : "Docker operation failed";
+            switch (failure._tag) {
+                case "DockerNotFound":
+                    throw new NotFoundException(message);
+                case "DockerInvalid":
+                    throw new BadRequestException(message);
+                case "DockerConflict":
+                case "DockerUnavailable":
+                    throw new BadGatewayException(message);
+            }
         }
-
-        return {
-            client: new Docker(),
-            mode: "dockerode default connection",
-            // No socket path when using default dockerode connection (TCP)
-        };
+        throw failure;
     }
 
     constructor(config: DockerConnectionConfig) {
-        const dockerHost = config.host;
-        const dockerPort = config.port;
-
-        const { client, mode, socketPath } = this.resolveDockerClientConfig(dockerHost, dockerPort);
+        const { client, mode, socketPath, warnings } = resolveDockerClient(config);
+        for (const warning of warnings) {
+            this.logger.warn(warning);
+        }
         this.docker = client;
-        this.resolvedSocketPath = socketPath ?? null;
+        this.resolvedSocketPath = socketPath;
 
         if (fs.existsSync(DockerService.DEFAULT_DOCKER_SOCKET_PATH)) {
             try {
@@ -648,20 +571,7 @@ CMD ["npm", "start"]
         }
     }
     async stopContainersByDeployment(deploymentId: string): Promise<void> {
-        this.logger.log(`Stopping containers for deployment ${deploymentId}`);
-        const containers = await this.docker.listContainers({
-            all: true,
-            filters: {
-                label: [`deployer.deployment_id=${deploymentId}`],
-            },
-        });
-        for (const containerInfo of containers) {
-            const container = this.docker.getContainer(containerInfo.Id);
-            if (containerInfo.State === "running") {
-                await container.stop({ t: 10 }); // 10 second timeout
-                this.logger.log(`Stopped container ${containerInfo.Names[0] ?? containerInfo.Id}`);
-            }
-        }
+        await this.runEngine(this.engine.containers.stopByDeployment(deploymentId));
     }
     async startContainersByDeployment(deploymentId: string): Promise<void> {
         this.logger.log(`Starting containers for deployment ${deploymentId}`);
@@ -686,18 +596,7 @@ CMD ["npm", "start"]
             status: string;
         }[]
     > {
-        this.logger.log(`Listing containers for deployment ${deploymentId}`);
-        const containers = await this.docker.listContainers({
-            all: true,
-            filters: {
-                label: [`deployer.deployment_id=${deploymentId}`],
-            },
-        });
-        return containers.map((containerInfo) => ({
-            id: containerInfo.Id,
-            name: containerInfo.Names[0] ?? "unknown",
-            status: containerInfo.State,
-        }));
+        return this.runEngine(this.engine.containers.listByDeployment(deploymentId));
     }
     async checkContainerHealth(containerId: string): Promise<boolean> {
         try {
@@ -913,24 +812,13 @@ CMD ["npm", "start"]
     }
 
     async waitForContainerHealth(containerId: string, maxRetries = 30, retryInterval = 2000, healthCheckUrl?: string): Promise<boolean> {
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            this.logger.debug(`Health check attempt ${String(attempt)}/${String(maxRetries)} for container ${containerId}`);
-
-            const healthResult = await this.performHealthCheck(containerId, healthCheckUrl);
-
-            if (healthResult.isHealthy) {
-                this.logger.log(`Container ${containerId} is healthy after ${String(attempt)} attempts`);
-                return true;
-            }
-
-            if (attempt < maxRetries) {
-                this.logger.debug(`Container ${containerId} not healthy yet, waiting ${String(retryInterval)}ms...`);
-                await new Promise((resolve) => setTimeout(resolve, retryInterval));
-            }
-        }
-
-        this.logger.error(`Container ${containerId} failed health check after ${String(maxRetries)} attempts`);
-        return false;
+        return Effect.runPromise(
+            this.engine.containers.waitForHealth(containerId, {
+                maxRetries,
+                retryIntervalMs: retryInterval,
+                ...(healthCheckUrl === undefined ? {} : { healthCheckUrl }),
+            }),
+        );
     }
 
     async restartContainer(containerId: string): Promise<void> {
@@ -996,22 +884,10 @@ CMD ["npm", "start"]
     }
 
     async removeContainer(containerId: string): Promise<void> {
+        // Callers clean up with this and have always been spared its failures.
         try {
-            const container = this.docker.getContainer(containerId);
-            // Stop if running
-            const containerInfo = await container.inspect();
-            if (containerInfo.State.Status === "running") {
-                await container.stop({ t: 10 });
-            }
-            // Remove container
-            await container.remove({ force: true, v: true });
-            this.logger.log(`Removed container ${containerId}`);
+            await this.runEngine(this.engine.containers.remove(containerId));
         } catch (error) {
-            // Ignore "container not found" errors
-            if (error instanceof Error && (error.message.includes("no such container") || error.message.includes("404"))) {
-                this.logger.log(`Container ${containerId} already removed or not found`);
-                return;
-            }
             this.logger.error(`Failed to remove container ${containerId}:`, error);
         }
     }
@@ -1025,91 +901,11 @@ CMD ["npm", "start"]
         }
     }
     async createContainer(options: CreateContainerOptions): Promise<Docker.Container> {
-        const requestedImage = options.Image;
-        const imagePullPolicy: "IfNotPresent" | "Always" | "Never" = options.imagePullPolicy ?? "IfNotPresent";
-        const registryAuth = options.registryAuth;
-        // Ensure image exists locally; if not attempt pull first depending on policy
-        if (requestedImage) {
-            try {
-                const img = this.docker.getImage(requestedImage);
-                await img.inspect();
-                this.logger.log(`Image ${requestedImage} exists locally`);
-            } catch (inspectErr) {
-                this.logger.debug(`Image inspect failed for ${requestedImage}: ${DockerService.getErrMsg(inspectErr)}`);
-                if (imagePullPolicy === "Never") {
-                    this.logger.warn(`Image ${requestedImage} not present locally and policy is 'Never' - refusing to pull`);
-                    throw new BadRequestException(`Image ${requestedImage} not present locally and imagePullPolicy is 'Never'`);
-                }
-                this.logger.warn(`Image ${requestedImage} not present locally. Will attempt to pull before creating container (policy=${imagePullPolicy}).`);
-                const imagesToTry = [requestedImage];
-                if (requestedImage === "nginx:alpine") {
-                    imagesToTry.push("nginx:latest", "nginx:stable-alpine");
-                }
-                let pulled = false;
-                let lastPullErrMsg: string | null = null;
-                for (const imgName of imagesToTry) {
-                    try {
-                        this.logger.log(`Pulling image prior to create: ${imgName}`);
-                        await this.pullImage(imgName, registryAuth);
-                        pulled = true;
-                        if (imgName !== requestedImage) {
-                            options.image = imgName;
-                        }
-                        break;
-                    } catch (pullErr) {
-                        lastPullErrMsg = DockerService.getErrMsg(pullErr);
-                        this.logger.warn(`Pulling image ${imgName} failed: ${lastPullErrMsg}`);
-                    }
-                }
-                if (!pulled) {
-                    this.logger.error(`Failed to pull requested image ${requestedImage} and fallbacks. Last error: ${lastPullErrMsg ?? "unknown error"}`);
-                    throw new BadGatewayException(`Image ${requestedImage} missing and pull failed: ${lastPullErrMsg ?? "unknown error"}`);
-                }
-            }
-        }
-
-        try {
-            const container = await this.docker.createContainer(options);
-            this.logger.log(`Created container ${container.id}`);
-            return container;
-        } catch (error: unknown) {
-            const errMsg = DockerService.getDockerErrMsg(error);
-            this.logger.error("Failed to create container:", errMsg);
-            // Detect image-not-found errors and attempt pull+retry
-            const errMsgLower = errMsg.toLowerCase();
-            if (errMsgLower.includes("no such image") || errMsgLower.includes("not found") || errMsgLower.includes("manifest unknown")) {
-                if (!requestedImage) {
-                    throw new BadRequestException("Cannot create container: no image specified");
-                }
-                const imagesToTry: string[] = [requestedImage];
-                if (requestedImage === "nginx:alpine") {
-                    imagesToTry.push("nginx:latest", "nginx:stable-alpine");
-                }
-                let lastErrMsg: string | null = null;
-                for (const img of imagesToTry) {
-                    try {
-                        this.logger.log(`Pulling image for container creation (retry path): ${img}`);
-                        if (imagePullPolicy !== "Never") {
-                            await this.pullImage(img, registryAuth);
-                        } else {
-                            this.logger.warn(`ImagePullPolicy set to 'Never' - skipping pull for ${img}`);
-                            continue;
-                        }
-                        this.logger.log(`Retrying container create after pulling ${img}...`);
-                        const retryOptions = { ...options, Image: img };
-                        const container = await this.docker.createContainer(retryOptions);
-                        this.logger.log(`Created container ${container.id} with image ${img}`);
-                        return container;
-                    } catch (pullErr) {
-                        lastErrMsg = DockerService.getErrMsg(pullErr);
-                        this.logger.warn(`Pull or retry create failed for ${img}: ${lastErrMsg}`);
-                    }
-                }
-                this.logger.error(`Failed to pull any images for container creation. Last error: ${lastErrMsg ?? "unknown error"}`);
-                throw new BadGatewayException(`Failed to create container: image ${requestedImage} not available and pull attempts failed. Last error: ${lastErrMsg ?? "unknown error"}`);
-            }
-            throw error;
-        }
+        const { image, ...engineOptions } = options;
+        const created = await this.runEngine(
+            this.engine.containers.create({ ...engineOptions, Image: engineOptions.Image ?? image }),
+        );
+        return this.docker.getContainer(created.id);
     }
 
     /**
@@ -1122,31 +918,14 @@ CMD ["npm", "start"]
         backoffMs = 2000,
         onProgressLine?: (line: string) => void,
     ): Promise<void> {
-        this.logger.log(`Attempting to pull image ${image} (retries=${String(retries)})`);
-        let lastErrMsg: string | null = null;
-        for (let attempt = 1; attempt <= retries; attempt++) {
-            try {
-                const pullOpts: Record<string, unknown> = {};
-                if (registryAuth) {
-                    pullOpts.authconfig = registryAuth;
-                }
-                const stream: NodeJS.ReadableStream = await this.docker.pull(image, pullOpts);
-                await this.followStream(stream, onProgressLine);
-                // Successful pull
-                this.logger.log(`Successfully pulled ${image} on attempt ${String(attempt)}`);
-                return;
-            } catch (err) {
-                lastErrMsg = DockerService.getErrMsg(err);
-                this.logger.warn(`Pull attempt ${String(attempt)} failed for ${image}: ${lastErrMsg}`);
-                if (attempt < retries) {
-                    this.logger.log(`Waiting ${String(backoffMs)}ms before next pull attempt...`);
-                    await new Promise((r) => setTimeout(r, backoffMs));
-                    backoffMs *= 2; // exponential backoff
-                }
-            }
-        }
-        this.logger.error(`All pull attempts failed for image ${image}`);
-        throw new BadGatewayException(`Failed to pull image ${image}: ${lastErrMsg ?? "unknown error"}`);
+        await this.runEngine(
+            this.engine.images.pull(image, {
+                ...(registryAuth ? { registryAuth } : {}),
+                retries,
+                backoffMs,
+                ...(onProgressLine ? { onProgressLine } : {}),
+            }),
+        );
     }
 
     private async followStream(stream: NodeJS.ReadableStream, onProgressLine?: (line: string) => void): Promise<void> {
@@ -1264,21 +1043,8 @@ CMD ["npm", "start"]
      * Start a container by id or name
      */
     async startContainer(containerIdOrName: string): Promise<Docker.Container> {
-        try {
-            const container = this.docker.getContainer(containerIdOrName);
-            await container.start();
-            this.logger.log(`Started container ${containerIdOrName}`);
-            return container;
-        } catch (error) {
-            const errorMessage = DockerService.getDockerErrMsg(error).toLowerCase();
-            if (errorMessage.includes("already started") || errorMessage.includes("already running")) {
-                this.logger.log(`Container ${containerIdOrName} already running`);
-                return this.docker.getContainer(containerIdOrName);
-            }
-
-            this.logger.error(`Failed to start container ${containerIdOrName}:`, error);
-            throw error;
-        }
+        await this.runEngine(this.engine.containers.start(containerIdOrName));
+        return this.docker.getContainer(containerIdOrName);
     }
 
     /**
@@ -2674,31 +2440,14 @@ CMD ["npm", "start"]
      * Inspect a swarm service by id or name (GET /services/{id}).
      */
     async inspectSwarmService(serviceIdOrName: string): Promise<DockerodeServiceSummary> {
-        try {
-            const raw: unknown = await this.docker.getService(serviceIdOrName).inspect();
-            return dockerodeServiceSummarySchema.parse(raw);
-        } catch (error: unknown) {
-            if (this.isDockerNotFoundError(error)) {
-                throw new NotFoundException(`Swarm service not found: ${serviceIdOrName}`);
-            }
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to inspect Swarm service ${serviceIdOrName}: ${message}`);
-            throw new BadGatewayException(`Failed to inspect Swarm service ${serviceIdOrName}: ${message}`);
-        }
+        return this.runEngine(this.engine.swarmServices.inspect(serviceIdOrName));
     }
 
     /**
      * Create a swarm service from a dockerode spec (POST /services/create).
      */
     async createSwarmService(spec: Docker.ServiceSpec): Promise<DockerodeServiceSummary> {
-        try {
-            const raw: unknown = await this.docker.createService(spec);
-            return dockerodeServiceSummarySchema.parse(raw);
-        } catch (error: unknown) {
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to create Swarm service: ${message}`);
-            throw new BadGatewayException(`Failed to create Swarm service: ${message}`);
-        }
+        return this.runEngine(this.engine.swarmServices.create(spec));
     }
 
     /**
@@ -2715,38 +2464,14 @@ CMD ["npm", "start"]
         spec: Docker.ServiceSpec,
         rollback = false,
     ): Promise<void> {
-        try {
-            const service = this.docker.getService(serviceIdOrName);
-            await service.update({
-                version,
-                ...(rollback ? { rollback: true } : {}),
-                ...spec,
-            });
-        } catch (error: unknown) {
-            if (this.isDockerNotFoundError(error)) {
-                throw new NotFoundException(`Swarm service not found: ${serviceIdOrName}`);
-            }
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to update Swarm service ${serviceIdOrName}: ${message}`);
-            throw new BadGatewayException(`Failed to update Swarm service ${serviceIdOrName}: ${message}`);
-        }
+        await this.runEngine(this.engine.swarmServices.update(serviceIdOrName, version, spec, rollback));
     }
 
     /**
      * Remove a swarm service (DELETE /services/{id}). Gracefully drains tasks.
      */
     async removeSwarmService(serviceIdOrName: string): Promise<void> {
-        try {
-            await this.docker.getService(serviceIdOrName).remove();
-            this.logger.log(`Removed Swarm service ${serviceIdOrName}`);
-        } catch (error: unknown) {
-            if (this.isDockerNotFoundError(error)) {
-                return;
-            }
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to remove Swarm service ${serviceIdOrName}: ${message}`);
-            throw new BadGatewayException(`Failed to remove Swarm service ${serviceIdOrName}: ${message}`);
-        }
+        await this.runEngine(this.engine.swarmServices.remove(serviceIdOrName));
     }
 
     /**
@@ -2755,24 +2480,7 @@ CMD ["npm", "start"]
      * INSIDE this boundary — callers only pass a service name + target count.
      */
     async scaleSwarmService(serviceIdOrName: string, replicas: number): Promise<void> {
-        const target = Math.max(0, Math.floor(replicas));
-        try {
-            const service = this.docker.getService(serviceIdOrName);
-            const inspect = await service.inspect();
-            await service.update({
-                version: inspect.Version.Index,
-                ...inspect.Spec,
-                Mode: { Replicated: { Replicas: target } },
-            });
-            this.logger.log(`Scaled Swarm service ${serviceIdOrName} → ${String(target)} replicas`);
-        } catch (error: unknown) {
-            if (this.isDockerNotFoundError(error)) {
-                throw new NotFoundException(`Swarm service not found: ${serviceIdOrName}`);
-            }
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to scale Swarm service ${serviceIdOrName}: ${message}`);
-            throw new BadGatewayException(`Failed to scale Swarm service ${serviceIdOrName}: ${message}`);
-        }
+        await this.runEngine(this.engine.swarmServices.scale(serviceIdOrName, replicas));
     }
 
     /**
@@ -2781,19 +2489,7 @@ CMD ["npm", "start"]
      * good spec). The loose engine spec stays inside this boundary.
      */
     async rollbackSwarmService(serviceIdOrName: string): Promise<void> {
-        try {
-            const service = this.docker.getService(serviceIdOrName);
-            const inspect = await service.inspect();
-            await service.update({ version: inspect.Version.Index, rollback: true, ...inspect.Spec });
-            this.logger.log(`Rolled back Swarm service ${serviceIdOrName}`);
-        } catch (error: unknown) {
-            if (this.isDockerNotFoundError(error)) {
-                throw new NotFoundException(`Swarm service not found: ${serviceIdOrName}`);
-            }
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to roll back Swarm service ${serviceIdOrName}: ${message}`);
-            throw new BadGatewayException(`Failed to roll back Swarm service ${serviceIdOrName}: ${message}`);
-        }
+        await this.runEngine(this.engine.swarmServices.rollback(serviceIdOrName));
     }
 
     /**
@@ -2827,16 +2523,7 @@ CMD ["npm", "start"]
      * List the tasks of a service (GET /services/{id}/tasks).
      */
     async listSwarmServiceTasks(serviceIdOrName: string): Promise<DockerodeTaskSummary[]> {
-        try {
-            const raw: unknown = await this.docker.listTasks({
-                filters: { service: [serviceIdOrName] },
-            });
-            return z.array(dockerodeTaskSummarySchema).parse(raw);
-        } catch (error: unknown) {
-            const message = DockerService.getErrMsg(error);
-            this.logger.error(`Failed to list tasks for Swarm service ${serviceIdOrName}: ${message}`);
-            throw new BadGatewayException(`Failed to list tasks for Swarm service ${serviceIdOrName}: ${message}`);
-        }
+        return this.runEngine(this.engine.swarmServices.listTasks(serviceIdOrName));
     }
 
     /**
@@ -3241,69 +2928,7 @@ CMD ["npm", "start"]
      * the exact failure that this guard prevents.
      */
     async ensureOverlayNetwork(request: SwarmOverlayNetworkRequest): Promise<void> {
-        const network = this.docker.getNetwork(request.name);
-        try {
-            const info = await network.inspect();
-            const driver = info.Driver.toLowerCase();
-            // A same-named network that isn't an overlay is a CONFLICT, not
-            // something to reuse. Never attach a bridge network to a swarm
-            // service — surface it loudly so ownership can be fixed.
-            if (driver && driver !== "overlay") {
-                const message = DockerService.getErrMsg(new Error(
-                    `Network "${request.name}" already exists with driver "${driver}" — ` +
-                    `refusing to use a non-overlay network for a swarm workload. ` +
-                    `The network is likely owned by Compose/supervisor, not Deployer workloads.`,
-                ));
-                this.logger.error(`Conflict on overlay network ${request.name}: ${message}`);
-                throw new BadGatewayException(message);
-            }
-            return;
-        } catch (error: unknown) {
-            if (!this.isDockerNotFoundError(error)) {
-                // Re-throw conflicts (an explicit error type) so callers see the
-                // real reason instead of a re-create→inspect fallback masking it.
-                if (error instanceof BadGatewayException) {
-                    throw error;
-                }
-                throw error;
-            }
-        }
-        try {
-            await this.docker.createNetwork({
-                Name: request.name,
-                Driver: request.driver,
-                Attachable: request.attachable,
-                Ingress: request.ingress,
-                EnableIPv6: request.enableIpv6,
-                Labels: request.labels,
-                ...(request.vxlanId === undefined
-                    ? {}
-                    : { Options: { [DockerService.VXLAN_ID_OPTION]: String(request.vxlanId) } }),
-            });
-            this.logger.log(`Created overlay network ${request.name}`);
-        } catch (error: unknown) {
-            // Concurrent creation from another node: accept if it now exists as
-            // an overlay. A non-overlay same-name network created concurrently
-            // is still a conflict — never reuse it.
-            try {
-                const info = await network.inspect();
-                const driver = info.Driver.toLowerCase();
-                if (driver && driver !== "overlay") {
-                    const message = DockerService.getErrMsg(new Error(
-                        `Network "${request.name}" was concurrently created with driver "${driver}" — refusing to use a non-overlay network for a swarm workload.`,
-                    ));
-                    this.logger.error(`Conflict on overlay network ${request.name}: ${message}`);
-                    throw new BadGatewayException(message);
-                }
-            } catch (inspectError: unknown) {
-                if (inspectError instanceof BadGatewayException) {
-                    throw inspectError;
-                }
-                const message = DockerService.getErrMsg(error);
-                this.logger.error(`Failed to create overlay network ${request.name}: ${message}`);
-                throw new BadGatewayException(`Failed to create overlay network ${request.name}: ${message}`);
-            }
-        }
+        await this.runEngine(this.engine.networks.ensureOverlay(request));
     }
 }
 
