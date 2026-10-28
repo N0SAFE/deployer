@@ -30,6 +30,7 @@ inside the package. Do not rewrite an RxJS bus or SSE pipeline into Effect strea
 | `@deployer/environment` + `nest-effect/env` | `nest-env` |
 | `@deployer/database` + `nest-effect/database` | `nest-database-core` |
 | `@deployer/platform-supervisors` + `SupervisorHost` in `nest-effect/supervision` | every `apps/api/shared` supervisor (app-wiring, redis, managed-web, global-db, database-service, edge-connector, local-db, traefik); the Promise `BaseSupervisorService`, `BaseDockerSupervisorService` and `BaseMultiSupervisorService` are deleted |
+| `@deployer/system-metrics` + `nest-effect/system-metrics` | `apps/api/shared` system-metrics module |
 | `@deployer/service-client` | `nest-service-client` (no Nest host: only the bff uses it, through its own module) |
 | `@deployer/events` + `nest-effect/events` | `nest-events` (journal in Effect; streaming stays RxJS) |
 | `@deployer/swarm` + `nest-effect/swarm` | `nest-swarm` (the runtime swarm runner uses `SwarmCluster` directly) |
