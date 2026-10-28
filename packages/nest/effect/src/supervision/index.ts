@@ -5,8 +5,6 @@
  */
 export { BaseSupervisorService, SupervisorHost } from "./base-supervisor.service";
 export type { SupervisorHealthSnapshot, SupervisorProbeResult } from "./base-supervisor.service";
-export { BaseMultiSupervisorService } from "./base-multi-supervisor.service";
-export type { AnyChildSupervisor } from "./base-multi-supervisor.service";
 export { SupervisorEventBus } from "./supervisor-event.bus";
 export { SupervisorOrchestratorService } from "./supervisor-orchestrator.service";
 export type { AnySupervisor } from "./supervisor-orchestrator.service";

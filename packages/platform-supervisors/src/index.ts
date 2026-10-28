@@ -71,3 +71,23 @@ export {
 	globalDbSupervisorPayloadSchema,
 } from "./global-db/schemas";
 export type { GlobalDbProcessInfo, GlobalDbSupervisorPayload } from "./global-db/schemas";
+export { makeDatabaseServiceSupervisor } from "./database-service/database-service-supervisor";
+export type { DatabaseServiceConfig, DatabaseServiceDeps, DatabaseServiceSupervisor } from "./database-service/database-service-supervisor";
+export { instanceAlias, makeDatabaseInstance } from "./database-service/database-instance";
+export type { DatabaseInstance, DatabaseInstanceConfig, DatabaseInstanceSettings } from "./database-service/database-instance";
+export {
+	DATABASE_INSTANCE_PREFIX,
+	DATABASE_POSTGRES_PORT,
+	DATABASE_ROLE,
+	DATABASE_SERVICE_SUPERVISOR_ID,
+	databaseInstancePayloadSchema,
+	databaseInstanceProcessInfoSchema,
+	databaseServicePayloadSchema,
+	databaseServiceProcessInfoSchema,
+} from "./database-service/schemas";
+export type {
+	DatabaseInstancePayload,
+	DatabaseInstanceProcessInfo,
+	DatabaseServicePayload,
+	DatabaseServiceProcessInfo,
+} from "./database-service/schemas";
