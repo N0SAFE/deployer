@@ -4,7 +4,7 @@ import {
   DockerService,
   PostgresServiceProvisioner,
   ScannerContainerManagerService,
-} from "@deployer/nest-docker";
+} from "@deployer/nest-effect/docker";
 
 import { EnvModule, EnvService } from "../../../config/env/env.module";
 

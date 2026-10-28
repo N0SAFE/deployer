@@ -18,8 +18,8 @@
 import { Injectable } from "@nestjs/common";
 import z from "zod/v4";
 
-import { BaseDockerSupervisorService } from "@deployer/nest-docker/services/base-docker-supervisor.service";
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { BaseDockerSupervisorService } from "@deployer/nest-effect/docker";
+import { DockerService } from "@deployer/nest-effect/docker";
 import { type SupervisorProbeResult } from "@deployer/nest-effect/supervision";
 import { baseSupervisorPayloadSchema } from "@deployer/supervision";
 import { baseSupervisorProcessInfoSchema, swarmProcessInfoSchema } from "@deployer/supervision";

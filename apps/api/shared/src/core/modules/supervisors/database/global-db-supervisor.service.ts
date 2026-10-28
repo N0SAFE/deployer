@@ -26,14 +26,14 @@ import z from "zod/v4";
 
 import {
 	BaseDockerSupervisorService,
-} from "@deployer/nest-docker/services/base-docker-supervisor.service";
+} from "@deployer/nest-effect/docker";
 import { resolveSupervisorRuntime, type DockerSupervisorRuntime } from "@deployer/docker";
 import { BaseSupervisorService, type SupervisorProbeResult } from "@deployer/nest-effect/supervision";
 import { baseSupervisorPayloadSchema } from "@deployer/supervision";
 import { baseSupervisorProcessInfoSchema, dockerProcessInfoSchema, swarmProcessInfoSchema, type DockerProcessInfo } from "@deployer/supervision";
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { DockerService } from "@deployer/nest-effect/docker";
 import { MANAGED_POSTGRES_CONTAINER_NAME, MANAGED_POSTGRES_IMAGE, MANAGED_POSTGRES_PORT, MANAGED_POSTGRES_VOLUME_NAME, managedPostgresServiceName } from "@deployer/docker";
-import { PostgresServiceProvisioner } from "@deployer/nest-docker/containers/postgres/postgres-service.provisioner";
+import { PostgresServiceProvisioner } from "@deployer/nest-effect/docker";
 import type { PostgresIdentity } from "@deployer/docker";
 import { MANAGED_POSTGRES_ALIAS } from "@deployer/docker";
 import { NodeConfigRepository } from "@deployer/nest-effect/node-state";

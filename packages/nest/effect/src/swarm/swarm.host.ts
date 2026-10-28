@@ -1,4 +1,4 @@
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { DockerService } from "../docker/docker.service";
 import {
 	makeSwarmBootstrap,
 	makeSwarmCluster,

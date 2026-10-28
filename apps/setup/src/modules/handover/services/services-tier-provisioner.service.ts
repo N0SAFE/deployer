@@ -1,6 +1,6 @@
 import { AGENT_RUN_VOLUME, AGENT_SOCKET_DIR } from "@deployer/mesh-network";
 import { Injectable, Logger } from "@nestjs/common";
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { DockerService } from "@deployer/nest-effect/docker";
 import { toDockerServiceSpec } from "@deployer/docker";
 
 import { EnvService } from "@/config/env/env.module";

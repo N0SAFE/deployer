@@ -1,6 +1,6 @@
 import type { SwarmOverlayNetworkRequest } from "@deployer/contracts-entities";
 import { Injectable, Logger } from "@nestjs/common";
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { DockerService } from "@deployer/nest-effect/docker";
 import { platformOverlayForPrefix } from "@deployer/docker";
 
 import { EnvService } from "@/config/env/env.module";

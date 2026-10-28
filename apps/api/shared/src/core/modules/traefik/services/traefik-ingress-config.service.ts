@@ -23,7 +23,7 @@
 import { readFile } from "node:fs/promises";
 import { Injectable, Logger } from "@nestjs/common";
 import type { RouteVisibility } from "@deployer/contracts-entities/entities/ingress/index";
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { DockerService } from "@deployer/nest-effect/docker";
 
 import { EnvService } from "../../../../config/env/env.module";
 import { EdgeProviderRegistry } from "../../edge/edge-provider.registry";

@@ -12,7 +12,7 @@ import z from "zod/v4";
 import { NotFoundException } from "@nestjs/common";
 
 import { DockerService } from "./docker.service";
-import { BaseSupervisorService } from "@deployer/nest-effect/supervision";
+import { BaseSupervisorService } from "../supervision";
 import { baseSupervisorPayloadSchema } from "@deployer/supervision";
 import { type DockerProcessInfo, type SwarmProcessInfo } from "@deployer/supervision";
 import { baseSupervisorProcessInfoSchema } from "@deployer/supervision";

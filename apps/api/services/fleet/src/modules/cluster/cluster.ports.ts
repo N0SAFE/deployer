@@ -1,4 +1,4 @@
-import type { DockerService } from '@deployer/nest-docker/services/docker.service'
+import type { DockerService } from '@deployer/nest-effect/docker'
 import type { SwarmClusterService, SwarmFleetService, SwarmParticipationService } from "@deployer/nest-effect/swarm";
 import type { ClusterNodeInventoryRepository } from "@deployer/nest-effect/node-state";
 import type { ClusterNodeRepository } from "@deployer/nest-effect/node-state";

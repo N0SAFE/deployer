@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { DockerService } from "@deployer/nest-docker/services/docker.service";
+import type { DockerService } from "@deployer/nest-effect/docker";
 
 import { ManagedWebSupervisorService } from "./managed-web-supervisor.service";
 import type { EnvService } from "../../../../config/env/env.module";

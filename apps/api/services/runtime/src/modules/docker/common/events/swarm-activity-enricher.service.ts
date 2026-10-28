@@ -2,7 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { from, type Observable } from "rxjs";
 import { filter, map, mergeMap } from "rxjs/operators";
 import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { DockerService } from "@deployer/nest-effect/docker";
 
 /** A synthesized activity: the docker event enriched with real swarm state. */
 export type SwarmActivityEnrichment = {

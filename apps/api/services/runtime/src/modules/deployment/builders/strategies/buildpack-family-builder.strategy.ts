@@ -1,6 +1,6 @@
 import { RuntimeInvalid } from "../../../../core/runtime.errors";
 import { Injectable } from "@nestjs/common";
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { DockerService } from "@deployer/nest-effect/docker";
 import type { BuilderStrategy, BuilderStrategyContext, BuilderStrategyResult } from "../base/builder-strategy.interface";
 
 export type BuildpackFamilyKind = "nixpacks" | "buildpack" | "railpack";

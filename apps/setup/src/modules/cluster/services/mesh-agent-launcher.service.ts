@@ -8,7 +8,7 @@ import {
   type AgentStatus,
   type DockerodeLike,
 } from "@deployer/mesh-network";
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { DockerService } from "@deployer/nest-effect/docker";
 
 import { EnvService } from "@/config/env/env.module";
 

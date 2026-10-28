@@ -28,8 +28,8 @@ import {
 	MANAGED_WEB_CONTAINER_BASE_NAME,
 	platformTraefikContainerName,
 } from "../../platform-ingress/services/platform-names";
-import { BaseDockerSupervisorService } from "@deployer/nest-docker/services/base-docker-supervisor.service";
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { BaseDockerSupervisorService } from "@deployer/nest-effect/docker";
+import { DockerService } from "@deployer/nest-effect/docker";
 import { type SupervisorProbeResult } from "@deployer/nest-effect/supervision";
 import { baseSupervisorPayloadSchema } from "@deployer/supervision";
 import { baseSupervisorProcessInfoSchema, swarmProcessInfoSchema } from "@deployer/supervision";

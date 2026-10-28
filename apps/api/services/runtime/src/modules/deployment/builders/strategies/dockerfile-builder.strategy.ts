@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { DockerService } from "@deployer/nest-effect/docker";
 import type {
     BuilderStrategy,
     BuilderStrategyContext,

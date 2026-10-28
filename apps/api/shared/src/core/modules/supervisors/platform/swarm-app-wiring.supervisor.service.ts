@@ -52,7 +52,7 @@ import type { Readable } from "node:stream";
 import z from "zod/v4";
 
 import { EnvService } from "../../../../config/env/env.module";
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { DockerService } from "@deployer/nest-effect/docker";
 import { platformNetworkName, platformOverlayForPrefix } from "@deployer/docker";
 import { BaseSupervisorService, type SupervisorProbeResult } from "@deployer/nest-effect/supervision";
 import { baseSupervisorPayloadSchema } from "@deployer/supervision";

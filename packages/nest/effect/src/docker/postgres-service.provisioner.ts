@@ -9,8 +9,8 @@ import {
 } from "@deployer/docker";
 import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
 import { Cause, Effect, Exit } from "effect";
-import type { PostgresIdentityConfig } from "../../docker-config";
-import { DockerService } from "../../services/docker.service";
+import type { PostgresIdentityConfig } from "./docker-config";
+import { DockerService } from "./docker.service";
 
 export function toPostgresIdentity(config: PostgresIdentityConfig): PostgresIdentity {
     return {

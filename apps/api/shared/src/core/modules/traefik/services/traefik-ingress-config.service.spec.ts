@@ -1,4 +1,4 @@
-import type { DockerService } from "@deployer/nest-docker/services/docker.service";
+import type { DockerService } from "@deployer/nest-effect/docker";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";

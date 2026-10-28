@@ -3,7 +3,7 @@ import { NotFoundException } from "@nestjs/common";
 import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
 
 import { TEST_TUNNEL_ID, testEdgeRegistry } from "../../edge/testing/edge-registry.fixture";
-import type { DockerService } from "@deployer/nest-docker/services/docker.service";
+import type { DockerService } from "@deployer/nest-effect/docker";
 
 import type { EnvService } from "../../../../config/env/env.module";
 import type { MeshAgentClient } from "../../mesh-agent/mesh-agent.client";

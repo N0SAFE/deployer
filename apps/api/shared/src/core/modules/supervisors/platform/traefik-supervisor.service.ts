@@ -34,10 +34,10 @@ import {
 	type IngressLanes,
 } from "@deployer/contracts-entities/entities/ingress/index";
 import { NODE_DOORS_SETTING_KEY, type DoorRescueRoute } from "@deployer/mesh-network";
-import { BaseDockerSupervisorService } from "@deployer/nest-docker/services/base-docker-supervisor.service";
+import { BaseDockerSupervisorService } from "@deployer/nest-effect/docker";
 import { platformOverlayForPrefix, resolveSupervisorRuntime, type DockerSupervisorRuntime } from "@deployer/docker";
 import type { SwarmEndpointPort, SwarmServiceSpecInput } from "@deployer/contracts-entities";
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { DockerService } from "@deployer/nest-effect/docker";
 import { type SupervisorProbeResult } from "@deployer/nest-effect/supervision";
 import { baseSupervisorPayloadSchema } from "@deployer/supervision";
 import { baseSupervisorProcessInfoSchema, swarmProcessInfoSchema } from "@deployer/supervision";

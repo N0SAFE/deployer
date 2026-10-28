@@ -2,12 +2,12 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { LocalInitializationService } from "./local-initialization.service";
 import { SetupStepTracker } from "../utils/setup-runner.utils";
 import type { NodeConfigRepository } from "@deployer/nest-effect/node-state";
-import type { PostgresServiceProvisioner } from "@deployer/nest-docker/containers/postgres/postgres-service.provisioner";
+import type { PostgresServiceProvisioner } from "@deployer/nest-effect/docker";
 import type { EnvService } from "../../../../config/env/env.module";
 import type { SwarmBootstrapService } from "@deployer/nest-effect/swarm";
 import type { SwarmClusterService } from "@deployer/nest-effect/swarm";
 import type { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
-import type { DockerService } from "@deployer/nest-docker/services/docker.service";
+import type { DockerService } from "@deployer/nest-effect/docker";
 import type { EmitEvent } from "../utils/setup-runner.utils";
 
 /**

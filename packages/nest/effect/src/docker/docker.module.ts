@@ -8,9 +8,9 @@ import {
 	type Provider,
 } from "@nestjs/common";
 
-import { DockerService } from "./services/docker.service";
-import { ScannerContainerManagerService } from "./services/scanner-container-manager.service";
-import { PostgresServiceProvisioner } from "./containers/postgres/postgres-service.provisioner";
+import { DockerService } from "./docker.service";
+import { ScannerContainerManagerService } from "./scanner-container-manager.service";
+import { PostgresServiceProvisioner } from "./postgres-service.provisioner";
 import type { DockerConnectionConfig, ScannerConfig } from "@deployer/docker";
 
 /**

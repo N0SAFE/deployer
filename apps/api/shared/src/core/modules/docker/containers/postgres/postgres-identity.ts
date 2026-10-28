@@ -1,6 +1,6 @@
 import { splitManagedEnv } from "@deployer/env";
 import { MANAGED_POSTGRES_IMAGE } from "@deployer/docker";
-import { type PostgresIdentityConfig } from "@deployer/nest-docker";
+import { type PostgresIdentityConfig } from "@deployer/nest-effect/docker";
 
 import type { EnvService } from "../../../../../config/env/env.module";
 

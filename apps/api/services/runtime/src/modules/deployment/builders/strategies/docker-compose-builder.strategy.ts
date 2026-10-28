@@ -2,7 +2,7 @@ import { RuntimeInvalid } from "../../../../core/runtime.errors";
 import { Injectable } from "@nestjs/common";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { DockerService } from "@deployer/nest-effect/docker";
 import type {
     BuilderStrategy,
     BuilderStrategyContext,

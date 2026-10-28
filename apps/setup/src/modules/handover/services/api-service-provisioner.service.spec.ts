@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ApiServiceProvisioner } from "./api-service-provisioner.service";
 import { makeEnvService } from "@/test-support/env";
-import type { DockerService } from "@deployer/nest-docker/services/docker.service";
+import type { DockerService } from "@deployer/nest-effect/docker";
 
 /**
  * The provisioner is where `SETUP_MODE` actually forks, so the assertions are

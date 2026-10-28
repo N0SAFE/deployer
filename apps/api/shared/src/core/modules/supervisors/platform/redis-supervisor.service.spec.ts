@@ -7,7 +7,7 @@ import {
 	REDIS_INTERNAL_PORT,
 	RedisSupervisorService,
 } from "./redis-supervisor.service";
-import type { DockerService } from "@deployer/nest-docker/services/docker.service";
+import type { DockerService } from "@deployer/nest-effect/docker";
 import type { EnvService } from "../../../../config/env/env.module";
 import type { DockerodeServiceSummary, DockerodeTaskSummary } from "@deployer/contracts-entities";
 

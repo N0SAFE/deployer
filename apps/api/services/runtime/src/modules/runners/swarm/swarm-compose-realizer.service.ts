@@ -41,7 +41,7 @@ import type {
     SwarmServiceSpecInput,
 } from "@deployer/contracts-entities";
 import { composeModelSchema, composeServiceModelSchema } from "@deployer/contracts-entities";
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { DockerService } from "@deployer/nest-effect/docker";
 import { toDockerServiceSpec } from "@deployer/docker";
 
 // ─── Compose value normalizers (string forms → typed values) ────────────────

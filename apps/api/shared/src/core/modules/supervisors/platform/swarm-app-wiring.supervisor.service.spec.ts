@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { Readable } from "node:stream";
-import type { DockerService } from "@deployer/nest-docker/services/docker.service";
+import type { DockerService } from "@deployer/nest-effect/docker";
 import type { EnvService } from "../../../../config/env/env.module";
 import { SwarmAppWiringSupervisorService } from "./swarm-app-wiring.supervisor.service";
 

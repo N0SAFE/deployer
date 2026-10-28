@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { makeEnvService } from "@/test-support/env";
-import type { DockerService } from "@deployer/nest-docker/services/docker.service";
+import type { DockerService } from "@deployer/nest-effect/docker";
 
 import { ServicesTierProvisioner } from "./services-tier-provisioner.service";
 

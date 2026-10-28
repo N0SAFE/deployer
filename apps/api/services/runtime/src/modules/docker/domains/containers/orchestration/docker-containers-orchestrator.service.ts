@@ -28,7 +28,7 @@ import {
   type DockerContainerProcessEntry,
 } from "@deployer/contracts-entities";
 import { AppLogger } from "@deployer/logger";
-import { DockerService as CoreDockerService } from "@deployer/nest-docker/services/docker.service";
+import { DockerService as CoreDockerService } from "@deployer/nest-effect/docker";
 import { DockerContainerLinksRepository } from "../../../repositories/containers/links/docker-container-links.repository";
 import { DockerContainerRuntimeMeshService } from "../mesh/docker-container-runtime-mesh.service";
 import { DockerContainerLogsDomainService } from "../runtime/docker-container-logs-domain.service";

@@ -26,10 +26,10 @@ import { user } from "@deployer/nest-schema/global/identity/auth";
 import { GLOBAL_MIGRATIONS_DIR } from "@deployer/nest-schema";
 import { createBetterAuth } from "../../../../config/auth/auth";
 
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { DockerService } from "@deployer/nest-effect/docker";
 import { platformNetworkName, platformOverlayNetworkName } from "@deployer/docker";
 import { MANAGED_POSTGRES_ALIAS, MANAGED_POSTGRES_PORT, MANAGED_POSTGRES_VOLUME_NAME, managedPostgresServiceName } from "@deployer/docker";
-import { PostgresServiceProvisioner } from "@deployer/nest-docker/containers/postgres/postgres-service.provisioner";
+import { PostgresServiceProvisioner } from "@deployer/nest-effect/docker";
 import { EnvService } from "../../../../config/env/env.module";
 import { splitManagedEnv } from "@deployer/env";
 import { SwarmBootstrapService } from "@deployer/nest-effect/swarm";

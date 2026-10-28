@@ -1,15 +1,18 @@
 {
 	"dependencies": {
 		"@deployer/contracts-entities": "*",
+		"@deployer/docker": "*",
 		"@deployer/effect-core": "*",
+		"@deployer/errors": "*",
 		"@deployer/nest-database-core": "*",
-		"@deployer/nest-docker": "*",
 		"@deployer/node-state": "*",
 		"@deployer/supervision": "*",
 		"@deployer/swarm": "*",
+		"@deployer/type-guards": "*",
 		"@nestjs/common": "catalog:api:nest",
 		"@nestjs/core": "catalog:api:nest",
 		"@orpc/server": "catalog:orpc",
+		"dockerode": "catalog:utils",
 		"effect": "catalog:effect",
 		"rxjs": "catalog:api:nest",
 		"zod": "catalog:utils"
@@ -28,7 +31,8 @@
 		"reflect-metadata": "catalog:api:nest",
 		"rimraf": "catalog:build",
 		"typescript": "catalog:build",
-		"vitest": "catalog:testing"
+		"vitest": "catalog:testing",
+		"@types/dockerode": "*"
 	},
 	"exports": {
 		".": {
@@ -60,6 +64,11 @@
 			"import": "./dist/esm/swarm/index.mjs",
 			"require": "./dist/cjs/swarm/index.js",
 			"types": "./dist/types/swarm/index.d.ts"
+		},
+		"./docker": {
+			"import": "./dist/esm/docker/index.mjs",
+			"require": "./dist/cjs/docker/index.js",
+			"types": "./dist/types/docker/index.d.ts"
 		}
 	},
 	"main": "./dist/cjs/index.js",

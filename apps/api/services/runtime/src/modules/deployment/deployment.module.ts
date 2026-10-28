@@ -47,7 +47,7 @@ import { DockerfileBuilderStrategy } from "./builders/strategies/dockerfile-buil
 import { DockerComposeBuilderStrategy } from "./builders/strategies/docker-compose-builder.strategy";
 import { BuildpackFamilyBuilderStrategy } from "./builders/strategies/buildpack-family-builder.strategy";
 import type { BuilderStrategy } from "./builders/base/builder-strategy.interface";
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { DockerService } from "@deployer/nest-effect/docker";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
 
 export class DeploymentDomainModule extends createModuleContext({

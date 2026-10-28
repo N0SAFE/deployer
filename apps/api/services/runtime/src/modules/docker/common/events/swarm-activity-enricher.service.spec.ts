@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
-import type { DockerService } from "@deployer/nest-docker/services/docker.service";
+import type { DockerService } from "@deployer/nest-effect/docker";
 
 import { SwarmActivityEnricherService } from "./swarm-activity-enricher.service";
 

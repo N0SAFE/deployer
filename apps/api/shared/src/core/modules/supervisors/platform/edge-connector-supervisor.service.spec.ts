@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { defaultIngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
-import type { DockerService } from "@deployer/nest-docker/services/docker.service";
+import type { DockerService } from "@deployer/nest-effect/docker";
 
 import type { EnvService } from "../../../../config/env/env.module";
 import type { EdgeConnectorSpec } from "../../edge/edge-provider";

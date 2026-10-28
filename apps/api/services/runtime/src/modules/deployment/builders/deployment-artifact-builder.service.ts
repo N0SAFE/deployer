@@ -5,7 +5,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import type { DeploymentSourceCheckoutContext } from "@deployer/contracts-entities";
 import { GitService } from "@deployer/shared/core/modules/git/git/services/git.service";
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { DockerService } from "@deployer/nest-effect/docker";
 import { DeploymentProviderBuilderRunnerStateMachineService } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
 import { BuilderRegistryService } from "./builder-registry.service";
 

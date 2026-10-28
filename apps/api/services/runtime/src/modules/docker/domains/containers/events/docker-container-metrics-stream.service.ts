@@ -8,7 +8,7 @@ import {
   type DockerRuntimeEvent,
 } from "@deployer/contracts-entities";
 import { AppLogger } from "@deployer/logger";
-import { DockerService as CoreDockerService } from "@deployer/nest-docker/services/docker.service";
+import { DockerService as CoreDockerService } from "@deployer/nest-effect/docker";
 import { AbstractDomainEventStreamService } from "@deployer/nest-events";
 import { CoreEventStreamPoolService } from "@deployer/nest-events";
 import { isRecord, isObjectLike } from "@deployer/type-guards"

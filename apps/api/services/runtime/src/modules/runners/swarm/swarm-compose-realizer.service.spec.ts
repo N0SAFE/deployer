@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import type { DockerService } from "@deployer/nest-docker/services/docker.service";
+import type { DockerService } from "@deployer/nest-effect/docker";
 import { SwarmComposeRealizerService } from "./swarm-compose-realizer.service";
 
 const FULL_COMPOSE = `

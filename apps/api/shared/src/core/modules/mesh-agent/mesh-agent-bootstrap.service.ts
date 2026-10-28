@@ -17,7 +17,7 @@
 
 import { Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
 import { dockerodeAgentEngine, ensureMeshAgentContainer, MEMBER_LABEL_NODE_ID, meshAgentContainerEnv, type AgentStatus } from "@deployer/mesh-network";
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { DockerService } from "@deployer/nest-effect/docker";
 import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 
 import { EnvService } from "../../../config/env/env.module";

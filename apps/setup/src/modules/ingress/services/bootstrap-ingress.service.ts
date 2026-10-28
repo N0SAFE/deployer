@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException, type OnApplicationBootstrap } fr
 import { readFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { Socket } from "node:net";
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { DockerService } from "@deployer/nest-effect/docker";
 import { platformNetworkName } from "@deployer/docker";
 
 import { EnvService } from "@/config/env/env.module";

@@ -29,7 +29,6 @@
         "@deployer/errors": "*",
         "@deployer/logger": "*",
         "@deployer/nest-database-core": "*",
-        "@deployer/nest-docker": "*",
         "@deployer/nest-effect": "*",
         "@deployer/nest-events": "*",
         "@deployer/nest-lifecycle": "*",
