@@ -436,7 +436,7 @@ export class DeploymentRepository {
         return row?.envId ?? null;
     }
 
-        const db = this.databaseService.db;
+    async create(data: DeploymentCreateInput) {
         const [row] = await this.inTransaction(async (tx: GlobalDatabase) => {
             const [created] = await tx
                 .insert(deployments)
@@ -486,7 +486,6 @@ export class DeploymentRepository {
     }
 
     async updateStatus(id: string, status: DeploymentStatus, metadata?: DeploymentRow["metadata"]) {
-        const db = this.databaseService.db;
         const updates: Partial<typeof deployments.$inferInsert> = {
             status,
             updatedAt: new Date(),
@@ -625,7 +624,6 @@ export class DeploymentRepository {
     }
 
     async delete(id: string) {
-        const db = this.databaseService.db;
         await this.inTransaction(async (tx: GlobalDatabase) => {
             const [existing] = await tx
                 .select()
@@ -761,7 +759,6 @@ export class DeploymentRepository {
             metadata?: Record<string, unknown> | null;
         },
     ) {
-        const db = this.databaseService.db;
         const baseMetadata =
             data.metadata && typeof data.metadata === "object" && !Array.isArray(data.metadata)
                 ? { ...data.metadata }
