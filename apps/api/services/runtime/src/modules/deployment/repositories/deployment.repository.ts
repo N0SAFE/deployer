@@ -1,7 +1,10 @@
 import { RuntimeConflict } from "../../../core/runtime.errors";
 import { Injectable } from "@nestjs/common";
 
-import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
+import { GlobalDatabaseService, type GlobalDatabase } from "@deployer/shared/core/modules/database/services/global-database.service";
+import { Cause, Effect, Exit } from "effect";
+import { DbError, type DbShape } from "@deployer/effect-infra";
+import { makeRuntimeDb } from "../../../core/database/runtime-db";
 import { deployments, deploymentLogs, deploymentRollbacks, deploymentStreams } from "@deployer/nest-schema/global/runtime/deployment";
 import { previewEnvironments } from "@deployer/nest-schema/global/fleet/deployment";
 import { projects, serviceDependencies, services } from "@deployer/nest-schema/global/project/deployment";
@@ -166,6 +169,22 @@ function toStreamDto(row: DeploymentStreamRow) {
 @Injectable()
 export class DeploymentRepository {
     constructor(private readonly databaseService: GlobalDatabaseService) {}
+
+    private runtimeDb: DbShape<GlobalDatabase> | undefined;
+
+    /**
+     * Run `body` in ONE transaction on ONE dedicated connection (commit on success, rollback on
+     * failure), through the shared `makePgDb` layer. A failure is rethrown as the driver raised it, so
+     * callers see the same error they did before the transaction moved off Drizzle's own callback.
+     */
+    private async inTransaction<A>(body: (tx: GlobalDatabase) => Promise<A>): Promise<A> {
+        this.runtimeDb ??= makeRuntimeDb(this.databaseService);
+        const database = this.runtimeDb;
+        const exit = await Effect.runPromiseExit(database.transaction(database.use((tx) => body(tx))));
+        if (Exit.isSuccess(exit)) return exit.value as A;
+        const failure = Cause.squash(exit.cause);
+        throw failure instanceof DbError ? failure.cause : failure;
+    }
 
     /**
      * Preview environments for a service (join preview_environments →
@@ -417,9 +436,8 @@ export class DeploymentRepository {
         return row?.envId ?? null;
     }
 
-    async create(data: DeploymentCreateInput) {
         const db = this.databaseService.db;
-        const [row] = await db.transaction(async (tx) => {
+        const [row] = await this.inTransaction(async (tx: GlobalDatabase) => {
             const [created] = await tx
                 .insert(deployments)
                 .values({
@@ -476,7 +494,7 @@ export class DeploymentRepository {
         if (metadata !== undefined) {
             updates.metadata = metadata;
         }
-        const [row] = await db.transaction(async (tx) => {
+        const [row] = await this.inTransaction(async (tx: GlobalDatabase) => {
             const [updated] = await tx
                 .update(deployments)
                 .set(updates)
@@ -608,7 +626,7 @@ export class DeploymentRepository {
 
     async delete(id: string) {
         const db = this.databaseService.db;
-        await db.transaction(async (tx) => {
+        await this.inTransaction(async (tx: GlobalDatabase) => {
             const [existing] = await tx
                 .select()
                 .from(deployments)
@@ -758,7 +776,7 @@ export class DeploymentRepository {
 
         const now = new Date();
 
-        const [row] = await db.transaction(async (tx) => {
+        const [row] = await this.inTransaction(async (tx: GlobalDatabase) => {
             const [created] = await tx
                 .insert(deploymentLogs)
                 .values({

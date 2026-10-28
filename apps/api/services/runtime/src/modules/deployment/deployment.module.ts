@@ -1,3 +1,4 @@
+import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
 import { createModuleContext } from "@deployer/nest-effect";
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
 import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configuration/configuration-core.module";
@@ -16,6 +17,7 @@ import {
     DeploymentTriggerRegistryService,
 } from "./triggers/deployment-trigger-registry.service";
 import { DeploymentEventTriggerService } from "./triggers/deployment-event-trigger.service";
+import { RuntimeDatabasePort } from "../../core/database/runtime-db";
 import { SystemDeploymentsPort, TriggerRegistryPort } from "./triggers/deployment-trigger.ports";
 import type { DeploymentTriggerSource } from "./triggers/base/deployment-trigger-source.interface";
 import { DeploymentEventService } from "./events/deployment-event.service";
@@ -135,6 +137,7 @@ export class DeploymentDomainModule extends createModuleContext({
         },
         DeploymentTriggerRegistryService,
         // Event-triggered deployments are an Effect Layer (`deployment-trigger.layers.ts`) over these ports.
+        { provide: RuntimeDatabasePort, useExisting: GlobalDatabaseService },
         { provide: TriggerRegistryPort, useExisting: DeploymentTriggerRegistryService },
         { provide: SystemDeploymentsPort, useExisting: DeploymentService },
         PreviewEnvOverlayService,
