@@ -5,7 +5,6 @@
  * WHAT THIS PACKAGE IS
  *   - `DockerService`            — the engine client (containers, services,
  *                                  networks, volumes, exec, logs)
- *   - `AbstractDockerContainerService` — container lifecycle base class
  *   - `BaseDockerSupervisorService`    — supervisor base for docker-backed
  *                                  resources (converge/probe/proc-info)
  *   - `toDockerServiceSpec`      — swarm-spec → dockerode `ServiceSpec`
@@ -29,18 +28,8 @@ export { DockerModule } from "./docker.module";
 export type { DockerModuleOptions, DockerModuleAsyncOptions } from "./docker.module";
 export { DOCKER_CONNECTION_CONFIG, DOCKER_SCANNER_CONFIG } from "./docker.module";
 export { DockerService } from "./services/docker.service";
-export { AbstractDockerContainerService } from "./services/abstract-docker-container.service";
 export { BaseDockerSupervisorService } from "./services/base-docker-supervisor.service";
 export {
   ScannerContainerManagerService,
 } from "./services/scanner-container-manager.service";
-export {
-  PostgresServiceProvisioner,
-  toPostgresIdentity,
-  MANAGED_POSTGRES_IMAGE,
-  MANAGED_POSTGRES_CONTAINER_NAME,
-  MANAGED_POSTGRES_ALIAS,
-  MANAGED_POSTGRES_PORT,
-  MANAGED_POSTGRES_VOLUME_NAME,
-  managedPostgresServiceName,
-} from "./containers/postgres/postgres-service.provisioner";
+export { PostgresServiceProvisioner, toPostgresIdentity } from "./containers/postgres/postgres-service.provisioner";

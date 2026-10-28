@@ -48,6 +48,11 @@ export class DockerService {
     private get engine(): DockerEngineShape {
         return makeDockerEngine(this.docker);
     }
+
+    /** The Effect engine over this service's client, for the facades that run beside it. */
+    getEngine(): DockerEngineShape {
+        return this.engine;
+    }
     private static readonly DEFAULT_DOCKER_SOCKET_PATH = "/var/run/docker.sock";
 
     /** The resolved Docker socket path in use (null when using TCP). */

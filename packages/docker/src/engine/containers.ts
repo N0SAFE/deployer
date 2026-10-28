@@ -42,6 +42,11 @@ export type ContainersShape = {
 	readonly start: (idOrName: string) => Effect.Effect<void, DockerError>;
 	/** Stops (if running) and removes a container and its anonymous volumes; one that is gone counts as removed. */
 	readonly remove: (idOrName: string) => Effect.Effect<void, DockerError>;
+	/**
+	 * Force-removes a container. One that is gone, or already being removed, counts as removed; any
+	 * other refusal is a failure.
+	 */
+	readonly removeIfExists: (idOrName: string) => Effect.Effect<void, DockerError>;
 	/** Starts every non-running container labelled with the deployment. */
 	readonly startByDeployment: (deploymentId: string) => Effect.Effect<void, DockerError>;
 	/** The engine's full record of the container; `DockerNotFound` when there is none. */
@@ -210,6 +215,18 @@ export function makeContainers(client: Docker, images: ImagesShape): ContainersS
 		return false;
 	});
 
+	const removeIfExists: ContainersShape["removeIfExists"] = (idOrName) =>
+		Effect.tryPromise({ try: async () => {
+				await client.getContainer(idOrName).remove({ force: true });
+			}, catch: (cause) => cause }).pipe(
+			Effect.catch((cause) => {
+				const statusCode = typeof cause === "object" && cause !== null && "statusCode" in cause ? cause.statusCode : undefined;
+				return statusCode === 404 || statusCode === 409 || /no such container|already in progress/i.test(engineMessage(cause))
+					? Effect.void
+					: Effect.fail(new DockerUnavailable({ reason: `Failed to remove container ${idOrName}: ${engineMessage(cause)}`, cause }));
+			}),
+		);
+
 	const startByDeployment: ContainersShape["startByDeployment"] = Effect.fn("DockerContainers.startByDeployment")(
 		function* (deploymentId) {
 			yield* Effect.logInfo(`Starting containers for deployment ${deploymentId}`);
@@ -358,6 +375,7 @@ export function makeContainers(client: Docker, images: ImagesShape): ContainersS
 		start,
 		remove,
 		waitForHealth,
+		removeIfExists,
 		startByDeployment,
 		inspect,
 		list,

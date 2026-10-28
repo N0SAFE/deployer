@@ -28,6 +28,8 @@ export type RecreateOverlayResult = {
 };
 
 export type NetworksShape = {
+	/** Attaches a container to a network, best effort: a container that is already attached or gone is left alone. */
+	readonly connectContainer: (networkName: string, containerIdOrName: string) => Effect.Effect<void>;
 	/** Networks on this engine, including swarm overlays when it is a manager. */
 	readonly list: () => Effect.Effect<DockerodeNetworkSummary[], DockerError>;
 	/**
@@ -179,5 +181,11 @@ export function makeNetworks(client: Docker, swarmServices: SwarmServicesShape):
 		return { vxlanId, avoidedVxlanIds: [...poisoned], removedServices };
 	});
 
-	return { ensureOverlay, list, recreateOverlay };
+	const connectContainer: NetworksShape["connectContainer"] = (networkName, containerIdOrName) =>
+		Effect.tryPromise({
+			try: () => client.getNetwork(networkName).connect({ Container: containerIdOrName }),
+			catch: (cause) => cause,
+		}).pipe(Effect.ignore);
+
+	return { ensureOverlay, list, recreateOverlay, connectContainer };
 }

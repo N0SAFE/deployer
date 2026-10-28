@@ -25,35 +25,10 @@
             "import": "./dist/esm/services/docker.service.mjs",
             "require": "./dist/cjs/services/docker.service.js"
         },
-        "./services/abstract-docker-container.service": {
-            "types": "./dist/types/services/abstract-docker-container.service.d.ts",
-            "import": "./dist/esm/services/abstract-docker-container.service.mjs",
-            "require": "./dist/cjs/services/abstract-docker-container.service.js"
-        },
         "./services/base-docker-supervisor.service": {
             "types": "./dist/types/services/base-docker-supervisor.service.d.ts",
             "import": "./dist/esm/services/base-docker-supervisor.service.mjs",
             "require": "./dist/cjs/services/base-docker-supervisor.service.js"
-        },
-        "./services/container-link-resolver.interface": {
-            "types": "./dist/types/services/container-link-resolver.interface.d.ts",
-            "import": "./dist/esm/services/container-link-resolver.interface.mjs",
-            "require": "./dist/cjs/services/container-link-resolver.interface.js"
-        },
-        "./services/docker-host-address": {
-            "types": "./dist/types/services/docker-host-address.d.ts",
-            "import": "./dist/esm/services/docker-host-address.mjs",
-            "require": "./dist/cjs/services/docker-host-address.js"
-        },
-        "./services/docker-supervisor-runtime": {
-            "types": "./dist/types/services/docker-supervisor-runtime.d.ts",
-            "import": "./dist/esm/services/docker-supervisor-runtime.mjs",
-            "require": "./dist/cjs/services/docker-supervisor-runtime.js"
-        },
-        "./services/swarm-spec.mapper": {
-            "types": "./dist/types/services/swarm-spec.mapper.d.ts",
-            "import": "./dist/esm/services/swarm-spec.mapper.mjs",
-            "require": "./dist/cjs/services/swarm-spec.mapper.js"
         },
         "./services/scanner-container-manager.service": {
             "types": "./dist/types/services/scanner-container-manager.service.d.ts",

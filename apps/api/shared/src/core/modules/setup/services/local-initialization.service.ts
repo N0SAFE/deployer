@@ -28,13 +28,8 @@ import { createBetterAuth } from "../../../../config/auth/auth";
 
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
 import { platformNetworkName, platformOverlayNetworkName } from "@deployer/docker";
-import {
-    PostgresServiceProvisioner,
-    MANAGED_POSTGRES_ALIAS,
-    MANAGED_POSTGRES_PORT,
-    MANAGED_POSTGRES_VOLUME_NAME,
-    managedPostgresServiceName,
-} from "@deployer/nest-docker/containers/postgres/postgres-service.provisioner";
+import { MANAGED_POSTGRES_ALIAS, MANAGED_POSTGRES_PORT, MANAGED_POSTGRES_VOLUME_NAME, managedPostgresServiceName } from "@deployer/docker";
+import { PostgresServiceProvisioner } from "@deployer/nest-docker/containers/postgres/postgres-service.provisioner";
 import { EnvService } from "../../../../config/env/env.module";
 import { splitManagedEnv } from "@deployer/env";
 import { SwarmBootstrapService } from "@deployer/nest-swarm";

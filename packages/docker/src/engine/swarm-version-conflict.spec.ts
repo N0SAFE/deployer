@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSwarmVersionConflict } from "./base-docker-supervisor.service";
+import { isSwarmVersionConflict } from "./swarm-services";
 
 /**
  * REGRESSION GUARD for a silent, permanent convergence failure.

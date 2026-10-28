@@ -2,14 +2,12 @@
  * BaseDockerSupervisorService — docker-flavored supervisor base.
  *
  * Extends the generic supervisor framework with reusable dockerode plumbing:
- * null-safe container inspection, network ensure, image pull, and container
- * creation from a declarative spec. Concrete supervisors (e.g. the platform
- * Traefik ingress) only describe their desired container spec plus their
- * reconcile/probe specifics.
+ * null-safe container inspection and swarm service reconciliation. Concrete
+ * supervisors (e.g. the platform Traefik ingress) only describe their desired
+ * swarm spec plus their reconcile/probe specifics.
  */
 
 import type Docker from "dockerode";
-import type { Container } from "dockerode";
 import z from "zod/v4";
 import { NotFoundException } from "@nestjs/common";
 
@@ -22,53 +20,13 @@ import { type DockerProcessInfo, type SwarmProcessInfo } from "@deployer/nest-su
 import { baseSupervisorProcessInfoSchema } from "@deployer/nest-supervisor-core/supervisor-process-info";
 import { platformOverlayNetworkName, type DockerSupervisorRuntime } from "@deployer/docker";
 import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
-import { toDockerServiceSpec } from "@deployer/docker";
+import { isSwarmVersionConflict, toDockerServiceSpec } from "@deployer/docker";
 
 /** Dockerode API errors carry an HTTP-style statusCode (404 = not found). */
 type DockerodeError = Error & { statusCode?: number };
 
 /** How many times a version-conflicted swarm update is re-read and retried. */
 const SWARM_UPDATE_MAX_ATTEMPTS = 5;
-
-/**
- * True when the engine rejected a swarm update because the version index it
- * carried was already superseded by a concurrent update (`update out of
- * sequence`). That is a LOST RACE, not a real failure: re-inspecting the service
- * and retrying with the fresh index is the correct response.
- *
- * Exported for its regression test: the detection is what makes the retry
- * possible, and a looser match would silently retry genuine failures.
- */
-export function isSwarmVersionConflict(error: unknown): boolean {
-	const message = error instanceof Error ? error.message : String(error);
-	return /update out of sequence/i.test(message);
-}
-
-/** Declarative description of the container a supervisor wants running. */
-export type DockerSupervisorContainerSpec = {
-	name: string;
-	image: string;
-	command?: string[];
-	env?: string[];
-	labels: Record<string, string>;
-	/** Network to join; created on demand when missing. */
-	networkName?: string;
-	/** Host bind mounts, e.g. "/var/run/docker.sock:/var/run/docker.sock:ro". */
-	binds?: string[];
-	/**
-	 * Host port bindings, e.g. { "80/tcp": [{ HostPort: "80" }] }.
-	 *
-	 * `HostIp` is optional and load-bearing: it is the ONLY way to bind a port on
-	 * a SINGLE address. Swarm's port spec has no equivalent field, so a
-	 * loopback-only or overlay-only binding cannot be expressed as a swarm
-	 * service publish — it has to come through this container path. Omit it to
-	 * bind every interface (Docker's default).
-	 */
-	portBindings?: Record<string, { HostIp?: string; HostPort: string }[]>;
-	/** Extra /etc/hosts entries, e.g. ["host.docker.internal:host-gateway"]. */
-	extraHosts?: string[];
-	restartPolicy?: "no" | "always" | "unless-stopped" | "on-failure";
-}
 
 export abstract class BaseDockerSupervisorService<
 	TSchema extends z.ZodTypeAny = typeof baseSupervisorPayloadSchema,
@@ -146,18 +104,6 @@ export abstract class BaseDockerSupervisorService<
 		return "deferred until an active swarm exists — the cluster entry mode (create vs join) is decided during setup";
 	}
 
-	/**
-	 * The container spec this supervisor converges towards when it uses the
-	 * (legacy, retained for compatibility) container path. Swarm-backed
-	 * supervisors do NOT implement this — they declare `buildSwarmSpec()` and
-	 * call `reconcileSwarmService` instead. Every docker supervisor must
-	 * implement exactly ONE of the two.
-	 */
-	protected buildContainerSpec(): DockerSupervisorContainerSpec {
-		throw new Error(
-			`${this.constructor.name} is swarm-backed — buildContainerSpec() (legacy container path) is not implemented. Declare buildSwarmSpec() instead.`,
-		);
-	}
 
 	/** Inspect a container by name; returns null when it does not exist. */
 	protected async inspectContainer(
@@ -176,30 +122,6 @@ export abstract class BaseDockerSupervisorService<
 			});
 	}
 
-	/** Ensure a docker network exists; resolves its id either way. Race-safe. */
-	protected async ensureNetwork(name: string): Promise<string> {
-		const existing = await this.client
-			.getNetwork(name)
-			.inspect()
-			.catch((error: DockerodeError) => {
-				if (error.statusCode === 404) return null;
-				throw error;
-			});
-		if (existing !== null) return existing.Id;
-
-		try {
-			const created = await this.client.createNetwork({ Name: name, CheckDuplicate: true });
-			return created.id;
-		} catch (error) {
-			// Concurrent creation race — re-inspect and reuse the winner's network.
-			const raced = await this.client
-				.getNetwork(name)
-				.inspect()
-				.catch(() => null);
-			if (raced !== null) return raced.Id;
-			throw error;
-		}
-	}
 
 	/** Ensure a named docker volume exists (config sharing). Resolves the
 	 *  volume name either way. Race-safe (create vs exists). */
@@ -215,46 +137,7 @@ export abstract class BaseDockerSupervisorService<
 		await this.client.createVolume({ Name: name }).catch(() => undefined);
 	}
 
-	/** Pull an image, draining the progress stream. Throws on pull failure. */
-	protected async pullImage(image: string): Promise<void> {
-		await new Promise<void>((resolve, reject) => {
-			this.client.pull(image, (error: Error | null, stream: NodeJS.ReadableStream | null) => {
-				if (error !== null) {
-					reject(error);
-					return;
-				}
-				if (stream === null) {
-					reject(new Error(`null pull stream for image "${image}"`));
-					return;
-				}
-				stream.once("end", () => { resolve(); });
-				stream.once("error", reject);
-				stream.resume();
-			});
-		});
-	}
 
-	/**
-	 * Create a container from the given spec. Does NOT start it — callers
-	 * decide when (create-then-start keeps inspect/start separable in tests).
-	 */
-	protected async createContainer(spec: DockerSupervisorContainerSpec, networkId?: string): Promise<Container> {
-		const hostConfig: Record<string, unknown> = {
-			Binds: spec.binds ?? [],
-			RestartPolicy: { Name: spec.restartPolicy ?? "unless-stopped" },
-		};
-		if (networkId !== undefined) hostConfig.NetworkMode = networkId;
-		if (spec.portBindings !== undefined) hostConfig.PortBindings = spec.portBindings;
-		if (spec.extraHosts !== undefined && spec.extraHosts.length > 0) hostConfig.ExtraHosts = spec.extraHosts;
-
-		return await this.client.createContainer({
-			name: spec.name,
-			Image: spec.image,
-			Cmd: spec.command,
-			Labels: spec.labels,
-			HostConfig: hostConfig,
-		});
-	}
 
 	/** Force-remove a container by name, tolerating already-gone (no throw). */
 	protected async removeContainerIfExists(name: string): Promise<void> {
@@ -279,43 +162,6 @@ export abstract class BaseDockerSupervisorService<
 		}
 	}
 
-	/**
-	 * Desired config + LIVE runtime view of the container described by a spec
-	 * — the shared docker process-info shape every docker-backed supervisor
-	 * reports through `getProcessInfo()`. `desired` mirrors the spec exactly;
-	 * `live` is a fresh inspect (all-null when the container doesn't exist).
-	 */
-	protected async describeDockerProcess(spec: DockerSupervisorContainerSpec): Promise<DockerProcessInfo> {
-		const live = await this.inspectContainer(spec.name);
-		const hostPorts = Object.entries(spec.portBindings ?? {})
-			.flatMap(([containerPort, bindings]) =>
-				bindings.map((binding) => ({
-					containerPort: Number(containerPort.split("/")[0]),
-					hostPort: Number(binding.HostPort),
-				})),
-			)
-			.filter((p) => p.hostPort >= 1 && Number.isInteger(p.containerPort) && Number.isInteger(p.hostPort));
-		return {
-			kind: "docker",
-			desired: {
-				name: spec.name,
-				image: spec.image,
-				command: spec.command ?? null,
-				labels: spec.labels,
-				networkName: spec.networkName ?? null,
-				binds: spec.binds ?? null,
-				hostPorts: hostPorts.length > 0 ? hostPorts : null,
-				restartPolicy: spec.restartPolicy ?? "no",
-			},
-			live: {
-				containerId: live?.Id ?? null,
-				running: live?.State.Running ?? null,
-				startedAt: live?.State.StartedAt ?? null,
-				exitCode: live?.State.ExitCode ?? null,
-				restartCount: live?.RestartCount ?? null,
-			},
-		};
-	}
 
 	// ─── Swarm-aware reconciliation ──────────────────────────────────────────
 	//

@@ -25,6 +25,8 @@ import { engineCall } from "./call";
 export type SwarmClusterShape = {
 	/** The local engine's Swarm state (`GET /info`); `LocalNodeState` tells whether it is in a cluster. */
 	readonly info: () => Effect.Effect<DockerodeSwarmInfo, DockerError>;
+	/** True when this engine is an active member of a swarm; false when it is not or cannot say. */
+	readonly isActive: () => Effect.Effect<boolean>;
 	/** The cluster the engine belongs to; `DockerNotFound` when it is in none. */
 	readonly inspect: () => Effect.Effect<DockerodeSwarmInspect, DockerError>;
 	/**
@@ -77,14 +79,21 @@ const encode = (options: SwarmDataObject) => ({
 });
 
 export function makeSwarmCluster(client: Docker): SwarmClusterShape {
+	const info: SwarmClusterShape["info"] = Effect.fn("DockerSwarmCluster.info")(function* () {
+		return yield* engineCall("read Swarm info", async () => {
+			const raw: unknown = await client.info();
+			const swarm = typeof raw === "object" && raw !== null && "Swarm" in raw ? raw.Swarm : undefined;
+			return dockerodeSwarmInfoSchema.parse(typeof swarm === "object" && swarm !== null ? swarm : {});
+		});
+	});
+
 	return {
-		info: Effect.fn("DockerSwarmCluster.info")(function* () {
-			return yield* engineCall("read Swarm info", async () => {
-				const info: unknown = await client.info();
-				const swarm = typeof info === "object" && info !== null && "Swarm" in info ? info.Swarm : undefined;
-				return dockerodeSwarmInfoSchema.parse(typeof swarm === "object" && swarm !== null ? swarm : {});
-			});
-		}),
+		info,
+		isActive: () =>
+			info().pipe(
+				Effect.map((swarm) => swarm.LocalNodeState === "active"),
+				Effect.catch(() => Effect.succeed(false)),
+			),
 		inspect: Effect.fn("DockerSwarmCluster.inspect")(function* () {
 			return yield* engineCall(
 				"inspect Swarm cluster",

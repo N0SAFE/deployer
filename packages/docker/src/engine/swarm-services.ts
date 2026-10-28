@@ -9,6 +9,8 @@ import { Effect } from "effect";
 import z from "zod/v4";
 
 import type { DockerError } from "../errors";
+import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
+import { toDockerServiceSpec } from "../swarm/swarm-spec.mapper";
 import { engineCall } from "./call";
 
 export type SwarmServicesShape = {
@@ -32,6 +34,12 @@ export type SwarmServicesShape = {
 	/** Re-applies the service's own `RollbackConfig` target, the previous good spec. */
 	readonly rollback: (idOrName: string) => Effect.Effect<void, DockerError>;
 	readonly listTasks: (idOrName: string) => Effect.Effect<DockerodeTaskSummary[], DockerError>;
+	/**
+	 * Makes the service match `spec`: updated in place when it exists, created when it does not.
+	 * Concurrent writers make the engine refuse an update with "out of sequence"; that is retried
+	 * against a fresh version, up to `maxAttempts` (default 5).
+	 */
+	readonly reconcile: (spec: SwarmServiceSpecInput, maxAttempts?: number) => Effect.Effect<void, DockerError>;
 	/** Every swarm service on the cluster (`GET /services`). */
 	readonly list: () => Effect.Effect<DockerodeServiceSummary[], DockerError>;
 	/** Tasks cluster-wide (`GET /tasks`), optionally narrowed to a service and/or a node. */
@@ -48,6 +56,11 @@ const serviceVersionAndSpecSchema = z.object({
 	Version: z.object({ Index: z.number() }),
 	Spec: z.record(z.string(), z.unknown()),
 });
+
+/** The engine refused an update because another writer got there first (stale `Version.Index`). */
+export function isSwarmVersionConflict(error: unknown): boolean {
+	return /update out of sequence/i.test(error instanceof Error ? error.message : String(error));
+}
 
 export function makeSwarmServices(client: Docker): SwarmServicesShape {
 	const resource = (idOrName: string) => `swarm service '${idOrName}'`;
@@ -148,6 +161,26 @@ export function makeSwarmServices(client: Docker): SwarmServicesShape {
 		}).pipe(Effect.catch(() => Effect.succeed("")));
 	});
 
-	return { inspect, create, update, remove, scale, rollback, listTasks, list, listAllTasks, logs };
+	const reconcile: SwarmServicesShape["reconcile"] = Effect.fn("DockerSwarmServices.reconcile")(function* (
+		spec,
+		maxAttempts = 5,
+	) {
+		const dockerSpec = toDockerServiceSpec(spec);
+		for (let attempt = 1; ; attempt += 1) {
+			const outcome = yield* inspect(spec.name).pipe(
+				Effect.flatMap((existing) => update(spec.name, existing.Version.Index, dockerSpec, false)),
+				Effect.map(() => "done" as const),
+				Effect.catchTag("DockerNotFound", () => create(dockerSpec).pipe(Effect.map(() => "done" as const))),
+				Effect.catch((failure) =>
+					attempt < maxAttempts && isSwarmVersionConflict(failure)
+						? Effect.succeed("retry" as const)
+						: Effect.fail(failure),
+				),
+			);
+			if (outcome === "done") return;
+		}
+	});
+
+	return { inspect, create, update, remove, scale, rollback, listTasks, list, listAllTasks, logs, reconcile };
 }
 

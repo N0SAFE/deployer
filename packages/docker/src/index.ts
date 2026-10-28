@@ -58,3 +58,18 @@ export type {
 export type { ExecResult, ExecShape } from "./engine/exec";
 export type { LogsShape } from "./engine/logs";
 export type { BuildComposeOptions, BuildImageOptions, BuildShape } from "./engine/build";
+export {
+	attachPostgresOverlay,
+	buildPostgresSpec,
+	MANAGED_POSTGRES_ALIAS,
+	MANAGED_POSTGRES_CONTAINER_NAME,
+	MANAGED_POSTGRES_IMAGE,
+	MANAGED_POSTGRES_PORT,
+	MANAGED_POSTGRES_VOLUME_NAME,
+	makePostgresProvisioner,
+	managedPostgresServiceName,
+	PostgresProvisionFailed,
+	PostgresProvisioner,
+} from "./provisioning/postgres";
+export type { PostgresIdentity, PostgresProvisionerShape } from "./provisioning/postgres";
+export { isSwarmVersionConflict } from "./engine/swarm-services";

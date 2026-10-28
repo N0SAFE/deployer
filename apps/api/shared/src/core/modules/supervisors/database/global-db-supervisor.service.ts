@@ -40,16 +40,10 @@ import {
 	type DockerProcessInfo,
 } from "@deployer/nest-supervisor-core/supervisor-process-info";
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
-import {
-	PostgresServiceProvisioner,
-	MANAGED_POSTGRES_CONTAINER_NAME,
-	MANAGED_POSTGRES_IMAGE,
-	MANAGED_POSTGRES_PORT,
-	MANAGED_POSTGRES_VOLUME_NAME,
-	managedPostgresServiceName,
-	type PostgresServiceIdentity,
-} from "@deployer/nest-docker/containers/postgres/postgres-service.provisioner";
-import { MANAGED_POSTGRES_ALIAS } from "@deployer/nest-docker/containers/postgres/postgres-service.provisioner";
+import { MANAGED_POSTGRES_CONTAINER_NAME, MANAGED_POSTGRES_IMAGE, MANAGED_POSTGRES_PORT, MANAGED_POSTGRES_VOLUME_NAME, managedPostgresServiceName } from "@deployer/docker";
+import { PostgresServiceProvisioner } from "@deployer/nest-docker/containers/postgres/postgres-service.provisioner";
+import type { PostgresIdentity } from "@deployer/docker";
+import { MANAGED_POSTGRES_ALIAS } from "@deployer/docker";
 import { NodeConfigRepository } from "@deployer/nest-nodes/node-config.repository";
 import { EnvService } from "../../../../config/env/env.module";
 import { splitManagedEnv } from "@deployer/env";
@@ -218,7 +212,7 @@ private async depsReady(): Promise<boolean> {
 	}
 
 	/** Credentials + image of the managed database, resolved from the env. */
-	private identity(): PostgresServiceIdentity {
+	private identity(): PostgresIdentity {
 		return {
 			databaseName: this.env.get("DB_DATABASE") ?? "deployer",
 			username: this.env.get("DB_USER") ?? "deployer",
