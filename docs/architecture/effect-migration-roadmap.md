@@ -29,7 +29,7 @@ inside the package. Do not rewrite an RxJS bus or SSE pipeline into Effect strea
 | `@deployer/lifecycle` + `nest-effect/lifecycle` | `nest-lifecycle` |
 | `@deployer/environment` + `nest-effect/env` | `nest-env` |
 | `@deployer/database` + `nest-effect/database` | `nest-database-core` |
-| `@deployer/platform-supervisors` (swarm app-wiring so far) + `SupervisorHost` in `nest-effect/supervision` | the matching `apps/api/shared` supervisor; the other seven supervisors still extend the Promise `BaseSupervisorService` / `BaseDockerSupervisorService` and move here one by one |
+| `@deployer/platform-supervisors` (swarm app-wiring, redis so far; shared swarm-service helpers) + `SupervisorHost` in `nest-effect/supervision` | the matching `apps/api/shared` supervisor; the other six supervisors still extend the Promise `BaseSupervisorService` / `BaseDockerSupervisorService` and move here one by one |
 | `@deployer/service-client` | `nest-service-client` (no Nest host: only the bff uses it, through its own module) |
 | `@deployer/events` + `nest-effect/events` | `nest-events` (journal in Effect; streaming stays RxJS) |
 | `@deployer/swarm` + `nest-effect/swarm` | `nest-swarm` (the runtime swarm runner uses `SwarmCluster` directly) |
