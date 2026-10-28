@@ -42,8 +42,11 @@ export type ImagesShape = {
 
 export function makeImages(client: Docker): ImagesShape {
 	const pullOnce = (image: string, options: PullOptions) =>
-		engineCall(`pull image ${image}`, async () => {
-			const stream = await client.pull(image, options.registryAuth ? { authconfig: options.registryAuth } : {});
+		engineCall(`pull image ${image}`, async (signal) => {
+			const stream = await client.pull(image, {
+				...(options.registryAuth ? { authconfig: options.registryAuth } : {}),
+				abortSignal: signal,
+			});
 			await followProgress(client, stream, options.onProgressLine);
 		});
 

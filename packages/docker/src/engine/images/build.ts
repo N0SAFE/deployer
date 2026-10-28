@@ -1,4 +1,5 @@
 import type Docker from "dockerode";
+import { fromAbortable } from "@deployer/effect-core";
 import { Effect } from "effect";
 import { spawn } from "node:child_process";
 import { access } from "node:fs/promises";
@@ -43,9 +44,9 @@ const exists = (file: string) =>
 	);
 
 /** Runs the docker CLI without a shell; resolves with its stderr, rejects when it exits non-zero. */
-function runDockerCli(args: string[], cwd: string): Promise<void> {
+function runDockerCli(args: string[], cwd: string, signal: AbortSignal): Promise<void> {
 	return new Promise((resolve, reject) => {
-		const child = spawn("docker", args, { cwd, stdio: ["ignore", "ignore", "pipe"] });
+		const child = spawn("docker", args, { cwd, stdio: ["ignore", "ignore", "pipe"], signal });
 		let stderr = "";
 		child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString("utf8")));
 		child.on("error", reject);
@@ -66,10 +67,10 @@ export function makeBuild(client: Docker): BuildShape {
 				new DockerNotFound({ resource: `Dockerfile at ${dockerfilePath} (context=${sourcePath}, dockerfile=${dockerfileName})` }),
 			);
 		}
-		yield* engineCall(`build image ${imageTag}`, async () => {
+		yield* engineCall(`build image ${imageTag}`, async (signal) => {
 			const stream = await client.buildImage(
 				{ context: sourcePath, src: ["."] },
-				{ t: imageTag, dockerfile: dockerfileName, ...(options.buildArgs ? { buildargs: options.buildArgs } : {}) },
+				{ t: imageTag, dockerfile: dockerfileName, ...(options.buildArgs ? { buildargs: options.buildArgs } : {}), abortSignal: signal },
 			);
 			await followProgress(client, stream, options.onProgressLine);
 		});
@@ -83,11 +84,10 @@ export function makeBuild(client: Docker): BuildShape {
 		}
 		const projectName = options.projectName ?? `deployer-${String(Date.now())}`;
 		const args = ["compose", "-f", composeFilePath, "-p", projectName, "build", ...(options.serviceNames ?? [])];
-		yield* Effect.tryPromise({
-			try: () => runDockerCli(args, sourcePath),
-			catch: (cause) =>
-				new DockerUnavailable({ reason: cause instanceof Error ? cause.message : String(cause), cause }),
-		});
+		yield* fromAbortable(
+			(signal) => runDockerCli(args, sourcePath, signal),
+			(cause) => new DockerUnavailable({ reason: cause instanceof Error ? cause.message : String(cause), cause }),
+		);
 		return { projectName, services: options.serviceNames ?? [] };
 	});
 

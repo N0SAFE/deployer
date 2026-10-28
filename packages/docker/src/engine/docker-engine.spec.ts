@@ -60,7 +60,7 @@ describe("DockerEngine.containers", () => {
 
 		await run(engine.containers.create({ Image: "app:1" }));
 
-		expect(client.pull).toHaveBeenCalledWith("app:1", {});
+		expect(client.pull).toHaveBeenCalledWith("app:1", expect.objectContaining({ abortSignal: expect.any(AbortSignal) }));
 		expect(client.createContainer).toHaveBeenCalledTimes(1);
 	});
 

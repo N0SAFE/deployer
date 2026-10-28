@@ -64,6 +64,7 @@ export function makeDockerEngine(client: Docker): DockerEngineShape {
 		logs: makeLogs(client),
 		build: makeBuild(client),
 		ping: () =>
+			// `ping` takes no options, so there is no signal to pass on.
 			Effect.tryPromise({ try: () => client.ping(), catch: (cause) => cause }).pipe(
 				Effect.as(true),
 				Effect.catch(() => Effect.succeed(false)),

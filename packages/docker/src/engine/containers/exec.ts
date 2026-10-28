@@ -24,16 +24,17 @@ export type ExecShape = {
 
 export function makeExec(client: Docker): ExecShape {
 	/** One exec: create, start, collect the output, read the exit code. */
-	const once = (idOrName: string, cmd: string[], input: string | undefined, hijack: boolean): Promise<ExecResult> =>
+	const once = (idOrName: string, cmd: string[], input: string | undefined, hijack: boolean, signal: AbortSignal): Promise<ExecResult> =>
 		(async () => {
 			const exec = await client.getContainer(idOrName).exec({
 				Cmd: cmd,
 				AttachStdout: true,
 				AttachStderr: true,
 				AttachStdin: input !== undefined && input.length > 0,
+				abortSignal: signal,
 			});
 			const hasInput = input !== undefined && input.length > 0;
-			const raw: unknown = await exec.start({ hijack, stdin: hasInput });
+			const raw: unknown = await exec.start({ hijack, stdin: hasInput, abortSignal: signal });
 			const exitCodeOf = async () => {
 				const inspected = await exec.inspect();
 				return typeof inspected.ExitCode === "number" ? inspected.ExitCode : -1;
@@ -76,10 +77,10 @@ export function makeExec(client: Docker): ExecShape {
 	 * without it, so that one failure is retried once without hijack.
 	 */
 	const attemptExec = (idOrName: string, cmd: string[], input: string | undefined) =>
-		engineCall(`exec in container ${idOrName}`, () => once(idOrName, cmd, input, true)).pipe(
+		engineCall(`exec in container ${idOrName}`, (signal) => once(idOrName, cmd, input, true, signal)).pipe(
 			Effect.catch((failure) =>
 				/http code\s*101/i.test(engineMessage(failure.cause ?? failure))
-					? engineCall(`exec in container ${idOrName} (without hijack)`, () => once(idOrName, cmd, input, false))
+					? engineCall(`exec in container ${idOrName} (without hijack)`, (signal) => once(idOrName, cmd, input, false, signal))
 					: Effect.fail(failure),
 			),
 		);

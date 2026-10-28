@@ -1,4 +1,5 @@
 import type Docker from "dockerode";
+import { fromAbortable } from "@deployer/effect-core";
 import { Effect } from "effect";
 
 import { engineMessage } from "../../errors/classify";
@@ -184,17 +185,17 @@ export function makeContainers(client: Docker, images: ImagesShape): ContainersS
 			const info = yield* engineCall(`inspect container ${idOrName}`, () => client.getContainer(idOrName).inspect());
 			if (info.State.Status !== "running") return false;
 			if (healthCheckUrl === undefined) return true;
-			return yield* Effect.tryPromise({
-				try: async () => {
+			return yield* fromAbortable(
+				async (signal) => {
 					const response = await fetch(healthCheckUrl, {
 						method: "GET",
 						headers: { "User-Agent": "Deployer-HealthCheck/1.0" },
-						signal: AbortSignal.timeout(HTTP_PROBE_TIMEOUT_MS),
+						signal: AbortSignal.any([signal, AbortSignal.timeout(HTTP_PROBE_TIMEOUT_MS)]),
 					});
 					return response.ok;
 				},
-				catch: (cause) => new DockerUnavailable({ reason: engineMessage(cause), cause }),
-			});
+				(cause) => new DockerUnavailable({ reason: engineMessage(cause), cause }),
+			);
 		}).pipe(Effect.catch(() => Effect.succeed(false)));
 
 	const waitForHealth: ContainersShape["waitForHealth"] = Effect.fn("DockerContainers.waitForHealth")(function* (
@@ -216,9 +217,9 @@ export function makeContainers(client: Docker, images: ImagesShape): ContainersS
 	});
 
 	const removeIfExists: ContainersShape["removeIfExists"] = (idOrName) =>
-		Effect.tryPromise({ try: async () => {
-				await client.getContainer(idOrName).remove({ force: true });
-			}, catch: (cause) => cause }).pipe(
+		fromAbortable(async (signal) => {
+			await client.getContainer(idOrName).remove({ force: true, abortSignal: signal } as Docker.ContainerRemoveOptions);
+		}, (cause) => cause).pipe(
 			Effect.catch((cause) => {
 				const statusCode = typeof cause === "object" && cause !== null && "statusCode" in cause ? cause.statusCode : undefined;
 				return statusCode === 404 || statusCode === 409 || /no such container|already in progress/i.test(engineMessage(cause))
@@ -353,17 +354,17 @@ export function makeContainers(client: Docker, images: ImagesShape): ContainersS
 			return { isHealthy: containerHealth.isHealthy, containerHealth };
 		}
 		const startedAt = Date.now();
-		return yield* Effect.tryPromise({
-			try: async () => {
+		return yield* fromAbortable(
+			async (signal) => {
 				const response = await fetch(healthCheckUrl, {
 					method: "GET",
 					headers: { "User-Agent": "Deployer-HealthCheck/1.0" },
-					signal: AbortSignal.timeout(timeoutMs),
+					signal: AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]),
 				});
 				return { isHealthy: response.ok, httpStatus: response.status, responseTime: Date.now() - startedAt, containerHealth };
 			},
-			catch: (cause) => cause,
-		}).pipe(
+			(cause) => cause,
+		).pipe(
 			Effect.catch((cause) => Effect.succeed({ isHealthy: false, error: engineMessage(cause), containerHealth })),
 		);
 	});

@@ -4,6 +4,7 @@ import {
 	type DockerodeNetworkSummary,
 	type SwarmOverlayNetworkRequest,
 } from "@deployer/contracts-entities";
+import { fromAbortable } from "@deployer/effect-core";
 import { Effect } from "effect";
 import z from "zod/v4";
 
@@ -121,7 +122,9 @@ export function makeNetworks(client: Docker, swarmServices: SwarmServicesShape):
 		Effect.gen(function* () {
 			const deadline = Date.now() + budgetMs;
 			for (;;) {
-				const outcome = yield* Effect.tryPromise({ try: () => client.getNetwork(name).remove(), catch: (cause) => cause }).pipe(
+				const outcome = yield* fromAbortable(async (signal) => {
+					await client.getNetwork(name).remove({ abortSignal: signal });
+				}, (cause) => cause).pipe(
 					Effect.map(() => null),
 					Effect.catch((cause) => Effect.succeed({ cause })),
 				);
@@ -159,7 +162,9 @@ export function makeNetworks(client: Docker, swarmServices: SwarmServicesShape):
 				}
 			}
 			for (const containerId of options.detachContainerIds ?? []) {
-				yield* Effect.tryPromise({ try: () => network.disconnect({ Container: containerId, Force: true }), catch: (cause) => cause }).pipe(
+				yield* fromAbortable(async (signal) => {
+					await network.disconnect({ Container: containerId, Force: true, abortSignal: signal });
+				}, (cause) => cause).pipe(
 					Effect.ignore,
 				);
 			}
@@ -182,10 +187,13 @@ export function makeNetworks(client: Docker, swarmServices: SwarmServicesShape):
 	});
 
 	const connectContainer: NetworksShape["connectContainer"] = (networkName, containerIdOrName) =>
-		Effect.tryPromise({
-			try: () => client.getNetwork(networkName).connect({ Container: containerIdOrName }),
-			catch: (cause) => cause,
-		}).pipe(Effect.ignore);
+		fromAbortable(
+			async (signal) => {
+				const options = { Container: containerIdOrName, abortSignal: signal };
+				await client.getNetwork(networkName).connect(options);
+			},
+			(cause) => cause,
+		).pipe(Effect.ignore);
 
 	return { ensureOverlay, list, recreateOverlay, connectContainer };
 }

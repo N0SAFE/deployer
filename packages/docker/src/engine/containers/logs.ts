@@ -26,7 +26,7 @@ export function makeLogs(client: Docker): LogsShape {
 	) {
 		return yield* engineCall(
 			`fetch logs for container ${idOrName}`,
-			async () => {
+			async (signal) => {
 				const raw: unknown = await (client.getContainer(idOrName).logs as (opts: Record<string, unknown>) => Promise<unknown>)({
 					stdout: options.stdout !== false,
 					stderr: options.stderr !== false,
@@ -35,6 +35,7 @@ export function makeLogs(client: Docker): LogsShape {
 					until: options.until,
 					timestamps: options.timestamps,
 					follow: options.follow === true,
+					abortSignal: signal,
 				});
 				if (typeof raw === "string") return raw;
 				if (Buffer.isBuffer(raw) || raw instanceof Uint8Array) return decodeLogsPayload(Buffer.from(raw));
