@@ -57,4 +57,10 @@ describe("Fleet routes e2e: an authenticated admin", () => {
 
 		expect(Array.isArray((response.body as { configs: unknown[] }).configs)).toBe(true);
 	});
+
+	// The cluster Layers over the swarm ports: the node inventory is read from the local store and
+	// the master view from the persisted node row, neither of which needs a live engine.
+	it.each(["/cluster/nodes", "/cluster/master"])("reads %s through the Effect services", async (path) => {
+		await context.http.get(path).set("cookie", admin.cookie).expect(200);
+	});
 });

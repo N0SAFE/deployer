@@ -1,12 +1,14 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { ClusterSnapshot } from "@deployer/contracts-entities";
-import { SwarmClusterService } from "@deployer/nest-swarm";
-import { SwarmFleetService } from "@deployer/nest-swarm";
-import { SwarmParticipationService } from "@deployer/nest-swarm";
-import { ClusterNodeRepository } from "@deployer/nest-nodes/cluster-node.repository";
-import { ClusterNodeInventoryRepository } from "@deployer/nest-nodes/cluster-node-inventory.repository";
-import { EnvService } from "@deployer/shared/config/env/env.module";
-import { ClusterService } from "./cluster.service";
+import { Cause, Effect, Exit } from "effect";
+import { makeClusterService } from "./cluster.service";
+
+/** Run an Effect and reject with the ORIGINAL failure, so `rejects` assertions read the real error. */
+async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
+    const exit = await Effect.runPromiseExit(effect);
+    if (Exit.isSuccess(exit)) return exit.value;
+    throw Cause.squash(exit.cause);
+}
 
 const snapshot: ClusterSnapshot = {
     clusterId: "c1",
@@ -68,7 +70,7 @@ const nodeRow = {
 };
 
 describe("ClusterService", () => {
-    let service: ClusterService;
+    let service: ReturnType<typeof makeClusterService>;
     let swarm: {
         getLocalClusterSnapshot: ReturnType<typeof vi.fn>;
         listSwarmNodes: ReturnType<typeof vi.fn>;
@@ -143,22 +145,22 @@ describe("ClusterService", () => {
             view: vi.fn().mockResolvedValue({}),
             applyConfig: vi.fn().mockResolvedValue({}),
         };
-        service = new ClusterService(
-            swarm as never,
-            fleet as never,
-            participation as never,
-            nodeRepo as never,
-            inventoryRepo as never,
-            env as never,
-        );
+        service = makeClusterService({
+            swarmClusterService: swarm as never,
+            swarmFleetService: fleet as never,
+            participation: participation as never,
+            clusterNodeRepository: nodeRepo as never,
+            inventoryRepository: inventoryRepo as never,
+            env: env as never,
+        });
     });
 
     it("getSnapshot delegates to the swarm cluster service", async () => {
-        await expect(service.getSnapshot()).resolves.toEqual(snapshot);
+        await expect(run(service.getSnapshot())).resolves.toEqual(snapshot);
     });
 
     it("listNodes maps inventory rows into contract rows", async () => {
-        const nodes = await service.listNodes(false);
+        const nodes = await run(service.listNodes(false));
         expect(nodes).toHaveLength(1);
         expect(nodes[0]).toMatchObject({
             nodeId: "n1",
@@ -175,24 +177,24 @@ describe("ClusterService", () => {
         inventoryRepo.list.mockReturnValueOnce([]).mockReturnValue([inventoryRow]);
         swarm.listSwarmNodes.mockResolvedValue([{ ID: "n1", Version: { Index: 1 }, Spec: { Name: "n1", Labels: {}, Role: "worker", Availability: "active" }, Description: { Hostname: "h1" }, ManagerStatus: null }]);
 
-        const nodes = await service.listNodes(true);
+        const nodes = await run(service.listNodes(true));
 
         expect(inventoryRepo.upsertAllFromEngine).toHaveBeenCalledTimes(1);
         expect(nodes).toHaveLength(1);
     });
 
     it("getMaster returns the persisted elected master with healthy state", async () => {
-        const master = await service.getMaster();
+        const master = await run(service.getMaster());
         expect(master).toMatchObject({ nodeId: "n1", term: 3, state: "healthy" });
     });
 
     it("getMaster returns null when no master is elected", async () => {
         nodeRepo.find.mockReturnValue({ ...nodeRow, masterNodeId: null });
-        await expect(service.getMaster()).resolves.toBeNull();
+        await expect(run(service.getMaster())).resolves.toBeNull();
     });
 
     it("updateNodeLabels applies ingress + role and persists", async () => {
-        const result = await service.updateNodeLabels("n1", { ingress: true, platformRole: "control" });
+        const result = await run(service.updateNodeLabels("n1", { ingress: true, platformRole: "control" }));
 
         expect(swarm.updateSwarmNodeLabels).toHaveBeenCalledWith(
             "n1",
@@ -207,7 +209,7 @@ describe("ClusterService", () => {
     });
 
     it("updateNodeLabels removes the ingress label when set to false", async () => {
-        await service.updateNodeLabels("n1", { ingress: false });
+        await run(service.updateNodeLabels("n1", { ingress: false }));
 
         expect(swarm.updateSwarmNodeLabels).toHaveBeenCalledWith(
             "n1",
@@ -217,10 +219,10 @@ describe("ClusterService", () => {
     });
 
     it("updateNodeLabels reverts a node to the 'both' role by DROPPING the role label", async () => {
-        await service.updateNodeLabels("n1", { platformRole: "control" });
+        await run(service.updateNodeLabels("n1", { platformRole: "control" }));
         expect(engineLabels).toEqual({ "deployer.node.role": "control" });
 
-        const reverted = await service.updateNodeLabels("n1", { platformRole: "both" });
+        const reverted = await run(service.updateNodeLabels("n1", { platformRole: "both" }));
 
         // The regression: the requested map must be the COMPLETE desired map —
         // re-merging the engine's existing labels resurrected the role key, so
@@ -236,7 +238,7 @@ describe("ClusterService", () => {
         // The engine rejects/does not apply the write (e.g. a read-only node).
         engineUpdateApplies = false;
 
-        const result = await service.updateNodeLabels("n1", { platformRole: "control", ingress: true });
+        const result = await run(service.updateNodeLabels("n1", { platformRole: "control", ingress: true }));
 
         // Honest failure: the response must NOT claim the role was applied, and
         // the inventory cache must not be poisoned with the requested values.

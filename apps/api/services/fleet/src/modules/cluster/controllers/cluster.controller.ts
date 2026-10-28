@@ -2,137 +2,212 @@ import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
 import { clusterContract } from "@deployer/fleet-contracts";
-import { ClusterService } from "../services/cluster.service";
-import { ClusterSwarmEventsService } from "../events/cluster-swarm-events.service";
+import { EffectContextOf } from "@deployer/nest-effect";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
+import { liveSnapshot } from "@deployer/shared/core/utils/live-snapshot.utils";
+import { Effect } from "effect";
 
+import { attemptSync } from "../../../core/effects";
+import { serve } from "../../../core/orpc/serve";
+import { ClusterModule } from "../cluster.module";
+import { ClusterEventsPort } from "../cluster.ports";
+import { ClusterService } from "../services/cluster.service";
+
+/**
+ * Re-evaluation cadence for `streamSwarmConfig` — the interval the dashboard used
+ * to poll this query at. Participation converges over seconds, not milliseconds.
+ */
+const SWARM_CONFIG_STREAM_INTERVAL_MS = 15_000;
+
+/**
+ * The cluster surface. Request/response procedures resolve `ClusterService` from the module's Effect
+ * context; the `stream*` procedures hand back the RxJS observables of the event hub (reached through
+ * `ClusterEventsPort`). Every use case runs through `serve`.
+ */
 @Controller()
 export class ClusterController {
-    constructor(
-        private readonly clusterService: ClusterService,
-        private readonly clusterEvents: ClusterSwarmEventsService,
-    ) {}
-
     @Implement(clusterContract.getSnapshot)
     getSnapshot() {
         return implement(clusterContract.getSnapshot)
             .use(requireAuth())
-            .handler(async () => this.clusterService.getSnapshot());
+            .use(ClusterModule[EffectContextOf])
+            .effect(function* ({ context }) {
+                const cluster = yield* ClusterService;
+                return yield* serve(context)(cluster.getSnapshot());
+            });
     }
 
     @Implement(clusterContract.streamSnapshot)
     streamSnapshot() {
         return implement(clusterContract.streamSnapshot)
             .use(requireAuth())
-            .handler(() => this.clusterEvents.observeSnapshot());
+            .use(ClusterModule[EffectContextOf])
+            .effect(function* ({ context }) {
+                const events = yield* ClusterEventsPort;
+                return yield* serve(context)(attemptSync(() => events.observeSnapshot()));
+            });
     }
 
     @Implement(clusterContract.listNodes)
     listNodes() {
         return implement(clusterContract.listNodes)
             .use(requireAuth())
-            .handler(async ({ input }) => this.clusterService.listNodes(input.includeDown ?? false));
+            .use(ClusterModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const cluster = yield* ClusterService;
+                return yield* serve(context)(cluster.listNodes(input.includeDown ?? false));
+            });
     }
 
     @Implement(clusterContract.streamNodes)
     streamNodes() {
         return implement(clusterContract.streamNodes)
             .use(requireAuth())
-            .handler(({ input }) => this.clusterEvents.observeNodes(input.includeDown ?? false));
+            .use(ClusterModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const events = yield* ClusterEventsPort;
+                return yield* serve(context)(attemptSync(() => events.observeNodes(input.includeDown ?? false)));
+            });
     }
 
     @Implement(clusterContract.getMaster)
     getMaster() {
         return implement(clusterContract.getMaster)
             .use(requireAuth())
-            .handler(async () => this.clusterService.getMaster());
+            .use(ClusterModule[EffectContextOf])
+            .effect(function* ({ context }) {
+                const cluster = yield* ClusterService;
+                return yield* serve(context)(cluster.getMaster());
+            });
     }
 
     @Implement(clusterContract.getSwarmConfig)
     getSwarmConfig() {
         return implement(clusterContract.getSwarmConfig)
             .use(requireAuth())
-            .handler(async () => this.clusterService.getSwarmConfig());
+            .use(ClusterModule[EffectContextOf])
+            .effect(function* ({ context }) {
+                const cluster = yield* ClusterService;
+                return yield* serve(context)(cluster.getSwarmConfig());
+            });
+    }
+
+    @Implement(clusterContract.streamSwarmConfig)
+    streamSwarmConfig() {
+        return implement(clusterContract.streamSwarmConfig)
+            .use(requireAuth())
+            .use(ClusterModule[EffectContextOf])
+            .effect(function* ({ context }) {
+                const cluster = yield* ClusterService;
+                // Each evaluation runs through `serve`, so a poll provides the actor like any request.
+                return liveSnapshot(() => Effect.runPromise(serve(context)(cluster.getSwarmConfig())), {
+                    intervalMs: SWARM_CONFIG_STREAM_INTERVAL_MS,
+                });
+            });
     }
 
     @Implement(clusterContract.setSwarmConfig)
     setSwarmConfig() {
         return implement(clusterContract.setSwarmConfig)
             .use(requireAuth())
-            .handler(async ({ input }) => this.clusterService.setSwarmConfig(input));
+            .use(ClusterModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const cluster = yield* ClusterService;
+                return yield* serve(context)(cluster.setSwarmConfig(input));
+            });
     }
 
     @Implement(clusterContract.streamMaster)
     streamMaster() {
         return implement(clusterContract.streamMaster)
             .use(requireAuth())
-            .handler(() => this.clusterEvents.observeMaster());
+            .use(ClusterModule[EffectContextOf])
+            .effect(function* ({ context }) {
+                const events = yield* ClusterEventsPort;
+                return yield* serve(context)(attemptSync(() => events.observeMaster()));
+            });
     }
 
     @Implement(clusterContract.updateNode)
     updateNode() {
         return implement(clusterContract.updateNode)
             .use(requireAuth())
-            .handler(async ({ input }) =>
-                this.clusterService.updateNodeLabels(input.params.nodeId, {
-                    platformRole: input.body?.platformRole,
-                    ingress: input.body?.ingress,
-                }),
-            );
+            .use(ClusterModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const cluster = yield* ClusterService;
+                return yield* serve(context)(cluster.updateNodeLabels(input.params.nodeId, {
+                        platformRole: input.body?.platformRole,
+                        ingress: input.body?.ingress,
+                    }));
+            });
     }
 
     @Implement(clusterContract.listServices)
     listServices() {
         return implement(clusterContract.listServices)
             .use(requireAuth())
-            .handler(async () => this.clusterService.listServices());
+            .use(ClusterModule[EffectContextOf])
+            .effect(function* ({ context }) {
+                const cluster = yield* ClusterService;
+                return yield* serve(context)(cluster.listServices());
+            });
     }
 
     @Implement(clusterContract.streamServices)
     streamServices() {
         return implement(clusterContract.streamServices)
             .use(requireAuth())
-            .handler(() => this.clusterEvents.observeServices());
+            .use(ClusterModule[EffectContextOf])
+            .effect(function* ({ context }) {
+                const events = yield* ClusterEventsPort;
+                return yield* serve(context)(attemptSync(() => events.observeServices()));
+            });
     }
 
     @Implement(clusterContract.listTasks)
     listTasks() {
         return implement(clusterContract.listTasks)
             .use(requireAuth())
-            .handler(async ({ input }) =>
-                this.clusterService.listTasks({
-                    serviceId: input.query?.serviceId,
-                    nodeId: input.query?.nodeId,
-                }),
-            );
+            .use(ClusterModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const cluster = yield* ClusterService;
+                return yield* serve(context)(cluster.listTasks({
+                        serviceId: input.query?.serviceId,
+                        nodeId: input.query?.nodeId,
+                    }));
+            });
     }
 
     @Implement(clusterContract.streamTasks)
     streamTasks() {
         return implement(clusterContract.streamTasks)
             .use(requireAuth())
-            .handler(({ input }) =>
-                this.clusterEvents.observeTasks(input.query?.serviceId, input.query?.nodeId),
-            );
+            .use(ClusterModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const events = yield* ClusterEventsPort;
+                return yield* serve(context)(attemptSync(() => events.observeTasks(input.query?.serviceId, input.query?.nodeId)));
+            });
     }
 
     @Implement(clusterContract.getNodeResources)
     getNodeResources() {
         return implement(clusterContract.getNodeResources)
             .use(requireAuth())
-            .handler(async ({ input }) =>
-                this.clusterService.getNodeResources(input.query.nodeId),
-            );
+            .use(ClusterModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const cluster = yield* ClusterService;
+                return yield* serve(context)(cluster.getNodeResources(input.query.nodeId));
+            });
     }
 
     @Implement(clusterContract.streamNodeResources)
     streamNodeResources() {
         return implement(clusterContract.streamNodeResources)
             .use(requireAuth())
-            .handler(({ input }) => {
-                // Node resources derives from the same swarm event stream
-                // but needs per-node filtering — use the snapshot + fleet data
-                return this.clusterService.nodeResourcesStream$(input.query.nodeId);
+            .use(ClusterModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const cluster = yield* ClusterService;
+                return yield* serve(context)(cluster.nodeResourcesStream(input.query.nodeId));
             });
     }
 }
