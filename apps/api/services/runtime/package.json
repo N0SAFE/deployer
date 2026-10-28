@@ -22,6 +22,7 @@
     "dependencies": {
         "@deployer/auth": "*",
         "@deployer/contracts-entities": "*",
+        "@deployer/docker": "*",
         "@deployer/effect-core": "*",
         "@deployer/effect-infra": "*",
         "@deployer/effect-orpc": "*",

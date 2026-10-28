@@ -1,12 +1,12 @@
 import { Context, Effect, Layer } from "effect";
 
-import type { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { ConfigNotFoundError } from "@deployer/shared/core/modules/traefik/errors/index";
 import type { TraefikService } from "@deployer/shared/core/modules/traefik/services/traefik.service";
 import { attempt } from "../../../core/effects";
 import { RuntimeInvalid } from "../../../core/runtime.errors";
 import { resolveContainerImage } from "../base/container-image.guard";
-import { RunnerDockerPort, RunnerTraefikPort } from "../runners.ports";
+import { RunnerTraefikPort } from "../runners.ports";
 import type { DeploymentRuntimeRunner, RuntimeExecutionInput } from "../runtime-runner.interface";
 import {
     buildFallbackSubdomain,
@@ -30,16 +30,16 @@ const RUNNER_TYPE = "docker" as const;
 export class DockerRuntimeRunner extends Context.Service<DockerRuntimeRunner, DeploymentRuntimeRunner>()(
     "runtime/DockerRuntimeRunner",
 ) {
-    static readonly Live: Layer.Layer<DockerRuntimeRunner, never, RunnerDockerPort | RunnerTraefikPort> = Layer.effect(
+    static readonly Live: Layer.Layer<DockerRuntimeRunner, never, DockerEngine | RunnerTraefikPort> = Layer.effect(
         DockerRuntimeRunner,
         Effect.gen(function* () {
-            return makeDockerRuntimeRunner({ docker: yield* RunnerDockerPort, traefik: yield* RunnerTraefikPort });
+            return makeDockerRuntimeRunner({ docker: yield* DockerEngine, traefik: yield* RunnerTraefikPort });
         }),
     );
 }
 
 export function makeDockerRuntimeRunner(ports: {
-    readonly docker: DockerService;
+    readonly docker: DockerEngineShape;
     readonly traefik: TraefikService;
 }): DeploymentRuntimeRunner {
     const { docker, traefik } = ports;
@@ -120,9 +120,11 @@ export function makeDockerRuntimeRunner(ports: {
         healthCheckUrl: string | null,
         config: { maxRetries: number; retryIntervalMs: number },
     ) {
-        const isHealthy = yield* attempt(() =>
-            docker.waitForContainerHealth(containerId, config.maxRetries, config.retryIntervalMs, healthCheckUrl ?? undefined),
-        );
+        const isHealthy = yield* docker.containers.waitForHealth(containerId, {
+            maxRetries: config.maxRetries,
+            retryIntervalMs: config.retryIntervalMs,
+            ...(healthCheckUrl === null ? {} : { healthCheckUrl }),
+        });
         if (!isHealthy) {
             return yield* Effect.fail(
                 new RuntimeInvalid({
@@ -185,28 +187,26 @@ export function makeDockerRuntimeRunner(ports: {
         let createdContainerId: string | null = null;
         const removeCreatedContainer = Effect.suspend(() => {
             const containerId = createdContainerId;
-            return containerId === null ? Effect.void : attempt(() => docker.removeContainer(containerId));
+            return containerId === null ? Effect.void : docker.containers.remove(containerId);
         });
 
         return yield* Effect.gen(function* () {
-            yield* attempt(() => docker.stopContainersByDeployment(deployment.deploymentId));
-            const staleContainers = yield* attempt(() => docker.listContainersByDeployment(deployment.deploymentId));
+            yield* docker.containers.stopByDeployment(deployment.deploymentId);
+            const staleContainers = yield* docker.containers.listByDeployment(deployment.deploymentId);
             for (const stale of staleContainers) {
-                yield* attempt(() => docker.removeContainer(stale.id));
+                yield* docker.containers.remove(stale.id);
             }
 
-            const created = yield* attempt(() =>
-                docker.createContainer({
+            const created = yield* docker.containers.create({
                     Image: containerImage,
                     name: containerName,
                     Labels: { ...storageMaterialization.labels, ...sanitizedExecutorLabels, ...managedLabels },
                     ...(sanitizedStartupCommand ? { Cmd: ["sh", "-lc", sanitizedStartupCommand] } : {}),
                     ...(sanitizedEnvironmentVariables.length > 0 ? { Env: sanitizedEnvironmentVariables } : {}),
                     ...(Object.keys(hostConfig).length > 0 ? { HostConfig: hostConfig } : {}),
-                }),
-            );
+                });
             createdContainerId = created.id;
-            yield* attempt(() => docker.startContainer(created.id));
+            yield* docker.containers.start(created.id);
 
             const routeVerification = yield* applyRouteAndVerify(
                 deployment.serviceId,

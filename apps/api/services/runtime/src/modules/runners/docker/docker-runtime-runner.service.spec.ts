@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -7,13 +8,13 @@ import { run } from "../testing";
 import { makeDockerRuntimeRunner } from "./docker-runtime-runner.service";
 
 describe("DockerRuntimeRunner", () => {
-    let dockerService: {
-        stopContainersByDeployment: ReturnType<typeof vi.fn>;
-        listContainersByDeployment: ReturnType<typeof vi.fn>;
-        removeContainer: ReturnType<typeof vi.fn>;
-        createContainer: ReturnType<typeof vi.fn>;
-        startContainer: ReturnType<typeof vi.fn>;
-        waitForContainerHealth: ReturnType<typeof vi.fn>;
+    let containers: {
+        stopByDeployment: ReturnType<typeof vi.fn>;
+        listByDeployment: ReturnType<typeof vi.fn>;
+        remove: ReturnType<typeof vi.fn>;
+        create: ReturnType<typeof vi.fn>;
+        start: ReturnType<typeof vi.fn>;
+        waitForHealth: ReturnType<typeof vi.fn>;
     };
     let traefikService: {
         syncServiceConfiguration: ReturnType<typeof vi.fn>;
@@ -23,13 +24,13 @@ describe("DockerRuntimeRunner", () => {
     let service: DeploymentRuntimeRunner;
 
     beforeEach(() => {
-        dockerService = {
-            stopContainersByDeployment: vi.fn().mockResolvedValue(undefined),
-            listContainersByDeployment: vi.fn().mockResolvedValue([]),
-            removeContainer: vi.fn().mockResolvedValue(undefined),
-            createContainer: vi.fn().mockResolvedValue({ id: "container-123" }),
-            startContainer: vi.fn().mockResolvedValue(undefined),
-            waitForContainerHealth: vi.fn().mockResolvedValue(true),
+        containers = {
+            stopByDeployment: vi.fn(() => Effect.void),
+            listByDeployment: vi.fn(() => Effect.succeed([])),
+            remove: vi.fn(() => Effect.void),
+            create: vi.fn(() => Effect.succeed({ id: "container-123" })),
+            start: vi.fn(() => Effect.void),
+            waitForHealth: vi.fn(() => Effect.succeed(true)),
         };
 
         traefikService = {
@@ -46,7 +47,7 @@ describe("DockerRuntimeRunner", () => {
         };
 
         service = makeDockerRuntimeRunner({
-            docker: dockerService as never,
+            docker: { containers } as never,
             traefik: traefikService as never,
         });
     });
@@ -83,7 +84,7 @@ describe("DockerRuntimeRunner", () => {
             },
         }));
 
-        expect(dockerService.createContainer).toHaveBeenCalledWith(
+        expect(containers.create).toHaveBeenCalledWith(
             expect.objectContaining({
                 HostConfig: expect.objectContaining({
                     Binds: ["deployer-storage-volume:/workspace/storage"],
@@ -134,7 +135,7 @@ describe("DockerRuntimeRunner", () => {
             },
         }));
 
-        expect(dockerService.createContainer).toHaveBeenCalledWith(
+        expect(containers.create).toHaveBeenCalledWith(
             expect.objectContaining({
                 HostConfig: expect.objectContaining({
                     Mounts: [
@@ -189,7 +190,7 @@ describe("DockerRuntimeRunner", () => {
 
         const expectedRootPath = path.resolve(process.cwd(), relativeRootPath);
         expect(fs.existsSync(expectedRootPath)).toBe(true);
-        expect(dockerService.createContainer).toHaveBeenCalledWith(
+        expect(containers.create).toHaveBeenCalledWith(
             expect.objectContaining({
                 HostConfig: expect.objectContaining({
                     Binds: [`${expectedRootPath}:/workspace/storage`],
@@ -278,7 +279,7 @@ describe("DockerRuntimeRunner", () => {
             storageBinding: null,
         }));
 
-        expect(dockerService.createContainer).toHaveBeenCalledWith(
+        expect(containers.create).toHaveBeenCalledWith(
             expect.objectContaining({
                 Labels: expect.objectContaining({
                     "deployer.runner.compose_profiles": "prod,canary",
@@ -327,7 +328,7 @@ describe("DockerRuntimeRunner", () => {
             storageBinding: null,
         }));
 
-        expect(dockerService.createContainer).toHaveBeenCalledWith(
+        expect(containers.create).toHaveBeenCalledWith(
             expect.objectContaining({
                 Labels: expect.objectContaining({
                     "deployer.runner.valid": "value",
@@ -337,7 +338,7 @@ describe("DockerRuntimeRunner", () => {
             }),
         );
 
-        expect(dockerService.createContainer).not.toHaveBeenCalledWith(
+        expect(containers.create).not.toHaveBeenCalledWith(
             expect.objectContaining({
                 Labels: expect.objectContaining({
                     "bad key": "value",
@@ -512,7 +513,7 @@ describe("DockerRuntimeRunner", () => {
             })),
         ).rejects.toThrow(/No container image was produced/);
 
-        expect(dockerService.createContainer).not.toHaveBeenCalled();
+        expect(containers.create).not.toHaveBeenCalled();
         expect(traefikService.syncServiceConfiguration).not.toHaveBeenCalled();
     });
 });

@@ -12,10 +12,9 @@ import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.mo
 import { SwarmCoreModule } from "@deployer/shared/core/modules/swarm/swarm.module";
 import { TraefikCoreModule } from "@deployer/shared/core/modules/traefik/traefik.module";
 import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
 import { SwarmClusterService } from "@deployer/nest-swarm";
 import { TraefikService } from "@deployer/shared/core/modules/traefik/services/traefik.service";
-import { RunnerDockerPort, RunnerEnvPort, RunnerSwarmClusterPort, RunnerTraefikPort } from "./runners.ports";
+import { RunnerEnvPort, RunnerSwarmClusterPort, RunnerTraefikPort } from "./runners.ports";
 import { RuntimeRunnerRegistryService } from "./runtime-runner-registry.service";
 import { SwarmComposeRealizerService } from "./swarm/swarm-compose-realizer.service";
 
@@ -29,7 +28,6 @@ import { SwarmComposeRealizerService } from "./swarm/swarm-compose-realizer.serv
     imports: [CoreDockerModule, TraefikCoreModule, ConfigurationCoreModule, SwarmCoreModule, EnvModule],
     providers: [
         // The runners are Effect Layers (`runners.layers.ts`) over these ports.
-        { provide: RunnerDockerPort, useExisting: DockerService },
         { provide: RunnerTraefikPort, useExisting: TraefikService },
         { provide: RunnerSwarmClusterPort, useExisting: SwarmClusterService },
         { provide: RunnerEnvPort, useExisting: EnvService },

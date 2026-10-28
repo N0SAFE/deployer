@@ -13,7 +13,6 @@
  * (typed result, task-state verification, inventory-friendly labels).
  */
 
-import { NotFoundException } from "@nestjs/common";
 import { Context, Effect, Layer } from "effect";
 
 import { AppError, TimeoutError } from "@deployer/errors";
@@ -25,7 +24,7 @@ import type {
     SwarmTaskStateCheck,
 } from "@deployer/contracts-entities";
 import { platformOverlayForPrefix } from "@deployer/nest-docker/services/docker-supervisor-runtime";
-import type { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { toDockerServiceSpec } from "@deployer/nest-docker/services/swarm-spec.mapper";
 import type { SwarmClusterService } from "@deployer/nest-swarm";
 import type { EnvService } from "@deployer/shared/config/env/env.module";
@@ -33,7 +32,7 @@ import { verifySwarmRouteAgainstTraefik } from "@deployer/shared/core/modules/tr
 import { attempt } from "../../../core/effects";
 import { RuntimeConflict } from "../../../core/runtime.errors";
 import { resolveContainerImage } from "../base/container-image.guard";
-import { RunnerDockerPort, RunnerEnvPort, RunnerSwarmClusterPort } from "../runners.ports";
+import { RunnerEnvPort, RunnerSwarmClusterPort } from "../runners.ports";
 import type { DeploymentRuntimeRunner, RuntimeExecutionInput } from "../runtime-runner.interface";
 import {
     buildStorageMounts,
@@ -62,12 +61,12 @@ export class SwarmRuntimeRunner extends Context.Service<SwarmRuntimeRunner, Swar
     static readonly Live: Layer.Layer<
         SwarmRuntimeRunner,
         never,
-        RunnerDockerPort | RunnerSwarmClusterPort | RunnerEnvPort
+        DockerEngine | RunnerSwarmClusterPort | RunnerEnvPort
     > = Layer.effect(
         SwarmRuntimeRunner,
         Effect.gen(function* () {
             return makeSwarmRuntimeRunner({
-                docker: yield* RunnerDockerPort,
+                docker: yield* DockerEngine,
                 cluster: yield* RunnerSwarmClusterPort,
                 env: yield* RunnerEnvPort,
             });
@@ -76,7 +75,7 @@ export class SwarmRuntimeRunner extends Context.Service<SwarmRuntimeRunner, Swar
 }
 
 export function makeSwarmRuntimeRunner(ports: {
-    readonly docker: DockerService;
+    readonly docker: DockerEngineShape;
     readonly cluster: SwarmClusterService;
     readonly env: EnvService;
 }): SwarmRuntimeRunnerShape {
@@ -86,19 +85,19 @@ export function makeSwarmRuntimeRunner(ports: {
 
     const removeService = Effect.fn("SwarmRuntimeRunner.removeService")(function* (serviceName: string) {
         yield* assertClusterReady;
-        yield* attempt(() => docker.removeSwarmService(serviceName));
+        yield* docker.swarmServices.remove(serviceName);
         yield* Effect.logInfo(`Removed swarm service ${serviceName}`);
     });
 
     const scaleService = Effect.fn("SwarmRuntimeRunner.scaleService")(function* (serviceName: string, replicas: number) {
         yield* assertClusterReady;
-        yield* attempt(() => docker.scaleSwarmService(serviceName, replicas));
+        yield* docker.swarmServices.scale(serviceName, replicas);
         yield* Effect.logInfo(`Scaled swarm service ${serviceName} → ${String(Math.max(0, Math.floor(replicas)))}`);
     });
 
     const rollbackService = Effect.fn("SwarmRuntimeRunner.rollbackService")(function* (serviceName: string) {
         yield* assertClusterReady;
-        yield* attempt(() => docker.rollbackSwarmService(serviceName));
+        yield* docker.swarmServices.rollback(serviceName);
         yield* Effect.logInfo(`Rolled back swarm service ${serviceName}`);
     });
 
@@ -107,21 +106,19 @@ export function makeSwarmRuntimeRunner(ports: {
         serviceName: string,
         spec: ReturnType<typeof toDockerServiceSpec>,
     ) {
-        const existing = yield* attempt(() => docker.inspectSwarmService(serviceName)).pipe(
+        const existing = yield* docker.swarmServices.inspect(serviceName).pipe(
             Effect.map((summary) => ({ found: true as const, summary })),
-            Effect.catch((error) =>
-                error instanceof NotFoundException ? Effect.succeed({ found: false as const }) : Effect.fail(error),
-            ),
+            Effect.catchTag("DockerNotFound", () => Effect.succeed({ found: false as const })),
         );
         if (existing.found) {
-            yield* attempt(() => docker.updateSwarmService(serviceName, existing.summary.Version.Index, spec, false));
-            const summary = yield* attempt(() => docker.inspectSwarmService(serviceName));
+            yield* docker.swarmServices.update(serviceName, existing.summary.Version.Index, spec, false);
+            const summary = yield* docker.swarmServices.inspect(serviceName);
             yield* Effect.logInfo(
                 `Updated existing swarm service ${serviceName} (version=${String(existing.summary.Version.Index)})`,
             );
             return { summary, created: false };
         }
-        const summary = yield* attempt(() => docker.createSwarmService(spec));
+        const summary = yield* docker.swarmServices.create(spec);
         yield* Effect.logInfo(`Created swarm service ${serviceName} (id=${summary.ID ?? "unknown"})`);
         return { summary, created: true };
     });
@@ -136,7 +133,7 @@ export function makeSwarmRuntimeRunner(ports: {
         let check: SwarmTaskStateCheck = computeTaskStateCheck([], 1);
         let taskList: DockerodeTaskSummary[] = [];
         for (let attemptNumber = 1; attemptNumber <= maxRetries; attemptNumber++) {
-            taskList = yield* attempt(() => docker.listSwarmServiceTasks(serviceId));
+            taskList = yield* docker.swarmServices.listTasks(serviceId);
             check = computeTaskStateCheck(taskList, 1);
             yield* Effect.logDebug(
                 `Swarm task convergence attempt ${String(attemptNumber)}/${String(maxRetries)}: ${String(check.runningCount)} running, ${String(check.failedCount)} failed`,
@@ -225,16 +222,14 @@ export function makeSwarmRuntimeRunner(ports: {
         if (deployment.projectId) {
             const overlayName = `deployer-${deployment.projectId}`;
             const projectId = deployment.projectId;
-            yield* attempt(() =>
-                docker.ensureOverlayNetwork({
+            yield* docker.networks.ensureOverlay({
                     name: overlayName,
                     driver: "overlay",
                     attachable: true,
                     ingress: false,
                     labels: { "deployer.project_id": projectId, "deployer.managed": "true" },
                     enableIpv6: false,
-                }),
-            );
+                });
             if (!networks.some((attachment) => attachment.target === overlayName)) {
                 networks.push({ target: overlayName, aliases: [serviceName] });
             }
@@ -253,16 +248,14 @@ export function makeSwarmRuntimeRunner(ports: {
         // services reach it there) and the platform overlay (the ingress reaches
         // it there). That is what makes a workload publishable at all.
         const platformOverlay = platformOverlayForPrefix(env.get("DEPLOYER_PREFIX"));
-        yield* attempt(() =>
-            docker.ensureOverlayNetwork({
+        yield* docker.networks.ensureOverlay({
                 name: platformOverlay,
                 driver: "overlay",
                 attachable: true,
                 ingress: false,
                 labels: { "deployer.managed": "true", "deployer.platform": "true" },
                 enableIpv6: false,
-            }),
-        );
+            });
         if (!networks.some((attachment) => attachment.target === platformOverlay)) {
             // Aliased by service name for the same reason as every other
             // attachment: the route's backend is the NAME, and Traefik resolves it

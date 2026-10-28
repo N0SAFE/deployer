@@ -58,7 +58,7 @@ describe('DeploymentService', () => {
     let mockDeploymentEventService: any;
     let mockCoreEventSyncService: any;
     let mockGitService: any;
-    let mockDockerService: any;
+    let mockContainers: any;
     let mockTraefikService: any;
     let mockDeploymentQueueEventService: any;
     let mockProjectAccessService: any;
@@ -253,13 +253,13 @@ describe('DeploymentService', () => {
             validateRepository: vi.fn(),
         };
 
-        mockDockerService = {
-            stopContainersByDeployment: vi.fn().mockResolvedValue(undefined),
-            listContainersByDeployment: vi.fn(),
-            removeContainer: vi.fn().mockResolvedValue(undefined),
-            createContainer: vi.fn(),
-            startContainer: vi.fn(),
-            waitForContainerHealth: vi.fn(),
+        mockContainers = {
+            stopByDeployment: vi.fn(() => Effect.void),
+            listByDeployment: vi.fn(),
+            remove: vi.fn(() => Effect.void),
+            create: vi.fn(),
+            start: vi.fn(),
+            waitForHealth: vi.fn(),
         };
 
         mockTraefikService = {
@@ -461,11 +461,11 @@ describe('DeploymentService', () => {
                     useFactory: () => {
                         const registry = makeRuntimeRunnerRegistry({
                             docker: makeDockerRuntimeRunner({
-                                docker: mockDockerService,
+                                docker: { containers: mockContainers } as never,
                                 traefik: mockTraefikService,
                             }),
                             swarm: makeSwarmRuntimeRunner({
-                                docker: mockDockerService,
+                                docker: { swarmServices: {}, networks: {} } as never,
                                 cluster: { getSwarmState: vi.fn().mockResolvedValue({ active: false }) } as never,
                                 // `DEPLOYER_PREFIX` is the only key read; "" is the
                                 // unprefixed default install.
@@ -559,10 +559,10 @@ describe('DeploymentService', () => {
             createdAt: now,
             updatedAt: now,
         });
-        mockDockerService.listContainersByDeployment.mockResolvedValue([]);
-        mockDockerService.createContainer.mockResolvedValue({ id: 'container-1' });
-        mockDockerService.startContainer.mockResolvedValue(undefined);
-        mockDockerService.waitForContainerHealth.mockResolvedValue(true);
+        mockContainers.listByDeployment.mockReturnValue(Effect.succeed([]));
+        mockContainers.create.mockReturnValue(Effect.succeed({ id: 'container-1' }));
+        mockContainers.start.mockReturnValue(Effect.succeed(undefined));
+        mockContainers.waitForHealth.mockReturnValue(Effect.succeed(true));
         mockTraefikService.syncServiceConfiguration.mockResolvedValue({
             configId: 'cfg-1',
             configName: 'service-route',
@@ -1299,7 +1299,7 @@ describe('DeploymentService', () => {
             mockRepository.create.mockResolvedValue(queuedDeployment);
             mockRepository.findById.mockResolvedValue(queuedDeployment);
             mockGitService.validateRepository.mockResolvedValue(true);
-            mockDockerService.waitForContainerHealth.mockResolvedValue(true);
+            mockContainers.waitForHealth.mockReturnValue(Effect.succeed(true));
             mockTraefikService.getHealthStatus.mockResolvedValue({ healthy: true, route: 'https://app.example.com' });
 
             const triggered = await service.triggerDeployment(
@@ -1346,12 +1346,11 @@ describe('DeploymentService', () => {
 
             expect(completion.updated).toBe(true);
             expect(completion.job.status).toBe('succeeded');
-            expect(mockDockerService.waitForContainerHealth).toHaveBeenCalledWith(
-                'container-1',
-                4,
-                250,
-                'http://service-1.internal/healthz',
-            );
+            expect(mockContainers.waitForHealth).toHaveBeenCalledWith('container-1', {
+                maxRetries: 4,
+                retryIntervalMs: 250,
+                healthCheckUrl: 'http://service-1.internal/healthz',
+            });
 
             expect(mockRepository.persistBuildArtifacts).toHaveBeenCalledWith(
                 'deploy-smoke-1',
@@ -1528,22 +1527,20 @@ describe('DeploymentService', () => {
                     phaseProgress: 100,
                 }),
             );
-            expect(mockDockerService.stopContainersByDeployment).toHaveBeenCalledWith('deploy-1');
-            expect(mockDockerService.createContainer).toHaveBeenCalledWith(
+            expect(mockContainers.stopByDeployment).toHaveBeenCalledWith('deploy-1');
+            expect(mockContainers.create).toHaveBeenCalledWith(
                 expect.objectContaining({
                     Image: 'registry.local/my-app:sha-123',
                     name: 'svc-my-app-123',
                 }),
             );
-            expect(mockDockerService.startContainer).toHaveBeenCalledWith('container-1');
+            expect(mockContainers.start).toHaveBeenCalledWith('container-1');
             expect(mockTraefikService.syncServiceConfiguration).toHaveBeenCalledWith('service-1');
             expect(mockTraefikService.getHealthStatus).toHaveBeenCalled();
-            expect(mockDockerService.waitForContainerHealth).toHaveBeenCalledWith(
-                'container-1',
-                10,
-                2000,
-                undefined,
-            );
+            expect(mockContainers.waitForHealth).toHaveBeenCalledWith('container-1', {
+                maxRetries: 10,
+                retryIntervalMs: 2000,
+                            });
         });
 
         it('should fail fast when readiness health gate does not pass', async () => {
@@ -1565,7 +1562,7 @@ describe('DeploymentService', () => {
             } as any);
 
             mockRepository.findById.mockResolvedValue(healthCheckedDeployment);
-            mockDockerService.waitForContainerHealth.mockResolvedValue(false);
+            mockContainers.waitForHealth.mockReturnValue(Effect.succeed(false));
 
             const claimed = await service.claimQueueJobs({
                 workerId: 'worker-3',
@@ -1595,13 +1592,12 @@ describe('DeploymentService', () => {
                 }),
             ).rejects.toThrow(RuntimeInvalid);
 
-            expect(mockDockerService.waitForContainerHealth).toHaveBeenCalledWith(
-                'container-1',
-                3,
-                500,
-                'http://service-1.internal/healthz',
-            );
-            expect(mockDockerService.removeContainer).toHaveBeenCalledWith('container-1');
+            expect(mockContainers.waitForHealth).toHaveBeenCalledWith('container-1', {
+                maxRetries: 3,
+                retryIntervalMs: 500,
+                healthCheckUrl: 'http://service-1.internal/healthz',
+            });
+            expect(mockContainers.remove).toHaveBeenCalledWith('container-1');
             expect(mockRepository.updateStatus).toHaveBeenCalledWith(
                 'deploy-1',
                 'failed',
@@ -1680,7 +1676,7 @@ describe('DeploymentService', () => {
                 },
             });
 
-            expect(mockDockerService.createContainer).toHaveBeenCalledWith(
+            expect(mockContainers.create).toHaveBeenCalledWith(
                 expect.objectContaining({
                     Image: 'registry.local/manual:latest',
                     name: 'svc-manual-upload-1',
