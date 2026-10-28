@@ -18,3 +18,12 @@ export class SupervisedResourceMissing extends domainError("SupervisedResourceMi
 		return `${this.resource} was not created`;
 	}
 }
+
+/** The resource was converged but has no running task; the engine accepted the spec and nothing runs. */
+export class SupervisedResourceNotRunning extends domainError("SupervisedResourceNotRunning", "dependency_missing")<{
+	readonly resource: string;
+}>() {
+	override publicMessage() {
+		return `${this.resource} has no running task`;
+	}
+}

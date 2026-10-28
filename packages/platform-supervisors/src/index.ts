@@ -91,3 +91,20 @@ export type {
 	DatabaseServicePayload,
 	DatabaseServiceProcessInfo,
 } from "./database-service/schemas";
+export { SupervisedResourceNotRunning } from "./errors";
+export { makeEdgeConnectorSupervisor } from "./edge-connector/edge-connector-supervisor";
+export type {
+	DesiredEdgeConnector,
+	EdgeConnectorConfig,
+	EdgeConnectorDeps,
+	EdgeConnectorProcess,
+	EdgeConnectorSupervisor,
+} from "./edge-connector/edge-connector-supervisor";
+export {
+	EDGE_CONNECTOR_BASE_NAME,
+	EDGE_CONNECTOR_SUPERVISOR_ID,
+	edgeConnectorProcessInfoSchema,
+	edgeConnectorRuntimeSchema,
+	edgeConnectorSupervisorPayloadSchema,
+} from "./edge-connector/schemas";
+export type { EdgeConnectorProcessInfo, EdgeConnectorRuntime, EdgeConnectorSupervisorPayload } from "./edge-connector/schemas";
