@@ -23,7 +23,7 @@ inside the package. Do not rewrite an RxJS bus or SSE pipeline into Effect strea
 
 | Package | Replaces |
 |---|---|
-| `@deployer/docker` (engine, provisioning, scanner pool) + `nest-effect/docker` | `nest-docker` (the Promise `DockerService` adapter, supervisor base class and scanner/postgres hosts now live in `nest-effect/docker`) |
+| `@deployer/docker` (engine, provisioning, scanner pool) + `nest-effect/docker` | `nest-docker`. `DockerService` in `nest-effect/docker` is now only the host of the client: `getEngine()`, the socket helpers, the scanner's engine access and the RxJS log streams; every caller runs the engine's Effects |
 | `@deployer/supervision` + `nest-effect/supervision` | `nest-supervisor-core` |
 | `@deployer/node-state` + `nest-effect/node-state` | `nest-database-local`, `nest-nodes` |
 | `@deployer/lifecycle` + `nest-effect/lifecycle` | `nest-lifecycle` |
@@ -40,9 +40,8 @@ inside the package. Do not rewrite an RxJS bus or SSE pipeline into Effect strea
 
 | Order | Package | Size | Consumers | Notes |
 |---|---|---|---|---|
-| 1 | Promise `DockerService` methods | | shared, fleet, runtime, setup | `getDockerClient()` is deleted: every caller is on the engine (events, exec.interactive, wait/top, network attach, volume/image inspect, info). Left: the setup provisioners, runtime's docker services, `local-initialization` and the supervisors' siblings that still call the Promise `DockerService` methods (`createContainer`, `removeContainer`, swarm helpers); then delete that adapter |
-| 2 | `apps/api/shared` modules | large | everything | traefik, mesh, platform-ingress, setup, supervisors' bodies (Promise inside the Effect framework today), global database |
-| 3 | `apps/setup`, `apps/api/bff` wiring | | | after the shared modules |
+| 1 | `apps/api/shared` modules | large | everything | traefik, mesh, platform-ingress, setup, supervisors' bodies (Promise inside the Effect framework today), global database |
+| 2 | `apps/setup`, `apps/api/bff` wiring | | | after the shared modules |
 | n/a | `nest-schema` | 5.9k | all | Drizzle table definitions and migrations are data, not Nest logic; it only needs renaming |
 
 Check a package's dependents (`package.json` grep plus imports) before migrating it: absorb it only
