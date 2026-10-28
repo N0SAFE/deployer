@@ -33,8 +33,25 @@ something already running both succeed.
 Provide `DockerEngine.Live` over `DockerClient.layer(config)` in the app's Effect runtime layer; Nest
 apps do not need a Nest module for it.
 
-## Not yet covered
+## What it covers
 
-`@deployer/nest-docker` still owns the rest of the engine surface (exec, logs, volumes, swarm
-configs/secrets, the supervisor base classes). The methods this package covers are implemented
-here only; `DockerService` delegates to them and will be removed once its other callers move.
+| Area | Where |
+|---|---|
+| Containers: create (with pull), start/stop/restart/pause/kill/remove, health, inspect, stats | `docker.containers` |
+| Images: pull with retry, presence, remove, list | `docker.images` |
+| Swarm services: inspect/create/update/reconcile/remove/scale/rollback, tasks, logs | `docker.swarmServices` |
+| Swarm cluster, nodes, secrets, configs | `docker.swarmCluster`, `swarmNodes`, `swarmSecrets`, `swarmConfigs` |
+| Networks (overlay ensure and VXLAN repair), volumes | `docker.networks`, `docker.volumes` |
+| Exec, logs (as an Effect `Stream`), image and compose builds | `docker.exec`, `docker.logs`, `docker.build` |
+| The platform Postgres service | `PostgresProvisioner` |
+| Long-lived scanner containers (trivy, grype, dive) | `ScannerPool` |
+| Pure helpers: swarm-spec mapper, supervisor runtime/topology, host address, node-spec payloads | top-level exports |
+
+## What is still in `@deployer/nest-docker`
+
+`DockerService` is now a Promise adapter over the engine (about 800 lines, down from 3,300): it keeps
+the Nest exceptions and swallow-or-throw behaviour each method always had, and exposes the raw
+dockerode client (`getDockerClient`) that `shared`'s supervisors still use. The supervisor base class
+extends `@deployer/nest-supervisor-core`, and `PostgresServiceProvisioner` and
+`ScannerContainerManagerService` are Promise faces over `PostgresProvisioner` and `ScannerPool`. All of
+it goes away as those callers move to Effect.

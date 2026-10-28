@@ -73,3 +73,16 @@ export {
 } from "./provisioning/postgres";
 export type { PostgresIdentity, PostgresProvisionerShape } from "./provisioning/postgres";
 export { isSwarmVersionConflict } from "./engine/swarm-services";
+export {
+	makeScannerPool,
+	ScannerConfigService,
+	ScannerEngineAccessService,
+	ScannerPool,
+} from "./scanning/scanner-pool";
+export type {
+	ScannerConfig,
+	ScannerEngineAccess,
+	ScannerExecResult,
+	ScannerPoolShape,
+	ScannerType,
+} from "./scanning/scanner-pool";

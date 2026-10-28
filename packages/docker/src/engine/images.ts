@@ -24,6 +24,8 @@ export type PullOptions = {
 };
 
 export type ImagesShape = {
+	/** True when the image is present locally. */
+	readonly exists: (image: string) => Effect.Effect<boolean>;
 	/** Removes an image, forced. One that is already gone counts as removed. */
 	readonly remove: (imageTag: string) => Effect.Effect<void, DockerError>;
 	/** Top-level images on this engine (`GET /images/json`). */
@@ -106,5 +108,11 @@ export function makeImages(client: Docker): ImagesShape {
 		);
 	});
 
-	return { pull, ensurePresent, remove, list };
+	const exists: ImagesShape["exists"] = (image) =>
+		engineCall(`inspect image ${image}`, () => client.getImage(image).inspect()).pipe(
+			Effect.as(true),
+			Effect.catch(() => Effect.succeed(false)),
+		);
+
+	return { pull, ensurePresent, remove, list, exists };
 }

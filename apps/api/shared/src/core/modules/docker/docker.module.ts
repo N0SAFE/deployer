@@ -1,10 +1,9 @@
 import { Global, Module } from "@nestjs/common";
+import type { DockerConnectionConfig, ScannerConfig } from "@deployer/docker";
 import {
   DockerService,
   PostgresServiceProvisioner,
   ScannerContainerManagerService,
-  type DockerConnectionConfig,
-  type ScannerConfig,
 } from "@deployer/nest-docker";
 
 import { EnvModule, EnvService } from "../../../config/env/env.module";

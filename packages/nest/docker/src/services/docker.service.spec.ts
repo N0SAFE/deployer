@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { DockerConnectionConfig } from "../docker-config";
+import type { DockerConnectionConfig } from "@deployer/docker";
 import { DockerService } from "./docker.service";
 
 /**

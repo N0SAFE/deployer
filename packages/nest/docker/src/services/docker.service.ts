@@ -22,7 +22,7 @@ import { Observable } from "rxjs";
 // `bun build` fail with "No matching export in src/docker-config.ts", which is
 // reported as `AggregateError: Bundle failed` with exit code 0 and NO dist/types
 // written — silently breaking every downstream package that needs this one's types.
-import type { DockerConnectionConfig } from "../docker-config";
+import type { DockerConnectionConfig } from "@deployer/docker";
 import type {
     DockerodeSwarmInitResponse,
     DockerodeSwarmInfo,

@@ -10,7 +10,7 @@
  *   - `toDockerServiceSpec`      — swarm-spec → dockerode `ServiceSpec`
  *   - the runtime/scope vocabulary (`DockerSupervisorRuntime`,
  *                                  `resolveSupervisorRuntime`, …)
- *   - the narrow config contracts (`DockerConnectionConfig`, `ScannerConfig`,
+ *   - the narrow config contracts (now in `@deployer/docker`; `PostgresIdentityConfig` here,
  *                                  `PostgresIdentityConfig`)
  *
  * WHAT IT IS NOT

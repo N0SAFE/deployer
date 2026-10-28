@@ -13,31 +13,6 @@
  * schema — see §8.7 for the rule.
  */
 
-/** How to reach the Docker engine. */
-export type DockerConnectionConfig = {
-  /** `DOCKER_HOST`, e.g. `unix:///var/run/docker.sock` or `tcp://host:2375`. */
-  readonly host: string | undefined;
-  /** `DOCKER_PORT` — only meaningful when `host` is a TCP address. */
-  readonly port: number | undefined;
-}
-
-/**
- * The scanner container's configuration.
- *
- * Defaults live with the CALLER (the app decides what a sensible default image
- * is for its deployment); the package only uses what it is given.
- */
-export type ScannerConfig = {
-  /** Image to run scans with. */
-  readonly image: string;
-  /** Build context used to build the image when it is missing. */
-  readonly buildContext: string | undefined;
-  /** Idle timeout before the shared scanner container is stopped. */
-  readonly idleTimeoutMs: number;
-  /** When true, automatic image scanning is disabled entirely. */
-  readonly autoScanDisabled: boolean;
-}
-
 /**
  * The Postgres identity a provisioned database should use.
  *
