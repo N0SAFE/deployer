@@ -2,6 +2,9 @@ import type Docker from "dockerode";
 import { Context, Effect, Layer } from "effect";
 
 import { DockerClient } from "./docker-client";
+import { makeBuild, type BuildShape } from "./engine/build";
+import { makeExec, type ExecShape } from "./engine/exec";
+import { makeLogs, type LogsShape } from "./engine/logs";
 import { makeContainers, type ContainersShape } from "./engine/containers";
 import { makeImages, type ImagesShape } from "./engine/images";
 import { makeNetworks, type NetworksShape } from "./engine/networks";
@@ -28,6 +31,11 @@ export type DockerEngineShape = {
 	readonly swarmServices: SwarmServicesShape;
 	readonly networks: NetworksShape;
 	readonly volumes: VolumesShape;
+	readonly exec: ExecShape;
+	readonly logs: LogsShape;
+	readonly build: BuildShape;
+	/** True when the engine answers a ping. */
+	readonly ping: () => Effect.Effect<boolean>;
 	readonly swarmCluster: SwarmClusterShape;
 	readonly swarmNodes: SwarmNodesShape;
 	readonly swarmSecrets: SwarmSecretsShape;
@@ -52,6 +60,14 @@ export function makeDockerEngine(client: Docker): DockerEngineShape {
 		swarmServices,
 		networks: makeNetworks(client, swarmServices),
 		volumes: makeVolumes(client),
+		exec: makeExec(client),
+		logs: makeLogs(client),
+		build: makeBuild(client),
+		ping: () =>
+			Effect.tryPromise({ try: () => client.ping(), catch: (cause) => cause }).pipe(
+				Effect.as(true),
+				Effect.catch(() => Effect.succeed(false)),
+			),
 		swarmCluster: makeSwarmCluster(client),
 		swarmNodes: makeSwarmNodes(client),
 		swarmSecrets: makeSwarmSecrets(client),

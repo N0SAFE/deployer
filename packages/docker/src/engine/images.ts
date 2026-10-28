@@ -9,6 +9,7 @@ import z from "zod/v4";
 import { engineMessage } from "../classify";
 import { DockerInvalid, DockerUnavailable, type DockerError } from "../errors";
 import { engineCall } from "./call";
+import { followProgress } from "./progress";
 
 export type ImagePullPolicy = "IfNotPresent" | "Always" | "Never";
 
@@ -37,36 +38,11 @@ export type ImagesShape = {
 	) => Effect.Effect<void, DockerError>;
 };
 
-function progressLine(event: Record<string, unknown>): string | null {
-	if (typeof event.stream === "string" && event.stream.trim().length > 0) return event.stream.trim();
-	if (typeof event.status === "string") {
-		const status = event.status.trim();
-		const layerId = typeof event.id === "string" ? event.id.trim() : "";
-		const progress = typeof event.progress === "string" ? event.progress.trim() : "";
-		const text = `${status}${progress.length > 0 ? ` ${progress}` : ""}`;
-		return layerId.length > 0 ? `${layerId}: ${text}` : text;
-	}
-	if (event.error) return `error: ${typeof event.error === "string" ? event.error : JSON.stringify(event.error)}`;
-	return null;
-}
-
 export function makeImages(client: Docker): ImagesShape {
 	const pullOnce = (image: string, options: PullOptions) =>
 		engineCall(`pull image ${image}`, async () => {
 			const stream = await client.pull(image, options.registryAuth ? { authconfig: options.registryAuth } : {});
-			await new Promise<void>((resolve, reject) => {
-				client.modem.followProgress(
-					stream,
-					(error: Error | null) => {
-						if (error) reject(error);
-						else resolve();
-					},
-					(event: Record<string, unknown>) => {
-						const line = progressLine(event);
-						if (line !== null) options.onProgressLine?.(line);
-					},
-				);
-			});
+			await followProgress(client, stream, options.onProgressLine);
 		});
 
 	const pull: ImagesShape["pull"] = Effect.fn("DockerImages.pull")(function* (image, options = {}) {

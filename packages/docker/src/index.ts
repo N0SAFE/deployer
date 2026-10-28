@@ -55,3 +55,6 @@ export type {
 	SwarmNodeSpecPayload,
 	SwarmNodeSpecSource,
 } from "./swarm/swarm-node";
+export type { ExecResult, ExecShape } from "./engine/exec";
+export type { LogsShape } from "./engine/logs";
+export type { BuildComposeOptions, BuildImageOptions, BuildShape } from "./engine/build";

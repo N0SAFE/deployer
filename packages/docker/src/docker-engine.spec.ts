@@ -231,3 +231,34 @@ describe("DockerEngine.swarmSecrets", () => {
 		expect(createSecret).toHaveBeenCalledWith({ Name: "db", Data: Buffer.from("hunter2").toString("base64"), Labels: {} });
 	});
 });
+
+describe("DockerEngine.exec", () => {
+	function execClient(options: { raw: unknown; exitCode: number }) {
+		const exec = {
+			start: vi.fn().mockResolvedValue(options.raw),
+			inspect: vi.fn().mockResolvedValue({ ExitCode: options.exitCode }),
+		};
+		const container = { exec: vi.fn().mockResolvedValue(exec) };
+		return makeDockerEngine({ getContainer: () => container, modem: { demuxStream: vi.fn() } } as never);
+	}
+
+	it("returns the output of a command that succeeds", async () => {
+		const engine = execClient({ raw: "done\n", exitCode: 0 });
+
+		expect(await run(engine.exec.run("c1", ["echo", "done"]))).toEqual({ exitCode: 0, output: "done\n" });
+	});
+
+	it("fails run, but not capture, on a non-zero exit", async () => {
+		const engine = execClient({ raw: "found 3 vulnerabilities", exitCode: 1 });
+
+		await expect(run(engine.exec.run("c1", ["grype"]))).rejects.toThrow(/exit code 1/);
+		expect(await run(engine.exec.capture("c1", ["grype"]))).toEqual({ exitCode: 1, output: "found 3 vulnerabilities" });
+	});
+
+	it("reports a command that could not start as exit -1 from capture", async () => {
+		const container = { exec: vi.fn().mockRejectedValue(new Error("no such container")) };
+		const engine = makeDockerEngine({ getContainer: () => container } as never);
+
+		expect(await run(engine.exec.capture("c1", ["ls"]))).toEqual({ exitCode: -1, output: expect.stringContaining("no such container") });
+	});
+});
