@@ -1,26 +1,23 @@
 /**
  * Runners Module — top-level module for all runtime runners.
  *
- * Moved verbatim from `modules/deployment/runners` so runners are a
- * first-class concern, not a deployment sub-feature. Each runner
- * implements the abstract contract in `runtime-runner.interface.ts`
- * and is dispatched by `RuntimeRunnerRegistryService.execute(runnerKind, …)`.
+ * Runners are a first-class concern, not a deployment sub-feature. Each runner
+ * implements the contract in `runtime-runner.interface.ts` as an Effect Layer
+ * (`runners.layers.ts`), dispatched by `RuntimeRunnerRegistry.execute(runnerKind, …)`;
+ * `RuntimeRunnerRegistryService` is its Promise face for callers not on Effect yet.
  */
 import { Module } from "@nestjs/common";
 import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configuration/configuration-core.module";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";
 import { SwarmCoreModule } from "@deployer/shared/core/modules/swarm/swarm.module";
 import { TraefikCoreModule } from "@deployer/shared/core/modules/traefik/traefik.module";
-import { EnvModule } from "@deployer/shared/config/env/env.module";
-import { BuildpackRuntimeRunnerService } from "./buildpack/buildpack-runtime-runner.service";
-import { DockerComposeRuntimeRunnerService } from "./docker-compose/docker-compose-runtime-runner.service";
-import { DockerRuntimeRunnerService } from "./docker/docker-runtime-runner.service";
-import { DockerfileRuntimeRunnerService } from "./dockerfile/dockerfile-runtime-runner.service";
-import { NixpacksRuntimeRunnerService } from "./nixpacks/nixpacks-runtime-runner.service";
-import { RailpackRuntimeRunnerService } from "./railpack/railpack-runtime-runner.service";
+import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
+import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import { SwarmClusterService } from "@deployer/nest-swarm";
+import { TraefikService } from "@deployer/shared/core/modules/traefik/services/traefik.service";
+import { RunnerDockerPort, RunnerEnvPort, RunnerSwarmClusterPort, RunnerTraefikPort } from "./runners.ports";
 import { RuntimeRunnerRegistryService } from "./runtime-runner-registry.service";
 import { SwarmComposeRealizerService } from "./swarm/swarm-compose-realizer.service";
-import { SwarmRuntimeRunnerService } from "./swarm/swarm-runtime-runner.service";
 
 @Module({
     // `EnvModule` is imported EXPLICITLY: `SwarmRuntimeRunnerService` injects
@@ -31,13 +28,11 @@ import { SwarmRuntimeRunnerService } from "./swarm/swarm-runtime-runner.service"
     // `app.graph.spec.ts`, which compiles this module graph).
     imports: [CoreDockerModule, TraefikCoreModule, ConfigurationCoreModule, SwarmCoreModule, EnvModule],
     providers: [
-        DockerRuntimeRunnerService,
-        DockerfileRuntimeRunnerService,
-        DockerComposeRuntimeRunnerService,
-        NixpacksRuntimeRunnerService,
-        BuildpackRuntimeRunnerService,
-        RailpackRuntimeRunnerService,
-        SwarmRuntimeRunnerService,
+        // The runners are Effect Layers (`runners.layers.ts`) over these ports.
+        { provide: RunnerDockerPort, useExisting: DockerService },
+        { provide: RunnerTraefikPort, useExisting: TraefikService },
+        { provide: RunnerSwarmClusterPort, useExisting: SwarmClusterService },
+        { provide: RunnerEnvPort, useExisting: EnvService },
         SwarmComposeRealizerService,
         RuntimeRunnerRegistryService,
     ],

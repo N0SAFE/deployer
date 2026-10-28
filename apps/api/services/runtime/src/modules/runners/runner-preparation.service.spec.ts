@@ -1,10 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { BuildpackRuntimeRunnerService } from "./buildpack/buildpack-runtime-runner.service";
-import { DockerComposeRuntimeRunnerService } from "./docker-compose/docker-compose-runtime-runner.service";
-import { DockerfileRuntimeRunnerService } from "./dockerfile/dockerfile-runtime-runner.service";
-import { NixpacksRuntimeRunnerService } from "./nixpacks/nixpacks-runtime-runner.service";
-import { RailpackRuntimeRunnerService } from "./railpack/railpack-runtime-runner.service";
+import { Effect } from "effect";
+import { makeDelegatedRunner } from "./base/delegated-runner";
+import { prepareBuildpackExecutionInput } from "./buildpack/buildpack-runtime-runner.service";
+import { prepareDockerComposeExecutionInput } from "./docker-compose/docker-compose-runtime-runner.service";
+import { prepareDockerfileExecutionInput } from "./dockerfile/dockerfile-runtime-runner.service";
+import { prepareNixpacksExecutionInput } from "./nixpacks/nixpacks-runtime-runner.service";
+import { prepareRailpackExecutionInput } from "./railpack/railpack-runtime-runner.service";
 import type { RuntimeExecutionInput, RuntimeExecutionResult } from "./runtime-runner.interface";
+import { run } from "./testing";
 
 function makeInput(overrides?: Partial<RuntimeExecutionInput>): RuntimeExecutionInput {
     return {
@@ -59,10 +62,19 @@ function makeResult(): RuntimeExecutionResult {
     };
 }
 
+function delegated(
+    runnerType: "dockerfile" | "docker_compose" | "nixpacks" | "buildpack" | "railpack",
+    prepare: (input: RuntimeExecutionInput) => RuntimeExecutionInput,
+    executeRuntime: (input: RuntimeExecutionInput) => Effect.Effect<RuntimeExecutionResult, unknown>,
+) {
+    const runner = makeDelegatedRunner(runnerType, { runnerType: "docker", executeRuntime }, prepare);
+    return { executeRuntime: (input: RuntimeExecutionInput) => run(runner.executeRuntime(input)) };
+}
+
 describe("Dedicated runtime runner preparation", () => {
     it("applies docker-compose defaults", async () => {
-        const executeRuntime = vi.fn().mockResolvedValue(makeResult());
-        const runner = new DockerComposeRuntimeRunnerService({ executeRuntime } as never);
+        const executeRuntime = vi.fn(() => Effect.succeed(makeResult()));
+        const runner = delegated("docker_compose", prepareDockerComposeExecutionInput, executeRuntime);
 
         await runner.executeRuntime(makeInput());
 
@@ -77,8 +89,8 @@ describe("Dedicated runtime runner preparation", () => {
     });
 
     it("applies dockerfile default container naming", async () => {
-        const executeRuntime = vi.fn().mockResolvedValue(makeResult());
-        const runner = new DockerfileRuntimeRunnerService({ executeRuntime } as never);
+        const executeRuntime = vi.fn(() => Effect.succeed(makeResult()));
+        const runner = delegated("dockerfile", prepareDockerfileExecutionInput, executeRuntime);
 
         await runner.executeRuntime(makeInput());
 
@@ -91,8 +103,8 @@ describe("Dedicated runtime runner preparation", () => {
         );
     });
 
-    it("enforces image availability for dockerfile-like runners", () => {
-        const executeRuntime = vi.fn().mockResolvedValue(makeResult());
+    it("enforces image availability for dockerfile-like runners", async () => {
+        const executeRuntime = vi.fn(() => Effect.succeed(makeResult()));
         const missingImageInput = makeInput({
             artifact: {
                 containerImage: null,
@@ -103,27 +115,27 @@ describe("Dedicated runtime runner preparation", () => {
             },
         });
 
-        expect(() =>
-            new DockerfileRuntimeRunnerService({ executeRuntime } as never).executeRuntime(missingImageInput),
-        ).toThrow("Dockerfile runner requires a prepared container image from build stage");
+        await expect(
+            delegated("dockerfile", prepareDockerfileExecutionInput, executeRuntime).executeRuntime(missingImageInput),
+        ).rejects.toThrow("Dockerfile runner requires a prepared container image from build stage");
 
-        expect(() =>
-            new NixpacksRuntimeRunnerService({ executeRuntime } as never).executeRuntime(missingImageInput),
-        ).toThrow("Nixpacks runner requires a prepared runtime image");
+        await expect(
+            delegated("nixpacks", prepareNixpacksExecutionInput, executeRuntime).executeRuntime(missingImageInput),
+        ).rejects.toThrow("Nixpacks runner requires a prepared runtime image");
 
-        expect(() =>
-            new BuildpackRuntimeRunnerService({ executeRuntime } as never).executeRuntime(missingImageInput),
-        ).toThrow("Buildpack runner requires a prepared runtime image");
+        await expect(
+            delegated("buildpack", prepareBuildpackExecutionInput, executeRuntime).executeRuntime(missingImageInput),
+        ).rejects.toThrow("Buildpack runner requires a prepared runtime image");
 
-        expect(() =>
-            new RailpackRuntimeRunnerService({ executeRuntime } as never).executeRuntime(missingImageInput),
-        ).toThrow("Railpack runner requires a prepared runtime image");
+        await expect(
+            delegated("railpack", prepareRailpackExecutionInput, executeRuntime).executeRuntime(missingImageInput),
+        ).rejects.toThrow("Railpack runner requires a prepared runtime image");
     });
 
     it("applies runner-specific defaults for nixpacks/buildpack/railpack", async () => {
-        const executeRuntime = vi.fn().mockResolvedValue(makeResult());
+        const executeRuntime = vi.fn(() => Effect.succeed(makeResult()));
 
-        await new NixpacksRuntimeRunnerService({ executeRuntime } as never).executeRuntime(makeInput());
+        await delegated("nixpacks", prepareNixpacksExecutionInput, executeRuntime).executeRuntime(makeInput());
         expect(executeRuntime).toHaveBeenLastCalledWith(
             expect.objectContaining({
                 deployment: expect.objectContaining({
@@ -132,7 +144,7 @@ describe("Dedicated runtime runner preparation", () => {
             }),
         );
 
-        await new BuildpackRuntimeRunnerService({ executeRuntime } as never).executeRuntime(makeInput());
+        await delegated("buildpack", prepareBuildpackExecutionInput, executeRuntime).executeRuntime(makeInput());
         expect(executeRuntime).toHaveBeenLastCalledWith(
             expect.objectContaining({
                 deployment: expect.objectContaining({
@@ -141,7 +153,7 @@ describe("Dedicated runtime runner preparation", () => {
             }),
         );
 
-        await new RailpackRuntimeRunnerService({ executeRuntime } as never).executeRuntime(makeInput());
+        await delegated("railpack", prepareRailpackExecutionInput, executeRuntime).executeRuntime(makeInput());
         expect(executeRuntime).toHaveBeenLastCalledWith(
             expect.objectContaining({
                 deployment: expect.objectContaining({
@@ -152,9 +164,9 @@ describe("Dedicated runtime runner preparation", () => {
     });
 
     it("applies typed runtimeRunnerOptions per runner", async () => {
-        const executeRuntime = vi.fn().mockResolvedValue(makeResult());
+        const executeRuntime = vi.fn(() => Effect.succeed(makeResult()));
 
-        await new DockerfileRuntimeRunnerService({ executeRuntime } as never).executeRuntime(
+        await delegated("dockerfile", prepareDockerfileExecutionInput, executeRuntime).executeRuntime(
             makeInput({
                 runtimeRunnerOptions: {
                     runner: "dockerfile",
@@ -170,7 +182,7 @@ describe("Dedicated runtime runner preparation", () => {
             }),
         );
 
-        await new DockerComposeRuntimeRunnerService({ executeRuntime } as never).executeRuntime(
+        await delegated("docker_compose", prepareDockerComposeExecutionInput, executeRuntime).executeRuntime(
             makeInput({
                 runtimeRunnerOptions: {
                     runner: "docker_compose",
@@ -197,7 +209,7 @@ describe("Dedicated runtime runner preparation", () => {
             }),
         );
 
-        await new NixpacksRuntimeRunnerService({ executeRuntime } as never).executeRuntime(
+        await delegated("nixpacks", prepareNixpacksExecutionInput, executeRuntime).executeRuntime(
             makeInput({
                 runtimeRunnerOptions: {
                     runner: "nixpacks",
@@ -215,7 +227,7 @@ describe("Dedicated runtime runner preparation", () => {
             }),
         );
 
-        await new BuildpackRuntimeRunnerService({ executeRuntime } as never).executeRuntime(
+        await delegated("buildpack", prepareBuildpackExecutionInput, executeRuntime).executeRuntime(
             makeInput({
                 runtimeRunnerOptions: {
                     runner: "buildpack",
@@ -239,7 +251,7 @@ describe("Dedicated runtime runner preparation", () => {
             }),
         );
 
-        await new RailpackRuntimeRunnerService({ executeRuntime } as never).executeRuntime(
+        await delegated("railpack", prepareRailpackExecutionInput, executeRuntime).executeRuntime(
             makeInput({
                 runtimeRunnerOptions: {
                     runner: "railpack",
@@ -262,11 +274,11 @@ describe("Dedicated runtime runner preparation", () => {
         );
     });
 
-    it("rejects runner options that do not match selected runner policy", () => {
-        const executeRuntime = vi.fn().mockResolvedValue(makeResult());
+    it("rejects runner options that do not match selected runner policy", async () => {
+        const executeRuntime = vi.fn(() => Effect.succeed(makeResult()));
 
-        expect(() =>
-            new NixpacksRuntimeRunnerService({ executeRuntime } as never).executeRuntime(
+        await expect(
+            delegated("nixpacks", prepareNixpacksExecutionInput, executeRuntime).executeRuntime(
                 // Negative fixture: options mismatch the runner type at RUNTIME
                 // (the strict union can't express it — cast at the spec boundary).
                 makeInput({
@@ -276,10 +288,10 @@ describe("Dedicated runtime runner preparation", () => {
                     } as never,
                 }),
             ),
-        ).toThrow("Nixpacks runner options are invalid for runner type 'nixpacks'");
+        ).rejects.toThrow("Nixpacks runner options are invalid for runner type 'nixpacks'");
 
-        expect(() =>
-            new BuildpackRuntimeRunnerService({ executeRuntime } as never).executeRuntime(
+        await expect(
+            delegated("buildpack", prepareBuildpackExecutionInput, executeRuntime).executeRuntime(
                 makeInput({
                     runtimeRunnerOptions: {
                         runner: "buildpack",
@@ -287,6 +299,6 @@ describe("Dedicated runtime runner preparation", () => {
                     } as never,
                 }),
             ),
-        ).toThrow("Buildpack runner options are invalid for runner type 'buildpack'");
+        ).rejects.toThrow("Buildpack runner options are invalid for runner type 'buildpack'");
     });
 });

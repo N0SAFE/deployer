@@ -2,13 +2,13 @@ import { RuntimeForbidden, RuntimeInvalid, RuntimeNotFound } from "../../../core
 import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { Effect } from 'effect';
 import { firstValueFrom, take, toArray } from 'rxjs';
 import { DeploymentService } from './deployment.service';
 import { DeploymentEventService } from '../events/deployment-event.service';
 import { CodeProviderRegistryService } from "@/modules/providers/code/shared/code-provider-registry.service";
 import { DomainRoutingService } from '@deployer/shared/core/modules/domain/services/domain-routing.service';
 import { TraefikConfigRefresher } from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service';
-import type { EnvService } from '@deployer/shared/config/env/env.module';
 import { RuntimeConfigurationAccessorService } from '@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service';
 import {
     runtimeConfigurationContextSchema,
@@ -22,15 +22,14 @@ import { GithubSourceProviderService } from "@/modules/providers/code/github/ser
 import { UploadSourceProviderService } from "@/modules/providers/code/upload/services/upload-source-provider.service";
 import { UploadBundleRegistryService } from "@/modules/providers/code/upload/services/upload-bundle-registry.service";
 import { CustomSourceProviderService } from "@/modules/providers/code/custom/services/custom-source-provider.service";
-import { RuntimeRunnerRegistryService } from "@/modules/runners/runtime-runner-registry.service";
-import { DockerRuntimeRunnerService } from "@/modules/runners/docker/docker-runtime-runner.service";
-import { DockerfileRuntimeRunnerService } from "@/modules/runners/dockerfile/dockerfile-runtime-runner.service";
-import { DockerComposeRuntimeRunnerService } from "@/modules/runners/docker-compose/docker-compose-runtime-runner.service";
-import { NixpacksRuntimeRunnerService } from "@/modules/runners/nixpacks/nixpacks-runtime-runner.service";
-import { BuildpackRuntimeRunnerService } from "@/modules/runners/buildpack/buildpack-runtime-runner.service";
-import { RailpackRuntimeRunnerService } from "@/modules/runners/railpack/railpack-runtime-runner.service";
-import { SwarmRuntimeRunnerService } from "@/modules/runners/swarm/swarm-runtime-runner.service";
-import { SwarmClusterService } from "@deployer/nest-swarm";
+import {
+    makeRuntimeRunnerRegistry,
+    RuntimeRunnerRegistry,
+    RuntimeRunnerRegistryService,
+} from "@/modules/runners/runtime-runner-registry.service";
+import { makeDockerRuntimeRunner } from "@/modules/runners/docker/docker-runtime-runner.service";
+import { makeSwarmRuntimeRunner } from "@/modules/runners/swarm/swarm-runtime-runner.service";
+import { run as runEffect } from "@/modules/runners/testing";
 import { DeploymentExecutionWorkflowService } from './deployment-execution-workflow.service';
 import { DeploymentQueueLifecycleService } from '../queue/deployment-queue-lifecycle.service';
 import { DeploymentQueueEventService } from '../queue/deployment-queue-event.service';
@@ -255,9 +254,9 @@ describe('DeploymentService', () => {
         };
 
         mockDockerService = {
-            stopContainersByDeployment: vi.fn(),
+            stopContainersByDeployment: vi.fn().mockResolvedValue(undefined),
             listContainersByDeployment: vi.fn(),
-            removeContainer: vi.fn(),
+            removeContainer: vi.fn().mockResolvedValue(undefined),
             createContainer: vi.fn(),
             startContainer: vi.fn(),
             waitForContainerHealth: vi.fn(),
@@ -387,14 +386,6 @@ describe('DeploymentService', () => {
                     useFactory: () => new CustomSourceProviderService(),
                 },
                 {
-                    provide: DockerRuntimeRunnerService,
-                    useFactory: () =>
-                        new DockerRuntimeRunnerService(
-                            mockDockerService,
-                            mockTraefikService,
-                        ),
-                },
-                {
                     provide: LocalStorageProviderService,
                     useFactory: () => new LocalStorageProviderService(),
                 },
@@ -463,28 +454,29 @@ describe('DeploymentService', () => {
                 },
                 {
                     provide: RuntimeRunnerRegistryService,
-                    // All seven runners are required by the registry, so the
-                    // test supplies every one — the same set RunnersModule
-                    // provides. Five of them need only the already-mocked
-                    // DockerRuntimeRunnerService; swarm additionally needs a
-                    // cluster service, mocked here because this suite never
-                    // exercises the swarm path.
-                    useFactory: (dockerRuntimeRunnerService: DockerRuntimeRunnerService) =>
-                        new RuntimeRunnerRegistryService(
-                            dockerRuntimeRunnerService,
-                            new DockerfileRuntimeRunnerService(dockerRuntimeRunnerService),
-                            new DockerComposeRuntimeRunnerService(dockerRuntimeRunnerService),
-                            new NixpacksRuntimeRunnerService(dockerRuntimeRunnerService),
-                            new BuildpackRuntimeRunnerService(dockerRuntimeRunnerService),
-                            new RailpackRuntimeRunnerService(dockerRuntimeRunnerService),
-                            new SwarmRuntimeRunnerService(mockDockerService, {
-                                getSwarmState: vi.fn().mockResolvedValue({ active: false }),
-                            } as never,
-                            // `DEPLOYER_PREFIX` is the only key read; "" is the
-                            // unprefixed default install.
-                            { get: vi.fn(() => "") } as never),
-                        ),
-                    inject: [DockerRuntimeRunnerService],
+                    // The registry needs all seven runners, so the test builds the same set
+                    // `RunnersLive` does. Five need only the mocked docker runner; swarm
+                    // additionally needs a cluster, mocked here because this suite never
+                    // exercises the swarm path. The Promise face runs it on a stand-in runtime.
+                    useFactory: () => {
+                        const registry = makeRuntimeRunnerRegistry({
+                            docker: makeDockerRuntimeRunner({
+                                docker: mockDockerService,
+                                traefik: mockTraefikService,
+                            }),
+                            swarm: makeSwarmRuntimeRunner({
+                                docker: mockDockerService,
+                                cluster: { getSwarmState: vi.fn().mockResolvedValue({ active: false }) } as never,
+                                // `DEPLOYER_PREFIX` is the only key read; "" is the
+                                // unprefixed default install.
+                                env: { get: vi.fn(() => "") } as never,
+                            }),
+                        });
+                        return new RuntimeRunnerRegistryService({
+                            runPromise: (effect: Effect.Effect<unknown>) =>
+                                runEffect(effect.pipe(Effect.provideService(RuntimeRunnerRegistry, registry))),
+                        } as never);
+                    },
                 },
                 {
                     provide: DeploymentExecutionWorkflowService,

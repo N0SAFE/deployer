@@ -1,3 +1,4 @@
+import type { Effect } from "effect";
 import type { DeploymentObservabilityContext, RuntimeRunnerOptions } from "@deployer/contracts-entities";
 import type { DeploymentStorageBinding } from "../deployment/storage/base/storage-provider.interface";
 
@@ -104,7 +105,11 @@ export const DEPLOYMENT_RUNTIME_RUNNER_TYPES = [
 
 export type DeploymentRuntimeRunnerType = (typeof DEPLOYMENT_RUNTIME_RUNNER_TYPES)[number];
 
+/**
+ * A runner turns a prepared artifact into a running workload. It fails with a `Runtime*` domain
+ * error for a refusal it can name, and with whatever the daemon or cluster threw otherwise.
+ */
 export type DeploymentRuntimeRunner = {
     readonly runnerType: DeploymentRuntimeRunnerType;
-    executeRuntime(input: RuntimeExecutionInput): Promise<RuntimeExecutionResult>;
+    readonly executeRuntime: (input: RuntimeExecutionInput) => Effect.Effect<RuntimeExecutionResult, unknown>;
 }

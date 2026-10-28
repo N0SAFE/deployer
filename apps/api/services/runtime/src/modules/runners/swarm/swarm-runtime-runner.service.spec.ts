@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NotFoundException } from "@nestjs/common";
 import { TimeoutError } from "@deployer/errors";
 import type { RuntimeExecutionInput } from "../runtime-runner.interface";
-import { SwarmRuntimeRunnerService, computeTaskStateCheck } from "./swarm-runtime-runner.service";
+import { run } from "../testing";
+import { computeTaskStateCheck } from "./swarm-runner.helpers";
+import { makeSwarmRuntimeRunner, type SwarmRuntimeRunnerShape } from "./swarm-runtime-runner.service";
 
 const baseInput: RuntimeExecutionInput = {
     deployment: {
@@ -77,7 +79,7 @@ describe("computeTaskStateCheck", () => {
     });
 });
 
-describe("SwarmRuntimeRunnerService", () => {
+describe("SwarmRuntimeRunner", () => {
     let dockerService: {
         getSwarmInfo: ReturnType<typeof vi.fn>;
         ensureOverlayNetwork: ReturnType<typeof vi.fn>;
@@ -92,7 +94,7 @@ describe("SwarmRuntimeRunnerService", () => {
     let clusterService: {
         assertClusterReady: ReturnType<typeof vi.fn>;
     };
-    let service: SwarmRuntimeRunnerService;
+    let service: SwarmRuntimeRunnerShape;
 
     beforeEach(() => {
         dockerService = {
@@ -111,19 +113,19 @@ describe("SwarmRuntimeRunnerService", () => {
         clusterService = {
             assertClusterReady: vi.fn().mockResolvedValue(undefined),
         };
-        service = new SwarmRuntimeRunnerService(
-            dockerService as never,
-            clusterService as never,
+        service = makeSwarmRuntimeRunner({
+            docker: dockerService as never,
+            cluster: clusterService as never,
             // The runner resolves the PLATFORM OVERLAY name through `EnvService`
             // (it attaches every workload to that overlay so the ingress can
             // reach it). Only `DEPLOYER_PREFIX` is read, and "" is the default
             // unprefixed install.
-            { get: vi.fn(() => "") } as never,
-        );
+            env: { get: vi.fn(() => "") } as never,
+        });
     });
 
     it("creates the service when it does not exist and waits for running tasks", async () => {
-        const result = await service.executeRuntime(baseInput);
+        const result = await run(service.executeRuntime(baseInput));
 
         expect(clusterService.assertClusterReady).toHaveBeenCalled();
         expect(dockerService.inspectSwarmService).toHaveBeenCalledWith(
@@ -151,11 +153,11 @@ describe("SwarmRuntimeRunnerService", () => {
         // so a deploy whose builder produced nothing started a stock nginx and
         // reported success.
         await expect(
-            service.executeRuntime({
+            run(service.executeRuntime({
                 ...baseInput,
                 deployment: { ...baseInput.deployment, deploymentContainerImage: null },
                 artifact: { ...baseInput.artifact, containerImage: null },
-            }),
+            })),
         ).rejects.toThrow(/No container image was produced/);
 
         expect(dockerService.createSwarmService).not.toHaveBeenCalled();
@@ -165,7 +167,7 @@ describe("SwarmRuntimeRunnerService", () => {
     it("updates the service in place when it already exists", async () => {
         dockerService.inspectSwarmService.mockResolvedValue(serviceSummary);
 
-        const result = await service.executeRuntime(baseInput);
+        const result = await run(service.executeRuntime(baseInput));
 
         expect(dockerService.updateSwarmService).toHaveBeenCalledWith(
             "deployer-service-1-deployme",
@@ -178,7 +180,7 @@ describe("SwarmRuntimeRunnerService", () => {
     });
 
     it("ensures the project overlay network when projectId is present", async () => {
-        await service.executeRuntime(baseInput);
+        await run(service.executeRuntime(baseInput));
 
         expect(dockerService.ensureOverlayNetwork).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -194,7 +196,7 @@ describe("SwarmRuntimeRunnerService", () => {
             { ...runningTask, Status: { State: "rejected", Err: "image pull failed" } },
         ]);
 
-        await expect(service.executeRuntime(baseInput)).rejects.toBeInstanceOf(RuntimeConflict);
+        await expect(run(service.executeRuntime(baseInput))).rejects.toBeInstanceOf(RuntimeConflict);
         expect(dockerService.createSwarmService).toHaveBeenCalledOnce();
     });
 
@@ -203,12 +205,12 @@ describe("SwarmRuntimeRunnerService", () => {
             { ...runningTask, Status: { State: "starting" } },
         ]);
 
-        await expect(service.executeRuntime(baseInput)).rejects.toBeInstanceOf(TimeoutError);
+        await expect(run(service.executeRuntime(baseInput))).rejects.toBeInstanceOf(TimeoutError);
     });
 
     it("rejects non-volume storage bindings with a typed error", async () => {
         await expect(
-            service.executeRuntime({
+            run(service.executeRuntime({
                 ...baseInput,
                 storageBinding: {
                     storageType: "s3",
@@ -217,13 +219,13 @@ describe("SwarmRuntimeRunnerService", () => {
                     mountPath: "/workspace",
                     metadata: {},
                 },
-            }),
+            })),
         ).rejects.toBeInstanceOf(RuntimeInvalid);
         expect(dockerService.createSwarmService).not.toHaveBeenCalled();
     });
 
     it("maps volume storage bindings to a named-volume mount", async () => {
-        await service.executeRuntime({
+        await run(service.executeRuntime({
             ...baseInput,
             storageBinding: {
                 storageType: "volume",
@@ -232,7 +234,7 @@ describe("SwarmRuntimeRunnerService", () => {
                 mountPath: "/data",
                 metadata: {},
             },
-        });
+        }));
 
         expect(dockerService.createSwarmService).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -255,33 +257,33 @@ describe("SwarmRuntimeRunnerService", () => {
     it("propagates cluster unavailability", async () => {
         clusterService.assertClusterReady.mockRejectedValue(new Error("swarm inactive"));
 
-        await expect(service.executeRuntime(baseInput)).rejects.toThrow("swarm inactive");
+        await expect(run(service.executeRuntime(baseInput))).rejects.toThrow("swarm inactive");
         expect(dockerService.createSwarmService).not.toHaveBeenCalled();
     });
 
     describe("lifecycle operations (SW-027)", () => {
         it("removes a service through the SDK with the cluster gate", async () => {
-            await service.removeService("deployer-proj-svc");
+            await run(service.removeService("deployer-proj-svc"));
 
             expect(clusterService.assertClusterReady).toHaveBeenCalled();
             expect(dockerService.removeSwarmService).toHaveBeenCalledWith("deployer-proj-svc");
         });
 
         it("scales a service to a target replica count", async () => {
-            await service.scaleService("deployer-proj-svc", 3);
+            await run(service.scaleService("deployer-proj-svc", 3));
 
             expect(clusterService.assertClusterReady).toHaveBeenCalled();
             expect(dockerService.scaleSwarmService).toHaveBeenCalledWith("deployer-proj-svc", 3);
         });
 
         it("passes negative scale targets through to the SDK clamp", async () => {
-            await service.scaleService("deployer-proj-svc", -2);
+            await run(service.scaleService("deployer-proj-svc", -2));
 
             expect(dockerService.scaleSwarmService).toHaveBeenCalledWith("deployer-proj-svc", -2);
         });
 
         it("rolls back a service through the SDK", async () => {
-            await service.rollbackService("deployer-proj-svc");
+            await run(service.rollbackService("deployer-proj-svc"));
 
             expect(clusterService.assertClusterReady).toHaveBeenCalled();
             expect(dockerService.rollbackSwarmService).toHaveBeenCalledWith("deployer-proj-svc");
@@ -290,9 +292,9 @@ describe("SwarmRuntimeRunnerService", () => {
         it("propagates cluster unavailability for lifecycle ops", async () => {
             clusterService.assertClusterReady.mockRejectedValue(new Error("swarm inactive"));
 
-            await expect(service.removeService("x")).rejects.toThrow("swarm inactive");
-            await expect(service.scaleService("x", 1)).rejects.toThrow("swarm inactive");
-            await expect(service.rollbackService("x")).rejects.toThrow("swarm inactive");
+            await expect(run(service.removeService("x"))).rejects.toThrow("swarm inactive");
+            await expect(run(service.scaleService("x", 1))).rejects.toThrow("swarm inactive");
+            await expect(run(service.rollbackService("x"))).rejects.toThrow("swarm inactive");
         });
     });
 });

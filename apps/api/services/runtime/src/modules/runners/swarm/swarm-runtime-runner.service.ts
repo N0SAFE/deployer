@@ -1,6 +1,5 @@
-import { RuntimeConflict, RuntimeInvalid } from "../../../core/runtime.errors";
 /**
- * SwarmRuntimeRunnerService — deploys user deployments as Swarm services
+ * SwarmRuntimeRunner — deploys user deployments as Swarm services
  * through the dockerode SDK (no CLI), behind the `DeploymentRuntimeRunner`
  * contract.
  *
@@ -14,7 +13,8 @@ import { RuntimeConflict, RuntimeInvalid } from "../../../core/runtime.errors";
  * (typed result, task-state verification, inventory-friendly labels).
  */
 
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { NotFoundException } from "@nestjs/common";
+import { Context, Effect, Layer } from "effect";
 
 import { AppError, TimeoutError } from "@deployer/errors";
 import type {
@@ -24,81 +24,156 @@ import type {
     SwarmServiceSpecInput,
     SwarmTaskStateCheck,
 } from "@deployer/contracts-entities";
-import { SwarmClusterService } from "@deployer/nest-swarm";
-import { verifySwarmRouteAgainstTraefik } from "@deployer/shared/core/modules/traefik/services/swarm-route-verifier";
-import { parsePlacementPolicyLabel, toSwarmPlacement } from "@deployer/nest-swarm";
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
 import { platformOverlayForPrefix } from "@deployer/nest-docker/services/docker-supervisor-runtime";
-import { EnvService } from "@deployer/shared/config/env/env.module";
-import {
-    type DeploymentRuntimeRunner,
-    type DeploymentRuntimeRunnerType,
-    type RuntimeExecutionInput,
-    type RuntimeExecutionResult,
-} from "../runtime-runner.interface";
-import { resolveContainerImage } from "../base/container-image.guard";
+import type { DockerService } from "@deployer/nest-docker/services/docker.service";
 import { toDockerServiceSpec } from "@deployer/nest-docker/services/swarm-spec.mapper";
+import type { SwarmClusterService } from "@deployer/nest-swarm";
+import type { EnvService } from "@deployer/shared/config/env/env.module";
+import { verifySwarmRouteAgainstTraefik } from "@deployer/shared/core/modules/traefik/services/swarm-route-verifier";
+import { attempt } from "../../../core/effects";
+import { RuntimeConflict } from "../../../core/runtime.errors";
+import { resolveContainerImage } from "../base/container-image.guard";
+import { RunnerDockerPort, RunnerEnvPort, RunnerSwarmClusterPort } from "../runners.ports";
+import type { DeploymentRuntimeRunner, RuntimeExecutionInput } from "../runtime-runner.interface";
+import {
+    buildStorageMounts,
+    computeTaskStateCheck,
+    extractVerifyHost,
+    resolvePlacement,
+    sanitizeEnvironmentVariables,
+    sanitizeExecutorLabels,
+} from "./swarm-runner.helpers";
 
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+const RUNNER_TYPE = "swarm" as const;
 
-export function computeTaskStateCheck(tasks: DockerodeTaskSummary[], replicas: number): SwarmTaskStateCheck {
-    const runningCount = tasks.filter((task) => task.Status.State === "running").length;
-    const failedCount = tasks.filter(
-        (task) => task.Status.State === "failed" || task.Status.State === "rejected",
-    ).length;
-    return {
-        runningCount,
-        failedCount,
-        totalCount: tasks.length,
-        ready: runningCount >= replicas && failedCount === 0 && tasks.length >= replicas,
-    };
+/** The swarm runner also manages the services it deployed (SW-027). */
+export type SwarmRuntimeRunnerShape = DeploymentRuntimeRunner & {
+    /** Graceful service removal (drains tasks). No-op when the service no longer exists. */
+    readonly removeService: (serviceName: string) => Effect.Effect<void, unknown>;
+    /** Scale a service to an exact replica count (≥0). */
+    readonly scaleService: (serviceName: string, replicas: number) => Effect.Effect<void, unknown>;
+    /** Roll back to the previous known-good spec (the engine applies the service's own RollbackConfig). */
+    readonly rollbackService: (serviceName: string) => Effect.Effect<void, unknown>;
+};
+
+export class SwarmRuntimeRunner extends Context.Service<SwarmRuntimeRunner, SwarmRuntimeRunnerShape>()(
+    "runtime/SwarmRuntimeRunner",
+) {
+    static readonly Live: Layer.Layer<
+        SwarmRuntimeRunner,
+        never,
+        RunnerDockerPort | RunnerSwarmClusterPort | RunnerEnvPort
+    > = Layer.effect(
+        SwarmRuntimeRunner,
+        Effect.gen(function* () {
+            return makeSwarmRuntimeRunner({
+                docker: yield* RunnerDockerPort,
+                cluster: yield* RunnerSwarmClusterPort,
+                env: yield* RunnerEnvPort,
+            });
+        }),
+    );
 }
 
-@Injectable()
-export class SwarmRuntimeRunnerService implements DeploymentRuntimeRunner {
-    readonly runnerType: DeploymentRuntimeRunnerType = "swarm";
-    private readonly logger = new Logger(SwarmRuntimeRunnerService.name);
+export function makeSwarmRuntimeRunner(ports: {
+    readonly docker: DockerService;
+    readonly cluster: SwarmClusterService;
+    readonly env: EnvService;
+}): SwarmRuntimeRunnerShape {
+    const { docker, cluster, env } = ports;
 
-    constructor(
-        private readonly dockerService: DockerService,
-        private readonly clusterService: SwarmClusterService,
-        private readonly env: EnvService,
-    ) {}
+    const assertClusterReady = attempt(() => cluster.assertClusterReady());
 
-    /**
-     * SW-027 — graceful service removal (drains tasks). No-op when the
-     * service no longer exists.
-     */
-    async removeService(serviceName: string): Promise<void> {
-        await this.clusterService.assertClusterReady();
-        await this.dockerService.removeSwarmService(serviceName);
-        this.logger.log(`Removed swarm service ${serviceName}`);
-    }
+    const removeService = Effect.fn("SwarmRuntimeRunner.removeService")(function* (serviceName: string) {
+        yield* assertClusterReady;
+        yield* attempt(() => docker.removeSwarmService(serviceName));
+        yield* Effect.logInfo(`Removed swarm service ${serviceName}`);
+    });
 
-    /**
-     * SW-027 — scale a service to an exact replica count (≥0).
-     */
-    async scaleService(serviceName: string, replicas: number): Promise<void> {
-        await this.clusterService.assertClusterReady();
-        await this.dockerService.scaleSwarmService(serviceName, replicas);
-        this.logger.log(`Scaled swarm service ${serviceName} → ${String(Math.max(0, Math.floor(replicas)))}`);
-    }
+    const scaleService = Effect.fn("SwarmRuntimeRunner.scaleService")(function* (serviceName: string, replicas: number) {
+        yield* assertClusterReady;
+        yield* attempt(() => docker.scaleSwarmService(serviceName, replicas));
+        yield* Effect.logInfo(`Scaled swarm service ${serviceName} → ${String(Math.max(0, Math.floor(replicas)))}`);
+    });
 
-    /**
-     * SW-027 — roll back a service to its previous known-good spec (engine
-     * applies the service's own RollbackConfig).
-     */
-    async rollbackService(serviceName: string): Promise<void> {
-        await this.clusterService.assertClusterReady();
-        await this.dockerService.rollbackSwarmService(serviceName);
-        this.logger.log(`Rolled back swarm service ${serviceName}`);
-    }
+    const rollbackService = Effect.fn("SwarmRuntimeRunner.rollbackService")(function* (serviceName: string) {
+        yield* assertClusterReady;
+        yield* attempt(() => docker.rollbackSwarmService(serviceName));
+        yield* Effect.logInfo(`Rolled back swarm service ${serviceName}`);
+    });
 
-    async executeRuntime(input: RuntimeExecutionInput): Promise<RuntimeExecutionResult> {
-        await this.clusterService.assertClusterReady();
+    /** Idempotent create-or-update: an existing service is updated in place, a missing one created. */
+    const createOrUpdateService = Effect.fn("SwarmRuntimeRunner.createOrUpdateService")(function* (
+        serviceName: string,
+        spec: ReturnType<typeof toDockerServiceSpec>,
+    ) {
+        const existing = yield* attempt(() => docker.inspectSwarmService(serviceName)).pipe(
+            Effect.map((summary) => ({ found: true as const, summary })),
+            Effect.catch((error) =>
+                error instanceof NotFoundException ? Effect.succeed({ found: false as const }) : Effect.fail(error),
+            ),
+        );
+        if (existing.found) {
+            yield* attempt(() => docker.updateSwarmService(serviceName, existing.summary.Version.Index, spec, false));
+            const summary = yield* attempt(() => docker.inspectSwarmService(serviceName));
+            yield* Effect.logInfo(
+                `Updated existing swarm service ${serviceName} (version=${String(existing.summary.Version.Index)})`,
+            );
+            return { summary, created: false };
+        }
+        const summary = yield* attempt(() => docker.createSwarmService(spec));
+        yield* Effect.logInfo(`Created swarm service ${serviceName} (id=${summary.ID ?? "unknown"})`);
+        return { summary, created: true };
+    });
+
+    /** Health gate: wait for tasks to reach Running within the budget; a failed task fails fast. */
+    const awaitTaskConvergence = Effect.fn("SwarmRuntimeRunner.awaitTaskConvergence")(function* (
+        serviceId: string,
+        serviceName: string,
+        maxRetries: number,
+        retryIntervalMs: number,
+    ) {
+        let check: SwarmTaskStateCheck = computeTaskStateCheck([], 1);
+        let taskList: DockerodeTaskSummary[] = [];
+        for (let attemptNumber = 1; attemptNumber <= maxRetries; attemptNumber++) {
+            taskList = yield* attempt(() => docker.listSwarmServiceTasks(serviceId));
+            check = computeTaskStateCheck(taskList, 1);
+            yield* Effect.logDebug(
+                `Swarm task convergence attempt ${String(attemptNumber)}/${String(maxRetries)}: ${String(check.runningCount)} running, ${String(check.failedCount)} failed`,
+            );
+            if (check.ready) {
+                break;
+            }
+            if (check.failedCount > 0) {
+                return yield* Effect.fail(
+                    new RuntimeConflict({
+                        reason: `Swarm service ${serviceName} tasks failed to converge (${String(check.failedCount)} failed)`,
+                    }),
+                );
+            }
+            if (attemptNumber < maxRetries) {
+                yield* Effect.sleep(retryIntervalMs);
+            }
+        }
+        if (!check.ready) {
+            return yield* Effect.fail(
+                new TimeoutError(
+                    `waiting for swarm service ${serviceName} to reach running state`,
+                    maxRetries * retryIntervalMs,
+                ),
+            );
+        }
+        return { check, taskList };
+    });
+
+    const executeRuntime = Effect.fn("SwarmRuntimeRunner.executeRuntime")(function* (input: RuntimeExecutionInput) {
+        yield* assertClusterReady;
 
         const { deployment, artifact, healthGateConfig, executorOptions, convergenceConfig } = input;
-        const containerImage = resolveContainerImage(artifact, deployment, this.runnerType);
+        const containerImage = yield* Effect.try({
+            try: () => resolveContainerImage(artifact, deployment, RUNNER_TYPE),
+            catch: (cause) => cause,
+        });
         const serviceName =
             deployment.deploymentContainerName
             ?? `deployer-${deployment.serviceId.slice(0, 12)}-${deployment.deploymentId.slice(0, 8)}`;
@@ -110,10 +185,10 @@ export class SwarmRuntimeRunnerService implements DeploymentRuntimeRunner {
             "deployer.managed_reason": "deployment_execution",
             "deployer.deployment_id": deployment.deploymentId,
             "deployer.service_id": deployment.serviceId,
-            "deployer.runtime_runner": this.runnerType,
+            "deployer.runtime_runner": RUNNER_TYPE,
             "deployer.image_ref": containerImage,
             ...(deployment.projectId ? { "deployer.project_id": deployment.projectId } : {}),
-            ...this.sanitizeExecutorLabels(executorOptions?.labels),
+            ...sanitizeExecutorLabels(executorOptions?.labels),
         };
 
         const healthCheckUrl = deployment.healthCheckUrl ?? null;
@@ -149,17 +224,17 @@ export class SwarmRuntimeRunnerService implements DeploymentRuntimeRunner {
         }
         if (deployment.projectId) {
             const overlayName = `deployer-${deployment.projectId}`;
-            await this.dockerService.ensureOverlayNetwork({
-                name: overlayName,
-                driver: "overlay",
-                attachable: true,
-                ingress: false,
-                labels: {
-                    "deployer.project_id": deployment.projectId,
-                    "deployer.managed": "true",
-                },
-                enableIpv6: false,
-            });
+            const projectId = deployment.projectId;
+            yield* attempt(() =>
+                docker.ensureOverlayNetwork({
+                    name: overlayName,
+                    driver: "overlay",
+                    attachable: true,
+                    ingress: false,
+                    labels: { "deployer.project_id": projectId, "deployer.managed": "true" },
+                    enableIpv6: false,
+                }),
+            );
             if (!networks.some((attachment) => attachment.target === overlayName)) {
                 networks.push({ target: overlayName, aliases: [serviceName] });
             }
@@ -177,15 +252,17 @@ export class SwarmRuntimeRunnerService implements DeploymentRuntimeRunner {
         // So the service is attached to BOTH: its project overlay (sibling
         // services reach it there) and the platform overlay (the ingress reaches
         // it there). That is what makes a workload publishable at all.
-        const platformOverlay = platformOverlayForPrefix(this.env.get("DEPLOYER_PREFIX"));
-        await this.dockerService.ensureOverlayNetwork({
-            name: platformOverlay,
-            driver: "overlay",
-            attachable: true,
-            ingress: false,
-            labels: { "deployer.managed": "true", "deployer.platform": "true" },
-            enableIpv6: false,
-        });
+        const platformOverlay = platformOverlayForPrefix(env.get("DEPLOYER_PREFIX"));
+        yield* attempt(() =>
+            docker.ensureOverlayNetwork({
+                name: platformOverlay,
+                driver: "overlay",
+                attachable: true,
+                ingress: false,
+                labels: { "deployer.managed": "true", "deployer.platform": "true" },
+                enableIpv6: false,
+            }),
+        );
         if (!networks.some((attachment) => attachment.target === platformOverlay)) {
             // Aliased by service name for the same reason as every other
             // attachment: the route's backend is the NAME, and Traefik resolves it
@@ -193,19 +270,20 @@ export class SwarmRuntimeRunnerService implements DeploymentRuntimeRunner {
             networks.push({ target: platformOverlay, aliases: [serviceName] });
         }
 
+        const placement = resolvePlacement(input);
         const specInput: SwarmServiceSpecInput = {
             name: serviceName,
             image: containerImage,
             mode: "replicated",
             replicas: 1,
-            env: this.sanitizeEnvironmentVariables(executorOptions?.environmentVariables),
+            env: sanitizeEnvironmentVariables(executorOptions?.environmentVariables),
             command: [],
             args: executorOptions?.startupCommand ? ["sh", "-lc", executorOptions.startupCommand] : [],
             labels: managedLabels,
             containerLabels: {},
-            mounts: this.buildStorageMounts(input),
-            placementPreferences: this.resolvePlacement(input).preferences,
-            placementConstraints: this.resolvePlacement(input).constraints,
+            mounts: yield* Effect.try({ try: () => buildStorageMounts(input), catch: (cause) => cause }),
+            placementPreferences: placement.preferences,
+            placementConstraints: placement.constraints,
             resourcesLimits: {
                 ...(typeof deployment.cpuShares === "number" && deployment.cpuShares > 0
                     ? { nanoCpus: Math.trunc(deployment.cpuShares * 1_000_000_000) }
@@ -236,72 +314,31 @@ export class SwarmRuntimeRunnerService implements DeploymentRuntimeRunner {
         };
         const spec = toDockerServiceSpec(specInput);
 
-        this.logger.log(
+        yield* Effect.logInfo(
             `Deploying swarm service ${serviceName} (image=${containerImage}, attachments=${networks.length > 0 ? networks.map((n) => n.target).join(",") : "none"})`,
         );
 
-        // ── Idempotent create-or-update ──────────────────────────────────────
         const start = Date.now();
-        let serviceSummary: DockerodeServiceSummary;
-        let created = false;
-        try {
-            const existing = await this.dockerService.inspectSwarmService(serviceName);
-            await this.dockerService.updateSwarmService(serviceName, existing.Version.Index, spec, false);
-            serviceSummary = await this.dockerService.inspectSwarmService(serviceName);
-            this.logger.log(`Updated existing swarm service ${serviceName} (version=${String(existing.Version.Index)})`);
-        } catch (error: unknown) {
-            if (error instanceof NotFoundException) {
-                serviceSummary = await this.dockerService.createSwarmService(spec);
-                created = true;
-                this.logger.log(`Created swarm service ${serviceName} (id=${serviceSummary.ID ?? "unknown"})`);
-            } else {
-                throw error;
-            }
-        }
+        const { summary: serviceSummary, created }: { summary: DockerodeServiceSummary; created: boolean } =
+            yield* createOrUpdateService(serviceName, spec);
 
         // Docker types `ID` as optional; a service we just created or
         // inspected must have one. Fail fast rather than assert a string.
-        if (serviceSummary.ID === undefined) {
-            throw new AppError(
-                `Swarm service ${serviceName} was inspected without an ID`,
-                "SWARM_SERVICE_MISSING_ID",
-                { serviceName },
+        const serviceId = serviceSummary.ID;
+        if (serviceId === undefined) {
+            return yield* Effect.fail(
+                new AppError(`Swarm service ${serviceName} was inspected without an ID`, "SWARM_SERVICE_MISSING_ID", {
+                    serviceName,
+                }),
             );
         }
 
-        // ── Health gate: wait for tasks to reach Running within budget ───────
         const maxRetries = Math.max(1, healthGateConfig.maxRetries);
         const retryIntervalMs = Math.max(500, healthGateConfig.retryIntervalMs);
-        let check: SwarmTaskStateCheck = computeTaskStateCheck([], 1);
-        let taskList: DockerodeTaskSummary[] = [];
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            taskList = await this.dockerService.listSwarmServiceTasks(serviceSummary.ID);
-            check = computeTaskStateCheck(taskList, 1);
-            this.logger.debug(
-                `Swarm task convergence attempt ${String(attempt)}/${String(maxRetries)}: ${String(check.runningCount)} running, ${String(check.failedCount)} failed`,
-            );
-            if (check.ready) {
-                break;
-            }
-            if (check.failedCount > 0) {
-                const failedTask = taskList.find(
-                    (task) => task.Status.State === "failed" || task.Status.State === "rejected",
-                );
-                throw new RuntimeConflict({ reason: `Swarm service ${serviceName} tasks failed to converge (${String(check.failedCount)} failed)` });
-            }
-            if (attempt < maxRetries) {
-                await sleep(retryIntervalMs);
-            }
-        }
-        if (!check.ready) {
-            throw new TimeoutError(
-                `waiting for swarm service ${serviceName} to reach running state`,
-                maxRetries * retryIntervalMs,
-            );
-        }
+        const { check, taskList } = yield* awaitTaskConvergence(serviceId, serviceName, maxRetries, retryIntervalMs);
 
         const verifiedAt = new Date().toISOString();
-        this.logger.log(
+        yield* Effect.logInfo(
             `Swarm service ${serviceName} converged (${String(check.runningCount)} running, created=${String(created)}, durationMs=${String(Date.now() - start)})`,
         );
 
@@ -315,26 +352,32 @@ export class SwarmRuntimeRunnerService implements DeploymentRuntimeRunner {
                 configName: serviceName,
                 action: "labels_applied",
                 message: "Traefik swarm provider converges from service labels",
-                syncedAt: verifiedAt,
+                syncedAt: verifiedAt as string | null,
             },
             healthSummary: taskList.map((task) => ({
                 id: task.ID,
                 state: task.Status.State,
                 nodeId: task.NodeID ?? null,
-            })),
+            })) as unknown,
             attempts: 1,
             verifiedAt,
         };
 
         let routeVerification = fallbackRouteVerification;
-        const verifyHost = this.extractVerifyHost(input);
+        const verifyHost = extractVerifyHost(input);
         if (verifyHost) {
-            try {
-                const result = await verifySwarmRouteAgainstTraefik(verifyHost, {
+            const probe = yield* attempt(() =>
+                verifySwarmRouteAgainstTraefik(verifyHost, {
                     maxAttempts: convergenceConfig?.traefikSyncMaxAttempts ?? 3,
                     retryDelayMs: convergenceConfig?.retryBaseDelayMs ?? 250,
-                });
-                this.logger.log(
+                }),
+            ).pipe(
+                Effect.map((result) => ({ ok: true as const, result })),
+                Effect.catch((error) => Effect.succeed({ ok: false as const, error })),
+            );
+            if (probe.ok) {
+                const { result } = probe;
+                yield* Effect.logInfo(
                     `Traefik swarm route verification for ${verifyHost}: ${
                         result.verified ? "converged" : "pending"
                     }${result.routerName ? ` (router=${result.routerName})` : ""}${!result.verified && result.error ? ` — ${result.error}` : ""}`,
@@ -350,33 +393,33 @@ export class SwarmRuntimeRunnerService implements DeploymentRuntimeRunner {
                     },
                     attempts: Math.max(1, result.attempts),
                 };
-            } catch (verifyError: unknown) {
-                this.logger.warn(
+            } else {
+                yield* Effect.logWarning(
                     `Traefik route verification probe failed for ${verifyHost}: ${
-                        verifyError instanceof Error ? verifyError.message : String(verifyError)
+                        probe.error instanceof Error ? probe.error.message : String(probe.error)
                     }`,
                 );
             }
         }
 
         return {
-            containerId: serviceSummary.ID,
+            containerId: serviceId,
             containerName: serviceName,
             containerImage,
             routeVerification,
             healthGate: {
-                passed: true,
-                containerId: serviceSummary.ID,
+                passed: true as const,
+                containerId: serviceId,
                 healthCheckUrl,
                 maxRetries,
                 retryIntervalMs,
                 verifiedAt,
             },
-            serviceId: serviceSummary.ID,
+            serviceId,
             serviceName,
             taskIds: taskList.map((task) => task.ID),
             managedRuntime: {
-                managedBy: "deployment_service",
+                managedBy: "deployment_service" as const,
                 managedReason: "deployment_execution",
                 deploymentId: deployment.deploymentId,
                 serviceId: deployment.serviceId,
@@ -386,77 +429,7 @@ export class SwarmRuntimeRunnerService implements DeploymentRuntimeRunner {
                 labels: managedLabels,
             },
         };
-    }
+    });
 
-    /**
-     * Best-effort host to verify against Traefik's swarm provider: derive from
-     * the health-check URL host when it is a real hostname (not localhost/IP).
-     * Returns null when there is nothing meaningful to probe.
-     */
-    private extractVerifyHost(input: RuntimeExecutionInput): string | null {
-        const url = input.deployment.healthCheckUrl;
-        if (!url) {
-            return null;
-        }
-        try {
-            const parsed = new URL(url);
-            const host = parsed.hostname.toLowerCase();
-            if (host === "localhost" || host === "127.0.0.1" || host === "::1" || /^\d+\.\d+\.\d+\.\d+$/.test(host)) {
-                return null;
-            }
-            return host;
-        } catch {
-            return null;
-        }
-    }
-
-    /**
-     * Placement resolution (P6): executor label `deployer.placement` maps to
-     * Swarm constraints/preferences. Default = no constraints → user
-     * workloads schedule on ALL nodes (managers included) — shared nodes.
-     */
-    private resolvePlacement(input: RuntimeExecutionInput): { constraints: string[]; preferences: { spreadDescriptor: string }[] } {
-        const policy = parsePlacementPolicyLabel(input.executorOptions?.labels?.["deployer.placement"]);
-        return toSwarmPlacement({ policy, tenantId: input.deployment.projectId ?? undefined });
-    }
-
-    private sanitizeExecutorLabels(labels?: Record<string, string>): Record<string, string> {
-        if (!labels) {
-            return {};
-        }
-        const sanitized: Record<string, string> = {};
-        for (const [key, value] of Object.entries(labels)) {
-            if (key.length > 0 && value.length > 0) {
-                sanitized[key] = value;
-            }
-        }
-        return sanitized;
-    }
-
-    private sanitizeEnvironmentVariables(environmentVariables?: Record<string, string>): string[] {
-        if (!environmentVariables) {
-            return [];
-        }
-        return Object.entries(environmentVariables)
-            .filter(([key]) => key.length > 0)
-            .map(([key, value]) => `${key}=${value}`);
-    }
-
-    private buildStorageMounts(input: RuntimeExecutionInput): SwarmServiceSpecInput["mounts"] {
-        const binding = input.storageBinding;
-        if (!binding) {
-            return [];
-        }
-        if (binding.storageType !== "volume") {
-            throw new RuntimeInvalid({ reason: "Swarm runtime runner supports 'volume' storage bindings only; use the direct docker runner for local/s3/nfs storage" });
-        }
-        return [
-            {
-                type: "volume",
-                source: `deployer-storage-${input.deployment.deploymentId}`,
-                target: binding.mountPath,
-                readOnly: false,
-            },
-        ];
-    }
+    return { runnerType: RUNNER_TYPE, executeRuntime, removeService, scaleService, rollbackService };
 }

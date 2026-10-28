@@ -1,63 +1,175 @@
-import { RuntimeInvalid } from "../../../core/runtime.errors";
-import { Injectable } from "@nestjs/common";
+import { Context, Effect, Layer } from "effect";
 
-import type Docker from "dockerode";
-import * as fs from "node:fs";
-import * as path from "node:path";
-import { DockerService } from "@deployer/nest-docker/services/docker.service";
+import type { DockerService } from "@deployer/nest-docker/services/docker.service";
 import { ConfigNotFoundError } from "@deployer/shared/core/modules/traefik/errors/index";
-import { TraefikService } from "@deployer/shared/core/modules/traefik/services/traefik.service";
-import type {
-    DeploymentRuntimeRunner,
-    DeploymentRuntimeRunnerType,
-    RuntimeExecutionInput,
-    RuntimeExecutionResult,
-} from "../runtime-runner.interface";
+import type { TraefikService } from "@deployer/shared/core/modules/traefik/services/traefik.service";
+import { attempt } from "../../../core/effects";
+import { RuntimeInvalid } from "../../../core/runtime.errors";
 import { resolveContainerImage } from "../base/container-image.guard";
-import type { DeploymentStorageBinding } from "@/modules/deployment/storage/base/storage-provider.interface";
+import { RunnerDockerPort, RunnerTraefikPort } from "../runners.ports";
+import type { DeploymentRuntimeRunner, RuntimeExecutionInput } from "../runtime-runner.interface";
+import {
+    buildFallbackSubdomain,
+    materializeStorageBinding,
+    resolveRuntimeConvergenceConfig,
+    sanitizeEnvironmentVariables,
+    sanitizeExecutorLabels,
+    sanitizeStartupCommand,
+} from "./docker-runner.helpers";
 
-@Injectable()
-export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
-    readonly runnerType: DeploymentRuntimeRunnerType = "docker";
-    private static readonly DEFAULT_TRAEFIK_SYNC_MAX_ATTEMPTS = 3;
-    private static readonly DEFAULT_RETRY_BASE_DELAY_MS = 250;
+const RUNNER_TYPE = "docker" as const;
 
-    constructor(
-        private readonly dockerService: DockerService,
-        private readonly traefikService: TraefikService,
-    ) {}
+/**
+ * Runs a deployment as a plain container: replaces the deployment's previous containers, starts
+ * the new one, applies and verifies its Traefik route, then holds it to the readiness gate. A
+ * container created by a run that then fails is removed, including when the run is interrupted.
+ *
+ * The other image-based runners (dockerfile, compose, nixpacks, buildpack, railpack) are this
+ * runner behind their own input preparation.
+ */
+export class DockerRuntimeRunner extends Context.Service<DockerRuntimeRunner, DeploymentRuntimeRunner>()(
+    "runtime/DockerRuntimeRunner",
+) {
+    static readonly Live: Layer.Layer<DockerRuntimeRunner, never, RunnerDockerPort | RunnerTraefikPort> = Layer.effect(
+        DockerRuntimeRunner,
+        Effect.gen(function* () {
+            return makeDockerRuntimeRunner({ docker: yield* RunnerDockerPort, traefik: yield* RunnerTraefikPort });
+        }),
+    );
+}
 
-    async executeRuntime(input: RuntimeExecutionInput): Promise<RuntimeExecutionResult> {
-        const { deployment, artifact, healthGateConfig, storageBinding, executorOptions, convergenceConfig } = input;
-        const sanitizedExecutorLabels = this.sanitizeExecutorLabels(executorOptions?.labels);
-        const sanitizedStartupCommand = this.sanitizeStartupCommand(executorOptions?.startupCommand);
-        const sanitizedEnvironmentVariables = this.sanitizeEnvironmentVariables(
-            executorOptions?.environmentVariables,
+export function makeDockerRuntimeRunner(ports: {
+    readonly docker: DockerService;
+    readonly traefik: TraefikService;
+}): DeploymentRuntimeRunner {
+    const { docker, traefik } = ports;
+
+    const bootstrapDefaultTraefikConfiguration = (serviceId: string) =>
+        attempt(() =>
+            traefik.createServiceConfiguration(serviceId, {
+                domain: "localhost",
+                subdomain: buildFallbackSubdomain(serviceId),
+                port: 80,
+                sslEnabled: false,
+                pathPrefix: "/",
+                isActive: true,
+            }),
         );
-        const resolvedConvergenceConfig = this.resolveRuntimeConvergenceConfig(convergenceConfig);
+
+    const syncRoute = (serviceId: string) =>
+        Effect.gen(function* () {
+            const syncResult = yield* attempt(() => traefik.syncServiceConfiguration(serviceId));
+            if (!syncResult.success) {
+                return yield* Effect.fail(new RuntimeInvalid({ reason: syncResult.message }));
+            }
+            const healthSummary = yield* attempt(() => traefik.getHealthStatus());
+            return { syncResult, healthSummary };
+        });
+
+    const applyRouteAndVerify = Effect.fn("DockerRuntimeRunner.applyRouteAndVerify")(function* (
+        serviceId: string,
+        maxAttempts: number,
+        retryBaseDelayMs: number,
+    ) {
+        let lastErrorMessage: string | null = null;
+        let attemptedAutoBootstrap = false;
+
+        for (let attemptNumber = 1; attemptNumber <= maxAttempts; attemptNumber += 1) {
+            if (attemptNumber > 1) {
+                yield* Effect.sleep(retryBaseDelayMs * (attemptNumber - 1));
+            }
+
+            const outcome = yield* syncRoute(serviceId).pipe(
+                Effect.map((value) => ({ ok: true as const, value })),
+                Effect.catch((error) => Effect.succeed({ ok: false as const, error })),
+            );
+            if (outcome.ok) {
+                const { syncResult, healthSummary } = outcome.value;
+                return {
+                    applied: true,
+                    syncResult: {
+                        configId: syncResult.configId,
+                        configName: syncResult.configName,
+                        action: syncResult.action,
+                        message: syncResult.message,
+                        syncedAt: syncResult.syncedAt ? new Date(syncResult.syncedAt).toISOString() : null,
+                    },
+                    healthSummary,
+                    attempts: attemptNumber,
+                    verifiedAt: new Date().toISOString(),
+                };
+            }
+
+            if (!attemptedAutoBootstrap && outcome.error instanceof ConfigNotFoundError) {
+                yield* bootstrapDefaultTraefikConfiguration(serviceId);
+                attemptedAutoBootstrap = true;
+                continue;
+            }
+            lastErrorMessage = outcome.error instanceof Error ? outcome.error.message : String(outcome.error);
+        }
+
+        return yield* Effect.fail(
+            new RuntimeInvalid({
+                reason: `Traefik route apply/verification failed after ${String(maxAttempts)} attempts: ${lastErrorMessage ?? "unknown error"}`,
+            }),
+        );
+    });
+
+    const enforceReadinessHealthGate = Effect.fn("DockerRuntimeRunner.enforceReadinessHealthGate")(function* (
+        containerId: string,
+        healthCheckUrl: string | null,
+        config: { maxRetries: number; retryIntervalMs: number },
+    ) {
+        const isHealthy = yield* attempt(() =>
+            docker.waitForContainerHealth(containerId, config.maxRetries, config.retryIntervalMs, healthCheckUrl ?? undefined),
+        );
+        if (!isHealthy) {
+            return yield* Effect.fail(
+                new RuntimeInvalid({
+                    reason: `Readiness health gate failed for container '${containerId}' after ${String(config.maxRetries)} retries`,
+                }),
+            );
+        }
+        return {
+            passed: true as const,
+            containerId,
+            healthCheckUrl,
+            maxRetries: config.maxRetries,
+            retryIntervalMs: config.retryIntervalMs,
+            verifiedAt: new Date().toISOString(),
+        };
+    });
+
+    const executeRuntime = Effect.fn("DockerRuntimeRunner.executeRuntime")(function* (input: RuntimeExecutionInput) {
+        const { deployment, artifact, healthGateConfig, storageBinding, executorOptions, convergenceConfig } = input;
+        const sanitizedExecutorLabels = sanitizeExecutorLabels(executorOptions?.labels);
+        const sanitizedStartupCommand = yield* Effect.try({
+            try: () => sanitizeStartupCommand(executorOptions?.startupCommand),
+            catch: (cause) => cause,
+        });
+        const sanitizedEnvironmentVariables = sanitizeEnvironmentVariables(executorOptions?.environmentVariables);
+        const resolvedConvergenceConfig = resolveRuntimeConvergenceConfig(convergenceConfig);
         const fallbackName = `deployer-${deployment.serviceId.slice(0, 12)}-${deployment.deploymentId.slice(0, 8)}`;
         const containerName = artifact.containerName ?? deployment.deploymentContainerName ?? fallbackName;
-        const containerImage = resolveContainerImage(artifact, deployment, this.runnerType);
+        const containerImage = yield* Effect.try({
+            try: () => resolveContainerImage(artifact, deployment, RUNNER_TYPE),
+            catch: (cause) => cause,
+        });
         const managedLabels = {
             "deployer.managed": "true",
             "deployer.managed_by": "deployment_service",
             "deployer.managed_reason": "deployment_execution",
             "deployer.deployment_id": deployment.deploymentId,
             "deployer.service_id": deployment.serviceId,
-            ...(deployment.projectId
-                ? {
-                      "deployer.project_id": deployment.projectId,
-                  }
-                : {}),
-            ...(deployment.networkMode
-                ? {
-                      "deployer.network_mode": deployment.networkMode,
-                  }
-                : {}),
-            "deployer.runtime_runner": this.runnerType,
+            ...(deployment.projectId ? { "deployer.project_id": deployment.projectId } : {}),
+            ...(deployment.networkMode ? { "deployer.network_mode": deployment.networkMode } : {}),
+            "deployer.runtime_runner": RUNNER_TYPE,
             "deployer.image_ref": containerImage,
         };
-        const storageMaterialization = this.materializeStorageBinding(storageBinding);
+        const storageMaterialization = yield* Effect.try({
+            try: () => materializeStorageBinding(storageBinding),
+            catch: (cause) => cause,
+        });
         const hostConfig = {
             ...(deployment.networkMode ? { NetworkMode: deployment.networkMode } : {}),
             ...(typeof deployment.cpuShares === "number" && deployment.cpuShares > 0
@@ -71,42 +183,37 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
         };
 
         let createdContainerId: string | null = null;
-        try {
-            await this.dockerService.stopContainersByDeployment(deployment.deploymentId);
-            const staleContainers = await this.dockerService.listContainersByDeployment(deployment.deploymentId);
+        const removeCreatedContainer = Effect.suspend(() => {
+            const containerId = createdContainerId;
+            return containerId === null ? Effect.void : attempt(() => docker.removeContainer(containerId));
+        });
+
+        return yield* Effect.gen(function* () {
+            yield* attempt(() => docker.stopContainersByDeployment(deployment.deploymentId));
+            const staleContainers = yield* attempt(() => docker.listContainersByDeployment(deployment.deploymentId));
             for (const stale of staleContainers) {
-                await this.dockerService.removeContainer(stale.id);
+                yield* attempt(() => docker.removeContainer(stale.id));
             }
 
-            const created = await this.dockerService.createContainer({
-                Image: containerImage,
-                name: containerName,
-                Labels: {
-                    ...storageMaterialization.labels,
-                    ...sanitizedExecutorLabels,
-                    ...managedLabels,
-                },
-                ...(sanitizedStartupCommand
-                    ? { Cmd: ["sh", "-lc", sanitizedStartupCommand] }
-                    : {}),
-                ...(sanitizedEnvironmentVariables.length > 0
-                    ? { Env: sanitizedEnvironmentVariables }
-                    : {}),
-                ...(Object.keys(hostConfig).length > 0 ? { HostConfig: hostConfig } : {}),
-            });
+            const created = yield* attempt(() =>
+                docker.createContainer({
+                    Image: containerImage,
+                    name: containerName,
+                    Labels: { ...storageMaterialization.labels, ...sanitizedExecutorLabels, ...managedLabels },
+                    ...(sanitizedStartupCommand ? { Cmd: ["sh", "-lc", sanitizedStartupCommand] } : {}),
+                    ...(sanitizedEnvironmentVariables.length > 0 ? { Env: sanitizedEnvironmentVariables } : {}),
+                    ...(Object.keys(hostConfig).length > 0 ? { HostConfig: hostConfig } : {}),
+                }),
+            );
             createdContainerId = created.id;
-            await this.dockerService.startContainer(created.id);
+            yield* attempt(() => docker.startContainer(created.id));
 
-            const routeVerification = await this.applyRouteAndVerify(
+            const routeVerification = yield* applyRouteAndVerify(
                 deployment.serviceId,
                 resolvedConvergenceConfig.traefikSyncMaxAttempts,
                 resolvedConvergenceConfig.retryBaseDelayMs,
             );
-            const healthGate = await this.enforceReadinessHealthGate(
-                created.id,
-                deployment.healthCheckUrl,
-                healthGateConfig,
-            );
+            const healthGate = yield* enforceReadinessHealthGate(created.id, deployment.healthCheckUrl, healthGateConfig);
             return {
                 containerId: created.id,
                 containerName,
@@ -114,7 +221,7 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
                 routeVerification,
                 healthGate,
                 managedRuntime: {
-                    managedBy: "deployment_service",
+                    managedBy: "deployment_service" as const,
                     managedReason: "deployment_execution",
                     deploymentId: deployment.deploymentId,
                     serviceId: deployment.serviceId,
@@ -124,324 +231,8 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
                     labels: managedLabels,
                 },
             };
-        } catch (error) {
-            if (createdContainerId) {
-                await this.dockerService.removeContainer(createdContainerId);
-            }
-            throw error;
-        }
-    }
+        }).pipe(Effect.onError(() => removeCreatedContainer.pipe(Effect.ignore)));
+    });
 
-    private sanitizeExecutorLabels(labels: Record<string, string> | undefined): Record<string, string> {
-        if (!labels) {
-            return {};
-        }
-
-        const sanitized: Record<string, string> = {};
-        for (const [rawKey, rawValue] of Object.entries(labels)) {
-            const key = rawKey.trim();
-            const value = rawValue.trim();
-
-            if (!key || key.length > 128) {
-                continue;
-            }
-            if (!/^[a-zA-Z0-9._/-]+$/.test(key)) {
-                continue;
-            }
-            if (!value || value.length > 512) {
-                continue;
-            }
-            if (/[\u0000-\u001F\u007F]/.test(value)) {
-                continue;
-            }
-
-            sanitized[key] = value;
-        }
-
-        return sanitized;
-    }
-
-    private sanitizeStartupCommand(startupCommand: string | undefined): string | null {
-        if (!startupCommand) {
-            return null;
-        }
-
-        const normalized = startupCommand.trim();
-        if (!normalized) {
-            return null;
-        }
-
-        if (normalized.length > 1024) {
-            throw new RuntimeInvalid({ reason: "Executor startup command exceeds 1024 characters" });
-        }
-
-        if (/[\u0000\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(normalized)) {
-            throw new RuntimeInvalid({ reason: "Executor startup command contains unsupported control characters" });
-        }
-
-        return normalized;
-    }
-
-    private sanitizeEnvironmentVariables(
-        environmentVariables: Record<string, string> | undefined,
-    ): string[] {
-        if (!environmentVariables) {
-            return [];
-        }
-
-        const sanitized: string[] = [];
-        for (const [rawKey, rawValue] of Object.entries(environmentVariables)) {
-            const key = rawKey.trim();
-            if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key) || key.length > 128) {
-                continue;
-            }
-
-            if (typeof rawValue !== "string" || /[\u0000]/.test(rawValue)) {
-                continue;
-            }
-
-            sanitized.push(`${key}=${rawValue}`);
-        }
-
-        return sanitized;
-    }
-
-    private materializeStorageBinding(storageBinding: DeploymentStorageBinding | null | undefined): {
-        binds: string[];
-        mounts: Docker.MountSettings[];
-        labels: Record<string, string>;
-    } {
-        if (!storageBinding) {
-            return {
-                binds: [],
-                mounts: [],
-                labels: {},
-            };
-        }
-
-        const labels: Record<string, string> = {
-            "deployer.storage.type": storageBinding.storageType,
-            "deployer.storage.mount_path": storageBinding.mountPath,
-            "deployer.storage.update_strategy": storageBinding.updateStrategy,
-            "deployer.storage.auto_redeploy_on_update": String(
-                storageBinding.autoRedeployOnUpdate,
-            ),
-        };
-
-        const binds: string[] = [];
-        const mounts: Docker.MountSettings[] = [];
-
-        if (storageBinding.storageType === "local") {
-            const rootPath = this.readMetadataString(storageBinding.metadata, "rootPath");
-            if (rootPath) {
-                const normalizedRootPath = this.normalizeLocalStorageRootPath(rootPath);
-                binds.push(`${normalizedRootPath}:${storageBinding.mountPath}`);
-            }
-        }
-
-        if (storageBinding.storageType === "volume") {
-            const volumeName = this.readMetadataString(storageBinding.metadata, "volumeName");
-            if (volumeName) {
-                binds.push(`${volumeName}:${storageBinding.mountPath}`);
-            }
-        }
-
-        if (storageBinding.storageType === "nfs") {
-            const server = this.readMetadataString(storageBinding.metadata, "server");
-            const exportPath = this.readMetadataString(storageBinding.metadata, "exportPath");
-            const readOnly = this.readMetadataBoolean(storageBinding.metadata, "readOnly");
-
-            if (server && exportPath) {
-                mounts.push({
-                    Type: "volume",
-                    Source: this.buildNfsVolumeName(server, exportPath),
-                    Target: storageBinding.mountPath,
-                    ReadOnly: readOnly,
-                    VolumeOptions: {
-                        NoCopy: false,
-                        Labels: {},
-                        DriverConfig: {
-                            Name: "local",
-                            Options: {
-                                type: "nfs",
-                                o: `addr=${server},rw`,
-                                device: `:${exportPath}`,
-                            },
-                        },
-                    },
-                });
-            }
-        }
-
-        return {
-            binds,
-            mounts,
-            labels,
-        };
-    }
-
-    private readMetadataString(
-        metadata: Record<string, unknown>,
-        key: string,
-    ): string | null {
-        const value = metadata[key];
-        return typeof value === "string" && value.trim().length > 0 ? value : null;
-    }
-
-    private readMetadataBoolean(
-        metadata: Record<string, unknown>,
-        key: string,
-    ): boolean {
-        return metadata[key] === true;
-    }
-
-    private buildNfsVolumeName(server: string, exportPath: string): string {
-        const normalized = `${server}-${exportPath}`
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/^-+|-+$/g, "")
-            .slice(0, 48);
-
-        return normalized.length > 0 ? `deployer-nfs-${normalized}` : "deployer-nfs-volume";
-    }
-
-    private normalizeLocalStorageRootPath(rootPath: string): string {
-        const resolvedPath = path.isAbsolute(rootPath)
-            ? rootPath
-            : path.resolve(process.cwd(), rootPath);
-
-        fs.mkdirSync(resolvedPath, { recursive: true });
-        return resolvedPath;
-    }
-
-    private async applyRouteAndVerify(serviceId: string, maxAttempts: number, retryBaseDelayMs: number) {
-        let lastErrorMessage: string | null = null;
-        let attemptedAutoBootstrap = false;
-
-        for (
-            let attempt = 1;
-            attempt <= maxAttempts;
-            attempt += 1
-        ) {
-            if (attempt > 1) {
-                await this.sleep(retryBaseDelayMs * (attempt - 1));
-            }
-
-            try {
-                const syncResult = await this.traefikService.syncServiceConfiguration(serviceId);
-                if (!syncResult.success) {
-                    throw new RuntimeInvalid({ reason: syncResult.message });
-                }
-
-                const healthSummary = await this.traefikService.getHealthStatus();
-
-                return {
-                    applied: true,
-                    syncResult: {
-                        configId: syncResult.configId,
-                        configName: syncResult.configName,
-                        action: syncResult.action,
-                        message: syncResult.message,
-                        syncedAt: syncResult.syncedAt
-                            ? new Date(syncResult.syncedAt).toISOString()
-                            : null,
-                    },
-                    healthSummary,
-                    attempts: attempt,
-                    verifiedAt: new Date().toISOString(),
-                };
-            } catch (error) {
-                if (!attemptedAutoBootstrap && error instanceof ConfigNotFoundError) {
-                    await this.bootstrapDefaultTraefikConfiguration(serviceId);
-                    attemptedAutoBootstrap = true;
-                    continue;
-                }
-                lastErrorMessage = error instanceof Error ? error.message : String(error);
-            }
-        }
-
-        throw new RuntimeInvalid({ reason: `Traefik route apply/verification failed after ${String(maxAttempts)} attempts: ${lastErrorMessage ?? "unknown error"}` });
-    }
-
-    private async bootstrapDefaultTraefikConfiguration(serviceId: string): Promise<void> {
-        const fallbackSubdomain = this.buildFallbackSubdomain(serviceId);
-
-        await this.traefikService.createServiceConfiguration(serviceId, {
-            domain: "localhost",
-            subdomain: fallbackSubdomain,
-            port: 80,
-            sslEnabled: false,
-            pathPrefix: "/",
-            isActive: true,
-        });
-    }
-
-    private buildFallbackSubdomain(serviceId: string): string {
-        const normalized = serviceId
-            .toLowerCase()
-            .replace(/[^a-z0-9-]+/g, "-")
-            .replace(/^-+|-+$/g, "")
-            .slice(0, 32);
-
-        if (!normalized) {
-            return "service";
-        }
-
-        return normalized;
-    }
-
-    private resolveRuntimeConvergenceConfig(input: RuntimeExecutionInput["convergenceConfig"]) {
-        const traefikSyncMaxAttempts =
-            typeof input?.traefikSyncMaxAttempts === "number" &&
-            Number.isInteger(input.traefikSyncMaxAttempts) &&
-            input.traefikSyncMaxAttempts > 0
-                ? input.traefikSyncMaxAttempts
-                : DockerRuntimeRunnerService.DEFAULT_TRAEFIK_SYNC_MAX_ATTEMPTS;
-        const retryBaseDelayMs =
-            typeof input?.retryBaseDelayMs === "number" &&
-            Number.isInteger(input.retryBaseDelayMs) &&
-            input.retryBaseDelayMs > 0
-                ? input.retryBaseDelayMs
-                : DockerRuntimeRunnerService.DEFAULT_RETRY_BASE_DELAY_MS;
-
-        return {
-            traefikSyncMaxAttempts,
-            retryBaseDelayMs,
-        };
-    }
-
-    private sleep(delayMs: number): Promise<void> {
-        return new Promise((resolve) => {
-            setTimeout(resolve, delayMs);
-        });
-    }
-
-    private async enforceReadinessHealthGate(
-        containerId: string,
-        healthCheckUrl: string | null,
-        config: {
-            maxRetries: number;
-            retryIntervalMs: number;
-        },
-    ) {
-        const isHealthy = await this.dockerService.waitForContainerHealth(
-            containerId,
-            config.maxRetries,
-            config.retryIntervalMs,
-            healthCheckUrl ?? undefined,
-        );
-
-        if (!isHealthy) {
-            throw new RuntimeInvalid({ reason: `Readiness health gate failed for container '${containerId}' after ${String(config.maxRetries)} retries` });
-        }
-
-        return {
-            passed: true as const,
-            containerId,
-            healthCheckUrl,
-            maxRetries: config.maxRetries,
-            retryIntervalMs: config.retryIntervalMs,
-            verifiedAt: new Date().toISOString(),
-        };
-    }
+    return { runnerType: RUNNER_TYPE, executeRuntime };
 }

@@ -1,5 +1,4 @@
 import { RuntimeInvalid } from "../../../core/runtime.errors";
-import { BadRequestError } from "@deployer/errors";
 
 import type { BuildArtifactResult, RuntimeDeploymentContext } from "../runtime-runner.interface";
 

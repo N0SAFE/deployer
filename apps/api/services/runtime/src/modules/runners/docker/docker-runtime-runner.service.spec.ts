@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { ConfigNotFoundError } from "@deployer/shared/core/modules/traefik/errors/index";
-import { DockerRuntimeRunnerService } from "./docker-runtime-runner.service";
+import type { DeploymentRuntimeRunner } from "../runtime-runner.interface";
+import { run } from "../testing";
+import { makeDockerRuntimeRunner } from "./docker-runtime-runner.service";
 
-describe("DockerRuntimeRunnerService", () => {
+describe("DockerRuntimeRunner", () => {
     let dockerService: {
         stopContainersByDeployment: ReturnType<typeof vi.fn>;
         listContainersByDeployment: ReturnType<typeof vi.fn>;
@@ -18,7 +20,7 @@ describe("DockerRuntimeRunnerService", () => {
         getHealthStatus: ReturnType<typeof vi.fn>;
         createServiceConfiguration: ReturnType<typeof vi.fn>;
     };
-    let service: DockerRuntimeRunnerService;
+    let service: DeploymentRuntimeRunner;
 
     beforeEach(() => {
         dockerService = {
@@ -43,14 +45,14 @@ describe("DockerRuntimeRunnerService", () => {
             createServiceConfiguration: vi.fn().mockResolvedValue({ id: "cfg-generated" }),
         };
 
-        service = new DockerRuntimeRunnerService(
-            dockerService as never,
-            traefikService as never,
-        );
+        service = makeDockerRuntimeRunner({
+            docker: dockerService as never,
+            traefik: traefikService as never,
+        });
     });
 
     it("materializes volume storage binding into HostConfig.Binds and labels", async () => {
-        await service.executeRuntime({
+        await run(service.executeRuntime({
             deployment: {
                 deploymentId: "deployment-1",
                 serviceId: "service-1",
@@ -79,7 +81,7 @@ describe("DockerRuntimeRunnerService", () => {
                     driver: "local",
                 },
             },
-        });
+        }));
 
         expect(dockerService.createContainer).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -100,7 +102,7 @@ describe("DockerRuntimeRunnerService", () => {
     });
 
     it("materializes NFS storage binding into HostConfig.Mounts", async () => {
-        await service.executeRuntime({
+        await run(service.executeRuntime({
             deployment: {
                 deploymentId: "deployment-2",
                 serviceId: "service-2",
@@ -130,7 +132,7 @@ describe("DockerRuntimeRunnerService", () => {
                     readOnly: true,
                 },
             },
-        });
+        }));
 
         expect(dockerService.createContainer).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -154,7 +156,7 @@ describe("DockerRuntimeRunnerService", () => {
     it("normalizes local storage rootPath to absolute host bind and ensures directory exists", async () => {
         const relativeRootPath = `./storage/local-manual-${Date.now()}`;
 
-        await service.executeRuntime({
+        await run(service.executeRuntime({
             deployment: {
                 deploymentId: "deployment-3",
                 serviceId: "service-3",
@@ -183,7 +185,7 @@ describe("DockerRuntimeRunnerService", () => {
                     watchPath: relativeRootPath,
                 },
             },
-        });
+        }));
 
         const expectedRootPath = path.resolve(process.cwd(), relativeRootPath);
         expect(fs.existsSync(expectedRootPath)).toBe(true);
@@ -198,7 +200,7 @@ describe("DockerRuntimeRunnerService", () => {
     });
 
     it("returns managed runtime ownership metadata for DB persistence", async () => {
-        const result = await service.executeRuntime({
+        const result = await run(service.executeRuntime({
             deployment: {
                 deploymentId: "deployment-managed-1",
                 serviceId: "service-managed-1",
@@ -220,7 +222,7 @@ describe("DockerRuntimeRunnerService", () => {
                 retryIntervalMs: 200,
             },
             storageBinding: null,
-        });
+        }));
 
         expect(result.managedRuntime).toMatchObject({
             managedBy: "deployment_service",
@@ -244,7 +246,7 @@ describe("DockerRuntimeRunnerService", () => {
     });
 
     it("applies executor options labels and startup command to container create", async () => {
-        await service.executeRuntime({
+        await run(service.executeRuntime({
             deployment: {
                 deploymentId: "deployment-exec-1",
                 serviceId: "service-exec-1",
@@ -274,7 +276,7 @@ describe("DockerRuntimeRunnerService", () => {
                 },
             },
             storageBinding: null,
-        });
+        }));
 
         expect(dockerService.createContainer).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -291,7 +293,7 @@ describe("DockerRuntimeRunnerService", () => {
     });
 
     it("drops invalid executor labels and trims startup command", async () => {
-        await service.executeRuntime({
+        await run(service.executeRuntime({
             deployment: {
                 deploymentId: "deployment-exec-2",
                 serviceId: "service-exec-2",
@@ -323,7 +325,7 @@ describe("DockerRuntimeRunnerService", () => {
                 },
             },
             storageBinding: null,
-        });
+        }));
 
         expect(dockerService.createContainer).toHaveBeenCalledWith(
             expect.objectContaining({
@@ -363,7 +365,7 @@ describe("DockerRuntimeRunnerService", () => {
                 syncedAt: new Date().toISOString(),
             });
 
-        const result = await service.executeRuntime({
+        const result = await run(service.executeRuntime({
             deployment: {
                 deploymentId: "deployment-route-retry-1",
                 serviceId: "service-route-retry-1",
@@ -383,7 +385,7 @@ describe("DockerRuntimeRunnerService", () => {
                 retryIntervalMs: 200,
             },
             storageBinding: null,
-        });
+        }));
 
         expect(traefikService.syncServiceConfiguration).toHaveBeenCalledTimes(2);
         expect(result.routeVerification).toMatchObject({
@@ -404,7 +406,7 @@ describe("DockerRuntimeRunnerService", () => {
                 syncedAt: new Date().toISOString(),
             });
 
-        const result = await service.executeRuntime({
+        const result = await run(service.executeRuntime({
             deployment: {
                 deploymentId: "deployment-bootstrap-1",
                 serviceId: "service-bootstrap-1",
@@ -428,7 +430,7 @@ describe("DockerRuntimeRunnerService", () => {
                 retryBaseDelayMs: 1,
             },
             storageBinding: null,
-        });
+        }));
 
         expect(traefikService.createServiceConfiguration).toHaveBeenCalledWith(
             "service-bootstrap-1",
@@ -456,7 +458,7 @@ describe("DockerRuntimeRunnerService", () => {
         });
 
         await expect(
-            service.executeRuntime({
+            run(service.executeRuntime({
                 deployment: {
                     deploymentId: "deployment-route-retry-fail-1",
                     serviceId: "service-route-retry-fail-1",
@@ -480,7 +482,7 @@ describe("DockerRuntimeRunnerService", () => {
                     retryBaseDelayMs: 1,
                 },
                 storageBinding: null,
-            }),
+            })),
         ).rejects.toThrow("Traefik route apply/verification failed after 2 attempts");
 
         expect(traefikService.syncServiceConfiguration).toHaveBeenCalledTimes(2);
@@ -490,7 +492,7 @@ describe("DockerRuntimeRunnerService", () => {
         // Regression (DEPLOY-001): `?? "nginx:alpine"` made a builder-less deploy
         // start a stock nginx and report success.
         await expect(
-            service.executeRuntime({
+            run(service.executeRuntime({
                 deployment: {
                     deploymentId: "deployment-no-image",
                     serviceId: "service-no-image",
@@ -507,7 +509,7 @@ describe("DockerRuntimeRunnerService", () => {
                 },
                 healthGateConfig: { maxRetries: 1, retryIntervalMs: 1 },
                 storageBinding: null,
-            }),
+            })),
         ).rejects.toThrow(/No container image was produced/);
 
         expect(dockerService.createContainer).not.toHaveBeenCalled();
