@@ -1,4 +1,4 @@
-import { BaseDatabaseService } from "@deployer/nest-database-core/base-database.service";
+import { BaseDatabaseService } from "../database/base-database.service";
 import type { LocalDb } from "@deployer/node-state";
 import { Injectable } from "@nestjs/common";
 

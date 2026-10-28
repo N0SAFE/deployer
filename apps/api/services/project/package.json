@@ -29,7 +29,6 @@
         "@deployer/errors": "*",
         "@deployer/fleet-contracts": "*",
         "@deployer/logger": "*",
-        "@deployer/nest-database-core": "*",
         "@deployer/nest-effect": "*",
         "@deployer/nest-events": "*",
         "@deployer/nest-schema": "*",

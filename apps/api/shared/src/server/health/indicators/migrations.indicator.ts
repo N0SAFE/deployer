@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { HealthIndicatorService } from "@nestjs/terminus";
 import { Pool } from "pg";
 import { Inject, Optional } from "@nestjs/common";
-import { GLOBAL_DATABASE_POOL } from "@deployer/nest-database-core/database-connection";
+import { GLOBAL_DATABASE_POOL } from "@deployer/nest-effect/database";
 
 import type { IndicatorResult } from "../types";
 

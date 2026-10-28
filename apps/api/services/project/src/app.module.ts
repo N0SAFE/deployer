@@ -4,7 +4,7 @@ import {
 	EffectRuntime,
 	EffectRuntimeModule,
 } from "@deployer/nest-effect";
-import { GLOBAL_DATABASE_CONNECTION } from "@deployer/nest-database-core/database-connection";
+import { GLOBAL_DATABASE_CONNECTION } from "@deployer/nest-effect/database";
 import {
 	DEPENDENCIES,
 	HealthModule,

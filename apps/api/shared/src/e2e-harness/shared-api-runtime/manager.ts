@@ -19,7 +19,7 @@ import { GlobalDatabaseService } from '../../core/modules/database/global/global
 import {
     GLOBAL_DATABASE_CONNECTION,
     GLOBAL_DATABASE_POOL,
-} from "@deployer/nest-database-core/database-connection"
+} from "@deployer/nest-effect/database"
 import { TraefikFileSystemService } from '../../core/modules/traefik/services/traefik-file-system.service'
 import { defaultRequestOverride, sharedRequestOverride } from './request-override'
 import {
@@ -284,7 +284,7 @@ async function assertRuntimeDatabaseBinding(
     expectedDatabaseUrl: string
 ): Promise<void> {
     const databaseService = moduleRef.get(GlobalDatabaseService)
-    if (!databaseService.isHealthy()) {
+    if (!(await databaseService.probe())) {
         throw new Error('GlobalDatabaseService is not connected after app bootstrap')
     }
 

@@ -32,7 +32,6 @@
         "@deployer/shared": "*",
         "@deployer/health-contracts": "*",
         "@deployer/logger": "*",
-        "@deployer/nest-database-core": "*",
         "@deployer/effect-core": "*",
         "@deployer/effect-orpc": "*",
         "@deployer/nest-effect": "*",

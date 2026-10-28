@@ -49,7 +49,6 @@
         "@deployer/health-contracts": "*",
         "@deployer/identity-contracts": "*",
         "@deployer/logger": "*",
-        "@deployer/nest-database-core": "*",
         "@deployer/node-state": "*",
         "@deployer/nest-schema": "*",
         "@deployer/nest-service-client": "*",

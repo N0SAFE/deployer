@@ -4,9 +4,6 @@ import { defineConfig } from "@deployer/config-eslint"
 export default defineConfig([
     {extends:[libraryConfig.configs.base()],
         files: ["src/**/*.{ts,tsx}"],
-        rules: {
-            "@typescript-eslint/no-extraneous-class": "off",
-        },
     },
     {extends: [libraryConfig.configs.test()],
         files: ["**/__tests__/**/*.{ts,tsx}", "**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}"],

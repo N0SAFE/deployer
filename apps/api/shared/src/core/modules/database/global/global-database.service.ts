@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseDatabaseService } from "@deployer/nest-database-core/base-database.service";
+import { BaseDatabaseService } from "@deployer/nest-effect/database";
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { PgTransaction } from 'drizzle-orm/pg-core';
 import type { NodePgQueryResultHKT } from 'drizzle-orm/node-postgres';

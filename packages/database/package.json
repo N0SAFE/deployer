@@ -1,7 +1,7 @@
 {
-    "name": "@deployer/nest-database-core",
+    "name": "@deployer/database",
     "version": "1.0.0",
-    "description": "Framework primitives for Drizzle-backed services: the abstract base database service and the connection DI tokens.",
+    "description": "A Drizzle database handle as Effect: set once, read with a typed failure when it is not, and a health probe that actually awaits the engine.",
     "main": "./dist/cjs/index.js",
     "types": "./dist/types/index.d.ts",
     "exports": {
@@ -14,16 +14,6 @@
             "types": "./dist/types/*.d.ts",
             "import": "./dist/esm/*.mjs",
             "require": "./dist/cjs/*.js"
-        },
-        "./base-database.service": {
-            "types": "./dist/types/base-database.service.d.ts",
-            "import": "./dist/esm/base-database.service.mjs",
-            "require": "./dist/cjs/base-database.service.js"
-        },
-        "./database-connection": {
-            "types": "./dist/types/database-connection.d.ts",
-            "import": "./dist/esm/database-connection.mjs",
-            "require": "./dist/cjs/database-connection.js"
         }
     },
     "scripts": {
@@ -34,28 +24,25 @@
         "lint:fix": "bun lint --no-script --fix --type-aware",
         "lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
         "type-check": "bun check --no-script",
-        "test": "vitest run",
-        "test:watch": "vitest",
+        "test": "bun --bun vitest run",
+        "test:watch": "bun --bun vitest",
         "build": "bun --bun pkg-build",
         "dev": "bun --bun pkg-build --watch",
         "clean": "rimraf dist",
         "build:types": "bun --bun pkg-build --types"
     },
     "dependencies": {
-        "@nestjs/common": "catalog:api:nest",
-        "@deployer/errors": "*",
-        "@deployer/nest-schema": "*",
-        "drizzle-orm": "catalog:database"
-    },
-    "peerDependencies": {
-        "@nestjs/common": "catalog:api:nest"
+        "@deployer/effect-core": "*",
+        "drizzle-orm": "catalog:database",
+        "effect": "catalog:effect"
     },
     "devDependencies": {
         "@deployer/config-eslint": "*",
         "@deployer/config-prettier": "*",
         "@deployer/config-typescript": "*",
-        "@deployer/config-vitest": "*",
         "@deployer/pkg-build": "*",
+        "@types/bun": "catalog:build",
+        "@types/dockerode": "*",
         "@types/node": "catalog:build",
         "chokidar": "catalog:build",
         "eslint": "catalog:linting",

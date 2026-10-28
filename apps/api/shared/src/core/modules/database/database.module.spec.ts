@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // The mocked node-state module is also where `LocalDatabaseService` comes from, so the factory below
 // cannot import it: the stand-in is hoisted and handed back as that export.
 const { FakeLocalDatabaseService } = vi.hoisted(() => ({ FakeLocalDatabaseService: class {} }));
-import { GLOBAL_DATABASE_CONNECTION, LOCAL_DATABASE_CONNECTION } from "@deployer/nest-database-core/database-connection";
+import { GLOBAL_DATABASE_CONNECTION, LOCAL_DATABASE_CONNECTION } from "@deployer/nest-effect/database";
 import { GlobalDatabaseService } from './global/global-database.service';
 import { LocalDatabaseService } from "@deployer/nest-effect/node-state";
 

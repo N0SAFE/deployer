@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { Command, CommandRunner, Option } from "nest-commander";
 import type { Pool } from "pg";
-import { GLOBAL_DATABASE_POOL } from "@deployer/nest-database-core/database-connection";
+import { GLOBAL_DATABASE_POOL } from "@deployer/nest-effect/database";
 import * as globalSchema from "@deployer/nest-schema/global";
 import {
   findEncryptedColumns,

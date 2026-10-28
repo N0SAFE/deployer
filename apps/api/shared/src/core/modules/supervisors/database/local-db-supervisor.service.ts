@@ -25,7 +25,7 @@ import z from "zod/v4";
 import { BaseSupervisorService, type SupervisorProbeResult } from "@deployer/nest-effect/supervision";
 import { baseSupervisorPayloadSchema } from "@deployer/supervision";
 import { baseSupervisorProcessInfoSchema, sqliteProcessInfoSchema } from "@deployer/supervision";
-import { LOCAL_DATABASE_CONNECTION } from "@deployer/nest-database-core/database-connection";
+import { LOCAL_DATABASE_CONNECTION } from "@deployer/nest-effect/database";
 import type { LocalDb } from "@deployer/node-state";
 import { EnvService } from "../../../../config/env/env.module";
 import { splitManagedEnv } from "@deployer/env";

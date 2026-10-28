@@ -7,7 +7,7 @@ import {
 	type OptionalFactoryDependency,
 	type Provider,
 } from "@nestjs/common";
-import { LOCAL_DATABASE_CLIENT, LOCAL_DATABASE_CONNECTION } from "@deployer/nest-database-core/database-connection";
+import { LOCAL_DATABASE_CLIENT, LOCAL_DATABASE_CONNECTION } from "../database";
 import type { LocalDatabaseOptions } from "@deployer/node-state";
 
 import { LOCAL_DATABASE_OPTIONS_TOKEN, LocalDatabaseHost } from "./local-database.host";

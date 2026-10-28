@@ -76,7 +76,6 @@
         "@deployer/identity-contracts": "*",
         "@deployer/logger": "*",
         "@deployer/mesh-network": "*",
-        "@deployer/nest-database-core": "*",
         "@deployer/docker": "*",
         "@deployer/nest-effect": "*",
         "@deployer/nest-events": "*",

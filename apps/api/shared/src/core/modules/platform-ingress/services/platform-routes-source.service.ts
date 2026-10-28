@@ -33,7 +33,7 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import { and, desc, eq } from "drizzle-orm";
 import z from "zod/v4";
 
-import { GLOBAL_DATABASE_CONNECTION } from "@deployer/nest-database-core/database-connection";
+import { GLOBAL_DATABASE_CONNECTION } from "@deployer/nest-effect/database";
 import type { GlobalDatabase } from "../../database/global/global-database.service";
 import { routeVisibilitySchema, type RouteVisibility } from "@deployer/contracts-entities/entities/ingress/index";
 import {

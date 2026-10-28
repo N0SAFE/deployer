@@ -2,12 +2,12 @@
 	"dependencies": {
 		"@deployer/contracts-entities": "*",
 		"@deployer/docker": "*",
+		"@deployer/database": "*",
 		"@deployer/effect-core": "*",
 		"@deployer/environment": "*",
 		"@deployer/lifecycle": "*",
         "@deployer/mesh-network": "*",
 		"@deployer/errors": "*",
-		"@deployer/nest-database-core": "*",
 		"@deployer/node-state": "*",
 		"@deployer/supervision": "*",
 		"@deployer/swarm": "*",
@@ -72,6 +72,11 @@
 			"import": "./dist/esm/docker/index.mjs",
 			"require": "./dist/cjs/docker/index.js",
 			"types": "./dist/types/docker/index.d.ts"
+		},
+		"./database": {
+			"import": "./dist/esm/database/index.mjs",
+			"require": "./dist/cjs/database/index.js",
+			"types": "./dist/types/database/index.d.ts"
 		},
 		"./env": {
 			"import": "./dist/esm/env/index.mjs",

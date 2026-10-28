@@ -33,7 +33,6 @@
         "@deployer/errors": "*",
         "@deployer/identity-contracts": "*",
         "@deployer/logger": "*",
-        "@deployer/nest-database-core": "*",
         "@deployer/nest-schema": "*",
         "drizzle-orm": "catalog:database",
         "express": "catalog:api:nest",

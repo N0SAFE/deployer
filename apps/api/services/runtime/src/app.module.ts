@@ -11,7 +11,7 @@ import {
 } from "@deployer/shared/server";
 import { registerSchemaCodecs } from "@deployer/shared/config/drizzle/schema-codecs";
 import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
-import { GLOBAL_DATABASE_CONNECTION } from "@deployer/nest-database-core/database-connection";
+import { GLOBAL_DATABASE_CONNECTION } from "@deployer/nest-effect/database";
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
 import { NodeStateModule } from "@deployer/shared/core/modules/node-state/node-state.module";
 import { AuthModule } from "@deployer/shared/core/modules/auth/auth.module";

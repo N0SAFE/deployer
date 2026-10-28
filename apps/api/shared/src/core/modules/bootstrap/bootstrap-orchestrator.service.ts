@@ -58,7 +58,7 @@ import { resolveManagedGlobalDbUrl, splitManagedEnv } from "@deployer/env";
 import {
     GLOBAL_DATABASE_CONNECTION,
     GLOBAL_DATABASE_POOL,
-} from "@deployer/nest-database-core/database-connection";
+} from "@deployer/nest-effect/database";
 
 import { DatabaseStartupGuard } from "../database/services/database-startup-guard.service";
 import type { GlobalDatabase } from "../database/global/global-database.service";
