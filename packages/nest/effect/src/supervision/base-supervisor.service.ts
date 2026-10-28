@@ -3,8 +3,6 @@ import {
 	baseSupervisorPayloadSchema,
 	makeSupervisor,
 	supervisorIdentifier,
-	withBackoff,
-	type BackoffOptions,
 	type baseSupervisorProcessInfoSchema,
 	type HealthSnapshot,
 	type ProbeResult,
@@ -17,27 +15,26 @@ import { Effect } from "effect";
 import type z from "zod/v4";
 
 import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { attempt } from "./run";
 import { SupervisorEventBus } from "./supervisor-event.bus";
 import { SupervisorOrchestratorService } from "./supervisor-orchestrator.service";
 
-export type SupervisorProbeResult<TSchema extends z.ZodType> = ProbeResult<z.output<TSchema>>;
-export type SupervisorHealthSnapshot<TSchema extends z.ZodType> = HealthSnapshot<z.output<TSchema>>;
 
 /**
  * The Nest host for a desired-state supervisor.
  *
- * A subclass is one piece of platform infrastructure: it converges towards its desired state
- * (`reconcile`) and reports health (`probe`). The lifecycle (state transitions, health, process
- * info, backoff, events, registry, drift control) is the Effect framework in `@deployer/supervision`;
- * this class adapts its Promise methods into a `SupervisorSpec` and exposes the framework's `Supervisor`
- * as `runtime`.
+ * A supervisor is one piece of platform infrastructure: an Effect `SupervisorSpec` (how to converge it,
+ * how to probe it, what the observations look like) written in a platform package such as
+ * `@deployer/platform-supervisors`. A subclass is the Nest face of one: it supplies the engine and the
+ * environment, returns the spec from `buildSpec`, and decides in `onModuleInit` WHETHER to register.
+ * The lifecycle (state transitions, health, process info, events, registry, drift control) is the Effect
+ * framework in `@deployer/supervision`; this class exposes the framework's `Supervisor` as `runtime` and
+ * its operations as Promises for the callers that are not on Effect yet.
  *
- * Every supervisor declares `payloadSchema` (what `probe` reports) and `processInfoSchema` (what
+ * Every supervisor declares `payloadSchema` (what the probe reports) and `processInfoSchema` (what
  * `getProcessInfo` reports); both are validated at runtime, so consumers get typed, verified
- * measurements instead of a boolean. Supervisors register themselves from `onModuleInit` (each
- * decides when it is ready); a subclass that overrides it must call `super.onModuleInit()`.
- * Consumers resolve one with `await orchestrator.getSupervisor(SupervisorClass)`.
+ * measurements instead of a boolean. A subclass that overrides `onModuleInit` must call
+ * `super.onModuleInit()` to register. Consumers resolve one with
+ * `await orchestrator.getSupervisor(SupervisorClass)`.
  *
  * Identifiers: a class declares a static `identifier`, and `getIdentifier(input?)` gives the stable
  * registry id, hashed with the input for classes with several instances.
@@ -108,12 +105,12 @@ export abstract class SupervisorHost<
 	}
 
 	/** Health snapshot; a probe that fails degrades gracefully instead of throwing. */
-	getHealth(): Promise<SupervisorHealthSnapshot<TSchema>> {
+	getHealth(): Promise<HealthSnapshot<z.output<TSchema>>> {
 		return runPromiseUnwrapped(this.runtime.getHealth);
 	}
 
 	/** `getHealth`, published as a `health-snapshot` event. */
-	getHealthAndNotify(): Promise<SupervisorHealthSnapshot<TSchema>> {
+	getHealthAndNotify(): Promise<HealthSnapshot<z.output<TSchema>>> {
 		return runPromiseUnwrapped(this.runtime.getHealthAndNotify);
 	}
 
@@ -124,75 +121,5 @@ export abstract class SupervisorHost<
 
 	getStateSnapshot(): { state: SupervisorState; detail: string | null } {
 		return Effect.runSync(this.runtime.getStateSnapshot);
-	}
-}
-
-/**
- * A supervisor written as Promise methods: the Nest subclasses that have not moved to an Effect
- * `SupervisorSpec` yet. `buildSpec` adapts the methods; the lifecycle is the same framework.
- */
-export abstract class BaseSupervisorService<
-	TSchema extends z.ZodType = typeof baseSupervisorPayloadSchema,
-	TProcessSchema extends z.ZodType = typeof baseSupervisorProcessInfoSchema,
-> extends SupervisorHost<TSchema, TProcessSchema> {
-	protected buildSpec(): SupervisorSpec<TSchema, TProcessSchema> {
-		return {
-			id: this.supervisorId,
-			description: this.description,
-			payloadSchema: this.payloadSchema,
-			processInfoSchema: this.processInfoSchema,
-			converge: attempt(() => this.reconcile()),
-			probe: attempt(() => this.probe()),
-			degradedPayload: (detail) => this.buildDegradedPayload(detail),
-			processInfo: attempt(() => this.buildProcessInfo()),
-			blocker: attempt(() => this.convergenceBlocker()),
-			warnings: (probe) => this.collectWarnings(probe),
-		};
-	}
-
-	/** One idempotent convergence pass. Throws on failure so the caller can apply a backoff policy. */
-	protected abstract reconcile(): Promise<void>;
-
-	/**
-	 * A real observation of the resource, with a rich typed payload. Read-only: it must not converge,
-	 * and should return `healthy: false` for an unhealthy resource rather than throw.
-	 */
-	protected abstract probe(): Promise<SupervisorProbeResult<TSchema>>;
-
-	/** The payload to report when `probe` itself throws (the engine is unreachable); must satisfy `payloadSchema`. */
-	protected abstract buildDegradedPayload(detail: string): z.output<TSchema>;
-
-	/** The supervisor-specific part of the process info: kind of process, desired config, how to reach it. */
-	protected abstract buildProcessInfo(): Promise<Record<string, unknown>>;
-
-	/** A precondition that makes convergence impossible right now, or null. The base is never blocked. */
-	protected convergenceBlocker(): Promise<string | null> {
-		return Promise.resolve(null);
-	}
-
-	/** Non-fatal warnings the operator must see. By default a degraded convergence is one. */
-	protected collectWarnings(_probe: SupervisorProbeResult<TSchema>): string[] {
-		const { state, detail } = this.getStateSnapshot();
-		return state === "degraded" ? [`${this.supervisorId}: convergence degraded — ${detail ?? "unknown"}`] : [];
-	}
-
-	/** Deterministic conflicts the backoff must not retry. */
-	protected isFatalConvergenceError(_error: unknown): boolean {
-		return false;
-	}
-
-	protected delay(ms: number): Promise<void> {
-		return new Promise((resolve) => setTimeout(resolve, ms));
-	}
-
-	/** Retries `fn` with exponential backoff, rethrowing the last error once the attempts run out. */
-	protected async runWithBackoff(label: string, fn: () => Promise<void>, options?: BackoffOptions): Promise<void> {
-		await runPromiseUnwrapped(
-			withBackoff(label, attempt(fn), {
-				...options,
-				isFatal: (error) => this.isFatalConvergenceError(error),
-				sleep: (ms) => Effect.promise(() => this.delay(ms)),
-			}),
-		);
 	}
 }

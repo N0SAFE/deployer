@@ -3,8 +3,7 @@
  * event bus as injectable providers, and the module that wires them. The framework itself (lifecycle,
  * registry, drift control) is the Effect package; nothing here decides how supervision works.
  */
-export { BaseSupervisorService, SupervisorHost } from "./base-supervisor.service";
-export type { SupervisorHealthSnapshot, SupervisorProbeResult } from "./base-supervisor.service";
+export { SupervisorHost } from "./base-supervisor.service";
 export { SupervisorEventBus } from "./supervisor-event.bus";
 export { SupervisorOrchestratorService } from "./supervisor-orchestrator.service";
 export type { AnySupervisor } from "./supervisor-orchestrator.service";

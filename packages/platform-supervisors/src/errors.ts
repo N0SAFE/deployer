@@ -27,3 +27,12 @@ export class SupervisedResourceNotRunning extends domainError("SupervisedResourc
 		return `${this.resource} has no running task`;
 	}
 }
+
+/** A `direct` public lane's :80/:443 is already bound on some node. Deterministic: retrying cannot help, the operator frees the port or picks another lane. */
+export class EntryPortConflict extends domainError("EntryPortConflict", "conflict")<{
+	readonly port: number;
+}>() {
+	override publicMessage() {
+		return `port ${String(this.port)} is already in use on a node`;
+	}
+}

@@ -7,11 +7,11 @@ import {
 } from "@deployer/supervision";
 import { Cause, Effect, Exit } from "effect";
 
-import type { BaseSupervisorService } from "./base-supervisor.service";
+import type { SupervisorHost } from "./base-supervisor.service";
 import { SupervisorEventBus } from "./supervisor-event.bus";
 
 /** Any registered supervisor: payload and process-info types are heterogeneous. */
-export type AnySupervisor = BaseSupervisorService<any, any>;
+export type AnySupervisor = SupervisorHost<any, any>;
 
 /**
  * The Nest face of the `SupervisorOrchestrator` in `@deployer/supervision`: the same registry,

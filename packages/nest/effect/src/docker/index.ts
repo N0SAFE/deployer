@@ -7,7 +7,6 @@
 export { DockerModule, DOCKER_CONNECTION_CONFIG, DOCKER_SCANNER_CONFIG } from "./docker.module";
 export type { DockerModuleAsyncOptions, DockerModuleOptions } from "./docker.module";
 export { DockerService } from "./docker.service";
-export { BaseDockerSupervisorService } from "./base-docker-supervisor.service";
 export { ScannerContainerManagerService } from "./scanner-container-manager.service";
 export { PostgresServiceProvisioner, toPostgresIdentity } from "./postgres-service.provisioner";
 export type { PostgresIdentityConfig } from "./docker-config";

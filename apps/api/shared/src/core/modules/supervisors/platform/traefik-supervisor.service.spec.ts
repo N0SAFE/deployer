@@ -1,6 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { NotFoundException } from "@nestjs/common";
-import { DockerNotFound } from "@deployer/docker";
+
+// The ingress's local entrypoint is dialed with `node:http`; these tests are about the service the
+// supervisor converges, so the entrypoint always answers.
+vi.mock("node:http", () => ({
+	default: {
+		get: (_options: unknown, onResponse: (response: { statusCode: number; resume: () => void }) => void) => {
+			queueMicrotask(() => { onResponse({ statusCode: 404, resume: () => undefined }); });
+			return { on: () => undefined, destroy: () => undefined };
+		},
+	},
+}));
+import { DockerNotFound, toDockerServiceSpec } from "@deployer/docker";
 import { Effect } from "effect";
 import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
 
@@ -13,7 +23,7 @@ import { EnvHostnameService } from "../../platform-ingress/services/hostname.ser
 import type { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service";
 import { deriveIngressProviderToken } from "../../platform-ingress/services/ingress-provider-token";
 import type { PlatformWebTargetService } from "../../platform-ingress/services/platform-web-target.service";
-import { PlatformNetwork, TraefikSupervisorService, type EntrypointProbe } from "./traefik-supervisor.service";
+import { TraefikSupervisorService } from "./traefik-supervisor.service";
 
 /**
  * The ingress is one GLOBAL swarm service with one entrypoint per lane. These tests
@@ -52,22 +62,37 @@ function makeDockerService(bootstrapLabels: Record<string, string> | null = null
 	const services = new Map<string, ServiceState>();
 	const tasks = new Map<string, { NodeID: string; Status: { State: string } }[]>();
 	const removedContainers: string[] = [];
+	const captured: CapturedSpec[] = [];
+	let failNext: Error | null = null;
 
-	const createSwarmService = vi.fn((spec: CapturedSpec): Promise<ServiceState> => {
-		const state: ServiceState = {
-			ID: `svc-${spec.Name}`,
-			Version: { Index: 1 },
-			Spec: { Name: spec.Name },
-			CreatedAt: "2026-01-01T00:00:00.000Z",
-			UpdatedAt: "2026-01-01T00:00:00.000Z",
-		};
-		services.set(spec.Name, state);
-		tasks.set(spec.Name, [{ NodeID: "n1", Status: { State: "running" } }]);
-		return Promise.resolve(state);
-	});
+	// The engine's `reconcile` takes the platform's spec; the Docker spec it becomes is what the
+	// assertions below read, so the mapper runs for real.
+	const reconcile = (input: Parameters<typeof toDockerServiceSpec>[0]) =>
+		failNext !== null
+			? Effect.suspend(() => {
+					const error = failNext as Error;
+					failNext = null;
+					return Effect.fail(error);
+				})
+			: Effect.sync(() => {
+					const spec = toDockerServiceSpec(input) as unknown as CapturedSpec;
+					captured.push(spec);
+					services.set(spec.Name, {
+						ID: `svc-${spec.Name}`,
+						Version: { Index: 1 },
+						Spec: { Name: spec.Name },
+						CreatedAt: "2026-01-01T00:00:00.000Z",
+						UpdatedAt: "2026-01-01T00:00:00.000Z",
+					});
+					tasks.set(spec.Name, [{ NodeID: "n1", Status: { State: "running" } }]);
+				});
 
 	const dockerService = {
 		getEngine: () => ({
+			swarmCluster: {
+				isActive: () => Effect.succeed(true),
+				info: () => Effect.succeed({ NodeID: "n1", LocalNodeState: "active", ControlAvailable: true }),
+			},
 			containers: {
 				inspect: (name: string) => {
 					if (name === "deployer-ingress-forwarder") {
@@ -83,33 +108,39 @@ function makeDockerService(bootstrapLabels: Record<string, string> | null = null
 						removedContainers.push(name);
 					}),
 			},
-			networks: { connectContainer: () => Effect.void },
+			networks: { ensureOverlay: () => Effect.void, connectContainer: () => Effect.void },
 			volumes: { ensure: () => Effect.void },
+			swarmServices: {
+				reconcile,
+				inspect: (name: string) => {
+					const found = services.get(name);
+					return found === undefined ? Effect.fail(new DockerNotFound({ resource: name })) : Effect.succeed(found);
+				},
+				listTasks: (name: string) => Effect.succeed(tasks.get(name) ?? []),
+				remove: (name: string) =>
+					Effect.sync(() => {
+						services.delete(name);
+						tasks.delete(name);
+					}),
+			},
 		}),
-		getSwarmInfo: vi.fn(() => Promise.resolve({ NodeID: "n1", LocalNodeState: "active", ControlAvailable: true })),
-		inspectSwarmService: vi.fn((name: string) => {
-			const found = services.get(name);
-			return found === undefined ? Promise.reject(new NotFoundException(`service ${name} not found`)) : Promise.resolve(found);
-		}),
-		createSwarmService,
-		updateSwarmService: vi.fn(() => Promise.resolve()),
-		removeSwarmService: vi.fn((name: string) => {
-			services.delete(name);
-			tasks.delete(name);
-			return Promise.resolve();
-		}),
-		listSwarmServiceTasks: vi.fn((name: string) => Promise.resolve(tasks.get(name) ?? [])),
-		ensureOverlayNetwork: vi.fn(() => Promise.resolve()),
-		getSwarmServiceLogs: vi.fn(() => Promise.resolve("")),
 	} as unknown as DockerService;
 
 	return {
 		dockerService,
 		tasks,
 		removedContainers,
-		createSwarmService: createSwarmService as unknown as {
+		createSwarmService: {
+			mock: { calls: captured.map((spec): [CapturedSpec] => [spec]) },
+			get calls() {
+				return captured.map((spec): [CapturedSpec] => [spec]);
+			},
+			mockRejectedValueOnce: (error: Error) => {
+				failNext = error;
+			},
+		} as unknown as {
 			mock: { calls: [CapturedSpec][] };
-			mockRejectedValue: (e: unknown) => void;
+			calls: [CapturedSpec][];
 			mockRejectedValueOnce: (e: unknown) => void;
 		},
 	};
@@ -143,11 +174,6 @@ function makeSupervisor(options: {
 	const mesh = { writeSetting } as unknown as MeshAgentClient;
 	const webTarget = { resolveWebTarget: vi.fn(() => Promise.resolve("deployer-managed-web")) } as unknown as PlatformWebTargetService;
 	const supervisor = new TraefikSupervisorService(mocks.dockerService, new EnvHostnameService(env), env, lanes, mesh, webTarget, testEdgeRegistry().registry);
-	vi.spyOn(
-		supervisor as unknown as { probeEntrypoint(candidates: string[], port: number): Promise<EntrypointProbe> },
-		"probeEntrypoint",
-	).mockResolvedValue({ reachable: true, host: "deployer-traefik", port: 80, statusCode: 404, latencyMs: 1 });
-	vi.spyOn(supervisor as unknown as { delay(ms: number): Promise<void> }, "delay").mockResolvedValue();
 	return { supervisor, writeSetting, ...mocks };
 }
 
@@ -158,13 +184,6 @@ const tunnelLanes = (): IngressLanes => ({
 const directLanes = (tls: boolean): IngressLanes => ({
 	...defaultIngressLanes(),
 	public: { provider: "direct", domain: "apps.example.com", acknowledgedInboundPorts: true, options: { tls } },
-});
-
-describe("PlatformNetwork", () => {
-	it("isolates networks per prefix", () => {
-		expect(PlatformNetwork.name("")).toBe("deployer-platform");
-		expect(PlatformNetwork.name("acme")).toBe("deployer-platform-acme");
-	});
 });
 
 describe("TraefikSupervisorService", () => {
@@ -179,7 +198,7 @@ describe("TraefikSupervisorService", () => {
 		it("defers while setup's bootstrap ingress still serves", async () => {
 			const { supervisor, createSwarmService } = makeSupervisor({ bootstrapLabels: { "deployer.bootstrap": "true" } });
 			expect(await supervisor.ensureDesiredState()).toBe("pending");
-			expect(createSwarmService.mock.calls).toHaveLength(0);
+			expect(createSwarmService.calls).toHaveLength(0);
 			expect(supervisor.getStateSnapshot().detail).toContain("bootstrap ingress");
 			supervisor.onModuleDestroy();
 			expect(vi.getTimerCount()).toBe(0);
@@ -188,14 +207,14 @@ describe("TraefikSupervisorService", () => {
 		it("treats a container without the bootstrap label as not a handover", async () => {
 			const { supervisor, createSwarmService } = makeSupervisor({ bootstrapLabels: { "deployer.platform.role": "ingress" } });
 			expect(await supervisor.ensureDesiredState()).toBe("converged");
-			expect(createSwarmService.mock.calls).toHaveLength(1);
+			expect(createSwarmService.calls).toHaveLength(1);
 		});
 	});
 
 	it("creates ONE global service, aliased on the overlay", async () => {
 		const { supervisor, createSwarmService } = makeSupervisor();
 		expect(await supervisor.ensureDesiredState()).toBe("converged");
-		const spec = createSwarmService.mock.calls[0]?.[0];
+		const spec = createSwarmService.calls[0]?.[0];
 		expect(spec?.Name).toBe("deployer-traefik");
 		expect(spec?.Mode).toEqual({ Global: {} });
 		expect(spec?.TaskTemplate.Networks).toEqual([{ Target: "deployer-platform-overlay", Aliases: ["deployer-traefik"] }]);
@@ -204,7 +223,7 @@ describe("TraefikSupervisorService", () => {
 	it("polls its routes from the API service alias, authenticated, with no socket and no volume", async () => {
 		const { supervisor, createSwarmService } = makeSupervisor();
 		await supervisor.ensureDesiredState();
-		const container = createSwarmService.mock.calls[0]?.[0]?.TaskTemplate.ContainerSpec;
+		const container = createSwarmService.calls[0]?.[0]?.TaskTemplate.ContainerSpec;
 		const args = container?.Args ?? [];
 
 		// `Args`, not `Command`: `Command` would replace the image's entrypoint.
@@ -218,7 +237,7 @@ describe("TraefikSupervisorService", () => {
 	it("declares one entrypoint per lane, keeping :80 for the local lane", async () => {
 		const { supervisor, createSwarmService } = makeSupervisor();
 		await supervisor.ensureDesiredState();
-		const args = createSwarmService.mock.calls[0]?.[0]?.TaskTemplate.ContainerSpec.Args ?? [];
+		const args = createSwarmService.calls[0]?.[0]?.TaskTemplate.ContainerSpec.Args ?? [];
 		expect(args).toEqual(
 			expect.arrayContaining(["--entrypoints.local.address=:80", "--entrypoints.private.address=:8001", "--entrypoints.public.address=:8002"]),
 		);
@@ -254,13 +273,13 @@ describe("TraefikSupervisorService", () => {
                 // The mapper OMITS `Ports` entirely when the list is empty (a swarm service
                 // with no published port has no `EndpointSpec.Ports` key), so `undefined` is
                 // the correct "publishes nothing" — not an empty array.
-                expect(createSwarmService.mock.calls[0]?.[0]?.EndpointSpec?.Ports).toBeUndefined();
+                expect(createSwarmService.calls[0]?.[0]?.EndpointSpec?.Ports).toBeUndefined();
         });
 
         it("publishes ONLY the acknowledged `direct` edge, never the entry port", async () => {
                 const { supervisor, createSwarmService } = makeSupervisor({ lanes: directLanes(false) });
                 await supervisor.ensureDesiredState();
-                const ports = createSwarmService.mock.calls[0]?.[0]?.EndpointSpec?.Ports ?? [];
+                const ports = createSwarmService.calls[0]?.[0]?.EndpointSpec?.Ports ?? [];
                 // `direct` is the one case where an operator explicitly takes inbound :80 for
                 // Traefik itself. Note there is NO `TargetPort: 80` entry: the local lane
                 // contributes nothing, so the only published port is the public edge.
@@ -271,7 +290,7 @@ describe("TraefikSupervisorService", () => {
 	it("adds :443, the redirect and a real ACME resolver for `direct` + TLS", async () => {
 		const { supervisor, createSwarmService } = makeSupervisor({ lanes: directLanes(true) });
 		await supervisor.ensureDesiredState();
-		const spec = createSwarmService.mock.calls[0]?.[0];
+		const spec = createSwarmService.calls[0]?.[0];
 		// The local entry port, then the public edge and its TLS port.
 		expect(spec?.EndpointSpec?.Ports).toContainEqual({ TargetPort: 8443, PublishedPort: 443, Protocol: "tcp", PublishMode: "host" });
 		expect(spec?.EndpointSpec?.Ports).toContainEqual({ TargetPort: 8002, PublishedPort: 80, Protocol: "tcp", PublishMode: "host" });
@@ -316,7 +335,7 @@ describe("TraefikSupervisorService", () => {
 	it("prefixes the service and the doors from DEPLOYER_PREFIX", async () => {
 		const { supervisor, createSwarmService, writeSetting } = makeSupervisor({ env: { DEPLOYER_PREFIX: "acme" } });
 		await supervisor.ensureDesiredState();
-		expect(createSwarmService.mock.calls[0]?.[0]?.Name).toBe("deployer-traefik-acme");
+		expect(createSwarmService.calls[0]?.[0]?.Name).toBe("deployer-traefik-acme");
 		expect(writeSetting).toHaveBeenCalledWith("node.doors", expect.objectContaining({ namePrefix: "deployer-acme", upstream: "deployer-traefik-acme" }));
 	});
 

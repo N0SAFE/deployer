@@ -112,3 +112,33 @@ export { makeLocalDbSupervisor } from "./local-db/local-db-supervisor";
 export type { LocalDbDeps, LocalDbSupervisor, LocalSqlite } from "./local-db/local-db-supervisor";
 export { LOCAL_DB_SUPERVISOR_ID, localDbProcessInfoSchema, localDbSupervisorPayloadSchema } from "./local-db/schemas";
 export type { LocalDbProcessInfo, LocalDbSupervisorPayload } from "./local-db/schemas";
+export { EntryPortConflict } from "./errors";
+export {
+	HANDOVER_POLL_MS,
+	makeTraefikSupervisor,
+} from "./traefik/traefik-supervisor";
+export type {
+	EdgeIngressPlanInput,
+	LaneEntrypoint,
+	LaneEntrypoints,
+	TraefikConfig,
+	TraefikDeps,
+	TraefikSupervisor,
+} from "./traefik/traefik-supervisor";
+export {
+	ENTRYPOINT_PROBE_TIMEOUT_MS,
+	entrypointCandidates,
+	probeEntrypoint,
+	runsInsideContainer,
+} from "./traefik/entrypoint-probe";
+export type { EntrypointObservation } from "./traefik/entrypoint-probe";
+export {
+	PLATFORM_INGRESS_ROLE,
+	PLATFORM_INGRESS_SUPERVISOR_ID,
+	TRAEFIK_ACME_STORAGE_MOUNT,
+	TRAEFIK_ACME_STORAGE_PATH,
+	TRAEFIK_ACME_VOLUME,
+	traefikProcessInfoSchema,
+	traefikSupervisorPayloadSchema,
+} from "./traefik/schemas";
+export type { TraefikProcessInfo, TraefikSupervisorPayload } from "./traefik/schemas";
