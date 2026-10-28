@@ -2,8 +2,8 @@ import { Injectable, Inject, Optional, Logger, NotFoundException } from "@nestjs
 import { createHash } from "node:crypto";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { DockerService } from "@deployer/nest-effect/docker";
-import { DockerNotFound } from "@deployer/docker";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { Cause, Effect, Exit } from "effect";
 import { ScannerContainerManagerService } from "@deployer/nest-effect/docker";
 import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
 import { ContainerDockerodeNormalizer } from "../../shared/container-dockerode-normalizer.service";
@@ -238,16 +238,16 @@ export class DockerRepository {
 
     this.localDockerDaemonIdLoadPromise = (async () => {
       try {
-        const dockerInfo = await runPromiseUnwrapped(this.dockerService.getEngine().info());
-        const daemonId = typeof dockerInfo.ID === "string" && dockerInfo.ID.trim().length > 0
-          ? dockerInfo.ID.trim()
-          : null;
+        const daemonId = await runPromiseUnwrapped(
+          this.dockerService.getEngine().info().pipe(
+            Effect.map((info) => (typeof info.ID === "string" && info.ID.trim().length > 0 ? info.ID.trim() : null)),
+            // An unreachable engine simply has no daemon id.
+            Effect.orElseSucceed(() => null),
+          ),
+        );
 
         this.localDockerDaemonId = daemonId;
         return daemonId;
-      } catch {
-        this.localDockerDaemonId = null;
-        return null;
       } finally {
         this.localDockerDaemonIdLoadPromise = null;
       }
@@ -1188,14 +1188,12 @@ export class DockerRepository {
         .map((candidate) => candidate.trim());
 
       for (const imageCandidate of imageCandidates) {
-        try {
-          const imageInspect = await runPromiseUnwrapped(this.dockerService.getEngine().images.inspect(imageCandidate));
-          layerIds = this.extractRootFsLayers(imageInspect);
-          if (layerIds.length > 0) {
-            break;
-          }
-        } catch {
-          // Ignore image inspect fallback errors and keep empty layers.
+        // A candidate the engine cannot inspect is skipped: layers stay empty.
+        const imageInspect = await this.inspectImageOrNull(imageCandidate);
+        if (imageInspect === null) continue;
+        layerIds = this.extractRootFsLayers(imageInspect);
+        if (layerIds.length > 0) {
+          break;
         }
       }
     }
@@ -2120,17 +2118,12 @@ export class DockerRepository {
   }
 
   private async inspectImageWithCandidates(imageId: string): Promise<DockerodeImageInspect> {
-    const imageApi = this.dockerService.getEngine().images;
     const candidates = this.buildImageInspectCandidates(imageId);
 
     for (const candidate of candidates) {
-      try {
-        const raw = await runPromiseUnwrapped(imageApi.inspect(candidate));
-        const parsed = dockerodeImageInspectSchema.safeParse(raw);
-        if (parsed.success) return parsed.data;
-      } catch {
-        // Try next candidate.
-      }
+      const raw = await this.inspectImageOrNull(candidate);
+      const parsed = dockerodeImageInspectSchema.safeParse(raw);
+      if (parsed.success) return parsed.data;
     }
 
     const images = await runPromiseUnwrapped(this.dockerService.getEngine().images.list());
@@ -2138,16 +2131,19 @@ export class DockerRepository {
     const resolvedCandidates = this.buildImageInspectCandidatesFromImageList(imageId, images);
 
     for (const candidate of resolvedCandidates) {
-      try {
-        const raw = await runPromiseUnwrapped(imageApi.inspect(candidate));
-        const parsed = dockerodeImageInspectSchema.safeParse(raw);
-        if (parsed.success) return parsed.data;
-      } catch {
-        // Try next candidate.
-      }
+      const raw = await this.inspectImageOrNull(candidate);
+      const parsed = dockerodeImageInspectSchema.safeParse(raw);
+      if (parsed.success) return parsed.data;
     }
 
     throw new NotFoundException(`Image '${imageId}' not found`);
+  }
+
+  /** The engine's description of an image, or null when it cannot be inspected (missing or engine error). */
+  private inspectImageOrNull(image: string) {
+    return runPromiseUnwrapped(
+      this.dockerService.getEngine().images.inspect(image).pipe(Effect.orElseSucceed(() => null)),
+    );
   }
 
   private async readPersistedImageSecurityScan(
@@ -3091,12 +3087,7 @@ export class DockerRepository {
   }
 
   private async scannerImageExistsLocally(image: string): Promise<boolean> {
-    try {
-      await runPromiseUnwrapped(this.dockerService.getEngine().images.inspect(image));
-      return true;
-    } catch {
-      return false;
-    }
+    return await runPromiseUnwrapped(this.dockerService.getEngine().images.exists(image));
   }
 
   /**
@@ -3264,87 +3255,53 @@ export class DockerRepository {
     scanner: ScannerExecutionConfig["scanner"],
   ): Promise<void> {
     const containers = this.dockerService.getEngine().containers;
+    const attempts = 3;
 
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      await this.dockerService.removeContainer(containerId);
-
-      try {
-        await runPromiseUnwrapped(containers.inspect(containerId));
-      } catch (error) {
-        if (this.isContainerNotFoundError(error)) {
-          return;
-        }
-
-        this.logger.debug(
-          `Scanner container ${containerId} inspect check failed after cleanup attempt ${String(attempt)}: ${this.formatError(error)}`,
-        );
-
-        if (attempt < 3) {
-          await this.delay(200 * attempt);
-        }
-
-        continue;
-      }
-
-      try {
-        await runPromiseUnwrapped(containers.removeIfExists(containerId, { removeVolumes: true }));
-      } catch (error) {
-        if (this.isContainerNotFoundError(error)) {
-          return;
-        }
-
-        this.logger.debug(
-          `Scanner container ${containerId} force-remove attempt ${String(attempt)} failed: ${this.formatError(error)}`,
-        );
-      }
-
-      try {
-        await runPromiseUnwrapped(containers.inspect(containerId));
-      } catch (error) {
-        if (this.isContainerNotFoundError(error)) {
-          return;
-        }
-      }
-
-      if (attempt < 3) {
-        await this.delay(200 * attempt);
-      }
-    }
-
-    this.logger.warn(
-      `Scanner container ${containerId} for ${scanner} still exists after cleanup retries`,
+    /** Whether the container is gone; an engine failure other than "not found" is reported, not thrown. */
+    const probe = containers.inspect(containerId).pipe(
+      Effect.as<"present" | "gone">("present"),
+      Effect.catchTag("DockerNotFound", () => Effect.succeed<"present" | "gone">("gone")),
     );
-  }
+    const pause = (attempt: number) => Effect.promise(() => this.delay(200 * attempt));
+    const note = (message: string) => Effect.sync(() => { this.logger.debug(message); });
 
-  private isContainerNotFoundError(error: unknown): boolean {
-    if (typeof error !== "object" || error === null) {
+    const removeContainer = Effect.promise(() => this.dockerService.removeContainer(containerId));
+    const describe = (cause: Cause.Cause<unknown>) => this.formatError(Cause.squash(cause));
+
+    const cleanup = Effect.gen(function* () {
+      for (let attempt = 1; attempt <= attempts; attempt++) {
+        yield* removeContainer;
+
+        const afterRemove = yield* Effect.exit(probe);
+        if (Exit.isFailure(afterRemove)) {
+          yield* note(
+            `Scanner container ${containerId} inspect check failed after cleanup attempt ${String(attempt)}: ${describe(afterRemove.cause)}`,
+          );
+          if (attempt < attempts) yield* pause(attempt);
+          continue;
+        }
+        if (afterRemove.value === "gone") return true;
+
+        const forced = yield* Effect.exit(containers.removeIfExists(containerId, { removeVolumes: true }));
+        if (Exit.isFailure(forced)) {
+          yield* note(
+            `Scanner container ${containerId} force-remove attempt ${String(attempt)} failed: ${describe(forced.cause)}`,
+          );
+        }
+
+        const afterForce = yield* Effect.exit(probe);
+        if (Exit.isSuccess(afterForce) && afterForce.value === "gone") return true;
+
+        if (attempt < attempts) yield* pause(attempt);
+      }
       return false;
+    });
+
+    if (!(await runPromiseUnwrapped(cleanup))) {
+      this.logger.warn(
+        `Scanner container ${containerId} for ${scanner} still exists after cleanup retries`,
+      );
     }
-
-    const record = isRecord(error) ? error : {};
-
-    if (error instanceof DockerNotFound || record.statusCode === 404) {
-      return true;
-    }
-
-    const reason = typeof record.reason === "string" ? record.reason.toLowerCase() : "";
-    if (reason.includes("no such container")) {
-      return true;
-    }
-
-    const message = typeof record.message === "string" ? record.message.toLowerCase() : "";
-    if (message.includes("no such container")) {
-      return true;
-    }
-
-    const jsonMessage =
-      typeof record.json === "object"
-      && record.json !== null
-      && typeof Reflect.get(record.json, "message") === "string"
-        ? (Reflect.get(record.json, "message") as string).toLowerCase()
-        : "";
-
-    return jsonMessage.includes("no such container");
   }
 
   private async delay(ms: number): Promise<void> {
@@ -3354,24 +3311,15 @@ export class DockerRepository {
   }
 
   private async waitForContainerExit(containerId: string, timeoutMs: number): Promise<number> {
-    const containers = this.dockerService.getEngine().containers;
-    let timeoutId: NodeJS.Timeout | null = null;
-
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutId = setTimeout(() => {
-        reject(new Error(`Timed out waiting for scanner container ${containerId}`));
-      }, timeoutMs);
-    });
-
-    const waitPromise = runPromiseUnwrapped(containers.wait(containerId));
-
-    try {
-      return await Promise.race([waitPromise, timeoutPromise]);
-    } finally {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    }
+    // Timing out interrupts the wait, which aborts the request in flight.
+    return await runPromiseUnwrapped(
+      this.dockerService.getEngine().containers.wait(containerId).pipe(
+        Effect.timeoutOrElse({
+          duration: timeoutMs,
+          orElse: () => Effect.fail(new Error(`Timed out waiting for scanner container ${containerId}`)),
+        }),
+      ),
+    );
   }
 
   private parseTrivyVulnerabilities(output: string): DockerVulnerabilityEntry[] {

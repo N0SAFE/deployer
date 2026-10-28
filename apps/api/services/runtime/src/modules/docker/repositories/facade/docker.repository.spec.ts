@@ -1,3 +1,4 @@
+import { DockerNotFound, DockerUnavailable } from "@deployer/docker";
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import { DockerRepository } from "./docker.repository";
@@ -16,8 +17,17 @@ function createCleanupHarness(params: {
   // which the repository reads back (a 404 means the container is gone).
   const getEngine = vi.fn(() => ({
     containers: {
-      inspect: () => Effect.tryPromise({ try: () => inspect(), catch: (cause) => cause }),
-      removeIfExists: () => Effect.tryPromise({ try: () => remove(), catch: (cause) => cause }),
+      // Like the real engine: a 404 is `DockerNotFound`, anything else `DockerUnavailable`.
+      inspect: () =>
+        Effect.tryPromise({
+          try: () => inspect(),
+          catch: (cause) =>
+            (cause as { statusCode?: number }).statusCode === 404
+              ? new DockerNotFound({ resource: "container" })
+              : new DockerUnavailable({ reason: "inspect failed", cause }),
+        }),
+      removeIfExists: () =>
+        Effect.tryPromise({ try: () => remove(), catch: (cause) => new DockerUnavailable({ reason: "remove failed", cause }) }),
     },
   }));
 
