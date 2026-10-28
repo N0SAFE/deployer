@@ -23,8 +23,8 @@ import {
 } from "rxjs";
 import { map } from "rxjs/operators";
 import { Cause, Effect, Fiber, Stream } from "effect";
-import { CoreEventStreamPoolService } from "@deployer/nest-events";
-import { AbstractDomainEventStreamService } from "@deployer/nest-events";
+import { CoreEventStreamPoolService } from "@deployer/nest-effect/events";
+import { AbstractDomainEventStreamService } from "@deployer/nest-effect/events";
 import { DockerService } from "@deployer/nest-effect/docker";
 import { SwarmClusterService } from "@deployer/nest-effect/swarm";
 import { SwarmFleetService } from "@deployer/nest-effect/swarm";

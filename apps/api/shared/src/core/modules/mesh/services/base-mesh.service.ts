@@ -4,7 +4,7 @@ import { filter, type Observable } from "rxjs";
 import type { SystemMeshTopicService } from "./system-mesh-topic/orchestrator/system-mesh-topic.service";
 import type { MeshTopicNamespaceHandle } from "./system-mesh-topic/domain/mesh-topic-types";
 import type { SystemMeshTopologyService } from "./system-mesh-topology/orchestrator/system-mesh-topology.service";
-import type { EventContracts, EventInput, EventOutput } from "@deployer/nest-events";
+import type { EventContracts, EventInput, EventOutput } from "@deployer/events";
 import type { AnyMeshEntity, MeshEntityItem } from "../mesh-entity";
 import type { AnyMeshQuery } from "../mesh-query";
 import type { AnyMeshMutation } from "../mesh-mutation";

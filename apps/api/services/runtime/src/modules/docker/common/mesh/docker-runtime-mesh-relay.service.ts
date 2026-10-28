@@ -4,7 +4,7 @@ import { Observable } from "rxjs";
 import z from "zod/v4";
 import { dockerRuntimeEventSchema, type DockerRuntimeEvent } from "@deployer/contracts-entities";
 import { AppLogger } from "@deployer/logger";
-import { contractBuilder } from "@deployer/nest-events";
+import { contractBuilder } from "@deployer/events";
 import { BaseMeshService, InternalBaseMeshService } from "@deployer/shared/core/modules/mesh/services/base-mesh.service";
 import { SystemMeshTopicService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
 import { SystemMeshTopologyService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";

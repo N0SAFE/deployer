@@ -17,7 +17,7 @@ import { MeshStreamRuntimeService } from './services/mesh-stream-runtime.service
 import { SystemMetricsModule } from '../system-metrics/system-metrics.module'
 import { SystemMeshConfigService } from './services/system-mesh-config.service'
 import { NodeMeshConfigRepository } from './repositories/node-mesh-config.repository'
-import { CoreEventStreamPoolService } from '@deployer/nest-events'
+import { CoreEventStreamPoolService } from '@deployer/nest-effect/events'
 import { MeshInternalRequestService } from './services/mesh-internal-request.service'
 import { MeshOrchestrationService } from './orchestration/mesh-orchestration.service'
 import { MeshInitializationModule } from './initialization/mesh-initialization.module'

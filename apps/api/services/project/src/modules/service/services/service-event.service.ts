@@ -1,10 +1,10 @@
 import * as z from "zod";
-import { BasePooledEventService } from "@deployer/nest-events";
+import { BasePooledEventService } from "@deployer/nest-effect/events";
 import { Context, Effect, Layer } from "effect";
 
 import { CoreEventStreamPool } from "@project/core/ports/core-event-stream-pool.port";
-import { contractBuilder } from "@deployer/nest-events";
-import { CoreEventStreamPoolService } from "@deployer/nest-events";
+import { contractBuilder } from "@deployer/events";
+import { CoreEventStreamPoolService } from "@deployer/nest-effect/events";
 
 export const serviceEventContracts = {
     serviceCreated: contractBuilder()

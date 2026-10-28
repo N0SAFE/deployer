@@ -1,29 +1,16 @@
 /**
  * Events Module — Public API
  *
- * Re-exports from @deployer/nest-events (shared) and local files (repositories,
+ * Re-exports from @deployer/nest-effect/events (shared) and local files (repositories,
  * outbox, sync service that depend on API-specific Drizzle schemas).
  */
 
 export * from './events.module';
 
-// Moved to @deployer/nest-events — re-exported for backward compat
-export {
-  BaseEventService,
-  BASE_EVENT_SERVICE_SYMBOL,
-  EventContractBuilder,
-  contractBuilder,
-  BasePooledEventService,
-  AbstractDomainEventStreamService,
-  CoreEventStreamPoolService,
-  observableToAsyncIterable,
-} from '@deployer/nest-events';
-export type {
-  EventContract,
-  EventContracts,
-  EventInput,
-  EventOutput,
-} from '@deployer/nest-events';
+// Moved to @deployer/nest-effect/events — re-exported for backward compat
+export { BaseEventService, BASE_EVENT_SERVICE_SYMBOL, BasePooledEventService, AbstractDomainEventStreamService, CoreEventStreamPoolService, observableToAsyncIterable } from '@deployer/nest-effect/events';
+export { EventContractBuilder, contractBuilder } from '@deployer/events';
+export type { EventContract, EventContracts, EventInput, EventOutput } from '@deployer/events';
 
 // Local files (stay in API due to DB schema coupling)
 export * from './services/core-event-sync.service';

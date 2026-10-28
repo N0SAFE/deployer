@@ -1,15 +1,22 @@
 import { Logger, type OnModuleDestroy } from '@nestjs/common';
 import { Effect, Stream } from 'effect';
+import { runPromiseUnwrapped } from '@deployer/effect-core';
+import {
+  EventLogUnavailable,
+  makeEventJournal,
+  type EventJournalShape,
+  type EventLogStoreShape,
+  type PersistedEventLog,
+} from '@deployer/events';
 import { EMPTY, merge, Observable, Subject } from 'rxjs';
 import { filter as rxFilter, map } from 'rxjs/operators';
-import { observableToAsyncIterable } from '@deployer/nest-events/observable.utils';
-import { isTransientDatabaseError } from '@deployer/nest-events/db-not-ready';
+import { observableToAsyncIterable } from './observable.utils';
 import type {
   EventContracts,
   EventContract,
   EventInput,
   EventOutput,
-} from '@deployer/nest-events/event-contract.builder';
+} from '@deployer/events';
 import { isRecord } from '@deployer/type-guards';
 
 export const BASE_EVENT_SERVICE_SYMBOL = Symbol.for('core.events.base-service');
@@ -57,25 +64,9 @@ type EventSubscriptionData<T> = {
   subscriberCount: number;
 }
 
-type BufferedEventRecord = {
-  eventName: string;
-  eventKey: string;
-  input: Record<string, unknown>;
-  output: Record<string, unknown>;
-  sequence: number;
-  emittedAt: string;
-}
+export type { PersistedEventLog };
 
-export type PersistedEventLog = {
-  namespace: string;
-  eventName: string;
-  eventKey: string;
-  sequence: number;
-  input: Record<string, unknown>;
-  output: Record<string, unknown>;
-  emittedAt: Date;
-}
-
+/** The Promise-based log the app registers; the journal sees it as an Effect store. */
 export type EventLogPersistenceAdapter = {
   insertMany(logs: PersistedEventLog[]): Promise<void>;
   findRecentByEventKey(input: {
@@ -137,7 +128,8 @@ export abstract class BaseEventService<
   TContracts extends EventContracts = EventContracts,
   TNamespace extends string = string,
 > implements OnModuleDestroy {
-  private static persistenceAdapter: EventLogPersistenceAdapter | null = null;
+  /** The registered log, seen through an Effect store; null until the app registers one. */
+  private static eventLogStore: EventLogStoreShape | null = null;
   private static readonly serviceRegistry = new Set<BaseEventService>();
 
   readonly [BASE_EVENT_SERVICE_SYMBOL] = true as const;
@@ -146,34 +138,12 @@ export abstract class BaseEventService<
   protected readonly eventPrefix: TNamespace;
   private readonly events = new Map<string, EventSubscriptionData<unknown>>();
   private readonly anyEventSubscriptions = new Map<string, EventSubscriptionData<unknown>>();
-  private readonly durableEmissionsByKey = new Map<string, BufferedEventRecord[]>();
-  private readonly durableEmissionsByEventName = new Map<string, BufferedEventRecord[]>();
-  private readonly sequenceByEventKey = new Map<string, number>();
-  private readonly pendingPersistence: PersistedEventLog[] = [];
-
   protected readonly durableReplayLimit = 2_000;
   protected readonly pendingFlushBatchSize = 200;
   protected readonly flushIntervalMs = 3 * 60 * 1000;
 
-  /**
-   * Persistence is best-effort audit logging. When the target table is not
-   * ready yet (e.g. a FIRST-BOOT setup is still running the global migrations
-   * that create `core_event_logs`) or the DB is temporarily unreachable, a
-   * flush must never DROP the batch — the events are re-queued and retried
-   * with backoff until they persist. The in-memory durable replay keeps all
-   * subscribers working regardless of persistence state.
-   */
-  private readonly flushRetryBaseMs = 500;
-  private readonly flushRetryMaxMs = 60_000;
-  /** Hard cap — if persistence stays down, oldest audit events are dropped (once, loudly). */
-  private readonly maxPendingPersistence = 10_000;
-
-  private isFlushing = false;
-  private retryTimer: ReturnType<typeof setTimeout> | null = null;
-  private retryAttempt = 0;
-  private overflowWarned = false;
-  /** True while persistence is failing — used to log the outage ONCE, then debug. */
-  private persistenceOutageActive = false;
+  /** The durable journal: sequences, replay buffers and the retrying persistence queue (`@deployer/events`). */
+  private readonly journal: EventJournalShape;
 
   constructor(
     eventPrefix: TNamespace,
@@ -181,6 +151,24 @@ export abstract class BaseEventService<
   ) {
     this.eventPrefix = eventPrefix;
     this.logger = new Logger(`${eventPrefix}EventService`);
+    this.journal = makeEventJournal({
+      namespace: eventPrefix,
+      store: () => BaseEventService.eventLogStore,
+      logger: {
+        warn: (message) => { this.logger.warn(message); },
+        debug: (message) => { this.logger.debug(message); },
+        log: (message) => { this.logger.log(message); },
+      },
+      settings: () => ({
+        replayLimit: this.durableReplayLimit,
+        flushBatchSize: this.pendingFlushBatchSize,
+        flushIntervalMs: this.flushIntervalMs,
+        retryBaseMs: 500,
+        retryMaxMs: 60_000,
+        maxPending: 10_000,
+      }),
+    });
+    Effect.runSync(this.journal.start);
     BaseEventService.registerInstance(this as unknown as BaseEventService);
   }
 
@@ -201,7 +189,25 @@ export abstract class BaseEventService<
   }
 
   static configurePersistenceAdapter(adapter: EventLogPersistenceAdapter): void {
-    BaseEventService.persistenceAdapter = adapter;
+    BaseEventService.eventLogStore = BaseEventService.storeFor(adapter);
+  }
+
+  /** Lifts the Promise adapter to the journal's Effect store; a rejection is an `EventLogUnavailable` carrying the original error. */
+  private static storeFor(adapter: EventLogPersistenceAdapter): EventLogStoreShape {
+    const lift = <A>(run: () => Promise<A>) =>
+      Effect.tryPromise({
+        try: run,
+        catch: (cause) =>
+          Object.assign(
+            new EventLogUnavailable({ reason: cause instanceof Error ? cause.message : String(cause) }),
+            { cause },
+          ),
+      });
+    return {
+      insertMany: (logs) => lift(() => adapter.insertMany([...logs])),
+      findRecentByEventKey: (query) => lift(() => adapter.findRecentByEventKey(query)),
+      findRecentByEventName: (query) => lift(() => adapter.findRecentByEventName(query)),
+    };
   }
 
   static hasBaseEventSymbol(value: unknown): value is BaseEventServiceSymbolized {
@@ -276,56 +282,17 @@ export abstract class BaseEventService<
     const afterSequence = options?.afterSequence;
 
     return new Observable<EventOutput<TContracts[K]>>((subscriber) => {
-      void (async () => {
-        try {
-          if (includePersisted && BaseEventService.persistenceAdapter) {
-            const persisted = await BaseEventService.persistenceAdapter.findRecentByEventKey({
-              namespace: this.eventPrefix,
-              eventName: String(eventName),
-              eventKey: fullEventName,
-              limit: replayLimit,
-            });
-
-            for (const item of persisted) {
-              if (afterSequence != null && item.sequence <= afterSequence) {
-                continue;
-              }
-              subscriber.next(item.output as EventOutput<TContracts[K]>);
-            }
-          }
-
-          const buffered = this.durableEmissionsByKey.get(fullEventName);
-          if (buffered?.length) {
-            const window =
-              afterSequence != null
-                ? buffered.filter((r) => r.sequence > afterSequence)
-                : replayLimit > 0
-                  ? buffered.slice(-replayLimit)
-                  : [];
-            for (const item of window) {
-              subscriber.next(item.output as EventOutput<TContracts[K]>);
-            }
-          }
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          // First-boot / supervisor-recreated DB: the global database (or its
-          // schema) may not be ready yet, so every topic's persisted replay
-          // fails identically. Same once-then-debug treatment as the flush path
-          // — real query errors still warn.
-          if (isTransientDatabaseError(error)) {
-            if (this.persistenceOutageActive) {
-              this.logger.debug(`Skipping persisted replay for '${String(eventName)}': ${message}`);
-            } else {
-              this.persistenceOutageActive = true;
-              this.logger.warn(
-                `Skipping persisted replay for '${String(eventName)}' (db not ready yet): ${message}`,
-              );
-            }
-          } else {
-            this.logger.warn(`Skipping persisted replay for '${String(eventName)}': ${message}`);
-          }
+      void runPromiseUnwrapped(
+        this.journal.replayByKey(String(eventName), fullEventName, {
+          limit: replayLimit,
+          includePersisted,
+          ...(afterSequence == null ? {} : { afterSequence }),
+        }),
+      ).then((replayed) => {
+        for (const item of replayed) {
+          subscriber.next(item.output as EventOutput<TContracts[K]>);
         }
-      })();
+      });
 
       const internalSubscription = subscription.subject.subscribe(subscriber);
       return () => {
@@ -420,55 +387,20 @@ export abstract class BaseEventService<
     const includePersisted = options?.includePersisted ?? true;
 
     return new Observable<AnyEventEmission<TContracts[K]>>((subscriber) => {
-      void (async () => {
-        try {
-          if (includePersisted && BaseEventService.persistenceAdapter) {
-            const persisted = await BaseEventService.persistenceAdapter.findRecentByEventName({
-              namespace: this.eventPrefix,
-              eventName: String(eventName),
-              limit: replayLimit,
-            });
-
-            for (const item of persisted) {
-              const parsedInput = contract.input.parse(item.input) as EventInput<TContracts[K]>;
-              if (!this.matchesInput(parsedInput, options)) {
-                continue;
-              }
-              subscriber.next({
-                input: parsedInput,
-                output: item.output as EventOutput<TContracts[K]>,
-              });
-            }
+      void runPromiseUnwrapped(
+        this.journal.replayByName(String(eventName), { limit: replayLimit, includePersisted }),
+      ).then((replayed) => {
+        for (const item of replayed) {
+          const parsedInput = contract.input.parse(item.input) as EventInput<TContracts[K]>;
+          if (!this.matchesInput(parsedInput, options)) {
+            continue;
           }
-
-          const buffered = this.durableEmissionsByEventName.get(String(eventName)) ?? [];
-          for (const item of buffered.slice(-replayLimit)) {
-            const parsedInput = contract.input.parse(item.input) as EventInput<TContracts[K]>;
-            if (!this.matchesInput(parsedInput, options)) {
-              continue;
-            }
-            subscriber.next({
-              input: parsedInput,
-              output: item.output as EventOutput<TContracts[K]>,
-            });
-          }
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          // Same pre-migration dedupe as the keyed replay path above.
-          if (isTransientDatabaseError(error)) {
-            if (this.persistenceOutageActive) {
-              this.logger.debug(`Skipping persisted query replay for '${String(eventName)}': ${message}`);
-            } else {
-              this.persistenceOutageActive = true;
-              this.logger.warn(
-                `Skipping persisted query replay for '${String(eventName)}' (db not ready yet): ${message}`,
-              );
-            }
-          } else {
-            this.logger.warn(`Skipping persisted query replay for '${String(eventName)}': ${message}`);
-          }
+          subscriber.next({
+            input: parsedInput,
+            output: item.output as EventOutput<TContracts[K]>,
+          });
         }
-      })();
+      });
 
       const subscription = this.subscribeAny$(eventName).subscribe((event) => {
         if (!this.matchesInput(event.input, options)) {
@@ -545,35 +477,12 @@ export abstract class BaseEventService<
 
     // Build full event name using fileId from input
     const fullEventName = this.buildFullEventName(String(eventName), validatedInput);
-    const sequence = (this.sequenceByEventKey.get(fullEventName) ?? 0) + 1;
-    this.sequenceByEventKey.set(fullEventName, sequence);
-
-    const bufferedRecord: BufferedEventRecord = {
+    this.journal.record({
       eventName: String(eventName),
       eventKey: fullEventName,
       input: validatedInput,
       output: validatedOutput,
-      sequence,
-      emittedAt: new Date().toISOString(),
-    };
-
-    this.appendBufferedRecord(this.durableEmissionsByKey, fullEventName, bufferedRecord);
-    this.appendBufferedRecord(this.durableEmissionsByEventName, String(eventName), bufferedRecord);
-
-    this.pendingPersistence.push({
-      namespace: this.eventPrefix,
-      eventName: String(eventName),
-      eventKey: fullEventName,
-      sequence,
-      input: bufferedRecord.input,
-      output: bufferedRecord.output,
-      emittedAt: new Date(bufferedRecord.emittedAt),
     });
-    this.trimPendingPersistenceIfNeeded();
-
-    if (this.pendingPersistence.length >= this.pendingFlushBatchSize) {
-      void this.flushPendingToPersistence();
-    }
 
     const subscription = this.events.get(fullEventName);
     if (subscription) {
@@ -755,10 +664,7 @@ export abstract class BaseEventService<
       subscription.subject.complete();
     }
     this.anyEventSubscriptions.clear();
-    this.durableEmissionsByKey.clear();
-    this.durableEmissionsByEventName.clear();
-    this.sequenceByEventKey.clear();
-    this.pendingPersistence.length = 0;
+    Effect.runSync(this.journal.clear);
 
     this.logger.log('All events cleared');
   }
@@ -781,18 +687,7 @@ export abstract class BaseEventService<
     }
     const validatedInput = contract.input.parse(input) as EventInput<TContracts[K]>;
     const fullEventName = this.buildFullEventName(String(eventName), validatedInput);
-    return this.sequenceByEventKey.get(fullEventName) ?? 0;
-  }
-
-  private appendBufferedRecord(
-    target: Map<string, BufferedEventRecord[]>,
-    key: string,
-    record: BufferedEventRecord,
-  ): void {
-    const previous = target.get(key) ?? [];
-    const appended = [...previous, record];
-    const overflow = appended.length - this.durableReplayLimit;
-    target.set(key, overflow > 0 ? appended.slice(overflow) : appended);
+    return this.journal.lastSequence(fullEventName);
   }
 
   private matchesInput<TInput extends Record<string, unknown>>(
@@ -811,111 +706,13 @@ export abstract class BaseEventService<
     return true;
   }
 
-  private trimPendingPersistenceIfNeeded(): void {
-    if (this.pendingPersistence.length <= this.maxPendingPersistence) return;
-    const overflow = this.pendingPersistence.length - this.maxPendingPersistence;
-    // Drop the OLDEST audit events when persistence is down for a long time.
-    this.pendingPersistence.splice(0, overflow);
-    if (!this.overflowWarned) {
-      this.overflowWarned = true;
-      this.logger.warn(
-        `Event persistence buffer exceeded ${String(this.maxPendingPersistence)} — dropping oldest audit events until persistence recovers`,
-      );
-    }
-  }
-
-  private async flushPendingToPersistence(): Promise<void> {
-    if (this.isFlushing || this.pendingPersistence.length === 0 || !BaseEventService.persistenceAdapter) {
-      return;
-    }
-
-    this.isFlushing = true;
-    try {
-      const batch = this.pendingPersistence.slice(0, this.pendingFlushBatchSize);
-      await BaseEventService.persistenceAdapter.insertMany(batch);
-      // Success → remove exactly what was persisted from the front.
-      this.pendingPersistence.splice(0, batch.length);
-      this.retryAttempt = 0;
-      if (this.persistenceOutageActive) {
-        this.persistenceOutageActive = false;
-        this.logger.log(
-          `Event log persistence recovered (${String(this.pendingPersistence.length)} still queued)`,
-        );
-      }
-      // Drain any remaining backlog promptly (e.g. events buffered while the
-      // table was being created) instead of waiting for the 3-minute ticker.
-      if (this.pendingPersistence.length > 0) {
-        this.schedulePersistenceRetry();
-      }
-    } catch (error) {
-      // Never drop audit events on a transient failure (first-boot migrations
-      // still creating core_event_logs, DB restart, etc.) — keep the batch
-      // queued and retry with backoff. Log the outage ONCE as a compact WARN
-      // (never the full query/params — drizzle errors embed thousands of
-      // serialized rows), then debug until it recovers.
-      const message = error instanceof Error ? error.message : String(error);
-      if (!this.persistenceOutageActive) {
-        this.persistenceOutageActive = true;
-        this.logger.warn(
-          `Event log persistence failed (${String(this.pendingPersistence.length)} queued) — will retry with backoff: ${message.slice(0, 200)}`,
-        );
-      } else {
-        this.logger.debug(
-          `Event log persistence still unavailable (${String(this.pendingPersistence.length)} queued): ${message.slice(0, 200)}`,
-        );
-      }
-      this.schedulePersistenceRetry();
-    } finally {
-      this.isFlushing = false;
-    }
-  }
-
-  private schedulePersistenceRetry(): void {
-    if (this.retryTimer) return;
-    const delay = Math.min(
-      this.flushRetryBaseMs * 2 ** this.retryAttempt,
-      this.flushRetryMaxMs,
-    );
-    this.retryAttempt = Math.min(this.retryAttempt + 1, 16);
-    this.retryTimer = setTimeout(() => {
-      this.retryTimer = null;
-      void this.flushPendingToPersistence();
-    }, delay);
-    if (typeof this.retryTimer.unref === 'function') {
-      this.retryTimer.unref();
-    }
-  }
-
-  private readonly flushTicker = this.startFlushTicker();
-
-  private startFlushTicker(): ReturnType<typeof setInterval> {
-    const timer = setInterval(() => {
-      void this.flushPendingToPersistence();
-    }, this.flushIntervalMs);
-
-    if (typeof timer.unref === 'function') {
-      timer.unref();
-    }
-
-    return timer;
-  }
-
   /**
-   * NestJS lifecycle hook — clears the persistent flush ticker + any pending
-   * retry so the process can exit cleanly. All concrete event services inherit
-   * this behaviour automatically. If a subclass needs to perform additional
-   * teardown, it must override and call `super.onModuleDestroy()`.
+   * NestJS lifecycle hook — stops the journal's periodic flush and pending retry so the process can
+   * exit cleanly. Concrete event services inherit it; a subclass needing more teardown must override
+   * and call `super.onModuleDestroy()`.
    */
   onModuleDestroy(): void {
-    this.stopFlushTicker();
-    if (this.retryTimer) {
-      clearTimeout(this.retryTimer);
-      this.retryTimer = null;
-    }
-  }
-
-  protected stopFlushTicker(): void {
-    clearInterval(this.flushTicker);
+    Effect.runSync(this.journal.close);
   }
 }
 

@@ -1,4 +1,4 @@
-import type { CoreEventStreamPoolService } from "@deployer/nest-events";
+import type { CoreEventStreamPoolService } from "@deployer/nest-effect/events";
 import { Context } from "effect";
 
 /** Effect view of the shared RxJS stream pool. */

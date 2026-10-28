@@ -22,8 +22,9 @@
 
 import { type Observable, type Subscription } from 'rxjs';
 import z from 'zod/v4';
-import { BaseEventService, contractBuilder } from '@deployer/nest-events';
-import type { EventContract } from '@deployer/nest-events';
+import { BaseEventService } from '@deployer/nest-effect/events';
+import { contractBuilder } from '@deployer/events';
+import type { EventContract } from '@deployer/events';
 
 /**
  * Convenience: extract the output (payload) type from a trigger schema.

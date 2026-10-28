@@ -33,8 +33,8 @@ import {
   type DockerRuntimeEvent,
 } from "@deployer/contracts-entities";
 import { DockerService as CoreDockerService } from "@deployer/nest-effect/docker";
-import { AbstractDomainEventStreamService } from "@deployer/nest-events";
-import { CoreEventStreamPoolService } from "@deployer/nest-events";
+import { AbstractDomainEventStreamService } from "@deployer/nest-effect/events";
+import { CoreEventStreamPoolService } from "@deployer/nest-effect/events";
 import { isRecord, isObjectLike } from "@deployer/type-guards"
 
 type DockerKnownSource = Exclude<DockerRuntimeEvent["source"], "unknown">;

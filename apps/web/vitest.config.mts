@@ -36,7 +36,7 @@ const shared = createNextJsConfig({
             '@deployer/orpc-utils': path.resolve(__dirname, '../../packages/transport/orpc/src'),
             '@deployer/provider-schema': path.resolve(__dirname, '../../packages/utils/provider-schema/src'),
             '@deployer/errors': path.resolve(__dirname, '../../packages/utils/errors/src'),
-            '@deployer/nest-events': path.resolve(__dirname, '../../packages/nest/events/src'),
+            '@deployer/nest-effect/events': path.resolve(__dirname, '../../packages/nest/effect/src/events'),
             '@deployer/nest-effect/lifecycle': path.resolve(__dirname, '../../packages/nest/effect/src/lifecycle'),
             '@deployer/ui': path.resolve(__dirname, '../../packages/ui/base/src'),
         },

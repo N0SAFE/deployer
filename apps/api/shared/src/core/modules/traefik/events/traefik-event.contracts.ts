@@ -1,5 +1,5 @@
 import z from 'zod/v4';
-import { contractBuilder } from '@deployer/nest-events';
+import { contractBuilder } from '@deployer/events';
 
 /**
  * Contract for configuration synchronization events

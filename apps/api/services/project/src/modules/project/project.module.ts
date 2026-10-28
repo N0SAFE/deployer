@@ -1,4 +1,4 @@
-import { CoreEventStreamPoolService } from "@deployer/nest-events";
+import { CoreEventStreamPoolService } from "@deployer/nest-effect/events";
 import { createModuleContext } from "@deployer/nest-effect";
 
 import { CoreEventStreamPool } from "@project/core/ports/core-event-stream-pool.port";

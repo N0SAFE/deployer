@@ -1,6 +1,6 @@
 import { Module, Global } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module';
-import { BaseEventService, CoreEventStreamPoolService } from '@deployer/nest-events';
+import { BaseEventService, CoreEventStreamPoolService } from '@deployer/nest-effect/events';
 import { CoreEventLogRepository } from './repositories/core-event-log.repository';
 import { CoreEventStreamRepository } from './repositories/core-event-stream.repository';
 import { CoreEventSyncService } from './services/core-event-sync.service';

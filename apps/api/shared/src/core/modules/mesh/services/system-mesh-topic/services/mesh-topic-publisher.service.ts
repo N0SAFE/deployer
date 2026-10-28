@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { meshEventPublishPayloadSchema } from "@deployer/contracts-entities";
-import type { EventContracts, EventInput, EventOutput } from "@deployer/nest-events";
+import type { EventContracts, EventInput, EventOutput } from "@deployer/events";
 import { SystemMeshTopologyService } from "../../system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { MeshTopicNamespaceRuntime } from "../runtime/mesh-topic-namespace-runtime";
 import type { MeshTopicPublishOptions, MeshTopicEventPayload } from "../domain/mesh-topic-types";

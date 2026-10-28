@@ -1,5 +1,5 @@
 import z from "zod/v4";
-import { contractBuilder } from "@deployer/nest-events";
+import { contractBuilder } from "@deployer/events";
 import { meshRuntimeEventSchema, meshTopologyEventSchema } from "@deployer/contracts-entities";
 
 export const systemMeshEventContracts = {

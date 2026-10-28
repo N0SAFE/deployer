@@ -1,5 +1,5 @@
 import * as z from "zod";
-import { contractBuilder } from "@deployer/nest-events";
+import { contractBuilder } from "@deployer/events";
 import {
     deploymentStatusSchema,
     deploymentPhaseSchema,

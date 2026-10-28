@@ -1,9 +1,9 @@
 import * as z from "zod/v4";
 import { Injectable, Optional } from "@nestjs/common";
 import { Observable } from "rxjs";
-import { BasePooledEventService } from "@deployer/nest-events";
-import { contractBuilder } from "@deployer/nest-events";
-import { CoreEventStreamPoolService } from "@deployer/nest-events";
+import { BasePooledEventService } from "@deployer/nest-effect/events";
+import { contractBuilder } from "@deployer/events";
+import { CoreEventStreamPoolService } from "@deployer/nest-effect/events";
 import { setupStreamEventSchema } from "@deployer/contracts-entities";
 import type { SetupStreamEvent } from "@deployer/contracts-entities";
 

@@ -5,7 +5,7 @@ import { SystemMeshTopicService } from "./system-mesh-topic/orchestrator/system-
 import { SystemMeshTopologyService } from "./system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { SystemMeshConfigService } from "./system-mesh-config.service";
 import { EnvService } from "../../../../config/env/env.module";
-import { contractBuilder } from "@deployer/nest-events";
+import { contractBuilder } from "@deployer/events";
 import z from "zod/v4";
 
 const nodeInfoGetInputSchema = z.object({});

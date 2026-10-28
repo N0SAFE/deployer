@@ -1,9 +1,9 @@
-import { isTransientDatabaseError } from "@deployer/nest-events";
+import { isTransientDatabaseError } from "@deployer/events";
 
 /**
  * Database-not-ready handling for the PLATFORM BOOT SEQUENCE.
  *
- * MOVED HERE from `@deployer/nest-events`. The generic "is this a transient storage
+ * MOVED HERE from `@deployer/nest-effect/events`. The generic "is this a transient storage
  * error" rule stayed in the package (`isTransientDatabaseError`); what lives
  * HERE is the platform's own concern: our boot writes the schema through
  * migrations that run inside the orchestrator/setup pipeline, so mesh and swarm

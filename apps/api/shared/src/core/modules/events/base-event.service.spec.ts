@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as z from 'zod';
-import { BaseEventService, contractBuilder } from '@deployer/nest-events';
+import { BaseEventService } from '@deployer/nest-effect/events';
+import { contractBuilder } from '@deployer/events';
 
 const testContracts = {
   changed: contractBuilder()

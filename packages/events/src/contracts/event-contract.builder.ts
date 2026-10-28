@@ -13,6 +13,7 @@ export type EventContract<TInput = unknown, TOutput = unknown> = {
  * Event contracts definition map
  * Maps event names to their contracts
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- contracts of any input/output share one map
 export type EventContracts = Record<string, EventContract<any, any>>;
 
 /**

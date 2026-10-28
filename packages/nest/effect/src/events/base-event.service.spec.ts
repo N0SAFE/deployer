@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi, beforeEach } from 'vitest';
-import { contractBuilder } from '@deployer/nest-events/event-contract.builder';
-import { BaseEventService, type EventLogPersistenceAdapter } from '@deployer/nest-events/base-event.service';
+import { contractBuilder } from '@deployer/events';
+import { BaseEventService, type EventLogPersistenceAdapter } from './base-event.service';
 import * as z from 'zod/v4';
 
 const testContracts = {

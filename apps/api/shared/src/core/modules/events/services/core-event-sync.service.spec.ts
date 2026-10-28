@@ -3,7 +3,8 @@ import { NotFoundException } from "@nestjs/common";
 import z from "zod/v4";
 import { firstValueFrom, from } from "rxjs";
 import { map as rxMap, take, toArray } from "rxjs/operators";
-import { BaseEventService, contractBuilder } from "@deployer/nest-events";
+import { BaseEventService } from "@deployer/nest-effect/events";
+import { contractBuilder } from "@deployer/events";
 import { CoreEventSyncService } from "./core-event-sync.service";
 
 const typedContracts = {

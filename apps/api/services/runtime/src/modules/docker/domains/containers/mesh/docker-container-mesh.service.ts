@@ -9,7 +9,7 @@ import {
     type DockerContainerInspectDetail,
     type DockerRuntimeCatalog,
 } from "@deployer/contracts-entities";
-import { contractBuilder } from "@deployer/nest-events";
+import { contractBuilder } from "@deployer/events";
 import { InternalBaseMeshService, type MeshCallManyResult } from "@deployer/shared/core/modules/mesh/services/base-mesh.service";
 import { SystemMeshTopicService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
 import { SystemMeshTopologyService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";

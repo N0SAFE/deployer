@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BasePooledEventService } from '@deployer/nest-events';
+import { BasePooledEventService } from '@deployer/nest-effect/events';
 import {
   traefikEventContracts,
   type ConfigSyncInput,
@@ -11,7 +11,7 @@ import {
   type CleanupInput,
   type CleanupOutput,
 } from './traefik-event.contracts';
-import { CoreEventStreamPoolService } from '@deployer/nest-events';
+import { CoreEventStreamPoolService } from '@deployer/nest-effect/events';
 
 /**
  * TraefikEventService

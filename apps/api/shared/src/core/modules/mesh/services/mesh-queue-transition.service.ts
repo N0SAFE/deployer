@@ -1,4 +1,4 @@
-import { contractBuilder } from "@deployer/nest-events";
+import { contractBuilder } from "@deployer/events";
 import { InternalBaseMeshService } from "./base-mesh.service";
 import { SystemMeshTopicService } from "./system-mesh-topic/orchestrator/system-mesh-topic.service";
 import { SystemMeshTopologyService } from "./system-mesh-topology/orchestrator/system-mesh-topology.service";

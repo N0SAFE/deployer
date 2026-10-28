@@ -7,8 +7,9 @@ import type {
     CoreEventStreamDefinition,
     CoreSyncedEventEnvelope,
 } from "@deployer/contracts-entities";
-import type { BaseEventService, EventContracts, EventInput, EventOutput } from "@deployer/nest-events";
-import { AbstractDomainEventStreamService, CoreEventStreamPoolService } from "@deployer/nest-events";
+import type { BaseEventService } from "@deployer/nest-effect/events";
+import type { EventContracts, EventInput, EventOutput } from "@deployer/events";
+import { AbstractDomainEventStreamService, CoreEventStreamPoolService } from "@deployer/nest-effect/events";
 import { CoreEventStreamRepository } from "../repositories/core-event-stream.repository";
 
 export type CoreEventAdapterEvent = {
