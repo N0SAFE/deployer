@@ -175,6 +175,11 @@
             "import": "./dist/esm/global/runtime/deployment.schemas.mjs",
             "require": "./dist/cjs/global/runtime/deployment.schemas.js"
         },
+        "./global/runtime/deployment-queue": {
+            "types": "./dist/types/global/runtime/deployment-queue.d.ts",
+            "import": "./dist/esm/global/runtime/deployment-queue.mjs",
+            "require": "./dist/cjs/global/runtime/deployment-queue.js"
+        },
         "./global/runtime/docker-runtime-activity": {
             "types": "./dist/types/global/runtime/docker-runtime-activity.d.ts",
             "import": "./dist/esm/global/runtime/docker-runtime-activity.mjs",

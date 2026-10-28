@@ -134,6 +134,8 @@ export const TABLE_OWNERSHIP: Readonly<Record<string, TableOwner>> = {
 	docker_image_security_scan_history: "runtime",
 	docker_image_security_lifecycle: "runtime",
 	docker_runtime_activities: "runtime",
+	deployment_queue_jobs: "runtime",
+	deployment_dead_letter_jobs: "runtime",
 	image_project_membership: "runtime",
 
 	// ── fleet: the machines this node knows about ───────────────────────────

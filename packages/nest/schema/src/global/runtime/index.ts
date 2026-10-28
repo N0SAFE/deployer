@@ -5,3 +5,4 @@ export * from "./docker-security-scan";
 export * from "./github-provider";
 export * from "./image-project-membership";
 export * from "./runtime";
+export * from "./deployment-queue";

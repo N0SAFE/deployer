@@ -288,6 +288,13 @@
       "when": 1792086400000,
       "tag": "0040_encrypt_environment_variable_values",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793225167609,
+      "tag": "0041_loose_golden_guardian",
+      "breakpoints": true
     }
   ]
 }
