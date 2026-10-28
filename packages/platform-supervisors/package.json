@@ -37,6 +37,7 @@
         "@deployer/effect-core": "*",
         "@deployer/supervision": "*",
         "effect": "catalog:effect",
+        "pg": "catalog:api:nest",
         "zod": "catalog:utils"
     },
     "devDependencies": {
@@ -47,6 +48,7 @@
         "@types/bun": "catalog:build",
         "@types/dockerode": "*",
         "@types/node": "catalog:build",
+        "@types/pg": "^8.23.1",
         "chokidar": "catalog:build",
         "eslint": "catalog:linting",
         "rimraf": "catalog:build",

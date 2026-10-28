@@ -59,3 +59,15 @@ export {
 	PLATFORM_MANAGED_WEB_SUPERVISOR_ID,
 } from "./managed-web/schemas";
 export type { ManagedWebProcessInfo, ManagedWebSupervisorPayload } from "./managed-web/schemas";
+export { makeGlobalDbSupervisor } from "./global-db/global-db-supervisor";
+export type { GlobalDbConfig, GlobalDbDeps, GlobalDbSupervisor } from "./global-db/global-db-supervisor";
+export { parsePostgresUrl } from "./global-db/connection";
+export type { PostgresConnectionInfo } from "./global-db/connection";
+export { probeExternalDatabase } from "./global-db/external-probe";
+export type { ExternalDatabaseObservation } from "./global-db/external-probe";
+export {
+	GLOBAL_DB_SUPERVISOR_ID,
+	globalDbProcessInfoSchema,
+	globalDbSupervisorPayloadSchema,
+} from "./global-db/schemas";
+export type { GlobalDbProcessInfo, GlobalDbSupervisorPayload } from "./global-db/schemas";

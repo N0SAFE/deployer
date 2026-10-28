@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { NotFoundException } from "@nestjs/common";
 import { DockerNotFound } from "@deployer/docker";
 import { Effect } from "effect";
 import {
@@ -8,27 +7,18 @@ import {
 } from "./global-db-supervisor.service";
 import { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
 import type { DockerService } from "@deployer/nest-effect/docker";
-import type { PostgresServiceProvisioner } from "@deployer/nest-effect/docker";
 import type { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 import type { EnvService } from "../../../../config/env/env.module";
 
-type InspectResult = {
-	Id: string;
-	State: { Running: boolean; ExitCode?: number; StartedAt?: string };
-	SizeRw?: number;
-	SizeRootFs?: number;
-};
+type Service = { ID: string; CreatedAt: string; UpdatedAt: string; Spec: { Name: string } };
 
 /** An engine inspect: the value, or the typed not-found the real engine raises for a 404. */
-const orNotFound = <A>(result: Promise<A | null>, resource: string) =>
-	Effect.promise(() => result).pipe(
-		Effect.flatMap((value) => (value === null ? Effect.fail(new DockerNotFound({ resource })) : Effect.succeed(value))),
-	);
+const orNotFound = <A>(value: A | null, resource: string) =>
+	value === null ? Effect.fail(new DockerNotFound({ resource })) : Effect.succeed(value);
 
 function makeMocks(provisioning: "local" | "external" | null = "local") {
-	// Port 1 is never open: the "unreachable" probe test must not depend on the
-	// host's 5432 being free (the managed Postgres container publishes exactly
-	// that port, so using it made the fixture flap between runs).
+	// Port 1 is never open: the "unreachable" probe test must not depend on the host's 5432 being
+	// free (the managed Postgres container publishes exactly that port).
 	const nodeConfigRepository = {
 		find: vi.fn(() =>
 			provisioning === null
@@ -43,89 +33,53 @@ function makeMocks(provisioning: "local" | "external" | null = "local") {
 					}),
 	} as unknown as NodeConfigRepository;
 
-	const startPostgresContainer = vi.fn(async () => ({ id: "pg-1" }));
-	const provisioner = {
-		buildSpec: vi.fn(() => ({
-			name: "deployer-postgres",
-			image: "postgres:16-alpine",
-			mode: "replicated" as const,
-			replicas: 1,
-			env: [],
-			command: [],
-			args: [],
-			labels: {},
-			containerLabels: {},
-			mounts: [],
-			placementPreferences: [],
-			placementConstraints: [],
-			resourcesLimits: {},
-			resourcesReservations: {},
-			networks: [],
-			healthcheck: null,
-			updateConfig: { parallelism: 1, delayMs: 0, order: "start-first" as const, failureAction: "rollback" as const },
-			endpointPorts: [],
-			endpointMode: "dnsrr" as const,
-			stopGracePeriodSeconds: 60,
-		})),
-		attachOverlay: vi.fn((spec: unknown) => spec),
-		ensureOverlay: vi.fn(async () => "deployer-platform-overlay"),
-	} as unknown as PostgresServiceProvisioner;
-
-	const inspectContainer = vi.fn(async (): Promise<InspectResult | null> => ({
-		Id: "pg-1",
-		State: { Running: true, ExitCode: 0, StartedAt: "2026-01-01T00:00:00.000Z" },
-		SizeRw: 12_345,
-		SizeRootFs: 98_765,
-	}));
-	const inspectVolume = vi.fn(async () => ({
+	let service: Service | null = null;
+	let tasks: { Status: { State: string } }[] = [{ Status: { State: "running" } }];
+	const inspectVolume = vi.fn(() => ({
 		Name: "deployer_postgres_data",
 		Mountpoint: "/var/lib/docker/volumes/deployer_postgres_data/_data",
 		UsageData: { Size: 4_567_890, RefCount: 1 },
 	}));
-	const dockerService = {
-		getEngine: () => ({
-			containers: {
-				inspect: () => orNotFound(inspectContainer(), "container"),
-				removeIfExists: () => Effect.void,
-			},
-			volumes: { inspect: () => orNotFound(inspectVolume(), "volume") },
+	const reconcile = vi.fn((spec: { name: string }) =>
+		Effect.sync(() => {
+			service = { ID: "svc-1", CreatedAt: "", UpdatedAt: "", Spec: { Name: spec.name } };
 		}),
-		getSwarmInfo: async () => ({
-			NodeID: "n1",
-			NodeAddr: "",
-			LocalNodeState: "active",
-			ControlAvailable: true,
-			Error: "",
-			RemoteManagers: null,
-			Nodes: 1,
-			Managers: 1,
-		}),
-		inspectSwarmService: vi.fn(async () => ({ ID: "svc-1", Version: { Index: 1 }, Spec: { Name: "deployer-postgres" } })),
-		createSwarmService: vi.fn(async () => ({ ID: "svc-1" })),
-		updateSwarmService: vi.fn(async () => undefined),
-		removeSwarmService: vi.fn(async () => undefined),
-		ensureOverlayNetwork: vi.fn(async () => "net-id"),
-		listSwarmServiceTasks: vi.fn(async () => [{ Status: { State: "running" } }]),
-	} as unknown as DockerService;
+	);
 
-	return { nodeConfigRepository, provisioner, dockerService, startPostgresContainer, inspectContainer, inspectVolume };
+	const engine = {
+		swarmCluster: { isActive: () => Effect.succeed(true) },
+		containers: { removeIfExists: () => Effect.void },
+		networks: { ensureOverlay: () => Effect.void },
+		volumes: { inspect: () => orNotFound(inspectVolume(), "volume") },
+		swarmServices: {
+			reconcile,
+			inspect: () => orNotFound(service, "service"),
+			listTasks: () => Effect.succeed(tasks),
+		},
+	};
+	const dockerService = { getEngine: () => engine } as unknown as DockerService;
+
+	return {
+		nodeConfigRepository,
+		dockerService,
+		inspectVolume,
+		reconcile,
+		/** Pretend the service already exists (so process info and probes see it without a convergence). */
+		seedService: () => {
+			service = { ID: "svc-1", CreatedAt: "", UpdatedAt: "", Spec: { Name: "deployer-postgres" } };
+		},
+		removeService: () => {
+			service = null;
+		},
+		setTasks: (next: { Status: { State: string } }[]) => {
+			tasks = next;
+		},
+	};
 }
 
 function makeSupervisor(mocks: ReturnType<typeof makeMocks>): GlobalDbSupervisorService {
-	const env = {
-		get: vi.fn((key: string) => {
-			const values: Record<string, unknown> = {
-				MANAGED_GLOBAL_DB_ENABLED: false,
-			};
-			return values[key];
-		}),
-	} as unknown as EnvService;
-	return new GlobalDbSupervisorService(
-		mocks.dockerService,
-		mocks.provisioner,
-		mocks.nodeConfigRepository,
-		env,
-	);
+	const env = { get: vi.fn((key: string) => ({ MANAGED_GLOBAL_DB_ENABLED: false })[key as "MANAGED_GLOBAL_DB_ENABLED"]) } as unknown as EnvService;
+	return new GlobalDbSupervisorService(mocks.dockerService, mocks.nodeConfigRepository, env);
 }
 
 describe("GlobalDbSupervisorService — conditional registration", () => {
@@ -135,7 +89,7 @@ describe("GlobalDbSupervisorService — conditional registration", () => {
 		const orchestrator = new SupervisorOrchestratorService();
 		(supervisor as unknown as { orchestrator: SupervisorOrchestratorService }).orchestrator = orchestrator;
 
-		await supervisor.onModuleInit();
+		supervisor.onModuleInit();
 
 		expect(orchestrator.has(GLOBAL_DB_SUPERVISOR_ID)).toBe(true);
 		expect(orchestrator.list().map((s) => s.supervisorId)).toContain(GLOBAL_DB_SUPERVISOR_ID);
@@ -147,7 +101,7 @@ describe("GlobalDbSupervisorService — conditional registration", () => {
 		const orchestrator = new SupervisorOrchestratorService();
 		(supervisor as unknown as { orchestrator: SupervisorOrchestratorService }).orchestrator = orchestrator;
 
-		await supervisor.onModuleInit();
+		supervisor.onModuleInit();
 
 		expect(orchestrator.has(GLOBAL_DB_SUPERVISOR_ID)).toBe(false);
 	});
@@ -158,7 +112,7 @@ describe("GlobalDbSupervisorService — conditional registration", () => {
 		const orchestrator = new SupervisorOrchestratorService();
 		(supervisor as unknown as { orchestrator: SupervisorOrchestratorService }).orchestrator = orchestrator;
 
-		await supervisor.onModuleInit();
+		supervisor.onModuleInit();
 
 		expect(orchestrator.has(GLOBAL_DB_SUPERVISOR_ID)).toBe(false);
 	});
@@ -172,8 +126,7 @@ describe("GlobalDbSupervisorService — reconcile", () => {
 		const state = await supervisor.ensureDesiredState();
 
 		expect(state).toBe("converged");
-		// Swarm path: inspectSwarmService → reconcileSwarmService → updateSwarmService
-		expect(mocks.dockerService.inspectSwarmService).toHaveBeenCalled();
+		expect(mocks.reconcile).toHaveBeenCalledWith(expect.objectContaining({ name: "deployer-postgres" }));
 	});
 
 	it("does NOT touch the container for an external database", async () => {
@@ -183,7 +136,7 @@ describe("GlobalDbSupervisorService — reconcile", () => {
 		const state = await supervisor.ensureDesiredState();
 
 		expect(state).toBe("converged");
-		expect(mocks.startPostgresContainer).not.toHaveBeenCalled();
+		expect(mocks.reconcile).not.toHaveBeenCalled();
 	});
 });
 
@@ -212,9 +165,7 @@ describe("GlobalDbSupervisorService — probe / health", () => {
 		const mocks = makeMocks("local");
 		const supervisor = makeSupervisor(mocks);
 		await supervisor.ensureDesiredState();
-		(mocks.dockerService.inspectSwarmService as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-			new NotFoundException("service not found"),
-		);
+		mocks.removeService();
 
 		const health = await supervisor.getHealth();
 
@@ -230,9 +181,7 @@ describe("GlobalDbSupervisorService — probe / health", () => {
 		const mocks = makeMocks("local");
 		const supervisor = makeSupervisor(mocks);
 		await supervisor.ensureDesiredState();
-		(mocks.dockerService.listSwarmServiceTasks as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
-			{ Status: { State: "pending" } },
-		]);
+		mocks.setTasks([{ Status: { State: "pending" } }]);
 
 		const health = await supervisor.getHealth();
 
@@ -266,6 +215,7 @@ describe("GlobalDbSupervisorService — probe / health", () => {
 describe("GlobalDbSupervisorService — process info", () => {
 	it("reports the managed postgres process + connection DSN via getProcessInfo", async () => {
 		const mocks = makeMocks("local");
+		mocks.seedService();
 		const supervisor = makeSupervisor(mocks);
 
 		const info = await supervisor.getProcessInfo();
@@ -286,10 +236,6 @@ describe("GlobalDbSupervisorService — process info", () => {
 
 	it("reports missing service state when the managed swarm service is gone", async () => {
 		const mocks = makeMocks("local");
-		// Both the health probe AND the process-info inspector see no service.
-		(mocks.dockerService.inspectSwarmService as ReturnType<typeof vi.fn>).mockRejectedValue(
-			new NotFoundException("service not found"),
-		);
 		const supervisor = makeSupervisor(mocks);
 
 		const info = await supervisor.getProcessInfo();
