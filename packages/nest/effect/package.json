@@ -3,7 +3,6 @@
 		"@deployer/contracts-entities": "*",
 		"@deployer/effect-core": "*",
 		"@deployer/errors": "*",
-		"@deployer/supervision": "*",
 		"@deployer/type-guards": "*",
 		"@nestjs/common": "catalog:api:nest",
 		"@nestjs/core": "catalog:api:nest",
@@ -44,11 +43,6 @@
 			"import": "./dist/esm/testing.mjs",
 			"require": "./dist/cjs/testing.js",
 			"types": "./dist/types/testing.d.ts"
-		},
-		"./supervision": {
-			"import": "./dist/esm/supervision/index.mjs",
-			"require": "./dist/cjs/supervision/index.js",
-			"types": "./dist/types/supervision/index.d.ts"
 		}
 	},
 	"main": "./dist/cjs/index.js",

@@ -11,7 +11,7 @@ import { CoreReachabilityModule } from "../reachability/core-reachability.module
 import { MeshVersionService } from "../mesh/version/mesh-version.service";
 import { SwarmCoreModule } from "../swarm/swarm.module";
 import { AppLifecycleModule } from "../lifecycle";
-import { SupervisorsModule } from "@deployer/nest-effect/supervision";
+import { SupervisorsModule } from "../supervision/index";
 import { EnvModule, EnvService } from "../../../config/env/env.module";
 
 /**

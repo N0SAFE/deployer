@@ -5,7 +5,7 @@ import {
 	GlobalDbSupervisorService,
 	GLOBAL_DB_SUPERVISOR_ID,
 } from "./global-db-supervisor.service";
-import { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
+import { SupervisorOrchestratorService } from "../../supervision/index";
 import type { DockerEngineShape } from "@deployer/docker";
 import type { NodeConfigRepositoryShape } from "@deployer/node-state";
 import type { EnvService } from "../../../../config/env/env.module";

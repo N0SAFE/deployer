@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
+import type { SupervisorOrchestratorService } from "../../supervision/index";
 
 import { EdgeConnectorSupervisorService } from "../../supervisors/platform/edge-connector-supervisor.service";
 import { TraefikSupervisorService } from "../../supervisors/platform/traefik-supervisor.service";

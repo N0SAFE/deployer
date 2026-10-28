@@ -3,7 +3,7 @@ import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { platformOverlayForPrefix } from "@deployer/docker";
 import { NODE_DOORS_SETTING_KEY, type DoorRescueRoute } from "@deployer/mesh-network";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
-import { SupervisorHost } from "@deployer/nest-effect/supervision";
+import { SupervisorHost } from "../../supervision/index";
 import { splitManagedEnv } from "@deployer/env";
 import {
 	makeTraefikSupervisor,

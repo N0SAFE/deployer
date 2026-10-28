@@ -1,6 +1,6 @@
 import { Injectable, Inject } from "@nestjs/common";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
-import { SupervisorHost } from "@deployer/nest-effect/supervision";
+import { SupervisorHost } from "../../supervision/index";
 import { splitManagedEnv } from "@deployer/env";
 import {
 	DATABASE_SERVICE_SUPERVISOR_ID,

@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { Database as BunSqliteDatabase } from "bun:sqlite";
 import { LOCAL_DATABASE_CONNECTION } from "../../database/database-connection"
-import { SupervisorHost } from "@deployer/nest-effect/supervision";
+import { SupervisorHost } from "../../supervision/index";
 import { splitManagedEnv } from "@deployer/env";
 import type { LocalDb } from "@deployer/node-state";
 import {

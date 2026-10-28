@@ -6,7 +6,7 @@ import {
 	LocalDbSupervisorService,
 	LOCAL_DB_SUPERVISOR_ID,
 } from "./local-db-supervisor.service";
-import { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
+import { SupervisorOrchestratorService } from "../../supervision/index";
 import type { LocalDb } from "@deployer/node-state";
 import type { EnvService } from "../../../../config/env/env.module";
 

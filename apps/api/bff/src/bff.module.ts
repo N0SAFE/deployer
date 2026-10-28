@@ -39,7 +39,7 @@ import { TestDomainModule } from "./domains/test/test.module";
 // The monolith has always imported these (`apps/api/src/app.module.ts`), which is
 // why the supervised monolith profile worked and the microservices one could not.
 // The BFF inherits the monolith's public role, so it inherits the duty.
-import { SupervisorsModule } from "@deployer/nest-effect/supervision";
+import { SupervisorsModule } from "@deployer/shared/core/modules/supervision/index";
 import { SupervisorsDatabaseModule } from "@/core/modules/supervisors/database/database-supervisors.module";
 import { SupervisorsPlatformModule } from "@/core/modules/supervisors/platform/platform-supervisors.module";
 // ── THE INGRESS'S ROUTE SOURCE ──────────────────────────────────────────

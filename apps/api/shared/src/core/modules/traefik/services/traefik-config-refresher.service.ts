@@ -14,7 +14,7 @@
  */
 
 import { Injectable, Logger } from "@nestjs/common";
-import { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
+import { SupervisorOrchestratorService } from "../../supervision/index";
 
 import { EdgeConnectorSupervisorService } from "../../supervisors/platform/edge-connector-supervisor.service";
 import { TraefikSupervisorService } from "../../supervisors/platform/traefik-supervisor.service";

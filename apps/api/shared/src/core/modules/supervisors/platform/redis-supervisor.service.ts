@@ -1,6 +1,6 @@
 import { Injectable, Inject } from "@nestjs/common";
 import { splitManagedEnv } from "@deployer/env";
-import { SupervisorHost } from "@deployer/nest-effect/supervision";
+import { SupervisorHost } from "../../supervision/index";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import {
 	makeRedisSupervisor,

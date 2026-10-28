@@ -2,7 +2,7 @@ import { runSyncUnwrapped } from "@deployer/effect-core";
 import { Injectable, Inject } from "@nestjs/common";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
-import { SupervisorHost } from "@deployer/nest-effect/supervision";
+import { SupervisorHost } from "../../supervision/index";
 import { MANAGED_POSTGRES_IMAGE } from "@deployer/docker";
 import { splitManagedEnv } from "@deployer/env";
 import {

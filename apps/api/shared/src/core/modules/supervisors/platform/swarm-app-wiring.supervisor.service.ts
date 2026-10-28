@@ -1,6 +1,6 @@
 import { Injectable, type OnModuleDestroy, Inject } from "@nestjs/common";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
-import { SupervisorHost } from "@deployer/nest-effect/supervision";
+import { SupervisorHost } from "../../supervision/index";
 import { platformNetworkName, platformOverlayForPrefix } from "@deployer/docker";
 import {
 	makeSwarmAppWiring,

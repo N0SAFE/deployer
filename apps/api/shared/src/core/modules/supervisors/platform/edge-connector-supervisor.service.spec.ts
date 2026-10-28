@@ -2,7 +2,7 @@ import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import { defaultIngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
 import type { DockerEngineShape } from "@deployer/docker";
-import { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
+import { SupervisorOrchestratorService } from "../../supervision/index";
 
 import type { EnvService } from "../../../../config/env/env.module";
 import type { EdgeConnectorSpec } from "../../edge/edge-provider";

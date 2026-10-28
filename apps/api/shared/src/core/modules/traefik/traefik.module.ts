@@ -14,7 +14,7 @@ import { TraefikIngressConfigController } from './controllers/traefik-ingress-co
 import { TraefikConfigRefresher } from './services/traefik-config-refresher.service';
 import { DatabaseModule } from '../database/database.module';
 import { EventsModule } from '../events/events.module';
-import { SupervisorsModule } from "@deployer/nest-effect/supervision";
+import { SupervisorsModule } from "../supervision/index";
 import { CorePlatformIngressModule } from '../platform-ingress/platform-ingress.module';
 import { CoreDockerModule } from '../docker/docker.module';
 import { CoreEdgeModule } from '../edge/edge.module';

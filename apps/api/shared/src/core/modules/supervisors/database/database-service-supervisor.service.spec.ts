@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import type { DockerEngineShape } from "@deployer/docker";
-import { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
+import { SupervisorOrchestratorService } from "../../supervision/index";
 
 import type { EnvService } from "../../../../config/env/env.module";
 import { DATABASE_SERVICE_SUPERVISOR_ID, DatabaseServiceSupervisorService } from "./database-service-supervisor.service";

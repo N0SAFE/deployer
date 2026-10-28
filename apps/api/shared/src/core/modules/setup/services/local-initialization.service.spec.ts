@@ -7,7 +7,7 @@ import type { PostgresProvisionerShape } from "@deployer/docker";
 import type { EnvService } from "../../../../config/env/env.module";
 import type { SwarmBootstrapShape } from "@deployer/swarm"
 import type { SwarmClusterShape } from "@deployer/swarm"
-import type { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
+import type { SupervisorOrchestratorService } from "../../supervision/index";
 import type { DockerEngineShape } from "@deployer/docker";
 import type { EmitEvent } from "../utils/setup-runner.utils";
 

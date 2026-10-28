@@ -6,7 +6,7 @@
  */
 
 import { createModuleContext } from "@deployer/nest-effect";
-import { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
+import { SupervisorOrchestratorService } from "@deployer/shared/core/modules/supervision/index";
 import { HostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
 import { PlatformConfigService } from "@deployer/shared/core/modules/platform-ingress/services/platform-config.service";
 import { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";

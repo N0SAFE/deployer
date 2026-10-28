@@ -2,7 +2,7 @@
  * @deployer/platform-supervisors — the platform's own infrastructure as Effect supervisors.
  *
  * Each supervisor is a `SupervisorSpec` over the Docker engine; a Nest app hosts it through
- * `SupervisorHost` in `@deployer/nest-effect/supervision`.
+ * `SupervisorHost` in `apps/api/shared` (`core/modules/supervision`).
  */
 export {
 	EVENT_RECONNECT_MS,
