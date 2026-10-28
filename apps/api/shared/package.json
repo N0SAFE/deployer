@@ -79,6 +79,7 @@
         "@deployer/docker": "*",
         "@deployer/events": "*",
         "@deployer/nest-effect": "*",
+        "@deployer/platform-supervisors": "*",
         "@deployer/node-state": "*",
         "@deployer/nest-reachability": "*",
         "@deployer/nest-schema": "*",

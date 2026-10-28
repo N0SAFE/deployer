@@ -9,6 +9,7 @@ import {
 	type HealthSnapshot,
 	type ProbeResult,
 	type Supervisor,
+	type SupervisorSpec,
 	type SupervisorIdentifierInput,
 	type SupervisorState,
 } from "@deployer/supervision";
@@ -41,7 +42,7 @@ export type SupervisorHealthSnapshot<TSchema extends z.ZodType> = HealthSnapshot
  * Identifiers: a class declares a static `identifier`, and `getIdentifier(input?)` gives the stable
  * registry id, hashed with the input for classes with several instances.
  */
-export abstract class BaseSupervisorService<
+export abstract class SupervisorHost<
 	TSchema extends z.ZodType = typeof baseSupervisorPayloadSchema,
 	TProcessSchema extends z.ZodType = typeof baseSupervisorProcessInfoSchema,
 > implements OnModuleInit
@@ -56,7 +57,7 @@ export abstract class BaseSupervisorService<
 
 	/** The registry id, computed once from the class static and `getIdentifierInput()`. */
 	get supervisorId(): string {
-		this._supervisorId ??= (this.constructor as unknown as typeof BaseSupervisorService).getIdentifier(this.getIdentifierInput());
+		this._supervisorId ??= (this.constructor as unknown as typeof SupervisorHost).getIdentifier(this.getIdentifierInput());
 		return this._supervisorId;
 	}
 	private _supervisorId: string | undefined;
@@ -83,22 +84,14 @@ export abstract class BaseSupervisorService<
 	/** The Effect supervisor running this one's lifecycle, built on first use. */
 	get runtime(): Supervisor<z.output<TSchema>, z.output<TProcessSchema>> {
 		this._runtime ??= makeSupervisor(
-			{
-				id: this.supervisorId,
-				description: this.description,
-				payloadSchema: this.payloadSchema,
-				processInfoSchema: this.processInfoSchema,
-				converge: attempt(() => this.reconcile()),
-				probe: attempt(() => this.probe()),
-				degradedPayload: (detail) => this.buildDegradedPayload(detail),
-				processInfo: attempt(() => this.buildProcessInfo()),
-				blocker: attempt(() => this.convergenceBlocker()),
-				warnings: (probe) => this.collectWarnings(probe),
-			},
+			this.buildSpec(),
 			{ ...(this.eventBus ? { bus: this.eventBus.core } : {}), label: this.constructor.name, source: this },
 		);
 		return this._runtime;
 	}
+
+	/** The description of this supervisor for the Effect lifecycle. */
+	protected abstract buildSpec(): SupervisorSpec<TSchema, TProcessSchema>;
 
 	/** The instance-specific part of the identifier; single-instance supervisors return undefined. */
 	protected getIdentifierInput(): SupervisorIdentifierInput {
@@ -107,6 +100,54 @@ export abstract class BaseSupervisorService<
 
 	onModuleInit(): void {
 		this.orchestrator?.register(this as never);
+	}
+
+	/** One convergence pass, recording the state it ends in. Never throws. */
+	ensureDesiredState(): Promise<SupervisorState> {
+		return runPromiseUnwrapped(this.runtime.ensureDesiredState);
+	}
+
+	/** Health snapshot; a probe that fails degrades gracefully instead of throwing. */
+	getHealth(): Promise<SupervisorHealthSnapshot<TSchema>> {
+		return runPromiseUnwrapped(this.runtime.getHealth);
+	}
+
+	/** `getHealth`, published as a `health-snapshot` event. */
+	getHealthAndNotify(): Promise<SupervisorHealthSnapshot<TSchema>> {
+		return runPromiseUnwrapped(this.runtime.getHealthAndNotify);
+	}
+
+	/** Health plus the supervisor's process description, validated against `processInfoSchema`. */
+	getProcessInfo(): Promise<z.output<TProcessSchema>> {
+		return runPromiseUnwrapped(this.runtime.getProcessInfo);
+	}
+
+	getStateSnapshot(): { state: SupervisorState; detail: string | null } {
+		return Effect.runSync(this.runtime.getStateSnapshot);
+	}
+}
+
+/**
+ * A supervisor written as Promise methods: the Nest subclasses that have not moved to an Effect
+ * `SupervisorSpec` yet. `buildSpec` adapts the methods; the lifecycle is the same framework.
+ */
+export abstract class BaseSupervisorService<
+	TSchema extends z.ZodType = typeof baseSupervisorPayloadSchema,
+	TProcessSchema extends z.ZodType = typeof baseSupervisorProcessInfoSchema,
+> extends SupervisorHost<TSchema, TProcessSchema> {
+	protected buildSpec(): SupervisorSpec<TSchema, TProcessSchema> {
+		return {
+			id: this.supervisorId,
+			description: this.description,
+			payloadSchema: this.payloadSchema,
+			processInfoSchema: this.processInfoSchema,
+			converge: attempt(() => this.reconcile()),
+			probe: attempt(() => this.probe()),
+			degradedPayload: (detail) => this.buildDegradedPayload(detail),
+			processInfo: attempt(() => this.buildProcessInfo()),
+			blocker: attempt(() => this.convergenceBlocker()),
+			warnings: (probe) => this.collectWarnings(probe),
+		};
 	}
 
 	/** One idempotent convergence pass. Throws on failure so the caller can apply a backoff policy. */
@@ -142,30 +183,6 @@ export abstract class BaseSupervisorService<
 
 	protected delay(ms: number): Promise<void> {
 		return new Promise((resolve) => setTimeout(resolve, ms));
-	}
-
-	/** One convergence pass, recording the state it ends in. Never throws. */
-	ensureDesiredState(): Promise<SupervisorState> {
-		return runPromiseUnwrapped(this.runtime.ensureDesiredState);
-	}
-
-	/** Health snapshot; a probe that fails degrades gracefully instead of throwing. */
-	getHealth(): Promise<SupervisorHealthSnapshot<TSchema>> {
-		return runPromiseUnwrapped(this.runtime.getHealth);
-	}
-
-	/** `getHealth`, published as a `health-snapshot` event. */
-	getHealthAndNotify(): Promise<SupervisorHealthSnapshot<TSchema>> {
-		return runPromiseUnwrapped(this.runtime.getHealthAndNotify);
-	}
-
-	/** Health plus the supervisor's process description, validated against `processInfoSchema`. */
-	getProcessInfo(): Promise<z.output<TProcessSchema>> {
-		return runPromiseUnwrapped(this.runtime.getProcessInfo);
-	}
-
-	getStateSnapshot(): { state: SupervisorState; detail: string | null } {
-		return Effect.runSync(this.runtime.getStateSnapshot);
 	}
 
 	/** Retries `fn` with exponential backoff, rethrowing the last error once the attempts run out. */

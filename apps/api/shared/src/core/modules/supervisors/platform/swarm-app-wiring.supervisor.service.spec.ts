@@ -32,6 +32,8 @@ function makeDocker(options: { swarmActive: boolean; containers: FakeContainer[]
 	const findContainer = (idOrName: string) =>
 		containers.get(idOrName) ?? [...containers.values()].find((c) => c.name === idOrName);
 
+	const ensureOverlayNetwork = vi.fn((_request: unknown) => Effect.void);
+
 	const engine = {
 		containers: {
 			list: vi.fn(() =>
@@ -52,6 +54,7 @@ function makeDocker(options: { swarmActive: boolean; containers: FakeContainer[]
 			}),
 		},
 		networks: {
+			ensureOverlay: ensureOverlayNetwork,
 			attachContainer: vi.fn((_overlay: string, id: string, aliases: readonly string[] = []) => {
 				const container = containers.get(id);
 				if (container === undefined) {
@@ -73,12 +76,10 @@ function makeDocker(options: { swarmActive: boolean; containers: FakeContainer[]
 		},
 		// Inert event stream: the supervisor subscribes but nothing is emitted.
 		events: { stream: vi.fn(() => Stream.never) },
+		swarmCluster: { isActive: () => Effect.succeed(options.swarmActive) },
 	};
 
-	const ensureOverlayNetwork = vi.fn(async () => undefined);
 	const dockerService = {
-		getSwarmInfo: vi.fn(async () => ({ LocalNodeState: options.swarmActive ? "active" : "inactive" })),
-		ensureOverlayNetwork,
 		getEngine: () => engine,
 	} as unknown as DockerService;
 
