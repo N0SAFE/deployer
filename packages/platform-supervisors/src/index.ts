@@ -108,3 +108,7 @@ export {
 	edgeConnectorSupervisorPayloadSchema,
 } from "./edge-connector/schemas";
 export type { EdgeConnectorProcessInfo, EdgeConnectorRuntime, EdgeConnectorSupervisorPayload } from "./edge-connector/schemas";
+export { makeLocalDbSupervisor } from "./local-db/local-db-supervisor";
+export type { LocalDbDeps, LocalDbSupervisor, LocalSqlite } from "./local-db/local-db-supervisor";
+export { LOCAL_DB_SUPERVISOR_ID, localDbProcessInfoSchema, localDbSupervisorPayloadSchema } from "./local-db/schemas";
+export type { LocalDbProcessInfo, LocalDbSupervisorPayload } from "./local-db/schemas";

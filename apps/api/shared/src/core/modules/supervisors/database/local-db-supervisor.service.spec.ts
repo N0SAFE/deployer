@@ -6,6 +6,7 @@ import {
 	LocalDbSupervisorService,
 	LOCAL_DB_SUPERVISOR_ID,
 } from "./local-db-supervisor.service";
+import { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
 import type { LocalDb } from "@deployer/node-state";
 import type { EnvService } from "../../../../config/env/env.module";
 
@@ -31,6 +32,22 @@ function makeSupervisor(db: LocalDb): LocalDbSupervisorService {
 }
 
 describe("LocalDbSupervisorService", () => {
+	it("registers with the orchestrator unless the deployment owns the file", () => {
+		const registered = makeSupervisor(makeInMemoryDb());
+		const orchestrator = new SupervisorOrchestratorService();
+		(registered as unknown as { orchestrator: SupervisorOrchestratorService }).orchestrator = orchestrator;
+		registered.onModuleInit();
+		expect(orchestrator.has(LOCAL_DB_SUPERVISOR_ID)).toBe(true);
+
+		const composeOwned = new LocalDbSupervisorService(makeInMemoryDb(), {
+			get: vi.fn((key: string) => (key === "MANAGED_LOCAL_DB_ENABLED" ? true : undefined)),
+		} as unknown as EnvService);
+		const other = new SupervisorOrchestratorService();
+		(composeOwned as unknown as { orchestrator: SupervisorOrchestratorService }).orchestrator = other;
+		composeOwned.onModuleInit();
+		expect(other.has(LOCAL_DB_SUPERVISOR_ID)).toBe(false);
+	});
+
 	it("exposes a stable identity + schema for registry + health reporting", () => {
 		const supervisor = makeSupervisor(makeInMemoryDb());
 		expect(supervisor.supervisorId).toBe(LOCAL_DB_SUPERVISOR_ID);
