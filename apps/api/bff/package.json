@@ -50,7 +50,6 @@
         "@deployer/identity-contracts": "*",
         "@deployer/logger": "*",
         "@deployer/nest-database-core": "*",
-        "@deployer/nest-env": "*",
         "@deployer/node-state": "*",
         "@deployer/nest-schema": "*",
         "@deployer/nest-service-client": "*",

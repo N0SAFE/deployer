@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 import { apiEnvSchema } from "@deployer/env";
-import { EnvModule as NestEnvModule } from "@deployer/nest-env";
+import { EnvModule as NestEnvModule } from "@deployer/nest-effect/env";
 
 import { EnvService } from "./env.service";
 
@@ -11,7 +11,7 @@ export { EnvService };
 /**
  * The API's environment module.
  *
- * The API owns its CONTRACT (`apiEnvSchema`); the shared `@deployer/nest-env`
+ * The API owns its CONTRACT (`apiEnvSchema`); the shared `@deployer/nest-effect/env`
  * package owns the MECHANISM (load `.env`, validate, expose a typed service).
  * Declaring the schema here is what keeps `apps/setup` free to use the same
  * package with its own variables.

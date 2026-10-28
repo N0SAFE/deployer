@@ -4,7 +4,7 @@ import { EnvService } from "@/config/env/env.module";
 import { apiEnvSchema } from '@deployer/env';
 import zod from 'zod/v4';
 import { CliAuthService } from '../services/cli-auth.service';
-import { EnvService as BaseEnvService } from "@deployer/nest-env";
+import { EnvService as BaseEnvService } from "@deployer/nest-effect/env";
 
 // Extend the API schema with command-specific environment variables. Both
 // mirror the base schema's optionality — the boot path never requires them,

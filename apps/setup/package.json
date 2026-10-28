@@ -54,7 +54,6 @@
     "@deployer/mesh-network": "*",
     "@deployer/docker": "*",
     "@deployer/nest-effect": "*",
-    "@deployer/nest-env": "*",
     "@deployer/node-state": "*",
     "@deployer/nest-reachability": "*",
     "@deployer/nest-schema": "*",

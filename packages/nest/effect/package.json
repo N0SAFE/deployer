@@ -3,6 +3,7 @@
 		"@deployer/contracts-entities": "*",
 		"@deployer/docker": "*",
 		"@deployer/effect-core": "*",
+		"@deployer/environment": "*",
 		"@deployer/lifecycle": "*",
         "@deployer/mesh-network": "*",
 		"@deployer/errors": "*",
@@ -72,6 +73,11 @@
 			"require": "./dist/cjs/docker/index.js",
 			"types": "./dist/types/docker/index.d.ts"
 		},
+		"./env": {
+			"import": "./dist/esm/env/index.mjs",
+			"require": "./dist/cjs/env/index.js",
+			"types": "./dist/types/env/index.d.ts"
+		},
 		"./lifecycle": {
 			"import": "./dist/esm/lifecycle/index.mjs",
 			"require": "./dist/cjs/lifecycle/index.js",
@@ -83,6 +89,7 @@
 	"name": "@deployer/nest-effect",
 	"peerDependencies": {
 		"@nestjs/common": "catalog:api:nest",
+		"@nestjs/config": "catalog:api:nest",
 		"@nestjs/core": "catalog:api:nest"
 	},
 	"scripts": {

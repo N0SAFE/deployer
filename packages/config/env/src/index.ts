@@ -87,7 +87,7 @@ export { emptyableString };
  * ── IDEMPOTENT BY DESIGN: THIS IS WHY IT MUST BE REUSED, NOT REINVENTED ───────
  * `EnvService` validates TWICE on purpose — once through ConfigModule's
  * `validate` hook, then again by re-reading each key through the schema (see
- * `@deployer/nest-env`). So a flag parser is fed its OWN OUTPUT on the second pass.
+ * `@deployer/nest-effect/env`). So a flag parser is fed its OWN OUTPUT on the second pass.
  *
  * A `z.enum(["true","false"]).transform(...)` is NOT idempotent: the first pass
  * yields the boolean `false`, which the second pass rejects — `Invalid enum

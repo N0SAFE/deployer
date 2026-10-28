@@ -1,7 +1,7 @@
 {
-    "name": "@deployer/nest-env",
+    "name": "@deployer/environment",
     "version": "1.0.0",
-    "description": "NestJS environment binding — ConfigModule wired to the shared @deployer/env schema, exposed through a typed EnvService.",
+    "description": "The process environment as Effect: validated once through an app-supplied schema, typed reads, and a typed failure listing every invalid variable.",
     "main": "./dist/cjs/index.js",
     "types": "./dist/types/index.d.ts",
     "exports": {
@@ -24,35 +24,31 @@
         "lint:fix": "bun lint --no-script --fix --type-aware",
         "lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
         "type-check": "bun check --no-script",
-        "test": "vitest run",
-        "test:watch": "vitest",
-        "test:coverage": "vitest run --coverage",
+        "test": "bun --bun vitest run",
+        "test:watch": "bun --bun vitest",
         "build": "bun --bun pkg-build",
         "dev": "bun --bun pkg-build --watch",
         "clean": "rimraf dist",
         "build:types": "bun --bun pkg-build --types"
     },
     "dependencies": {
-        "@nestjs/common": "catalog:api:nest",
-        "@nestjs/config": "catalog:api:nest",
-        "@deployer/env": "*",
+        "@deployer/effect-core": "*",
+        "effect": "catalog:effect",
         "zod": "catalog:utils"
-    },
-    "peerDependencies": {
-        "@nestjs/common": "catalog:api:nest"
     },
     "devDependencies": {
         "@deployer/config-eslint": "*",
         "@deployer/config-prettier": "*",
         "@deployer/config-typescript": "*",
         "@deployer/pkg-build": "*",
+        "@types/bun": "catalog:build",
+        "@types/dockerode": "*",
         "@types/node": "catalog:build",
         "chokidar": "catalog:build",
         "eslint": "catalog:linting",
         "rimraf": "catalog:build",
         "typescript": "catalog:build",
-        "vitest": "catalog:testing",
-        "@deployer/config-vitest": "*"
+        "vitest": "catalog:testing"
     },
     "module": "./dist/esm/index.mjs"
 }

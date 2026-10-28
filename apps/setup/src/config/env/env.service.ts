@@ -1,6 +1,6 @@
 import { Injectable, Optional } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { EnvService as BaseEnvService } from "@deployer/nest-env";
+import { EnvService as BaseEnvService } from "@deployer/nest-effect/env";
 
 import { setupEnvSchema, type SetupEnv } from "./env.schema";
 

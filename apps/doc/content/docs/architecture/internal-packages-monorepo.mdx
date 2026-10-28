@@ -36,7 +36,7 @@ Both are expected and intentionally different.
 | `@deployer/declarative-routing` | `packages/routing/declarative` |
 | `@deployer/env` | `packages/config/env` |
 | `@deployer/ui` | `packages/ui/base` |
-| `@deployer/nest-env` | `packages/nest/env` |
+| `@deployer/environment` | `packages/environment` |
 | `@deployer/nest-schema` | `packages/nest/schema` |
 | `@deployer/nest-database-core` | `packages/nest/database-core` |
 | `@deployer/nest-database-local` | `packages/nest/database-local` |
@@ -55,7 +55,7 @@ These are pre-wired NestJS building blocks shared between the Nest apps (`api`,
 
 | Package | Ships | The app supplies |
 | --- | --- | --- |
-| `nest-env` | env loading + validation + a typed `EnvService` | the app's Zod schema |
+| `environment` | the validated environment (Effect), mounted by `nest-effect/env` | — |
 | `nest-schema` | drizzle table definitions + the codec registry | the encryption key + traefik builder (via `configureSchemaCodecs`) |
 | `nest-database-core` | `BaseDatabaseService` over any drizzle client | the concrete database service |
 | `nest-database-local` | the SQLite connection + `@Global` module | — |
