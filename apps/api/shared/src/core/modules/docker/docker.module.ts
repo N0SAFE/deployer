@@ -1,69 +1,84 @@
-import { Global, Module } from "@nestjs/common";
-import type { DockerConnectionConfig, ScannerConfig } from "@deployer/docker";
+import { Global, Inject, Injectable, Logger, Module, type OnModuleDestroy } from "@nestjs/common";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import {
-  DockerService,
-  PostgresServiceProvisioner,
-  ScannerContainerManagerService,
-} from "@deployer/nest-effect/docker";
+  DockerEngine,
+  DockerHost,
+  makeDockerHost,
+  makePostgresProvisioner,
+  makeScannerPool,
+  PostgresProvisioner,
+  ScannerPool,
+  type DockerEngineShape,
+  type DockerHostShape,
+  type ScannerConfig,
+  type ScannerPoolShape,
+} from "@deployer/docker";
 
 import { EnvModule, EnvService } from "../../../config/env/env.module";
 
 /**
- * CORE MODULE: Docker — the API's WIRING of the shared docker primitives.
+ * CORE MODULE: Docker — the API's WIRING of the `@deployer/docker` Effect services.
  *
- * The package owns the behaviour (`@deployer/nest-docker`); this module owns the
- * CONFIGURATION, reading this app's environment and handing each primitive the
- * narrow contract it declares. That split is why the package can be used by a
- * second app with different variables — it never reads an env var itself.
+ * The package owns the behaviour; this module owns the CONFIGURATION, reading this app's environment
+ * and providing the host, the engine, the scanner pool and the Postgres provisioner under the
+ * package's own tags. Callers inject the tag they need and run its Effects.
  *
- * `EnvModule` IS IMPORTED EXPLICITLY. The factories below inject `EnvService`,
- * so it must be resolvable from THIS module's scope. Importing only the
- * `EnvService` class (for its type) would compile fine and then fail at boot in
- * any container where `EnvModule` was not registered globally elsewhere — the
- * hidden coupling the `AppModule` graph check exists to surface.
+ * `EnvModule` IS IMPORTED EXPLICITLY. The factories below inject `EnvService`, so it must be
+ * resolvable from THIS module's scope rather than assumed to be registered globally elsewhere.
  */
 
 /** Defaults live HERE, not in the package: what scanner image to run is a deployment decision. */
 const DEFAULT_SCANNER_RUNNER_IMAGE = "deployer-scanner-runner:latest";
 const DEFAULT_SCANNER_APP_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
+/** Stops the scanner containers this process started, when the context closes. */
+@Injectable()
+class ScannerPoolLifecycle implements OnModuleDestroy {
+  constructor(@Inject(ScannerPool) private readonly pool: ScannerPoolShape) {}
+
+  async onModuleDestroy(): Promise<void> {
+    await runPromiseUnwrapped(this.pool.stopAll);
+  }
+}
+
 @Global()
 @Module({
   imports: [EnvModule],
   providers: [
     {
-      provide: DockerService,
-      useFactory: (env: EnvService) => {
-        const config: DockerConnectionConfig = {
-          host: env.get("DOCKER_HOST"),
-          port: env.get("DOCKER_PORT"),
-        };
-        return new DockerService(config);
+      provide: DockerHost,
+      useFactory: (env: EnvService): DockerHostShape => {
+        const logger = new Logger("DockerHost");
+        const host = makeDockerHost({ host: env.get("DOCKER_HOST"), port: env.get("DOCKER_PORT") });
+        for (const warning of host.warnings) logger.warn(warning);
+        logger.log(`Configured Docker client via ${host.mode}`);
+        return host;
       },
       inject: [EnvService],
     },
+    { provide: DockerEngine, useFactory: (host: DockerHostShape) => host.engine, inject: [DockerHost] },
     {
-      provide: ScannerContainerManagerService,
-      useFactory: (docker: DockerService, env: EnvService) => {
+      provide: ScannerPool,
+      useFactory: (host: DockerHostShape, env: EnvService): ScannerPoolShape => {
         const config: ScannerConfig = {
           image: env.get("SCANNER_RUNNER_IMAGE") ?? DEFAULT_SCANNER_RUNNER_IMAGE,
           buildContext: env.get("SCANNER_RUNNER_BUILD_CONTEXT"),
           idleTimeoutMs: env.get("SCANNER_APP_IDLE_TIMEOUT_MS") ?? DEFAULT_SCANNER_APP_IDLE_TIMEOUT_MS,
           autoScanDisabled: env.get("DISABLE_AUTO_SCAN"),
         };
-        return new ScannerContainerManagerService(docker, config);
+        return makeScannerPool({ docker: host.engine, config, access: host.scannerAccess });
       },
-      inject: [DockerService, EnvService],
+      inject: [DockerHost, EnvService],
     },
+    ScannerPoolLifecycle,
     {
-      // The provisioner needs only the engine: the Postgres IDENTITY is resolved
-      // per provisioning call by the caller (`toPostgresIdentity` in the setup
-      // service), because it depends on the deployment prefix decided at runtime.
-      provide: PostgresServiceProvisioner,
-      useFactory: (docker: DockerService) => new PostgresServiceProvisioner(docker),
-      inject: [DockerService],
+      // The provisioner needs only the engine: the Postgres IDENTITY is resolved per provisioning
+      // call by the caller, because it depends on the deployment prefix decided at runtime.
+      provide: PostgresProvisioner,
+      useFactory: (engine: DockerEngineShape) => makePostgresProvisioner(engine),
+      inject: [DockerEngine],
     },
   ],
-  exports: [DockerService, ScannerContainerManagerService, PostgresServiceProvisioner],
+  exports: [DockerHost, DockerEngine, ScannerPool, PostgresProvisioner],
 })
 export class CoreDockerModule {}

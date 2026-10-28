@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
-import type { DockerService } from "@deployer/nest-effect/docker";
+import type { DockerEngineShape } from "@deployer/docker";
 
 import type { EnvService } from "../../../../config/env/env.module";
 import { RedisSupervisorService } from "./redis-supervisor.service";
@@ -28,7 +28,7 @@ function makeSupervisor(envOverrides: Partial<Record<string, unknown>> = {}) {
 			listTasks: () => Effect.succeed([]),
 		},
 	};
-	const dockerService = { getEngine: () => engine } as unknown as DockerService;
+	const dockerService = engine as unknown as DockerEngineShape;
 	return { supervisor: new RedisSupervisorService(dockerService, makeEnv(envOverrides)), reconcile, connectContainer };
 }
 

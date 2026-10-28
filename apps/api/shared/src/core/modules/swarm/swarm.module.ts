@@ -37,7 +37,7 @@
 import { Inject, Injectable, Module, type InjectionToken, type OptionalFactoryDependency, type OnModuleDestroy, type OnModuleInit, type Provider } from "@nestjs/common";
 import { Effect, Fiber } from "effect";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { DockerService } from "@deployer/nest-effect/docker";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import {
     ClusterNodeRepository,
     NodeConfigRepository,
@@ -92,9 +92,9 @@ const swarmProviders = (options: {
 }): Provider[] => [
     {
         provide: SWARM_SERVICES,
-        useFactory: (docker: DockerService, nodeConfig: NodeConfigRepositoryShape, clusterNode: ClusterNodeRepositoryShape, ...deps: never[]) =>
-            makeSwarmServices({ docker: docker.getEngine(), nodeConfig, clusterNode }, options.options(...deps)),
-        inject: [DockerService, NodeConfigRepository, ClusterNodeRepository, ...options.inject],
+        useFactory: (docker: DockerEngineShape, nodeConfig: NodeConfigRepositoryShape, clusterNode: ClusterNodeRepositoryShape, ...deps: never[]) =>
+            makeSwarmServices({ docker, nodeConfig, clusterNode }, options.options(...deps)),
+        inject: [DockerEngine, NodeConfigRepository, ClusterNodeRepository, ...options.inject],
     },
     { provide: SwarmCluster, useFactory: (s: SwarmServices) => s.cluster, inject: [SWARM_SERVICES] },
     { provide: SwarmFleet, useFactory: (s: SwarmServices) => s.fleet, inject: [SWARM_SERVICES] },

@@ -1,4 +1,4 @@
-import type { DockerService } from '@deployer/nest-effect/docker'
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import type { SwarmClusterShape, SwarmFleetShape, SwarmParticipationShape } from "@deployer/swarm"
 import type { ClusterNodeInventoryRepositoryShape } from "@deployer/node-state";
 import type { ClusterNodeRepositoryShape } from "@deployer/node-state";
@@ -44,4 +44,3 @@ export class ClusterEventsPort extends Context.Service<
     ClusterEventsPort,
     ClusterSwarmEventsService
 >()('fleet/ClusterEventsPort') {}
-export type { DockerService }

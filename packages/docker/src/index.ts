@@ -4,6 +4,8 @@
  * Framework-free: a Nest app mounts it by providing `DockerEngine.Live` over
  * `DockerClient.layer(config)`; nothing here imports Nest.
  */
+export { DockerHost, makeDockerHost } from "./client/docker-host";
+export type { DockerHostShape } from "./client/docker-host";
 export { DockerClient, resolveDockerClient, DEFAULT_DOCKER_SOCKET_PATH } from "./client/docker-client";
 export type { DockerConnectionConfig, ResolvedDockerClient } from "./client/docker-client";
 export { DockerEngine, makeDockerEngine } from "./engine/docker-engine";

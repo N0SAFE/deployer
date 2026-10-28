@@ -1,6 +1,6 @@
 import { runSyncUnwrapped } from "@deployer/effect-core";
 import { Injectable, Inject } from "@nestjs/common";
-import { DockerService } from "@deployer/nest-effect/docker";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 import { SupervisorHost } from "@deployer/nest-effect/supervision";
 import { MANAGED_POSTGRES_IMAGE } from "@deployer/docker";
@@ -41,13 +41,13 @@ export class GlobalDbSupervisorService extends SupervisorHost<
 	private readonly globalDb: GlobalDbSupervisor;
 
 	constructor(
-		dockerService: DockerService,
+		@Inject(DockerEngine) dockerService: DockerEngineShape,
 		@Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
 		private readonly env: EnvService,
 	) {
 		super();
 		this.globalDb = makeGlobalDbSupervisor({
-			engine: dockerService.getEngine(),
+			engine: dockerService,
 			logger: this.logger,
 			config: {
 				prefix: () => this.env.get("DEPLOYER_PREFIX"),

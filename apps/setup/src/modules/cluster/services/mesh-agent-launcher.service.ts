@@ -1,12 +1,11 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Inject } from "@nestjs/common";
 import {
   AGENT_SOCKET_PATH,
   ensureMeshAgentContainer,
   MeshAgentHttpClient,
   meshAgentContainerEnv,
-  type AgentStatus,
-} from "@deployer/mesh-network";
-import { DockerService, makeMeshAgentEngine } from "@deployer/nest-effect/docker";
+  type AgentStatus, makeMeshAgentEngine } from "@deployer/mesh-network";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 
 import { EnvService } from "@/config/env/env.module";
 
@@ -30,7 +29,7 @@ export class MeshAgentLauncherService {
   private static readonly INTERFACE_WAIT_MS = 20_000;
 
   constructor(
-    private readonly docker: DockerService,
+    @Inject(DockerEngine) private readonly docker: DockerEngineShape,
     private readonly env: EnvService,
   ) {}
 
@@ -41,7 +40,7 @@ export class MeshAgentLauncherService {
   /** Ensure the agent container runs and answers on its socket. */
   async ensureRunning(): Promise<AgentStatus> {
     const outcome = await ensureMeshAgentContainer(
-      makeMeshAgentEngine(this.docker.getEngine()),
+      makeMeshAgentEngine(this.docker),
       { image: this.env.get("MESH_AGENT_IMAGE"), env: meshAgentContainerEnv({ dataplane: this.env.get("MESH_AGENT_DATAPLANE") }) },
     );
     if (outcome !== "running") this.logger.log(`Mesh agent ${outcome}`);

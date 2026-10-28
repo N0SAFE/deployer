@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Inject } from "@nestjs/common";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { Observable } from "rxjs";
 import type {
@@ -29,7 +29,7 @@ import {
   type DockerContainerProcessEntry,
 } from "@deployer/contracts-entities";
 import { AppLogger } from "@deployer/logger";
-import { DockerService as CoreDockerService } from "@deployer/nest-effect/docker";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { DockerContainerLinksRepository } from "../../../repositories/containers/links/docker-container-links.repository";
 import { DockerContainerRuntimeMeshService } from "../mesh/docker-container-runtime-mesh.service";
 import { DockerContainerLogsDomainService } from "../runtime/docker-container-logs-domain.service";
@@ -63,7 +63,7 @@ export class DockerContainersOrchestratorService {
     private readonly dockerContainerShellDomainService: DockerContainerShellDomainService,
     private readonly dockerContainerResolutionService: DockerContainerResolutionService,
     private readonly dockerContainerRuntimeMeshService: DockerContainerRuntimeMeshService,
-    private readonly coreDockerService: CoreDockerService,
+    @Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape,
   ) {}
 
   listContainers(input: DockerContainerListInput = {} as DockerContainerListInput, options?: { localOnly?: boolean }) {
@@ -127,31 +127,31 @@ export class DockerContainersOrchestratorService {
 
     switch (input.action) {
       case "start": {
-        await runPromiseUnwrapped(this.coreDockerService.getEngine().containers.start(input.containerId));
+        await runPromiseUnwrapped(this.dockerEngine.containers.start(input.containerId));
         break;
       }
       case "stop": {
-        await runPromiseUnwrapped(this.coreDockerService.getEngine().containers.stop(input.containerId));
+        await runPromiseUnwrapped(this.dockerEngine.containers.stop(input.containerId));
         break;
       }
       case "restart": {
-        await runPromiseUnwrapped(this.coreDockerService.getEngine().containers.restart(input.containerId));
+        await runPromiseUnwrapped(this.dockerEngine.containers.restart(input.containerId));
         break;
       }
       case "pause": {
-        await runPromiseUnwrapped(this.coreDockerService.getEngine().containers.pause(input.containerId));
+        await runPromiseUnwrapped(this.dockerEngine.containers.pause(input.containerId));
         break;
       }
       case "unpause": {
-        await runPromiseUnwrapped(this.coreDockerService.getEngine().containers.unpause(input.containerId));
+        await runPromiseUnwrapped(this.dockerEngine.containers.unpause(input.containerId));
         break;
       }
       case "kill": {
-        await runPromiseUnwrapped(this.coreDockerService.getEngine().containers.kill(input.containerId));
+        await runPromiseUnwrapped(this.dockerEngine.containers.kill(input.containerId));
         break;
       }
       case "remove": {
-        await runPromiseUnwrapped(this.coreDockerService.getEngine().containers.remove(input.containerId));
+        await runPromiseUnwrapped(this.dockerEngine.containers.remove(input.containerId));
         break;
       }
       default: {

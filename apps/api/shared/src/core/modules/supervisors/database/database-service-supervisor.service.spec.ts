@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
-import type { DockerService } from "@deployer/nest-effect/docker";
+import type { DockerEngineShape } from "@deployer/docker";
 import { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
 
 import type { EnvService } from "../../../../config/env/env.module";
@@ -24,7 +24,7 @@ function makeSupervisor(values: Record<string, unknown>) {
 		},
 	};
 	const env = { get: vi.fn((key: string) => values[key]) } as unknown as EnvService;
-	const supervisor = new DatabaseServiceSupervisorService({ getEngine: () => engine } as unknown as DockerService, env);
+	const supervisor = new DatabaseServiceSupervisorService(engine as unknown as DockerEngineShape, env);
 	const orchestrator = new SupervisorOrchestratorService();
 	(supervisor as unknown as { orchestrator: SupervisorOrchestratorService }).orchestrator = orchestrator;
 	return { supervisor, orchestrator, reconciled };

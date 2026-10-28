@@ -1,6 +1,6 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Inject } from "@nestjs/common";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { DockerService } from "@deployer/nest-effect/docker";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import type {
     BuilderStrategy,
     BuilderStrategyContext,
@@ -17,7 +17,7 @@ import type {
 export class DockerfileBuilderStrategy implements BuilderStrategy {
     readonly builderType = "dockerfile";
 
-    constructor(private readonly dockerService: DockerService) {}
+    constructor(@Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape) {}
 
     /** Always available: it needs only the Docker engine, which the API requires. */
     isAvailable(): boolean {
@@ -30,7 +30,7 @@ export class DockerfileBuilderStrategy implements BuilderStrategy {
 
     async build(context: BuilderStrategyContext): Promise<BuilderStrategyResult> {
         await runPromiseUnwrapped(
-            this.dockerService.getEngine().build.image(context.buildContextPath, context.imageTag, {
+            this.dockerEngine.build.image(context.buildContextPath, context.imageTag, {
                 ...(context.dockerfileName !== null ? { dockerfileName: context.dockerfileName } : {}),
             }),
         );

@@ -1,5 +1,5 @@
-import { Injectable } from "@nestjs/common";
-import { DockerService } from "@deployer/nest-effect/docker";
+import { Injectable, Inject } from "@nestjs/common";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { SupervisorHost } from "@deployer/nest-effect/supervision";
 import {
 	EDGE_CONNECTOR_SUPERVISOR_ID,
@@ -38,14 +38,14 @@ export class EdgeConnectorSupervisorService extends SupervisorHost<
 	private readonly edgeConnector: EdgeConnectorSupervisor;
 
 	constructor(
-		dockerService: DockerService,
+		@Inject(DockerEngine) dockerService: DockerEngineShape,
 		env: EnvService,
 		lanes: IngressLanesService,
 		private readonly edge: PublicEdgeService,
 	) {
 		super();
 		this.edgeConnector = makeEdgeConnectorSupervisor({
-			engine: dockerService.getEngine(),
+			engine: dockerService,
 			logger: this.logger,
 			config: {
 				prefix: () => env.get("DEPLOYER_PREFIX"),

@@ -1,5 +1,5 @@
-import { Injectable, type OnModuleDestroy } from "@nestjs/common";
-import { DockerService } from "@deployer/nest-effect/docker";
+import { Injectable, type OnModuleDestroy, Inject } from "@nestjs/common";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { SupervisorHost } from "@deployer/nest-effect/supervision";
 import { platformNetworkName, platformOverlayForPrefix } from "@deployer/docker";
 import {
@@ -36,12 +36,12 @@ export class SwarmAppWiringSupervisorService
 	private background: Fiber.Fiber<void> | null = null;
 
 	constructor(
-		dockerService: DockerService,
+		@Inject(DockerEngine) dockerService: DockerEngineShape,
 		private readonly envService: EnvService,
 	) {
 		super();
 		this.wiring = makeSwarmAppWiring({
-			engine: dockerService.getEngine(),
+			engine: dockerService,
 			logger: this.logger,
 			config: {
 				overlay: () => platformOverlayForPrefix(this.envService.get("DEPLOYER_PREFIX")),

@@ -1,9 +1,8 @@
-import type { MeshAgentEngine } from "@deployer/mesh-network";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import type { CreateContainerOptions, DockerEngineShape } from "@deployer/docker";
 import { Effect } from "effect";
 
-import { AGENT_ROLE, AGENT_ROLE_LABEL } from "@deployer/mesh-network";
+import { AGENT_ROLE, AGENT_ROLE_LABEL, type MeshAgentEngine } from "./agent-container";
 
 /**
  * The mesh agent's container operations over the Effect docker engine. `ensureMeshAgentContainer`

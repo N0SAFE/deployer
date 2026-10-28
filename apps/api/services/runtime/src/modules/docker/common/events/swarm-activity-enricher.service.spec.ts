@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
-import type { DockerService } from "@deployer/nest-effect/docker";
+import type { DockerEngineShape } from "@deployer/docker";
 
 import { SwarmActivityEnricherService } from "./swarm-activity-enricher.service";
 
@@ -43,15 +43,13 @@ function makeDockerService() {
 	const dockerService = {
 		listAllSwarmTasks,
 		listSwarmServices,
-		getEngine: () => ({
-			swarmServices: {
-				listAllTasks: (...args: unknown[]) => Effect.promise(() => (dockerService.listAllSwarmTasks as (...a: unknown[]) => Promise<unknown>)(...args)),
-				list: () => Effect.promise(() => dockerService.listSwarmServices() as Promise<unknown>),
-			},
-		}),
+		swarmServices: {
+			listAllTasks: (...args: unknown[]) => Effect.promise(() => (dockerService.listAllSwarmTasks as (...a: unknown[]) => Promise<unknown>)(...args)),
+			list: () => Effect.promise(() => dockerService.listSwarmServices() as Promise<unknown>),
+		},
 	};
 	return {
-		dockerService: dockerService as unknown as DockerService & { listAllSwarmTasks: (...args: never[]) => Promise<unknown> },
+		dockerService: dockerService as unknown as DockerEngineShape & { listAllSwarmTasks: (...args: never[]) => Promise<unknown> },
 		listAllSwarmTasks,
 		listSwarmServices,
 	};

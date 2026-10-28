@@ -27,7 +27,7 @@ import { Cause, Effect, Fiber, Stream } from "effect";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 import { AbstractDomainEventStreamService } from "@deployer/shared/core/modules/events/base/index";
-import { DockerService } from "@deployer/nest-effect/docker";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm"
 import { SwarmFleet, type SwarmFleetShape } from "@deployer/swarm"
 import { ClusterNodeInventoryRepository, type ClusterNodeInventoryRepositoryShape } from "@deployer/node-state"
@@ -71,7 +71,7 @@ export class ClusterSwarmEventsService
 
     constructor(
         streamPool: CoreEventStreamPoolService,
-        private readonly dockerService: DockerService,
+        @Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape,
         @Inject(SwarmCluster) private readonly swarmClusterService: SwarmClusterShape,
         @Inject(SwarmFleet) private readonly swarmFleetService: SwarmFleetShape,
         @Inject(ClusterNodeInventoryRepository) private readonly inventoryRepository: ClusterNodeInventoryRepositoryShape,
@@ -183,7 +183,7 @@ export class ClusterSwarmEventsService
     }
 
     private createDockerEventObservable(): Promise<Observable<DockerRawEvent>> {
-        const events = this.dockerService.getEngine().events;
+        const events = this.dockerEngine.events;
         return Promise.resolve(
             new Observable<DockerRawEvent>((subscriber) => {
                 const fiber = Effect.runFork(
@@ -296,7 +296,7 @@ export class ClusterSwarmEventsService
      * with `This node is not a swarm manager` rather than returning empty.
      */
     private async isSwarmActive(): Promise<boolean> {
-        return await runPromiseUnwrapped(this.dockerService.getEngine().swarmCluster.isActive());
+        return await runPromiseUnwrapped(this.dockerEngine.swarmCluster.isActive());
     }
 
     /**

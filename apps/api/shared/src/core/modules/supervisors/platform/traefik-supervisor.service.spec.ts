@@ -15,7 +15,7 @@ import { Effect } from "effect";
 import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
 
 import { TEST_TUNNEL_ID, testEdgeRegistry } from "../../edge/testing/edge-registry.fixture";
-import type { DockerService } from "@deployer/nest-effect/docker";
+import type { DockerEngineShape } from "@deployer/docker";
 
 import type { EnvService } from "../../../../config/env/env.module";
 import type { MeshAgentClient } from "../../mesh-agent/mesh-agent.client";
@@ -87,8 +87,7 @@ function makeDockerService(bootstrapLabels: Record<string, string> | null = null
 					tasks.set(spec.Name, [{ NodeID: "n1", Status: { State: "running" } }]);
 				});
 
-	const dockerService = {
-		getEngine: () => ({
+	const dockerService = ({
 			swarmCluster: {
 				isActive: () => Effect.succeed(true),
 				info: () => Effect.succeed({ NodeID: "n1", LocalNodeState: "active", ControlAvailable: true }),
@@ -123,8 +122,7 @@ function makeDockerService(bootstrapLabels: Record<string, string> | null = null
 						tasks.delete(name);
 					}),
 			},
-		}),
-	} as unknown as DockerService;
+		}) as unknown as DockerEngineShape;
 
 	return {
 		dockerService,

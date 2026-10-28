@@ -1,6 +1,6 @@
 import type { SwarmOverlayNetworkRequest } from "@deployer/contracts-entities";
-import { Injectable, Logger } from "@nestjs/common";
-import { DockerService } from "@deployer/nest-effect/docker";
+import { Injectable, Logger, Inject } from "@nestjs/common";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { DockerConflict, platformOverlayForPrefix } from "@deployer/docker";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 
@@ -64,7 +64,7 @@ export class ApiServiceProvisioner {
 
   constructor(
     private readonly env: EnvService,
-    private readonly docker: DockerService,
+    @Inject(DockerEngine) private readonly docker: DockerEngineShape,
     private readonly tier: ServicesTierProvisioner,
   ) {}
 
@@ -136,7 +136,7 @@ export class ApiServiceProvisioner {
     }
 
     const overlay = this.platformNetworkName();
-    await runPromiseUnwrapped(this.docker.getEngine().networks.ensureOverlay(this.overlayRequest(overlay)));
+    await runPromiseUnwrapped(this.docker.networks.ensureOverlay(this.overlayRequest(overlay)));
     await this.connectSelfToOverlay(overlay);
 
     const apps = await this.tier.ensureTier();
@@ -248,7 +248,7 @@ export class ApiServiceProvisioner {
 
     while (Date.now() < deadline) {
       try {
-        await runPromiseUnwrapped(this.docker.getEngine().networks.attachContainer(overlay, selfId));
+        await runPromiseUnwrapped(this.docker.networks.attachContainer(overlay, selfId));
         this.logger.log(`Connected setup (${selfId.slice(0, 12)}) to the platform overlay ${overlay}`);
         return;
       } catch (error: unknown) {
@@ -310,7 +310,7 @@ export class ApiServiceProvisioner {
             this.logger.warn(
               `Overlay ${overlay} has an unusable data path (${message}) — rebuilding it on a fresh VXLAN id (repair ${String(repairs)}/${String(ApiServiceProvisioner.MAX_OVERLAY_REPAIRS)})`,
             );
-            const rebuilt = await runPromiseUnwrapped(this.docker.getEngine().networks.recreateOverlay(this.overlayRequest(overlay), {
+            const rebuilt = await runPromiseUnwrapped(this.docker.networks.recreateOverlay(this.overlayRequest(overlay), {
               detachContainerIds: [selfId],
               avoidVxlanIds: poisonedVnis,
             }));

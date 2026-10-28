@@ -25,7 +25,7 @@ import { RuntimeInvalid } from "../../../core/runtime.errors";
 
 import { Effect } from "effect";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Inject } from "@nestjs/common";
 
 import { parse } from "yaml";
 import { AppError, BadRequestError } from "@deployer/errors";
@@ -43,7 +43,7 @@ import type {
     SwarmServiceSpecInput,
 } from "@deployer/contracts-entities";
 import { composeModelSchema, composeServiceModelSchema } from "@deployer/contracts-entities";
-import { DockerService } from "@deployer/nest-effect/docker";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { toDockerServiceSpec } from "@deployer/docker";
 
 // ─── Compose value normalizers (string forms → typed values) ────────────────
@@ -615,7 +615,7 @@ export class SwarmComposeRealizerService {
         const secrets: string[] = [];
         const configs: string[] = [];
 
-        const { networks: networkOps, swarmSecrets, swarmConfigs, swarmServices } = this.dockerService.getEngine();
+        const { networks: networkOps, swarmSecrets, swarmConfigs, swarmServices } = this.dockerEngine;
         const apply = Effect.gen(function* () {
             for (const network of plan.networks) {
                 yield* networkOps.ensureOverlay({
@@ -675,11 +675,7 @@ export class SwarmComposeRealizerService {
         return { networks, secrets, configs, createdServices, updatedServices };
     }
 
-    private readonly dockerService: DockerService;
-
-    constructor(dockerService: DockerService) {
-        this.dockerService = dockerService;
-    }
+    constructor(@Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape) {}
 }
 
 function normalizeStringMap(raw: unknown): Record<string, string> {

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Inject } from "@nestjs/common";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { Observable, from, interval } from "rxjs";
 import { exhaustMap, mergeMap, startWith, tap } from "rxjs/operators";
@@ -9,7 +9,7 @@ import {
   type DockerRuntimeEvent,
 } from "@deployer/contracts-entities";
 import { AppLogger } from "@deployer/logger";
-import { DockerService as CoreDockerService } from "@deployer/nest-effect/docker";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { AbstractDomainEventStreamService } from "@deployer/shared/core/modules/events/base/index";
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 import { isRecord, isObjectLike } from "@deployer/type-guards"
@@ -48,7 +48,7 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
   private metricsCollectionTick = 0;
 
   constructor(
-    private readonly dockerService: CoreDockerService,
+    @Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape,
     streamPool: CoreEventStreamPoolService,
   ) {
     super(streamPool);
@@ -207,7 +207,7 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
       return [];
     }
 
-    const containers = this.dockerService.getEngine().containers;
+    const containers = this.dockerEngine.containers;
     const events: DockerRuntimeEvent[] = [];
 
     for (const candidateId of targetIds) {

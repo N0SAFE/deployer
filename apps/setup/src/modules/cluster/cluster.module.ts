@@ -15,8 +15,9 @@ import {
   type SwarmServicesOptions,
 } from "@deployer/swarm";
 import { AGENT_SOCKET_PATH, MeshAgentHttpClient } from "@deployer/mesh-network";
-import { DockerModule, DockerService } from "@deployer/nest-effect/docker";
 
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
+import { DockerModule } from "@/config/docker/docker.module";
 import { NodeStateModule } from "@/config/database/node-state.module";
 import { EnvModule, EnvService } from "@/config/env/env.module";
 import { SetupHealthModule } from "@/modules/health/setup-health.module";
@@ -55,9 +56,9 @@ const swarmProviders = (config: {
 }): Provider[] => [
   {
     provide: SWARM_SERVICES,
-    useFactory: (docker: DockerService, nodeConfig: NodeConfigRepositoryShape, clusterNode: ClusterNodeRepositoryShape, ...deps: never[]) =>
-      makeSwarmServices({ docker: docker.getEngine(), nodeConfig, clusterNode }, config.options(...deps)),
-    inject: [DockerService, NodeConfigRepository, ClusterNodeRepository, ...config.inject],
+    useFactory: (docker: DockerEngineShape, nodeConfig: NodeConfigRepositoryShape, clusterNode: ClusterNodeRepositoryShape, ...deps: never[]) =>
+      makeSwarmServices({ docker, nodeConfig, clusterNode }, config.options(...deps)),
+    inject: [DockerEngine, NodeConfigRepository, ClusterNodeRepository, ...config.inject],
   },
   { provide: SwarmCluster, useFactory: (s: SwarmServices) => s.cluster, inject: [SWARM_SERVICES] },
   { provide: SwarmFleet, useFactory: (s: SwarmServices) => s.fleet, inject: [SWARM_SERVICES] },
@@ -92,40 +93,18 @@ async function meshAgentAddress(env: EnvService): Promise<string | null> {
  * error, which is exactly why the packages own it.
  *
  * DEPENDENCY ORDER MATTERS
- * `DockerModule` and `NodesModule` register the engine client and the local
- * SQLite repositories. `SwarmModule` resolves both at construction, so they are
- * imported first. The swarm config is resolved from `EnvService` through
- * `forRootAsync`, so this app's variables never leak into the package.
+ * `DockerModule` and `NodeStateModule` provide the engine and the local SQLite
+ * repositories. The swarm services resolve both at construction, so they are
+ * imported first. The swarm config is resolved from `EnvService`, so this app's
+ * variables never leak into the package.
  */
 @Module({
   imports: [
     EnvModule,
-    DockerModule.forRootAsync({
-      imports: [EnvModule],
-      inject: [EnvService],
-      useFactory: (env: EnvService) => ({
-        connection: {
-          host: env.get("DOCKER_HOST"),
-          port: env.get("DOCKER_PORT"),
-        },
-        // Setup drives the engine (swarm init/join, service creation) but
-        // never scans images. The scanner is still part of the package's
-        // contract, so every field is satisfied explicitly with the scanning
-        // path disabled, rather than inventing an image this app would never
-        // run or leaving a field to be resolved at runtime.
-        scanner: {
-          image: env.get("SCANNER_RUNNER_IMAGE") ?? "unused-by-setup",
-          buildContext: undefined,
-          idleTimeoutMs: 0,
-          autoScanDisabled: true,
-        },
-      }),
-    }),
-    // The registration is passed IN (not imported ambiently): the node
-    // repositories inject `LocalDatabaseService`, so the connection must be
-    // in this module's scope. The app owns the file path and migrations dir —
-    // setup shares the API's SQLite file, because setup WRITES the swarm
-    // participation decision that the API READS.
+    DockerModule,
+    // The app owns the file path and migrations dir: setup shares the API's
+    // SQLite file, because setup WRITES the swarm participation decision that
+    // the API READS.
     NodeStateModule,
     SetupHealthModule,
     // The swarm phase REPORTS on the operator's timeline, so it needs the

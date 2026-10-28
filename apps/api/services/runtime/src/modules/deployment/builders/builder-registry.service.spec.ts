@@ -48,14 +48,12 @@ describe("BuilderRegistryService", () => {
  * `buildCompose` mocks (so the assertions read as before) and expose them as the engine's Effects.
  */
 const withEngine = <T extends { buildImage: unknown; buildCompose?: unknown }>(mocks: T): T =>
-    Object.assign(mocks, {
-        getEngine: () => ({
+    Object.assign(mocks, ({
             build: {
                 image: (...args: unknown[]) => Effect.promise(async () => (mocks.buildImage as (...a: unknown[]) => unknown)(...args)),
                 compose: (...args: unknown[]) => Effect.promise(async () => (mocks.buildCompose as (...a: unknown[]) => unknown)(...args)),
             },
-        }),
-    });
+        }));
 
 describe("builder strategies", () => {
     const docker = () => withEngine({ buildImage: vi.fn().mockResolvedValue(undefined), buildCompose: vi.fn().mockResolvedValue({ projectName: "p" }) });

@@ -1,7 +1,7 @@
 import { RuntimeInvalid } from "../../../../core/runtime.errors";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { Injectable } from "@nestjs/common";
-import { DockerService } from "@deployer/nest-effect/docker";
+import { Injectable, Inject } from "@nestjs/common";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import type { BuilderStrategy, BuilderStrategyContext, BuilderStrategyResult } from "../base/builder-strategy.interface";
 
 export type BuildpackFamilyKind = "nixpacks" | "buildpack" | "railpack";
@@ -30,7 +30,7 @@ export class BuildpackFamilyBuilderStrategy implements BuilderStrategy {
 
     constructor(
         builderType: BuildpackFamilyKind,
-        private readonly dockerService: DockerService,
+        @Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape,
     ) {
         this.builderType = builderType;
     }
@@ -58,7 +58,7 @@ export class BuildpackFamilyBuilderStrategy implements BuilderStrategy {
         }
 
         await runPromiseUnwrapped(
-            this.dockerService.getEngine().build.image(context.buildContextPath, context.imageTag, {
+            this.dockerEngine.build.image(context.buildContextPath, context.imageTag, {
                 dockerfileName: context.dockerfileName,
             }),
         );

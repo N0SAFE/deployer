@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { DockerNotFound } from "@deployer/docker";
 import { Effect, Stream } from "effect";
-import type { DockerService } from "@deployer/nest-effect/docker";
+import type { DockerEngineShape } from "@deployer/docker";
 import type { EnvService } from "../../../../config/env/env.module";
 import { SwarmAppWiringSupervisorService } from "./swarm-app-wiring.supervisor.service";
 
@@ -79,9 +79,7 @@ function makeDocker(options: { swarmActive: boolean; containers: FakeContainer[]
 		swarmCluster: { isActive: () => Effect.succeed(options.swarmActive) },
 	};
 
-	const dockerService = {
-		getEngine: () => engine,
-	} as unknown as DockerService;
+	const dockerService = engine as unknown as DockerEngineShape;
 
 	return { dockerService, containers, connects, ensureOverlayNetwork };
 }

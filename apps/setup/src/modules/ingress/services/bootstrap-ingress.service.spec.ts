@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { BootstrapIngressService } from "./bootstrap-ingress.service";
 import type { EnvService } from "@/config/env/env.module";
-import type { DockerService } from "@deployer/nest-effect/docker";
+import type { DockerEngineShape } from "@deployer/docker";
 
 /**
  * `releaseEntryPort` is the handover of the host port from setup's bootstrap
@@ -37,7 +37,7 @@ function makeService(options: { restoreError?: Error; promoted?: boolean } = {})
 	} as unknown as EnvService;
 
 	const docker = {
-	} as unknown as DockerService;
+	} as unknown as DockerEngineShape;
 
 	const service = new BootstrapIngressService(docker, env);
 
@@ -113,14 +113,12 @@ describe("BootstrapIngressService.releaseEntryPort", () => {
 describe("BootstrapIngressService.waitForSwarmIngressRunning", () => {
 	function makeProbe(tasks: unknown[], portAnswers = false) {
 		const env = { get: vi.fn(() => "") } as unknown as EnvService;
-		const docker = {
-			getEngine: () => ({
+		const docker = ({
 				swarmServices: {
 					inspect: () => Effect.succeed({ ID: "svc" }),
 					listTasks: () => Effect.succeed(tasks),
 				},
-			}),
-		} as unknown as DockerService;
+			}) as unknown as DockerEngineShape;
 		const service = new BootstrapIngressService(docker, env);
 		vi.spyOn(service as unknown as { portAnswers(ms: number): Promise<boolean> }, "portAnswers").mockResolvedValue(
 			portAnswers,
@@ -167,14 +165,12 @@ describe("BootstrapIngressService.waitForSwarmIngressRunning", () => {
 	it("treats a missing service as 'not promoted yet', not as a fault", async () => {
 		const env = { get: vi.fn(() => "") } as unknown as EnvService;
 		const listTasks = vi.fn(() => Effect.succeed([]));
-		const docker = {
-			getEngine: () => ({
+		const docker = ({
 				swarmServices: {
 					inspect: () => Effect.fail(new DockerNotFound({ resource: "Swarm service" })),
 					listTasks,
 				},
-			}),
-		} as unknown as DockerService;
+			}) as unknown as DockerEngineShape;
 		const service = new BootstrapIngressService(docker, env);
 		vi.spyOn(service as unknown as { portAnswers(ms: number): Promise<boolean> }, "portAnswers").mockResolvedValue(
 			false,

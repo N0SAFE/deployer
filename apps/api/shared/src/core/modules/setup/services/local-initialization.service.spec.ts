@@ -3,12 +3,12 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { LocalInitializationService } from "./local-initialization.service";
 import { SetupStepTracker } from "../utils/setup-runner.utils";
 import type { NodeConfigRepositoryShape } from "@deployer/node-state";
-import type { PostgresServiceProvisioner } from "@deployer/nest-effect/docker";
+import type { PostgresProvisionerShape } from "@deployer/docker";
 import type { EnvService } from "../../../../config/env/env.module";
 import type { SwarmBootstrapShape } from "@deployer/swarm"
 import type { SwarmClusterShape } from "@deployer/swarm"
 import type { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
-import type { DockerService } from "@deployer/nest-effect/docker";
+import type { DockerEngineShape } from "@deployer/docker";
 import type { EmitEvent } from "../utils/setup-runner.utils";
 
 /**
@@ -30,11 +30,11 @@ function makeMocks() {
 		upsert,
 	} as unknown as NodeConfigRepositoryShape;
 	const postgresProvisioner = {
-		ensure: vi.fn(async () => ({ name: "deployer-postgres" })),
-	} as unknown as PostgresServiceProvisioner;
+		ensure: vi.fn(() => Effect.succeed({ name: "deployer-postgres" })),
+	} as unknown as PostgresProvisionerShape;
 	const dockerService = {
-		getSwarmServiceLogs: vi.fn(async () => ""),
-	} as unknown as DockerService;
+		swarmServices: { logs: vi.fn(() => Effect.succeed("")) },
+	} as unknown as DockerEngineShape;
 	const env = {
 		get: vi.fn((key: string) =>
 			key === "DEPLOYER_PREFIX" ? "" : key === "DB_DATABASE" ? "deployer" : undefined,

@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
-import type { DockerService } from "@deployer/nest-effect/docker";
+import type { DockerEngineShape } from "@deployer/docker";
 
 import type { EnvService } from "../../../../config/env/env.module";
 import type { AppInstanceService } from "../../platform-ingress/services/app-instance.service";
@@ -40,7 +40,7 @@ function makeSupervisor(options: { flag?: boolean; prefix?: string; managed?: { 
 		},
 	};
 	const supervisor = new ManagedWebSupervisorService(
-		{ getEngine: () => engine } as unknown as DockerService,
+		engine as unknown as DockerEngineShape,
 		hostnames,
 		env,
 		platformConfig,

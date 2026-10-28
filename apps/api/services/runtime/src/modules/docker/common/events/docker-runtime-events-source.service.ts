@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Inject } from "@nestjs/common";
 import { Cause, Effect, Fiber, Stream } from "effect";
 import {
   Observable,
@@ -32,7 +32,7 @@ import {
   dockerVolumeRuntimeEventSchema,
   type DockerRuntimeEvent,
 } from "@deployer/contracts-entities";
-import { DockerService as CoreDockerService } from "@deployer/nest-effect/docker";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { AbstractDomainEventStreamService } from "@deployer/shared/core/modules/events/base/index";
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 import { isRecord, isObjectLike } from "@deployer/type-guards"
@@ -65,7 +65,7 @@ export class DockerRuntimeEventsSourceService extends AbstractDomainEventStreamS
   private readonly logger = new Logger(DockerRuntimeEventsSourceService.name);
 
   constructor(
-    private readonly dockerService: CoreDockerService,
+    @Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape,
     streamPool: CoreEventStreamPoolService,
   ) {
     super(streamPool);
@@ -132,7 +132,7 @@ export class DockerRuntimeEventsSourceService extends AbstractDomainEventStreamS
       `[docker-runtime-sse] docker.getEvents options=${JSON.stringify(getEventsOptions)}`,
     );
 
-    const events = this.dockerService.getEngine().events;
+    const events = this.dockerEngine.events;
 
     return new Observable<DockerRuntimeEvent>((subscriber) => {
       const fiber = Effect.runFork(

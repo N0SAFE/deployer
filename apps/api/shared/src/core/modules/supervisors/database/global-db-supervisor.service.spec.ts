@@ -6,7 +6,7 @@ import {
 	GLOBAL_DB_SUPERVISOR_ID,
 } from "./global-db-supervisor.service";
 import { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
-import type { DockerService } from "@deployer/nest-effect/docker";
+import type { DockerEngineShape } from "@deployer/docker";
 import type { NodeConfigRepositoryShape } from "@deployer/node-state";
 import type { EnvService } from "../../../../config/env/env.module";
 
@@ -57,7 +57,7 @@ function makeMocks(provisioning: "local" | "external" | null = "local") {
 			listTasks: () => Effect.succeed(tasks),
 		},
 	};
-	const dockerService = { getEngine: () => engine } as unknown as DockerService;
+	const dockerService = engine as unknown as DockerEngineShape;
 
 	return {
 		nodeConfigRepository,

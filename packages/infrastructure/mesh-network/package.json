@@ -32,6 +32,9 @@
         "build:types": "bun --bun pkg-build --types"
     },
     "dependencies": {
+        "@deployer/docker": "*",
+        "@deployer/effect-core": "*",
+        "effect": "catalog:effect",
         "zod": "catalog:utils"
     },
     "devDependencies": {

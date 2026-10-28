@@ -1,5 +1,5 @@
-import { Injectable } from "@nestjs/common";
-import { DockerService } from "@deployer/nest-effect/docker";
+import { Injectable, Inject } from "@nestjs/common";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { SupervisorHost } from "@deployer/nest-effect/supervision";
 import { splitManagedEnv } from "@deployer/env";
 import {
@@ -35,12 +35,12 @@ export class DatabaseServiceSupervisorService extends SupervisorHost<
 	private readonly databaseService: DatabaseServiceSupervisor;
 
 	constructor(
-		dockerService: DockerService,
+		@Inject(DockerEngine) dockerService: DockerEngineShape,
 		private readonly env: EnvService,
 	) {
 		super();
 		this.databaseService = makeDatabaseServiceSupervisor({
-			engine: dockerService.getEngine(),
+			engine: dockerService,
 			logger: this.logger,
 			config: {
 				instances: () => this.desiredInstances(),

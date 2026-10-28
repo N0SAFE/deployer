@@ -3,7 +3,7 @@ import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import { makeEnvService } from "@/test-support/env";
-import type { DockerService } from "@deployer/nest-effect/docker";
+import type { DockerEngineShape } from "@deployer/docker";
 
 import { ServicesTierProvisioner } from "./services-tier-provisioner.service";
 
@@ -22,8 +22,7 @@ async function schedule(env: Record<string, string>, managedWeb: boolean | null 
   const created: CreatedSpec[] = [];
   // The engine's `reconcile` takes the platform's spec; the Docker spec it becomes is what the
   // assertions read, so the mapper runs for real.
-  const docker = {
-    getEngine: vi.fn(() => ({
+  const docker = ({
       networks: { ensureOverlay: () => Effect.void },
       swarmServices: {
         reconcile: (input: Parameters<typeof toDockerServiceSpec>[0]) =>
@@ -31,12 +30,11 @@ async function schedule(env: Record<string, string>, managedWeb: boolean | null 
             created.push(toDockerServiceSpec(input) as unknown as CreatedSpec);
           }),
       },
-    })),
-  };
+    });
   const gate = { managedWebEnabled: vi.fn(() => managedWeb) };
   const tier = new ServicesTierProvisioner(
     makeEnvService({ SETUP_MODE: "prod", AUTH_SECRET: "s3cret-s3cret-s3cret-s3cret-s3cret", ...IMAGES, ...env }),
-    docker as unknown as DockerService,
+    docker as unknown as DockerEngineShape,
     gate as unknown as ConstructorParameters<typeof ServicesTierProvisioner>[2],
   );
   const apps = await tier.ensureTier();

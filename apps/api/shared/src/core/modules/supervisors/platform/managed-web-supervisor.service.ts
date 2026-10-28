@@ -1,5 +1,5 @@
-import { Injectable } from "@nestjs/common";
-import { DockerService } from "@deployer/nest-effect/docker";
+import { Injectable, Inject } from "@nestjs/common";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { SupervisorHost } from "@deployer/nest-effect/supervision";
 import {
 	makeManagedWebSupervisor,
@@ -37,7 +37,7 @@ export class ManagedWebSupervisorService extends SupervisorHost<
 	private readonly managedWeb: ManagedWebSupervisor;
 
 	constructor(
-		dockerService: DockerService,
+		@Inject(DockerEngine) dockerService: DockerEngineShape,
 		hostnameService: HostnameService,
 		env: EnvService,
 		platformConfig: PlatformConfigService,
@@ -45,7 +45,7 @@ export class ManagedWebSupervisorService extends SupervisorHost<
 	) {
 		super();
 		this.managedWeb = makeManagedWebSupervisor({
-			engine: dockerService.getEngine(),
+			engine: dockerService,
 			config: {
 				serviceName: () => {
 					const prefix = env.get("DEPLOYER_PREFIX");

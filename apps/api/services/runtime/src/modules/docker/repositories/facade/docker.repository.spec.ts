@@ -15,7 +15,7 @@ function createCleanupHarness(params: {
   const removeContainer = vi.fn(async () => undefined);
   // The engine's containers: the failure of a rejected call travels as the Effect's own error,
   // which the repository reads back (a 404 means the container is gone).
-  const getEngine = vi.fn(() => ({
+  const engine = {
     containers: {
       // Like the real engine: a 404 is `DockerNotFound`, anything else `DockerUnavailable`.
       inspect: () =>
@@ -31,23 +31,20 @@ function createCleanupHarness(params: {
       removeIfExists: () =>
         Effect.tryPromise({ try: () => remove(), catch: (cause) => new DockerUnavailable({ reason: "remove failed", cause }) }),
     },
-  }));
-
-  const dockerService = {
-    getEngine,
   };
 
-  const scannerContainerManager = {
-    ensureContainerRunning: vi.fn(async () => true),
-    execInScanner: vi.fn(async () => ({ exitCode: 0, output: "", durationMs: 0 })),
-    stopContainer: vi.fn(async () => undefined),
-    cleanStaleScannerImages: vi.fn(async () => undefined),
-    onModuleDestroy: vi.fn(async () => undefined),
+  const scannerPool = {
+    ensureRunning: vi.fn(() => Effect.succeed(true)),
+    exec: vi.fn(() => Effect.succeed({ exitCode: 0, output: "", durationMs: 0 })),
+    stop: vi.fn(() => Effect.void),
+    stopAll: Effect.void,
+    cleanStaleImages: Effect.void,
   };
 
   const repository = new DockerRepository(
-    dockerService as never,
-    scannerContainerManager as never,
+    engine as never,
+    scannerPool as never,
+    {} as never,
     {} as never,
     {} as never,
   );

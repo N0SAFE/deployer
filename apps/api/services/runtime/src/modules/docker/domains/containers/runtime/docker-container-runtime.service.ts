@@ -1,4 +1,4 @@
-import { Injectable, type OnModuleDestroy, NotFoundException } from "@nestjs/common";
+import { Injectable, type OnModuleDestroy, NotFoundException, Inject } from "@nestjs/common";
 import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import { Observable, ReplaySubject, from, interval, startWith, switchMap } from "rxjs";
@@ -32,7 +32,7 @@ import {
   type DockerFileEntry,
   type DockerTerminalProfile,
 } from "@deployer/contracts-entities";
-import { DockerService as CoreDockerService } from "@deployer/nest-effect/docker";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { isRecord, isObjectLike } from "@deployer/type-guards"
 
 
@@ -82,7 +82,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
   private readonly terminalSessions = new Map<string, TerminalSession>();
   private readonly terminalSessionCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-  constructor(private readonly coreDockerService: CoreDockerService) {}
+  constructor(@Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape) {}
 
   /**
    * Lifecycle hook: when the NestJS application shuts down, close every
@@ -527,7 +527,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
   }
 
   private async attachTerminalStream(session: TerminalSession): Promise<"stream" | "command"> {
-    const exec = this.coreDockerService.getEngine().exec;
+    const exec = this.dockerEngine.exec;
 
     let rawStream: unknown;
     try {
@@ -763,7 +763,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
 
   /** Runs `command` in the container; a non-zero exit is a failure carrying the output. */
   private execInContainer(containerId: string, command: string[]) {
-    return runPromiseUnwrapped(this.coreDockerService.getEngine().exec.run(containerId, command));
+    return runPromiseUnwrapped(this.dockerEngine.exec.run(containerId, command));
   }
 
   private async openTerminalStream(
@@ -920,7 +920,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
     sinceSeconds?: number,
     untilSeconds?: number,
   ): Promise<DockerContainerLogEntry[]> {
-    const rawLogs = await runPromiseUnwrapped(this.coreDockerService.getEngine().logs.read(containerId, {
+    const rawLogs = await runPromiseUnwrapped(this.dockerEngine.logs.read(containerId, {
       stdout: true,
       stderr: true,
       tail,
@@ -991,7 +991,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
   }
 
   private async collectContainerProcesses(containerId: string, generatedAt: string): Promise<DockerContainerProcessEntry[]> {
-    const topResult = await runPromiseUnwrapped(this.coreDockerService.getEngine().containers.top(containerId, "aux"));
+    const topResult = await runPromiseUnwrapped(this.dockerEngine.containers.top(containerId, "aux"));
 
     const titles = topResult.Titles ?? [];
     const rows = topResult.Processes ?? [];

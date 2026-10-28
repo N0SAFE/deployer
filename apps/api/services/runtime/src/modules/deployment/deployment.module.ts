@@ -47,7 +47,7 @@ import { DockerfileBuilderStrategy } from "./builders/strategies/dockerfile-buil
 import { DockerComposeBuilderStrategy } from "./builders/strategies/docker-compose-builder.strategy";
 import { BuildpackFamilyBuilderStrategy } from "./builders/strategies/buildpack-family-builder.strategy";
 import type { BuilderStrategy } from "./builders/base/builder-strategy.interface";
-import { DockerService } from "@deployer/nest-effect/docker";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
 
 export class DeploymentDomainModule extends createModuleContext({
@@ -106,7 +106,7 @@ export class DeploymentDomainModule extends createModuleContext({
             useFactory: (
                 dockerfile: DockerfileBuilderStrategy,
                 compose: DockerComposeBuilderStrategy,
-                dockerService: DockerService,
+                dockerService: DockerEngineShape,
             ): BuilderStrategy[] => [
                 dockerfile,
                 compose,
@@ -116,7 +116,7 @@ export class DeploymentDomainModule extends createModuleContext({
                 new BuildpackFamilyBuilderStrategy("buildpack", dockerService),
                 new BuildpackFamilyBuilderStrategy("railpack", dockerService),
             ],
-            inject: [DockerfileBuilderStrategy, DockerComposeBuilderStrategy, DockerService],
+            inject: [DockerfileBuilderStrategy, DockerComposeBuilderStrategy, DockerEngine],
         },
         {
             provide: BuilderRegistryService,

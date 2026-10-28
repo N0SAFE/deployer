@@ -1,16 +1,13 @@
 {
 	"dependencies": {
 		"@deployer/contracts-entities": "*",
-		"@deployer/docker": "*",
 		"@deployer/effect-core": "*",
-		"@deployer/mesh-network": "*",
 		"@deployer/errors": "*",
 		"@deployer/supervision": "*",
 		"@deployer/type-guards": "*",
 		"@nestjs/common": "catalog:api:nest",
 		"@nestjs/core": "catalog:api:nest",
 		"@orpc/server": "catalog:orpc",
-		"dockerode": "catalog:utils",
 		"effect": "catalog:effect",
 		"rxjs": "catalog:api:nest",
 		"zod": "catalog:utils"
@@ -52,11 +49,6 @@
 			"import": "./dist/esm/supervision/index.mjs",
 			"require": "./dist/cjs/supervision/index.js",
 			"types": "./dist/types/supervision/index.d.ts"
-		},
-		"./docker": {
-			"import": "./dist/esm/docker/index.mjs",
-			"require": "./dist/cjs/docker/index.js",
-			"types": "./dist/types/docker/index.d.ts"
 		}
 	},
 	"main": "./dist/cjs/index.js",

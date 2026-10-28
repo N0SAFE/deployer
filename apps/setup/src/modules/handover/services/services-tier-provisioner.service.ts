@@ -1,8 +1,8 @@
 import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
 import { AGENT_RUN_VOLUME, AGENT_SOCKET_DIR } from "@deployer/mesh-network";
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Inject } from "@nestjs/common";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { DockerService } from "@deployer/nest-effect/docker";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 
 import { EnvService } from "@/config/env/env.module";
 import { SetupGateService } from "@/modules/wizard/setup-gate.service";
@@ -81,7 +81,7 @@ export class ServicesTierProvisioner {
 
 	constructor(
 		private readonly env: EnvService,
-		private readonly docker: DockerService,
+		@Inject(DockerEngine) private readonly docker: DockerEngineShape,
 		private readonly gate: SetupGateService,
 	) {}
 
@@ -241,7 +241,7 @@ export class ServicesTierProvisioner {
 
 		// Created when missing, updated in place (retried against a fresh version) when it exists.
 		this.logger.log(`Converging ${app.name} from image ${app.image} on ${overlay}`);
-		await runPromiseUnwrapped(this.docker.getEngine().swarmServices.reconcile(spec));
+		await runPromiseUnwrapped(this.docker.swarmServices.reconcile(spec));
 		return app;
 	}
 
@@ -463,7 +463,7 @@ export class ServicesTierProvisioner {
 	}
 
 	private async ensureOverlay(overlay: string): Promise<void> {
-		await runPromiseUnwrapped(this.docker.getEngine().networks.ensureOverlay({
+		await runPromiseUnwrapped(this.docker.networks.ensureOverlay({
 			name: overlay,
 			driver: "overlay",
 			attachable: true,

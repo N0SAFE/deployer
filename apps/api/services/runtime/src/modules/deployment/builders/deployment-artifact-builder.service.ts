@@ -1,11 +1,11 @@
 import { RuntimeInvalid } from "../../../core/runtime.errors";
-import { Injectable } from "@nestjs/common";
+import { Injectable, Inject } from "@nestjs/common";
 import { stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { DeploymentSourceCheckoutContext } from "@deployer/contracts-entities";
 import { GitService } from "@deployer/shared/core/modules/git/git/services/git.service";
-import { DockerService } from "@deployer/nest-effect/docker";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { DeploymentProviderBuilderRunnerStateMachineService } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
 import { BuilderRegistryService } from "./builder-registry.service";
 import { beginHeavyWork } from "@deployer/shared/core/utils/heavy-work.registry";
@@ -45,7 +45,7 @@ export type BuildArtifactInput = {
 export class DeploymentArtifactBuilderService {
     constructor(
         private readonly gitService: GitService,
-        private readonly dockerService: DockerService,
+        @Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape,
         private readonly deploymentStateMachineService: DeploymentProviderBuilderRunnerStateMachineService,
         private readonly builderRegistry: BuilderRegistryService,
     ) {}

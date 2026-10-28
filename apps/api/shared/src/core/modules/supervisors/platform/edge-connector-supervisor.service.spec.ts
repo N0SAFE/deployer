@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import { defaultIngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
-import type { DockerService } from "@deployer/nest-effect/docker";
+import type { DockerEngineShape } from "@deployer/docker";
 import { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
 
 import type { EnvService } from "../../../../config/env/env.module";
@@ -35,7 +35,7 @@ function make(options: { desired?: { providerId: string; spec: EdgeConnectorSpec
 	} as unknown as PublicEdgeService;
 	const lanes = { getLanes: vi.fn(() => Promise.resolve(defaultIngressLanes())) } as unknown as IngressLanesService;
 	const supervisor = new EdgeConnectorSupervisorService(
-		{ getEngine: () => engine } as unknown as DockerService,
+		engine as unknown as DockerEngineShape,
 		{ get: vi.fn(() => "") } as unknown as EnvService,
 		lanes,
 		edge,

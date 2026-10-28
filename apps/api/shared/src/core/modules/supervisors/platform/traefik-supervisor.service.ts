@@ -1,8 +1,8 @@
-import { Injectable, type OnModuleDestroy } from "@nestjs/common";
+import { Injectable, type OnModuleDestroy, Inject } from "@nestjs/common";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { platformOverlayForPrefix } from "@deployer/docker";
 import { NODE_DOORS_SETTING_KEY, type DoorRescueRoute } from "@deployer/mesh-network";
-import { DockerService } from "@deployer/nest-effect/docker";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { SupervisorHost } from "@deployer/nest-effect/supervision";
 import { splitManagedEnv } from "@deployer/env";
 import {
@@ -59,7 +59,7 @@ export class TraefikSupervisorService
 	private handoverWatch: Fiber.Fiber<never> | null = null;
 
 	constructor(
-		dockerService: DockerService,
+		@Inject(DockerEngine) dockerService: DockerEngineShape,
 		private readonly hostnameService: HostnameService,
 		private readonly env: EnvService,
 		lanesService: IngressLanesService,
@@ -74,7 +74,7 @@ export class TraefikSupervisorService
 			return explicit !== undefined && explicit !== "" ? explicit : platformApiServiceName(prefix());
 		};
 		this.traefik = makeTraefikSupervisor({
-			engine: dockerService.getEngine(),
+			engine: dockerService,
 			logger: this.logger,
 			config: {
 				prefix,

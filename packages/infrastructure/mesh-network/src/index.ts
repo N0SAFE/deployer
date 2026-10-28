@@ -1,6 +1,7 @@
 export * from "./address";
 export * from "./agent-client";
 export * from "./agent-container";
+export { makeMeshAgentEngine } from "./docker-agent-engine";
 export * from "./canonical-json";
 export * from "./control";
 export * from "./doors";

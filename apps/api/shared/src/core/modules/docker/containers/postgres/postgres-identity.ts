@@ -1,6 +1,6 @@
 import { splitManagedEnv } from "@deployer/env";
 import { MANAGED_POSTGRES_IMAGE } from "@deployer/docker";
-import { type PostgresIdentityConfig } from "@deployer/nest-effect/docker";
+import type { PostgresIdentity } from "@deployer/docker";
 
 import type { EnvService } from "../../../../../config/env/env.module";
 
@@ -9,7 +9,7 @@ import type { EnvService } from "../../../../../config/env/env.module";
  *
  * This lives in the app, not in `@deployer/nest-docker`, because it decides WHERE
  * the values come from — the managed-service block of this app's env schema.
- * The package declares the SHAPE it needs (`PostgresIdentityConfig`) and takes
+ * The package declares the SHAPE it needs (`PostgresIdentity`) and takes
  * the resulting data; it never reads an env var.
  *
  * `MANAGED_POSTGRES_IMAGE` is the package's own constant: which Postgres image
@@ -21,7 +21,7 @@ import type { EnvService } from "../../../../../config/env/env.module";
  * against a healthy database. The identity must therefore match whatever the
  * existing volume was created with.
  */
-export function resolvePostgresIdentity(env: EnvService): PostgresIdentityConfig {
+export function resolvePostgresIdentity(env: EnvService): PostgresIdentity {
     const managed = splitManagedEnv(env).globalDb;
     return {
         databaseName: managed.name,

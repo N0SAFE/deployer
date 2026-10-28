@@ -1,11 +1,10 @@
 import { Injectable, Inject, Optional, Logger, NotFoundException } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { and, desc, eq, inArray } from "drizzle-orm";
-import { DockerService } from "@deployer/nest-effect/docker";
+import { DockerEngine, DockerHost, ScannerPool, type DockerEngineShape, type DockerHostShape, type ScannerPoolShape, type ScannerType } from "@deployer/docker";
 import type { ContainersShape } from "@deployer/docker";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { Cause, Effect, Exit } from "effect";
-import { ScannerContainerManagerService } from "@deployer/nest-effect/docker";
 import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
 import { ContainerDockerodeNormalizer } from "../../shared/container-dockerode-normalizer.service";
 import { CONTAINER_LINK_RESOLVER } from "@deployer/docker";
@@ -220,8 +219,9 @@ export class DockerRepository {
   private hasWarnedMissingSecurityScanTable = false;
 
   constructor(
-    private readonly dockerService: DockerService,
-    private readonly scannerContainerManager: ScannerContainerManagerService,
+    @Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape,
+    @Inject(ScannerPool) private readonly scannerPool: ScannerPoolShape,
+    @Inject(DockerHost) private readonly dockerHost: DockerHostShape,
     private readonly globalDatabaseService: GlobalDatabaseService,
     private readonly normalizer: ContainerDockerodeNormalizer,
     @Optional() @Inject(CONTAINER_LINK_RESOLVER)
@@ -240,7 +240,7 @@ export class DockerRepository {
     this.localDockerDaemonIdLoadPromise = (async () => {
       try {
         const daemonId = await runPromiseUnwrapped(
-          this.dockerService.getEngine().info().pipe(
+          this.dockerEngine.info().pipe(
             Effect.map((info) => (typeof info.ID === "string" && info.ID.trim().length > 0 ? info.ID.trim() : null)),
             // An unreachable engine simply has no daemon id.
             Effect.orElseSucceed(() => null),
@@ -827,7 +827,7 @@ export class DockerRepository {
   }
 
   private async listRawContainers(): Promise<DockerodeContainerList[]> {
-    const raw = await runPromiseUnwrapped(this.dockerService.getEngine().containers.list({ all: true }));
+    const raw = await runPromiseUnwrapped(this.dockerEngine.containers.list({ all: true }));
     const result = dockerodeContainerListSchema.array().safeParse(raw);
     if (result.success) {
       return result.data;
@@ -994,7 +994,7 @@ export class DockerRepository {
     // The engine's own description of a container, whichever dockerode typings are in scope.
     let inspect: Effect.Success<ReturnType<ContainersShape["inspect"]>>;
     try {
-      inspect = await runPromiseUnwrapped(this.dockerService.getEngine().containers.inspect(containerId));
+      inspect = await runPromiseUnwrapped(this.dockerEngine.containers.inspect(containerId));
     } catch {
       throw new NotFoundException(`Container '${containerId}' not found`);
     }
@@ -2128,7 +2128,7 @@ export class DockerRepository {
       if (parsed.success) return parsed.data;
     }
 
-    const images = await runPromiseUnwrapped(this.dockerService.getEngine().images.list());
+    const images = await runPromiseUnwrapped(this.dockerEngine.images.list());
 
     const resolvedCandidates = this.buildImageInspectCandidatesFromImageList(imageId, images);
 
@@ -2144,7 +2144,7 @@ export class DockerRepository {
   /** The engine's description of an image, or null when it cannot be inspected (missing or engine error). */
   private inspectImageOrNull(image: string) {
     return runPromiseUnwrapped(
-      this.dockerService.getEngine().images.inspect(image).pipe(Effect.orElseSucceed(() => null)),
+      this.dockerEngine.images.inspect(image).pipe(Effect.orElseSucceed(() => null)),
     );
   }
 
@@ -2487,9 +2487,9 @@ export class DockerRepository {
 
     // Ensure all three shared scanner containers are running before launching tasks
     await Promise.all([
-      this.scannerContainerManager.ensureContainerRunning("trivy"),
-      this.scannerContainerManager.ensureContainerRunning("grype"),
-      this.scannerContainerManager.ensureContainerRunning("dive"),
+      this.ensureScanner("trivy"),
+      this.ensureScanner("grype"),
+      this.ensureScanner("dive"),
     ]);
 
     const [trivyResult, grypeResult, diveResult] = await this.runScannerTasksWithConcurrency(
@@ -2574,9 +2574,9 @@ export class DockerRepository {
 
     // Ensure all three shared scanner containers are running before launching tasks
     await Promise.all([
-      this.scannerContainerManager.ensureContainerRunning("trivy"),
-      this.scannerContainerManager.ensureContainerRunning("grype"),
-      this.scannerContainerManager.ensureContainerRunning("dive"),
+      this.ensureScanner("trivy"),
+      this.ensureScanner("grype"),
+      this.ensureScanner("dive"),
     ]);
 
     const progressOptions: ScannerRunProgressOptions = {
@@ -3089,7 +3089,7 @@ export class DockerRepository {
   }
 
   private async scannerImageExistsLocally(image: string): Promise<boolean> {
-    return await runPromiseUnwrapped(this.dockerService.getEngine().images.exists(image));
+    return await runPromiseUnwrapped(this.dockerEngine.images.exists(image));
   }
 
   /**
@@ -3107,10 +3107,10 @@ export class DockerRepository {
     const scannerType = scanner;
 
     // Try shared container first
-    const ready = await this.scannerContainerManager.ensureContainerRunning(scannerType);
+    const ready = await this.ensureScanner(scannerType);
     if (ready) {
       try {
-        const result = await this.scannerContainerManager.execInScanner(scannerType, command);
+        const result = await runPromiseUnwrapped(this.scannerPool.exec(scannerType, command));
         return {
           scanner,
           exitCode: result.exitCode,
@@ -3145,7 +3145,7 @@ export class DockerRepository {
     if (!scannerImageExists) {
       try {
         await runPromiseUnwrapped(
-          this.dockerService.getEngine().images.pull(config.image, {
+          this.dockerEngine.images.pull(config.image, {
             retries: 3,
             backoffMs: 2_000,
             onProgressLine: (line) => {
@@ -3161,7 +3161,7 @@ export class DockerRepository {
       }
     }
 
-    const socketBind = this.dockerService.getDockerSocketBindMount();
+    const socketBind = this.dockerHost.socketBind;
     const envVars: string[] = [];
 
     if (socketBind) {
@@ -3169,7 +3169,7 @@ export class DockerRepository {
       envVars.push(`DOCKER_HOST=unix://${String(hostPath)}`);
     }
 
-    const created = await runPromiseUnwrapped(this.dockerService.getEngine().containers.create({
+    const created = await runPromiseUnwrapped(this.dockerEngine.containers.create({
       Image: config.image,
       name: containerName,
       Cmd: config.command,
@@ -3184,7 +3184,7 @@ export class DockerRepository {
     const scannerContainerId = created.id;
 
     try {
-      await runPromiseUnwrapped(this.dockerService.getEngine().containers.start(scannerContainerId));
+      await runPromiseUnwrapped(this.dockerEngine.containers.start(scannerContainerId));
 
       const normalizedLogPollIntervalMs = Math.max(
         200,
@@ -3218,7 +3218,7 @@ export class DockerRepository {
 
       const fetchLatestLogs = async () => {
         const output = await runPromiseUnwrapped(
-          this.dockerService.getEngine().logs.read(scannerContainerId, {
+          this.dockerEngine.logs.read(scannerContainerId, {
             stdout: true,
             stderr: true,
             tail: VULNERABILITY_LOG_TAIL,
@@ -3264,7 +3264,7 @@ export class DockerRepository {
     containerId: string,
     scanner: ScannerExecutionConfig["scanner"],
   ): Promise<void> {
-    const containers = this.dockerService.getEngine().containers;
+    const containers = this.dockerEngine.containers;
     const attempts = 3;
 
     /** Whether the container is gone; an engine failure other than "not found" is reported, not thrown. */
@@ -3330,7 +3330,7 @@ export class DockerRepository {
   private async waitForContainerExit(containerId: string, timeoutMs: number): Promise<number> {
     // Timing out interrupts the wait, which aborts the request in flight.
     return await runPromiseUnwrapped(
-      this.dockerService.getEngine().containers.wait(containerId).pipe(
+      this.dockerEngine.containers.wait(containerId).pipe(
         Effect.timeoutOrElse({
           duration: timeoutMs,
           orElse: () => Effect.fail(new Error(`Timed out waiting for scanner container ${containerId}`)),
@@ -3798,6 +3798,11 @@ export class DockerRepository {
     return Math.round(value * multiplier);
   }
 
+  /** Starts (or reuses) the shared scanner container for `scanner`; resolves to whether it is running. */
+  private ensureScanner(scanner: ScannerType): Promise<boolean> {
+    return runPromiseUnwrapped(this.scannerPool.ensureRunning(scanner));
+  }
+
   private formatError(error: unknown): string {
     if (error instanceof Error) {
       return error.message;
@@ -3807,7 +3812,7 @@ export class DockerRepository {
   }
 
   async listImages(input: DockerImageListInput) {
-    const rawImages = await runPromiseUnwrapped(this.dockerService.getEngine().images.list());
+    const rawImages = await runPromiseUnwrapped(this.dockerEngine.images.list());
 
     const mapped: DockerImage[] = [];
 
@@ -3880,7 +3885,7 @@ export class DockerRepository {
   }
 
   async listNetworks(input: DockerNetworkListInput) {
-    const rawNetworks: DockerodeNetworkSummary[] = await runPromiseUnwrapped(this.dockerService.getEngine().networks.list());
+    const rawNetworks: DockerodeNetworkSummary[] = await runPromiseUnwrapped(this.dockerEngine.networks.list());
 
     const mapped = rawNetworks.map((network) => {
       const ipamConfig = (network.IPAM?.Config ?? [])[0] ?? {};
@@ -3928,7 +3933,7 @@ export class DockerRepository {
   }
 
   async listVolumes(input: DockerVolumeListInput) {
-    const engine = this.dockerService.getEngine();
+    const engine = this.dockerEngine;
     const [rawVolumes, rawContainers] = await Promise.all([
       runPromiseUnwrapped(engine.volumes.list()),
       this.listRawContainers(),

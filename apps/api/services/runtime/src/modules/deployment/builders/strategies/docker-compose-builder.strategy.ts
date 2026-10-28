@@ -1,9 +1,9 @@
 import { RuntimeInvalid } from "../../../../core/runtime.errors";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { Injectable } from "@nestjs/common";
+import { Injectable, Inject } from "@nestjs/common";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { DockerService } from "@deployer/nest-effect/docker";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import type {
     BuilderStrategy,
     BuilderStrategyContext,
@@ -31,7 +31,7 @@ const COMPOSE_CANDIDATES = ["docker-compose.yml", "docker-compose.yaml", "compos
 export class DockerComposeBuilderStrategy implements BuilderStrategy {
     readonly builderType = "docker_compose";
 
-    constructor(private readonly dockerService: DockerService) {}
+    constructor(@Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape) {}
 
     isAvailable(): boolean {
         return true;
@@ -54,7 +54,7 @@ export class DockerComposeBuilderStrategy implements BuilderStrategy {
         }
 
         await runPromiseUnwrapped(
-            this.dockerService.getEngine().build.compose(context.buildContextPath, {
+            this.dockerEngine.build.compose(context.buildContextPath, {
                 composeFileName: composeFile,
                 projectName: `deployer-${context.deploymentId.slice(0, 12)}`,
             }),

@@ -29,10 +29,9 @@ import { user } from "@deployer/nest-schema/global/identity/auth";
 import { GLOBAL_MIGRATIONS_DIR } from "@deployer/nest-schema";
 import { createBetterAuth } from "../../../../config/auth/auth";
 
-import { DockerService } from "@deployer/nest-effect/docker";
+import { DockerEngine, PostgresProvisioner, type DockerEngineShape, type PostgresProvisionerShape } from "@deployer/docker";
 import { platformNetworkName, platformOverlayNetworkName } from "@deployer/docker";
 import { MANAGED_POSTGRES_ALIAS, MANAGED_POSTGRES_PORT, MANAGED_POSTGRES_VOLUME_NAME, managedPostgresServiceName } from "@deployer/docker";
-import { PostgresServiceProvisioner } from "@deployer/nest-effect/docker";
 import { EnvService } from "../../../../config/env/env.module";
 import { splitManagedEnv } from "@deployer/env";
 import { SwarmBootstrap, type SwarmBootstrapShape } from "@deployer/swarm"
@@ -59,7 +58,7 @@ import { resolvePostgresIdentity } from "../../docker/containers/postgres/postgr
  *
  * Owns the business logic of bringing a fresh node online:
  *  1. Provision a Postgres database (existing URL, or a new SWARM SERVICE
- *     scheduled through `PostgresServiceProvisioner`).
+ *     scheduled through the `PostgresProvisioner` Effect service).
  *  2. Verify the database is empty.
  *  3. Apply Drizzle migrations.
  *  4. Seed the initial admin user.
@@ -101,8 +100,8 @@ export class LocalInitializationService {
     }
 
     constructor(
-        private readonly postgresProvisioner: PostgresServiceProvisioner,
-        private readonly dockerService: DockerService,
+        @Inject(PostgresProvisioner) private readonly postgresProvisioner: PostgresProvisionerShape,
+        @Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape,
         private readonly env: EnvService,
         @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
         /**
@@ -468,7 +467,7 @@ export class LocalInitializationService {
         log(`  db      = ${identity.databaseName}`);
         log("  port    = 5432 (host mode, node-local)");
 
-        const spec = await this.postgresProvisioner.ensure({ prefix, identity });
+        const spec = await runPromiseUnwrapped(this.postgresProvisioner.ensure({ prefix, identity }));
         log(`✅ Service ${spec.name} has a running task`);
 
         // ── Attach THIS container to the overlay BEFORE using the DSN ──────
@@ -490,7 +489,7 @@ export class LocalInitializationService {
 
         // Replay the task logs so the user sees Postgres booting.
         log("▸ Replaying recent service output …");
-        const initialLogs = await runPromiseUnwrapped(this.dockerService.getEngine().swarmServices.logs(spec.name, {
+        const initialLogs = await runPromiseUnwrapped(this.dockerEngine.swarmServices.logs(spec.name, {
             stdout: true,
             stderr: true,
             tail: 30,
@@ -537,7 +536,7 @@ export class LocalInitializationService {
         log(`  user      = ${identity.username}`);
         log(`  db        = ${identity.databaseName}`);
 
-        const engine = this.dockerService.getEngine();
+        const engine = this.dockerEngine;
 
         // Volume first: recreating the container must reuse the existing data,
         // so the volume is never removed here (only created when absent).

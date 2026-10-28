@@ -1,7 +1,7 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Inject } from "@nestjs/common";
 import { splitManagedEnv } from "@deployer/env";
 import { SupervisorHost } from "@deployer/nest-effect/supervision";
-import { DockerService } from "@deployer/nest-effect/docker";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import {
 	makeRedisSupervisor,
 	PLATFORM_REDIS_SUPERVISOR_ID,
@@ -32,10 +32,10 @@ export class RedisSupervisorService extends SupervisorHost<
 
 	private readonly redis: RedisSupervisor;
 
-	constructor(dockerService: DockerService, env: EnvService) {
+	constructor(@Inject(DockerEngine) dockerService: DockerEngineShape, env: EnvService) {
 		super();
 		this.redis = makeRedisSupervisor({
-			engine: dockerService.getEngine(),
+			engine: dockerService,
 			logger: this.logger,
 			config: {
 				prefix: () => env.get("DEPLOYER_PREFIX") ?? "",

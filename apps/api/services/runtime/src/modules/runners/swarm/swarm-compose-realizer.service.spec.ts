@@ -1,7 +1,7 @@
 import { DockerNotFound } from "@deployer/docker";
 import { Effect } from "effect";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import type { DockerService } from "@deployer/nest-effect/docker";
+import type { DockerEngineShape } from "@deployer/docker";
 import { SwarmComposeRealizerService } from "./swarm-compose-realizer.service";
 
 const FULL_COMPOSE = `
@@ -101,7 +101,7 @@ describe("SwarmComposeRealizerService", () => {
                 create: (spec: unknown) => lift(ds.createSwarmService, spec),
             },
         };
-        realizer = new SwarmComposeRealizerService({ getEngine: () => engine } as never);
+        realizer = new SwarmComposeRealizerService(engine as never);
     });
 
     describe("parseComposeYaml", () => {

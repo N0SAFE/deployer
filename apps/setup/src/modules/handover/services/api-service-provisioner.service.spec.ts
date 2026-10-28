@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ApiServiceProvisioner } from "./api-service-provisioner.service";
 import { makeEnvService } from "@/test-support/env";
-import type { DockerService } from "@deployer/nest-effect/docker";
+import type { DockerEngineShape } from "@deployer/docker";
 import { DockerUnavailable } from "@deployer/docker";
 import { Effect } from "effect";
 
@@ -27,7 +27,7 @@ type TierApp = { name: string; image: string; port: number };
 
 function makeProvisioner(
   envOverrides: Record<string, string>,
-  docker: Partial<DockerService> = {},
+  docker: Partial<DockerEngineShape> = {},
   tierApps: TierApp[] | null = null,
 ): {
   provisioner: ApiServiceProvisioner;
@@ -39,7 +39,8 @@ function makeProvisioner(
   const ensureOverlayNetwork = vi.fn((_request: unknown) => Effect.void);
   const createSwarmService = vi.fn();
   const service = {
-    getEngine: () => ({ networks: { ensureOverlay: ensureOverlayNetwork }, swarmServices: { reconcile: createSwarmService } }),
+    networks: { ensureOverlay: ensureOverlayNetwork },
+    swarmServices: { reconcile: createSwarmService },
     ...docker,
   };
   const prefix = envOverrides.DEPLOYER_PREFIX ?? "";
@@ -52,7 +53,7 @@ function makeProvisioner(
   const provisioner = new ApiServiceProvisioner(
     makeEnvService(envOverrides),
     // Partial double: the provisioner uses only a handful of the engine's methods.
-    service as unknown as DockerService,
+    service as unknown as DockerEngineShape,
     tier as unknown as ConstructorParameters<typeof ApiServiceProvisioner>[2],
   );
   return { provisioner, docker: { ensureOverlayNetwork, createSwarmService }, tier };
@@ -178,8 +179,7 @@ describe("ApiServiceProvisioner", () => {
           .mockResolvedValue({ vxlanId: 4098, avoidedVxlanIds: [4097], removedServices: [] });
         const { provisioner, docker } = makeProvisioner(
           { SETUP_MODE: "prod", DEPLOYER_BFF_IMAGE: "svc-bff:local" },
-          {
-            getEngine: vi.fn(() => ({
+          ({
               swarmServices: { reconcile: vi.fn() },
               networks: {
                 ensureOverlay: () => Effect.void,
@@ -191,8 +191,7 @@ describe("ApiServiceProvisioner", () => {
                     catch: (cause) => new DockerUnavailable({ reason: cause instanceof Error ? cause.message : String(cause), cause }),
                   }),
               },
-            })),
-          } as unknown as Partial<DockerService>,
+            }) as unknown as Partial<DockerEngineShape>,
         );
         const statics = ApiServiceProvisioner as unknown as { ATTACH_POLL_MS: number };
         const previousPoll = statics.ATTACH_POLL_MS;

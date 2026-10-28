@@ -21,9 +21,9 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Inject } from "@nestjs/common";
 import type { RouteVisibility } from "@deployer/contracts-entities/entities/ingress/index";
-import { DockerService } from "@deployer/nest-effect/docker";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 
 import { EnvService } from "../../../../config/env/env.module";
 import { EdgeProviderRegistry } from "../../edge/edge-provider.registry";
@@ -74,7 +74,7 @@ export class TraefikIngressConfigService {
 
 	constructor(
 		private readonly env: EnvService,
-		private readonly dockerService: DockerService,
+		@Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape,
 		private readonly hostnames: HostnameService,
 		private readonly lanes: IngressLanesService,
 		private readonly webTarget: PlatformWebTargetService,
@@ -86,7 +86,7 @@ export class TraefikIngressConfigService {
 
 	/** The API's own backend on the platform overlay. */
 	private async apiBackend(): Promise<string> {
-		return `http://${await runPromiseUnwrapped(resolveSelfContainerName(this.dockerService.getEngine().containers, this.env))}:${String(this.env.get("API_PORT"))}`;
+		return `http://${await runPromiseUnwrapped(resolveSelfContainerName(this.dockerEngine.containers, this.env))}:${String(this.env.get("API_PORT"))}`;
 	}
 
 	async buildDynamicConfig(): Promise<LaneTraefikConfig> {

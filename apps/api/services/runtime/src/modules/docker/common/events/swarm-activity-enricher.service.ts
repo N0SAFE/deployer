@@ -1,9 +1,9 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Inject } from "@nestjs/common";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { from, type Observable } from "rxjs";
 import { filter, map, mergeMap } from "rxjs/operators";
 import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
-import { DockerService } from "@deployer/nest-effect/docker";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 
 /** A synthesized activity: the docker event enriched with real swarm state. */
 export type SwarmActivityEnrichment = {
@@ -87,7 +87,7 @@ const SWARM_SOURCES = new Set(["service", "node", "task"]);
 export class SwarmActivityEnricherService {
   private readonly logger = new Logger(SwarmActivityEnricherService.name);
 
-  constructor(private readonly dockerService: DockerService) {}
+  constructor(@Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape) {}
 
   /** True when this event is a swarm resource worth enriching. */
   isSwarmEvent(event: DockerRuntimeEvent): boolean {
@@ -164,7 +164,7 @@ export class SwarmActivityEnricherService {
   }
 
   private async readTasks(serviceId: string | null): Promise<SwarmTaskState[]> {
-    const { swarmServices } = this.dockerService.getEngine();
+    const { swarmServices } = this.dockerEngine;
     const tasks = await runPromiseUnwrapped(swarmServices.listAllTasks(serviceId === null ? undefined : { serviceId }));
     const services = await runPromiseUnwrapped(swarmServices.list());
     const nameById = new Map(services.map((service) => [service.ID, service.Spec.Name]));
@@ -184,7 +184,7 @@ export class SwarmActivityEnricherService {
   }
 
   private async readService(serviceId: string): Promise<SwarmServiceState | null> {
-    const { swarmServices } = this.dockerService.getEngine();
+    const { swarmServices } = this.dockerEngine;
     const services = await runPromiseUnwrapped(swarmServices.list());
     const service = services.find((entry) => entry.ID === serviceId);
     if (service === undefined) return null;
