@@ -76,7 +76,8 @@ export class HealthController {
         status: result.status === "up" ? "ok" : "degraded",
         timestamp: new Date(result.checkedAt),
         service: "svc-health",
-        uptime: process.uptime() / 1000,
+        // `process.uptime()` is already seconds, which is what the contract declares.
+        uptime: process.uptime(),
         info: result.info,
         error: result.error,
         details: result.details,

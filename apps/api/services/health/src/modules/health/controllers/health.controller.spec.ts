@@ -103,7 +103,10 @@ describe("HealthController", () => {
 		it("reports uptime in seconds, as the contract declares", async () => {
 			const result = await call<{ uptime: number }>(controller.detailed());
 
-			expect(result.uptime).toBeGreaterThan(0);
+			// Seconds since the process started: a milliseconds-to-seconds mix-up would be ~1000x too small.
+			const sinceStart = process.uptime();
+			expect(result.uptime).toBeGreaterThan(sinceStart - 5);
+			expect(result.uptime).toBeLessThanOrEqual(sinceStart);
 		});
 
 		it("includes the flattened renderable list alongside the Terminus shape", async () => {
