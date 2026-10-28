@@ -5,6 +5,7 @@
 		"@deployer/database": "*",
 		"@deployer/effect-core": "*",
 		"@deployer/events": "*",
+		"@deployer/system-metrics": "*",
 		"@deployer/environment": "*",
 		"@deployer/lifecycle": "*",
         "@deployer/mesh-network": "*",
@@ -73,6 +74,11 @@
 			"import": "./dist/esm/docker/index.mjs",
 			"require": "./dist/cjs/docker/index.js",
 			"types": "./dist/types/docker/index.d.ts"
+		},
+		"./system-metrics": {
+			"import": "./dist/esm/system-metrics/index.mjs",
+			"require": "./dist/cjs/system-metrics/index.js",
+			"types": "./dist/types/system-metrics/index.d.ts"
 		},
 		"./events": {
 			"import": "./dist/esm/events/index.mjs",

@@ -10,7 +10,7 @@ import { requireAuth, requireMesh } from "../../auth/orpc/middlewares";
 import { AllowAnonymous } from "../../auth/decorators/decorators";
 import { CoreEventSyncService } from "../../events/services/core-event-sync.service";
 import { SystemMeshTopologyService } from "../services/system-mesh-topology/orchestrator/system-mesh-topology.service";
-import { SystemMetricsService } from "../../system-metrics/services/system-metrics.service";
+import { SystemMetricsService } from "@deployer/nest-effect/system-metrics";
 import { EnvService } from "../../../../config/env/env.module";
 import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
 import { SwarmJoinGrantService } from "@deployer/nest-effect/swarm";
