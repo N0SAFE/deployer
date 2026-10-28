@@ -191,6 +191,22 @@ export const clusterGetSwarmConfigContract = standard
     .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
+/**
+ * SSE sibling of `getSwarmConfig` — same input, pushed only when it changes.
+ *
+ * The dashboard polled the query every 15 s to follow participation as it
+ * converges (mode/policy/engine state). The stream re-evaluates server-side and
+ * emits on change, so the panel updates without a timer in every tab.
+ */
+export const clusterStreamSwarmConfigContract = standard
+    .zod(swarmConfigViewSchema, "swarmConfigView")
+    .list()
+    .path("/swarm-config/stream")
+    .input(z.object({}))
+    .output((b) => b.observable(swarmConfigViewSchema))
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .build();
+
 /** Persist the participation config and converge immediately (post-setup). */
 export const clusterSetSwarmConfigContract = standard
     .zod(swarmConfigViewSchema, "swarmConfigView")
@@ -216,6 +232,7 @@ export const clusterContract = oc.meta(openapi({ tags: ["Cluster"], prefix: "/cl
     getNodeResources: clusterGetNodeResourcesContract,
     streamNodeResources: clusterStreamNodeResourcesContract,
     getSwarmConfig: clusterGetSwarmConfigContract,
+    streamSwarmConfig: clusterStreamSwarmConfigContract,
     setSwarmConfig: clusterSetSwarmConfigContract,
 });
 
