@@ -1,11 +1,10 @@
-import { fromAbortable } from "@deployer/effect-core";
 import { Context, Duration, Effect, Layer } from "effect";
 import { stripBrackets } from "../address";
 import { isIpLiteral } from "../ip-policy";
 import { EgressDenied, HttpTimeout, SafeHttpError } from "./errors";
 import { HttpReq, HttpRes, SafeHttpOptions, SafeHttpShape } from "./types";
 import { checkTarget, denyReason } from "./egress-check";
-import { execute, toError } from "./request";
+import { request } from "./request";
 
 /**
  * Outbound HTTP for targets the caller does not fully control, on Bun builtins
@@ -22,7 +21,7 @@ export class SafeHttp extends Context.Service<SafeHttp, SafeHttpShape>()("infra/
       SafeHttp,
       SafeHttp.of({
         request: (req, policy) =>
-          fromAbortable((signal) => execute(req, policy, signal, options), toError(req.url)).pipe(
+          request(req, policy, options).pipe(
             Effect.timeoutOrElse({
               duration: policy.timeout,
               orElse: () => Effect.fail(new HttpTimeout({ url: req.url, afterMs: Duration.toMillis(policy.timeout) })),
