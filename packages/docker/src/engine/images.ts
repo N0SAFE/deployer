@@ -1,0 +1,112 @@
+import type Docker from "dockerode";
+import { Effect } from "effect";
+
+import { engineMessage } from "../classify";
+import { DockerInvalid, DockerUnavailable, type DockerError } from "../errors";
+import { engineCall } from "./call";
+
+export type ImagePullPolicy = "IfNotPresent" | "Always" | "Never";
+
+export type PullOptions = {
+	readonly registryAuth?: Docker.AuthConfig;
+	/** Attempts before giving up. Default 3. */
+	readonly retries?: number;
+	/** Wait before the second attempt; doubles each time. Default 2000. */
+	readonly backoffMs?: number;
+	/** Receives each human-readable progress line the engine reports. */
+	readonly onProgressLine?: (line: string) => void;
+};
+
+export type ImagesShape = {
+	/** Pulls `image`, retrying with exponential backoff. */
+	readonly pull: (image: string, options?: PullOptions) => Effect.Effect<void, DockerError>;
+	/** Makes `image` present locally as `policy` allows: nothing when it is there, a pull when it is not. */
+	readonly ensurePresent: (
+		image: string,
+		policy: ImagePullPolicy,
+		registryAuth?: Docker.AuthConfig,
+	) => Effect.Effect<void, DockerError>;
+};
+
+function progressLine(event: Record<string, unknown>): string | null {
+	if (typeof event.stream === "string" && event.stream.trim().length > 0) return event.stream.trim();
+	if (typeof event.status === "string") {
+		const status = event.status.trim();
+		const layerId = typeof event.id === "string" ? event.id.trim() : "";
+		const progress = typeof event.progress === "string" ? event.progress.trim() : "";
+		const text = `${status}${progress.length > 0 ? ` ${progress}` : ""}`;
+		return layerId.length > 0 ? `${layerId}: ${text}` : text;
+	}
+	if (event.error) return `error: ${typeof event.error === "string" ? event.error : JSON.stringify(event.error)}`;
+	return null;
+}
+
+export function makeImages(client: Docker): ImagesShape {
+	const pullOnce = (image: string, options: PullOptions) =>
+		engineCall(`pull image ${image}`, async () => {
+			const stream = await client.pull(image, options.registryAuth ? { authconfig: options.registryAuth } : {});
+			await new Promise<void>((resolve, reject) => {
+				client.modem.followProgress(
+					stream,
+					(error: Error | null) => {
+						if (error) reject(error);
+						else resolve();
+					},
+					(event: Record<string, unknown>) => {
+						const line = progressLine(event);
+						if (line !== null) options.onProgressLine?.(line);
+					},
+				);
+			});
+		});
+
+	const pull: ImagesShape["pull"] = Effect.fn("DockerImages.pull")(function* (image, options = {}) {
+		const retries = options.retries ?? 3;
+		let backoffMs = options.backoffMs ?? 2000;
+		let lastFailure: DockerError | null = null;
+		for (let attempt = 1; attempt <= retries; attempt++) {
+			const outcome = yield* pullOnce(image, options).pipe(
+				Effect.map(() => null),
+				Effect.catch((failure) => Effect.succeed(failure)),
+			);
+			if (outcome === null) {
+				yield* Effect.logInfo(`Pulled ${image} on attempt ${String(attempt)}`);
+				return;
+			}
+			lastFailure = outcome;
+			yield* Effect.logWarning(`Pull attempt ${String(attempt)} failed for ${image}: ${engineMessage(outcome)}`);
+			if (attempt < retries) {
+				yield* Effect.sleep(backoffMs);
+				backoffMs *= 2;
+			}
+		}
+		return yield* Effect.fail(
+			new DockerUnavailable({
+				reason: `Failed to pull image ${image}: ${lastFailure ? engineMessage(lastFailure) : "unknown error"}`,
+				cause: lastFailure,
+			}),
+		);
+	});
+
+	const ensurePresent: ImagesShape["ensurePresent"] = Effect.fn("DockerImages.ensurePresent")(function* (
+		image,
+		policy,
+		registryAuth,
+	) {
+		if (policy !== "Always") {
+			const present = yield* engineCall(`inspect image ${image}`, () => client.getImage(image).inspect()).pipe(
+				Effect.as(true),
+				Effect.catch(() => Effect.succeed(false)),
+			);
+			if (present) return;
+			if (policy === "Never") {
+				return yield* Effect.fail(
+					new DockerInvalid({ reason: `Image ${image} not present locally and imagePullPolicy is 'Never'` }),
+				);
+			}
+		}
+		yield* pull(image, { registryAuth });
+	});
+
+	return { pull, ensurePresent };
+}
