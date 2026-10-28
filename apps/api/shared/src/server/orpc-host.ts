@@ -10,6 +10,7 @@ import {
 	transformNestJSErrorToOrpcError,
 } from "../core/modules/auth/orpc/index";
 import { AuthCoreService } from "../core/modules/auth/services/auth-core.service";
+import { SessionResolver, type SessionResolverShape } from "../core/modules/auth/orpc/session-resolver";
 import { InternalErrorInsightService } from "../core/middlewares/internal-error/internal-error-insight.service";
 import {
 	RequestCompressionHandlerPlugin,
@@ -85,6 +86,7 @@ export function createOrpcModule<ExtraD extends ExtraTokens = []>(
 		useFactory: async (
 			request: Request,
 			authCoreService: AuthCoreService,
+			sessions: SessionResolverShape,
 			...deps: ExtraInstances<ExtraD>
 		) => {
 			const emptyAuthUtils = authCoreService.createEmptyAuthUtils();
@@ -160,14 +162,14 @@ export function createOrpcModule<ExtraD extends ExtraTokens = []>(
 						converters: [new ZodToJsonSchemaConverter()],
 					}),
 					// Populates context.auth from the request's session.
-					new AuthPlugin<ORPCGlobalContext>({ auth: authCoreService.instance }),
+					new AuthPlugin<ORPCGlobalContext>({ auth: authCoreService.instance, sessions }),
 				],
 				// Initial context - auth will be populated by AuthPlugin.
 				// `extraContext` is resolved per request (e.g. the Effect runtime).
 				context,
 			};
 		},
-		inject: [REQUEST, AuthCoreService, ...(extra?.inject ?? [])],
+		inject: [REQUEST, AuthCoreService, SessionResolver, ...(extra?.inject ?? [])],
 	});
 }
 

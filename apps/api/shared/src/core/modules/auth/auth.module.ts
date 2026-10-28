@@ -23,6 +23,7 @@ import {
 } from "./definitions/auth-module-definition";
 import { AuthService } from "./services/auth.service";
 import { AuthCoreService } from "./services/auth-core.service";
+import { makeSessionResolver, SessionResolver } from "./orpc/session-resolver";
 import { SkipBodyParsingMiddleware } from "./middlewares/middlewares";
 import { AFTER_HOOK_KEY, BEFORE_HOOK_KEY, HOOK_KEY } from "./types/symbols";
 import { AuthGuard } from "./guards/auth.guard";
@@ -43,8 +44,13 @@ const HOOKS = [
  */
 @Module({
 	imports: [DiscoveryModule],
-	providers: [AuthCoreService, AuthService],
-	exports: [AuthCoreService, AuthService],
+	providers: [
+		AuthCoreService,
+		AuthService,
+		// Better Auth answers `getSession`; the oRPC auth plugin asks through this Effect service.
+		{ provide: SessionResolver, useFactory: (core: AuthCoreService) => makeSessionResolver(core.instance), inject: [AuthCoreService] },
+	],
+	exports: [AuthCoreService, AuthService, SessionResolver],
 })
 export class AuthModule
 	extends ConfigurableModuleClass

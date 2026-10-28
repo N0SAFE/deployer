@@ -7,6 +7,8 @@ import type {
 import type { Auth } from "../../../../../auth";
 import { AuthUtils, type UserSession } from "../auth-utils";
 import type { ORPCAuthContext } from "../types";
+import type { SessionResolverShape } from "../session-resolver";
+import { Effect } from "effect";
 import { logger } from "@deployer/logger";
 
 /**
@@ -35,8 +37,10 @@ export type AuthPluginContext = {
  * Options for creating the auth plugin
  */
 export type AuthPluginOptions = {
-  /** The Better Auth instance */
+  /** The Better Auth instance, for the utilities built on the session */
   auth: Auth;
+  /** Finds the request's session */
+  sessions: SessionResolverShape;
 }
 
 /**
@@ -68,13 +72,16 @@ export class AuthPlugin<TContext extends AuthPluginContext>
   readonly name = "auth";
 
   private readonly auth: Auth;
+  private readonly sessions: SessionResolverShape;
 
   constructor(options: AuthPluginOptions) {
     this.auth = options.auth;
+    this.sessions = options.sessions;
   }
 
   init(options: StandardHandlerOptions<TContext>): StandardHandlerOptions<TContext> {
     const auth = this.auth;
+    const sessions = this.sessions;
 
     // v2 contract: `init` RETURNS the transformed options (`OrderablePlugin`),
     // it does not mutate them in place. Appending keeps any interceptors that
@@ -85,46 +92,18 @@ export class AuthPlugin<TContext extends AuthPluginContext>
       // eslint-disable-next-line @typescript-eslint/unbound-method
       const { context, request, next } = interceptorOptions;
 
-      // Extract session from request headers
-      let sessionData: UserSession | null = null;
-      
-      // Get headers from the ORPC request object
-      const headers = request.headers;
-      const webHeaders = toWebHeaders(headers);
-
-      try {
-        const rawSessionData = await auth.api.getSession({
-          headers: webHeaders,
-          asResponse: false,
-        });
-
-        // Better Auth's toAuthEndpoints wraps response in { response: Response }
-        // We need to extract the actual session data from the Response body
-        if (rawSessionData && typeof rawSessionData === 'object') {
-          // Check if it's wrapped in { response: Response }
-          if ('response' in rawSessionData && rawSessionData.response instanceof Response) {
-            const response = rawSessionData.response;
-            if (response.ok) {
-              const body = await response.json().catch(() => null);
-              sessionData = body as UserSession | null;
-            }
-          } 
-          // Direct Response object
-          else if (rawSessionData instanceof Response) {
-            if (rawSessionData.ok) {
-              const body = await rawSessionData.json().catch(() => null);
-              sessionData = body as UserSession | null;
-            }
-          }
-          // Raw session data (ideal case)
-          else if ('session' in rawSessionData && 'user' in rawSessionData) {
-            sessionData = rawSessionData;
-          }
-        }
-      } catch (error) {
-        logger.error("Auth Plugin: Error extracting session", { error });
-        // Continue with null session - allow unauthenticated access
-      }
+      // The session comes from the resolver (Better Auth does the check); a failed lookup means "no session".
+      const webHeaders = toWebHeaders(request.headers);
+      const sessionData: UserSession | null = await Effect.runPromise(
+        sessions.resolve(webHeaders).pipe(
+          Effect.catch((error) =>
+            Effect.sync(() => {
+              logger.error("Auth Plugin: Error extracting session", { error });
+              return null;
+            }),
+          ),
+        ),
+      );
 
       // Create auth utilities with session AND headers for plugin utilities
       const authUtils = new AuthUtils(sessionData, auth, webHeaders);
