@@ -23,9 +23,9 @@ import type {
     SwarmServiceSpecInput,
     SwarmTaskStateCheck,
 } from "@deployer/contracts-entities";
-import { platformOverlayForPrefix } from "@deployer/nest-docker/services/docker-supervisor-runtime";
+import { platformOverlayForPrefix } from "@deployer/docker";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
-import { toDockerServiceSpec } from "@deployer/nest-docker/services/swarm-spec.mapper";
+import { toDockerServiceSpec } from "@deployer/docker";
 import type { SwarmClusterService } from "@deployer/nest-swarm";
 import type { EnvService } from "@deployer/shared/config/env/env.module";
 import { verifySwarmRouteAgainstTraefik } from "@deployer/shared/core/modules/traefik/services/swarm-route-verifier";

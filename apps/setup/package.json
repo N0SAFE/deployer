@@ -51,6 +51,7 @@
     "@deployer/logger": "*",
     "@deployer/mesh-network": "*",
     "@deployer/nest-database-local": "*",
+    "@deployer/docker": "*",
     "@deployer/nest-docker": "*",
     "@deployer/nest-env": "*",
     "@deployer/nest-nodes": "*",

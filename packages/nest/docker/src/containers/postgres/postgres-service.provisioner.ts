@@ -4,8 +4,8 @@ import { splitManagedEnv } from "@deployer/env";
 import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
 import type { PostgresIdentityConfig } from "../../docker-config";
 import { DockerService } from "../../services/docker.service";
-import { platformNetworkName, platformOverlayNetworkName } from "../../services/docker-supervisor-runtime";
-import { toDockerServiceSpec } from "../../services/swarm-spec.mapper";
+import { platformNetworkName, platformOverlayNetworkName } from "@deployer/docker";
+import { toDockerServiceSpec } from "@deployer/docker";
 
 /**
  * PostgresServiceProvisioner — the platform's GLOBAL POSTGRES, as a swarm

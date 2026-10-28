@@ -39,7 +39,7 @@ import { PreviewEnvOverlayService } from "./preview/preview-env-overlay.service"
 import { DeploymentStorageProvidersModule } from "./storage/storage-providers.module";
 import { GitModule } from "@deployer/shared/core/modules/git/git/git.module";
 import { TraefikCoreModule } from "@deployer/shared/core/modules/traefik/traefik.module";
-import { CONTAINER_LINK_RESOLVER } from "@deployer/nest-docker/services/container-link-resolver.interface";
+import { CONTAINER_LINK_RESOLVER } from "@deployer/docker";
 import { DeploymentContainerLinkService } from "./services/container-link.service";
 import { DeploymentArtifactBuilderService } from "./builders/deployment-artifact-builder.service";
 import { BUILDER_STRATEGIES, BuilderRegistryService } from "./builders/builder-registry.service";

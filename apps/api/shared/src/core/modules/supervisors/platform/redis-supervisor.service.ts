@@ -30,10 +30,7 @@ import {
 } from "@deployer/nest-supervisor-core/supervisor-process-info";
 import { EnvService } from "../../../../config/env/env.module";
 import { splitManagedEnv } from "@deployer/env";
-import {
-	resolveSupervisorRuntime,
-	type DockerSupervisorRuntime,
-} from "@deployer/nest-docker/services/docker-supervisor-runtime";
+import { resolveSupervisorRuntime, type DockerSupervisorRuntime } from "@deployer/docker";
 import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
 import { PLATFORM_ROLE_LABEL, PlatformNetwork } from "./traefik-supervisor.service";
 

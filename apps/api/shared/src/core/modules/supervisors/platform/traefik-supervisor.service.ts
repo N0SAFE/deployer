@@ -35,11 +35,7 @@ import {
 } from "@deployer/contracts-entities/entities/ingress/index";
 import { NODE_DOORS_SETTING_KEY, type DoorRescueRoute } from "@deployer/mesh-network";
 import { BaseDockerSupervisorService } from "@deployer/nest-docker/services/base-docker-supervisor.service";
-import {
-	platformOverlayForPrefix,
-	resolveSupervisorRuntime,
-	type DockerSupervisorRuntime,
-} from "@deployer/nest-docker/services/docker-supervisor-runtime";
+import { platformOverlayForPrefix, resolveSupervisorRuntime, type DockerSupervisorRuntime } from "@deployer/docker";
 import type { SwarmEndpointPort, SwarmServiceSpecInput } from "@deployer/contracts-entities";
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
 import {
@@ -51,7 +47,7 @@ import {
 	swarmProcessInfoSchema,
 } from "@deployer/nest-supervisor-core/supervisor-process-info";
 import { splitManagedEnv } from "@deployer/env";
-import { resolveDockerHostIp } from "@deployer/nest-docker/services/docker-host-address";
+import { resolveDockerHostIp } from "@deployer/docker";
 
 import { EnvService } from "../../../../config/env/env.module";
 import { MeshAgentClient } from "../../mesh-agent/mesh-agent.client";

@@ -1,12 +1,12 @@
 import { AGENT_RUN_VOLUME, AGENT_SOCKET_DIR } from "@deployer/mesh-network";
 import { Injectable, Logger } from "@nestjs/common";
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
-import { toDockerServiceSpec } from "@deployer/nest-docker/services/swarm-spec.mapper";
+import { toDockerServiceSpec } from "@deployer/docker";
 
 import { EnvService } from "@/config/env/env.module";
 import { SetupGateService } from "@/modules/wizard/setup-gate.service";
 import type { SetupEnv } from "@/config/env/env.schema";
-import { platformOverlayForPrefix } from "@deployer/nest-docker/services/docker-supervisor-runtime";
+import { platformOverlayForPrefix } from "@deployer/docker";
 
 /** A configuration key this provisioner reads. */
 type EnvKey = keyof SetupEnv;

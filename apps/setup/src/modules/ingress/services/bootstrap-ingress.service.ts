@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { Socket } from "node:net";
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
-import { platformNetworkName } from "@deployer/nest-docker/services/docker-supervisor-runtime";
+import { platformNetworkName } from "@deployer/docker";
 
 import { EnvService } from "@/config/env/env.module";
 

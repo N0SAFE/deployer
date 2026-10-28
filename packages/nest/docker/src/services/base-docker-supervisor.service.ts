@@ -20,12 +20,9 @@ import {
 } from "@deployer/nest-supervisor-core/base-supervisor.service";
 import { type DockerProcessInfo, type SwarmProcessInfo } from "@deployer/nest-supervisor-core/supervisor-process-info";
 import { baseSupervisorProcessInfoSchema } from "@deployer/nest-supervisor-core/supervisor-process-info";
-import {
-	platformOverlayNetworkName,
-	type DockerSupervisorRuntime,
-} from "./docker-supervisor-runtime";
+import { platformOverlayNetworkName, type DockerSupervisorRuntime } from "@deployer/docker";
 import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
-import { toDockerServiceSpec } from "./swarm-spec.mapper";
+import { toDockerServiceSpec } from "@deployer/docker";
 
 /** Dockerode API errors carry an HTTP-style statusCode (404 = not found). */
 type DockerodeError = Error & { statusCode?: number };

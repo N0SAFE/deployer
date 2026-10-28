@@ -53,10 +53,7 @@ import z from "zod/v4";
 
 import { EnvService } from "../../../../config/env/env.module";
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
-import {
-	platformNetworkName,
-	platformOverlayForPrefix,
-} from "@deployer/nest-docker/services/docker-supervisor-runtime";
+import { platformNetworkName, platformOverlayForPrefix } from "@deployer/docker";
 import {
 	BaseSupervisorService,
 	baseSupervisorPayloadSchema,

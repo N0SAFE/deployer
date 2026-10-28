@@ -40,10 +40,7 @@ import {
 } from "@deployer/nest-supervisor-core/supervisor-process-info";
 import { EnvService } from "../../../../config/env/env.module";
 import z from "zod/v4";
-import {
-	resolveSupervisorRuntime,
-	type DockerSupervisorRuntime,
-} from "@deployer/nest-docker/services/docker-supervisor-runtime";
+import { resolveSupervisorRuntime, type DockerSupervisorRuntime } from "@deployer/docker";
 import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
 import { PlatformNetwork } from "./traefik-supervisor.service";
 import { AppError, ConflictError } from "@deployer/errors";

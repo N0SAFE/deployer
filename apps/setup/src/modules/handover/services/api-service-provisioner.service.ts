@@ -1,7 +1,7 @@
 import type { SwarmOverlayNetworkRequest } from "@deployer/contracts-entities";
 import { Injectable, Logger } from "@nestjs/common";
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
-import { platformOverlayForPrefix } from "@deployer/nest-docker/services/docker-supervisor-runtime";
+import { platformOverlayForPrefix } from "@deployer/docker";
 
 import { EnvService } from "@/config/env/env.module";
 import { DEFAULT_API_INTERNAL_PORT, type ApiBackend } from "../handover.types";

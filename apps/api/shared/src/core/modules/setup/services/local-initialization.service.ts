@@ -27,10 +27,7 @@ import { GLOBAL_MIGRATIONS_DIR } from "@deployer/nest-schema";
 import { createBetterAuth } from "../../../../config/auth/auth";
 
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
-import {
-    platformNetworkName,
-    platformOverlayNetworkName,
-} from "@deployer/nest-docker/services/docker-supervisor-runtime";
+import { platformNetworkName, platformOverlayNetworkName } from "@deployer/docker";
 import {
     PostgresServiceProvisioner,
     MANAGED_POSTGRES_ALIAS,
@@ -54,7 +51,7 @@ import {
     slugify,
     type EmitEvent,
 } from "../utils/setup-runner.utils";
-import { resolveDockerHostIp } from "@deployer/nest-docker/services/docker-host-address";
+import { resolveDockerHostIp } from "@deployer/docker";
 import { DEPLOYER_VERSION } from "../../../utils/deployer-version";
 
 import { AppError, ConflictError } from "@deployer/errors";

@@ -29,10 +29,7 @@ import {
 	type SupervisorProbeResult,
 } from "@deployer/nest-supervisor-core/base-supervisor.service";
 import { BaseDockerSupervisorService } from "@deployer/nest-docker/services/base-docker-supervisor.service";
-import {
-	resolveSupervisorRuntime,
-	type DockerSupervisorRuntime,
-} from "@deployer/nest-docker/services/docker-supervisor-runtime";
+import { resolveSupervisorRuntime, type DockerSupervisorRuntime } from "@deployer/docker";
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
 import {
 	baseSupervisorProcessInfoSchema,

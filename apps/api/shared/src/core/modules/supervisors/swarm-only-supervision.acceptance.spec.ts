@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-	resolveSupervisorRuntime,
-	swarmRuntimeForScope,
-} from "@deployer/nest-docker/services/docker-supervisor-runtime";
+import { resolveSupervisorRuntime, swarmRuntimeForScope } from "@deployer/docker";
 import { PLATFORM_SUPERVISOR_TOPOLOGY } from "./supervisor-topology";
 import { GLOBAL_DB_SUPERVISOR_ID } from "./database/global-db-supervisor.service";
 import { DATABASE_SERVICE_SUPERVISOR_ID } from "./database/database-service-supervisor.service";

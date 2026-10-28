@@ -27,10 +27,7 @@ import z from "zod/v4";
 import {
 	BaseDockerSupervisorService,
 } from "@deployer/nest-docker/services/base-docker-supervisor.service";
-import {
-	resolveSupervisorRuntime,
-	type DockerSupervisorRuntime,
-} from "@deployer/nest-docker/services/docker-supervisor-runtime";
+import { resolveSupervisorRuntime, type DockerSupervisorRuntime } from "@deployer/docker";
 import {
 	BaseSupervisorService,
 	baseSupervisorPayloadSchema,

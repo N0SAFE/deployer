@@ -15,7 +15,7 @@
  * NOTE: `local-db-sqlite` (the node's own SQLite state file) is NOT docker —
  * it is always owned by the API process and never scheduled; excluded by design.
  */
-import type { SupervisorTopology } from "@deployer/nest-docker/services/docker-supervisor-runtime";
+import type { SupervisorTopology } from "@deployer/docker";
 
 export const PLATFORM_SUPERVISOR_TOPOLOGY: readonly SupervisorTopology[] = [
   {

@@ -14,3 +14,20 @@ export type { ContainerSummary, ContainersShape, CreateContainerOptions, HealthW
 export type { ImagePullPolicy, ImagesShape, PullOptions } from "./engine/images";
 export type { NetworksShape } from "./engine/networks";
 export type { SwarmServicesShape } from "./engine/swarm-services";
+export { toDockerServiceSpec } from "./swarm/swarm-spec.mapper";
+export { resolveDockerHostIp } from "./host-address";
+export { CONTAINER_LINK_RESOLVER } from "./container-link-resolver";
+export type { IContainerLinkResolver, ContainerEnrichment } from "./container-link-resolver";
+export {
+	resolveSupervisorRuntime,
+	swarmRuntimeForScope,
+	SUPERVISOR_RUNTIME_RAW,
+	platformNetworkName,
+	platformOverlayNetworkName,
+	platformOverlayForPrefix,
+} from "./supervisor/docker-supervisor-runtime";
+export type {
+	DockerSupervisorRuntime,
+	SupervisorScope,
+	SupervisorTopology,
+} from "./supervisor/docker-supervisor-runtime";

@@ -31,26 +31,6 @@ export { DOCKER_CONNECTION_CONFIG, DOCKER_SCANNER_CONFIG } from "./docker.module
 export { DockerService } from "./services/docker.service";
 export { AbstractDockerContainerService } from "./services/abstract-docker-container.service";
 export { BaseDockerSupervisorService } from "./services/base-docker-supervisor.service";
-export { CONTAINER_LINK_RESOLVER } from "./services/container-link-resolver.interface";
-export type {
-  IContainerLinkResolver,
-  ContainerEnrichment,
-} from "./services/container-link-resolver.interface";
-export { toDockerServiceSpec } from "./services/swarm-spec.mapper";
-export { resolveDockerHostIp } from "./services/docker-host-address";
-export {
-  resolveSupervisorRuntime,
-  swarmRuntimeForScope,
-  SUPERVISOR_RUNTIME_RAW,
-  platformNetworkName,
-  platformOverlayNetworkName,
-  platformOverlayForPrefix,
-} from "./services/docker-supervisor-runtime";
-export type {
-  DockerSupervisorRuntime,
-  SupervisorScope,
-  SupervisorTopology,
-} from "./services/docker-supervisor-runtime";
 export {
   ScannerContainerManagerService,
 } from "./services/scanner-container-manager.service";
