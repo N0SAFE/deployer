@@ -55,14 +55,14 @@ These are pre-wired NestJS building blocks shared between the Nest apps (`api`,
 
 | Package | Ships | The app supplies |
 | --- | --- | --- |
-| `environment` | the validated environment (Effect), mounted by `nest-effect/env` | — |
+| `environment` | the validated environment (Effect), provided by each app's `EnvModule` | — |
 | `nest-schema` | drizzle table definitions + the codec registry | the encryption key + traefik builder (via `configureSchemaCodecs`) |
 | `nest-database-core` | `BaseDatabaseService` over any drizzle client | the concrete database service |
 | `nest-database-local` | the SQLite connection + `@Global` module | — |
 | `nest-docker` | the engine client, container lifecycle, swarm-spec mapping | connection + scanner + Postgres-identity CONFIG as data |
 | `nest-nodes` | node/cluster repositories | — |
 | `nest-supervisor-core` | supervisor base classes + event bus | each supervisor's `buildSwarmSpec()` |
-| `lifecycle` | the app-lifecycle phase and its change stream (Effect); mounted by `nest-effect/lifecycle` | — |
+| `lifecycle` | the app-lifecycle phase and its change stream (Effect); provided by `AppLifecycleModule` | — |
 
 Two consequences worth knowing before you add code:
 

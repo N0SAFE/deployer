@@ -15,26 +15,28 @@ inside the package. Do not rewrite an RxJS bus or SSE pipeline into Effect strea
    `make<Service>(deps)` factories, layers, typed `domainError`s and `Test`/fake layers. No Nest import.
 2. **Typed failures**, never `throw`; Promise APIs enter through `fromAbortable` so interruption
    aborts the work.
-3. **Nest host** in `@deployer/nest-effect/<feature>`: the module and, while a caller is not on
-   Effect yet, a Promise (or synchronous) face over the Effect service. The face holds no logic.
+3. **Nest provides the tag directly**, as `apps/api/services/health` does: the app's module has
+   `{ provide: Tag, useFactory: make<X> }` and callers `@Inject(Tag)` and run the Effect they need. No
+   `nest-effect/<feature>` host and no Promise face: those were a migration layer and are gone.
+   Lifetime work (closing a handle, a background fiber) lives in a small provider next to the tag.
 4. **Delete the old `nest-*` package** once its consumers are repointed; no compatibility shims.
 
 ## Done
 
 | Package | Replaces |
 |---|---|
-| `@deployer/docker` (engine, provisioning, scanner pool) + `nest-effect/docker` | `nest-docker`. `DockerService` in `nest-effect/docker` is now only the host of the client: `getEngine()`, the socket helpers, the scanner's engine access and the RxJS log streams; every caller runs the engine's Effects |
-| `@deployer/supervision` + `nest-effect/supervision` | `nest-supervisor-core` |
-| `@deployer/node-state` + `nest-effect/node-state` | `nest-database-local`, `nest-nodes` |
-| `@deployer/lifecycle` + `nest-effect/lifecycle` | `nest-lifecycle` |
-| `@deployer/environment` + `nest-effect/env` | `nest-env` |
-| `@deployer/database` + `nest-effect/database` | `nest-database-core` |
-| `@deployer/platform-supervisors` + `SupervisorHost` in `nest-effect/supervision` | every `apps/api/shared` supervisor (app-wiring, redis, managed-web, global-db, database-service, edge-connector, local-db, traefik); the Promise `BaseSupervisorService`, `BaseDockerSupervisorService` and `BaseMultiSupervisorService` are deleted |
-| `@deployer/system-metrics` + `nest-effect/system-metrics` | `apps/api/shared` system-metrics module |
+| `@deployer/docker` (host, engine, provisioning, scanner pool) | `nest-docker` and the `DockerService` host. Each app's docker module provides `DockerHost`, `DockerEngine`, `ScannerPool`, `PostgresProvisioner`; callers inject the engine |
+| `@deployer/supervision` | `nest-supervisor-core` |
+| `@deployer/node-state` (repositories and `LocalDatabase` provided under their tags) | `nest-database-local`, `nest-nodes` |
+| `@deployer/lifecycle` (`AppLifecycleModule.forRoot()` provides `AppLifecycle`) | `nest-lifecycle` |
+| `@deployer/environment` (each app's `EnvModule` provides its `EnvService` token) | `nest-env` |
+| `@deployer/database` | `nest-database-core` |
+| `@deployer/platform-supervisors` | every `apps/api/shared` supervisor (app-wiring, redis, managed-web, global-db, database-service, edge-connector, local-db, traefik); the Promise `BaseSupervisorService`, `BaseDockerSupervisorService` and `BaseMultiSupervisorService` are deleted |
+| `@deployer/system-metrics` (provided as the `SystemMetrics` tag) | `apps/api/shared` system-metrics module |
 | `@deployer/rate-limit` | the duplicated `rate-limit` middleware (shared, unused) and fleet's copy |
 | `@deployer/service-client` | `nest-service-client` (no Nest host: only the bff uses it, through its own module) |
-| `@deployer/events` + `nest-effect/events` | `nest-events` (journal in Effect; streaming stays RxJS) |
-| `@deployer/swarm` + `nest-effect/swarm` | `nest-swarm` (the runtime swarm runner uses `SwarmCluster` directly) |
+| `@deployer/events` | `nest-events` (journal in Effect; streaming stays RxJS) |
+| `@deployer/swarm` (`makeSwarmServices` builds every service; each tag is provided) | `nest-swarm` |
 | `@deployer/effect-{core,infra,orpc,platform,reachability}` | the shared Effect layers |
 | identity, project, fleet, runtime services | Effect layers behind `serve` |
 
@@ -42,6 +44,7 @@ inside the package. Do not rewrite an RxJS bus or SSE pipeline into Effect strea
 
 | Order | Package | Size | Consumers | Notes |
 |---|---|---|---|---|
+| 0 | Nest classes still in `apps/api/shared` | medium | supervisors, events | the `SupervisorHost` base class and orchestrator (`core/modules/supervision`) and the RxJS event services (`core/modules/events/base`) are app code now, still Promise-shaped; supervisors should become specs registered by a lifecycle provider, and the fleet/runtime services still `runPromiseUnwrapped` the swarm and docker Effects at their edges |
 | 1 | `apps/api/shared` modules | large | everything | traefik, mesh, platform-ingress, setup, supervisors' bodies (Promise inside the Effect framework today), global database |
 | 2 | `apps/setup`, `apps/api/bff` wiring | | | after the shared modules |
 | n/a | `nest-schema` | 5.9k | all | Drizzle table definitions and migrations are data, not Nest logic; it only needs renaming |

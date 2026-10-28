@@ -4,8 +4,7 @@
  * The local SQLite database (opened and migrated once per layer, closed with its scope), the node's
  * config, its row in the cluster snapshot, the fleet inventory cache, and the swarm node label
  * vocabulary those rows mirror. The setup app reads the cluster decision from here before the global
- * Postgres exists and the API reads the same rows afterwards. Nest apps mount it through
- * `@deployer/nest-effect/node-state`.
+ * Postgres exists and the API reads the same rows afterwards. A Nest app provides the repositories and `LocalDatabase` under these tags.
  */
 export { LocalDatabaseError, NodeStateConflict } from "./database/errors";
 export {

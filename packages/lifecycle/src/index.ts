@@ -1,7 +1,7 @@
 /**
  * @deployer/lifecycle — the application lifecycle as Effect.
  *
- * Framework-free: a Nest app mounts it through `@deployer/nest-effect/lifecycle`.
+ * Framework-free: a Nest app provides the `AppLifecycle` tag from `makeAppLifecycle`.
  */
 export { AppLifecycle, makeAppLifecycle } from "./app-lifecycle";
 export type { AppLifecycleShape } from "./app-lifecycle";

@@ -1,7 +1,7 @@
 /**
  * @deployer/system-metrics — this machine's readings as Effect.
  *
- * Framework-free: a Nest app mounts it through `@deployer/nest-effect/system-metrics`.
+ * Framework-free: a Nest app provides the `SystemMetrics` tag from `makeSystemMetrics`.
  */
 export { MetricsUnavailable } from "./errors";
 export { systeminformationProbe } from "./probe";
