@@ -15,7 +15,8 @@ import { AUTH_MIDDLEWARE_BRAND_VALUE } from './types'
 import { os } from '@orpc/server'
 import { standardErrorOptions, STANDARD_DOMAIN_ERROR_DEFS } from '@deployer/orpc-utils'
 import { verifyMeshToken, verifyPeerServiceToken } from '@deployer/auth/mesh'
-import { EnvService as BaseEnvService } from "@deployer/nest-effect/env"
+import { runSyncUnwrapped } from "@deployer/effect-core"
+import { makeLenientEnvironment } from "@deployer/environment"
 import { apiEnvSchema, type ApiEnv as Env } from '@deployer/env'
 import type { ORPCGlobalContext } from './orpc-context'
 import { SYSTEM_ACTOR_HEADER, verifySystemActorClaim } from '../system-actor'
@@ -25,10 +26,10 @@ import { SYSTEM_ACTOR_HEADER, verifySystemActorClaim } from '../system-actor'
  *
  * The schema is passed explicitly because this helper runs in contexts with no
  * Nest container (a middleware factory, tests). Passing it is what keeps the
- * SCHEMA in this app rather than baked into `@deployer/nest-effect/env`.
+ * SCHEMA in this app rather than baked into `@deployer/environment`.
  */
 const readEnv = <K extends keyof Env>(key: K): Env[K] => {
-    return new BaseEnvService<Env>(apiEnvSchema).get(key)
+    return runSyncUnwrapped(makeLenientEnvironment(apiEnvSchema)).get(key)
 }
 
 /**

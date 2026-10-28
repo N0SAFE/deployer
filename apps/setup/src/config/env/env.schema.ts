@@ -10,7 +10,7 @@ import { booleanEnv } from "@deployer/env";
  * one schema between the two apps would mean each one validating (and
  * requiring defaults for) variables it never uses.
  *
- * This file is the reason `@deployer/nest-effect/env` takes a schema instead of shipping
+ * This file is the reason `@deployer/environment` takes a schema instead of shipping
  * one: the mechanism is shared, the contract is not.
  */
 export const setupEnvSchema = z.object({

@@ -1,4 +1,7 @@
-import { EnvService } from "@/config/env/env.module";
+import { runSyncUnwrapped } from "@deployer/effect-core";
+import { makeLenientEnvironment } from "@deployer/environment";
+import type { EnvService } from "@/config/env/env.module";
+import { setupEnvSchema } from "@/config/env/env.schema";
 
 /**
  * Build a real `EnvService` for a spec, with the given variables in `process.env`.
@@ -11,7 +14,7 @@ import { EnvService } from "@/config/env/env.module";
  * (a missing key is `undefined` at runtime, not a compile error).
  *
  * ── WHY IT SAVES AND RESTORES `process.env` ─────────────────────────────────
- * `EnvService` reads `process.env` at construction (that is the contract — one
+ * The environment reads `process.env` at construction (that is the contract — one
  * parse, cached). Tests run in the same process, so a variable left behind would
  * leak into every later spec and make failures depend on file order.
  */
@@ -23,7 +26,7 @@ export function makeEnvService(overrides: Record<string, string> = {}): EnvServi
     process.env[key] = value;
   }
 
-  const service = new EnvService();
+  const service: EnvService = runSyncUnwrapped(makeLenientEnvironment(setupEnvSchema));
 
   // Restore immediately: the service has already parsed and cached its values,
   // so holding the process env mutated for the test's duration would only create

@@ -51,6 +51,7 @@
     "@deployer/identity-contracts": "*",
     "@deployer/logger": "*",
     "@deployer/effect-core": "*",
+    "@deployer/environment": "*",
     "@deployer/mesh-network": "*",
     "@deployer/docker": "*",
     "@deployer/nest-effect": "*",

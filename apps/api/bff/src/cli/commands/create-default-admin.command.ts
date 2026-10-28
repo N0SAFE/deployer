@@ -4,7 +4,8 @@ import { EnvService } from "@/config/env/env.module";
 import { apiEnvSchema } from '@deployer/env';
 import zod from 'zod/v4';
 import { CliAuthService } from '../services/cli-auth.service';
-import { EnvService as BaseEnvService } from "@deployer/nest-effect/env";
+import { runSyncUnwrapped } from "@deployer/effect-core";
+import type { EnvironmentShape } from "@deployer/environment";
 
 // Extend the API schema with command-specific environment variables. Both
 // mirror the base schema's optionality — the boot path never requires them,
@@ -25,14 +26,14 @@ type CreateDefaultAdminEnv = zod.infer<typeof createDefaultAdminEnvSchema>;
 @Injectable()
 export class CreateDefaultAdminCommand extends CommandRunner {
   private readonly logger = new Logger(CreateDefaultAdminCommand.name);
-  private readonly commandEnvService: BaseEnvService<CreateDefaultAdminEnv>;
+  private readonly commandEnvService: EnvironmentShape<CreateDefaultAdminEnv>;
   
   constructor(
     private readonly cliAuthService: CliAuthService,
     private readonly envService: EnvService,
   ) {
     super();
-    this.commandEnvService = this.envService.use(createDefaultAdminEnvSchema);
+    this.commandEnvService = runSyncUnwrapped(this.envService.use(createDefaultAdminEnvSchema));
   }
 
   async run(): Promise<void> {

@@ -1,33 +1,37 @@
 import { Module } from "@nestjs/common";
-import { EnvModule as NestEnvModule } from "@deployer/nest-effect/env";
-
+import { ConfigModule } from "@nestjs/config";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { setupEnvSchema } from "./env.schema";
-import { EnvService } from "./env.service";
+
+import { setupEnvironmentProvider, EnvService } from "./env.service";
+
+// Re-exported so `@/config/env/env.module` is the ONE import path for both the
+// module and its service, matching how consumers already write it.
+export { EnvService };
 
 /**
  * The setup app's environment module.
  *
- * Same package as the API's, different schema — the package owns the MECHANISM
- * (load `.env`, validate once) and this app owns the CONTRACT
- * (`setupEnvSchema`).
- *
- * WHY `NestEnvModule` IS RE-EXPORTED RATHER THAN THE BASE CLASS
- * The package's `forRoot` PROVIDES the base `EnvService` and exports it from its
- * own module. Nest validates exports against the currently processed module's
- * providers and imports, so naming the bare class here fails at boot with
- * `UnknownExportException` — the class is not a provider of THIS module. The
- * token belongs to `NestEnvModule`, so `NestEnvModule` is what gets forwarded,
- * and the base service travels with it.
- *
- * The app's own subclass is provided AND exported, so consumers can inject
- * either: `EnvService` for `SetupEnv`-typed access, or the base service (via the
- * re-exported module) when they need `use()` with a different schema.
+ * `ConfigModule` loads the `.env` files (the working directory's and the repo root's, which covers
+ * running from an app directory and from the root) and validates them once through the setup app's own
+ * contract, `setupEnvSchema`, so a malformed environment fails at boot with the schema's message.
+ * The Effect environment is then provided under the `EnvService` token.
  */
 @Module({
-  imports: [NestEnvModule.forRoot({ schema: setupEnvSchema })],
-  providers: [EnvService],
-  exports: [EnvService, NestEnvModule],
+  imports: [
+    ConfigModule.forRoot({
+      validate: (env) => setupEnvSchema.parse(env) as Record<string, unknown>,
+      isGlobal: true,
+      envFilePath: [path.resolve(process.cwd(), ".env"), path.resolve(process.cwd(), "..", "..", ".env")].filter((p) =>
+        fs.existsSync(p),
+      ),
+      ignoreEnvFile: false,
+      expandVariables: true,
+      cache: true,
+    }),
+  ],
+  providers: [setupEnvironmentProvider],
+  exports: [EnvService, ConfigModule],
 })
 export class EnvModule {}
-
-export { EnvService };

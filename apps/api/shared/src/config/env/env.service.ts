@@ -1,26 +1,26 @@
-import { Injectable, Optional } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { EnvService as BaseEnvService } from "@deployer/nest-effect/env";
+import { runSyncUnwrapped } from "@deployer/effect-core";
+import { makeEnvironment, type EnvironmentShape } from "@deployer/environment";
 import { apiEnvSchema, type ApiEnv } from "@deployer/env";
 
 /**
- * The API's environment service — the shared mechanism bound to the API's
- * contract.
+ * The API's environment, as the `@deployer/environment` Effect service bound to the API's contract.
  *
- * WHY A SUBCLASS RATHER THAN A TYPE ALIAS
- * A `type EnvService = NestEnvService<ApiEnv>` would be erased at compile time,
- * so Nest would receive `Object` as the DI token and injection would fail. A
- * real class keeps a runtime token AND narrows `get()` to `ApiEnv`'s keys, so
- * every injection site is typed without repeating the type parameter.
- *
- * The SCHEMA lives in `@deployer/env` (the variable-shape contract, shared with
- * whatever else needs to read it); this class is the API's binding of it. An
- * app with different variables subclasses the same base with its own schema and
- * neither app inherits the other's.
+ * WHY AN ABSTRACT CLASS AND NOT A TYPE ALIAS
+ * A type alias is erased at compile time, so Nest would receive `Object` as the DI token and
+ * injection would fail. The abstract class is the runtime token; the merged interface gives it the
+ * shape's members, so every injection site is typed by `ApiEnv` without repeating the parameter.
+ * Nest provides the shape under this token directly (`apiEnvironmentProvider`), there is no wrapper.
  */
-@Injectable()
-export class EnvService extends BaseEnvService<ApiEnv> {
-  constructor(@Optional() configService?: ConfigService) {
-    super(apiEnvSchema, configService);
-  }
-}
+export abstract class EnvService {}
+export interface EnvService extends EnvironmentShape<ApiEnv> {}
+
+/** The `ConfigModule` has merged the `.env` files into its store; the schema validates what it reads. */
+export const apiEnvironmentProvider = {
+  provide: EnvService,
+  useFactory: (config: ConfigService): EnvService =>
+    runSyncUnwrapped(
+      makeEnvironment(apiEnvSchema, { read: (key) => config.get(key), all: () => ({ ...process.env }) }),
+    ),
+  inject: [ConfigService],
+};

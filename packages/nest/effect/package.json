@@ -5,7 +5,6 @@
 		"@deployer/database": "*",
 		"@deployer/effect-core": "*",
 		"@deployer/events": "*",
-		"@deployer/environment": "*",
 		"@deployer/mesh-network": "*",
 		"@deployer/errors": "*",
 		"@deployer/node-state": "*",
@@ -82,11 +81,6 @@
 			"import": "./dist/esm/database/index.mjs",
 			"require": "./dist/cjs/database/index.js",
 			"types": "./dist/types/database/index.d.ts"
-		},
-		"./env": {
-			"import": "./dist/esm/env/index.mjs",
-			"require": "./dist/cjs/env/index.js",
-			"types": "./dist/types/env/index.d.ts"
 		}
 	},
 	"main": "./dist/cjs/index.js",

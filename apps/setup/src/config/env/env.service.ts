@@ -1,23 +1,26 @@
-import { Injectable, Optional } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { EnvService as BaseEnvService } from "@deployer/nest-effect/env";
-
+import { runSyncUnwrapped } from "@deployer/effect-core";
+import { makeEnvironment, type EnvironmentShape } from "@deployer/environment";
 import { setupEnvSchema, type SetupEnv } from "./env.schema";
 
 /**
- * The setup app's environment service — the shared mechanism bound to THIS
- * app's contract.
+ * The setup app's environment, as the `@deployer/environment` Effect service bound to the setup app's contract.
  *
- * Compare with `apps/api/src/config/env/env.service.ts`: same base class, same
- * package, different schema. That is the whole design — neither app inherits
- * the other's variables, and the package holds no schema at all.
- *
- * A subclass rather than a type alias because a `type` is erased at compile
- * time: Nest would receive `Object` as the DI token and injection would fail.
+ * WHY AN ABSTRACT CLASS AND NOT A TYPE ALIAS
+ * A type alias is erased at compile time, so Nest would receive `Object` as the DI token and
+ * injection would fail. The abstract class is the runtime token; the merged interface gives it the
+ * shape's members, so every injection site is typed by `SetupEnv` without repeating the parameter.
+ * Nest provides the shape under this token directly (`setupEnvironmentProvider`), there is no wrapper.
  */
-@Injectable()
-export class EnvService extends BaseEnvService<SetupEnv> {
-  constructor(@Optional() configService?: ConfigService) {
-    super(setupEnvSchema, configService);
-  }
-}
+export abstract class EnvService {}
+export interface EnvService extends EnvironmentShape<SetupEnv> {}
+
+/** The `ConfigModule` has merged the `.env` files into its store; the schema validates what it reads. */
+export const setupEnvironmentProvider = {
+  provide: EnvService,
+  useFactory: (config: ConfigService): EnvService =>
+    runSyncUnwrapped(
+      makeEnvironment(setupEnvSchema, { read: (key) => config.get(key), all: () => ({ ...process.env }) }),
+    ),
+  inject: [ConfigService],
+};

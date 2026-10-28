@@ -44,6 +44,8 @@
         "@deployer/auth": "*",
         "@deployer/bff-contracts": "*",
         "@deployer/contracts-entities": "*",
+        "@deployer/effect-core": "*",
+        "@deployer/environment": "*",
         "@deployer/env": "*",
         "@deployer/fleet-contracts": "*",
         "@deployer/health-contracts": "*",
