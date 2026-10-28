@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { RuntimeInvalid } from "../../../../../core/runtime.errors";
+import { Injectable } from "@nestjs/common";
 import { GitService } from "@deployer/shared/core/modules/git/index";
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import z from "zod/v4";
@@ -39,7 +40,7 @@ export class GithubSourceProviderService extends CodeProvider {
             pullRequestNumber: input.source.pullRequestNumber,
         });
         if (!parsed.success) {
-            throw new BadRequestException("GitHub source requires source.repositoryUrl");
+            throw new RuntimeInvalid({ reason: "GitHub source requires source.repositoryUrl" });
         }
 
         const { repositoryUrl, branch, commitSha, pullRequestNumber } = parsed.data;
@@ -47,9 +48,7 @@ export class GithubSourceProviderService extends CodeProvider {
 
         const isValidRepository = await this.gitService.validateRepository(repositoryUrl);
         if (!isValidRepository) {
-            throw new BadRequestException(
-                `GitHub repository '${repositoryUrl}' is not accessible`,
-            );
+            throw new RuntimeInvalid({ reason: `GitHub repository '${repositoryUrl}' is not accessible` });
         }
 
         return githubSourceCheckoutContextSchema.parse({

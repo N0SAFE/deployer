@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { NotFoundException } from "@nestjs/common";
+import { RuntimeNotFound } from "@/core/runtime.errors";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
   assertClaimedByWorker,
@@ -525,7 +525,7 @@ describe("Deployment queue e2e: advanced lifecycle workflow", () => {
         requestedBy: context.workerId,
         reason: "e2e-missing-dead-letter",
       }),
-    ).toThrow(NotFoundException);
+    ).toThrow(RuntimeNotFound);
   });
 
   it("preserves claimed job state when completion/failure lock validation fails", () => {

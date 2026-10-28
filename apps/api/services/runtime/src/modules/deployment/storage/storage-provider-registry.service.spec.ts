@@ -1,4 +1,4 @@
-import { BadRequestException } from "@nestjs/common";
+import { RuntimeInvalid } from "../../../core/runtime.errors";
 import { describe, expect, it } from "vitest";
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import { LocalStorageProviderService } from "./local/local-storage-provider.service";
@@ -108,7 +108,7 @@ describe("StorageProviderRegistryService", () => {
         });
     });
 
-    it("should throw BadRequestException for unsupported storage provider type", async () => {
+    it("should throw RuntimeInvalid for unsupported storage provider type", async () => {
         const registry = createRegistry();
         const input: DeploymentTriggerInput = {
             serviceId: "698f1ffb-c560-42b6-b4d9-74f42d338d44",
@@ -124,7 +124,7 @@ describe("StorageProviderRegistryService", () => {
             },
         };
 
-        await expect(registry.resolveStorageBinding(input)).rejects.toThrow(BadRequestException);
+        await expect(registry.resolveStorageBinding(input)).rejects.toThrow(RuntimeInvalid);
     });
 
     it("should use service-level storage policy when trigger source config has no storage section", async () => {

@@ -1,10 +1,11 @@
+import { RuntimeInvalid } from "../../../core/runtime.errors";
 import { Injectable } from "@nestjs/common";
+
 import type Docker from "dockerode";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
 import { ConfigNotFoundError } from "@deployer/shared/core/modules/traefik/errors/index";
-import { BadRequestError } from "@deployer/errors";
 import { TraefikService } from "@deployer/shared/core/modules/traefik/services/traefik.service";
 import type {
     DeploymentRuntimeRunner,
@@ -171,11 +172,11 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
         }
 
         if (normalized.length > 1024) {
-            throw new BadRequestError("Executor startup command exceeds 1024 characters");
+            throw new RuntimeInvalid({ reason: "Executor startup command exceeds 1024 characters" });
         }
 
         if (/[\u0000\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(normalized)) {
-            throw new BadRequestError("Executor startup command contains unsupported control characters");
+            throw new RuntimeInvalid({ reason: "Executor startup command contains unsupported control characters" });
         }
 
         return normalized;
@@ -329,7 +330,7 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
             try {
                 const syncResult = await this.traefikService.syncServiceConfiguration(serviceId);
                 if (!syncResult.success) {
-                    throw new BadRequestError(syncResult.message);
+                    throw new RuntimeInvalid({ reason: syncResult.message });
                 }
 
                 const healthSummary = await this.traefikService.getHealthStatus();
@@ -359,9 +360,7 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
             }
         }
 
-        throw new BadRequestError(
-            `Traefik route apply/verification failed after ${String(maxAttempts)} attempts: ${lastErrorMessage ?? "unknown error"}`,
-        );
+        throw new RuntimeInvalid({ reason: `Traefik route apply/verification failed after ${String(maxAttempts)} attempts: ${lastErrorMessage ?? "unknown error"}` });
     }
 
     private async bootstrapDefaultTraefikConfiguration(serviceId: string): Promise<void> {
@@ -433,9 +432,7 @@ export class DockerRuntimeRunnerService implements DeploymentRuntimeRunner {
         );
 
         if (!isHealthy) {
-            throw new BadRequestError(
-                `Readiness health gate failed for container '${containerId}' after ${String(config.maxRetries)} retries`,
-            );
+            throw new RuntimeInvalid({ reason: `Readiness health gate failed for container '${containerId}' after ${String(config.maxRetries)} retries` });
         }
 
         return {

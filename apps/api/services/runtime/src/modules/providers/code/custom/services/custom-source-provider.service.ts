@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { RuntimeInvalid } from "../../../../../core/runtime.errors";
+import { Injectable } from "@nestjs/common";
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import z from "zod/v4";
 import type { DeploymentSourceCheckoutContext } from "@deployer/contracts-entities";
@@ -77,9 +78,7 @@ export class CustomSourceProviderService extends CodeProvider {
 
         const parsed = customSourceContextSchema.safeParse(input.source);
         if (!parsed.success) {
-            throw new BadRequestException(
-                "Custom/manual source requires source.customData.containerImage",
-            );
+            throw new RuntimeInvalid({ reason: "Custom/manual source requires source.customData.containerImage" });
         }
 
         const details = parsed.data.customData;

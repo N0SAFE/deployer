@@ -1,4 +1,6 @@
+import { RuntimeInvalid } from "../../core/runtime.errors";
 import { BadRequestException, Injectable } from "@nestjs/common";
+
 import { BuildpackRuntimeRunnerService } from "./buildpack/buildpack-runtime-runner.service";
 import { DockerComposeRuntimeRunnerService } from "./docker-compose/docker-compose-runtime-runner.service";
 import { DockerRuntimeRunnerService } from "./docker/docker-runtime-runner.service";
@@ -48,7 +50,7 @@ export class RuntimeRunnerRegistryService {
         if (!selectedRunner) {
             // Every injected runner is listed above, so this means the caller
             // asked for a kind no runner implements — not that one is missing.
-            throw new BadRequestException(`Unsupported runtime runner '${normalizedRunner}'`);
+            throw new RuntimeInvalid({ reason: `Unsupported runtime runner '${normalizedRunner}'` });
         }
 
         return selectedRunner.executeRuntime(input);

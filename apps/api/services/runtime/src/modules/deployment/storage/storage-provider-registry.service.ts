@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { RuntimeInvalid } from "../../../core/runtime.errors";
+import { Injectable } from "@nestjs/common";
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import type { DeploymentStorageProvider } from "./base/storage-provider.interface";
 import type { DeploymentStorageBinding } from "./base/storage-provider.interface";
@@ -25,16 +26,12 @@ export class StorageProviderRegistryService {
         const provider = this.providersByType.get(storageType);
 
         if (!provider) {
-            throw new BadRequestException(
-                `Unsupported storage provider '${storageType}'. Supported types: ${Array.from(this.providersByType.keys()).join(", ")}`,
-            );
+            throw new RuntimeInvalid({ reason: `Unsupported storage provider '${storageType}'. Supported types: ${Array.from(this.providersByType.keys()).join(", ")}` });
         }
 
         const binding = await provider.resolveStorageBinding(input, serviceStorageConfig);
         if (!binding) {
-            throw new BadRequestException(
-                `Unable to resolve storage binding for provider '${storageType}'`,
-            );
+            throw new RuntimeInvalid({ reason: `Unable to resolve storage binding for provider '${storageType}'` });
         }
 
         return binding;

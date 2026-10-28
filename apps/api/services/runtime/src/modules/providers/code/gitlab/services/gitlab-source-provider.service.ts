@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { RuntimeInvalid } from "../../../../../core/runtime.errors";
+import { Injectable } from "@nestjs/common";
 import { GitService } from "@deployer/shared/core/modules/git/index";
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import z from "zod/v4";
@@ -39,7 +40,7 @@ export class GitlabSourceProviderService extends CodeProvider {
             mergeRequestIid: input.source.mergeRequestIid,
         });
         if (!parsed.success) {
-            throw new BadRequestException("GitLab source requires source.repositoryUrl");
+            throw new RuntimeInvalid({ reason: "GitLab source requires source.repositoryUrl" });
         }
 
         const { repositoryUrl, branch, commitSha, mergeRequestIid } = parsed.data;
@@ -49,9 +50,7 @@ export class GitlabSourceProviderService extends CodeProvider {
 
         const isValidRepository = await this.gitService.validateRepository(repositoryUrl);
         if (!isValidRepository) {
-            throw new BadRequestException(
-                `GitLab repository '${repositoryUrl}' is not accessible`,
-            );
+            throw new RuntimeInvalid({ reason: `GitLab repository '${repositoryUrl}' is not accessible` });
         }
 
         return gitlabSourceCheckoutContextSchema.parse({

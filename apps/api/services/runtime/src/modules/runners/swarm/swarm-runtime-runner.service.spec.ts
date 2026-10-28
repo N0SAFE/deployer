@@ -1,6 +1,7 @@
+import { RuntimeConflict, RuntimeInvalid } from "../../../core/runtime.errors";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NotFoundException } from "@nestjs/common";
-import { BadRequestError, ConflictError, TimeoutError } from "@deployer/errors";
+import { TimeoutError } from "@deployer/errors";
 import type { RuntimeExecutionInput } from "../runtime-runner.interface";
 import { SwarmRuntimeRunnerService, computeTaskStateCheck } from "./swarm-runtime-runner.service";
 
@@ -188,12 +189,12 @@ describe("SwarmRuntimeRunnerService", () => {
         );
     });
 
-    it("throws ConflictError when tasks fail during convergence", async () => {
+    it("throws RuntimeConflict when tasks fail during convergence", async () => {
         dockerService.listSwarmServiceTasks.mockResolvedValue([
             { ...runningTask, Status: { State: "rejected", Err: "image pull failed" } },
         ]);
 
-        await expect(service.executeRuntime(baseInput)).rejects.toBeInstanceOf(ConflictError);
+        await expect(service.executeRuntime(baseInput)).rejects.toBeInstanceOf(RuntimeConflict);
         expect(dockerService.createSwarmService).toHaveBeenCalledOnce();
     });
 
@@ -217,7 +218,7 @@ describe("SwarmRuntimeRunnerService", () => {
                     metadata: {},
                 },
             }),
-        ).rejects.toBeInstanceOf(BadRequestError);
+        ).rejects.toBeInstanceOf(RuntimeInvalid);
         expect(dockerService.createSwarmService).not.toHaveBeenCalled();
     });
 

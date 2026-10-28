@@ -1,3 +1,4 @@
+import { RuntimeInvalid } from "../../../core/runtime.errors";
 /**
  * SwarmComposeRealizerService — Compose→Swarm transform (SW-025,
  * docs/swarm-orchestration/05 §6).
@@ -23,8 +24,10 @@
  */
 
 import { Injectable, Logger } from "@nestjs/common";
+
 import { parse } from "yaml";
 import { AppError, BadRequestError } from "@deployer/errors";
+
 import type {
     ComposeCompatibilityIssue,
     ComposeCompatibilityReport,
@@ -390,17 +393,15 @@ export class SwarmComposeRealizerService {
         try {
             raw = parse(yamlText);
         } catch (error: unknown) {
-            throw new BadRequestError(
-                `Invalid compose YAML: ${error instanceof Error ? error.message : String(error)}`,
-            );
+            throw new RuntimeInvalid({ reason: `Invalid compose YAML: ${error instanceof Error ? error.message : String(error)}` });
         }
         if (typeof raw !== "object" || raw === null) {
-            throw new BadRequestError("Compose file must contain a top-level object");
+            throw new RuntimeInvalid({ reason: "Compose file must contain a top-level object" });
         }
         const record = raw as Record<string, unknown>;
         const servicesRaw = record.services;
         if (typeof servicesRaw !== "object" || servicesRaw === null) {
-            throw new BadRequestError("Compose file has no `services` section");
+            throw new RuntimeInvalid({ reason: "Compose file has no `services` section" });
         }
         const services = Object.entries(servicesRaw as Record<string, unknown>)
             .filter(([, value]) => typeof value === "object" && value !== null)

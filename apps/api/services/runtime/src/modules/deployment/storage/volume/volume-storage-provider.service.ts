@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { RuntimeInvalid } from "../../../../core/runtime.errors";
+import { Injectable } from "@nestjs/common";
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import z from "zod/v4";
 import {
@@ -37,9 +38,7 @@ export class VolumeStorageProviderService implements DeploymentStorageProvider {
 
         if (!parsed.success) {
             if (storageConfig?.type === "volume") {
-                throw new BadRequestException(
-                    "Volume storage requires storage.volume.volumeName in sourceConfig.customData",
-                );
+                throw new RuntimeInvalid({ reason: "Volume storage requires storage.volume.volumeName in sourceConfig.customData" });
             }
             return Promise.resolve(null);
         }

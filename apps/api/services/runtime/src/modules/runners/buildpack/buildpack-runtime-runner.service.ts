@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { RuntimeInvalid } from "../../../core/runtime.errors";
+import { Injectable } from "@nestjs/common";
 import { DelegatedRuntimeRunnerBase } from "../base/delegated-runtime-runner.base";
 import { buildpackRunnerOptionsSchema } from "../base/runner-option-policies.schema";
 import { DockerRuntimeRunnerService } from "../docker/docker-runtime-runner.service";
@@ -18,7 +19,7 @@ export class BuildpackRuntimeRunnerService extends DelegatedRuntimeRunnerBase {
             ...(input.runtimeRunnerOptions ?? {}),
         });
         if (!parsedOptions.success) {
-            throw new BadRequestException("Buildpack runner options are invalid for runner type 'buildpack'");
+            throw new RuntimeInvalid({ reason: "Buildpack runner options are invalid for runner type 'buildpack'" });
         }
         const resolvedMemoryLimitBytes =
             parsedOptions.data.buildpack?.memoryLimitBytes ?? parsedOptions.data.memoryLimitBytes;
@@ -29,9 +30,7 @@ export class BuildpackRuntimeRunnerService extends DelegatedRuntimeRunnerBase {
             : {};
 
         if (!input.artifact.containerImage && !input.deployment.deploymentContainerImage) {
-            throw new BadRequestException(
-                "Buildpack runner requires a prepared runtime image",
-            );
+            throw new RuntimeInvalid({ reason: "Buildpack runner requires a prepared runtime image" });
         }
 
         return {

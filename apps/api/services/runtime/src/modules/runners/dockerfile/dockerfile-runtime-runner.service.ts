@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { RuntimeInvalid } from "../../../core/runtime.errors";
+import { Injectable } from "@nestjs/common";
 import { DelegatedRuntimeRunnerBase } from "../base/delegated-runtime-runner.base";
 import { dockerfileRunnerOptionsSchema } from "../base/runner-option-policies.schema";
 import { DockerRuntimeRunnerService } from "../docker/docker-runtime-runner.service";
@@ -18,15 +19,13 @@ export class DockerfileRuntimeRunnerService extends DelegatedRuntimeRunnerBase {
             ...(input.runtimeRunnerOptions ?? {}),
         });
         if (!parsedOptions.success) {
-            throw new BadRequestException("Dockerfile runner options are invalid for runner type 'dockerfile'");
+            throw new RuntimeInvalid({ reason: "Dockerfile runner options are invalid for runner type 'dockerfile'" });
         }
         const resolvedContainerName =
             parsedOptions.data.dockerfile?.containerName ?? parsedOptions.data.containerName;
 
         if (!input.artifact.containerImage && !input.deployment.deploymentContainerImage) {
-            throw new BadRequestException(
-                "Dockerfile runner requires a prepared container image from build stage",
-            );
+            throw new RuntimeInvalid({ reason: "Dockerfile runner requires a prepared container image from build stage" });
         }
 
         return {

@@ -1,4 +1,6 @@
+import { RuntimeConflict } from "../../../core/runtime.errors";
 import { Injectable } from "@nestjs/common";
+
 import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
 import { deployments, deploymentLogs, deploymentRollbacks, deploymentStreams } from "@deployer/nest-schema/global/runtime/deployment";
 import { previewEnvironments } from "@deployer/nest-schema/global/fleet/deployment";
@@ -17,7 +19,6 @@ import type {
 } from "@deployer/runtime-contracts/modules/deployment/stream";
 import { deploymentStreamSchema, type DeploymentStream } from "@deployer/contracts-entities";
 import { isRecord, isObjectLike } from "@deployer/type-guards"
-import { ConflictError } from "@deployer/errors";
 
 const DEFAULT_NODE_ID = "00000000-0000-4000-8000-000000000000";
 
@@ -462,7 +463,7 @@ export class DeploymentRepository {
 
             return [created];
         });
-        if (!row) throw new ConflictError("Failed to create deployment");
+        if (!row) throw new RuntimeConflict({ reason: "Failed to create deployment" });
         return toDto(row);
     }
 
@@ -816,7 +817,7 @@ export class DeploymentRepository {
 
             return [created];
         });
-        if (!row) throw new ConflictError("Failed to insert deployment log");
+        if (!row) throw new RuntimeConflict({ reason: "Failed to insert deployment log" });
         return toLogDto(row);
     }
 
@@ -866,7 +867,7 @@ export class DeploymentRepository {
             .returning();
 
         if (!row) {
-            throw new ConflictError("Failed to create deployment rollback");
+            throw new RuntimeConflict({ reason: "Failed to create deployment rollback" });
         }
 
         return toRollbackDto(row);

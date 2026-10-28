@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { RuntimeInvalid } from "../../../../core/runtime.errors";
+import { Injectable } from "@nestjs/common";
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import z from "zod/v4";
 import {
@@ -39,7 +40,7 @@ export class S3StorageProviderService implements DeploymentStorageProvider {
 
         if (!parsed.success) {
             if (storageConfig?.type === "s3") {
-                throw new BadRequestException("S3 storage requires storage.s3.bucket in sourceConfig.customData");
+                throw new RuntimeInvalid({ reason: "S3 storage requires storage.s3.bucket in sourceConfig.customData" });
             }
             return Promise.resolve(null);
         }

@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { RuntimeInvalid } from "../../../core/runtime.errors";
+import { Injectable } from "@nestjs/common";
 import { DelegatedRuntimeRunnerBase } from "../base/delegated-runtime-runner.base";
 import { nixpacksRunnerOptionsSchema } from "../base/runner-option-policies.schema";
 import { DockerRuntimeRunnerService } from "../docker/docker-runtime-runner.service";
@@ -18,15 +19,13 @@ export class NixpacksRuntimeRunnerService extends DelegatedRuntimeRunnerBase {
             ...(input.runtimeRunnerOptions ?? {}),
         });
         if (!parsedOptions.success) {
-            throw new BadRequestException("Nixpacks runner options are invalid for runner type 'nixpacks'");
+            throw new RuntimeInvalid({ reason: "Nixpacks runner options are invalid for runner type 'nixpacks'" });
         }
         const resolvedCpuShares =
             parsedOptions.data.nixpacks?.cpuShares ?? parsedOptions.data.cpuShares;
 
         if (!input.artifact.containerImage && !input.deployment.deploymentContainerImage) {
-            throw new BadRequestException(
-                "Nixpacks runner requires a prepared runtime image",
-            );
+            throw new RuntimeInvalid({ reason: "Nixpacks runner requires a prepared runtime image" });
         }
 
         return {

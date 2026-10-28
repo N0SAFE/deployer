@@ -1,7 +1,7 @@
+import { RuntimeForbidden, RuntimeInvalid, RuntimeNotFound } from "../../../core/runtime.errors";
 import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { firstValueFrom, take, toArray } from 'rxjs';
 import { DeploymentService } from './deployment.service';
 import { DeploymentEventService } from '../events/deployment-event.service';
@@ -616,10 +616,10 @@ describe('DeploymentService', () => {
             expect(mockRepository.findById).toHaveBeenCalledWith('deploy-1');
         });
 
-        it('should throw NotFoundException when not found', async () => {
+        it('should throw RuntimeNotFound when not found', async () => {
             mockRepository.findById.mockResolvedValue(null);
 
-            await expect(service.getDeploymentById('missing')).rejects.toThrow(NotFoundException);
+            await expect(service.getDeploymentById('missing')).rejects.toThrow(RuntimeNotFound);
         });
     });
 
@@ -741,7 +741,7 @@ describe('DeploymentService', () => {
                 },
             } as any;
 
-            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(BadRequestException);
+            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(RuntimeInvalid);
             expect(mockRepository.create).not.toHaveBeenCalled();
         });
 
@@ -798,7 +798,7 @@ describe('DeploymentService', () => {
                 },
             } as any;
 
-            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(BadRequestException);
+            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(RuntimeInvalid);
             expect(mockRepository.create).not.toHaveBeenCalled();
         });
 
@@ -815,7 +815,7 @@ describe('DeploymentService', () => {
                 },
             } as any;
 
-            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(BadRequestException);
+            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(RuntimeInvalid);
             expect(mockRepository.create).not.toHaveBeenCalled();
         });
 
@@ -844,11 +844,11 @@ describe('DeploymentService', () => {
                 },
             } as any;
 
-            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(BadRequestException);
+            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(RuntimeInvalid);
             expect(mockRepository.create).not.toHaveBeenCalled();
         });
 
-        it('should throw ForbiddenException when caller is not owner or collaborator', async () => {
+        it('should throw RuntimeForbidden when caller is not owner or collaborator', async () => {
             const input = {
                 serviceId: 'service-1',
                 environment: 'production',
@@ -859,7 +859,7 @@ describe('DeploymentService', () => {
                 },
             } as any;
 
-            await expect(service.triggerDeployment(input, 'other-user')).rejects.toThrow(ForbiddenException);
+            await expect(service.triggerDeployment(input, 'other-user')).rejects.toThrow(RuntimeForbidden);
             expect(mockRepository.create).not.toHaveBeenCalled();
         });
 
@@ -1009,7 +1009,7 @@ describe('DeploymentService', () => {
                 },
             } as any;
 
-            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(BadRequestException);
+            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(RuntimeInvalid);
             expect(mockUploadBundleRegistryService.findByUploadId).toHaveBeenCalledWith('upload-missing-1');
             expect(mockRepository.create).not.toHaveBeenCalled();
         });
@@ -1096,7 +1096,7 @@ describe('DeploymentService', () => {
                 },
             } as any;
 
-            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(BadRequestException);
+            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(RuntimeInvalid);
             expect(mockRepository.create).not.toHaveBeenCalled();
         });
 
@@ -1113,7 +1113,7 @@ describe('DeploymentService', () => {
                 },
             } as any;
 
-            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(BadRequestException);
+            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(RuntimeInvalid);
             expect(mockRepository.create).not.toHaveBeenCalled();
         });
 
@@ -1238,7 +1238,7 @@ describe('DeploymentService', () => {
                 },
             } as any;
 
-            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(BadRequestException);
+            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(RuntimeInvalid);
             expect(mockRepository.create).not.toHaveBeenCalled();
         });
 
@@ -1258,7 +1258,7 @@ describe('DeploymentService', () => {
                 },
             } as any;
 
-            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(BadRequestException);
+            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(RuntimeInvalid);
             expect(mockRepository.create).not.toHaveBeenCalled();
         });
 
@@ -1291,7 +1291,7 @@ describe('DeploymentService', () => {
                 },
             } as any;
 
-            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(BadRequestException);
+            await expect(service.triggerDeployment(input, 'user-1')).rejects.toThrow(RuntimeInvalid);
             expect(mockRepository.create).not.toHaveBeenCalled();
         });
     });
@@ -1601,7 +1601,7 @@ describe('DeploymentService', () => {
                         healthCheckRetryIntervalMs: 500,
                     },
                 }),
-            ).rejects.toThrow(BadRequestException);
+            ).rejects.toThrow(RuntimeInvalid);
 
             expect(mockDockerService.waitForContainerHealth).toHaveBeenCalledWith(
                 'container-1',
@@ -1726,29 +1726,29 @@ describe('DeploymentService', () => {
             );
         });
 
-        it('should throw NotFoundException when deployment not found', async () => {
+        it('should throw RuntimeNotFound when deployment not found', async () => {
             mockRepository.findById.mockResolvedValue(null);
 
-            await expect(service.cancelDeployment('missing', 'user-1')).rejects.toThrow(NotFoundException);
+            await expect(service.cancelDeployment('missing', 'user-1')).rejects.toThrow(RuntimeNotFound);
         });
 
-        it('should throw BadRequestException for already-completed deployment', async () => {
+        it('should throw RuntimeInvalid for already-completed deployment', async () => {
             mockRepository.findById.mockResolvedValue(mockSuccessDeployment);
 
-            await expect(service.cancelDeployment('deploy-2', 'user-1')).rejects.toThrow(BadRequestException);
+            await expect(service.cancelDeployment('deploy-2', 'user-1')).rejects.toThrow(RuntimeInvalid);
         });
 
-        it('should throw BadRequestException for cancelled deployment', async () => {
+        it('should throw RuntimeInvalid for cancelled deployment', async () => {
             const cancelledDeploy = { ...mockDeployment, status: 'cancelled' as const };
             mockRepository.findById.mockResolvedValue(cancelledDeploy);
 
-            await expect(service.cancelDeployment('deploy-1', 'user-1')).rejects.toThrow(BadRequestException);
+            await expect(service.cancelDeployment('deploy-1', 'user-1')).rejects.toThrow(RuntimeInvalid);
         });
 
-        it('should throw ForbiddenException when caller is not owner or collaborator', async () => {
+        it('should throw RuntimeForbidden when caller is not owner or collaborator', async () => {
             mockRepository.findById.mockResolvedValue(mockDeployment);
 
-            await expect(service.cancelDeployment('deploy-1', 'other-user')).rejects.toThrow(ForbiddenException);
+            await expect(service.cancelDeployment('deploy-1', 'other-user')).rejects.toThrow(RuntimeForbidden);
         });
 
         it('should allow platform admin to cancel deployment without project membership', async () => {
@@ -1815,13 +1815,13 @@ describe('DeploymentService', () => {
             expect(rollbackJob?.payload?.projectId).toBe('proj-1');
         });
 
-        it('should throw NotFoundException when from-deployment not found', async () => {
+        it('should throw RuntimeNotFound when from-deployment not found', async () => {
             mockRepository.findById.mockResolvedValue(null);
 
-            await expect(service.rollbackDeployment('missing', 'deploy-2', 'user-1')).rejects.toThrow(NotFoundException);
+            await expect(service.rollbackDeployment('missing', 'deploy-2', 'user-1')).rejects.toThrow(RuntimeNotFound);
         });
 
-        it('should throw BadRequestException when services differ', async () => {
+        it('should throw RuntimeInvalid when services differ', async () => {
             const differentService = { ...mockSuccessDeployment, serviceId: 'service-99' };
             mockRepository.findById.mockImplementation((id: string) => {
                 if (id === 'deploy-1') return Promise.resolve(mockDeployment);
@@ -1829,10 +1829,10 @@ describe('DeploymentService', () => {
                 return Promise.resolve(null);
             });
 
-            await expect(service.rollbackDeployment('deploy-1', 'deploy-2', 'user-1')).rejects.toThrow(BadRequestException);
+            await expect(service.rollbackDeployment('deploy-1', 'deploy-2', 'user-1')).rejects.toThrow(RuntimeInvalid);
         });
 
-        it('should throw BadRequestException when target deployment is not successful', async () => {
+        it('should throw RuntimeInvalid when target deployment is not successful', async () => {
             const failedTarget = { ...mockDeployment, id: 'deploy-2', status: 'failed' as const };
             mockRepository.findById.mockImplementation((id: string) => {
                 if (id === 'deploy-1') return Promise.resolve(mockDeployment);
@@ -1840,17 +1840,17 @@ describe('DeploymentService', () => {
                 return Promise.resolve(null);
             });
 
-            await expect(service.rollbackDeployment('deploy-1', 'deploy-2', 'user-1')).rejects.toThrow(BadRequestException);
+            await expect(service.rollbackDeployment('deploy-1', 'deploy-2', 'user-1')).rejects.toThrow(RuntimeInvalid);
         });
 
-        it('should throw ForbiddenException when caller is not owner or collaborator', async () => {
+        it('should throw RuntimeForbidden when caller is not owner or collaborator', async () => {
             mockRepository.findById.mockImplementation((id: string) => {
                 if (id === 'deploy-1') return Promise.resolve(mockDeployment);
                 if (id === 'deploy-2') return Promise.resolve(mockSuccessDeployment);
                 return Promise.resolve(null);
             });
 
-            await expect(service.rollbackDeployment('deploy-1', 'deploy-2', 'other-user')).rejects.toThrow(ForbiddenException);
+            await expect(service.rollbackDeployment('deploy-1', 'deploy-2', 'other-user')).rejects.toThrow(RuntimeForbidden);
         });
 
         it('should reject rollback when state-machine policy disables rollback', async () => {
@@ -1886,7 +1886,7 @@ describe('DeploymentService', () => {
                 },
             });
 
-            await expect(service.rollbackDeployment('deploy-1', 'deploy-2', 'user-1')).rejects.toThrow(BadRequestException);
+            await expect(service.rollbackDeployment('deploy-1', 'deploy-2', 'user-1')).rejects.toThrow(RuntimeInvalid);
             expect(mockRepository.create).not.toHaveBeenCalled();
         });
     });
@@ -2075,10 +2075,10 @@ describe('DeploymentService', () => {
             });
         });
 
-        it('should throw NotFoundException when deployment not found', async () => {
+        it('should throw RuntimeNotFound when deployment not found', async () => {
             mockRepository.findById.mockResolvedValue(null);
 
-            await expect(service.getDeploymentLogs('missing', 100, 0)).rejects.toThrow(NotFoundException);
+            await expect(service.getDeploymentLogs('missing', 100, 0)).rejects.toThrow(RuntimeNotFound);
         });
 
         it('should indicate hasMore when more logs available', async () => {
@@ -2105,16 +2105,16 @@ describe('DeploymentService', () => {
             expect(mockRepository.delete).toHaveBeenCalledWith('deploy-1');
         });
 
-        it('should throw NotFoundException when not found', async () => {
+        it('should throw RuntimeNotFound when not found', async () => {
             mockRepository.findById.mockResolvedValue(null);
 
-            await expect(service.deleteDeployment('missing', 'user-1')).rejects.toThrow(NotFoundException);
+            await expect(service.deleteDeployment('missing', 'user-1')).rejects.toThrow(RuntimeNotFound);
         });
 
-        it('should throw ForbiddenException when requester is not owner or collaborator', async () => {
+        it('should throw RuntimeForbidden when requester is not owner or collaborator', async () => {
             mockRepository.findById.mockResolvedValue(mockDeployment);
 
-            await expect(service.deleteDeployment('deploy-1', 'other-user')).rejects.toThrow(ForbiddenException);
+            await expect(service.deleteDeployment('deploy-1', 'other-user')).rejects.toThrow(RuntimeForbidden);
         });
     });
 
@@ -2178,16 +2178,16 @@ describe('DeploymentService', () => {
             });
         });
 
-        it('should throw BadRequestException for non-retryable status', async () => {
+        it('should throw RuntimeInvalid for non-retryable status', async () => {
             mockRepository.findById.mockResolvedValue(mockDeployment);
 
-            await expect(service.retryDeployment('deploy-1', 'user-1')).rejects.toThrow(BadRequestException);
+            await expect(service.retryDeployment('deploy-1', 'user-1')).rejects.toThrow(RuntimeInvalid);
         });
 
-        it('should throw ForbiddenException when caller is not owner or collaborator', async () => {
+        it('should throw RuntimeForbidden when caller is not owner or collaborator', async () => {
             mockRepository.findById.mockResolvedValue(mockFailedDeployment);
 
-            await expect(service.retryDeployment('deploy-failed', 'other-user')).rejects.toThrow(ForbiddenException);
+            await expect(service.retryDeployment('deploy-failed', 'other-user')).rejects.toThrow(RuntimeForbidden);
         });
     });
 
@@ -2206,10 +2206,10 @@ describe('DeploymentService', () => {
             expect(mockRepository.findRollbacks).toHaveBeenCalledWith('deploy-1');
         });
 
-        it('should throw NotFoundException when deployment does not exist', async () => {
+        it('should throw RuntimeNotFound when deployment does not exist', async () => {
             mockRepository.findById.mockResolvedValue(null);
 
-            await expect(service.getRollbackHistory('missing')).rejects.toThrow(NotFoundException);
+            await expect(service.getRollbackHistory('missing')).rejects.toThrow(RuntimeNotFound);
         });
     });
 

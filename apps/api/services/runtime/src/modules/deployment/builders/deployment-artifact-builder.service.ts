@@ -1,9 +1,9 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { RuntimeInvalid } from "../../../core/runtime.errors";
+import { Injectable } from "@nestjs/common";
 import { stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { DeploymentSourceCheckoutContext } from "@deployer/contracts-entities";
-import { BadRequestError } from "@deployer/errors";
 import { GitService } from "@deployer/shared/core/modules/git/git/services/git.service";
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
 import { DeploymentProviderBuilderRunnerStateMachineService } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
@@ -60,7 +60,7 @@ export class DeploymentArtifactBuilderService {
             hasCustomRunCommand: Boolean(input.customCommands?.runCommand?.trim()),
         });
         if (!stateMachine.canProceed) {
-            throw new BadRequestException(stateMachine.violations.map((v) => v.message).join(" "));
+            throw new RuntimeInvalid({ reason: stateMachine.violations.map((v) => v.message).join(" ") });
         }
 
         const isCustomManagedBuilder = !input.builder && hasCustomCommands;
@@ -68,14 +68,10 @@ export class DeploymentArtifactBuilderService {
 
         if (effectiveBuilder === "external") {
             if (hasCustomCommands) {
-                throw new BadRequestException(
-                    "Custom build/run commands require a containerized builder and cannot be used with builder 'external'",
-                );
+                throw new RuntimeInvalid({ reason: "Custom build/run commands require a containerized builder and cannot be used with builder 'external'" });
             }
             if (!input.fallbackContainerImage || input.fallbackContainerImage.trim().length === 0) {
-                throw new BadRequestException(
-                    "Builder 'external' requires an explicit prebuilt container image",
-                );
+                throw new RuntimeInvalid({ reason: "Builder 'external' requires an explicit prebuilt container image" });
             }
             return input.fallbackContainerImage;
         }
@@ -95,9 +91,7 @@ export class DeploymentArtifactBuilderService {
             });
         } else if (sourceCheckout?.provider === "upload") {
             if (!sourceCheckout.uploadPath?.trim()) {
-                throw new BadRequestException(
-                    "Upload source checkout must include uploadPath for build stage",
-                );
+                throw new RuntimeInvalid({ reason: "Upload source checkout must include uploadPath for build stage" });
             }
 
             const uploadPath = sourceCheckout.uploadPath;
@@ -109,10 +103,8 @@ export class DeploymentArtifactBuilderService {
                   })
                 : uploadPath;
         } else {
-            throw new BadRequestException(
-                `Provider '${sourceCheckout?.provider ?? "none"}' is not supported for builder '${effectiveBuilder ?? "none"}'. ` +
-                    "Supported providers: github, upload",
-            );
+            throw new RuntimeInvalid({ reason: `Provider '${sourceCheckout?.provider ?? "none"}' is not supported for builder '${effectiveBuilder ?? "none"}'. ` +
+                    "Supported providers: github, upload" });
         }
 
         // With no builder configured, a context that ships a Dockerfile is a
@@ -126,15 +118,8 @@ export class DeploymentArtifactBuilderService {
             if (input.fallbackContainerImage?.trim()) {
                 return input.fallbackContainerImage;
             }
-            throw new BadRequestError(
-                "No builder could be resolved and the build context has no Dockerfile at its root. " +
-                    "Add a Dockerfile, choose a builder explicitly, or provide a prebuilt container image.",
-                {
-                    deploymentId: input.deploymentId,
-                    serviceId: input.serviceId,
-                    provider: sourceCheckout.provider,
-                },
-            );
+            throw new RuntimeInvalid({ reason: "No builder could be resolved and the build context has no Dockerfile at its root. " +
+                    "Add a Dockerfile, choose a builder explicitly, or provide a prebuilt container image." });
         }
 
         this.assertBuilderContextGuards(effectiveBuilder, buildContextPath, {
@@ -239,19 +224,19 @@ export class DeploymentArtifactBuilderService {
         };
 
         if (expects.bun && !cli.bun) {
-            throw new BadRequestException("custom command uses 'bun' but execution.customCommands.cli.bun is disabled");
+            throw new RuntimeInvalid({ reason: "custom command uses 'bun' but execution.customCommands.cli.bun is disabled" });
         }
         if (expects.node && !cli.node) {
-            throw new BadRequestException("custom command uses 'node' but execution.customCommands.cli.node is disabled");
+            throw new RuntimeInvalid({ reason: "custom command uses 'node' but execution.customCommands.cli.node is disabled" });
         }
         if (expects.npm && !cli.npm) {
-            throw new BadRequestException("custom command uses 'npm' but execution.customCommands.cli.npm is disabled");
+            throw new RuntimeInvalid({ reason: "custom command uses 'npm' but execution.customCommands.cli.npm is disabled" });
         }
         if (expects.pnpm && !cli.pnpm) {
-            throw new BadRequestException("custom command uses 'pnpm' but execution.customCommands.cli.pnpm is disabled");
+            throw new RuntimeInvalid({ reason: "custom command uses 'pnpm' but execution.customCommands.cli.pnpm is disabled" });
         }
         if (expects.yarn && !cli.yarn) {
-            throw new BadRequestException("custom command uses 'yarn' but execution.customCommands.cli.yarn is disabled");
+            throw new RuntimeInvalid({ reason: "custom command uses 'yarn' but execution.customCommands.cli.yarn is disabled" });
         }
     }
 
@@ -303,9 +288,7 @@ export class DeploymentArtifactBuilderService {
             }
             const dockerfilePath = path.join(contextPath, "Dockerfile");
             if (!existsSync(dockerfilePath)) {
-                throw new BadRequestException(
-                    "Builder 'dockerfile' requires a Dockerfile in the source context",
-                );
+                throw new RuntimeInvalid({ reason: "Builder 'dockerfile' requires a Dockerfile in the source context" });
             }
             return;
         }
@@ -321,9 +304,7 @@ export class DeploymentArtifactBuilderService {
                 existsSync(path.join(contextPath, candidate)),
             );
             if (!hasCompose) {
-                throw new BadRequestException(
-                    "Builder 'docker_compose' requires a compose file in upload context",
-                );
+                throw new RuntimeInvalid({ reason: "Builder 'docker_compose' requires a compose file in upload context" });
             }
             return;
         }

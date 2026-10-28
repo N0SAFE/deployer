@@ -1,4 +1,5 @@
-import { BadRequestException, Inject, Injectable, Logger } from "@nestjs/common";
+import { RuntimeInvalid } from "../../../core/runtime.errors";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { OnModuleInit } from "@nestjs/common";
 import type { DeploymentTriggerEvent, DeploymentTriggerSource } from "./base/deployment-trigger-source.interface";
 
@@ -101,10 +102,8 @@ export class DeploymentTriggerRegistryService implements OnModuleInit {
     async requireInput(event: DeploymentTriggerEvent): Promise<NonNullable<Awaited<ReturnType<DeploymentTriggerSource["toTriggerInput"]>>>> {
         const result = await this.toTriggerInput(event);
         if (!result?.input) {
-            throw new BadRequestException(
-                `No deployment trigger source matched event '${event.provider}/${event.eventName}'. ` +
-                    `Enabled sources: ${this.ordered.filter((s) => s.isEnabled()).map((s) => s.sourceId).join(", ")}`,
-            );
+            throw new RuntimeInvalid({ reason: `No deployment trigger source matched event '${event.provider}/${event.eventName}'. ` +
+                    `Enabled sources: ${this.ordered.filter((s) => s.isEnabled()).map((s) => s.sourceId).join(", ")}` });
         }
         return result.input;
     }

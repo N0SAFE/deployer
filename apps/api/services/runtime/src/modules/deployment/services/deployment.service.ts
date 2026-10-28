@@ -1,4 +1,5 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { RuntimeForbidden, RuntimeInvalid, RuntimeNotFound } from "../../../core/runtime.errors";
+import { Injectable } from "@nestjs/common";
 import type { OnModuleInit } from "@nestjs/common";
 import { DeploymentRepository } from "../repositories/deployment.repository";
 import { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
@@ -223,9 +224,7 @@ export class DeploymentService implements OnModuleInit {
         const allowedExtensions = new Set([".zip", ".tar", ".tgz", ".gz"]);
 
         if (!allowedExtensions.has(extension)) {
-            throw new BadRequestException(
-                "Unsupported archive format. Allowed formats are: .zip, .tar, .tgz, .gz",
-            );
+            throw new RuntimeInvalid({ reason: "Unsupported archive format. Allowed formats are: .zip, .tar, .tgz, .gz" });
         }
 
         const uploadId = randomUUID();
@@ -290,7 +289,7 @@ export class DeploymentService implements OnModuleInit {
     async getDeploymentById(id: string) {
         const deployment = await this.deploymentRepository.findById(id);
         if (!deployment) {
-            throw new NotFoundException(`Deployment with id '${id}' not found`);
+            throw new RuntimeNotFound({ reason: `Deployment with id '${id}' not found` });
         }
         return deployment;
     }
@@ -314,13 +313,11 @@ export class DeploymentService implements OnModuleInit {
 
         const result = await this.domainRoutingService.promotePreviewToStable(serviceId, previewName);
         if (!result.promoted) {
-            throw new BadRequestException(
-                result.reason === "subdomain_already_stable"
+            throw new RuntimeInvalid({ reason: result.reason === "subdomain_already_stable"
                     ? `Preview '${previewName}' is already promoted to a stable domain`
                     : result.reason === "no_domain_mapping"
                       ? "Service has no configured domain to promote the preview under"
-                      : `Preview promotion failed: ${result.reason ?? "unknown"}`,
-            );
+                      : `Preview promotion failed: ${result.reason ?? "unknown"}` });
         }
 
         return {
@@ -346,11 +343,11 @@ export class DeploymentService implements OnModuleInit {
 
         const projectId = await this.deploymentRepository.getServiceProjectId(serviceId);
         if (!projectId) {
-            throw new NotFoundException(`Service '${serviceId}' not found`);
+            throw new RuntimeNotFound({ reason: `Service '${serviceId}' not found` });
         }
         const project = await this.projectAccessService.findProjectById(projectId);
         if (!project) {
-            throw new NotFoundException(`Project '${projectId}' not found`);
+            throw new RuntimeNotFound({ reason: `Project '${projectId}' not found` });
         }
         if (project.ownerId === requesterId) {
             return;
@@ -360,7 +357,7 @@ export class DeploymentService implements OnModuleInit {
             projectId,
         );
         if (!collaborator || !allowedRoles.includes(collaborator.role)) {
-            throw new ForbiddenException("You do not have permission to perform this action");
+            throw new RuntimeForbidden({ reason: "You do not have permission to perform this action" });
         }
     }
 
@@ -395,7 +392,7 @@ export class DeploymentService implements OnModuleInit {
             await this.deploymentRepository.getRuntimeConfigurationSeed(input.serviceId);
 
         if (!runtimeConfigurationSeed) {
-            throw new NotFoundException(`Service '${input.serviceId}' not found`);
+            throw new RuntimeNotFound({ reason: `Service '${input.serviceId}' not found` });
         }
 
         const serviceDependencies = await this.deploymentRepository.getServiceDependencies(input.serviceId);
@@ -404,9 +401,7 @@ export class DeploymentService implements OnModuleInit {
         );
 
         if (crossProjectDependency) {
-            throw new BadRequestException(
-                `Service dependency '${crossProjectDependency.dependsOnServiceId}' belongs to a different project and cannot be deployed together`,
-            );
+            throw new RuntimeInvalid({ reason: `Service dependency '${crossProjectDependency.dependsOnServiceId}' belongs to a different project and cannot be deployed together` });
         }
 
         const resolvedRuntimeConfiguration = this.runtimeConfigurationAccessor.resolveForDeployment({
@@ -420,18 +415,16 @@ export class DeploymentService implements OnModuleInit {
         const stateMachineScopeConfig = this.buildStateMachineScopeConfig(resolvedRuntimeConfiguration);
 
         if (!resolvedRuntimeConfiguration.effective.constraints.canDeployToRequestedEnvironment) {
-            throw new BadRequestException(
-                resolvedRuntimeConfiguration.effective.constraints.reason ??
-                    "Deployment is blocked by runtime configuration",
-            );
+            throw new RuntimeInvalid({ reason: resolvedRuntimeConfiguration.effective.constraints.reason ??
+                    "Deployment is blocked by runtime configuration" });
         }
 
         if (!resolvedRuntimeConfiguration.effective.constraints.providerAllowed) {
-            throw new BadRequestException("Deployment source provider is not allowed by runtime configuration");
+            throw new RuntimeInvalid({ reason: "Deployment source provider is not allowed by runtime configuration" });
         }
 
         if (!resolvedRuntimeConfiguration.effective.constraints.runnerAllowed) {
-            throw new BadRequestException("Deployment runner is not allowed by runtime configuration");
+            throw new RuntimeInvalid({ reason: "Deployment runner is not allowed by runtime configuration" });
         }
 
         if (input.environment === "preview") {
@@ -445,9 +438,7 @@ export class DeploymentService implements OnModuleInit {
             );
 
             if (!previewTransition.canProceed) {
-                throw new BadRequestException(
-                    previewTransition.violations.map((violation) => violation.message).join(" "),
-                );
+                throw new RuntimeInvalid({ reason: previewTransition.violations.map((violation) => violation.message).join(" ") });
             }
         }
 
@@ -486,7 +477,7 @@ export class DeploymentService implements OnModuleInit {
         }, stateMachineScopeConfig);
 
         if (!stateMachine.canProceed) {
-            throw new BadRequestException(stateMachine.violations.map((violation) => violation.message).join(" "));
+            throw new RuntimeInvalid({ reason: stateMachine.violations.map((violation) => violation.message).join(" ") });
         }
 
         const resolvedBuilder = stateMachine.normalizedBuilder;
@@ -498,9 +489,7 @@ export class DeploymentService implements OnModuleInit {
             !resolvedBuilder
         ) {
             const sourceProvider = sourceCheckout?.provider ?? input.source.sourceType;
-            throw new BadRequestException(
-                `${sourceProvider} source with runtimeRunner 'dockerfile' requires either an explicit containerImage or compatible execution.builder`,
-            );
+            throw new RuntimeInvalid({ reason: `${sourceProvider} source with runtimeRunner 'dockerfile' requires either an explicit containerImage or compatible execution.builder` });
         }
 
         const correlationId = randomUUID();
@@ -588,10 +577,8 @@ export class DeploymentService implements OnModuleInit {
             "deployer",
         ], actorPlatformRole);
         if (!CANCELLABLE_STATUSES.includes(deployment.status as (typeof CANCELLABLE_STATUSES)[number])) {
-            throw new BadRequestException(
-                `Cannot cancel deployment with status '${deployment.status}'. ` +
-                    `Only ${CANCELLABLE_STATUSES.join(", ")} deployments can be cancelled.`,
-            );
+            throw new RuntimeInvalid({ reason: `Cannot cancel deployment with status '${deployment.status}'. ` +
+                    `Only ${CANCELLABLE_STATUSES.join(", ")} deployments can be cancelled.` });
         }
         const cancelledAt = new Date();
         await this.deploymentRepository.updateStatus(id, "cancelled", {
@@ -658,12 +645,10 @@ export class DeploymentService implements OnModuleInit {
         ], actorPlatformRole);
 
         if (fromDeployment.serviceId !== targetDeployment.serviceId) {
-            throw new BadRequestException("Both deployments must belong to the same service");
+            throw new RuntimeInvalid({ reason: "Both deployments must belong to the same service" });
         }
         if (targetDeployment.status !== "success") {
-            throw new BadRequestException(
-                `Target deployment status is '${targetDeployment.status}', must be 'success' to roll back to`,
-            );
+            throw new RuntimeInvalid({ reason: `Target deployment status is '${targetDeployment.status}', must be 'success' to roll back to` });
         }
 
         const rollbackStateMachineScopeConfig = await this.resolveStateMachineScopeConfigForService({
@@ -682,9 +667,7 @@ export class DeploymentService implements OnModuleInit {
         );
 
         if (!rollbackTransition.canProceed) {
-            throw new BadRequestException(
-                rollbackTransition.violations.map((violation) => violation.message).join(" "),
-            );
+            throw new RuntimeInvalid({ reason: rollbackTransition.violations.map((violation) => violation.message).join(" ") });
         }
 
         const rollback = await this.deploymentRepository.create({
@@ -897,9 +880,7 @@ export class DeploymentService implements OnModuleInit {
         ], actorPlatformRole);
         const RETRYABLE_STATUSES = ["failed", "cancelled"] as const;
         if (!RETRYABLE_STATUSES.includes(deployment.status as (typeof RETRYABLE_STATUSES)[number])) {
-            throw new BadRequestException(
-                `Cannot retry deployment with status '${deployment.status}'. Only failed or cancelled deployments can be retried.`,
-            );
+            throw new RuntimeInvalid({ reason: `Cannot retry deployment with status '${deployment.status}'. Only failed or cancelled deployments can be retried.` });
         }
         const retry = await this.deploymentRepository.create({
             serviceId: deployment.serviceId,
@@ -1120,7 +1101,7 @@ export class DeploymentService implements OnModuleInit {
     async getStreamDefinitionById(id: string) {
         const stream = await this.deploymentRepository.findStreamById(id);
         if (!stream) {
-            throw new NotFoundException(`Deployment stream definition with id '${id}' not found`);
+            throw new RuntimeNotFound({ reason: `Deployment stream definition with id '${id}' not found` });
         }
         return stream;
     }
@@ -1394,7 +1375,7 @@ export class DeploymentService implements OnModuleInit {
     ): Promise<DeploymentQueueTransitionResult> {
         const existing = this.queueJobs.get(jobId);
         if (existing?.workerId !== input.workerId || existing.lockToken !== input.lockToken) {
-            throw new BadRequestException("Invalid worker/lock token for queue completion");
+            throw new RuntimeInvalid({ reason: "Invalid worker/lock token for queue completion" });
         }
 
         if (existing.type === "deploy" && existing.payload.deploymentId) {
@@ -1430,7 +1411,7 @@ export class DeploymentService implements OnModuleInit {
             input.result,
         );
         if (!completion) {
-            throw new BadRequestException("Invalid worker/lock token for queue completion");
+            throw new RuntimeInvalid({ reason: "Invalid worker/lock token for queue completion" });
         }
         // A deploy, retry, or rollback finished → its container/domain routing
         // may have changed → the ingress must publish the new Host rules.
@@ -1468,7 +1449,7 @@ export class DeploymentService implements OnModuleInit {
     failQueueJob(jobId: string, input: DeploymentQueueFailInput): DeploymentQueueTransitionResult {
         const failure = this.deploymentQueueLifecycleService.failQueueJob(jobId, input);
         if (!failure) {
-            throw new BadRequestException("Invalid worker/lock token for queue failure");
+            throw new RuntimeInvalid({ reason: "Invalid worker/lock token for queue failure" });
         }
 
         if (failure.failedJob.type === "rollback" && failure.failedJob.payload.deploymentId) {

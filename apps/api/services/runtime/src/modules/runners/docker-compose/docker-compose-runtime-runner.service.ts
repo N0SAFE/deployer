@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { RuntimeInvalid } from "../../../core/runtime.errors";
+import { Injectable } from "@nestjs/common";
 import { DelegatedRuntimeRunnerBase } from "../base/delegated-runtime-runner.base";
 import { dockerComposeRunnerOptionsSchema } from "../base/runner-option-policies.schema";
 import { DockerRuntimeRunnerService } from "../docker/docker-runtime-runner.service";
@@ -18,7 +19,7 @@ export class DockerComposeRuntimeRunnerService extends DelegatedRuntimeRunnerBas
             ...(input.runtimeRunnerOptions ?? {}),
         });
         if (!parsedOptions.success) {
-            throw new BadRequestException("Docker Compose runner options are invalid for runner type 'docker_compose'");
+            throw new RuntimeInvalid({ reason: "Docker Compose runner options are invalid for runner type 'docker_compose'" });
         }
         const resolvedContainerName =
             parsedOptions.data.dockerCompose?.containerName ?? parsedOptions.data.containerName;

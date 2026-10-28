@@ -1,3 +1,4 @@
+import { RuntimeInvalid } from "../../../core/runtime.errors";
 /**
  * DeploymentQueueWorkerService — the TYPED execution engine for the deployment
  * queue (D-6).
@@ -20,8 +21,10 @@
  */
 
 import { Injectable, Logger, Optional } from "@nestjs/common";
+
 import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationError } from "@deployer/errors";
+
 import type { AppError } from "@deployer/errors";
 import { randomUUID } from "crypto";
 import type { Subscription } from "rxjs";
@@ -174,7 +177,7 @@ export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestr
 
         const lockToken = claimed.lockToken;
         if (!lockToken) {
-            throw new BadRequestError(`Claimed queue job '${claimed.id}' is missing a lock token`);
+            throw new RuntimeInvalid({ reason: `Claimed queue job '${claimed.id}' is missing a lock token` });
         }
 
         const heartbeatTimer = setInterval(() => {
@@ -304,7 +307,7 @@ export class DeploymentQueueWorkerService implements OnModuleInit, OnModuleDestr
         fallbackContainerImage: string | null;
     }): Promise<string | null> {
         if (!this.deploymentArtifactBuilderService) {
-            throw new BadRequestError("DeploymentArtifactBuilderService is required for builder stage execution");
+            throw new RuntimeInvalid({ reason: "DeploymentArtifactBuilderService is required for builder stage execution" });
         }
 
         return this.deploymentArtifactBuilderService.buildContainerizedArtifact({

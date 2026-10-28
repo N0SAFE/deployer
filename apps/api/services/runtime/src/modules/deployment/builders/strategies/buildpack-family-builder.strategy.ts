@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { RuntimeInvalid } from "../../../../core/runtime.errors";
+import { Injectable } from "@nestjs/common";
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
 import type { BuilderStrategy, BuilderStrategyContext, BuilderStrategyResult } from "../base/builder-strategy.interface";
 
@@ -49,12 +50,10 @@ export class BuildpackFamilyBuilderStrategy implements BuilderStrategy {
         // Present only when the operator supplied custom commands — the caller writes it
         // in `prepareCustomBuilderDockerfileIfNeeded`.
         if (context.dockerfileName === null) {
-            throw new BadRequestException(
-                `Builder '${this.builderType}' requires custom build and run commands: this platform ` +
+            throw new RuntimeInvalid({ reason: `Builder '${this.builderType}' requires custom build and run commands: this platform ` +
                     `runs no ${this.builderType} toolchain, so the artifact is produced from a generated ` +
                     "Dockerfile. Set a build command (and run command), or use 'dockerfile' with a " +
-                    "committed Dockerfile instead.",
-            );
+                    "committed Dockerfile instead." });
         }
 
         await this.dockerService.buildImage(context.buildContextPath, context.imageTag, {

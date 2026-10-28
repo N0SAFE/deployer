@@ -1,4 +1,5 @@
-import { Injectable, Logger, NotFoundException, type OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
+import { RuntimeNotFound } from "../../../../core/runtime.errors";
 import type { DeploymentListInput } from "@deployer/runtime-contracts/modules/deployment/list";
 import {
     deploymentStatusSchema,
@@ -37,7 +38,7 @@ export class DeploymentMeshHandlerRegistrar implements OnModuleInit {
                     stopPropagation: true,
                 };
             } catch (error: unknown) {
-                if (error instanceof NotFoundException) {
+                if (error instanceof RuntimeNotFound) {
                     return {
                         payload: {
                             found: false,

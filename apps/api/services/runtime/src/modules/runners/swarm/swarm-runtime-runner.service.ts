@@ -1,3 +1,4 @@
+import { RuntimeConflict, RuntimeInvalid } from "../../../core/runtime.errors";
 /**
  * SwarmRuntimeRunnerService — deploys user deployments as Swarm services
  * through the dockerode SDK (no CLI), behind the `DeploymentRuntimeRunner`
@@ -14,7 +15,8 @@
  */
 
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
-import { AppError, BadRequestError, ConflictError, TimeoutError } from "@deployer/errors";
+
+import { AppError, TimeoutError } from "@deployer/errors";
 import type {
     DockerodeServiceSummary,
     DockerodeTaskSummary,
@@ -285,15 +287,7 @@ export class SwarmRuntimeRunnerService implements DeploymentRuntimeRunner {
                 const failedTask = taskList.find(
                     (task) => task.Status.State === "failed" || task.Status.State === "rejected",
                 );
-                throw new ConflictError(
-                    `Swarm service ${serviceName} tasks failed to converge (${String(check.failedCount)} failed)`,
-                    serviceName,
-                    {
-                        deploymentId: deployment.deploymentId,
-                        taskId: failedTask?.ID ?? null,
-                        taskError: failedTask?.Status.Err ?? failedTask?.Status.State ?? "unknown",
-                    },
-                );
+                throw new RuntimeConflict({ reason: `Swarm service ${serviceName} tasks failed to converge (${String(check.failedCount)} failed)` });
             }
             if (attempt < maxRetries) {
                 await sleep(retryIntervalMs);
@@ -454,13 +448,7 @@ export class SwarmRuntimeRunnerService implements DeploymentRuntimeRunner {
             return [];
         }
         if (binding.storageType !== "volume") {
-            throw new BadRequestError(
-                "Swarm runtime runner supports 'volume' storage bindings only; use the direct docker runner for local/s3/nfs storage",
-                {
-                    storageType: binding.storageType,
-                    deploymentId: input.deployment.deploymentId,
-                },
-            );
+            throw new RuntimeInvalid({ reason: "Swarm runtime runner supports 'volume' storage bindings only; use the direct docker runner for local/s3/nfs storage" });
         }
         return [
             {

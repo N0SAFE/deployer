@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { RuntimeInvalid } from "../../../../../core/runtime.errors";
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GithubSourceProviderService } from './github-source-provider.service';
 
@@ -32,7 +32,7 @@ describe('GithubSourceProviderService', () => {
         sourceType: 'github',
                 branch: 'main' 
       }      } as never),
-    ).rejects.toThrow(BadRequestException);
+    ).rejects.toThrow(RuntimeInvalid);
   });
 
   it('uses branch from pullRequestNumber when branch is omitted', async () => {
@@ -90,6 +90,6 @@ describe('GithubSourceProviderService', () => {
          repositoryUrl: 'https://github.com/acme/private',
         
       }      } as never),
-    ).rejects.toThrow(BadRequestException);
+    ).rejects.toThrow(RuntimeInvalid);
   });
 });

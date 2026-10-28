@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { RuntimeInvalid } from "../../../../core/runtime.errors";
+import { Injectable } from "@nestjs/common";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { DockerService } from "@deployer/nest-docker/services/docker.service";
@@ -41,18 +42,14 @@ export class DockerComposeBuilderStrategy implements BuilderStrategy {
 
     async build(context: BuilderStrategyContext): Promise<BuilderStrategyResult> {
         if (context.dockerfileName !== null) {
-            throw new BadRequestException(
-                "Custom build/run commands cannot be combined with builder 'docker_compose' — the compose file already declares how each service is built",
-            );
+            throw new RuntimeInvalid({ reason: "Custom build/run commands cannot be combined with builder 'docker_compose' — the compose file already declares how each service is built" });
         }
 
         const composeFile = COMPOSE_CANDIDATES.find((candidate) =>
             existsSync(path.join(context.buildContextPath, candidate)),
         );
         if (composeFile === undefined) {
-            throw new BadRequestException(
-                "Builder 'docker_compose' requires a compose file in the source context",
-            );
+            throw new RuntimeInvalid({ reason: "Builder 'docker_compose' requires a compose file in the source context" });
         }
 
         await this.dockerService.buildCompose(context.buildContextPath, {

@@ -1,4 +1,5 @@
-import { BadRequestException, Inject, Injectable, Logger } from "@nestjs/common";
+import { RuntimeInvalid } from "../../../core/runtime.errors";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { OnModuleInit } from "@nestjs/common";
 import type { BuilderStrategy } from "./base/builder-strategy.interface";
 
@@ -72,14 +73,10 @@ export class BuilderRegistryService implements OnModuleInit {
     resolve(builderType: string): BuilderStrategy {
         const strategy = this.byType.get(builderType.toLowerCase());
         if (!strategy) {
-            throw new BadRequestException(
-                `Unsupported builder '${builderType}'. Supported: ${[...this.byType.keys()].join(", ")}`,
-            );
+            throw new RuntimeInvalid({ reason: `Unsupported builder '${builderType}'. Supported: ${[...this.byType.keys()].join(", ")}` });
         }
         if (!strategy.isAvailable()) {
-            throw new BadRequestException(
-                `Builder '${builderType}' is registered but unavailable: ${strategy.unavailableReason()}`,
-            );
+            throw new RuntimeInvalid({ reason: `Builder '${builderType}' is registered but unavailable: ${strategy.unavailableReason()}` });
         }
         return strategy;
     }

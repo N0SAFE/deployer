@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { RuntimeInvalid } from "../../../core/runtime.errors";
+import { Injectable } from "@nestjs/common";
 import { DelegatedRuntimeRunnerBase } from "../base/delegated-runtime-runner.base";
 import { railpackRunnerOptionsSchema } from "../base/runner-option-policies.schema";
 import { DockerRuntimeRunnerService } from "../docker/docker-runtime-runner.service";
@@ -18,16 +19,14 @@ export class RailpackRuntimeRunnerService extends DelegatedRuntimeRunnerBase {
             ...(input.runtimeRunnerOptions ?? {}),
         });
         if (!parsedOptions.success) {
-            throw new BadRequestException("Railpack runner options are invalid for runner type 'railpack'");
+            throw new RuntimeInvalid({ reason: "Railpack runner options are invalid for runner type 'railpack'" });
         }
         const resolvedHealthCheckUrl =
             parsedOptions.data.railpack?.healthCheckUrl ?? parsedOptions.data.healthCheckUrl;
         const resolvedStartupCommand = parsedOptions.data.railpack?.startupCommand ?? parsedOptions.data.startupCommand;
 
         if (!input.artifact.containerImage && !input.deployment.deploymentContainerImage) {
-            throw new BadRequestException(
-                "Railpack runner requires a prepared runtime image",
-            );
+            throw new RuntimeInvalid({ reason: "Railpack runner requires a prepared runtime image" });
         }
 
         return {

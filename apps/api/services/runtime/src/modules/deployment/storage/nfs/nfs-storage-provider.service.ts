@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { RuntimeInvalid } from "../../../../core/runtime.errors";
+import { Injectable } from "@nestjs/common";
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import z from "zod/v4";
 import {
@@ -38,9 +39,7 @@ export class NfsStorageProviderService implements DeploymentStorageProvider {
 
         if (!parsed.success) {
             if (storageConfig?.type === "nfs") {
-                throw new BadRequestException(
-                    "NFS storage requires storage.nfs.server and storage.nfs.exportPath in sourceConfig.customData",
-                );
+                throw new RuntimeInvalid({ reason: "NFS storage requires storage.nfs.server and storage.nfs.exportPath in sourceConfig.customData" });
             }
             return Promise.resolve(null);
         }

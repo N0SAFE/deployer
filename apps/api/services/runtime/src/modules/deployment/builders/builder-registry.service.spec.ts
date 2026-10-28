@@ -1,4 +1,4 @@
-import { BadRequestException } from "@nestjs/common";
+import { RuntimeInvalid } from "../../../core/runtime.errors";
 import { describe, expect, it, vi } from "vitest";
 
 import type { BuilderStrategy } from "./base/builder-strategy.interface";
@@ -23,7 +23,7 @@ describe("BuilderRegistryService", () => {
 
     it("rejects an unknown builder naming the supported ones", () => {
         const registry = new BuilderRegistryService([strategy("dockerfile"), strategy("docker_compose")]);
-        expect(() => registry.resolve("nope")).toThrow(BadRequestException);
+        expect(() => registry.resolve("nope")).toThrow(RuntimeInvalid);
         expect(() => registry.resolve("nope")).toThrow(/Supported: dockerfile, docker_compose/);
         expect(registry.isSupported("nope")).toBe(false);
     });

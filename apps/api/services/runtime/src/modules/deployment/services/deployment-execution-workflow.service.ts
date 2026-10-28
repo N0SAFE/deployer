@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { RuntimeInvalid, RuntimeNotFound } from "../../../core/runtime.errors";
+import { Injectable } from "@nestjs/common";
 import type { DeploymentObservabilityContext } from "@deployer/contracts-entities";
 import { DeploymentRepository } from "../repositories/deployment.repository";
 import { RuntimeRunnerRegistryService } from "@/modules/runners/runtime-runner-registry.service";
@@ -750,7 +751,7 @@ export class DeploymentExecutionWorkflowService {
                 },
             });
 
-            throw new BadRequestException(`Container lifecycle failed: ${message}`);
+            throw new RuntimeInvalid({ reason: `Container lifecycle failed: ${message}` });
         }
     }
 
@@ -1062,7 +1063,7 @@ export class DeploymentExecutionWorkflowService {
     private async getDeploymentById(deploymentId: string) {
         const deployment = await this.deploymentRepository.findById(deploymentId);
         if (!deployment) {
-            throw new NotFoundException(`Deployment with id '${deploymentId}' not found`);
+            throw new RuntimeNotFound({ reason: `Deployment with id '${deploymentId}' not found` });
         }
         return deployment;
     }

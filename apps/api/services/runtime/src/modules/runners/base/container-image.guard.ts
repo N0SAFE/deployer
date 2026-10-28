@@ -1,4 +1,6 @@
+import { RuntimeInvalid } from "../../../core/runtime.errors";
 import { BadRequestError } from "@deployer/errors";
+
 import type { BuildArtifactResult, RuntimeDeploymentContext } from "../runtime-runner.interface";
 
 /**
@@ -23,13 +25,6 @@ export function resolveContainerImage(
         return image;
     }
 
-    throw new BadRequestError(
-        `No container image was produced, so the '${runnerType}' runner has nothing to start. ` +
-            "Add a Dockerfile to the build context, set an explicit builder, or provide a prebuilt image.",
-        {
-            deploymentId: deployment.deploymentId,
-            serviceId: deployment.serviceId,
-            runnerType,
-        },
-    );
+    throw new RuntimeInvalid({ reason: `No container image was produced, so the '${runnerType}' runner has nothing to start. ` +
+            "Add a Dockerfile to the build context, set an explicit builder, or provide a prebuilt image." });
 }

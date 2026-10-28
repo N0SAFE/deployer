@@ -1,5 +1,5 @@
+import { RuntimeNotFound } from "../../../../core/runtime.errors";
 import { describe, expect, it, vi } from "vitest";
-import { NotFoundException } from "@nestjs/common";
 import { DeploymentMeshHandlerRegistrar } from "./deployment-mesh-handler-registrar.service";
 
 describe("DeploymentMeshHandlerRegistrar", () => {
@@ -89,7 +89,7 @@ describe("DeploymentMeshHandlerRegistrar", () => {
 
         const deploymentService = {
             getDeploymentById: vi.fn(() => {
-                throw new NotFoundException("missing");
+                throw new RuntimeNotFound({ reason: "missing" });
             }),
             listDeployments: vi.fn(),
             getProjectServiceIds: vi.fn(),

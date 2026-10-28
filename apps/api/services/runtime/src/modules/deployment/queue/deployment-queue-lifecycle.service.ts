@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { RuntimeNotFound } from "../../../core/runtime.errors";
+import { Injectable, Optional } from "@nestjs/common";
 import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { randomUUID } from "crypto";
 import { Subject } from "rxjs";
@@ -512,7 +513,7 @@ export class DeploymentQueueLifecycleService implements OnModuleInit, OnModuleDe
     replayDeadLetterJob(input: DeploymentDeadLetterReplayInput): DeploymentDeadLetterReplayResult {
         const item = this.deadLetterJobs.get(input.deadLetterJobId);
         if (!item) {
-            throw new NotFoundException(`Dead-letter job '${input.deadLetterJobId}' not found`);
+            throw new RuntimeNotFound({ reason: `Dead-letter job '${input.deadLetterJobId}' not found` });
         }
 
         const payload =
