@@ -1,8 +1,9 @@
+import { Effect } from "effect";
 import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { defaultIngressLanes, type IngressLanes } from '@deployer/contracts-entities/entities/ingress/index';
-import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 
 import { EgressRequestError, EgressService } from '../../egress/egress.service';
 import { EdgeProviderRegistry } from '../../edge/edge-provider.registry';
@@ -36,7 +37,7 @@ describe('ReachabilityService', () => {
       providers: [
         ReachabilityService,
         { provide: NodeNetworkConfigRepository, useValue: nodeConfigs },
-        { provide: NodeConfigRepository, useValue: { find: vi.fn(() => ({ nodeId: '00000000-0000-0000-0000-000000000001' })) } },
+        { provide: NodeConfigRepository, useValue: { find: vi.fn(() => Effect.succeed({ nodeId: '00000000-0000-0000-0000-000000000001' })) } },
         { provide: IngressLanesService, useValue: { getLanes: vi.fn(() => Promise.resolve(lanes)) } },
         { provide: EdgeProviderRegistry, useValue: edges.registry },
         { provide: EgressService, useValue: egress },

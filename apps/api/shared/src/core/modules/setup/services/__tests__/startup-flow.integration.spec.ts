@@ -34,7 +34,8 @@ import { SetupEventService } from '../setup-event.service';
 import { MeshInitializationService } from '../../../mesh/initialization/services/mesh-initialization.service';
 import { ReachabilityService } from '../../../reachability/services/reachability.service';
 import { EnvService } from "../../../../../config/env/env.module";
-import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+import { Effect } from "effect";
 import { AppLifecycle } from "@deployer/lifecycle";
 
 // ─── Mock implementations ─────────────────────────────────────────────────────
@@ -42,9 +43,11 @@ import { AppLifecycle } from "@deployer/lifecycle";
 function createMockNodeConfigRepository() {
   let store: Record<string, any> | null = null;
   return {
-    find: vi.fn(() => store),
+    // The real repository returns Effects; these evaluate eagerly so a spec can also call them directly.
+    find: vi.fn(() => Effect.succeed(store)),
     upsert: vi.fn((data: any) => {
       store = { ...(store ?? {}), ...data };
+      return Effect.succeed(store);
     }),
     // Allow tests to seed the store directly
     _seed: (data: any) => { store = data; },
@@ -568,21 +571,19 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
 
   describe('Scenario 7: Error handling', () => {
     it('checkConfigAndEmit handles repository errors gracefully', () => {
-      mockNodeConfigRepo.find.mockImplementation(() => {
-        throw new Error('SQLite read failure');
-      });
+      mockNodeConfigRepo.find.mockImplementation(() => Effect.fail(new Error('SQLite read failure')) as never);
       expect(() => { service.checkConfigAndEmit(); }).not.toThrow();
     });
 
     it('getSetupState handles missing repository gracefully', () => {
-      mockNodeConfigRepo.find.mockReturnValue(null);
+      mockNodeConfigRepo.find.mockReturnValue(Effect.succeed(null));
       const state = service.getSetupState();
       expect(state.state).toBe('not_started');
       expect(state.needsSetup).toBe(true);
     });
 
     it('getNodeStatus handles missing repository gracefully', () => {
-      mockNodeConfigRepo.find.mockReturnValue(null);
+      mockNodeConfigRepo.find.mockReturnValue(Effect.succeed(null));
       const status = service.getNodeStatus();
       expect(status.isConfigured).toBe(false);
       expect(status.nodeId).toBeNull();

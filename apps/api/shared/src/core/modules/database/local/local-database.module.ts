@@ -1,72 +1,83 @@
 /**
- * CORE MODULE: Local database — the API's WIRING of `@deployer/nest-database-local`.
+ * CORE MODULE: Local database — opens the node's SQLite file and provides the `@deployer/node-state`
+ * `LocalDatabase` Effect service under its own tag.
  *
- * The package owns the mechanism (open SQLite, run migrations, expose the
- * Drizzle handle and its tokens); this module owns the CONFIGURATION: WHERE
- * this app's file lives and WHERE its migration files live.
+ * This module owns the CONFIGURATION: WHERE this app's file lives and WHERE its migration files live.
+ * Both are the app's, not a package's: an earlier version derived the migrations directory from its
+ * own file location, which resolved to a directory that did not exist once the module moved into a
+ * package, and the app booted against an UNMIGRATED schema. The migrations create the tables
+ * `@deployer/nest-schema/local` defines, so they ship with that package and this app imports the path.
  *
- * BOTH VALUES ARE THE APP'S, NOT THE PACKAGE'S
- * An earlier version of the package read `process.env.NODE_LOCAL_DB_PATH` and
- * derived the migrations directory from its own file location. That worked only
- * while the module lived inside the app: once it moved into a package, the
- * derived path resolved to a directory that does not exist, the runner logged
- * "directory not found, skipping", and the app booted against an UNMIGRATED
- * schema. `forRootAsync` is what makes that class of failure impossible — the
- * app must supply both, so neither can be wrong by accident.
- *
- * WHY THE MIGRATIONS ARE NOT IN THIS APP
- * They create the tables `@deployer/nest-schema/local` defines, so they ship with
- * that package and this app imports the path. A copy per app would be a second
- * source of truth for the same tables — and `apps/setup` reads `node_config`
- * too, so it would have needed its own.
+ * The opened handle is also provided under the two connection tokens consumers query through
+ * (`LOCAL_DATABASE_CONNECTION` for Drizzle, `LOCAL_DATABASE_CLIENT` for the raw driver).
  */
-
-import { Global, Module } from "@nestjs/common";
-
-import { type LocalDatabaseModuleOptions } from "@deployer/nest-effect/node-state";
-import { LocalDatabaseModule as NestLocalDatabaseModule } from "@deployer/nest-effect/node-state";
-// The local migrations live in the SCHEMA package: they create the tables that
-// `@deployer/nest-schema/local` defines, so the package owning the schema owns them,
-// and both apps read the same set instead of each carrying a copy.
+import { Global, Inject, Injectable, Logger, Module, type OnApplicationShutdown, type OnModuleInit } from "@nestjs/common";
+import { Cause, Effect, Exit, Scope } from "effect";
+import {
+	LocalDatabase,
+	migrateLocalDatabase,
+	openLocalDatabase,
+	type LocalDatabaseOptions,
+	type LocalDatabaseShape,
+} from "@deployer/node-state";
 import { LOCAL_MIGRATIONS_DIR } from "@deployer/nest-schema/migrations";
+
 import { EnvModule, EnvService } from "../../../../config/env/env.module";
+import { LOCAL_DATABASE_CLIENT, LOCAL_DATABASE_CONNECTION } from "../database-connection";
 
+const LOCAL_DATABASE_OPTIONS = "LOCAL_DATABASE_OPTIONS" as const;
+
+/** Opening and migrating are synchronous Effects; this runs one and throws its original failure. */
+const runUnwrapped = <A, E>(effect: Effect.Effect<A, E>): A => {
+	const exit = Effect.runSyncExit(effect);
+	if (Exit.isSuccess(exit)) return exit.value;
+	throw Cause.squash(exit.cause);
+};
 
 /**
- * The API's local-database module.
- *
- * Re-exported under the same name the package used, so the modules that consume
- * it keep one identifier and only their import path changes.
- *
- * `@Global` is re-declared here because the decorator is not inherited through
- * an import: consumers inject `LocalDatabaseService` without importing this
- * file, and that only works if the module holding it is global in THIS container.
+ * Ties the Effect `LocalDatabase` to this Nest context: each context opens its OWN handle (the API
+ * runs several contexts in one process), so each closes the one it opened. The connection is opened at
+ * construction so providers can inject the Drizzle handle; the schema is migrated at `onModuleInit`,
+ * after the graph resolves and before any consumer's own init hook, and closed at shutdown, after the
+ * container is disposed, so no repository can still be using it.
  */
-/**
- * The registration other modules forward into their own `imports`.
- *
- * Exported as a FUNCTION rather than a constant because `forRootAsync` returns
- * a DynamicModule whose factory captures `EnvModule`; calling it per consumer
- * keeps the same shape Nest expects while avoiding a module-level side effect.
- *
- * `NodesModule.forRoot` requires the DynamicModule (not the wrapper class), so
- * this is what makes the node-state repositories able to resolve
- * `LocalDatabaseService` from their own module scope.
- */
-export function localDatabaseRegistration() {
-	return NestLocalDatabaseModule.forRootAsync({
-		imports: [EnvModule],
-		inject: [EnvService],
-		useFactory: (env: EnvService): LocalDatabaseModuleOptions => ({
-			databasePath: env.get("NODE_LOCAL_DB_PATH"),
-			migrationsDir: LOCAL_MIGRATIONS_DIR,
-		}),
-	});
+@Injectable()
+class LocalDatabaseLifecycle implements OnModuleInit, OnApplicationShutdown {
+	private readonly logger = new Logger(LocalDatabaseLifecycle.name);
+	private readonly scope = Effect.runSync(Scope.make());
+	readonly database: LocalDatabaseShape;
+
+	constructor(@Inject(LOCAL_DATABASE_OPTIONS) private readonly options: LocalDatabaseOptions) {
+		this.database = runUnwrapped(openLocalDatabase(options).pipe(Scope.provide(this.scope)));
+	}
+
+	onModuleInit(): void {
+		runUnwrapped(migrateLocalDatabase(this.database, this.options.migrationsDir));
+	}
+
+	onApplicationShutdown(): void {
+		const exit = Effect.runSyncExit(Scope.close(this.scope, Exit.void));
+		if (Exit.isFailure(exit)) this.logger.warn(`Local SQLite close failed: ${Cause.pretty(exit.cause)}`);
+	}
 }
 
 @Global()
 @Module({
-	imports: [localDatabaseRegistration()],
-	exports: [NestLocalDatabaseModule],
+	imports: [EnvModule],
+	providers: [
+		{
+			provide: LOCAL_DATABASE_OPTIONS,
+			useFactory: (env: EnvService): LocalDatabaseOptions => ({
+				databasePath: env.get("NODE_LOCAL_DB_PATH"),
+				migrationsDir: LOCAL_MIGRATIONS_DIR,
+			}),
+			inject: [EnvService],
+		},
+		LocalDatabaseLifecycle,
+		{ provide: LocalDatabase, useFactory: (host: LocalDatabaseLifecycle) => host.database, inject: [LocalDatabaseLifecycle] },
+		{ provide: LOCAL_DATABASE_CLIENT, useFactory: (host: LocalDatabaseLifecycle) => host.database.client, inject: [LocalDatabaseLifecycle] },
+		{ provide: LOCAL_DATABASE_CONNECTION, useFactory: (host: LocalDatabaseLifecycle) => host.database.db, inject: [LocalDatabaseLifecycle] },
+	],
+	exports: [LocalDatabase, LOCAL_DATABASE_CLIENT, LOCAL_DATABASE_CONNECTION],
 })
 export class LocalDatabaseModule {}

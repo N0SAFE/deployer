@@ -1,3 +1,4 @@
+import { runSyncUnwrapped } from "@deployer/effect-core";
 /**
  * Setup Database CLI Command
  *
@@ -16,9 +17,9 @@
  */
 
 import { Command, CommandRunner, Option } from "nest-commander";
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Inject } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 import type { SetupState } from "@deployer/nest-schema/local/node-config";
 
 type SetupDbOptions = {
@@ -34,7 +35,7 @@ export class SetupDbCommand extends CommandRunner {
   private readonly logger = new Logger(SetupDbCommand.name);
 
   constructor(
-    private readonly nodeConfigRepository: NodeConfigRepository,
+    @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
   ) {
     super();
   }
@@ -60,10 +61,10 @@ export class SetupDbCommand extends CommandRunner {
     }
 
     // 2. Read existing config (if any) to preserve fields
-    const existing = this.nodeConfigRepository.find();
+    const existing = runSyncUnwrapped(this.nodeConfigRepository.find());
 
     // 3. Upsert with the new database URL
-    const updated = this.nodeConfigRepository.upsert({
+    const updated = runSyncUnwrapped(this.nodeConfigRepository.upsert({
       nodeId: existing?.nodeId ?? randomUUID(),
       strategy: existing?.strategy ?? "local",
       setupState: (existing?.setupState ?? "not_started"),
@@ -79,7 +80,7 @@ export class SetupDbCommand extends CommandRunner {
       meshSharedSecret: existing?.meshSharedSecret ?? null,
       meshSharedSecretUpdatedAt: existing?.meshSharedSecretUpdatedAt ?? null,
       updatedAt: new Date().toISOString(),
-    });
+    }));
 
     this.logger.log(`✅ Database URL saved to local node config (nodeId: ${updated.nodeId})`);
   }

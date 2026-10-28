@@ -1,4 +1,5 @@
-import { Controller, Logger } from "@nestjs/common";
+import { runSyncUnwrapped } from "@deployer/effect-core";
+import { Controller, Logger, Inject } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
 import { ORPCError } from "@orpc/server";
@@ -12,7 +13,7 @@ import { ReachabilityService } from "@/core/modules/reachability/services/reacha
 import { EgressRequestError, EgressService } from "@/core/modules/egress/egress.service";
 import { PostSetupDestinationService } from "../services/post-setup-destination.service";
 import { PostSetupVerificationService } from "../services/post-setup-verification.service";
-import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 import { liveSnapshot } from "@deployer/shared/core/utils/live-snapshot.utils";
 
 /**
@@ -39,7 +40,7 @@ export class SetupController {
     constructor(
         private readonly initializationService: InitializationService,
         private readonly reachabilityService: ReachabilityService,
-        private readonly nodeConfigRepository: NodeConfigRepository,
+        @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
         private readonly postSetupDestination: PostSetupDestinationService,
         private readonly postSetupVerification: PostSetupVerificationService,
         private readonly egress: EgressService,
@@ -341,7 +342,7 @@ export class SetupController {
             .use(publicAccess())
             .handler(({ input, errors }) => {
                 this.logger.log(`Hint dismissed: ${input.hintId}`);
-                const config = this.nodeConfigRepository.find();
+                const config = runSyncUnwrapped(this.nodeConfigRepository.find());
                 if (!config) {
                     throw errors.INTERNAL_SERVER_ERROR(
                         domainErrorOptions(
@@ -352,7 +353,7 @@ export class SetupController {
                     );
                 }
                 const flags = config.postSetupFlags ?? {};
-                this.nodeConfigRepository.upsert({
+                runSyncUnwrapped(this.nodeConfigRepository.upsert({
                     nodeId: config.nodeId,
                     strategy: config.strategy,
                     setupState: config.setupState,
@@ -368,7 +369,7 @@ export class SetupController {
                     upgradedAtVersion: config.upgradedAtVersion,
                     postSetupFlags: { ...flags, [input.hintId]: "dismissed" },
                     updatedAt: new Date().toISOString(),
-                });
+                }));
                 return { status: 201 as const, headers: {}, body: { ok: true } };
             });
     }

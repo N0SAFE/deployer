@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import { Pool } from "pg";
 import { connect as tcpConnect } from "node:net";
-import { GLOBAL_DATABASE_POOL } from "@deployer/nest-effect/database";
+import { GLOBAL_DATABASE_POOL } from "../../core/modules/database/database-connection"
 
 import { DEFAULT_CHECK_TIMEOUT_MS } from "./checks";
 import { WAIT_FOR_DEPENDENCIES, runPreflight, type PreflightPolicy } from "./runner";

@@ -34,13 +34,76 @@
  * is what tells Swarm which address to bind (see `meshAddress` below).
  */
 
-import { Module } from "@nestjs/common";
-import { SwarmModule } from "@deployer/nest-effect/swarm";
+import { Inject, Injectable, Module, type InjectionToken, type OptionalFactoryDependency, type OnModuleDestroy, type OnModuleInit, type Provider } from "@nestjs/common";
+import { Effect, Fiber } from "effect";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { DockerService } from "@deployer/nest-effect/docker";
+import {
+    ClusterNodeRepository,
+    NodeConfigRepository,
+    type ClusterNodeRepositoryShape,
+    type NodeConfigRepositoryShape,
+} from "@deployer/node-state";
+import {
+    makeSwarmServices,
+    SwarmBootstrap,
+    SwarmCluster,
+    SwarmFleet,
+    SwarmJoinGrant,
+    SwarmLeadership,
+    SwarmParticipation,
+    type SwarmServices,
+    type SwarmServicesOptions,
+} from "@deployer/swarm";
+
 import { splitManagedEnv } from "@deployer/env";
 import { NodeStateModule } from "../node-state/node-state.module";
 import { EnvModule, EnvService } from "../../../config/env/env.module";
 import { MeshAgentModule } from "../mesh-agent/mesh-agent.module";
 import { MeshAgentClient } from "../mesh-agent/mesh-agent.client";
+
+const SWARM_SERVICES = Symbol("SWARM_SERVICES");
+
+/**
+ * Runs the swarm services' process-lifetime work: the election loop for the life of the context, and
+ * the boot convergence (a no-op unless the app opted in). Provided once beside the Effect services.
+ */
+@Injectable()
+class SwarmLifecycle implements OnModuleInit, OnModuleDestroy {
+    private electionFiber: Fiber.Fiber<void> | null = null;
+
+    constructor(@Inject(SWARM_SERVICES) private readonly services: SwarmServices) {}
+
+    async onModuleInit(): Promise<void> {
+        this.electionFiber ??= Effect.runFork(this.services.leadership.run);
+        await runPromiseUnwrapped(this.services.bootstrap.onBoot);
+    }
+
+    async onModuleDestroy(): Promise<void> {
+        if (this.electionFiber) await Effect.runPromise(Fiber.interrupt(this.electionFiber));
+        this.electionFiber = null;
+    }
+}
+
+/** Provides each swarm Effect service under its own tag, all built once over one engine and one repository set. */
+const swarmProviders = (options: {
+    inject: (InjectionToken | OptionalFactoryDependency)[];
+    options: (...deps: never[]) => SwarmServicesOptions;
+}): Provider[] => [
+    {
+        provide: SWARM_SERVICES,
+        useFactory: (docker: DockerService, nodeConfig: NodeConfigRepositoryShape, clusterNode: ClusterNodeRepositoryShape, ...deps: never[]) =>
+            makeSwarmServices({ docker: docker.getEngine(), nodeConfig, clusterNode }, options.options(...deps)),
+        inject: [DockerService, NodeConfigRepository, ClusterNodeRepository, ...options.inject],
+    },
+    { provide: SwarmCluster, useFactory: (s: SwarmServices) => s.cluster, inject: [SWARM_SERVICES] },
+    { provide: SwarmFleet, useFactory: (s: SwarmServices) => s.fleet, inject: [SWARM_SERVICES] },
+    { provide: SwarmParticipation, useFactory: (s: SwarmServices) => s.participation, inject: [SWARM_SERVICES] },
+    { provide: SwarmJoinGrant, useFactory: (s: SwarmServices) => s.joinGrant, inject: [SWARM_SERVICES] },
+    { provide: SwarmBootstrap, useFactory: (s: SwarmServices) => s.bootstrap, inject: [SWARM_SERVICES] },
+    { provide: SwarmLeadership, useFactory: (s: SwarmServices) => s.leadership, inject: [SWARM_SERVICES] },
+    SwarmLifecycle,
+];
 
 /**
  * Whether the DEPLOYMENT owns every platform service (compose / operator).
@@ -67,10 +130,14 @@ function isFullyDeploymentManaged(env: EnvService): boolean {
     // Postgres, which is why the swarm core is setup-safe).
     imports: [
         NodeStateModule,
-        SwarmModule.forRootAsync({
-            imports: [EnvModule, MeshAgentModule],
-            inject: [EnvService, MeshAgentClient],
-            useFactory: (env: EnvService, mesh: MeshAgentClient) => ({
+        EnvModule,
+        MeshAgentModule,
+    ],
+    providers: swarmProviders({
+        inject: [EnvService, MeshAgentClient],
+        options: (env: EnvService, mesh: MeshAgentClient): SwarmServicesOptions => ({
+            metricsProvider: null,
+            eventSink: null,
                 election: {
                     evalStableMs: env.get("SWARM_ELECTION_EVAL_STABLE_MS"),
                     evalVolatileMs: env.get("SWARM_ELECTION_EVAL_VOLATILE_MS"),
@@ -88,10 +155,10 @@ function isFullyDeploymentManaged(env: EnvService): boolean {
                     // the kernel interface carries it: Swarm cannot bind an address
                     // the host does not have. Until then the package binds loopback,
                     // and re-anchors onto the mesh the first time a joiner needs it.
-                    meshAddress: async () => {
+                    meshAddress: Effect.promise(async () => {
                         const status = await mesh.status().catch(() => null);
                         return status?.cluster?.interfaceUp === true ? status.cluster.address : null;
-                    },
+                    }),
                     // ── DOES THIS DEPLOYMENT RUN A SWARM AT ALL? ───────────────
                     // The plain `dev` profile is entirely compose-managed: every
                     // `MANAGED_*_ENABLED` is `true`, so every supervisor skips
@@ -100,8 +167,8 @@ function isFullyDeploymentManaged(env: EnvService): boolean {
                     // use, so this can never disagree with them about who owns what.
                     swarmManaged: !isFullyDeploymentManaged(env),
                 },
-            }),
         }),
-    ],
+    }),
+    exports: [SwarmCluster, SwarmFleet, SwarmParticipation, SwarmJoinGrant, SwarmBootstrap, SwarmLeadership],
 })
 export class SwarmCoreModule {}

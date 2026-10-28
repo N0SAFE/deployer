@@ -1,5 +1,5 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { LocalDatabaseService } from "@deployer/nest-effect/node-state";
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { LocalDatabase, type LocalDatabaseShape } from "@deployer/node-state"
 import { nodeMeshConfig } from "@deployer/nest-schema/local";
 
 export type NodeMeshConfigRow = typeof nodeMeshConfig.$inferSelect;
@@ -8,7 +8,7 @@ export type NodeMeshConfigRow = typeof nodeMeshConfig.$inferSelect;
 export class NodeMeshConfigRepository {
     private readonly logger = new Logger(NodeMeshConfigRepository.name);
 
-    constructor(private readonly localDb: LocalDatabaseService) {}
+    constructor(@Inject(LocalDatabase) private readonly localDb: LocalDatabaseShape) {}
 
     find(): NodeMeshConfigRow | null {
         try {

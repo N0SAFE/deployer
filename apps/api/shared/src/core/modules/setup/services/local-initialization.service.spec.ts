@@ -1,11 +1,12 @@
+import { Effect } from "effect";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { LocalInitializationService } from "./local-initialization.service";
 import { SetupStepTracker } from "../utils/setup-runner.utils";
-import type { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import type { NodeConfigRepositoryShape } from "@deployer/node-state";
 import type { PostgresServiceProvisioner } from "@deployer/nest-effect/docker";
 import type { EnvService } from "../../../../config/env/env.module";
-import type { SwarmBootstrapService } from "@deployer/nest-effect/swarm";
-import type { SwarmClusterService } from "@deployer/nest-effect/swarm";
+import type { SwarmBootstrapShape } from "@deployer/swarm"
+import type { SwarmClusterShape } from "@deployer/swarm"
 import type { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
 import type { DockerService } from "@deployer/nest-effect/docker";
 import type { EmitEvent } from "../utils/setup-runner.utils";
@@ -23,11 +24,11 @@ const LOCAL_URL = "postgres://deployer:deployer@172.17.0.1:5432/deployer";
 const EXTERNAL_URL = "postgres://user:pass@db.example.com:5432/prod";
 
 function makeMocks() {
-	const upsert = vi.fn((data: unknown) => data);
+	const upsert = vi.fn((data: unknown) => Effect.succeed(data));
 	const nodeConfigRepository = {
-		find: vi.fn(() => null),
+		find: vi.fn(() => Effect.succeed(null)),
 		upsert,
-	} as unknown as NodeConfigRepository;
+	} as unknown as NodeConfigRepositoryShape;
 	const postgresProvisioner = {
 		ensure: vi.fn(async () => ({ name: "deployer-postgres" })),
 	} as unknown as PostgresServiceProvisioner;
@@ -52,19 +53,19 @@ function makeService(mocks: ReturnType<typeof makeMocks>): LocalInitializationSe
 		// Postgres is a swarm service). These specs exercise the marker
 		// persistence, not convergence, so a silent no-op + inactive snapshot
 		// keeps them deterministic.
-		{ converge: vi.fn(async () => undefined) } as unknown as SwarmBootstrapService,
+		{ converge: vi.fn(() => Effect.void) } as unknown as SwarmBootstrapShape,
 		// "active" is REQUIRED for the local path: the swarm step correctly
 		// throws when the cluster never comes up, because a locally-managed
 		// Postgres is a swarm service that cannot be provisioned otherwise.
 		{
-			getLocalClusterSnapshot: vi.fn(async () => ({
+			getLocalClusterSnapshot: vi.fn(() => Effect.succeed({
 				localNodeState: "active",
 				nodeCount: 1,
 				managerCount: 1,
 				localNode: { swarmRole: "manager" },
 				master: { nodeId: "self" },
-			})),
-		} as unknown as SwarmClusterService,
+			}) as never),
+		} as unknown as SwarmClusterShape,
 		// On-demand convergence of the app-wiring supervisor, called right
 		// before the DSN is used so the overlay attach is not left to the
 		// supervisor's 30s cadence. These specs assert marker persistence, not
@@ -147,7 +148,7 @@ describe("LocalInitializationService — databaseProvisioning marker", () => {
 	it('uses the node-provided DB (SETUP CANDIDATE) when no URL is supplied — instead of provisioning a container', async () => {
 		const mocks = makeMocks();
 		// Phase 0 persisted a compose-managed DB as a candidate (not configured).
-		mocks.nodeConfigRepository.find = vi.fn(() => ({
+		(mocks.nodeConfigRepository as { find: unknown }).find = vi.fn(() => Effect.succeed({
 			nodeId: "n1",
 			strategy: "local",
 			setupState: "not_started",

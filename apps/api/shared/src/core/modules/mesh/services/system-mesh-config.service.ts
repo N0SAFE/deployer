@@ -1,7 +1,8 @@
-import { Injectable, type OnModuleInit, Logger } from '@nestjs/common'
+import { runSyncUnwrapped } from "@deployer/effect-core";
+import { Injectable, type OnModuleInit, Logger, Inject } from '@nestjs/common'
 import { EnvService } from "../../../../config/env/env.module"
 import { NodeMeshConfigRepository, type NodeMeshConfigRow } from '../repositories/node-mesh-config.repository'
-import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 import { randomUUID } from 'node:crypto'
 
 export type MeshConfigTrustKeys = {
@@ -26,7 +27,7 @@ export class SystemMeshConfigService implements OnModuleInit {
 
     constructor(
         private readonly envService: EnvService,
-        private readonly nodeConfigRepo: NodeConfigRepository,
+        @Inject(NodeConfigRepository) private readonly nodeConfigRepo: NodeConfigRepositoryShape,
         private readonly nodeMeshConfigRepo: NodeMeshConfigRepository
     ) {}
 
@@ -107,7 +108,7 @@ export class SystemMeshConfigService implements OnModuleInit {
      * We never overwrite a nodeId that was assigned by the setup.
      */
     private ensureNodeConfig() {
-        const existing = this.nodeConfigRepo.find()
+        const existing = runSyncUnwrapped(this.nodeConfigRepo.find())
         if (existing?.nodeId) {
             return existing
         }
@@ -125,13 +126,13 @@ export class SystemMeshConfigService implements OnModuleInit {
                 'Run the setup wizard to finalize this node.'
         )
 
-        return this.nodeConfigRepo.upsert({
+        return runSyncUnwrapped(this.nodeConfigRepo.upsert({
             nodeId,
             strategy: 'local',
             meshUrlsSnapshot: [],
             configuredAt: null,
             updatedAt: now,
-        })
+        }))
     }
 
     /**
@@ -170,7 +171,7 @@ export class SystemMeshConfigService implements OnModuleInit {
         // ── bootstrapPeers ───────────────────────────────────────────────────
         // Prefer meshUrlsSnapshot from NodeConfigRepository (set by setup wizard),
         // then fall back to MESH_BOOTSTRAP_PEERS env var
-        const nodeConfig = this.nodeConfigRepo.find()
+        const nodeConfig = runSyncUnwrapped(this.nodeConfigRepo.find())
         const snapshotPeers = nodeConfig?.meshUrlsSnapshot ?? []
 
         const envBootstrapPeers = this.envService

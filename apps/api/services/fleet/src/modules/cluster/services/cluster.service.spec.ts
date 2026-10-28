@@ -109,10 +109,10 @@ describe("ClusterService", () => {
             }),
         };
         swarm = {
-            getLocalClusterSnapshot: vi.fn().mockResolvedValue(snapshot),
-            listSwarmNodes: vi.fn().mockResolvedValue([]),
+            getLocalClusterSnapshot: vi.fn().mockReturnValue(Effect.succeed(snapshot)),
+            listSwarmNodes: vi.fn().mockReturnValue(Effect.succeed([])),
             inspectSwarmNode: vi.fn().mockImplementation(() =>
-                Promise.resolve({
+                Effect.succeed({
                     ID: "n1",
                     Version: { Index: 4 },
                     // NodeSpec.Labels is the authoritative map: the engine REPLACES it.
@@ -123,27 +123,27 @@ describe("ClusterService", () => {
             ),
             updateSwarmNodeLabels: vi.fn().mockImplementation((_id: string, _version: number, labels: Record<string, string>) => {
                 if (engineUpdateApplies) engineLabels = { ...labels };
-                return Promise.resolve(undefined);
+                return Effect.void;
             }),
         };
         fleet = {
-            listServices: vi.fn().mockResolvedValue([]),
-            listTasks: vi.fn().mockResolvedValue([]),
-            getNodeResources: vi.fn().mockResolvedValue({
+            listServices: vi.fn().mockReturnValue(Effect.succeed([])),
+            listTasks: vi.fn().mockReturnValue(Effect.succeed([])),
+            getNodeResources: vi.fn().mockReturnValue(Effect.succeed({
                 nodeId: "n1",
                 services: [],
                 tasks: [],
-            }),
+            })),
         };
-        nodeRepo = { find: vi.fn().mockReturnValue(nodeRow) };
+        nodeRepo = { find: vi.fn().mockReturnValue(Effect.succeed(nodeRow)) };
         inventoryRepo = {
-            list: vi.fn().mockReturnValue([inventoryRow]),
-            upsertAllFromEngine: vi.fn().mockReturnValue(1),
-            upsertFromEngine: vi.fn().mockImplementation((row) => ({ nodeId: row.nodeId })),
+            list: vi.fn().mockReturnValue(Effect.succeed([inventoryRow])),
+            upsertAllFromEngine: vi.fn().mockReturnValue(Effect.succeed(1)),
+            upsertFromEngine: vi.fn().mockImplementation((row) => Effect.succeed({ nodeId: row.nodeId })),
         };
         participation = {
-            view: vi.fn().mockResolvedValue({}),
-            applyConfig: vi.fn().mockResolvedValue({}),
+            view: vi.fn().mockReturnValue(Effect.succeed({})),
+            applyConfig: vi.fn().mockReturnValue(Effect.succeed({})),
         };
         service = makeClusterService({
             swarmClusterService: swarm as never,
@@ -174,8 +174,8 @@ describe("ClusterService", () => {
     });
 
     it("listNodes falls back to a live sweep when the table is empty", async () => {
-        inventoryRepo.list.mockReturnValueOnce([]).mockReturnValue([inventoryRow]);
-        swarm.listSwarmNodes.mockResolvedValue([{ ID: "n1", Version: { Index: 1 }, Spec: { Name: "n1", Labels: {}, Role: "worker", Availability: "active" }, Description: { Hostname: "h1" }, ManagerStatus: null }]);
+        inventoryRepo.list.mockReturnValueOnce(Effect.succeed([])).mockReturnValue(Effect.succeed([inventoryRow]));
+        swarm.listSwarmNodes.mockReturnValue(Effect.succeed([{ ID: "n1", Version: { Index: 1 }, Spec: { Name: "n1", Labels: {}, Role: "worker", Availability: "active" }, Description: { Hostname: "h1" }, ManagerStatus: null }]));
 
         const nodes = await run(service.listNodes(true));
 
@@ -189,7 +189,7 @@ describe("ClusterService", () => {
     });
 
     it("getMaster returns null when no master is elected", async () => {
-        nodeRepo.find.mockReturnValue({ ...nodeRow, masterNodeId: null });
+        nodeRepo.find.mockReturnValue(Effect.succeed({ ...nodeRow, masterNodeId: null }));
         await expect(run(service.getMaster())).resolves.toBeNull();
     });
 

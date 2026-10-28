@@ -1,3 +1,4 @@
+import { runSyncUnwrapped } from "@deployer/effect-core";
 import { MeshAdmissionService } from "../../mesh-agent/mesh-admission.service";
 import { Controller, Inject } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
@@ -13,8 +14,8 @@ import { SystemMeshTopologyService } from "../services/system-mesh-topology/orch
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { SystemMetrics, type SystemMetricsShape } from "@deployer/system-metrics";
 import { EnvService } from "../../../../config/env/env.module";
-import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
-import { SwarmJoinGrantService } from "@deployer/nest-effect/swarm";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+import { SwarmJoinGrant, type SwarmJoinGrantShape } from "@deployer/swarm"
 import { signPeerServiceToken } from "@deployer/auth/mesh";
 import * as crypto from "node:crypto";
 import { Client } from "pg";
@@ -40,9 +41,9 @@ export class MeshController {
         private readonly coreEventSyncService: CoreEventSyncService,
         @Inject(SystemMetrics) private readonly systemMetrics: SystemMetricsShape,
         private readonly envService: EnvService,
-        private readonly nodeConfigRepository: NodeConfigRepository,
+        @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
         /** Builds the FLEET's swarm role decision for a joining node. */
-        private readonly swarmJoinGrant: SwarmJoinGrantService,
+        @Inject(SwarmJoinGrant) private readonly swarmJoinGrant: SwarmJoinGrantShape,
         /** Admits the joiner into the peer-equal network in the same exchange. */
         private readonly meshAdmission: MeshAdmissionService,
     ) {}
@@ -392,7 +393,7 @@ export class MeshController {
         return implement(meshContract.getNodeConfig)
             .use(requireAuth())
             .handler(() => {
-                const row = this.nodeConfigRepository.find();
+                const row = runSyncUnwrapped(this.nodeConfigRepository.find());
                 const localNode = this.meshTopologyService.getLocalNode();
 
                 return {
@@ -422,8 +423,8 @@ export class MeshController {
             .use(requireAuth())
             .handler(({ input }) => {
                 const now = new Date().toISOString();
-                const existing = this.nodeConfigRepository.find();
-                const updated = this.nodeConfigRepository.upsert({
+                const existing = runSyncUnwrapped(this.nodeConfigRepository.find());
+                const updated = runSyncUnwrapped(this.nodeConfigRepository.upsert({
                     nodeId: input.nodeId ?? existing?.nodeId ?? crypto.randomUUID(),
                     strategy: input.strategy ?? existing?.strategy ?? "local",
                     meshUrlsSnapshot: input.meshUrlsSnapshot ?? existing?.meshUrlsSnapshot ?? [],
@@ -435,7 +436,7 @@ export class MeshController {
                     peerServiceTokenExpiresAt: existing?.peerServiceTokenExpiresAt ?? null,
                     meshSharedSecret: existing?.meshSharedSecret ?? null,
                     meshSharedSecretUpdatedAt: existing?.meshSharedSecretUpdatedAt ?? null,
-                });
+                }));
 
                 const localNode = this.meshTopologyService.getLocalNode();
 
@@ -470,9 +471,9 @@ export class MeshController {
             .handler(() => {
                 const newSecret = crypto.randomBytes(32).toString("hex");
                 const now = new Date().toISOString();
-                const existing = this.nodeConfigRepository.find();
+                const existing = runSyncUnwrapped(this.nodeConfigRepository.find());
 
-                this.nodeConfigRepository.upsert({
+                runSyncUnwrapped(this.nodeConfigRepository.upsert({
                     nodeId: existing?.nodeId ?? crypto.randomUUID(),
                     strategy: existing?.strategy ?? "local",
                     meshUrlsSnapshot: existing?.meshUrlsSnapshot ?? [],
@@ -484,7 +485,7 @@ export class MeshController {
                     peerServiceTokenExpiresAt: existing?.peerServiceTokenExpiresAt ?? null,
                     meshSharedSecret: newSecret,
                     meshSharedSecretUpdatedAt: now,
-                });
+                }));
 
                 return {
                     success: true,
@@ -609,7 +610,7 @@ export class MeshController {
                 const result = await this.meshTopologyService.consumeJoinGrant(input);
 
                 const meshSharedSecret =
-                    this.nodeConfigRepository.getMeshSharedSecret()
+                    runSyncUnwrapped(this.nodeConfigRepository.getMeshSharedSecret())
                     ?? this.envService.get("MESH_STREAM_SHARED_SECRET")?.toString().trim()
                     ?? process.env.MESH_STREAM_SHARED_SECRET?.trim()
                     ?? null;
@@ -620,7 +621,7 @@ export class MeshController {
                 // is answered HERE, by the node that already owns the cluster.
                 // The joiner converges its engine from this response, which is
                 // why a node can neither promote itself nor found a rival swarm.
-                const swarmGrant = await this.swarmJoinGrant.buildGrant(input.requestedSwarmPolicy);
+                const swarmGrant = await runPromiseUnwrapped(this.swarmJoinGrant.buildGrant(input.requestedSwarmPolicy));
 
                 // MESH ADMISSION — this node's agent admits the joiner's signed
                 // entry. Any member can do it; the operator was authorised above.

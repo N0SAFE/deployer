@@ -1,5 +1,7 @@
-import { Injectable } from '@nestjs/common';
-import { BaseDatabaseService } from "@deployer/nest-effect/database";
+import { Injectable, Logger } from '@nestjs/common';
+import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { makeDatabaseHandle, type DatabaseHandleShape } from "@deployer/database";
+import { AppError } from "@deployer/errors";
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { PgTransaction } from 'drizzle-orm/pg-core';
 import type { NodePgQueryResultHKT } from 'drizzle-orm/node-postgres';
@@ -33,4 +35,37 @@ export type GlobalTransaction = PgTransaction<
  * count and keep the event loop alive at shutdown).
  */
 @Injectable()
-export class GlobalDatabaseService extends BaseDatabaseService<GlobalDatabase> {}
+export class GlobalDatabaseService {
+    protected readonly logger = new Logger(GlobalDatabaseService.name);
+
+    /** The Effect handle (`@deployer/database`) this service holds the connection in. */
+    readonly handle: DatabaseHandleShape<GlobalDatabase>;
+
+    constructor(db?: GlobalDatabase) {
+        this.handle = makeDatabaseHandle<GlobalDatabase>(GlobalDatabaseService.name, db);
+    }
+
+    /** Initialize (or re-initialize) the database connection. */
+    init(db: GlobalDatabase): void {
+        this.handle.initNow(db);
+    }
+
+    /** Whether this service has been initialized with a database connection. */
+    get isInitialized(): boolean {
+        return this.handle.dbNow() !== undefined;
+    }
+
+    /** The underlying Drizzle database handle. Throws if not yet initialized. */
+    get db(): GlobalDatabase {
+        const db = this.handle.dbNow();
+        if (db === undefined) {
+            throw new AppError(`${GlobalDatabaseService.name} has not been initialized yet`, "DATABASE_NOT_INITIALIZED");
+        }
+        return db;
+    }
+
+    /** Runs `SELECT 1` and resolves to whether the database answered. */
+    async probe(): Promise<boolean> {
+        return await runPromiseUnwrapped(this.handle.healthy);
+    }
+}

@@ -8,7 +8,7 @@ import { ReachabilityService } from "@/core/modules/reachability/services/reacha
 import { EgressRequestError, EgressService } from "@/core/modules/egress/egress.service";
 import { PostSetupDestinationService } from "../services/post-setup-destination.service";
 import { PostSetupVerificationService } from "../services/post-setup-verification.service";
-import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 
 function createImplementMock() {
     const chainable = {

@@ -1,3 +1,4 @@
+import { runPromiseUnwrapped, runSyncUnwrapped } from "@deployer/effect-core";
 /**
  * ClusterService — platform-facing facade over the Swarm cluster (SW-003).
  * Implements the data needs of the `cluster` ORPC contract using the
@@ -20,19 +21,19 @@ import type { ClusterPlatformRole, ClusterSnapshot, ClusterNode, SwarmNodeResour
 import { clusterNodeInventoryRowSchema } from "@deployer/fleet-contracts";
 import { type ClusterMasterView } from "@deployer/fleet-contracts";
 import { resolveSwarmNodeRole } from "@deployer/docker";
-import type { SwarmClusterService, SwarmFleetService, SwarmParticipationService } from "@deployer/nest-effect/swarm";
-import type { ClusterNodeInventoryRepository } from "@deployer/nest-effect/node-state";
-import type { ClusterNodeRepository } from "@deployer/nest-effect/node-state";
+import type { SwarmClusterShape, SwarmFleetShape, SwarmParticipationShape } from "@deployer/swarm"
+import type { ClusterNodeInventoryRepositoryShape } from "@deployer/node-state";
+import type { ClusterNodeRepositoryShape } from "@deployer/node-state";
 import type { EnvService } from "@deployer/shared/config/env/env.module";
 import { ingressFromLabels, platformRoleFromLabels, withIngress, withPlatformRole } from "@deployer/node-state";
 
 
 type Ports = {
-    readonly swarmClusterService: SwarmClusterService;
-    readonly swarmFleetService: SwarmFleetService;
-    readonly participation: SwarmParticipationService;
-    readonly clusterNodeRepository: ClusterNodeRepository;
-    readonly inventoryRepository: ClusterNodeInventoryRepository;
+    readonly swarmClusterService: SwarmClusterShape;
+    readonly swarmFleetService: SwarmFleetShape;
+    readonly participation: SwarmParticipationShape;
+    readonly clusterNodeRepository: ClusterNodeRepositoryShape;
+    readonly inventoryRepository: ClusterNodeInventoryRepositoryShape;
     readonly env: EnvService;
 };
 
@@ -59,7 +60,7 @@ export type ClusterServiceShape = {
     /**
      * Current controlling-master view (elected node + term + heartbeat state).
      *
-     * This is the PLATFORM master (the mesh election result persisted by `SwarmLeadershipService`),
+     * This is the PLATFORM master (the mesh election result persisted by `SwarmLeadership`),
      * not the Raft leader reported in the engine snapshot. The staleness window uses the SAME env
      * knobs as the election watchdog, so the view can never disagree with the elector.
      */
@@ -108,24 +109,23 @@ export function makeClusterService(ports: Ports): ClusterServiceShape {
 
     const toInventoryRows = (includeDown: boolean) =>
         attemptSync(() => {
-            const rows = inventoryRepository.list();
+            const rows = runSyncUnwrapped(inventoryRepository.list());
             return includeDown ? rows : rows.filter((row) => row.state === "active");
         });
 
     return {
-        getSwarmConfig: () => attempt(() => participation.view()),
+        getSwarmConfig: () => participation.view(),
 
-        setSwarmConfig: (input) => attempt(() => participation.applyConfig(input)),
+        setSwarmConfig: (input) => participation.applyConfig(input),
 
-        getSnapshot: () => attempt(() => swarmClusterService.getLocalClusterSnapshot()),
+        getSnapshot: () => swarmClusterService.getLocalClusterSnapshot(),
 
         nodeResourcesStream: (nodeId) =>
             Effect.sync(
                 () =>
                     new Observable<SwarmNodeResources>((subscriber) => {
                         const push = () => {
-                            swarmFleetService
-                                .getNodeResources(nodeId)
+                            runPromiseUnwrapped(swarmFleetService.getNodeResources(nodeId))
                                 .then((resources) => {
                                     subscriber.next(resources);
                                 })
@@ -147,7 +147,7 @@ export function makeClusterService(ports: Ports): ClusterServiceShape {
             if (rows.length === 0) {
                 // Fallback: live engine sweep for fresh installs before the first inventory timer ticks.
                 yield* attempt(async () => {
-                    inventoryRepository.upsertAllFromEngine(await swarmClusterService.listSwarmNodes());
+                    runSyncUnwrapped(inventoryRepository.upsertAllFromEngine(await runPromiseUnwrapped(swarmClusterService.listSwarmNodes())));
                 }).pipe(
                     Effect.catch((error: unknown) =>
                         Effect.logWarning(
@@ -184,7 +184,7 @@ export function makeClusterService(ports: Ports): ClusterServiceShape {
 
         getMaster: () =>
             attemptSync(() => {
-                const row = clusterNodeRepository.find();
+                const row = runSyncUnwrapped(clusterNodeRepository.find());
                 if (!row?.masterNodeId) {
                     return null;
                 }
@@ -203,17 +203,17 @@ export function makeClusterService(ports: Ports): ClusterServiceShape {
             }),
 
         updateNodeLabels: Effect.fn("ClusterService.updateNodeLabels")(function* (nodeId, input) {
-            const before = yield* attempt(() => swarmClusterService.inspectSwarmNode(nodeId));
+            const before = yield* swarmClusterService.inspectSwarmNode(nodeId);
 
             yield* attempt(() =>
-                swarmClusterService.updateSwarmNodeLabels(
+                runPromiseUnwrapped(swarmClusterService.updateSwarmNodeLabels(
                     nodeId,
                     before.Version.Index,
                     withIngress(
                         withPlatformRole(before.Spec?.Labels ?? {}, input.platformRole ?? null),
                         input.ingress ?? null,
                     ),
-                ),
+                )),
             );
 
             // Re-read the ENGINE and answer from THAT — the node as it now IS, not as it was asked to
@@ -221,7 +221,7 @@ export function makeClusterService(ports: Ports): ClusterServiceShape {
             // the engine had not applied (and poisoned the inventory cache with it until the next
             // sweep). The cache is rebuilt from the same source the sweep uses, so a partial write
             // is visible immediately instead of being masked.
-            const node = yield* attempt(() => swarmClusterService.inspectSwarmNode(nodeId));
+            const node = yield* swarmClusterService.inspectSwarmNode(nodeId);
             const labels = node.Spec?.Labels ?? {};
             const hostname = node.Description?.Hostname ?? "";
             const swarmRole = resolveSwarmNodeRole(node);
@@ -239,7 +239,7 @@ export function makeClusterService(ports: Ports): ClusterServiceShape {
 
             // Persist the engine's actual role/ingress into the local inventory (cache).
             yield* attemptSync(() =>
-                inventoryRepository.upsertFromEngine({
+                runSyncUnwrapped(inventoryRepository.upsertFromEngine({
                     nodeId,
                     hostname,
                     swarmRole,
@@ -250,7 +250,7 @@ export function makeClusterService(ports: Ports): ClusterServiceShape {
                     nanoCpus: capacity.nanoCpus,
                     memoryBytes: capacity.memoryBytes,
                     labels,
-                }),
+                })),
             );
 
             return {
@@ -267,10 +267,10 @@ export function makeClusterService(ports: Ports): ClusterServiceShape {
             };
         }),
 
-        listServices: () => attempt(() => swarmFleetService.listServices()),
+        listServices: () => swarmFleetService.listServices(),
 
-        listTasks: (filter) => attempt(() => swarmFleetService.listTasks(filter)),
+        listTasks: (filter) => swarmFleetService.listTasks(filter),
 
-        getNodeResources: (nodeId) => attempt(() => swarmFleetService.getNodeResources(nodeId)),
+        getNodeResources: (nodeId) => swarmFleetService.getNodeResources(nodeId),
     };
 }

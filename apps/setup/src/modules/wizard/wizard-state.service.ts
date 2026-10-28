@@ -1,3 +1,4 @@
+import { runSyncUnwrapped } from "@deployer/effect-core";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { NODE_CONFIG_READER, type NodeConfigReader } from "./node-config.port";
 import type { SetupStateSnapshot, SetupBootstrapStrategy } from "@deployer/contracts-entities";
@@ -55,13 +56,13 @@ export class WizardStateService {
    * dashboard over an empty schema.
    */
   isConfigured(): boolean {
-    const config = this.nodeConfig.find();
+    const config = runSyncUnwrapped(this.nodeConfig.find());
     return Boolean(config?.configuredAt && config.databaseUrl?.trim());
   }
 
   /** The wizard's state snapshot, from the shared `node_config` row. */
   getState(): SetupStateSnapshot {
-    const config = this.nodeConfig.find();
+    const config = runSyncUnwrapped(this.nodeConfig.find());
 
     if (config === null || config === undefined) {
       return this.notStarted();
@@ -103,7 +104,7 @@ export class WizardStateService {
     meshUrlsSnapshot: string[];
     configuredAt: Date | null;
   } {
-    const config = this.nodeConfig.find();
+    const config = runSyncUnwrapped(this.nodeConfig.find());
     const configured = this.isConfigured();
 
     return {

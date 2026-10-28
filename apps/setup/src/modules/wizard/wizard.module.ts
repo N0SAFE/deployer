@@ -2,9 +2,8 @@ import { Module } from "@nestjs/common";
 import { RenderModule } from "@nestjs-ssr/react";
 
 import { EnvModule } from "@/config/env/env.module";
-import { localDatabaseRegistration } from "@/config/database/local-database.module";
-import { NodesModule } from "@deployer/nest-effect/node-state";
-import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import { NodeStateModule } from "@/config/database/node-state.module";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 import { NODE_CONFIG_READER, NODE_CONFIG_STORE } from "./node-config.port";
 import { SetupHealthModule } from "@/modules/health/setup-health.module";
 import { SetupClusterModule } from "@/modules/cluster/cluster.module";
@@ -48,7 +47,7 @@ import { SetupProgressModule } from "@/modules/progress/progress.module";
     // (the same SQLite file the API reads), so it needs the repositories. The
     // registration is passed in rather than imported ambiently, exactly as
     // `SetupClusterModule` does — the app owns the file path.
-    NodesModule.forRoot({ localDatabase: localDatabaseRegistration() }),
+    NodeStateModule,
     // The oRPC registration and its error mapping. `@Implement` mounts its own
     // routes, but the error mapping only exists once this module provides the
     // (global) `ImplementInterceptor` — without it a thrown `HttpException` or a

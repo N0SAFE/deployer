@@ -1,3 +1,4 @@
+import { runSyncUnwrapped } from "@deployer/effect-core";
 import { Inject, Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
 import { NODE_CONFIG_STORE, type NodeConfigStore } from "./node-config.port";
 import { EnvService } from "@/config/env/env.module";
@@ -117,7 +118,7 @@ export class SetupGateService implements OnApplicationBootstrap {
    * skipping the wizard there would leave an empty schema with no one to fix it.
    */
   onApplicationBootstrap(): void {
-    const existing = this.nodeConfig.find();
+    const existing = runSyncUnwrapped(this.nodeConfig.find());
 
     if (existing?.setupState !== "setup_done") {
       // Nothing has been collected yet, so the wizard has work to do. The gate
@@ -179,7 +180,7 @@ export class SetupGateService implements OnApplicationBootstrap {
     // already written it. Overwriting from an EMPTY payload (a restart passes
     // `undefined`) would erase the swarm participation and the database URL
     // the API is about to read — turning a healthy restart into a broken node.
-    const completed = this.nodeConfig.find()?.setupState === "setup_done";
+    const completed = runSyncUnwrapped(this.nodeConfig.find())?.setupState === "setup_done";
     if (!completed) {
       this.persist(input);
     }
@@ -314,13 +315,13 @@ export class SetupGateService implements OnApplicationBootstrap {
    * true.
    */
   private persist(input: unknown): void {
-    const existing = this.nodeConfig.find();
+    const existing = runSyncUnwrapped(this.nodeConfig.find());
     // The operator's explicit URL wins; otherwise fall back to a database the
     // compose profile PROVIDED (`MANAGED_GLOBAL_DB_*`). Both mean "use this
     // database"; only the source differs.
     const databaseUrl = this.databaseUrlFrom(input) ?? this.managedDatabaseUrl();
 
-    this.nodeConfig.upsert({
+    runSyncUnwrapped(this.nodeConfig.upsert({
       nodeId: existing?.nodeId ?? crypto.randomUUID(),
       strategy: existing?.strategy ?? "local",
       setupState: existing?.setupState ?? "not_started",
@@ -345,7 +346,7 @@ export class SetupGateService implements OnApplicationBootstrap {
       upgradedAtVersion: existing?.upgradedAtVersion,
       postSetupFlags: existing?.postSetupFlags,
       updatedAt: new Date().toISOString(),
-    });
+    }));
 
     this.logger.log(
       `Choices persisted (databaseUrl=${databaseUrl === null ? "provision" : "provided"})`,

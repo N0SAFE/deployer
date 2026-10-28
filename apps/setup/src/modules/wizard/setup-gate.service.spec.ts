@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import { SetupGateService } from "./setup-gate.service";
@@ -24,15 +25,17 @@ import { makeEnvService } from "@/test-support/env";
  */
 function makeRepository(initial: Partial<NodeConfigRow> | null = null) {
   let store: NodeConfigRow | null = initial === null ? null : ({ ...initial } as NodeConfigRow);
-  const upsert = vi.fn((data: Parameters<NodeConfigStore["upsert"]>[0]): NodeConfigRow => {
+  // Evaluated eagerly: the real repository returns an Effect, and a spec asserting on the store
+  // should not depend on who runs it.
+  const upsert = vi.fn((data: Parameters<NodeConfigStore["upsert"]>[0]) => {
     store = { ...(store ?? ({} as NodeConfigRow)), ...data };
-    return store;
+    return Effect.succeed(store);
   });
   const api: NodeConfigStore = {
     // The row type is the REAL `NodeConfigRow`, not a loose record: the port is a
     // `Pick` of the repository, so a stub returning the wrong shape is exactly the
     // mismatch the old `as unknown as` casts were hiding.
-    find: () => store,
+    find: () => Effect.succeed(store),
     upsert,
   };
   return Object.assign(api, {

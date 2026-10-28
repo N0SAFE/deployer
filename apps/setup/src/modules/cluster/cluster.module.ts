@@ -1,16 +1,72 @@
 import { Module } from "@nestjs/common";
+import { Effect, Fiber } from "effect";
+import { Inject, Injectable, type InjectionToken, type OptionalFactoryDependency, type OnModuleDestroy, type OnModuleInit, type Provider } from "@nestjs/common";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { ClusterNodeRepository, NodeConfigRepository, type ClusterNodeRepositoryShape, type NodeConfigRepositoryShape } from "@deployer/node-state";
+import {
+  makeSwarmServices,
+  SwarmBootstrap,
+  SwarmCluster,
+  SwarmFleet,
+  SwarmJoinGrant,
+  SwarmLeadership,
+  SwarmParticipation,
+  type SwarmServices,
+  type SwarmServicesOptions,
+} from "@deployer/swarm";
 import { AGENT_SOCKET_PATH, MeshAgentHttpClient } from "@deployer/mesh-network";
-import { DockerModule } from "@deployer/nest-effect/docker";
-import { NodesModule } from "@deployer/nest-effect/node-state";
-import { SwarmModule } from "@deployer/nest-effect/swarm";
+import { DockerModule, DockerService } from "@deployer/nest-effect/docker";
 
-import { localDatabaseRegistration } from "@/config/database/local-database.module";
+import { NodeStateModule } from "@/config/database/node-state.module";
 import { EnvModule, EnvService } from "@/config/env/env.module";
 import { SetupHealthModule } from "@/modules/health/setup-health.module";
 import { SetupProgressModule } from "@/modules/progress/progress.module";
 import { ClusterOrchestratorService } from "./services/cluster-orchestrator.service";
 import { MeshAgentLauncherService } from "./services/mesh-agent-launcher.service";
 import { SwarmBootstrapService } from "./services/swarm-bootstrap.service";
+
+const SWARM_SERVICES = Symbol("SWARM_SERVICES");
+
+/**
+ * Runs the swarm services' process-lifetime work: the election loop for the life of the context, and
+ * the boot convergence (a no-op here: setup founds the cluster from its own flow).
+ */
+@Injectable()
+class SwarmLifecycle implements OnModuleInit, OnModuleDestroy {
+  private electionFiber: Fiber.Fiber<void> | null = null;
+
+  constructor(@Inject(SWARM_SERVICES) private readonly services: SwarmServices) {}
+
+  async onModuleInit(): Promise<void> {
+    this.electionFiber ??= Effect.runFork(this.services.leadership.run);
+    await runPromiseUnwrapped(this.services.bootstrap.onBoot);
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    if (this.electionFiber) await Effect.runPromise(Fiber.interrupt(this.electionFiber));
+    this.electionFiber = null;
+  }
+}
+
+/** Provides each swarm Effect service under its own tag, all built once over one engine and one repository set. */
+const swarmProviders = (config: {
+  inject: (InjectionToken | OptionalFactoryDependency)[];
+  options: (...deps: never[]) => SwarmServicesOptions;
+}): Provider[] => [
+  {
+    provide: SWARM_SERVICES,
+    useFactory: (docker: DockerService, nodeConfig: NodeConfigRepositoryShape, clusterNode: ClusterNodeRepositoryShape, ...deps: never[]) =>
+      makeSwarmServices({ docker: docker.getEngine(), nodeConfig, clusterNode }, config.options(...deps)),
+    inject: [DockerService, NodeConfigRepository, ClusterNodeRepository, ...config.inject],
+  },
+  { provide: SwarmCluster, useFactory: (s: SwarmServices) => s.cluster, inject: [SWARM_SERVICES] },
+  { provide: SwarmFleet, useFactory: (s: SwarmServices) => s.fleet, inject: [SWARM_SERVICES] },
+  { provide: SwarmParticipation, useFactory: (s: SwarmServices) => s.participation, inject: [SWARM_SERVICES] },
+  { provide: SwarmJoinGrant, useFactory: (s: SwarmServices) => s.joinGrant, inject: [SWARM_SERVICES] },
+  { provide: SwarmBootstrap, useFactory: (s: SwarmServices) => s.bootstrap, inject: [SWARM_SERVICES] },
+  { provide: SwarmLeadership, useFactory: (s: SwarmServices) => s.leadership, inject: [SWARM_SERVICES] },
+  SwarmLifecycle,
+];
 
 /**
  * This node's mesh address for the swarm package, once the interface carries it.
@@ -70,16 +126,17 @@ async function meshAgentAddress(env: EnvService): Promise<string | null> {
     // in this module's scope. The app owns the file path and migrations dir —
     // setup shares the API's SQLite file, because setup WRITES the swarm
     // participation decision that the API READS.
-    NodesModule.forRoot({ localDatabase: localDatabaseRegistration() }),
+    NodeStateModule,
     SetupHealthModule,
     // The swarm phase REPORTS on the operator's timeline, so it needs the
     // progress module. It is a leaf dependency (it imports only `EnvModule`),
     // which is what keeps `cluster/` from having to know about the wizard.
     SetupProgressModule,
-    SwarmModule.forRootAsync({
-      imports: [EnvModule],
+  ],
+  providers: [
+    ...swarmProviders({
       inject: [EnvService],
-      useFactory: (env: EnvService) => ({
+      options: (env: EnvService): SwarmServicesOptions => ({
         election: {
           // Setup does not run the election loop — it only founds or joins.
           // The values are still required by the contract, so they are passed
@@ -95,8 +152,10 @@ async function meshAgentAddress(env: EnvService): Promise<string | null> {
         // The address Swarm binds is this node's mesh address, read from its mesh
         // agent when needed (the agent derives it from its own key). No env key
         // names it; with no mesh yet, the package binds loopback.
+        metricsProvider: null,
+        eventSink: null,
         participation: {
-          meshAddress: () => meshAgentAddress(env),
+          meshAddress: Effect.promise(() => meshAgentAddress(env)),
         },
         // ── THE ENGINE IS CONVERGED BY THE SETUP FLOW, NOT AT BOOT ────────────
         // Whoever starts an app also decides whether it may touch the engine on
@@ -117,8 +176,10 @@ async function meshAgentAddress(env: EnvService): Promise<string | null> {
         join: { quorumMax: env.get("SWARM_QUORUM_MAX") ?? 3 },
       }),
     }),
+    SwarmBootstrapService,
+    ClusterOrchestratorService,
+    MeshAgentLauncherService,
   ],
-  providers: [SwarmBootstrapService, ClusterOrchestratorService, MeshAgentLauncherService],
   // `ClusterOrchestratorService` is exported because the handover REACTS to the
   // cluster result: it subscribes to `stream$` rather than polling a phase,
   // which is what keeps this app event-driven and makes the dependency

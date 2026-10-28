@@ -1,7 +1,8 @@
-import { Injectable, Logger, Optional } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import type { OnModuleInit } from "@nestjs/common";
 import type { OnModuleDestroy } from "@nestjs/common";
-import { SwarmClusterService } from "@deployer/nest-effect/swarm";
+import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm"
 import { DeploymentRepository } from "./../repositories/deployment.repository";
 import { DeploymentQueueLifecycleService } from "./deployment-queue-lifecycle.service";
 import type { DeploymentRow } from "./../repositories/deployment.repository";
@@ -39,7 +40,7 @@ export class DeploymentQueueReconciliationService implements OnModuleInit, OnMod
         /** SW-026: swarm-aware adoption — when the engine already owns the
          *  service (deployer.deployment_id label match), a crash that wiped
          *  the queue must adopt the deployment as success, not fail it. */
-        @Optional() private readonly swarmClusterService?: SwarmClusterService,
+        @Optional() @Inject(SwarmCluster) private readonly swarmClusterService?: SwarmClusterShape,
     ) {}
 
     onModuleInit(): void {
@@ -174,8 +175,8 @@ export class DeploymentQueueReconciliationService implements OnModuleInit, OnMod
             return false;
         }
         try {
-            await this.swarmClusterService.assertClusterReady();
-            const services = await this.swarmClusterService.listSwarmServicesForDeployment(deploymentId);
+            await runPromiseUnwrapped(this.swarmClusterService.assertClusterReady());
+            const services = await runPromiseUnwrapped(this.swarmClusterService.listSwarmServicesForDeployment(deploymentId));
             return services.length > 0;
         } catch {
             return false;

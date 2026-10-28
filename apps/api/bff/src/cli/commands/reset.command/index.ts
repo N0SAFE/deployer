@@ -1,7 +1,7 @@
 import { Command, CommandRunner } from 'nest-commander';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { resetLocal } from './local';
-import { LocalDatabaseService } from "@deployer/nest-effect/node-state";
+import { LocalDatabase, type LocalDatabaseShape } from "@deployer/node-state"
 
 @Injectable()
 @Command({ 
@@ -12,14 +12,14 @@ export class ResetCommand extends CommandRunner {
   private readonly logger = new Logger(ResetCommand.name);
 
   constructor(
-    private readonly localDatabaseService: LocalDatabaseService,
+    @Inject(LocalDatabase) private readonly localDatabase: LocalDatabaseShape,
   ) {
     super();
   }
 
   run() {
     try {
-      resetLocal(this.localDatabaseService.db);
+      resetLocal(this.localDatabase.db);
       
       this.logger.log(`✅ Finished reset operation`);
     } catch (error) {

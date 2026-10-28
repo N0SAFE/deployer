@@ -3,8 +3,7 @@
  *
  * The cluster snapshot and bootstrap, the fleet view, node placement, this node's participation
  * (create, join, policy), the join grant a fleet gives a joining node, and the master election. They run
- * on `@deployer/docker`'s engine and `@deployer/node-state`; Nest apps mount them through
- * `@deployer/nest-effect/swarm`.
+ * on `@deployer/docker`'s engine and `@deployer/node-state`; A Nest app provides each tag from `makeSwarmServices`.
  */
 export { SwarmConflict, SwarmInvalid, SwarmTimeout, SwarmUnavailable } from "./errors";
 
@@ -14,6 +13,9 @@ export {
 	SwarmParticipationDefaultsService,
 } from "./config";
 export type { SwarmElectionConfig, SwarmJoinConfig, SwarmParticipationDefaults } from "./config";
+
+export { makeSwarmServices } from "./compose";
+export type { SwarmServices, SwarmServicesDeps, SwarmServicesOptions } from "./compose";
 
 export { makeSwarmCluster, SwarmCluster } from "./cluster/swarm-cluster";
 export type { SwarmClusterShape } from "./cluster/swarm-cluster";

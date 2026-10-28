@@ -1,10 +1,10 @@
-import type { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import type { NodeConfigRepositoryShape } from "@deployer/node-state";
 
 /**
- * The slice of `NodeConfigRepository` the setup wizard's own services use.
+ * The slice of `NodeConfigRepositoryShape` the setup wizard's own services use.
  *
  * ── WHY A NARROW PORT AND NOT THE CONCRETE CLASS ────────────────────────────
- * `NodeConfigRepository` is an `@Injectable` CLASS with a PRIVATE `localDb`, so a
+ * `NodeConfigRepositoryShape` is an `@Injectable` CLASS with a PRIVATE `localDb`, so a
  * test double cannot be built structurally: TypeScript demands `localDb`,
  * `getMeshSharedSecret` and `updateMeshPeers` even though the wizard never calls
  * them, and a private member cannot be faked at all.
@@ -24,10 +24,10 @@ import type { NodeConfigRepository } from "@deployer/nest-effect/node-state";
  */
 
 /** Read-only: services that only answer "what does this node have?". */
-export type NodeConfigReader = Pick<NodeConfigRepository, "find">;
+export type NodeConfigReader = Pick<NodeConfigRepositoryShape, "find">;
 
 /** Read + persist: the gate writes the operator's choices before the API starts. */
-export type NodeConfigStore = Pick<NodeConfigRepository, "find" | "upsert">;
+export type NodeConfigStore = Pick<NodeConfigRepositoryShape, "find" | "upsert">;
 
 /**
  * Runtime DI tokens for the two ports.

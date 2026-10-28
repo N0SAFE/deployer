@@ -7,7 +7,7 @@ import {
 } from "./global-db-supervisor.service";
 import { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
 import type { DockerService } from "@deployer/nest-effect/docker";
-import type { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import type { NodeConfigRepositoryShape } from "@deployer/node-state";
 import type { EnvService } from "../../../../config/env/env.module";
 
 type Service = { ID: string; CreatedAt: string; UpdatedAt: string; Spec: { Name: string } };
@@ -22,16 +22,16 @@ function makeMocks(provisioning: "local" | "external" | null = "local") {
 	const nodeConfigRepository = {
 		find: vi.fn(() =>
 			provisioning === null
-				? null
-				: {
+				? Effect.succeed(null)
+				: Effect.succeed({
 						nodeId: "n1",
 						strategy: "local",
 						setupState: "setup_done",
 						databaseUrl: "postgres://deployer:deployer@127.0.0.1:1/deployer",
 						databaseProvisioning: provisioning,
 						configuredAt: "2026-01-01T00:00:00.000Z",
-					}),
-	} as unknown as NodeConfigRepository;
+					})),
+	} as unknown as NodeConfigRepositoryShape;
 
 	let service: Service | null = null;
 	let tasks: { Status: { State: string } }[] = [{ Status: { State: "running" } }];

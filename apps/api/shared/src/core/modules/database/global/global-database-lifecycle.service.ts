@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, type OnApplicationShutdown } from "@nestjs/common";
 import { Pool } from "pg";
 
-import { GLOBAL_DATABASE_POOL } from "@deployer/nest-effect/database";
+import { GLOBAL_DATABASE_POOL } from "../database-connection"
 
 /**
  * GlobalDatabaseLifecycleService — owns the teardown of the SHARED global

@@ -1,3 +1,4 @@
+import { runSyncUnwrapped } from "@deployer/effect-core";
 /**
  * GlobalDatabaseModule — Provides GLOBAL_DATABASE_POOL, GLOBAL_DATABASE_CONNECTION, and GlobalDatabaseService.
  *
@@ -28,11 +29,11 @@ import { Global, Logger, Module } from '@nestjs/common'
 import { Client, Pool } from 'pg'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import * as globalSchema from '@deployer/nest-schema/global'
-import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from "@deployer/nest-effect/database"
+import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from "../database-connection"
 import { GlobalDatabaseService } from './global-database.service'
 import { GlobalDatabaseLifecycleService } from './global-database-lifecycle.service'
-import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
-import { LocalDatabaseModule } from "@deployer/nest-effect/node-state";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+import { LocalDatabaseModule } from "../local/local-database.module"
 import { NodeStateModule } from '../../node-state/node-state.module'
 import { EnvModule } from "../../../../config/env/env.module"
 import { EnvService } from "../../../../config/env/env.module"
@@ -141,7 +142,7 @@ function readPoolSizing(env: EnvService): PoolSizing {
  * Both are read through the SAME resolver, on every connect, so the pool follows
  * the platform through onboarding instead of freezing whatever was true at boot.
  */
-function buildSharedPool(nodeConfig: NodeConfigRepository, env: EnvService): Pool {
+function buildSharedPool(nodeConfig: NodeConfigRepositoryShape, env: EnvService): Pool {
     let announced = false
 
     const resolveUrl = (): string => {
@@ -149,7 +150,7 @@ function buildSharedPool(nodeConfig: NodeConfigRepository, env: EnvService): Poo
         const url =
             managed.enabled
                 ? resolveManagedGlobalDbUrl(managed)
-                : (nodeConfig.find()?.databaseUrl?.trim() ?? '')
+                : (runSyncUnwrapped(nodeConfig.find())?.databaseUrl?.trim() ?? '')
 
         if (!announced) {
             announced = true

@@ -1,12 +1,9 @@
 import { Test, type TestingModule } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// The mocked node-state module is also where `LocalDatabaseService` comes from, so the factory below
-// cannot import it: the stand-in is hoisted and handed back as that export.
-const { FakeLocalDatabaseService } = vi.hoisted(() => ({ FakeLocalDatabaseService: class {} }));
-import { GLOBAL_DATABASE_CONNECTION, LOCAL_DATABASE_CONNECTION } from "@deployer/nest-effect/database";
+import { GLOBAL_DATABASE_CONNECTION, LOCAL_DATABASE_CONNECTION } from "./database-connection"
 import { GlobalDatabaseService } from './global/global-database.service';
-import { LocalDatabaseService } from "@deployer/nest-effect/node-state";
+import { LocalDatabase } from "@deployer/node-state"
 
 // Mock heavy sub-modules that trigger env validation and real DB connections
 vi.mock('./global/global-database.module', () => ({
@@ -21,26 +18,18 @@ vi.mock('./global/global-database.module', () => ({
     exports: ['GLOBAL_DATABASE_POOL', GlobalDatabaseService, GLOBAL_DATABASE_CONNECTION],
   },
 }));
-vi.mock("@deployer/nest-effect/node-state", () => {
-  const providesLocalDatabase = {
-    module: class {},
-    providers: [
-      { provide: LOCAL_DATABASE_CONNECTION, useValue: {} },
-      { provide: FakeLocalDatabaseService, useValue: {} },
-    ],
-    exports: [LOCAL_DATABASE_CONNECTION, FakeLocalDatabaseService],
-  };
+// The real module opens the SQLite file; a stand-in provides the same tokens without touching disk.
+vi.mock("./local/local-database.module", async () => {
+  const { LocalDatabase } = await import("@deployer/node-state");
   return {
-    LocalDatabaseService: FakeLocalDatabaseService,
     LocalDatabaseModule: {
       global: true,
-      ...providesLocalDatabase,
-      // `forRootAsync` MUST be present. The app does not import this class bare —
-      // it imports the wrapper (`@/core/modules/database/local/local-database.module`),
-      // whose `localDatabaseRegistration()` calls `forRootAsync` at decoration time.
-      // A stub without it fails the suite at COLLECTION with
-      // "LocalDatabaseModule.forRootAsync is not a function", before any assertion.
-      forRootAsync: vi.fn().mockReturnValue({ global: true, ...providesLocalDatabase }),
+      module: class {},
+      providers: [
+        { provide: LOCAL_DATABASE_CONNECTION, useValue: {} },
+        { provide: LocalDatabase, useValue: {} },
+      ],
+      exports: [LOCAL_DATABASE_CONNECTION, LocalDatabase],
     },
   };
 });
@@ -87,8 +76,8 @@ describe('DatabaseModule', () => {
     expect(module.get(GlobalDatabaseService)).toBeDefined();
   });
 
-  it('should provide LocalDatabaseService', () => {
-    expect(module.get(LocalDatabaseService)).toBeDefined();
+  it('should provide the LocalDatabase service', () => {
+    expect(module.get(LocalDatabase)).toBeDefined();
   });
 
   it('should provide GLOBAL_DATABASE_CONNECTION', () => {

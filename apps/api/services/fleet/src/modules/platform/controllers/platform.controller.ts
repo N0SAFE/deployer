@@ -22,7 +22,8 @@ import {
 	AppInstanceService,
 	STALE_AFTER_MS,
 } from "@deployer/shared/core/modules/platform-ingress/services/app-instance.service";
-import { rateLimit, requireAppInstance } from "../orpc/middlewares";
+import { rateLimit } from "@deployer/rate-limit";
+import { requireAppInstance } from "../orpc/middlewares";
 
 /** Registration rate limit: sliding window per source IP. */
 const REGISTER_RATE_LIMIT = { windowMs: 60 * 60 * 1000, max: 5 } as const;

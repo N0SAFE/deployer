@@ -1,9 +1,10 @@
+import { runSyncUnwrapped } from "@deployer/effect-core";
 import type { PublicAccessPointState } from './public-access-point.state'
-import { BadRequestException, Injectable, Logger } from '@nestjs/common'
+import { BadRequestException, Injectable, Logger, Inject } from '@nestjs/common'
 import { probeAddress, probePeer } from "@deployer/nest-reachability"
 import dns from 'node:dns/promises'
 import { isIP } from 'node:net'
-import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 import { NodeNetworkConfigRepository } from "../repositories/node-network-config.repository"
 import { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service"
 import { EgressService } from "../../egress/egress.service"
@@ -31,7 +32,7 @@ export class ReachabilityService {
 
   constructor(
     private readonly nodeNetworkConfigRepository: NodeNetworkConfigRepository,
-    private readonly nodeConfigRepository: NodeConfigRepository,
+    @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
     private readonly lanes: IngressLanesService,
     private readonly edges: EdgeProviderRegistry,
     private readonly publicEdge: PublicEdgeService,
@@ -43,7 +44,7 @@ export class ReachabilityService {
    * config is stored per node in the global DB, keyed by this id.
    */
   getCurrentNodeId(): string {
-    const row = this.nodeConfigRepository.find()
+    const row = runSyncUnwrapped(this.nodeConfigRepository.find())
     const nodeId = row?.nodeId
     if (!nodeId) {
       throw new BadRequestException(

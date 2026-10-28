@@ -1,3 +1,4 @@
+import { runSyncUnwrapped } from "@deployer/effect-core";
 /**
  * ClusterSwarmEventsService — event-driven SSE for the cluster page.
  *
@@ -9,7 +10,7 @@
  * BehaviorSubject replay), then (2) incremental updates as swarm
  * events arrive from the Docker engine.
  */
-import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit, Inject } from "@nestjs/common";
 import {
     BehaviorSubject,
     Observable,
@@ -27,9 +28,9 @@ import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { CoreEventStreamPoolService } from "@deployer/nest-effect/events";
 import { AbstractDomainEventStreamService } from "@deployer/nest-effect/events";
 import { DockerService } from "@deployer/nest-effect/docker";
-import { SwarmClusterService } from "@deployer/nest-effect/swarm";
-import { SwarmFleetService } from "@deployer/nest-effect/swarm";
-import { ClusterNodeInventoryRepository } from "@deployer/nest-effect/node-state";
+import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm"
+import { SwarmFleet, type SwarmFleetShape } from "@deployer/swarm"
+import { ClusterNodeInventoryRepository, type ClusterNodeInventoryRepositoryShape } from "@deployer/node-state"
 import type { ClusterSnapshot, SwarmServiceRuntime, SwarmTaskRuntime } from "@deployer/contracts-entities";
 import { clusterNodeInventoryRowSchema, type ClusterNodeInventoryRow } from "@deployer/fleet-contracts";
 import { type ClusterMasterView } from "@deployer/fleet-contracts";
@@ -71,9 +72,9 @@ export class ClusterSwarmEventsService
     constructor(
         streamPool: CoreEventStreamPoolService,
         private readonly dockerService: DockerService,
-        private readonly swarmClusterService: SwarmClusterService,
-        private readonly swarmFleetService: SwarmFleetService,
-        private readonly inventoryRepository: ClusterNodeInventoryRepository,
+        @Inject(SwarmCluster) private readonly swarmClusterService: SwarmClusterShape,
+        @Inject(SwarmFleet) private readonly swarmFleetService: SwarmFleetShape,
+        @Inject(ClusterNodeInventoryRepository) private readonly inventoryRepository: ClusterNodeInventoryRepositoryShape,
     ) {
         super(streamPool);
     }
@@ -248,9 +249,9 @@ export class ClusterSwarmEventsService
             }
 
             const [snapshot, services, tasks] = await Promise.allSettled([
-                this.swarmClusterService.getLocalClusterSnapshot(),
-                this.swarmFleetService.listServices(),
-                this.swarmFleetService.listTasks(),
+                runPromiseUnwrapped(this.swarmClusterService.getLocalClusterSnapshot()),
+                runPromiseUnwrapped(this.swarmFleetService.listServices()),
+                runPromiseUnwrapped(this.swarmFleetService.listTasks()),
             ]);
 
             if (snapshot.status === "fulfilled") {
@@ -306,7 +307,7 @@ export class ClusterSwarmEventsService
      * legitimately has.
      */
     private readNodes(): ClusterNodeInventoryRow[] {
-        return this.inventoryRepository.list().map((row) =>
+        return runSyncUnwrapped(this.inventoryRepository.list()).map((row) =>
             clusterNodeInventoryRowSchema.parse({
                 nodeId: row.nodeId,
                 hostname: row.hostname,

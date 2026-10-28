@@ -1,17 +1,18 @@
-import { Injectable } from "@nestjs/common";
+import { runSyncUnwrapped } from "@deployer/effect-core";
+import { Injectable, Inject } from "@nestjs/common";
 import { createHash, randomUUID } from "node:crypto";
 import { and, eq, gt, inArray, isNull } from "drizzle-orm";
 import { clusterJoinGrants, clusterNodeMetrics, clusterNodes, clusterSigningKeys, resourceOwnershipIndex } from "@deployer/nest-schema/global";
 import type { MeshResourceIndexUpsertInput, MeshResourceLocation } from "@deployer/contracts-entities";
 import { GlobalDatabaseService } from "../../database/global/global-database.service";
-import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 
 import { AppError } from "@deployer/errors";
 @Injectable()
 export class SystemMeshClusterRepository {
     constructor(
         private readonly databaseService: GlobalDatabaseService,
-        private readonly nodeConfigRepository: NodeConfigRepository,
+        @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
     ) {}
 
     /**
@@ -20,7 +21,7 @@ export class SystemMeshClusterRepository {
      * source of truth for the database URL at runtime.
      */
     private getDatabaseUrlFromConfig(): string | null {
-        const config = this.nodeConfigRepository.find();
+        const config = runSyncUnwrapped(this.nodeConfigRepository.find());
         return config?.databaseUrl?.trim() ?? null;
     }
 

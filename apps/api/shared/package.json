@@ -65,6 +65,7 @@
         "@deployer/bff-contracts": "*",
         "@deployer/contracts-common": "*",
         "@deployer/contracts-entities": "*",
+        "@deployer/database": "*",
         "@deployer/effect-orpc": "*",
         "@deployer/effect-core": "*",
         "@deployer/environment": "*",

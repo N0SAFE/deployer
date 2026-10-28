@@ -8,7 +8,7 @@ describe('GlobalDatabaseService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [GlobalDatabaseService],
+      providers: [{ provide: GlobalDatabaseService, useFactory: () => new GlobalDatabaseService() }],
     }).compile();
 
     service = module.get<GlobalDatabaseService>(GlobalDatabaseService);

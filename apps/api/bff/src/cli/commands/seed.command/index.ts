@@ -1,7 +1,7 @@
 import { Command, CommandRunner } from 'nest-commander';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { seedLocal } from './local';
-import { LocalDatabaseService } from "@deployer/nest-effect/node-state";
+import { LocalDatabase, type LocalDatabaseShape } from "@deployer/node-state"
 
 @Command({
   name: "seed",
@@ -11,7 +11,7 @@ import { LocalDatabaseService } from "@deployer/nest-effect/node-state";
 export class SeedCommand extends CommandRunner {
   private readonly logger = new Logger(SeedCommand.name);
   constructor(
-    private readonly localDatabaseService: LocalDatabaseService,
+    @Inject(LocalDatabase) private readonly localDatabase: LocalDatabaseShape,
   ) {
     super();
   }
@@ -20,7 +20,7 @@ export class SeedCommand extends CommandRunner {
     this.logger.log(`🌱 Seeding database...`);
     
     try {
-      seedLocal(this.localDatabaseService.db);
+      seedLocal(this.localDatabase.db);
     } catch (error) {
       this.logger.error("❌ Seeding failed:", error);
       throw error;

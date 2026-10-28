@@ -1,3 +1,4 @@
+import { runSyncUnwrapped } from "@deployer/effect-core";
 /**
  * BootstrapOrchestratorService — the API's post-start provisioning sequence.
  *
@@ -48,7 +49,7 @@ import { existsSync } from "node:fs";
 import { migrate as migratePg } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
 import { AppLifecycle, AppLifecyclePhase, type AppLifecycleShape } from "@deployer/lifecycle";
-import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 // The migration directory is owned by the schema package; resolving it there is
 // what keeps the restart path's "apply pending migrations" step from silently
 // finding nothing (see `resolveMigrationsFolder`).
@@ -58,7 +59,7 @@ import { resolveManagedGlobalDbUrl, splitManagedEnv } from "@deployer/env";
 import {
     GLOBAL_DATABASE_CONNECTION,
     GLOBAL_DATABASE_POOL,
-} from "@deployer/nest-effect/database";
+} from "../database/database-connection"
 
 import { DatabaseStartupGuard } from "../database/services/database-startup-guard.service";
 import type { GlobalDatabase } from "../database/global/global-database.service";
@@ -84,7 +85,7 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
          */
         @Inject(GLOBAL_DATABASE_POOL) private readonly pool: Pool,
         @Inject(GLOBAL_DATABASE_CONNECTION) private readonly db: GlobalDatabase,
-        private readonly nodeConfigRepository: NodeConfigRepository,
+        @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
         @Inject(AppLifecycle) private readonly lifecycle: AppLifecycleShape,
         private readonly startupGuard: DatabaseStartupGuard,
         private readonly appWiring: SwarmAppWiringSupervisorService,
@@ -103,7 +104,7 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
         this.logger.log("🚀 Bootstrap starting…");
 
         try {
-            const config = this.nodeConfigRepository.find();
+            const config = runSyncUnwrapped(this.nodeConfigRepository.find());
             const databaseUrl = this.resolveDatabaseUrl(config?.databaseUrl?.trim() ?? null);
 
             if (databaseUrl === null || databaseUrl.length === 0) {

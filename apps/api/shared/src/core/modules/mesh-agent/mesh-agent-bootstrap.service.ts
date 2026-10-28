@@ -1,3 +1,4 @@
+import { runSyncUnwrapped } from "@deployer/effect-core";
 /**
  * MeshAgentBootstrapService — make sure the node the API runs on has its agent.
  *
@@ -15,12 +16,12 @@
  * which node. Labels merge, so this never clobbers another fact.
  */
 
-import { Injectable, Logger, type OnApplicationBootstrap } from "@nestjs/common";
+import { Injectable, Logger, type OnApplicationBootstrap, Inject } from "@nestjs/common";
 import { ensureMeshAgentContainer, MEMBER_LABEL_NODE_ID, meshAgentContainerEnv, type AgentStatus } from "@deployer/mesh-network";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { Effect } from "effect";
 import { DockerService, makeMeshAgentEngine } from "@deployer/nest-effect/docker";
-import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 
 import { EnvService } from "../../../config/env/env.module";
 import { MeshAgentClient } from "./mesh-agent.client";
@@ -33,7 +34,7 @@ export class MeshAgentBootstrapService implements OnApplicationBootstrap {
 		private readonly mesh: MeshAgentClient,
 		private readonly docker: DockerService,
 		private readonly env: EnvService,
-		private readonly nodeConfig: NodeConfigRepository,
+		@Inject(NodeConfigRepository) private readonly nodeConfig: NodeConfigRepositoryShape,
 	) {}
 
 	onApplicationBootstrap(): void {
@@ -43,7 +44,7 @@ export class MeshAgentBootstrapService implements OnApplicationBootstrap {
 	}
 
 	async ensure(): Promise<void> {
-		const node = this.nodeConfig.find();
+		const node = runSyncUnwrapped(this.nodeConfig.find());
 		if (node?.setupState !== "setup_done") return;
 
 		const outcome = await ensureMeshAgentContainer(makeMeshAgentEngine(this.docker.getEngine()), {

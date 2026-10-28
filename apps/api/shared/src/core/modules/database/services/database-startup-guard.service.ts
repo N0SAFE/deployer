@@ -1,7 +1,8 @@
+import { runSyncUnwrapped } from "@deployer/effect-core";
 import { AppError } from "@deployer/errors";
 import { Injectable, Logger, Inject } from '@nestjs/common'
 import { Pool } from 'pg'
-import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 import { AppLifecycle, AppLifecyclePhase, type AppLifecycleShape } from "@deployer/lifecycle";
 import { DatabaseProbeService } from './database-probe.service'
 
@@ -31,13 +32,13 @@ export class DatabaseStartupGuard {
   private static readonly CONNECT_RETRY_MS = 2_000;
 
   constructor(
-    private readonly nodeConfigRepository: NodeConfigRepository,
+    @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
     @Inject(AppLifecycle) private readonly lifecycle: AppLifecycleShape,
     private readonly probeService: DatabaseProbeService,
   ) {}
 
   async ensureDatabaseAvailable(pool: Pool): Promise<void> {
-    const url = this.nodeConfigRepository.find()?.databaseUrl?.trim()
+    const url = runSyncUnwrapped(this.nodeConfigRepository.find())?.databaseUrl?.trim()
     if (!url) {
       this.logger.log('⏭ No database URL configured — skipping startup guard')
       return
@@ -142,7 +143,7 @@ export class DatabaseStartupGuard {
       this.logger.log('🔄 Restarting stopped Postgres container...')
       await container.start()
       for (let i = 0; i < 30; i++) {
-        const r = await this.probeService.probe(this.nodeConfigRepository.find()?.databaseUrl ?? '', { timeout: 2_000 })
+        const r = await this.probeService.probe(runSyncUnwrapped(this.nodeConfigRepository.find())?.databaseUrl ?? '', { timeout: 2_000 })
         if (r.reachable) return true
         await new Promise((r) => setTimeout(r, 1_000))
       }

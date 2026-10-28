@@ -2,14 +2,11 @@
 	"dependencies": {
 		"@deployer/contracts-entities": "*",
 		"@deployer/docker": "*",
-		"@deployer/database": "*",
 		"@deployer/effect-core": "*",
 		"@deployer/events": "*",
 		"@deployer/mesh-network": "*",
 		"@deployer/errors": "*",
-		"@deployer/node-state": "*",
 		"@deployer/supervision": "*",
-		"@deployer/swarm": "*",
 		"@deployer/type-guards": "*",
 		"@nestjs/common": "catalog:api:nest",
 		"@nestjs/core": "catalog:api:nest",
@@ -57,16 +54,6 @@
 			"require": "./dist/cjs/supervision/index.js",
 			"types": "./dist/types/supervision/index.d.ts"
 		},
-		"./node-state": {
-			"import": "./dist/esm/node-state/index.mjs",
-			"require": "./dist/cjs/node-state/index.js",
-			"types": "./dist/types/node-state/index.d.ts"
-		},
-		"./swarm": {
-			"import": "./dist/esm/swarm/index.mjs",
-			"require": "./dist/cjs/swarm/index.js",
-			"types": "./dist/types/swarm/index.d.ts"
-		},
 		"./docker": {
 			"import": "./dist/esm/docker/index.mjs",
 			"require": "./dist/cjs/docker/index.js",
@@ -76,11 +63,6 @@
 			"import": "./dist/esm/events/index.mjs",
 			"require": "./dist/cjs/events/index.js",
 			"types": "./dist/types/events/index.d.ts"
-		},
-		"./database": {
-			"import": "./dist/esm/database/index.mjs",
-			"require": "./dist/cjs/database/index.js",
-			"types": "./dist/types/database/index.d.ts"
 		}
 	},
 	"main": "./dist/cjs/index.js",

@@ -2,6 +2,8 @@
  * CORS utility functions for handling origin validation and normalization
  */
 
+import { buildTrustedOrigins } from '@deployer/auth/server/origins';
+
 /**
  * Normalize URL by removing trailing slash
  * @param url - The URL to normalize
@@ -10,43 +12,29 @@
 export const normalizeUrl = (url: string): string => url.replace(/\/$/, '');
 
 /**
- * Build list of allowed origins from environment variables
+ * Build list of allowed origins from environment variables.
+ *
+ * Delegates to `buildTrustedOrigins` so the CORS allowlist and Better Auth's
+ * `trustedOrigins` are THE SAME LIST. They used to be derived separately: this
+ * function ignored `AUTH_BASE_DOMAIN`, so `http://web.deployer.localhost` was
+ * not allowlisted, the preflight fell through to the credential-free token path,
+ * and the browser rejected the response with
+ * `PreflightInvalidAllowCredential` (an allow-origin with no allow-credentials on
+ * a request the browser treats as credentialed).
+ *
  * @param env - Environment variables object
- * @returns Array of normalized allowed origins
+ * @returns Array of normalized allowed origins (defaults to localhost:3000)
  */
 export const buildAllowedOrigins = (env: {
   NEXT_PUBLIC_APP_URL?: string;
   APP_URL?: string;
   TRUSTED_ORIGINS?: string;
+  AUTH_BASE_DOMAIN?: string;
+  BASE_URL?: string;
 }): string[] => {
-  const allowedOrigins: string[] = [];
-
-  // Add configured app URL (public facing URL)
-  if (env.NEXT_PUBLIC_APP_URL) {
-    allowedOrigins.push(normalizeUrl(env.NEXT_PUBLIC_APP_URL));
-  }
-
-  // Add internal app URL (Docker network URL) if different
-  if (env.APP_URL && env.APP_URL !== env.NEXT_PUBLIC_APP_URL) {
-    allowedOrigins.push(normalizeUrl(env.APP_URL));
-  }
-
-  // Add additional trusted origins
-  if (env.TRUSTED_ORIGINS) {
-    env.TRUSTED_ORIGINS.split(',').forEach(origin => {
-      const trimmed = origin.trim();
-      if (trimmed) {
-        allowedOrigins.push(normalizeUrl(trimmed));
-      }
-    });
-  }
-
+  const origins = buildTrustedOrigins(env);
   // Fallback to localhost:3000 if no origins configured
-  if (allowedOrigins.length === 0) {
-    allowedOrigins.push('http://localhost:3000');
-  }
-
-  return allowedOrigins;
+  return origins.length > 0 ? origins : ['http://localhost:3000'];
 };
 
 /**

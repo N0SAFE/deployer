@@ -19,7 +19,7 @@ import { GlobalDatabaseService } from '../../core/modules/database/global/global
 import {
     GLOBAL_DATABASE_CONNECTION,
     GLOBAL_DATABASE_POOL,
-} from "@deployer/nest-effect/database"
+} from "../../core/modules/database/database-connection"
 import { TraefikFileSystemService } from '../../core/modules/traefik/services/traefik-file-system.service'
 import { defaultRequestOverride, sharedRequestOverride } from './request-override'
 import {

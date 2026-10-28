@@ -1,12 +1,13 @@
 import { Test, type TestingModule } from '@nestjs/testing';
 import { InitializationService } from './initialization.service';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
-import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 import { LocalInitializationService } from './local-initialization.service';
 import { RemoteInitializationService } from './remote-initialization.service';
 import { SetupEventService } from './setup-event.service';
 import { MeshInitializationService } from '../../mesh/initialization/services/mesh-initialization.service';
 import { ReachabilityService } from '../../reachability/services/reachability.service';
+import { Effect } from "effect";
 import { AppLifecycle } from '@deployer/lifecycle';
 
 describe('InitializationService', () => {
@@ -21,7 +22,7 @@ describe('InitializationService', () => {
         {
           provide: NodeConfigRepository,
           useFactory: () => ({
-            find: vi.fn(),
+            find: vi.fn(() => Effect.succeed(null)),
             save: vi.fn(),
             update: vi.fn(),
           }),
@@ -72,8 +73,8 @@ describe('InitializationService', () => {
 
   describe('checkConfigAndEmit', () => {
     it('emits a completed status for an already-configured node', async () => {
-      const repo = module.get(NodeConfigRepository);
-      vi.mocked(repo.find).mockReturnValue({
+      const repo = module.get<NodeConfigRepositoryShape>(NodeConfigRepository);
+      vi.mocked(repo.find).mockReturnValue(Effect.succeed({
         nodeId: 'n1',
         strategy: 'local' as const,
         setupState: 'setup_done' as const,
@@ -81,7 +82,7 @@ describe('InitializationService', () => {
         configuredAt: '2026-01-01T00:00:00.000Z',
         meshUrlsSnapshot: [],
         updatedAt: '2026-01-01T00:00:00.000Z',
-      } as never);
+      }) as never);
 
       service.checkConfigAndEmit();
 

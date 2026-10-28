@@ -1,15 +1,17 @@
+import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { runSyncUnwrapped } from "@deployer/effect-core";
 import { AppError } from "@deployer/errors";
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, Inject } from '@nestjs/common'
 import type { SetupInitializeRemoteInput } from '@deployer/contracts-entities'
-import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 import { MeshInitializationService } from '../../mesh/initialization/services/mesh-initialization.service'
 import { EnvService } from "../../../../config/env/env.module"
 import { runStep, type EmitEvent, SetupStepTracker } from '../utils/setup-runner.utils'
 import { DEPLOYER_VERSION, semverCompare } from '../../../utils/deployer-version'
 import { MeshVersionService } from '../../mesh/version/mesh-version.service'
 import type { MeshSwarmJoinGrant } from '@deployer/contracts-entities'
-import { SwarmBootstrapService } from "@deployer/nest-effect/swarm";
-import { SwarmClusterService } from "@deployer/nest-effect/swarm";
+import { SwarmBootstrap, type SwarmBootstrapShape } from "@deployer/swarm"
+import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm"
 import { MeshAdmissionService } from '../../mesh-agent/mesh-admission.service'
 
 @Injectable()
@@ -18,13 +20,13 @@ export class RemoteInitializationService {
 
     constructor(
         private readonly meshInitializationService: MeshInitializationService,
-        private readonly nodeConfigRepository: NodeConfigRepository,
+        @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
         private readonly envService: EnvService,
         private readonly meshVersionService: MeshVersionService,
         /** Joins this node to the FLEET's swarm from the grant the mesh issued. */
-        private readonly swarmBootstrap: SwarmBootstrapService,
+        @Inject(SwarmBootstrap) private readonly swarmBootstrap: SwarmBootstrapShape,
         /** Read-back of the engine state for the finalize report. */
-        private readonly swarmCluster: SwarmClusterService,
+        @Inject(SwarmCluster) private readonly swarmCluster: SwarmClusterShape,
         /** Enters the peer-equal network in the same exchange as the join grant. */
         private readonly meshAdmission: MeshAdmissionService,
     ) {}
@@ -176,7 +178,7 @@ export class RemoteInitializationService {
         await runStep(tracker, emit, 'finalize', 'Finalize', async (stepLog) => {
             stepLog('Persisting node config…')
             const now = new Date().toISOString()
-            this.nodeConfigRepository.upsert({
+            runSyncUnwrapped(this.nodeConfigRepository.upsert({
                 nodeId,
                 strategy: 'remote',
                 setupState: 'setup_done',
@@ -210,7 +212,7 @@ export class RemoteInitializationService {
                               joinAddrs: swarmGrant.controlPlaneAddrs,
                           },
                 updatedAt: now,
-            })
+            }))
             stepLog('✅ Node config persisted')
 
             // ── Join the FLEET's swarm ─────────────────────────────────────
@@ -232,8 +234,8 @@ export class RemoteInitializationService {
                 const linked = await this.meshAdmission.waitForLink()
                 stepLog(linked ? '✅ Mesh link established' : '⚠️  No mesh link yet — attempting the join anyway')
             }
-            await this.swarmBootstrap.converge('setup')
-            const snapshot = await this.swarmCluster.getLocalClusterSnapshot()
+            await runPromiseUnwrapped(this.swarmBootstrap.converge('setup'))
+            const snapshot = await runPromiseUnwrapped(this.swarmCluster.getLocalClusterSnapshot())
 
             if (snapshot.localNodeState === 'active') {
                 stepLog('✅ Joined the Swarm cluster')

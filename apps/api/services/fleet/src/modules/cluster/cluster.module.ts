@@ -1,7 +1,7 @@
 import { createModuleContext } from "@deployer/nest-effect";
-import { SwarmClusterService, SwarmFleetService, SwarmParticipationService } from "@deployer/nest-effect/swarm";
-import { ClusterNodeInventoryRepository } from "@deployer/nest-effect/node-state";
-import { ClusterNodeRepository } from "@deployer/nest-effect/node-state";
+import { SwarmCluster, SwarmFleet, SwarmParticipation } from "@deployer/swarm"
+import { ClusterNodeInventoryRepository, type ClusterNodeInventoryRepositoryShape } from "@deployer/node-state"
+import { ClusterNodeRepository, type ClusterNodeRepositoryShape } from "@deployer/node-state"
 import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
 import { SwarmCoreModule } from "@deployer/shared/core/modules/swarm/swarm.module";
 
@@ -32,9 +32,9 @@ export class ClusterModule extends createModuleContext(
         controllers: [ClusterController],
         providers: [
             ClusterSwarmEventsService,
-            { provide: SwarmClusterPort, useExisting: SwarmClusterService },
-            { provide: SwarmFleetPort, useExisting: SwarmFleetService },
-            { provide: SwarmParticipationPort, useExisting: SwarmParticipationService },
+            { provide: SwarmClusterPort, useExisting: SwarmCluster },
+            { provide: SwarmFleetPort, useExisting: SwarmFleet },
+            { provide: SwarmParticipationPort, useExisting: SwarmParticipation },
             { provide: ClusterNodeRepoPort, useExisting: ClusterNodeRepository },
             { provide: NodeInventoryPort, useExisting: ClusterNodeInventoryRepository },
             { provide: ClusterEnvPort, useExisting: EnvService },

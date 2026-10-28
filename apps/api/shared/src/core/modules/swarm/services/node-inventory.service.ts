@@ -1,3 +1,5 @@
+import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { runSyncUnwrapped } from "@deployer/effect-core";
 /**
  * NodeInventoryService — periodic fleet inventory sync (SW-030,
  * docs/swarm-orchestration/P3). Every cadence it pulls `docker node ls`
@@ -8,11 +10,11 @@
  * serving from the last good snapshot. Fully unit-testable with mocks.
  */
 
-import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit, Inject } from "@nestjs/common";
 import { DatabaseNotReadyReporter } from "../../database/services/db-not-ready";
-import { SwarmClusterService } from "@deployer/nest-effect/swarm";
+import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm"
 import { GlobalClusterNodesRepository } from "../repositories/global-cluster-nodes.repository";
-import { ClusterNodeInventoryRepository } from "@deployer/nest-effect/node-state";
+import { ClusterNodeInventoryRepository, type ClusterNodeInventoryRepositoryShape } from "@deployer/node-state"
 import { toEngineNodeRow } from "@deployer/node-state";
 
 @Injectable()
@@ -27,8 +29,8 @@ export class NodeInventoryService implements OnModuleInit, OnModuleDestroy {
     private readonly dbNotReady = new DatabaseNotReadyReporter();
 
     constructor(
-        private readonly clusterService: SwarmClusterService,
-        private readonly inventoryRepository: ClusterNodeInventoryRepository,
+        @Inject(SwarmCluster) private readonly clusterService: SwarmClusterShape,
+        @Inject(ClusterNodeInventoryRepository) private readonly inventoryRepository: ClusterNodeInventoryRepositoryShape,
         private readonly globalClusterNodes: GlobalClusterNodesRepository,
     ) {}
 
@@ -91,16 +93,16 @@ export class NodeInventoryService implements OnModuleInit, OnModuleDestroy {
      */
     async syncOnce(): Promise<number> {
         // Cluster gate: nothing to inventory outside an active swarm.
-        const snapshot = await this.clusterService.getLocalClusterSnapshot();
+        const snapshot = await runPromiseUnwrapped(this.clusterService.getLocalClusterSnapshot());
         if (snapshot.localNodeState !== "active") {
             return 0;
         }
 
-        const nodes = await this.clusterService.listSwarmNodes();
+        const nodes = await runPromiseUnwrapped(this.clusterService.listSwarmNodes());
         for (const node of nodes) {
-            this.inventoryRepository.upsertFromEngine(toEngineNodeRow(node));
+            runSyncUnwrapped(this.inventoryRepository.upsertFromEngine(toEngineNodeRow(node)));
         }
-        const markedDown = this.inventoryRepository.markMissingNodeDown(nodes.map((node) => node.ID));
+        const markedDown = runSyncUnwrapped(this.inventoryRepository.markMissingNodeDown(nodes.map((node) => node.ID)));
         this.logger.debug(
             `Fleet inventory synced: ${String(nodes.length)} nodes, ${String(markedDown)} marked down`,
         );

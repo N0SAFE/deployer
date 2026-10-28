@@ -1,5 +1,6 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { SwarmClusterService, SwarmParticipationService } from "@deployer/nest-effect/swarm";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { Injectable, Logger, Inject } from "@nestjs/common";
+import { SwarmCluster, type SwarmClusterShape, SwarmParticipation, type SwarmParticipationShape } from "@deployer/swarm"
 
 import type { ClusterBootstrapResult, ClusterEntryMode } from "../cluster.types";
 import { MeshAgentLauncherService } from "./mesh-agent-launcher.service";
@@ -15,7 +16,7 @@ import { MeshAgentLauncherService } from "./mesh-agent-launcher.service";
  * business logic — the exact thing §8.7 forbids.
  *
  * IDEMPOTENT BY CONSTRUCTION: the engine refuses a second `init` on an already
- * active node, and `SwarmParticipationService.converge()` re-reads the persisted
+ * active node, and `SwarmParticipation.converge()` re-reads the persisted
  * decision. Re-running setup therefore converges instead of failing.
  */
 @Injectable()
@@ -23,8 +24,8 @@ export class SwarmBootstrapService {
   private readonly logger = new Logger(SwarmBootstrapService.name);
 
   constructor(
-    private readonly cluster: SwarmClusterService,
-    private readonly participation: SwarmParticipationService,
+    @Inject(SwarmCluster) private readonly cluster: SwarmClusterShape,
+    @Inject(SwarmParticipation) private readonly participation: SwarmParticipationShape,
     private readonly meshAgent: MeshAgentLauncherService,
   ) {}
 
@@ -44,11 +45,11 @@ export class SwarmBootstrapService {
         // this node into the mesh BEFORE Swarm dials a manager's mesh address.
         await this.meshAgent.ensureRunning();
         this.logger.log(`Joining an existing cluster (${String(mode.remoteAddrs.length)} addr(s))`);
-        await this.cluster.joinCluster({
+        await runPromiseUnwrapped(this.cluster.joinCluster({
           joinToken: mode.joinToken,
           remoteAddrs: mode.remoteAddrs,
           meshAddress: await this.meshAgent.meshAddress(),
-        });
+        }));
       } else {
         // THE MESH FIRST: the swarm binds this node's mesh address, which only
         // exists once the agent has founded the mesh and brought the interface up.
@@ -59,14 +60,14 @@ export class SwarmBootstrapService {
         this.logger.log(
           `Ensuring a cluster exists on this node (bound to ${mesh ?? nodeAddress}${mesh === null ? " — resolved interface address, no mesh" : ""})`,
         );
-        await this.cluster.ensureCluster(swarmInitOptions(mesh, nodeAddress));
+        await runPromiseUnwrapped(this.cluster.ensureCluster(swarmInitOptions(mesh, nodeAddress)));
       }
 
       // `converge()` applies the node POLICY (role, availability, labels) once
       // the engine is in a cluster — joining alone only sets membership,
       // leaving the node unlabelled and therefore excluded by the platform's
       // placement constraints.
-      const snapshot = await this.participation.converge();
+      const snapshot = await runPromiseUnwrapped(this.participation.converge());
       const local = snapshot.localNode;
 
       this.logger.log(

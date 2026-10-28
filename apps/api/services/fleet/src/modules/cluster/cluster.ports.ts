@@ -1,7 +1,7 @@
 import type { DockerService } from '@deployer/nest-effect/docker'
-import type { SwarmClusterService, SwarmFleetService, SwarmParticipationService } from "@deployer/nest-effect/swarm";
-import type { ClusterNodeInventoryRepository } from "@deployer/nest-effect/node-state";
-import type { ClusterNodeRepository } from "@deployer/nest-effect/node-state";
+import type { SwarmClusterShape, SwarmFleetShape, SwarmParticipationShape } from "@deployer/swarm"
+import type { ClusterNodeInventoryRepositoryShape } from "@deployer/node-state";
+import type { ClusterNodeRepositoryShape } from "@deployer/node-state";
 import type { EnvService } from '@deployer/shared/config/env/env.module'
 import { Context } from 'effect'
 
@@ -18,23 +18,23 @@ import type { ClusterSwarmEventsService } from './events/cluster-swarm-events.se
  */
 export class SwarmClusterPort extends Context.Service<
     SwarmClusterPort,
-    SwarmClusterService
+    SwarmClusterShape
 >()('fleet/SwarmClusterPort') {}
 export class SwarmFleetPort extends Context.Service<
     SwarmFleetPort,
-    SwarmFleetService
+    SwarmFleetShape
 >()('fleet/SwarmFleetPort') {}
 export class SwarmParticipationPort extends Context.Service<
     SwarmParticipationPort,
-    SwarmParticipationService
+    SwarmParticipationShape
 >()('fleet/SwarmParticipationPort') {}
 export class ClusterNodeRepoPort extends Context.Service<
     ClusterNodeRepoPort,
-    ClusterNodeRepository
+    ClusterNodeRepositoryShape
 >()('fleet/ClusterNodeRepoPort') {}
 export class NodeInventoryPort extends Context.Service<
     NodeInventoryPort,
-    ClusterNodeInventoryRepository
+    ClusterNodeInventoryRepositoryShape
 >()('fleet/NodeInventoryPort') {}
 export class ClusterEnvPort extends Context.Service<
     ClusterEnvPort,

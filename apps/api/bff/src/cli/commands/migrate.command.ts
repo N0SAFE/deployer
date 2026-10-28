@@ -1,9 +1,9 @@
 import { Command, CommandRunner } from 'nest-commander'
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, Inject } from '@nestjs/common'
 import { migrate as migratePg } from 'drizzle-orm/node-postgres/migrator'
 import { sql } from 'drizzle-orm'
 import { GLOBAL_MIGRATIONS_DIR } from '@deployer/nest-schema'
-import { LocalDatabaseService } from "@deployer/nest-effect/node-state";
+import { LocalDatabase, type LocalDatabaseShape } from "@deployer/node-state"
 import { GlobalDatabaseService } from '@/core/modules/database/global/global-database.service';
 
 /*
@@ -23,7 +23,7 @@ export class MigrateCommand extends CommandRunner {
     private readonly logger = new Logger(MigrateCommand.name);
 
     constructor(
-        private readonly localDatabaseService: LocalDatabaseService,
+        @Inject(LocalDatabase) private readonly localDatabase: LocalDatabaseShape,
         private readonly globalDatabaseService: GlobalDatabaseService,
     ) {
         super();
@@ -36,7 +36,7 @@ export class MigrateCommand extends CommandRunner {
         // this command executes. Here we just verify the result for observability.
         this.logger.log(`🚀 Verifying local (SQLite) database...`);
         try {
-            const localTableCount = this.localDatabaseService.db
+            const localTableCount = this.localDatabase.db
                 .all("SELECT name FROM sqlite_master WHERE type='table'")
                 .length;
             this.logger.log(`✅ SQLite database: ${localTableCount} tables present (migrated at module init)`);

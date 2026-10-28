@@ -1,3 +1,4 @@
+import { runSyncUnwrapped } from "@deployer/effect-core";
 import { AppError } from "@deployer/errors";
 import { Injectable, Logger, type OnModuleInit, Inject } from '@nestjs/common'
 import { Pool } from 'pg'
@@ -7,7 +8,7 @@ import type {
     SetupStreamEvent,
     SetupStateSnapshot,
 } from '@deployer/contracts-entities'
-import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 import { LocalInitializationService } from './local-initialization.service'
 import { RemoteInitializationService } from './remote-initialization.service'
 import { SetupEventService } from './setup-event.service'
@@ -50,7 +51,7 @@ export class InitializationService implements OnModuleInit {
     private readonly HAS_USERS_CACHE_TTL_MS = 30_000
 
     constructor(
-        private readonly nodeConfigRepository: NodeConfigRepository,
+        @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
         private readonly localInitializationService: LocalInitializationService,
         private readonly remoteInitializationService: RemoteInitializationService,
         private readonly setupEventService: SetupEventService,
@@ -83,7 +84,7 @@ export class InitializationService implements OnModuleInit {
         // re-enrolling. If the token is missing (e.g. legacy config from
         // before the column existed), we fall back to a no-token connect
         // which only exposes the public ping endpoint.
-        const config = this.nodeConfigRepository.find()
+        const config = runSyncUnwrapped(this.nodeConfigRepository.find())
         if (config?.configuredAt && config.strategy === 'remote' && config.meshUrlsSnapshot?.length) {
             const persistedToken = config.peerServiceToken?.trim() ?? ""
             for (const url of config.meshUrlsSnapshot) {
@@ -116,7 +117,7 @@ export class InitializationService implements OnModuleInit {
      */
     checkConfigAndEmit(): void {
         try {
-            const config = this.nodeConfigRepository.find()
+            const config = runSyncUnwrapped(this.nodeConfigRepository.find())
             const storedUrl = config?.databaseUrl?.trim() ?? ''
             if (config?.configuredAt && storedUrl.length > 0) {
                 this.logger.log(
@@ -146,7 +147,7 @@ export class InitializationService implements OnModuleInit {
     // ─── Public API ───────────────────────────────────────────────────────────
 
     getSetupState(): SetupStateSnapshot {
-        const config = this.nodeConfigRepository.find()
+        const config = runSyncUnwrapped(this.nodeConfigRepository.find())
 
         if (!config) {
             return {
@@ -215,7 +216,7 @@ export class InitializationService implements OnModuleInit {
     }
 
     getNodeStatus() {
-        const config = this.nodeConfigRepository.find()
+        const config = runSyncUnwrapped(this.nodeConfigRepository.find())
         if (config?.configuredAt && config.databaseUrl?.trim()) {
             return {
                 isConfigured: true,
@@ -347,7 +348,7 @@ export class InitializationService implements OnModuleInit {
             databaseUrl: finish.databaseUrl,
         }))
 
-        const config = this.nodeConfigRepository.find()
+        const config = runSyncUnwrapped(this.nodeConfigRepository.find())
         if (config) {
             this.emitCompleted({
                 nodeId: config.nodeId,

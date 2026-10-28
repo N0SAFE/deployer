@@ -1,7 +1,7 @@
 import { Logger, Module } from '@nestjs/common';
 import { EnvModule } from "@/config/env/env.module";
-import { GLOBAL_DATABASE_CONNECTION } from "@deployer/nest-effect/database";
-import { LocalDatabaseModule } from "@deployer/nest-effect/node-state";
+import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
+import { LocalDatabaseModule } from "@/core/modules/database/local/local-database.module"
 import { DatabaseModule } from "@/core/modules/database/database.module";
 import { AuthModule } from '@/core/modules/auth/auth.module';
 import { EnvService } from "@/config/env/env.module";
@@ -15,7 +15,7 @@ import { NodeStartupCheckCommand } from './commands/node-startup-check.command';
 import { SetupDbCommand } from './commands/setup-db.command';
 import { ResealSecretsCommand } from './commands/reseal-secrets.command';
 import { MigrationJournalService } from '@/core/utils/migration-journal.service';
-import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 import { NodeStateModule } from '@/core/modules/node-state/node-state.module';
 
 @Module({

@@ -1,4 +1,5 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { runSyncUnwrapped } from "@deployer/effect-core";
+import { Injectable, Logger, Inject } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { Effect } from "effect";
@@ -34,12 +35,12 @@ import { MANAGED_POSTGRES_ALIAS, MANAGED_POSTGRES_PORT, MANAGED_POSTGRES_VOLUME_
 import { PostgresServiceProvisioner } from "@deployer/nest-effect/docker";
 import { EnvService } from "../../../../config/env/env.module";
 import { splitManagedEnv } from "@deployer/env";
-import { SwarmBootstrapService } from "@deployer/nest-effect/swarm";
-import { SwarmClusterService } from "@deployer/nest-effect/swarm";
+import { SwarmBootstrap, type SwarmBootstrapShape } from "@deployer/swarm"
+import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm"
 import { SupervisorOrchestratorService } from "@deployer/nest-effect/supervision";
 import { SWARM_APP_WIRING_SUPERVISOR_ID } from "../../supervisors/platform/swarm-app-wiring.supervisor.service";
 import { generateMeshSharedSecret } from "@deployer/auth/mesh";
-import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 import {
     SetupStepTracker,
     listMigrationNames,
@@ -103,15 +104,15 @@ export class LocalInitializationService {
         private readonly postgresProvisioner: PostgresServiceProvisioner,
         private readonly dockerService: DockerService,
         private readonly env: EnvService,
-        private readonly nodeConfigRepository: NodeConfigRepository,
+        @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
         /**
          * FOUNDS the cluster. Provisioning Postgres as a SWARM SERVICE needs an
          * active swarm, so this runs BEFORE the database step — the previous
          * ordering called the provisioner while the engine was still inactive.
          */
-        private readonly swarmBootstrap: SwarmBootstrapService,
+        @Inject(SwarmBootstrap) private readonly swarmBootstrap: SwarmBootstrapShape,
         /** Read-back of the engine state for the setup stream's report. */
-        private readonly swarmCluster: SwarmClusterService,
+        @Inject(SwarmCluster) private readonly swarmCluster: SwarmClusterShape,
         /**
          * On-demand convergence of the app-wiring supervisor, so the overlay
          * attach below happens BEFORE the DSN is used rather than on the
@@ -147,7 +148,7 @@ export class LocalInitializationService {
 
         const providedUrl = (() => {
             if (explicitUrl) return "";
-            const cfg = this.nodeConfigRepository.find();
+            const cfg = runSyncUnwrapped(this.nodeConfigRepository.find());
             const alreadyDone =
                 cfg?.setupState === "setup_done" || Boolean(cfg?.configuredAt);
             if (
@@ -184,8 +185,8 @@ export class LocalInitializationService {
         // and nothing is ever scheduled onto a swarm. Founding one there is not
         // merely useless — it mutates the developer's Docker engine:
         //
-        //   SwarmParticipationService: creating a new cluster (policy=auto)
-        //   SwarmBootstrapService: Swarm converged (setup) — state=active,
+        //   SwarmParticipationShape: creating a new cluster (policy=auto)
+        //   SwarmBootstrapShape: Swarm converged (setup) — state=active,
         //     role=manager, … master=sn6acv3hofym
         //
         // which then runs a swarm manager on the host for the rest of the
@@ -210,16 +211,16 @@ export class LocalInitializationService {
 
                 // PERSIST THE OPERATOR'S CHOICE BEFORE CONVERGING.
                 // `converge()` resolves the participation from
-                // `node_config.swarmConfig` (SwarmParticipationService
+                // `node_config.swarmConfig` (SwarmParticipationShape
                 // .effectiveConfig), NOT from the request — so without this the
                 // engine would converge from env defaults and a wizard choice of
                 // `join` would be silently ignored, founding a cluster the
                 // operator explicitly did not ask for. `register_node` writes the
                 // same values later; this earlier write is what makes the DECISION
                 // authoritative at the moment it is acted on.
-                const cfg = this.nodeConfigRepository.find();
+                const cfg = runSyncUnwrapped(this.nodeConfigRepository.find());
                 const nowIso = new Date().toISOString();
-                this.nodeConfigRepository.upsert({
+                runSyncUnwrapped(this.nodeConfigRepository.upsert({
                     ...(cfg ?? {}),
                     nodeId,
                     strategy: "local",
@@ -235,11 +236,11 @@ export class LocalInitializationService {
                         joinAddrs: swarmChoice?.joinAddrs ?? [],
                     },
                     updatedAt: nowIso,
-                });
+                }));
                 stepLog("  → participation persisted (node_config.swarmConfig)");
 
-                await this.swarmBootstrap.converge("setup");
-                const snapshot = await this.swarmCluster.getLocalClusterSnapshot();
+                await runPromiseUnwrapped(this.swarmBootstrap.converge("setup"));
+                const snapshot = await runPromiseUnwrapped(this.swarmCluster.getLocalClusterSnapshot());
 
                 if (snapshot.localNodeState !== "active") {
                     // A service-based database CANNOT be provisioned without a
@@ -349,7 +350,7 @@ export class LocalInitializationService {
             const meshSharedSecret = generateMeshSharedSecret();
             stepLog("▸ Persisting node config to global database…");
             const now = new Date().toISOString();
-            this.nodeConfigRepository.upsert({
+            runSyncUnwrapped(this.nodeConfigRepository.upsert({
                 nodeId,
                 strategy: "local",
                 setupState: "setup_done",
@@ -370,7 +371,7 @@ export class LocalInitializationService {
                           joinAddrs: swarmChoice.joinAddrs ?? [],
                       }
                     : undefined,
-            });
+            }));
             stepLog("✅ Node config persisted");
         });
 
@@ -390,7 +391,7 @@ export class LocalInitializationService {
             // than the earlier step's result, so a cluster that degraded since
             // is reported honestly instead of echoing a stale success.
             stepLog("▸ Swarm summary…");
-            const swarmSnapshot = await this.swarmCluster.getLocalClusterSnapshot();
+            const swarmSnapshot = await runPromiseUnwrapped(this.swarmCluster.getLocalClusterSnapshot());
             if (swarmSnapshot.localNodeState === "active") {
                 stepLog("✅ Swarm cluster active");
                 stepLog(`  mode    = ${swarmChoice?.mode ?? "create"}`);

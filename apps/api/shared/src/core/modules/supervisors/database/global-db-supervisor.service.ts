@@ -1,6 +1,7 @@
-import { Injectable } from "@nestjs/common";
+import { runSyncUnwrapped } from "@deployer/effect-core";
+import { Injectable, Inject } from "@nestjs/common";
 import { DockerService } from "@deployer/nest-effect/docker";
-import { NodeConfigRepository } from "@deployer/nest-effect/node-state";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 import { SupervisorHost } from "@deployer/nest-effect/supervision";
 import { MANAGED_POSTGRES_IMAGE } from "@deployer/docker";
 import { splitManagedEnv } from "@deployer/env";
@@ -41,7 +42,7 @@ export class GlobalDbSupervisorService extends SupervisorHost<
 
 	constructor(
 		dockerService: DockerService,
-		private readonly nodeConfigRepository: NodeConfigRepository,
+		@Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
 		private readonly env: EnvService,
 	) {
 		super();
@@ -58,7 +59,7 @@ export class GlobalDbSupervisorService extends SupervisorHost<
 				}),
 				composeManaged: () => this.isComposeManaged(),
 				runtimeOverride: () => process.env.SUPERVISOR_RUNTIME,
-				provisioning: () => this.nodeConfigRepository.find()?.databaseProvisioning,
+				provisioning: () => runSyncUnwrapped(this.nodeConfigRepository.find())?.databaseProvisioning,
 				databaseUrl: () => this.persistedDatabaseUrl(),
 			},
 		});
@@ -79,7 +80,7 @@ export class GlobalDbSupervisorService extends SupervisorHost<
 			this.logger.log("Global-db dependencies not ready (no database URL) — skipping registration (retry from dev console after setup)");
 			return;
 		}
-		if (this.nodeConfigRepository.find()?.databaseProvisioning === "local") {
+		if (runSyncUnwrapped(this.nodeConfigRepository.find())?.databaseProvisioning === "local") {
 			this.logger.log("Locally-managed database detected — Postgres supervisor active");
 			super.onModuleInit();
 		} else {
@@ -95,7 +96,7 @@ export class GlobalDbSupervisorService extends SupervisorHost<
 	/** A real DATABASE URL has been written to the local node config (setup wizard or dev bootstrap completed). */
 	private depsReady(): boolean {
 		try {
-			return Boolean(this.nodeConfigRepository.find()?.databaseUrl?.trim());
+			return Boolean(runSyncUnwrapped(this.nodeConfigRepository.find())?.databaseUrl?.trim());
 		} catch {
 			return false;
 		}
@@ -104,7 +105,7 @@ export class GlobalDbSupervisorService extends SupervisorHost<
 	/** The persisted DSN; empty when nothing was written yet, which consumers gate on. */
 	private persistedDatabaseUrl(): string {
 		try {
-			return this.nodeConfigRepository.find()?.databaseUrl ?? "";
+			return runSyncUnwrapped(this.nodeConfigRepository.find())?.databaseUrl ?? "";
 		} catch {
 			return "";
 		}

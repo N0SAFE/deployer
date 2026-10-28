@@ -101,6 +101,35 @@ describe('cors.utils', () => {
         'https://app.example.com'
       ]);
     });
+
+    // Regression: AUTH_BASE_DOMAIN subdomains must be allowlisted, otherwise the
+    // preflight for http://web.deployer.localhost reflects the origin WITHOUT
+    // Access-Control-Allow-Credentials and Chrome reports
+    // "PreflightInvalidAllowCredential".
+    it('should allowlist every AUTH_BASE_DOMAIN subdomain', () => {
+      const origins = buildAllowedOrigins({
+        NEXT_PUBLIC_APP_URL: 'http://web.deployer.localhost',
+        TRUSTED_ORIGINS: 'http://localhost:3000',
+        AUTH_BASE_DOMAIN: '.deployer.localhost',
+      });
+
+      expect(origins).toContain('http://web.deployer.localhost');
+      expect(origins).toContain('http://api.deployer.localhost');
+      expect(origins).toContain('http://setup.deployer.localhost');
+    });
+
+    it('should issue credentialed CORS for a platform subdomain origin', () => {
+      const origins = buildAllowedOrigins({ AUTH_BASE_DOMAIN: '.deployer.localhost' });
+
+      expect(
+        resolveCorsDecision({
+          origin: 'http://web.deployer.localhost',
+          hasCookieHeader: false,
+          allowedOrigins: origins,
+          isDevelopment: false,
+        })
+      ).toEqual({ allowOrigin: true, allowCredentials: true });
+    });
   });
 
   describe('resolveCorsDecision', () => {

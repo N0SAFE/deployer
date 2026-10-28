@@ -1,7 +1,8 @@
+import { Effect } from "effect";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import type { SwarmClusterService } from "@deployer/nest-effect/swarm";
+import type { SwarmClusterShape } from "@deployer/swarm"
 import { NodeInventoryService } from "./node-inventory.service";
-import type { ClusterNodeInventoryRepository } from "@deployer/nest-effect/node-state";
+import type { ClusterNodeInventoryRepositoryShape } from "@deployer/node-state";
 import type { GlobalClusterNodesRepository } from "../repositories/global-cluster-nodes.repository";
 
 const activeSnapshot = {
@@ -22,7 +23,7 @@ const engineNode = (id: string) => ({
 describe("NodeInventoryService", () => {
     let service: NodeInventoryService;
     // Kept as the mock shape so per-test assertions keep their `vi.fn()` typing; the
-    // value is asserted to `SwarmClusterService` at the single construction site.
+    // value is asserted to `SwarmClusterShape` at the single construction site.
     let clusterService: { getLocalClusterSnapshot: ReturnType<typeof vi.fn>; listSwarmNodes: ReturnType<typeof vi.fn> };
     let repository: {
         upsertFromEngine: ReturnType<typeof vi.fn>;
@@ -33,15 +34,15 @@ describe("NodeInventoryService", () => {
 
     beforeEach(() => {
         clusterService = {
-            getLocalClusterSnapshot: vi.fn().mockResolvedValue(activeSnapshot),
-            listSwarmNodes: vi.fn().mockResolvedValue([engineNode("n1"), engineNode("n2")]),
-            // `SwarmClusterService` exposes 14 members; this unit only drives the two the
+            getLocalClusterSnapshot: vi.fn().mockReturnValue(Effect.succeed(activeSnapshot)),
+            listSwarmNodes: vi.fn().mockReturnValue(Effect.succeed([engineNode("n1"), engineNode("n2")])),
+            // `SwarmClusterShape` exposes 14 members; this unit only drives the two the
             // inventory reads, so the stub is asserted to the interface here.
         };
         repository = {
-            upsertFromEngine: vi.fn().mockImplementation((row) => ({ nodeId: row.nodeId })),
-            markMissingNodeDown: vi.fn().mockReturnValue(0),
-            list: vi.fn().mockReturnValue([]),
+            upsertFromEngine: vi.fn().mockImplementation((row) => Effect.succeed({ nodeId: row.nodeId })),
+            markMissingNodeDown: vi.fn().mockReturnValue(Effect.succeed(0)),
+            list: vi.fn().mockReturnValue(Effect.succeed([])),
         };
         globalClusterNodes = {
             enrollLocalNode: vi.fn().mockResolvedValue(true),
@@ -72,9 +73,9 @@ describe("NodeInventoryService", () => {
     });
 
     it("returns 0 when the engine is not in an active cluster", async () => {
-        clusterService.getLocalClusterSnapshot.mockResolvedValue({
+        clusterService.getLocalClusterSnapshot.mockReturnValue(Effect.succeed({
             localNodeState: "inactive",
-        });
+        }));
 
         const count = await service.syncOnce();
 
@@ -84,13 +85,13 @@ describe("NodeInventoryService", () => {
     });
 
     it("never throws when the engine probe fails", async () => {
-        clusterService.listSwarmNodes.mockRejectedValue(new Error("engine unreachable"));
+        clusterService.listSwarmNodes.mockReturnValue(Effect.fail(new Error("engine unreachable")));
 
         await expect(service.syncOnce()).rejects.toThrow("engine unreachable");
     });
 
     it("marks previously-seen nodes down (drift)", async () => {
-        repository.markMissingNodeDown.mockReturnValue(1);
+        repository.markMissingNodeDown.mockReturnValue(Effect.succeed(1));
 
         const count = await service.syncOnce();
 

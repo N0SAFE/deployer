@@ -6,7 +6,7 @@ import {
 	DEPENDENCIES,
 	ServiceHealthModule,
 } from "@deployer/shared/server";
-import { GLOBAL_DATABASE_CONNECTION } from "@deployer/nest-effect/database";
+import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
 import { registerSchemaCodecs } from "@/config/drizzle/schema-codecs";
 import { EnvModule, EnvService } from "@/config/env/env.module";
 import { DatabaseModule } from "@/core/modules/database/database.module";
