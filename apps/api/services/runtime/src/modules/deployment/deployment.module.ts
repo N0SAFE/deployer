@@ -136,10 +136,11 @@ export class DeploymentDomainModule extends createModuleContext({
             inject: [ApiTriggerSource, GithubPushTriggerSource],
         },
         DeploymentTriggerRegistryService,
-        // Event-triggered deployments are an Effect Layer (`deployment-trigger.layers.ts`) over these ports.
+        // Event-triggered deployments: a constant Effect service over these ports.
         { provide: RuntimeDatabasePort, useExisting: GlobalDatabaseService },
         { provide: TriggerRegistryPort, useExisting: DeploymentTriggerRegistryService },
         { provide: SystemDeploymentsPort, useExisting: DeploymentService },
+        { provide: DeploymentEventTriggerService, useValue: DeploymentEventTriggerService.live },
         PreviewEnvOverlayService,
         DeploymentContainerLinkService,
         DeploymentsMeshService,
@@ -155,4 +156,4 @@ export class DeploymentDomainModule extends createModuleContext({
         DeploymentReadModelProjectorService,
         PreviewEnvOverlayService,
     ],
-}, DeploymentEventTriggerService) {}
+}) {}

@@ -1,11 +1,9 @@
 import type { DeploymentTriggerFromEventInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import { CurrentActor } from "@deployer/effect-core";
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect } from "effect";
 
 import { attempt } from "../../../core/effects";
-import type { DeploymentService } from "../services/deployment.service";
 import { SystemDeploymentsPort, TriggerRegistryPort } from "./deployment-trigger.ports";
-import type { DeploymentTriggerRegistryService } from "./deployment-trigger-registry.service";
 
 export type DeploymentEventTriggerResult =
     | { dispatched: true; sourceId: string; deploymentId: string; reason: null }
@@ -28,34 +26,22 @@ export type DeploymentEventTriggerServiceShape = {
     readonly trigger: (
         event: DeploymentTriggerFromEventInput,
         deliveryId: string | null,
-    ) => Effect.Effect<DeploymentEventTriggerResult, unknown, CurrentActor>;
+    ) => Effect.Effect<DeploymentEventTriggerResult, unknown, CurrentActor | TriggerRegistryPort | SystemDeploymentsPort>;
 };
 
-/** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
+/**
+ * Tag and implementation together: the tag is the contract, `live` the one implementation. Its ports
+ * (the registry and the deployment service) are yielded when `trigger` runs, so it is a constant the
+ * deployment module provides with `useValue`.
+ */
 export class DeploymentEventTriggerService extends Context.Service<
     DeploymentEventTriggerService,
     DeploymentEventTriggerServiceShape
 >()("runtime/DeploymentEventTriggerService") {
-    static readonly Live: Layer.Layer<DeploymentEventTriggerService, never, TriggerRegistryPort | SystemDeploymentsPort> =
-        Layer.effect(
-            DeploymentEventTriggerService,
-            Effect.gen(function* () {
-                return makeDeploymentEventTriggerService({
-                    registry: yield* TriggerRegistryPort,
-                    deploymentService: yield* SystemDeploymentsPort,
-                });
-            }),
-        );
-}
-
-export function makeDeploymentEventTriggerService(ports: {
-    readonly registry: DeploymentTriggerRegistryService;
-    readonly deploymentService: DeploymentService;
-}): DeploymentEventTriggerServiceShape {
-    const { registry, deploymentService } = ports;
-
-    return {
+    static readonly live: DeploymentEventTriggerServiceShape = {
         trigger: Effect.fn("DeploymentEventTriggerService.trigger")(function* (event, deliveryId) {
+            const registry = yield* TriggerRegistryPort;
+            const deploymentService = yield* SystemDeploymentsPort;
             const actor = yield* CurrentActor;
             const resolution = yield* attempt(() =>
                 registry.toTriggerInput({
