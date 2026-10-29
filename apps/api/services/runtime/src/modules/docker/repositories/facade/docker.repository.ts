@@ -74,14 +74,8 @@ import {
   type DockerNetworksRepositoryShape,
 } from "../networks/docker-networks.repository";
 import {
-  toNullableNonEmptyString,
-  toTimestampDate,
-  toProgress,
-  inferRuntimeActivityStatus,
-  inferRuntimeActivitySeverity,
-  resolveRuntimeActivityMessage,
-  createRuntimeActivityFingerprint,
-  parseRuntimeActivitySource,
+  buildRuntimeActivityRecord,
+  toRuntimeActivityEntity,
 } from "../runtime/runtime-activity-mapping";
 import {
   DockerVolumesRepository,
@@ -1310,57 +1304,9 @@ export class DockerRepository {
   }
 
   async persistRuntimeActivityEvent(rawEvent: DockerRuntimeEvent): Promise<void> {
-    const event = dockerRuntimeEventSchema.parse(rawEvent);
-    const normalizedActorId = typeof event.actorId === "string" && event.actorId.trim().length > 0
-      ? event.actorId.trim()
-      : null;
-    const now = new Date();
-    const occurredAt = toTimestampDate(event.timestamp) ?? now;
-    const isImageScanEvent = event.source === "image" && event.action.startsWith("scan_");
-
-    const flowId = isImageScanEvent
-      ? `image-scan-run:${normalizedActorId ?? "unknown"}`
-      : `${event.source}:${normalizedActorId ?? event.eventId ?? "event"}`;
-
-    const dependsOnFlowId = isImageScanEvent && event.action !== "scan_queued"
-      ? `image-scan-queue:${normalizedActorId ?? "unknown"}`
-      : null;
-
-    const status = inferRuntimeActivityStatus(event.action, event.actorAttributes.scanState);
-    const severity = inferRuntimeActivitySeverity(event.action);
-    const progress = toProgress(event.actorAttributes.scanProgress);
-    const scanner = toNullableNonEmptyString(event.actorAttributes.scanScanner);
-    const stage = toNullableNonEmptyString(event.actorAttributes.scanStage) ?? toNullableNonEmptyString(event.actorAttributes.scanState);
-    const message = toNullableNonEmptyString(event.actorAttributes.scanMessage)
-      ?? toNullableNonEmptyString(event.actorAttributes.scanError)
-      ?? resolveRuntimeActivityMessage(event);
-
-    const eventFingerprint = createRuntimeActivityFingerprint(event);
-
     await this.globalDatabaseService.db
       .insert(dockerRuntimeActivities)
-      .values({
-        eventFingerprint,
-        eventId: event.eventId,
-        flowId,
-        dependsOnFlowId,
-        source: event.source,
-        action: event.action,
-        actorId: normalizedActorId,
-        status,
-        category: isImageScanEvent ? "image-scanning" : "runtime-event",
-        severity,
-        progress,
-        stage,
-        scanner,
-        message,
-        actorAttributes: event.actorAttributes,
-        payload: isRecord(event.payload) ? event.payload : {},
-        raw: event.raw,
-        occurredAt,
-        createdAt: now,
-        updatedAt: now,
-      })
+      .values(buildRuntimeActivityRecord(rawEvent, new Date()))
       .onConflictDoNothing({
         target: [dockerRuntimeActivities.eventFingerprint],
       });
@@ -1376,35 +1322,7 @@ export class DockerRepository {
       .orderBy(desc(dockerRuntimeActivities.occurredAt))
       .limit(5000);
 
-    const mapped = rows.map((row) => dockerRuntimeActivityEntitySchema.parse({
-      id: row.id,
-      eventId: row.eventId,
-      eventFingerprint: row.eventFingerprint,
-      flowId: row.flowId,
-      dependsOnFlowId: row.dependsOnFlowId,
-      source: parseRuntimeActivitySource(row.source),
-      action: row.action,
-      actorId: row.actorId,
-      status: row.status,
-      category: row.category,
-      severity: row.severity,
-      progress: row.progress,
-      stage: row.stage,
-      scanner: row.scanner,
-      message: row.message,
-      actorAttributes: row.actorAttributes,
-      payload: row.payload,
-      raw: row.raw,
-      occurredAt: row.occurredAt.toISOString(),
-      createdAt: row.createdAt.toISOString(),
-      updatedAt: row.updatedAt.toISOString(),
-      // Persisted rows predate the swarm enrichment (and the columns do not
-      // exist in the table yet), so a rehydrated activity carries no live swarm
-      // state. The LIVE stream is where enrichment applies — history is what it
-      // was recorded as.
-      swarmTasks: [],
-      swarmService: null,
-    } satisfies DockerRuntimeActivityEntity));
+    const mapped = rows.map(toRuntimeActivityEntity);
 
     const filtered = mapped.filter((item) => {
       const sourceFilter = this.getFilterEntry(input, "source");
@@ -1465,31 +1383,7 @@ export class DockerRepository {
       return null;
     }
 
-    return dockerRuntimeActivityEntitySchema.parse({
-      id: row.id,
-      eventId: row.eventId,
-      eventFingerprint: row.eventFingerprint,
-      flowId: row.flowId,
-      dependsOnFlowId: row.dependsOnFlowId,
-      source: parseRuntimeActivitySource(row.source),
-      action: row.action,
-      actorId: row.actorId,
-      status: row.status,
-      category: row.category,
-      severity: row.severity,
-      progress: row.progress,
-      stage: row.stage,
-      scanner: row.scanner,
-      message: row.message,
-      actorAttributes: row.actorAttributes,
-      payload: row.payload,
-      raw: row.raw,
-      occurredAt: row.occurredAt.toISOString(),
-      createdAt: row.createdAt.toISOString(),
-      updatedAt: row.updatedAt.toISOString(),
-      swarmTasks: [],
-      swarmService: null,
-    } satisfies DockerRuntimeActivityEntity);
+    return toRuntimeActivityEntity(row);
   }
 
 
