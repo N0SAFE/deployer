@@ -53,3 +53,13 @@
 **A**: "every request should path at least for discovery from the mesh agent. its him that hold the rpc links opened for inter services access. the only case where a service as a direct connection to another service is for load and stream or direct ressource access where the mesh agent as to much load and return to the service a dedicated request with a direct link to the requested service/replicate it still should go thrue rpc links and make pool inside rpc links for inter services requests"
 
 ---
+
+## External access always goes through the agent; locality first; the agent answers redirects
+
+**Q**: (stated by the operator) How is a service resolved, and who handles `MESH_REDIRECT`?
+
+**A**: "external service access should always go thrue the mesh agent that will redirect to the same node if the service request is replicated on this node instead of going to another node. also the mesh agent should be the one that will respond to the mesh redirect error response"
+
+**Supersedes**: the earlier decision that a client interceptor on each caller follows `MESH_REDIRECT`. The caller interceptor now handles `MESH_DIRECT` only.
+
+---

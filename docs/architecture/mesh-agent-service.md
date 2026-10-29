@@ -43,7 +43,7 @@ The one exception is the **direct lease**. When brokering would put too much on 
 streams, a hot resource), or the caller asks for it (`{ mode: "direct" }`, typical for a resource it will keep
 using), the agent does not relay. It answers with a dedicated error code, `MESH_DIRECT`, carrying
 `{ replica, address, token, ttl }`: a short-lived, agent-signed grant for a direct link to that exact replica. Like
-`MESH_REDIRECT`, it is caught by the caller's oRPC interceptor, which opens (or reuses) a pooled RPC link to the
+`MESH_REDIRECT`, it is caught by the caller's oRPC interceptor (the only interceptor a caller needs), which opens (or reuses) a pooled RPC link to the
 replica and replays the call there. The replica checks the token, the lease expires or is revoked when the replica
 dies, and a refused or expired lease falls back to the brokered path. A lease is still an oRPC RPC link, never
 OpenAPI, and still built with `createEffectClient`.
@@ -60,16 +60,20 @@ The global mesh is a small framework (an Effect library, `@deployer/service-mesh
 1. **Service directory.** Each replica registers itself (service, replica id, address on the overlay network, load)
    and the resource keys it currently holds in memory (a deployment, a terminal session, a stream). The directory is
    replicated through the mesh-agents' roster gossip, so every node can answer
-   `resolve(service, { key? })` locally (the agent answers every discovery, whether it then brokers or leases): the replica holding `key`, else a replica chosen by affinity hash, else the
-   least loaded. Registrations carry a TTL and a generation, so a dead replica's keys age out.
-2. **Redirects, done by a client interceptor.** A caller may address only the service. When the replica that
-   receives a call does not hold the resource, it fails with a dedicated oRPC error code, `MESH_REDIRECT`, whose data
-   is `{ replica, reason }` (a handler throws it through a helper such as `redirectTo(replica)`). Following it is not
-   a link feature: it is an oRPC client interceptor (`meshRedirectInterceptor`) installed on every caller's link. The
-   interceptor catches `MESH_REDIRECT` and retries the same call, naming the replica, through the local agent (which
-   brokers it or answers with a direct lease) or through the forwarding path below, up to a hop limit with a loop guard, and remembers `key -> replica` for a short TTL so the next call goes
-   straight there. Handlers and callers stay plain oRPC; the error code is declared once in a shared error map that
-   every contract spreads in, so it is typed and testable.
+   `resolve(service, { key? })` locally (the agent answers every discovery, whether it then brokers or leases). The
+   order is: the replica holding `key`; else **a replica on the agent's own node** (locality: a service replicated on
+   this node is served from this node and never crosses to another one); else a replica chosen by affinity hash;
+   else the least loaded.
+2. **Redirects, answered by the mesh-agent.** A caller may address only the service. When the replica that receives
+   a call does not hold the resource, it fails with a dedicated oRPC error code, `MESH_REDIRECT`, whose data is
+   `{ replica, reason }` (a handler throws it through a helper such as `redirectTo(replica)`). The call reached the
+   replica through an agent, so the **agent** is the one that receives this error: it resolves the named replica,
+   replays the call there over its pooled links (through the target node's agent when it is on another node), up to a
+   hop limit with a loop guard, and returns the final result to the caller. The caller never sees the redirect, and
+   the agent remembers `key -> replica` for a short TTL so the next call goes straight there. The error code is
+   declared once in a shared error map that every contract spreads in, so it is typed and testable. A replica reached
+   over a direct lease may also answer `MESH_REDIRECT`; the caller's link does not chase replicas itself, it hands the
+   error to its local agent, which resolves again. The only code the caller's interceptor acts on is `MESH_DIRECT`.
 3. **Replica peers.** A service can ask its own other replicas: `peers.ask(procedure, input, { first | all })` to find
    which one holds a resource (the replicas reach each other through their local agent too; then redirect the caller to it), or `peers.forward(replica, procedure, input)` to
    fetch it on the caller's behalf when a redirect is not wanted (for example the caller cannot reach that replica).
@@ -118,7 +122,7 @@ is built on the oRPC RPC protocol over a persistent websocket (`@orpc/client/web
 The websocket is opened once and reused, so calls, streams and redirects share one long-lived connection instead of
 paying a connection setup per request, and server-to-client streams (event iterators) work natively. The OpenAPI
 link stays for the public surface only (browsers, third parties). Connections are per peer, not per service pair, are
-opened on first use and reconnect with backoff; the redirect interceptor and `createEffectClient` sit on top of that
+opened on first use and reconnect with backoff; the grant interceptor (`MESH_DIRECT`) and `createEffectClient` sit on top of that
 link unchanged.
 
 
