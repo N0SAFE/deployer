@@ -12,8 +12,7 @@ import { DockerContainersModule } from "../domains/containers/docker-containers.
 import { DockerRuntimeEventsSourceService } from "./events/docker-runtime-events-source.service";
 import { DockerRuntimeEventsStreamService } from "./events/docker-runtime-events-stream.service";
 import { DockerRuntimeActivityPersistenceService } from "./events/docker-runtime-activity-persistence.service";
-import { SystemMeshTopicService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
-import { SystemMeshTopologyService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
+import { DOCKER_NODE_MESH, type DockerNodeMesh } from "../domains/containers/mesh/docker-node-mesh";
 import { DockerRuntimeMeshRelayService } from "./mesh/docker-runtime-mesh-relay.service";
 import { DockerRuntimeStreamOrchestratorService } from "./runtime/docker-runtime-stream-orchestrator.service";
 
@@ -27,12 +26,9 @@ import { DockerRuntimeStreamOrchestratorService } from "./runtime/docker-runtime
     },
     {
       provide: DockerRuntimeMeshRelayService,
-      useFactory: (
-        topics: SystemMeshTopicService,
-        topology: SystemMeshTopologyService,
-        runtimeEvents: DockerRuntimeEventsSourceService,
-      ) => new DockerRuntimeMeshRelayService(topics, topology, runtimeEvents),
-      inject: [SystemMeshTopicService, SystemMeshTopologyService, DockerRuntimeEventsSourceService],
+      useFactory: (runtimeEvents: DockerRuntimeEventsSourceService, mesh: DockerNodeMesh) =>
+        new DockerRuntimeMeshRelayService(runtimeEvents, mesh),
+      inject: [DockerRuntimeEventsSourceService, DOCKER_NODE_MESH],
     },
     {
       provide: DockerRuntimeEventsStreamService,

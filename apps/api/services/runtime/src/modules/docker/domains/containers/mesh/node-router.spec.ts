@@ -39,7 +39,7 @@ function localOperations(overrides: Partial<LocalNodeOperations> = {}): LocalNod
 /** The router over real oRPC RPC peers (in-memory ports), as a caller on the mesh would reach it. */
 function clientFor(local: LocalNodeOperations) {
   const { port1, port2 } = new MessageChannel();
-  new RPCHandler(buildNodeRouter(local) as never).upgrade(port1, { context: {} });
+  new RPCHandler(buildNodeRouter(local, { stream: () => (async function* () {})() }) as never).upgrade(port1, { context: {} });
   port1.start();
   port2.start();
   const link = new RPCLink<ClientContext>({ port: port2 });

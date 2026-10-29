@@ -3,10 +3,12 @@ import type { Server } from "node:http";
 import { type INestApplication, Logger } from "@nestjs/common";
 import { runtimeContract } from "@deployer/runtime-contracts";
 import { type MeshMembership, joinServiceMeshOnNode } from "@deployer/mesh-service";
+import { toAsyncIteratorFromObservable } from "@deployer/orpc-utils/utils/observable/contract";
 import { apiServicePort } from "@deployer/shared/server";
 
 import { NODE_MESH_AGENT, type NodeMeshAgent } from "../../modules/docker/domains/containers/mesh/docker-node-mesh";
 import { LOCAL_NODE_OPERATIONS, type LocalNodeOperations } from "../../modules/docker/domains/containers/mesh/local-node-operations";
+import { DockerRuntimeMeshRelayService } from "../../modules/docker/common/mesh/docker-runtime-mesh-relay.service";
 import { buildNodeRouter, containerIds } from "../../modules/docker/domains/containers/mesh/node-router";
 
 const logger = new Logger("RuntimeMesh");
@@ -21,13 +23,14 @@ const logger = new Logger("RuntimeMesh");
  */
 export function joinRuntimeMesh(app: INestApplication): MeshMembership | undefined {
   const local = app.get<LocalNodeOperations>(LOCAL_NODE_OPERATIONS, { strict: false });
+  const relay = app.get(DockerRuntimeMeshRelayService, { strict: false });
 
   const membership = joinServiceMeshOnNode({
     service: "runtime",
     port: apiServicePort("runtime"),
     server: app.getHttpServer() as Server,
     contracts: [runtimeContract as never],
-    extraRouter: { mesh: { node: buildNodeRouter(local) } },
+    extraRouter: { mesh: { node: buildNodeRouter(local, { stream: () => toAsyncIteratorFromObservable(relay.localEvents$()) }) } },
     // An engine that cannot be listed right now must not stop the replica from beating: it announces nothing this round.
     keys: () => containerIds(local).catch(() => []),
     log: (message) => {

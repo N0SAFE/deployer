@@ -184,8 +184,7 @@ Built and tested over real oRPC RPC peers (in-memory ports): unary, streams, red
   call is granted and followed directly, an unauthenticated call is refused, and a call pinned to another node is
   forwarded to that node's agent.
 
-Not built yet: service-to-service calls other than the BFF's (a service that calls another still uses its HTTP client),
-the deployment mesh (still on the old topic mesh), byte accounting from the transport (the lease policy's bytes-per-second input is fed by nothing), the
+Not built yet: fleet's inventory mesh and the remaining `MeshCoreModule` imports in the runtime, byte accounting from the transport (the lease policy's bytes-per-second input is fed by nothing), the
 bridge topology for large meshes (agents currently connect to every agent they learn of, which is the small-mesh
 design), the onboarding agent, services registering themselves with their agent (`replicaHeartbeat` exists, no
 service calls it), the per-service `external`/`peer`/`node` routers, a swarm global-mode deployment of the agent, and the
@@ -273,6 +272,13 @@ agent: a question about a container goes first to the node that announced that c
 and to every other node if that fails or nobody announced it; a question with no owner (a list, a catalog, a terminal
 session, which is not announced as a key) goes to every other node. Each node answers from its own engine only. A runtime
 with no agent, or with nobody to ask, gets no responses, which is what a lone node always meant.
+
+Runtime events are pulled, not broadcast. The node router has an `events.stream` procedure that serves this node's own
+events (the engine's, plus what the node adds by hand, such as a scan announcing itself). `DockerRuntimeMeshRelayService`
+merges its own events with a stream it follows on every other node: one loop per node that reconnects after a pause when
+the stream breaks, with the set of nodes re-read every few seconds, so a node that is slow or gone costs only its own
+stream and nothing is buffered for it. Every event carries the id of the node it happened on. The deployment mesh no
+longer exists: a deployment's streams are served from the node that runs it.
 
 ## Services and their clients on the mesh
 

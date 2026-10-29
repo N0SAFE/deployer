@@ -1,8 +1,10 @@
-import { oc } from "@orpc/contract";
+import { eventIterator, oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
 import z from "zod/v4";
 
 import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
+
+import { dockerRuntimeEventSchema } from "@deployer/contracts-entities";
 
 import * as s from "./schemas";
 
@@ -38,10 +40,27 @@ const images = meta("Node images", "/mesh/node/images").router({
 });
 
 /**
+ * What happens on a node's docker engine, as it happens: a stream of this node's runtime events.
+ *
+ * A plain event iterator, pulled by whoever follows the node: a caller that falls behind slows the stream at its source
+ * instead of growing a buffer, and a caller that goes away ends it.
+ */
+const events = meta("Node events", "/mesh/node/events").router({
+  stream: standard
+    .zod(s.dockerRuntimeEventsStreamQuerySchema, "nodeRuntimeEvents")
+    .create()
+    .path("/stream")
+    .input((b) => b.body(s.dockerRuntimeEventsStreamQuerySchema))
+    .output(eventIterator(dockerRuntimeEventSchema))
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .build(),
+});
+
+/**
  * The runtime's node router: the operations one node answers about its own docker engine, for the callers that reach it
  * through the mesh. Internal: never composed into the public BFF router.
  */
-export const runtimeNodeContract = { containers, runtime, images };
+export const runtimeNodeContract = { containers, runtime, images, events };
 
 export type RuntimeNodeContract = typeof runtimeNodeContract;
 

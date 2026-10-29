@@ -180,3 +180,6 @@ export const containerTerminalEventsSnapshotSchema = z.object({
 });
 
 export { dockerImageInspectDetailSchema };
+
+/** Following a node's events takes no parameters: it is every event of the node, from now. */
+export const dockerRuntimeEventsStreamQuerySchema = z.object({});

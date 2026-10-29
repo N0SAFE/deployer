@@ -1,4 +1,5 @@
 import { implement } from "@orpc/server";
+import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
 
 import { runtimeNodeContract } from "@deployer/runtime-contracts/mesh/index";
 
@@ -11,7 +12,10 @@ import type { LocalNodeOperations } from "./local-node-operations";
  * mesh already pinned the call to this node. The operations are the same ones the old topic handlers used
  * (`LocalNodeOperations`), so the two surfaces answer identically until the old one is removed.
  */
-export function buildNodeRouter(local: LocalNodeOperations) {
+/** What this node adds to its answers for the mesh to follow: its own runtime events, as they happen. */
+export type NodeEvents = { readonly stream: () => AsyncIterable<DockerRuntimeEvent> };
+
+export function buildNodeRouter(local: LocalNodeOperations, events: NodeEvents) {
   const c = runtimeNodeContract;
 
   return {
@@ -37,6 +41,13 @@ export function buildNodeRouter(local: LocalNodeOperations) {
       terminalEvents: implement(c.runtime.terminalEvents).handler(({ input }) => local.terminalEvents(input)),
       terminalInput: implement(c.runtime.terminalInput).handler(({ input }) => local.sendTerminalInput(input)),
       terminalClose: implement(c.runtime.terminalClose).handler(({ input }) => local.closeTerminal(input)),
+    },
+    events: {
+      stream: implement(c.events.stream).handler(async function* () {
+        for await (const event of events.stream()) {
+          yield event;
+        }
+      }),
     },
     images: {
       inspect: implement(c.images.inspect).handler(async ({ input }) => ({ detail: await local.inspectImage(input.imageId) })),

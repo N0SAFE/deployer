@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 
 import type { ClientContext, ClientLink } from "@orpc/client";
+import { Observable } from "rxjs";
 import { relayLink } from "@deployer/mesh-client";
+import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
 
 import type {
   DockerContainerCreateDirectoryRequestPayload,
@@ -46,6 +48,9 @@ const SERVICE = "runtime";
 const CALL = { context: {} } as const;
 /** Where the node router is mounted on every runtime replica, next to its public contracts. */
 const NODE_ROUTER = ["mesh", "node"] as const;
+/** How often the set of nodes whose events are followed is re-read, and how long a broken follower waits before trying again. */
+const EVENTS_REFRESH_MS = 5_000;
+const EVENTS_RECONNECT_MS = 2_000;
 
 export type NodeMeshOptions<TResponse> = {
   readonly timeoutMs?: number;
@@ -73,6 +78,8 @@ export type NodeMeshResult<TResponse> = {
 /** The link to this node's agent, filled in when the runtime joins the mesh. Without it the runtime is alone on its node. */
 export type NodeMeshAgent = {
   link: ClientLink<ClientContext> | undefined;
+  /** This node's id, learned from the directory the first time the agent is asked. */
+  selfNodeId?: string | undefined;
   /** This process's replica id, so the nodes it asks exclude its own. */
   selfReplicaId: string;
 };
@@ -100,7 +107,9 @@ export function dockerNodeMeshOver(holder: NodeMeshAgent) {
 
   const replicas = async (link: ClientLink<ClientContext>): Promise<readonly Replica[]> => {
     const snapshot = (await link.call(["directory", "snapshot"], {}, CALL)) as { replicas: Replica[] };
-    return snapshot.replicas.filter((replica) => replica.service === SERVICE);
+    const runtimes = snapshot.replicas.filter((replica) => replica.service === SERVICE);
+    holder.selfNodeId = runtimes.find((replica) => replica.replicaId === holder.selfReplicaId)?.nodeId ?? holder.selfNodeId;
+    return runtimes;
   };
 
   /** Every node that runs a runtime, this one included or not. */
@@ -257,9 +266,79 @@ export function dockerNodeMeshOver(holder: NodeMeshAgent) {
       }
     };
 
+  /**
+   * Every other node's runtime events, followed over the mesh for as long as someone watches.
+   *
+   * Nodes come and go, and the agent may not be there yet when the runtime starts, so each node is followed by its own
+   * loop that reconnects on failure and the set of nodes is re-read every few seconds. Nothing is replayed: a stream is
+   * what happens from the moment it is followed.
+   */
+  const streamRuntimeEvents = (): Observable<DockerRuntimeEvent> =>
+    new Observable<DockerRuntimeEvent>((subscriber) => {
+      const following = new Map<string, { stop: () => void }>();
+      let closed = false;
+
+      const follow = (link: ClientLink<ClientContext>, node: string) => {
+        let stopped = false;
+        let current: AsyncIterator<unknown> | undefined;
+        const stop = () => {
+          stopped = true;
+          void current?.return?.();
+        };
+        void (async () => {
+          while (!stopped && !closed) {
+            try {
+              current = (await callNode(link, node, ["events", "stream"], {})) as AsyncIterator<unknown>;
+              for (let step = await current.next(); !step.done && !stopped; step = await current.next()) {
+                subscriber.next(step.value as DockerRuntimeEvent);
+              }
+            } catch {
+              // The node went away or its stream broke: try again after a pause.
+            }
+            if (!stopped && !closed) {
+              await new Promise<void>((resolve) => setTimeout(resolve, EVENTS_RECONNECT_MS).unref());
+            }
+          }
+        })();
+        following.set(node, { stop });
+      };
+
+      const refresh = async () => {
+        const link = agent();
+        if (link === undefined || closed) return;
+        try {
+          const nodes = new Set(await otherNodes(link));
+          for (const node of nodes) {
+            if (!following.has(node)) follow(link, node);
+          }
+          for (const [node, follower] of following) {
+            if (!nodes.has(node)) {
+              follower.stop();
+              following.delete(node);
+            }
+          }
+        } catch {
+          // The agent is not reachable right now: the nodes already followed keep going, the rest is for the next round.
+        }
+      };
+
+      void refresh();
+      const timer = setInterval(() => void refresh(), EVENTS_REFRESH_MS);
+      timer.unref();
+
+      return () => {
+        closed = true;
+        clearInterval(timer);
+        for (const follower of following.values()) follower.stop();
+        following.clear();
+      };
+    });
+
   const named = <T extends object>(node: string, body: T) => ({ ...body, responderNodeId: node });
 
   return {
+    streamRuntimeEvents,
+    selfNodeId: () => holder.selfNodeId,
     listContainersAcrossInstances: everywhere<DockerContainerListRequestPayload, { data: unknown[]; meta: unknown; daemonId: string | null }, DockerContainerListResponsePayload>(
       ["containers", "list"],
       (request) => request.query,
