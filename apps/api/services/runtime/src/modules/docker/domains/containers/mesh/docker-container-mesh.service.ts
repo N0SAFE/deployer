@@ -1,27 +1,53 @@
-import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
-import { InternalBaseMeshService, type MeshCallManyResult } from "@deployer/shared/core/modules/mesh/services/base-mesh.service";
+import { Logger, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
+import type { MeshCallManyOptions, MeshCallManyResult, MeshQueryHandler } from "@deployer/shared/core/modules/mesh/services/base-mesh.service";
+import { makeMeshNamespace, type MeshNamespace, type MeshNamespaceTopology } from "@deployer/shared/core/modules/mesh/services/mesh-namespace";
 import { SystemMeshTopicService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
 import { SystemMeshTopologyService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { dockerContainerMeshContracts } from "./docker-container-mesh.contracts";
 import type { DockerContainerListRequestPayload, DockerContainerInspectRequestPayload, DockerContainerListResponsePayload, DockerContainerInspectResponsePayload, DockerRuntimeCatalogRequestPayload, DockerRuntimeCatalogResponsePayload } from "./docker-container-mesh.contracts";
 
-@Injectable()
-export class DockerContainerMeshService
-    extends InternalBaseMeshService<typeof dockerContainerMeshContracts, Record<string, never>>
-    implements OnModuleInit, OnModuleDestroy {
+export class DockerContainerMeshService implements OnModuleInit, OnModuleDestroy {
+    private readonly meshNamespace: MeshNamespace<typeof dockerContainerMeshContracts>;
+
     constructor(
         meshTopicService: SystemMeshTopicService,
         meshTopologyService: SystemMeshTopologyService,
     ) {
-        super(meshTopicService, meshTopologyService, "docker-container-internal", dockerContainerMeshContracts, {});
+        this.meshNamespace = makeMeshNamespace({
+            topics: meshTopicService,
+            topology: meshTopologyService as unknown as MeshNamespaceTopology,
+            namespace: "docker-container-internal",
+            contracts: dockerContainerMeshContracts,
+            logger: new Logger("docker-container-internalMeshService"),
+        });
+    }
+
+    private registerCallHandler<TRequest, TResponse>(
+        requestTopic: keyof typeof dockerContainerMeshContracts,
+        responseTopic: keyof typeof dockerContainerMeshContracts,
+        cancelTopic: keyof typeof dockerContainerMeshContracts,
+        _options: Record<string, never>,
+        handler: MeshQueryHandler<TRequest, TResponse>,
+    ): void {
+        this.meshNamespace.registerCallHandler(requestTopic, responseTopic, cancelTopic, handler);
+    }
+
+    private callManyOnTopics<TRequest, TResponse>(
+        requestTopic: keyof typeof dockerContainerMeshContracts,
+        responseTopic: keyof typeof dockerContainerMeshContracts,
+        cancelTopic: keyof typeof dockerContainerMeshContracts,
+        payload: TRequest,
+        options?: MeshCallManyOptions<TResponse>,
+    ): Promise<MeshCallManyResult<TResponse>> {
+        return this.meshNamespace.callMany(requestTopic, responseTopic, cancelTopic, payload, options);
     }
 
     onModuleInit(): void {
-        this.initializeMeshNamespace();
+        this.meshNamespace.initialize();
     }
 
     onModuleDestroy(): void {
-        this.teardownMeshNamespace();
+        this.meshNamespace.teardown();
     }
 
     registerListContainersHandler(

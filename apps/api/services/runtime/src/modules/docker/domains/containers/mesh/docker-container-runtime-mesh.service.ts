@@ -1,27 +1,53 @@
-import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
-import { BaseMeshService, InternalBaseMeshService, type MeshCallManyResult, type MeshCallManyOptions } from "@deployer/shared/core/modules/mesh/services/base-mesh.service";
+import { Logger, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
+import type { MeshCallManyOptions, MeshCallManyResult, MeshQueryHandler } from "@deployer/shared/core/modules/mesh/services/base-mesh.service";
+import { makeMeshNamespace, type MeshNamespace, type MeshNamespaceTopology } from "@deployer/shared/core/modules/mesh/services/mesh-namespace";
 import { SystemMeshTopicService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
 import { SystemMeshTopologyService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { dockerContainerRuntimeMeshContracts } from "./docker-container-runtime-mesh.contracts";
 import type { DockerContainerLogsSnapshotRequestPayload, DockerContainerLogsSnapshotResponsePayload, DockerContainerProcessesSnapshotRequestPayload, DockerContainerProcessesSnapshotResponsePayload, DockerContainerProcessLogsSnapshotRequestPayload, DockerContainerProcessLogsSnapshotResponsePayload, DockerContainerFilesSnapshotRequestPayload, DockerContainerFilesSnapshotResponsePayload, DockerContainerReadFileSnapshotRequestPayload, DockerContainerReadFileSnapshotResponsePayload, DockerContainerWriteFileRequestPayload, DockerContainerWriteFileResponsePayload, DockerContainerDeletePathRequestPayload, DockerContainerDeletePathResponsePayload, DockerContainerRenamePathRequestPayload, DockerContainerRenamePathResponsePayload, DockerContainerCreateDirectoryRequestPayload, DockerContainerCreateDirectoryResponsePayload, DockerContainerTerminalOpenRequestPayload, DockerContainerTerminalOpenResponsePayload, DockerContainerTerminalEventsRequestPayload, DockerContainerTerminalEventsResponsePayload, DockerContainerTerminalInputRequestPayload, DockerContainerTerminalInputResponsePayload, DockerContainerTerminalCloseRequestPayload, DockerContainerTerminalCloseResponsePayload, DockerImageInspectRequestPayload, DockerImageInspectResponsePayload } from "./docker-container-runtime-mesh.contracts";
 
-@Injectable()
-export class DockerContainerRuntimeMeshService
-    extends InternalBaseMeshService<typeof dockerContainerRuntimeMeshContracts, Record<string, never>>
-    implements OnModuleInit, OnModuleDestroy {
+export class DockerContainerRuntimeMeshService implements OnModuleInit, OnModuleDestroy {
+    private readonly meshNamespace: MeshNamespace<typeof dockerContainerRuntimeMeshContracts>;
+
     constructor(
         meshTopicService: SystemMeshTopicService,
         meshTopologyService: SystemMeshTopologyService,
     ) {
-        super(meshTopicService, meshTopologyService, "docker-container-runtime-internal", dockerContainerRuntimeMeshContracts, {});
+        this.meshNamespace = makeMeshNamespace({
+            topics: meshTopicService,
+            topology: meshTopologyService as unknown as MeshNamespaceTopology,
+            namespace: "docker-container-runtime-internal",
+            contracts: dockerContainerRuntimeMeshContracts,
+            logger: new Logger("docker-container-runtime-internalMeshService"),
+        });
+    }
+
+    private registerCallHandler<TRequest, TResponse>(
+        requestTopic: keyof typeof dockerContainerRuntimeMeshContracts,
+        responseTopic: keyof typeof dockerContainerRuntimeMeshContracts,
+        cancelTopic: keyof typeof dockerContainerRuntimeMeshContracts,
+        _options: Record<string, never>,
+        handler: MeshQueryHandler<TRequest, TResponse>,
+    ): void {
+        this.meshNamespace.registerCallHandler(requestTopic, responseTopic, cancelTopic, handler);
+    }
+
+    private callManyOnTopics<TRequest, TResponse>(
+        requestTopic: keyof typeof dockerContainerRuntimeMeshContracts,
+        responseTopic: keyof typeof dockerContainerRuntimeMeshContracts,
+        cancelTopic: keyof typeof dockerContainerRuntimeMeshContracts,
+        payload: TRequest,
+        options?: MeshCallManyOptions<TResponse>,
+    ): Promise<MeshCallManyResult<TResponse>> {
+        return this.meshNamespace.callMany(requestTopic, responseTopic, cancelTopic, payload, options);
     }
 
     onModuleInit(): void {
-        this.initializeMeshNamespace();
+        this.meshNamespace.initialize();
     }
 
     onModuleDestroy(): void {
-        this.teardownMeshNamespace();
+        this.meshNamespace.teardown();
     }
 
     registerLogsSnapshotHandler(

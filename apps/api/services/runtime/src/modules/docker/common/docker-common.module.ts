@@ -14,6 +14,8 @@ import { DockerStackRuntimeEventsService } from "./events/stack/docker-stack-run
 import { DockerRuntimeSystemEventsService } from "./events/system/docker-runtime-system-events.service";
 import { DockerRuntimeEventsStreamService } from "./events/docker-runtime-events-stream.service";
 import { DockerRuntimeActivityPersistenceService } from "./events/docker-runtime-activity-persistence.service";
+import { SystemMeshTopicService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
+import { SystemMeshTopologyService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { DockerRuntimeMeshRelayService } from "./mesh/docker-runtime-mesh-relay.service";
 import { DockerRuntimeStreamOrchestratorService } from "./runtime/docker-runtime-stream-orchestrator.service";
 
@@ -28,7 +30,15 @@ import { DockerRuntimeStreamOrchestratorService } from "./runtime/docker-runtime
     DockerStackRuntimeEventsService,
     DockerRuntimeSystemEventsService,
     DockerDomainRuntimeEventsService,
-    DockerRuntimeMeshRelayService,
+    {
+      provide: DockerRuntimeMeshRelayService,
+      useFactory: (
+        topics: SystemMeshTopicService,
+        topology: SystemMeshTopologyService,
+        runtimeEvents: DockerDomainRuntimeEventsService,
+      ) => new DockerRuntimeMeshRelayService(topics, topology, runtimeEvents),
+      inject: [SystemMeshTopicService, SystemMeshTopologyService, DockerDomainRuntimeEventsService],
+    },
     DockerRuntimeEventsStreamService,
     DockerRuntimeActivityPersistenceService,
     DockerRuntimeStreamOrchestratorService,

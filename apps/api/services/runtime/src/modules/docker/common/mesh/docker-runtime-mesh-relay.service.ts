@@ -1,11 +1,12 @@
-import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
+import { Logger, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import type { Subscription } from "rxjs";
 import { Observable } from "rxjs";
 import z from "zod/v4";
 import { dockerRuntimeEventSchema, type DockerRuntimeEvent } from "@deployer/contracts-entities";
 import { AppLogger } from "@deployer/logger";
 import { contractBuilder } from "@deployer/events";
-import { BaseMeshService, InternalBaseMeshService } from "@deployer/shared/core/modules/mesh/services/base-mesh.service";
+import type { MeshCallManyOptions, MeshCallManyResult, MeshQueryHandler } from "@deployer/shared/core/modules/mesh/services/base-mesh.service";
+import { makeMeshNamespace, type MeshNamespace, type MeshNamespaceTopology } from "@deployer/shared/core/modules/mesh/services/mesh-namespace";
 import { SystemMeshTopicService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
 import { SystemMeshTopologyService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { DockerDomainRuntimeEventsService } from "../events/docker-domain-runtime-events.service";
@@ -20,10 +21,7 @@ const dockerRuntimeMeshContracts = {
         .build(),
 } as const;
 
-@Injectable()
-export class DockerRuntimeMeshRelayService
-    extends InternalBaseMeshService<typeof dockerRuntimeMeshContracts, Record<string, never>>
-    implements OnModuleInit, OnModuleDestroy {
+export class DockerRuntimeMeshRelayService implements OnModuleInit, OnModuleDestroy {
     private readonly apiLogger = new AppLogger("api").scope(DockerRuntimeMeshRelayService.name);
 
     private readonly debugLogger = this.apiLogger.createContextFilterLogger({
@@ -32,6 +30,8 @@ export class DockerRuntimeMeshRelayService
         channel: "docker-runtime-relay",
     });
 
+    private readonly meshNamespace: MeshNamespace<typeof dockerRuntimeMeshContracts>;
+    private readonly meshTopologyService: SystemMeshTopologyService;
     private localRelaySubscription: Subscription | null = null;
     private activeRuntimeObserverCount = 0;
     private relayedEventCount = 0;
@@ -41,17 +41,24 @@ export class DockerRuntimeMeshRelayService
         meshTopologyService: SystemMeshTopologyService,
         private readonly dockerDomainRuntimeEventsService: DockerDomainRuntimeEventsService,
     ) {
-        super(meshTopicService, meshTopologyService, "docker-runtime-stream", dockerRuntimeMeshContracts, {});
+        this.meshTopologyService = meshTopologyService;
+        this.meshNamespace = makeMeshNamespace({
+            topics: meshTopicService,
+            topology: meshTopologyService as unknown as MeshNamespaceTopology,
+            namespace: "docker-runtime-stream",
+            contracts: dockerRuntimeMeshContracts,
+            logger: new Logger("docker-runtime-streamMeshService"),
+        });
     }
 
     onModuleInit(): void {
-        this.initializeMeshNamespace();
+        this.meshNamespace.initialize();
     }
 
     onModuleDestroy(): void {
         this.stopLocalDockerRelay();
         this.activeRuntimeObserverCount = 0;
-        this.teardownMeshNamespace();
+        this.meshNamespace.teardown();
     }
 
     observeRuntimeEvents(): Observable<DockerRuntimeEvent> {
@@ -68,7 +75,7 @@ export class DockerRuntimeMeshRelayService
 
             let downstreamSubscription: Subscription | null = null;
             try {
-                downstreamSubscription = this.handle!.observe$("runtimeEventBroadcast", {}).subscribe(subscriber);
+                downstreamSubscription = this.meshNamespace.handle!.observe$("runtimeEventBroadcast", {}).subscribe(subscriber);
             } catch (error) {
                 // Roll back side effects when setup fails to prevent the local relay
                 // running indefinitely without consumers — the original source of the
@@ -97,8 +104,8 @@ export class DockerRuntimeMeshRelayService
     }
 
     relayRuntimeEvent(event: DockerRuntimeEvent): void {
-        if (!this.handle) return;
-        this.handle.publish(
+        if (!this.meshNamespace.handle) return;
+        this.meshNamespace.handle.publish(
             "runtimeEventBroadcast",
             {},
             this.enrichEventWithNodeId(event),
@@ -132,8 +139,8 @@ export class DockerRuntimeMeshRelayService
                     });
                 }
 
-                if (this.handle) {
-                    this.handle.publish(
+                if (this.meshNamespace.handle) {
+                    this.meshNamespace.handle.publish(
                         "runtimeEventBroadcast",
                         {},
                         this.enrichEventWithNodeId(event),

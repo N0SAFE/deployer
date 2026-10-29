@@ -7,6 +7,7 @@ import { DockerContainerMetricsStreamService } from "./events/docker-container-m
 import { DockerContainerMeshService } from "./mesh/docker-container-mesh.service";
 import { DockerContainerRuntimeMeshService } from "./mesh/docker-container-runtime-mesh.service";
 import { DockerMeshHandlerRegistrar } from "./mesh/docker-mesh-handler-registrar.service";
+import { SystemMeshTopicService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
 import { SystemMeshTopologyService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { MeshInternalRequestService } from "@deployer/shared/core/modules/mesh/services/mesh-internal-request.service";
 import { DockerRepository } from "../../repositories/facade/docker.repository";
@@ -29,8 +30,19 @@ export class DockerContainersModule extends createModuleContext({
     DockerContainerLogsDomainService,
     DockerContainerShellDomainService,
     DockerContainerMetricsStreamService,
-    DockerContainerMeshService,
-    DockerContainerRuntimeMeshService,
+    // The mesh services compose a namespace over the topic and topology services; they are built here, not injected by decorator.
+    {
+      provide: DockerContainerMeshService,
+      useFactory: (topics: SystemMeshTopicService, topology: SystemMeshTopologyService) =>
+        new DockerContainerMeshService(topics, topology),
+      inject: [SystemMeshTopicService, SystemMeshTopologyService],
+    },
+    {
+      provide: DockerContainerRuntimeMeshService,
+      useFactory: (topics: SystemMeshTopicService, topology: SystemMeshTopologyService) =>
+        new DockerContainerRuntimeMeshService(topics, topology),
+      inject: [SystemMeshTopicService, SystemMeshTopologyService],
+    },
     // Container resolution is a constant Effect service; the Nest providers it reads come in as ports.
     { provide: ContainersMeshPort, useExisting: DockerContainerMeshService },
     { provide: ContainersLocalPort, useExisting: DockerRepository },
