@@ -1,10 +1,9 @@
-import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
+import { type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import { Observable, ReplaySubject, type Subscription } from "rxjs";
 import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
 import { AppLogger } from "@deployer/logger";
 import { DockerRuntimeMeshRelayService } from "../mesh/docker-runtime-mesh-relay.service";
 
-@Injectable()
 export class DockerRuntimeEventsStreamService implements OnModuleInit, OnModuleDestroy {
 	private readonly apiLogger = new AppLogger("api").scope(DockerRuntimeEventsStreamService.name);
 	private readonly debugLogger = this.apiLogger.createContextFilterLogger({

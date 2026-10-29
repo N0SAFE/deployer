@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { DockerCommonModule } from "../../common/docker-common.module";
 import { DockerContainersModule } from "../containers/docker-containers.module";
 import { DockerRepositoriesModule } from "../../repositories/docker-repositories.module";
@@ -10,7 +11,7 @@ import { DockerRuntimeOrchestratorService } from "./orchestration/docker-runtime
   imports: [DockerCommonModule, DockerContainersModule, DockerRepositoriesModule],
   providers: [
     DockerRuntimeActivityDomainService,
-    SwarmActivityEnricherService,
+    { provide: SwarmActivityEnricherService, useFactory: (engine: DockerEngineShape) => new SwarmActivityEnricherService(engine), inject: [DockerEngine] },
     DockerRuntimeOrchestratorService,
   ],
   exports: [

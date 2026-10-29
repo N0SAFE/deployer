@@ -21,7 +21,7 @@ import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-norm
   imports: [DatabaseModule, CoreDockerModule],
   providers: [
     DockerRepository,
-    ContainerDockerodeNormalizer,
+    { provide: ContainerDockerodeNormalizer, useFactory: () => new ContainerDockerodeNormalizer() },
     DockerImageCatalogRepository,
     DockerImageSecurityRepository,
     // The Effect repositories over the engine are provided under their own tags.

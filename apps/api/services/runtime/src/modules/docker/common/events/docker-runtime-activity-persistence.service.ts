@@ -1,4 +1,4 @@
-import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
+import { type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import { type Subscription, concatMap, from, EMPTY, catchError } from "rxjs";
 import { AppLogger } from "@deployer/logger";
 import { DockerRuntimeEventsStreamService } from "./docker-runtime-events-stream.service";
@@ -6,7 +6,6 @@ import { EffectRuntime } from "@deployer/nest-effect";
 import { Effect } from "effect";
 import { DockerRuntimeActivities } from "../../repositories/runtime/docker-runtime-activities";
 
-@Injectable()
 export class DockerRuntimeActivityPersistenceService implements OnModuleInit, OnModuleDestroy {
   private readonly apiLogger = new AppLogger("api").scope(DockerRuntimeActivityPersistenceService.name);
   private readonly debugLogger = this.apiLogger.createContextFilterLogger({

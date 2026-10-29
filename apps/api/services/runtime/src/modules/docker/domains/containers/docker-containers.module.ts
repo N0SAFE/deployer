@@ -1,3 +1,5 @@
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
+import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 import { createModuleContext } from "@deployer/nest-effect";
 import { EffectRuntime } from "@deployer/nest-effect";
 import { DockerContainerOps } from "./runtime/docker-container-ops";
@@ -33,7 +35,11 @@ export class DockerContainersModule extends createModuleContext({
     { provide: DockerTerminalSessions, useValue: DockerTerminalSessions.live },
     { provide: ContainerAccessMeshPort, useExisting: DockerContainerRuntimeMeshService },
     { provide: DockerContainerAccess, useValue: DockerContainerAccess.live },
-    DockerContainerMetricsStreamService,
+    {
+      provide: DockerContainerMetricsStreamService,
+      useFactory: (engine: DockerEngineShape, pool: CoreEventStreamPoolService) => new DockerContainerMetricsStreamService(engine, pool),
+      inject: [DockerEngine, CoreEventStreamPoolService],
+    },
     // The mesh services compose a namespace over the topic and topology services; they are built here, not injected by decorator.
     {
       provide: DockerContainerMeshService,

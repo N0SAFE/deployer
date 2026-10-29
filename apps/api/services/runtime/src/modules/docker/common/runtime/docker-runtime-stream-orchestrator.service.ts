@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+
 import { EMPTY, Observable, defer, from, interval, merge, of } from "rxjs";
 import { catchError, distinctUntilChanged, filter, finalize, map, mergeWith, switchMap, tap } from "rxjs/operators";
 import type {
@@ -61,7 +61,6 @@ import {
 } from "./runtime-event-filter";
 
 
-@Injectable()
 export class DockerRuntimeStreamOrchestratorService {
     private static streamTraceSequence = 0;
 

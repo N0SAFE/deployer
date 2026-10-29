@@ -1,4 +1,9 @@
 import { Module } from "@nestjs/common";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
+import { EffectRuntime } from "@deployer/nest-effect";
+import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
+import { DockerContainerMetricsStreamService } from "../domains/containers/events/docker-container-metrics-stream.service";
+import { DockerRepository } from "../repositories/facade/docker.repository";
 import { MeshCoreModule } from "@deployer/shared/core/modules/mesh/mesh-core.module";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
@@ -15,7 +20,11 @@ import { DockerRuntimeStreamOrchestratorService } from "./runtime/docker-runtime
 @Module({
   imports: [MeshCoreModule, CoreDockerModule, EventsModule, DockerRepositoriesModule, DockerContainersModule],
   providers: [
-    DockerRuntimeEventsSourceService,
+    {
+      provide: DockerRuntimeEventsSourceService,
+      useFactory: (engine: DockerEngineShape, pool: CoreEventStreamPoolService) => new DockerRuntimeEventsSourceService(engine, pool),
+      inject: [DockerEngine, CoreEventStreamPoolService],
+    },
     {
       provide: DockerRuntimeMeshRelayService,
       useFactory: (
@@ -25,9 +34,27 @@ import { DockerRuntimeStreamOrchestratorService } from "./runtime/docker-runtime
       ) => new DockerRuntimeMeshRelayService(topics, topology, runtimeEvents),
       inject: [SystemMeshTopicService, SystemMeshTopologyService, DockerRuntimeEventsSourceService],
     },
-    DockerRuntimeEventsStreamService,
-    DockerRuntimeActivityPersistenceService,
-    DockerRuntimeStreamOrchestratorService,
+    {
+      provide: DockerRuntimeEventsStreamService,
+      useFactory: (relay: DockerRuntimeMeshRelayService) => new DockerRuntimeEventsStreamService(relay),
+      inject: [DockerRuntimeMeshRelayService],
+    },
+    {
+      provide: DockerRuntimeActivityPersistenceService,
+      useFactory: (events: DockerRuntimeEventsStreamService, runtime: EffectRuntime) =>
+        new DockerRuntimeActivityPersistenceService(events, runtime),
+      inject: [DockerRuntimeEventsStreamService, EffectRuntime],
+    },
+    {
+      provide: DockerRuntimeStreamOrchestratorService,
+      useFactory: (
+        events: DockerRuntimeEventsStreamService,
+        runtime: EffectRuntime,
+        metrics: DockerContainerMetricsStreamService,
+        repository: DockerRepository,
+      ) => new DockerRuntimeStreamOrchestratorService(events, runtime, metrics, repository),
+      inject: [DockerRuntimeEventsStreamService, EffectRuntime, DockerContainerMetricsStreamService, DockerRepository],
+    },
   ],
   exports: [
     DockerRuntimeEventsSourceService,

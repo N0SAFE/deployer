@@ -1,9 +1,9 @@
-import { Injectable, Logger, Inject } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { from, type Observable } from "rxjs";
 import { filter, map, mergeMap } from "rxjs/operators";
 import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
-import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
+import type { DockerEngineShape } from "@deployer/docker";
 
 /** A synthesized activity: the docker event enriched with real swarm state. */
 export type SwarmActivityEnrichment = {
@@ -83,11 +83,10 @@ const SWARM_SOURCES = new Set(["service", "node", "task"]);
  * tasks, so a burst of events on a busy node cannot fan out into a full-fleet
  * read per event.
  */
-@Injectable()
 export class SwarmActivityEnricherService {
   private readonly logger = new Logger(SwarmActivityEnricherService.name);
 
-  constructor(@Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape) {}
+  constructor(private readonly dockerEngine: DockerEngineShape) {}
 
   /** True when this event is a swarm resource worth enriching. */
   isSwarmEvent(event: DockerRuntimeEvent): boolean {

@@ -48,7 +48,6 @@ export type ContainerHashInput = {
  * require cross-module resolution — the caller (e.g. the repository or a
  * linking service) is responsible for providing those values.
  */
-@Injectable()
 export class ContainerDockerodeNormalizer {
   /**
    * Parse a raw dockerode container list entry into a validated domain container.
