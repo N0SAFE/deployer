@@ -9,6 +9,7 @@ import { DockerImageSecurityRepository } from "./images/security/docker-image-se
 import { DockerRuntimeActivityRepository } from "./runtime/docker-runtime-activity.repository";
 import { DockerNetworksRepository } from "./networks/docker-networks.repository";
 import { DockerVolumesRepository } from "./volumes/docker-volumes.repository";
+import { DockerImageLifecycleRepository } from "./images/lifecycle/docker-image-lifecycle.repository";
 import { DockerImagesRepository } from "./images/engine/docker-images.repository";
 import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-normalizer.service";
 
@@ -24,6 +25,7 @@ import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-norm
     // The Effect repositories over the engine are provided under their own tags.
     { provide: DockerNetworksRepository, useValue: DockerNetworksRepository.live },
     { provide: DockerImagesRepository, useValue: DockerImagesRepository.live },
+    { provide: DockerImageLifecycleRepository, useValue: DockerImageLifecycleRepository.live },
     { provide: DockerVolumesRepository, useValue: DockerVolumesRepository.live },
   ],
   exports: [
@@ -36,6 +38,7 @@ import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-norm
     DockerNetworksRepository,
     DockerVolumesRepository,
     DockerImagesRepository,
+    DockerImageLifecycleRepository,
   ],
 })
 export class DockerRepositoriesModule {}

@@ -36,7 +36,7 @@ import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { projects, services } from "@deployer/nest-schema/global/project/deployment";
 import { deployments } from "@deployer/nest-schema/global/runtime/deployment";
 import { dockerRuntimeActivities } from "@deployer/nest-schema/global/runtime/docker-runtime-activity";
-import { dockerImageSecurityLifecycle, dockerImageSecurityScanHistory, dockerImageSecurityScans } from "@deployer/nest-schema/global/runtime/docker-security-scan";
+import { dockerImageSecurityScanHistory, dockerImageSecurityScans } from "@deployer/nest-schema/global/runtime/docker-security-scan";
 import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
 
 import { isRecord } from "@deployer/type-guards"
@@ -79,6 +79,11 @@ import {
   type DockerVolumesRepositoryShape,
 } from "../volumes/docker-volumes.repository";
 
+import { RuntimeDatabasePort, RuntimeDb } from "../../../../core/database/runtime-db";
+import {
+  DockerImageLifecycleRepository,
+  type DockerImageLifecycleRepositoryShape,
+} from "../images/lifecycle/docker-image-lifecycle.repository";
 import { computeScanHash, isMissingScanTableError, toPersistedScan } from "../images/security/scan-storage";
 import type {
   ResolvedImageSecurityScan,
@@ -169,6 +174,7 @@ export class DockerRepository {
     @Inject(DockerNetworksRepository) private readonly networks: DockerNetworksRepositoryShape = DockerNetworksRepository.live,
     @Inject(DockerVolumesRepository) private readonly volumes: DockerVolumesRepositoryShape = DockerVolumesRepository.live,
     @Inject(DockerImagesRepository) private readonly images: DockerImagesRepositoryShape = DockerImagesRepository.live,
+    @Inject(DockerImageLifecycleRepository) private readonly lifecycle: DockerImageLifecycleRepositoryShape = DockerImageLifecycleRepository.live,
   ) {
     this.scanner = new DockerImageScannerService(dockerEngine, scannerPool, dockerHost, {
       read: (identifiers) => this.readPersistedImageSecurityScan(identifiers),
@@ -1258,13 +1264,10 @@ export class DockerRepository {
         .filter((id) => id.length > 0),
     )];
 
-    let aliveRows: { imageIdentifierNormalized: string }[] = [];
+    let aliveIdentifiers: string[];
 
     try {
-      aliveRows = await this.globalDatabaseService.db
-        .select({ imageIdentifierNormalized: dockerImageSecurityLifecycle.imageIdentifierNormalized })
-        .from(dockerImageSecurityLifecycle)
-        .where(eq(dockerImageSecurityLifecycle.lifecycleState, "alive"));
+      aliveIdentifiers = await this.runOnDatabase(this.lifecycle.listAlive());
     } catch (error: unknown) {
       if (!isMissingScanTableError(error)) {
         throw error;
@@ -1275,23 +1278,13 @@ export class DockerRepository {
     }
 
     const activeSet = new Set(normalizedActive);
-    const toMarkDeleted = aliveRows
-      .map((row) => row.imageIdentifierNormalized)
-      .filter((identifier) => !activeSet.has(identifier));
+    const toMarkDeleted = aliveIdentifiers.filter((identifier) => !activeSet.has(identifier));
 
     if (toMarkDeleted.length === 0) {
       return;
     }
 
-    const now = new Date();
-    await this.globalDatabaseService.db
-      .update(dockerImageSecurityLifecycle)
-      .set({
-        lifecycleState: "deleted",
-        deletedAt: now,
-        updatedAt: now,
-      })
-      .where(inArray(dockerImageSecurityLifecycle.imageIdentifierNormalized, toMarkDeleted));
+    await this.runOnDatabase(this.lifecycle.markDeleted(toMarkDeleted));
 
     for (const deletedIdentifier of toMarkDeleted) {
       await this.emitImageLifecycleRuntimeEvent("delete", "image_deleted", {
@@ -1422,81 +1415,17 @@ export class DockerRepository {
       };
     }
 
-    const now = new Date();
-
-    const existing = await this.globalDatabaseService.db
-      .select({
-        imageIdentifierNormalized: dockerImageSecurityLifecycle.imageIdentifierNormalized,
-        currentGeneration: dockerImageSecurityLifecycle.currentGeneration,
-        lifecycleState: dockerImageSecurityLifecycle.lifecycleState,
-      })
-      .from(dockerImageSecurityLifecycle)
-      .where(eq(dockerImageSecurityLifecycle.imageIdentifierNormalized, normalizedIdentifier))
-      .limit(1)
-      .then((rows) => (rows[0] ?? null));
-
-    if (!existing) {
-      await this.globalDatabaseService.db
-        .insert(dockerImageSecurityLifecycle)
-        .values({
-          imageIdentifierNormalized: normalizedIdentifier,
-          currentGeneration: 1,
-          lifecycleState: "alive",
-          firstSeenAt: now,
-          lastSeenAt: now,
-          deletedAt: null,
-          revivedAt: null,
-          createdAt: now,
-          updatedAt: now,
-        });
-      await this.emitImageLifecycleRuntimeEvent("create", "image_created", {
+    const alive = await this.runOnDatabase(this.lifecycle.ensureAlive(normalizedIdentifier));
+    if (alive.event !== null) {
+      await this.emitImageLifecycleRuntimeEvent("create", alive.event, {
         imageIdentifierNormalized: normalizedIdentifier,
       });
-
-      return {
-        imageIdentifierNormalized: normalizedIdentifier,
-        imageGeneration: 1,
-        revived: false,
-      };
     }
-
-    if (existing.lifecycleState === "deleted") {
-      const nextGeneration = existing.currentGeneration + 1;
-      await this.globalDatabaseService.db
-        .update(dockerImageSecurityLifecycle)
-        .set({
-          currentGeneration: nextGeneration,
-          lifecycleState: "alive",
-          lastSeenAt: now,
-          deletedAt: null,
-          revivedAt: now,
-          updatedAt: now,
-        })
-        .where(eq(dockerImageSecurityLifecycle.imageIdentifierNormalized, normalizedIdentifier));
-      await this.emitImageLifecycleRuntimeEvent("create", "image_revived", {
-        imageIdentifierNormalized: normalizedIdentifier,
-      });
-
-      return {
-        imageIdentifierNormalized: normalizedIdentifier,
-        imageGeneration: nextGeneration,
-        revived: true,
-      };
-    }
-
-    await this.globalDatabaseService.db
-      .update(dockerImageSecurityLifecycle)
-      .set({
-        lifecycleState: "alive",
-        lastSeenAt: now,
-        updatedAt: now,
-      })
-      .where(eq(dockerImageSecurityLifecycle.imageIdentifierNormalized, normalizedIdentifier));
 
     return {
       imageIdentifierNormalized: normalizedIdentifier,
-      imageGeneration: existing.currentGeneration,
-      revived: false,
+      imageGeneration: alive.imageGeneration,
+      revived: alive.revived,
     };
   }
 
@@ -1712,6 +1641,16 @@ export class DockerRepository {
 
       this.warnMissingDockerSecurityScanTableOnce();
     }
+  }
+
+  /** Run a lifecycle query against the shared runtime database the Nest module owns. */
+  private runOnDatabase<A, E>(effect: Effect.Effect<A, E, RuntimeDb | RuntimeDatabasePort>): Promise<A> {
+    return runPromiseUnwrapped(
+      effect.pipe(
+        Effect.provideService(RuntimeDb, RuntimeDb.live),
+        Effect.provideService(RuntimeDatabasePort, this.globalDatabaseService),
+      ),
+    );
   }
 
   private warnMissingDockerSecurityScanTableOnce(): void {
