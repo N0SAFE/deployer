@@ -59,9 +59,16 @@ import {
 } from "../images/engine/docker-image-reference";
 import {
   DockerImagesRepository,
+  ImageNotFound,
   type DockerImagesRepositoryShape,
 } from "../images/engine/docker-images.repository";
 import { deriveRegistries } from "../images/engine/docker-registries";
+import {
+  buildImageInspectDetail,
+  containersUsingImage,
+  identifyInspectedImage,
+  scanTargetsOf,
+} from "../images/engine/image-inspect-detail";
 import { DockerImageScannerService } from "../images/security/docker-image-scanner.service";
 import {
   buildScanEvent,
@@ -411,104 +418,21 @@ export class DockerRepository {
     const inspect = await this.inspectImageWithCandidates(imageId);
 
     const generatedAt = new Date().toISOString();
-    const inspectId = typeof inspect.Id === "string" && inspect.Id.length > 0 ? inspect.Id : imageId;
-    const repoTags = toStringArray(inspect.RepoTags as string | string[] | undefined)
-      .filter((tag) => tag !== "<none>:<none>");
-    const repoDigests = toStringArray(inspect.RepoDigests);
-    const resolvedPrimaryTag = resolvePrimaryImageTag(repoTags, repoDigests);
-    const fallbackRepository = buildFallbackImageRepository(inspectId);
-    const fallbackRegistry = "local";
-    const primaryTag = resolvedPrimaryTag ?? `${fallbackRegistry}/${fallbackRepository}`;
-    const parsedPrimary = resolvedPrimaryTag
-      ? parseRegistryAndRepository(primaryTag)
-      : { registry: fallbackRegistry, repository: fallbackRepository, tag: null };
-    const repository = parsedPrimary.repository === "library/unknown"
-      ? fallbackRepository
-      : parsedPrimary.repository;
-    const labels = isRecord(inspect.Config) && isRecord(inspect.Config.Labels)
-      ? inspect.Config.Labels
-      : {};
-
-    const rootFs =
-      typeof inspect.RootFS === "object" && inspect.RootFS !== null
-        ? isRecord(inspect.RootFS) ? inspect.RootFS : {}
-        : {};
-
-    const config =
-      typeof inspect.Config === "object" && inspect.Config !== null
-        ? isRecord(inspect.Config) ? inspect.Config : {}
-        : {};
-
-    const createdAt =
-      typeof inspect.Created === "string" && !Number.isNaN(Date.parse(inspect.Created))
-        ? new Date(inspect.Created).toISOString()
-        : generatedAt;
-
-    const layers = toStringArray(rootFs.Layers as string | string[] | undefined).map((layerId, index) => ({
-      id: layerId,
-      instruction: `LAYER ${String(index + 1)}`,
-      size: "unknown",
-      createdAt,
-    }));
+    const identity = identifyInspectedImage(inspect, imageId);
 
     const rawContainers = await this.listRawContainers();
-    const usedByContainerIds = rawContainers
-      .filter((container) => {
-        const containerImageId = container.ImageID ?? "";
-        const containerImageName = container.Image ?? "";
+    const securityScan = await this.scanner.resolveImageVulnerabilities(
+      identity.inspectId,
+      scanTargetsOf(identity),
+      { allowFreshScan: false },
+    );
 
-        if (containerImageId.length > 0 && containerImageId === inspectId) {
-          return true;
-        }
-
-        return repoTags.includes(containerImageName);
-      })
-      .map((container) => container.Id)
-      .filter((id) => id.length > 0);
-
-    const vulnerabilityScanTargets = [inspectId, ...repoTags]
-      .map((candidate) => candidate.trim())
-      .filter((candidate, index, all) => candidate.length > 0 && all.indexOf(candidate) === index);
-
-    const securityScan = await this.scanner.resolveImageVulnerabilities(inspectId, vulnerabilityScanTargets, {
-      allowFreshScan: false,
-    });
-
-    return dockerImageInspectDetailSchema.parse({
-      imageId: inspectId,
+    return buildImageInspectDetail({
+      inspect,
+      identity,
       generatedAt,
-      registry: parsedPrimary.registry,
-      repository,
-      tag: parsedPrimary.tag,
-      digest: normalizeImageDigest(repoDigests[0] ?? null),
-      sizeBytes: typeof inspect.Size === "number" ? inspect.Size : null,
-      createdAt,
-      lastSeenAt: generatedAt,
-      labels,
-      architecture: typeof inspect.Architecture === "string" ? inspect.Architecture : null,
-      os: typeof inspect.Os === "string" ? inspect.Os : null,
-      variant: typeof inspect.Variant === "string" ? inspect.Variant : null,
-      author: typeof inspect.Author === "string" ? inspect.Author : null,
-      comment: typeof inspect.Comment === "string" ? inspect.Comment : null,
-      dockerVersion: typeof inspect.DockerVersion === "string" ? inspect.DockerVersion : null,
-      rootFsType: typeof rootFs.Type === "string" ? rootFs.Type : null,
-      repoTags,
-      repoDigests,
-      layers,
-      vulnerabilities: securityScan.vulnerabilities,
-      scanSummary: securityScan.scanSummary ?? null,
-      usedByContainerIds: [...new Set(usedByContainerIds)],
-      runtimeConfig: {
-        env: toStringArray(config.Env),
-        exposedPorts:
-          typeof config.ExposedPorts === "object" && config.ExposedPorts !== null
-            ? Object.keys(config.ExposedPorts)
-            : [],
-        workingDir: typeof config.WorkingDir === "string" ? config.WorkingDir : null,
-        user: typeof config.User === "string" && config.User.length > 0 ? config.User : null,
-        entrypoint: toStringArray(config.Entrypoint),
-        command: toStringArray(config.Cmd),
-      },
+      usedByContainerIds: containersUsingImage(rawContainers, identity),
+      securityScan,
     });
   }
 
@@ -888,25 +812,16 @@ export class DockerRepository {
 
 
   private async inspectImageWithCandidates(imageId: string): Promise<DockerodeImageInspect> {
-    const candidates = buildImageInspectCandidates(imageId);
-
-    for (const candidate of candidates) {
-      const raw = await this.inspectImageOrNull(candidate);
-      const parsed = dockerodeImageInspectSchema.safeParse(raw);
-      if (parsed.success) return parsed.data;
+    try {
+      return await runPromiseUnwrapped(
+        this.images.inspectResolved(imageId).pipe(Effect.provideService(DockerEngine, this.dockerEngine)),
+      );
+    } catch (error: unknown) {
+      if (error instanceof ImageNotFound) {
+        throw new NotFoundException(`Image '${imageId}' not found`);
+      }
+      throw error;
     }
-
-    const images = await runPromiseUnwrapped(this.dockerEngine.images.list());
-
-    const resolvedCandidates = buildImageInspectCandidatesFromImageList(imageId, images);
-
-    for (const candidate of resolvedCandidates) {
-      const raw = await this.inspectImageOrNull(candidate);
-      const parsed = dockerodeImageInspectSchema.safeParse(raw);
-      if (parsed.success) return parsed.data;
-    }
-
-    throw new NotFoundException(`Image '${imageId}' not found`);
   }
 
   /** The engine's description of an image, or null when it cannot be inspected (missing or engine error). */
