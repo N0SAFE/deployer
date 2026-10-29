@@ -8,5 +8,5 @@ export default build({
     flat: true,
     target: 'bun',
     minify: true,
-    external: ['@orpc/contract', '@orpc/shared', 'zod'],
+    external: ['@orpc/client', '@orpc/contract', '@orpc/shared', 'zod'],
 })

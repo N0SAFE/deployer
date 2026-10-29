@@ -31,10 +31,11 @@
         "build:types": "bun --bun pkg-build --types"
     },
     "dependencies": {
+        "@deployer/orpc-utils": "*",
+        "@orpc/client": "catalog:orpc",
         "@orpc/contract": "catalog:orpc",
         "@orpc/openapi": "catalog:orpc",
         "@orpc/shared": "catalog:orpc",
-        "@deployer/orpc-utils": "*",
         "zod": "catalog:utils"
     },
     "peerDependencies": {

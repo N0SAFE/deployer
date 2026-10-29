@@ -8,3 +8,4 @@ export const meshAgentContract = {
 export type MeshAgentContract = typeof meshAgentContract;
 
 export * from "./directory";
+export * from "./errors";

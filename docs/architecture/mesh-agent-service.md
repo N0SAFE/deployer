@@ -128,7 +128,7 @@ modules/mesh/
   services/      directory, broker, key-hints, node-identity, mesh-clock
   repositories/  directory.repository.ts           the in-memory directory
   rules/         resolve-replica, lease-policy, lease-token   pure functions
-  adapters/      link-pool.ts                      pooled RPC connections
+  (the pooled RPC link and its connection pool live in packages/mesh/client: @deployer/mesh-client)
   testing/       mesh.fixtures.ts
 ```
 
