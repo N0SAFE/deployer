@@ -1,7 +1,9 @@
-import { DockerNotFound, DockerUnavailable } from "@deployer/docker";
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
-import { DockerRepository } from "./docker.repository";
+
+import { DockerNotFound, DockerUnavailable } from "@deployer/docker";
+
+import { DockerImageScannerService } from "./docker-image-scanner.service";
 
 type ScannerKind = "trivy" | "grype" | "dive";
 
@@ -41,13 +43,7 @@ function createCleanupHarness(params: {
     cleanStaleImages: Effect.void,
   };
 
-  const repository = new DockerRepository(
-    engine as never,
-    scannerPool as never,
-    {} as never,
-    {} as never,
-    {} as never,
-  );
+  const repository = new DockerImageScannerService(engine as never, scannerPool, {} as never, {} as never);
 
   const delaySpy = vi.fn(async () => undefined);
   (repository as unknown as { delay: (ms: number) => Promise<void> }).delay = delaySpy;
@@ -67,7 +63,7 @@ function createCleanupHarness(params: {
   };
 }
 
-describe("DockerRepository scanner container cleanup", () => {
+describe("DockerImageScannerService scanner container cleanup", () => {
   it("returns when container is already gone after standard remove", async () => {
     const harness = createCleanupHarness({
       inspectImpl: async () => {
