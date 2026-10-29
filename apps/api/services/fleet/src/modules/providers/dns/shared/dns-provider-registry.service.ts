@@ -1,93 +1,110 @@
-import { FleetInvalid } from "../../../../core/fleet.errors";
 /**
  * DNS Provider Registry
  *
  * The public API for DNS provider operations: callers invoke ONE shared
  * method and the registry resolves the right provider adapter by type.
+ *
+ * The adapters are Effect services; `registered` is the one place that names them, so a second
+ * provider is one more entry there and nothing else changes.
  */
-import { Injectable, Logger } from "@nestjs/common";
+import { serviceOver, type Over, type RequirementsOf } from "@deployer/effect-core";
+import { Context, Effect } from "effect";
+
+import { FleetInvalid } from "@/core/fleet.errors";
+import {
+    CloudflareDnsProviderService,
+    type CloudflareDnsProviderServiceShape,
+} from "../cloudflare/services/cloudflare-dns-provider.service";
 import type {
     CreateDnsRecordInput,
     DnsProvider,
     DnsProviderAccountRef,
-    DnsProviderRecord,
-    DnsProviderZone,
 } from "./dns-provider.interface";
 
-/**
- * Multi-provider injection token.
- *
- * A `Symbol`, not the `"DNS_PROVIDERS"` string this used to be: a plain string constant
- * is not a key Nest's provider union recognises, so a multi-bound entry carrying it is
- * awkward to type. The string form was declared and never used, which is exactly why
- * nobody noticed.
- *
- * Kept in step with `apps/api`'s copy — the two tiers must agree on the token or the
- * same module file behaves differently depending on which service loads it.
- */
-export const DNS_PROVIDERS = Symbol("DNS_PROVIDERS");
+/** The adapters, by the lowercase provider type the registry dispatches on. */
+type RegisteredProviders = { readonly cloudflare: CloudflareDnsProviderServiceShape };
 
-@Injectable()
-export class DnsProviderRegistryService {
-    private readonly logger = new Logger(DnsProviderRegistryService.name);
-    private readonly providersByType: Map<string, DnsProvider>;
+/** What a provider adapter reads from the Effect context when one of its methods runs. */
+type ProviderRequirements = RequirementsOf<CloudflareDnsProviderServiceShape>;
 
-    constructor(providers: DnsProvider[]) {
-        this.providersByType = new Map(
-            providers.map((provider) => [provider.providerType.toLowerCase(), provider]),
-        );
-    }
+function makeDnsProviderRegistryService(registered: RegisteredProviders) {
+    const providersByType = new Map<string, DnsProvider<ProviderRequirements>>(Object.entries(registered));
 
-    /** Registered provider types (e.g. ["cloudflare"]). */
-    listProviderTypes(): string[] {
-        return [...this.providersByType.keys()];
-    }
+    /** Resolve the adapter for a provider type, or fail. */
+    const getProvider = (providerType: string) => {
+        const provider = providersByType.get(providerType.toLowerCase());
+        return provider
+            ? Effect.succeed(provider)
+            : Effect.fail(new FleetInvalid({ reason: `Unsupported DNS provider '${providerType}'` }));
+    };
 
-    /** Resolve the adapter for a provider type, or throw. */
-    getProvider(providerType: string): DnsProvider {
-        const provider = this.providersByType.get(providerType.toLowerCase());
-        if (!provider) {
-            throw new FleetInvalid({ reason: `Unsupported DNS provider '${providerType}'` });
-        }
-        return provider;
-    }
+    return {
+        /** Registered provider types (e.g. ["cloudflare"]). */
+        listProviderTypes: () => Effect.succeed([...providersByType.keys()]),
 
-    // ─── Shared dispatch methods ────────────────────────────────────────────
+        // ─── Shared dispatch methods ────────────────────────────────────────────
 
-    async listAccounts(providerType: string): Promise<DnsProviderAccountRef[]> {
-        return this.getProvider(providerType).listAccounts();
-    }
+        listAccounts: Effect.fn("DnsProviderRegistryService.listAccounts")(function* (providerType: string) {
+            const provider = yield* getProvider(providerType);
+            return yield* provider.listAccounts();
+        }),
 
-    async listZones(account: DnsProviderAccountRef): Promise<DnsProviderZone[]> {
-        return this.getProvider(account.providerType).listZones(account);
-    }
+        listZones: Effect.fn("DnsProviderRegistryService.listZones")(function* (account: DnsProviderAccountRef) {
+            const provider = yield* getProvider(account.providerType);
+            return yield* provider.listZones(account);
+        }),
 
-    async findZoneForHostname(
-        account: DnsProviderAccountRef,
-        hostname: string,
-    ): Promise<{ zoneId: string; zoneName: string } | null> {
-        return this.getProvider(account.providerType).findZoneForHostname(account, hostname);
-    }
+        findZoneForHostname: Effect.fn("DnsProviderRegistryService.findZoneForHostname")(function* (
+            account: DnsProviderAccountRef,
+            hostname: string,
+        ) {
+            const provider = yield* getProvider(account.providerType);
+            return yield* provider.findZoneForHostname(account, hostname);
+        }),
 
-    async listRecords(
-        account: DnsProviderAccountRef,
-        zoneId: string,
-    ): Promise<DnsProviderRecord[]> {
-        return this.getProvider(account.providerType).listRecords(account, zoneId);
-    }
+        listRecords: Effect.fn("DnsProviderRegistryService.listRecords")(function* (
+            account: DnsProviderAccountRef,
+            zoneId: string,
+        ) {
+            const provider = yield* getProvider(account.providerType);
+            return yield* provider.listRecords(account, zoneId);
+        }),
 
-    async createRecord(
-        account: DnsProviderAccountRef,
-        input: CreateDnsRecordInput,
-    ): Promise<DnsProviderRecord> {
-        return this.getProvider(account.providerType).createRecord(account, input);
-    }
+        createRecord: Effect.fn("DnsProviderRegistryService.createRecord")(function* (
+            account: DnsProviderAccountRef,
+            input: CreateDnsRecordInput,
+        ) {
+            const provider = yield* getProvider(account.providerType);
+            return yield* provider.createRecord(account, input);
+        }),
 
-    async deleteRecord(
-        account: DnsProviderAccountRef,
-        zoneId: string,
-        recordId: string,
-    ): Promise<void> {
-        return this.getProvider(account.providerType).deleteRecord(account, zoneId, recordId);
-    }
+        deleteRecord: Effect.fn("DnsProviderRegistryService.deleteRecord")(function* (
+            account: DnsProviderAccountRef,
+            zoneId: string,
+            recordId: string,
+        ) {
+            const provider = yield* getProvider(account.providerType);
+            return yield* provider.deleteRecord(account, zoneId, recordId);
+        }),
+    };
 }
+
+export type DnsProviderRegistryServiceShape = Over<ReturnType<typeof makeDnsProviderRegistryService>, CloudflareDnsProviderService>;
+
+/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
+export class DnsProviderRegistryService extends Context.Service<DnsProviderRegistryService, DnsProviderRegistryServiceShape>()(
+    "fleet/DnsProviderRegistryService",
+) {
+    /** The adapters are yielded when a method runs, so this is a constant the module provides with `useValue`. */
+    static readonly live: DnsProviderRegistryServiceShape = serviceOver(
+        Effect.all({ cloudflare: CloudflareDnsProviderService }),
+        makeDnsProviderRegistryService,
+    );
+}
+
+/**
+ * Everything a registry method leaves open in the Effect context: the registry itself, its adapters
+ * and what they read. A consumer that hands the registry over with its requirements settled
+ * (`bindServices`) names this.
+ */
+export type DnsProviderRegistryServices = DnsProviderRegistryService | RequirementsOf<DnsProviderRegistryServiceShape>;

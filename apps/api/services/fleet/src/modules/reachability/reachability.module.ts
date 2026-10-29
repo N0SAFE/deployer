@@ -23,11 +23,9 @@ import { PublicEdgeService } from "@deployer/shared/core/modules/reachability/se
 import { ReachabilityService } from "@deployer/shared/core/modules/reachability/services/reachability.service";
 import { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
 import { TraefikCoreModule } from "@deployer/shared/core/modules/traefik/traefik.module";
-import { DnsProviderRegistryService } from "@/modules/providers/dns/shared/dns-provider-registry.service";
 import { ProvidersModule } from "@/modules/providers/providers.module";
 import { ReachabilityController } from "./controllers/reachability.controller";
 import {
-    DnsProvidersPort,
     EdgeProvidersPort,
     EgressPort,
     HostnamesPort,
@@ -54,7 +52,6 @@ export class ReachabilityModule extends createModuleContext(
             { provide: MeshAgentPort, useExisting: MeshAgentClient },
             { provide: HostnamesPort, useExisting: HostnameService },
             { provide: TraefikRefresherPort, useExisting: TraefikConfigRefresher },
-            { provide: DnsProvidersPort, useExisting: DnsProviderRegistryService },
             { provide: ReachabilityCorePort, useExisting: ReachabilityService },
             { provide: PublicAccessPointPort, useExisting: PublicAccessPointService },
             { provide: EgressPort, useExisting: EgressService },

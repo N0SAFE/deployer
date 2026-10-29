@@ -1,8 +1,32 @@
-import { describe, expect, it, vi } from "vitest";
+import { provideTo } from "@deployer/effect-core";
 import { BadGatewayException } from "@nestjs/common";
+import { Cause, Effect, Exit } from "effect";
+import { describe, expect, it, vi } from "vitest";
 import { CloudflareTunnelService } from "./cloudflare-tunnel.service";
-import type { CloudflareAppService, DnsProviderAppView } from "./cloudflare-app.service";
-import type { CloudflareDnsProviderService } from "./cloudflare-dns-provider.service";
+import { CloudflareAppService, type CloudflareAppServiceShape, type DnsProviderAppView } from "./cloudflare-app.service";
+import { CloudflareDnsProviderService, type CloudflareDnsProviderServiceShape } from "./cloudflare-dns-provider.service";
+
+/** Run an Effect and reject with the ORIGINAL failure, so `rejects.toBeInstanceOf(...)` reads the real error. */
+async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
+	const exit = await Effect.runPromiseExit(effect);
+	if (Exit.isSuccess(exit)) return exit.value;
+	throw Cause.squash(exit.cause);
+}
+
+/**
+ * The tunnel service over fake collaborators: the app service hands out the fake SDK client, the DNS
+ * provider is never reached. The fakes need nothing from the context, so the leftover requirement is
+ * discharged.
+ */
+function tunnelServiceOver(appService: object) {
+	const over = provideTo(CloudflareTunnelService.live, (effect) =>
+		effect.pipe(
+			Effect.provideService(CloudflareAppService, appService as unknown as CloudflareAppServiceShape),
+			Effect.provideService(CloudflareDnsProviderService, {} as unknown as CloudflareDnsProviderServiceShape),
+		) as Effect.Effect<unknown>,
+	);
+	return over;
+}
 
 /**
  * `configureIngress` — the tunnel's public-hostname → service routing rules.
@@ -48,19 +72,17 @@ function fakeClient(existingRules: IngressRule[]) {
 function buildService(existingRules: IngressRule[]) {
 	const { client, update } = fakeClient(existingRules);
 	const appService = {
-		getAppView: vi.fn().mockResolvedValue({
-			isActive: true,
-			name: "main",
-			features: { dnsManagement: true, tunnelManagement: true },
-		} satisfies Partial<DnsProviderAppView>),
-		buildClient: vi.fn().mockResolvedValue(client),
-		getOrResolveAccountId: vi.fn().mockResolvedValue("account-1"),
+		getAppView: vi.fn(() =>
+			Effect.succeed({
+				isActive: true,
+				name: "main",
+				features: { dnsManagement: true, tunnelManagement: true },
+			} satisfies Partial<DnsProviderAppView>),
+		),
+		buildClient: vi.fn(() => Effect.succeed(client)),
+		getOrResolveAccountId: vi.fn(() => Effect.succeed("account-1")),
 	};
-	const service = new CloudflareTunnelService(
-		appService as unknown as CloudflareAppService,
-		{} as unknown as CloudflareDnsProviderService,
-	);
-	return { service, update };
+	return { service: tunnelServiceOver(appService), update };
 }
 
 /** The `ingress` array the service actually sent to Cloudflare. */
@@ -73,7 +95,7 @@ describe("CloudflareTunnelService.configureIngress", () => {
 	it("ends with a catch-all rule so Cloudflare accepts the configuration", async () => {
 		const { service, update } = buildService([]);
 
-		await service.configureIngress("p1", "tunnel-1", "node.example.com", "http://traefik:80");
+		await run(service.configureIngress("p1", "tunnel-1", "node.example.com", "http://traefik:80"));
 
 		const ingress = sentIngress(update);
 		const last = ingress[ingress.length - 1];
@@ -86,7 +108,7 @@ describe("CloudflareTunnelService.configureIngress", () => {
 	it("routes the requested hostname to the requested service", async () => {
 		const { service, update } = buildService([]);
 
-		await service.configureIngress("p1", "tunnel-1", "node.example.com", "http://traefik:80");
+		await run(service.configureIngress("p1", "tunnel-1", "node.example.com", "http://traefik:80"));
 
 		expect(sentIngress(update)).toEqual([
 			{ hostname: "node.example.com", service: "http://traefik:80" },
@@ -100,7 +122,7 @@ describe("CloudflareTunnelService.configureIngress", () => {
 			{ service: "http_status:404" },
 		]);
 
-		await service.configureIngress("p1", "tunnel-1", "node.example.com", "http://traefik:80");
+		await run(service.configureIngress("p1", "tunnel-1", "node.example.com", "http://traefik:80"));
 
 		const ingress = sentIngress(update);
 		expect(ingress).toContainEqual({ hostname: "other.example.com", service: "http://other:80" });
@@ -114,7 +136,7 @@ describe("CloudflareTunnelService.configureIngress", () => {
 			{ service: "http_status:404" },
 		]);
 
-		await service.configureIngress("p1", "tunnel-1", "node.example.com", "http://traefik:80");
+		await run(service.configureIngress("p1", "tunnel-1", "node.example.com", "http://traefik:80"));
 
 		const mine = sentIngress(update).filter((rule) => rule.hostname === "node.example.com");
 		expect(mine).toEqual([{ hostname: "node.example.com", service: "http://traefik:80" }]);
@@ -122,12 +144,12 @@ describe("CloudflareTunnelService.configureIngress", () => {
 
 	it("is idempotent when applied twice", async () => {
 		const first = await buildService([]);
-		await first.service.configureIngress("p1", "tunnel-1", "node.example.com", "http://traefik:80");
+		await run(first.service.configureIngress("p1", "tunnel-1", "node.example.com", "http://traefik:80"));
 		const once = sentIngress(first.update);
 
 		// Feed the first result back in, as a second run would find it.
 		const second = await buildService(once);
-		await second.service.configureIngress("p1", "tunnel-1", "node.example.com", "http://traefik:80");
+		await run(second.service.configureIngress("p1", "tunnel-1", "node.example.com", "http://traefik:80"));
 
 		expect(sentIngress(second.update)).toEqual(once);
 	});
@@ -139,11 +161,11 @@ describe("CloudflareTunnelService.configureIngress", () => {
 		// Previously the SDK error escaped untranslated and the caller saw a bare
 		// 500 with no reason attached.
 		await expect(
-			service.configureIngress("p1", "tunnel-1", "node.example.com", "http://traefik:80"),
+			run(service.configureIngress("p1", "tunnel-1", "node.example.com", "http://traefik:80")),
 		).rejects.toBeInstanceOf(BadGatewayException);
 
 		await expect(
-			service.configureIngress("p1", "tunnel-1", "node.example.com", "http://traefik:80"),
+			run(service.configureIngress("p1", "tunnel-1", "node.example.com", "http://traefik:80")),
 		).rejects.toThrow(/node\.example\.com/);
 	});
 });
@@ -172,27 +194,23 @@ describe("CloudflareTunnelService.createTunnel idempotency", () => {
 			},
 		};
 		const appService = {
-			getAppView: vi.fn().mockResolvedValue({
-				isActive: true,
-				name: "main",
-				features: { dnsManagement: true, tunnelManagement: true },
-			} satisfies Partial<DnsProviderAppView>),
-			buildClient: vi.fn().mockResolvedValue(client),
-			getOrResolveAccountId: vi.fn().mockResolvedValue("account-1"),
-		};
-		return {
-			service: new CloudflareTunnelService(
-				appService as unknown as CloudflareAppService,
-				{} as unknown as CloudflareDnsProviderService,
+			getAppView: vi.fn(() =>
+				Effect.succeed({
+					isActive: true,
+					name: "main",
+					features: { dnsManagement: true, tunnelManagement: true },
+				} satisfies Partial<DnsProviderAppView>),
 			),
-			create,
+			buildClient: vi.fn(() => Effect.succeed(client)),
+			getOrResolveAccountId: vi.fn(() => Effect.succeed("account-1")),
 		};
+		return { service: tunnelServiceOver(appService), create };
 	}
 
 	it("creates a tunnel when the name is free", async () => {
 		const { service, create } = buildAppService(null);
 
-		const result = await service.createTunnel("p1", { name: "deployer-abc12345" });
+		const result = await run(service.createTunnel("p1", { name: "deployer-abc12345" }));
 
 		expect(create).toHaveBeenCalledTimes(1);
 		expect(result.tunnel.id).toBe("brand-new");
@@ -201,7 +219,7 @@ describe("CloudflareTunnelService.createTunnel idempotency", () => {
 	it("reuses an existing tunnel of the same name instead of colliding", async () => {
 		const { service, create } = buildAppService({ id: "orphan-1", name: "deployer-abc12345" });
 
-		const result = await service.createTunnel("p1", { name: "deployer-abc12345" });
+		const result = await run(service.createTunnel("p1", { name: "deployer-abc12345" }));
 
 		// The whole point: no second create, so Cloudflare cannot answer 1013.
 		expect(create).not.toHaveBeenCalled();

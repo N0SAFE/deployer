@@ -5,15 +5,21 @@
  * tunnels. Provider-agnostic CRUD lives in
  * `dns/shared/controllers/dns-providers.controller.ts`.
  */
-import { Controller, Logger } from "@nestjs/common";
+import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
 import { providersContract } from "@deployer/fleet-contracts";
+import { EffectContextOf } from "@deployer/nest-effect";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
+import { Effect } from "effect";
+
+import { attempt } from "@/core/effects";
+import { serve } from "@/core/orpc/serve";
+import { TunnelEdge } from "@/core/ports/tunnel-edge.port";
+import { ProvidersModule } from "@/modules/providers/providers.module";
 import { CloudflareAppService } from "../services/cloudflare-app.service";
 import { CloudflareDnsProviderService } from "../services/cloudflare-dns-provider.service";
 import { CloudflareTunnelService } from "../services/cloudflare-tunnel.service";
-import { CloudflareTunnelEdgeProvider } from "@/modules/providers/edge/cloudflare-tunnel/cloudflare-tunnel.edge-provider";
 
 /**
  * Normalize a DNS record content value for comparison: trimmed, lowercased,
@@ -24,34 +30,29 @@ function normalizeRecordContent(content: string): string {
     return content.trim().toLowerCase().replace(/\.$/, "");
 }
 
+const describe = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
 @Controller()
 export class CloudflareController {
-    private readonly logger = new Logger(CloudflareController.name);
-
-    constructor(
-        private readonly appService: CloudflareAppService,
-        private readonly dnsService: CloudflareDnsProviderService,
-        private readonly tunnelService: CloudflareTunnelService,
-        private readonly tunnelEdge: CloudflareTunnelEdgeProvider,
-    ) {}
-
     // ─── Cloudflare Zones & Records ─────────────────────────────────────────
 
     @Implement(providersContract.dns.cloudflare.listZones)
     listZones() {
         return implement(providersContract.dns.cloudflare.listZones)
             .use(requireAuth())
-            .handler(async ({ input }) => {
-                try {
-                    const zones = await this.dnsService.listZones({
-                        providerId: input.params.providerId,
-                        providerType: "cloudflare",
-                    });
-                    return { zones, error: null };
-                } catch (err) {
-                    this.logger.warn(`cloudflareListZones failed for provider ${input.params.providerId}: ${err instanceof Error ? err.message : String(err)}`);
-                    return { zones: [], error: err instanceof Error ? err.message : "Unknown Cloudflare error" };
-                }
+            .use(ProvidersModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const dns = yield* CloudflareDnsProviderService;
+                return yield* serve(context)(
+                    dns.listZones({ providerId: input.params.providerId, providerType: "cloudflare" }).pipe(
+                        Effect.map((zones) => ({ zones, error: null as string | null })),
+                        Effect.catch((err) =>
+                            Effect.logWarning(`cloudflareListZones failed for provider ${input.params.providerId}: ${describe(err)}`).pipe(
+                                Effect.as({ zones: [], error: err instanceof Error ? err.message : "Unknown Cloudflare error" }),
+                            ),
+                        ),
+                    ),
+                );
             });
     }
 
@@ -59,44 +60,47 @@ export class CloudflareController {
     listRecords() {
         return implement(providersContract.dns.cloudflare.listRecords)
             .use(requireAuth())
-            .handler(async ({ input }) => {
+            .use(ProvidersModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const dns = yield* CloudflareDnsProviderService;
                 const { params } = input;
                 const query = input.query ?? {};
-                try {
-                    const result = await this.dnsService.listRecordsFiltered(
-                        { providerId: params.providerId, providerType: "cloudflare" },
-                        params.zoneId,
-                        {
+                return yield* serve(context)(
+                    dns
+                        .listRecordsFiltered({ providerId: params.providerId, providerType: "cloudflare" }, params.zoneId, {
                             type: query.type,
                             name: query.name,
                             page: query.page,
                             pageSize: query.pageSize,
-                        },
-                    );
-                    return {
-                        records: result.records.map((r) => ({
-                            id: r.id,
-                            type: r.type,
-                            name: r.name,
-                            content: r.content,
-                            ttl: r.ttl,
-                            proxied: r.proxied,
-                        })),
-                        total: result.total,
-                        page: result.page,
-                        pageSize: result.pageSize,
-                        error: null,
-                    };
-                } catch (err) {
-                    this.logger.warn(`cloudflareListRecords failed for provider ${params.providerId}: ${err instanceof Error ? err.message : String(err)}`);
-                    return {
-                        records: [],
-                        total: 0,
-                        page: query.page ?? 1,
-                        pageSize: query.pageSize ?? 50,
-                        error: err instanceof Error ? err.message : "Unknown Cloudflare error",
-                    };
-                }
+                        })
+                        .pipe(
+                            Effect.map((result) => ({
+                                records: result.records.map((r) => ({
+                                    id: r.id,
+                                    type: r.type,
+                                    name: r.name,
+                                    content: r.content,
+                                    ttl: r.ttl,
+                                    proxied: r.proxied,
+                                })),
+                                total: result.total,
+                                page: result.page,
+                                pageSize: result.pageSize,
+                                error: null as string | null,
+                            })),
+                            Effect.catch((err) =>
+                                Effect.logWarning(`cloudflareListRecords failed for provider ${params.providerId}: ${describe(err)}`).pipe(
+                                    Effect.as({
+                                        records: [],
+                                        total: 0,
+                                        page: query.page ?? 1,
+                                        pageSize: query.pageSize ?? 50,
+                                        error: err instanceof Error ? err.message : "Unknown Cloudflare error",
+                                    }),
+                                ),
+                            ),
+                        ),
+                );
             });
     }
 
@@ -104,48 +108,57 @@ export class CloudflareController {
     checkRecord() {
         return implement(providersContract.dns.cloudflare.checkRecord)
             .use(requireAuth())
-            .handler(async ({ input }) => {
+            .use(ProvidersModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const apps = yield* CloudflareAppService;
                 const { params } = input;
                 const query = input.query ?? {};
-                try {
-                    const client = await this.appService.buildClient(params.providerId);
-                    const page = await client.dns.records.list({
-                        zone_id: params.zoneId,
-                        name: { exact: query.recordName },
-                        ...(query.recordType ? { type: query.recordType } : {}),
-                    });
-                    const records = page.result.map((r) => ({
-                        id: r.id,
-                        type: r.type,
-                        name: r.name,
-                        content: Array.isArray(r.content) ? r.content.join(" ") : (r.content ?? ""),
-                        ttl: r.ttl ?? 1,
-                        proxied: r.proxied ?? false,
-                    }));
-                    // CF-7: real content matching, not a "any record exists" no-op.
-                    // `matchContent` is only meaningful when a content criterion
-                    // was provided; normalized (trimmed, lowercased, trailing
-                    // dot stripped — CNAME values end with one from the API).
-                    const contentCriterion = query.recordContent?.trim().toLowerCase();
-                    const matchContent =
-                        contentCriterion && contentCriterion.length > 0
-                            ? records.some((r) => normalizeRecordContent(r.content) === contentCriterion)
-                            : null;
-                    return {
-                        exists: records.length > 0,
-                        records,
-                        matchContent,
-                        error: null,
-                    };
-                } catch (err) {
-                    this.logger.warn(`cloudflareCheckRecord failed for provider ${params.providerId}: ${err instanceof Error ? err.message : String(err)}`);
-                    return {
-                        exists: false,
-                        records: [],
-                        matchContent: null,
-                        error: err instanceof Error ? err.message : "Unknown Cloudflare error",
-                    };
-                }
+                return yield* serve(context)(
+                    Effect.gen(function* () {
+                        const client = yield* apps.buildClient(params.providerId);
+                        const page = yield* attempt(() =>
+                            client.dns.records.list({
+                                zone_id: params.zoneId,
+                                name: { exact: query.recordName },
+                                ...(query.recordType ? { type: query.recordType } : {}),
+                            }),
+                        );
+                        const records = page.result.map((r) => ({
+                            id: r.id,
+                            type: r.type,
+                            name: r.name,
+                            content: Array.isArray(r.content) ? r.content.join(" ") : (r.content ?? ""),
+                            ttl: r.ttl ?? 1,
+                            proxied: r.proxied ?? false,
+                        }));
+                        // CF-7: real content matching, not a "any record exists" no-op.
+                        // `matchContent` is only meaningful when a content criterion
+                        // was provided; normalized (trimmed, lowercased, trailing
+                        // dot stripped — CNAME values end with one from the API).
+                        const contentCriterion = query.recordContent?.trim().toLowerCase();
+                        const matchContent =
+                            contentCriterion && contentCriterion.length > 0
+                                ? records.some((r) => normalizeRecordContent(r.content) === contentCriterion)
+                                : null;
+                        return {
+                            exists: records.length > 0,
+                            records,
+                            matchContent,
+                            error: null as string | null,
+                        };
+                    }).pipe(
+                        Effect.catch((err) =>
+                            Effect.logWarning(`cloudflareCheckRecord failed for provider ${params.providerId}: ${describe(err)}`).pipe(
+                                Effect.as({
+                                    exists: false,
+                                    records: [],
+                                    matchContent: null,
+                                    error: err instanceof Error ? err.message : "Unknown Cloudflare error",
+                                }),
+                            ),
+                        ),
+                    ),
+                );
             });
     }
 
@@ -153,18 +166,22 @@ export class CloudflareController {
     createRecord() {
         return implement(providersContract.dns.cloudflare.createRecord)
             .use(requireAuth())
-            .handler(async ({ input }) => {
+            .use(ProvidersModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const dns = yield* CloudflareDnsProviderService;
                 const { params, body } = input;
-                const record = await this.dnsService.createRecord(
-                    { providerId: params.providerId, providerType: "cloudflare" },
-                    {
-                        zoneId: params.zoneId,
-                        type: body.type,
-                        name: body.name,
-                        content: body.content,
-                        ttl: body.ttl,
-                        proxied: body.proxied,
-                    },
+                const record = yield* serve(context)(
+                    dns.createRecord(
+                        { providerId: params.providerId, providerType: "cloudflare" },
+                        {
+                            zoneId: params.zoneId,
+                            type: body.type,
+                            name: body.name,
+                            content: body.content,
+                            ttl: body.ttl,
+                            proxied: body.proxied,
+                        },
+                    ),
                 );
                 return {
                     id: record.id,
@@ -181,11 +198,15 @@ export class CloudflareController {
     deleteRecord() {
         return implement(providersContract.dns.cloudflare.deleteRecord)
             .use(requireAuth())
-            .handler(async ({ input }) => {
-                await this.dnsService.deleteRecord(
-                    { providerId: input.params.providerId, providerType: "cloudflare" },
-                    input.params.zoneId,
-                    input.params.id,
+            .use(ProvidersModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const dns = yield* CloudflareDnsProviderService;
+                yield* serve(context)(
+                    dns.deleteRecord(
+                        { providerId: input.params.providerId, providerType: "cloudflare" },
+                        input.params.zoneId,
+                        input.params.id,
+                    ),
                 );
                 return { success: true };
             });
@@ -197,8 +218,10 @@ export class CloudflareController {
     listTunnels() {
         return implement(providersContract.dns.cloudflare.listTunnels)
             .use(requireAuth())
-            .handler(async ({ input }) => {
-                return this.tunnelService.listTunnels(input.params.providerId);
+            .use(ProvidersModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const tunnels = yield* CloudflareTunnelService;
+                return yield* serve(context)(tunnels.listTunnels(input.params.providerId));
             });
     }
 
@@ -206,8 +229,10 @@ export class CloudflareController {
     getTunnel() {
         return implement(providersContract.dns.cloudflare.getTunnel)
             .use(requireAuth())
-            .handler(async ({ input }) => {
-                return this.tunnelService.getTunnel(input.params.providerId, input.params.id);
+            .use(ProvidersModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const tunnels = yield* CloudflareTunnelService;
+                return yield* serve(context)(tunnels.getTunnel(input.params.providerId, input.params.id));
             });
     }
 
@@ -215,8 +240,10 @@ export class CloudflareController {
     createTunnel() {
         return implement(providersContract.dns.cloudflare.createTunnel)
             .use(requireAuth())
-            .handler(async ({ input }) => {
-                return this.tunnelService.createTunnel(input.params.providerId, input.body);
+            .use(ProvidersModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const tunnels = yield* CloudflareTunnelService;
+                return yield* serve(context)(tunnels.createTunnel(input.params.providerId, input.body));
             });
     }
 
@@ -224,24 +251,31 @@ export class CloudflareController {
     deleteTunnel() {
         return implement(providersContract.dns.cloudflare.deleteTunnel)
             .use(requireAuth())
-            .handler(async ({ input }) => {
-                // When this is the STACK's tunnel, remove its wildcard CNAME too, and
-                // make the edge forget it so no dead tunnel id keeps claiming the
-                // public lane (the Ingress page then shows it as not provisioned).
-                const hostname = await this.tunnelEdge.stackWildcard(input.params.providerId, input.params.id);
-                const success = await this.tunnelService.deleteTunnel(input.params.providerId, input.params.id, { hostname });
-                if (success) {
-                    try {
-                        if (await this.tunnelEdge.forgetDeletedTunnel(input.params.providerId, input.params.id)) {
-                            this.logger.log(`Deleted tunnel ${input.params.id} was the stack's public edge — forgotten`);
+            .use(ProvidersModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const tunnels = yield* CloudflareTunnelService;
+                const tunnelEdge = yield* TunnelEdge;
+                const { providerId, id } = input.params;
+                return yield* serve(context)(
+                    Effect.gen(function* () {
+                        // When this is the STACK's tunnel, remove its wildcard CNAME too, and
+                        // make the edge forget it so no dead tunnel id keeps claiming the
+                        // public lane (the Ingress page then shows it as not provisioned).
+                        const hostname = yield* attempt(() => tunnelEdge.stackWildcard(providerId, id));
+                        const success = yield* tunnels.deleteTunnel(providerId, id, { hostname });
+                        if (success) {
+                            yield* attempt(() => tunnelEdge.forgetDeletedTunnel(providerId, id)).pipe(
+                                Effect.flatMap((forgotten) =>
+                                    forgotten
+                                        ? Effect.logInfo(`Deleted tunnel ${id} was the stack's public edge — forgotten`)
+                                        : Effect.void,
+                                ),
+                                Effect.catch((err) => Effect.logWarning(`Edge cleanup for tunnel ${id} failed: ${describe(err)}`)),
+                            );
                         }
-                    } catch (err) {
-                        this.logger.warn(
-                            `Edge cleanup for tunnel ${input.params.id} failed: ${err instanceof Error ? err.message : String(err)}`,
-                        );
-                    }
-                }
-                return { success };
+                        return { success };
+                    }),
+                );
             });
     }
 
@@ -249,8 +283,10 @@ export class CloudflareController {
     getTunnelToken() {
         return implement(providersContract.dns.cloudflare.getTunnelToken)
             .use(requireAuth())
-            .handler(async ({ input }) => {
-                return this.tunnelService.getTunnelToken(input.params.providerId, input.params.id);
+            .use(ProvidersModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const tunnels = yield* CloudflareTunnelService;
+                return yield* serve(context)(tunnels.getTunnelToken(input.params.providerId, input.params.id));
             });
     }
 }

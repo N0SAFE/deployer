@@ -15,7 +15,6 @@ import type { TraefikConfigRefresher } from "@deployer/shared/core/modules/traef
 import type { EdgeDnsServiceShape } from "./edge-dns.service";
 import { provideTo } from "@deployer/effect-core";
 import {
-	DnsProvidersPort,
 	EdgeProvidersPort,
 	HostnamesPort,
 	IngressLanesPort,
@@ -23,6 +22,7 @@ import {
 	PublicEdgePort,
 	TraefikRefresherPort,
 } from "../reachability.ports";
+import { DnsProviderRegistryService } from "@/modules/providers/dns/shared/dns-provider-registry.service";
 import { EdgeDnsService } from "./edge-dns.service";
 import { IngressEdgeService } from "./ingress-edge.service";
 
@@ -97,18 +97,20 @@ function setup(initial: IngressLanes = defaultIngressLanes()) {
 		revoke: vi.fn(() => Promise.resolve()),
 	} as unknown as MeshAgentClient;
 	const refresher = { refresh: vi.fn() } as unknown as TraefikConfigRefresher;
+	// The fakes need nothing from the context beyond what is provided here, so the DNS registry's
+	// adapter requirements are discharged.
 	const service = provideTo(IngressEdgeService.live, (effect) =>
-		effect.pipe(
+		(effect.pipe(
 			Effect.provideService(IngressLanesPort, lanesService as never),
 			Effect.provideService(EdgeProvidersPort, registry as never),
 			Effect.provideService(PublicEdgePort, publicEdge as never),
 			Effect.provideService(EdgeDnsService, dns as never),
-			// The fake DNS service reads no registry; the context only has to hold the port.
-			Effect.provideService(DnsProvidersPort, {} as never),
+			// The fake DNS service reads no registry; the context only has to hold the tag.
+			Effect.provideService(DnsProviderRegistryService, {} as never),
 			Effect.provideService(MeshAgentPort, mesh as never),
 			Effect.provideService(HostnamesPort, new EnvHostnameService(env) as never),
 			Effect.provideService(TraefikRefresherPort, refresher as never),
-		),
+		) as Effect.Effect<unknown>),
 	);
 	return { service, lanesService, tunnel, dns, mesh, refresher, order, getLanes: () => lanes };
 }

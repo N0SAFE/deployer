@@ -9,13 +9,15 @@
  * step, not an error.
  */
 
-import { serviceOver, type Over } from "@deployer/effect-core";
+import { bindServices, serviceOver, type Bound, type Over } from "@deployer/effect-core";
 import { Context, Effect } from "effect";
 
-import { attempt } from "../../../core/effects";
 import type { DnsProviderAccountRef } from "@/modules/providers/dns/shared/dns-provider.interface";
-import type { DnsProviderRegistryService } from "@/modules/providers/dns/shared/dns-provider-registry.service";
-import { DnsProvidersPort } from "../reachability.ports";
+import {
+	DnsProviderRegistryService,
+	type DnsProviderRegistryServices,
+	type DnsProviderRegistryServiceShape,
+} from "@/modules/providers/dns/shared/dns-provider-registry.service";
 import type { LaneDnsRecordPlan } from "./lane-dns-plan";
 
 export type LaneDnsResult = {
@@ -46,11 +48,19 @@ export type EdgeDnsServiceShape = {
 };
 
 /** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
-export class EdgeDnsService extends Context.Service<EdgeDnsService, Over<EdgeDnsServiceShape, DnsProvidersPort>>()("fleet/EdgeDnsService") {
-	/** The registry is yielded when a method runs; the last results live in one state shared by every call. */
+export class EdgeDnsService extends Context.Service<EdgeDnsService, Over<EdgeDnsServiceShape, DnsProviderRegistryServices>>()("fleet/EdgeDnsService") {
+	/**
+	 * The registry is yielded when a method runs, handed over with what its adapters read from the
+	 * context already settled; the last results live in one state shared by every call.
+	 */
 	static readonly live = (() => {
 		const state: EdgeDnsState = { lastResults: [] };
-		return serviceOver(DnsProvidersPort, (registry) => makeEdgeDnsService(registry, state));
+		return serviceOver(
+			Effect.gen(function* () {
+				return bindServices(yield* DnsProviderRegistryService, yield* Effect.context<DnsProviderRegistryServices>());
+			}),
+			(registry) => makeEdgeDnsService(registry, state),
+		);
 	})();
 
 }
@@ -58,18 +68,21 @@ export class EdgeDnsService extends Context.Service<EdgeDnsService, Over<EdgeDns
 /** What the last reconcile found, kept across calls. */
 type EdgeDnsState = { lastResults: LaneDnsResult[] };
 
-function makeEdgeDnsService(registry: DnsProviderRegistryService, state: EdgeDnsState): EdgeDnsServiceShape {
+/** The registry with every requirement of its methods settled. */
+type SettledRegistry = Bound<DnsProviderRegistryServiceShape, DnsProviderRegistryServices>;
+
+function makeEdgeDnsService(registry: SettledRegistry, state: EdgeDnsState): EdgeDnsServiceShape {
 
 	/** Find the account + zone serving `hostname`, trying `preferred` first. */
 	const locateZone = (hostname: string, preferred: string | null) =>
 		Effect.gen(function* () {
 			const accounts: DnsProviderAccountRef[] = [];
-			for (const type of registry.listProviderTypes()) {
-				accounts.push(...(yield* attempt(() => registry.listAccounts(type)).pipe(Effect.orElseSucceed(() => []))));
+			for (const type of yield* registry.listProviderTypes()) {
+				accounts.push(...(yield* registry.listAccounts(type).pipe(Effect.orElseSucceed((): DnsProviderAccountRef[] => []))));
 			}
 			accounts.sort((a, b) => Number(b.providerId === preferred) - Number(a.providerId === preferred));
 			for (const account of accounts) {
-				const zone = yield* attempt(() => registry.findZoneForHostname(account, hostname)).pipe(
+				const zone = yield* registry.findZoneForHostname(account, hostname).pipe(
 					Effect.orElseSucceed(() => null),
 				);
 				if (zone !== null) return { account, ...zone };
@@ -88,28 +101,26 @@ function makeEdgeDnsService(registry: DnsProviderRegistryService, state: EdgeDns
 					detail: `No configured DNS provider owns this zone — create ${plan.type} ${plan.name} → ${plan.contents.join(", ")} manually`,
 				};
 			}
-			const existing = (yield* attempt(() => registry.listRecords(zone.account, zone.zoneId))).filter(
+			const existing = (yield* registry.listRecords(zone.account, zone.zoneId)).filter(
 				(record) => record.name.toLowerCase() === plan.name.toLowerCase() && LANE_OWNED_TYPES.has(record.type),
 			);
 			for (const record of existing) {
 				const keep = record.type === plan.type && plan.contents.includes(record.content) && record.proxied === plan.proxied;
-				if (!keep) yield* attempt(() => registry.deleteRecord(zone.account, zone.zoneId, record.id));
+				if (!keep) yield* registry.deleteRecord(zone.account, zone.zoneId, record.id);
 			}
 			const present = new Set(
 				existing.filter((record) => record.type === plan.type && record.proxied === plan.proxied).map((record) => record.content),
 			);
 			for (const content of plan.contents) {
 				if (present.has(content)) continue;
-				yield* attempt(() =>
-					registry.createRecord(zone.account, {
-						zoneId: zone.zoneId,
-						type: plan.type,
-						name: plan.name,
-						content,
-						ttl: 1,
-						proxied: plan.proxied,
-					}),
-				);
+				yield* registry.createRecord(zone.account, {
+					zoneId: zone.zoneId,
+					type: plan.type,
+					name: plan.name,
+					content,
+					ttl: 1,
+					proxied: plan.proxied,
+				});
 			}
 			yield* Effect.logInfo(`DNS ${plan.type} ${plan.name} → ${plan.contents.join(", ")} (zone ${zone.zoneName})`);
 			return { ...base, status: "synced" as const, detail: null };
@@ -137,10 +148,10 @@ function makeEdgeDnsService(registry: DnsProviderRegistryService, state: EdgeDns
 			yield* Effect.gen(function* () {
 				const zone = yield* locateZone(name.replace(/^\*\./, ""), preferredProviderId);
 				if (zone === null) return;
-				const records = yield* attempt(() => registry.listRecords(zone.account, zone.zoneId));
+				const records = yield* registry.listRecords(zone.account, zone.zoneId);
 				for (const record of records) {
 					if (record.name.toLowerCase() === name.toLowerCase() && LANE_OWNED_TYPES.has(record.type)) {
-						yield* attempt(() => registry.deleteRecord(zone.account, zone.zoneId, record.id));
+						yield* registry.deleteRecord(zone.account, zone.zoneId, record.id);
 					}
 				}
 			}).pipe(Effect.catch((error) => Effect.logWarning(`DNS cleanup of ${name} failed: ${describe(error)}`)));

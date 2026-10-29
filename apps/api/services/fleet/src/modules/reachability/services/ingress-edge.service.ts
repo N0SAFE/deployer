@@ -43,7 +43,6 @@ import { Context, Effect } from "effect";
 import { attempt, attemptSync } from "../../../core/effects";
 import { FleetInvalid } from "../../../core/fleet.errors";
 import {
-	DnsProvidersPort,
 	EdgeProvidersPort,
 	HostnamesPort,
 	IngressLanesPort,
@@ -51,6 +50,7 @@ import {
 	PublicEdgePort,
 	TraefikRefresherPort,
 } from "../reachability.ports";
+import type { DnsProviderRegistryServices } from "@/modules/providers/dns/shared/dns-provider-registry.service";
 import { EdgeDnsService, type EdgeDnsServiceShape } from "./edge-dns.service";
 import { planLaneDnsRecords } from "./lane-dns-plan";
 
@@ -98,7 +98,7 @@ export class IngressEdgeService extends Context.Service<
 	IngressEdgeService,
 	Over<
 		IngressEdgeServiceShape,
-		IngressLanesPort | EdgeProvidersPort | PublicEdgePort | MeshAgentPort | HostnamesPort | TraefikRefresherPort | EdgeDnsService | DnsProvidersPort
+		IngressLanesPort | EdgeProvidersPort | PublicEdgePort | MeshAgentPort | HostnamesPort | TraefikRefresherPort | EdgeDnsService | DnsProviderRegistryServices
 	>
 >()(
 	"fleet/IngressEdgeService",
@@ -116,7 +116,7 @@ export class IngressEdgeService extends Context.Service<
 			const hostnames = yield* HostnamesPort;
 			const refresher = yield* TraefikRefresherPort;
 			// The DNS service reads its own registry from the context; hand it over with that settled.
-			const dns = bindServices(yield* EdgeDnsService, yield* Effect.context<DnsProvidersPort>());
+			const dns = bindServices(yield* EdgeDnsService, yield* Effect.context<DnsProviderRegistryServices>());
 			return { lanes, edges, publicEdge, mesh, hostnames, refresher, dns };
 		}),
 		makeIngressEdgeService,

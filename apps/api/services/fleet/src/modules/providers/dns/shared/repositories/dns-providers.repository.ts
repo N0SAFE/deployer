@@ -1,68 +1,79 @@
-import { Injectable } from "@nestjs/common";
 import { eq } from "drizzle-orm";
-import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/global/global-database.service";
+import { Context, Effect } from "effect";
 import { dnsProviders } from "@deployer/nest-schema/global/fleet/dns-providers";
+
+import { FleetDb } from "@/core/database/fleet-db";
 
 type DnsProviderRow = typeof dnsProviders.$inferSelect;
 type DnsProviderInsert = typeof dnsProviders.$inferInsert;
 
 /**
- * DnsProvidersRepository — the single data-access layer for `dns_providers`
- * rows. Extracted from CloudflareAppService, which was reaching into the DB
- * directly (violating the service → repository layering).
+ * The single data-access layer for `dns_providers` rows. Drizzle only: no constructor DI, every
+ * method yields `FleetDb` when it runs.
  */
-@Injectable()
-export class DnsProvidersRepository {
-    constructor(private readonly globalDatabaseService: GlobalDatabaseService) {}
+export class DnsProvidersStoreImpl {
+	/** Load a provider row by id. */
+	findById(providerId: string) {
+		return Effect.gen(function* () {
+			const database = yield* FleetDb;
+			return yield* database.use(async (db): Promise<DnsProviderRow | null> => {
+				const rows = await db.select().from(dnsProviders).where(eq(dnsProviders.id, providerId)).limit(1);
+				return rows[0] ?? null;
+			});
+		});
+	}
 
-    private get db() {
-        return this.globalDatabaseService.db;
-    }
+	/** List provider rows, optionally filtered by provider type. */
+	list(providerType?: string) {
+		return Effect.gen(function* () {
+			const database = yield* FleetDb;
+			return yield* database.use(async (db): Promise<DnsProviderRow[]> => {
+				const query = db.select().from(dnsProviders);
+				return providerType ? await query.where(eq(dnsProviders.providerType, providerType)) : await query;
+			});
+		});
+	}
 
-    /** Load a provider row by id. */
-    async findById(providerId: string): Promise<DnsProviderRow | null> {
-        const rows = await this.db
-            .select()
-            .from(dnsProviders)
-            .where(eq(dnsProviders.id, providerId))
-            .limit(1);
-        return rows[0] ?? null;
-    }
+	/** Create a provider row. */
+	create(values: DnsProviderInsert) {
+		return Effect.gen(function* () {
+			const database = yield* FleetDb;
+			return yield* database.use(async (db): Promise<DnsProviderRow | null> => {
+				const rows = await db.insert(dnsProviders).values(values).returning();
+				return rows[0] ?? null;
+			});
+		});
+	}
 
-    /** List provider rows, optionally filtered by provider type. */
-    async list(providerType?: string): Promise<DnsProviderRow[]> {
-        const query = this.db.select().from(dnsProviders);
-        return providerType
-            ? query.where(eq(dnsProviders.providerType, providerType))
-            : query;
-    }
+	/** Update a provider row by id. Returns the updated row or null. */
+	updateById(providerId: string, values: Partial<DnsProviderInsert>) {
+		return Effect.gen(function* () {
+			const database = yield* FleetDb;
+			return yield* database.use(async (db): Promise<DnsProviderRow | null> => {
+				const rows = await db.update(dnsProviders).set(values).where(eq(dnsProviders.id, providerId)).returning();
+				return rows[0] ?? null;
+			});
+		});
+	}
 
-    /** Create a provider row. */
-    async create(values: DnsProviderInsert): Promise<DnsProviderRow | null> {
-        const rows = await this.db
-            .insert(dnsProviders)
-            .values(values)
-            .returning();
-        return rows[0] ?? null;
-    }
+	/** Delete a provider row by id. */
+	deleteById(providerId: string) {
+		return Effect.gen(function* () {
+			const database = yield* FleetDb;
+			yield* database.use(async (db) => {
+				await db.delete(dnsProviders).where(eq(dnsProviders.id, providerId));
+			});
+		});
+	}
+}
 
-    /** Update a provider row by id. Returns the updated row or null. */
-    async updateById(
-        providerId: string,
-        values: Partial<typeof dnsProviders.$inferInsert>,
-    ): Promise<DnsProviderRow | null> {
-        const rows = await this.db
-            .update(dnsProviders)
-            .set(values)
-            .where(eq(dnsProviders.id, providerId))
-            .returning();
-        return rows[0] ?? null;
-    }
+/** The store's public surface is exactly the implementation's methods. */
+export type DnsProvidersStoreShape = DnsProvidersStoreImpl;
 
-    /** Delete a provider row by id. */
-    async deleteById(providerId: string): Promise<void> {
-        await this.db
-            .delete(dnsProviders)
-            .where(eq(dnsProviders.id, providerId));
-    }
+/** Effect key = NestJS token. */
+export class DnsProvidersStore extends Context.Service<DnsProvidersStore, DnsProvidersStoreShape>()(
+	"fleet/DnsProvidersStore",
+) {
+	/** Resolves the requirements the methods name when a call runs. */
+	static readonly live: DnsProvidersStoreShape = new DnsProvidersStoreImpl();
 }

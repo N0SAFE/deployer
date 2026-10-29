@@ -17,12 +17,15 @@
  * Cleanup deactivates the route, removes the DNS record, and marks the row
  * inactive.
  */
+import { EffectRuntime } from "@deployer/nest-effect";
 import { Injectable, Logger } from "@nestjs/common";
+import { Effect } from "effect";
 import { isIP } from "node:net";
 import { ReachabilityService } from "@deployer/shared/core/modules/reachability/services/reachability.service";
 import { PublicAccessPointService } from "@deployer/shared/core/modules/reachability/services/public-access-point.service";
 import { DomainRoutingService } from "@deployer/shared/core/modules/domain/services/domain-routing.service";
 import { CloudflareDnsProviderService } from "@/modules/providers/dns/cloudflare/services/cloudflare-dns-provider.service";
+import type { DnsProviderAccountRef, DnsProviderRecord } from "@/modules/providers/dns/shared/dns-provider.interface";
 import { PreviewEnvironmentRepository } from "../repositories/preview-environment.repository";
 
 export type PreviewProvisionInput = {
@@ -56,7 +59,7 @@ export class PreviewProvisioningService {
         private readonly previewEnvironmentRepository: PreviewEnvironmentRepository,
         private readonly reachabilityService: ReachabilityService,
         private readonly domainRoutingService: DomainRoutingService,
-        private readonly dnsProvidersService: CloudflareDnsProviderService,
+        private readonly runtime: EffectRuntime,
         private readonly publicAccessPointService: PublicAccessPointService,
     ) {}
 
@@ -79,27 +82,8 @@ export class PreviewProvisioningService {
 
         // 2. DNS record (only when a provider covers the host's zone).
         let dnsRecord: { name: string; type: string; content: string } | null = null;
-        let providerId: string | null = null;
         try {
-            const provider = await this.dnsProvidersService.findFirstActiveProvider();
-            if (provider) {
-                providerId = provider.providerId;
-                const zone = await this.dnsProvidersService.findZoneForHostname(provider, host);
-                if (zone) {
-                    const target = await this.resolveDnsTarget();
-                    if (target) {
-                        const created = await this.dnsProvidersService.createRecord(provider, {
-                            zoneId: zone.zoneId,
-                            type: target.kind === "hostname" ? "CNAME" : "A",
-                            name: host,
-                            content: target.value,
-                            ttl: 1,
-                            proxied: true,
-                        });
-                        dnsRecord = { name: created.name, type: created.type, content: created.content };
-                    }
-                }
-            }
+            dnsRecord = await this.runtime.runPromiseUnwrapped(this.createPreviewRecord(host));
         } catch (error) {
             this.logger.warn(`Preview DNS provisioning skipped for ${host}: ${error instanceof Error ? error.message : String(error)}`);
         }
@@ -147,17 +131,10 @@ export class PreviewProvisioningService {
         // Remove the DNS record if a provider covers the zone.
         let dnsRecord: { name: string; type: string; content: string } | null = null;
         try {
-            const provider = await this.dnsProvidersService.findFirstActiveProvider();
-            if (provider) {
-                const zone = await this.dnsProvidersService.findZoneForHostname(provider, host);
-                if (zone) {
-                    const records = await this.dnsProvidersService.listRecords(provider, zone.zoneId);
-                    const target = records.find((r) => r.name === host);
-                    if (target) {
-                        dnsRecord = { name: target.name, type: target.type, content: target.content };
-                        await this.dnsProvidersService.deleteRecord(provider, zone.zoneId, target.id);
-                    }
-                }
+            const found = await this.runtime.runPromiseUnwrapped(this.findPreviewRecord(host));
+            if (found) {
+                dnsRecord = { name: found.record.name, type: found.record.type, content: found.record.content };
+                await this.runtime.runPromiseUnwrapped(this.deletePreviewRecord(found));
             }
         } catch (error) {
             this.logger.warn(`Preview DNS lookup during cleanup failed for ${host}: ${error instanceof Error ? error.message : String(error)}`);
@@ -178,6 +155,53 @@ export class PreviewProvisioningService {
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
+
+    /**
+     * Create the preview host's record on the first DNS provider account whose zone covers it.
+     * Nothing is created (null) when no account, no zone or no DNS target is available.
+     */
+    private createPreviewRecord(host: string) {
+        const resolveDnsTarget = () => this.resolveDnsTarget();
+        return Effect.gen(function* () {
+            const dns = yield* CloudflareDnsProviderService;
+            const provider = yield* dns.findFirstActiveProvider();
+            if (!provider) return null;
+            const zone = yield* dns.findZoneForHostname(provider, host);
+            if (!zone) return null;
+            const target = yield* Effect.tryPromise(resolveDnsTarget);
+            if (!target) return null;
+            const created = yield* dns.createRecord(provider, {
+                zoneId: zone.zoneId,
+                type: target.kind === "hostname" ? "CNAME" : "A",
+                name: host,
+                content: target.value,
+                ttl: 1,
+                proxied: true,
+            });
+            return { name: created.name, type: created.type, content: created.content };
+        });
+    }
+
+    /** The preview host's record, with the account and zone holding it, when a DNS provider covers its zone. */
+    private findPreviewRecord(host: string) {
+        return Effect.gen(function* () {
+            const dns = yield* CloudflareDnsProviderService;
+            const provider = yield* dns.findFirstActiveProvider();
+            if (!provider) return null;
+            const zone = yield* dns.findZoneForHostname(provider, host);
+            if (!zone) return null;
+            const records: DnsProviderRecord[] = yield* dns.listRecords(provider, zone.zoneId);
+            const record = records.find((r) => r.name === host);
+            return record ? { provider, zoneId: zone.zoneId, record } : null;
+        });
+    }
+
+    private deletePreviewRecord(found: { provider: DnsProviderAccountRef; zoneId: string; record: DnsProviderRecord }) {
+        return Effect.gen(function* () {
+            const dns = yield* CloudflareDnsProviderService;
+            yield* dns.deleteRecord(found.provider, found.zoneId, found.record.id);
+        });
+    }
 
     /**
      * Deactivate an expired preview row (TTL scheduler). Deactivates the

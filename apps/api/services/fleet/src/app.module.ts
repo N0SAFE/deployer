@@ -13,6 +13,8 @@ import { registerSchemaCodecs } from "@deployer/shared/config/drizzle/schema-cod
 import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
 import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
+import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
+import { DatabasePort } from "./core/database/database.port";
 import { AuthModule } from "@deployer/shared/core/modules/auth/auth.module";
 import { createBetterAuth } from "@deployer/shared/config/auth/auth";
 
@@ -60,9 +62,9 @@ registerSchemaCodecs();
  * Owns: cluster, fleet, providers, provider-schema, reachability, platform.
  *
  * ── WHAT A SERVICE ROOT MODULE CONTAINS ─────────────────────────────────────
- * Imports only. No controllers, no providers: a domain module owns those, and a
- * root module that also declared some would be a second place to look for what
- * this app serves.
+ * Imports only, plus the one provider that is the app's own: the Effect key of the shared
+ * database. No controllers: a domain module owns those, and a root module that also declared
+ * some would be a second place to look for what this app serves.
  *
  * ── THE SHARED IMPORTS, AND WHY EACH IS HERE ────────────────────────────────
  *   EnvModule, DatabaseModule   configuration + the pool
@@ -134,5 +136,7 @@ registerSchemaCodecs();
 		ProviderSchemaModule,
 		ReachabilityModule,
 	],
+	// The Effect key of the shared database, read by `FleetDb` (`core/database/fleet-db.ts`).
+	providers: [{ provide: DatabasePort, useExisting: GlobalDatabaseService }],
 })
 export class FleetServiceModule {}

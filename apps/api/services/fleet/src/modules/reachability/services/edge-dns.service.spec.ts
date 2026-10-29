@@ -2,11 +2,10 @@ import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
 
-import type { DnsProviderRegistryService } from "@/modules/providers/dns/shared/dns-provider-registry.service";
+import { DnsProviderRegistryService, type DnsProviderRegistryServiceShape } from "@/modules/providers/dns/shared/dns-provider-registry.service";
 import type { DnsProviderRecord } from "@/modules/providers/dns/shared/dns-provider.interface";
 
 import { provideTo } from "@deployer/effect-core";
-import { DnsProvidersPort } from "../reachability.ports";
 import { EdgeDnsService } from "./edge-dns.service";
 import { isPubliclyResolvable, planLaneDnsRecords } from "./lane-dns-plan";
 
@@ -43,19 +42,19 @@ function registry(records: DnsProviderRecord[], zoneFor: string | null = "exampl
 	const created: unknown[] = [];
 	const deleted: string[] = [];
 	const service = {
-		listProviderTypes: () => ["cloudflare"],
-		listAccounts: vi.fn(() => Promise.resolve([{ providerId: "p1", providerType: "cloudflare" }])),
-		findZoneForHostname: vi.fn(() => Promise.resolve(zoneFor === null ? null : { zoneId: "z1", zoneName: zoneFor })),
-		listRecords: vi.fn(() => Promise.resolve(records)),
+		listProviderTypes: () => Effect.succeed(["cloudflare"]),
+		listAccounts: vi.fn(() => Effect.succeed([{ providerId: "p1", providerType: "cloudflare" }])),
+		findZoneForHostname: vi.fn(() => Effect.succeed(zoneFor === null ? null : { zoneId: "z1", zoneName: zoneFor })),
+		listRecords: vi.fn(() => Effect.succeed(records)),
 		createRecord: vi.fn((_account: unknown, input: unknown) => {
 			created.push(input);
-			return Promise.resolve({} as DnsProviderRecord);
+			return Effect.succeed({} as DnsProviderRecord);
 		}),
 		deleteRecord: vi.fn((_account: unknown, _zone: string, id: string) => {
 			deleted.push(id);
-			return Promise.resolve();
+			return Effect.void;
 		}),
-	} as unknown as DnsProviderRegistryService;
+	} as unknown as DnsProviderRegistryServiceShape;
 	return { service, created, deleted };
 }
 
@@ -70,8 +69,11 @@ const record = (id: string, type: string, content: string, proxied = false): Dns
 });
 
 /** The service over a fake registry. */
-const makeEdgeDnsService = (registry: DnsProviderRegistryService) =>
-	provideTo(EdgeDnsService.live, (effect) => effect.pipe(Effect.provideService(DnsProvidersPort, registry)));
+const makeEdgeDnsService = (registry: DnsProviderRegistryServiceShape) =>
+	// The fake registry reads nothing from the context, so the adapters' requirements are discharged.
+	provideTo(EdgeDnsService.live, (effect) =>
+		effect.pipe(Effect.provideService(DnsProviderRegistryService, registry)) as Effect.Effect<unknown>,
+	);
 
 describe("EdgeDnsService", () => {
 	const plan = { lane: "public" as const, name: "*.apps.example.com", type: "A" as const, contents: ["1.1.1.1", "2.2.2.2"], proxied: false, preferredAccountId: null };
@@ -93,7 +95,7 @@ describe("EdgeDnsService", () => {
 
 	it("reports provider failures per record instead of throwing", async () => {
 		const { service } = registry([]);
-		(service.listRecords as unknown as { mockRejectedValueOnce(e: Error): void }).mockRejectedValueOnce(new Error("rate limited"));
+		(service.listRecords as unknown as { mockReturnValueOnce(e: Effect.Effect<never, Error>): void }).mockReturnValueOnce(Effect.fail(new Error("rate limited")));
 		const dns = makeEdgeDnsService(service);
 		const [result] = await Effect.runPromise(dns.reconcile([plan]));
 		expect(result).toMatchObject({ status: "error", detail: "rate limited" });

@@ -5,9 +5,6 @@ import type { PlatformConfigService } from '@deployer/shared/core/modules/platfo
 import type { TraefikConfigRefresher } from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service'
 import { Context } from 'effect'
 
-import type { CloudflareAppService } from '@/modules/providers/dns/cloudflare/services/cloudflare-app.service'
-import type { CloudflareTunnelService } from '@/modules/providers/dns/cloudflare/services/cloudflare-tunnel.service'
-
 /**
  * What the managed-web service depends on, as Effect ports over Promise-based Nest providers
  * (registered in the module with `useExisting`).
@@ -28,14 +25,6 @@ export class SupervisorsPort extends Context.Service<
     SupervisorsPort,
     SupervisorOrchestratorShape
 >()('fleet/SupervisorsPort') {}
-export class WebTunnelPort extends Context.Service<
-    WebTunnelPort,
-    CloudflareTunnelService
->()('fleet/WebTunnelPort') {}
-export class CloudflareAppsPort extends Context.Service<
-    CloudflareAppsPort,
-    CloudflareAppService
->()('fleet/CloudflareAppsPort') {}
 export class PlatformRefresherPort extends Context.Service<
     PlatformRefresherPort,
     TraefikConfigRefresher

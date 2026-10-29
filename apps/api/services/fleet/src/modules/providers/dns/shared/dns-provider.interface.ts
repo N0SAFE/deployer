@@ -1,4 +1,5 @@
 import type { DnsRecordType } from "@deployer/contracts-common";
+import type { Effect } from "effect";
 
 /**
  * DNS Provider Interface — abstract contract every DNS provider adapter
@@ -38,34 +39,36 @@ export type CreateDnsRecordInput = {
     proxied?: boolean;
 }
 
-export type DnsProvider = {
-    /** Lowercase provider type key used for dispatch: "cloudflare", "route53", ... */
-    readonly providerType: string;
-
+/**
+ * What a DNS provider adapter answers, as Effects. `R` is what the adapter reads from the Effect
+ * context; the registry dispatches on the key the adapter is registered under, so the adapter carries
+ * no type key of its own.
+ */
+export type DnsProvider<R = never> = {
     /** Accounts this provider type knows about. */
-    listAccounts(): Promise<DnsProviderAccountRef[]>;
+    listAccounts(): Effect.Effect<DnsProviderAccountRef[], unknown, R>;
 
-    listZones(account: DnsProviderAccountRef): Promise<DnsProviderZone[]>;
+    listZones(account: DnsProviderAccountRef): Effect.Effect<DnsProviderZone[], unknown, R>;
 
     /** Find the zone whose name is the longest suffix of `hostname`. */
     findZoneForHostname(
         account: DnsProviderAccountRef,
         hostname: string,
-    ): Promise<{ zoneId: string; zoneName: string } | null>;
+    ): Effect.Effect<{ zoneId: string; zoneName: string } | null, unknown, R>;
 
     listRecords(
         account: DnsProviderAccountRef,
         zoneId: string,
-    ): Promise<DnsProviderRecord[]>;
+    ): Effect.Effect<DnsProviderRecord[], unknown, R>;
 
     createRecord(
         account: DnsProviderAccountRef,
         input: CreateDnsRecordInput,
-    ): Promise<DnsProviderRecord>;
+    ): Effect.Effect<DnsProviderRecord, unknown, R>;
 
     deleteRecord(
         account: DnsProviderAccountRef,
         zoneId: string,
         recordId: string,
-    ): Promise<void>;
+    ): Effect.Effect<void, unknown, R>;
 }

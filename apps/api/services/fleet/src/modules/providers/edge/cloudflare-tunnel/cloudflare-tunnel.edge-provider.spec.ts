@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PublicLane } from "@deployer/contracts-entities/entities/ingress/index";
 
@@ -5,7 +6,8 @@ import type { EnvService } from "@deployer/shared/config/env/env.module";
 import type { EdgeContext } from "@deployer/shared/core/modules/edge/edge-provider";
 import { EdgeProviderRegistry } from "@deployer/shared/core/modules/edge/edge-provider.registry";
 import type { EdgeStateStore } from "@deployer/shared/core/modules/edge/edge-state.store";
-import type { CloudflareTunnelService } from "../../dns/cloudflare/services/cloudflare-tunnel.service";
+import type { EffectRuntime } from "@deployer/nest-effect";
+import { CloudflareTunnelService, type CloudflareTunnelServiceShape } from "../../dns/cloudflare/services/cloudflare-tunnel.service";
 
 import { CLOUDFLARE_TUNNEL_EDGE_ID, CloudflareTunnelEdgeProvider } from "./cloudflare-tunnel.edge-provider";
 
@@ -32,14 +34,19 @@ function setup(initial: unknown = null) {
 		}),
 	} as unknown as EdgeStateStore;
 	const tunnels = {
-		createTunnel: vi.fn(() => Promise.resolve({ tunnel: { id: "tun-new" }, token: "tok-new" })),
-		configureIngress: vi.fn(() => Promise.resolve()),
-		deleteTunnel: vi.fn(() => Promise.resolve(true)),
-		getTunnelHealth: vi.fn(() => Promise.resolve({ status: "healthy", checkedAt: "", connections: 2, error: null })),
-	} as unknown as CloudflareTunnelService;
+		createTunnel: vi.fn(() => Effect.succeed({ tunnel: { id: "tun-new" }, token: "tok-new" })),
+		configureIngress: vi.fn(() => Effect.void),
+		deleteTunnel: vi.fn(() => Effect.succeed(true)),
+		getTunnelHealth: vi.fn(() => Effect.succeed({ status: "healthy", checkedAt: "", connections: 2, error: null })),
+	} as unknown as CloudflareTunnelServiceShape;
+	// The runtime the provider reaches its tunnel service through, over the fake.
+	const runtime = {
+		runPromiseUnwrapped: (effect: Effect.Effect<unknown, unknown, unknown>) =>
+			Effect.runPromise(effect.pipe(Effect.provideService(CloudflareTunnelService, tunnels)) as Effect.Effect<unknown>),
+	} as unknown as EffectRuntime;
 	const env = { get: vi.fn((key: string) => (key === "DEPLOYER_CLOUDFLARED_REPLICAS" ? 2 : "cloudflare/cloudflared:2025.1.0")) } as unknown as EnvService;
 	const registry = new EdgeProviderRegistry();
-	const provider = new CloudflareTunnelEdgeProvider(registry, tunnels, store, env);
+	const provider = new CloudflareTunnelEdgeProvider(registry, runtime, store, env);
 	return { provider, registry, tunnels, store, getState: () => state };
 }
 

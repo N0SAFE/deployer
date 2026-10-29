@@ -17,7 +17,10 @@
  *       cloudflare-tunnel/  registers itself into the core EdgeProviderRegistry
  *                           (the account-free `direct` edge is built into core/modules/edge)
  */
-import { Module, type FactoryProvider } from "@nestjs/common";
+import { createModuleContext } from "@deployer/nest-effect";
+import { CorePlatformIngressModule } from "@deployer/shared/core/modules/platform-ingress/platform-ingress.module";
+import { IngressLanesService } from "@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service";
+import { EdgeProviderRegistry } from "@deployer/shared/core/modules/edge/edge-provider.registry";
 import { GlobalDatabaseModule } from "@deployer/shared/core/modules/database/global/global-database.module";
 import { GitHubModule } from "@deployer/shared/core/modules/git/github/github.module";
 import { CoreReachabilityModule } from "@deployer/shared/core/modules/reachability/core-reachability.module";
@@ -33,12 +36,16 @@ import { GitlabSourceProviderService } from "./code/gitlab/services/gitlab-sourc
 import { UploadSourceProviderService } from "./code/upload/services/upload-source-provider.service";
 import { UploadBundleRegistryService } from "./code/upload/services/upload-bundle-registry.service";
 import { CustomSourceProviderService } from "./code/custom/services/custom-source-provider.service";
-import { DNS_PROVIDERS, DnsProviderRegistryService } from "./dns/shared/dns-provider-registry.service";
-import type { DnsProvider } from "./dns/shared/dns-provider.interface";
-import { DnsProvidersRepository } from "./dns/shared/repositories/dns-providers.repository";
+import { DnsProviderRegistryService } from "./dns/shared/dns-provider-registry.service";
+import { DnsProvidersStore } from "./dns/shared/repositories/dns-providers.repository";
 import { CloudflareAppService } from "./dns/cloudflare/services/cloudflare-app.service";
 import { CloudflareTunnelService } from "./dns/cloudflare/services/cloudflare-tunnel.service";
 import { CloudflareDnsProviderService } from "./dns/cloudflare/services/cloudflare-dns-provider.service";
+import { DatabasePort } from "@/core/database/database.port";
+import { FleetDb } from "@/core/database/fleet-db";
+import { EdgeProviders } from "@/core/ports/edge-providers.port";
+import { IngressLanes } from "@/core/ports/ingress-lanes.port";
+import { TunnelEdge } from "@/core/ports/tunnel-edge.port";
 import { CloudflareTunnelEdgeProvider } from "./edge/cloudflare-tunnel/cloudflare-tunnel.edge-provider";
 import { CoreEdgeModule } from "@deployer/shared/core/modules/edge/edge.module";
 // `GithubWebhookDispatchService` injects `DomainRoutingService`, which
@@ -63,7 +70,7 @@ import { GithubDeploymentRulesRepository } from "@deployer/shared/core/modules/g
 import { PreviewEnvironmentRepository } from "./code/github/repositories/preview-environment.repository";
 import { PreviewLifecycleEventService } from "./code/github/events/preview-lifecycle-event.service";
 
-@Module({
+export class ProvidersModule extends createModuleContext({
     imports: [
         GlobalDatabaseModule,
         GitHubModule,
@@ -75,6 +82,7 @@ import { PreviewLifecycleEventService } from "./code/github/events/preview-lifec
         TraefikCoreModule,
         CoreEdgeModule,
         CoreDomainModule,
+        CorePlatformIngressModule,
         EnvModule,
     ],
     controllers: [
@@ -106,31 +114,18 @@ import { PreviewLifecycleEventService } from "./code/github/events/preview-lifec
             useFactory: (providers: CodeProvider[]) => new CodeProviderRegistryService(providers),
             inject: [CodeProvider],
         },
-        // DNS providers — app model + registry + tunnel/zone services
-        DnsProvidersRepository,
-        CloudflareAppService,
-        CloudflareTunnelService,
-        CloudflareDnsProviderService,
-        // ── MULTI-TOKEN, SO A SECOND DNS PROVIDER IS ONE ARRAY ENTRY ────────
-        // Was a `useFactory` naming Cloudflare in both the body and `inject`, so a
-        // second provider meant editing this module twice. `DNS_PROVIDERS` is now the
-        // collection token and the registry receives the array — the same shape as
-        // `CodeProvider` above, and the same shape as `apps/api`'s copy.
-        //
-        // A factory array rather than `multi: true`: `@nestjs/common@11.2.7` does not
-        // declare `multi` on `Provider`, so the literal fails to compile even though the
-        // runtime supports it. Mirrored from `apps/api` deliberately — the two tiers
-        // must not drift on how a provider is registered.
-        {
-            provide: DNS_PROVIDERS,
-            useFactory: (cloudflare: CloudflareDnsProviderService): DnsProvider[] => [cloudflare],
-            inject: [CloudflareDnsProviderService],
-        } satisfies FactoryProvider,
-        {
-            provide: DnsProviderRegistryService,
-            useFactory: (providers: DnsProvider[]) => new DnsProviderRegistryService(providers),
-            inject: [DNS_PROVIDERS],
-        } satisfies FactoryProvider,
+        // DNS providers — Effect services over the fleet database and two shared platform services.
+        // Each is a constant (`useValue`); the 15 s state cache lives in `CloudflareAppService.live`.
+        { provide: FleetDb, useValue: FleetDb.live },
+        { provide: IngressLanes, useExisting: IngressLanesService },
+        { provide: EdgeProviders, useExisting: EdgeProviderRegistry },
+        { provide: TunnelEdge, useExisting: CloudflareTunnelEdgeProvider },
+        { provide: DnsProvidersStore, useValue: DnsProvidersStore.live },
+        { provide: CloudflareAppService, useValue: CloudflareAppService.live },
+        { provide: CloudflareTunnelService, useValue: CloudflareTunnelService.live },
+        { provide: CloudflareDnsProviderService, useValue: CloudflareDnsProviderService.live },
+        // A second DNS provider is one more entry in the registry's `Effect.all`, not a change here.
+        { provide: DnsProviderRegistryService, useValue: DnsProviderRegistryService.live },
         // Edge providers — register themselves into the core EdgeProviderRegistry
         CloudflareTunnelEdgeProvider,
         // GitHub webhook / preview stack
@@ -149,13 +144,8 @@ import { PreviewLifecycleEventService } from "./code/github/events/preview-lifec
     exports: [
         CodeProviderRegistryService,
         UploadBundleRegistryService,
-        DnsProviderRegistryService,
-        CloudflareAppService,
-        CloudflareTunnelService,
-        CloudflareDnsProviderService,
         GithubWebhookDispatchService,
         PreviewProvisioningService,
         PreviewLifecycleEventService,
     ],
-})
-export class ProvidersModule {}
+}, DatabasePort) {}

@@ -16,7 +16,9 @@ import { FleetInvalid } from "../../../../core/fleet.errors";
  * connector) and never reaches a client.
  */
 
+import { EffectRuntime } from "@deployer/nest-effect";
 import { Injectable, Logger } from "@nestjs/common";
+import { Effect } from "effect";
 import type {
 	EdgeProviderDescriptor,
 	EdgeStatus,
@@ -36,7 +38,7 @@ import type {
 import { EdgeProviderRegistry } from "@deployer/shared/core/modules/edge/edge-provider.registry";
 import { EdgeStateStore } from "@deployer/shared/core/modules/edge/edge-state.store";
 
-import { CloudflareTunnelService } from "../../dns/cloudflare/services/cloudflare-tunnel.service";
+import { CloudflareTunnelService, type CloudflareTunnelServiceShape } from "../../dns/cloudflare/services/cloudflare-tunnel.service";
 
 export const CLOUDFLARE_TUNNEL_EDGE_ID = "cloudflare-tunnel";
 
@@ -88,11 +90,24 @@ export class CloudflareTunnelEdgeProvider implements EdgeProvider {
 
 	constructor(
 		registry: EdgeProviderRegistry,
-		private readonly tunnels: CloudflareTunnelService,
+		private readonly runtime: EffectRuntime,
 		private readonly store: EdgeStateStore,
 		private readonly env: EnvService,
 	) {
 		registry.register(this);
+	}
+
+	/**
+	 * Run a tunnel operation at this class's Promise edge: the edge provider contract is Promise-based
+	 * (it belongs to `shared`), the tunnel service is an Effect service, and a failure rejects with the
+	 * original error.
+	 */
+	private tunnels<A, E, R>(use: (tunnels: CloudflareTunnelServiceShape) => Effect.Effect<A, E, R>): Promise<A> {
+		return this.runtime.runPromiseUnwrapped(
+			Effect.gen(function* () {
+				return yield* use(yield* CloudflareTunnelService);
+			}),
+		);
 	}
 
 	ingress(): EdgeIngressPlan {
@@ -124,19 +139,19 @@ export class CloudflareTunnelEdgeProvider implements EdgeProvider {
 			this.logger.log(`Creating the stack tunnel on Cloudflare account ${accountId}`);
 			// `createTunnel` adopts a tunnel this account already owns under the same
 			// name, so a retry after a partial failure does not create a second one.
-			const created = await this.tunnels.createTunnel(accountId, { name: ctx.resourceName });
+			const created = await this.tunnels((tunnels) => tunnels.createTunnel(accountId, { name: ctx.resourceName }));
 			state = { accountId, tunnelId: created.tunnel.id, token: created.token, wildcard };
 		}
 		await this.store.write(CLOUDFLARE_TUNNEL_EDGE_ID, stateSchema, { ...state, wildcard });
 		// ONE wildcard rule. No DNS here — that is the DNS plane's job (`dnsRecords`).
-		await this.tunnels.configureIngress(accountId, state.tunnelId, wildcard, ctx.ingressTarget);
+		await this.tunnels((tunnels) => tunnels.configureIngress(accountId, state.tunnelId, wildcard, ctx.ingressTarget));
 	}
 
 	async teardown(): Promise<void> {
 		const state = await this.state();
 		if (state === null) return;
 		// Provider first: forgetting the id first would orphan a tunnel nobody can name.
-		await this.tunnels.deleteTunnel(state.accountId, state.tunnelId);
+		await this.tunnels((tunnels) => tunnels.deleteTunnel(state.accountId, state.tunnelId));
 		await this.store.clear(CLOUDFLARE_TUNNEL_EDGE_ID);
 		this.logger.log(`Deleted stack tunnel ${state.tunnelId} (account ${state.accountId})`);
 	}
@@ -180,7 +195,7 @@ export class CloudflareTunnelEdgeProvider implements EdgeProvider {
 				resources: [],
 			};
 		}
-		const health = await this.tunnels.getTunnelHealth(state.accountId, state.tunnelId);
+		const health = await this.tunnels((tunnels) => tunnels.getTunnelHealth(state.accountId, state.tunnelId));
 		const mapped =
 			health.status === "healthy" ? "healthy" : health.status === "degraded" ? "degraded" : health.status === "unknown" ? "unknown" : "down";
 		return {

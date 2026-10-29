@@ -7,21 +7,19 @@ import type { PlatformConfigService } from "@deployer/shared/core/modules/platfo
 import { platformTraefikContainerName } from "@deployer/shared/core/modules/platform-ingress/services/platform-names";
 import { PLATFORM_MANAGED_WEB_SUPERVISOR_ID } from "@deployer/platform-supervisors";
 import type { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
-import { serviceOver, type Over } from "@deployer/effect-core";
+import { bindServices, serviceOver, type Bound, type Over, type RequirementsOf } from "@deployer/effect-core";
 import { Context, Effect } from "effect";
 
 import { attempt } from "../../../core/effects";
 import { FleetInvalid } from "../../../core/fleet.errors";
-import type { CloudflareAppService } from "@/modules/providers/dns/cloudflare/services/cloudflare-app.service";
-import type { CloudflareTunnelService } from "@/modules/providers/dns/cloudflare/services/cloudflare-tunnel.service";
+import { CloudflareAppService, type CloudflareAppServiceShape } from "@/modules/providers/dns/cloudflare/services/cloudflare-app.service";
+import { CloudflareTunnelService, type CloudflareTunnelServiceShape } from "@/modules/providers/dns/cloudflare/services/cloudflare-tunnel.service";
 import {
-	CloudflareAppsPort,
 	PlatformConfigPort,
 	PlatformEnvPort,
 	PlatformHostnamesPort,
 	PlatformRefresherPort,
 	SupervisorsPort,
-	WebTunnelPort,
 } from "../platform.ports";
 
 /**
@@ -69,30 +67,39 @@ export type PlatformManagedWebServiceShape = {
 	readonly disableTunnel: () => Effect.Effect<ManagedWebState, unknown>;
 };
 
+/** What the Cloudflare services leave open in the Effect context; settled once, when they are handed over. */
+type CloudflareRequirements = RequirementsOf<CloudflareTunnelServiceShape> | RequirementsOf<CloudflareAppServiceShape>;
+type SettledTunnels = Bound<CloudflareTunnelServiceShape, CloudflareRequirements>;
+type SettledApps = Bound<CloudflareAppServiceShape, CloudflareRequirements>;
+
 type Ports = {
 	readonly env: EnvService;
 	readonly hostnameService: HostnameService;
 	readonly platformConfig: PlatformConfigService;
 	readonly orchestrator: SupervisorOrchestratorShape;
-	readonly tunnelService: CloudflareTunnelService;
-	readonly cloudflareApps: CloudflareAppService;
+	readonly tunnelService: SettledTunnels;
+	readonly cloudflareApps: SettledApps;
 	readonly ingressRefresher: TraefikConfigRefresher;
 };
 
 /** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
-export class PlatformManagedWebService extends Context.Service<PlatformManagedWebService, Over<PlatformManagedWebServiceShape, PlatformEnvPort | PlatformHostnamesPort | PlatformConfigPort | SupervisorsPort | WebTunnelPort | CloudflareAppsPort | PlatformRefresherPort>>()(
+export class PlatformManagedWebService extends Context.Service<PlatformManagedWebService, Over<PlatformManagedWebServiceShape, PlatformEnvPort | PlatformHostnamesPort | PlatformConfigPort | SupervisorsPort | CloudflareTunnelService | CloudflareAppService | CloudflareRequirements | PlatformRefresherPort>>()(
 	"fleet/PlatformManagedWebService",
 ) {
 	/** The ports are yielded when a method runs, so this is a constant the module provides with `useValue`. */
 	static readonly live = serviceOver(
-		Effect.all({
-			env: PlatformEnvPort,
-			hostnameService: PlatformHostnamesPort,
-			platformConfig: PlatformConfigPort,
-			orchestrator: SupervisorsPort,
-			tunnelService: WebTunnelPort,
-			cloudflareApps: CloudflareAppsPort,
-			ingressRefresher: PlatformRefresherPort,
+		Effect.gen(function* () {
+			// The Cloudflare services read their own collaborators from the context; hand them over with that settled.
+			const settled = yield* Effect.context<CloudflareRequirements>();
+			return {
+				env: yield* PlatformEnvPort,
+				hostnameService: yield* PlatformHostnamesPort,
+				platformConfig: yield* PlatformConfigPort,
+				orchestrator: yield* SupervisorsPort,
+				tunnelService: bindServices(yield* CloudflareTunnelService, settled),
+				cloudflareApps: bindServices(yield* CloudflareAppService, settled),
+				ingressRefresher: yield* PlatformRefresherPort,
+			};
 		}),
 		makePlatformManagedWebService,
 	);
@@ -139,7 +146,7 @@ function makePlatformManagedWebService(ports: Ports): PlatformManagedWebServiceS
 		const explicit = process.env.CLOUDFLARE_WEB_TUNNEL_PROVIDER_ID?.trim();
 		if (explicit !== undefined && explicit !== "") return { providerId: explicit };
 
-		const apps = yield* attempt(() => cloudflareApps.listTunnelCapableApps());
+		const apps = yield* cloudflareApps.listTunnelCapableApps();
 		const first = apps[0];
 		if (first === undefined) {
 			return yield* new FleetInvalid({
@@ -151,7 +158,7 @@ function makePlatformManagedWebService(ports: Ports): PlatformManagedWebServiceS
 
 	/** Best-effort rollback of a tunnel that cannot be used: its failure is not worth reporting. */
 	const rollbackTunnel = (providerId: string, tunnelId: string, options?: { hostname: string }) =>
-		attempt(() => tunnelService.deleteTunnel(providerId, tunnelId, options)).pipe(Effect.ignore);
+		tunnelService.deleteTunnel(providerId, tunnelId, options).pipe(Effect.ignore);
 
 	return {
 		state,
@@ -182,7 +189,7 @@ function makePlatformManagedWebService(ports: Ports): PlatformManagedWebServiceS
 				.replace(/[^a-z0-9]+/gi, "-")
 				.replace(/^-+|-+$/g, "")
 				.slice(0, 32)}`;
-			const created = yield* attempt(() => tunnelService.createTunnel(provider.providerId, { name, hostname }));
+			const created = yield* tunnelService.createTunnel(provider.providerId, { name, hostname });
 			const tunnelHostname = created.hostname;
 			if (tunnelHostname === null) {
 				// No zone matched → no CNAME. Roll back the freshly created tunnel.
@@ -197,9 +204,7 @@ function makePlatformManagedWebService(ports: Ports): PlatformManagedWebServiceS
 			const service =
 				process.env.CLOUDFLARE_TUNNEL_SERVICE_URL?.trim() ||
 				`http://${platformTraefikContainerName(process.env.DEPLOYER_PREFIX)}:80`;
-			yield* attempt(() =>
-				tunnelService.configureIngress(provider.providerId, created.tunnel.id, tunnelHostname, service),
-			).pipe(
+			yield* tunnelService.configureIngress(provider.providerId, created.tunnel.id, tunnelHostname, service).pipe(
 				Effect.catch((err) =>
 					// Ingress is what makes the tunnel usable — roll the whole thing back and surface the failure.
 					rollbackTunnel(provider.providerId, created.tunnel.id, { hostname: tunnelHostname }).pipe(
@@ -229,9 +234,7 @@ function makePlatformManagedWebService(ports: Ports): PlatformManagedWebServiceS
 		disableTunnel: Effect.fn("PlatformManagedWebService.disableTunnel")(function* () {
 			const tunnel = yield* attempt(() => platformConfig.getManagedWebTunnel());
 			if (tunnel !== null) {
-				yield* attempt(() =>
-					tunnelService.deleteTunnel(tunnel.providerId, tunnel.tunnelId, { hostname: tunnel.hostname }),
-				).pipe(
+				yield* tunnelService.deleteTunnel(tunnel.providerId, tunnel.tunnelId, { hostname: tunnel.hostname }).pipe(
 					Effect.catch((err) =>
 						Effect.logWarning(`Web tunnel removal best-effort failed (${tunnel.tunnelId}): ${describe(err)}`),
 					),

@@ -9,8 +9,6 @@ import type { ReachabilityService } from '@deployer/shared/core/modules/reachabi
 import type { TraefikConfigRefresher } from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service'
 import { Context } from 'effect'
 
-import type { DnsProviderRegistryService } from '@/modules/providers/dns/shared/dns-provider-registry.service'
-
 /**
  * The shared platform services reachability depends on, as Effect ports.
  *
@@ -42,10 +40,6 @@ export class TraefikRefresherPort extends Context.Service<
     TraefikRefresherPort,
     TraefikConfigRefresher
 >()('fleet/TraefikRefresherPort') {}
-export class DnsProvidersPort extends Context.Service<
-    DnsProvidersPort,
-    DnsProviderRegistryService
->()('fleet/DnsProvidersPort') {}
 export class ReachabilityCorePort extends Context.Service<
     ReachabilityCorePort,
     ReachabilityService

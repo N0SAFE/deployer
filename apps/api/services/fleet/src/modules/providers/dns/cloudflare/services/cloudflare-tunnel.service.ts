@@ -1,17 +1,24 @@
-import { FleetInvalid, FleetNotFound } from "../../../../../core/fleet.errors";
 /**
  * Cloudflare Tunnel Service — tunnel management on a Cloudflare provider app.
  *
  * All operations require the provider app to be active AND have the
  * `tunnelManagement` feature enabled (checked at runtime). The Cloudflare
  * account id is resolved at runtime (never from env vars).
+ *
+ * The read operations answer `{ error }` instead of failing; the write operations fail with a
+ * `BadGatewayException` carrying Cloudflare's reason (kept as thrown, see `attempt`).
  */
-import { BadGatewayException, Injectable, Logger } from "@nestjs/common";
-import { Cloudflare } from "cloudflare";
+import { serviceOver, type Over } from "@deployer/effect-core";
+import { BadGatewayException } from "@nestjs/common";
+import type { Cloudflare } from "cloudflare";
 import type { Client } from "cloudflare/resources/zero-trust/tunnels/cloudflared/connections";
 import type { ConfigurationUpdateParams } from "cloudflare/resources/zero-trust/tunnels/cloudflared/configurations";
-import { CloudflareAppService, type DnsProviderAppView } from "./cloudflare-app.service";
-import { CloudflareDnsProviderService } from "./cloudflare-dns-provider.service";
+import { Context, Effect } from "effect";
+
+import { attempt } from "@/core/effects";
+import { FleetInvalid, FleetNotFound } from "@/core/fleet.errors";
+import { CloudflareAppService, type CloudflareAppServiceShape } from "./cloudflare-app.service";
+import { CloudflareDnsProviderService, type CloudflareDnsProviderServiceShape } from "./cloudflare-dns-provider.service";
 import { toCloudflareErrorMessage, toTunnelConnectionShape, toTunnelShape, type TunnelConnectionShape, type TunnelShape } from "./cloudflare.helpers";
 
 /**
@@ -40,52 +47,39 @@ type CloudflareIngressRule = {
  */
 const INGRESS_CATCH_ALL: CloudflareIngressRule = { service: "http_status:404" };
 
-@Injectable()
-export class CloudflareTunnelService {
-    private readonly logger = new Logger(CloudflareTunnelService.name);
+type Ports = {
+    readonly apps: CloudflareAppServiceShape;
+    readonly dns: CloudflareDnsProviderServiceShape;
+};
 
-    constructor(
-        private readonly appService: CloudflareAppService,
-        private readonly dnsService: CloudflareDnsProviderService,
-    ) {}
-
+function makeCloudflareTunnelService({ apps, dns }: Ports) {
     /** App view with the tunnelManagement feature gate applied. */
-    private async requireTunnelApp(providerId: string): Promise<DnsProviderAppView> {
-        const app = await this.appService.getAppView(providerId);
-        if (!app) throw new FleetNotFound({ reason: `DNS provider not found: ${providerId}` });
-        if (!app.isActive) throw new FleetInvalid({ reason: `DNS provider is inactive: ${providerId}` });
+    const requireTunnelApp = Effect.fn("CloudflareTunnelService.requireTunnelApp")(function* (providerId: string) {
+        const app = yield* apps.getAppView(providerId);
+        if (!app) return yield* new FleetNotFound({ reason: `DNS provider not found: ${providerId}` });
+        if (!app.isActive) return yield* new FleetInvalid({ reason: `DNS provider is inactive: ${providerId}` });
         if (!app.features.tunnelManagement) {
-            throw new FleetInvalid({ reason: `Tunnel management is not enabled on "${app.name}". Enable it in the Cloudflare app configuration first.` });
+            return yield* new FleetInvalid({ reason: `Tunnel management is not enabled on "${app.name}". Enable it in the Cloudflare app configuration first.` });
         }
         return app;
-    }
+    });
 
-    private async clientFor(providerId: string) {
-        const app = await this.requireTunnelApp(providerId);
-        const client = await this.appService.buildClient(providerId);
-        const accountId = await this.appService.getOrResolveAccountId(providerId);
+    const clientFor = Effect.fn("CloudflareTunnelService.clientFor")(function* (providerId: string) {
+        const app = yield* requireTunnelApp(providerId);
+        const client = yield* apps.buildClient(providerId);
+        const accountId = yield* apps.getOrResolveAccountId(providerId);
         return { app, client, accountId };
-    }
+    });
 
-    // ─── Tunnels ─────────────────────────────────────────────────────────────
-
-    async listTunnels(providerId: string): Promise<{ tunnels: TunnelShape[]; error: string | null }> {
-        try {
-            const { client, accountId } = await this.clientFor(providerId);
-            const page = await client.zeroTrust.tunnels.cloudflared.list({
-                account_id: accountId,
-                is_deleted: false,
-                per_page: 100,
-            });
-            const tunnels = page.result.map((t) =>
-                toTunnelShape(t, (t.connections ?? []).map((c) => toTunnelConnectionShape(c))),
-            );
-            return { tunnels, error: null };
-        } catch (err) {
-            this.logger.warn(`cloudflareListTunnels failed for provider ${providerId}: ${err instanceof Error ? err.message : String(err)}`);
-            return { tunnels: [], error: toCloudflareErrorMessage(err) };
-        }
-    }
+    const fetchConnections = (client: Cloudflare, accountId: string, tunnelId: string): Effect.Effect<TunnelConnectionShape[]> =>
+        attempt(() => client.zeroTrust.tunnels.cloudflared.connections.get(tunnelId, { account_id: accountId })).pipe(
+            Effect.map((page) => page.result.map((c: Client) => toTunnelConnectionShape(c))),
+            Effect.catch((error) =>
+                Effect.logWarning(
+                    `cloudflareFetchTunnelConnections failed for tunnel ${tunnelId}: ${error instanceof Error ? error.message : String(error)}`,
+                ).pipe(Effect.as([])),
+            ),
+        );
 
     /**
      * The live tunnel with this name, or `null`.
@@ -97,76 +91,103 @@ export class CloudflareTunnelService {
      * our stored `tunnelId` is still empty and the guard upstream looks satisfied.
      * Reusing by name makes provisioning idempotent instead of wedging the node.
      */
-    private async findTunnelByName(
-        client: Cloudflare,
-        accountId: string,
-        name: string,
-    ): Promise<{ id: string } | null> {
-        const page = await client.zeroTrust.tunnels.cloudflared.list({
-            account_id: accountId,
-            is_deleted: false,
-            name,
-            per_page: 100,
-        });
-        const match = page.result.find((candidate) => candidate.name === name && candidate.id);
-        return match?.id ? { id: match.id } : null;
-    }
+    const findTunnelByName = (client: Cloudflare, accountId: string, name: string) =>
+        attempt(() =>
+            client.zeroTrust.tunnels.cloudflared.list({
+                account_id: accountId,
+                is_deleted: false,
+                name,
+                per_page: 100,
+            }),
+        ).pipe(
+            Effect.map((page) => {
+                const match = page.result.find((candidate) => candidate.name === name && candidate.id);
+                return match?.id ? { id: match.id } : null;
+            }),
+        );
 
-    async getTunnel(providerId: string, tunnelId: string): Promise<{ tunnel: TunnelShape | null; error: string | null }> {
-        try {
-            const { client, accountId } = await this.clientFor(providerId);
-            const tunnel = await client.zeroTrust.tunnels.cloudflared.get(tunnelId, { account_id: accountId });
-            const connections = await this.fetchConnections(client, accountId, tunnelId);
-            return { tunnel: toTunnelShape(tunnel, connections), error: null };
-        } catch (err) {
-            this.logger.warn(`cloudflareGetTunnel failed for provider ${providerId}: ${err instanceof Error ? err.message : String(err)}`);
-            return { tunnel: null, error: toCloudflareErrorMessage(err) };
-        }
-    }
+    // ─── Tunnels ─────────────────────────────────────────────────────────────
+
+    const listTunnels = Effect.fn("CloudflareTunnelService.listTunnels")(function* (providerId: string) {
+        return yield* Effect.gen(function* () {
+            const { client, accountId } = yield* clientFor(providerId);
+            const page = yield* attempt(() =>
+                client.zeroTrust.tunnels.cloudflared.list({
+                    account_id: accountId,
+                    is_deleted: false,
+                    per_page: 100,
+                }),
+            );
+            const tunnels = page.result.map((t) =>
+                toTunnelShape(t, (t.connections ?? []).map((c) => toTunnelConnectionShape(c))),
+            );
+            return { tunnels, error: null as string | null };
+        }).pipe(
+            Effect.catch((err) =>
+                Effect.logWarning(`cloudflareListTunnels failed for provider ${providerId}: ${err instanceof Error ? err.message : String(err)}`).pipe(
+                    Effect.as({ tunnels: [] as TunnelShape[], error: toCloudflareErrorMessage(err) as string | null }),
+                ),
+            ),
+        );
+    });
+
+    const getTunnel = Effect.fn("CloudflareTunnelService.getTunnel")(function* (providerId: string, tunnelId: string) {
+        return yield* Effect.gen(function* () {
+            const { client, accountId } = yield* clientFor(providerId);
+            const tunnel = yield* attempt(() => client.zeroTrust.tunnels.cloudflared.get(tunnelId, { account_id: accountId }));
+            const connections = yield* fetchConnections(client, accountId, tunnelId);
+            return { tunnel: toTunnelShape(tunnel, connections) as TunnelShape | null, error: null as string | null };
+        }).pipe(
+            Effect.catch((err) =>
+                Effect.logWarning(`cloudflareGetTunnel failed for provider ${providerId}: ${err instanceof Error ? err.message : String(err)}`).pipe(
+                    Effect.as({ tunnel: null as TunnelShape | null, error: toCloudflareErrorMessage(err) as string | null }),
+                ),
+            ),
+        );
+    });
 
     /**
      * Auto-setup: create the tunnel, fetch its `cloudflared` run token, and
      * (when a hostname is given) create the CNAME routing record.
      */
-    async createTunnel(
+    const createTunnel = Effect.fn("CloudflareTunnelService.createTunnel")(function* (
         providerId: string,
         input: { name: string; hostname?: string },
-    ): Promise<{ tunnel: TunnelShape; token: string; dnsRecord: string | null; hostname: string | null; error: string | null }> {
-        try {
-            const { client, accountId, app } = await this.clientFor(providerId);
+    ) {
+        return yield* Effect.gen(function* () {
+            const { client, accountId, app } = yield* clientFor(providerId);
 
             // Reuse a tunnel this account already owns under the same name — see
             // `findTunnelByName` for why re-creating one wedges the node rather
             // than being harmless.
-            const existing = await this.findTunnelByName(client, accountId, input.name);
-            const created = existing ?? (await client.zeroTrust.tunnels.cloudflared.create({
+            const existing = yield* findTunnelByName(client, accountId, input.name);
+            const created = existing ?? (yield* attempt(() => client.zeroTrust.tunnels.cloudflared.create({
                 account_id: accountId,
                 name: input.name,
-            }));
-            if (!created.id) throw new BadGatewayException("Cloudflare did not return a tunnel id");
+            })));
+            if (!created.id) return yield* Effect.fail(new BadGatewayException("Cloudflare did not return a tunnel id"));
+            const tunnelId = created.id;
             if (existing) {
-                this.logger.log(
-                    `Reusing existing Cloudflare tunnel "${input.name}" (${created.id}) on app "${app.name}"`,
-                );
+                yield* Effect.logInfo(`Reusing existing Cloudflare tunnel "${input.name}" (${tunnelId}) on app "${app.name}"`);
             }
 
-            const token = await client.zeroTrust.tunnels.cloudflared.token.get(created.id, { account_id: accountId });
+            const token = yield* attempt(() => client.zeroTrust.tunnels.cloudflared.token.get(tunnelId, { account_id: accountId }));
 
             let dnsRecord: string | null = null;
             let hostname: string | null = null;
             if (input.hostname) {
-                const zone = await this.dnsService.findZoneForHostname(
+                const zone = yield* dns.findZoneForHostname(
                     { providerId, providerType: "cloudflare" },
                     input.hostname,
                 );
                 if (zone) {
-                    const record = await this.dnsService.createRecord(
+                    const record = yield* dns.createRecord(
                         { providerId, providerType: "cloudflare" },
                         {
                             zoneId: zone.zoneId,
                             type: "CNAME",
                             name: input.hostname,
-                            content: `${created.id}.cfargotunnel.com`,
+                            content: `${tunnelId}.cfargotunnel.com`,
                             ttl: 1,
                             proxied: true,
                         },
@@ -175,13 +196,70 @@ export class CloudflareTunnelService {
                     hostname = input.hostname;
                 }
             }
-            this.logger.log(`Cloudflare tunnel "${input.name}" created on app "${app.name}" (${created.id})`);
+            yield* Effect.logInfo(`Cloudflare tunnel "${input.name}" created on app "${app.name}" (${tunnelId})`);
             return { tunnel: toTunnelShape(created), token, dnsRecord, hostname, error: null };
-        } catch (err) {
-            this.logger.warn(`cloudflareCreateTunnel failed for provider ${providerId}: ${err instanceof Error ? err.message : String(err)}`);
-            throw new BadGatewayException(toCloudflareErrorMessage(err), { cause: err });
-        }
-    }
+        }).pipe(
+            Effect.tapError((err) =>
+                Effect.logWarning(`cloudflareCreateTunnel failed for provider ${providerId}: ${err instanceof Error ? err.message : String(err)}`),
+            ),
+            Effect.mapError((err) => new BadGatewayException(toCloudflareErrorMessage(err), { cause: err })),
+        );
+    });
+
+    /**
+     * Read the tunnel's current ingress, replace the rule for `hostname`, and put
+     * the catch-all back at the end.
+     *
+     * @returns how many OTHER hostname rules were preserved, for the caller to log.
+     */
+    const applyIngressRules = (
+        client: Cloudflare,
+        accountId: string,
+        tunnelId: string,
+        hostname: string,
+        service: string,
+    ) =>
+        Effect.gen(function* () {
+            // Read the CURRENT rules so this call replaces the rule for `hostname`
+            // only. Writing a freshly-built array dropped every other hostname routed
+            // through the same tunnel, and the damage was silent: the next request for
+            // a dropped hostname answered 1033 "unable to resolve" while the tunnel
+            // and its CNAME both still looked healthy.
+            const current = yield* attempt(() =>
+                client.zeroTrust.tunnels.cloudflared.configurations.get(tunnelId, { account_id: accountId }),
+            );
+            const existingRules: CloudflareIngressRule[] = current.config?.ingress ?? [];
+
+            // Keep the other hostnames' rules; drop this hostname's previous rule(s)
+            // and any earlier terminator, both of which are re-added below. A rule
+            // without a hostname IS a terminator, which is why it is filtered here.
+            const preserved = existingRules.filter(
+                (rule) => rule.hostname !== undefined && rule.hostname !== hostname,
+            );
+
+            // Cloudflare requires the FINAL rule to match every URL — no hostname, no
+            // path. Without `INGRESS_CATCH_ALL` the whole configuration is rejected:
+            // 400 code 1056 "The last ingress rule must match all URLs".
+            const ingress: CloudflareIngressRule[] = [
+                ...preserved,
+                { hostname, service },
+                INGRESS_CATCH_ALL,
+            ];
+
+            yield* attempt(() =>
+                client.zeroTrust.tunnels.cloudflared.configurations.update(tunnelId, {
+                    account_id: accountId,
+                    // The one assertion in this file. The SDK's `Ingress` type demands a
+                    // `hostname` that Cloudflare forbids on the final rule, so the type is
+                    // wrong rather than the payload: `ConfigurationUpdateParams.Config.Ingress`
+                    // is assignable to `CloudflareIngressRule` (required → optional widens),
+                    // which is what makes this assertion legal. Cloudflare validates the
+                    // result itself and answers 400/1056 if any rule is actually malformed.
+                    config: { ingress: ingress as ConfigurationUpdateParams.Config.Ingress[] },
+                }),
+            );
+            return preserved.length;
+        });
 
     /**
      * Configure the tunnel's ingress (public hostname → local service) so
@@ -196,203 +274,146 @@ export class CloudflareTunnelService {
      *                  frontends, resolved from the cloudflared container's
      *                  network).
      */
-    async configureIngress(
+    const configureIngress = Effect.fn("CloudflareTunnelService.configureIngress")(function* (
         providerId: string,
         tunnelId: string,
         hostname: string,
         service: string,
-    ): Promise<void> {
-        const { client, accountId } = await this.clientFor(providerId);
-        try {
-            const preserved = await this.applyIngressRules(
-                client,
-                accountId,
-                tunnelId,
-                hostname,
-                service,
-            );
-            this.logger.log(
-                `Tunnel ${tunnelId} ingress configured: ${hostname} → ${service} (${String(preserved)} other hostname rule(s) preserved)`,
-            );
-        } catch (err) {
+    ) {
+        const { client, accountId } = yield* clientFor(providerId);
+        const preserved = yield* applyIngressRules(client, accountId, tunnelId, hostname, service).pipe(
             // Like every sibling method here, the SDK's own error type is converted
             // at the boundary. Letting it escape made an ordinary "Cloudflare refused
             // this configuration" rejection surface as a bare 500 with no reason
             // attached, which is how the 1056 ingress failure stayed unexplained.
-            const message = toCloudflareErrorMessage(err);
-            this.logger.error(
-                `configureIngress failed for tunnel ${tunnelId} (${hostname} → ${service}): ${message}`,
-            );
-            throw new BadGatewayException(
-                `Could not configure the tunnel's routing for ${hostname}: ${message}`,
-                { cause: err },
-            );
-        }
-    }
+            Effect.catch((err) => {
+                const message = toCloudflareErrorMessage(err);
+                return Effect.logError(
+                    `configureIngress failed for tunnel ${tunnelId} (${hostname} → ${service}): ${message}`,
+                ).pipe(
+                    Effect.andThen(
+                        Effect.fail(
+                            new BadGatewayException(
+                                `Could not configure the tunnel's routing for ${hostname}: ${message}`,
+                                { cause: err },
+                            ),
+                        ),
+                    ),
+                );
+            }),
+        );
+        yield* Effect.logInfo(
+            `Tunnel ${tunnelId} ingress configured: ${hostname} → ${service} (${String(preserved)} other hostname rule(s) preserved)`,
+        );
+    });
 
     /**
-     * Read the tunnel's current ingress, replace the rule for `hostname`, and put
-     * the catch-all back at the end.
-     *
-     * @returns how many OTHER hostname rules were preserved, for the caller to log.
+     * Remove the CNAME a tunnel owned (when a hostname is known), so deleting the tunnel does not
+     * leave an orphan record pointing at a dead `{tunnelId}.cfargotunnel.com`. The tunnel is gone
+     * regardless; the orphan CNAME is a cosmetic cleanup — surface it but do not fail the deletion.
      */
-    private async applyIngressRules(
-        client: Cloudflare,
-        accountId: string,
-        tunnelId: string,
-        hostname: string,
-        service: string,
-    ): Promise<number> {
-        // Read the CURRENT rules so this call replaces the rule for `hostname`
-        // only. Writing a freshly-built array dropped every other hostname routed
-        // through the same tunnel, and the damage was silent: the next request for
-        // a dropped hostname answered 1033 "unable to resolve" while the tunnel
-        // and its CNAME both still looked healthy.
-        const current = await client.zeroTrust.tunnels.cloudflared.configurations.get(
-            tunnelId,
-            { account_id: accountId },
-        );
-        const existingRules: CloudflareIngressRule[] = current.config?.ingress ?? [];
-
-        // Keep the other hostnames' rules; drop this hostname's previous rule(s)
-        // and any earlier terminator, both of which are re-added below. A rule
-        // without a hostname IS a terminator, which is why it is filtered here.
-        const preserved = existingRules.filter(
-            (rule) => rule.hostname !== undefined && rule.hostname !== hostname,
+    const removeTunnelCname = (providerId: string, tunnelId: string, hostname: string) =>
+        Effect.gen(function* () {
+            const zone = yield* dns.findZoneForHostname({ providerId, providerType: "cloudflare" }, hostname);
+            if (!zone) return;
+            const records = yield* dns.listRecords({ providerId, providerType: "cloudflare" }, zone.zoneId);
+            const cname = records.find(
+                (r) => r.type === "CNAME" && r.name.toLowerCase() === hostname.toLowerCase(),
+            );
+            if (!cname) return;
+            yield* dns.deleteRecord({ providerId, providerType: "cloudflare" }, zone.zoneId, cname.id);
+            yield* Effect.logInfo(`Deleted CNAME ${cname.name} (zone ${zone.zoneName}) for tunnel ${tunnelId}`);
+        }).pipe(
+            Effect.catch((err) =>
+                Effect.logWarning(
+                    `CNAME cleanup for tunnel ${tunnelId} failed: ${err instanceof Error ? err.message : String(err)}`,
+                ),
+            ),
         );
 
-        // Cloudflare requires the FINAL rule to match every URL — no hostname, no
-        // path. Without `INGRESS_CATCH_ALL` the whole configuration is rejected:
-        // 400 code 1056 "The last ingress rule must match all URLs".
-        const ingress: CloudflareIngressRule[] = [
-            ...preserved,
-            { hostname, service },
-            INGRESS_CATCH_ALL,
-        ];
-
-        await client.zeroTrust.tunnels.cloudflared.configurations.update(
-            tunnelId,
-            {
-                account_id: accountId,
-                // The one assertion in this file. The SDK's `Ingress` type demands a
-                // `hostname` that Cloudflare forbids on the final rule, so the type is
-                // wrong rather than the payload: `ConfigurationUpdateParams.Config.Ingress`
-                // is assignable to `CloudflareIngressRule` (required → optional widens),
-                // which is what makes this assertion legal. Cloudflare validates the
-                // result itself and answers 400/1056 if any rule is actually malformed.
-                config: { ingress: ingress as ConfigurationUpdateParams.Config.Ingress[] },
-            },
-        );
-        return preserved.length;
-    }
-
-    async deleteTunnel(
+    const deleteTunnel = Effect.fn("CloudflareTunnelService.deleteTunnel")(function* (
         providerId: string,
         tunnelId: string,
         opts?: { hostname?: string | null },
-    ): Promise<boolean> {
-        const { client, accountId } = await this.clientFor(providerId);
-        await client.zeroTrust.tunnels.cloudflared.delete(tunnelId, { account_id: accountId });
-        this.logger.log(`Cloudflare tunnel ${tunnelId} deleted (provider ${providerId})`);
+    ) {
+        const { client, accountId } = yield* clientFor(providerId);
+        yield* attempt(() => client.zeroTrust.tunnels.cloudflared.delete(tunnelId, { account_id: accountId }));
+        yield* Effect.logInfo(`Cloudflare tunnel ${tunnelId} deleted (provider ${providerId})`);
 
-        // Remove the CNAME this tunnel owned (when a hostname is known), so
-        // deleting the tunnel does not leave an orphan record pointing at a
-        // dead `{tunnelId}.cfargotunnel.com`.
         const hostname = opts?.hostname?.trim();
-        if (hostname) {
-            try {
-                const zone = await this.dnsService.findZoneForHostname(
-                    { providerId, providerType: "cloudflare" },
-                    hostname,
-                );
-                if (zone) {
-                    const records = await this.dnsService.listRecords(
-                        { providerId, providerType: "cloudflare" },
-                        zone.zoneId,
-                    );
-                    const cname = records.find(
-                        (r) =>
-                            r.type === "CNAME" &&
-                            r.name.toLowerCase() === hostname.toLowerCase(),
-                    );
-                    if (cname) {
-                        await this.dnsService.deleteRecord(
-                            { providerId, providerType: "cloudflare" },
-                            zone.zoneId,
-                            cname.id,
-                        );
-                        this.logger.log(
-                            `Deleted CNAME ${cname.name} (zone ${zone.zoneName}) for tunnel ${tunnelId}`,
-                        );
-                    }
-                }
-            } catch (err) {
-                // The tunnel is gone regardless; the orphan CNAME is a
-                // cosmetic cleanup — surface it but do not fail the deletion.
-                this.logger.warn(
-                    `CNAME cleanup for tunnel ${tunnelId} failed: ${err instanceof Error ? err.message : String(err)}`,
-                );
-            }
-        }
+        if (hostname) yield* removeTunnelCname(providerId, tunnelId, hostname);
         return true;
-    }
+    });
 
-    async getTunnelToken(providerId: string, tunnelId: string): Promise<{ token: string | null; error: string | null }> {
-        try {
-            const { client, accountId } = await this.clientFor(providerId);
-            const token = await client.zeroTrust.tunnels.cloudflared.token.get(tunnelId, { account_id: accountId });
-            return { token, error: null };
-        } catch (err) {
-            this.logger.warn(`cloudflareGetTunnelToken failed for provider ${providerId}: ${err instanceof Error ? err.message : String(err)}`);
-            return { token: null, error: toCloudflareErrorMessage(err) };
-        }
-    }
+    const getTunnelToken = Effect.fn("CloudflareTunnelService.getTunnelToken")(function* (providerId: string, tunnelId: string) {
+        return yield* Effect.gen(function* () {
+            const { client, accountId } = yield* clientFor(providerId);
+            const token = yield* attempt(() => client.zeroTrust.tunnels.cloudflared.token.get(tunnelId, { account_id: accountId }));
+            return { token: token as string | null, error: null as string | null };
+        }).pipe(
+            Effect.catch((err) =>
+                Effect.logWarning(`cloudflareGetTunnelToken failed for provider ${providerId}: ${err instanceof Error ? err.message : String(err)}`).pipe(
+                    Effect.as({ token: null as string | null, error: toCloudflareErrorMessage(err) as string | null }),
+                ),
+            ),
+        );
+    });
 
     /** Live tunnel health: Cloudflare status + active connection count. */
-    async getTunnelHealth(providerId: string, tunnelId: string): Promise<{
-        status: "healthy" | "degraded" | "down" | "inactive" | "unknown";
-        checkedAt: string;
-        connections: number;
-        error: string | null;
-    }> {
-        try {
-            const { client, accountId } = await this.clientFor(providerId);
-            const tunnel = await client.zeroTrust.tunnels.cloudflared.get(tunnelId, { account_id: accountId });
-            const connections = await this.fetchConnections(client, accountId, tunnelId);
+    const getTunnelHealth = Effect.fn("CloudflareTunnelService.getTunnelHealth")(function* (providerId: string, tunnelId: string) {
+        type Health = {
+            status: "healthy" | "degraded" | "down" | "inactive" | "unknown";
+            checkedAt: string;
+            connections: number;
+            error: string | null;
+        };
+        return yield* Effect.gen(function* () {
+            const { client, accountId } = yield* clientFor(providerId);
+            const tunnel = yield* attempt(() => client.zeroTrust.tunnels.cloudflared.get(tunnelId, { account_id: accountId }));
+            const connections = yield* fetchConnections(client, accountId, tunnelId);
             const active = connections.filter((c) => !c.isPendingReconnect).length;
             return {
                 status: tunnel.status ?? "unknown",
                 checkedAt: new Date().toISOString(),
                 connections: active,
                 error: null,
-            };
-        } catch (err) {
-            this.logger.warn(`cloudflareGetTunnelHealth failed for provider ${providerId}: ${err instanceof Error ? err.message : String(err)}`);
-            return {
-                status: "unknown",
-                checkedAt: new Date().toISOString(),
-                connections: 0,
-                error: toCloudflareErrorMessage(err),
-            };
-        }
-    }
+            } satisfies Health as Health;
+        }).pipe(
+            Effect.catch((err) =>
+                Effect.logWarning(`cloudflareGetTunnelHealth failed for provider ${providerId}: ${err instanceof Error ? err.message : String(err)}`).pipe(
+                    Effect.as({
+                        status: "unknown",
+                        checkedAt: new Date().toISOString(),
+                        connections: 0,
+                        error: toCloudflareErrorMessage(err),
+                    } satisfies Health as Health),
+                ),
+            ),
+        );
+    });
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
+    return {
+        listTunnels,
+        getTunnel,
+        createTunnel,
+        configureIngress,
+        deleteTunnel,
+        getTunnelToken,
+        getTunnelHealth,
+    };
+}
 
-    private async fetchConnections(
-        client: Cloudflare,
-        accountId: string,
-        tunnelId: string,
-    ): Promise<TunnelConnectionShape[]> {
-        try {
-            const page = await client.zeroTrust.tunnels.cloudflared.connections.get(tunnelId, { account_id: accountId });
-            return page.result.map((c: Client) => toTunnelConnectionShape(c));        } catch (error: unknown) {
-            this.logger.warn(
-                `cloudflareFetchTunnelConnections failed for tunnel ${tunnelId}: ${error instanceof Error ? error.message : String(error)}`,
-            );
-            return [];
-        }
-    }
+export type CloudflareTunnelServiceShape = Over<ReturnType<typeof makeCloudflareTunnelService>, CloudflareAppService | CloudflareDnsProviderService>;
+
+/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
+export class CloudflareTunnelService extends Context.Service<CloudflareTunnelService, CloudflareTunnelServiceShape>()(
+    "fleet/CloudflareTunnelService",
+) {
+    /** The collaborators are yielded when a method runs, so this is a constant the module provides with `useValue`. */
+    static readonly live: CloudflareTunnelServiceShape = serviceOver(
+        Effect.all({ apps: CloudflareAppService, dns: CloudflareDnsProviderService }),
+        makeCloudflareTunnelService,
+    );
 }
 
 export type { TunnelShape };

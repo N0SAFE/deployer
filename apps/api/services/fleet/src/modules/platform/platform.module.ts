@@ -10,8 +10,6 @@ import { SupervisorOrchestrator } from "@deployer/supervision";
 import { HostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
 import { PlatformConfigService } from "@deployer/shared/core/modules/platform-ingress/services/platform-config.service";
 import { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
-import { CloudflareAppService } from "@/modules/providers/dns/cloudflare/services/cloudflare-app.service";
-import { CloudflareTunnelService } from "@/modules/providers/dns/cloudflare/services/cloudflare-tunnel.service";
 import { CorePlatformIngressModule } from "@deployer/shared/core/modules/platform-ingress/platform-ingress.module";
 import { TraefikCoreModule } from "@deployer/shared/core/modules/traefik/traefik.module";
 import { ProvidersModule } from "@/modules/providers/providers.module";
@@ -21,13 +19,11 @@ import { PlatformManagedWebController } from "./controllers/platform-managed-web
 import { PlatformManagedWebService } from "./services/platform-managed-web.service";
 
 import {
-    CloudflareAppsPort,
     PlatformConfigPort,
     PlatformEnvPort,
     PlatformHostnamesPort,
     PlatformRefresherPort,
     SupervisorsPort,
-    WebTunnelPort,
 } from "./platform.ports";
 
 /**
@@ -48,8 +44,6 @@ export class PlatformModule extends createModuleContext(
             { provide: PlatformHostnamesPort, useExisting: HostnameService },
             { provide: PlatformConfigPort, useExisting: PlatformConfigService },
             { provide: SupervisorsPort, useExisting: SupervisorOrchestrator },
-            { provide: WebTunnelPort, useExisting: CloudflareTunnelService },
-            { provide: CloudflareAppsPort, useExisting: CloudflareAppService },
             { provide: PlatformRefresherPort, useExisting: TraefikConfigRefresher },
             { provide: PlatformManagedWebService, useValue: PlatformManagedWebService.live },
         ],
