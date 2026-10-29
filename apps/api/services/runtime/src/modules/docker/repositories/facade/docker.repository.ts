@@ -84,6 +84,15 @@ import {
   DockerImageLifecycleRepository,
   type DockerImageLifecycleRepositoryShape,
 } from "../images/lifecycle/docker-image-lifecycle.repository";
+import {
+  DockerContainersRepository,
+  type DockerContainersRepositoryShape,
+} from "../containers/engine/docker-containers.repository";
+import {
+  detectWatchModeFromLabels,
+  extractRootFsLayers,
+  toHealthcheckSeconds,
+} from "../containers/engine/container-inspect-reading";
 import { assembleContainerLinks, inclusionOf, withoutLinks } from "../containers/links/container-link-assembly";
 import {
   DockerContainerLinksLookup,
@@ -145,6 +154,7 @@ export class DockerRepository {
     @Inject(DockerVolumesRepository) private readonly volumes: DockerVolumesRepositoryShape = DockerVolumesRepository.live,
     @Inject(DockerImagesRepository) private readonly images: DockerImagesRepositoryShape = DockerImagesRepository.live,
     @Inject(DockerImageLifecycleRepository) private readonly lifecycle: DockerImageLifecycleRepositoryShape = DockerImageLifecycleRepository.live,
+    @Inject(DockerContainersRepository) private readonly containers: DockerContainersRepositoryShape = DockerContainersRepository.live,
     @Inject(DockerContainerLinksLookup) private readonly linkLookup: DockerContainerLinksLookupShape = DockerContainerLinksLookup.live,
   ) {
     this.scanner = new DockerImageScannerService(dockerEngine, scannerPool, dockerHost, {
@@ -296,15 +306,9 @@ export class DockerRepository {
   }
 
   private async listRawContainers(): Promise<DockerodeContainerList[]> {
-    const raw = await runPromiseUnwrapped(this.dockerEngine.containers.list({ all: true }));
-    const result = dockerodeContainerListSchema.array().safeParse(raw);
-    if (result.success) {
-      return result.data;
-    }
-    // Fallback: coerce each item individually, dropping invalid ones
-    return raw
-      .filter((item: unknown) => dockerodeContainerListSchema.safeParse(item).success)
-      .map((item: unknown) => dockerodeContainerListSchema.parse(item));
+    return runPromiseUnwrapped(
+      this.containers.listRaw.pipe(Effect.provideService(DockerEngine, this.dockerEngine)),
+    );
   }
 
   async listContainers(input: DockerContainerListInput) {
@@ -388,65 +392,6 @@ export class DockerRepository {
     return this.paginate(sorted, input);
   }
 
-
-  private extractRootFsLayers(source: unknown): string[] {
-    if (!isRecord(source)) {
-      return [];
-    }
-
-    const rootFsCandidate = (() => {
-      if (isRecord(source.RootFS)) {
-        return source.RootFS;
-      }
-
-      if (isRecord(source.RootFs)) {
-        return source.RootFs;
-      }
-
-      return null;
-    })();
-
-    if (!rootFsCandidate) {
-      return [];
-    }
-
-    const layersValue = rootFsCandidate.Layers ?? rootFsCandidate.layers;
-    if (Array.isArray(layersValue)) {
-      return layersValue.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
-    }
-
-    if (typeof layersValue === "string" && layersValue.length > 0) {
-      return [layersValue];
-    }
-
-    return [];
-  }
-
-  private detectWatchModeFromLabels(labels: Record<string, string>):
-    DockerContainerInspectDetail["runtimeConfig"]["watchMode"] {
-    const normalizedValues = Object.values(labels).map((value) => value.toLowerCase());
-    const normalizedKeys = Object.keys(labels).map((key) => key.toLowerCase());
-
-    const has = (needle: string) =>
-      normalizedValues.some((value) => value.includes(needle))
-      || normalizedKeys.some((value) => value.includes(needle));
-
-    if (has("nodemon")) return "nodemon";
-    if (has("watchpack")) return "watchpack";
-    if (has("vite")) return "vite";
-    if (has("turbo")) return "turbo";
-    if (has("watch")) return "custom";
-
-    return "disabled";
-  }
-
-  private toHealthcheckSeconds(value: number | undefined): number | null {
-    if (typeof value !== "number" || value <= 0) {
-      return null;
-    }
-
-    return Math.max(1, Math.round(value / 1_000_000_000));
-  }
 
   async inspectContainer(containerId: string) {
     // The engine's own description of a container, whichever dockerode typings are in scope.
@@ -575,10 +520,10 @@ export class DockerRepository {
         typeof Reflect.get(inspect.HostConfig, "CgroupnsMode") === "string"
           ? (Reflect.get(inspect.HostConfig, "CgroupnsMode") as string)
           : null,
-      watchMode: this.detectWatchModeFromLabels(labels),
+      watchMode: detectWatchModeFromLabels(labels),
       healthcheckCommand,
-      healthcheckIntervalSec: this.toHealthcheckSeconds(inspect.Config.Healthcheck?.Interval),
-      healthcheckTimeoutSec: this.toHealthcheckSeconds(inspect.Config.Healthcheck?.Timeout),
+      healthcheckIntervalSec: toHealthcheckSeconds(inspect.Config.Healthcheck?.Interval),
+      healthcheckTimeoutSec: toHealthcheckSeconds(inspect.Config.Healthcheck?.Timeout),
       healthcheckRetries: inspect.Config.Healthcheck?.Retries ?? null,
     };
 
@@ -640,7 +585,7 @@ export class DockerRepository {
         }
       : null;
 
-    let layerIds = this.extractRootFsLayers(inspect);
+    let layerIds = extractRootFsLayers(inspect);
 
     if (layerIds.length === 0) {
       const imageCandidates = [inspect.Image, inspect.Config.Image]
@@ -651,7 +596,7 @@ export class DockerRepository {
         // A candidate the engine cannot inspect is skipped: layers stay empty.
         const imageInspect = await this.inspectImageOrNull(imageCandidate);
         if (imageInspect === null) continue;
-        layerIds = this.extractRootFsLayers(imageInspect);
+        layerIds = extractRootFsLayers(imageInspect);
         if (layerIds.length > 0) {
           break;
         }
