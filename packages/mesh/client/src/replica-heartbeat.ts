@@ -10,7 +10,7 @@ export type ReplicaHeartbeatOptions = {
   /** Where this replica's RPC endpoint answers on the overlay network. */
   readonly address: string;
   /** The resources this replica holds right now, read at every beat so a deployment that starts is announced within one. */
-  readonly keys: () => readonly string[];
+  readonly keys: () => readonly string[] | Promise<readonly string[]>;
   /** 0 (idle) to 1 (saturated). */
   readonly load: () => number;
   readonly intervalMs: number;
@@ -27,7 +27,7 @@ export type ReplicaHeartbeatOptions = {
  */
 export function replicaHeartbeat(options: ReplicaHeartbeatOptions): Effect.Effect<void> {
   const beat = Effect.tryPromise({
-    try: () =>
+    try: async () =>
       options.agent.call(
         ["directory", "register"],
         {
@@ -35,7 +35,8 @@ export function replicaHeartbeat(options: ReplicaHeartbeatOptions): Effect.Effec
           replicaId: options.replicaId,
           address: options.address,
           load: options.load(),
-          keys: [...options.keys()],
+          // Read at every beat, and awaited: a replica that has to ask its engine what it holds can.
+          keys: [...(await options.keys())],
           ttlMs: options.ttlMs,
         },
         { context: {} },

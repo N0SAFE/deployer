@@ -25,7 +25,8 @@ import {
   MeshTopologyPort,
 } from "./orchestration/docker-container-resolution";
 import { DockerContainersOrchestratorService } from "./orchestration/docker-containers-orchestrator.service";
-import { makeLocalNodeOperations } from "./mesh/local-node-operations";
+import { LOCAL_NODE_OPERATIONS, makeLocalNodeOperations } from "./mesh/local-node-operations";
+import type { LocalNodeOperations } from "./mesh/mesh-handlers";
 
 export class DockerContainersModule extends createModuleContext({
   imports: [MeshCoreModule, CoreDockerModule, EventsModule, DockerRepositoriesModule],
@@ -60,25 +61,24 @@ export class DockerContainersModule extends createModuleContext({
     { provide: MeshHeadersPort, useExisting: MeshInternalRequestService },
     { provide: DockerContainerResolution, useValue: DockerContainerResolution.live },
     {
+      provide: LOCAL_NODE_OPERATIONS,
+      useFactory: (runtime: EffectRuntime, repository: DockerRepository) => makeLocalNodeOperations(runtime, repository),
+      inject: [EffectRuntime, DockerRepository],
+    },
+    {
       provide: DockerMeshHandlerRegistrar,
       useFactory: (
         containerMesh: DockerContainerMeshService,
         runtimeMesh: DockerContainerRuntimeMeshService,
-        runtime: EffectRuntime,
-        repository: DockerRepository,
+        local: LocalNodeOperations,
         topology: SystemMeshTopologyService,
-      ) =>
-        new DockerMeshHandlerRegistrar(
-          containerMesh,
-          runtimeMesh,
-          makeLocalNodeOperations(runtime, repository),
-          () => topology.getLocalNode().nodeId,
-        ),
-      inject: [DockerContainerMeshService, DockerContainerRuntimeMeshService, EffectRuntime, DockerRepository, SystemMeshTopologyService],
+      ) => new DockerMeshHandlerRegistrar(containerMesh, runtimeMesh, local, () => topology.getLocalNode().nodeId),
+      inject: [DockerContainerMeshService, DockerContainerRuntimeMeshService, LOCAL_NODE_OPERATIONS, SystemMeshTopologyService],
     },
     DockerContainersOrchestratorService,
   ],
   exports: [
+    LOCAL_NODE_OPERATIONS,
     DockerContainerMetricsStreamService,
     DockerContainerMeshService,
     DockerContainerRuntimeMeshService,

@@ -9,7 +9,7 @@ type Link = ClientLink<ClientContext>;
 
 const calls = (agent: Link) => vi.mocked(agent.call).mock.calls.length;
 
-const options = (agent: Link, keys: () => string[] = () => []) => ({
+const options = (agent: Link, keys: () => string[] | Promise<string[]> = () => []) => ({
   agent,
   service: "runtime",
   replicaId: "runtime-1",
@@ -60,5 +60,17 @@ describe("replicaHeartbeat", () => {
     await new Promise((resolve) => setTimeout(resolve, 60));
 
     expect(calls(agent)).toBe(after);
+  });
+
+  it("waits for keys that have to be asked for, and keeps the same registration shape", async () => {
+    const agent: Link = { call: vi.fn().mockResolvedValue({}) };
+
+    const fiber = Effect.runFork(
+      replicaHeartbeat(options(agent, () => new Promise<string[]>((resolve) => setTimeout(() => resolve(["container-9"]), 5)) as never)),
+    );
+    await vi.waitFor(() => expect(calls(agent)).toBeGreaterThan(0));
+    await Effect.runPromise(Fiber.interrupt(fiber));
+
+    expect(vi.mocked(agent.call).mock.calls[0]?.[1]).toMatchObject({ keys: ["container-9"] });
   });
 });

@@ -184,8 +184,8 @@ Built and tested over real oRPC RPC peers (in-memory ports): unary, streams, red
   call is granted and followed directly, an unauthenticated call is refused, and a call pinned to another node is
   forwarded to that node's agent.
 
-Not built yet: runtime and the other services joining the mesh (`@deployer/mesh-service` exists and is tested, but no
-service calls `joinMesh` yet), byte accounting from the transport (the lease policy's bytes-per-second input is fed by nothing), the
+Not built yet: the other services joining the mesh (runtime does), the callers of the docker operations moving to the
+node router, byte accounting from the transport (the lease policy's bytes-per-second input is fed by nothing), the
 bridge topology for large meshes (agents currently connect to every agent they learn of, which is the small-mesh
 design), the onboarding agent, services registering themselves with their agent (`replicaHeartbeat` exists, no
 service calls it), the per-service `external`/`peer`/`node` routers, a swarm global-mode deployment of the agent, and the
@@ -249,6 +249,25 @@ that socket:
 Known limits, stated plainly: the swarm credential is one shared secret with no rotation yet, a token cannot be revoked
 before it expires, the advertised address defaults to the host's name (no overlay-address discovery yet), and a service
 on the node reaches its agent through the socket, so it never holds the credential.
+
+## Runtime on the mesh
+
+The runtime is the first real service on the mesh. Its node router lives in `@deployer/runtime-contracts` under `mesh/`
+(reached as `@deployer/runtime-contracts/mesh/index`, never composed into the public BFF router): `containers`
+(list, inspect, catalog), `runtime` (logs, processes, process logs, files, read, write, delete, rename, create directory,
+terminal open, events, input, close) and `images` (inspect). Each procedure takes the old topic payload's query or body
+as its input and answers its snapshot or acknowledgement as its output, with no envelope, correlation id or responder:
+the mesh pins the call to the node that owns the container, so the answer needs no signature to say whose it is.
+
+At boot, after its port is bound and its dependencies are proven, the runtime looks for the agent of its node (the socket
+`/var/lib/deployer/mesh-agent/run/agent.sock`, or `MESH_AGENT_SOCKET`). Without one it runs exactly as before. With
+one it takes part through `joinMesh`: it registers every few seconds, announcing every container id on the node as a key,
+so a call about a container reaches the node that owns it, and it serves the node router on its websocket. It holds no
+credential: its agent vouches for the peers that connect.
+
+The old topic-based docker mesh (`DockerContainerMeshService`, `DockerContainerRuntimeMeshService` and the registrar) is
+still registered and answers the same operations from the same `LocalNodeOperations`, because its callers have not been
+moved to the node router yet. It is removed when they are.
 
 ## Agents
 

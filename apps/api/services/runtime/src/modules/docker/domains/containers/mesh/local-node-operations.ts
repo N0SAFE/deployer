@@ -6,6 +6,9 @@ import { DockerContainerOps } from "../runtime/docker-container-ops";
 import { DockerTerminalSessions } from "../runtime/docker-terminal-sessions";
 import type { LocalNodeOperations } from "./mesh-handlers";
 
+/** DI token for this node's local operations: the one set of answers both the old topic handlers and the node router serve. */
+export const LOCAL_NODE_OPERATIONS = Symbol("runtime:local-node-operations");
+
 /** Anything that runs an Effect for a Promise caller and rejects with the original failure (the app's Effect runtime). */
 export type EffectPromiseRunner = {
   runPromiseUnwrapped: <A, E, R>(effect: Effect.Effect<A, E, R>) => Promise<A>;
