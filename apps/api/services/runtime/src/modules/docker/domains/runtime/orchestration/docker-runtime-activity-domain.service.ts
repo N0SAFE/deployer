@@ -13,14 +13,13 @@ import { DockerCatalog } from "../../../catalog/docker-catalog";
 import { DockerRuntimeStreamOrchestratorService } from "../../../common/runtime/docker-runtime-stream-orchestrator.service";
 import { projectRuntimeEvent } from "../../../common/events/runtime-activity-projection";
 import { SwarmActivityEnricherService } from "../../../common/events/swarm-activity-enricher.service";
-import { DockerRuntimeActivityRepository } from "../../../repositories/runtime/docker-runtime-activity.repository";
+import { DockerRuntimeActivities } from "../../../repositories/runtime/docker-runtime-activities";
 
 @Injectable()
 export class DockerRuntimeActivityDomainService {
   constructor(
     private readonly effectRuntime: EffectRuntime,
     private readonly dockerRuntimeStreamOrchestratorService: DockerRuntimeStreamOrchestratorService,
-    private readonly dockerRuntimeActivityRepository: DockerRuntimeActivityRepository,
     private readonly swarmActivityEnricherService: SwarmActivityEnricherService,
   ) {}
 
@@ -85,10 +84,20 @@ export class DockerRuntimeActivityDomainService {
   }
 
   listRuntimeActivities(input: DockerRuntimeActivityListInput) {
-    return this.dockerRuntimeActivityRepository.listRuntimeActivities(input);
+    return this.effectRuntime.runPromiseUnwrapped(
+      Effect.gen(function* () {
+        const activities = yield* DockerRuntimeActivities;
+        return yield* activities.list(input);
+      }),
+    );
   }
 
   getRuntimeActivityById(input: DockerRuntimeActivityDetailQueryInput) {
-    return this.dockerRuntimeActivityRepository.getRuntimeActivityById(input);
+    return this.effectRuntime.runPromiseUnwrapped(
+      Effect.gen(function* () {
+        const activities = yield* DockerRuntimeActivities;
+        return yield* activities.getById(input);
+      }),
+    );
   }
 }

@@ -2,7 +2,9 @@ import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/com
 import { type Subscription, concatMap, from, EMPTY, catchError } from "rxjs";
 import { AppLogger } from "@deployer/logger";
 import { DockerRuntimeEventsStreamService } from "./docker-runtime-events-stream.service";
-import { DockerRuntimeActivityRepository } from "../../repositories/runtime/docker-runtime-activity.repository";
+import { EffectRuntime } from "@deployer/nest-effect";
+import { Effect } from "effect";
+import { DockerRuntimeActivities } from "../../repositories/runtime/docker-runtime-activities";
 
 @Injectable()
 export class DockerRuntimeActivityPersistenceService implements OnModuleInit, OnModuleDestroy {
@@ -17,7 +19,7 @@ export class DockerRuntimeActivityPersistenceService implements OnModuleInit, On
 
   constructor(
     private readonly dockerRuntimeEventsStreamService: DockerRuntimeEventsStreamService,
-    private readonly dockerRuntimeActivityRepository: DockerRuntimeActivityRepository,
+    private readonly effectRuntime: EffectRuntime,
   ) {}
 
   onModuleInit(): void {
@@ -34,7 +36,14 @@ export class DockerRuntimeActivityPersistenceService implements OnModuleInit, On
       .observeEvents()
       .pipe(
         concatMap((event) =>
-          from(this.dockerRuntimeActivityRepository.persistRuntimeActivityEvent(event)).pipe(
+          from(
+            this.effectRuntime.runPromiseUnwrapped(
+              Effect.gen(function* () {
+                const activities = yield* DockerRuntimeActivities;
+                yield* activities.persist(event);
+              }),
+            ),
+          ).pipe(
             catchError((error: unknown) => {
               this.debugLogger.debug("persist_runtime_activity_failed", {
                 message: error instanceof Error ? error.message : String(error),

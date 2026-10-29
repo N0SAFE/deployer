@@ -6,7 +6,7 @@ import { DockerRepository } from "./facade/docker.repository";
 import { DockerContainerLinks } from "./containers/links/docker-container-links";
 import { DockerImageCatalogRepository } from "./images/catalog/docker-image-catalog.repository";
 import { DockerImageSecurityRepository } from "./images/security/docker-image-security.repository";
-import { DockerRuntimeActivityRepository } from "./runtime/docker-runtime-activity.repository";
+import { DockerRuntimeActivities } from "./runtime/docker-runtime-activities";
 import { DockerNetworksRepository } from "./networks/docker-networks.repository";
 import { DockerVolumesRepository } from "./volumes/docker-volumes.repository";
 import { DockerImageLifecycleRepository } from "./images/lifecycle/docker-image-lifecycle.repository";
@@ -24,7 +24,6 @@ import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-norm
     ContainerDockerodeNormalizer,
     DockerImageCatalogRepository,
     DockerImageSecurityRepository,
-    DockerRuntimeActivityRepository,
     // The Effect repositories over the engine are provided under their own tags.
     { provide: DockerNetworksRepository, useValue: DockerNetworksRepository.live },
     { provide: DockerImagesRepository, useValue: DockerImagesRepository.live },
@@ -32,6 +31,7 @@ import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-norm
     { provide: DockerVolumesRepository, useValue: DockerVolumesRepository.live },
     { provide: DockerImageScansStore, useValue: DockerImageScansStore.live },
     { provide: DockerRuntimeActivitiesStore, useValue: DockerRuntimeActivitiesStore.live },
+    { provide: DockerRuntimeActivities, useValue: DockerRuntimeActivities.live },
     { provide: DockerContainersRepository, useValue: DockerContainersRepository.live },
     { provide: DockerContainerLinksLookup, useValue: DockerContainerLinksLookup.live },
     { provide: DockerContainerLinks, useValue: DockerContainerLinks.live },
@@ -42,7 +42,7 @@ import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-norm
     DockerContainerLinks,
     DockerImageCatalogRepository,
     DockerImageSecurityRepository,
-    DockerRuntimeActivityRepository,
+    DockerRuntimeActivities,
     DockerNetworksRepository,
     DockerVolumesRepository,
     DockerImagesRepository,

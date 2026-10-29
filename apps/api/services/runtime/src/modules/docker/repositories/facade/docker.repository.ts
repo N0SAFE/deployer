@@ -440,79 +440,6 @@ export class DockerRepository {
     }
   }
 
-  async persistRuntimeActivityEvent(rawEvent: DockerRuntimeEvent): Promise<void> {
-    await this.runOnDatabase(this.activities.insert(buildRuntimeActivityRecord(rawEvent, new Date())));
-  }
-
-  async listRuntimeActivities(input: DockerRuntimeActivityListInput) {
-    const limit = input.limit;
-    const offset = input.offset;
-
-    const rows = await this.runOnDatabase(this.activities.listRecent(5000));
-
-    const mapped = rows.map(toRuntimeActivityEntity);
-
-    const filtered = mapped.filter((item) => {
-      const sourceFilter = getFilterEntry(input, "source");
-      const actionFilter = getFilterEntry(input, "action");
-      const actorIdFilter = getFilterEntry(input, "actorId");
-      const statusFilter = getFilterEntry(input, "status");
-      const categoryFilter = getFilterEntry(input, "category");
-      const severityFilter = getFilterEntry(input, "severity");
-      const stageFilter = getFilterEntry(input, "stage");
-      const scannerFilter = getFilterEntry(input, "scanner");
-      const flowIdFilter = getFilterEntry(input, "flowId");
-      const dependsOnFlowIdFilter = getFilterEntry(input, "dependsOnFlowId");
-
-      return matchString(item.source, sourceFilter)
-        && matchString(item.action, actionFilter)
-        && matchString(item.actorId ?? "", actorIdFilter)
-        && matchString(item.status, statusFilter)
-        && matchString(item.category, categoryFilter)
-        && matchString(item.severity, severityFilter)
-        && matchString(item.stage ?? "", stageFilter)
-        && matchString(item.scanner ?? "", scannerFilter)
-        && matchString(item.flowId, flowIdFilter)
-        && matchString(item.dependsOnFlowId ?? "", dependsOnFlowIdFilter);
-    });
-
-    const sorted = sortItems(filtered, input, (item, sortBy) => {
-      switch (sortBy) {
-        case "source":
-          return item.source;
-        case "action":
-          return item.action;
-        case "status":
-          return item.status;
-        case "category":
-          return item.category;
-        case "createdAt":
-          return item.createdAt;
-        case "updatedAt":
-          return item.updatedAt;
-        case "occurredAt":
-        default:
-          return item.occurredAt;
-      }
-    });
-
-    return paginate(sorted, { limit, offset });
-  }
-
-  async getRuntimeActivityById(input: DockerRuntimeActivityDetailQueryInput): Promise<DockerRuntimeActivityEntity | null> {
-    const row = await this.runOnDatabase(this.activities.findById(input.id));
-
-    if (!row) {
-      return null;
-    }
-
-    return toRuntimeActivityEntity(row);
-  }
-
-
-
-
-
   private async resolveLifecycleIdentifier(imageId: string): Promise<{
     imageIdentifierNormalized: string;
   }> {
@@ -567,7 +494,7 @@ export class DockerRepository {
     lifecycleEventType: "image_created" | "image_deleted" | "image_revived",
     payload: { imageIdentifierNormalized: string },
   ): Promise<void> {
-    await this.persistRuntimeActivityEvent({
+    const event: DockerRuntimeEvent = {
       type: "docker_event",
       source: "image",
       action,
@@ -589,7 +516,8 @@ export class DockerRepository {
         repository: null,
         tag: null,
       },
-    });
+    };
+    await this.runOnDatabase(this.activities.insert(buildRuntimeActivityRecord(event, new Date())));
   }
 
 
