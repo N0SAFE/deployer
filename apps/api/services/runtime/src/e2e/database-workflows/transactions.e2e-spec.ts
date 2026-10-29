@@ -12,7 +12,7 @@ import { Effect, Exit, Fiber } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { getSharedApiRuntimeContext } from '@/e2e/runtime'
-import { RuntimeDatabasePort, RuntimeDb } from '@/core/database/runtime-db'
+import { RuntimeDb, makeRuntimeDb } from '@/core/database/runtime-db'
 import { DeploymentRepository } from '@/modules/deployment/repositories/deployment.repository'
 
 /** The slice of the shared `pg.Pool` these tests read. */
@@ -40,8 +40,7 @@ describe('RuntimeDb e2e: transactions and cancellation', () => {
     const withDb = <A, E>(effect: Effect.Effect<A, E, RuntimeDb>) =>
         Effect.runPromise(
             effect.pipe(
-                Effect.provide(RuntimeDb.Live),
-                Effect.provideService(RuntimeDatabasePort, database)
+                Effect.provideService(RuntimeDb, makeRuntimeDb(database))
             )
         )
 

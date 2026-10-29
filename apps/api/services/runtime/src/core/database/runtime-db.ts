@@ -8,14 +8,8 @@ import type {
     GlobalDatabase,
     GlobalDatabaseService,
 } from '@deployer/shared/core/modules/database/services/global-database.service'
-import { Context, Effect, Layer } from 'effect'
+import { Context } from 'effect'
 import { drizzle } from 'drizzle-orm/node-postgres'
-
-/** The shared global database the runtime service reads and writes (a Nest provider). */
-export class RuntimeDatabasePort extends Context.Service<
-    RuntimeDatabasePort,
-    GlobalDatabaseService
->()('runtime/RuntimeDatabasePort') {}
 
 /**
  * The runtime service's database with fiber-scoped transactions: `use` runs a Drizzle callback on
@@ -25,16 +19,7 @@ export class RuntimeDatabasePort extends Context.Service<
 export class RuntimeDb extends Context.Service<
     RuntimeDb,
     DbShape<GlobalDatabase>
->()('runtime/Db') {
-    /** Built over the shared pool the Nest database module owns; this layer never closes it. */
-    static readonly Live: Layer.Layer<RuntimeDb, never, RuntimeDatabasePort> =
-        Layer.effect(
-            RuntimeDb,
-            Effect.gen(function* () {
-                return makeRuntimeDb(yield* RuntimeDatabasePort)
-            })
-        )
-}
+>()('runtime/Db') {}
 
 /**
  * The same database for callers that are not on Effect yet (the deployment repository). The pool is

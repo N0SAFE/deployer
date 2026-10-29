@@ -1,4 +1,4 @@
-import { Effect, Layer, type Context } from "effect";
+import { Effect, type Context } from "effect";
 
 /**
  * A class-style implementation whose methods return Effects, with `Deps` taken out of every
@@ -18,7 +18,7 @@ export type Bound<T, Deps> = {
  * method returns, so a Layer can hand out the service with those requirements already discharged,
  * without rewriting the method bodies. Methods that do not return an Effect are passed through.
  *
- * It is a bridge, not a destination: a service moved onto `makeX(deps)` closures no longer needs it.
+ * Use it to hand a collaborator over with its own requirements settled (see `ingress-edge.service.ts`).
  */
 export function bindServices<T extends object, Deps>(impl: T, context: Context.Context<Deps>): Bound<T, Deps> {
 	return new Proxy(impl, {
@@ -40,26 +40,3 @@ export type RequirementsOf<T> = {
 
 /** `T` as `bindServices` hands it out: every requirement discharged. */
 export type Discharged<T> = Bound<T, RequirementsOf<T>>;
-
-/**
- * The Layer for a class-style service: the requirements its methods name are resolved when the
- * layer is built, and the service is handed out with none left.
- *
- * ```ts
- * export class WebhookService extends Context.Service<WebhookService, Discharged<WebhookServiceImpl>>()("x") {
- *   static readonly Live = layerOfClass(WebhookService, () => new WebhookServiceImpl());
- * }
- * ```
- */
-export function layerOfClass<Id, Impl extends object>(
-	tag: Context.Service<Id, Discharged<Impl>>,
-	make: () => Impl,
-): Layer.Layer<Id, never, RequirementsOf<Impl>> {
-	return Layer.effect(
-		tag,
-		Effect.gen(function* () {
-			const context = yield* Effect.context<RequirementsOf<Impl>>();
-			return bindServices(make(), context);
-		}),
-	);
-}

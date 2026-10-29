@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { and, count, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect } from "effect";
 
 import type {
 	DeploymentDeadLetterJob,
@@ -125,15 +125,7 @@ export type DeploymentQueueRepositoryShape = {
 
 export class DeploymentQueueRepository extends Context.Service<DeploymentQueueRepository, DeploymentQueueRepositoryShape>()(
 	"runtime/DeploymentQueueRepository",
-) {
-	/** Resolves the database at layer build, so no method carries it in `R`. */
-	static readonly Live: Layer.Layer<DeploymentQueueRepository, never, RuntimeDb> = Layer.effect(
-		DeploymentQueueRepository,
-		Effect.gen(function* () {
-			return makeDeploymentQueueRepository(yield* RuntimeDb);
-		}),
-	);
-}
+) {}
 
 const LIVE_STATUSES = ["queued", "claimed", "running"] as const;
 const HELD_STATUSES = ["claimed", "running"] as const;

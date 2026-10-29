@@ -5,10 +5,11 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
 
-import { RuntimeDatabasePort, RuntimeDb } from "@/core/database/runtime-db";
+import { makeRuntimeDb } from "@/core/database/runtime-db";
 import { getSharedApiRuntimeContext } from "@/e2e/runtime";
 import {
 	DeploymentQueueRepository,
+	makeDeploymentQueueRepository,
 	type DeploymentQueueRepositoryShape,
 } from "@/modules/deployment/queue/repositories/deployment-queue.repository";
 
@@ -23,9 +24,10 @@ describe("DeploymentQueueRepository e2e", () => {
 			Effect.gen(function* () {
 				return yield* use(yield* DeploymentQueueRepository);
 			}).pipe(
-				Effect.provide(DeploymentQueueRepository.Live),
-				Effect.provide(RuntimeDb.Live),
-				Effect.provideService(RuntimeDatabasePort, database),
+				Effect.provideService(
+					DeploymentQueueRepository,
+					makeDeploymentQueueRepository(makeRuntimeDb(database)),
+				),
 			),
 		);
 

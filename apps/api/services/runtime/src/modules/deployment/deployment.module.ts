@@ -17,7 +17,6 @@ import {
     DeploymentTriggerRegistryService,
 } from "./triggers/deployment-trigger-registry.service";
 import { DeploymentEventTriggerService } from "./triggers/deployment-event-trigger.service";
-import { RuntimeDatabasePort } from "../../core/database/runtime-db";
 import { SystemDeploymentsPort, TriggerRegistryPort } from "./triggers/deployment-trigger.ports";
 import type { DeploymentTriggerSource } from "./triggers/base/deployment-trigger-source.interface";
 import { DeploymentEventService } from "./events/deployment-event.service";
@@ -137,7 +136,6 @@ export class DeploymentDomainModule extends createModuleContext({
         },
         DeploymentTriggerRegistryService,
         // Event-triggered deployments: a constant Effect service over these ports.
-        { provide: RuntimeDatabasePort, useExisting: GlobalDatabaseService },
         { provide: TriggerRegistryPort, useExisting: DeploymentTriggerRegistryService },
         { provide: SystemDeploymentsPort, useExisting: DeploymentService },
         { provide: DeploymentEventTriggerService, useValue: DeploymentEventTriggerService.live },
