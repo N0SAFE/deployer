@@ -40,14 +40,7 @@ import {
 import { SystemMeshTopologyService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { MeshInternalRequestService } from "@deployer/shared/core/modules/mesh/services/mesh-internal-request.service";
 import { DockerRepository } from "../../../repositories/facade/docker.repository";
-import type {
-    DockerContainerInspectRequestPayload,
-    DockerContainerInspectResponsePayload,
-    DockerContainerListRequestPayload,
-    DockerContainerListResponsePayload,
-    DockerContainerListResult,
-    DockerRuntimeCatalogResponsePayload,
-} from "../mesh/docker-container-mesh.service";
+import type { DockerContainerInspectRequestPayload, DockerContainerInspectResponsePayload, DockerContainerListRequestPayload, DockerContainerListResponsePayload, DockerContainerListResult, DockerRuntimeCatalogResponsePayload } from "../mesh/docker-container-mesh.contracts";
 import { DockerContainerMeshService } from "../mesh/docker-container-mesh.service";
 import { isRecord, isObjectLike } from "@deployer/type-guards"
 
