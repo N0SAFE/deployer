@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HealthController } from "./health.controller";
 import { HealthRegistryRepository } from "../services/health.service";
-import { HealthService, makeHealthService } from "../services/health.service";
+import { HealthService } from "../services/health.service";
 import { healthRegistryFake, healthSnapshot } from "../testing/health.fixtures";
 
 /**
@@ -30,7 +30,7 @@ describe("HealthController", () => {
 
 		context = effectContext(
 			Context.empty().pipe(
-				Context.add(HealthService, makeHealthService()),
+				Context.add(HealthService, HealthService.live),
 				Context.add(HealthRegistryRepository, healthRegistryFake(runOnce)),
 			),
 		);

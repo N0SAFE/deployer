@@ -1,5 +1,5 @@
 import type { HealthSnapshot } from "@deployer/shared/server";
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect } from "effect";
 
 import { HealthCheckFailed } from "../health.errors";
 
@@ -17,19 +17,15 @@ export type HealthServiceShape = {
 }
 
 /**
- * Tag and implementation together: the tag is the contract, `Live` the one
- * implementation. No class, no decorator: the service is a plain record built
- * by `makeHealthService`, so it needs no Nest to exist.
+ * Tag and implementation together: the tag is the contract, `live` the one implementation. No class,
+ * no decorator, no factory: the service is a plain record whose dependency (the registry) is yielded
+ * inside `check()`, so it is a constant a Nest module provides as `{ provide: HealthService, useValue:
+ * HealthService.live }`.
  */
 export class HealthService extends Context.Service<HealthService, HealthServiceShape>()(
   "health/HealthService",
 ) {
-  static readonly Live: Layer.Layer<HealthService> = Layer.succeed(HealthService, makeHealthService());
-}
-
-/** The registry is an Effect service, yielded inside `check()`. */
-export function makeHealthService(): HealthServiceShape {
-  return {
+  static readonly live: HealthServiceShape = {
     check: Effect.fn("HealthService.check")(function* () {
       const registry = yield* HealthRegistryRepository;
 

@@ -3,7 +3,7 @@ import { HealthModule, HealthRegistry } from "@deployer/shared/server";
 
 import { HealthController } from "./controllers/health.controller";
 import { HealthRegistryRepository } from "./services/health.service";
-import { HealthService, makeHealthService } from "./services/health.service";
+import { HealthService } from "./services/health.service";
 
 /**
  * The health domain.
@@ -27,6 +27,6 @@ export class HealthDomainModule extends createModuleContext({
   controllers: [HealthController],
   providers: [
     { provide: HealthRegistryRepository, useExisting: HealthRegistry },
-    { provide: HealthService, useValue: makeHealthService() },
+    { provide: HealthService, useValue: HealthService.live },
   ],
 }) {}
