@@ -91,6 +91,15 @@ Each router is served on its own link, so a replica can refuse `peer` calls from
 
 ## oRPC clients
 
+**Server-side clients use the RPC link, never the OpenAPI link.** Every service-to-service and service-to-agent client
+is built on the oRPC RPC protocol over a persistent websocket (`@orpc/client/websocket`), not the OpenAPI/fetch link.
+The websocket is opened once and reused, so calls, streams and redirects share one long-lived connection instead of
+paying a connection setup per request, and server-to-client streams (event iterators) work natively. The OpenAPI
+link stays for the public surface only (browsers, third parties). Connections are per peer, not per service pair, are
+opened on first use and reconnect with backoff; the redirect interceptor and `createEffectClient` sit on top of that
+link unchanged.
+
+
 Every server-side oRPC client (the service-client registry, the shared `service-client`, the mesh links, the
 initialization service) is built with `createEffectClient`, so callers get Effects instead of Promises. Today these
 call `createORPCClient` directly: `packages/service-client` (registry), `apps/api/shared/src/server/service-client.ts`,

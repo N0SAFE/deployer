@@ -37,3 +37,11 @@
 **A**: "the different contract type should be in different router so the peer request and the external service and per node request should be in different router and also all contract should be not public so inside a dedicated mesh folder."
 
 ---
+
+## Server-side clients use the RPC link
+
+**Q**: (stated by the operator) Which link do service-side oRPC clients use?
+
+**A**: "all service side orpc client should use rpc link instead of openapi so that its persistent link"
+
+---
