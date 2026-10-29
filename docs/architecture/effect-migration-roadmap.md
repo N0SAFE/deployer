@@ -15,10 +15,12 @@ inside the package. Do not rewrite an RxJS bus or SSE pipeline into Effect strea
    `make<Service>(deps)` factories, layers, typed `domainError`s and `Test`/fake layers. No Nest import.
 2. **Typed failures**, never `throw`; Promise APIs enter through `fromAbortable` so interruption
    aborts the work.
-3. **Nest provides the tag directly**, as `apps/api/services/health` does: the app's module has
-   `{ provide: Tag, useFactory: make<X> }` and callers `@Inject(Tag)` and run the Effect they need. No
-   `nest-effect/<feature>` host and no Promise face: those were a migration layer and are gone.
-   Lifetime work (closing a handle, a background fiber) lives in a small provider next to the tag.
+3. **Nest provides the tag directly, in the module that owns it**, as `apps/api/services/health` does:
+   `{ provide: Tag, useValue: Tag.live }`. The service is a constant whose collaborators are yielded when a
+   method runs (`serviceOver`), so there is no root layer list, no exported `make<X>` and no `Live` layer
+   for Nest. Real construction (a pool-bound handle, an event bus) is a `useFactory` provider; lifetime work
+   (closing a handle, a timer, a fiber) lives in a small provider next to the tag. No `nest-effect/<feature>`
+   host and no Promise face: those were a migration layer and are gone.
 4. **Delete the old `nest-*` package** once its consumers are repointed; no compatibility shims.
 
 ## Done
@@ -41,6 +43,7 @@ inside the package. Do not rewrite an RxJS bus or SSE pipeline into Effect strea
 | identity, project, fleet, runtime services | Effect layers behind `serve` |
 | identity analytics | Effect layer (service, repository, `.effect()` handlers); every identity domain is now on the template |
 | `SessionResolver` | session lookup is an Effect service; Better Auth still does the check inside the oRPC auth plugin |
+| every API service wired by module (`useValue: X.live`) | `EffectRuntimeModule.forRoot({ layers })` and the `*.layers.ts` / `app.layers.ts` assemblies in health, identity, project, fleet and runtime; `layerOfClass` |
 | runtime deployment queue (EFF-202) | durable `deployment_queue_jobs` + `DeploymentQueueRepository` (SKIP LOCKED, guarded leases); `makeJobRunner` runs one fiber per job with heartbeat, cancel-as-interrupt and a single terminal write; the build abort signal reaches the docker build |
 
 ## Remaining, in dependency order

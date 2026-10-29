@@ -145,13 +145,20 @@ export class UserDomainModule extends createModuleContext({
   holds `Pick<RealClass, "method">` + a `Context.Service` tag, and the module provides
   `{ provide: Tag, useExisting: NestClass }`. The port names only the methods the
   Effect layer may use, so a service cannot reach the rest of the shared class.
-- Some services cannot be a Nest provider at all: their construction needs the
-  Effect context (an event bus that needs the shared stream pool) or a scope.
-  Register them as a Layer and pass it to the runtime:
-  `EffectRuntimeModule.forRoot({ layers: [ServiceEventServiceLayer] })`; the
-  runtime builds it *over* the discovered providers and disposes it on shutdown.
-  A module whose handlers yield such a service lists its tag as an extra key:
-  `createModuleContext({ … }, DatabasePort, ServiceEventService)`.
+- **A service is a constant its own module provides**: `{ provide: UserService, useValue: UserService.live }`.
+  The tag class carries the implementation as `static readonly live`; its collaborators (the repository,
+  the ports) are yielded from the Effect context when a method runs, so nothing is built at the root and
+  there is no `forRoot({ layers })`, no `*.layers.ts`, no exported `make…` factory. Write the body as
+  closures over its collaborators and expose it with `serviceOver(Collaborator, make)` from
+  `@deployer/effect-core` (class-style services just yield inside their methods). A spec substitutes a
+  collaborator with `provideTo(Service.live, (e) => e.pipe(Effect.provideService(Tag, fake)))`.
+  `serviceOver` runs `make` on every call, so keep such a service stateless; state shared by calls lives
+  in a value created once next to `live` (see `EdgeDnsService`).
+- Something that needs real construction stays an ordinary Nest provider, still under its Effect tag:
+  a pool-bound database handle (`{ provide: ProjectDb, useFactory: makeProjectDb, inject: [GlobalDatabaseService] }`),
+  an event bus over the shared stream pool, or anything with a lifetime (a timer, a fiber: a small
+  `@Injectable()` next to the service, like `IngressDnsReconciler`). Keep a module's providers next to
+  the controllers that use them; the root only imports `EffectRuntimeModule`.
 
 `createOrpcModule({ extraContext })` still puts the runtime `Context` under
 `effect/context` per request; `extraContext.inject` is a tuple, so `resolve`
