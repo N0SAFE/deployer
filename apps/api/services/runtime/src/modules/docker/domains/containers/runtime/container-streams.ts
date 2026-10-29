@@ -25,6 +25,32 @@ export type LogsStreamOptions = {
   readonly until?: Date | undefined;
 };
 
+/**
+ * Remembers the log lines it has seen (up to a cap) and returns only the new ones from each snapshot, so a line a
+ * later snapshot repeats is emitted once.
+ */
+export function createLogDeduper(): (entries: readonly DockerContainerLogEntry[]) => DockerContainerLogEntry[] {
+  const seenKeys: string[] = [];
+  const seenSet = new Set<string>();
+
+  return (entries) => {
+    const fresh: DockerContainerLogEntry[] = [];
+    for (const entry of entries) {
+      const seenKey = `${entry.timestamp}|${entry.stream}|${entry.message}`;
+      if (seenSet.has(seenKey)) continue;
+
+      seenSet.add(seenKey);
+      seenKeys.push(seenKey);
+      if (seenKeys.length > MAX_SEEN_LOG_KEYS) {
+        const oldest = seenKeys.shift();
+        if (oldest) seenSet.delete(oldest);
+      }
+      fresh.push(entry);
+    }
+    return fresh;
+  };
+}
+
 const toSeconds = (date: Date | undefined) => (date ? Math.max(0, Math.floor(date.getTime() / 1_000)) : undefined);
 
 /** Logs seen so far are remembered (up to a cap) so a repeated snapshot line is emitted once; `since` follows the newest line. */
@@ -34,8 +60,7 @@ export function streamLogs(collect: LogsCollector, options: LogsStreamOptions): 
   const untilSeconds = toSeconds(options.until);
 
   return new Observable((subscriber) => {
-    const seenKeys: string[] = [];
-    const seenSet = new Set<string>();
+    const dedupe = createLogDeduper();
     let nextSinceSeconds: number | undefined = toSeconds(options.since);
 
     const subscription = interval(refreshIntervalMs)
@@ -45,18 +70,7 @@ export function streamLogs(collect: LogsCollector, options: LogsStreamOptions): 
       )
       .subscribe({
         next: (entries) => {
-          for (const entry of entries) {
-            const seenKey = `${entry.timestamp}|${entry.stream}|${entry.message}`;
-            if (seenSet.has(seenKey)) continue;
-
-            seenSet.add(seenKey);
-            seenKeys.push(seenKey);
-
-            if (seenKeys.length > MAX_SEEN_LOG_KEYS) {
-              const oldest = seenKeys.shift();
-              if (oldest) seenSet.delete(oldest);
-            }
-
+          for (const entry of dedupe(entries)) {
             subscriber.next(entry);
           }
 

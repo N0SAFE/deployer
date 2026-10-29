@@ -32,11 +32,8 @@ import { AppLogger } from "@deployer/logger";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { Effect } from "effect";
 import { DockerContainerLinks } from "../../../repositories/containers/links/docker-container-links";
-import { DockerContainerRuntimeMeshService } from "../mesh/docker-container-runtime-mesh.service";
-import { DockerContainerLogsDomainService } from "../runtime/docker-container-logs-domain.service";
-import { DockerContainerRuntimeService } from "../runtime/docker-container-runtime.service";
-import { DockerContainerShellDomainService } from "../runtime/docker-container-shell-domain.service";
 import { EffectRuntime } from "@deployer/nest-effect";
+import { accessStream, withContainerAccess, type TerminalStreamEvent } from "../runtime/docker-container-access";
 import { withContainerResolution } from "./docker-container-resolution";
 
 import { AppError } from "@deployer/errors";
@@ -59,11 +56,7 @@ export class DockerContainersOrchestratorService {
   });
 
   constructor(
-    private readonly dockerContainerRuntimeService: DockerContainerRuntimeService,
-    private readonly dockerContainerLogsDomainService: DockerContainerLogsDomainService,
-    private readonly dockerContainerShellDomainService: DockerContainerShellDomainService,
     private readonly effectRuntime: EffectRuntime,
-    private readonly dockerContainerRuntimeMeshService: DockerContainerRuntimeMeshService,
     @Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape,
   ) {}
 
@@ -143,224 +136,63 @@ export class DockerContainersOrchestratorService {
   }
 
   streamContainerLogs(input: DockerContainerLogsStreamQueryInput): Observable<DockerContainerLogEntry> {
-    return this.dockerContainerLogsDomainService.streamContainerLogs(input);
+    return accessStream(this.effectRuntime, (access) => access.streamLogs(input));
   }
 
-  async listContainerLogs(input: DockerContainerLogsStreamQueryInput) {
-    return this.dockerContainerLogsDomainService.listContainerLogs(input);
+  listContainerLogs(input: DockerContainerLogsStreamQueryInput) {
+    return withContainerAccess(this.effectRuntime, (access) => access.listLogs(input));
   }
 
-  async listContainerProcesses(input: DockerContainerProcessesQueryInput) {
-    return this.dockerContainerLogsDomainService.listContainerProcesses(input);
+  listContainerProcesses(input: DockerContainerProcessesQueryInput) {
+    return withContainerAccess(this.effectRuntime, (access) => access.listProcesses(input));
   }
 
-  streamContainerProcesses(input: DockerContainerProcessesStreamQueryInput): Observable<{
-    generatedAt: string;
-    data: DockerContainerProcessEntry[];
-  }> {
-    return this.dockerContainerLogsDomainService.streamContainerProcesses(input);
+  streamContainerProcesses(input: DockerContainerProcessesStreamQueryInput): Observable<{ generatedAt: string; data: DockerContainerProcessEntry[] }> {
+    return accessStream(this.effectRuntime, (access) => access.streamProcesses(input));
   }
 
   streamContainerProcessLogs(input: DockerContainerProcessLogsStreamQueryInput) {
-    return this.dockerContainerLogsDomainService.streamContainerProcessLogs(input);
+    return accessStream(this.effectRuntime, (access) => access.streamProcessLogs(input));
   }
 
-  async listContainerFiles(input: DockerContainerFilesQueryInput) {
-    return this.withContainerMeshFallback(
-      () => this.dockerContainerRuntimeService.listContainerFiles(input),
-      async () => {
-        const response = await this.getFirstResponse(
-          this.dockerContainerRuntimeMeshService.listContainerFilesSnapshotAcrossInstances(
-            {
-              query: input,
-            },
-            {
-              timeoutMs: 1_500,
-              maxCollectedResponses: 1,
-              stopWhen: () => true,
-            },
-          ),
-        );
-
-        return response?.snapshot ?? null;
-      },
-    );
+  listContainerFiles(input: DockerContainerFilesQueryInput) {
+    return withContainerAccess(this.effectRuntime, (access) => access.listFiles(input));
   }
 
-  async readContainerFile(input: DockerContainerReadFileQueryInput) {
-    return this.withContainerMeshFallback(
-      () => this.dockerContainerRuntimeService.readContainerFile(input),
-      async () => {
-        const response = await this.getFirstResponse(
-          this.dockerContainerRuntimeMeshService.readContainerFileSnapshotAcrossInstances(
-            {
-              query: input,
-            },
-            {
-              timeoutMs: 1_500,
-              maxCollectedResponses: 1,
-              stopWhen: () => true,
-            },
-          ),
-        );
-
-        return response?.snapshot ?? null;
-      },
-    );
+  readContainerFile(input: DockerContainerReadFileQueryInput) {
+    return withContainerAccess(this.effectRuntime, (access) => access.readFile(input));
   }
 
-  async writeContainerFile(input: DockerContainerWriteFileBodyInput) {
-    return this.withContainerMeshFallback(
-      () => this.dockerContainerRuntimeService.writeContainerFile(input),
-      async () => {
-        const response = await this.getFirstResponse(
-          this.dockerContainerRuntimeMeshService.writeContainerFileAcrossInstances(
-            {
-              body: input,
-            },
-            {
-              timeoutMs: 1_500,
-              maxCollectedResponses: 1,
-              stopWhen: () => true,
-            },
-          ),
-        );
-
-        return response?.ack ?? null;
-      },
-    );
+  writeContainerFile(input: DockerContainerWriteFileBodyInput) {
+    return withContainerAccess(this.effectRuntime, (access) => access.writeFile(input));
   }
 
-  async deleteContainerPath(input: DockerContainerDeletePathBodyInput) {
-    return this.withContainerMeshFallback(
-      () => this.dockerContainerRuntimeService.deleteContainerPath(input),
-      async () => {
-        const response = await this.getFirstResponse(
-          this.dockerContainerRuntimeMeshService.deleteContainerPathAcrossInstances(
-            {
-              body: input,
-            },
-            {
-              timeoutMs: 1_500,
-              maxCollectedResponses: 1,
-              stopWhen: () => true,
-            },
-          ),
-        );
-
-        return response?.ack ?? null;
-      },
-    );
+  deleteContainerPath(input: DockerContainerDeletePathBodyInput) {
+    return withContainerAccess(this.effectRuntime, (access) => access.deletePath(input));
   }
 
-  async renameContainerPath(input: DockerContainerRenamePathBodyInput) {
-    return this.withContainerMeshFallback(
-      () => this.dockerContainerRuntimeService.renameContainerPath(input),
-      async () => {
-        const response = await this.getFirstResponse(
-          this.dockerContainerRuntimeMeshService.renameContainerPathAcrossInstances(
-            {
-              body: input,
-            },
-            {
-              timeoutMs: 1_500,
-              maxCollectedResponses: 1,
-              stopWhen: () => true,
-            },
-          ),
-        );
-
-        return response?.ack ?? null;
-      },
-    );
+  renameContainerPath(input: DockerContainerRenamePathBodyInput) {
+    return withContainerAccess(this.effectRuntime, (access) => access.renamePath(input));
   }
 
-  async createContainerDirectory(input: DockerContainerCreateDirectoryBodyInput) {
-    return this.withContainerMeshFallback(
-      () => this.dockerContainerRuntimeService.createContainerDirectory(input),
-      async () => {
-        const response = await this.getFirstResponse(
-          this.dockerContainerRuntimeMeshService.createContainerDirectoryAcrossInstances(
-            {
-              body: input,
-            },
-            {
-              timeoutMs: 1_500,
-              maxCollectedResponses: 1,
-              stopWhen: () => true,
-            },
-          ),
-        );
-
-        return response?.ack ?? null;
-      },
-    );
+  createContainerDirectory(input: DockerContainerCreateDirectoryBodyInput) {
+    return withContainerAccess(this.effectRuntime, (access) => access.createDirectory(input));
   }
 
-  async openContainerTerminalSession(input: DockerContainerTerminalOpenBodyInput) {
-    return this.dockerContainerShellDomainService.openContainerTerminalSession(input);
+  openContainerTerminalSession(input: DockerContainerTerminalOpenBodyInput) {
+    return withContainerAccess(this.effectRuntime, (access) => access.openTerminal(input));
   }
 
-  streamContainerTerminalSession(input: DockerContainerTerminalStreamQueryInput): Observable<DockerTerminalStreamEvent> {
-    return this.dockerContainerShellDomainService.streamContainerTerminalSession(input);
+  streamContainerTerminalSession(input: DockerContainerTerminalStreamQueryInput): Observable<TerminalStreamEvent> {
+    return accessStream(this.effectRuntime, (access) => access.streamTerminal(input));
   }
 
-  async sendContainerTerminalInput(input: DockerContainerTerminalInputBodyInput) {
-    return this.dockerContainerShellDomainService.sendContainerTerminalInput(input);
+  sendContainerTerminalInput(input: DockerContainerTerminalInputBodyInput) {
+    return withContainerAccess(this.effectRuntime, (access) => access.sendTerminalInput(input));
   }
 
-  async closeContainerTerminalSession(input: DockerContainerTerminalCloseBodyInput) {
-    return this.dockerContainerShellDomainService.closeContainerTerminalSession(input);
-  }
-
-  private async withContainerMeshFallback<T>(
-    localOperation: () => Promise<T>,
-    meshOperation: () => Promise<T | null>,
-  ): Promise<T> {
-    try {
-      return await localOperation();
-    } catch (error) {
-      if (!this.isContainerNotFoundLikeError(error)) {
-        throw error;
-      }
-
-      const meshValue = await meshOperation();
-      if (meshValue !== null) {
-        return meshValue;
-      }
-
-      throw error;
-    }
-  }
-
-  private async getFirstResponse<T>(call: Promise<{ responses: readonly T[] }>): Promise<T | null> {
-    const result = await call;
-    return result.responses[0] ?? null;
-  }
-
-  private isContainerNotFoundLikeError(error: unknown): boolean {
-    const message = this.formatError(error).toLowerCase();
-    return (
-      message.includes("no such container")
-      || (message.includes("container") && message.includes("not found"))
-      || (message.includes("404") && message.includes("container"))
-    );
-  }
-
-  private formatError(error: unknown): string {
-    if (error instanceof Error) {
-      return error.message;
-    }
-
-    if (typeof error === "string") {
-      return error;
-    }
-
-    try {
-      return JSON.stringify(error);
-    } catch {
-      return String(error);
-    }
+  closeContainerTerminalSession(input: DockerContainerTerminalCloseBodyInput) {
+    return withContainerAccess(this.effectRuntime, (access) => access.closeTerminal(input));
   }
 
   private debug(source: string, context?: Record<string, unknown>): void {
