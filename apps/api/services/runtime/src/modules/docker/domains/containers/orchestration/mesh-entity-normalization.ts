@@ -3,7 +3,7 @@
  * references and the container hash. Pure, so every coercion rule is tested without a mesh.
  */
 import { createHash } from "node:crypto";
-import { type DockerContainer } from "@deployer/contracts-entities";
+import { dockerContainerSchema, dockerImageSchema, type DockerContainer, type DockerImage } from "@deployer/contracts-entities";
 import { isRecord } from "@deployer/type-guards";
 
 export const DEPLOYMENT_ENVIRONMENTS = new Set(["production", "staging", "preview", "development"] as const);
@@ -302,4 +302,134 @@ export function toError(error: unknown): Error {
     }
 
     return new Error(String(error));
+}
+
+export function normalizeContainer(input: unknown, warn: (message: string) => void = () => undefined): DockerContainer | null {
+    const parsed = dockerContainerSchema.safeParse(input);
+    if (parsed.success) {
+        return parsed.data;
+    }
+
+    if (!input || typeof input !== "object") {
+        return null;
+    }
+
+    const source = isRecord(input) ? input : {};
+    const id = asNonEmptyString(source.id) ?? null;
+    if (!id) {
+        return null;
+    }
+
+    const name = asNonEmptyString(source.name) ?? `container-${id.slice(0, 8)}`;
+    const projectId = asNonEmptyString(source.projectId) ?? `project-${id.slice(0, 8)}`;
+    const serviceId = asNonEmptyString(source.serviceId) ?? `service-${id.slice(0, 8)}`;
+    const imageId = asNullableString(source.imageId);
+    const environment = normalizeEnvironment(source.environment);
+    const ports = normalizePorts(source.ports);
+    const networkIds = normalizeStringArray(source.networkIds);
+    const volumeIds = normalizeStringArray(source.volumeIds);
+    const createdAt = asIsoString(source.createdAt);
+    const updatedAt = asIsoString(source.updatedAt);
+
+    const fallbackHash = buildContainerHash({
+        managedBy:
+            asNonEmptyString(source.managedBy) === "deployment_service"
+                ? "deployment_service"
+                : "orphan",
+        managedDeploymentId: asNullableString(source.managedDeploymentId),
+        managedServiceId: asNullableString(source.managedServiceId),
+        managedProjectId: asNullableString(source.managedProjectId),
+        name,
+        projectId,
+        serviceId,
+        imageId,
+        environment,
+        ports,
+    });
+
+    const repaired = dockerContainerSchema.safeParse({
+        id,
+        hash: asNonEmptyString(source.hash) ?? fallbackHash,
+        name,
+        projectId,
+        serviceId,
+        stackId: asNullableString(source.stackId),
+        imageId,
+        status: normalizeStatus(source.status),
+        health: normalizeHealth(source.health),
+        environment,
+        cpuPercent: normalizePercent(source.cpuPercent),
+        memoryPercent: normalizePercent(source.memoryPercent),
+        restartCount: normalizeNonNegativeInt(source.restartCount),
+        ports,
+        networkIds,
+        volumeIds,
+        managedBy:
+            asNonEmptyString(source.managedBy) === "deployment_service"
+                ? "deployment_service"
+                : "orphan",
+        managedReason: asNullableString(source.managedReason),
+        managedDeploymentId: asNullableString(source.managedDeploymentId),
+        managedServiceId: asNullableString(source.managedServiceId),
+        managedProjectId: asNullableString(source.managedProjectId),
+        managedImageRef: asNullableString(source.managedImageRef),
+        managedNetworkMode: asNullableString(source.managedNetworkMode),
+        logsStreamId: asNullableString(source.logsStreamId),
+        startedAt: asNullableIsoString(source.startedAt),
+        createdAt,
+        updatedAt,
+    });
+
+    if (!repaired.success) {
+        warn(
+            `Failed to normalize docker container '${id}': ${JSON.stringify(repaired.error.issues[0] ?? null)}`,
+        );
+        return null;
+    }
+
+    return repaired.data;
+}
+
+export function normalizeImage(input: unknown, warn: (message: string) => void = () => undefined): DockerImage | null {
+    const parsed = dockerImageSchema.safeParse(input);
+
+    const source = parsed.success
+        ? (isRecord(parsed.data) ? parsed.data : {})
+        : (isRecord(input) ? input : null);
+
+    if (!source) {
+        return null;
+    }
+
+    const id = parsed.success ? parsed.data.id : asNonEmptyString(source.id);
+    if (!id) {
+        return null;
+    }
+
+    const normalizedRegistry = normalizeImageRegistrySegment(parsed.success ? parsed.data.registry : source.registry);
+    const normalizedRepository = normalizeImageRepositoryPath(parsed.success ? parsed.data.repository : source.repository);
+    const hasUnknownRepository = normalizedRepository === "library/unknown";
+    const repository = hasUnknownRepository ? buildFallbackImageRepository(id) : normalizedRepository;
+    const registry = hasUnknownRepository ? "local" : normalizedRegistry;
+
+    const normalized = dockerImageSchema.safeParse({
+        id,
+        registry,
+        repository,
+        tag: normalizeImageTag(parsed.success ? parsed.data.tag : source.tag),
+        digest: normalizeImageDigest(parsed.success ? parsed.data.digest : source.digest),
+        sizeBytes: normalizeImageSizeBytes(parsed.success ? parsed.data.sizeBytes : source.sizeBytes),
+        createdAt: asIsoString(parsed.success ? parsed.data.createdAt : source.createdAt),
+        lastSeenAt: asIsoString(parsed.success ? parsed.data.lastSeenAt : source.lastSeenAt),
+        labels: normalizeImageLabels(parsed.success ? parsed.data.labels : source.labels),
+    });
+
+    if (!normalized.success) {
+        warn(
+            `Failed to normalize docker image '${id}': ${JSON.stringify(normalized.error.issues[0] ?? null)}`,
+        );
+        return null;
+    }
+
+    return normalized.data;
 }

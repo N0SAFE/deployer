@@ -8,12 +8,24 @@ import { DockerRuntimeEventsStreamService } from "../../../common/events/docker-
 import { DockerRuntimeMeshRelayService } from "../../../common/mesh/docker-runtime-mesh-relay.service";
 import { DockerImagesApplicationService } from "../application/docker-images-application.service";
 import { DockerImageSecurityRepository } from "../../../repositories/images/security/docker-image-security.repository";
+import { heavyWorkSnapshot } from "@deployer/shared/core/utils/heavy-work.registry";
+import {
+	planScanConcurrency,
+	readScanPressure,
+	resolveScanConcurrencyCeiling,
+} from "../../../services/scan-concurrency";
 
 const AUTO_SCAN_EVENT_ACTIONS = new Set(["start"]);
 const AUTO_SCAN_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1_000;
 const AUTO_SCAN_TRIGGER_COOLDOWN_MS = 20_000;
 const AUTO_SCAN_BOOTSTRAP_IMAGE_PAGE_LIMIT = 500;
 const DEFAULT_IMAGE_QUEUE_PARALLELISM = 1;
+/**
+ * How long the background scan queue waits before re-checking whether the host
+ * can take another image. Long enough not to spin while swapping, short enough
+ * that the queue resumes promptly once a deployment or a scan finishes.
+ */
+const AUTO_SCAN_CAPACITY_RETRY_MS = 30_000;
 
 @Injectable()
 export class DockerImageAutoScanListenerService implements OnModuleInit, OnModuleDestroy {
@@ -31,6 +43,8 @@ export class DockerImageAutoScanListenerService implements OnModuleInit, OnModul
 	private readonly lastTriggeredAtByImage = new Map<string, number>();
 	private localNodeId: string | null = null;
 	private isProcessingQueue = false;
+	/** Background scans that hold a claim right now (see tryClaimNextImage). */
+	private activeAutoScanJobs = 0;
 	private isBootstrapRunning = false;
 
 	constructor(
@@ -88,6 +102,7 @@ export class DockerImageAutoScanListenerService implements OnModuleInit, OnModul
 		this.pendingImageQueue.length = 0;
 		this.lastTriggeredAtByImage.clear();
 		this.isProcessingQueue = false;
+		this.activeAutoScanJobs = 0;
 		this.isBootstrapRunning = false;
 
 		this.debug("onModuleDestroy", {
@@ -242,16 +257,85 @@ export class DockerImageAutoScanListenerService implements OnModuleInit, OnModul
 	private async drainQueue(): Promise<void> {
 		const workerCount = this.resolveImageQueueParallelism();
 		await Promise.all(Array.from({ length: workerCount }).map(async () => {
-			while (this.pendingImageQueue.length > 0) {
-				const imageId = this.pendingImageQueue.shift();
-				if (!imageId) {
+			while (true) {
+				const imageId = this.tryClaimNextImage();
+
+				if (imageId === null) {
+					if (this.pendingImageQueue.length === 0) {
+						return;
+					}
+
+					// Over capacity: wait instead of starting the next image. This is
+					// the gate that keeps a background bootstrap from filling the
+					// machine while a deployment or another scan is already running.
+					await this.delay(AUTO_SCAN_CAPACITY_RETRY_MS);
 					continue;
 				}
 
-				this.queuedByImage.delete(imageId);
-				await this.runAutoScanForImage(imageId);
+				try {
+					this.queuedByImage.delete(imageId);
+					await this.runAutoScanForImage(imageId);
+				} finally {
+					this.activeAutoScanJobs -= 1;
+				}
 			}
 		}));
+	}
+
+	/**
+	 * Claim the next image iff the machine and the other work allow it.
+	 *
+	 * ── WHY THE CHECK AND THE CLAIM ARE SYNCHRONOUS ─────────────────────────
+	 * Several drain workers run at once (`APP_DOCKER_IMAGE_SCAN_IMAGE_PARALLELISM`).
+	 * If the capacity check `await`ed, two workers could both observe "nothing is
+	 * running" and start two images — the queue's parallelism would silently
+	 * defeat the point of the gate. Every read here is synchronous and the claim
+	 * happens in the same tick, so JS's run-to-completion makes it atomic.
+	 *
+	 * ── WHAT COUNTS AS "NOT ALLOWED" ────────────────────────────────────────
+	 *  - another background scan is in flight (this queue runs one at a time);
+	 *  - a scanner container from ANY source is running (interactive scan);
+	 *  - the shared policy says the host is strained or a build/deploy is running
+	 *    (`scan-concurrency.ts` — same rules the scanner itself uses).
+	 */
+	private tryClaimNextImage(): string | null {
+		if (this.activeAutoScanJobs > 0) {
+			return null;
+		}
+
+		if (heavyWorkSnapshot().scan > 0) {
+			return null;
+		}
+
+		const plan = planScanConcurrency({
+			ceiling: resolveScanConcurrencyCeiling(),
+			pressure: readScanPressure(),
+			heavy: heavyWorkSnapshot(),
+		});
+
+		if (
+			plan.reason === "critical-memory"
+			|| plan.reason === "swap-pressure"
+			|| plan.reason === "build-or-deploy-in-flight"
+		) {
+			this.debug("tryClaimNextImage", {
+				phase: "deferred",
+				reason: plan.reason,
+				queueSize: this.pendingImageQueue.length,
+			});
+			return null;
+		}
+
+		const imageId = this.pendingImageQueue.shift() ?? null;
+		if (imageId !== null) {
+			this.activeAutoScanJobs += 1;
+		}
+
+		return imageId;
+	}
+
+	private delay(ms: number): Promise<void> {
+		return new Promise((resolve) => setTimeout(resolve, ms));
 	}
 
 	private async runAutoScanForImage(imageId: string): Promise<void> {

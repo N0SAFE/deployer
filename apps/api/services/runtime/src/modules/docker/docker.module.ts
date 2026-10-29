@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { createModuleContext } from "@deployer/nest-effect";
 import { MeshCoreModule } from "@deployer/shared/core/modules/mesh/mesh-core.module";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";
 import { DockerController } from "./controllers/docker.controller";
@@ -7,11 +7,10 @@ import { DockerRepositoriesModule } from "./repositories/docker-repositories.mod
 import { DockerContainersModule } from "./domains/containers/docker-containers.module";
 import { DockerRuntimeModule } from "./domains/runtime/docker-runtime.module";
 import { DockerImagesModule } from "./domains/images/docker-images.module";
-import { DockerNetworksModule } from "./domains/networks/docker-networks.module";
-import { DockerVolumesModule } from "./domains/volumes/docker-volumes.module";
+import { DockerCatalogModule } from "./catalog/docker-catalog.module";
 import { DockerEntityModule } from "./domains/entity/docker-entity.module";
 
-@Module({
+export class DockerDomainModule extends createModuleContext({
   imports: [
     MeshCoreModule,
     CoreDockerModule, 
@@ -20,8 +19,7 @@ import { DockerEntityModule } from "./domains/entity/docker-entity.module";
     DockerContainersModule,
     DockerRuntimeModule,
     DockerImagesModule,
-    DockerNetworksModule,
-    DockerVolumesModule,
+    DockerCatalogModule,
     DockerEntityModule,
   ],
   controllers: [DockerController],
@@ -31,9 +29,7 @@ import { DockerEntityModule } from "./domains/entity/docker-entity.module";
     DockerContainersModule,
     DockerRuntimeModule,
     DockerImagesModule,
-    DockerNetworksModule,
-    DockerVolumesModule,
+    DockerCatalogModule,
     DockerEntityModule,
   ],
-})
-export class DockerDomainModule {}
+}) {}

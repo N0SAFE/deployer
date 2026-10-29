@@ -4,10 +4,10 @@
  */
 import { BadRequestError } from "@deployer/errors";
 import type { DockerContainerGroupedListItem, DockerContainerListInput } from "@deployer/runtime-contracts/modules/docker/containers/shared";
-import { dockerContainerInspectDetailSchema, dockerNetworkSchema, dockerRegistrySchema, dockerStackSchema, dockerVolumeSchema, type DockerContainer, type DockerContainerInspectDetail, type DockerNetwork, type DockerRegistry, type DockerStack, type DockerVolume } from "@deployer/contracts-entities";
+import { dockerContainerInspectDetailSchema, dockerNetworkSchema, dockerRegistrySchema, dockerRuntimeCatalogSchema, dockerStackSchema, dockerVolumeSchema, type DockerContainer, type DockerContainerInspectDetail, type DockerImage, type DockerNetwork, type DockerRegistry, type DockerRuntimeCatalog, type DockerStack, type DockerVolume } from "@deployer/contracts-entities";
 import type { DockerContainerInspectResponsePayload, DockerContainerListResponsePayload, DockerContainerListResult, DockerRuntimeCatalogResponsePayload } from "../mesh/docker-container-mesh.service";
 import { isRecord } from "@deployer/type-guards";
-import { normalizeComparableValue, normalizeContainerGroupName } from "./mesh-entity-normalization";
+import { normalizeComparableValue, normalizeContainer, normalizeContainerGroupName, normalizeImage } from "./mesh-entity-normalization";
 import type { DockerGroupedDaemonDiagnostics, DockerListResult, ParsedFilterEntry } from "./mesh-universe-types";
 import { HEALTH_PRIORITY, STATUS_PRIORITY } from "./mesh-universe-types";
 
@@ -567,4 +567,71 @@ export function paginateList<T>(items: T[], limit: number, offset: number): Dock
             hasMore: offset + limit < total,
         },
     };
+}
+
+export function mergeRuntimeCatalogResponses(
+    responses: readonly DockerRuntimeCatalogResponsePayload[],
+    warn: (message: string) => void = () => undefined,
+): DockerRuntimeCatalog {
+    const containers = mergeContainersFromCatalog(responses, warn);
+    const images = mergeImagesFromCatalog(responses, warn);
+    const networks = mergeNetworksFromCatalog(responses);
+    const volumes = mergeVolumesFromCatalog(responses);
+    const registries = mergeRegistriesFromCatalog(responses);
+    const stacks = mergeStacksFromCatalog(responses);
+
+    return dockerRuntimeCatalogSchema.parse({
+        containers,
+        images,
+        networks,
+        volumes,
+        registries,
+        stacks,
+    });
+}
+
+export function mergeContainersFromCatalog(
+    responses: readonly DockerRuntimeCatalogResponsePayload[],
+    warn: (message: string) => void = () => undefined,
+): DockerContainer[] {
+    const merged = new Map<string, DockerContainer>();
+
+    for (const response of responses) {
+        for (const item of response.catalog.containers) {
+            const normalized = normalizeContainer(item, warn);
+            if (!normalized) {
+                continue;
+            }
+
+            const existing = merged.get(normalized.id);
+            if (!existing || existing.updatedAt < normalized.updatedAt) {
+                merged.set(normalized.id, normalized);
+            }
+        }
+    }
+
+    return [...merged.values()];
+}
+
+export function mergeImagesFromCatalog(
+    responses: readonly DockerRuntimeCatalogResponsePayload[],
+    warn: (message: string) => void = () => undefined,
+): DockerImage[] {
+    const merged = new Map<string, DockerImage>();
+
+    for (const response of responses) {
+        for (const item of response.catalog.images) {
+            const image = normalizeImage(item, warn);
+            if (!image) {
+                continue;
+            }
+
+            const existing = merged.get(image.id);
+            if (!existing || existing.lastSeenAt < image.lastSeenAt) {
+                merged.set(image.id, image);
+            }
+        }
+    }
+
+    return [...merged.values()];
 }

@@ -7,6 +7,9 @@ import type {
 import type { DockerRuntimeActivityStreamInput } from "@deployer/runtime-contracts/modules/docker/runtime/activity-stream";
 import type { DockerRuntimeEventsStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/runtime/shared";
 import { dockerRuntimeEventSourceSchema, type DockerRuntimeActivityEntity } from "@deployer/contracts-entities";
+import { EffectRuntime } from "@deployer/nest-effect";
+import { Effect } from "effect";
+import { DockerCatalog } from "../../../catalog/docker-catalog";
 import { DockerContainerResolutionService } from "../../containers/orchestration/docker-container-resolution.service";
 import { DockerRuntimeStreamOrchestratorService } from "../../../common/runtime/docker-runtime-stream-orchestrator.service";
 import { projectRuntimeEvent } from "../../../common/events/runtime-activity-projection";
@@ -16,14 +19,19 @@ import { DockerRuntimeActivityRepository } from "../../../repositories/runtime/d
 @Injectable()
 export class DockerRuntimeActivityDomainService {
   constructor(
-    private readonly dockerContainerResolutionService: DockerContainerResolutionService,
+    private readonly effectRuntime: EffectRuntime,
     private readonly dockerRuntimeStreamOrchestratorService: DockerRuntimeStreamOrchestratorService,
     private readonly dockerRuntimeActivityRepository: DockerRuntimeActivityRepository,
     private readonly swarmActivityEnricherService: SwarmActivityEnricherService,
   ) {}
 
   getRuntimeSnapshot() {
-    return this.dockerContainerResolutionService.getRuntimeCatalogSnapshot();
+    return this.effectRuntime.runPromise(
+      Effect.gen(function* () {
+        const catalog = yield* DockerCatalog;
+        return yield* catalog.resolve();
+      }),
+    );
   }
 
   stream(input: DockerRuntimeEventsStreamQueryInput) {

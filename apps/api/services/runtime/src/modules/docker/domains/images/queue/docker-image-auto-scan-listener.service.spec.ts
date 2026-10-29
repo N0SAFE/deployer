@@ -1,7 +1,24 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Subject } from "rxjs";
+import { resetHeavyWorkForTests } from "@deployer/shared/core/utils/heavy-work.registry";
+import { setScanPressureForTests } from "../../../services/scan-concurrency";
 import { dockerContainerRuntimeEventSchema, dockerImageRuntimeEventSchema } from "@deployer/contracts-entities";
 import { DockerImageAutoScanListenerService } from "./docker-image-auto-scan-listener.service";
+
+/**
+ * The queue asks the MACHINE whether it can take another scan (memory, swap,
+ * load, and the other heavy work in flight). A test must not inherit the host's
+ * pressure, so every test in this file runs with a healthy, idle box.
+ */
+beforeEach(() => {
+  resetHeavyWorkForTests();
+  setScanPressureForTests({ memAvailableRatio: 0.6, swapUsedRatio: 0, loadPerCore: 0.1 });
+});
+
+afterEach(() => {
+  setScanPressureForTests(null);
+  resetHeavyWorkForTests();
+});
 
 async function flushAsyncWork(): Promise<void> {
   // The bootstrap path awaits listImages + reconcile before the drain queue
@@ -65,6 +82,7 @@ function createServiceHarness(options?: {
     dockerImageSecurityRepository as never,
     envService as never,
   );
+
 
   return {
     service,

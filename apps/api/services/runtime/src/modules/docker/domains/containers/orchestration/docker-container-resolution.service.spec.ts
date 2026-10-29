@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { NotFoundException } from "@nestjs/common";
 import type { DockerContainerListInput } from "@deployer/runtime-contracts/modules/docker/containers/shared";
-import type { DockerImageListInput } from "@deployer/runtime-contracts/modules/docker/images/list";
 import type { DockerContainer } from "@deployer/contracts-entities";
 import { DockerContainerResolutionService } from "./docker-container-resolution.service";
 
@@ -97,68 +96,6 @@ function createContainer(input: {
     };
 }
 
-function createRuntimeCatalog(imageId: string) {
-    return {
-        containers: [],
-        images: [
-            {
-                id: imageId,
-                registry: "docker.io",
-                repository: "library/alpine",
-                tag: "latest",
-                digest: null,
-                sizeBytes: null,
-                createdAt: "2026-01-01T00:00:00.000Z",
-                lastSeenAt: "2026-01-02T00:00:00.000Z",
-                labels: {},
-            },
-        ],
-        networks: [
-            {
-                id: `net-${imageId}`,
-                name: "bridge",
-                driver: "bridge",
-                scope: "local",
-                internal: false,
-                attachable: true,
-                subnet: null,
-                gateway: null,
-                containerIds: [],
-                labels: {},
-                createdAt: "2026-01-01T00:00:00.000Z",
-                updatedAt: "2026-01-01T00:00:00.000Z",
-            },
-        ],
-        volumes: [
-            {
-                id: `vol-${imageId}`,
-                name: `vol-${imageId}`,
-                driver: "local",
-                mountpoint: null,
-                sizeBytes: null,
-                usedByContainerIds: [],
-                labels: {},
-                createdAt: "2026-01-01T00:00:00.000Z",
-                updatedAt: "2026-01-01T00:00:00.000Z",
-            },
-        ],
-        registries: [
-            {
-                id: "docker.io",
-                name: "docker.io",
-                url: "docker.io",
-                authMode: "anonymous",
-                status: "unknown",
-                isPrimary: true,
-                repositories: ["library/alpine"],
-                lastSyncedAt: "2026-01-02T00:00:00.000Z",
-                createdAt: "2026-01-02T00:00:00.000Z",
-                updatedAt: "2026-01-02T00:00:00.000Z",
-            },
-        ],
-        stacks: [],
-    };
-}
 
 describe("DockerContainerResolutionService", () => {
     const baseInput: DockerContainerListInput = {
@@ -166,14 +103,6 @@ describe("DockerContainerResolutionService", () => {
         offset: 1,
         sortBy: "name",
         sortDirection: "asc",
-        filter: {},
-    };
-
-    const imageListInput: DockerImageListInput = {
-        limit: 50,
-        offset: 0,
-        sortBy: "lastSeenAt",
-        sortDirection: "desc",
         filter: {},
     };
 
@@ -840,139 +769,5 @@ describe("DockerContainerResolutionService", () => {
             { query: { containerId: "ghost-ctr" } },
             { timeoutMs: 1_500, maxCollectedResponses: 16 },
         );
-    });
-
-    it("lists images from mesh runtime catalog responses", async () => {
-        const dockerContainerMeshService = {
-            listContainersAcrossInstances: vi.fn(),
-            inspectContainerAcrossInstances: vi.fn(),
-            listRuntimeCatalogAcrossInstances: vi.fn(() => ({
-                responses: [
-                    {
-                        catalog: createRuntimeCatalog("img-1"),
-                        responderNodeId: "node-a",
-                    },
-                    {
-                        catalog: createRuntimeCatalog("img-2"),
-                        responderNodeId: "node-b",
-                    },
-                ],
-            })),
-        };
-
-        const dockerRepository = {
-            listContainers: vi.fn(),
-            inspectContainer: vi.fn(),
-            getRuntimeCatalogSnapshot: vi.fn(),
-        };
-
-        const systemMeshTopologyService = createTopologyStub();
-        const meshInternalRequestService = createMeshInternalRequestServiceStub();
-
-        const service = new DockerContainerResolutionService(
-            dockerContainerMeshService as never,
-            dockerRepository as never,
-            systemMeshTopologyService as never,
-            meshInternalRequestService as never,
-        );
-
-        const result = await service.listImages(imageListInput);
-
-        expect(dockerContainerMeshService.listRuntimeCatalogAcrossInstances).toHaveBeenCalledWith(
-            {},
-            {
-                timeoutMs: 2_000,
-                maxCollectedResponses: 128,
-            },
-        );
-        expect(result.meta.total).toBe(2);
-        expect(result.data.map((item) => item.id).sort()).toEqual(["img-1", "img-2"]);
-        expect(dockerRepository.getRuntimeCatalogSnapshot).not.toHaveBeenCalled();
-    });
-
-    it("normalizes placeholder image repository entries from mesh runtime catalog responses", async () => {
-        const catalogWithPlaceholderImage = createRuntimeCatalog("img-valid");
-        catalogWithPlaceholderImage.images.push({
-            id: "img-placeholder",
-            registry: "undefined",
-            repository: "undefined",
-            tag: "latest",
-            digest: null,
-            sizeBytes: null,
-            createdAt: "2026-01-01T00:00:00.000Z",
-            lastSeenAt: "2026-01-03T00:00:00.000Z",
-            labels: {},
-        });
-
-        const dockerContainerMeshService = {
-            listContainersAcrossInstances: vi.fn(),
-            inspectContainerAcrossInstances: vi.fn(),
-            listRuntimeCatalogAcrossInstances: vi.fn(() => ({
-                responses: [
-                    {
-                        catalog: catalogWithPlaceholderImage,
-                        responderNodeId: "node-a",
-                    },
-                ],
-            })),
-        };
-
-        const dockerRepository = {
-            listContainers: vi.fn(),
-            inspectContainer: vi.fn(),
-            getRuntimeCatalogSnapshot: vi.fn(),
-        };
-
-        const systemMeshTopologyService = createTopologyStub();
-        const meshInternalRequestService = createMeshInternalRequestServiceStub();
-
-        const service = new DockerContainerResolutionService(
-            dockerContainerMeshService as never,
-            dockerRepository as never,
-            systemMeshTopologyService as never,
-            meshInternalRequestService as never,
-        );
-
-        const result = await service.listImages(imageListInput);
-
-        expect(result.meta.total).toBe(2);
-        expect(result.data.map((item) => item.id).sort()).toEqual(["img-placeholder", "img-valid"]);
-
-        const placeholderImage = result.data.find((item) => item.id === "img-placeholder");
-        expect(placeholderImage).toBeDefined();
-        expect(placeholderImage?.registry).toBe("local");
-        expect(placeholderImage?.repository).toBe("untagged/img-placehol");
-    });
-
-    it("falls back to local runtime catalog when mesh runtime catalog call fails", async () => {
-        const dockerContainerMeshService = {
-            listContainersAcrossInstances: vi.fn(),
-            inspectContainerAcrossInstances: vi.fn(),
-            listRuntimeCatalogAcrossInstances: vi.fn(() => {
-                throw new Error("mesh runtime catalog unavailable");
-            }),
-        };
-
-        const dockerRepository = {
-            listContainers: vi.fn(),
-            inspectContainer: vi.fn(),
-            getRuntimeCatalogSnapshot: vi.fn(() => createRuntimeCatalog("img-local")),
-        };
-
-        const systemMeshTopologyService = createTopologyStub();
-        const meshInternalRequestService = createMeshInternalRequestServiceStub();
-
-        const service = new DockerContainerResolutionService(
-            dockerContainerMeshService as never,
-            dockerRepository as never,
-            systemMeshTopologyService as never,
-            meshInternalRequestService as never,
-        );
-
-        const result = await service.listImages(imageListInput);
-
-        expect(dockerRepository.getRuntimeCatalogSnapshot).toHaveBeenCalledTimes(1);
-        expect(result.meta.total).toBe(1);
-        expect(result.data[0]?.id).toBe("img-local");
     });
 });

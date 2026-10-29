@@ -8,8 +8,12 @@ import { MeshInternalRequestService } from "@deployer/shared/core/modules/mesh/s
 import { DockerContainersOrchestratorService } from "../domains/containers/orchestration/docker-containers-orchestrator.service";
 import { DockerImagesOrchestratorService } from "../domains/images/orchestration/docker-images-orchestrator.service";
 import { DockerRuntimeOrchestratorService } from "../domains/runtime/orchestration/docker-runtime-orchestrator.service";
-import { DockerNetworksOrchestratorService } from "../domains/networks/orchestration/docker-networks-orchestrator.service";
-import { DockerVolumesOrchestratorService } from "../domains/volumes/orchestration/docker-volumes-orchestrator.service";
+import { EffectContextOf } from "@deployer/nest-effect";
+import { Effect } from "effect";
+import { serve } from "../../../core/orpc/serve";
+import { DockerCatalog } from "../catalog/docker-catalog";
+import type { DockerCatalogPorts } from "../catalog/docker-catalog";
+import { DockerDomainModule } from "../docker.module";
 import { DockerEntityOrchestratorService } from "../domains/entity/orchestration/docker-entity-orchestrator.service";
 import { map } from "rxjs";
 
@@ -19,8 +23,6 @@ export class DockerController {
     private readonly dockerContainersOrchestratorService: DockerContainersOrchestratorService,
     private readonly dockerImagesOrchestratorService: DockerImagesOrchestratorService,
     private readonly dockerRuntimeOrchestratorService: DockerRuntimeOrchestratorService,
-    private readonly dockerNetworksOrchestratorService: DockerNetworksOrchestratorService,
-    private readonly dockerVolumesOrchestratorService: DockerVolumesOrchestratorService,
     private readonly dockerEntityOrchestratorService: DockerEntityOrchestratorService,
     private readonly meshInternalRequestService: MeshInternalRequestService,
   ) {}
@@ -314,14 +316,24 @@ export class DockerController {
   listNetworks() {
     return implement(dockerContract.networks.list)
       .use(requireAuth())
-      .handler(async ({ input }) => this.dockerNetworksOrchestratorService.listNetworks(input.query));
+      .use(DockerDomainModule[EffectContextOf])
+      .effect(function* ({ input, context }) {
+        const catalog = yield* DockerCatalog;
+        const ports = yield* Effect.context<DockerCatalogPorts>();
+        return yield* serve(context)(catalog.listNetworks(input.query).pipe(Effect.provideContext(ports)));
+      });
   }
 
   @Implement(dockerContract.volumes.list)
   listVolumes() {
     return implement(dockerContract.volumes.list)
       .use(requireAuth())
-      .handler(async ({ input }) => this.dockerVolumesOrchestratorService.listVolumes(input.query));
+      .use(DockerDomainModule[EffectContextOf])
+      .effect(function* ({ input, context }) {
+        const catalog = yield* DockerCatalog;
+        const ports = yield* Effect.context<DockerCatalogPorts>();
+        return yield* serve(context)(catalog.listVolumes(input.query).pipe(Effect.provideContext(ports)));
+      });
   }
 
   @Implement(dockerContract.runtime.snapshot)

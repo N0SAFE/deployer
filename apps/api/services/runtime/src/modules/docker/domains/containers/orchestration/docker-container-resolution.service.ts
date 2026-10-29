@@ -49,8 +49,9 @@ import { DockerContainerMeshService } from "../mesh/docker-container-mesh.servic
 import { isRecord, isObjectLike } from "@deployer/type-guards"
 
 
-import { asIsoString, asNonEmptyString, asNullableIsoString, asNullableString, buildContainerHash, buildFallbackImageRepository, formatError, normalizeEnvironment, normalizeHealth, normalizeImageDigest, normalizeImageLabels, normalizeImageRegistrySegment, normalizeImageRepositoryPath, normalizeImageSizeBytes, normalizeImageTag, normalizeNonNegativeInt, normalizePercent, normalizePorts, normalizeStatus, normalizeStringArray, toError } from "./mesh-entity-normalization";
-import { applyContainerFilters, buildDaemonScopedContainerFingerprint, computeSharedDaemonDiagnostics, dedupeResponsesByResponder, getFilterEntry, groupContainersForInventory, isAbortLikeError, matchEq, matchString, mergeContainerHealth, mergeContainerStatus, mergeNetworksFromCatalog, mergeRegistriesFromCatalog, mergeStacksFromCatalog, mergeVolumesFromCatalog, paginate, paginateList, pickBestInspectDetail, resolvePeerBaseUrl, sortContainers, sortItems } from "./mesh-universe-merge";
+
+import { formatError, normalizeContainer, toError } from "./mesh-entity-normalization";
+import { applyContainerFilters, buildDaemonScopedContainerFingerprint, computeSharedDaemonDiagnostics, dedupeResponsesByResponder, getFilterEntry, groupContainersForInventory, isAbortLikeError, matchEq, matchString, mergeContainerHealth, mergeContainerStatus, mergeRuntimeCatalogResponses, paginate, paginateList, pickBestInspectDetail, resolvePeerBaseUrl, sortContainers, sortItems } from "./mesh-universe-merge";
 import type { DockerContainerResolutionOptions, DockerGroupedDaemonDiagnostics, DockerListResult, MeshPeerSessionSummary, PeerFallbackAttemptResult } from "./mesh-universe-types";
 
 const MESH_FANOUT_LIMIT = 500;
@@ -202,86 +203,6 @@ export class DockerContainerResolutionService {
         }
     }
 
-    async listImages(input: DockerImageListInput): Promise<DockerListResult<DockerImage>> {
-        const catalog = await this.resolveRuntimeCatalog();
-
-        const filtered = catalog.images.filter((item) => {
-            const registryMatch = matchString(item.registry, getFilterEntry(input, "registry"));
-            const repositoryMatch = matchString(item.repository, getFilterEntry(input, "repository"));
-            const tagMatch = matchString(item.tag ?? "", getFilterEntry(input, "tag"));
-            return registryMatch && repositoryMatch && tagMatch;
-        });
-
-        const sorted = sortItems(filtered, input.sortBy, input.sortDirection, (item, sortBy) => {
-            switch (sortBy) {
-                case "createdAt":
-                    return item.createdAt;
-                case "registry":
-                    return item.registry;
-                case "repository":
-                    return item.repository;
-                case "lastSeenAt":
-                default:
-                    return item.lastSeenAt;
-            }
-        });
-
-        return paginateList(sorted, input.limit, input.offset);
-    }
-
-    async listNetworks(input: DockerNetworkListInput): Promise<DockerListResult<DockerNetwork>> {
-        const catalog = await this.resolveRuntimeCatalog();
-
-        const filtered = catalog.networks.filter((item) => {
-            const nameMatch = matchString(item.name, getFilterEntry(input, "name"));
-            const driverMatch = matchEq(item.driver, getFilterEntry(input, "driver"));
-            const scopeMatch = matchEq(item.scope, getFilterEntry(input, "scope"));
-            return nameMatch && driverMatch && scopeMatch;
-        });
-
-        const sorted = sortItems(filtered, input.sortBy, input.sortDirection, (item, sortBy) => {
-            switch (sortBy) {
-                case "name":
-                    return item.name;
-                case "createdAt":
-                    return item.createdAt;
-                case "updatedAt":
-                default:
-                    return item.updatedAt;
-            }
-        });
-
-        return paginateList(sorted, input.limit, input.offset);
-    }
-
-    async listVolumes(input: DockerVolumeListInput): Promise<DockerListResult<DockerVolume>> {
-        const catalog = await this.resolveRuntimeCatalog();
-
-        const filtered = catalog.volumes.filter((item) => {
-            const nameMatch = matchString(item.name, getFilterEntry(input, "name"));
-            const driverMatch = matchEq(item.driver, getFilterEntry(input, "driver"));
-            return nameMatch && driverMatch;
-        });
-
-        const sorted = sortItems(filtered, input.sortBy, input.sortDirection, (item, sortBy) => {
-            switch (sortBy) {
-                case "name":
-                    return item.name;
-                case "createdAt":
-                    return item.createdAt;
-                case "updatedAt":
-                default:
-                    return item.updatedAt;
-            }
-        });
-
-        return paginateList(sorted, input.limit, input.offset);
-    }
-
-    async getRuntimeCatalogSnapshot(): Promise<DockerRuntimeCatalog> {
-        return await this.resolveRuntimeCatalog();
-    }
-
     private async resolveContainerUniverse(
         input: DockerContainerListInput,
         options?: DockerContainerResolutionOptions,
@@ -398,7 +319,7 @@ export class DockerContainerResolutionService {
                 : `node:${response.responderNodeId ?? "unknown"}`;
 
             for (const item of response.data) {
-                const normalized = this.normalizeContainer(item);
+                const normalized = normalizeContainer(item, (m) => this.logger.warn(m));
                 if (!normalized) {
                     this.logger.warn("Dropping invalid docker container from mesh response after normalization");
                     continue;
@@ -631,7 +552,7 @@ export class DockerContainerResolutionService {
 
         const containers: DockerContainer[] = [];
         for (const entry of data) {
-            const normalized = this.normalizeContainer(entry);
+            const normalized = normalizeContainer(entry, (m) => this.logger.warn(m));
             if (normalized) {
                 containers.push(normalized);
             }
@@ -640,212 +561,5 @@ export class DockerContainerResolutionService {
         return containers;
     }
 
-    private async resolveRuntimeCatalog(): Promise<DockerRuntimeCatalog> {
-        try {
-            const meshResult = await this.dockerContainerMeshService.listRuntimeCatalogAcrossInstances({}, {
-                timeoutMs: 2_000,
-                maxCollectedResponses: 128,
-            });
-
-            if (meshResult.responses.length === 0) {
-                return await this.dockerRepository.getRuntimeCatalogSnapshot();
-            }
-
-            return this.mergeRuntimeCatalogResponses(meshResult.responses);
-        } catch (error) {
-            this.logger.warn(
-                `Mesh runtime catalog resolution failed (${formatError(error)}). Falling back to local repository`,
-            );
-            return await this.dockerRepository.getRuntimeCatalogSnapshot();
-        }
-    }
-
-    private mergeRuntimeCatalogResponses(responses: readonly DockerRuntimeCatalogResponsePayload[]): DockerRuntimeCatalog {
-        const containers = this.mergeContainersFromCatalog(responses);
-        const images = this.mergeImagesFromCatalog(responses);
-        const networks = mergeNetworksFromCatalog(responses);
-        const volumes = mergeVolumesFromCatalog(responses);
-        const registries = mergeRegistriesFromCatalog(responses);
-        const stacks = mergeStacksFromCatalog(responses);
-
-        return dockerRuntimeCatalogSchema.parse({
-            containers,
-            images,
-            networks,
-            volumes,
-            registries,
-            stacks,
-        });
-    }
-
-    private mergeContainersFromCatalog(responses: readonly DockerRuntimeCatalogResponsePayload[]): DockerContainer[] {
-        const merged = new Map<string, DockerContainer>();
-
-        for (const response of responses) {
-            for (const item of response.catalog.containers) {
-                const normalized = this.normalizeContainer(item);
-                if (!normalized) {
-                    continue;
-                }
-
-                const existing = merged.get(normalized.id);
-                if (!existing || existing.updatedAt < normalized.updatedAt) {
-                    merged.set(normalized.id, normalized);
-                }
-            }
-        }
-
-        return [...merged.values()];
-    }
-
-    private mergeImagesFromCatalog(responses: readonly DockerRuntimeCatalogResponsePayload[]): DockerImage[] {
-        const merged = new Map<string, DockerImage>();
-
-        for (const response of responses) {
-            for (const item of response.catalog.images) {
-                const image = this.normalizeImage(item);
-                if (!image) {
-                    continue;
-                }
-
-                const existing = merged.get(image.id);
-                if (!existing || existing.lastSeenAt < image.lastSeenAt) {
-                    merged.set(image.id, image);
-                }
-            }
-        }
-
-        return [...merged.values()];
-    }
-
-    private normalizeContainer(input: unknown): DockerContainer | null {
-        const parsed = dockerContainerSchema.safeParse(input);
-        if (parsed.success) {
-            return parsed.data;
-        }
-
-        if (!input || typeof input !== "object") {
-            return null;
-        }
-
-        const source = isRecord(input) ? input : {};
-        const id = asNonEmptyString(source.id) ?? null;
-        if (!id) {
-            return null;
-        }
-
-        const name = asNonEmptyString(source.name) ?? `container-${id.slice(0, 8)}`;
-        const projectId = asNonEmptyString(source.projectId) ?? `project-${id.slice(0, 8)}`;
-        const serviceId = asNonEmptyString(source.serviceId) ?? `service-${id.slice(0, 8)}`;
-        const imageId = asNullableString(source.imageId);
-        const environment = normalizeEnvironment(source.environment);
-        const ports = normalizePorts(source.ports);
-        const networkIds = normalizeStringArray(source.networkIds);
-        const volumeIds = normalizeStringArray(source.volumeIds);
-        const createdAt = asIsoString(source.createdAt);
-        const updatedAt = asIsoString(source.updatedAt);
-
-        const fallbackHash = buildContainerHash({
-            managedBy:
-                asNonEmptyString(source.managedBy) === "deployment_service"
-                    ? "deployment_service"
-                    : "orphan",
-            managedDeploymentId: asNullableString(source.managedDeploymentId),
-            managedServiceId: asNullableString(source.managedServiceId),
-            managedProjectId: asNullableString(source.managedProjectId),
-            name,
-            projectId,
-            serviceId,
-            imageId,
-            environment,
-            ports,
-        });
-
-        const repaired = dockerContainerSchema.safeParse({
-            id,
-            hash: asNonEmptyString(source.hash) ?? fallbackHash,
-            name,
-            projectId,
-            serviceId,
-            stackId: asNullableString(source.stackId),
-            imageId,
-            status: normalizeStatus(source.status),
-            health: normalizeHealth(source.health),
-            environment,
-            cpuPercent: normalizePercent(source.cpuPercent),
-            memoryPercent: normalizePercent(source.memoryPercent),
-            restartCount: normalizeNonNegativeInt(source.restartCount),
-            ports,
-            networkIds,
-            volumeIds,
-            managedBy:
-                asNonEmptyString(source.managedBy) === "deployment_service"
-                    ? "deployment_service"
-                    : "orphan",
-            managedReason: asNullableString(source.managedReason),
-            managedDeploymentId: asNullableString(source.managedDeploymentId),
-            managedServiceId: asNullableString(source.managedServiceId),
-            managedProjectId: asNullableString(source.managedProjectId),
-            managedImageRef: asNullableString(source.managedImageRef),
-            managedNetworkMode: asNullableString(source.managedNetworkMode),
-            logsStreamId: asNullableString(source.logsStreamId),
-            startedAt: asNullableIsoString(source.startedAt),
-            createdAt,
-            updatedAt,
-        });
-
-        if (!repaired.success) {
-            this.logger.warn(
-                `Failed to normalize docker container '${id}': ${JSON.stringify(repaired.error.issues[0] ?? null)}`,
-            );
-            return null;
-        }
-
-        return repaired.data;
-    }
-
-    private normalizeImage(input: unknown): DockerImage | null {
-        const parsed = dockerImageSchema.safeParse(input);
-
-        const source = parsed.success
-            ? (isRecord(parsed.data) ? parsed.data : {})
-            : (isRecord(input) ? input : null);
-
-        if (!source) {
-            return null;
-        }
-
-        const id = parsed.success ? parsed.data.id : asNonEmptyString(source.id);
-        if (!id) {
-            return null;
-        }
-
-        const normalizedRegistry = normalizeImageRegistrySegment(parsed.success ? parsed.data.registry : source.registry);
-        const normalizedRepository = normalizeImageRepositoryPath(parsed.success ? parsed.data.repository : source.repository);
-        const hasUnknownRepository = normalizedRepository === "library/unknown";
-        const repository = hasUnknownRepository ? buildFallbackImageRepository(id) : normalizedRepository;
-        const registry = hasUnknownRepository ? "local" : normalizedRegistry;
-
-        const normalized = dockerImageSchema.safeParse({
-            id,
-            registry,
-            repository,
-            tag: normalizeImageTag(parsed.success ? parsed.data.tag : source.tag),
-            digest: normalizeImageDigest(parsed.success ? parsed.data.digest : source.digest),
-            sizeBytes: normalizeImageSizeBytes(parsed.success ? parsed.data.sizeBytes : source.sizeBytes),
-            createdAt: asIsoString(parsed.success ? parsed.data.createdAt : source.createdAt),
-            lastSeenAt: asIsoString(parsed.success ? parsed.data.lastSeenAt : source.lastSeenAt),
-            labels: normalizeImageLabels(parsed.success ? parsed.data.labels : source.labels),
-        });
-
-        if (!normalized.success) {
-            this.logger.warn(
-                `Failed to normalize docker image '${id}': ${JSON.stringify(normalized.error.issues[0] ?? null)}`,
-            );
-            return null;
-        }
-
-        return normalized.data;
-    }
 
 }

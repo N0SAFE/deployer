@@ -3,8 +3,7 @@ import { EventsModule as CoreEventsModule } from "@deployer/shared/core/modules/
 import { DockerCommonModule } from "../../common/docker-common.module"
 import { DockerContainersModule } from "../containers/docker-containers.module"
 import { DockerImagesModule } from "../images/docker-images.module"
-import { DockerNetworksModule } from "../networks/docker-networks.module"
-import { DockerVolumesModule } from "../volumes/docker-volumes.module"
+import { DockerCatalogModule } from "../../catalog/docker-catalog.module"
 import { DockerEntityCacheService } from "./orchestration/docker-entity-cache.service"
 import { DockerEntityDomainService } from "./orchestration/docker-entity-domain.service"
 import { DockerEntityOrchestratorService } from "./orchestration/docker-entity-orchestrator.service"
@@ -15,8 +14,7 @@ import { DockerEntityOrchestratorService } from "./orchestration/docker-entity-o
     DockerCommonModule,
     DockerContainersModule,
     DockerImagesModule,
-    DockerNetworksModule,
-    DockerVolumesModule,
+    DockerCatalogModule,
   ],
   providers: [
     DockerEntityCacheService,

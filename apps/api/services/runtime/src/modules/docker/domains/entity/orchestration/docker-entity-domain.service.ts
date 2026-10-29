@@ -19,8 +19,11 @@ import {
 import { AppLogger } from "@deployer/logger"
 import { DockerContainerResolutionService } from "../../containers/orchestration/docker-container-resolution.service"
 import { DockerImagesOrchestratorService } from "../../images/orchestration/docker-images-orchestrator.service"
-import { DockerVolumesOrchestratorService } from "../../volumes/orchestration/docker-volumes-orchestrator.service"
-import { DockerNetworksOrchestratorService } from "../../networks/orchestration/docker-networks-orchestrator.service"
+import type { DockerNetworkListInput } from "@deployer/runtime-contracts/modules/docker/networks/list"
+import type { DockerVolumeListInput } from "@deployer/runtime-contracts/modules/docker/volumes/list"
+import { EffectRuntime } from "@deployer/nest-effect"
+import { Effect } from "effect"
+import { DockerCatalog } from "../../../catalog/docker-catalog"
 import { DockerRuntimeEventsStreamService } from "../../../common/events/docker-runtime-events-stream.service"
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index"
 import { DockerEntityCacheService } from "./docker-entity-cache.service"
@@ -69,8 +72,7 @@ export class DockerEntityDomainService {
   constructor(
     private readonly dockerContainerResolutionService: DockerContainerResolutionService,
     private readonly dockerImagesOrchestratorService: DockerImagesOrchestratorService,
-    private readonly dockerNetworksOrchestratorService: DockerNetworksOrchestratorService,
-    private readonly dockerVolumesOrchestratorService: DockerVolumesOrchestratorService,
+    private readonly effectRuntime: EffectRuntime,
     private readonly dockerRuntimeEventsStreamService: DockerRuntimeEventsStreamService,
     private readonly coreEventStreamPoolService: CoreEventStreamPoolService,
     private readonly dockerEntityCacheService: DockerEntityCacheService,
@@ -92,6 +94,26 @@ export class DockerEntityDomainService {
     })
   }
 
+  /** The mesh-wide network list, run on the app's Effect runtime. */
+  private listNetworksOfCatalog(input: DockerNetworkListInput) {
+    return this.effectRuntime.runPromise(
+      Effect.gen(function* () {
+        const catalog = yield* DockerCatalog
+        return yield* catalog.listNetworks(input)
+      }),
+    )
+  }
+
+  /** The mesh-wide volume list, run on the app's Effect runtime. */
+  private listVolumesOfCatalog(input: DockerVolumeListInput) {
+    return this.effectRuntime.runPromise(
+      Effect.gen(function* () {
+        const catalog = yield* DockerCatalog
+        return yield* catalog.listVolumes(input)
+      }),
+    )
+  }
+
   async listImageEntity(
     input: DockerEntityListInput,
   ): Promise<ListKindResult<DockerImage, DockerImageEntity>> {
@@ -108,7 +130,7 @@ export class DockerEntityDomainService {
     input: DockerEntityListInput,
   ): Promise<ListKindResult<DockerNetwork, DockerNetworkEntity>> {
     return this.fetchList("network", input, async () => {
-      const result = await this.dockerNetworksOrchestratorService.listNetworks({
+      const result = await this.listNetworksOfCatalog({
         limit: input.limit,
         offset: input.offset,
       })
@@ -120,7 +142,7 @@ export class DockerEntityDomainService {
     input: DockerEntityListInput,
   ): Promise<ListKindResult<DockerVolume, DockerVolumeEntity>> {
     return this.fetchList("volume", input, async () => {
-      const result = await this.dockerVolumesOrchestratorService.listVolumes({
+      const result = await this.listVolumesOfCatalog({
         limit: input.limit,
         offset: input.offset,
       })
@@ -164,7 +186,7 @@ export class DockerEntityDomainService {
     input: DockerEntityInspectInput,
   ): Promise<InspectKindResult<DockerNetworkEntity>> {
     return this.inspectEntity("network", input, async () => {
-      const list = await this.dockerNetworksOrchestratorService.listNetworks({
+      const list = await this.listNetworksOfCatalog({
         limit: 500,
         offset: 0,
       })
@@ -178,7 +200,7 @@ export class DockerEntityDomainService {
     input: DockerEntityInspectInput,
   ): Promise<InspectKindResult<DockerVolumeEntity>> {
     return this.inspectEntity("volume", input, async () => {
-      const list = await this.dockerVolumesOrchestratorService.listVolumes({
+      const list = await this.listVolumesOfCatalog({
         limit: 500,
         offset: 0,
       })
