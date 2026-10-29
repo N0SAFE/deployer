@@ -1,4 +1,3 @@
-import { Injectable } from "@nestjs/common"
 import { Observable, type Subscriber } from "rxjs"
 import type { DockerEntityListInput } from "@deployer/runtime-contracts/modules/docker/entity/shared"
 import type { DockerEntityInspectInput } from "@deployer/runtime-contracts/modules/docker/entity/shared"
@@ -27,17 +26,24 @@ import { Effect } from "effect"
 import { DockerCatalog } from "../../../catalog/docker-catalog"
 import { DockerRuntimeEventsStreamService } from "../../../common/events/docker-runtime-events-stream.service"
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index"
+import {
+  buildEventChunk,
+  buildRemovedChunk,
+  buildStreamFilter,
+  eventMatchesFilter,
+  fingerprintEtag,
+  isRemovalAction,
+  poolKeyFor,
+  wrapAsEntity,
+  type EntityFilterInput,
+} from "./entity-stream-rules"
 import { DockerEntityCacheService } from "./docker-entity-cache.service"
 import { isRecord, isObjectLike } from "@deployer/type-guards"
 
 
 
-const KINDS_WITH_FLAT_LIST: ReadonlySet<DockerEntityKind> = new Set<DockerEntityKind>([
-  "container",
-  "image",
-  "network",
-  "volume",
-])
+/** How long a cached entity list is served before it is fetched again. */
+const LIST_TTL_MS = 2_000
 
 type ListKindResult<TFlat, TEntity> = {
   flat: TFlat[]
@@ -51,17 +57,6 @@ type InspectKindResult<TEntity> = {
   etag: string
 }
 
-type EntityFilterInput = {
-  kinds?: readonly DockerEntityKind[]
-  actions?: {
-    container?: readonly string[]
-    image?: readonly string[]
-    network?: readonly string[]
-    volume?: readonly string[]
-  }
-}
-
-@Injectable()
 export class DockerEntityDomainService {
   private readonly apiLogger = new AppLogger("api").scope(DockerEntityDomainService.name)
   private readonly debugLogger = this.apiLogger.createContextFilterLogger({
@@ -223,9 +218,9 @@ export class DockerEntityDomainService {
    * share a single upstream connection to the docker daemon.
    */
   streamEntities(input: EntityFilterInput): Observable<DockerEntityStreamChunk> {
-    const filter = this.buildStreamFilter(input)
+    const filter = buildStreamFilter(input)
     return this.coreEventStreamPoolService.observePooledStream<DockerEntityStreamChunk>(
-      this.poolKeyFor(input),
+      poolKeyFor(input),
       () => this.createEntityStream(filter),
       { bufferSize: 1 },
     )
@@ -234,36 +229,6 @@ export class DockerEntityDomainService {
   // ---------------------------------------------------------------------------
   // Internals
   // ---------------------------------------------------------------------------
-
-  private poolKeyFor(input: EntityFilterInput): string {
-    const kinds = (input.kinds ?? ["container", "image", "network", "volume"])
-      .slice()
-      .sort()
-      .join(",")
-    const actions = JSON.stringify(input.actions ?? {})
-    return `docker-entity-events|kinds:${kinds}|actions:${actions}`
-  }
-
-  private buildStreamFilter(input: EntityFilterInput) {
-    const kinds = input.kinds ?? ["container", "image", "network", "volume"]
-    const actions = input.actions ?? {}
-    const nodes = kinds.map((kind) => {
-      const kindActions = actions[kind] ?? []
-      return {
-        source: { operator: "eq" as const, value: kind },
-        ...(kindActions.length > 0
-          ? { action: { operator: "in" as const, value: kindActions } }
-          : {}),
-      }
-    })
-    if (nodes.length === 0) {
-      return undefined
-    }
-    if (nodes.length === 1) {
-      return nodes[0]
-    }
-    return { _or: nodes }
-  }
 
   private createEntityStream(filter: unknown) {
     return new Observable<DockerEntityStreamChunk>(
@@ -286,7 +251,7 @@ export class DockerEntityDomainService {
               ) {
                 this.dockerEntityCacheService.invalidate(event.source)
               }
-              if (!this.eventMatchesFilter(event, filter)) {
+              if (!eventMatchesFilter(event, filter)) {
                 return
               }
               void this.enrichEvent(event)
@@ -310,53 +275,34 @@ export class DockerEntityDomainService {
     )
   }
 
-  private eventMatchesFilter(event: DockerRuntimeEvent, filter: unknown): boolean {
-    if (!filter) return true
-    const node = isRecord(filter) ? filter : {}
-    const sourceClause = node.source as { value?: string } | undefined
-    if (sourceClause?.value && sourceClause.value !== event.source) {
-      return false
-    }
-    const actionClause = node.action as { value?: string[] } | undefined
-    if (
-      actionClause &&
-      Array.isArray(actionClause.value) &&
-      actionClause.value.length > 0 &&
-      !actionClause.value.includes(event.action)
-    ) {
-      return false
-    }
-    return true
-  }
-
   private async enrichEvent(event: DockerRuntimeEvent): Promise<DockerEntityStreamChunk | null> {
     const id = event.actorId
     if (!id) {
       return null
     }
 
-    const isRemoval = this.isRemovalAction(event.source, event.action)
+    const isRemoval = isRemovalAction(event.source, event.action)
 
     if (event.source === "container") {
-      if (isRemoval) return this.removedEvent("container", event, id)
+      if (isRemoval) return buildRemovedChunk("container", event, id)
       return this.wrapEventEntity("container", event, () =>
         this.inspectContainerEntity({ kind: "container", id }),
       )
     }
     if (event.source === "image") {
-      if (isRemoval) return this.removedEvent("image", event, id)
+      if (isRemoval) return buildRemovedChunk("image", event, id)
       return this.wrapEventEntity("image", event, () =>
         this.inspectImageEntity({ kind: "image", id }),
       )
     }
     if (event.source === "network") {
-      if (isRemoval) return this.removedEvent("network", event, id)
+      if (isRemoval) return buildRemovedChunk("network", event, id)
       return this.wrapEventEntity("network", event, () =>
         this.inspectNetworkEntity({ kind: "network", id }),
       )
     }
     if (event.source === "volume") {
-      if (isRemoval) return this.removedEvent("volume", event, id)
+      if (isRemoval) return buildRemovedChunk("volume", event, id)
       return this.wrapEventEntity("volume", event, () =>
         this.inspectVolumeEntity({ kind: "volume", id }),
       )
@@ -373,40 +319,7 @@ export class DockerEntityDomainService {
     if (!entity) {
       return null
     }
-    return dockerEntityStreamChunkSchema.parse({
-      ...(isRecord(entity) ? entity : {}),
-      kind,
-      action: event.action,
-      occurredAt: event.timestamp,
-      eventId: event.eventId,
-    })
-  }
-
-  private removedEvent(
-    kind: DockerEntityKind,
-    event: DockerRuntimeEvent,
-    id: string,
-  ): DockerEntityStreamChunk {
-    return {
-      kind,
-      action: event.action as "destroy" | "die" | "delete",
-      id,
-      occurredAt: event.timestamp,
-      eventId: event.eventId,
-    }
-  }
-
-  private isRemovalAction(source: string, action: string): boolean {
-    if (source === "container") {
-      return action === "destroy" || action === "die"
-    }
-    if (source === "image" || source === "volume") {
-      return action === "destroy" || action === "delete"
-    }
-    if (source === "network") {
-      return action === "destroy" || action === "remove"
-    }
-    return false
+    return buildEventChunk(kind, entity, event)
   }
 
   private async fetchList<TKind extends DockerEntityKind, TFlat, TEntity>(
@@ -418,11 +331,11 @@ export class DockerEntityDomainService {
       kind,
       async () => {
         const flat = await fetcher()
-        return { payload: flat, ttlMs: this.listTtlMs() }
+        return { payload: flat, ttlMs: LIST_TTL_MS }
       },
     )
     const flatList = payload
-    const entities = flatList.map((flat) => this.wrapAsEntity(kind, flat)) as TEntity[]
+    const entities = flatList.map((flat) => wrapAsEntity<TEntity>(flat)) as TEntity[]
     return { flat: flatList, entities, etag, hit }
   }
 
@@ -436,34 +349,12 @@ export class DockerEntityDomainService {
       return {
         entity,
         etag: entity
-          ? this.fingerprintEtag(entity)
+          ? fingerprintEtag(entity)
           : `"missing-${kind}-${input.id}"`,
       }
     } catch {
       return { entity: null, etag: `"missing-${kind}-${input.id}"` }
     }
-  }
-
-  private wrapAsEntity<TKind extends DockerEntityKind, TFlat, TEntity>(
-    kind: TKind,
-    flat: TFlat,
-  ): TEntity {
-    if (!KINDS_WITH_FLAT_LIST.has(kind)) {
-      // Generic types are erased at runtime; caller guarantees TFlat = TEntity for non-relation kinds
-      return flat as unknown as TEntity
-    }
-    return {
-      ...(isRecord(flat) ? flat : {}),
-      relations: undefined,
-    } as unknown as TEntity
-  }
-
-  private listTtlMs(): number {
-    return 2_000
-  }
-
-  private fingerprintEtag(payload: unknown): string {
-    return `"${JSON.stringify(payload).slice(0, 24).replace(/[^a-z0-9]/gi, "")}"`
   }
 
   private toContainerEntity(

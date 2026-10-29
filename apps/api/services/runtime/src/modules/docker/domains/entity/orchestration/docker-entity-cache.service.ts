@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common"
+import { Logger } from "@nestjs/common"
 import { createHash } from "node:crypto"
 import type {
   DockerContainer,
@@ -29,7 +29,6 @@ import type {
  *  - `etag()` produces a short fingerprint the client can use to skip
  *    re-rendering when the snapshot is unchanged.
  */
-@Injectable()
 export class DockerEntityCacheService {
   private static readonly DEFAULT_TTL_MS = 2_000
   private readonly logger = new Logger(DockerEntityCacheService.name)
