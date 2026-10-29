@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 
 import { Injectable, Inject, Optional, Logger, NotFoundException } from "@nestjs/common";
 import { and, desc, eq, inArray } from "drizzle-orm";
@@ -83,6 +82,7 @@ import {
   type DockerVolumesRepositoryShape,
 } from "../volumes/docker-volumes.repository";
 
+import { computeScanHash, isMissingScanTableError, toPersistedScan } from "../images/security/scan-storage";
 import type {
   ResolvedImageSecurityScan,
   DockerImageLifecycleUpsertResult,
@@ -1229,7 +1229,7 @@ export class DockerRepository {
         .limit(1)
         .then((rows) => rows[0] ?? null);
     } catch (error: unknown) {
-      if (!this.isMissingDockerSecurityScanTableError(error)) {
+      if (!isMissingScanTableError(error)) {
         throw error;
       }
 
@@ -1269,7 +1269,7 @@ export class DockerRepository {
         .from(dockerImageSecurityLifecycle)
         .where(eq(dockerImageSecurityLifecycle.lifecycleState, "alive"));
     } catch (error: unknown) {
-      if (!this.isMissingDockerSecurityScanTableError(error)) {
+      if (!isMissingScanTableError(error)) {
         throw error;
       }
 
@@ -1524,7 +1524,7 @@ export class DockerRepository {
         .limit(1)
         .then((rows) => rows[0] ?? null);
     } catch (error: unknown) {
-      if (!this.isMissingDockerSecurityScanTableError(error)) {
+      if (!isMissingScanTableError(error)) {
         throw error;
       }
 
@@ -1643,7 +1643,7 @@ export class DockerRepository {
         .limit(1)
         .then((rows) => rows[0] ?? null);
     } catch (error: unknown) {
-      if (!this.isMissingDockerSecurityScanTableError(error)) {
+      if (!isMissingScanTableError(error)) {
         throw error;
       }
 
@@ -1655,30 +1655,7 @@ export class DockerRepository {
       return null;
     }
 
-    const vulnerabilities = persisted.vulnerabilities as DockerImageInspectDetail["vulnerabilities"];
-    const rawSummary = persisted.scanSummary;
-
-    const scannedAt = persisted.lastUpdated.toISOString();
-    const scannerList = Array.isArray(rawSummary.scanners)
-      ? (rawSummary.scanners as DockerImageScannerResult[])
-      : [];
-
-    const scanSummary: RawImageSecurityScan["scanSummary"] = {
-      scannedAt,
-      totalFindings:
-        typeof rawSummary.totalFindings === "number"
-          ? rawSummary.totalFindings
-          : vulnerabilities.length,
-      scanners: scannerList,
-      layerEfficiency:
-        (rawSummary.layerEfficiency as DockerImageLayerEfficiency | null | undefined)
-        ?? null,
-    };
-
-    return {
-      vulnerabilities,
-      scanSummary,
-    };
+    return toPersistedScan(persisted);
   }
 
   private async persistImageSecurityScan(inspectId: string, scanResult: RawImageSecurityScan): Promise<void> {
@@ -1688,11 +1665,7 @@ export class DockerRepository {
     }
 
     const now = new Date();
-    const serializedSummary = JSON.stringify(scanResult.scanSummary);
-    const serializedVulnerabilities = JSON.stringify(scanResult.vulnerabilities);
-    const scanHash = createHash("sha1")
-      .update(`${lifecycle.imageIdentifierNormalized}:${String(lifecycle.imageGeneration)}:${serializedSummary}:${serializedVulnerabilities}`)
-      .digest("hex");
+    const scanHash = computeScanHash(lifecycle.imageIdentifierNormalized, lifecycle.imageGeneration, scanResult);
 
     try {
       await this.globalDatabaseService.db
@@ -1736,66 +1709,12 @@ export class DockerRepository {
           },
         });
     } catch (error: unknown) {
-      if (!this.isMissingDockerSecurityScanTableError(error)) {
+      if (!isMissingScanTableError(error)) {
         throw error;
       }
 
       this.warnMissingDockerSecurityScanTableOnce();
     }
-  }
-
-  private isMissingDockerSecurityScanTableError(error: unknown): boolean {
-    const queue: unknown[] = [error];
-    const visited = new Set<unknown>();
-
-    while (queue.length > 0) {
-      const current = queue.shift();
-      if (current == null || visited.has(current)) {
-        continue;
-      }
-      visited.add(current);
-
-      const code = (
-        typeof current === "object"
-        && "code" in current
-        && typeof (current as { code?: unknown }).code === "string"
-      )
-        ? (current as { code: string }).code
-        : null;
-
-      if (code === "42P01") {
-        return true;
-      }
-
-      const message = this.formatError(current).toLowerCase();
-      if (
-        message.includes('relation "docker_image_security_scans" does not exist')
-        || (message.includes("docker_image_security_scans") && message.includes("does not exist"))
-        || (message.includes("docker_image_security_scans") && message.includes("42p01"))
-      ) {
-        return true;
-      }
-
-      if (typeof current === "object") {
-        const candidate = current as {
-          cause?: unknown;
-          originalError?: unknown;
-          error?: unknown;
-        };
-
-        if (candidate.cause !== undefined) {
-          queue.push(candidate.cause);
-        }
-        if (candidate.originalError !== undefined) {
-          queue.push(candidate.originalError);
-        }
-        if (candidate.error !== undefined) {
-          queue.push(candidate.error);
-        }
-      }
-    }
-
-    return false;
   }
 
   private warnMissingDockerSecurityScanTableOnce(): void {
