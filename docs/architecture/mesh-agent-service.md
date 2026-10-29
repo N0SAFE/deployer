@@ -184,7 +184,7 @@ Built and tested over real oRPC RPC peers (in-memory ports): unary, streams, red
   call is granted and followed directly, an unauthenticated call is refused, and a call pinned to another node is
   forwarded to that node's agent.
 
-Not built yet: fleet's inventory mesh and the remaining `MeshCoreModule` imports in the runtime, byte accounting from the transport (the lease policy's bytes-per-second input is fed by nothing), the
+Not built yet: the setup flow's enrollment on the agent (`roster.join`, so the old grants and `MeshCoreModule` can go), the remaining `MeshCoreModule` imports in the runtime, byte accounting from the transport (the lease policy's bytes-per-second input is fed by nothing), the
 bridge topology for large meshes (agents currently connect to every agent they learn of, which is the small-mesh
 design), the onboarding agent, services registering themselves with their agent (`replicaHeartbeat` exists, no
 service calls it), the per-service `external`/`peer`/`node` routers, a swarm global-mode deployment of the agent, and the
@@ -279,6 +279,25 @@ merges its own events with a stream it follows on every other node: one loop per
 the stream breaks, with the set of nodes re-read every few seconds, so a node that is slow or gone costs only its own
 stream and nothing is buffered for it. Every event carries the id of the node it happened on. The deployment mesh no
 longer exists: a deployment's streams are served from the node that runs it.
+
+## The dashboard's view of the mesh
+
+Fleet serves the mesh surface the dashboard reads (`meshContract`, delegated by the BFF), and it reads it from the agent
+of its node rather than keeping a picture of its own. `MeshViewService` asks `roster.view` (this agent's node and the
+agents it knows of) and `directory.snapshot` (every replica), and the procedures answer with schemas that hold only what
+the agents report: `getLocalNode` and `listPeers` give nodes (id, address, whether it is this one), `membershipSnapshot`
+gives nodes plus replicas (service, node, load, announced keys), `streamTopology` sends a snapshot again whenever it
+differs, `lookupResource` is `directory.resolve` (which replica a call about a key would reach, and why), and
+`issueJoinToken` is `roster.token`. A node without an agent is a swarm of one: it lists itself, has no replicas, and
+cannot issue a token, because it holds no swarm credential.
+
+Dropped, because the agent has nothing to answer them with: the trust keyring and strict mode (the agent generates and
+verifies its own credential), manual peer connect/disconnect/heartbeat and membership reconcile (agents connect to every
+agent they learn of), the resource index and the route and queue-partition planners (the directory resolves), and the
+control-envelope and session-stream transport of the old mesh. No link latency, jitter or loss is shown: nothing
+measures them. Still served by the old controller until onboarding moves onto the agent: `issueJoinGrant`,
+`revokeJoinGrant` and `listPeerSessions` (the setup flow's enrollment), the internal `registerNode` and
+`consumeJoinGrant`, the node configuration procedures, and the event-stream procedures.
 
 ## Services and their clients on the mesh
 

@@ -50,7 +50,7 @@ export function NodeNetworkConfig() {
   const { state: meshState } = useMeshSseState()
   const { data: gate } = useCheckDomainGate()
 
-  const currentNodeId = meshState?.localNode.nodeId ?? ''
+  const currentNodeId = meshState?.nodes.find((node) => node.local)?.nodeId ?? ''
   const allConfigs = useMemo<NodeNetworkView[]>(() => allConfigsData?.configs ?? [], [allConfigsData])
 
   // Node options: every cluster node (from the fleet) ∪ configured nodes.

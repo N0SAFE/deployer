@@ -109,13 +109,13 @@ export function projectServiceActivity(params: {
 
   if (meshState) {
     projected.push({
-      id: `mesh-state-${String(meshState.revision)}-${serviceId}`,
+      id: `mesh-state-${meshState.generatedAt}-${serviceId}`,
       containerId: null,
       containerName: serviceId,
       source: 'mesh',
       status: meshSseStatus,
-      message: `Mesh ${meshState.reason.replaceAll('_', ' ')} · ${String(meshState.sessions.length)} sessions · ${String(meshState.peers.length)} peers`,
-      timestamp: meshState.emittedAt,
+      message: `Mesh · ${String(meshState.nodes.length)} nodes · ${String(meshState.replicas.length)} replicas`,
+      timestamp: meshState.generatedAt,
     })
   }
 

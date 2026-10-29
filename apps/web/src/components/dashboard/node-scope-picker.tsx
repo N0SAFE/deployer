@@ -37,7 +37,6 @@ export function NodeScopePicker() {
       map.set(localNode.nodeId, {
         nodeId: localNode.nodeId,
         displayName: 'This node',
-        status: localNode.lifecycleState,
       })
     }
 

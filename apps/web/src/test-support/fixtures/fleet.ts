@@ -60,28 +60,15 @@ export const admissionRequest = {
 
 export const meshNodeState = (over: Record<string, unknown> = {}) => ({
 	nodeId: NODE_A,
-	region: 'eu-west',
-	roles: ['edge'],
-	lifecycleState: 'healthy',
-	routingMode: 'balanced',
-	consistencyMode: 'ap',
-	version: '3.0.0',
-	startedAt: minutesAgo(600),
-	lastSeenAt: minutesAgo(1),
-	metadata: null,
+	address: 'agent-a:7000',
+	local: true,
 	...over,
 })
 
 export const meshState = (nodes: unknown[] = [meshNodeState()]) => ({
-	type: 'mesh_state',
-	reason: 'bootstrap',
-	localNode: meshNodeState(),
-	peers: [],
-	sessions: [],
-	snapshot: { version: 1, generatedAt: minutesAgo(1), localNode: meshNodeState(), nodes, connections: [], sessions: [] },
-	topologyEvent: null,
-	emittedAt: minutesAgo(1),
-	revision: 1,
+	generatedAt: minutesAgo(1),
+	nodes,
+	replicas: [],
 })
 
 export const meshNodeConfig = {
@@ -112,7 +99,7 @@ function sseState(state: Scenario) {
 		case 'empty':
 			return { status: 'connected', lastError: null, state: meshState([]) }
 		case 'populated':
-			return { status: 'connected', lastError: null, state: meshState([meshNodeState(), meshNodeState({ nodeId: NODE_B, lifecycleState: 'degraded' })]) }
+			return { status: 'connected', lastError: null, state: meshState([meshNodeState(), meshNodeState({ nodeId: NODE_B, address: 'agent-b:7000', local: false })]) }
 	}
 }
 

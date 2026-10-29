@@ -9,38 +9,18 @@ import {
     type ComputeInputSchema,
 } from "@deployer/orpc-utils";
 import {
-      coreEventStreamDefinitionSchema,
+    meshAgentNodeSchema,
+    meshAgentNodesResultSchema,
+    meshAgentSnapshotSchema,
+    meshAgentLookupInputSchema,
+    meshAgentLookupResultSchema,
+    meshAgentJoinTokenInputSchema,
+    meshAgentJoinTokenResultSchema,
+    coreEventStreamDefinitionSchema,
     coreSyncedEventEnvelopeSchema,
-    meshResourceIndexUpsertInputSchema,
-    meshResourceIndexUpsertResultSchema,
-    meshResourceLookupInputSchema,
-    meshResourceLookupResultSchema,
-    meshQueuePartitionPlanInputSchema,
-    meshQueuePartitionPlanResultSchema,
-    meshDuplexStreamInputSchema,
-    meshDuplexStreamOutputSchema,
-    meshControlEnvelopeSchema,
-    meshMembershipReconcileInputSchema,
-    meshMembershipReconcileResultSchema,
-    meshMembershipSnapshotSchema,
-    meshPeerConnectInputSchema,
-    meshPeerConnectResultSchema,
-    meshPeerDisconnectInputSchema,
-    meshPeerDisconnectResultSchema,
-    meshPeerHeartbeatInputSchema,
-    meshPeerHeartbeatResultSchema,
     meshPeerSessionsListResultSchema,
-    meshPeersListResultSchema,
     meshPingResultSchema,
-    meshRuntimeEventSchema,
-    meshRuntimeStreamQuerySchema,
-    meshNodeStateSchema,
-    meshControlEnvelopePublishResultSchema,
     meshStreamReplayQuerySchema,
-    meshStreamRoutePlanInputSchema,
-    meshStreamRoutePlanResultSchema,
-    meshTopologyStreamQuerySchema,
-    meshTopologyEventSchema,
     systemMetricsSnapshotSchema,
     meshJoinGrantIssueInputSchema,
     meshJoinGrantIssueResultSchema,
@@ -50,18 +30,6 @@ import {
     meshRegisterNodeResultSchema,
     meshJoinGrantRevokeInputSchema,
     meshJoinGrantRevokeResultSchema,
-    meshTrustKeyringRotateInputSchema,
-    meshTrustKeyringRotateResultSchema,
-    meshTrustKeyringStatusResultSchema,
-    meshTrustKeyringSecretsResultSchema,
-    meshTrustKeyringConvergenceStatusResultSchema,
-    meshTrustStrictReadinessResultSchema,
-    meshTrustStrictModeSetInputSchema,
-    meshTrustStrictModeSetResultSchema,
-    meshTrustStrictRollbackInputSchema,
-    meshTrustStrictRollbackResultSchema,
-    meshTrustStrictRolloutPlanQuerySchema,
-    meshTrustStrictRolloutPlanResultSchema,
     meshNodeConfigSchema,
     meshNodeConfigUpdateInputSchema,
     meshNodeConfigUpdateResultSchema,
@@ -81,70 +49,24 @@ import { coreEventStreamListConfigSchemas as meshEventStreamListConfigSchemas } 
 
 export type MeshEventStreamListInput = ComputeInputSchema<typeof meshEventStreamListConfigSchemas>;
 
-const meshNodeStateOps = standard.zod(meshNodeStateSchema, "meshNodeState");
+const meshAgentNodeOps = standard.zod(meshAgentNodeSchema, "meshAgentNode");
+const meshAgentNodesOps = standard.zod(meshAgentNodesResultSchema, "meshAgentNodes");
+const meshAgentSnapshotOps = standard.zod(meshAgentSnapshotSchema, "meshAgentSnapshot");
+const meshAgentLookupOps = standard.zod(meshAgentLookupResultSchema, "meshAgentLookup");
+const meshAgentJoinTokenOps = standard.zod(meshAgentJoinTokenResultSchema, "meshAgentJoinToken");
 const meshSystemMetricsOps = standard.zod(systemMetricsSnapshotSchema, "meshSystemMetrics");
-const meshPeersListOps = standard.zod(meshPeersListResultSchema, "meshPeersList");
 const meshPeerSessionsListOps = standard.zod(meshPeerSessionsListResultSchema, "meshPeerSessionsList");
 const meshPingOps = standard.zod(meshPingResultSchema, "meshPing");
 const meshEventStreamByIdOps = standard.zod(coreEventStreamDefinitionSchema, "meshEventStreamById");
 const meshStreamSubscribeOps = standard.zod(coreSyncedEventEnvelopeSchema, "meshStreamSubscribe");
-const meshStreamRoutePlanOps = standard.zod(meshStreamRoutePlanResultSchema, "meshStreamRoutePlan");
-const meshPeerConnectOps = standard.zod(meshPeerConnectResultSchema, "meshPeerConnect");
-const meshPeerDisconnectOps = standard.zod(meshPeerDisconnectResultSchema, "meshPeerDisconnect");
-const meshPeerHeartbeatOps = standard.zod(meshPeerHeartbeatResultSchema, "meshPeerHeartbeat");
-const meshMembershipSnapshotOps = standard.zod(meshMembershipSnapshotSchema, "meshMembershipSnapshot");
-const meshMembershipReconcileOps = standard.zod(meshMembershipReconcileResultSchema, "meshMembershipReconcile");
 
-const meshTopologyEventContractEntitySchema = z.object({
-    type: z.string(),
-    timestamp: z.date(),
-});
 
-const meshTopologyEventOps = standard.zod(meshTopologyEventContractEntitySchema, "meshTopologyEvent");
-const meshRuntimeEventOps = standard.zod(meshRuntimeEventSchema, "meshRuntimeEvent");
-const meshControlEnvelopePublishOps = standard.zod(
-    meshControlEnvelopePublishResultSchema,
-    "meshControlEnvelopePublish",
-);
 
-const meshSessionStreamContractEntitySchema = z.object({
-    type: z.string(),
-});
 
-const meshSessionStreamOps = standard.zod(meshSessionStreamContractEntitySchema, "meshSessionStream");
-const meshResourceLookupOps = standard.zod(meshResourceLookupResultSchema, "meshResourceLookup");
-const meshResourceIndexUpsertOps = standard.zod(
-    meshResourceIndexUpsertResultSchema,
-    "meshResourceIndexUpsert",
-);
-const meshQueuePartitionPlanOps = standard.zod(
-    meshQueuePartitionPlanResultSchema,
-    "meshQueuePartitionPlan",
-);
 const meshJoinGrantIssueOps = standard.zod(meshJoinGrantIssueResultSchema, "meshJoinGrantIssue");
 const meshJoinGrantConsumeOps = standard.zod(meshJoinGrantConsumeResultSchema, "meshJoinGrantConsume");
 const meshRegisterNodeOps = standard.zod(meshRegisterNodeResultSchema, "meshRegisterNode");
 const meshJoinGrantRevokeOps = standard.zod(meshJoinGrantRevokeResultSchema, "meshJoinGrantRevoke");
-const meshTrustKeyringStatusOps = standard.zod(meshTrustKeyringStatusResultSchema, "meshTrustKeyringStatus");
-const meshTrustKeyringSecretsOps = standard.zod(meshTrustKeyringSecretsResultSchema, "meshTrustKeyringSecrets");
-const meshTrustKeyringRotateOps = standard.zod(meshTrustKeyringRotateResultSchema, "meshTrustKeyringRotate");
-const meshTrustKeyringConvergenceStatusOps = standard.zod(
-    meshTrustKeyringConvergenceStatusResultSchema,
-    "meshTrustKeyringConvergenceStatus",
-);
-const meshTrustStrictReadinessOps = standard.zod(
-    meshTrustStrictReadinessResultSchema,
-    "meshTrustStrictReadiness",
-);
-const meshTrustStrictModeSetOps = standard.zod(meshTrustStrictModeSetResultSchema, "meshTrustStrictModeSet");
-const meshTrustStrictRolloutPlanOps = standard.zod(
-    meshTrustStrictRolloutPlanResultSchema,
-    "meshTrustStrictRolloutPlan",
-);
-const meshTrustStrictRollbackOps = standard.zod(
-    meshTrustStrictRollbackResultSchema,
-    "meshTrustStrictRollback",
-);
 const meshNodeConfigOps = standard.zod(meshNodeConfigSchema, "meshNodeConfig");
 const meshNodeConfigUpdateOps = standard.zod(meshNodeConfigUpdateResultSchema, "meshNodeConfigUpdate");
 const meshNodeConfigRegenerateSecretOps = standard.zod(
@@ -153,11 +75,11 @@ const meshNodeConfigRegenerateSecretOps = standard.zod(
 );
 const meshNodeConfigTestDbOps = standard.zod(meshNodeConfigTestDbResultSchema, "meshNodeConfigTestDb");
 
-export const meshGetLocalNodeContract = meshNodeStateOps
+export const meshGetLocalNodeContract = meshAgentNodeOps
     .list()
     .path("/node/local")
     .input(z.object({}))
-    .output(() => meshNodeStateSchema)
+    .output(() => meshAgentNodeSchema)
     .build();
 
 /**
@@ -184,11 +106,11 @@ export const meshGetNodeMetricsContract = meshSystemMetricsOps
     .output(systemMetricsSnapshotSchema)
     .build();
 
-export const meshListPeersContract = meshPeersListOps
+export const meshListPeersContract = meshAgentNodesOps
     .list()
     .path("/peers")
     .input(z.object({}))
-    .output(meshPeersListResultSchema)
+    .output(meshAgentNodesResultSchema)
     .build();
 
 export const meshListPeerSessionsContract = meshPeerSessionsListOps
@@ -216,101 +138,26 @@ export const meshStreamSubscribeContract = meshStreamSubscribeOps
     .output((b) => b.observable(coreSyncedEventEnvelopeSchema))
     .build();
 
-export const meshPlanStreamRouteContract = meshStreamRoutePlanOps
-    .create()
-    .path("/streams/plan")
-    .input((b) => b.body(meshStreamRoutePlanInputSchema))
-    .output(meshStreamRoutePlanResultSchema)
-    .build();
-
-export const meshConnectPeerContract = meshPeerConnectOps
-    .create()
-    .path("/peers/connect")
-    .input((b) => b.body(meshPeerConnectInputSchema))
-    .output(meshPeerConnectResultSchema)
-    .build();
-
-export const meshDisconnectPeerContract = meshPeerDisconnectOps
-    .create()
-    .input((b) =>
-        b
-            .params((p) => p`/peers/${p("sessionId", z.uuid())}/disconnect`)
-            .body(meshPeerDisconnectInputSchema),
-    )
-    .output(meshPeerDisconnectResultSchema)
-    .build();
-
-export const meshPeerHeartbeatContract = meshPeerHeartbeatOps
-    .create()
-    .input((b) =>
-        b
-            .params((p) => p`/peers/${p("sessionId", z.uuid())}/heartbeat`)
-            .body(meshPeerHeartbeatInputSchema),
-    )
-    .output(meshPeerHeartbeatResultSchema)
-    .build();
-
-export const meshMembershipSnapshotContract = meshMembershipSnapshotOps
+export const meshMembershipSnapshotContract = meshAgentSnapshotOps
     .list()
     .path("/membership/snapshot")
     .input(z.object({}))
-    .output(meshMembershipSnapshotSchema)
+    .output(meshAgentSnapshotSchema)
     .build();
 
-export const meshMembershipReconcileContract = meshMembershipReconcileOps
-    .create()
-    .path("/membership/reconcile")
-    .input((b) => b.body(meshMembershipReconcileInputSchema))
-    .output(meshMembershipReconcileResultSchema)
-    .build();
-
-export const meshTopologyStreamContract = meshTopologyEventOps
+/** The swarm as the agents report it, sent again whenever it changes. */
+export const meshTopologyStreamContract = meshAgentSnapshotOps
     .list()
     .path("/topology/stream")
-    .input((b) => b.query(meshTopologyStreamQuerySchema))
-    .output((b) => b.observable(meshTopologyEventSchema))
+    .input(z.object({}))
+    .output((b) => b.observable(meshAgentSnapshotSchema))
     .build();
 
-export const meshRuntimeStreamContract = meshRuntimeEventOps
-    .list()
-    .path("/events/stream")
-    .input((b) => b.query(meshRuntimeStreamQuerySchema))
-    .output((b) => b.observable(meshRuntimeEventSchema))
-    .build();
-
-export const meshControlEnvelopePublishContract = meshControlEnvelopePublishOps
-    .create()
-    .path("/control/publish")
-    .input((b) => b.body(meshControlEnvelopeSchema))
-    .output(meshControlEnvelopePublishResultSchema)
-    .build();
-
-export const meshSessionStreamContract = meshSessionStreamOps
-    .create()
-    .path("/session/stream")
-    .input((b) => b.body.observable(meshDuplexStreamInputSchema))
-    .output((b) => b.observable(meshDuplexStreamOutputSchema))
-    .build();
-
-export const meshLookupResourceContract = meshResourceLookupOps
+export const meshLookupResourceContract = meshAgentLookupOps
     .create()
     .path("/lookup")
-    .input((b) => b.body(meshResourceLookupInputSchema))
-    .output(meshResourceLookupResultSchema)
-    .build();
-
-export const meshUpsertResourceIndexContract = meshResourceIndexUpsertOps
-    .create()
-    .path("/index/upsert")
-    .input((b) => b.body(meshResourceIndexUpsertInputSchema))
-    .output(meshResourceIndexUpsertResultSchema)
-    .build();
-
-export const meshPlanQueuePartitionContract = meshQueuePartitionPlanOps
-    .create()
-    .path("/queue/partitions/plan")
-    .input((b) => b.body(meshQueuePartitionPlanInputSchema))
-    .output(meshQueuePartitionPlanResultSchema)
+    .input((b) => b.body(meshAgentLookupInputSchema))
+    .output(meshAgentLookupResultSchema)
     .build();
 
 export const meshIssueJoinGrantContract = meshJoinGrantIssueOps
@@ -342,6 +189,17 @@ export const meshRegisterNodeContract = meshRegisterNodeOps
     .output(() => meshRegisterNodeResultSchema)
     .build();
 
+/**
+ * Issues the token a new node redeems with its own agent (`roster.join`) to join the swarm. The grant above is the
+ * enrollment of the setup flow, which this replaces when onboarding moves onto the agent.
+ */
+export const meshIssueJoinTokenContract = meshAgentJoinTokenOps
+    .create()
+    .path("/enrollment/tokens/issue")
+    .input((b) => b.body(meshAgentJoinTokenInputSchema))
+    .output(meshAgentJoinTokenResultSchema)
+    .build();
+
 export const meshRevokeJoinGrantContract = meshJoinGrantRevokeOps
     .create()
     .path("/enrollment/grants/revoke")
@@ -350,76 +208,6 @@ export const meshRevokeJoinGrantContract = meshJoinGrantRevokeOps
     .errors((e) => [
         // Throws MeshNotFoundError (when the grant id doesn't exist) and
         // MeshAuthorizationError (when the caller isn't super-admin).
-        ...meshDomainErrorContracts(e),
-    ])
-    .build();
-
-export const meshTrustKeyringStatusContract = meshTrustKeyringStatusOps
-    .list()
-    .path("/trust/keyring")
-    .input(z.object({}))
-    .output(meshTrustKeyringStatusResultSchema)
-    .build();
-
-export const meshTrustKeyringSecretsContract = meshTrustKeyringSecretsOps
-    .list()
-    .path("/trust/keyring/secrets")
-    .input(z.object({}))
-    .output(meshTrustKeyringSecretsResultSchema)
-    .build();
-
-export const meshTrustKeyringRotateContract = meshTrustKeyringRotateOps
-    .create()
-    .path("/trust/keyring/rotate")
-    .input((b) => b.body(meshTrustKeyringRotateInputSchema))
-    .output(meshTrustKeyringRotateResultSchema)
-    .build();
-
-export const meshTrustKeyringConvergenceStatusContract = meshTrustKeyringConvergenceStatusOps
-    .list()
-    .path("/trust/keyring/convergence")
-    .input(z.object({}))
-    .output(meshTrustKeyringConvergenceStatusResultSchema)
-    .build();
-
-export const meshTrustStrictReadinessContract = meshTrustStrictReadinessOps
-    .list()
-    .path("/trust/strict/readiness")
-    .input(z.object({}))
-    .output(meshTrustStrictReadinessResultSchema)
-    .build();
-
-export const meshTrustStrictModeSetContract = meshTrustStrictModeSetOps
-    .create()
-    .path("/trust/strict/mode")
-    .input((b) => b.body(meshTrustStrictModeSetInputSchema))
-    .output(meshTrustStrictModeSetResultSchema)
-    .errors((e) => [
-        // Throws MeshAuthorizationError when the caller is not super-admin, and
-        // MeshValidationError when readiness has not converged (or when the mode is
-        // pinned by environment and cannot be changed at runtime). Declaring them
-        // is what lets the client tell "you may not" from "the server broke":
-        // undeclared, the domain error has no wire shape to match, so the response
-        // degrades to a bare 500 and the UI can only say "Unknown error".
-        ...meshDomainErrorContracts(e),
-    ])
-    .build();
-
-export const meshTrustStrictRolloutPlanContract = meshTrustStrictRolloutPlanOps
-    .list()
-    .path("/trust/strict/rollout-plan")
-    .input((b) => b.query(meshTrustStrictRolloutPlanQuerySchema))
-    .output(meshTrustStrictRolloutPlanResultSchema)
-    .build();
-
-export const meshTrustStrictRollbackContract = meshTrustStrictRollbackOps
-    .create()
-    .path("/trust/strict/rollback")
-    .input((b) => b.body(meshTrustStrictRollbackInputSchema))
-    .output(meshTrustStrictRollbackResultSchema)
-    .errors((e) => [
-        // Same three refusals as the mode-set above: not super-admin, pinned by
-        // environment, or no active rollback recommendation without force=true.
         ...meshDomainErrorContracts(e),
     ])
     .build();
@@ -461,26 +249,12 @@ export const meshContract = oc.meta(openapi({ tags: ["Core Mesh"], prefix: "/mes
     listEventStreams: meshListEventStreamsContract,
     findEventStreamById: meshFindEventStreamByIdContract,
     subscribeEventStream: meshStreamSubscribeContract,
-    planStreamRoute: meshPlanStreamRouteContract,
-    connectPeer: meshConnectPeerContract,
-    disconnectPeer: meshDisconnectPeerContract,
-    heartbeatPeer: meshPeerHeartbeatContract,
     membershipSnapshot: meshMembershipSnapshotContract,
-    reconcileMembership: meshMembershipReconcileContract,
     streamTopology: meshTopologyStreamContract,
-    streamEvents: meshRuntimeStreamContract,
     lookupResource: meshLookupResourceContract,
-    upsertResourceIndex: meshUpsertResourceIndexContract,
     issueJoinGrant: meshIssueJoinGrantContract,
+    issueJoinToken: meshIssueJoinTokenContract,
     revokeJoinGrant: meshRevokeJoinGrantContract,
-    trustKeyringStatus: meshTrustKeyringStatusContract,
-    trustKeyringSecrets: meshTrustKeyringSecretsContract,
-    trustKeyringRotate: meshTrustKeyringRotateContract,
-    trustKeyringConvergenceStatus: meshTrustKeyringConvergenceStatusContract,
-    trustStrictReadiness: meshTrustStrictReadinessContract,
-    trustStrictModeSet: meshTrustStrictModeSetContract,
-    trustStrictRolloutPlan: meshTrustStrictRolloutPlanContract,
-    trustStrictRollback: meshTrustStrictRollbackContract,
     getNodeConfig: meshGetNodeConfigContract,
     updateNodeConfig: meshUpdateNodeConfigContract,
     regenerateNodeConfigSecret: meshRegenerateNodeConfigSecretContract,
@@ -500,9 +274,6 @@ export type MeshContract = typeof meshContract;
  * get one typed client for the whole mesh API.
  */
 export const meshInternalContract = oc.meta(openapi({ tags: ["Core Mesh Internal"], prefix: "/mesh" })).router({
-    publishControlEnvelope: meshControlEnvelopePublishContract,
-    streamSession: meshSessionStreamContract,
-    planQueuePartition: meshPlanQueuePartitionContract,
     registerNode: meshRegisterNodeContract,
     consumeJoinGrant: meshConsumeJoinGrantContract,
 });

@@ -2,10 +2,7 @@
 
 import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import {
-  meshRuntimeEventSchema,
-  type MeshRuntimeEvent,
-} from "@deployer/contracts-entities";
+import { meshAgentSnapshotSchema, type MeshAgentSnapshot } from "@deployer/contracts-entities";
 import { meshEndpoints } from "./endpoints";
 import { meshInvalidations } from "./invalidations";
 import { wrapWithInvalidations } from "@/domains/shared/helpers";
@@ -16,19 +13,8 @@ type MeshStreamStatus = "connecting" | "connected" | "disconnected" | "error";
 export interface MeshSseState {
   status: MeshStreamStatus;
   lastError: string | null;
-  state: MeshRuntimeEvent | null;
+  state: MeshAgentSnapshot | null;
 }
-
-type MeshRuntimeStreamInput = Parameters<
-  typeof meshEndpoints.streamEvents.experimental_liveObservableOptions
->[0]["input"];
-
-const DEFAULT_MESH_RUNTIME_STREAM_INPUT: MeshRuntimeStreamInput = {
-  query: {
-    replay: true,
-    replayLimit: 1,
-  },
-};
 
 export function useMeshLocalNode(options?: { enabled?: boolean }) {
   return useQuery(
@@ -90,111 +76,12 @@ export function useMeshMembershipSnapshot(options?: { enabled?: boolean }) {
   );
 }
 
-export function useConnectMeshPeer() {
-  return useMutation(
-    meshEndpoints.connectPeer.mutationOptions({
-      onSuccess: enhancedMesh.connectPeer.withInvalidationOnSuccess(),
-    }),
-  );
-}
-
-export function useDisconnectMeshPeer() {
-  return useMutation(
-    meshEndpoints.disconnectPeer.mutationOptions({
-      onSuccess: enhancedMesh.disconnectPeer.withInvalidationOnSuccess(),
-    }),
-  );
-}
-
-export function useReconcileMeshMembership() {
-  return useMutation(
-    meshEndpoints.reconcileMembership.mutationOptions({
-      onSuccess: enhancedMesh.reconcileMembership.withInvalidationOnSuccess(),
-    }),
-  );
+export function useCreateMeshJoinToken() {
+  return useMutation(meshEndpoints.issueJoinToken.mutationOptions({}));
 }
 
 export function useLookupMeshResource() {
   return useMutation(meshEndpoints.lookupResource.mutationOptions({}));
-}
-
-export function useUpsertMeshResourceIndex() {
-  return useMutation(
-    meshEndpoints.upsertResourceIndex.mutationOptions({
-      onSuccess: enhancedMesh.upsertResourceIndex.withInvalidationOnSuccess(),
-    }),
-  );
-}
-
-export function usePlanMeshStreamRoute() {
-  return useMutation(meshEndpoints.planStreamRoute.mutationOptions({}));
-}
-
-// ─── Trust & Security Hooks ──────────────────────────────────────────────────
-
-export function useMeshTrustKeyringStatus(options?: { enabled?: boolean }) {
-  return useQuery(
-    { ...meshEndpoints.trustKeyringStatus.queryOptions({ input: {} }), enabled: options?.enabled ?? true, refetchInterval: false },
-  );
-}
-
-export function useMeshTrustKeyringSecrets(options?: { enabled?: boolean }) {
-  return useQuery(
-    { ...meshEndpoints.trustKeyringSecrets.queryOptions({ input: {} }), enabled: options?.enabled ?? true, refetchInterval: false },
-  );
-}
-
-export function useMeshTrustKeyringRotate() {
-  return useMutation(
-    meshEndpoints.trustKeyringRotate.mutationOptions({
-      onSuccess: enhancedMesh.trustKeyringRotate.withInvalidationOnSuccess(),
-    }),
-  );
-}
-
-export function useMeshTrustKeyringConvergenceStatus(options?: { enabled?: boolean }) {
-  return useQuery(
-    { ...meshEndpoints.trustKeyringConvergenceStatus.queryOptions({ input: {} }), enabled: options?.enabled ?? true, refetchInterval: false },
-  );
-}
-
-export function useMeshTrustStrictReadiness(options?: { enabled?: boolean }) {
-  return useQuery(
-    { ...meshEndpoints.trustStrictReadiness.queryOptions({ input: {} }), enabled: options?.enabled ?? true, refetchInterval: false },
-  );
-}
-
-export function useMeshTrustStrictModeSet() {
-  return useMutation(
-    meshEndpoints.trustStrictModeSet.mutationOptions({
-      onSuccess: enhancedMesh.trustStrictModeSet.withInvalidationOnSuccess(),
-    }),
-  );
-}
-
-export function useMeshTrustStrictRolloutPlan(options?: {
-  enabled?: boolean;
-  waveSize?: number;
-}) {
-  return useQuery(
-    meshEndpoints.trustStrictRolloutPlan.queryOptions({
-      input: {
-        query: {
-          waveSize: options?.waveSize,
-        },
-      },
-      enabled: options?.enabled ?? true,
-      refetchInterval: false,
-    }),
-  );
-}
-
-export function useMeshTrustStrictRollback() {
-  return useMutation(
-    meshEndpoints.trustStrictRollback.mutationOptions({
-      onSuccess: enhancedMesh.trustStrictRollback.withInvalidationOnSuccess(),
-    }),
-  );
 }
 
 // ─── Node Configuration Hooks ─────────────────────────────────────────────────
@@ -231,17 +118,15 @@ export function useMeshTestNodeConfigDb() {
   );
 }
 
-export function useMeshSseState(
-  input: MeshRuntimeStreamInput = DEFAULT_MESH_RUNTIME_STREAM_INPUT,
-): MeshSseState {
+export function useMeshSseState(): MeshSseState {
   const streamQuery = useQuery(
-    meshEndpoints.streamEvents.experimental_liveObservableOptions({
-      input,
+    meshEndpoints.streamTopology.experimental_liveObservableOptions({
+      input: {},
       refetchInterval: false,
     }),
   );
 
-  const parsedState = meshRuntimeEventSchema.safeParse(streamQuery.data);
+  const parsedState = meshAgentSnapshotSchema.safeParse(streamQuery.data);
   const state = parsedState.success ? parsedState.data : null;
 
   const status: MeshStreamStatus = streamQuery.isError
@@ -250,7 +135,9 @@ export function useMeshSseState(
       ? streamQuery.data
         ? "connected"
         : "connecting"
-      : "disconnected";
+      : streamQuery.data
+        ? "connected"
+        : "disconnected";
 
   return {
     status,

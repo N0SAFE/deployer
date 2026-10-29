@@ -71,7 +71,7 @@ export default function DashboardNodeDetailPage() {
     return raw?.data ?? []
   }, [deploymentsData])
 
-  const liveMember = (meshEvent?.snapshot.nodes ?? []).find((n) => n.nodeId === nodeId) ?? null
+  const liveMember = (meshEvent?.nodes ?? []).find((n) => n.nodeId === nodeId) ?? null
 
   if (isLoading) {
     return (
@@ -110,7 +110,7 @@ export default function DashboardNodeDetailPage() {
   }
 
   const nodeName = node.displayName ?? node.nodeId.slice(0, 8)
-  const presence = nodePresence(node, now, liveNodeIds(meshEvent?.snapshot.nodes ?? []), localNode?.nodeId)
+  const presence = nodePresence(node, now, liveNodeIds(meshEvent?.nodes ?? []), localNode?.nodeId)
 
   return (
     <div className="space-y-5">
@@ -151,8 +151,7 @@ export default function DashboardNodeDetailPage() {
           <NodeOverviewTab
             node={node}
             presence={presence}
-            lifecycleState={liveMember?.lifecycleState ?? null}
-            roles={liveMember?.roles ?? []}
+            replicaCount={liveMember ? (meshEvent?.replicas ?? []).filter((replica) => replica.nodeId === nodeId).length : null}
             allocations={allocationsData?.items ?? []}
           />
         </TabsContent>

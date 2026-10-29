@@ -55,7 +55,7 @@ export default function NodesCapacityPage() {
     return <PageErrorState title="Could not load nodes" message="The fleet list is unavailable right now." onRetry={() => { void refetch() }} />
   }
 
-  const live = liveNodeIds(meshEvent?.snapshot.nodes ?? [])
+  const live = liveNodeIds(meshEvent?.nodes ?? [])
   const presenceOf = (nodeId: string, lastSeenAt: string | null, status: string): NodePresence =>
     nodePresence({ nodeId, lastSeenAt, status }, now, live, localNode?.nodeId)
   // Online nodes first: an offline row in the registry is rarely what the operator came to size.

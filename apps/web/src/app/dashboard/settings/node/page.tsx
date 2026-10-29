@@ -4,7 +4,6 @@ import { ShieldAlert } from 'lucide-react'
 import { PageHeader, ScopeLabel } from '@/components/dashboard'
 import { Alert, AlertDescription, AlertTitle } from '@deployer/ui/components/shadcn/alert'
 import { NodeNetworkConfig } from '@/components/dashboard/system/NodeNetworkConfig'
-import { AuthDashboardSettingsSecurity } from '@/routes'
 import { useIsPlatformAdmin } from '../_components/use-is-admin'
 import { DatabaseTestCard } from './_components/database-test-card'
 import { SettingsSection } from './_components/field'
@@ -13,8 +12,7 @@ import { NodeConfigCard } from './_components/node-config-card'
 
 /**
  * Settings → This node. The identity, address, database and persisted
- * configuration of the node serving this dashboard. Trust keys and strict mode
- * are mesh-wide and live under Security.
+ * configuration of the node serving this dashboard. 
  */
 export default function SettingsNodePage() {
   const isAdmin = useIsPlatformAdmin()
@@ -58,13 +56,9 @@ export default function SettingsNodePage() {
 
       <SettingsSection
         title="Danger zone"
-        description="Actions that cut peers off from this node. Mesh-wide trust keys and strict mode are under Security."
+        description="Actions that cut peers off from this node."
       >
         <MeshSecretCard />
-        <p className="text-sm text-muted-foreground">
-          Looking for the trust keyring or strict mode? They are in{' '}
-          <AuthDashboardSettingsSecurity.Link className="font-medium text-primary hover:underline">Security</AuthDashboardSettingsSecurity.Link>.
-        </p>
       </SettingsSection>
     </div>
   )

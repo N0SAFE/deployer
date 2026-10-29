@@ -55,23 +55,6 @@ function accountResource(name: string, empty: unknown, populated: unknown) {
 	}
 }
 
-const readiness = {
-	ready: true,
-	strictEnforced: false,
-	converged: true,
-	ackRatio: 1,
-	receivedAcks: 3,
-	expectedAcks: 3,
-	minAckRatio: 0.8,
-	maxAckAgeSeconds: 12,
-	lastRotationAgeSeconds: 600,
-	reasons: [],
-	rollbackTriggers: [],
-	rollbackRecommended: false,
-}
-
-const keyring = { activeKeyId: 'key-2026-10', keys: [{ keyId: 'key-2026-10', algorithm: 'hmac-sha256', status: 'active' }, { keyId: 'key-2026-04', algorithm: 'hmac-sha256', status: 'retired' }] }
-
 export const settingsFixtures: FixtureMap = {
 	useAdminListUsers: {
 		empty: { users: [], total: 0 },
@@ -81,10 +64,6 @@ export const settingsFixtures: FixtureMap = {
 	useGitHubApps: { empty: { apps: [] }, populated: { apps: [] } },
 	useGitlabApps: { empty: { apps: [] }, populated: { apps: [] } },
 	useDNSProviders: { empty: { providers: [] }, populated: { providers: [{ id: 'dns-1', providerType: 'cloudflare', name: 'Main account', isActive: true, state: { status: 'ok', accountId: 'abcdef0123456789', error: null } }] } },
-	useMeshTrustStrictReadiness: { empty: readiness, populated: readiness },
-	useMeshTrustKeyringStatus: { empty: { activeKeyId: null, keys: [] }, populated: keyring },
-	useMeshTrustKeyringSecrets: { empty: { keys: [] }, populated: { keys: keyring.keys.map((k) => ({ ...k, secretMaterial: 'secret' })) } },
-	useMeshTrustKeyringConvergenceStatus: { empty: { converged: true, receivedAcks: 0, expectedAcks: 0, pendingNodeIds: [], lastRotatedAt: null }, populated: { converged: true, receivedAcks: 3, expectedAcks: 3, pendingNodeIds: [], lastRotatedAt: minutesAgo(600) } },
 	useNodeStatus: { empty: { isConfigured: true, nodeId: 'node-1', strategy: 'local', meshUrlsSnapshot: [], configuredAt: minutesAgo(600) }, populated: { isConfigured: true, nodeId: 'node-1', strategy: 'local', meshUrlsSnapshot: [], configuredAt: minutesAgo(600) } },
 	usePasskeys: { empty: undefined, raw: accountResource('usePasskeys', [], [{ id: 'pk-1', name: 'Laptop', createdAt: daysAgo(3), deviceType: 'multiDevice', backedUp: true }]) },
 	useActiveSessions: { empty: undefined, raw: accountResource('useActiveSessions', [], [{ id: 's-1', token: 't-1', ipAddress: '10.0.0.2', userAgent: 'Mozilla/5.0 (X11; Linux x86_64) Firefox/130.0', createdAt: daysAgo(1), expiresAt: daysAgo(-6) }]) },

@@ -1,20 +1,11 @@
-export interface MeshRoutePlanHistoryEntry {
-  at: string
-  streamId: string
-  selected: number
-  candidates: number
-  topOwner: string | null
-}
-
-export type MeshLookupKind = 'stream' | 'queue' | 'deployment' | 'log'
-
 export interface MeshLookupHistoryEntry {
   at: string
-  kind: MeshLookupKind
-  key: string
+  service: string
+  key: string | null
   found: boolean
-  owner: string | null
-  candidates: number
+  /** The node the call would reach. */
+  node: string | null
+  reason: string | null
 }
 
 /** History lists keep the newest few entries only. */

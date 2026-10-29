@@ -43,14 +43,13 @@ function pct(value: number | null): string {
 export function NodeOverviewTab({
   node,
   presence,
-  lifecycleState,
-  roles,
+  replicaCount,
   allocations,
 }: {
   node: NodeDetail
   presence: NodePresence
-  lifecycleState: string | null
-  roles: readonly string[]
+  /** Replicas the swarm's agents report on this node, or null when the node is not in the live snapshot. */
+  replicaCount: number | null
   allocations: readonly AllocationRow[]
 }) {
   const live = presence === 'online' || presence === 'this-node'
@@ -95,8 +94,7 @@ export function NodeOverviewTab({
               {node.status}
             </span>
           </Row>
-          <Row label="Mesh lifecycle">{lifecycleState ?? 'not in the live membership'}</Row>
-          <Row label="Roles">{roles.length > 0 ? roles.join(', ') : '—'}</Row>
+          <Row label="In the mesh">{replicaCount === null ? 'not in the live snapshot' : `${String(replicaCount)} replica${replicaCount === 1 ? '' : 's'}`}</Row>
         </CardContent>
       </Card>
 

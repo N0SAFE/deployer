@@ -23,7 +23,7 @@ export function NodeConfigCard() {
   const { data: nodeConfig, isLoading, error: configError, refetch: refetchConfig } = useMeshNodeConfig()
   const { data: nodeStatus, isLoading: statusLoading } = useNodeStatus()
   const { state: meshState } = useMeshSseState()
-  const localNode = meshState?.localNode
+  const localNode = meshState?.nodes.find((node) => node.local)
   const form = useNodeConfigForm()
   const [revealDb, setRevealDb] = useState(false)
 
@@ -34,16 +34,16 @@ export function NodeConfigCard() {
       strategy: cfg?.strategy === 'remote' ? 'remote' : 'local',
       meshUrls: cfg?.meshUrlsSnapshot ?? [],
       databaseUrl: nodeConfig?.databaseUrl ?? '',
-      region: localNode?.region ?? '',
-      zone: localNode?.zone ?? '',
-      version: localNode?.version ?? '',
-      roles: localNode?.roles ?? [],
-      routingMode: localNode?.routingMode ?? '',
-      consistencyMode: localNode?.consistencyMode ?? '',
+      region: nodeConfig?.region ?? '',
+      zone: nodeConfig?.zone ?? '',
+      version: nodeConfig?.version ?? '',
+      roles: nodeConfig?.roles ?? [],
+      routingMode: nodeConfig?.routingMode ?? '',
+      consistencyMode: nodeConfig?.consistencyMode ?? '',
     })
   }
 
-  const roles = nodeConfig?.roles ?? localNode?.roles
+  const roles = nodeConfig?.roles
   const databaseUrl = nodeConfig?.databaseUrl
 
   return (
@@ -59,11 +59,6 @@ export function NodeConfigCard() {
             </CardDescription>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {localNode ? (
-              <Badge variant={localNode.lifecycleState === 'healthy' ? 'default' : localNode.lifecycleState === 'suspect' ? 'secondary' : 'destructive'}>
-                {localNode.lifecycleState}
-              </Badge>
-            ) : null}
             <Button variant="outline" size="sm" className="gap-1" onClick={form.open ? form.cancel : edit}>
               <Sliders className="size-3.5" /> {form.open ? 'Cancel' : 'Edit config'}
             </Button>
@@ -86,11 +81,11 @@ export function NodeConfigCard() {
               <Badge variant="outline">{nodeConfig?.strategy ?? nodeStatus?.strategy ?? (nodeStatus?.meshUrlsSnapshot.length ? 'remote' : 'local')}</Badge>
             </ValueTile>
             <ValueTile label="Configured at">{formatDateTime(nodeConfig?.configuredAt ?? nodeStatus?.configuredAt?.toString())}</ValueTile>
-            <ValueTile label="Region">{nodeConfig?.region ?? localNode?.region ?? '—'}</ValueTile>
-            <ValueTile label="Zone">{nodeConfig?.zone ?? localNode?.zone ?? '—'}</ValueTile>
-            <ValueTile label="Version">{nodeConfig?.version ?? localNode?.version ?? '—'}</ValueTile>
-            <ValueTile label="Routing mode"><Badge variant="outline">{nodeConfig?.routingMode ?? localNode?.routingMode ?? '—'}</Badge></ValueTile>
-            <ValueTile label="Consistency mode"><Badge variant="outline">{nodeConfig?.consistencyMode ?? localNode?.consistencyMode ?? '—'}</Badge></ValueTile>
+            <ValueTile label="Region">{nodeConfig?.region ?? '—'}</ValueTile>
+            <ValueTile label="Zone">{nodeConfig?.zone ?? '—'}</ValueTile>
+            <ValueTile label="Version">{nodeConfig?.version ?? '—'}</ValueTile>
+            <ValueTile label="Routing mode"><Badge variant="outline">{nodeConfig?.routingMode ?? '—'}</Badge></ValueTile>
+            <ValueTile label="Consistency mode"><Badge variant="outline">{nodeConfig?.consistencyMode ?? '—'}</Badge></ValueTile>
             <ValueTile label="Roles">
               <div className="flex flex-wrap gap-1">
                 {roles?.length ? roles.map((role) => <Badge key={role} variant="secondary" className="text-[10px]">{role}</Badge>) : <span className="text-muted-foreground">—</span>}

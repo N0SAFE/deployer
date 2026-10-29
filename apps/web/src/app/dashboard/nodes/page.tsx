@@ -55,8 +55,8 @@ export default function DashboardNodesPage() {
   const [filter, setFilter] = useState<PresenceFilter>('all')
 
   const rows = useMemo<NodeRow[]>(() => {
-    const live = liveNodeIds(meshEvent?.snapshot.nodes ?? [])
-    const localId = localNode?.nodeId ?? meshEvent?.localNode.nodeId ?? null
+    const live = liveNodeIds(meshEvent?.nodes ?? [])
+    const localId = localNode?.nodeId ?? meshEvent?.nodes.find((n) => n.local)?.nodeId ?? null
     return (serversData?.items ?? [])
       .map((item) => ({
         node: item,

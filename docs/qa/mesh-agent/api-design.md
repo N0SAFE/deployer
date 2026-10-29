@@ -71,3 +71,17 @@
 **A**: Port every procedure: keep the whole `meshContract` surface and reimplement each procedure over the agent.
 
 ---
+
+## What the dropped procedures were, and what replaces the kept ones (2026-10-29)
+
+**Q**: For the keyring, strict mode, manual peer connect and the resource dispatcher, drop them or keep them as stubs?
+
+**A**: Drop them.
+
+---
+
+**Q**: Should the kept mesh procedures get new schemas that match what the agent knows, or keep the old schemas with defaults for the fields the agent lacks?
+
+**A**: New schemas.
+
+---

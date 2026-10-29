@@ -1,13 +1,12 @@
 'use client'
 
-import { LayoutGrid, Plug, Server, ShieldCheck, User, Users } from 'lucide-react'
+import { LayoutGrid, Plug, Server, User, Users } from 'lucide-react'
 import { SectionNav, type SectionNavItem } from '@/components/dashboard'
 import {
   AuthDashboardAdminProviders,
   AuthDashboardSettings,
   AuthDashboardSettingsAccount,
   AuthDashboardSettingsNode,
-  AuthDashboardSettingsSecurity,
   AuthDashboardSettingsUsers,
 } from '@/routes'
 import { useIsPlatformAdmin } from './use-is-admin'
@@ -25,7 +24,6 @@ export function SettingsNav() {
     { title: 'Users & access', route: AuthDashboardSettingsUsers, icon: Users, visible: isAdmin },
     { title: 'Integrations', route: AuthDashboardAdminProviders, icon: Plug },
     { title: 'This node', route: AuthDashboardSettingsNode, icon: Server, visible: isAdmin },
-    { title: 'Security', route: AuthDashboardSettingsSecurity, icon: ShieldCheck, visible: isAdmin },
   ]
   return <SectionNav label="Settings sections" items={items} />
 }

@@ -4,3 +4,4 @@ export * from "./routing-resources.schema";
 export * from "./trust.schema";
 export * from "./duplex.schema";
 export * from "./node-config.schema";
+export * from "./agent-view.schema";

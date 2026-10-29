@@ -18,7 +18,7 @@ describePageStates('Nodes capacity & admissions', {
 
 describePageStates('Nodes diagnostics', {
 	page: () => <NodesDiagnosticsPage />,
-	empty: { action: /connect|plan|look/i },
+	empty: { action: /issue|look/i },
 	retryIsNotRefetch: true,
 })
 

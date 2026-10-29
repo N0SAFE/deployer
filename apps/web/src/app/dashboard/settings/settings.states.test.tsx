@@ -5,7 +5,6 @@ import SettingsPage from './page'
 import SettingsAccountPage from './account/page'
 import SettingsUsersPage from './users/page'
 import SettingsNodePage from './node/page'
-import SettingsSecurityPage from './security/page'
 
 describePageStates('Settings hub', {
 	page: () => <SettingsPage />,
@@ -18,7 +17,7 @@ describePageStates('Settings hub', {
 		},
 	},
 	empty: { action: /open|go to|connect|account/i },
-	adminOnly: /users & access|this node|security/i,
+	adminOnly: /users & access|this node/i,
 })
 
 describePageStates('Settings account', {
@@ -38,10 +37,4 @@ describePageStates('Settings this node', {
 	page: () => <SettingsNodePage />,
 	empty: { action: /edit|save|test|regenerate/i },
 	adminOnly: /edit config|regenerate|test connection/i,
-})
-
-describePageStates('Settings security', {
-	page: () => <SettingsSecurityPage />,
-	empty: { action: /rotate/i },
-	adminOnly: /rotate key/i,
 })

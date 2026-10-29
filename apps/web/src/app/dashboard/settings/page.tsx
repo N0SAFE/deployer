@@ -1,6 +1,6 @@
 'use client'
 
-import { Boxes, FolderKanban, Gauge, Network, Plug, Server, ShieldCheck, User, Users } from 'lucide-react'
+import { Boxes, FolderKanban, Gauge, Network, Plug, Server, User, Users } from 'lucide-react'
 import { PageHeader } from '@/components/dashboard'
 import {
   AuthDashboardAdminProviders,
@@ -10,12 +10,10 @@ import {
   AuthDashboardProjects,
   AuthDashboardSettingsAccount,
   AuthDashboardSettingsNode,
-  AuthDashboardSettingsSecurity,
   AuthDashboardSettingsUsers,
 } from '@/routes'
 import { SettingsCard } from './_components/settings-card'
 import { useIsPlatformAdmin } from './_components/use-is-admin'
-import { useMeshTrustStrictReadiness } from '@/domains/mesh/hooks'
 import { useIntegrationSummary } from '../admin/providers/_components/integration-list'
 
 function GroupHeading({ title, description }: { title: string; description: string }) {
@@ -35,11 +33,9 @@ function GroupHeading({ title, description }: { title: string; description: stri
 export default function SettingsPage() {
   const isAdmin = useIsPlatformAdmin()
   const integrations = useIntegrationSummary()
-  const { data: readiness, isLoading: readinessLoading } = useMeshTrustStrictReadiness({ enabled: isAdmin })
   const integrationsStatus = integrations.loading || integrations.failed
     ? null
     : `${String(integrations.connected)} of ${String(integrations.total)} connected${integrations.attention > 0 ? ` · ${String(integrations.attention)} need a look` : ''}`
-  const securityStatus = !isAdmin || readinessLoading || !readiness ? null : readiness.strictEnforced ? 'Strict mode is on' : 'Strict mode is off'
 
   return (
     <div className="space-y-8">
@@ -79,15 +75,6 @@ export default function SettingsPage() {
               icon={Server}
               route={AuthDashboardSettingsNode}
               description="This server's identity, address, region, database and persisted configuration. Most changes apply after a restart."
-            />
-          ) : null}
-          {isAdmin ? (
-            <SettingsCard
-              title="Security"
-              icon={ShieldCheck}
-              route={AuthDashboardSettingsSecurity}
-              status={securityStatus}
-              description="The mesh trust keyring and strict mode: how nodes prove they belong together, and how hard that is enforced."
             />
           ) : null}
         </div>

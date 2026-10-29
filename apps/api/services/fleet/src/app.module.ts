@@ -18,6 +18,7 @@ import { createBetterAuth } from "@deployer/shared/config/auth/auth";
 
 import { ClusterModule } from "./modules/cluster/cluster.module";
 import { FleetModule } from "./modules/fleet/fleet.module";
+import { MeshViewModule } from "./modules/mesh-view/mesh-view.module";
 import { MeshCoreModule } from "@deployer/shared/core/modules/mesh/mesh-core.module";
 // ── THE NODE INVENTORY: WHAT MAKES `/nodes/servers` NON-EMPTY ──────────────
 // `SwarmInventoryModule` owns `NodeInventoryService`, the only writer of the
@@ -120,6 +121,8 @@ registerSchemaCodecs();
 		// is harmless: they are separate deployables, and only the one the BFF
 		// targets is reachable from the public surface.
 		MeshCoreModule,
+		// The mesh as the dashboard sees it, read from the node's agent.
+		MeshViewModule,
 		// Enrolls this node into `cluster_nodes` on boot and keeps the fleet
 		// inventory fresh. See the import comment above for what breaks without it.
 		SwarmInventoryModule,

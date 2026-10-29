@@ -97,14 +97,6 @@ export class MeshController {
 
     // ─── PUBLIC: node + peers + sessions (requireAuth) ────────────────────
 
-    @Implement(meshContract.getLocalNode)
-    getLocalNode() {
-        return implement(meshContract.getLocalNode)
-            .use(requireAuth())
-            .handler(() => {
-                return this.meshTopologyService.getLocalNode();
-            });
-    }
 
     @Implement(meshContract.getNodeMetrics)
     getNodeMetrics() {
@@ -115,14 +107,6 @@ export class MeshController {
             });
     }
 
-    @Implement(meshContract.listPeers)
-    listPeers() {
-        return implement(meshContract.listPeers)
-            .use(requireAuth())
-            .handler(() => {
-                return this.meshTopologyService.listPeers();
-            });
-    }
 
     @Implement(meshContract.listPeerSessions)
     listPeerSessions() {
@@ -133,71 +117,11 @@ export class MeshController {
             });
     }
 
-    @Implement(meshContract.connectPeer)
-    connectPeer() {
-        return implement(meshContract.connectPeer)
-            .use(requireAuth())
-            .handler(({ input }) => {
-                return this.meshTopologyService.connectPeer(input);
-            });
-    }
 
-    @Implement(meshContract.disconnectPeer)
-    disconnectPeer() {
-        return implement(meshContract.disconnectPeer)
-            .use(requireAuth())
-            .handler(({ input }) => {
-                return this.meshTopologyService.disconnectPeer(input.params.sessionId, input.body);
-            });
-    }
 
-    @Implement(meshContract.membershipSnapshot)
-    membershipSnapshot() {
-        return implement(meshContract.membershipSnapshot)
-            .use(requireAuth())
-            .handler(({ context }) => {
-                return this.meshTopologyService.getMembershipSnapshot();
-            });
-    }
-
-    @Implement(meshContract.reconcileMembership)
-    reconcileMembership() {
-        return implement(meshContract.reconcileMembership)
-            .use(requireAuth())
-            .handler(({ input, context }) => {
-                return this.meshTopologyService.reconcileMembership({
-                    ...input,
-                });
-            });
-    }
 
     // ─── PUBLIC: streams (requireAuth) ────────────────────────────────────
 
-    @Implement(meshContract.streamTopology)
-    streamTopology() {
-        return implement(meshContract.streamTopology)
-            .use(requireAuth())
-            .handler(({ input, context }) => {
-                return this.meshTopologyService.observeTopology({
-                    replay: input.query.replay,
-                    replayLimit: input.query.replayLimit,
-                    includeEdges: input.query.includeEdges,
-                    includeNodes: input.query.includeNodes,
-                });
-            });
-    }
-
-    @Implement(meshContract.streamEvents)
-    streamEvents() {
-        return implement(meshContract.streamEvents)
-            .use(requireAuth())
-            .handler(({ input, context }) => {
-                return this.meshTopologyService.observeRuntimeEvents({
-                    replay: input.query.replay,
-                    replayLimit: input.query.replayLimit,
-                });
-            });
-    }
 
     @Implement(meshContract.listEventStreams)
     listEventStreams() {
@@ -230,40 +154,9 @@ export class MeshController {
             });
     }
 
-    @Implement(meshContract.planStreamRoute)
-    planStreamRoute() {
-        return implement(meshContract.planStreamRoute)
-            .use(requireAuth())
-            .handler(({ input, context }) => {
-                return this.meshTopologyService.planStreamRoute({
-                    ...input,
-                });
-            });
-    }
 
     // ─── PUBLIC: resources (requireAuth) ──────────────────────────────────
 
-    @Implement(meshContract.lookupResource)
-    lookupResource() {
-        return implement(meshContract.lookupResource)
-            .use(requireAuth())
-            .handler(({ input, context }) => {
-                return this.meshTopologyService.lookupResource({
-                    ...input,
-                });
-            });
-    }
-
-    @Implement(meshContract.upsertResourceIndex)
-    upsertResourceIndex() {
-        return implement(meshContract.upsertResourceIndex)
-            .use(requireAuth())
-            .handler(({ input, context }) => {
-                return this.meshTopologyService.upsertResourceIndex({
-                    ...input,
-                });
-            });
-    }
 
     // ─── PUBLIC: enrollment grants (requireAuth — admin actor) ────────────
 
@@ -300,91 +193,13 @@ export class MeshController {
 
     // ─── PUBLIC: trust keyring + strict mode (requireAuth) ────────────────
 
-    @Implement(meshContract.trustKeyringStatus)
-    trustKeyringStatus() {
-        return implement(meshContract.trustKeyringStatus)
-            .use(requireAuth())
-            .handler(() => {
-                return this.meshTopologyService.getTrustKeyringStatus();
-            });
-    }
 
-    @Implement(meshContract.trustKeyringSecrets)
-    trustKeyringSecrets() {
-        return implement(meshContract.trustKeyringSecrets)
-            .use(requireAuth())
-            .handler(() => {
-                return this.meshTopologyService.getTrustKeyringSecrets();
-            });
-    }
 
-    @Implement(meshContract.trustKeyringRotate)
-    trustKeyringRotate() {
-        return implement(meshContract.trustKeyringRotate)
-            .use(requireAuth())
-            .handler(async ({ input, context }) => {
-                const actor = this.resolveAuthActor(context);
-                return this.meshTopologyService.rotateTrustKey({
-                    ...input,
-                    rotatedByRole: actor.role,
-                });
-            });
-    }
 
-    @Implement(meshContract.trustKeyringConvergenceStatus)
-    trustKeyringConvergenceStatus() {
-        return implement(meshContract.trustKeyringConvergenceStatus)
-            .use(requireAuth())
-            .handler(() => {
-                return this.meshTopologyService.getTrustKeyringConvergenceStatus();
-            });
-    }
 
-    @Implement(meshContract.trustStrictReadiness)
-    trustStrictReadiness() {
-        return implement(meshContract.trustStrictReadiness)
-            .use(requireAuth())
-            .handler(() => {
-                return this.meshTopologyService.getTrustStrictReadiness();
-            });
-    }
 
-    @Implement(meshContract.trustStrictModeSet)
-    trustStrictModeSet() {
-        return implement(meshContract.trustStrictModeSet)
-            .use(requireAuth())
-            .handler(({ input, context }) => {
-                const actor = this.resolveAuthActor(context);
-                return this.meshTopologyService.setTrustStrictMode({
-                    ...input,
-                    setByRole: actor.role,
-                });
-            });
-    }
 
-    @Implement(meshContract.trustStrictRolloutPlan)
-    trustStrictRolloutPlan() {
-        return implement(meshContract.trustStrictRolloutPlan)
-            .use(requireAuth())
-            .handler(({ input }) => {
-                return this.meshTopologyService.getTrustStrictRolloutPlan({
-                    waveSize: input.query?.waveSize,
-                });
-            });
-    }
 
-    @Implement(meshContract.trustStrictRollback)
-    trustStrictRollback() {
-        return implement(meshContract.trustStrictRollback)
-            .use(requireAuth())
-            .handler(({ input, context }) => {
-                const actor = this.resolveAuthActor(context);
-                return this.meshTopologyService.rollbackTrustStrictMode({
-                    ...input,
-                    setByRole: actor.role,
-                });
-            });
-    }
 
     // ─── PUBLIC: node configuration (requireAuth) ─────────────────────────
 
@@ -542,56 +357,9 @@ export class MeshController {
     // Heartbeat is a mesh-to-mesh transport op. It stays on the public
     // contract (the web client's endpoints.ts declares it) but is guarded
     // with requireMesh() because only peers should be able to heartbeat.
-    @Implement(meshContract.heartbeatPeer)
-    heartbeatPeer() {
-        return implement(meshContract.heartbeatPeer)
-            .use(requireMesh())
-            .handler(({ input }) => {
-                return this.meshTopologyService.heartbeatPeer(input.params.sessionId, input.body);
-            });
-    }
 
-    @Implement(meshInternalContract.publishControlEnvelope)
-    publishControlEnvelope() {
-        return implement(meshInternalContract.publishControlEnvelope)
-            .use(requireMesh())
-            .handler(({ input, context }) => {
-                return this.meshTopologyService.publishControlEnvelope({
-                    ...input,
-                });
-            });
-    }
 
-    @Implement(meshInternalContract.streamSession)
-    streamSession() {
-        return implement(meshInternalContract.streamSession)
-            .use(requireMesh())
-            .handler((({ input }) => {
-                // ORPC delivers the duplex body as an Observable; the
-                // topology service expects an AsyncIterable. Convert.
-                const inputIterable =
-                    input instanceof Observable
-                        ? observableToAsyncIterable(input as never)
-                        : input;
-                // The service returns an AsyncIterable; ORPC expects an
-                // Observable body, so convert the result back, pinning the
-                // element type to the contract's duplex output schema.
-                return asyncIterableToObservable<MeshDuplexStreamOutput>(
-                    this.meshTopologyService.streamSession(inputIterable as never),
-                );
-            }) as never);
-    }
 
-    @Implement(meshInternalContract.planQueuePartition)
-    planQueuePartition() {
-        return implement(meshInternalContract.planQueuePartition)
-            .use(requireMesh())
-            .handler(({ input, context }) => {
-                return this.meshTopologyService.planQueuePartitionOwnership({
-                    ...input,
-                });
-            });
-    }
 
     @Implement(meshInternalContract.registerNode)
     registerNode() {

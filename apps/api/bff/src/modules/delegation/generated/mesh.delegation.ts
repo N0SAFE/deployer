@@ -83,34 +83,9 @@ export class MeshDelegationController {
 		return implement(meshContract.subscribeEventStream).handler(({ input }) => this.client.subscribeEventStream(input));
 	}
 
-	@Implement(meshContract.planStreamRoute)
-	planStreamRoute() {
-		return implement(meshContract.planStreamRoute).handler(({ input }) => this.client.planStreamRoute(input));
-	}
-
-	@Implement(meshContract.connectPeer)
-	connectPeer() {
-		return implement(meshContract.connectPeer).handler(({ input }) => this.client.connectPeer(input));
-	}
-
-	@Implement(meshContract.disconnectPeer)
-	disconnectPeer() {
-		return implement(meshContract.disconnectPeer).handler(({ input }) => this.client.disconnectPeer(input));
-	}
-
-	@Implement(meshContract.heartbeatPeer)
-	heartbeatPeer() {
-		return implement(meshContract.heartbeatPeer).handler(({ input }) => this.client.heartbeatPeer(input));
-	}
-
 	@Implement(meshContract.membershipSnapshot)
 	membershipSnapshot() {
 		return implement(meshContract.membershipSnapshot).handler(({ input }) => this.client.membershipSnapshot(input));
-	}
-
-	@Implement(meshContract.reconcileMembership)
-	reconcileMembership() {
-		return implement(meshContract.reconcileMembership).handler(({ input }) => this.client.reconcileMembership(input));
 	}
 
 	@Implement(meshContract.streamTopology)
@@ -118,19 +93,9 @@ export class MeshDelegationController {
 		return implement(meshContract.streamTopology).handler(({ input }) => this.client.streamTopology(input));
 	}
 
-	@Implement(meshContract.streamEvents)
-	streamEvents() {
-		return implement(meshContract.streamEvents).handler(({ input }) => this.client.streamEvents(input));
-	}
-
 	@Implement(meshContract.lookupResource)
 	lookupResource() {
 		return implement(meshContract.lookupResource).handler(({ input }) => this.client.lookupResource(input));
-	}
-
-	@Implement(meshContract.upsertResourceIndex)
-	upsertResourceIndex() {
-		return implement(meshContract.upsertResourceIndex).handler(({ input }) => this.client.upsertResourceIndex(input));
 	}
 
 	@Implement(meshContract.issueJoinGrant)
@@ -138,49 +103,14 @@ export class MeshDelegationController {
 		return implement(meshContract.issueJoinGrant).handler(({ input }) => this.client.issueJoinGrant(input));
 	}
 
+	@Implement(meshContract.issueJoinToken)
+	issueJoinToken() {
+		return implement(meshContract.issueJoinToken).handler(({ input }) => this.client.issueJoinToken(input));
+	}
+
 	@Implement(meshContract.revokeJoinGrant)
 	revokeJoinGrant() {
 		return implement(meshContract.revokeJoinGrant).handler(({ input }) => this.client.revokeJoinGrant(input));
-	}
-
-	@Implement(meshContract.trustKeyringStatus)
-	trustKeyringStatus() {
-		return implement(meshContract.trustKeyringStatus).handler(({ input }) => this.client.trustKeyringStatus(input));
-	}
-
-	@Implement(meshContract.trustKeyringSecrets)
-	trustKeyringSecrets() {
-		return implement(meshContract.trustKeyringSecrets).handler(({ input }) => this.client.trustKeyringSecrets(input));
-	}
-
-	@Implement(meshContract.trustKeyringRotate)
-	trustKeyringRotate() {
-		return implement(meshContract.trustKeyringRotate).handler(({ input }) => this.client.trustKeyringRotate(input));
-	}
-
-	@Implement(meshContract.trustKeyringConvergenceStatus)
-	trustKeyringConvergenceStatus() {
-		return implement(meshContract.trustKeyringConvergenceStatus).handler(({ input }) => this.client.trustKeyringConvergenceStatus(input));
-	}
-
-	@Implement(meshContract.trustStrictReadiness)
-	trustStrictReadiness() {
-		return implement(meshContract.trustStrictReadiness).handler(({ input }) => this.client.trustStrictReadiness(input));
-	}
-
-	@Implement(meshContract.trustStrictModeSet)
-	trustStrictModeSet() {
-		return implement(meshContract.trustStrictModeSet).handler(({ input }) => this.client.trustStrictModeSet(input));
-	}
-
-	@Implement(meshContract.trustStrictRolloutPlan)
-	trustStrictRolloutPlan() {
-		return implement(meshContract.trustStrictRolloutPlan).handler(({ input }) => this.client.trustStrictRolloutPlan(input));
-	}
-
-	@Implement(meshContract.trustStrictRollback)
-	trustStrictRollback() {
-		return implement(meshContract.trustStrictRollback).handler(({ input }) => this.client.trustStrictRollback(input));
 	}
 
 	@Implement(meshContract.getNodeConfig)

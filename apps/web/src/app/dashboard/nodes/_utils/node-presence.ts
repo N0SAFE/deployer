@@ -25,13 +25,9 @@ export interface PresenceNode {
 }
 
 /** Mesh lifecycle states that mean the node is currently reachable in the membership. */
-const LIVE_LIFECYCLE = new Set(['healthy', 'degraded'])
-
-/** Ids of the snapshot members that are currently live. */
-export function liveNodeIds(
-  members: readonly { nodeId: string; lifecycleState: string }[],
-): Set<string> {
-  return new Set(members.filter((m) => LIVE_LIFECYCLE.has(m.lifecycleState)).map((m) => m.nodeId))
+/** Ids of the nodes whose agents are in the swarm right now: a node that left the snapshot is not live. */
+export function liveNodeIds(members: readonly { nodeId: string }[]): Set<string> {
+  return new Set(members.map((m) => m.nodeId))
 }
 
 export function nodePresence(

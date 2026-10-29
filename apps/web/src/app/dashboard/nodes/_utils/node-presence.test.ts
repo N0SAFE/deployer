@@ -36,13 +36,8 @@ describe('nodePresence', () => {
 })
 
 describe('liveNodeIds', () => {
-  it('keeps only healthy and degraded members', () => {
-    const ids = liveNodeIds([
-      { nodeId: 'a', lifecycleState: 'healthy' },
-      { nodeId: 'b', lifecycleState: 'degraded' },
-      { nodeId: 'c', lifecycleState: 'isolated' },
-      { nodeId: 'd', lifecycleState: 'leaving' },
-    ])
+  it('keeps the ids of every member of the snapshot', () => {
+    const ids = liveNodeIds([{ nodeId: 'a' }, { nodeId: 'b' }])
     expect([...ids].sort()).toEqual(['a', 'b'])
   })
 })
