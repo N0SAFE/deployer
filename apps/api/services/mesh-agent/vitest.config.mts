@@ -1,5 +1,7 @@
-import { defineConfig } from "vitest/config";
+import { createServiceTestConfig } from "@deployer/config-vitest/service";
 
-export default defineConfig({
-	test: { include: ["src/**/*.spec.ts"], environment: "node" },
-});
+/**
+ * The mesh-agent's test config. Everything shared (the SWC decorator transform, the `@/core` aliases, the
+ * unit/e2e projects) lives in `@deployer/config-vitest/service`, so this file is only what is specific here.
+ */
+export default createServiceTestConfig({ service: "mesh-agent" });

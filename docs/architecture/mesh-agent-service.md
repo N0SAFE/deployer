@@ -114,6 +114,36 @@ calls on one node. It still must not become the data path for everything.
   reconnect and fall back to the brokered path, so a restart drops in-flight calls on that node and nothing else.
 - **Measure first.** The thresholds are defaults to be set by an early load test of the relay, not by estimates.
 
+## Service anatomy
+
+`apps/api/services/mesh-agent` is a standard API service, the same shape as `health`: `main.ts` boots through
+`bootstrapApiServer` on the port the shared catalog gives it (`apiServicePort("mesh-agent")`, 3106), `app.module.ts` is
+imports only, and the `mesh` domain module owns the controller and the providers. Every service is a constant
+registered under its Effect tag (`{ provide: MeshDirectory, useValue: MeshDirectory.live }`), dependencies are yielded
+from the Effect context, and the controller only maps results to the contract.
+
+```
+modules/mesh/
+  controllers/   mesh-directory.controller.ts      thin, .effect() handlers
+  services/      directory, broker, key-hints, node-identity, mesh-clock
+  repositories/  directory.repository.ts           the in-memory directory
+  rules/         resolve-replica, lease-policy, lease-token   pure functions
+  adapters/      link-pool.ts                      pooled RPC connections
+  testing/       mesh.fixtures.ts
+```
+
+Two deliberate differences from the other services, both because an agent runs on every node, before the swarm and
+its database exist:
+
+- **No database and no Better Auth.** The service imports neither `DatabaseModule` nor `AuthModule`, and declares no
+  preflight dependency.
+- **Mesh credential instead of a session.** `createMeshOrpcModule()` is `createOrpcModule()` with the same transport
+  policy (interceptors, compression, coercion, the Effect context), but a request is authenticated by the
+  `x-mesh-credential` header, verified against `MESH_AGENT_SECRET` in constant time, before any handler runs.
+  `context.auth` is permanently anonymous, and the caller acts as the `mesh-peer` system actor.
+
+Its boot spec runs beside the unit specs instead of in `src/e2e`: the e2e project provisions a Postgres container.
+
 ## Agents
 
 - **mesh-agent** (global-mode Swarm service, one task per node): owns the node's WireGuard identity and link, the

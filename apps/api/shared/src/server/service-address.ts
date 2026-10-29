@@ -17,6 +17,7 @@ export const API_SERVICES = {
   project: { defaultPort: 3103, description: "Projects, services and domains." },
   fleet: { defaultPort: 3104, description: "Cluster, fleet nodes, providers, reachability and the platform surface." },
   runtime: { defaultPort: 3105, description: "Docker, deployments and build/runtime runners." },
+  "mesh-agent": { defaultPort: 3106, description: "One per node: the service directory, pooled links, locality routing and redirects." },
 } as const;
 
 /** The name of a service (also its contract namespace / bus address). */
