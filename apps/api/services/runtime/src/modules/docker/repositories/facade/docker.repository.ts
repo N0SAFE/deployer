@@ -18,6 +18,16 @@ import type { DockerImageListInput } from "@deployer/runtime-contracts/modules/d
 import { dockerodeContainerListSchema, dockerodeImageSummarySchema, dockerodeImageInspectSchema, dockerodeNetworkSummarySchema, dockerodeVolumeListResponseSchema, type DockerodeContainerList, type DockerodeImageSummary, type DockerodeImageInspect, type DockerodeNetworkSummary, type DockerodeVolumeEntry } from "@deployer/contracts-entities";
 import z from "zod/v4"
 import { isRecord } from "@deployer/type-guards"
+import {
+  DockerNetworksRepository,
+  makeDockerNetworksRepository,
+  type DockerNetworksRepositoryShape,
+} from "../networks/docker-networks.repository";
+import {
+  DockerVolumesRepository,
+  makeDockerVolumesRepository,
+  type DockerVolumesRepositoryShape,
+} from "../volumes/docker-volumes.repository";
 import type { DockerNetworkListInput } from "@deployer/runtime-contracts/modules/docker/networks/list";
 import type { DockerRegistryListInput } from "@deployer/runtime-contracts/modules/docker/registries/list";
 import type { DockerStackListInput } from "@deployer/runtime-contracts/modules/docker/stacks/list";
@@ -123,21 +133,6 @@ type ContainerLinkedProjectRecord = {
   updatedAt: Date;
 }
 
-const DOCKER_NETWORK_DRIVERS: DockerNetwork["driver"][] = [
-  "bridge",
-  "overlay",
-  "host",
-  "macvlan",
-  "ipvlan",
-  "custom",
-];
-
-const DOCKER_NETWORK_SCOPES: DockerNetwork["scope"][] = [
-  "local",
-  "swarm",
-  "global",
-];
-
 const VULNERABILITY_SCAN_TIMEOUT_MS = 120_000;
 const VULNERABILITY_LOG_POLL_INTERVAL_MS = 500;
 const VULNERABILITY_LOG_TAIL = 10_000;
@@ -226,6 +221,8 @@ export class DockerRepository {
     private readonly normalizer: ContainerDockerodeNormalizer,
     @Optional() @Inject(CONTAINER_LINK_RESOLVER)
     private readonly linkResolver?: IContainerLinkResolver,
+    @Inject(DockerNetworksRepository) private readonly networks: DockerNetworksRepositoryShape = makeDockerNetworksRepository(dockerEngine),
+    @Inject(DockerVolumesRepository) private readonly volumes: DockerVolumesRepositoryShape = makeDockerVolumesRepository(dockerEngine),
   ) {}
 
   async getLocalDockerDaemonId(): Promise<string | null> {
@@ -350,22 +347,6 @@ export class DockerRepository {
     };
   }
 
-
-  private normalizeNetworkDriver(driver: string | undefined): DockerNetwork["driver"] {
-    const normalized = (driver ?? "custom").toLowerCase();
-
-    return DOCKER_NETWORK_DRIVERS.includes(normalized as DockerNetwork["driver"])
-      ? (normalized as DockerNetwork["driver"])
-      : "custom";
-  }
-
-  private normalizeNetworkScope(scope: string | undefined): DockerNetwork["scope"] {
-    const normalized = (scope ?? "global").toLowerCase();
-
-    return DOCKER_NETWORK_SCOPES.includes(normalized as DockerNetwork["scope"])
-      ? (normalized as DockerNetwork["scope"])
-      : "global";
-  }
 
   private parseRegistryAndRepository(repoTag: string): {
     registry: string;
@@ -3885,30 +3866,7 @@ export class DockerRepository {
   }
 
   async listNetworks(input: DockerNetworkListInput) {
-    const rawNetworks: DockerodeNetworkSummary[] = await runPromiseUnwrapped(this.dockerEngine.networks.list());
-
-    const mapped = rawNetworks.map((network) => {
-      const ipamConfig = (network.IPAM?.Config ?? [])[0] ?? {};
-      const containers = Object.keys(network.Containers ?? {});
-
-      return dockerNetworkSchema.parse({
-        id: String(network.Id ?? ""),
-        name: String(network.Name ?? "unknown-network"),
-        driver: this.normalizeNetworkDriver(String(network.Driver ?? "custom")),
-        scope: this.normalizeNetworkScope(String(network.Scope ?? "global")),
-        internal: Boolean(network.Internal),
-        attachable: network.Attachable == null ? true : Boolean(network.Attachable),
-        subnet: typeof ipamConfig.Subnet === "string" ? ipamConfig.Subnet : null,
-        gateway: typeof ipamConfig.Gateway === "string" ? ipamConfig.Gateway : null,
-        containerIds: containers,
-        labels: network.Labels ?? {},
-        createdAt:
-          typeof network.Created === "string"
-            ? new Date(network.Created).toISOString()
-            : new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-    });
+    const mapped = await runPromiseUnwrapped(this.networks.list);
 
     const filtered = mapped.filter((item) => {
       const nameMatch = this.matchString(item.name, this.getFilterEntry(input, "name"));
@@ -3933,46 +3891,7 @@ export class DockerRepository {
   }
 
   async listVolumes(input: DockerVolumeListInput) {
-    const engine = this.dockerEngine;
-    const [rawVolumes, rawContainers] = await Promise.all([
-      runPromiseUnwrapped(engine.volumes.list()),
-      this.listRawContainers(),
-    ]);
-
-    const usedByVolume = new Map<string, string[]>();
-    for (const container of rawContainers) {
-      const containerId = String(container.Id ?? "");
-      const mounts = (container.Mounts as Record<string, unknown>[] | undefined) ?? [];
-      for (const mount of mounts) {
-        const volumeName = typeof mount.Name === "string" ? mount.Name : undefined;
-        if (!volumeName) continue;
-        const current = usedByVolume.get(volumeName) ?? [];
-        current.push(containerId);
-        usedByVolume.set(volumeName, current);
-      }
-    }
-
-    const mapped = rawVolumes.map((volume) =>
-      dockerVolumeSchema.parse({
-        id: String(volume.Name ?? volume.Driver ?? "unknown-volume"),
-        name: String(volume.Name ?? "unknown-volume"),
-        driver: ["local", "nfs", "csi", "tmpfs"].includes(String(volume.Driver ?? "local"))
-          ? (String(volume.Driver ?? "local") as DockerVolume["driver"])
-          : "custom",
-        mountpoint: typeof volume.Mountpoint === "string" ? volume.Mountpoint : null,
-        sizeBytes:
-          typeof (volume.UsageData as { Size?: unknown } | undefined)?.Size === "number"
-            ? ((volume.UsageData as { Size: number }).Size)
-            : null,
-        usedByContainerIds: usedByVolume.get(String(volume.Name ?? "")) ?? [],
-        labels: volume.Labels ?? {},
-        createdAt:
-          typeof volume.CreatedAt === "string"
-            ? new Date(volume.CreatedAt).toISOString()
-            : new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }),
-    );
+    const mapped = await runPromiseUnwrapped(this.volumes.list);
 
     const filtered = mapped.filter((item) => {
       const nameMatch = this.matchString(item.name, this.getFilterEntry(input, "name"));
