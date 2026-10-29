@@ -15,7 +15,7 @@ dedicated service, `mesh-agent`, running on every node; everyone else is a clien
 | | **Node mesh** | **Global mesh** |
 |---|---|---|
 | Addressed by | a node id (or "all nodes") | a service name, optionally a resource key |
-| Path | caller -> its local mesh-agent -> (bridges) -> the target node's agent -> the service on that node | **direct service to service**, resolved by a service directory |
+| Path | caller -> its local mesh-agent -> (bridges) -> the target node's agent -> the service on that node | caller -> its local mesh-agent (which resolves the replica through the service directory) -> the target replica, brokered by the agent's pooled links; a **direct lease** replaces the brokered hop only for load, streams and direct resource access |
 | Answered by | the services on that node | any replica, or the one replica that holds the resource |
 | Typical use | per-node docker ops (containers, logs, files, terminals), node usage, inventory, ingress doors | streaming and requests not tied to a node (deployment streams, resource discovery), and work that needs the replica holding some in-memory state |
 
@@ -31,6 +31,28 @@ const owner = createEffectClient(createORPCClient(serviceMeshLink({ service: "ru
 
 Callers never see topics, correlation ids, replicas or connections.
 
+### The agent brokers every request
+
+Every request starts at the local mesh-agent, at least for discovery. A service process holds **one persistent RPC
+link to its local agent** and nothing else; the agent owns the links used for inter-service access (pooled, see
+below). A service never opens a connection to another service on its own initiative. By default the agent brokers the
+call end to end: it resolves the target in the service directory, uses its pooled link to the target replica (or to
+the target node's agent, which uses its own pooled link to the replica), and relays the answer.
+
+The one exception is the **direct lease**. When brokering would put too much on the agent (large payloads, long
+streams, a hot resource), or the caller asks for it (`{ mode: "direct" }`, typical for a resource it will keep
+using), the agent does not relay. It answers with a dedicated error code, `MESH_DIRECT`, carrying
+`{ replica, address, token, ttl }`: a short-lived, agent-signed grant for a direct link to that exact replica. Like
+`MESH_REDIRECT`, it is caught by the caller's oRPC interceptor, which opens (or reuses) a pooled RPC link to the
+replica and replays the call there. The replica checks the token, the lease expires or is revoked when the replica
+dies, and a refused or expired lease falls back to the brokered path. A lease is still an oRPC RPC link, never
+OpenAPI, and still built with `createEffectClient`.
+
+**Pools live inside the RPC link.** The link implementation owns a bounded pool of websocket connections per target
+(the local agent, or a leased replica): multiplexed calls and streams over a few connections, a size cap, idle
+close, reconnect with backoff, and health eviction. Callers and handlers never see the pool; there is no connection
+per service pair.
+
 ### Global mesh: directory, redirects and replica peers
 
 The global mesh is a small framework (an Effect library, `@deployer/service-mesh`) with three parts.
@@ -38,23 +60,23 @@ The global mesh is a small framework (an Effect library, `@deployer/service-mesh
 1. **Service directory.** Each replica registers itself (service, replica id, address on the overlay network, load)
    and the resource keys it currently holds in memory (a deployment, a terminal session, a stream). The directory is
    replicated through the mesh-agents' roster gossip, so every node can answer
-   `resolve(service, { key? })` locally: the replica holding `key`, else a replica chosen by affinity hash, else the
+   `resolve(service, { key? })` locally (the agent answers every discovery, whether it then brokers or leases): the replica holding `key`, else a replica chosen by affinity hash, else the
    least loaded. Registrations carry a TTL and a generation, so a dead replica's keys age out.
 2. **Redirects, done by a client interceptor.** A caller may address only the service. When the replica that
    receives a call does not hold the resource, it fails with a dedicated oRPC error code, `MESH_REDIRECT`, whose data
    is `{ replica, reason }` (a handler throws it through a helper such as `redirectTo(replica)`). Following it is not
    a link feature: it is an oRPC client interceptor (`meshRedirectInterceptor`) installed on every caller's link. The
-   interceptor catches `MESH_REDIRECT`, retries the same call on the named replica (or through the forwarding path
-   below), up to a hop limit with a loop guard, and remembers `key -> replica` for a short TTL so the next call goes
+   interceptor catches `MESH_REDIRECT` and retries the same call, naming the replica, through the local agent (which
+   brokers it or answers with a direct lease) or through the forwarding path below, up to a hop limit with a loop guard, and remembers `key -> replica` for a short TTL so the next call goes
    straight there. Handlers and callers stay plain oRPC; the error code is declared once in a shared error map that
    every contract spreads in, so it is typed and testable.
 3. **Replica peers.** A service can ask its own other replicas: `peers.ask(procedure, input, { first | all })` to find
-   which one holds a resource (then redirect the caller to it), or `peers.forward(replica, procedure, input)` to
+   which one holds a resource (the replicas reach each other through their local agent too; then redirect the caller to it), or `peers.forward(replica, procedure, input)` to
    fetch it on the caller's behalf when a redirect is not wanted (for example the caller cannot reach that replica).
    Redirect or forward is the handler's choice.
 
-Direct service-to-service calls are normal oRPC over the overlay network; the directory only decides *where*. Nothing
-holds a connection per service pair: links are created on first use and closed when idle.
+Brokered calls and leased direct links are normal oRPC over RPC links; the directory only decides *where*, and the
+agent decides *how* (broker or lease). Links are created on first use and closed when idle.
 
 ## Contract routers and visibility
 

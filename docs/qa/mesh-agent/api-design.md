@@ -45,3 +45,11 @@
 **A**: "all service side orpc client should use rpc link instead of openapi so that its persistent link"
 
 ---
+
+## The agent brokers every request; direct links are leases
+
+**Q**: (stated by the operator) Do services call each other directly?
+
+**A**: "every request should path at least for discovery from the mesh agent. its him that hold the rpc links opened for inter services access. the only case where a service as a direct connection to another service is for load and stream or direct ressource access where the mesh agent as to much load and return to the service a dedicated request with a direct link to the requested service/replicate it still should go thrue rpc links and make pool inside rpc links for inter services requests"
+
+---
