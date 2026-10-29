@@ -2,9 +2,9 @@ import { Effect, Fiber } from "effect";
 
 import { MESH_WEBSOCKET_PATH } from "@deployer/mesh-agent-contracts";
 import { type ReplicaHeartbeatOptions, openWebSocketConnection, pooledLink, replicaHeartbeat } from "@deployer/mesh-client";
-import { attachMeshWebSocket, credentialVerifier } from "@deployer/mesh-server";
+import { attachMeshWebSocket } from "@deployer/mesh-server";
 
-import type { ClientContext } from "@orpc/client";
+import type { ClientContext, ClientLink } from "@orpc/client";
 import type { Context, Router } from "@orpc/server";
 import type { IncomingMessage, Server } from "node:http";
 
@@ -22,10 +22,11 @@ export type JoinMeshOptions<T extends Context> = {
   readonly router: Router<T>;
   /** The oRPC context of one call, read per call. */
   readonly context: (request: IncomingMessage) => T | Promise<T>;
-  /** The shared mesh credential. */
-  readonly secret: string;
-  /** Where the local agent's websocket answers, e.g. `ws://127.0.0.1:3106/mesh/ws`. */
-  readonly agentUrl: string;
+  /**
+   * The unix socket of the agent on this node. A service reaches its agent through it, and the file's permissions are
+   * the only credential: the service never holds the swarm's secret, and asks the agent whether a peer is trusted.
+   */
+  readonly agentSocketPath: string;
   /** Where THIS replica's websocket answers on the overlay network: what the agent hands out in grants and resolutions. */
   readonly advertiseUrl: string;
   /** The resources this replica holds right now, read at every beat. */
@@ -40,6 +41,40 @@ export type MeshMembership = {
   readonly stop: () => Promise<void>;
 };
 
+const TRUST_CACHE_MS = 30_000;
+/** How long a replica waits for its agent to vouch for a peer before it refuses it. */
+const TRUST_TIMEOUT_MS = 2_000;
+
+/**
+ * Whether a connecting peer is trusted, decided by the local agent, which alone holds the swarm's credential. A peer the
+ * agent vouched for is remembered for a short while, so a busy replica does not ask on every connection, and a failure to
+ * reach the agent refuses the peer: unknown is not trusted.
+ */
+function askAgent(agent: ClientLink<ClientContext>, replicaId: string): (presented: string | undefined) => Promise<boolean> {
+  const vouched = new Map<string, number>();
+  return async (presented) => {
+    if (presented === undefined) {
+      return false;
+    }
+    const until = vouched.get(presented);
+    if (until !== undefined && until > Date.now()) {
+      return true;
+    }
+    try {
+      const answer = (await Promise.race([
+        agent.call(["access", "verify"], { presented, replicaId }, { context: {} }),
+        new Promise<never>((_resolve, reject) => setTimeout(() => { reject(new Error("The agent did not answer")); }, TRUST_TIMEOUT_MS).unref()),
+      ])) as { ok: boolean };
+      if (answer.ok) {
+        vouched.set(presented, Date.now() + TRUST_CACHE_MS);
+      }
+      return answer.ok;
+    } catch {
+      return false;
+    }
+  };
+}
+
 /**
  * Takes a running service into the mesh: it answers the mesh router on a persistent websocket, and keeps itself
  * registered with the local agent, announcing the resources it holds so calls for them reach it.
@@ -48,20 +83,20 @@ export type MeshMembership = {
  * failed beat is not an error (the agent may be restarting); a replica that stops beating ages out of every directory.
  */
 export function joinMesh<T extends Context>(options: JoinMeshOptions<T>): MeshMembership {
+  const agent = pooledLink<ClientContext>({
+    target: options.agentSocketPath,
+    maxConnections: 1,
+    multiplex: 16,
+    idleMs: 60_000,
+    open: () => Promise.resolve(openWebSocketConnection({ url: `ws://agent${MESH_WEBSOCKET_PATH}`, socketPath: options.agentSocketPath, reconnectDelayMs: 250 })),
+  });
+
   const websocket = attachMeshWebSocket({
     server: options.server,
     path: MESH_WEBSOCKET_PATH,
     router: options.router,
-    verify: credentialVerifier(options.secret),
+    verify: askAgent(agent, options.replicaId),
     context: options.context,
-  });
-
-  const agent = pooledLink<ClientContext>({
-    target: options.agentUrl,
-    maxConnections: 1,
-    multiplex: 16,
-    idleMs: 60_000,
-    open: () => Promise.resolve(openWebSocketConnection({ url: `${options.agentUrl}?credential=${encodeURIComponent(options.secret)}` })),
   });
 
   const heartbeatMs = options.heartbeatMs ?? 5_000;

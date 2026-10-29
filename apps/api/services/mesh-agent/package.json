@@ -48,6 +48,7 @@
         "@deployer/config-prettier": "*",
         "@deployer/config-typescript": "*",
         "@deployer/config-vitest": "*",
+        "@deployer/mesh-service": "*",
         "@nestjs/testing": "catalog:api:nest",
         "@types/express": "catalog:api:nest",
         "@types/node": "catalog:build",

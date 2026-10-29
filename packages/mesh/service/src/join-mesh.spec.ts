@@ -1,5 +1,7 @@
+import { mkdtempSync, rmSync } from "node:fs";
 import { createServer, type Server } from "node:http";
-
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { os } from "@orpc/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -7,25 +9,26 @@ import * as z from "zod";
 
 import { MESH_WEBSOCKET_PATH } from "@deployer/mesh-agent-contracts";
 import { openWebSocketConnection, pooledLink } from "@deployer/mesh-client";
-import { attachMeshWebSocket, credentialVerifier } from "@deployer/mesh-server";
+import { attachMeshWebSocket } from "@deployer/mesh-server";
 
 import { joinMesh, type MeshMembership } from "./join-mesh";
 
 import type { ClientContext } from "@orpc/client";
 import type { AddressInfo } from "node:net";
 
-const SECRET = "mesh-service-spec-secret";
+/** The only party that knows the swarm's credential. A service never sees it. */
+const SWARM_SECRET = "the-swarm-secret-only-the-agent-knows";
 
 type Registration = { service: string; replicaId: string; address: string; load: number; keys: string[]; ttlMs: number };
 
-async function listen(server: Server): Promise<string> {
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  return `ws://127.0.0.1:${String((server.address() as AddressInfo).port)}${MESH_WEBSOCKET_PATH}`;
-}
-
-/** A stand-in for the local agent: it only records what registers with it. */
-async function fakeAgent() {
+/**
+ * A stand-in for the local agent, on a unix socket like the real one: it records registrations, and answers whether a
+ * presented credential is the swarm's.
+ */
+async function fakeAgent(directory: string) {
   const registrations: Registration[] = [];
+  const questions: { presented: string; replicaId: string }[] = [];
+  const socketPath = join(directory, "agent.sock");
   const server = createServer();
   const gateway = attachMeshWebSocket({
     server,
@@ -39,11 +42,31 @@ async function fakeAgent() {
             return input;
           }),
       },
+      access: {
+        verify: os.input(z.object({ presented: z.string(), replicaId: z.string() })).handler(({ input }) => {
+          questions.push(input);
+          return { ok: input.presented === SWARM_SECRET };
+        }),
+      },
     } as never,
-    verify: credentialVerifier(SECRET),
+    verify: () => true,
     context: () => ({}),
   });
-  return { registrations, url: await listen(server), close: async () => { await gateway.close(); await new Promise<void>((resolve) => server.close(() => { resolve(); })); } };
+  await new Promise<void>((resolve) => server.listen(socketPath, resolve));
+  return {
+    registrations,
+    questions,
+    socketPath,
+    close: async () => {
+      await gateway.close();
+      await new Promise<void>((resolve) => server.close(() => { resolve(); }));
+    },
+  };
+}
+
+async function listen(server: Server): Promise<string> {
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  return `ws://127.0.0.1:${String((server.address() as AddressInfo).port)}${MESH_WEBSOCKET_PATH}`;
 }
 
 const eventually = (assertion: () => void) => vi.waitFor(assertion, { timeout: 3_000, interval: 10 });
@@ -56,8 +79,13 @@ describe("joinMesh", () => {
     }
   });
 
-  async function boot(overrides: { keys?: () => string[]; secret?: string } = {}) {
-    const agent = await fakeAgent();
+  async function boot(overrides: { keys?: () => string[] } = {}) {
+    const directory = mkdtempSync(join(tmpdir(), "join-mesh-"));
+    cleanup.push(() => {
+      rmSync(directory, { recursive: true, force: true });
+      return Promise.resolve();
+    });
+    const agent = await fakeAgent(directory);
     cleanup.push(agent.close);
 
     const server = createServer();
@@ -68,8 +96,7 @@ describe("joinMesh", () => {
       server,
       router: { ping: os.handler(() => ({ pong: true })) } as never,
       context: () => ({}),
-      secret: overrides.secret ?? SECRET,
-      agentUrl: agent.url,
+      agentSocketPath: agent.socketPath,
       advertiseUrl: address,
       keys: overrides.keys,
       load: () => 0.4,
@@ -82,7 +109,7 @@ describe("joinMesh", () => {
     return { agent, address };
   }
 
-  const clientTo = (address: string, credential = SECRET) =>
+  const clientTo = (address: string, credential: string) =>
     pooledLink<ClientContext>({
       target: address,
       maxConnections: 1,
@@ -91,7 +118,7 @@ describe("joinMesh", () => {
       open: () => Promise.resolve(openWebSocketConnection({ url: `${address}?credential=${credential}`, reconnectDelayMs: 10 })),
     });
 
-  it("registers with the local agent with its address, load and the keys it holds now", async () => {
+  it("registers with the local agent through its socket, with its address, load and the keys it holds now", async () => {
     let keys = ["container-1"];
     const { agent, address } = await boot({ keys: () => keys });
 
@@ -102,28 +129,57 @@ describe("joinMesh", () => {
     expect(agent.registrations[0]).toEqual({ service: "runtime", replicaId: "runtime-1", address, load: 0.4, keys: ["container-1"], ttlMs: 80 });
   });
 
-  it("answers its mesh router over the websocket to a peer holding the credential", async () => {
-    const { address } = await boot();
-    const link = clientTo(address);
+  it("answers a peer the agent vouches for, without ever holding the credential itself", async () => {
+    const { agent, address } = await boot();
+    const link = clientTo(address, SWARM_SECRET);
 
     await expect(link.call(["ping"], undefined, { context: {} })).resolves.toEqual({ pong: true });
+
+    expect(agent.questions).toEqual([{ presented: SWARM_SECRET, replicaId: "runtime-1" }]);
     await link.closeAll();
   });
 
-  it("refuses a peer without the credential", async () => {
+  it("refuses a peer the agent does not vouch for", async () => {
     const { address } = await boot();
-    const link = clientTo(address, "wrong");
+    const link = clientTo(address, "guess");
+
+    await expect(link.call(["ping"], undefined, { context: {} })).rejects.toBeDefined();
+    await link.closeAll();
+  });
+
+  it("asks the agent once for a peer it already vouched for, however many connections it opens", async () => {
+    const { agent, address } = await boot();
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const link = clientTo(address, SWARM_SECRET);
+      await link.call(["ping"], undefined, { context: {} });
+      await link.closeAll();
+    }
+
+    expect(agent.questions).toHaveLength(1);
+  });
+
+  it("refuses everyone when it cannot reach its agent: unknown is not trusted", async () => {
+    const { agent, address } = await boot();
+    await agent.close();
+    cleanup.splice(cleanup.indexOf(agent.close), 1);
+    const link = clientTo(address, SWARM_SECRET);
 
     await expect(link.call(["ping"], undefined, { context: {} })).rejects.toBeDefined();
     await link.closeAll();
   });
 
   it("stops beating when it stops", async () => {
-    const agent = await fakeAgent();
+    const directory = mkdtempSync(join(tmpdir(), "join-mesh-"));
+    cleanup.push(() => {
+      rmSync(directory, { recursive: true, force: true });
+      return Promise.resolve();
+    });
+    const agent = await fakeAgent(directory);
     cleanup.push(agent.close);
     const server = createServer();
     cleanup.push(() => new Promise<void>((resolve) => server.close(() => { resolve(); })));
-    const membership = joinMesh({ service: "runtime", replicaId: "runtime-1", server, router: {} as never, context: () => ({}), secret: SECRET, agentUrl: agent.url, advertiseUrl: "ws://x", heartbeatMs: 20 });
+    const membership = joinMesh({ service: "runtime", replicaId: "runtime-1", server, router: {} as never, context: () => ({}), agentSocketPath: agent.socketPath, advertiseUrl: "ws://x", heartbeatMs: 20 });
 
     await eventually(() => { expect(agent.registrations.length).toBeGreaterThan(0); });
     await membership.stop();

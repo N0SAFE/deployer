@@ -39,7 +39,8 @@
         "@deployer/mesh-agent-contracts": "*",
         "@orpc/client": "catalog:orpc",
         "@orpc/effect": "catalog:orpc",
-        "effect": "catalog:effect"
+        "effect": "catalog:effect",
+        "ws": "^8.21.0"
     },
     "peerDependencies": {
         "@orpc/client": "catalog:orpc"
@@ -51,6 +52,7 @@
         "@deployer/pkg-build": "*",
         "@orpc/server": "catalog:orpc",
         "@types/node": "catalog:build",
+        "@types/ws": "^8.18.0",
         "chokidar": "catalog:build",
         "eslint": "catalog:linting",
         "rimraf": "catalog:build",

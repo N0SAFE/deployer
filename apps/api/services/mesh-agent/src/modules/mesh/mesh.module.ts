@@ -7,10 +7,12 @@ import { type MeshAgentEnv, resolveAdvertisedAddress } from "../../config/mesh-a
 import { AgentLocalModule } from "../../local/agent-local.module";
 import { SwarmCredential } from "../../local/swarm-credential";
 
+import { MeshAccessController } from "./controllers/mesh-access.controller";
 import { MeshDirectoryController } from "./controllers/mesh-directory.controller";
 import { MeshRelayController } from "./controllers/mesh-relay.controller";
 import { MeshRosterController } from "./controllers/mesh-roster.controller";
 import { MeshDirectoryRepository } from "./repositories/directory.repository";
+import { AccessChecks } from "./services/access-checks.service";
 import { AgentLinkFactory, agentLinkFactoryOver } from "./services/agent-link-factory.service";
 import { AgentLoad } from "./services/agent-load.service";
 import { MeshBroker } from "./services/broker.service";
@@ -38,7 +40,7 @@ const LEASE_TTL_MS = 30_000;
  */
 export class MeshDomainModule extends createModuleContext({
   imports: [AgentLocalModule],
-  controllers: [MeshDirectoryController, MeshRelayController, MeshRosterController],
+  controllers: [MeshAccessController, MeshDirectoryController, MeshRelayController, MeshRosterController],
   providers: [
     { provide: MeshDirectoryRepository, useValue: MeshDirectoryRepository.live },
     { provide: MeshClock, useValue: MeshClock.live },
@@ -51,6 +53,7 @@ export class MeshDomainModule extends createModuleContext({
     { provide: RosterGossip, useValue: RosterGossip.live },
     { provide: PendingSeeds, useValue: PendingSeeds.live },
     { provide: JoinTokens, useValue: JoinTokens.live },
+    { provide: AccessChecks, useValue: AccessChecks.live },
     {
       provide: AdvertisedAddress,
       inject: [ConfigService],

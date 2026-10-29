@@ -1,10 +1,17 @@
 import { RPCLink } from "@orpc/client/websocket";
+import { WebSocket as NodeWebSocket } from "ws";
 
 import type { PooledConnection } from "./pooled-link";
 import type { ClientContext } from "@orpc/client";
 
 export type WebSocketConnectionOptions = {
+  /** The websocket to open. With `socketPath`, only its path and query are used; the host is the socket. */
   readonly url: string;
+  /**
+   * Connect through a unix domain socket instead of the network. The socket's file permissions are the trust boundary,
+   * which is how a service on the same node reaches its agent without ever holding the swarm's credential.
+   */
+  readonly socketPath?: string;
   /** Reconnect delay in ms. A connection that cannot come back is evicted by the pool and replaced. */
   readonly reconnectDelayMs?: number;
   /** Consecutive failed attempts before waiting calls fail. */
@@ -15,6 +22,12 @@ export type WebSocketConnectionOptions = {
  * One persistent connection: an oRPC RPC link over a websocket, not the OpenAPI link, so calls, streams and event
  * iterators share a single long-lived connection instead of paying a setup per request.
  */
+/** `ws` is the one client that can dial a unix socket, under Node and under Bun alike; it speaks the same events. */
+function openOverSocket(socketPath: string, url: string): WebSocket {
+  const target = new URL(url);
+  return new NodeWebSocket(`ws+unix://${socketPath}:${target.pathname}${target.search}`) as unknown as WebSocket;
+}
+
 export function openWebSocketConnection<C extends ClientContext>(options: WebSocketConnectionOptions): PooledConnection<C> {
   let socket: WebSocket | undefined;
   // Resolves once the socket is open and rejects when the handshake fails. A refused handshake (a wrong credential, a
@@ -22,7 +35,7 @@ export function openWebSocketConnection<C extends ClientContext>(options: WebSoc
   // a failed `connect`, so rejecting here is what makes a refusal a failed attempt instead of a call that waits forever.
   const connect = () =>
     new Promise<WebSocket>((resolve, reject) => {
-      const next = new WebSocket(options.url);
+      const next = options.socketPath === undefined ? new WebSocket(options.url) : openOverSocket(options.socketPath, options.url);
       next.addEventListener("open", () => {
         socket = next;
         resolve(next);

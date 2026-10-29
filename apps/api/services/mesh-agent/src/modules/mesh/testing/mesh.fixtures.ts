@@ -9,6 +9,7 @@ import {
   createDirectoryStore,
   directoryRepositoryOver,
 } from "../repositories/directory.repository";
+import { AccessChecks } from "../services/access-checks.service";
 import { AgentLinkFactory, agentLinkFactoryOver } from "../services/agent-link-factory.service";
 import { AgentLoad, agentLoadOver } from "../services/agent-load.service";
 import { MeshBroker } from "../services/broker.service";
@@ -45,7 +46,8 @@ export type MeshServices =
   | PendingSeeds
   | AgentStore
   | SwarmCredential
-  | JoinTokens;
+  | JoinTokens
+  | AccessChecks;
 
 export const LEASE_SECRET = "mesh-fixture-secret-of-at-least-32-characters";
 
@@ -129,6 +131,7 @@ export function meshFixture(
       Effect.provideService(AgentStore, store),
       Effect.provideService(SwarmCredential, credential),
       Effect.provideService(JoinTokens, JoinTokens.live),
+      Effect.provideService(AccessChecks, AccessChecks.live),
     );
 
   const advertised = { address: options.advertise ?? `ws://${options.nodeId ?? "A"}` };
@@ -157,6 +160,7 @@ export function meshFixture(
     Context.add(AgentStore, store),
     Context.add(SwarmCredential, credential),
     Context.add(JoinTokens, JoinTokens.live),
+    Context.add(AccessChecks, AccessChecks.live),
   );
 
   return {

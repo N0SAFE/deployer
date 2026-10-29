@@ -12,8 +12,11 @@ export type MeshWebSocketOptions<T extends Context> = {
   /** The upgrade path, e.g. `/mesh/ws`. Any other path is left to whoever else listens for upgrades. */
   readonly path: string;
   readonly router: Router<T>;
-  /** `true` when the credential proves the peer is part of the mesh. Never throws. */
-  readonly verify: (credential: string | undefined) => boolean;
+  /**
+   * `true` when what the peer presented proves it is part of the mesh. May ask someone else (a service asks its local
+   * agent, which holds the credential), so it can be async. A verifier that throws refuses the peer.
+   */
+  readonly verify: (credential: string | undefined) => boolean | Promise<boolean>;
   /**
    * The oRPC context of one call. Read per call, not per connection: a connection lives for hours and the context (the
    * Effect runtime's services) must be the one of the moment.
@@ -48,7 +51,15 @@ export function attachMeshWebSocket<T extends Context>(options: MeshWebSocketOpt
   const wss = new WebSocketServer({ noServer: true });
   const alive = new WeakSet();
 
-  const onUpgrade = (request: IncomingMessage, socket: Duplex, head: Buffer) => {
+  const isTrusted = async (credential: string | undefined): Promise<boolean> => {
+    try {
+      return await options.verify(credential);
+    } catch {
+      return false;
+    }
+  };
+
+  const onUpgrade = async (request: IncomingMessage, socket: Duplex, head: Buffer) => {
     const url = new URL(request.url ?? "/", "http://mesh");
     if (url.pathname !== options.path) {
       // Nobody else listening for upgrades means nobody will answer: refuse instead of leaving the socket open.
@@ -57,7 +68,7 @@ export function attachMeshWebSocket<T extends Context>(options: MeshWebSocketOpt
       }
       return;
     }
-    if (!options.verify(url.searchParams.get(CREDENTIAL_PARAM) ?? undefined)) {
+    if (!(await isTrusted(url.searchParams.get(CREDENTIAL_PARAM) ?? undefined))) {
       refuse(socket, "401 Unauthorized");
       return;
     }
@@ -69,7 +80,8 @@ export function attachMeshWebSocket<T extends Context>(options: MeshWebSocketOpt
       wss.emit("connection", ws, request);
     });
   };
-  options.server.on("upgrade", onUpgrade);
+  const listener = (request: IncomingMessage, socket: Duplex, head: Buffer) => void onUpgrade(request, socket, head);
+  options.server.on("upgrade", listener);
 
   const keepAlive = setInterval(() => {
     for (const ws of wss.clients) {
@@ -88,7 +100,7 @@ export function attachMeshWebSocket<T extends Context>(options: MeshWebSocketOpt
     close: () =>
       new Promise<void>((resolve) => {
         clearInterval(keepAlive);
-        options.server.off("upgrade", onUpgrade);
+        options.server.off("upgrade", listener);
         for (const ws of wss.clients) {
           ws.terminate();
         }

@@ -230,10 +230,25 @@ the mesh instead of opening the file.
 
 The node id must outlive the join. It is generated once and stored, so a join does not change it.
 
+## How a service reaches its agent without the credential
+
+The agent listens on two doors. The network door (the service's HTTP port, `/mesh/ws`) is for other agents and is
+guarded by the swarm's credential. The node door is a unix socket, `run/agent.sock` in the agent's data directory, for the
+services of its own node; the socket's file permissions are the only credential there, so a service never holds the swarm's
+secret and there is nothing in it to leak or to rotate.
+
+A service takes part in the mesh with `joinMesh` from `@deployer/mesh-service`, and the only thing it needs is the path of
+that socket:
+
+- it registers with its agent over the socket, every few seconds, with its address, load and the keys it holds;
+- it serves its own mesh router on its websocket, and when a peer connects it asks the agent whether to trust it
+  (`access.verify`), because the agent alone holds the credential. The peer presents either the swarm's credential (an
+  agent relaying a call) or a direct grant's token (a caller the agent sent), and the agent checks both. An answer is
+  remembered for 30 seconds, and an agent that cannot be reached refuses the peer: unknown is not trusted.
+
 Known limits, stated plainly: the swarm credential is one shared secret with no rotation yet, a token cannot be revoked
 before it expires, the advertised address defaults to the host's name (no overlay-address discovery yet), and a service
-on the node still has to be given the credential to talk to the agent (a local socket is the planned way, so a service
-never holds it).
+on the node reaches its agent through the socket, so it never holds the credential.
 
 ## Agents
 

@@ -1,5 +1,7 @@
+import { mkdtempSync, rmSync } from "node:fs";
 import { createServer, type Server } from "node:http";
-
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { os, type RouterClient } from "@orpc/server";
 import { Effect } from "effect";
@@ -123,5 +125,69 @@ describe("attachMeshWebSocket", () => {
     await new Promise((resolve) => setTimeout(resolve, 200));
 
     expect(gateway.size()).toBe(0);
+  });
+
+  describe("trust", () => {
+    it("accepts an async verifier, so a service can ask its agent whether a peer is trusted", async () => {
+      await gateway.close();
+      gateway = attachMeshWebSocket<ClientContext>({
+        server,
+        path: "/mesh/ws",
+        router: router as never,
+        verify: (credential) => new Promise((resolve) => setTimeout(() => { resolve(credential === "asked-the-agent"); }, 10)),
+        context: () => ({}),
+      });
+
+      const trusted = clientTo("asked-the-agent");
+      const refused = clientTo("not-it");
+
+      await expect(Effect.runPromise(trusted.client.echo({ text: "hi" }))).resolves.toEqual({ text: "hi" });
+      await expect(Effect.runPromise(refused.client.echo({ text: "hi" }))).rejects.toBeDefined();
+      await Promise.all([trusted.link.closeAll(), refused.link.closeAll()]);
+    });
+
+    it("refuses a peer when the verifier itself fails", async () => {
+      await gateway.close();
+      gateway = attachMeshWebSocket<ClientContext>({
+        server,
+        path: "/mesh/ws",
+        router: router as never,
+        verify: () => Promise.reject(new Error("the agent is down")),
+        context: () => ({}),
+      });
+      const peer = clientTo(SECRET);
+
+      await expect(Effect.runPromise(peer.client.echo({ text: "hi" }))).rejects.toBeDefined();
+      await peer.link.closeAll();
+    });
+
+    it("serves a unix socket, where the file's permissions are the trust boundary and no credential is carried", async () => {
+      const directory = mkdtempSync(join(tmpdir(), "mesh-socket-"));
+      const socketPath = join(directory, "agent.sock");
+      const local = createServer((_request, response) => response.writeHead(404).end());
+      const localGateway = attachMeshWebSocket<ClientContext>({
+        server: local,
+        path: "/mesh/ws",
+        router: router as never,
+        verify: () => true,
+        context: () => ({}),
+      });
+      await new Promise<void>((resolve) => local.listen(socketPath, resolve));
+      const link = pooledLink<ClientContext>({
+        target: socketPath,
+        maxConnections: 1,
+        multiplex: 4,
+        idleMs: 1_000,
+        open: () => Promise.resolve(openWebSocketConnection({ url: "ws://agent/mesh/ws", socketPath })),
+      });
+
+      const answered = await Effect.runPromise(createMeshClient<RouterClient<typeof router>>(link).echo({ text: "over a socket" }));
+
+      expect(answered).toEqual({ text: "over a socket" });
+      await link.closeAll();
+      await localGateway.close();
+      await new Promise<void>((resolve) => local.close(() => { resolve(); }));
+      rmSync(directory, { recursive: true, force: true });
+    });
   });
 });
