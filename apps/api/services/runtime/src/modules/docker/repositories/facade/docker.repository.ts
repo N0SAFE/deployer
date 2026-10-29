@@ -35,7 +35,6 @@ import type { IContainerLinkResolver } from "@deployer/docker";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { projects, services } from "@deployer/nest-schema/global/project/deployment";
 import { deployments } from "@deployer/nest-schema/global/runtime/deployment";
-import { dockerRuntimeActivities } from "@deployer/nest-schema/global/runtime/docker-runtime-activity";
 import { dockerImageSecurityScanHistory, dockerImageSecurityScans } from "@deployer/nest-schema/global/runtime/docker-security-scan";
 import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
 
@@ -101,6 +100,19 @@ import {
   extractRootFsLayers,
   toHealthcheckSeconds,
 } from "../containers/engine/container-inspect-reading";
+import {
+  getFilterEntry,
+  matchEq,
+  matchNullableStringEq,
+  matchString,
+  paginate,
+  sortItems,
+} from "../shared/list-query";
+import {
+  DockerRuntimeActivitiesStore,
+  type DockerRuntimeActivitiesStoreShape,
+} from "../runtime/docker-runtime-activities.store";
+import { groupContainersIntoStacks, stackNameOf } from "../containers/stacks/stack-grouping";
 import { assembleContainerLinks, inclusionOf, withoutLinks } from "../containers/links/container-link-assembly";
 import {
   DockerContainerLinksLookup,
@@ -124,22 +136,6 @@ import type {
   DockerRuntimeActivityListInput,
 } from "@deployer/runtime-contracts/modules/docker/runtime/activity";
 
-type ParsedFilterEntry = { operator: string; value: unknown }
-
-type ContractFilterKeys<TInput> = Extract<
-  keyof NonNullable<TInput extends { filter?: infer TFilter } ? TFilter : never>,
-  string
->;
-
-type PaginatedListInput = {
-  limit: number;
-  offset: number;
-}
-
-type SortableListInput = {
-  sortBy?: string;
-  sortDirection?: "asc" | "desc";
-}
 
 
 @Injectable()
@@ -163,6 +159,7 @@ export class DockerRepository {
     @Inject(DockerImagesRepository) private readonly images: DockerImagesRepositoryShape = DockerImagesRepository.live,
     @Inject(DockerImageLifecycleRepository) private readonly lifecycle: DockerImageLifecycleRepositoryShape = DockerImageLifecycleRepository.live,
     @Inject(DockerContainersRepository) private readonly containers: DockerContainersRepositoryShape = DockerContainersRepository.live,
+    @Inject(DockerRuntimeActivitiesStore) private readonly activities: DockerRuntimeActivitiesStoreShape = DockerRuntimeActivitiesStore.live,
     @Inject(DockerContainerLinksLookup) private readonly linkLookup: DockerContainerLinksLookupShape = DockerContainerLinksLookup.live,
   ) {
     this.scanner = new DockerImageScannerService(dockerEngine, scannerPool, dockerHost, {
@@ -200,100 +197,6 @@ export class DockerRepository {
     return this.localDockerDaemonIdLoadPromise;
   }
 
-  private getFilterEntry<
-    TInput extends { filter?: unknown },
-    TKey extends ContractFilterKeys<TInput>,
-  >(input: TInput, key: TKey): ParsedFilterEntry | undefined {
-    const filter = input.filter;
-    if (!filter || typeof filter !== "object") {
-      return undefined;
-    }
-
-    const rawEntry = Reflect.get(filter, key);
-    if (!rawEntry || typeof rawEntry !== "object") {
-      return undefined;
-    }
-
-    const operator = (rawEntry as { operator?: unknown }).operator;
-    if (typeof operator !== "string") {
-      return undefined;
-    }
-
-    return {
-      operator,
-      value: (rawEntry as { value?: unknown }).value,
-    };
-  }
-
-  private matchString(value: string, entry: ParsedFilterEntry | undefined): boolean {
-    if (!entry) return true;
-    const target = String(entry.value ?? "");
-
-    switch (entry.operator) {
-      case "eq":
-        return value === target;
-      case "like":
-      case "ilike":
-        return value.toLowerCase().includes(target.toLowerCase());
-      default:
-        return true;
-    }
-  }
-
-  private matchEq(value: string | boolean, entry: ParsedFilterEntry | undefined): boolean {
-    if (!entry) return true;
-    if (entry.operator !== "eq") return true;
-
-    if (typeof value === "boolean") {
-      const expected =
-        typeof entry.value === "boolean"
-          ? entry.value
-          : String(entry.value).toLowerCase() === "true";
-      return value === expected;
-    }
-
-    return value === String(entry.value ?? "");
-  }
-
-  private matchNullableStringEq(value: string | null, entry: ParsedFilterEntry | undefined): boolean {
-    if (!entry) return true;
-    if (entry.operator !== "eq") return true;
-    return value === String(entry.value ?? "");
-  }
-
-  private sortItems<T>(
-    items: T[],
-    input: SortableListInput,
-    getComparableValue: (item: T, sortBy: string) => string | number,
-  ): T[] {
-    const sortBy = input.sortBy ?? "updatedAt";
-    const direction = input.sortDirection === "asc" ? 1 : -1;
-
-    return [...items].sort((a, b) => {
-      const av = getComparableValue(a, sortBy);
-      const bv = getComparableValue(b, sortBy);
-
-      if (av < bv) return -1 * direction;
-      if (av > bv) return 1 * direction;
-      return 0;
-    });
-  }
-
-  private paginate<T>(items: T[], input: PaginatedListInput) {
-    const total = items.length;
-    const data = items.slice(input.offset, input.offset + input.limit);
-    return {
-      data,
-      meta: {
-        total,
-        limit: input.limit,
-        offset: input.offset,
-        hasMore: input.offset + input.limit < total,
-      },
-    };
-  }
-
-
   async attachContainerLinks(
     containers: DockerContainer[],
     includePaths: DockerContainerLinkPath[],
@@ -319,55 +222,58 @@ export class DockerRepository {
     );
   }
 
+  /** A raw engine container as the runtime's entity, enriched with its deployment/service links when a resolver is present. */
+  private toDockerContainer(container: DockerodeContainerList): DockerContainer {
+    const labels = container.Labels;
+    const rawName = container.Names[0]?.replace(/^\//, "") ?? "";
+    const rawId = container.Id;
+    const rawImage = container.Image ?? "unknown-image";
+
+    const enrichment = this.linkResolver?.resolveEnrichment(
+      labels,
+      rawName || rawId,
+      rawId,
+      rawImage,
+      labels["deployer.network_mode"] ?? null,
+    ) ?? {
+      projectId: labels["com.docker.compose.project"] ?? rawId,
+      serviceId: labels["com.docker.compose.service"] ?? rawId,
+      environment: null,
+      managedBy: "orphan" as const,
+      managedReason: null,
+      managedDeploymentId: null,
+      managedServiceId: null,
+      managedProjectId: null,
+      managedImageRef: null,
+      managedNetworkMode: null,
+      logsStreamId: null,
+    };
+
+    return this.normalizer.normalizeContainer(container, enrichment);
+  }
+
   async listContainers(input: DockerContainerListInput) {
     const rawContainers = await this.listRawContainers();
 
-    const mapped = rawContainers.map((container) => {
-      const labels = container.Labels;
-      const rawName = container.Names[0]?.replace(/^\//, "") ?? ""
-      const rawId = container.Id
-      const rawImage = container.Image ?? "unknown-image"
-
-      const enrichment = this.linkResolver?.resolveEnrichment(
-        labels,
-        rawName || rawId,
-        rawId,
-        rawImage,
-        labels["deployer.network_mode"] ?? null,
-      ) ?? {
-        projectId: labels["com.docker.compose.project"] ?? rawId,
-        serviceId: labels["com.docker.compose.service"] ?? rawId,
-        environment: null,
-        managedBy: "orphan" as const,
-        managedReason: null,
-        managedDeploymentId: null,
-        managedServiceId: null,
-        managedProjectId: null,
-        managedImageRef: null,
-        managedNetworkMode: null,
-        logsStreamId: null,
-      };
-
-      return this.normalizer.normalizeContainer(container, enrichment);
-    });
+    const mapped = rawContainers.map((container) => this.toDockerContainer(container));
 
     const filtered = mapped.filter((item) => {
-      const nameMatch = this.matchString(item.name, this.getFilterEntry(input, "name"));
-      const statusMatch = this.matchEq(item.status, this.getFilterEntry(input, "status"));
-      const projectMatch = this.matchEq(item.projectId, this.getFilterEntry(input, "projectId"));
-      const serviceMatch = this.matchEq(item.serviceId, this.getFilterEntry(input, "serviceId"));
-      const managedByMatch = this.matchEq(item.managedBy, this.getFilterEntry(input, "managedBy"));
-      const managedDeploymentMatch = this.matchNullableStringEq(
+      const nameMatch = matchString(item.name, getFilterEntry(input, "name"));
+      const statusMatch = matchEq(item.status, getFilterEntry(input, "status"));
+      const projectMatch = matchEq(item.projectId, getFilterEntry(input, "projectId"));
+      const serviceMatch = matchEq(item.serviceId, getFilterEntry(input, "serviceId"));
+      const managedByMatch = matchEq(item.managedBy, getFilterEntry(input, "managedBy"));
+      const managedDeploymentMatch = matchNullableStringEq(
         item.managedDeploymentId,
-        this.getFilterEntry(input, "managedDeploymentId"),
+        getFilterEntry(input, "managedDeploymentId"),
       );
-      const managedServiceMatch = this.matchNullableStringEq(
+      const managedServiceMatch = matchNullableStringEq(
         item.managedServiceId,
-        this.getFilterEntry(input, "managedServiceId"),
+        getFilterEntry(input, "managedServiceId"),
       );
-      const managedProjectMatch = this.matchNullableStringEq(
+      const managedProjectMatch = matchNullableStringEq(
         item.managedProjectId,
-        this.getFilterEntry(input, "managedProjectId"),
+        getFilterEntry(input, "managedProjectId"),
       );
 
       return (
@@ -382,7 +288,7 @@ export class DockerRepository {
       );
     });
 
-    const sorted = this.sortItems(filtered, input, (item, sortBy) => {
+    const sorted = sortItems(filtered, input, (item, sortBy) => {
       switch (sortBy) {
         case "name":
           return item.name;
@@ -397,7 +303,7 @@ export class DockerRepository {
       }
     });
 
-    return this.paginate(sorted, input);
+    return paginate(sorted, input);
   }
 
 
@@ -599,51 +505,42 @@ export class DockerRepository {
   }
 
   async persistRuntimeActivityEvent(rawEvent: DockerRuntimeEvent): Promise<void> {
-    await this.globalDatabaseService.db
-      .insert(dockerRuntimeActivities)
-      .values(buildRuntimeActivityRecord(rawEvent, new Date()))
-      .onConflictDoNothing({
-        target: [dockerRuntimeActivities.eventFingerprint],
-      });
+    await this.runOnDatabase(this.activities.insert(buildRuntimeActivityRecord(rawEvent, new Date())));
   }
 
   async listRuntimeActivities(input: DockerRuntimeActivityListInput) {
     const limit = input.limit;
     const offset = input.offset;
 
-    const rows = await this.globalDatabaseService.db
-      .select()
-      .from(dockerRuntimeActivities)
-      .orderBy(desc(dockerRuntimeActivities.occurredAt))
-      .limit(5000);
+    const rows = await this.runOnDatabase(this.activities.listRecent(5000));
 
     const mapped = rows.map(toRuntimeActivityEntity);
 
     const filtered = mapped.filter((item) => {
-      const sourceFilter = this.getFilterEntry(input, "source");
-      const actionFilter = this.getFilterEntry(input, "action");
-      const actorIdFilter = this.getFilterEntry(input, "actorId");
-      const statusFilter = this.getFilterEntry(input, "status");
-      const categoryFilter = this.getFilterEntry(input, "category");
-      const severityFilter = this.getFilterEntry(input, "severity");
-      const stageFilter = this.getFilterEntry(input, "stage");
-      const scannerFilter = this.getFilterEntry(input, "scanner");
-      const flowIdFilter = this.getFilterEntry(input, "flowId");
-      const dependsOnFlowIdFilter = this.getFilterEntry(input, "dependsOnFlowId");
+      const sourceFilter = getFilterEntry(input, "source");
+      const actionFilter = getFilterEntry(input, "action");
+      const actorIdFilter = getFilterEntry(input, "actorId");
+      const statusFilter = getFilterEntry(input, "status");
+      const categoryFilter = getFilterEntry(input, "category");
+      const severityFilter = getFilterEntry(input, "severity");
+      const stageFilter = getFilterEntry(input, "stage");
+      const scannerFilter = getFilterEntry(input, "scanner");
+      const flowIdFilter = getFilterEntry(input, "flowId");
+      const dependsOnFlowIdFilter = getFilterEntry(input, "dependsOnFlowId");
 
-      return this.matchString(item.source, sourceFilter)
-        && this.matchString(item.action, actionFilter)
-        && this.matchString(item.actorId ?? "", actorIdFilter)
-        && this.matchString(item.status, statusFilter)
-        && this.matchString(item.category, categoryFilter)
-        && this.matchString(item.severity, severityFilter)
-        && this.matchString(item.stage ?? "", stageFilter)
-        && this.matchString(item.scanner ?? "", scannerFilter)
-        && this.matchString(item.flowId, flowIdFilter)
-        && this.matchString(item.dependsOnFlowId ?? "", dependsOnFlowIdFilter);
+      return matchString(item.source, sourceFilter)
+        && matchString(item.action, actionFilter)
+        && matchString(item.actorId ?? "", actorIdFilter)
+        && matchString(item.status, statusFilter)
+        && matchString(item.category, categoryFilter)
+        && matchString(item.severity, severityFilter)
+        && matchString(item.stage ?? "", stageFilter)
+        && matchString(item.scanner ?? "", scannerFilter)
+        && matchString(item.flowId, flowIdFilter)
+        && matchString(item.dependsOnFlowId ?? "", dependsOnFlowIdFilter);
     });
 
-    const sorted = this.sortItems(filtered, input, (item, sortBy) => {
+    const sorted = sortItems(filtered, input, (item, sortBy) => {
       switch (sortBy) {
         case "source":
           return item.source;
@@ -663,16 +560,11 @@ export class DockerRepository {
       }
     });
 
-    return this.paginate(sorted, { limit, offset });
+    return paginate(sorted, { limit, offset });
   }
 
   async getRuntimeActivityById(input: DockerRuntimeActivityDetailQueryInput): Promise<DockerRuntimeActivityEntity | null> {
-    const row = await this.globalDatabaseService.db
-      .select()
-      .from(dockerRuntimeActivities)
-      .where(eq(dockerRuntimeActivities.id, input.id))
-      .limit(1)
-      .then((rows) => rows[0] ?? null);
+    const row = await this.runOnDatabase(this.activities.findById(input.id));
 
     if (!row) {
       return null;
@@ -968,13 +860,13 @@ export class DockerRepository {
     const mapped = await runPromiseUnwrapped(this.images.list.pipe(Effect.provideService(DockerEngine, this.dockerEngine)));
 
     const filtered = mapped.filter((item) => {
-      const registryMatch = this.matchString(item.registry, this.getFilterEntry(input, "registry"));
-      const repositoryMatch = this.matchString(item.repository, this.getFilterEntry(input, "repository"));
-      const tagMatch = this.matchString(item.tag ?? "", this.getFilterEntry(input, "tag"));
+      const registryMatch = matchString(item.registry, getFilterEntry(input, "registry"));
+      const repositoryMatch = matchString(item.repository, getFilterEntry(input, "repository"));
+      const tagMatch = matchString(item.tag ?? "", getFilterEntry(input, "tag"));
       return registryMatch && repositoryMatch && tagMatch;
     });
 
-    const sorted = this.sortItems(filtered, input, (item, sortBy) => {
+    const sorted = sortItems(filtered, input, (item, sortBy) => {
       switch (sortBy) {
         case "createdAt":
           return item.createdAt;
@@ -988,20 +880,20 @@ export class DockerRepository {
       }
     });
 
-    return this.paginate(sorted, input);
+    return paginate(sorted, input);
   }
 
   async listNetworks(input: DockerNetworkListInput) {
     const mapped = await runPromiseUnwrapped(this.networks.list.pipe(Effect.provideService(DockerEngine, this.dockerEngine)));
 
     const filtered = mapped.filter((item) => {
-      const nameMatch = this.matchString(item.name, this.getFilterEntry(input, "name"));
-      const driverMatch = this.matchEq(item.driver, this.getFilterEntry(input, "driver"));
-      const scopeMatch = this.matchEq(item.scope, this.getFilterEntry(input, "scope"));
+      const nameMatch = matchString(item.name, getFilterEntry(input, "name"));
+      const driverMatch = matchEq(item.driver, getFilterEntry(input, "driver"));
+      const scopeMatch = matchEq(item.scope, getFilterEntry(input, "scope"));
       return nameMatch && driverMatch && scopeMatch;
     });
 
-    const sorted = this.sortItems(filtered, input, (item, sortBy) => {
+    const sorted = sortItems(filtered, input, (item, sortBy) => {
       switch (sortBy) {
         case "name":
           return item.name;
@@ -1013,19 +905,19 @@ export class DockerRepository {
       }
     });
 
-    return this.paginate(sorted, input);
+    return paginate(sorted, input);
   }
 
   async listVolumes(input: DockerVolumeListInput) {
     const mapped = await runPromiseUnwrapped(this.volumes.list.pipe(Effect.provideService(DockerEngine, this.dockerEngine)));
 
     const filtered = mapped.filter((item) => {
-      const nameMatch = this.matchString(item.name, this.getFilterEntry(input, "name"));
-      const driverMatch = this.matchEq(item.driver, this.getFilterEntry(input, "driver"));
+      const nameMatch = matchString(item.name, getFilterEntry(input, "name"));
+      const driverMatch = matchEq(item.driver, getFilterEntry(input, "driver"));
       return nameMatch && driverMatch;
     });
 
-    const sorted = this.sortItems(filtered, input, (item, sortBy) => {
+    const sorted = sortItems(filtered, input, (item, sortBy) => {
       switch (sortBy) {
         case "name":
           return item.name;
@@ -1037,7 +929,7 @@ export class DockerRepository {
       }
     });
 
-    return this.paginate(sorted, input);
+    return paginate(sorted, input);
   }
 
   async listRegistries(input: DockerRegistryListInput) {
@@ -1052,13 +944,13 @@ export class DockerRepository {
     const mapped = deriveRegistries(images.data);
 
     const filtered = mapped.filter((item) => {
-      const nameMatch = this.matchString(item.name, this.getFilterEntry(input, "name"));
-      const statusMatch = this.matchEq(item.status, this.getFilterEntry(input, "status"));
-      const primaryMatch = this.matchEq(item.isPrimary, this.getFilterEntry(input, "isPrimary"));
+      const nameMatch = matchString(item.name, getFilterEntry(input, "name"));
+      const statusMatch = matchEq(item.status, getFilterEntry(input, "status"));
+      const primaryMatch = matchEq(item.isPrimary, getFilterEntry(input, "isPrimary"));
       return nameMatch && statusMatch && primaryMatch;
     });
 
-    const sorted = this.sortItems(filtered, input, (item, sortBy) => {
+    const sorted = sortItems(filtered, input, (item, sortBy) => {
       switch (sortBy) {
         case "name":
           return item.name;
@@ -1072,110 +964,25 @@ export class DockerRepository {
       }
     });
 
-    return this.paginate(sorted, input);
+    return paginate(sorted, input);
   }
 
   async listStacks(input: DockerStackListInput) {
     const rawContainers = await this.listRawContainers();
 
-    const groupedByStack = new Map<string, DockerStack>();
-
-    for (const raw of rawContainers) {
-      const labels = raw.Labels;
-      const stackName =
-        labels["com.docker.compose.project"] ??
-        labels["com.docker.stack.namespace"] ??
-        "standalone";
-
-      const rawId = raw.Id;
-      const rawName = raw.Names[0]?.replace(/^\//, "") ?? "";
-
-      // Use normalizer for docker-specific conversion, link resolver for enrichment
-      const enrichment = this.linkResolver?.resolveEnrichment(
-        labels,
-        rawName || rawId,
-        rawId,
-        raw.Image ?? "unknown-image",
-        labels["deployer.network_mode"] ?? null,
-      );
-      const typed = this.normalizer.normalizeContainer(raw, enrichment ?? {
-        projectId: labels["com.docker.compose.project"] ?? rawId,
-        serviceId: labels["com.docker.compose.service"] ?? rawId,
-        environment: null,
-        managedBy: "orphan" as const,
-        managedReason: null,
-        managedDeploymentId: null,
-        managedServiceId: null,
-        managedProjectId: null,
-        managedImageRef: null,
-        managedNetworkMode: null,
-        logsStreamId: null,
-      });
-
-      const existing = groupedByStack.get(stackName);
-      const serviceRef = {
-        serviceId: typed.serviceId,
-        imageId: typed.imageId,
-        containerIds: [typed.id],
-        networkIds: typed.networkIds,
-        volumeIds: typed.volumeIds,
-        replicas: 1,
-        desiredReplicas: 1,
-        status: typed.status,
-      } as const;
-
-      if (!existing) {
-        groupedByStack.set(
-          stackName,
-          dockerStackSchema.parse({
-            id: stackName,
-            name: stackName,
-            projectId: typed.projectId,
-            status:
-              typed.status === "running"
-                ? "healthy"
-                : typed.status === "exited" || typed.status === "dead"
-                  ? "failed"
-                  : "degraded",
-            services: [serviceRef],
-            networkIds: [...serviceRef.networkIds],
-            volumeIds: [...serviceRef.volumeIds],
-            labels: {},
-            createdAt: typed.createdAt,
-            updatedAt: new Date().toISOString(),
-          }),
-        );
-        continue;
-      }
-
-      const nextStatus =
-        existing.status === "failed" || typed.status === "dead" || typed.status === "exited"
-          ? "failed"
-          : existing.status;
-
-      groupedByStack.set(
-        stackName,
-        dockerStackSchema.parse({
-          ...existing,
-          status: nextStatus,
-          services: [...existing.services, serviceRef],
-          networkIds: [...new Set([...existing.networkIds, ...serviceRef.networkIds])],
-          volumeIds: [...new Set([...existing.volumeIds, ...serviceRef.volumeIds])],
-          updatedAt: new Date().toISOString(),
-        }),
-      );
-    }
-
-    const mapped = [...groupedByStack.values()];
+    const mapped = groupContainersIntoStacks(
+      rawContainers.map((raw) => ({ stackName: stackNameOf(raw.Labels), container: this.toDockerContainer(raw) })),
+      new Date().toISOString(),
+    );
 
     const filtered = mapped.filter((item) => {
-      const nameMatch = this.matchString(item.name, this.getFilterEntry(input, "name"));
-      const statusMatch = this.matchEq(item.status, this.getFilterEntry(input, "status"));
-      const projectMatch = this.matchEq(item.projectId, this.getFilterEntry(input, "projectId"));
+      const nameMatch = matchString(item.name, getFilterEntry(input, "name"));
+      const statusMatch = matchEq(item.status, getFilterEntry(input, "status"));
+      const projectMatch = matchEq(item.projectId, getFilterEntry(input, "projectId"));
       return nameMatch && statusMatch && projectMatch;
     });
 
-    const sorted = this.sortItems(filtered, input, (item, sortBy) => {
+    const sorted = sortItems(filtered, input, (item, sortBy) => {
       switch (sortBy) {
         case "name":
           return item.name;
@@ -1189,7 +996,7 @@ export class DockerRepository {
       }
     });
 
-    return this.paginate(sorted, input);
+    return paginate(sorted, input);
   }
 
   async getRuntimeCatalogSnapshot(): Promise<DockerRuntimeCatalog> {

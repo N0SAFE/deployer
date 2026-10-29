@@ -12,6 +12,7 @@ import { DockerVolumesRepository } from "./volumes/docker-volumes.repository";
 import { DockerImageLifecycleRepository } from "./images/lifecycle/docker-image-lifecycle.repository";
 import { DockerContainerLinksLookup } from "./containers/links/docker-container-links-lookup.repository";
 import { DockerContainersRepository } from "./containers/engine/docker-containers.repository";
+import { DockerRuntimeActivitiesStore } from "./runtime/docker-runtime-activities.store";
 import { DockerImagesRepository } from "./images/engine/docker-images.repository";
 import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-normalizer.service";
 
@@ -29,6 +30,7 @@ import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-norm
     { provide: DockerImagesRepository, useValue: DockerImagesRepository.live },
     { provide: DockerImageLifecycleRepository, useValue: DockerImageLifecycleRepository.live },
     { provide: DockerVolumesRepository, useValue: DockerVolumesRepository.live },
+    { provide: DockerRuntimeActivitiesStore, useValue: DockerRuntimeActivitiesStore.live },
     { provide: DockerContainersRepository, useValue: DockerContainersRepository.live },
     { provide: DockerContainerLinksLookup, useValue: DockerContainerLinksLookup.live },
   ],
@@ -45,6 +47,7 @@ import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-norm
     DockerImageLifecycleRepository,
     DockerContainerLinksLookup,
     DockerContainersRepository,
+    DockerRuntimeActivitiesStore,
   ],
 })
 export class DockerRepositoriesModule {}
