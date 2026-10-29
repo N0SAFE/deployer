@@ -1,0 +1,62 @@
+{
+    "name": "@deployer/mesh-service",
+    "version": "0.0.0",
+    "private": true,
+    "description": "What a service does to take part in the mesh: serve its mesh router on a websocket and keep itself registered with the local agent. Framework-free.",
+    "main": "./dist/cjs/index.js",
+    "module": "./dist/esm/index.mjs",
+    "types": "./dist/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/types/index.d.ts",
+            "import": "./dist/esm/index.mjs",
+            "require": "./dist/cjs/index.js"
+        },
+        "./*": {
+            "types": "./dist/types/*.d.ts",
+            "import": "./dist/esm/*.mjs",
+            "require": "./dist/cjs/*.js"
+        }
+    },
+    "scripts": {
+        "prettify": "bun fmt .",
+        "format": "bun run prettify",
+        "format:check": "bun fmt --check .",
+        "lint": "bun lint --no-script --type-aware",
+        "lint:fix": "bun lint --no-script --fix --type-aware",
+        "lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
+        "type-check": "bun check --no-script",
+        "build": "bun --bun pkg-build",
+        "dev": "bun --bun pkg-build --watch",
+        "clean": "rimraf dist",
+        "build:types": "bun --bun pkg-build --types",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage"
+    },
+    "dependencies": {
+        "@deployer/effect-core": "*",
+        "@deployer/mesh-agent-contracts": "*",
+        "@deployer/mesh-client": "*",
+        "@deployer/mesh-server": "*",
+        "@orpc/client": "catalog:orpc",
+        "@orpc/server": "catalog:orpc",
+        "effect": "catalog:effect"
+    },
+    "peerDependencies": {
+        "@orpc/server": "catalog:orpc"
+    },
+    "devDependencies": {
+        "@deployer/config-eslint": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-typescript": "*",
+        "@deployer/pkg-build": "*",
+        "@types/node": "catalog:build",
+        "@types/ws": "^8.18.0",
+        "eslint": "catalog:linting",
+        "rimraf": "catalog:build",
+        "typescript": "catalog:build",
+        "ws": "^8.21.0",
+        "zod": "catalog:utils"
+    }
+}

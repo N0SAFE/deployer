@@ -7,6 +7,7 @@ import { meshFixture, replicaRecord } from "../testing/mesh.fixtures";
 
 import { MeshDirectory } from "./directory.service";
 import { NodeAgents } from "./node-agents.service";
+import { PendingSeeds } from "./pending-seeds.service";
 import { RosterGossip } from "./roster-gossip.service";
 
 import type { ClientContext, ClientLink } from "@orpc/client";
@@ -39,13 +40,13 @@ describe("RosterGossip", () => {
     expect(await knownNodes(b)).toEqual(["A"]);
   });
 
-  it("reports whether a seed taught the agent anything", async () => {
+  it("reports whether a seed answered and whether it taught the agent anything", async () => {
     const b = meshFixture({ nodeId: "B", advertise: "ws://b" });
     const a = meshFixture({ nodeId: "A", addresses: { "ws://b": linkInto(b) } });
 
-    expect(await a.run(RosterGossip.live.seed("ws://b"))).toBe(true);
-    expect(await a.run(RosterGossip.live.seed("ws://b"))).toBe(false);
-    expect(await a.run(RosterGossip.live.seed("ws://nobody"))).toBe(false);
+    expect(await a.run(RosterGossip.live.seed("ws://b"))).toEqual({ reached: true, learned: true });
+    expect(await a.run(RosterGossip.live.seed("ws://b"))).toEqual({ reached: true, learned: false });
+    expect(await a.run(RosterGossip.live.seed("ws://nobody"))).toEqual({ reached: false, learned: false });
   });
 
   it("finds the whole mesh through one seed", async () => {
@@ -94,5 +95,56 @@ describe("RosterGossip", () => {
 
     expect(changed).toBe(1);
     expect(await resolve(a)).toMatchObject({ value: { replica: { replicaId: "runtime-b" } } });
+  });
+
+  describe("alone first, then joined", () => {
+    const replicaIds = async (mesh: ReturnType<typeof meshFixture>) =>
+      (await mesh.run(MeshDirectory.live.snapshot())).map((record) => record.replicaId).sort();
+
+    it("serves two replicas of one node from memory, with no swarm and no peer at all", async () => {
+      const a = meshFixture({ nodeId: "A" });
+      await a.seed(runtime("runtime-1", "A", { load: 0.9 }), runtime("runtime-2", "A", { load: 0.1, keys: ["stream-7"] }));
+
+      expect(await a.settle(MeshDirectory.live.resolve({ service: "runtime" }))).toMatchObject({ value: { replica: { replicaId: "runtime-2" } } });
+      expect(await a.settle(MeshDirectory.live.resolve({ service: "runtime", key: "stream-7" }))).toMatchObject({
+        value: { reason: "key-holder", replica: { replicaId: "runtime-2" } },
+      });
+      expect(await a.settle(MeshDirectory.live.resolve({ service: "runtime", localOnly: true, exclude: ["runtime-2"] }))).toMatchObject({
+        value: { replica: { replicaId: "runtime-1" } },
+      });
+      expect(await a.run(RosterGossip.live.round())).toBe(0);
+    });
+
+    it("joins a swarm later and merges what it already holds with what the swarm knows, losing nothing", async () => {
+      const swarm = meshFixture({ nodeId: "B", advertise: "ws://b" });
+      await swarm.seed(runtime("runtime-b", "B"));
+      const a = meshFixture({ nodeId: "A", advertise: "ws://a", addresses: { "ws://b": linkInto(swarm) } });
+      await a.seed(runtime("runtime-1", "A"), runtime("runtime-2", "A"));
+      expect(await replicaIds(a)).toEqual(["runtime-1", "runtime-2"]);
+
+      const joined = await a.run(RosterGossip.live.join("ws://b"));
+
+      expect(joined).toMatchObject({ reached: true, learned: true, agents: [{ nodeId: "B", address: "ws://b" }] });
+      expect(await replicaIds(a)).toEqual(["runtime-1", "runtime-2", "runtime-b"]);
+      expect(await replicaIds(swarm)).toEqual(["runtime-1", "runtime-2", "runtime-b"]);
+    });
+
+    it("keeps a seed that was unreachable and retries it, so joining does not need the swarm to be up yet", async () => {
+      const a = meshFixture({ nodeId: "A" });
+
+      const joined = await a.run(RosterGossip.live.join("ws://swarm-not-up-yet"));
+
+      expect(joined).toMatchObject({ reached: false, learned: false, agents: [] });
+      expect(await a.run(Effect.flatMap(PendingSeeds, (seeds) => seeds.pending()))).toEqual(["ws://swarm-not-up-yet"]);
+    });
+
+    it("forgets a seed once it answered", async () => {
+      const swarm = meshFixture({ nodeId: "B", advertise: "ws://b" });
+      const a = meshFixture({ nodeId: "A", addresses: { "ws://b": linkInto(swarm) } });
+
+      await a.run(RosterGossip.live.join("ws://b"));
+
+      expect(await a.run(Effect.flatMap(PendingSeeds, (seeds) => seeds.pending()))).toEqual([]);
+    });
   });
 });

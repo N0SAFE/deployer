@@ -14,6 +14,7 @@ import { LeaseSigner, leaseSignerOver } from "../services/lease-signer.service";
 import { MeshClock } from "../services/mesh-clock.service";
 import { NodeAgents, nodeAgentsOver } from "../services/node-agents.service";
 import { NodeIdentity } from "../services/node-identity.service";
+import { PendingSeeds, pendingSeedsOver } from "../services/pending-seeds.service";
 import { MeshRelay } from "../services/relay.service";
 import { ReplicaLinks, type ReplicaLinksShape } from "../services/replica-links.service";
 import { AdvertisedAddress, RosterGossip } from "../services/roster-gossip.service";
@@ -35,7 +36,8 @@ export type MeshServices =
   | LeaseSigner
   | RosterGossip
   | AdvertisedAddress
-  | AgentLinkFactory;
+  | AgentLinkFactory
+  | PendingSeeds;
 
 export const LEASE_SECRET = "mesh-fixture-secret-of-at-least-32-characters";
 
@@ -79,6 +81,7 @@ export function meshFixture(
   const clock = { now: options.now ?? 1_000 };
   const repository = directoryRepositoryOver(createDirectoryStore());
   const hints = keyHintsOver(new Map());
+  const pendingSeeds = pendingSeedsOver(new Set());
   const nodeAgents = nodeAgentsOver(new Map(Object.entries(options.nodes ?? {}).map(([nodeId, link]) => [nodeId, { nodeId, address: `ws://${nodeId}`, link }])));
   const links: ReplicaLinksShape = {
     linkTo: (replica) => options.replicas?.[replica.replicaId] ?? { call: () => Promise.reject(new Error(`no link to ${replica.replicaId}`)) },
@@ -108,6 +111,7 @@ export function meshFixture(
       Effect.provideService(RosterGossip, RosterGossip.live),
       Effect.provideService(AdvertisedAddress, advertised),
       Effect.provideService(AgentLinkFactory, agentLinks),
+      Effect.provideService(PendingSeeds, pendingSeeds),
     );
 
   const advertised = { address: options.advertise ?? `ws://${options.nodeId ?? "A"}` };
@@ -132,6 +136,7 @@ export function meshFixture(
     Context.add(RosterGossip, RosterGossip.live),
     Context.add(AdvertisedAddress, advertised),
     Context.add(AgentLinkFactory, agentLinks),
+    Context.add(PendingSeeds, pendingSeeds),
   );
 
   return {

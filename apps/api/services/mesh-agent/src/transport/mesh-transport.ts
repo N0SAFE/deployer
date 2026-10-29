@@ -11,6 +11,7 @@ import { type MeshAgentEnv, resolveSeeds } from "../config/mesh-agent.env";
 import { MeshDirectoryController } from "../modules/mesh/controllers/mesh-directory.controller";
 import { MeshRelayController } from "../modules/mesh/controllers/mesh-relay.controller";
 import { MeshRosterController } from "../modules/mesh/controllers/mesh-roster.controller";
+import { PendingSeeds } from "../modules/mesh/services/pending-seeds.service";
 import { RosterGossip } from "../modules/mesh/services/roster-gossip.service";
 
 import { type GossipLoop, startGossipLoop } from "./gossip-loop";
@@ -51,7 +52,7 @@ export async function startMeshTransport(app: INestApplication, options: { reado
       snapshot: directory.snapshot(),
     },
     relay: { call: relay.call() },
-    roster: { exchange: roster.exchange() },
+    roster: { exchange: roster.exchange(), join: roster.join() },
   } satisfies Record<keyof typeof meshAgentContract, unknown>;
 
   const websocket: MeshWebSocket = attachMeshWebSocket({
@@ -63,10 +64,16 @@ export async function startMeshTransport(app: INestApplication, options: { reado
       ({ request: { headers: request.headers }, "effect/context": await runtime.context() }),
   });
 
+  // Seeds from the environment are only the first ones: `roster.join` adds more at any time.
+  for (const address of resolveSeeds({ MESH_AGENT_SECRET: "", MESH_SEEDS: config.get("MESH_SEEDS", { infer: true }) })) {
+    await runtime.runPromiseUnwrapped(Effect.flatMap(PendingSeeds, (seeds) => seeds.add(address)));
+  }
+
   const gossip: GossipLoop = startGossipLoop({
-    seeds: resolveSeeds({ MESH_AGENT_SECRET: "", MESH_SEEDS: config.get("MESH_SEEDS", { infer: true }) }),
     intervalMs: options.gossipIntervalMs ?? DEFAULT_GOSSIP_INTERVAL_MS,
+    pending: () => runtime.runPromiseUnwrapped(Effect.flatMap(PendingSeeds, (seeds) => seeds.pending())),
     seed: (address) => runtime.runPromiseUnwrapped(Effect.flatMap(RosterGossip, (g) => g.seed(address))),
+    reached: (address) => runtime.runPromiseUnwrapped(Effect.flatMap(PendingSeeds, (seeds) => seeds.reached(address))),
     round: () => runtime.runPromiseUnwrapped(Effect.flatMap(RosterGossip, (g) => g.round())),
   });
 

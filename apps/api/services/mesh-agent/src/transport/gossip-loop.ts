@@ -1,8 +1,10 @@
 export type GossipLoopOptions = {
-  /** Websocket URLs of agents to learn the mesh from. */
-  readonly seeds: readonly string[];
-  /** Learns from one seed; `true` when it taught this agent something new. Never throws. */
-  readonly seed: (address: string) => Promise<boolean>;
+  /** The seeds that have not answered yet, read every round: an agent can be pointed at a swarm at any time. */
+  readonly pending: () => Promise<readonly string[]>;
+  /** Learns from one seed; `reached` when it answered. Never throws. */
+  readonly seed: (address: string) => Promise<{ readonly reached: boolean }>;
+  /** A seed answered: it is not retried. */
+  readonly reached: (address: string) => Promise<void>;
   /** One gossip round with every known agent. Never throws. */
   readonly round: () => Promise<unknown>;
   readonly intervalMs: number;
@@ -13,24 +15,24 @@ export type GossipLoop = {
 };
 
 /**
- * Keeps an agent's view of the mesh fresh: seeds first, then rounds, until stopped.
+ * Keeps an agent's view of the mesh fresh: pending seeds first, then rounds, until stopped.
  *
- * Seeds are retried every round until each has answered once, because a seed that is down at boot is the normal case in
- * a cluster that is starting all at once. Once every seed has been reached, only rounds run: the agents they taught this
- * one are asked directly from then on, so losing a seed later costs nothing.
+ * An agent with no seeds is the normal first state, not a fault: it serves its own node from memory and the loop only
+ * has nobody to ask. Seeds are read every round, so one added later (the node joined a swarm) is tried at the next
+ * tick, and one that is down is retried until it answers. Once a seed has answered, the agents it taught this one are
+ * asked directly, so losing that seed later costs nothing.
  */
 export function startGossipLoop(options: GossipLoopOptions): GossipLoop {
-  const pending = new Set(options.seeds);
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   const tick = async () => {
-    for (const address of [...pending]) {
+    for (const address of await options.pending()) {
       if (stopped) {
         return;
       }
-      if (await options.seed(address)) {
-        pending.delete(address);
+      if ((await options.seed(address)).reached) {
+        await options.reached(address);
       }
     }
     if (!stopped) {

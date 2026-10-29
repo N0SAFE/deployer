@@ -184,11 +184,29 @@ Built and tested over real oRPC RPC peers (in-memory ports): unary, streams, red
   call is granted and followed directly, an unauthenticated call is refused, and a call pinned to another node is
   forwarded to that node's agent.
 
-Not built yet: byte accounting from the transport (the lease policy's bytes-per-second input is fed by nothing), the
+Not built yet: runtime and the other services joining the mesh (`@deployer/mesh-service` exists and is tested, but no
+service calls `joinMesh` yet), byte accounting from the transport (the lease policy's bytes-per-second input is fed by nothing), the
 bridge topology for large meshes (agents currently connect to every agent they learn of, which is the small-mesh
 design), the onboarding agent, services registering themselves with their agent (`replicaHeartbeat` exists, no
 service calls it), the per-service `external`/`peer`/`node` routers, a swarm global-mode deployment of the agent, and the
 removal of the old mesh code.
+
+## Alone first, swarm later
+
+An agent is useful the moment it starts, on a node that is not part of any swarm yet. Everything it keeps is in memory
+and nothing needs the swarm or a database: the directory, the key hints, the pooled links and the load counters. Two
+runtimes on one node register with their local agent and are resolved by key, locality and load, redirected between
+each other and relayed, exactly as in a cluster; there is simply nobody else to gossip with.
+
+Joining the swarm is a separate, later act: `roster.join { address }` (or `MESH_SEEDS` at boot) points the agent at any
+one agent of the swarm. The agent keeps that seed until it answers, so the swarm does not have to be up yet. The first
+exchange sends everything the agent already holds and brings back everything the swarm knows, so nothing is redone and
+nothing is lost, and the gossip rounds that follow keep both sides fresh. Because a node's own replicas are only ever
+taken from registration, never from a peer, joining cannot overwrite what the agent knows first-hand.
+
+The node id must outlive the join: it is `MESH_NODE_ID`, else the hostname, and replicas are stamped with it at every
+beat. If it changes (for example to the swarm's own node id once the node joins), the replicas re-register under the new
+id within one beat and the old records age out, so a change is safe but briefly shows the node twice.
 
 ## Agents
 

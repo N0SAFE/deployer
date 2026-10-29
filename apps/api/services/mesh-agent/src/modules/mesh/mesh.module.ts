@@ -18,6 +18,7 @@ import { LeaseSigner, leaseSignerOver } from "./services/lease-signer.service";
 import { MeshClock } from "./services/mesh-clock.service";
 import { NodeAgents } from "./services/node-agents.service";
 import { NodeIdentity } from "./services/node-identity.service";
+import { PendingSeeds } from "./services/pending-seeds.service";
 import { MeshRelay } from "./services/relay.service";
 import { ReplicaLinks, replicaLinksOver, withCredential } from "./services/replica-links.service";
 import { AdvertisedAddress, RosterGossip } from "./services/roster-gossip.service";
@@ -53,6 +54,7 @@ export class MeshDomainModule extends createModuleContext({
     { provide: NodeAgents, useValue: NodeAgents.live },
     { provide: AgentLoad, useValue: AgentLoad.live },
     { provide: RosterGossip, useValue: RosterGossip.live },
+    { provide: PendingSeeds, useValue: PendingSeeds.live },
     {
       provide: AdvertisedAddress,
       inject: [ConfigService],

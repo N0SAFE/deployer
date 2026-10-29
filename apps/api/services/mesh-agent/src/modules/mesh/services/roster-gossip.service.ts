@@ -1,22 +1,30 @@
 import { ORPCError } from "@orpc/client";
 import { Context, Effect } from "effect";
 
-import type { MeshRosterView } from "@deployer/mesh-agent-contracts";
+import type { AgentInfo, MeshRosterView } from "@deployer/mesh-agent-contracts";
 
 import { AgentLinkFactory } from "./agent-link-factory.service";
 import { MeshDirectory } from "./directory.service";
 import { NodeAgents } from "./node-agents.service";
 import { NodeIdentity } from "./node-identity.service";
+import { PendingSeeds } from "./pending-seeds.service";
 
 import type { MeshClock } from "./mesh-clock.service";
 import type { MeshDirectoryRepository } from "../repositories/directory.repository";
+
+export type SeedResult = {
+  /** The seed answered. */
+  readonly reached: boolean;
+  /** It taught this agent an agent it did not know. */
+  readonly learned: boolean;
+};
 
 const EXCHANGE_PATH = ["roster", "exchange"];
 
 /** Where this agent says it can be reached. Provided from the environment; absent when the agent is not advertised yet. */
 export class AdvertisedAddress extends Context.Service<AdvertisedAddress, { readonly address: string }>()("mesh-agent/AdvertisedAddress") {}
 
-type GossipDeps = MeshDirectory | NodeAgents | NodeIdentity | AdvertisedAddress | AgentLinkFactory | MeshDirectoryRepository | MeshClock;
+type GossipDeps = PendingSeeds | MeshDirectory | NodeAgents | NodeIdentity | AdvertisedAddress | AgentLinkFactory | MeshDirectoryRepository | MeshClock;
 
 export type RosterGossipShape = {
   /** Answers a peer's exchange: takes in what it knows, returns what this agent knows. */
@@ -24,7 +32,12 @@ export type RosterGossipShape = {
   /** One gossip round: exchanges with every known agent, and learns the agents they know of. Returns how many replicas changed. */
   readonly round: () => Effect.Effect<number, never, GossipDeps>;
   /** Learns the mesh from an agent at a known address: the way a fresh agent finds its first peer. */
-  readonly seed: (address: string) => Effect.Effect<boolean, never, GossipDeps>;
+  readonly seed: (address: string) => Effect.Effect<SeedResult, never, GossipDeps>;
+  /**
+   * Joins the swarm from now on: remembers the seed, tries it immediately, and keeps retrying it every round until it
+   * answers. Everything the agent already holds is sent in the first exchange, so nothing has to be redone.
+   */
+  readonly join: (address: string) => Effect.Effect<SeedResult & { readonly agents: readonly AgentInfo[] }, never, GossipDeps>;
 };
 
 const view = Effect.fn("RosterGossip.view")(function* () {
@@ -70,7 +83,10 @@ const exchangeOver = (link: { call: (path: string[], input: unknown, options: { 
       catch: (error) => (error instanceof ORPCError ? error : new Error(String(error))),
     });
     return yield* absorb(theirs);
-  }).pipe(Effect.catch(() => Effect.succeed(0)));
+  }).pipe(
+    Effect.map((changed): number | undefined => changed),
+    Effect.catch(() => Effect.succeed<number | undefined>(undefined)),
+  );
 
 /**
  * How the agents learn about each other and about every replica: periodic, symmetric exchanges of what each knows.
@@ -90,16 +106,28 @@ export class RosterGossip extends Context.Service<RosterGossip, RosterGossipShap
       const agents = yield* NodeAgents;
       let changed = 0;
       for (const agent of yield* agents.known()) {
-        changed += yield* exchangeOver(agent.link);
+        changed += (yield* exchangeOver(agent.link)) ?? 0;
       }
       return changed;
     }),
 
     seed: Effect.fn("RosterGossip.seed")(function* (address: string) {
       const factory = yield* AgentLinkFactory;
-      const before = (yield* (yield* NodeAgents).known()).length;
-      yield* exchangeOver(factory.linkTo(address));
-      return (yield* (yield* NodeAgents).known()).length > before;
+      const agents = yield* NodeAgents;
+      const before = (yield* agents.known()).length;
+      const outcome = yield* exchangeOver(factory.linkTo(address));
+      return { reached: outcome !== undefined, learned: (yield* agents.known()).length > before } satisfies SeedResult;
+    }),
+
+    join: Effect.fn("RosterGossip.join")(function* (address: string) {
+      const seeds = yield* PendingSeeds;
+      yield* seeds.add(address);
+      const result = yield* RosterGossip.live.seed(address);
+      if (result.reached) {
+        yield* seeds.reached(address);
+      }
+      const known = yield* (yield* NodeAgents).known();
+      return { ...result, agents: known.map(({ nodeId, address: where }) => ({ nodeId, address: where })) };
     }),
   };
 }

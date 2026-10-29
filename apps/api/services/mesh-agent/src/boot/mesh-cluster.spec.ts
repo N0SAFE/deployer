@@ -160,4 +160,37 @@ describe("mesh cluster over real sockets", () => {
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     await caller.closeAll();
   });
+
+  it("starts alone and fully working, then joins the swarm later without redoing anything", async () => {
+    const c = await bootAgent("node-c");
+    try {
+      await post(c, "/mesh/directory/register", { service: "billing", replicaId: "billing-1", address: replica.address, load: 0.6 });
+      await post(c, "/mesh/directory/register", { service: "billing", replicaId: "billing-2", address: replica.address, load: 0.1 });
+
+      // Alone: no seed, no peer, and it still serves both replicas of its own node from memory.
+      const alone = await post(c, "/mesh/directory/resolve", { service: "billing" });
+      expect(alone.status).toBe(200);
+      expect(await alone.json()).toMatchObject({ reason: "local-node", replica: { replicaId: "billing-2", nodeId: "node-c" } });
+      const noRuntime = await post(c, "/mesh/directory/resolve", { service: "runtime" });
+      expect(noRuntime.status).toBe(404);
+
+      // Later: it is pointed at the swarm. What it held reaches the swarm, and what the swarm knows reaches it.
+      const joined = await post(c, "/mesh/roster/join", { address: a.ws });
+      expect(joined.status).toBe(200);
+      expect(await joined.json()).toMatchObject({ learned: true });
+
+      await vi.waitFor(async () => {
+        const learned = await post(c, "/mesh/directory/resolve", { service: "runtime", key: "stream-1" });
+        expect(learned.status).toBe(200);
+        expect(await learned.json()).toMatchObject({ replica: { replicaId: "runtime-1", nodeId: "node-a" } });
+
+        const announced = await post(a, "/mesh/directory/resolve", { service: "billing" });
+        expect(announced.status).toBe(200);
+        expect(await announced.json()).toMatchObject({ replica: { nodeId: "node-c" } });
+      });
+    } finally {
+      await c.transport.stop();
+      await c.app.close();
+    }
+  });
 });

@@ -26,4 +26,18 @@ export class MeshRosterController {
       );
     });
   }
+
+  /** Points the agent at one agent of the swarm. It can be called at any time: the agent works alone until it is. */
+  @Implement(roster.join)
+  join() {
+    return implement(roster.join).use(MeshDomainModule[EffectContextOf]).effect(function* ({ input, context }) {
+      return yield* serveMeshPeer(context)(
+        Effect.gen(function* () {
+          const gossip = yield* RosterGossip;
+          const { learned, agents } = yield* gossip.join(input.address);
+          return { learned, agents: [...agents] };
+        }),
+      );
+    });
+  }
 }
