@@ -91,3 +91,30 @@ export function isMissingScanTableError(error: unknown): boolean {
 
   return false;
 }
+
+/** A stored scan is too old for the caller: `maxAgeMs` is set and the scan is older than it. An unreadable date never expires. */
+export function isScanOlderThan(scannedAt: string, maxAgeMs: number | null | undefined, now: number): boolean {
+  if (typeof maxAgeMs !== "number" || !Number.isFinite(maxAgeMs)) {
+    return false;
+  }
+  const scannedAtEpoch = Date.parse(scannedAt);
+  return Number.isFinite(scannedAtEpoch) && now - scannedAtEpoch > maxAgeMs;
+}
+
+/**
+ * Whether an image generation needs a scan: it has never been scanned, or its last scan is older than `maxAgeMs`
+ * (a missing or non-positive `maxAgeMs` means scans never go stale).
+ */
+export function shouldScanGeneration(
+  lastUpdated: Date | null,
+  maxAgeMs: number | undefined,
+  now: number,
+): boolean {
+  if (lastUpdated === null) {
+    return true;
+  }
+  if (typeof maxAgeMs !== "number" || !Number.isFinite(maxAgeMs) || maxAgeMs <= 0) {
+    return false;
+  }
+  return now - lastUpdated.getTime() > maxAgeMs;
+}

@@ -4,6 +4,7 @@ import { eq, inArray } from "drizzle-orm";
 import { Context, Effect } from "effect";
 
 import { RuntimeDatabasePort, RuntimeDb } from "../../../../../core/database/runtime-db";
+import { tolerateMissingScanTable } from "../security/tolerate-missing-scan-table";
 import { planAliveLifecycle } from "./image-lifecycle-plan";
 
 /** What the database layer reads while it runs. */
@@ -92,7 +93,7 @@ export class DockerImageLifecycleRepository extends Context.Service<
             .where(eq(dockerImageSecurityLifecycle.lifecycleState, "alive"));
           return rows.map((row) => row.imageIdentifierNormalized);
         }),
-      ),
+      ).pipe(tolerateMissingScanTable([] as string[])),
 
     markDeleted: (identifiers) =>
       identifiers.length === 0

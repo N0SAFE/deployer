@@ -118,7 +118,11 @@ import {
   DockerContainerLinksLookup,
   type DockerContainerLinksLookupShape,
 } from "../containers/links/docker-container-links-lookup.repository";
-import { computeScanHash, isMissingScanTableError, toPersistedScan } from "../images/security/scan-storage";
+import {
+  DockerImageScansStore,
+  type DockerImageScansStoreShape,
+} from "../images/security/docker-image-scans.store";
+import { computeScanHash, isScanOlderThan, shouldScanGeneration, toPersistedScan } from "../images/security/scan-storage";
 import type {
   ResolvedImageSecurityScan,
   DockerImageLifecycleUpsertResult,
@@ -144,7 +148,6 @@ export class DockerRepository {
   private localDockerDaemonId: string | null | undefined;
   private localDockerDaemonIdLoadPromise: Promise<string | null> | null = null;
   private readonly scanner: DockerImageScannerService;
-  private hasWarnedMissingSecurityScanTable = false;
 
   constructor(
     @Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape,
@@ -160,6 +163,7 @@ export class DockerRepository {
     @Inject(DockerImageLifecycleRepository) private readonly lifecycle: DockerImageLifecycleRepositoryShape = DockerImageLifecycleRepository.live,
     @Inject(DockerContainersRepository) private readonly containers: DockerContainersRepositoryShape = DockerContainersRepository.live,
     @Inject(DockerRuntimeActivitiesStore) private readonly activities: DockerRuntimeActivitiesStoreShape = DockerRuntimeActivitiesStore.live,
+    @Inject(DockerImageScansStore) private readonly scans: DockerImageScansStoreShape = DockerImageScansStore.live,
     @Inject(DockerContainerLinksLookup) private readonly linkLookup: DockerContainerLinksLookupShape = DockerContainerLinksLookup.live,
   ) {
     this.scanner = new DockerImageScannerService(dockerEngine, scannerPool, dockerHost, {
@@ -348,13 +352,9 @@ export class DockerRepository {
   ): Promise<ResolvedImageSecurityScan> {
     const inspect = await this.inspectImageWithCandidates(imageId);
 
-    const inspectId = typeof inspect.Id === "string" && inspect.Id.length > 0 ? inspect.Id : imageId;
-    const repoTags = toStringArray(inspect.RepoTags as string | string[] | undefined)
-      .filter((tag) => tag !== "<none>:<none>");
-
-    const scanTargets = [inspectId, ...repoTags]
-      .map((candidate) => candidate.trim())
-      .filter((candidate, index, all) => candidate.length > 0 && all.indexOf(candidate) === index);
+    const identity = identifyInspectedImage(inspect, imageId);
+    const inspectId = identity.inspectId;
+    const scanTargets = scanTargetsOf(identity);
 
     options.onEvent?.(buildScanEvent({
       imageId: inspectId,
@@ -388,28 +388,17 @@ export class DockerRepository {
   ): Promise<ResolvedImageSecurityScan | null> {
     const inspect = await this.inspectImageWithCandidates(imageId);
 
-    const inspectId = typeof inspect.Id === "string" && inspect.Id.length > 0 ? inspect.Id : imageId;
-    const repoTags = toStringArray(inspect.RepoTags as string | string[] | undefined)
-      .filter((tag) => tag !== "<none>:<none>");
-
-    const scanTargets = [inspectId, ...repoTags]
-      .map((candidate) => candidate.trim())
-      .filter((candidate, index, all) => candidate.length > 0 && all.indexOf(candidate) === index);
+    const identity = identifyInspectedImage(inspect, imageId);
+    const inspectId = identity.inspectId;
+    const scanTargets = scanTargetsOf(identity);
 
     const persisted = await this.readPersistedImageSecurityScan([inspectId, ...scanTargets]);
     if (!persisted) {
       return null;
     }
 
-    const maxAgeMs = options?.maxAgeMs;
-    if (typeof maxAgeMs === "number" && Number.isFinite(maxAgeMs)) {
-      const scannedAtEpoch = Date.parse(persisted.scanSummary.scannedAt);
-      if (Number.isFinite(scannedAtEpoch)) {
-        const ageMs = Date.now() - scannedAtEpoch;
-        if (ageMs > maxAgeMs) {
-          return null;
-        }
-      }
+    if (isScanOlderThan(persisted.scanSummary.scannedAt, options?.maxAgeMs, Date.now())) {
+      return null;
     }
 
     return {
@@ -431,37 +420,14 @@ export class DockerRepository {
   }> {
     const lifecycle = await this.ensureImageLifecycleAlive(imageId);
 
-    let existing: { id: string } | null = null;
-    try {
-      existing = await this.globalDatabaseService.db
-        .select({ id: dockerImageSecurityScans.id })
-        .from(dockerImageSecurityScans)
-        .where(and(
-          eq(dockerImageSecurityScans.imageIdentifierNormalized, lifecycle.imageIdentifierNormalized),
-          eq(dockerImageSecurityScans.imageGeneration, lifecycle.imageGeneration),
-        ))
-        .limit(1)
-        .then((rows) => rows[0] ?? null);
-    } catch (error: unknown) {
-      if (!isMissingScanTableError(error)) {
-        throw error;
-      }
-
-      this.warnMissingDockerSecurityScanTableOnce();
-      existing = null;
-    }
-
-    const maxAgeMs = options.maxAgeMs;
-    const isStale = await this.isImageGenerationScanStale(
-      lifecycle.imageIdentifierNormalized,
-      lifecycle.imageGeneration,
-      maxAgeMs,
+    const lastUpdated = await this.runOnDatabase(
+      this.scans.lastUpdated(lifecycle.imageIdentifierNormalized, lifecycle.imageGeneration),
     );
 
     return {
       imageIdentifierNormalized: lifecycle.imageIdentifierNormalized,
       imageGeneration: lifecycle.imageGeneration,
-      shouldScan: existing === null || isStale,
+      shouldScan: shouldScanGeneration(lastUpdated, options.maxAgeMs, Date.now()),
     };
   }
 
@@ -475,18 +441,7 @@ export class DockerRepository {
         .filter((id) => id.length > 0),
     )];
 
-    let aliveIdentifiers: string[];
-
-    try {
-      aliveIdentifiers = await this.runOnDatabase(this.lifecycle.listAlive());
-    } catch (error: unknown) {
-      if (!isMissingScanTableError(error)) {
-        throw error;
-      }
-
-      this.warnMissingDockerSecurityScanTableOnce();
-      return;
-    }
+    const aliveIdentifiers = await this.runOnDatabase(this.lifecycle.listAlive());
 
     const activeSet = new Set(normalizedActive);
     const toMarkDeleted = aliveIdentifiers.filter((identifier) => !activeSet.has(identifier));
@@ -626,43 +581,6 @@ export class DockerRepository {
     };
   }
 
-  private async isImageGenerationScanStale(
-    imageIdentifierNormalized: string,
-    imageGeneration: number,
-    maxAgeMs?: number,
-  ): Promise<boolean> {
-    if (typeof maxAgeMs !== "number" || !Number.isFinite(maxAgeMs) || maxAgeMs <= 0) {
-      return false;
-    }
-
-    let latest: { lastUpdated: Date } | null = null;
-    try {
-      latest = await this.globalDatabaseService.db
-        .select({ lastUpdated: dockerImageSecurityScans.lastUpdated })
-        .from(dockerImageSecurityScans)
-        .where(and(
-          eq(dockerImageSecurityScans.imageIdentifierNormalized, imageIdentifierNormalized),
-          eq(dockerImageSecurityScans.imageGeneration, imageGeneration),
-        ))
-        .limit(1)
-        .then((rows) => rows[0] ?? null);
-    } catch (error: unknown) {
-      if (!isMissingScanTableError(error)) {
-        throw error;
-      }
-
-      this.warnMissingDockerSecurityScanTableOnce();
-      return false;
-    }
-
-    if (!latest) {
-      return true;
-    }
-
-    const ageMs = Date.now() - latest.lastUpdated.getTime();
-    return ageMs > maxAgeMs;
-  }
-
   private async emitImageLifecycleRuntimeEvent(
     action: "create" | "delete",
     lifecycleEventType: "image_created" | "image_deleted" | "image_revived",
@@ -736,40 +654,8 @@ export class DockerRepository {
       return null;
     }
 
-    let persisted: {
-      vulnerabilities: unknown;
-      scanSummary: Record<string, unknown>;
-      imageGeneration: number;
-      lastUpdated: Date;
-    } | null;
-
-    try {
-      persisted = await this.globalDatabaseService.db
-        .select({
-          vulnerabilities: dockerImageSecurityScans.vulnerabilities,
-          scanSummary: dockerImageSecurityScans.scanSummary,
-          imageGeneration: dockerImageSecurityScans.imageGeneration,
-          lastUpdated: dockerImageSecurityScans.lastUpdated,
-        })
-        .from(dockerImageSecurityScans)
-        .where(inArray(dockerImageSecurityScans.imageIdentifierNormalized, normalizedCandidates))
-        .orderBy(desc(dockerImageSecurityScans.imageGeneration), desc(dockerImageSecurityScans.lastUpdated))
-        .limit(1)
-        .then((rows) => rows[0] ?? null);
-    } catch (error: unknown) {
-      if (!isMissingScanTableError(error)) {
-        throw error;
-      }
-
-      this.warnMissingDockerSecurityScanTableOnce();
-      return null;
-    }
-
-    if (!persisted) {
-      return null;
-    }
-
-    return toPersistedScan(persisted);
+    const persisted = await this.runOnDatabase(this.scans.findLatest(normalizedCandidates));
+    return persisted === null ? null : toPersistedScan(persisted);
   }
 
   private async persistImageSecurityScan(inspectId: string, scanResult: RawImageSecurityScan): Promise<void> {
@@ -778,57 +664,15 @@ export class DockerRepository {
       return;
     }
 
-    const now = new Date();
-    const scanHash = computeScanHash(lifecycle.imageIdentifierNormalized, lifecycle.imageGeneration, scanResult);
-
-    try {
-      await this.globalDatabaseService.db
-        .insert(dockerImageSecurityScanHistory)
-        .values({
-          imageId: inspectId,
-          imageIdentifierNormalized: lifecycle.imageIdentifierNormalized,
-          imageGeneration: lifecycle.imageGeneration,
-          scanHash,
-          vulnerabilities: scanResult.vulnerabilities,
-          scanSummary: scanResult.scanSummary,
-          scanStatus: "completed",
-          createdAt: now,
-        })
-        .onConflictDoNothing({
-          target: [dockerImageSecurityScanHistory.scanHash],
-        });
-
-      await this.globalDatabaseService.db
-        .insert(dockerImageSecurityScans)
-        .values({
-          imageId: inspectId,
-          imageIdentifierNormalized: lifecycle.imageIdentifierNormalized,
-          imageGeneration: lifecycle.imageGeneration,
-          vulnerabilities: scanResult.vulnerabilities,
-          scanSummary: scanResult.scanSummary,
-          scanStatus: "completed",
-          lastUpdated: now,
-          updatedAt: now,
-        })
-        .onConflictDoUpdate({
-          target: [dockerImageSecurityScans.imageIdentifierNormalized, dockerImageSecurityScans.imageGeneration],
-          set: {
-            imageId: inspectId,
-            imageGeneration: lifecycle.imageGeneration,
-            vulnerabilities: scanResult.vulnerabilities,
-            scanSummary: scanResult.scanSummary,
-            scanStatus: "completed",
-            lastUpdated: now,
-            updatedAt: now,
-          },
-        });
-    } catch (error: unknown) {
-      if (!isMissingScanTableError(error)) {
-        throw error;
-      }
-
-      this.warnMissingDockerSecurityScanTableOnce();
-    }
+    await this.runOnDatabase(
+      this.scans.save({
+        imageId: inspectId,
+        imageIdentifierNormalized: lifecycle.imageIdentifierNormalized,
+        imageGeneration: lifecycle.imageGeneration,
+        scanHash: computeScanHash(lifecycle.imageIdentifierNormalized, lifecycle.imageGeneration, scanResult),
+        scan: scanResult,
+      }),
+    );
   }
 
   /** Run a lifecycle query against the shared runtime database the Nest module owns. */
@@ -838,17 +682,6 @@ export class DockerRepository {
         Effect.provideService(RuntimeDb, RuntimeDb.live),
         Effect.provideService(RuntimeDatabasePort, this.globalDatabaseService),
       ),
-    );
-  }
-
-  private warnMissingDockerSecurityScanTableOnce(): void {
-    if (this.hasWarnedMissingSecurityScanTable) {
-      return;
-    }
-
-    this.hasWarnedMissingSecurityScanTable = true;
-    this.logger.warn(
-      "Table docker_image_security_scans is missing. Docker image security scan cache will be skipped until database migrations are applied.",
     );
   }
 
