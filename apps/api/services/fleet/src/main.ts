@@ -13,7 +13,7 @@ import {
 	bootstrapApiServer,
 } from "@deployer/shared/server";
 
-import { fleetServiceContract } from "@deployer/fleet-contracts";
+import { fleetServiceContract, meshEnrollmentContract } from "@deployer/fleet-contracts";
 import { joinServiceMeshOnNode } from "@deployer/mesh-service";
 import type { Server } from "node:http";
 
@@ -42,7 +42,7 @@ void bootstrapApiServer({
 })
 	.then((app) => {
 		// The port is bound and the dependencies are proven: take the service onto the mesh of its node, if it has an agent.
-		const membership = joinServiceMeshOnNode({ service: "fleet", port: PORT, server: app.getHttpServer() as Server, contracts: [fleetServiceContract] as never });
+		const membership = joinServiceMeshOnNode({ service: "fleet", port: PORT, server: app.getHttpServer() as Server, contracts: [fleetServiceContract, meshEnrollmentContract] as never });
 		(app.getHttpServer() as Server).once("close", () => void membership?.stop());
 	})
 	.catch((error: unknown) => {

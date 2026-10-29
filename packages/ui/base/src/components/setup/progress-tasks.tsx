@@ -103,7 +103,7 @@ const CANONICAL_STEP_ORDER: readonly string[] = [
   'choose_strategy',
   'reachability_check',
   'configure_account',
-  'remote_auth',
+  'agent_join',
   'version_check',
   // Engine first: the swarm-managed Postgres is a swarm SERVICE.
   'initialize_swarm',

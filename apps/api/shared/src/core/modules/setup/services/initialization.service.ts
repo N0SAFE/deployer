@@ -1,5 +1,4 @@
 import { runSyncUnwrapped } from "@deployer/effect-core";
-import { AppError } from "@deployer/errors";
 import { Injectable, Logger, type OnModuleInit, Inject } from '@nestjs/common'
 import { Pool } from 'pg'
 import { ReplaySubject, firstValueFrom, interval, map, merge, Observable } from 'rxjs'
@@ -14,9 +13,6 @@ import { RemoteInitializationService } from './remote-initialization.service'
 import { SetupEventService } from './setup-event.service'
 import { SetupStepTracker } from '../utils/setup-runner.utils'
 import type { EmitEvent } from '../utils/setup-runner.utils'
-import { runStep } from '../utils/setup-runner.utils'
-import { ReachabilityService } from '../../reachability/services/reachability.service'
-import { MeshInitializationService } from '../../mesh/initialization/services/mesh-initialization.service'
 import { AppLifecycle, type AppLifecycleShape } from "@deployer/lifecycle";
 
 
@@ -55,8 +51,6 @@ export class InitializationService implements OnModuleInit {
         private readonly localInitializationService: LocalInitializationService,
         private readonly remoteInitializationService: RemoteInitializationService,
         private readonly setupEventService: SetupEventService,
-        private readonly meshInitializationService: MeshInitializationService,
-        private readonly reachabilityService: ReachabilityService,
         /**
          * Advanced to READY when setup completes — see `emitCompleted`.
          *
@@ -76,30 +70,6 @@ export class InitializationService implements OnModuleInit {
         // Perform the eager setup check that may have been skipped by
         // the pool factory (run during construction, before onModuleInit).
         this.checkConfigAndEmit()
-
-        // Remote strategy: attempt mesh reconnection after the config check.
-        // This is an async operation that only applies on the full lifecycle.
-        // The peer service token persisted at bootstrap time is forwarded so
-        // the reconnection can hit authenticated peer endpoints without
-        // re-enrolling. If the token is missing (e.g. legacy config from
-        // before the column existed), we fall back to a no-token connect
-        // which only exposes the public ping endpoint.
-        const config = runSyncUnwrapped(this.nodeConfigRepository.find())
-        if (config?.configuredAt && config.strategy === 'remote' && config.meshUrlsSnapshot?.length) {
-            const persistedToken = config.peerServiceToken?.trim() ?? ""
-            for (const url of config.meshUrlsSnapshot) {
-                try {
-                    await this.meshInitializationService.connectToMesh(url, {
-                        peerServiceToken: persistedToken.length > 0 ? persistedToken : undefined,
-                    })
-                    this.logger.log(`✅ Reconnected to mesh at ${url}`)
-                    break
-                } catch (err: unknown) {
-                    const message = err instanceof Error ? err.message : String(err)
-                    this.logger.warn(`Failed to connect to mesh URL ${url}: ${message}`)
-                }
-            }
-        }
     }
 
     /**
@@ -363,14 +333,7 @@ export class InitializationService implements OnModuleInit {
         input: Extract<SetupInitializeInput, { strategy: 'remote' }>,
         tracker: SetupStepTracker,
         emit: EmitEvent,
-    ): Promise<{ nodeId: string; databaseUrl: string }> {        await runStep(tracker, emit, 'reachability_check', 'Check mesh reachability', async (stepLog) => {
-            stepLog(`Probing mesh URL ${input.meshUrl}…`)
-            const result = await this.reachabilityService.checkMeshUrlReachability(input.meshUrl)
-            if (!result.reachable) {
-                throw new AppError('Mesh URL is not reachable', 'INTERNAL_ERROR')
-            }
-            stepLog('✅ Mesh node is reachable')
-        })
+    ): Promise<{ nodeId: string; databaseUrl: string }> {
         return await this.remoteInitializationService.initialize(
             input,
             tracker,

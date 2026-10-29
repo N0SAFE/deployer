@@ -6,8 +6,6 @@ import type {
   SetupPostSetupDestination,
   SetupPostSetupVerification,
   SetupProbeDbResult,
-  SetupProbeMeshResult,
-  SetupRemoteAuthResult,
 } from "@deployer/contracts-entities";
 
 import { SetupGateService } from "./setup-gate.service";
@@ -25,8 +23,6 @@ import { SetupPhaseService } from "@/modules/health/setup-phase.service";
  * a field the API adds is visible here, and one it removes is a compile error.
  */
 type ProbeDbBody = SetupProbeDbResult;
-type ProbeMeshBody = SetupProbeMeshResult;
-type RemoteAuthBody = SetupRemoteAuthResult;
 
 /**
  * The setup app's wizard surface, as an oRPC contract router.
@@ -89,24 +85,6 @@ export class WizardController {
       status: 201 as const,
       headers: {},
       body: await this.forwardJson<ProbeDbBody>("/setup/probe/database", "POST", input),
-    }));
-  }
-
-  @Implement(setupAppContract.probeMesh)
-  probeMesh() {
-    return implement(setupAppContract.probeMesh).handler(async ({ input }) => ({
-      status: 201 as const,
-      headers: {},
-      body: await this.forwardJson<ProbeMeshBody>("/setup/probe/mesh", "POST", input),
-    }));
-  }
-
-  @Implement(setupAppContract.remoteAuth)
-  remoteAuth() {
-    return implement(setupAppContract.remoteAuth).handler(async ({ input }) => ({
-      status: 201 as const,
-      headers: {},
-      body: await this.forwardJson<RemoteAuthBody>("/setup/remote/auth", "POST", input),
     }));
   }
 

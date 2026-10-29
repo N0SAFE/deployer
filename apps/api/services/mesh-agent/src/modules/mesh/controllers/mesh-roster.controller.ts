@@ -46,6 +46,19 @@ export class MeshRosterController {
     });
   }
 
+  /** Whether a join token is this swarm's and still good. Asked by the services on this node, never answered with the credential. */
+  @Implement(roster.check)
+  check() {
+    return implement(roster.check).use(MeshDomainModule[EffectContextOf]).effect(function* ({ input, context }) {
+      return yield* serveMeshPeer(context)(
+        Effect.gen(function* () {
+          const tokens = yield* JoinTokens;
+          return { valid: yield* tokens.check(input.token) };
+        }),
+      );
+    });
+  }
+
   /** Issues a token for a new node to join this agent's swarm. */
   @Implement(roster.token)
   token() {

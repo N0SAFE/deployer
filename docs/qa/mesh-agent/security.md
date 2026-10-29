@@ -17,3 +17,11 @@
 **A**: "i dont understand this point find the best way to do it with a perfect structure and a production ready code". Decision taken: a mesh credential, no database. The agent keeps the standard transport and replaces Better Auth with the `x-mesh-credential` header, checked in constant time against `MESH_AGENT_SECRET`.
 
 ---
+
+## Enrollment authorization (2026-10-29)
+
+**Q**: Move the setup flow's enrollment onto the agent's `roster.join`.
+
+**A**: Move enrollment. The join token is the authorization; the fleet checks it with its own agent (`roster.check`) because only the agent holds the swarm's credential. No user session or shared secret is handed to the joiner, and a revoked-before-expiry token is not built yet.
+
+---

@@ -41,6 +41,8 @@ export type JoinTokensShape = {
    * gossips with it at once. The credential is installed before the first connection, so that connection already
    * carries it.
    */
+  /** Whether `token` was issued by this agent's swarm and is still good. Never reveals the credential. */
+  readonly check: (token: string) => Effect.Effect<boolean, never, SwarmCredential | MeshClock>;
   readonly redeem: (token: string) => Effect.Effect<SeedResult & { readonly swarmId: string }, MeshJoinRejected | AgentStoreError, Deps>;
 };
 
@@ -58,6 +60,13 @@ export class JoinTokens extends Context.Service<JoinTokens, JoinTokensShape>()("
       }
       const expiresAt = clock.now() + ttlMs;
       return { token: encodeJoinToken({ address: advertised.address, secret: credential.current(), swarmId, expiresAt }), expiresAt };
+    }),
+
+    check: Effect.fn("JoinTokens.check")(function* (encoded: string) {
+      const credential = yield* SwarmCredential;
+      const clock = yield* MeshClock;
+      const decoded = decodeJoinToken(encoded, clock.now());
+      return decoded.ok && decoded.token.secret === credential.current() && decoded.token.swarmId === credential.swarmId();
     }),
 
     redeem: Effect.fn("JoinTokens.redeem")(function* (encoded: string) {

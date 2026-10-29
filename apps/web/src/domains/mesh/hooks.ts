@@ -28,12 +28,6 @@ export function useMeshPeers(options?: { enabled?: boolean }) {
   );
 }
 
-export function useMeshPeerSessions(options?: { enabled?: boolean }) {
-  return useQuery(
-    { ...meshEndpoints.listPeerSessions.queryOptions({ input: {} }), enabled: options?.enabled ?? true, refetchInterval: false },
-  );
-}
-
 type MeshListEventStreamsInput = Parameters<typeof meshEndpoints.listEventStreams.queryOptions>[0]["input"];
 
 /** Only fetch when the stream id is a real UUID — never a `:id` template placeholder. */

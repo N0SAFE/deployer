@@ -35,6 +35,20 @@ describe("JoinTokens", () => {
     });
   });
 
+  describe("check", () => {
+    it("accepts a token of this swarm and refuses another swarm's, an expired one and garbage", async () => {
+      const a = meshFixture({ nodeId: "A", now: 1_000, advertise: "ws://a", secret: "the-swarm-secret", swarmId: "swarm-1" });
+      const token = (over: Partial<{ secret: string; swarmId: string; expiresAt: number }> = {}) =>
+        encodeJoinToken({ address: "ws://a", secret: "the-swarm-secret", swarmId: "swarm-1", expiresAt: 100_000, ...over });
+
+      expect(await a.run(JoinTokens.live.check(token()))).toBe(true);
+      expect(await a.run(JoinTokens.live.check(token({ secret: "other" })))).toBe(false);
+      expect(await a.run(JoinTokens.live.check(token({ swarmId: "swarm-2" })))).toBe(false);
+      expect(await a.run(JoinTokens.live.check(token({ expiresAt: 500 })))).toBe(false);
+      expect(await a.run(JoinTokens.live.check("not-a-token"))).toBe(false);
+    });
+  });
+
   describe("redeem", () => {
     const issuedBy = (swarmId = "swarm-1") => encodeJoinToken({ address: "ws://a", secret: "the-swarm-secret", swarmId, expiresAt: 100_000 });
 

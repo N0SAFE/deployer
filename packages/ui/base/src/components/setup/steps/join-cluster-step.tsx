@@ -58,33 +58,16 @@ const JOINING_POLICIES: SwarmPolicyDocument[] = [
   },
 ];
 
-/** Derive the cluster's swarm control-plane address from its mesh URL. */
-function controlPlaneFromMeshUrl(meshUrl: string): string {
-  const trimmed = meshUrl.trim();
-  if (trimmed === "") return "";
-  try {
-    const host = new URL(trimmed.includes("://") ? trimmed : `http://${trimmed}`).hostname;
-    return host === "" ? "" : `${host}:2377`;
-  } catch {
-    return "";
-  }
-}
-
 type Props = {
   initial: SwarmParticipationDraft;
-  /** The cluster URL entered in the previous step — used to prefill the
-   *  control-plane address the swarm join needs. */
-  meshUrl: string;
   onBack?: () => void;
   onContinue: (draft: SwarmParticipationDraft) => void;
 };
 
-export function JoinClusterStep({ initial, meshUrl, onBack, onContinue }: Props) {
-  const suggestedAddress = controlPlaneFromMeshUrl(meshUrl);
+export function JoinClusterStep({ initial, onBack, onContinue }: Props) {
   const [draft, setDraft] = useState<SwarmParticipationDraft>({
     ...initial,
     mode: "join",
-    joinAddrs: initial.joinAddrs || suggestedAddress,
   });
 
   return (
@@ -94,16 +77,14 @@ export function JoinClusterStep({ initial, meshUrl, onBack, onContinue }: Props)
           Your role in the cluster
         </h2>
         <p className="text-sm text-muted-foreground leading-relaxed text-pretty">
-          This node joins the Swarm cluster that{" "}
-          <span className="font-medium text-foreground">{suggestedAddress || "the cluster"}</span>{" "}
-          already runs — it never starts a cluster of its own.
+          This node joins the Swarm cluster the fleet already runs — it never starts a cluster of its own.
         </p>
       </div>
 
       <div className="rounded-lg border bg-muted/30 px-4 py-3 text-xs text-muted-foreground flex gap-2 items-start">
         <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" aria-hidden="true" />
         <span>
-          Node identity, database and mesh credentials are inherited from the cluster during setup.
+          Node identity, database and swarm credentials are inherited from the fleet during setup.
           Swarm joins after setup completes.
         </span>
       </div>

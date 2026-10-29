@@ -69,35 +69,6 @@ export function useProbeDatabase() {
   });
 }
 
-/**
- * Test a mesh URL — instant feedback, no side effects.
- * The contract wraps the result in `{ status: 201, body: ... }`, so unwrap `.body`.
- */
-export function useProbeMesh() {
-  return useMutation({
-    mutationFn: async (meshUrl: string) => {
-      const res = await setupEndpoints.probeMesh.call({ meshUrl });
-      return res.body;
-    },
-  });
-}
-
-// ─── Remote auth (step before remote initialize) ──────────────────────────────
-
-/**
- * Authenticate against a remote mesh node.
- * Returns an authToken used in the initialize call.
- * The contract wraps the result in `{ status: 201, body: ... }`, so unwrap `.body`.
- */
-export function useRemoteAuth() {
-  return useMutation({
-    mutationFn: async (input: { meshUrl: string; username: string; password: string }) => {
-      const res = await setupEndpoints.remoteAuth.call(input);
-      return res.body;
-    },
-  });
-}
-
 // ─── Trigger initialization ──────────────────────────────────────────────────
 
 /**
@@ -182,20 +153,17 @@ export function useInitializeStream(options?: { enabled?: boolean }) {
 /**
  * Do the API and the dashboard REALLY answer through the cluster ingress?
  *
- * Polled while enabled, and NOT retried by TanStack: a failed call is itself part
- * of the answer (the API is legitimately unreachable for a moment mid-swap) and
- * the wizard shows it as "still waiting" while the next poll tries again.
+ * Streamed while enabled: the server re-evaluates every 2 s and pushes ONLY when
+ * the verdict changes, which is the same cadence the wizard used to poll at —
+ * without a 2 s request per tab. A failed evaluation is dropped server-side and
+ * retried, so the wizard stays on "still waiting" rather than on a stale answer.
  */
 export function usePostSetupVerification(options?: { enabled?: boolean }) {
-  return useQuery({
-    queryKey: [...setupKeys.all, 'verification'] as const,
-    queryFn: async () => await setupEndpoints.getPostSetupVerification.call({}),
-    enabled: options?.enabled ?? false,
-    refetchInterval: 2_000,
-    retry: false,
-    staleTime: 0,
-    gcTime: 0,
-  });
+  return useQuery(
+    setupEndpoints.getPostSetupVerificationStream.experimental_liveObservableOptions({
+      enabled: options?.enabled ?? false,
+    }),
+  );
 }
 
 /**

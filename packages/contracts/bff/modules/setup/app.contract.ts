@@ -8,10 +8,6 @@ import {
     setupStreamEventSchema,
     setupProbeDbInputSchema,
     setupProbeDbResultSchema,
-    setupProbeMeshInputSchema,
-    setupProbeMeshResultSchema,
-    setupRemoteAuthInputSchema,
-    setupRemoteAuthResultSchema,
     nodeConfigStatusSchema,
     listHintsResultSchema,
     setupPostSetupDestinationSchema,
@@ -38,8 +34,6 @@ import {
  *   | getState           | answered locally (node_config)  | from DB + auth  |
  *   | getNodeStatus      | answered locally                | from DB         |
  *   | probeDatabase      | forwarded to the API            | executes        |
- *   | probeMesh          | forwarded to the API            | executes        |
- *   | remoteAuth         | forwarded to the API            | executes        |
  *   | triggerInitialize  | FORWARDED **and opens the gate**| executes        |
  *   | getInitializeStream| setup's own orchestration stream| provisioning SSE|
  *
@@ -65,8 +59,6 @@ import {
 const setupAppOps = standard.zod(setupStateSnapshotSchema, "setupAppState");
 const setupAppNodeStatusOps = standard.zod(nodeConfigStatusSchema, "setupAppNodeStatus");
 const setupAppProbeDbOps = standard.zod(setupProbeDbResultSchema, "setupAppProbeDb");
-const setupAppProbeMeshOps = standard.zod(setupProbeMeshResultSchema, "setupAppProbeMesh");
-const setupAppRemoteAuthOps = standard.zod(setupRemoteAuthResultSchema, "setupAppRemoteAuth");
 const setupAppHintsOps = standard.zod(listHintsResultSchema, "setupAppHints");
 const setupAppDestinationOps = standard.zod(setupPostSetupDestinationSchema, "setupAppDestination");
 const setupAppVerificationOps = standard.zod(setupPostSetupVerificationSchema, "setupAppVerification");
@@ -159,23 +151,9 @@ export const setupAppContract = oc
             .build(),
 
         /** Test a mesh URL before submitting (remote flow, Step 2). */
-        probeMesh: setupAppProbeMeshOps
-            .create()
-            .path("/probe/mesh")
-            .input((b) => b.body(setupProbeMeshInputSchema))
-            .output((b) => b.body(setupProbeMeshResultSchema))
-            .errors((e) => setupAppErrorContracts(e))
-            .build(),
-
+    
         /** Authenticate against a remote mesh node. */
-        remoteAuth: setupAppRemoteAuthOps
-            .create()
-            .path("/remote/auth")
-            .input((b) => b.body(setupRemoteAuthInputSchema))
-            .output((b) => b.body(setupRemoteAuthResultSchema))
-            .errors((e) => setupAppErrorContracts(e))
-            .build(),
-
+    
         // ─── Trigger (opens the gate, then forwards) ─────────────────────────
 
         /**

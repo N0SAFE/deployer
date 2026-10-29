@@ -13,8 +13,6 @@ export const setupEndpoints = {
 	getState: orpc.setup.getState,
 	getNodeStatus: orpc.setup.getNodeStatus,
 	probeDatabase: orpc.setup.probeDatabase,
-	probeMesh: orpc.setup.probeMesh,
-	remoteAuth: orpc.setup.remoteAuth,
 	triggerInitialize: orpc.setup.triggerInitialize,
 	getInitializeStream: orpc.setup.getInitializeStream,
 	listPostSetupHints: orpc.setup.listPostSetupHints,

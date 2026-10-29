@@ -20,7 +20,7 @@ import type {
  * moved components kept their exact shape:
  *
  *   useSetupState / useTriggerInitialize / useInitializeStream  → read + drive setup
- *   useProbeDatabase / useProbeMesh / useRemoteAuth             → pre-flight probes
+ *   useProbeDatabase                                           → pre-flight probe
  */
 export interface SetupWizardApi {
 	/**
@@ -64,42 +64,6 @@ export interface SetupWizardApi {
 			databaseUrl: string,
 			options?: {
 				onSuccess?: (result: { reachable: boolean; latencyMs?: number; error?: string }) => void;
-				onError?: (error: unknown) => void;
-			},
-		) => void;
-		isPending?: boolean;
-	};
-
-	/** Probe a mesh URL without side effects. */
-	useProbeMesh: () => {
-		mutate: (
-			meshUrl: string,
-			options?: {
-				onSuccess?: (result: {
-					reachable: boolean;
-					latencyMs?: number;
-					advertisedHost?: string;
-					version?: string;
-					error?: string;
-				}) => void;
-				onError?: (error: unknown) => void;
-			},
-		) => void;
-		isPending?: boolean;
-	};
-
-	/** Authenticate against a remote mesh node, returning an auth token. */
-	useRemoteAuth: () => {
-		mutate: (
-			input: { meshUrl: string; username: string; password: string },
-			options?: {
-				onSuccess?: (result: {
-					authToken: string;
-					userId: string;
-					email: string;
-					meshUrl: string;
-					latencyMs?: number;
-				}) => void;
 				onError?: (error: unknown) => void;
 			},
 		) => void;

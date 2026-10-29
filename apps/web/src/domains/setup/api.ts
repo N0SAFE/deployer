@@ -12,8 +12,6 @@ import type { SetupWizardApi } from "@deployer/ui/components/setup/types";
 import {
 	useInitializeStream,
 	useProbeDatabase,
-	useProbeMesh,
-	useRemoteAuth,
 	usePostSetupVerification,
 	useSetupState,
 	useTriggerInitialize,
@@ -28,8 +26,6 @@ export const setupApi: SetupWizardApi = {
 	useTriggerInitialize,
 	useInitializeStream,
 	useProbeDatabase,
-	useProbeMesh,
-	useRemoteAuth,
 	usePostSetupVerification,
 	signInWithEmail,
 	getErrorMessage,

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { createORPCClient } from "@orpc/client";
 import type { ContractRouterClient } from "@orpc/contract";
 import { OpenAPILink } from "@orpc/openapi/fetch";
-import { meshContract, meshInternalContract, type MeshContract, type MeshInternalContract } from "@deployer/fleet-contracts";
+import { meshContract, type MeshContract } from "@deployer/fleet-contracts";
 import {
     meshJoinGrantConsumeResultSchema,
     meshJoinGrantIssueResultSchema,
@@ -24,8 +24,8 @@ import { toMeshWebSocketUrl } from "../../shared/utils/mesh-server-url.utils";
  * transport surface (consumeJoinGrant — the enrollment handshake). Merging
  * the two routers gives one typed client for the whole mesh-to-mesh API.
  */
-export type MeshClientContract = MeshContract & MeshInternalContract;
-const meshClientRouter = { ...meshContract, ...meshInternalContract };
+export type MeshClientContract = MeshContract;
+const meshClientRouter = meshContract;
 
 export type MeshSetupSession = {
     readonly remoteNodeId: string;
@@ -45,37 +45,6 @@ export type MeshSetupSession = {
      */
     readonly peerServiceTokenExpiresAt: string | null;
     close(): Promise<void>;
-}
-
-export type MeshBootstrapConfig = {
-    /** The nodeId generated locally and accepted by the mesh */
-    nodeId: string;
-    databaseUrl: string;
-    enrolledAt: string;
-    /**
-     * Long-lived peer service token the local node should use on every
-     * subsequent peer-to-peer mesh call. Persist in
-     * `NodeConfigRepository` so the token survives restarts.
-     * Null when the remote mesh has no shared secret configured.
-     */
-    peerServiceToken: string | null;
-    peerServiceTokenExpiresAt: string | null;
-    /**
-     * SWARM join credentials + the FLEET's role decision for this node, or
-     * null when the target mesh has no converged swarm to hand over (this node
-     * then defers its own convergence instead of founding a rival cluster).
-     */
-    swarmGrant: MeshSwarmJoinGrant | null;
-    /** The mesh roster admitting this node, or null when none was offered. */
-    meshAdmission: { roster: unknown } | null;
-    /**
-     * The mesh shared secret that all nodes in the cluster share.
-     * Used by `requireMesh()` / `requireInternalMesh()` to verify peer
-     * credentials. Persisted in `NodeConfigRepository.meshSharedSecret`
-     * so the node can validate requests across restarts.
-     * Null when the remote mesh has no shared secret configured.
-     */
-    meshSharedSecret: string | null;
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -105,135 +74,6 @@ export type MeshBootstrapConfig = {
 export class MeshInitializationService {
 
     // ─── Bootstrap ────────────────────────────────────────────────────────────
-
-    /**
-     * Full bootstrap flow for a new node joining a cluster:
-     *  1. Validate connectivity to the remote mesh
-     *  2. Generate a local nodeId (UUID)
-     *  3. Consume the join grant → mesh validates and returns
-     *     { databaseUrl, enrolledAt, peerServiceToken, peerServiceTokenExpiresAt }
-     *
-     * @param meshUrl    - Base URL of any node in the target cluster
-     * @param grantToken - One-time join grant token issued by the mesh admin
-     * @param serverUrl  - Public URL of this node (so the mesh can reach us back)
-     */
-    async bootstrap(
-        meshUrl: string,
-        grantToken: string,
-        serverUrl: string,
-        requestedSwarmPolicy?: "auto" | "manager" | "worker",
-        /** This node's signed mesh entry, when the target has a mesh to join. */
-        meshJoinRequest?: MeshJoinGrantConsumeInput["meshJoinRequest"],
-    ): Promise<MeshBootstrapConfig> {
-        const normalized = this.normalizeUrl(meshUrl);
-        await this.validateRemoteMesh(normalized.origin);
-
-        // Generate a fresh UUID for this node.
-        // The mesh will register it under this ID — must be persisted after.
-        const nodeId = randomUUID();
-
-        // First call uses no peer service token (we don't have one yet).
-        // We MUST present the mesh-internal shared secret as
-        // `X-Mesh-Internal-Key` so the peer's `requireInternalMesh()`
-        // middleware accepts the call. The peer's controller comment
-        // says it accepts the "legacy `requireInternalMesh()` channel
-        // here" — both the signed v1 path and the bare-secret path work,
-        // we choose v1 for replay protection.
-        const sharedSecret = this.resolveSharedSecret();
-        const preEnrollmentHeaders = sharedSecret
-            ? { "x-mesh-internal-key": signMeshToken(sharedSecret) }
-            : undefined;
-        const preEnrollmentClient = this.createRemoteClient(
-            normalized.origin,
-            preEnrollmentHeaders,
-        );
-
-        const body = await preEnrollmentClient.consumeJoinGrant({
-            grantToken,
-            nodeId,
-            serverUrl,
-            // The role THIS node asks for. The mesh answers with what it
-            // actually grants (`result.swarmGrant.role`) — a node requesting
-            // "auto" is a candidate, not an entitlement.
-            requestedSwarmPolicy,
-            meshJoinRequest,
-        });
-        // The response crosses a trust boundary (remote mesh node) — validate
-        // it through the contract's output schema so the types are truthful.
-        const result = meshJoinGrantConsumeResultSchema.parse(body);
-
-        const peerServiceToken = result.peerServiceToken;
-        const peerServiceTokenExpiresAt = result.peerServiceTokenExpiresAt;
-        const meshSharedSecret = result.meshSharedSecret;
-
-        return {
-            nodeId:      result.nodeId,
-            databaseUrl: result.databaseUrl,
-            enrolledAt:  result.enrolledAt,
-            peerServiceToken,
-            peerServiceTokenExpiresAt,
-            meshSharedSecret,
-            swarmGrant:  result.swarmGrant,
-            meshAdmission: result.meshAdmission,
-        };
-    }
-
-    /**
-     * Issue a one-time join grant on a remote mesh node using an
-     * authenticated Better Auth session.
-     *
-     * This is the first half of the two-step bootstrap for a remote
-     * strategy node:
-     *   1. Issue a grant on the remote mesh (requires auth session)
-     *   2. Consume the grant via {@link bootstrap} (uses mesh internal key)
-     *
-     * The returned `grantToken` is a short random string that the
-     * remote mesh stores as a hashed lookup — it is **not** a session
-     * token or any user-facing credential.
-     *
-     * @param meshUrl      - Base URL of any node in the target cluster
-     * @param authSession  - Better Auth session token obtained by signing
-     *   in to the remote mesh via its `/api/auth/sign-in/email` endpoint.
-     *   Can be passed as a raw token value (e.g. `"session-abc"`) or as a
-     *   full `name=value` cookie pair (e.g.
-     *   `"better-auth.session_token=abc"`). Raw values are automatically
-     *   wrapped in the standard Better Auth cookie name.
-     * @returns The grant token to pass to {@link bootstrap}, and the mesh the
-     *   joiner must sign its entry for (null when the target has no mesh).
-     */
-    async issueRemoteJoinGrant(
-        meshUrl: string,
-        authSession: string,
-    ): Promise<{ grantToken: string; meshNetwork: MeshNetworkCluster | null }> {
-        const normalized = this.normalizeUrl(meshUrl)
-
-        // Normalize the session token into a proper Cookie header.
-        // Better Auth's `getSession()` reads the session token from the
-        // `better-auth.session_token` cookie.  The remoteAuth handler
-        // may return the token as a raw value (from `result.token`) or
-        // as a full `name=value` pair (from `Set-Cookie`).  Ensure we
-        // always present it in cookie-name:value format.
-        const sessionCookie = authSession.includes("=")
-            ? authSession
-            : `better-auth.session_token=${authSession}`
-
-        // Authenticated client — sends the Better Auth session cookie so
-        // the remote mesh's `requireAuth()` middleware accepts the call.
-        const authClient = this.createRemoteClient(normalized.origin, {
-            Cookie: sessionCookie,
-        })
-
-        const body = await authClient.issueJoinGrant({
-            targetNodeId: null,
-            ttlSeconds: 900,
-            metadata: null,
-        })
-        // The remote mesh's contract output is validated at the boundary —
-        // parse through the shared Zod schema instead of casting.
-        const result = meshJoinGrantIssueResultSchema.parse(body)
-
-        return { grantToken: result.grantToken, meshNetwork: result.meshNetwork }
-    }
 
     // ─── Session ──────────────────────────────────────────────────────────────
 
@@ -279,53 +119,6 @@ export class MeshInitializationService {
     }
 
     // ─── Node URLs ────────────────────────────────────────────────────────────
-
-    /**
-     * Retrieves all known peer endpoint URLs from the remote mesh.
-     * Filters out the local node's own URL to avoid self-connection.
-     *
-     * @param meshUrl           - Base URL of any node in the target cluster
-     * @param localNodeId       - The local node's ID (to exclude from results)
-     * @param peerServiceToken  - Optional peer service token (forwarded
-     *   from the bootstrap result). Without it, the peer's
-     *   `getLocalNode` / `listPeerSessions` calls would 401.
-     */
-    async getMeshNodeUrls(
-        meshUrl: string,
-        localNodeId: string,
-        peerServiceToken?: string | null,
-    ): Promise<string[]> {
-        const session = await this.connectToMesh(meshUrl, { peerServiceToken });
-        try {
-            const [localNode, peerSessions] = await Promise.all([
-                session.client.getLocalNode({}),
-                session.client.listPeerSessions({}),
-            ]);
-
-            const nodeUrls = new Set<string>();
-
-            for (const entry of peerSessions.items) {
-                if (typeof entry.endpointUrl === "string" && entry.endpointUrl.length > 0) {
-                    nodeUrls.add(entry.endpointUrl);
-                }
-            }
-
-            if (typeof localNode.nodeId === "string" && localNode.nodeId.length > 0) {
-                const localPeerSession = peerSessions.items.find(
-                    (entry) => entry.peerNodeId === localNode.nodeId,
-                );
-                if (typeof localPeerSession?.endpointUrl === "string") {
-                    nodeUrls.add(localPeerSession.endpointUrl);
-                }
-            }
-
-            return [...nodeUrls].filter(
-                (url) => !toMeshWebSocketUrl(url).includes(localNodeId),
-            );
-        } finally {
-            await session.close();
-        }
-    }
 
     // ─── Private helpers ──────────────────────────────────────────────────────
 

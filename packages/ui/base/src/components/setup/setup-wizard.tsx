@@ -6,8 +6,7 @@ import { QueryClientProvider } from "@tanstack/react-query"
 import type { SetupStreamEvent } from "@deployer/contracts-entities"
 import { StepIndicator } from "@deployer/ui/components/setup/step-indicator"
 import { ModeStep } from "@deployer/ui/components/setup/steps/mode-step"
-import { RemoteUrlStep } from "@deployer/ui/components/setup/steps/remote-url-step"
-import { RemoteAuthStep } from "@deployer/ui/components/setup/steps/remote-auth-step"
+import { RemoteTokenStep } from "@deployer/ui/components/setup/steps/remote-token-step"
 import { ProgressStep, type ProgressStepContext } from "@deployer/ui/components/setup/steps/progress-step"
 import { LocalAccountStep } from "@deployer/ui/components/setup/steps/local-account-step"
 import { LocalDatabaseStep } from "@deployer/ui/components/setup/steps/local-database-step"
@@ -29,8 +28,7 @@ import type { SetupWizardApi } from "@deployer/ui/components/setup/types"
 
 type WizardStep =
   | "mode"
-  | "remote-url"
-  | "remote-auth"
+  | "remote-token"
   | "join-cluster"
   | "remote-progress"
   | "cluster"
@@ -43,8 +41,8 @@ interface WizardState {
   step: WizardStep
   mode: "local" | "remote" | null
   remote: {
-    meshUrl: string
-    authToken: string | null
+    /** The join token issued on a node of the fleet. */
+    token: string
   }
   local: {
     username: string
@@ -66,7 +64,7 @@ interface WizardState {
 const initialState: WizardState = {
   step: "mode",
   mode: null,
-  remote: { meshUrl: "", authToken: null },
+  remote: { token: "" },
   local: { username: "", email: "", password: "", dbMode: "managed", dbUrl: "" },
   // Swarm is always on: a founding node starts a cluster, so `create` is the
   // default entry mode (the mode itself is implied per wizard branch).
@@ -78,7 +76,7 @@ const initialState: WizardState = {
   recovery: false,
 }
 
-const remoteLabels = ["Mode", "Mesh URL", "Authenticate", "Cluster", "Setup", "Done"]
+const remoteLabels = ["Mode", "Join token", "Cluster", "Setup", "Done"]
 const localLabels = ["Mode", "Cluster", "Database", "Account", "Setup", "Done"]
 const defaultLabels = ["Mode", "Configure", "Verify", "Setup", "Done"]
 
@@ -170,7 +168,7 @@ function SetupWizardContent({ api }: SetupWizardProps) {
     setState((s) => ({
       ...s,
       mode,
-      step: mode === "remote" ? "remote-url" : "cluster",
+      step: mode === "remote" ? "remote-token" : "cluster",
     }))
   }, [])
 
@@ -182,21 +180,13 @@ function SetupWizardContent({ api }: SetupWizardProps) {
     }))
   }, [])
 
-  const handleRemoteUrlContinue = useCallback((data: { url: string }) => {
-    setState((s) => ({
-      ...s,
-      step: "remote-auth",
-      remote: { ...s.remote, meshUrl: data.url },
-    }))
-  }, [])
-
-  // Auth succeeded → ask which ROLE this node takes in the cluster before
+  // The token is in hand → ask which ROLE this node takes in the cluster before
   // starting (the join itself is triggered from that step).
-  const handleRemoteAuth = useCallback((data: { authToken: string }) => {
+  const handleRemoteToken = useCallback((data: { token: string }) => {
     setState((s) => ({
       ...s,
       step: "join-cluster",
-      remote: { ...s.remote, ...data },
+      remote: { token: data.token },
     }))
   }, [])
 
@@ -208,12 +198,11 @@ function SetupWizardContent({ api }: SetupWizardProps) {
         swarm: draft,
       }))
       setStreamRequested(true)
-      const { authToken, meshUrl } = state.remote
-      if (authToken && meshUrl) {
+      const { token } = state.remote
+      if (token) {
         triggerInit.mutate({
           strategy: "remote",
-          meshUrl,
-          authToken,
+          token,
           serverUrl: apiBaseUrl(),
           swarm: joinDraftToSelection(draft),
           ...(state.managedWeb === null ? {} : { managedWeb: state.managedWeb }),
@@ -321,34 +310,21 @@ function SetupWizardContent({ api }: SetupWizardProps) {
           <ModeStep initialMode={state.mode} onContinue={handleModeContinue} />
         ) : null}
 
-        {state.step === "remote-url" ? (
-          <RemoteUrlStep
-            api={api}
-            initialUrl={state.remote.meshUrl}
+        {state.step === "remote-token" ? (
+          <RemoteTokenStep
+            initialToken={state.remote.token}
             onBack={() => {
               setState((s) => ({ ...s, step: "mode" }))
             }}
-            onContinue={handleRemoteUrlContinue}
-          />
-        ) : null}
-
-        {state.step === "remote-auth" ? (
-          <RemoteAuthStep
-            api={api}
-            meshUrl={state.remote.meshUrl}
-            onBack={() => {
-              setState((s) => ({ ...s, step: "remote-url" }))
-            }}
-            onAuthenticated={handleRemoteAuth}
+            onContinue={handleRemoteToken}
           />
         ) : null}
 
         {state.step === "join-cluster" ? (
           <JoinClusterStep
             initial={state.swarm}
-            meshUrl={state.remote.meshUrl}
             onBack={() => {
-              setState((s) => ({ ...s, step: "remote-auth" }))
+              setState((s) => ({ ...s, step: "remote-token" }))
             }}
             onContinue={handleJoinClusterContinue}
           />
@@ -360,7 +336,7 @@ function SetupWizardContent({ api }: SetupWizardProps) {
               api={api}
               events={events}
               reconnecting={initializeStream.reconnecting}
-              context={{ mode: "remote", meshUrl: state.remote.meshUrl } satisfies ProgressStepContext}
+              context={{ mode: "remote" } satisfies ProgressStepContext}
             />
             {error ? (
               <Alert variant="destructive" className="mt-4">
@@ -457,8 +433,7 @@ function getStepIndex(state: WizardState): { current: number; total: number } {
   if (state.mode === "remote") {
     const order: WizardStep[] = [
       "mode",
-      "remote-url",
-      "remote-auth",
+      "remote-token",
       "join-cluster",
       "remote-progress",
       "complete",

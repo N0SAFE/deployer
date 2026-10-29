@@ -15,8 +15,6 @@ import {
 	usePostSetupVerification,
 	retryHandover,
 	useProbeDatabase,
-	useProbeMesh,
-	useRemoteAuth,
 	useSetupState,
 	useTriggerInitialize,
 } from "@/views/setup-adapters/hooks";
@@ -29,8 +27,6 @@ export const setupApi: SetupWizardApi = {
 	useTriggerInitialize,
 	useInitializeStream,
 	useProbeDatabase,
-	useProbeMesh,
-	useRemoteAuth,
 	signInWithEmail,
 	getErrorMessage,
 	// The page is served by the API, so provisioning calls target the page's

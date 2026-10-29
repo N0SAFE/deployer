@@ -343,70 +343,28 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
   });
 
   // ═════════════════════════════════════════════════════════════════════════
-  //  SCENARIO 4: CACHED + MESH URLS — BACKGROUND QUERY
+  //  SCENARIO 4: CACHED REMOTE CONFIG — THE AGENT REJOINS, NOT THE SETUP
   // ═════════════════════════════════════════════════════════════════════════
 
-  describe('Scenario 4: Cached config with mesh URLs', () => {
-    const CACHED_WITH_MESH = {
-      nodeId: TEST_NODE_ID,
-      strategy: 'remote' as const,
-      databaseUrl: TEST_DB_URL,
-      configuredAt: '2024-06-01T00:00:00.000Z',
-      setupState: 'setup_done',
-      deployerVersion: '1.0.0',
-      meshUrlsSnapshot: ['https://mesh-1.example.com'],
-      peerServiceToken: 'peer-token-1',
-      updatedAt: '2024-06-01T00:00:00.000Z',
-    };
-
-    const mockSession = {
-      remoteNodeId: 'remote-node-1',
-      remoteBaseUrl: 'https://mesh-1.example.com',
-      client: {
-        getLocalNode: vi.fn().mockResolvedValue({
-          nodeId: 'remote-node-1',
-          databaseUrl: 'postgres://mesh-db:5432/cluster',
-        }),
-        ping: vi.fn(),
-      },
-      peerServiceToken: 'peer-token-1',
-      peerServiceTokenExpiresAt: '2025-01-01T00:00:00.000Z',
-      close: vi.fn(),
-    };
-
+  describe('Scenario 4: Cached remote config', () => {
     beforeEach(() => {
-      mockNodeConfigRepo._seed(CACHED_WITH_MESH);
+      mockNodeConfigRepo._seed({
+        nodeId: TEST_NODE_ID,
+        strategy: 'remote' as const,
+        databaseUrl: TEST_DB_URL,
+        configuredAt: '2024-06-01T00:00:00.000Z',
+        setupState: 'setup_done',
+        deployerVersion: '1.0.0',
+        meshUrlsSnapshot: [],
+        updatedAt: '2024-06-01T00:00:00.000Z',
+      });
     });
 
-    it('fires background mesh query with peer service token', async () => {
-      const connectSpy = mockMeshInit.connectToMesh;
-      if (!connectSpy) throw new Error('connectToMesh mock not seeded');
-      vi.mocked(connectSpy).mockRejectedValue(new Error('Mesh unreachable'));
-      // The mesh reconnect runs in onModuleInit() for remote-strategy configs
-      // (checkConfigAndEmit() only emits completion, it does not connect).
+    it('completes from the cached database URL without dialling the fleet: the node\'s agent rejoins by itself', async () => {
       await module.init();
-      expect(connectSpy).toHaveBeenCalledWith(
-        'https://mesh-1.example.com',
-        expect.objectContaining({ peerServiceToken: 'peer-token-1' }),
-      );
-    });
-
-    it('does NOT block on mesh query (fire-and-forget)', async () => {
-      // The mesh query runs in background; waitForSetup should still
-      // resolve immediately from the cached URL.
-      const connectSpy = mockMeshInit.connectToMesh;
-      if (!connectSpy) throw new Error('connectToMesh mock not seeded');
-      vi.mocked(connectSpy).mockImplementation(
-        () => new Promise((resolve) => setTimeout(resolve, 10_000))
-      );
-      // Start the lifecycle without awaiting the mesh query; waitForSetup must
-      // still resolve immediately from the cached database URL.
-      const initPromise = module.init();
       const result = await service.waitForSetup();
       expect(result.databaseUrl).toBe(TEST_DB_URL);
-      expect(connectSpy).toHaveBeenCalled();
-      // Keep the dangling init promise from surfacing as an unhandled rejection.
-      initPromise.catch(() => undefined);
+      expect(result.strategy).toBe('remote');
     });
   });
 

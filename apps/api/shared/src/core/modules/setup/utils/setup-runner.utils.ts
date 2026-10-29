@@ -95,8 +95,7 @@ export type LocalStepId = (typeof LOCAL_STEP_IDS)[number];
  * — see `remote-initialization.service.ts`.
  */
 export const REMOTE_STEP_IDS = [
-    "reachability_check",
-    "remote_auth",
+    "agent_join",
     "provision_database",
     "ensure_empty",
     "run_migrations",

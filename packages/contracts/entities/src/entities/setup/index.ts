@@ -19,7 +19,7 @@ export const setupStepIdSchema = z.enum([
     "choose_strategy",
     "reachability_check",
     "configure_account",
-    "remote_auth",
+    "agent_join",
     "version_check",
     // Founds the cluster BEFORE provisioning: the locally-managed global
     // Postgres is a swarm service, so the engine must already be a cluster.
@@ -136,8 +136,11 @@ export type SetupInitializeLocalInput = z.infer<typeof setupInitializeLocalInput
 
 export const setupInitializeRemoteInputSchema = z.object({
     strategy: z.literal("remote"),
-    meshUrl: z.url(),
-    authToken: z.string().min(1),
+    /**
+     * The join token issued on a node of the fleet (Nodes → Add a node). It carries where to find the swarm and the
+     * credential that proves membership, so it is the only thing the operator brings.
+     */
+    token: z.string().min(1),
     serverUrl: z.url(),
     /**
      * Swarm role this JOINING node takes in the existing cluster. `mode` is
@@ -348,48 +351,6 @@ export const setupProbeDbResultSchema = z.object({
     error:      z.string().optional(),
 });
 export type SetupProbeDbResult = z.infer<typeof setupProbeDbResultSchema>;
-
-export const setupProbeMeshInputSchema = z.object({
-    meshUrl: z.url(),
-});
-export type SetupProbeMeshInput = z.infer<typeof setupProbeMeshInputSchema>;
-
-export const setupProbeMeshResultSchema = z.object({
-    reachable:  z.boolean(),
-    /**
-     * The public URL the peer advertises to other nodes (derived from
-     * the peer's APP_URL). Surfaces in the wizard's reachability detail
-     * so the user can confirm the right node answered.
-     */
-    advertisedHost: z.string().optional(),
-    version:    z.string().optional(),
-    latencyMs:  z.number().optional(),
-    error:      z.string().optional(),
-});
-export type SetupProbeMeshResult = z.infer<typeof setupProbeMeshResultSchema>;
-
-// ─── Remote mock auth ─────────────────────────────────────────────────────────
-
-export const setupRemoteAuthInputSchema = z.object({
-    meshUrl:  z.url(),
-    username: z.string().min(1),
-    password: z.string().min(1),
-});
-export type SetupRemoteAuthInput = z.infer<typeof setupRemoteAuthInputSchema>;
-
-export const setupRemoteAuthResultSchema = z.object({
-    authToken: z.string(),
-    userId:    z.string(),
-    email:     z.string(),
-    meshUrl:   z.string(),
-    /**
-     * Round-trip latency in milliseconds observed during the
-     * credential probe. Optional — only set when the controller
-     * surfaced it (used by the UI for live "valid · 87ms" feedback).
-     */
-    latencyMs: z.number().optional(),
-});
-export type SetupRemoteAuthResult = z.infer<typeof setupRemoteAuthResultSchema>;
 
 // ─── Post-setup hints ─────────────────────────────────────────────────────────
 

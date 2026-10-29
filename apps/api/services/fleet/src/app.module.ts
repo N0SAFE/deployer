@@ -18,6 +18,7 @@ import { createBetterAuth } from "@deployer/shared/config/auth/auth";
 
 import { ClusterModule } from "./modules/cluster/cluster.module";
 import { FleetModule } from "./modules/fleet/fleet.module";
+import { EnrollmentModule } from "./modules/enrollment/enrollment.module";
 import { MeshViewModule } from "./modules/mesh-view/mesh-view.module";
 import { MeshCoreModule } from "@deployer/shared/core/modules/mesh/mesh-core.module";
 // ── THE NODE INVENTORY: WHAT MAKES `/nodes/servers` NON-EMPTY ──────────────
@@ -123,6 +124,8 @@ registerSchemaCodecs();
 		MeshCoreModule,
 		// The mesh as the dashboard sees it, read from the node's agent.
 		MeshViewModule,
+		// Takes a node that holds a join token into the fleet.
+		EnrollmentModule,
 		// Enrolls this node into `cluster_nodes` on boot and keeps the fleet
 		// inventory fresh. See the import comment above for what breaks without it.
 		SwarmInventoryModule,

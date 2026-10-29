@@ -1,13 +1,9 @@
 import { runSyncUnwrapped } from "@deployer/effect-core";
-import { MeshAdmissionService } from "../../mesh-agent/mesh-admission.service";
 import { Controller, Inject } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
-import { meshContract, meshInternalContract } from "@deployer/fleet-contracts";
-import type { MeshDuplexStreamOutput } from "@deployer/contracts-entities";
-import { Observable } from "rxjs";
-import { observableToAsyncIterable, asyncIterableToObservable } from "../../../utils/observable.utils";
-import { requireAuth, requireMesh } from "../../auth/orpc/middlewares";
+import { meshContract } from "@deployer/fleet-contracts";
+import { requireAuth } from "../../auth/orpc/middlewares";
 import { AllowAnonymous } from "../../auth/decorators/decorators";
 import { CoreEventSyncService } from "../../events/services/core-event-sync.service";
 import { SystemMeshTopologyService } from "../services/system-mesh-topology/orchestrator/system-mesh-topology.service";
@@ -15,21 +11,13 @@ import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { SystemMetrics, type SystemMetricsShape } from "@deployer/system-metrics";
 import { EnvService } from "../../../../config/env/env.module";
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
-import { SwarmJoinGrant, type SwarmJoinGrantShape } from "@deployer/swarm"
-import { signPeerServiceToken } from "@deployer/auth/mesh";
 import * as crypto from "node:crypto";
 import { Client } from "pg";
 
 /**
- * Mesh Controller — serves the mesh control-plane.
- *
- * Two surfaces:
- *  - `meshContract` (PUBLIC): information + management for authenticated
- *    dashboard users (peers, sessions, trust, node config, streams). All
- *    handlers use `requireAuth()` (a logged-in user session).
- *  - `meshInternalContract` (PRIVATE): mesh-to-mesh transport endpoints
- *    that may ONLY be called inside the mesh. All handlers use
- *    `requireMesh()` (peer service token / internal key).
+ * Mesh Controller — what is left of the old mesh control plane: the ping, the node's metrics, the event streams and the
+ * node configuration. The nodes, replicas and join tokens are served by fleet's `MeshViewController`, and a joining
+ * node is enrolled by its `EnrollmentController`. All handlers but the ping use `requireAuth()`.
  *
  * The catch-all resource dispatcher (`POST /mesh/:entityKey/:methodName`) is
  * implemented separately by `MeshResourceController`.
@@ -42,29 +30,7 @@ export class MeshController {
         @Inject(SystemMetrics) private readonly systemMetrics: SystemMetricsShape,
         private readonly envService: EnvService,
         @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
-        /** Builds the FLEET's swarm role decision for a joining node. */
-        @Inject(SwarmJoinGrant) private readonly swarmJoinGrant: SwarmJoinGrantShape,
-        /** Admits the joiner into the peer-equal network in the same exchange. */
-        private readonly meshAdmission: MeshAdmissionService,
     ) {}
-
-    // ─── Auth context helpers ──────────────────────────────────────────────
-
-
-    private resolveAuthActor(context: unknown): { userId: string | null; role: string | null } {
-        const authContext =
-            context && typeof context === "object" && "auth" in context
-                ? (context as { auth?: { user?: { id?: unknown; role?: unknown } | null } }).auth
-                : undefined;
-
-        const userId = authContext?.user?.id;
-        const role = authContext?.user?.role;
-
-        return {
-            userId: typeof userId === "string" && userId.length > 0 ? userId : null,
-            role: typeof role === "string" && role.length > 0 ? role : null,
-        };
-    }
 
     private resolveAdvertisedHost(): string | null {
         const candidate = this.envService.get("APP_URL")?.toString().trim()
@@ -108,17 +74,6 @@ export class MeshController {
     }
 
 
-    @Implement(meshContract.listPeerSessions)
-    listPeerSessions() {
-        return implement(meshContract.listPeerSessions)
-            .use(requireAuth())
-            .handler(() => {
-                return this.meshTopologyService.listPeerSessions();
-            });
-    }
-
-
-
 
     // ─── PUBLIC: streams (requireAuth) ────────────────────────────────────
 
@@ -160,36 +115,7 @@ export class MeshController {
 
     // ─── PUBLIC: enrollment grants (requireAuth — admin actor) ────────────
 
-    @Implement(meshContract.issueJoinGrant)
-    issueJoinGrant() {
-        return implement(meshContract.issueJoinGrant)
-            .use(requireAuth())
-            .handler(async ({ input, context }) => {
-                const actor = this.resolveAuthActor(context);
-                const grant = await this.meshTopologyService.issueJoinGrant({
-                    ...input,
-                    issuedByUserId: actor.userId ?? "unknown",
-                    issuedByRole: actor.role,
-                });
-                // The joiner must sign its mesh entry for THIS cluster before it
-                // can be admitted, so the grant tells it which one.
-                return { ...grant, meshNetwork: await this.meshAdmission.clusterForGrant() };
-            });
-    }
 
-    @Implement(meshContract.revokeJoinGrant)
-    revokeJoinGrant() {
-        return implement(meshContract.revokeJoinGrant)
-            .use(requireAuth())
-            .handler(async ({ input, context }) => {
-                const actor = this.resolveAuthActor(context);
-                return this.meshTopologyService.revokeJoinGrant({
-                    ...input,
-                    revokedByUserId: actor.userId ?? "unknown",
-                    revokedByRole: actor.role,
-                });
-            });
-    }
 
     // ─── PUBLIC: trust keyring + strict mode (requireAuth) ────────────────
 
@@ -361,62 +287,6 @@ export class MeshController {
 
 
 
-    @Implement(meshInternalContract.registerNode)
-    registerNode() {
-        return implement(meshInternalContract.registerNode)
-            .use(requireMesh())
-            .handler(async ({ input }) => {
-                return this.meshTopologyService.registerNodeInCluster(input);
-            });
-    }
 
-    @Implement(meshInternalContract.consumeJoinGrant)
-    @AllowAnonymous()
-    consumeJoinGrant() {
-        return implement(meshInternalContract.consumeJoinGrant)
-            .handler(async ({ input }) => {
-                const result = await this.meshTopologyService.consumeJoinGrant(input);
 
-                const meshSharedSecret =
-                    runSyncUnwrapped(this.nodeConfigRepository.getMeshSharedSecret())
-                    ?? this.envService.get("MESH_STREAM_SHARED_SECRET")?.toString().trim()
-                    ?? process.env.MESH_STREAM_SHARED_SECRET?.trim()
-                    ?? null;
-
-                // SWARM GRANT — the fleet, not the joiner, decides the role.
-                // Promoting a node into the Raft quorum is a cluster-wide
-                // decision (quorum size, election weight, blast radius), so it
-                // is answered HERE, by the node that already owns the cluster.
-                // The joiner converges its engine from this response, which is
-                // why a node can neither promote itself nor found a rival swarm.
-                const swarmGrant = await runPromiseUnwrapped(this.swarmJoinGrant.buildGrant(input.requestedSwarmPolicy));
-
-                // MESH ADMISSION — this node's agent admits the joiner's signed
-                // entry. Any member can do it; the operator was authorised above.
-                const meshAdmission =
-                    input.meshJoinRequest === undefined ? null : await this.meshAdmission.admit(input.meshJoinRequest);
-
-                if (!meshSharedSecret) {
-                    return {
-                        ...result,
-                        peerServiceToken: null,
-                        peerServiceTokenExpiresAt: null,
-                        meshSharedSecret: null,
-                        swarmGrant,
-                        meshAdmission,
-                    };
-                }
-
-                const issued = signPeerServiceToken(meshSharedSecret, result.nodeId);
-
-                return {
-                    ...result,
-                    peerServiceToken: issued.token,
-                    peerServiceTokenExpiresAt: issued.expiresAt,
-                    meshSharedSecret,
-                    swarmGrant,
-                    meshAdmission,
-                };
-            });
-    }
 }

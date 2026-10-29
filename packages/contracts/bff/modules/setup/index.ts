@@ -8,10 +8,6 @@ import {
     setupStreamEventSchema,
     setupProbeDbInputSchema,
     setupProbeDbResultSchema,
-    setupProbeMeshInputSchema,
-    setupProbeMeshResultSchema,
-    setupRemoteAuthInputSchema,
-    setupRemoteAuthResultSchema,
     nodeConfigStatusSchema,
     listHintsResultSchema,
     dismissHintInputSchema,
@@ -28,8 +24,6 @@ import {
 const setupStateOps    = standard.zod(setupStateSnapshotSchema, "setupState");
 const setupNodeStatusOps = standard.zod(nodeConfigStatusSchema, "setupNodeStatus");
 const setupProbeDbOps  = standard.zod(setupProbeDbResultSchema, "setupProbeDb");
-const setupProbeMeshOps = standard.zod(setupProbeMeshResultSchema, "setupProbeMesh");
-const setupRemoteAuthOps = standard.zod(setupRemoteAuthResultSchema, "setupRemoteAuth");
 const setupInitializeOps = standard.zod(setupInitializeLocalResultSchema, "setupInitialize");
 const setupListHintsOps = standard.zod(listHintsResultSchema, "setupListHints");
 const setupDestinationOps = standard.zod(setupPostSetupDestinationSchema, "setupPostSetupDestination");
@@ -98,13 +92,6 @@ export const setupContract = oc.meta(openapi({ tags: ["Setup"], prefix: "/setup"
         .build(),
 
     /** Test a mesh URL before submitting (remote flow, Step 2) */
-    probeMesh: setupProbeMeshOps
-        .create()
-        .path("/probe/mesh")
-        .input((b) => b.body(setupProbeMeshInputSchema))
-        .output((b) => b.body(setupProbeMeshResultSchema))
-        .errors((e) => setupDomainErrorContracts(e))
-        .build(),
 
     // ─── Remote auth ─────────────────────────────────────────────────────────
 
@@ -112,13 +99,6 @@ export const setupContract = oc.meta(openapi({ tags: ["Setup"], prefix: "/setup"
      * Authenticate against a remote mesh node.
      * Returns an authToken (= join grant token) forwarded to `initialize`.
      */
-    remoteAuth: setupRemoteAuthOps
-        .create()
-        .path("/remote/auth")
-        .input((b) => b.body(setupRemoteAuthInputSchema))
-        .output((b) => b.body(setupRemoteAuthResultSchema))
-        .errors((e) => setupDomainErrorContracts(e))
-        .build(),
 
     // ─── Trigger initialization (returns immediately) ────────────────────────
 
@@ -218,6 +198,21 @@ export const setupContract = oc.meta(openapi({ tags: ["Setup"], prefix: "/setup"
         .path("/post-setup/verification")
         .input((b) => b.body(z.object({}).optional()))
         .output((b) => b.body(setupPostSetupVerificationSchema))
+        .errors((e) => setupDomainErrorContracts(e))
+        .build(),
+
+    /**
+     * SSE sibling of `getPostSetupVerification` — same (empty) arguments.
+     *
+     * The wizard polls this every 2 s while the ingress is being replaced; the
+     * stream re-evaluates server-side and pushes only when the verdict changes,
+     * so an idle wizard holds one connection and renders nothing new.
+     */
+    getPostSetupVerificationStream: setupVerificationOps
+        .list()
+        .path("/post-setup/verification/stream")
+        .input((b) => b.query(z.object({}).optional()))
+        .output((b) => b.observable(setupPostSetupVerificationSchema))
         .errors((e) => setupDomainErrorContracts(e))
         .build(),
 });

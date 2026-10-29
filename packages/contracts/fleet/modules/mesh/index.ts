@@ -1,10 +1,10 @@
 export * from "./resource";
+export * from "./enrollment";
 
 import z from "zod/v4";
 import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
 import {
-        meshDomainErrorContracts,
     standard,
     type ComputeInputSchema,
 } from "@deployer/orpc-utils";
@@ -18,18 +18,9 @@ import {
     meshAgentJoinTokenResultSchema,
     coreEventStreamDefinitionSchema,
     coreSyncedEventEnvelopeSchema,
-    meshPeerSessionsListResultSchema,
     meshPingResultSchema,
     meshStreamReplayQuerySchema,
     systemMetricsSnapshotSchema,
-    meshJoinGrantIssueInputSchema,
-    meshJoinGrantIssueResultSchema,
-    meshJoinGrantConsumeInputSchema,
-    meshJoinGrantConsumeResultSchema,
-    meshRegisterNodeInputSchema,
-    meshRegisterNodeResultSchema,
-    meshJoinGrantRevokeInputSchema,
-    meshJoinGrantRevokeResultSchema,
     meshNodeConfigSchema,
     meshNodeConfigUpdateInputSchema,
     meshNodeConfigUpdateResultSchema,
@@ -55,7 +46,6 @@ const meshAgentSnapshotOps = standard.zod(meshAgentSnapshotSchema, "meshAgentSna
 const meshAgentLookupOps = standard.zod(meshAgentLookupResultSchema, "meshAgentLookup");
 const meshAgentJoinTokenOps = standard.zod(meshAgentJoinTokenResultSchema, "meshAgentJoinToken");
 const meshSystemMetricsOps = standard.zod(systemMetricsSnapshotSchema, "meshSystemMetrics");
-const meshPeerSessionsListOps = standard.zod(meshPeerSessionsListResultSchema, "meshPeerSessionsList");
 const meshPingOps = standard.zod(meshPingResultSchema, "meshPing");
 const meshEventStreamByIdOps = standard.zod(coreEventStreamDefinitionSchema, "meshEventStreamById");
 const meshStreamSubscribeOps = standard.zod(coreSyncedEventEnvelopeSchema, "meshStreamSubscribe");
@@ -63,10 +53,6 @@ const meshStreamSubscribeOps = standard.zod(coreSyncedEventEnvelopeSchema, "mesh
 
 
 
-const meshJoinGrantIssueOps = standard.zod(meshJoinGrantIssueResultSchema, "meshJoinGrantIssue");
-const meshJoinGrantConsumeOps = standard.zod(meshJoinGrantConsumeResultSchema, "meshJoinGrantConsume");
-const meshRegisterNodeOps = standard.zod(meshRegisterNodeResultSchema, "meshRegisterNode");
-const meshJoinGrantRevokeOps = standard.zod(meshJoinGrantRevokeResultSchema, "meshJoinGrantRevoke");
 const meshNodeConfigOps = standard.zod(meshNodeConfigSchema, "meshNodeConfig");
 const meshNodeConfigUpdateOps = standard.zod(meshNodeConfigUpdateResultSchema, "meshNodeConfigUpdate");
 const meshNodeConfigRegenerateSecretOps = standard.zod(
@@ -113,13 +99,6 @@ export const meshListPeersContract = meshAgentNodesOps
     .output(meshAgentNodesResultSchema)
     .build();
 
-export const meshListPeerSessionsContract = meshPeerSessionsListOps
-    .list()
-    .path("/peers/sessions")
-    .input(z.object({}))
-    .output(meshPeerSessionsListResultSchema)
-    .build();
-
 export const meshListEventStreamsContract = meshEventStreamOps.list(meshEventStreamListConfigSchemas).build();
 
 export const meshFindEventStreamByIdContract = meshEventStreamByIdOps
@@ -160,35 +139,6 @@ export const meshLookupResourceContract = meshAgentLookupOps
     .output(meshAgentLookupResultSchema)
     .build();
 
-export const meshIssueJoinGrantContract = meshJoinGrantIssueOps
-    .create()
-    .path("/enrollment/grants/issue")
-    .input((b) => b.body(meshJoinGrantIssueInputSchema))
-    .output(() => meshJoinGrantIssueResultSchema)
-    .build();
-
-export const meshConsumeJoinGrantContract = meshJoinGrantConsumeOps
-    .create()
-    .path("/enrollment/grants/consume")
-    .input((b) => b.body(meshJoinGrantConsumeInputSchema))
-    .output(() => meshJoinGrantConsumeResultSchema)
-    .errors((e) => [
-        // The bootstrap handoff throws MeshNotFoundError when the grant
-        // has been revoked / already used / never existed. The HTTP
-        // exception filter turns this into 404 + MeshDomainErrorPayload
-        // automatically — declaring it here gives the typed client a
-        // typed catch path.
-        ...meshDomainErrorContracts(e),
-    ])
-    .build();
-
-export const meshRegisterNodeContract = meshRegisterNodeOps
-    .create()
-    .path("/enrollment/register")
-    .input((b) => b.body(meshRegisterNodeInputSchema))
-    .output(() => meshRegisterNodeResultSchema)
-    .build();
-
 /**
  * Issues the token a new node redeems with its own agent (`roster.join`) to join the swarm. The grant above is the
  * enrollment of the setup flow, which this replaces when onboarding moves onto the agent.
@@ -198,18 +148,6 @@ export const meshIssueJoinTokenContract = meshAgentJoinTokenOps
     .path("/enrollment/tokens/issue")
     .input((b) => b.body(meshAgentJoinTokenInputSchema))
     .output(meshAgentJoinTokenResultSchema)
-    .build();
-
-export const meshRevokeJoinGrantContract = meshJoinGrantRevokeOps
-    .create()
-    .path("/enrollment/grants/revoke")
-    .input((b) => b.body(meshJoinGrantRevokeInputSchema))
-    .output(() => meshJoinGrantRevokeResultSchema)
-    .errors((e) => [
-        // Throws MeshNotFoundError (when the grant id doesn't exist) and
-        // MeshAuthorizationError (when the caller isn't super-admin).
-        ...meshDomainErrorContracts(e),
-    ])
     .build();
 
 export const meshGetNodeConfigContract = meshNodeConfigOps
@@ -245,16 +183,13 @@ export const meshContract = oc.meta(openapi({ tags: ["Core Mesh"], prefix: "/mes
     getLocalNode: meshGetLocalNodeContract,
     getNodeMetrics: meshGetNodeMetricsContract,
     listPeers: meshListPeersContract,
-    listPeerSessions: meshListPeerSessionsContract,
     listEventStreams: meshListEventStreamsContract,
     findEventStreamById: meshFindEventStreamByIdContract,
     subscribeEventStream: meshStreamSubscribeContract,
     membershipSnapshot: meshMembershipSnapshotContract,
     streamTopology: meshTopologyStreamContract,
     lookupResource: meshLookupResourceContract,
-    issueJoinGrant: meshIssueJoinGrantContract,
     issueJoinToken: meshIssueJoinTokenContract,
-    revokeJoinGrant: meshRevokeJoinGrantContract,
     getNodeConfig: meshGetNodeConfigContract,
     updateNodeConfig: meshUpdateNodeConfigContract,
     regenerateNodeConfigSecret: meshRegenerateNodeConfigSecretContract,
@@ -263,19 +198,3 @@ export const meshContract = oc.meta(openapi({ tags: ["Core Mesh"], prefix: "/mes
 
 export type MeshContract = typeof meshContract;
 
-/**
- * `meshInternalContract` (PRIVATE) — mesh-to-mesh transport surface.
- *
- * These endpoints are ONLY callable inside the mesh (peer service token /
- * internal key via `requireMesh()`), never by dashboard users. They are
- * deliberately NOT part of `appContract` (see `packages/contracts/api/index.ts`)
- * and NOT reachable through the public web client. The mesh-to-mesh client in
- * `mesh-initialization.service.ts` merges this router with `meshContract` to
- * get one typed client for the whole mesh API.
- */
-export const meshInternalContract = oc.meta(openapi({ tags: ["Core Mesh Internal"], prefix: "/mesh" })).router({
-    registerNode: meshRegisterNodeContract,
-    consumeJoinGrant: meshConsumeJoinGrantContract,
-});
-
-export type MeshInternalContract = typeof meshInternalContract;

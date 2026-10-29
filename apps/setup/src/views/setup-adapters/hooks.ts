@@ -54,26 +54,6 @@ export function useProbeDatabase() {
 	});
 }
 
-/** Test a mesh URL — instant feedback, no side effects. */
-export function useProbeMesh() {
-	return useMutation({
-		mutationFn: async (meshUrl: string) => {
-			const res = await setupEndpoints.probeMesh.call({ meshUrl });
-			return res.body;
-		},
-	});
-}
-
-/** Authenticate against a remote mesh node, returning an auth token. */
-export function useRemoteAuth() {
-	return useMutation({
-		mutationFn: async (input: { meshUrl: string; username: string; password: string }) => {
-			const res = await setupEndpoints.remoteAuth.call(input);
-			return res.body;
-		},
-	});
-}
-
 /** Start provisioning in the background (progress arrives on the stream). */
 export function useTriggerInitialize() {
 	const queryClient = useQueryClient();

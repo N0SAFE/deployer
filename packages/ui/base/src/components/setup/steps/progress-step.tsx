@@ -28,8 +28,6 @@ export interface ProgressStepContext {
   /** Local database info (shown when provided). */
   dbMode?: "managed" | "existing"
   dbUrl?: string
-  /** Remote mesh URL (shown inline in the heading). */
-  meshUrl?: string
   /** True when we auto-navigated from an existing in-flight init. */
   recovery?: boolean
 }
@@ -453,14 +451,8 @@ function getDescription(
   if (completedEvent) {
     return "The platform is provisioned. The last steps confirm it really answers before you continue — your logs stay available above."
   }
-  if (context.mode === "remote" && context.meshUrl) {
-    return (
-      <>
-        Connecting to{" "}
-        <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{context.meshUrl}</code>{" "}
-        and syncing shared identity. This usually takes a few seconds.
-      </>
-    )
+  if (context.mode === "remote") {
+    return "Joining the fleet through this node's agent and syncing shared identity. This usually takes a few seconds."
   }
   return "Hang tight — this usually takes about a minute. Click any step to see what&apos;s happening behind the scenes."
 }

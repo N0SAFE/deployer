@@ -5,3 +5,4 @@ export * from "./trust.schema";
 export * from "./duplex.schema";
 export * from "./node-config.schema";
 export * from "./agent-view.schema";
+export * from "./enrollment.schema";

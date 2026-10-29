@@ -63,11 +63,6 @@ export class MeshDelegationController {
 		return implement(meshContract.listPeers).handler(({ input }) => this.client.listPeers(input));
 	}
 
-	@Implement(meshContract.listPeerSessions)
-	listPeerSessions() {
-		return implement(meshContract.listPeerSessions).handler(({ input }) => this.client.listPeerSessions(input));
-	}
-
 	@Implement(meshContract.listEventStreams)
 	listEventStreams() {
 		return implement(meshContract.listEventStreams).handler(({ input }) => this.client.listEventStreams(input));
@@ -98,19 +93,9 @@ export class MeshDelegationController {
 		return implement(meshContract.lookupResource).handler(({ input }) => this.client.lookupResource(input));
 	}
 
-	@Implement(meshContract.issueJoinGrant)
-	issueJoinGrant() {
-		return implement(meshContract.issueJoinGrant).handler(({ input }) => this.client.issueJoinGrant(input));
-	}
-
 	@Implement(meshContract.issueJoinToken)
 	issueJoinToken() {
 		return implement(meshContract.issueJoinToken).handler(({ input }) => this.client.issueJoinToken(input));
-	}
-
-	@Implement(meshContract.revokeJoinGrant)
-	revokeJoinGrant() {
-		return implement(meshContract.revokeJoinGrant).handler(({ input }) => this.client.revokeJoinGrant(input));
 	}
 
 	@Implement(meshContract.getNodeConfig)

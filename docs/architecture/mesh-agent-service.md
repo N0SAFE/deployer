@@ -184,7 +184,7 @@ Built and tested over real oRPC RPC peers (in-memory ports): unary, streams, red
   call is granted and followed directly, an unauthenticated call is refused, and a call pinned to another node is
   forwarded to that node's agent.
 
-Not built yet: the setup flow's enrollment on the agent (`roster.join`, so the old grants and `MeshCoreModule` can go), the remaining `MeshCoreModule` imports in the runtime, byte accounting from the transport (the lease policy's bytes-per-second input is fed by nothing), the
+Not built yet: the remaining `MeshCoreModule` imports in the runtime, byte accounting from the transport (the lease policy's bytes-per-second input is fed by nothing), the
 bridge topology for large meshes (agents currently connect to every agent they learn of, which is the small-mesh
 design), the onboarding agent, services registering themselves with their agent (`replicaHeartbeat` exists, no
 service calls it), the per-service `external`/`peer`/`node` routers, a swarm global-mode deployment of the agent, and the
@@ -295,9 +295,33 @@ Dropped, because the agent has nothing to answer them with: the trust keyring an
 verifies its own credential), manual peer connect/disconnect/heartbeat and membership reconcile (agents connect to every
 agent they learn of), the resource index and the route and queue-partition planners (the directory resolves), and the
 control-envelope and session-stream transport of the old mesh. No link latency, jitter or loss is shown: nothing
-measures them. Still served by the old controller until onboarding moves onto the agent: `issueJoinGrant`,
-`revokeJoinGrant` and `listPeerSessions` (the setup flow's enrollment), the internal `registerNode` and
-`consumeJoinGrant`, the node configuration procedures, and the event-stream procedures.
+measures them. Still served by the old controller: the ping, the node's metrics, the node configuration procedures and the
+event-stream procedures.
+
+## Enrollment: how a node joins a fleet
+
+The operator brings one thing: a join token. On a node of the fleet, the dashboard issues it (`issueJoinToken`, which is
+`roster.token`); it carries where to find the swarm, the swarm's credential and an expiry, so it is shown once. On the new
+node's setup wizard the operator pastes it, and nothing else is typed: no address, no account.
+
+1. **`agent_join`**: the setup flow gives the token to this node's own agent (`roster.join`). The agent adopts the swarm's
+   credential, remembers the seed so it rejoins by itself after a restart, and gossips; this node's id is the one its agent
+   generated on first boot.
+2. **`mesh_handshake`**: the node asks the fleet to describe itself through the mesh (`enrollment.describe`, a mesh-only
+   contract fleet serves next to its own). The agent finds a fleet replica as gossip teaches it where they are, so the
+   flow waits for that rather than failing at once. The answer is the fleet's version and the WireGuard mesh the
+   node's entry must name.
+3. **`version_check`**: a node behind the fleet's version is refused; one ahead may join.
+4. **`register_node`**: `enrollment.enroll` records the node in the fleet's registry and answers the shared database URL,
+   the swarm role the fleet decides (a node can neither promote itself nor found a rival swarm) and the WireGuard roster
+   that admits the node's signed entry. Then `finalize` persists the node config and the swarm join converges.
+
+The token is the only authorization, and it is checked by the agent: the fleet holds no swarm credential, so before it
+answers it asks its own agent `roster.check`, which says whether the token is the swarm's and still good, and never
+returns the credential. A node with no agent enrolls no one. The old exchange (a Better Auth sign-in on the remote node,
+a one-time grant, a shared secret and a peer service token handed back) and the setup probes that served it
+(`probeMesh`, `remoteAuth`) are gone. Revoking a token before it expires is not built: tokens are as short as the
+operator makes them.
 
 ## Services and their clients on the mesh
 
