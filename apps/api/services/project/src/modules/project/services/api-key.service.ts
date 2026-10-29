@@ -1,7 +1,6 @@
 import { ResourceNotFound, ProjectConflict, ProjectForbidden } from "../domain/project.errors";
 import { createHash, randomBytes } from "crypto";
 import { Context, Effect } from "effect";
-import { layerOfClass, type Discharged } from "@deployer/effect-core";
 import { ApiKeyStore } from "../repositories/api-key.repository";
 import { assertProjectAccess } from "./project-access";
 
@@ -187,12 +186,12 @@ function hashKey(rawKey: string): string {
 }
 
 /** The service's public surface is exactly the implementation's methods. */
-export type ApiKeyServiceShape = Discharged<ApiKeyServiceImpl>;
+export type ApiKeyServiceShape = ApiKeyServiceImpl;
 
 /** Effect key = NestJS token. */
 export class ApiKeyService extends Context.Service<ApiKeyService, ApiKeyServiceShape>()(
 	"project/ApiKeyService",
 ) {
 	/** Resolves the requirements the methods name when the layer is built. */
-	static readonly Live = layerOfClass(ApiKeyService, () => new ApiKeyServiceImpl());
+	static readonly live: ApiKeyServiceShape = new ApiKeyServiceImpl();
 }

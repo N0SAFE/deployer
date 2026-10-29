@@ -20,7 +20,6 @@ import { AuthModule } from "@deployer/shared/core/modules/auth/auth.module";
 import { createBetterAuth } from "@deployer/shared/config/auth/auth";
 import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
 import { DatabasePort } from "@project/core/database/database.port";
-import { AppLive } from "./app.layers";
 
 import { ProjectDomainModule } from "./modules/project/project.module";
 import { ServiceDomainModule } from "./modules/service/service.module";
@@ -92,9 +91,7 @@ export class ProjectServiceModule extends createModuleContext({
 				}),
 			},
 		}),
-		EffectRuntimeModule.forRoot({
-			layers: [AppLive],
-		}),
+		EffectRuntimeModule,
 
 		ProjectDomainModule,
 		ServiceDomainModule,

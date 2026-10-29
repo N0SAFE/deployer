@@ -1,7 +1,6 @@
 import { ResourceNotFound } from "../domain/project.errors";
 import { randomBytes } from "crypto";
 import { Context, Effect } from "effect";
-import { layerOfClass, type Discharged } from "@deployer/effect-core";
 import { WebhookStore, type WebhookCreateInput } from "../repositories/webhook.repository";
 import { assertProjectAccess } from "./project-access";
 
@@ -149,12 +148,12 @@ export class WebhookServiceImpl {
 }
 
 /** The service's public surface is exactly the implementation's methods. */
-export type WebhookServiceShape = Discharged<WebhookServiceImpl>;
+export type WebhookServiceShape = WebhookServiceImpl;
 
 /** Effect key = NestJS token. */
 export class WebhookService extends Context.Service<WebhookService, WebhookServiceShape>()(
 	"project/WebhookService",
 ) {
 	/** Resolves the requirements the methods name when the layer is built. */
-	static readonly Live = layerOfClass(WebhookService, () => new WebhookServiceImpl());
+	static readonly live: WebhookServiceShape = new WebhookServiceImpl();
 }

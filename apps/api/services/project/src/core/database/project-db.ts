@@ -5,10 +5,10 @@ import {
     type PgPoolLike,
 } from '@deployer/effect-infra'
 import type { GlobalDatabase } from '@deployer/shared/core/modules/database/services/global-database.service'
-import { Context, Effect, Layer } from 'effect'
+import { Context } from 'effect'
 import { drizzle } from 'drizzle-orm/node-postgres'
 
-import { DatabasePort } from './database.port'
+import type { DatabaseShape } from './database.port'
 
 /**
  * The project service's database with fiber-scoped transactions.
@@ -20,21 +20,19 @@ import { DatabasePort } from './database.port'
 export class ProjectDb extends Context.Service<
     ProjectDb,
     DbShape<GlobalDatabase>
->()('project/Db') {
-    /** Built over the shared pool the Nest database module owns; this layer never closes it. */
-    static readonly Live: Layer.Layer<ProjectDb, never, DatabasePort> =
-        Layer.effect(
-            ProjectDb,
-            Effect.gen(function* () {
-                const { db } = yield* DatabasePort
-                return makePgDb<GlobalDatabase>({
-                    name: 'project',
-                    pool: (db as unknown as { readonly $client: PgPoolLike })
-                        .$client,
-                    // Same schema (and so the same relational `query` API) as the shared database.
-                    makeDb: (client: PgClientLike) =>
-                        drizzle(client as never, { schema: db._.fullSchema }),
-                })
-            })
-        )
+>()('project/Db') {}
+
+/**
+ * Built over the shared pool the Nest database module owns (this never closes it). A pool-bound handle
+ * is a real construction, so the module provides it with `useFactory` over the `DatabasePort` instance.
+ */
+export function makeProjectDb(database: DatabaseShape): DbShape<GlobalDatabase> {
+    const { db } = database
+    return makePgDb<GlobalDatabase>({
+        name: 'project',
+        pool: (db as unknown as { readonly $client: PgPoolLike }).$client,
+        // Same schema (and so the same relational `query` API) as the shared database.
+        makeDb: (client: PgClientLike) =>
+            drizzle(client as never, { schema: db._.fullSchema }),
+    })
 }

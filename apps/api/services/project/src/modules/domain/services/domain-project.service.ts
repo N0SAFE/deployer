@@ -1,4 +1,3 @@
-import { layerOfClass, type Discharged } from "@deployer/effect-core";
 import { DomainAdapter } from "@deployer/shared/core/modules/domain/adapters/domain.adapter";
 import {
 	ProjectDomainDeletionError,
@@ -271,12 +270,12 @@ export class DomainProjectServiceImpl {
 }
 
 /** The service's public surface is exactly the implementation's methods. */
-export type DomainProjectServiceShape = Discharged<DomainProjectServiceImpl>;
+export type DomainProjectServiceShape = DomainProjectServiceImpl;
 
 /** Effect key = NestJS token. */
 export class DomainProjectService extends Context.Service<DomainProjectService, DomainProjectServiceShape>()(
 	"project/DomainProjectService",
 ) {
 	/** Resolves the requirements the methods name when the layer is built. */
-	static readonly Live = layerOfClass(DomainProjectService, () => new DomainProjectServiceImpl());
+	static readonly live: DomainProjectServiceShape = new DomainProjectServiceImpl();
 }

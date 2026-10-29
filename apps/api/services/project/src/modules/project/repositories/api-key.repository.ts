@@ -2,7 +2,6 @@ import { ProjectConflict } from "../domain/project.errors";
 import { apiKeys } from "@deployer/nest-schema/global/project/deployment";
 import { eq, and } from "drizzle-orm";
 import { Context, Effect } from "effect";
-import { layerOfClass, type Discharged } from "@deployer/effect-core";
 import { DatabasePort } from "@project/core/database/database.port";
 import { attempt } from "../project-effects";
 
@@ -117,12 +116,12 @@ export class ApiKeyStoreImpl {
 }
 
 /** The store's public surface is exactly the implementation's methods. */
-export type ApiKeyStoreShape = Discharged<ApiKeyStoreImpl>;
+export type ApiKeyStoreShape = ApiKeyStoreImpl;
 
 /** Effect key = NestJS token. */
 export class ApiKeyStore extends Context.Service<ApiKeyStore, ApiKeyStoreShape>()(
 	"project/ApiKeyStore",
 ) {
 	/** Resolves the requirements the methods name when the layer is built. */
-	static readonly Live = layerOfClass(ApiKeyStore, () => new ApiKeyStoreImpl());
+	static readonly live: ApiKeyStoreShape = new ApiKeyStoreImpl();
 }

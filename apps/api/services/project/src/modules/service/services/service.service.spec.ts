@@ -7,6 +7,8 @@ import { ProjectAccess } from "@project/core/ports/project-access.port";
 import type { RuntimeConfigurationAccessorShape } from "@project/core/ports/runtime-configuration-accessor.port";
 import { RuntimeConfigurationAccessor } from "@project/core/ports/runtime-configuration-accessor.port";
 import type { ServiceEventServiceShape } from "@project/modules/service/services/service-event.service";
+import { ProjectDb } from "@project/core/database/project-db";
+import { ProjectStore } from "../../project/repositories/project.repository";
 import { DatabasePort } from "@project/core/database/database.port";
 import type { ServiceStoreShape } from "../repositories/service.repository";
 import { ServiceEventService } from "./service-event.service";
@@ -74,6 +76,8 @@ describe("ServiceService", () => {
 	let topology: Fakes<PreviewTopologyServiceShape>;
 
 	type Deps =
+		| ProjectDb
+		| ProjectStore
 		| ServiceStore
 		| ServiceEventService
 		| ProjectAccess
@@ -97,6 +101,9 @@ describe("ServiceService", () => {
 					topology as unknown as PreviewTopologyServiceShape,
 				),
 				Effect.provideService(DatabasePort, { db: {} as never }),
+				// The stores are faked, so nothing reads the database; the types still name them.
+				Effect.provideService(ProjectDb, {} as never),
+				Effect.provideService(ProjectStore, {} as never),
 			),
 		);
 

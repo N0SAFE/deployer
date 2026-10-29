@@ -24,8 +24,7 @@ import { DomainServiceService } from "./services/domain-service.service";
  * is reachable on.
  *
  * The shared core services stay Nest providers; each one is exposed to the Effect layer through a
- * port so the services can `yield*` them. The use cases are Layers (`DomainLive`, see
- * `domain.layers.ts`) built by the app's Effect runtime.
+ * port so the services can `yield*` them. The use cases are constants provided here (`useValue`).
  */
 export class DomainModule extends createModuleContext({
 	imports: [
@@ -44,6 +43,8 @@ export class DomainModule extends createModuleContext({
 			provide: ServiceDomainMappingRepo,
 			useExisting: ServiceDomainMappingRepository,
 		},
+		{ provide: DomainProjectService, useValue: DomainProjectService.live },
+		{ provide: DomainServiceService, useValue: DomainServiceService.live },
 	],
 	exports: [],
-}, DomainProjectService, DomainServiceService) {}
+}) {}

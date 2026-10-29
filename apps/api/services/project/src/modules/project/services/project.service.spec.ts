@@ -8,6 +8,7 @@ import type { ProjectEventServiceShape } from "@project/modules/project/services
 import { ProjectEventService } from "@project/modules/project/services/project-event.service";
 import type { RuntimeConfigurationAccessorShape } from "@project/core/ports/runtime-configuration-accessor.port";
 import { RuntimeConfigurationAccessor } from "@project/core/ports/runtime-configuration-accessor.port";
+import { ProjectDb } from "@project/core/database/project-db";
 import { DatabasePort } from "@project/core/database/database.port";
 import type { ProjectStoreShape } from "../repositories/project.repository";
 import { ProjectStore } from "../repositories/project.repository";
@@ -88,6 +89,7 @@ describe("ProjectService", () => {
 	let configuration: Fakes<RuntimeConfigurationAccessorShape>;
 
 	type Deps =
+		| ProjectDb
 		| ProjectStore
 		| ProjectEventService
 		| CoreEventSync
@@ -106,6 +108,8 @@ describe("ProjectService", () => {
 					configuration as unknown as RuntimeConfigurationAccessorShape,
 				),
 				Effect.provideService(DatabasePort, { db: {} as never }),
+				// The store is faked, so nothing reads the database; the type still names it.
+				Effect.provideService(ProjectDb, {} as never),
 			),
 		);
 

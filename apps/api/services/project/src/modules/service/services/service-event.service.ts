@@ -1,8 +1,7 @@
 import * as z from "zod";
 import { BasePooledEventService } from "@deployer/shared/core/modules/events/base/index";
-import { Context, Effect, Layer } from "effect";
+import { Context } from "effect";
 
-import { CoreEventStreamPool } from "@project/core/ports/core-event-stream-pool.port";
 import { contractBuilder } from "@deployer/events";
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 
@@ -91,16 +90,8 @@ export class ServiceEventServiceImpl extends BasePooledEventService<ServiceEvent
 /** What consumers may do with the bus: publish and subscribe. */
 export type ServiceEventServiceShape = Pick<ServiceEventServiceImpl, "emitEffect" | "subscribeEffect">;
 
-/** Effect key = NestJS token; instances come from `ServiceEventServiceLayer`. */
+/** Effect key = NestJS token; the module builds the instance over the shared stream pool. */
 export class ServiceEventService extends Context.Service<ServiceEventService, ServiceEventServiceShape>()(
 	"project/ServiceEventService",
 ) {}
 
-/** Built by the runtime, not by Nest: the bus needs the shared stream pool. */
-export const ServiceEventServiceLayer = Layer.effect(
-	ServiceEventService,
-	Effect.gen(function* () {
-		const pool = yield* CoreEventStreamPool;
-		return new ServiceEventServiceImpl(pool as unknown as CoreEventStreamPoolService);
-	}),
-);

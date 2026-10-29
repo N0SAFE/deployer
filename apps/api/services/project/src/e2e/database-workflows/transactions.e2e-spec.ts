@@ -3,14 +3,13 @@ import { localEventOutbox } from '@deployer/nest-schema/global/runtime/runtime'
 import { projects } from '@deployer/nest-schema/global/project/deployment'
 import { GlobalDatabaseService } from '@deployer/shared/core/modules/database/services/global-database.service'
 import { and, eq } from 'drizzle-orm'
-import { Effect, Exit, Fiber, Layer } from 'effect'
+import { Effect, Exit, Fiber } from 'effect'
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { getSharedApiRuntimeContext } from '@/e2e/runtime'
 import { createAuthenticatedSession } from '@deployer/shared/e2e-harness/authenticated-session'
-import { DatabasePort } from '@project/core/database/database.port'
-import { ProjectDb } from '@project/core/database/project-db'
+import { ProjectDb, makeProjectDb } from '@project/core/database/project-db'
 import { ProjectStore } from '@/modules/project/repositories/project.repository'
 
 /**
@@ -38,10 +37,8 @@ describe('ProjectDb e2e: transactions and cancellation', () => {
     ) =>
         Effect.runPromise(
             effect.pipe(
-                Effect.provide(
-                    Layer.provideMerge(ProjectStore.Live, ProjectDb.Live)
-                ),
-                Effect.provideService(DatabasePort, { db })
+                Effect.provideService(ProjectStore, ProjectStore.live),
+                Effect.provideService(ProjectDb, makeProjectDb({ db }))
             )
         )
 

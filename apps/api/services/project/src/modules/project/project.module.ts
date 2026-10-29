@@ -1,7 +1,8 @@
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 import { createModuleContext } from "@deployer/nest-effect";
 
-import { CoreEventStreamPool } from "@project/core/ports/core-event-stream-pool.port";
+import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
+import { ProjectDb, makeProjectDb } from "@project/core/database/project-db";
 import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configuration/configuration-core.module";
 import { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
@@ -22,7 +23,7 @@ import { ProjectStore } from "./repositories/project.repository";
 import { WebhookStore } from "./repositories/webhook.repository";
 import { ApiKeyService } from "./services/api-key.service";
 import { ProjectEventAdapter } from "./services/project-event-adapter";
-import { ProjectEventService } from "./services/project-event.service";
+import { ProjectEventService, ProjectEventServiceImpl } from "./services/project-event.service";
 import { ProjectNetworkService } from "./services/project-network.service";
 import { ProjectService } from "./services/project.service";
 import { WebhookService } from "./services/webhook.service";
@@ -32,9 +33,8 @@ import { WebhookService } from "./services/webhook.service";
  * environments and settings, plus its DNS-backed network view.
  *
  * Shared core services stay Nest providers; each one is exposed to the Effect layer through a
- * port so the services can `yield*` them. The stores and use cases are Layers (`ProjectLive`, see
- * `project.layers.ts`) built by the app's Effect runtime, and are declared here as the services
- * this module's handlers (and the modules that import it) may use.
+ * port so the services can `yield*` them. The stores and use cases are constants provided here
+ * (`useValue`); the database handle and the event bus are built over Nest providers (`useFactory`).
  */
 export class ProjectDomainModule extends createModuleContext({
 	imports: [DatabaseModule, ConfigurationCoreModule, EventsModule, CoreDomainModule],
@@ -49,10 +49,22 @@ export class ProjectDomainModule extends createModuleContext({
 		{ provide: CoreEventSync, useExisting: CoreEventSyncService },
 		ProjectEventAdapter,
 		DnsProviderGateway,
-			{ provide: CoreEventStreamPool, useExisting: CoreEventStreamPoolService },
+		{ provide: ProjectDb, useFactory: makeProjectDb, inject: [GlobalDatabaseService] },
+		{
+			provide: ProjectEventService,
+			useFactory: (pool: CoreEventStreamPoolService) => new ProjectEventServiceImpl(pool),
+			inject: [CoreEventStreamPoolService],
+		},
+		{ provide: ProjectStore, useValue: ProjectStore.live },
+		{ provide: ApiKeyStore, useValue: ApiKeyStore.live },
+		{ provide: WebhookStore, useValue: WebhookStore.live },
+		{ provide: ProjectService, useValue: ProjectService.live },
+		{ provide: ProjectNetworkService, useValue: ProjectNetworkService.live },
+		{ provide: WebhookService, useValue: WebhookService.live },
+		{ provide: ApiKeyService, useValue: ApiKeyService.live },
 	],
 	exports: [DnsProviderGateway],
-}, DatabasePort, ProjectEventService, ProjectStore, ApiKeyStore, WebhookStore, ProjectService, ProjectNetworkService, WebhookService, ApiKeyService) {}
+}, DatabasePort) {}
 
 // ── `ProjectDomainModule`, NOT `ProjectModule` ─────────────────────────────────
 // `app.module.ts` imports this by the `DomainModule` name, and every sibling

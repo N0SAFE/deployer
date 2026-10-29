@@ -1,4 +1,3 @@
-import { layerOfClass, type Discharged } from "@deployer/effect-core";
 import { ProjectConflict } from "@/modules/project/domain/project.errors";
 import { services, serviceDependencies, projects } from "@deployer/nest-schema/global/project/deployment";
 import { localEventOutbox } from "@deployer/nest-schema/global/runtime/runtime";
@@ -859,12 +858,12 @@ export class ServiceStoreImpl {
 }
 
 /** The store's public surface is exactly the implementation's methods. */
-export type ServiceStoreShape = Discharged<ServiceStoreImpl>;
+export type ServiceStoreShape = ServiceStoreImpl;
 
 /** Effect key = NestJS token. */
 export class ServiceStore extends Context.Service<ServiceStore, ServiceStoreShape>()(
     "project/ServiceStore",
 ) {
     /** Resolves the requirements the methods name when the layer is built. */
-    static readonly Live = layerOfClass(ServiceStore, () => new ServiceStoreImpl());
+    static readonly live: ServiceStoreShape = new ServiceStoreImpl();
 }

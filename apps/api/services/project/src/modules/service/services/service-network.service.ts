@@ -1,4 +1,3 @@
-import { layerOfClass, type Discharged } from "@deployer/effect-core";
 import { ResourceNotFound, ProjectInvalid } from "@/modules/project/domain/project.errors";
 import { Logger } from "@nestjs/common";
 import z from "zod/v4";
@@ -256,7 +255,7 @@ export class ServiceNetworkServiceImpl {
 }
 
 /** The service's public surface is exactly the implementation's methods. */
-export type ServiceNetworkServiceShape = Discharged<ServiceNetworkServiceImpl>;
+export type ServiceNetworkServiceShape = ServiceNetworkServiceImpl;
 
 /** Effect key = NestJS token. */
 export class ServiceNetworkService extends Context.Service<
@@ -264,5 +263,5 @@ export class ServiceNetworkService extends Context.Service<
     ServiceNetworkServiceShape
 >()("project/ServiceNetworkService") {
     /** Resolves the requirements the methods name when the layer is built. */
-    static readonly Live = layerOfClass(ServiceNetworkService, () => new ServiceNetworkServiceImpl());
+    static readonly live: ServiceNetworkServiceShape = new ServiceNetworkServiceImpl();
 }

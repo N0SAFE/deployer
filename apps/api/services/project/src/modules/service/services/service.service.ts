@@ -1,4 +1,3 @@
-import { layerOfClass, type Discharged } from "@deployer/effect-core";
 import { ResourceNotFound, ProjectConflict, ProjectInvalid } from "@/modules/project/domain/project.errors";
 import { EMPTY, type Observable, concat, defer, from, map, mergeMap } from "rxjs";
 import { filter as rxFilter } from "rxjs/operators";
@@ -934,12 +933,12 @@ export class ServiceServiceImpl {
 }
 
 /** The service's public surface is exactly the implementation's methods. */
-export type ServiceServiceShape = Discharged<ServiceServiceImpl>;
+export type ServiceServiceShape = ServiceServiceImpl;
 
 /** Effect key = NestJS token. */
 export class ServiceService extends Context.Service<ServiceService, ServiceServiceShape>()(
     "project/ServiceService",
 ) {
     /** Resolves the requirements the methods name when the layer is built. */
-    static readonly Live = layerOfClass(ServiceService, () => new ServiceServiceImpl());
+    static readonly live: ServiceServiceShape = new ServiceServiceImpl();
 }

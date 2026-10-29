@@ -1,7 +1,6 @@
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 import { createModuleContext } from "@deployer/nest-effect";
 
-import { CoreEventStreamPool } from "@project/core/ports/core-event-stream-pool.port";
 import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configuration/configuration-core.module";
 import { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
@@ -25,7 +24,7 @@ import { ProjectDomainModule } from "@/modules/project/project.module";
 import { ServiceController } from "./controllers/service.controller";
 import { ServiceStore } from "./repositories/service.repository";
 import { ServiceEventAdapter } from "./services/service-event-adapter";
-import { ServiceEventService } from "./services/service-event.service";
+import { ServiceEventService, ServiceEventServiceImpl } from "./services/service-event.service";
 import { PreviewTopologyService } from "./services/preview-topology.service";
 import { ServiceNetworkService } from "./services/service-network.service";
 import { ServiceService } from "./services/service.service";
@@ -35,8 +34,8 @@ import { ServiceService } from "./services/service.service";
  * dependency graph, their network config and their event stream.
  *
  * Shared core services stay Nest providers; each one is exposed to the Effect layer through a
- * port so the services can `yield*` them. The store and use cases are Layers (`ServiceLive`, see
- * `service.layers.ts`) built by the app's Effect runtime. `ProjectStore` comes
+ * port so the services can `yield*` them. The store and use cases are constants provided here
+ * (`useValue`); the event bus is built over the stream pool (`useFactory`). `ProjectStore` comes
  * from `ProjectDomainModule` — a service lives inside a project, so the store is
  * read, never re-provided (two `useClass` providers would mean two instances).
  * The module's Effect context is derived from these providers by
@@ -66,7 +65,15 @@ export class ServiceDomainModule extends createModuleContext({
 			useExisting: ServiceDomainMappingRepository,
 		},
 		ServiceEventAdapter,
-			{ provide: CoreEventStreamPool, useExisting: CoreEventStreamPoolService },
+		{
+			provide: ServiceEventService,
+			useFactory: (pool: CoreEventStreamPoolService) => new ServiceEventServiceImpl(pool),
+			inject: [CoreEventStreamPoolService],
+		},
+		{ provide: ServiceStore, useValue: ServiceStore.live },
+		{ provide: ServiceService, useValue: ServiceService.live },
+		{ provide: PreviewTopologyService, useValue: PreviewTopologyService.live },
+		{ provide: ServiceNetworkService, useValue: ServiceNetworkService.live },
 	],
 	exports: [],
-}, DatabasePort, ServiceEventService, ServiceStore, ServiceService, PreviewTopologyService, ServiceNetworkService) {}
+}, DatabasePort) {}

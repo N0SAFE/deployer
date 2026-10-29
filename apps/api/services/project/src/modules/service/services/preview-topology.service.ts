@@ -1,4 +1,3 @@
-import { layerOfClass, type Discharged } from "@deployer/effect-core";
 import { ResourceNotFound } from "@/modules/project/domain/project.errors";
 import { Context, Effect } from "effect";
 import { ServiceStore } from "../repositories/service.repository";
@@ -91,7 +90,7 @@ export class PreviewTopologyServiceImpl {
 }
 
 /** The service's public surface is exactly the implementation's methods. */
-export type PreviewTopologyServiceShape = Discharged<PreviewTopologyServiceImpl>;
+export type PreviewTopologyServiceShape = PreviewTopologyServiceImpl;
 
 /** Effect key = NestJS token. */
 export class PreviewTopologyService extends Context.Service<
@@ -99,5 +98,5 @@ export class PreviewTopologyService extends Context.Service<
     PreviewTopologyServiceShape
 >()("project/PreviewTopologyService") {
     /** Resolves the requirements the methods name when the layer is built. */
-    static readonly Live = layerOfClass(PreviewTopologyService, () => new PreviewTopologyServiceImpl());
+    static readonly live: PreviewTopologyServiceShape = new PreviewTopologyServiceImpl();
 }
