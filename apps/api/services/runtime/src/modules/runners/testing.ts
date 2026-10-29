@@ -6,3 +6,25 @@ export async function run<A>(effect: Effect.Effect<A, unknown>): Promise<A> {
     if (Exit.isSuccess(exit)) return exit.value;
     throw Cause.squash(exit.cause);
 }
+
+/**
+ * A service whose Effect methods have their context requirements provided, so a spec calls it as if
+ * it had been built over fakes. The service itself stays the constant the module provides.
+ */
+export function provideTo<T extends object>(
+    service: T,
+    provide: (effect: Effect.Effect<unknown, unknown, never>) => Effect.Effect<unknown, unknown, never>,
+): {
+    [K in keyof T]: T[K] extends (...args: infer A) => Effect.Effect<infer X, infer E, infer _R>
+        ? (...args: A) => Effect.Effect<X, E>
+        : T[K];
+} {
+    const bound: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(service)) {
+        bound[key] =
+            typeof value === "function"
+                ? (...args: unknown[]) => provide((value as (...a: unknown[]) => Effect.Effect<unknown, unknown, never>)(...args))
+                : value;
+    }
+    return bound as never;
+}

@@ -4,8 +4,10 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { ConfigNotFoundError } from "@deployer/shared/core/modules/traefik/errors/index";
 import type { DeploymentRuntimeRunner } from "../runtime-runner.interface";
-import { run } from "../testing";
-import { makeDockerRuntimeRunner } from "./docker-runtime-runner.service";
+import { provideTo, run } from "../testing";
+import { DockerEngine } from "@deployer/docker";
+import { DockerRuntimeRunner } from "./docker-runtime-runner.service";
+import { RunnerTraefikPort } from "../runners.ports";
 
 describe("DockerRuntimeRunner", () => {
     let containers: {
@@ -21,7 +23,7 @@ describe("DockerRuntimeRunner", () => {
         getHealthStatus: ReturnType<typeof vi.fn>;
         createServiceConfiguration: ReturnType<typeof vi.fn>;
     };
-    let service: DeploymentRuntimeRunner;
+    let service: ReturnType<typeof provideTo<typeof DockerRuntimeRunner.live>>;
 
     beforeEach(() => {
         containers = {
@@ -46,10 +48,12 @@ describe("DockerRuntimeRunner", () => {
             createServiceConfiguration: vi.fn().mockResolvedValue({ id: "cfg-generated" }),
         };
 
-        service = makeDockerRuntimeRunner({
-            docker: { containers } as never,
-            traefik: traefikService as never,
-        });
+        service = provideTo(DockerRuntimeRunner.live, (effect) =>
+            effect.pipe(
+                Effect.provideService(DockerEngine, { containers } as never),
+                Effect.provideService(RunnerTraefikPort, traefikService as never),
+            ),
+        );
     });
 
     it("materializes volume storage binding into HostConfig.Binds and labels", async () => {

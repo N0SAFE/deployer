@@ -12,11 +12,11 @@ import type {
  *
  * `prepare` throws `RuntimeInvalid` for options that do not hold; that becomes the effect's failure.
  */
-export function makeDelegatedRunner(
+export function makeDelegatedRunner<R>(
     runnerType: DeploymentRuntimeRunnerType,
-    docker: DeploymentRuntimeRunner,
+    docker: DeploymentRuntimeRunner<R>,
     prepare: (input: RuntimeExecutionInput) => RuntimeExecutionInput,
-): DeploymentRuntimeRunner {
+): DeploymentRuntimeRunner<R> {
     return {
         runnerType,
         executeRuntime: (input) =>

@@ -23,12 +23,14 @@ import { UploadSourceProviderService } from "@/modules/providers/code/upload/ser
 import { UploadBundleRegistryService } from "@/modules/providers/code/upload/services/upload-bundle-registry.service";
 import { CustomSourceProviderService } from "@/modules/providers/code/custom/services/custom-source-provider.service";
 import {
-    makeRuntimeRunnerRegistry,
     RuntimeRunnerRegistry,
     RuntimeRunnerRegistryService,
 } from "@/modules/runners/runtime-runner-registry.service";
-import { makeDockerRuntimeRunner } from "@/modules/runners/docker/docker-runtime-runner.service";
-import { makeSwarmRuntimeRunner } from "@/modules/runners/swarm/swarm-runtime-runner.service";
+import { DockerRuntimeRunner } from "@/modules/runners/docker/docker-runtime-runner.service";
+import { RunnerEnvPort, RunnerTraefikPort } from "@/modules/runners/runners.ports";
+import { DockerEngine } from "@deployer/docker";
+import { SwarmCluster } from "@deployer/swarm";
+import { SwarmRuntimeRunner } from "@/modules/runners/swarm/swarm-runtime-runner.service";
 import { run as runEffect } from "@/modules/runners/testing";
 import { DeploymentExecutionWorkflowService } from './deployment-execution-workflow.service';
 import { makeInMemoryDeploymentQueueRepository } from '../queue/repositories/in-memory-deployment-queue.repository';
@@ -460,22 +462,29 @@ describe('DeploymentService', () => {
                     // additionally needs a cluster, mocked here because this suite never
                     // exercises the swarm path. The Promise face runs it on a stand-in runtime.
                     useFactory: () => {
-                        const registry = makeRuntimeRunnerRegistry({
-                            docker: makeDockerRuntimeRunner({
-                                docker: { containers: mockContainers } as never,
-                                traefik: mockTraefikService,
-                            }),
-                            swarm: makeSwarmRuntimeRunner({
-                                docker: { swarmServices: {}, networks: {} } as never,
-                                cluster: { getSwarmState: vi.fn().mockResolvedValue({ active: false }) } as never,
-                                // `DEPLOYER_PREFIX` is the only key read; "" is the
-                                // unprefixed default install.
-                                env: { get: vi.fn(() => "") } as never,
-                            }),
-                        });
+                        const services = {
+                            // `DEPLOYER_PREFIX` is the only env key read; "" is the unprefixed default install.
+                            env: { get: vi.fn(() => "") } as never,
+                        };
                         return new RuntimeRunnerRegistryService({
                             runPromise: (effect: Effect.Effect<unknown>) =>
-                                runEffect(effect.pipe(Effect.provideService(RuntimeRunnerRegistry, registry))),
+                                runEffect(
+                                    effect.pipe(
+                                        Effect.provideService(RuntimeRunnerRegistry, RuntimeRunnerRegistry.live),
+                                        Effect.provideService(DockerRuntimeRunner, DockerRuntimeRunner.live),
+                                        Effect.provideService(SwarmRuntimeRunner, SwarmRuntimeRunner.live),
+                                        Effect.provideService(DockerEngine, {
+                                            containers: mockContainers,
+                                            swarmServices: {},
+                                            networks: {},
+                                        } as never),
+                                        Effect.provideService(RunnerTraefikPort, mockTraefikService as never),
+                                        Effect.provideService(SwarmCluster, {
+                                            getSwarmState: vi.fn().mockResolvedValue({ active: false }),
+                                        } as never),
+                                        Effect.provideService(RunnerEnvPort, services.env),
+                                    ),
+                                ),
                         } as never);
                     },
                 },

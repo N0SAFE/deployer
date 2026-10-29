@@ -1,4 +1,4 @@
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect } from "effect";
 
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { ConfigNotFoundError } from "@deployer/shared/core/modules/traefik/errors/index";
@@ -27,18 +27,23 @@ const RUNNER_TYPE = "docker" as const;
  * The other image-based runners (dockerfile, compose, nixpacks, buildpack, railpack) are this
  * runner behind their own input preparation.
  */
-export class DockerRuntimeRunner extends Context.Service<DockerRuntimeRunner, DeploymentRuntimeRunner>()(
-    "runtime/DockerRuntimeRunner",
-) {
-    static readonly Live: Layer.Layer<DockerRuntimeRunner, never, DockerEngine | RunnerTraefikPort> = Layer.effect(
-        DockerRuntimeRunner,
-        Effect.gen(function* () {
-            return makeDockerRuntimeRunner({ docker: yield* DockerEngine, traefik: yield* RunnerTraefikPort });
-        }),
-    );
+export class DockerRuntimeRunner extends Context.Service<
+    DockerRuntimeRunner,
+    DeploymentRuntimeRunner<DockerEngine | RunnerTraefikPort>
+>()("runtime/DockerRuntimeRunner") {
+    /** The engine and traefik are yielded when a run starts, so this is a constant a module provides with `useValue`. */
+    static readonly live: DeploymentRuntimeRunner<DockerEngine | RunnerTraefikPort> = {
+        runnerType: RUNNER_TYPE,
+        executeRuntime: (input) =>
+            Effect.gen(function* () {
+                const docker = yield* DockerEngine;
+                const traefik = yield* RunnerTraefikPort;
+                return yield* buildDockerRuntimeRunner({ docker, traefik }).executeRuntime(input);
+            }),
+    };
 }
 
-export function makeDockerRuntimeRunner(ports: {
+function buildDockerRuntimeRunner(ports: {
     readonly docker: DockerEngineShape;
     readonly traefik: TraefikService;
 }): DeploymentRuntimeRunner {

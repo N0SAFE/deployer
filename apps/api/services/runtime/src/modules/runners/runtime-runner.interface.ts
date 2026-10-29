@@ -107,9 +107,11 @@ export type DeploymentRuntimeRunnerType = (typeof DEPLOYMENT_RUNTIME_RUNNER_TYPE
 
 /**
  * A runner turns a prepared artifact into a running workload. It fails with a `Runtime*` domain
- * error for a refusal it can name, and with whatever the daemon or cluster threw otherwise.
+ * error for a refusal it can name, and with whatever the daemon or cluster threw otherwise. `R` is what it
+ * yields while running (the docker engine, the cluster, ...): the runner is a constant, its dependencies are
+ * read from the Effect context when it runs.
  */
-export type DeploymentRuntimeRunner = {
+export type DeploymentRuntimeRunner<R = never> = {
     readonly runnerType: DeploymentRuntimeRunnerType;
-    readonly executeRuntime: (input: RuntimeExecutionInput) => Effect.Effect<RuntimeExecutionResult, unknown>;
+    readonly executeRuntime: (input: RuntimeExecutionInput) => Effect.Effect<RuntimeExecutionResult, unknown, R>;
 }

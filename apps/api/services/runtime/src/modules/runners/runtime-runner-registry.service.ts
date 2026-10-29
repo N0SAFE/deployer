@@ -1,7 +1,10 @@
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect } from "effect";
+import { DockerEngine } from "@deployer/docker";
+import { SwarmCluster } from "@deployer/swarm";
 
 import { Injectable } from "@nestjs/common";
 import { EffectRuntime } from "@deployer/nest-effect";
+import { RunnerEnvPort, RunnerTraefikPort } from "./runners.ports";
 import { RuntimeInvalid } from "../../core/runtime.errors";
 import { makeDelegatedRunner } from "./base/delegated-runner";
 import { prepareBuildpackExecutionInput } from "./buildpack/buildpack-runtime-runner.service";
@@ -16,57 +19,52 @@ import { SwarmRuntimeRunner } from "./swarm/swarm-runtime-runner.service";
 /**
  * Picks the runner for a deployment's runner kind and runs it.
  *
- * All seven runners are required: they are always built by `RunnersLive`, so a runner that was
- * removed from the layer is a startup failure rather than a deploy that fails the first time it
- * uses that kind. `null` and `undefined` mean the default, `docker`.
+ * All seven runners are listed here. `null` and `undefined` mean the default, `docker`.
  */
 export type RuntimeRunnerRegistryShape = {
     readonly execute: (
         runnerKind: string | null | undefined,
         input: RuntimeExecutionInput,
-    ) => Effect.Effect<RuntimeExecutionResult, unknown>;
+    ) => Effect.Effect<RuntimeExecutionResult, unknown, RunnerRegistryServices>;
 };
+
+/** The runners the registry picks between, and what they read while running. */
+export type RunnerRegistryServices =
+    | DockerRuntimeRunner
+    | SwarmRuntimeRunner
+    | DockerEngine
+    | RunnerTraefikPort
+    | SwarmCluster
+    | RunnerEnvPort;
 
 export class RuntimeRunnerRegistry extends Context.Service<RuntimeRunnerRegistry, RuntimeRunnerRegistryShape>()(
     "runtime/RuntimeRunnerRegistry",
 ) {
-    static readonly Live: Layer.Layer<RuntimeRunnerRegistry, never, DockerRuntimeRunner | SwarmRuntimeRunner> =
-        Layer.effect(
-            RuntimeRunnerRegistry,
+    /** The runners are yielded when `execute` runs, so this is a constant a module provides with `useValue`. */
+    static readonly live: RuntimeRunnerRegistryShape = {
+        execute: (runnerKind, input) =>
             Effect.gen(function* () {
-                return makeRuntimeRunnerRegistry({
-                    docker: yield* DockerRuntimeRunner,
-                    swarm: yield* SwarmRuntimeRunner,
-                });
+                const docker = yield* DockerRuntimeRunner;
+                const swarm = yield* SwarmRuntimeRunner;
+                const normalizedRunner = (runnerKind ?? "docker").toLowerCase();
+                const all: readonly DeploymentRuntimeRunner<RunnerRegistryServices>[] = [
+                    docker,
+                    makeDelegatedRunner("dockerfile", docker, prepareDockerfileExecutionInput),
+                    makeDelegatedRunner("docker_compose", docker, prepareDockerComposeExecutionInput),
+                    makeDelegatedRunner("nixpacks", docker, prepareNixpacksExecutionInput),
+                    makeDelegatedRunner("buildpack", docker, prepareBuildpackExecutionInput),
+                    makeDelegatedRunner("railpack", docker, prepareRailpackExecutionInput),
+                    swarm,
+                ];
+                const selectedRunner = all.find((runner) => runner.runnerType === normalizedRunner);
+                if (!selectedRunner) {
+                    // Every runner is listed above, so this means the caller asked for a kind none implements.
+                    return yield* Effect.fail(
+                        new RuntimeInvalid({ reason: `Unsupported runtime runner '${normalizedRunner}'` }),
+                    );
+                }
+                return yield* selectedRunner.executeRuntime(input);
             }),
-        );
-}
-
-export function makeRuntimeRunnerRegistry(runners: {
-    readonly docker: DeploymentRuntimeRunner;
-    readonly swarm: DeploymentRuntimeRunner;
-}): RuntimeRunnerRegistryShape {
-    const { docker, swarm } = runners;
-    const all: readonly DeploymentRuntimeRunner[] = [
-        docker,
-        makeDelegatedRunner("dockerfile", docker, prepareDockerfileExecutionInput),
-        makeDelegatedRunner("docker_compose", docker, prepareDockerComposeExecutionInput),
-        makeDelegatedRunner("nixpacks", docker, prepareNixpacksExecutionInput),
-        makeDelegatedRunner("buildpack", docker, prepareBuildpackExecutionInput),
-        makeDelegatedRunner("railpack", docker, prepareRailpackExecutionInput),
-        swarm,
-    ];
-
-    return {
-        execute: (runnerKind, input) => {
-            const normalizedRunner = (runnerKind ?? "docker").toLowerCase();
-            const selectedRunner = all.find((runner) => runner.runnerType === normalizedRunner);
-            if (!selectedRunner) {
-                // Every runner is listed above, so this means the caller asked for a kind none implements.
-                return Effect.fail(new RuntimeInvalid({ reason: `Unsupported runtime runner '${normalizedRunner}'` }));
-            }
-            return selectedRunner.executeRuntime(input);
-        },
     };
 }
 

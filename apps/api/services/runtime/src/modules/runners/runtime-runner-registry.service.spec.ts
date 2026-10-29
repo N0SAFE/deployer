@@ -3,8 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { RuntimeInvalid } from "../../core/runtime.errors";
 import type { DeploymentRuntimeRunner, RuntimeExecutionInput, RuntimeExecutionResult } from "./runtime-runner.interface";
-import { makeRuntimeRunnerRegistry } from "./runtime-runner-registry.service";
-import { run } from "./testing";
+import { DockerRuntimeRunner } from "./docker/docker-runtime-runner.service";
+import { RuntimeRunnerRegistry } from "./runtime-runner-registry.service";
+import { SwarmRuntimeRunner } from "./swarm/swarm-runtime-runner.service";
+import { provideTo, run } from "./testing";
 
 const input = {
     deployment: {
@@ -26,7 +28,12 @@ function fakeRunner(runnerType: DeploymentRuntimeRunner["runnerType"]) {
 describe("RuntimeRunnerRegistry", () => {
     const docker = fakeRunner("docker");
     const swarm = fakeRunner("swarm");
-    const registry = makeRuntimeRunnerRegistry({ docker: docker.runner, swarm: swarm.runner });
+    const registry = provideTo(RuntimeRunnerRegistry.live, (effect) =>
+        effect.pipe(
+            Effect.provideService(DockerRuntimeRunner, docker.runner as never),
+            Effect.provideService(SwarmRuntimeRunner, swarm.runner as never),
+        ),
+    );
 
     it("runs the docker runner when no kind is given", async () => {
         expect((await run(registry.execute(null, input))).containerId).toBe("docker");

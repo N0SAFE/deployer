@@ -13,7 +13,7 @@
  * (typed result, task-state verification, inventory-friendly labels).
  */
 
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect } from "effect";
 
 import { AppError, TimeoutError } from "@deployer/errors";
 import type {
@@ -45,40 +45,47 @@ import {
 
 const RUNNER_TYPE = "swarm" as const;
 
+/** What the swarm runner reads from the Effect context while it runs. */
+export type SwarmRunnerServices = DockerEngine | SwarmCluster | RunnerEnvPort;
+
 /** The swarm runner also manages the services it deployed (SW-027). */
-export type SwarmRuntimeRunnerShape = DeploymentRuntimeRunner & {
+export type SwarmRuntimeRunnerShape = DeploymentRuntimeRunner<SwarmRunnerServices> & {
     /** Graceful service removal (drains tasks). No-op when the service no longer exists. */
-    readonly removeService: (serviceName: string) => Effect.Effect<void, unknown>;
+    readonly removeService: (serviceName: string) => Effect.Effect<void, unknown, SwarmRunnerServices>;
     /** Scale a service to an exact replica count (≥0). */
-    readonly scaleService: (serviceName: string, replicas: number) => Effect.Effect<void, unknown>;
+    readonly scaleService: (serviceName: string, replicas: number) => Effect.Effect<void, unknown, SwarmRunnerServices>;
     /** Roll back to the previous known-good spec (the engine applies the service's own RollbackConfig). */
-    readonly rollbackService: (serviceName: string) => Effect.Effect<void, unknown>;
+    readonly rollbackService: (serviceName: string) => Effect.Effect<void, unknown, SwarmRunnerServices>;
 };
+
+const withSwarmServices = <A>(use: (runner: BuiltSwarmRunner) => Effect.Effect<A, unknown>) =>
+    Effect.gen(function* () {
+        const docker = yield* DockerEngine;
+        const cluster = yield* SwarmCluster;
+        const env = yield* RunnerEnvPort;
+        return yield* use(buildSwarmRunner({ docker, cluster, env }));
+    });
 
 export class SwarmRuntimeRunner extends Context.Service<SwarmRuntimeRunner, SwarmRuntimeRunnerShape>()(
     "runtime/SwarmRuntimeRunner",
 ) {
-    static readonly Live: Layer.Layer<
-        SwarmRuntimeRunner,
-        never,
-        DockerEngine | SwarmCluster | RunnerEnvPort
-    > = Layer.effect(
-        SwarmRuntimeRunner,
-        Effect.gen(function* () {
-            return makeSwarmRuntimeRunner({
-                docker: yield* DockerEngine,
-                cluster: yield* SwarmCluster,
-                env: yield* RunnerEnvPort,
-            });
-        }),
-    );
+    /** The engine, cluster and env are yielded when a call starts, so this is a constant a module provides with `useValue`. */
+    static readonly live: SwarmRuntimeRunnerShape = {
+        runnerType: RUNNER_TYPE,
+        executeRuntime: (input) => withSwarmServices((runner) => runner.executeRuntime(input)),
+        removeService: (name) => withSwarmServices((runner) => runner.removeService(name)),
+        scaleService: (name, replicas) => withSwarmServices((runner) => runner.scaleService(name, replicas)),
+        rollbackService: (name) => withSwarmServices((runner) => runner.rollbackService(name)),
+    };
 }
 
-export function makeSwarmRuntimeRunner(ports: {
+type BuiltSwarmRunner = ReturnType<typeof buildSwarmRunner>;
+
+function buildSwarmRunner(ports: {
     readonly docker: DockerEngineShape;
     readonly cluster: SwarmClusterShape;
     readonly env: EnvService;
-}): SwarmRuntimeRunnerShape {
+}) {
     const { docker, cluster, env } = ports;
 
     const assertClusterReady = Effect.suspend(() => cluster.assertClusterReady());

@@ -4,9 +4,12 @@ import { DockerNotFound } from "@deployer/docker";
 import { Effect } from "effect";
 import { TimeoutError } from "@deployer/errors";
 import type { RuntimeExecutionInput } from "../runtime-runner.interface";
-import { run } from "../testing";
+import { provideTo, run } from "../testing";
 import { computeTaskStateCheck } from "./swarm-runner.helpers";
-import { makeSwarmRuntimeRunner, type SwarmRuntimeRunnerShape } from "./swarm-runtime-runner.service";
+import { DockerEngine } from "@deployer/docker";
+import { SwarmCluster } from "@deployer/swarm";
+import { RunnerEnvPort } from "../runners.ports";
+import { SwarmRuntimeRunner } from "./swarm-runtime-runner.service";
 
 const baseInput: RuntimeExecutionInput = {
     deployment: {
@@ -94,7 +97,7 @@ describe("SwarmRuntimeRunner", () => {
     let clusterService: {
         assertClusterReady: ReturnType<typeof vi.fn>;
     };
-    let service: SwarmRuntimeRunnerShape;
+    let service: ReturnType<typeof provideTo<typeof SwarmRuntimeRunner.live>>;
 
     beforeEach(() => {
         swarmServices = {
@@ -110,15 +113,15 @@ describe("SwarmRuntimeRunner", () => {
         clusterService = {
             assertClusterReady: vi.fn(() => Effect.void),
         };
-        service = makeSwarmRuntimeRunner({
-            docker: { swarmServices, networks } as never,
-            cluster: clusterService as never,
-            // The runner resolves the PLATFORM OVERLAY name through `EnvService`
-            // (it attaches every workload to that overlay so the ingress can
-            // reach it). Only `DEPLOYER_PREFIX` is read, and "" is the default
-            // unprefixed install.
-            env: { get: vi.fn(() => "") } as never,
-        });
+        service = provideTo(SwarmRuntimeRunner.live, (effect) =>
+            effect.pipe(
+                Effect.provideService(DockerEngine, { swarmServices, networks } as never),
+                Effect.provideService(SwarmCluster, clusterService as never),
+                // The runner resolves the PLATFORM OVERLAY name through `EnvService`; only `DEPLOYER_PREFIX` is
+                // read, and "" is the default unprefixed install.
+                Effect.provideService(RunnerEnvPort, { get: vi.fn(() => "") } as never),
+            ),
+        );
     });
 
     it("creates the service when it does not exist and waits for running tasks", async () => {
