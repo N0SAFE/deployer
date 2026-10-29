@@ -12,10 +12,10 @@ import type {
 	DeploymentQueueHeartbeatInput,
 	DeploymentQueueJob,
 } from "@deployer/contracts-entities";
-import type { DbError } from "@deployer/effect-infra";
+import type { DbError, DbShape } from "@deployer/effect-infra";
 import { deploymentDeadLetterJobs, deploymentQueueJobs } from "@deployer/nest-schema/global/runtime/deployment-queue";
 
-import { RuntimeDb } from "../../../../core/database/runtime-db";
+import type { GlobalDatabase } from "@deployer/shared/core/modules/database/services/global-database.service";
 
 type JobRow = typeof deploymentQueueJobs.$inferSelect;
 type DeadLetterRow = typeof deploymentDeadLetterJobs.$inferSelect;
@@ -130,7 +130,7 @@ export class DeploymentQueueRepository extends Context.Service<DeploymentQueueRe
 const LIVE_STATUSES = ["queued", "claimed", "running"] as const;
 const HELD_STATUSES = ["claimed", "running"] as const;
 
-export function makeDeploymentQueueRepository(database: Context.Service.Shape<typeof RuntimeDb>): DeploymentQueueRepositoryShape {
+export function makeDeploymentQueueRepository(database: DbShape<GlobalDatabase>): DeploymentQueueRepositoryShape {
 	const { use, transaction } = database;
 
 	/** The job `jobId` while `workerId` still holds it under `lockToken`. */

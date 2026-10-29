@@ -4,7 +4,7 @@ import { Injectable } from "@nestjs/common";
 import { GlobalDatabaseService, type GlobalDatabase } from "@deployer/shared/core/modules/database/services/global-database.service";
 import { Cause, Effect, Exit } from "effect";
 import { DbError, type DbShape } from "@deployer/effect-infra";
-import { makeRuntimeDb } from "../../../core/database/runtime-db";
+import { runtimeDbOver } from "../../../core/database/runtime-db";
 import { deployments, deploymentLogs, deploymentRollbacks, deploymentStreams } from "@deployer/nest-schema/global/runtime/deployment";
 import { previewEnvironments } from "@deployer/nest-schema/global/fleet/deployment";
 import { projects, serviceDependencies, services } from "@deployer/nest-schema/global/project/deployment";
@@ -178,7 +178,7 @@ export class DeploymentRepository {
      * callers see the same error they did before the transaction moved off Drizzle's own callback.
      */
     private async inTransaction<A>(body: (tx: GlobalDatabase) => Promise<A>): Promise<A> {
-        this.runtimeDb ??= makeRuntimeDb(this.databaseService);
+        this.runtimeDb ??= runtimeDbOver(this.databaseService);
         const database = this.runtimeDb;
         const exit = await Effect.runPromiseExit(database.transaction(database.use((tx) => body(tx))));
         if (Exit.isSuccess(exit)) return exit.value;

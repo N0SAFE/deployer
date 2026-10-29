@@ -21,7 +21,7 @@ import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
 import { MeshQueueTransitionService } from "@deployer/shared/core/modules/mesh/services/mesh-queue-transition.service";
 
-import { makeRuntimeDb } from "../../../core/database/runtime-db";
+import { runtimeDbOver } from "../../../core/database/runtime-db";
 import { RuntimeNotFound } from "../../../core/runtime.errors";
 
 import { DeploymentQueueEventService } from "./deployment-queue-event.service";
@@ -85,7 +85,7 @@ export class DeploymentQueueLifecycleService implements OnModuleInit, OnModuleDe
     }
 
     private get queue(): DeploymentQueueRepositoryShape {
-        this.repository ??= makeDeploymentQueueRepository(makeRuntimeDb(this.databaseService));
+        this.repository ??= makeDeploymentQueueRepository(runtimeDbOver(this.databaseService));
         return this.repository;
     }
 

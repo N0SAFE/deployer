@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
 
-import { makeRuntimeDb } from "@/core/database/runtime-db";
+import { runtimeDbOver } from "@/core/database/runtime-db";
 import { getSharedApiRuntimeContext } from "@/e2e/runtime";
 import {
 	DeploymentQueueRepository,
@@ -26,7 +26,7 @@ describe("DeploymentQueueRepository e2e", () => {
 			}).pipe(
 				Effect.provideService(
 					DeploymentQueueRepository,
-					makeDeploymentQueueRepository(makeRuntimeDb(database)),
+					makeDeploymentQueueRepository(runtimeDbOver(database)),
 				),
 			),
 		);
