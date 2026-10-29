@@ -200,6 +200,58 @@ Layer 3: DISABLE_AUTO_SCAN env var (emergency)
 
 **Edge nodes without scanner daemon**: If `ScannerContainerManagerService.ensureContainerRunning()` fails because the scanner-runner image is not available, the scan MUST return a 501 "Scanner not available" error, NOT silently skip the image.
 
+### Runtime budget and database cache (measured 2026-10-27)
+
+The `deployer-scanner-runner:latest` image is built by `bun run docker:build:scanner-runner`
+and is not part of the compose stack, so a fresh dev host runs the **ephemeral
+per-scanner fallback** for every scan. Two facts make that path work:
+
+- **Grype downloads its vulnerability DB before matching.** Measured on the dev
+  host for a 1.2 GB image: **3m08s cold**, **53s warm**. The previous
+  `VULNERABILITY_SCAN_TIMEOUT_MS = 120_000` expired before a cold run could ever
+  finish, so every scan of a non-trivial image reported "Timed out waiting for
+  scanner container" and the UI stayed at 1 %.
+- **The DBs live in a named volume**, `deployer-scanner-cache`, mounted at
+  `/root/.cache` with `TRIVY_CACHE_DIR` / `GRYPE_DB_CACHE_DIR` pointing inside it.
+  Ephemeral containers are removed after every run (`v: true` removes only
+  ANONYMOUS volumes), so without the volume every scan re-downloaded ~700 MB.
+
+The timeout is now 10 minutes, which covers a cold download; warm scans finish
+well inside it.
+
+### Scanner concurrency is computed per scan (2026-10-28)
+
+`APP_DOCKER_IMAGE_SCAN_PARALLELISM` is a **ceiling** (1..3, default 3), not the
+answer. `apps/api/services/runtime/src/modules/docker/services/scan-concurrency.ts`
+decides the actual number from three live inputs:
+
+| Signal | Effect |
+|---|---|
+| a deployment or image build is in flight | 1 (`build-or-deploy-in-flight`) |
+| `MemAvailable < 12 %` | 1 (`critical-memory`) |
+| swap used `> 50 %` | 1 (`swap-pressure`) |
+| load per core `> 1` | 1 |
+| `MemAvailable < 25 %` | at most 2 |
+| one scan already running | one slot spent (`ceiling - scans`) |
+
+Producers report themselves through `beginHeavyWork("scan" | "build" | "deploy")`
+(`apps/api/shared/src/core/utils/heavy-work.registry.ts`): the scanner container
+runner, `DeploymentQueueWorkerService.processQueueJob`, and
+`DeploymentArtifactBuilderService` (the image build). This is what makes a scan
+started during a deployment serial instead of stacking three analysers on top of
+a build — the combination that took the 14 GB dev host into 25 GB of swap until
+`docker ps` stopped answering.
+
+Measured on that host while writing this: `swapUsedRatio 0.77` → the planner
+returns `1 (swap-pressure)` even with an idle scan queue.
+
+**The stream endpoint starts a scan only with `forceScan: true`.** Without it,
+`streamImageSecurityScan` observes a running scan or replays a cached result, and
+completes with ZERO events when neither exists — the create-container modal must
+therefore request `forceScan: true`, and a client that receives an event-less
+stream must surface that as an error rather than waiting.
+
+
 ### ServiceFilter (Single Canonical Definition)
 
 ```typescript

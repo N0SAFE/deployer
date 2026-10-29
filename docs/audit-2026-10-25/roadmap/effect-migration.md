@@ -700,7 +700,7 @@ Counts: 297 items = P0 9 / P1 154 / P2 101 / P3 33; FIX 43 / ENHANCE 71 / NEW 18
   - Why/Problem: plain Bun, 1.5k lines / 12 files, timers/signal handlers in `main.ts:101-106`, `endpoint-discovery.ts:62`; `@deployer/nest-effect` irrelevant; independent of the Nest work so it can run in parallel.
   - Do: apply DEC-EFF-13; if yes, create the template and convert one loop.
   - Done when: one loop runs on `Schedule`/`Scope` with a shutdown test.
-  - Status: todo (DEFERRED 2026-10-26 by DEC-EFF-13: start only after ROADMAP Phase 2; low priority) · Verified-in-code: yes · Source: effect-architecture.md#4.5, #8, #9 D13
+  - Status: todo (DEFERRED 2026-  10-26 by DEC-EFF-13: start only after ROADMAP Phase 2; low priority) · Verified-in-code: yes · Source: effect-architecture.md#4.5, #8, #9 D13
   - Design-impact (2026-10-26): DEFERRED by DEC-EFF-13 (adjusted): Effect-native on `effect-core` plus the Bun-only subset of `effect-infra`, started only after Phase 2; priority lowered P2 to P3; tracked by `EFF-206`.
 - [ ] `EFF-116` **Mesh-agent binary size check (`bun build --compile`) before and after Effect** · NEW · P3 · S · Deps: `EFF-115`
   - Why/Problem: Effect's footprint matters more in a single compiled binary.

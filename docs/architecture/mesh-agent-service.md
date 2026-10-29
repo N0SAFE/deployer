@@ -14,40 +14,43 @@ dedicated service, `mesh-agent`, running on every node; everyone else is a clien
 
 | | **Node mesh** | **Global mesh** |
 |---|---|---|
-| Addressed by | a node id (or "all nodes") | a service name (any replica) |
-| Answered by | the services on that node, through the node's mesh-agent | any replica of the named service |
-| Typical use | per-node docker ops (containers, logs, files, terminals), node usage, inventory, ingress doors | streaming and requests not tied to a node (deployment streams, resource discovery) |
-| Replaces | `callMany` / `registerCallHandler` namespaces | direct service-to-service wiring |
+| Addressed by | a node id (or "all nodes") | a service name, optionally a resource key |
+| Path | caller -> its local mesh-agent -> (bridges) -> the target node's agent -> the service on that node | **direct service to service**, resolved by a service directory |
+| Answered by | the services on that node | any replica, or the one replica that holds the resource |
+| Typical use | per-node docker ops (containers, logs, files, terminals), node usage, inventory, ingress doors | streaming and requests not tied to a node (deployment streams, resource discovery), and work that needs the replica holding some in-memory state |
 
-Both are **oRPC**. A service declares an ordinary oRPC contract and implements it; a caller builds an ordinary oRPC
-client whose link is a mesh link:
+Both are **oRPC**, and every client is built with `createEffectClient` (from `@orpc/effect`) over the link, so a call
+is an Effect and can use Effect features (retry, timeout, tracing, interruption, typed errors). A service declares an
+ordinary contract and implements it; a caller builds the client over a mesh link:
 
 ```ts
-const client = createORPCClient(meshLink({ node: "node-b" }));      // node mesh
-const client = createORPCClient(meshLink({ service: "runtime" }));  // global mesh
+const nodes = createEffectClient(createORPCClient(nodeMeshLink({ node: "node-b" })));
+const runtime = createEffectClient(createORPCClient(serviceMeshLink({ service: "runtime" })));
+const owner = createEffectClient(createORPCClient(serviceMeshLink({ service: "runtime", key: deploymentId })));
 ```
 
-The link sends to the caller's **local** mesh-agent (unix socket / loopback), which routes. No service holds mesh
-connections, topics or correlation ids.
+Callers never see topics, correlation ids, replicas or connections.
 
-## Transport and topology
+### Global mesh: directory, redirects and replica peers
 
-- **Constant connections are oRPC RPC links** (`@orpc/client/websocket` on the dialling side, `@orpc/server/websocket`
-  on the answering side), multiplexed, over the WireGuard network. One long-lived link per *agent pair that needs it*,
-  never one per service pair.
-- **Small mesh** (up to a configurable size, default 8 agents): every agent links to every other. A request goes
-  directly to its target agent.
-- **Large mesh**: agents are grouped into cells. Each cell has a small, deterministic set of **bridge** agents
-  (chosen by rendezvous hashing over the signed roster, so every agent computes the same answer with no election and
-  no control plane). Bridges link to every other cell's bridges; ordinary agents link only to their cell's bridges.
-  A request to a node in another cell goes `local agent -> own bridge -> target cell's bridge -> target agent`.
-  A bridge that disappears is replaced by the next in the hash order.
-- **Routing is a pure function**: `route(roster, from, to) -> path`. The roster (signed membership, already gossiped)
-  is the only shared state, so routing is testable without a network.
-- **Global mesh addressing**: each agent advertises the services it hosts (name, replica id, load) in its roster
-  entry; a call to a service name picks a replica by rendezvous hashing on an optional affinity key, else least
-  loaded, then routes like any other request.
-- Links open lazily and close when idle, except bridge links, which stay up with heartbeats.
+The global mesh is a small framework (an Effect library, `@deployer/service-mesh`) with three parts.
+
+1. **Service directory.** Each replica registers itself (service, replica id, address on the overlay network, load)
+   and the resource keys it currently holds in memory (a deployment, a terminal session, a stream). The directory is
+   replicated through the mesh-agents' roster gossip, so every node can answer
+   `resolve(service, { key? })` locally: the replica holding `key`, else a replica chosen by affinity hash, else the
+   least loaded. Registrations carry a TTL and a generation, so a dead replica's keys age out.
+2. **Redirects.** A caller may address only the service. The replica that receives the call can answer with a typed
+   `MeshRedirect { replica, reason }` instead of a result (the resource lives elsewhere). The mesh link follows it
+   automatically, up to a hop limit with a loop guard, and remembers `key -> replica` for a short TTL so the next call
+   goes straight there. A redirect is part of the contract's error set, so it is typed and testable.
+3. **Replica peers.** A service can ask its own other replicas: `peers.ask(procedure, input, { first | all })` to find
+   which one holds a resource (then redirect the caller to it), or `peers.forward(replica, procedure, input)` to
+   fetch it on the caller's behalf when a redirect is not wanted (for example the caller cannot reach that replica).
+   Redirect or forward is the handler's choice.
+
+Direct service-to-service calls are normal oRPC over the overlay network; the directory only decides *where*. Nothing
+holds a connection per service pair: links are created on first use and closed when idle.
 
 ## Agents
 
@@ -65,14 +68,24 @@ connections, topics or correlation ids.
 - `apps/api/shared/src/core/modules/mesh` (topics, topology, resource discovery) once its users are on the links.
 - The docker mesh services and handler registrar in runtime, and fleet's mesh namespace.
 
+## oRPC clients
+
+Every server-side oRPC client (the service-client registry, the shared `service-client`, the mesh links, the
+initialization service) is built with `createEffectClient`, so callers get Effects instead of Promises. Today these
+call `createORPCClient` directly: `packages/service-client` (registry), `apps/api/shared/src/server/service-client.ts`,
+the shared e2e harness client and `mesh-initialization.service.ts`. The browser clients (`apps/web`, `apps/setup`,
+the BFF views) are covered by the open question below.
+
 ## Migration order
 
 1. **Scaffold** `apps/api/services/mesh-agent` from the health service anatomy; port roster, gossip and the WireGuard
    driver to Effect behind ports, with their tests.
-2. **Node mesh link** and the agent's local socket server; per-node routing for the small-mesh topology.
+2. **Node mesh link** (built with `createEffectClient`) and the agent's local socket server; per-node routing for the
+   small-mesh topology. Move the existing server-side clients onto `createEffectClient`.
 3. Move runtime's per-node docker operations behind node-mesh contracts; delete the docker mesh services.
 4. Move fleet's mesh use (cluster, reachability) behind node-mesh contracts.
-5. **Global mesh**: service advertisement, replica choice, and the bridge topology for large meshes.
+5. **Global mesh**: the `@deployer/service-mesh` framework (directory, redirects, replica peers), then the bridge
+   topology for large node meshes.
 6. **Onboarding agent**, then remove `apps/mesh-agent`, `@deployer/mesh-network` and the shared mesh modules.
 
 ## Things to verify before building
@@ -82,3 +95,6 @@ connections, topics or correlation ids.
 - Where a global-mode task keeps its identity across restarts (a bind mount on the node), and what happens on a node
   that is drained and rejoins.
 - The roster size at which cells become worthwhile (the default threshold above is a guess).
+- Whether the browser clients (`apps/web`, `apps/setup`, BFF views) should also use `createEffectClient`, or only the
+  server-side ones and the mesh links.
+- The hop limit and `key -> replica` hint TTL for redirects (proposed: 3 hops, 5 s).
