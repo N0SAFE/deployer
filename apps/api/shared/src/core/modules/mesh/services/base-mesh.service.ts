@@ -1,6 +1,6 @@
-import { randomUUID } from "node:crypto";
 import { Logger } from "@nestjs/common";
-import { filter, type Observable } from "rxjs";
+import type { Observable } from "rxjs";
+import { makeMeshNamespace, type MeshNamespace, type MeshNamespaceTopology } from "./mesh-namespace";
 import type { SystemMeshTopicService } from "./system-mesh-topic/orchestrator/system-mesh-topic.service";
 import type { MeshTopicNamespaceHandle } from "./system-mesh-topic/domain/mesh-topic-types";
 import type { SystemMeshTopologyService } from "./system-mesh-topology/orchestrator/system-mesh-topology.service";
@@ -213,8 +213,6 @@ export type MeshMutationHandler<TInput, TResult> = (
 
 // ─── Entity-keyed handler registries ─────────────────────────────────────────
 
-type UnsubscribeFn = () => void;
-
 // ─── Strongly typed topic handle accessor ────────────────────────────────────
 
 type RequireHandle<TContracts extends EventContracts> = MeshTopicNamespaceHandle<TContracts>;
@@ -227,9 +225,7 @@ export abstract class InternalBaseMeshService<
 > {
   protected readonly logger: Logger;
 
-  protected handle: RequireHandle<TContracts> | null = null;
-  private readonly cleanupHandlers: UnsubscribeFn[] = [];
-  private readonly cancelledCorrelations = new Set<string>();
+  private readonly meshNamespace: MeshNamespace<TContracts>;
 
   protected constructor(
     protected readonly meshTopicService: SystemMeshTopicService,
@@ -239,6 +235,18 @@ export abstract class InternalBaseMeshService<
     protected readonly entityDefinitions: TEntities,
   ) {
     this.logger = new Logger(`${namespace}MeshService`);
+    this.meshNamespace = makeMeshNamespace({
+      topics: meshTopicService,
+      topology: meshTopologyService as unknown as MeshNamespaceTopology,
+      namespace,
+      contracts,
+      logger: this.logger,
+    });
+  }
+
+  /** The topic handle, or null before the namespace is initialized. */
+  protected get handle(): RequireHandle<TContracts> | null {
+    return this.meshNamespace.handle;
   }
 
   // ─── Lifecycle ──────────────────────────────────────────────────────────
@@ -252,26 +260,11 @@ export abstract class InternalBaseMeshService<
   }
 
   protected initializeMeshNamespace(): void {
-    try {
-      this.handle = this.meshTopicService.registerNamespace({
-        namespace: this.namespace,
-        contracts: this.contracts,
-      });
-    } catch (err: unknown) {
-      // Namespace already registered (e.g., duplicate onModuleInit ordering) — safe to skip
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("already registered")) {
-        return;
-      }
-      throw err;
-    }
+    this.meshNamespace.initialize();
   }
 
   protected teardownMeshNamespace(): void {
-    for (const cleanup of this.cleanupHandlers) cleanup();
-    this.cleanupHandlers.length = 0;
-    this.cancelledCorrelations.clear();
-    this.handle = null;
+    this.meshNamespace.teardown();
   }
 
   // ─── Topic derivation ───────────────────────────────────────────────────
@@ -465,131 +458,14 @@ export abstract class InternalBaseMeshService<
 
   // ─── Low-level topic-based callMany ─────────────────────────────────────
 
-  protected async callManyOnTopics<TRequest, TResponse>(
+  protected callManyOnTopics<TRequest, TResponse>(
     requestTopic: keyof TContracts,
     responseTopic: keyof TContracts,
     cancelTopic: keyof TContracts,
     payload: TRequest,
     options?: MeshCallManyOptions<TResponse>,
   ): Promise<MeshCallManyResult<TResponse>> {
-    const mesh = this.requireHandle();
-    const localNode = this.meshTopologyService.getLocalNode();
-
-    const correlationId = randomUUID();
-    const timeoutMs = options?.timeoutMs ?? 1_500;
-    const maxCollectedResponses =
-      typeof options?.maxCollectedResponses === "number" &&
-      Number.isInteger(options.maxCollectedResponses) &&
-      options.maxCollectedResponses > 0
-        ? options.maxCollectedResponses
-        : 256;
-
-    const expectedResponders = this.resolveExpectedResponders();
-    const responses: TResponse[] = [];
-    const responderHitCount = new Map<string, number>();
-
-    let droppedResponses = 0;
-    let retryResponses = 0;
-    let lagTotalMs = 0;
-    let lagSamples = 0;
-    let maxLagMs = 0;
-    let timedOut = false;
-    let stoppedEarly = false;
-    let reason: "timeout" | "killer_switch" = "timeout";
-
-    await new Promise<void>((resolve) => {
-      // Declare the subscription BEFORE the timeout so the timeout
-      // callback can safely `unsubscribe()` it. The previous layout
-      // (timeout declared first, subscription second) tripped a TDZ
-      // `ReferenceError` whenever the timeout fired before the next
-      // tick, which then triggered a graceful-shutdown path on the
-      // container.
-      const responseSubscription = mesh
-        .observe$(
-          responseTopic,
-          { correlationId } as EventInput<TContracts[keyof TContracts]>,
-        )
-        .pipe(
-          filter((event) => {
-            const envelope = event as unknown as MeshResponseEnvelope<TResponse>;
-            return envelope.correlationId === correlationId;
-          }),
-        )
-        .subscribe((event) => {
-          const envelope = event as unknown as MeshResponseEnvelope<TResponse>;
-
-          const hitCount = (responderHitCount.get(envelope.responderNodeId) ?? 0) + 1;
-          responderHitCount.set(envelope.responderNodeId, hitCount);
-          if (hitCount > 1) retryResponses += 1;
-
-          const emittedAtMs = Date.parse(envelope.emittedAt);
-          if (!Number.isNaN(emittedAtMs)) {
-            const lagMs = Math.max(0, Date.now() - emittedAtMs);
-            lagTotalMs += lagMs;
-            lagSamples += 1;
-            if (lagMs > maxLagMs) maxLagMs = lagMs;
-          }
-
-          if (responses.length >= maxCollectedResponses) {
-            droppedResponses += 1;
-          } else {
-            responses.push(envelope.payload);
-          }
-
-          const explicitStop = envelope.stopPropagation;
-          const predicateStop = options?.stopWhen?.(envelope.payload, responses) ?? false;
-          const expectedReached =
-            expectedResponders !== null && responses.length >= expectedResponders;
-
-          if (explicitStop || predicateStop || expectedReached) {
-            stoppedEarly = true;
-            reason = "killer_switch";
-            this.broadcastCancel(cancelTopic, correlationId, "caller_stop");
-            clearTimeout(timeout);
-            responseSubscription.unsubscribe();
-            resolve();
-          }
-        });
-
-      const timeout = setTimeout(() => {
-        timedOut = true;
-        responseSubscription.unsubscribe();
-        resolve();
-      }, timeoutMs);
-
-      const requestEnvelope: MeshRequestEnvelope<TRequest> = {
-        correlationId,
-        callerNodeId: localNode.nodeId,
-        payload,
-        emittedAt: new Date().toISOString(),
-      };
-
-      mesh.publish(
-        requestTopic,
-        { correlationId } as EventInput<TContracts[keyof TContracts]>,
-        // `publish` is typed to the contract's OUTPUT schema, while this call sends a
-        // transport envelope. Casting at the boundary is the pattern already used by
-        // `publishEntityChange` above.
-        requestEnvelope as EventOutput<TContracts[keyof TContracts]>,
-        {},
-      );
-    });
-
-    return {
-      correlationId,
-      responses,
-      stoppedEarly,
-      reason,
-      metrics: {
-        expectedResponders: expectedResponders ?? 0,
-        receivedResponses: responses.length,
-        droppedResponses,
-        retryResponses,
-        maxLagMs,
-        avgLagMs: lagSamples > 0 ? Math.round(lagTotalMs / lagSamples) : 0,
-        timedOut,
-      },
-    };
+    return this.meshNamespace.callMany(requestTopic, responseTopic, cancelTopic, payload, options);
   }
 
   // ─── registerCallHandler() ──────────────────────────────────────────────
@@ -598,132 +474,24 @@ export abstract class InternalBaseMeshService<
     requestTopic: keyof TContracts,
     responseTopic: keyof TContracts,
     cancelTopic: keyof TContracts,
-    options: Record<string, never>,
+    _options: Record<string, never>,
     handler: MeshQueryHandler<TRequest, TResponse>,
   ): void {
-    const mesh = this.requireHandle();
-    const localNode = this.meshTopologyService.getLocalNode();
-
-    const cancelSub = mesh
-      .observe$(
-        cancelTopic,
-        {} as EventInput<TContracts[keyof TContracts]>,
-      )
-      .subscribe((event) => {
-        const envelope = event as unknown as MeshCancelEnvelope;
-        this.cancelledCorrelations.add(envelope.correlationId);
-      });
-
-    const requestSub = mesh
-      .observe$(
-        requestTopic,
-        {} as EventInput<TContracts[keyof TContracts]>,
-      )
-      .subscribe((event) => {
-        const request = event as unknown as MeshRequestEnvelope<TRequest>;
-
-        if (this.cancelledCorrelations.has(request.correlationId)) return;
-
-        void Promise.resolve(
-          handler({
-            correlationId: request.correlationId,
-            callerNodeId: request.callerNodeId,
-            payload: request.payload,
-          }),
-        )
-          .then((result) => {
-            if (this.cancelledCorrelations.has(request.correlationId)) return;
-
-            const response: MeshResponseEnvelope<TResponse> = {
-              correlationId: request.correlationId,
-              responderNodeId: localNode.nodeId,
-              payload: result.payload,
-              stopPropagation: result.stopPropagation ?? false,
-              emittedAt: new Date().toISOString(),
-            };
-
-            mesh.publish(
-              responseTopic,
-              {
-                correlationId: request.correlationId,
-              } as EventInput<TContracts[keyof TContracts]>,
-              // Same boundary cast as the request side: the transport envelope is not
-              // the contract's output schema, so it is asserted at the publish call.
-              response as EventOutput<TContracts[keyof TContracts]>,
-            );
-
-            if (result.stopPropagation) {
-            this.broadcastCancel(
-              cancelTopic,
-              request.correlationId,
-              "handler_stop",
-            );
-            }
-          })
-          .catch((err: unknown) => {
-            this.logger.error(
-              `Handler error for topic '${String(requestTopic)}'`,
-              err,
-            );
-          });
-      });
-
-    this.cleanupHandlers.push(() => {cancelSub.unsubscribe()});
-    this.cleanupHandlers.push(() => {requestSub.unsubscribe()});
-  }
-
-  // ─── broadcastCancel() ──────────────────────────────────────────────────
-
-  private broadcastCancel(
-    cancelTopic: keyof TContracts,
-    correlationId: string,
-    reason: MeshCancelEnvelope["reason"],
-  ): void {
-    const mesh = this.requireHandle();
-    const localNode = this.meshTopologyService.getLocalNode();
-
-    const envelope: MeshCancelEnvelope = {
-      correlationId,
-      callerNodeId: localNode.nodeId,
-      reason,
-      emittedAt: new Date().toISOString(),
-    };
-
-    this.cancelledCorrelations.add(correlationId);
-
-    mesh.publish(
-      cancelTopic,
-      { correlationId } as EventInput<TContracts[keyof TContracts]>,
-      envelope as EventOutput<TContracts[keyof TContracts]>,
-      {},
-    );
-  }
-
-  // ─── resolveExpectedResponders() ────────────────────────────────────────
-
-  private resolveExpectedResponders(): number | null {
-    const topology = this.meshTopologyService as unknown as {
-      listPeerSessions?: () => { items: { state?: string | null }[] };
-    };
-
-    if (typeof topology.listPeerSessions !== "function") return null;
-
-    const peers = topology.listPeerSessions().items;
-    const connected = peers.filter((s) => s.state === "connected").length;
-    return Math.max(1, connected + 1);
+    this.meshNamespace.registerCallHandler(requestTopic, responseTopic, cancelTopic, handler);
   }
 
   // ─── requireHandle() ────────────────────────────────────────────────────
 
   private requireHandle(): RequireHandle<TContracts> {
-    if (!this.handle) {
+    const handle = this.meshNamespace.handle;
+    if (!handle) {
       throw new AppError(
         `Mesh namespace '${this.namespace}' is not initialized. ` +
         `Ensure onModuleInit() has been called.`,
         "INTERNAL_ERROR",
       );
     }
-    return this.handle;
+    return handle;
   }
 }
 
