@@ -1,4 +1,4 @@
-import { Injectable, type OnModuleDestroy, NotFoundException, Inject } from "@nestjs/common";
+import { type OnModuleDestroy, NotFoundException } from "@nestjs/common";
 import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import { Observable, ReplaySubject, from, interval, startWith, switchMap } from "rxjs";
@@ -32,57 +32,19 @@ import {
   type DockerFileEntry,
   type DockerTerminalProfile,
 } from "@deployer/contracts-entities";
-import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
+import type { DockerEngineShape } from "@deployer/docker";
 import { isRecord, isObjectLike } from "@deployer/type-guards"
 
 
 
-type TerminalSessionEvent = {
-  sessionId: string;
-  timestamp: string;
-  type: "output" | "status" | "error";
-  data: string;
-}
+import { DEFAULT_REFRESH_INTERVAL_MS, DEFAULT_LOG_TAIL, MAX_SEEN_LOG_KEYS, TERMINAL_SESSION_RETAIN_MS, emitTerminalEvent, escapeShellArg, findTitleIndex, formatError, isReadWriteStream, isRecoverableAttachError, logMatchesProcess, mapProcessState, normalizeContainerPath, openTerminalStream, parseListEntry, parsePercent, parseTimestampedLogLine, resolveContainerWorkingDir, toTerminalChunk } from "./container-runtime-helpers";
+import type { TerminalSessionEvent, TerminalSession } from "./container-runtime-helpers";
 
-type TerminalSessionStoredEvent = {
-  sequence: number;
-} & TerminalSessionEvent
-
-type TerminalSessionStream = NodeJS.ReadWriteStream & {
-  destroy: () => void;
-};
-
-type TerminalSession = {
-  sessionId: string;
-  containerId: string;
-  shell: "bash" | "sh" | "zsh" | "ash";
-  user: string;
-  workingDir: string;
-  profiles: DockerTerminalProfile[];
-  openedAt: string;
-  events: ReplaySubject<TerminalSessionEvent>;
-  eventSequence: number;
-  eventHistory: TerminalSessionStoredEvent[];
-  stream: TerminalSessionStream | null;
-  mode: "stream" | "command";
-  queue: Promise<void>;
-  attachPromise: Promise<void> | null;
-  closed: boolean;
-}
-
-const DEFAULT_REFRESH_INTERVAL_MS = 1_000;
-const DEFAULT_LOG_TAIL = 300;
-const MAX_SEEN_LOG_KEYS = 3_000;
-const TERMINAL_SESSION_HISTORY_LIMIT = 500;
-const TERMINAL_SESSION_RETAIN_MS = 60_000;
-const TERMINAL_ATTACH_TIMEOUT_MS = 8_000;
-
-@Injectable()
 export class DockerContainerRuntimeService implements OnModuleDestroy {
   private readonly terminalSessions = new Map<string, TerminalSession>();
   private readonly terminalSessionCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-  constructor(@Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape) {}
+  constructor(private readonly dockerEngine: DockerEngineShape) {}
 
   /**
    * Lifecycle hook: when the NestJS application shuts down, close every
@@ -232,7 +194,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
         undefined,
       )
         .then((sampleEntries) => {
-          const hasPidCorrelatedEntries = sampleEntries.some((entry) => this.logMatchesProcess(entry.message, pidNeedle));
+          const hasPidCorrelatedEntries = sampleEntries.some((entry) => logMatchesProcess(entry.message, pidNeedle));
 
           if (disposed || subscriber.closed) {
             return;
@@ -244,7 +206,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
             refreshIntervalMs: input.refreshIntervalMs,
           }).subscribe({
             next: (entry) => {
-              if (!hasPidCorrelatedEntries || this.logMatchesProcess(entry.message, pidNeedle)) {
+              if (!hasPidCorrelatedEntries || logMatchesProcess(entry.message, pidNeedle)) {
                 subscriber.next(entry);
               }
             },
@@ -272,7 +234,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
       undefined,
     );
 
-    const matchedEntries = entries.filter((entry) => this.logMatchesProcess(entry.message, pidNeedle));
+    const matchedEntries = entries.filter((entry) => logMatchesProcess(entry.message, pidNeedle));
 
     return {
       generatedAt: new Date().toISOString(),
@@ -281,8 +243,8 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
   }
 
   async listContainerFiles(input: DockerContainerFilesQueryInput) {
-    const containerPath = this.normalizeContainerPath(input.path ?? "/");
-    const pathArg = this.escapeShellArg(containerPath);
+    const containerPath = normalizeContainerPath(input.path ?? "/");
+    const pathArg = escapeShellArg(containerPath);
 
     const command = [
       "sh",
@@ -298,7 +260,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
       .map((line) => line.trim())
       .filter((line) => line.length > 0)
       .filter((line) => !line.startsWith("total "))
-      .map((line) => this.parseListEntry(line, containerPath, generatedAt))
+      .map((line) => parseListEntry(line, containerPath, generatedAt))
       .filter((entry): entry is DockerFileEntry => entry !== null);
 
     return {
@@ -310,9 +272,9 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
   }
 
   async readContainerFile(input: DockerContainerReadFileQueryInput) {
-    const containerPath = this.normalizeContainerPath(input.path);
+    const containerPath = normalizeContainerPath(input.path);
     const maxBytes = input.maxBytes ?? 1_000_000;
-    const pathArg = this.escapeShellArg(containerPath);
+    const pathArg = escapeShellArg(containerPath);
 
     const command = [
       "sh",
@@ -332,17 +294,17 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
   }
 
   async writeContainerFile(input: DockerContainerWriteFileBodyInput) {
-    const containerPath = this.normalizeContainerPath(input.path);
+    const containerPath = normalizeContainerPath(input.path);
     const encoded = Buffer.from(input.content, "utf8").toString("base64");
 
     const mkdirPrefix = input.createParents
-      ? `mkdir -p ${this.escapeShellArg(path.posix.dirname(containerPath))} && `
+      ? `mkdir -p ${escapeShellArg(path.posix.dirname(containerPath))} && `
       : "";
 
     const command = [
       "sh",
       "-lc",
-      `${mkdirPrefix}printf %s ${this.escapeShellArg(encoded)} | base64 -d > ${this.escapeShellArg(containerPath)}`,
+      `${mkdirPrefix}printf %s ${escapeShellArg(encoded)} | base64 -d > ${escapeShellArg(containerPath)}`,
     ];
 
     await this.execInContainer(input.containerId, command);
@@ -354,11 +316,11 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
   }
 
   async deleteContainerPath(input: DockerContainerDeletePathBodyInput) {
-    const containerPath = this.normalizeContainerPath(input.path);
+    const containerPath = normalizeContainerPath(input.path);
     const command = [
       "sh",
       "-lc",
-      `rm -rf ${this.escapeShellArg(containerPath)}`,
+      `rm -rf ${escapeShellArg(containerPath)}`,
     ];
 
     await this.execInContainer(input.containerId, command);
@@ -370,13 +332,13 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
   }
 
   async renameContainerPath(input: DockerContainerRenamePathBodyInput) {
-    const sourcePath = this.normalizeContainerPath(input.path);
-    const nextPath = this.normalizeContainerPath(input.nextPath);
+    const sourcePath = normalizeContainerPath(input.path);
+    const nextPath = normalizeContainerPath(input.nextPath);
 
     const command = [
       "sh",
       "-lc",
-      `mv ${this.escapeShellArg(sourcePath)} ${this.escapeShellArg(nextPath)}`,
+      `mv ${escapeShellArg(sourcePath)} ${escapeShellArg(nextPath)}`,
     ];
 
     await this.execInContainer(input.containerId, command);
@@ -388,12 +350,12 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
   }
 
   async createContainerDirectory(input: DockerContainerCreateDirectoryBodyInput) {
-    const containerPath = this.normalizeContainerPath(input.path);
+    const containerPath = normalizeContainerPath(input.path);
 
     const command = [
       "sh",
       "-lc",
-      `mkdir -p ${this.escapeShellArg(containerPath)}`,
+      `mkdir -p ${escapeShellArg(containerPath)}`,
     ];
 
     await this.execInContainer(input.containerId, command);
@@ -407,7 +369,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
   async openContainerTerminalSession(input: DockerContainerTerminalOpenBodyInput) {
     const shell = input.shell ?? "sh";
     const user = input.user ?? "root";
-    const workingDir = this.normalizeContainerPath(input.workingDir ?? "/");
+    const workingDir = normalizeContainerPath(input.workingDir ?? "/");
     const openedAt = new Date().toISOString();
     const sessionId = randomUUID();
 
@@ -448,7 +410,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
 
     this.terminalSessions.set(sessionId, session);
 
-    this.emitTerminalEvent(session, "status", `Opening terminal session on ${input.containerId}...`);
+    emitTerminalEvent(session, "status", `Opening terminal session on ${input.containerId}...`);
     session.attachPromise = this.initializeTerminalSession(session);
 
     return {
@@ -495,7 +457,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
         await this.writeTerminalInput(session, input.input);
       })
       .catch((error) => {
-        this.emitTerminalEvent(session, "error", this.formatError(error));
+        emitTerminalEvent(session, "error", formatError(error));
       });
 
     await session.queue;
@@ -531,24 +493,24 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
 
     let rawStream: unknown;
     try {
-      rawStream = await this.openTerminalStream(exec, session, true);
+      rawStream = await openTerminalStream(exec, session, true);
     } catch (error) {
-      if (this.isRecoverableAttachError(error)) {
-        this.emitTerminalEvent(
+      if (isRecoverableAttachError(error)) {
+        emitTerminalEvent(
           session,
           "status",
           "Interactive terminal attach failed; retrying with compatibility transport...",
         );
 
         try {
-          rawStream = await this.openTerminalStream(exec, session, false);
+          rawStream = await openTerminalStream(exec, session, false);
         } catch (fallbackError) {
-          this.emitTerminalEvent(
+          emitTerminalEvent(
             session,
             "status",
             "Interactive terminal transport unavailable; switched to compatibility command mode",
           );
-          this.emitTerminalEvent(session, "error", this.formatError(fallbackError));
+          emitTerminalEvent(session, "error", formatError(fallbackError));
           return "command";
         }
       } else {
@@ -556,8 +518,8 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
       }
     }
 
-    if (!this.isReadWriteStream(rawStream)) {
-      this.emitTerminalEvent(session, "status", "Interactive terminal stream unavailable; switched to command mode");
+    if (!isReadWriteStream(rawStream)) {
+      emitTerminalEvent(session, "status", "Interactive terminal stream unavailable; switched to command mode");
       return "command";
     }
 
@@ -573,20 +535,20 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
 
     session.stream = rawStream;
 
-    this.emitTerminalEvent(session, "status", `Connected to ${session.containerId} as ${session.user} (${session.shell})`);
+    emitTerminalEvent(session, "status", `Connected to ${session.containerId} as ${session.user} (${session.shell})`);
 
     rawStream.on("data", (chunk) => {
-      const data = this.toTerminalChunk(chunk);
+      const data = toTerminalChunk(chunk);
       if (data.length === 0) {
         return;
       }
 
-      this.emitTerminalEvent(session, "output", data);
+      emitTerminalEvent(session, "output", data);
     });
 
     rawStream.on("error", (error) => {
       this.finalizeTerminalSession(session, {
-        errorMessage: this.formatError(error),
+        errorMessage: formatError(error),
         statusMessage: "Terminal stream error",
         destroyStream: false,
       });
@@ -615,26 +577,13 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
       session.mode = mode;
     } catch (error) {
       this.finalizeTerminalSession(session, {
-        errorMessage: this.formatError(error),
+        errorMessage: formatError(error),
         statusMessage: "Failed to open shell session",
         destroyStream: true,
       });
     } finally {
       session.attachPromise = null;
     }
-  }
-
-  private buildInteractiveShellCommand(
-    shell: TerminalSession["shell"],
-    workingDir: string,
-  ): string[] {
-    const escapedWorkingDir = this.escapeShellArg(workingDir);
-
-    return [
-      "sh",
-      "-lc",
-      `cd ${escapedWorkingDir} && exec ${shell} -i`,
-    ];
   }
 
   private async writeTerminalInput(session: TerminalSession, input: string): Promise<void> {
@@ -685,14 +634,14 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
         return;
       }
 
-      this.emitTerminalEvent(session, "status", `$ ${command}`);
+      emitTerminalEvent(session, "status", `$ ${command}`);
 
       const handledBuiltin = await this.handleCommandModeBuiltin(session, command);
       if (handledBuiltin) {
         continue;
       }
 
-      const commandWithWorkingDir = `cd ${this.escapeShellArg(session.workingDir)} && ${command}`;
+      const commandWithWorkingDir = `cd ${escapeShellArg(session.workingDir)} && ${command}`;
 
       try {
         const { output } = await this.execInContainer(
@@ -701,10 +650,10 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
         );
 
         if (output.length > 0) {
-          this.emitTerminalEvent(session, "output", output);
+          emitTerminalEvent(session, "output", output);
         }
       } catch (error) {
-        this.emitTerminalEvent(session, "error", this.formatError(error));
+        emitTerminalEvent(session, "error", formatError(error));
       }
     }
   }
@@ -716,97 +665,30 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
     }
 
     const requestedTarget = (cdMatch[1] ?? "~").trim();
-    const resolvedTarget = this.resolveContainerWorkingDir(session, requestedTarget);
+    const resolvedTarget = resolveContainerWorkingDir(session, requestedTarget);
 
     try {
       await this.assertContainerDirectoryExists(session.containerId, resolvedTarget);
       session.workingDir = resolvedTarget;
-      this.emitTerminalEvent(session, "status", `cwd: ${session.workingDir}`);
+      emitTerminalEvent(session, "status", `cwd: ${session.workingDir}`);
     } catch {
-      this.emitTerminalEvent(session, "error", `cd: ${requestedTarget || "~"}: No such file or directory`);
+      emitTerminalEvent(session, "error", `cd: ${requestedTarget || "~"}: No such file or directory`);
     }
 
     return true;
-  }
-
-  private resolveContainerWorkingDir(session: TerminalSession, requestedTarget: string): string {
-    const target = requestedTarget.length > 0 ? requestedTarget : "~";
-
-    if (target === "~") {
-      return session.user === "root"
-        ? "/root"
-        : path.posix.normalize(`/home/${session.user}`);
-    }
-
-    if (target.startsWith("~")) {
-      const baseHome = session.user === "root"
-        ? "/root"
-        : path.posix.normalize(`/home/${session.user}`);
-      const homeRelative = target.slice(1).replace(/^\/+/, "");
-      return this.normalizeContainerPath(path.posix.join(baseHome, homeRelative));
-    }
-
-    if (target.startsWith("/")) {
-      return this.normalizeContainerPath(target);
-    }
-
-    return this.normalizeContainerPath(path.posix.resolve(session.workingDir, target));
   }
 
   private async assertContainerDirectoryExists(containerId: string, directory: string): Promise<void> {
     await this.execInContainer(containerId, [
       "sh",
       "-lc",
-      `test -d ${this.escapeShellArg(directory)}`,
+      `test -d ${escapeShellArg(directory)}`,
     ]);
   }
 
   /** Runs `command` in the container; a non-zero exit is a failure carrying the output. */
   private execInContainer(containerId: string, command: string[]) {
     return runPromiseUnwrapped(this.dockerEngine.exec.run(containerId, command));
-  }
-
-  private async openTerminalStream(
-    exec: ExecShape,
-    session: TerminalSession,
-    hijack: boolean,
-  ): Promise<unknown> {
-    return await runPromiseUnwrapped(
-      exec.interactive(session.containerId, {
-        cmd: this.buildInteractiveShellCommand(session.shell, session.workingDir),
-        user: session.user,
-        workingDir: session.workingDir,
-        env: ["TERM=xterm-256color"],
-        hijack,
-        timeoutMs: TERMINAL_ATTACH_TIMEOUT_MS,
-      }),
-    );
-  }
-
-  private emitTerminalEvent(
-    session: TerminalSession,
-    type: TerminalSessionEvent["type"],
-    data: string,
-  ): void {
-    const event: TerminalSessionEvent = {
-      sessionId: session.sessionId,
-      timestamp: new Date().toISOString(),
-      type,
-      data,
-    };
-
-    const storedEvent: TerminalSessionStoredEvent = {
-      ...event,
-      sequence: session.eventSequence + 1,
-    };
-
-    session.eventSequence = storedEvent.sequence;
-    session.eventHistory.push(storedEvent);
-    if (session.eventHistory.length > TERMINAL_SESSION_HISTORY_LIMIT) {
-      session.eventHistory.splice(0, session.eventHistory.length - TERMINAL_SESSION_HISTORY_LIMIT);
-    }
-
-    session.events.next(event);
   }
 
   private finalizeTerminalSession(
@@ -824,10 +706,10 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
     session.closed = true;
 
     if (options.errorMessage) {
-      this.emitTerminalEvent(session, "error", options.errorMessage);
+      emitTerminalEvent(session, "error", options.errorMessage);
     }
 
-    this.emitTerminalEvent(session, "status", options.statusMessage);
+    emitTerminalEvent(session, "status", options.statusMessage);
 
     if (options.destroyStream && session.stream) {
       try {
@@ -862,58 +744,6 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
     return session;
   }
 
-  private isReadWriteStream(value: unknown): value is TerminalSessionStream {
-    if (!isRecord(value)) {
-      return false;
-    }
-
-    return (
-      typeof value.write === "function"
-      && typeof value.on === "function"
-      && typeof value.destroy === "function"
-    );
-  }
-
-  private isExecUpgradeTransportError(error: unknown): boolean {
-    const message = this.formatError(error).toLowerCase();
-    return message.includes("101")
-      || message.includes("switching protocols")
-      || message.includes("upgrade");
-  }
-
-  private isRecoverableAttachError(error: unknown): boolean {
-    if (this.isExecUpgradeTransportError(error) || this.isTimeoutError(error)) {
-      return true;
-    }
-
-    const message = this.formatError(error).toLowerCase();
-    return message.includes("socket")
-      || message.includes("hijack")
-      || message.includes("econnreset")
-      || message.includes("econnaborted");
-  }
-
-  private isTimeoutError(error: unknown): boolean {
-    const message = this.formatError(error).toLowerCase();
-    return message.includes("timed out") || message.includes("timeout");
-  }
-
-  private toTerminalChunk(chunk: unknown): string {
-    if (typeof chunk === "string") {
-      return chunk;
-    }
-
-    if (Buffer.isBuffer(chunk)) {
-      return chunk.toString("utf8");
-    }
-
-    if (chunk instanceof Uint8Array) {
-      return Buffer.from(chunk).toString("utf8");
-    }
-
-    return "";
-  }
-
   private async collectContainerLogsSnapshot(
     containerId: string,
     tail: number,
@@ -936,7 +766,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
       .map((line) => line.trim())
       .filter((line) => line.length > 0)
       .map((line, index) => {
-        const { timestamp, message } = this.parseTimestampedLogLine(line, now);
+        const { timestamp, message } = parseTimestampedLogLine(line, now);
         const stream: DockerContainerLogEntry["stream"] = message.toLowerCase().includes("stderr") ? "stderr" : "stdout";
         const level: DockerContainerLogEntry["level"] =
           /\b(error|fatal|panic)\b/i.test(message)
@@ -955,54 +785,19 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
       });
   }
 
-  private parseTimestampedLogLine(line: string, fallbackTimestamp: string): { timestamp: string; message: string } {
-    const trimmed = line.trim();
-    if (trimmed.length === 0) {
-      return {
-        timestamp: fallbackTimestamp,
-        message: trimmed,
-      };
-    }
-
-    const firstSpaceIndex = trimmed.indexOf(" ");
-    if (firstSpaceIndex <= 0) {
-      return {
-        timestamp: fallbackTimestamp,
-        message: trimmed,
-      };
-    }
-
-    const timestampCandidate = trimmed.slice(0, firstSpaceIndex);
-    const maybeTimestamp = Number.isFinite(Date.parse(timestampCandidate))
-      ? new Date(timestampCandidate).toISOString()
-      : null;
-
-    if (!maybeTimestamp) {
-      return {
-        timestamp: fallbackTimestamp,
-        message: trimmed,
-      };
-    }
-
-    return {
-      timestamp: maybeTimestamp,
-      message: trimmed.slice(firstSpaceIndex + 1).trimStart(),
-    };
-  }
-
   private async collectContainerProcesses(containerId: string, generatedAt: string): Promise<DockerContainerProcessEntry[]> {
     const topResult = await runPromiseUnwrapped(this.dockerEngine.containers.top(containerId, "aux"));
 
     const titles = topResult.Titles ?? [];
     const rows = topResult.Processes ?? [];
 
-    const pidIndex = this.findTitleIndex(titles, ["PID"]);
-    const userIndex = this.findTitleIndex(titles, ["USER"]);
-    const cpuIndex = this.findTitleIndex(titles, ["%CPU", "CPU"]);
-    const memIndex = this.findTitleIndex(titles, ["%MEM", "MEM"]);
-    const statIndex = this.findTitleIndex(titles, ["STAT", "STATE"]);
-    const startIndex = this.findTitleIndex(titles, ["START", "STARTED"]);
-    const commandIndex = this.findTitleIndex(titles, ["COMMAND", "CMD"]);
+    const pidIndex = findTitleIndex(titles, ["PID"]);
+    const userIndex = findTitleIndex(titles, ["USER"]);
+    const cpuIndex = findTitleIndex(titles, ["%CPU", "CPU"]);
+    const memIndex = findTitleIndex(titles, ["%MEM", "MEM"]);
+    const statIndex = findTitleIndex(titles, ["STAT", "STATE"]);
+    const startIndex = findTitleIndex(titles, ["START", "STARTED"]);
+    const commandIndex = findTitleIndex(titles, ["COMMAND", "CMD"]);
 
     const parsed = rows
       .map((row) => {
@@ -1018,7 +813,7 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
         }
 
         const statValue = statIndex >= 0 ? (row[statIndex] ?? "") : "";
-        const state = this.mapProcessState(statValue);
+        const state = mapProcessState(statValue);
 
         const command = commandIndex >= 0
           ? row.slice(commandIndex).join(" ").trim()
@@ -1027,8 +822,8 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
         return dockerContainerProcessEntrySchema.parse({
           pid,
           user: (userIndex >= 0 ? row[userIndex] : undefined) ?? "unknown",
-          cpuPercent: this.parsePercent(cpuIndex >= 0 ? row[cpuIndex] : undefined),
-          memoryPercent: this.parsePercent(memIndex >= 0 ? row[memIndex] : undefined),
+          cpuPercent: parsePercent(cpuIndex >= 0 ? row[cpuIndex] : undefined),
+          memoryPercent: parsePercent(memIndex >= 0 ? row[memIndex] : undefined),
           state,
           startedAt: (startIndex >= 0 ? row[startIndex] : undefined) ?? generatedAt,
           command,
@@ -1039,99 +834,4 @@ export class DockerContainerRuntimeService implements OnModuleDestroy {
     return parsed;
   }
 
-  private findTitleIndex(titles: string[], candidates: string[]): number {
-    const candidateSet = new Set(candidates.map((candidate) => candidate.toUpperCase()));
-
-    return titles.findIndex((title) => candidateSet.has(title.toUpperCase()));
-  }
-
-  private parsePercent(value: string | undefined): number {
-    if (!value) {
-      return 0;
-    }
-
-    const parsed = Number(value.replace(/[^0-9.-]/g, ""));
-    if (!Number.isFinite(parsed)) {
-      return 0;
-    }
-
-    return Math.max(0, Math.min(100, parsed));
-  }
-
-  private mapProcessState(value: string): 'running' | 'sleeping' | 'idle' | 'stopped' | 'zombie' {
-    const statePrefix = value.trim().charAt(0).toUpperCase();
-
-    switch (statePrefix) {
-      case "R":
-        return "running";
-      case "S":
-      case "D":
-      case "I":
-        return "sleeping";
-      case "T":
-        return "stopped";
-      case "Z":
-        return "zombie";
-      default:
-        return "idle";
-    }
-  }
-
-  private parseListEntry(line: string, basePath: string, generatedAt: string): DockerFileEntry | null {
-    const parts = line.split(/\s+/);
-    if (parts.length < 9) {
-      return null;
-    }
-
-    const permissions = parts[0] ?? "";
-    const owner = parts[2] ?? "unknown";
-    const sizeRaw = parts[4] ?? "0";
-    const name = parts.slice(8).join(" ").trim();
-
-    if (name === "." || name === ".." || name.length === 0) {
-      return null;
-    }
-
-    const entryPath = path.posix.normalize(
-      basePath === "/" ? `/${name}` : `${basePath}/${name}`,
-    );
-
-    return dockerFileEntrySchema.parse({
-      path: entryPath,
-      type: permissions.startsWith("d") ? "dir" : "file",
-      size: `${sizeRaw} B`,
-      permissions,
-      owner,
-      updatedAt: generatedAt,
-    });
-  }
-
-  private normalizeContainerPath(inputPath: string): string {
-    const normalized = path.posix.normalize(inputPath.trim());
-
-    if (!normalized.startsWith("/")) {
-      return `/${normalized}`;
-    }
-
-    return normalized;
-  }
-
-  private escapeShellArg(value: string): string {
-    return `'${value.replace(/'/g, `'"'"'`)}'`;
-  }
-
-  private logMatchesProcess(message: string, pid: string): boolean {
-    const pidRegex = new RegExp(`\\b${pid}\\b`, "u");
-    const bracketRegex = new RegExp(`\\[${pid}\\]`, "u");
-
-    return pidRegex.test(message) || bracketRegex.test(message);
-  }
-
-  private formatError(error: unknown): string {
-    if (error instanceof Error) {
-      return error.message;
-    }
-
-    return String(error);
-  }
 }

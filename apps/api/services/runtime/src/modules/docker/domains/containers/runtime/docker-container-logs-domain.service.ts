@@ -1,4 +1,3 @@
-import { Injectable } from "@nestjs/common";
 import { Observable, catchError, from, interval, startWith, switchMap, throwError } from "rxjs";
 import type {
   DockerContainerLogsStreamQueryInput,
@@ -13,7 +12,6 @@ import { DockerContainerRuntimeService } from "../runtime/docker-container-runti
 const DEFAULT_STREAM_REFRESH_INTERVAL_MS = 1_000;
 const MAX_SEEN_LOG_KEYS = 3_000;
 
-@Injectable()
 export class DockerContainerLogsDomainService {
   constructor(
     private readonly dockerContainerRuntimeService: DockerContainerRuntimeService,

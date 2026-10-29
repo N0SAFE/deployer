@@ -1,4 +1,5 @@
 import { createModuleContext } from "@deployer/nest-effect";
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { MeshCoreModule } from "@deployer/shared/core/modules/mesh/mesh-core.module";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
@@ -26,9 +27,20 @@ import { DockerContainerShellDomainService } from "./runtime/docker-container-sh
 export class DockerContainersModule extends createModuleContext({
   imports: [MeshCoreModule, CoreDockerModule, EventsModule, DockerRepositoriesModule],
   providers: [
-    DockerContainerRuntimeService,
-    DockerContainerLogsDomainService,
-    DockerContainerShellDomainService,
+    // Built by factories rather than by decorator: they take collaborators, not Nest metadata.
+    { provide: DockerContainerRuntimeService, useFactory: (engine: DockerEngineShape) => new DockerContainerRuntimeService(engine), inject: [DockerEngine] },
+    {
+      provide: DockerContainerLogsDomainService,
+      useFactory: (runtime: DockerContainerRuntimeService, mesh: DockerContainerRuntimeMeshService) =>
+        new DockerContainerLogsDomainService(runtime, mesh),
+      inject: [DockerContainerRuntimeService, DockerContainerRuntimeMeshService],
+    },
+    {
+      provide: DockerContainerShellDomainService,
+      useFactory: (runtime: DockerContainerRuntimeService, mesh: DockerContainerRuntimeMeshService) =>
+        new DockerContainerShellDomainService(runtime, mesh),
+      inject: [DockerContainerRuntimeService, DockerContainerRuntimeMeshService],
+    },
     DockerContainerMetricsStreamService,
     // The mesh services compose a namespace over the topic and topology services; they are built here, not injected by decorator.
     {

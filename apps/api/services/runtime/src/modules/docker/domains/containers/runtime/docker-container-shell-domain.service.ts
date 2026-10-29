@@ -1,4 +1,3 @@
-import { Injectable } from "@nestjs/common";
 import { Observable, catchError, from, interval, map, startWith, switchMap, throwError } from "rxjs";
 import type {
   DockerContainerTerminalCloseBodyInput,
@@ -18,7 +17,6 @@ type DockerTerminalStreamEvent = {
   data: string;
 }
 
-@Injectable()
 export class DockerContainerShellDomainService {
   constructor(
     private readonly dockerContainerRuntimeService: DockerContainerRuntimeService,
