@@ -10,6 +10,7 @@ import { DockerRuntimeActivityRepository } from "./runtime/docker-runtime-activi
 import { DockerNetworksRepository } from "./networks/docker-networks.repository";
 import { DockerVolumesRepository } from "./volumes/docker-volumes.repository";
 import { DockerImageLifecycleRepository } from "./images/lifecycle/docker-image-lifecycle.repository";
+import { DockerContainerLinksLookup } from "./containers/links/docker-container-links-lookup.repository";
 import { DockerImagesRepository } from "./images/engine/docker-images.repository";
 import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-normalizer.service";
 
@@ -27,6 +28,7 @@ import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-norm
     { provide: DockerImagesRepository, useValue: DockerImagesRepository.live },
     { provide: DockerImageLifecycleRepository, useValue: DockerImageLifecycleRepository.live },
     { provide: DockerVolumesRepository, useValue: DockerVolumesRepository.live },
+    { provide: DockerContainerLinksLookup, useValue: DockerContainerLinksLookup.live },
   ],
   exports: [
     DockerRepository,
@@ -39,6 +41,7 @@ import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-norm
     DockerVolumesRepository,
     DockerImagesRepository,
     DockerImageLifecycleRepository,
+    DockerContainerLinksLookup,
   ],
 })
 export class DockerRepositoriesModule {}

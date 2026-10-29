@@ -84,18 +84,11 @@ import {
   DockerImageLifecycleRepository,
   type DockerImageLifecycleRepositoryShape,
 } from "../images/lifecycle/docker-image-lifecycle.repository";
+import { assembleContainerLinks, inclusionOf, withoutLinks } from "../containers/links/container-link-assembly";
 import {
-  resolveRoleTier,
-  shouldIncludeDeployment,
-  shouldIncludeService,
-  shouldIncludeProject,
-  projectLinkFromRecord,
-  serviceLinkFromRecord,
-  deploymentLinkFromRecord,
-  type ContainerLinkedDeploymentRecord,
-  type ContainerLinkedServiceRecord,
-  type ContainerLinkedProjectRecord,
-} from "../containers/links/container-link-redaction";
+  DockerContainerLinksLookup,
+  type DockerContainerLinksLookupShape,
+} from "../containers/links/docker-container-links-lookup.repository";
 import { computeScanHash, isMissingScanTableError, toPersistedScan } from "../images/security/scan-storage";
 import type {
   ResolvedImageSecurityScan,
@@ -152,6 +145,7 @@ export class DockerRepository {
     @Inject(DockerVolumesRepository) private readonly volumes: DockerVolumesRepositoryShape = DockerVolumesRepository.live,
     @Inject(DockerImagesRepository) private readonly images: DockerImagesRepositoryShape = DockerImagesRepository.live,
     @Inject(DockerImageLifecycleRepository) private readonly lifecycle: DockerImageLifecycleRepositoryShape = DockerImageLifecycleRepository.live,
+    @Inject(DockerContainerLinksLookup) private readonly linkLookup: DockerContainerLinksLookupShape = DockerContainerLinksLookup.live,
   ) {
     this.scanner = new DockerImageScannerService(dockerEngine, scannerPool, dockerHost, {
       read: (identifiers) => this.readPersistedImageSecurityScan(identifiers),
@@ -291,159 +285,14 @@ export class DockerRepository {
       return [];
     }
 
-    const includeSet = new Set(includePaths);
-    const includeDeployment = shouldIncludeDeployment(includeSet);
-    const includeService = shouldIncludeService(includeSet);
-    const includeProject = shouldIncludeProject(includeSet);
+    const include = inclusionOf(includePaths);
 
-    if (!includeDeployment && !includeService && !includeProject) {
-      return containers.map((container) =>
-        dockerContainerWithLinksSchema.parse({
-          ...container,
-          links: {
-            deployment: null,
-            service: null,
-            project: null,
-          },
-        }),
-      );
+    if (!include.deployment && !include.service && !include.project) {
+      return withoutLinks(containers);
     }
 
-    const roleTier = resolveRoleTier(platformRole);
-
-    const deploymentIdSet = new Set<string>();
-    const serviceIdSet = new Set<string>();
-    const projectIdSet = new Set<string>();
-
-    for (const container of containers) {
-      if (includeDeployment && container.logsStreamId) {
-        deploymentIdSet.add(container.logsStreamId);
-      }
-
-      if (includeService && container.serviceId) {
-        serviceIdSet.add(container.serviceId);
-      }
-
-      if (includeProject && container.projectId) {
-        projectIdSet.add(container.projectId);
-      }
-    }
-
-    const deploymentIds = [...deploymentIdSet];
-    const deploymentRows =
-      deploymentIds.length === 0
-        ? []
-        : await this.globalDatabaseService.db
-            .select({
-              id: deployments.id,
-              serviceId: deployments.serviceId,
-              projectId: services.projectId,
-              environment: deployments.environment,
-              status: deployments.status,
-              containerName: deployments.containerName,
-              containerImage: deployments.containerImage,
-              domainUrl: deployments.domainUrl,
-              healthCheckUrl: deployments.healthCheckUrl,
-              createdAt: deployments.createdAt,
-              updatedAt: deployments.updatedAt,
-            })
-            .from(deployments)
-            .innerJoin(services, eq(services.id, deployments.serviceId))
-            .where(inArray(deployments.id, deploymentIds));
-
-    const deploymentsById = new Map(deploymentRows.map((row) => [row.id, row]));
-
-    if (includeService) {
-      for (const deploymentRow of deploymentRows) {
-        serviceIdSet.add(deploymentRow.serviceId);
-      }
-    }
-
-    if (includeProject) {
-      for (const deploymentRow of deploymentRows) {
-        projectIdSet.add(deploymentRow.projectId);
-      }
-    }
-
-    const serviceIds = [...serviceIdSet];
-    const serviceRows: ContainerLinkedServiceRecord[] =
-      serviceIds.length === 0
-        ? []
-        : await this.globalDatabaseService.db
-            .select({
-              id: services.id,
-              projectId: services.projectId,
-              name: services.name,
-              type: services.type,
-              isActive: services.isActive,
-              updatedAt: services.updatedAt,
-              customDomains: services.customDomains,
-              resourceLimits: services.resourceLimits,
-              environmentVariables: services.environmentVariables,
-            })
-            .from(services)
-            .where(inArray(services.id, serviceIds));
-
-    const servicesById = new Map(serviceRows.map((row) => [row.id, row]));
-
-    if (includeProject) {
-      for (const serviceRow of serviceRows) {
-        projectIdSet.add(serviceRow.projectId);
-      }
-    }
-
-    const projectIds = [...projectIdSet];
-    const projectRows: ContainerLinkedProjectRecord[] =
-      projectIds.length === 0
-        ? []
-        : await this.globalDatabaseService.db
-            .select({
-              id: projects.id,
-              name: projects.name,
-              baseDomain: projects.baseDomain,
-              updatedAt: projects.updatedAt,
-            })
-            .from(projects)
-            .where(inArray(projects.id, projectIds));
-
-    const projectsById = new Map(projectRows.map((row) => [row.id, row]));
-
-    return containers.map((container) => {
-      const deploymentRecord =
-        includeDeployment && container.logsStreamId
-          ? deploymentsById.get(container.logsStreamId)
-          : undefined;
-
-      const serviceRecord = includeService
-        ? (
-            servicesById.get(container.serviceId)
-            ?? (deploymentRecord ? servicesById.get(deploymentRecord.serviceId) : undefined)
-          )
-        : undefined;
-
-      const projectRecord = includeProject
-        ? (
-            projectsById.get(container.projectId)
-            ?? (serviceRecord ? projectsById.get(serviceRecord.projectId) : undefined)
-            ?? (deploymentRecord ? projectsById.get(deploymentRecord.projectId) : undefined)
-          )
-        : undefined;
-
-      return dockerContainerWithLinksSchema.parse({
-        ...container,
-        links: {
-          deployment: deploymentRecord
-            ? deploymentLinkFromRecord(deploymentRecord, roleTier)
-            : null,
-          service: serviceRecord
-            ? serviceLinkFromRecord(serviceRecord, roleTier)
-            : null,
-          project: projectRecord
-            ? projectLinkFromRecord(projectRecord, roleTier)
-            : null,
-        },
-      });
-    });
+    const rows = await this.runOnDatabase(this.linkLookup.lookup(containers, include));
+    return assembleContainerLinks(containers, include, platformRole, rows);
   }
 
   private async listRawContainers(): Promise<DockerodeContainerList[]> {
