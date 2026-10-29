@@ -1,0 +1,32 @@
+{
+    "name": "@deployer/svc-mesh-agent",
+    "version": "1.0.0",
+    "description": "The mesh-agent service: one per swarm node. Owns the service directory, the pooled RPC links between services and nodes, locality-first routing, redirect handling and direct leases.",
+    "private": true,
+    "main": "dist/main.js",
+    "scripts": {
+        "prettify": "bun fmt .",
+        "format": "bun run prettify",
+        "format:check": "bun fmt --check .",
+        "lint": "bun lint --no-script --type-aware",
+        "lint:fix": "bun lint --no-script --fix --type-aware",
+        "lint:fix+": "bun lint --no-script --fix-suggestions --type-aware",
+        "type-check": "bun check --no-script",
+        "test": "vitest run",
+        "test:watch": "vitest"
+    },
+    "dependencies": {
+        "@deployer/effect-core": "*",
+        "effect": "catalog:effect"
+    },
+    "devDependencies": {
+        "@deployer/config-eslint": "*",
+        "@deployer/config-prettier": "*",
+        "@deployer/config-typescript": "*",
+        "@deployer/config-vitest": "*",
+        "@types/node": "catalog:build",
+        "eslint": "catalog:linting",
+        "typescript": "catalog:build",
+        "vitest": "catalog:testing"
+    }
+}

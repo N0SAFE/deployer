@@ -99,6 +99,21 @@ exported only from a `./mesh` entry that server-side code imports. The public co
 Each router is served on its own link, so a replica can refuse `peer` calls from anything but its own service, and
 `node` calls from anything but the local agent. The `MESH_REDIRECT` error map is shared by `external` and `peer`.
 
+## Load and failure
+
+The agent is a per-node relay, not one gate: each agent carries only its own node's services, and locality keeps most
+calls on one node. It still must not become the data path for everything.
+
+- **Relay frames, do not re-parse them.** The agent routes on the procedure and headers only and forwards the payload
+  untouched, with backpressure and per-caller fair queuing, so a slow stream cannot stall the others.
+- **Proactive leases.** Contract procedures marked `heavy` (streams, uploads, big reads) get a direct lease by default.
+- **Reactive leases.** The agent also grants a lease when a caller/target pair crosses a call-rate threshold, or when
+  its own event-loop lag, bytes per second or open streams pass a limit. The agent then stays the control plane
+  (discovery, locality, redirects, admission) and carries only low-volume traffic.
+- **Agent restarts.** Callers keep their last directory snapshot and their active leases, retry idempotent calls on
+  reconnect and fall back to the brokered path, so a restart drops in-flight calls on that node and nothing else.
+- **Measure first.** The thresholds are defaults to be set by an early load test of the relay, not by estimates.
+
 ## Agents
 
 - **mesh-agent** (global-mode Swarm service, one task per node): owns the node's WireGuard identity and link, the
