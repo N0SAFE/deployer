@@ -9,6 +9,8 @@ import { EffectContextOf } from "@deployer/nest-effect";
 import { serveMeshPeer } from "../../../core/orpc/serve";
 import { MeshDomainModule } from "../mesh.module";
 import { JoinTokens } from "../services/join-tokens.service";
+import { NodeIdentity } from "../services/node-identity.service";
+import { AdvertisedAddress } from "../services/roster-gossip.service";
 import { NodeAgents } from "../services/node-agents.service";
 import { RosterGossip } from "../services/roster-gossip.service";
 
@@ -52,6 +54,24 @@ export class MeshRosterController {
         Effect.gen(function* () {
           const tokens = yield* JoinTokens;
           return yield* tokens.issue(input.ttlMs);
+        }),
+      );
+    });
+  }
+
+  /** What this agent knows of the swarm, for the dashboard. Read-only. */
+  @Implement(roster.view)
+  view() {
+    return implement(roster.view).use(MeshDomainModule[EffectContextOf]).effect(function* ({ context }) {
+      return yield* serveMeshPeer(context)(
+        Effect.gen(function* () {
+          const self = yield* NodeIdentity;
+          const advertised = yield* AdvertisedAddress;
+          const known = yield* (yield* NodeAgents).known();
+          return {
+            self: { nodeId: self.nodeId, address: advertised.address },
+            agents: known.map(({ nodeId, address }) => ({ nodeId, address })),
+          };
         }),
       );
     });

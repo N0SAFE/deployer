@@ -63,3 +63,11 @@
 **Supersedes**: the earlier decision that a client interceptor on each caller follows `MESH_REDIRECT`. The caller interceptor now handles `MESH_DIRECT` only.
 
 ---
+
+## Fleet's old mesh control plane (2026-10-29)
+
+**Q**: What should replace fleet's old mesh control plane (peers, grants, keyring, topology, node config, resource dispatcher)?
+
+**A**: Port every procedure: keep the whole `meshContract` surface and reimplement each procedure over the agent.
+
+---
