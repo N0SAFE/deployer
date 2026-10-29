@@ -53,6 +53,7 @@
         "@deployer/logger": "*",
         "@deployer/node-state": "*",
         "@deployer/nest-schema": "*",
+        "@deployer/mesh-client": "*",
         "@deployer/service-client": "*",
         "@deployer/nest-effect": "*",
         "@deployer/supervision": "*",

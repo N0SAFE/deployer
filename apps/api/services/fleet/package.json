@@ -26,6 +26,7 @@
         "@deployer/effect-orpc": "*",
         "@deployer/errors": "*",
         "@deployer/fleet-contracts": "*",
+        "@deployer/mesh-service": "*",
         "@deployer/logger": "*",
         "@deployer/docker": "*",
         "@deployer/events": "*",

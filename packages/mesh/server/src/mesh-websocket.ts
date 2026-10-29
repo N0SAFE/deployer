@@ -18,13 +18,16 @@ export type MeshWebSocketOptions<T extends Context> = {
    */
   readonly verify: (credential: string | undefined) => boolean | Promise<boolean>;
   /**
-   * The oRPC context of one call. Read per call, not per connection: a connection lives for hours and the context (the
-   * Effect runtime's services) must be the one of the moment.
+   * The oRPC context of one call. Read per call, not per connection: a connection lives for hours, the context (the
+   * Effect runtime's services) must be the one of the moment, and the headers of the call are the caller's own.
    */
-  readonly context: (request: IncomingMessage) => T | Promise<T>;
+  readonly context: (upgrade: IncomingMessage, call: MeshCall) => T | Promise<T>;
   /** How often a silent connection is pinged. A peer that misses one round is dropped. */
   readonly keepAliveMs?: number;
 };
+
+/** What one call carries: the headers its caller attached, which is where the caller's credentials travel. */
+export type MeshCall = { readonly headers: Readonly<Record<string, string | string[] | undefined>> };
 
 export type MeshWebSocket = {
   readonly close: () => Promise<void>;
@@ -76,7 +79,7 @@ export function attachMeshWebSocket<T extends Context>(options: MeshWebSocketOpt
       ws.binaryType = "arraybuffer";
       alive.add(ws);
       ws.on("pong", () => alive.add(ws));
-      handler.upgrade(ws, { context: () => options.context(request) });
+      handler.upgrade(ws, { context: (call) => options.context(request, call) });
       wss.emit("connection", ws, request);
     });
   };

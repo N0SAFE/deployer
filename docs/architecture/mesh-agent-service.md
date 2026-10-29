@@ -184,8 +184,8 @@ Built and tested over real oRPC RPC peers (in-memory ports): unary, streams, red
   call is granted and followed directly, an unauthenticated call is refused, and a call pinned to another node is
   forwarded to that node's agent.
 
-Not built yet: the other services joining the mesh (runtime does), the callers of the docker operations moving to the
-node router, byte accounting from the transport (the lease policy's bytes-per-second input is fed by nothing), the
+Not built yet: service-to-service calls other than the BFF's (a service that calls another still uses its HTTP client),
+the deployment mesh (still on the old topic mesh), byte accounting from the transport (the lease policy's bytes-per-second input is fed by nothing), the
 bridge topology for large meshes (agents currently connect to every agent they learn of, which is the small-mesh
 design), the onboarding agent, services registering themselves with their agent (`replicaHeartbeat` exists, no
 service calls it), the per-service `external`/`peer`/`node` routers, a swarm global-mode deployment of the agent, and the
@@ -273,6 +273,34 @@ agent: a question about a container goes first to the node that announced that c
 and to every other node if that fails or nobody announced it; a question with no owner (a list, a catalog, a terminal
 session, which is not announced as a key) goes to every other node. Each node answers from its own engine only. A runtime
 with no agent, or with nobody to ask, gets no responses, which is what a lone node always meant.
+
+## Services and their clients on the mesh
+
+Every service (health, identity, project, fleet, runtime) joins the mesh of its node at boot, after its port is bound and its
+dependencies are proven, if the node has an agent (`MESH_AGENT_SOCKET`, default
+`/var/lib/deployer/mesh-agent/run/agent.sock`). Without one it runs exactly as before and is reached directly. With one it
+registers with its agent and serves its contracts over the mesh websocket (`joinServiceMeshOnNode`).
+
+**How a service serves its contracts without rebuilding them.** Its contracts are already implemented once, in its
+controllers, behind the pipeline that makes it what it is: Better Auth resolving the session, the guards, the interceptors, the
+Effect context and the error mapping. A second implementation for a second transport would be a second place for that to
+drift. So the mesh endpoint is a loopback router: each procedure of each contract is mounted under the contract's id
+(`contractId`, a fingerprint of the contract's procedures, derived the same way by the caller and the service, because a
+service answers several contracts whose paths are relative to their own root), and a call to it becomes the same call on
+the service's own HTTP surface on `127.0.0.1`, carrying the caller's own headers. The persistent link is the mesh's (agent to
+replica, one websocket); the hop to the controller is in-process. What comes back is what the service answered: typed errors
+keep their code and data, dates are revived by the contract's output schema, and an event stream stays a stream.
+
+**How a client reaches a service.** `ServiceClientRegistry` (the BFF's) takes an optional link factory. With an agent, every
+call is a relayed call: `relayLink` sends `{ service, path: [contractId, ...path], input, headers }` to the local agent, which picks the replica
+(key, then locality, then load), answers any redirect itself, and carries the answer back; when it would rather not carry
+the bytes it answers with a grant that the link follows. The caller's credentials (cookie, authorization) ride on each call as
+`headers`, and arrive as the headers of the call at the service, so the service authenticates the caller exactly as if it
+had been called directly: one connection serves many callers, each with their own. Without an agent the registry calls each
+service's origin directly, as a node does alone. `BaseClient` and every client class are unchanged.
+
+**What the runtime adds.** It also answers its node router under `mesh.node` (see "Runtime on the mesh"), and announces its
+container ids as keys.
 
 ## Agents
 

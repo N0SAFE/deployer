@@ -44,6 +44,8 @@ import type {
 const DEFAULT_TIMEOUT_MS = 1_500;
 const SERVICE = "runtime";
 const CALL = { context: {} } as const;
+/** Where the node router is mounted on every runtime replica, next to its public contracts. */
+const NODE_ROUTER = ["mesh", "node"] as const;
 
 export type NodeMeshOptions<TResponse> = {
   readonly timeoutMs?: number;
@@ -127,7 +129,7 @@ export function dockerNodeMeshOver(holder: NodeMeshAgent) {
     path: readonly string[],
     input: unknown,
     key?: string,
-  ): Promise<unknown> => relayLink({ agent: link, target: { service: SERVICE, node, ...(key === undefined ? {} : { key }) } }).call([...path], input, CALL);
+  ): Promise<unknown> => relayLink({ agent: link, target: { service: SERVICE, node, ...(key === undefined ? {} : { key }) } }).call([...NODE_ROUTER, ...path], input, CALL);
 
   /** Collects answers as they come, and stops at the first of: enough, wanted, everyone answered, out of time. */
   const gather = <TOutput, TResponse>(

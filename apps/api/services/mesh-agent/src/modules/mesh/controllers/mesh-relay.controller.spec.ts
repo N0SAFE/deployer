@@ -52,7 +52,7 @@ describe("MeshRelayController over the wire", () => {
     const link = relayLink({ agent: agentFor(mesh), target });
 
     await expect(link.call(["logs", "list"], { id: 1 }, { context: {} })).resolves.toEqual({ lines: 3 });
-    expect(replica.call).toHaveBeenCalledWith(["logs", "list"], { id: 1 }, { context: {} });
+    expect(replica.call).toHaveBeenCalledWith(["logs", "list"], { id: 1 }, { context: { headers: {} } });
   });
 
   it("streams a replica's stream element by element", async () => {

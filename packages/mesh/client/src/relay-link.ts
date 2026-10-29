@@ -8,7 +8,12 @@ export type RelayLinkOptions<C extends ClientContext> = {
   /** The persistent RPC link to the local mesh-agent. */
   readonly agent: ClientLink<C>;
   readonly target: MeshTarget;
+  /** The caller's credentials, read at every call: a link is shared by every caller, the credentials are not. */
+  readonly headers?: () => Readonly<Record<string, string>>;
 };
+
+const withHeaders = (headers: Readonly<Record<string, string>> | undefined) =>
+  headers !== undefined && Object.keys(headers).length > 0 ? { headers: { ...headers } } : {};
 
 /** The relay's path in the agent's contract. */
 const RELAY_CALL_PATH = ["relay", "call"];
@@ -36,7 +41,7 @@ async function* itemsOf(events: AsyncIterator<MeshRelayEvent>): AsyncGenerator {
 export function relayLink<C extends ClientContext>(options: RelayLinkOptions<C>): ClientLink<C> {
   return {
     async call(path: string[], input: unknown, callOptions: ClientOptions<C>) {
-      const events = (await options.agent.call(RELAY_CALL_PATH, { ...options.target, path, input }, callOptions)) as AsyncIterator<MeshRelayEvent>;
+      const events = (await options.agent.call(RELAY_CALL_PATH, { ...options.target, path, input, ...withHeaders(options.headers?.()) }, callOptions)) as AsyncIterator<MeshRelayEvent>;
 
       const first = await events.next();
       if (first.done) {

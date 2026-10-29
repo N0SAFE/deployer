@@ -91,10 +91,10 @@ describe("joinRuntimeMesh", () => {
     } as unknown as INestApplication;
   };
 
-  it("runs without the mesh when the node has no agent, as it always did", async () => {
+  it("runs without the mesh when the node has no agent, as it always did", () => {
     process.env.MESH_AGENT_SOCKET = join(directory, "no-such-agent.sock");
 
-    expect(await joinRuntimeMesh(appWith({}))).toBeUndefined();
+    expect(joinRuntimeMesh(appWith({}))).toBeUndefined();
   });
 
   it("registers with the node's agent, announcing every container on the node as a key it holds", async () => {
@@ -102,7 +102,7 @@ describe("joinRuntimeMesh", () => {
     process.env.MESH_ADVERTISE_URL = "ws://runtime-host:3105/mesh/ws";
     const local = { listContainers: vi.fn().mockResolvedValue(containers(["c1", "c2"])) };
 
-    const membership = await joinRuntimeMesh(appWith(local));
+    const membership = joinRuntimeMesh(appWith(local));
     stops.push(() => membership?.stop() ?? Promise.resolve());
 
     await vi.waitFor(() => { expect(agent.registrations.length).toBeGreaterThan(0); }, { timeout: 8_000 });
@@ -110,12 +110,12 @@ describe("joinRuntimeMesh", () => {
     expect(agent.registrations[0]?.replicaId).toMatch(/^runtime-/);
   });
 
-  it("gives the docker callers the link to the agent once it has joined, and not before", async () => {
+  it("gives the docker callers the link to the agent once it has joined, and not before", () => {
     process.env.MESH_AGENT_SOCKET = agent.socketPath;
     const app = appWith({ listContainers: vi.fn().mockResolvedValue(containers([])) });
     expect(holder.link).toBeUndefined();
 
-    const membership = await joinRuntimeMesh(app);
+    const membership = joinRuntimeMesh(app);
     stops.push(() => membership?.stop() ?? Promise.resolve());
 
     expect(holder.link).toBe(membership?.agent);
@@ -125,7 +125,7 @@ describe("joinRuntimeMesh", () => {
     process.env.MESH_AGENT_SOCKET = agent.socketPath;
     const local = { listContainers: vi.fn().mockRejectedValue(new Error("docker is down")) };
 
-    const membership = await joinRuntimeMesh(appWith(local));
+    const membership = joinRuntimeMesh(appWith(local));
     stops.push(() => membership?.stop() ?? Promise.resolve());
 
     await vi.waitFor(() => { expect(agent.registrations.length).toBeGreaterThan(0); }, { timeout: 8_000 });
@@ -138,7 +138,7 @@ describe("joinRuntimeMesh", () => {
       listContainers: vi.fn().mockResolvedValue(containers([])),
       getLocalDockerDaemonId: vi.fn().mockResolvedValue("daemon-7"),
     };
-    const membership = await joinRuntimeMesh(appWith(local));
+    const membership = joinRuntimeMesh(appWith(local));
     stops.push(() => membership?.stop() ?? Promise.resolve());
     const address = `ws://127.0.0.1:${String((server.address() as { port: number }).port)}${MESH_WEBSOCKET_PATH}`;
     const caller = pooledLink<ClientContext>({
@@ -150,14 +150,14 @@ describe("joinRuntimeMesh", () => {
     });
     stops.push(() => caller.closeAll());
 
-    const page = await caller.call(["containers", "list"], { limit: 20, offset: 0 }, { context: {} });
+    const page = await caller.call(["mesh", "node", "containers", "list"], { limit: 20, offset: 0 }, { context: {} });
 
     expect(page).toMatchObject({ daemonId: "daemon-7", data: [] });
   });
 
   it("refuses a peer the agent does not vouch for", async () => {
     process.env.MESH_AGENT_SOCKET = agent.socketPath;
-    const membership = await joinRuntimeMesh(appWith({ listContainers: () => Promise.resolve(containers([])) }));
+    const membership = joinRuntimeMesh(appWith({ listContainers: () => Promise.resolve(containers([])) }));
     stops.push(() => membership?.stop() ?? Promise.resolve());
     const address = `ws://127.0.0.1:${String((server.address() as { port: number }).port)}${MESH_WEBSOCKET_PATH}`;
     const stranger = pooledLink<ClientContext>({
@@ -169,6 +169,6 @@ describe("joinRuntimeMesh", () => {
     });
     stops.push(() => stranger.closeAll());
 
-    await expect(stranger.call(["containers", "list"], { limit: 20, offset: 0 }, { context: {} })).rejects.toBeDefined();
+    await expect(stranger.call(["mesh", "node", "containers", "list"], { limit: 20, offset: 0 }, { context: {} })).rejects.toBeDefined();
   });
 });

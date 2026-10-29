@@ -39,9 +39,9 @@ void bootstrapApiServer({
 	name: NAME,
 	dependencies: DEPENDENCIES.platform,
 })
-	.then(async (app) => {
+	.then((app) => {
 		// The port is bound and the dependencies are proven: take the runtime into the mesh of its node, if it has an agent.
-		const membership = await joinRuntimeMesh(app);
+		const membership = joinRuntimeMesh(app);
 		(app.getHttpServer() as Server).once("close", () => void membership?.stop());
 	})
 	.catch((error: unknown) => {

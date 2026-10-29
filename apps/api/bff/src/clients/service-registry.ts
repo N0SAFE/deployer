@@ -1,4 +1,7 @@
+import { existsSync } from "node:fs";
+
 import { Injectable } from "@nestjs/common";
+import { DEFAULT_AGENT_SOCKET, agentLink, serviceLink } from "@deployer/mesh-client";
 
 import {
 	ServiceClientRegistry as PackageRegistry,
@@ -9,6 +12,19 @@ import type { RouterContract } from "@orpc/contract";
 
 import { API_SERVICES, apiServiceUrl, type ApiServiceName } from "@deployer/shared/server";
 import { serviceAuthHeaders } from "./service-auth-context";
+
+/**
+ * The link to the agent of this node, when it has one. Lazy: the socket is only opened by the first call.
+ *
+ * A node with no agent (a dev run, or a node that was not given one yet) reaches its services directly, which is how a node
+ * works alone before it is part of anything; with one, every call to a service goes through the agent, which picks the
+ * replica, answers redirects and carries the answer back. `MESH_AGENT_SOCKET` is where the deployment mounted the socket,
+ * not a node setting.
+ */
+const meshAgent = (() => {
+	const socketPath = process.env.MESH_AGENT_SOCKET ?? DEFAULT_AGENT_SOCKET;
+	return existsSync(socketPath) ? agentLink(socketPath) : undefined;
+})();
 
 /**
  * How the BFF reaches a service.
@@ -25,6 +41,12 @@ export const bffServiceClientOptions: ServiceClientOptions = {
 	// Per request, not at construction: the credentials belong to the CALLER, and the
 	// client instances are cached across requests.
 	headers: () => serviceAuthHeaders(),
+	// Through the agent when there is one: the caller's credentials ride on each call, so the service authenticates the
+	// caller exactly as it did when the BFF called it directly.
+	link:
+		meshAgent === undefined
+			? undefined
+			: (service, contract) => serviceLink({ agent: meshAgent, service, contract, headers: () => serviceAuthHeaders() }),
 };
 
 /**

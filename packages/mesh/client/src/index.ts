@@ -5,3 +5,5 @@ export { openWebSocketConnection, type WebSocketConnectionOptions } from "./webs
 export { LinkOpenFailed, linkPool, type LinkPoolOptions, type PooledLink as PoolLease } from "./pool/link-pool";
 export { relayLink, type RelayLinkOptions } from "./relay-link";
 export { replicaHeartbeat, type ReplicaHeartbeatOptions } from "./replica-heartbeat";
+export { contractId } from "./contract-id";
+export { DEFAULT_AGENT_SOCKET, agentLink, serviceLink, type ServiceLinkOptions } from "./service-link";

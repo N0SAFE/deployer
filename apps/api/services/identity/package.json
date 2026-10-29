@@ -32,6 +32,7 @@
         "@deployer/contracts-entities": "*",
         "@deployer/errors": "*",
         "@deployer/identity-contracts": "*",
+        "@deployer/mesh-service": "*",
         "@deployer/logger": "*",
         "@deployer/nest-schema": "*",
         "drizzle-orm": "catalog:database",

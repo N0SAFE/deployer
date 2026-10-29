@@ -1,6 +1,6 @@
 import { oc } from "@orpc/contract";
 import { openapi } from "@orpc/openapi";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { ServiceClientRegistry } from "./service-client.registry";
 
@@ -167,5 +167,34 @@ describe("ServiceClientRegistry — contract-scoped client cache", () => {
 		} finally {
 			restore();
 		}
+	});
+
+	describe("over the mesh", () => {
+		const contract = { crud: { findById: { "~orpc": {} } } } as never;
+
+		it("sends every call through the link it is given, bound to the service and the contract, and never to the origin", async () => {
+			const call = vi.fn().mockResolvedValue({ id: 7 });
+			const link = vi.fn(() => ({ call }));
+			const resolveOrigin = vi.fn(() => "http://never-called");
+			const registry = new ServiceClientRegistry({ resolveOrigin, link });
+
+			const bound = registry.bind("project", contract) as unknown as { raw: { crud: { findById: (input: unknown) => Promise<unknown> } } };
+			const answer = await bound.raw.crud.findById({ params: { id: 7 } });
+
+			expect(answer).toEqual({ id: 7 });
+			expect(link).toHaveBeenCalledWith("project", contract);
+			expect(call).toHaveBeenCalledWith(["crud", "findById"], { params: { id: 7 } }, expect.anything());
+		});
+
+		it("builds one link per service and contract, however many times it is bound", () => {
+			const link = vi.fn(() => ({ call: vi.fn() }));
+			const registry = new ServiceClientRegistry({ resolveOrigin: () => "http://x", link });
+
+			registry.bind("project", contract);
+			registry.bind("project", contract);
+			registry.bind("fleet", contract);
+
+			expect(link).toHaveBeenCalledTimes(2);
+		});
 	});
 });

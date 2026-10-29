@@ -1,4 +1,4 @@
-import { createORPCClient } from "@orpc/client";
+import { type ClientContext, type ClientLink, createORPCClient } from "@orpc/client";
 import { OpenAPILink } from "@orpc/openapi/fetch";
 
 import { reviveDates } from "../transport/revive-dates";
@@ -27,12 +27,23 @@ export type ServiceRequestHeaderProvider = () => Record<string, string>;
  */
 export type ServiceOriginResolver = (service: string) => string;
 
+/**
+ * How a client reaches a service when the transport is not a direct HTTP call: the link to use for `service`, bound to
+ * `contract`. The mesh supplies one that goes through the agent of the node.
+ */
+export type ServiceLinkFactory = (service: string, contract: RouterContract) => ClientLink<ClientContext>;
+
 /** What the registry needs to address services. */
 export type ServiceClientOptions = {
 	/** Where a service answers, given its name. */
 	readonly resolveOrigin: ServiceOriginResolver;
 	/** Headers to send on every call — read per request. */
 	readonly headers?: ServiceRequestHeaderProvider;
+	/**
+	 * The transport, when it is the mesh: every call goes through this link instead of a direct HTTP call to the service's
+	 * origin. Absent, the registry calls each service's origin directly, which is how a node with no agent works alone.
+	 */
+	readonly link?: ServiceLinkFactory;
 }
 
 /**
@@ -113,6 +124,14 @@ export class ServiceClientRegistry implements ServiceClientBinder {
 		const existing = byContract.get(contract);
 		if (existing !== undefined) {
 			return existing as ContractRouterClient<T>;
+		}
+
+		// Over the mesh the answer travels as oRPC RPC, which keeps dates, typed errors and streams as they are: there is
+		// nothing to revive or normalise, and the caller's credentials ride on each call.
+		if (this.options.link !== undefined) {
+			const meshClient = createORPCClient<ContractRouterClient<T>>(this.options.link(service, contract));
+			byContract.set(contract, meshClient);
+			return meshClient;
 		}
 
 		const client = createORPCClient<ContractRouterClient<T>>(

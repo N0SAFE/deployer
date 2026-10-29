@@ -66,9 +66,9 @@ describe("replicaHeartbeat", () => {
     const agent: Link = { call: vi.fn().mockResolvedValue({}) };
 
     const fiber = Effect.runFork(
-      replicaHeartbeat(options(agent, () => new Promise<string[]>((resolve) => setTimeout(() => resolve(["container-9"]), 5)) as never)),
+      replicaHeartbeat(options(agent, () => new Promise<string[]>((resolve) => setTimeout(() => { resolve(["container-9"]); }, 5)) as never)),
     );
-    await vi.waitFor(() => expect(calls(agent)).toBeGreaterThan(0));
+    await vi.waitFor(() => { expect(calls(agent)).toBeGreaterThan(0); });
     await Effect.runPromise(Fiber.interrupt(fiber));
 
     expect(vi.mocked(agent.call).mock.calls[0]?.[1]).toMatchObject({ keys: ["container-9"] });

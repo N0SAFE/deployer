@@ -138,7 +138,7 @@ export class MeshRelay extends Context.Service<MeshRelay, MeshRelayShape>()("mes
         maxHops: MAX_HOPS,
         hintTtlMs: HINT_TTL_MS,
         invoke: (replica) =>
-          Effect.tryPromise({ try: () => links.linkTo(replica).call(request.path, request.input, { context: {} }), catch: (error) => error }).pipe(
+          Effect.tryPromise({ try: () => links.linkTo(replica).call(request.path, request.input, { context: { headers: request.headers ?? {} } }), catch: (error) => error }).pipe(
             Effect.map((answer): CallOutcome<unknown> => ({ kind: "ok", value: answer })),
             Effect.catch((error) => {
               const redirect = readRedirect(error);

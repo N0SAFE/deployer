@@ -44,6 +44,8 @@ export function openWebSocketConnection<C extends ClientContext>(options: WebSoc
     });
 
   const link = new RPCLink<C>({
+    // The caller's credentials for one call travel in its client context, so one pooled connection serves every caller.
+    headers: ({ context }) => (context as { headers?: Record<string, string> }).headers ?? {},
     connect,
     // A bounded number of attempts: a peer that refuses the connection (a wrong credential, a replica that is gone) fails
     // the calls waiting on it instead of holding them forever. The pool then opens a fresh connection for the next call.

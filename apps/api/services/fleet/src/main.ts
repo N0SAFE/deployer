@@ -13,6 +13,10 @@ import {
 	bootstrapApiServer,
 } from "@deployer/shared/server";
 
+import { fleetServiceContract } from "@deployer/fleet-contracts";
+import { joinServiceMeshOnNode } from "@deployer/mesh-service";
+import type { Server } from "node:http";
+
 import { FleetServiceModule } from "./app.module";
 
 /**
@@ -35,7 +39,13 @@ void bootstrapApiServer({
 	port: PORT,
 	name: NAME,
 	dependencies: DEPENDENCIES.database,
-}).catch((error: unknown) => {
+})
+	.then((app) => {
+		// The port is bound and the dependencies are proven: take the service onto the mesh of its node, if it has an agent.
+		const membership = joinServiceMeshOnNode({ service: "fleet", port: PORT, server: app.getHttpServer() as Server, contracts: [fleetServiceContract] as never });
+		(app.getHttpServer() as Server).once("close", () => void membership?.stop());
+	})
+	.catch((error: unknown) => {
 	// A missing dependency is a KNOWN, reportable condition — not an unhandled boot
 	// crash. Exit 5 (the documented "dependency unavailable" code) so the
 	// orchestrator and the swarm branch on it without parsing a stack trace.

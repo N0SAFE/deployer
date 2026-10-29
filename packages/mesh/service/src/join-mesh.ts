@@ -2,7 +2,7 @@ import { Effect, Fiber } from "effect";
 
 import { MESH_WEBSOCKET_PATH } from "@deployer/mesh-agent-contracts";
 import { type ReplicaHeartbeatOptions, openWebSocketConnection, pooledLink, replicaHeartbeat } from "@deployer/mesh-client";
-import { attachMeshWebSocket } from "@deployer/mesh-server";
+import { type MeshCall, attachMeshWebSocket } from "@deployer/mesh-server";
 
 import type { ClientContext, ClientLink } from "@orpc/client";
 import type { Context, Router } from "@orpc/server";
@@ -20,8 +20,8 @@ export type JoinMeshOptions<T extends Context> = {
   readonly server: Server;
   /** The mesh router this service answers: the procedures other services and agents call. */
   readonly router: Router<T>;
-  /** The oRPC context of one call, read per call. */
-  readonly context: (request: IncomingMessage) => T | Promise<T>;
+  /** The oRPC context of one call, read per call: the upgrade request, and the call's own headers. */
+  readonly context: (upgrade: IncomingMessage, call: MeshCall) => T | Promise<T>;
   /**
    * The unix socket of the agent on this node. A service reaches its agent through it, and the file's permissions are
    * the only credential: the service never holds the swarm's secret, and asks the agent whether a peer is trusted.

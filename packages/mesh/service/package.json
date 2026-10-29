@@ -39,7 +39,10 @@
         "@deployer/mesh-agent-contracts": "*",
         "@deployer/mesh-client": "*",
         "@deployer/mesh-server": "*",
+        "@deployer/service-client": "*",
         "@orpc/client": "catalog:orpc",
+        "@orpc/contract": "catalog:orpc",
+        "@orpc/openapi": "catalog:orpc",
         "@orpc/server": "catalog:orpc",
         "effect": "catalog:effect"
     },

@@ -21,8 +21,14 @@ export const meshTargetSchema = z.object({
 export const meshRelayInput = meshTargetSchema.extend({
   /** The procedure path in the target's contract, e.g. `["logs", "stream"]`. */
   path: z.array(z.string()).min(1),
-  /** The procedure's input, forwarded untouched. */
-  input: z.unknown(),
+  /** The procedure's input, forwarded untouched. A procedure with no input sends none, and JSON has no way to say `undefined`. */
+  input: z.unknown().optional(),
+  /**
+   * The caller's credentials for this one call (its session cookie, its authorization), forwarded to the target as the
+   * headers of the call. The agent holds no session and reads none: it only carries what the caller says, so the target
+   * authenticates the caller exactly as if it had called directly.
+   */
+  headers: z.record(z.string(), z.string()).optional(),
 });
 
 /**

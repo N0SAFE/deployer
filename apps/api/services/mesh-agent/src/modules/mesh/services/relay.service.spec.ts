@@ -46,7 +46,7 @@ describe("MeshRelay", () => {
       const result = await mesh.settle(MeshRelay.live.relay(request()));
 
       expect(result).toEqual({ value: { kind: "value", value: { lines: 3 } } });
-      expect(local.call).toHaveBeenCalledWith(["logs", "list"], { id: 1 }, { context: {} });
+      expect(local.call).toHaveBeenCalledWith(["logs", "list"], { id: 1 }, { context: { headers: {} } });
       expect(remote.call).not.toHaveBeenCalled();
     });
 
@@ -99,6 +99,27 @@ describe("MeshRelay", () => {
       const result = await mesh.settle(MeshRelay.live.relay(request({ service: "ghost" })));
 
       expect(result).toMatchObject({ error: { _tag: "MeshNoReplica", service: "ghost" } });
+    });
+  });
+
+  describe("the caller's credentials", () => {
+    it("hands the target the headers the caller sent, which the agent neither reads nor keeps", async () => {
+      const local = answering("ok");
+      const mesh = meshFixture({ nodeId: "A", replicas: { "runtime-1": local } });
+      await mesh.seed(runtime("runtime-1", "A"));
+
+      await mesh.settle(MeshRelay.live.relay(request({ headers: { cookie: "session=alice", authorization: "Bearer t" } })));
+
+      expect(local.call).toHaveBeenCalledWith(["logs", "list"], { id: 1 }, { context: { headers: { cookie: "session=alice", authorization: "Bearer t" } } });
+    });
+
+    it("forwards them with the call when it is pinned to another node", async () => {
+      const remoteAgent = answering(streamOf<MeshRelayEvent>({ kind: "value", value: 1 }));
+      const mesh = meshFixture({ nodeId: "A", nodes: { B: remoteAgent } });
+
+      await mesh.run(MeshRelay.live.relay(request({ node: "B", headers: { cookie: "session=alice" } })));
+
+      expect(remoteAgent.call).toHaveBeenCalledWith(["relay", "call"], expect.objectContaining({ headers: { cookie: "session=alice" } }), { context: {} });
     });
   });
 

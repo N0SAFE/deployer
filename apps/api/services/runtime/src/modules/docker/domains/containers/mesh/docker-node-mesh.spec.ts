@@ -117,7 +117,7 @@ describe("dockerNodeMesh", () => {
       const result = await mesh.listContainerLogsSnapshotAcrossInstances({ query: { containerId: "c1" } });
 
       expect(result.responses).toEqual([{ snapshot: { generatedAt: "t", entries: [] }, responderNodeId: "C" }]);
-      expect(relayed).toEqual([{ node: "C", key: "c1", path: ["runtime", "logs"] }]);
+      expect(relayed).toEqual([{ node: "C", key: "c1", path: ["mesh", "node", "runtime", "logs"] }]);
     });
 
     it("asks the other nodes when the one that announced it cannot answer", async () => {

@@ -34,6 +34,7 @@
         "@deployer/nest-schema": "*",
         "@deployer/orpc-utils": "*",
         "@deployer/project-contracts": "*",
+        "@deployer/mesh-service": "*",
         "@deployer/shared": "*",
         "@deployer/type-guards": "*",
         "@nestjs/common": "catalog:api:nest",

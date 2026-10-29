@@ -27,8 +27,10 @@ export { ServiceUnreachable } from "./errors";
 export {
 	ServiceClientRegistry,
 	type ServiceClientOptions,
+	type ServiceLinkFactory,
 	type ServiceOriginResolver,
 	type ServiceRequestHeaderProvider,
 } from "./registry/service-client.registry";
 export { callService, makeServiceFetch } from "./transport/service-fetch";
+export { reviveDates } from "./transport/revive-dates";
 export type { ServiceFetchOptions } from "./transport/service-fetch";

@@ -190,4 +190,40 @@ describe("attachMeshWebSocket", () => {
       rmSync(directory, { recursive: true, force: true });
     });
   });
+
+  describe("per-call context", () => {
+    it("gives each call its own headers, so one connection carries many callers' credentials", async () => {
+      await gateway.close();
+      const seen: (string | string[] | undefined)[] = [];
+      gateway = attachMeshWebSocket<ClientContext>({
+        server,
+        path: "/mesh/ws",
+        router: {
+          whoami: os.handler(({ context }) => (context as unknown as { cookie: string }).cookie),
+        } as never,
+        verify: () => true,
+        context: (_upgrade, call) => {
+          seen.push(call.headers.cookie);
+          return { cookie: String(call.headers.cookie) };
+        },
+      });
+      const link = pooledLink<ClientContext>({
+        target: "server",
+        maxConnections: 1,
+        multiplex: 8,
+        idleMs: 1_000,
+        open: () => Promise.resolve(openWebSocketConnection({ url: `${origin}/mesh/ws?credential=x`, reconnectDelayMs: 10 })),
+      });
+
+      const [alice, bob] = await Promise.all([
+        link.call(["whoami"], undefined, { context: { headers: { cookie: "session=alice" } } }),
+        link.call(["whoami"], undefined, { context: { headers: { cookie: "session=bob" } } }),
+      ]);
+
+      expect([alice, bob]).toEqual(["session=alice", "session=bob"]);
+      expect(gateway.size()).toBe(1);
+      expect(seen.sort()).toEqual(["session=alice", "session=bob"]);
+      await link.closeAll();
+    });
+  });
 });
