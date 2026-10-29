@@ -23,7 +23,7 @@ import {
   MeshTopologyPort,
 } from "./orchestration/docker-container-resolution";
 import { DockerContainersOrchestratorService } from "./orchestration/docker-containers-orchestrator.service";
-import { DockerContainerRuntimeService } from "./runtime/docker-container-runtime.service";
+import { makeLocalNodeOperations } from "./mesh/local-node-operations";
 
 export class DockerContainersModule extends createModuleContext({
   imports: [MeshCoreModule, CoreDockerModule, EventsModule, DockerRepositoriesModule],
@@ -33,7 +33,6 @@ export class DockerContainersModule extends createModuleContext({
     { provide: DockerTerminalSessions, useValue: DockerTerminalSessions.live },
     { provide: ContainerAccessMeshPort, useExisting: DockerContainerRuntimeMeshService },
     { provide: DockerContainerAccess, useValue: DockerContainerAccess.live },
-    { provide: DockerContainerRuntimeService, useFactory: (runtime: EffectRuntime) => new DockerContainerRuntimeService(runtime), inject: [EffectRuntime] },
     DockerContainerMetricsStreamService,
     // The mesh services compose a namespace over the topic and topology services; they are built here, not injected by decorator.
     {
@@ -54,11 +53,26 @@ export class DockerContainersModule extends createModuleContext({
     { provide: MeshTopologyPort, useExisting: SystemMeshTopologyService },
     { provide: MeshHeadersPort, useExisting: MeshInternalRequestService },
     { provide: DockerContainerResolution, useValue: DockerContainerResolution.live },
-    DockerMeshHandlerRegistrar,
+    {
+      provide: DockerMeshHandlerRegistrar,
+      useFactory: (
+        containerMesh: DockerContainerMeshService,
+        runtimeMesh: DockerContainerRuntimeMeshService,
+        runtime: EffectRuntime,
+        repository: DockerRepository,
+        topology: SystemMeshTopologyService,
+      ) =>
+        new DockerMeshHandlerRegistrar(
+          containerMesh,
+          runtimeMesh,
+          makeLocalNodeOperations(runtime, repository),
+          () => topology.getLocalNode().nodeId,
+        ),
+      inject: [DockerContainerMeshService, DockerContainerRuntimeMeshService, EffectRuntime, DockerRepository, SystemMeshTopologyService],
+    },
     DockerContainersOrchestratorService,
   ],
   exports: [
-    DockerContainerRuntimeService,
     DockerContainerMetricsStreamService,
     DockerContainerMeshService,
     DockerContainerRuntimeMeshService,

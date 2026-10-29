@@ -1,230 +1,43 @@
-import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
-import { SystemMeshTopologyService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
-import { DockerRepository } from "../../../repositories/facade/docker.repository";
-import { DockerContainerMeshService } from "./docker-container-mesh.service";
-import { DockerContainerRuntimeService } from "../runtime/docker-container-runtime.service";
-import { DockerContainerRuntimeMeshService } from "./docker-container-runtime-mesh.service";
+import { Logger, type OnModuleInit } from "@nestjs/common";
+import type { DockerContainerMeshService } from "./docker-container-mesh.service";
+import type { DockerContainerRuntimeMeshService } from "./docker-container-runtime-mesh.service";
+import { buildMeshHandlers, type LocalNodeOperations } from "./mesh-handlers";
 
-@Injectable()
+/**
+ * Registers this node's answers on the mesh when the application starts. What each answer is lives in
+ * `buildMeshHandlers`; this only connects them to the two mesh services under this node's id.
+ */
 export class DockerMeshHandlerRegistrar implements OnModuleInit {
     private readonly logger = new Logger(DockerMeshHandlerRegistrar.name);
 
     constructor(
-        private readonly dockerContainerMeshService: DockerContainerMeshService,
-        private readonly dockerContainerRuntimeMeshService: DockerContainerRuntimeMeshService,
-        private readonly dockerContainerRuntimeService: DockerContainerRuntimeService,
-        private readonly dockerRepository: DockerRepository,
-        private readonly systemMeshTopologyService: SystemMeshTopologyService,
+        private readonly containerMesh: DockerContainerMeshService,
+        private readonly runtimeMesh: DockerContainerRuntimeMeshService,
+        private readonly local: LocalNodeOperations,
+        private readonly localNodeId: () => string,
     ) {}
 
     onModuleInit(): void {
-        const localNodeId = this.systemMeshTopologyService.getLocalNode().nodeId;
+        const handlers = buildMeshHandlers(this.local, this.localNodeId());
 
-        this.dockerContainerMeshService.registerListContainersHandler(async ({ payload }) => {
-            const [result, daemonId] = await Promise.all([
-                this.dockerRepository.listContainers(payload.query),
-                this.dockerRepository.getLocalDockerDaemonId(),
-            ]);
+        this.containerMesh.registerListContainersHandler(handlers.container.listContainers);
+        this.containerMesh.registerInspectContainerHandler(handlers.container.inspectContainer);
+        this.containerMesh.registerRuntimeCatalogHandler(handlers.container.runtimeCatalog);
 
-            return {
-                payload: {
-                    ...result,
-                    responderNodeId: localNodeId,
-                    responderDaemonId: daemonId,
-                },
-            };
-        });
-
-        this.dockerContainerMeshService.registerInspectContainerHandler(async ({ payload }) => {
-            const detail = await this.dockerRepository.inspectContainer(payload.query.containerId);
-
-            return {
-                payload: {
-                    detail,
-                    responderNodeId: localNodeId,
-                },
-                stopPropagation: true,
-            };
-        });
-
-        this.dockerContainerMeshService.registerRuntimeCatalogHandler(async () => {
-            const catalog = await this.dockerRepository.getRuntimeCatalogSnapshot();
-
-            return {
-                payload: {
-                    catalog,
-                    responderNodeId: localNodeId,
-                },
-            };
-        });
-
-        this.dockerContainerRuntimeMeshService.registerLogsSnapshotHandler(async ({ payload }) => {
-            const snapshot = await this.dockerContainerRuntimeService.listContainerLogsSnapshot(payload.query);
-
-            return {
-                payload: {
-                    snapshot,
-                    responderNodeId: localNodeId,
-                },
-                stopPropagation: true,
-            };
-        });
-
-        this.dockerContainerRuntimeMeshService.registerProcessesSnapshotHandler(async ({ payload }) => {
-            const snapshot = await this.dockerContainerRuntimeService.listContainerProcesses(payload.query);
-
-            return {
-                payload: {
-                    snapshot,
-                    responderNodeId: localNodeId,
-                },
-                stopPropagation: true,
-            };
-        });
-
-        this.dockerContainerRuntimeMeshService.registerProcessLogsSnapshotHandler(async ({ payload }) => {
-            const snapshot = await this.dockerContainerRuntimeService.listContainerProcessLogsSnapshot(payload.query);
-
-            return {
-                payload: {
-                    snapshot,
-                    responderNodeId: localNodeId,
-                },
-                stopPropagation: true,
-            };
-        });
-
-        this.dockerContainerRuntimeMeshService.registerFilesSnapshotHandler(async ({ payload }) => {
-            const snapshot = await this.dockerContainerRuntimeService.listContainerFiles(payload.query);
-
-            return {
-                payload: {
-                    snapshot,
-                    responderNodeId: localNodeId,
-                },
-                stopPropagation: true,
-            };
-        });
-
-        this.dockerContainerRuntimeMeshService.registerReadFileSnapshotHandler(async ({ payload }) => {
-            const snapshot = await this.dockerContainerRuntimeService.readContainerFile(payload.query);
-
-            return {
-                payload: {
-                    snapshot,
-                    responderNodeId: localNodeId,
-                },
-                stopPropagation: true,
-            };
-        });
-
-        this.dockerContainerRuntimeMeshService.registerWriteFileHandler(async ({ payload }) => {
-            const ack = await this.dockerContainerRuntimeService.writeContainerFile(payload.body);
-
-            return {
-                payload: {
-                    ack,
-                    responderNodeId: localNodeId,
-                },
-                stopPropagation: true,
-            };
-        });
-
-        this.dockerContainerRuntimeMeshService.registerDeletePathHandler(async ({ payload }) => {
-            const ack = await this.dockerContainerRuntimeService.deleteContainerPath(payload.body);
-
-            return {
-                payload: {
-                    ack,
-                    responderNodeId: localNodeId,
-                },
-                stopPropagation: true,
-            };
-        });
-
-        this.dockerContainerRuntimeMeshService.registerRenamePathHandler(async ({ payload }) => {
-            const ack = await this.dockerContainerRuntimeService.renameContainerPath(payload.body);
-
-            return {
-                payload: {
-                    ack,
-                    responderNodeId: localNodeId,
-                },
-                stopPropagation: true,
-            };
-        });
-
-        this.dockerContainerRuntimeMeshService.registerCreateDirectoryHandler(async ({ payload }) => {
-            const ack = await this.dockerContainerRuntimeService.createContainerDirectory(payload.body);
-
-            return {
-                payload: {
-                    ack,
-                    responderNodeId: localNodeId,
-                },
-                stopPropagation: true,
-            };
-        });
-
-        this.dockerContainerRuntimeMeshService.registerTerminalOpenHandler(async ({ payload }) => {
-            const session = await this.dockerContainerRuntimeService.openContainerTerminalSession(payload.body);
-
-            return {
-                payload: {
-                    session,
-                    responderNodeId: localNodeId,
-                },
-                stopPropagation: true,
-            };
-        });
-
-        this.dockerContainerRuntimeMeshService.registerTerminalEventsHandler(async ({ payload }) => {
-            const snapshot = await this.dockerContainerRuntimeService.listContainerTerminalSessionEvents(payload.query);
-
-            return {
-                payload: {
-                    snapshot,
-                    responderNodeId: localNodeId,
-                },
-                stopPropagation: true,
-            };
-        });
-
-        this.dockerContainerRuntimeMeshService.registerTerminalInputHandler(async ({ payload }) => {
-            const ack = await this.dockerContainerRuntimeService.sendContainerTerminalInput(payload.body);
-
-            return {
-                payload: {
-                    ack,
-                    responderNodeId: localNodeId,
-                },
-                stopPropagation: true,
-            };
-        });
-
-        this.dockerContainerRuntimeMeshService.registerTerminalCloseHandler(async ({ payload }) => {
-            const ack = await this.dockerContainerRuntimeService.closeContainerTerminalSession(payload.body);
-
-            return {
-                payload: {
-                    ack,
-                    responderNodeId: localNodeId,
-                },
-                stopPropagation: true,
-            };
-        });
-
-        this.dockerContainerRuntimeMeshService.registerImageInspectHandler(async ({ payload }) => {
-            const detail = await this.dockerRepository.inspectImage(payload.query.imageId);
-
-            return {
-                payload: {
-                    detail,
-                    responderNodeId: localNodeId,
-                },
-                stopPropagation: true,
-            };
-        });
+        this.runtimeMesh.registerLogsSnapshotHandler(handlers.runtime.logsSnapshot);
+        this.runtimeMesh.registerProcessesSnapshotHandler(handlers.runtime.processesSnapshot);
+        this.runtimeMesh.registerProcessLogsSnapshotHandler(handlers.runtime.processLogsSnapshot);
+        this.runtimeMesh.registerFilesSnapshotHandler(handlers.runtime.filesSnapshot);
+        this.runtimeMesh.registerReadFileSnapshotHandler(handlers.runtime.readFileSnapshot);
+        this.runtimeMesh.registerWriteFileHandler(handlers.runtime.writeFile);
+        this.runtimeMesh.registerDeletePathHandler(handlers.runtime.deletePath);
+        this.runtimeMesh.registerRenamePathHandler(handlers.runtime.renamePath);
+        this.runtimeMesh.registerCreateDirectoryHandler(handlers.runtime.createDirectory);
+        this.runtimeMesh.registerTerminalOpenHandler(handlers.runtime.terminalOpen);
+        this.runtimeMesh.registerTerminalEventsHandler(handlers.runtime.terminalEvents);
+        this.runtimeMesh.registerTerminalInputHandler(handlers.runtime.terminalInput);
+        this.runtimeMesh.registerTerminalCloseHandler(handlers.runtime.terminalClose);
+        this.runtimeMesh.registerImageInspectHandler(handlers.runtime.imageInspect);
 
         this.logger.log("Docker mesh handlers registered (list/inspect/runtime/runtime-ops)");
     }
