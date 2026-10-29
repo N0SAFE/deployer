@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { createModuleContext } from "@deployer/nest-effect";
 import { MeshCoreModule } from "@deployer/shared/core/modules/mesh/mesh-core.module";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
@@ -7,13 +7,22 @@ import { DockerContainerMetricsStreamService } from "./events/docker-container-m
 import { DockerContainerMeshService } from "./mesh/docker-container-mesh.service";
 import { DockerContainerRuntimeMeshService } from "./mesh/docker-container-runtime-mesh.service";
 import { DockerMeshHandlerRegistrar } from "./mesh/docker-mesh-handler-registrar.service";
-import { DockerContainerResolutionService } from "./orchestration/docker-container-resolution.service";
+import { SystemMeshTopologyService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
+import { MeshInternalRequestService } from "@deployer/shared/core/modules/mesh/services/mesh-internal-request.service";
+import { DockerRepository } from "../../repositories/facade/docker.repository";
+import {
+  ContainersLocalPort,
+  ContainersMeshPort,
+  DockerContainerResolution,
+  MeshHeadersPort,
+  MeshTopologyPort,
+} from "./orchestration/docker-container-resolution";
 import { DockerContainersOrchestratorService } from "./orchestration/docker-containers-orchestrator.service";
 import { DockerContainerLogsDomainService } from "./runtime/docker-container-logs-domain.service";
 import { DockerContainerRuntimeService } from "./runtime/docker-container-runtime.service";
 import { DockerContainerShellDomainService } from "./runtime/docker-container-shell-domain.service";
 
-@Module({
+export class DockerContainersModule extends createModuleContext({
   imports: [MeshCoreModule, CoreDockerModule, EventsModule, DockerRepositoriesModule],
   providers: [
     DockerContainerRuntimeService,
@@ -22,7 +31,12 @@ import { DockerContainerShellDomainService } from "./runtime/docker-container-sh
     DockerContainerMetricsStreamService,
     DockerContainerMeshService,
     DockerContainerRuntimeMeshService,
-    DockerContainerResolutionService,
+    // Container resolution is a constant Effect service; the Nest providers it reads come in as ports.
+    { provide: ContainersMeshPort, useExisting: DockerContainerMeshService },
+    { provide: ContainersLocalPort, useExisting: DockerRepository },
+    { provide: MeshTopologyPort, useExisting: SystemMeshTopologyService },
+    { provide: MeshHeadersPort, useExisting: MeshInternalRequestService },
+    { provide: DockerContainerResolution, useValue: DockerContainerResolution.live },
     DockerMeshHandlerRegistrar,
     DockerContainersOrchestratorService,
   ],
@@ -33,8 +47,7 @@ import { DockerContainerShellDomainService } from "./runtime/docker-container-sh
     DockerContainerMetricsStreamService,
     DockerContainerMeshService,
     DockerContainerRuntimeMeshService,
-    DockerContainerResolutionService,
+    DockerContainerResolution,
     DockerContainersOrchestratorService,
   ],
-})
-export class DockerContainersModule {}
+}) {}

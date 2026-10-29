@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { NotFoundException } from "@nestjs/common";
 import type { DockerContainerListInput } from "@deployer/runtime-contracts/modules/docker/containers/shared";
 import type { DockerContainer } from "@deployer/contracts-entities";
-import { DockerContainerResolutionService } from "./docker-container-resolution.service";
+import { createResolution } from "./testing";
 
 function createMeshListResult(
     responses: {
@@ -135,7 +135,7 @@ describe("DockerContainerResolutionService", () => {
         const systemMeshTopologyService = createTopologyStub();
         const meshInternalRequestService = createMeshInternalRequestServiceStub();
 
-        const service = new DockerContainerResolutionService(
+        const service = createResolution(
             dockerContainerMeshService as never,
             dockerRepository as never,
             systemMeshTopologyService as never,
@@ -182,7 +182,7 @@ describe("DockerContainerResolutionService", () => {
         const systemMeshTopologyService = createTopologyStub();
         const meshInternalRequestService = createMeshInternalRequestServiceStub();
 
-        const service = new DockerContainerResolutionService(
+        const service = createResolution(
             dockerContainerMeshService as never,
             dockerRepository as never,
             systemMeshTopologyService as never,
@@ -292,7 +292,7 @@ describe("DockerContainerResolutionService", () => {
         const systemMeshTopologyService = createTopologyStub();
         const meshInternalRequestService = createMeshInternalRequestServiceStub();
 
-        const service = new DockerContainerResolutionService(
+        const service = createResolution(
             dockerContainerMeshService as never,
             dockerRepository as never,
             systemMeshTopologyService as never,
@@ -390,7 +390,7 @@ describe("DockerContainerResolutionService", () => {
         const systemMeshTopologyService = createTopologyStub();
         const meshInternalRequestService = createMeshInternalRequestServiceStub();
 
-        const service = new DockerContainerResolutionService(
+        const service = createResolution(
             dockerContainerMeshService as never,
             dockerRepository as never,
             systemMeshTopologyService as never,
@@ -425,7 +425,7 @@ describe("DockerContainerResolutionService", () => {
         const systemMeshTopologyService = createTopologyStub();
         const meshInternalRequestService = createMeshInternalRequestServiceStub();
 
-        const service = new DockerContainerResolutionService(
+        const service = createResolution(
             dockerContainerMeshService as never,
             dockerRepository as never,
             systemMeshTopologyService as never,
@@ -478,7 +478,7 @@ describe("DockerContainerResolutionService", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         try {
-            const service = new DockerContainerResolutionService(
+            const service = createResolution(
                 dockerContainerMeshService as never,
                 dockerRepository as never,
                 systemMeshTopologyService as never,
@@ -544,7 +544,7 @@ describe("DockerContainerResolutionService", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         try {
-            const service = new DockerContainerResolutionService(
+            const service = createResolution(
                 dockerContainerMeshService as never,
                 dockerRepository as never,
                 systemMeshTopologyService as never,
@@ -659,7 +659,7 @@ describe("DockerContainerResolutionService", () => {
         const systemMeshTopologyService = createTopologyStub();
         const meshInternalRequestService = createMeshInternalRequestServiceStub();
 
-        const service = new DockerContainerResolutionService(
+        const service = createResolution(
             dockerContainerMeshService as never,
             dockerRepository as never,
             systemMeshTopologyService as never,
@@ -724,7 +724,7 @@ describe("DockerContainerResolutionService", () => {
         const systemMeshTopologyService = createTopologyStub();
         const meshInternalRequestService = createMeshInternalRequestServiceStub();
 
-        const service = new DockerContainerResolutionService(
+        const service = createResolution(
             dockerContainerMeshService as never,
             dockerRepository as never,
             systemMeshTopologyService as never,
@@ -756,7 +756,7 @@ describe("DockerContainerResolutionService", () => {
         const systemMeshTopologyService = createTopologyStub();
         const meshInternalRequestService = createMeshInternalRequestServiceStub();
 
-        const service = new DockerContainerResolutionService(
+        const service = createResolution(
             dockerContainerMeshService as never,
             dockerRepository as never,
             systemMeshTopologyService as never,

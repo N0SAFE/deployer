@@ -10,7 +10,6 @@ import { dockerRuntimeEventSourceSchema, type DockerRuntimeActivityEntity } from
 import { EffectRuntime } from "@deployer/nest-effect";
 import { Effect } from "effect";
 import { DockerCatalog } from "../../../catalog/docker-catalog";
-import { DockerContainerResolutionService } from "../../containers/orchestration/docker-container-resolution.service";
 import { DockerRuntimeStreamOrchestratorService } from "../../../common/runtime/docker-runtime-stream-orchestrator.service";
 import { projectRuntimeEvent } from "../../../common/events/runtime-activity-projection";
 import { SwarmActivityEnricherService } from "../../../common/events/swarm-activity-enricher.service";

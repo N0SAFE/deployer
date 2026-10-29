@@ -17,7 +17,8 @@ import {
   type DockerVolumeEntity,
 } from "@deployer/contracts-entities"
 import { AppLogger } from "@deployer/logger"
-import { DockerContainerResolutionService } from "../../containers/orchestration/docker-container-resolution.service"
+import type { DockerContainerInspectDetail } from "@deployer/contracts-entities"
+import { withContainerResolution } from "../../containers/orchestration/docker-container-resolution"
 import { DockerImagesOrchestratorService } from "../../images/orchestration/docker-images-orchestrator.service"
 import type { DockerNetworkListInput } from "@deployer/runtime-contracts/modules/docker/networks/list"
 import type { DockerVolumeListInput } from "@deployer/runtime-contracts/modules/docker/volumes/list"
@@ -70,7 +71,6 @@ export class DockerEntityDomainService {
   })
 
   constructor(
-    private readonly dockerContainerResolutionService: DockerContainerResolutionService,
     private readonly dockerImagesOrchestratorService: DockerImagesOrchestratorService,
     private readonly effectRuntime: EffectRuntime,
     private readonly dockerRuntimeEventsStreamService: DockerRuntimeEventsStreamService,
@@ -86,10 +86,10 @@ export class DockerEntityDomainService {
     input: DockerEntityListInput,
   ): Promise<ListKindResult<DockerContainer, DockerContainerEntity>> {
     return this.fetchList("container", input, async () => {
-      const result = await this.dockerContainerResolutionService.listContainers({
+      const result = await withContainerResolution(this.effectRuntime, (resolution) => resolution.listContainers({
         limit: input.limit,
         offset: input.offset,
-      })
+      }))
       return result.data
     })
   }
@@ -159,7 +159,7 @@ export class DockerEntityDomainService {
   ): Promise<InspectKindResult<DockerContainerEntity>> {
     return this.inspectEntity("container", input, async () => {
       try {
-        const detail = await this.dockerContainerResolutionService.inspectContainer(input.id)
+        const detail = await withContainerResolution(this.effectRuntime, (resolution) => resolution.inspectContainer(input.id))
         return this.toContainerEntity(detail)
       } catch {
         return null
@@ -467,7 +467,7 @@ export class DockerEntityDomainService {
   }
 
   private toContainerEntity(
-    detail: Awaited<ReturnType<DockerContainerResolutionService["inspectContainer"]>>,
+    detail: DockerContainerInspectDetail,
   ): DockerContainerEntity {
     // detail has inspect shape, entity has list shape — different schemas.
     // The downstream code uses the normalized entity; this conversion bridge is

@@ -12,6 +12,7 @@ import { EffectContextOf } from "@deployer/nest-effect";
 import { Effect } from "effect";
 import { serve } from "../../../core/orpc/serve";
 import { DockerCatalog } from "../catalog/docker-catalog";
+import { DockerContainerResolution, type DockerContainerResolutionPorts } from "../domains/containers/orchestration/docker-container-resolution";
 import type { DockerCatalogPorts } from "../catalog/docker-catalog";
 import { DockerDomainModule } from "../docker.module";
 import { DockerEntityOrchestratorService } from "../domains/entity/orchestration/docker-entity-orchestrator.service";
@@ -29,22 +30,36 @@ export class DockerController {
 
   @Implement(dockerContract.containers.list)
   listContainers() {
+    const isLocalOnly = (context: unknown) => this.isMeshLocalOnlyRequest(context);
     return implement(dockerContract.containers.list)
       .use(requireAuth())
-      .handler(async ({ input, context }) =>
-        this.dockerContainersOrchestratorService.listContainers(input.query, {
-          localOnly: this.isMeshLocalOnlyRequest(context),
-        }));
+      .use(DockerDomainModule[EffectContextOf])
+      .effect(function* ({ input, context }) {
+        const resolution = yield* DockerContainerResolution;
+        const ports = yield* Effect.context<DockerContainerResolutionPorts>();
+        return yield* serve(context)(
+          resolution
+            .listContainers(input.query, { localOnly: isLocalOnly(context) })
+            .pipe(Effect.provideContext(ports)),
+        );
+      });
   }
 
   @Implement(dockerContract.containers.grouped)
   listContainersGrouped() {
+    const isLocalOnly = (context: unknown) => this.isMeshLocalOnlyRequest(context);
     return implement(dockerContract.containers.grouped)
       .use(requireAuth())
-      .handler(async ({ input, context }) =>
-        this.dockerContainersOrchestratorService.listContainersGrouped(input.query, {
-          localOnly: this.isMeshLocalOnlyRequest(context),
-        }));
+      .use(DockerDomainModule[EffectContextOf])
+      .effect(function* ({ input, context }) {
+        const resolution = yield* DockerContainerResolution;
+        const ports = yield* Effect.context<DockerContainerResolutionPorts>();
+        return yield* serve(context)(
+          resolution
+            .listContainersGrouped(input.query, { localOnly: isLocalOnly(context) })
+            .pipe(Effect.provideContext(ports)),
+        );
+      });
   }
 
   @Implement(dockerContract.containers.linked)
@@ -60,7 +75,12 @@ export class DockerController {
   inspectContainer() {
     return implement(dockerContract.containers.inspect)
       .use(requireAuth())
-      .handler(async ({ input }) => this.dockerContainersOrchestratorService.inspectContainer(input.query));
+      .use(DockerDomainModule[EffectContextOf])
+      .effect(function* ({ input, context }) {
+        const resolution = yield* DockerContainerResolution;
+        const ports = yield* Effect.context<DockerContainerResolutionPorts>();
+        return yield* serve(context)(resolution.inspectContainer(input.query.containerId).pipe(Effect.provideContext(ports)));
+      });
   }
 
   @Implement(dockerContract.containers.actions.run)

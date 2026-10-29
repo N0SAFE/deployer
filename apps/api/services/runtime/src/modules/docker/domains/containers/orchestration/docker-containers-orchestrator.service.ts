@@ -35,7 +35,8 @@ import { DockerContainerRuntimeMeshService } from "../mesh/docker-container-runt
 import { DockerContainerLogsDomainService } from "../runtime/docker-container-logs-domain.service";
 import { DockerContainerRuntimeService } from "../runtime/docker-container-runtime.service";
 import { DockerContainerShellDomainService } from "../runtime/docker-container-shell-domain.service";
-import { DockerContainerResolutionService } from "./docker-container-resolution.service";
+import { EffectRuntime } from "@deployer/nest-effect";
+import { withContainerResolution } from "./docker-container-resolution";
 
 import { AppError } from "@deployer/errors";
 type DockerTerminalStreamEvent = {
@@ -61,30 +62,10 @@ export class DockerContainersOrchestratorService {
     private readonly dockerContainerRuntimeService: DockerContainerRuntimeService,
     private readonly dockerContainerLogsDomainService: DockerContainerLogsDomainService,
     private readonly dockerContainerShellDomainService: DockerContainerShellDomainService,
-    private readonly dockerContainerResolutionService: DockerContainerResolutionService,
+    private readonly effectRuntime: EffectRuntime,
     private readonly dockerContainerRuntimeMeshService: DockerContainerRuntimeMeshService,
     @Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape,
   ) {}
-
-  listContainers(input: DockerContainerListInput = {} as DockerContainerListInput, options?: { localOnly?: boolean }) {
-    this.debug("DockerContainersOrchestratorService.listContainers", {
-      limit: input.limit,
-      offset: input.offset,
-      hasFilter: Boolean(input.filter),
-      localOnly: options?.localOnly ?? false,
-    });
-    return this.dockerContainerResolutionService.listContainers(input, options);
-  }
-
-  listContainersGrouped(input: DockerContainerGroupedListInput, options?: { localOnly?: boolean }) {
-    this.debug("DockerContainersOrchestratorService.listContainersGrouped", {
-      limit: input.limit,
-      offset: input.offset,
-      hasFilter: Boolean(input.filter),
-      localOnly: options?.localOnly ?? false,
-    });
-    return this.dockerContainerResolutionService.listContainersGrouped(input, options);
-  }
 
   async listContainersLinked(input: DockerContainerLinkedListQueryInput, platformRole: string | null) {
     this.debug("DockerContainersOrchestratorService.listContainersLinked", {
@@ -96,7 +77,7 @@ export class DockerContainersOrchestratorService {
     });
 
     const { include, maxDepth, ...listInput } = input;
-    const containerList = await this.dockerContainerResolutionService.listContainers(listInput);
+    const containerList = await withContainerResolution(this.effectRuntime, (resolution) => resolution.listContainers(listInput));
     const includePaths = this.parseIncludePaths(include, maxDepth);
 
     const data = await this.dockerContainerLinksRepository.attachContainerLinks(
@@ -109,14 +90,6 @@ export class DockerContainersOrchestratorService {
       data,
       meta: containerList.meta,
     };
-  }
-
-  inspectContainer(input: DockerContainerInspectQueryInput) {
-    this.debug("DockerContainersOrchestratorService.inspectContainer", {
-      containerId: input.containerId,
-    });
-
-    return this.dockerContainerResolutionService.inspectContainer(input.containerId);
   }
 
   async runContainerAction(input: DockerContainerRuntimeActionBodyInput) {

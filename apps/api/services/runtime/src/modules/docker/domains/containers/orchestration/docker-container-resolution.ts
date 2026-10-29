@@ -1,4 +1,7 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
+import { serviceOver, type Over } from "@deployer/effect-core";
+import type { EffectRuntime } from "@deployer/nest-effect";
+import { Context, Effect } from "effect";
 import { BadRequestError } from "@deployer/errors";
 import { createHash } from "node:crypto";
 import type {
@@ -58,15 +61,18 @@ const MESH_FANOUT_LIMIT = 500;
 const PEER_FALLBACK_TIMEOUT_MS = 1_750;
 const PEER_FALLBACK_RETRY_TIMEOUT_MS = 2_750;
 
-@Injectable()
-export class DockerContainerResolutionService {
-    private readonly logger = new Logger(DockerContainerResolutionService.name);
+/** The container resolution logic as a plain class over its four collaborators; the Effect service below builds it per call. */
+class ContainerResolutionImpl {
+    private readonly logger = new Logger("DockerContainerResolutionService");
 
     constructor(
-        private readonly dockerContainerMeshService: DockerContainerMeshService,
-        private readonly dockerRepository: DockerRepository,
-        private readonly systemMeshTopologyService: SystemMeshTopologyService,
-        private readonly meshInternalRequestService: MeshInternalRequestService,
+        private readonly dockerContainerMeshService: Pick<
+            DockerContainerMeshService,
+            "listContainersAcrossInstances" | "inspectContainerAcrossInstances"
+        >,
+        private readonly dockerRepository: Pick<DockerRepository, "listContainers" | "inspectContainer">,
+        private readonly systemMeshTopologyService: Pick<SystemMeshTopologyService, "listPeerSessions">,
+        private readonly meshInternalRequestService: Pick<MeshInternalRequestService, "buildInternalHeaders">,
     ) {}
 
     async listContainers(
@@ -562,4 +568,89 @@ export class DockerContainerResolutionService {
     }
 
 
+}
+
+/** The mesh fan-out that lists and inspects containers on every node. */
+export class ContainersMeshPort extends Context.Service<
+    ContainersMeshPort,
+    Pick<DockerContainerMeshService, "listContainersAcrossInstances" | "inspectContainerAcrossInstances">
+>()("runtime/ContainersMeshPort") {}
+
+/** This node's own containers, read from the local engine. */
+export class ContainersLocalPort extends Context.Service<
+    ContainersLocalPort,
+    Pick<DockerRepository, "listContainers" | "inspectContainer">
+>()("runtime/ContainersLocalPort") {}
+
+/** The mesh topology, for the direct peer fallback. */
+export class MeshTopologyPort extends Context.Service<
+    MeshTopologyPort,
+    Pick<SystemMeshTopologyService, "listPeerSessions">
+>()("runtime/MeshTopologyPort") {}
+
+/** The headers a node uses to call a peer's internal API. */
+export class MeshHeadersPort extends Context.Service<
+    MeshHeadersPort,
+    Pick<MeshInternalRequestService, "buildInternalHeaders">
+>()("runtime/MeshHeadersPort") {}
+
+export type DockerContainerResolutionPorts = ContainersMeshPort | ContainersLocalPort | MeshTopologyPort | MeshHeadersPort;
+
+export type DockerContainerResolutionShape = {
+    /** One page of containers across the mesh; this node's own when no peer answers or the fan-out fails. */
+    readonly listContainers: (
+        input: DockerContainerListInput,
+        options?: DockerContainerResolutionOptions,
+    ) => Effect.Effect<DockerContainerListResult, unknown>;
+    /** The inventory grouped by runtime fingerprint, with shared-daemon diagnostics. */
+    readonly listContainersGrouped: (
+        input: DockerContainerGroupedListInput,
+        options?: DockerContainerResolutionOptions,
+    ) => Effect.Effect<DockerContainerGroupedListResult, unknown>;
+    /** This node's inspect detail, else the best one a peer returns; fails with the local error when nobody has it. */
+    readonly inspectContainer: (containerId: string) => Effect.Effect<DockerContainerInspectDetail, unknown>;
+};
+
+const resolutionOver = (ports: {
+    mesh: ContainersMeshPort["Service"];
+    local: ContainersLocalPort["Service"];
+    topology: MeshTopologyPort["Service"];
+    headers: MeshHeadersPort["Service"];
+}): DockerContainerResolutionShape => {
+    const impl = new ContainerResolutionImpl(ports.mesh, ports.local, ports.topology, ports.headers);
+    return {
+        listContainers: (input, options) => Effect.tryPromise({ try: () => impl.listContainers(input, options), catch: (error) => error }),
+        listContainersGrouped: (input, options) =>
+            Effect.tryPromise({ try: () => impl.listContainersGrouped(input, options), catch: (error) => error }),
+        inspectContainer: (containerId) => Effect.tryPromise({ try: () => impl.inspectContainer(containerId), catch: (error) => error }),
+    };
+};
+
+/**
+ * Container listing and inspection across the mesh. A constant that reads the mesh fan-out, the local
+ * repository, the topology and the header builder from the Effect context when a method runs.
+ */
+export class DockerContainerResolution extends Context.Service<
+    DockerContainerResolution,
+    Over<DockerContainerResolutionShape, DockerContainerResolutionPorts>
+>()("runtime/DockerContainerResolution") {
+    static readonly live = serviceOver(
+        Effect.all({ mesh: ContainersMeshPort, local: ContainersLocalPort, topology: MeshTopologyPort, headers: MeshHeadersPort }),
+        resolutionOver,
+    );
+}
+
+/** Run a container-resolution call for a Nest class that is not on Effect yet; it rejects with the original failure. */
+export function withContainerResolution<A>(
+    runtime: Pick<EffectRuntime, "runPromiseUnwrapped">,
+    use: (
+        resolution: Context.Service.Shape<typeof DockerContainerResolution>,
+    ) => Effect.Effect<A, unknown, DockerContainerResolutionPorts>,
+): Promise<A> {
+    return runtime.runPromiseUnwrapped(
+        Effect.gen(function* () {
+            const resolution = yield* DockerContainerResolution;
+            return yield* use(resolution);
+        }),
+    );
 }
