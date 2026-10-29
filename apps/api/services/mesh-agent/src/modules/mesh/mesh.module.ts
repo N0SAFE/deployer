@@ -1,18 +1,28 @@
 import { ConfigService } from "@nestjs/config";
 
+import { openWebSocketConnection } from "@deployer/mesh-client";
 import { createModuleContext } from "@deployer/nest-effect";
 
 import { resolveNodeId } from "../../config/mesh-agent.env";
 
 import { MeshDirectoryController } from "./controllers/mesh-directory.controller";
+import { MeshRelayController } from "./controllers/mesh-relay.controller";
 import { MeshDirectoryRepository } from "./repositories/directory.repository";
+import { AgentLoad } from "./services/agent-load.service";
 import { MeshBroker } from "./services/broker.service";
 import { MeshDirectory } from "./services/directory.service";
 import { KeyHints } from "./services/key-hints.service";
+import { LeaseSigner, leaseSignerOver } from "./services/lease-signer.service";
 import { MeshClock } from "./services/mesh-clock.service";
+import { NodeAgents } from "./services/node-agents.service";
 import { NodeIdentity } from "./services/node-identity.service";
+import { MeshRelay } from "./services/relay.service";
+import { ReplicaLinks, replicaLinksOver, withCredential } from "./services/replica-links.service";
 
 import type { MeshAgentEnv } from "../../config/mesh-agent.env";
+
+/** How long a direct grant lives: long enough to open a link, short enough that a dead replica's grant dies with it. */
+const LEASE_TTL_MS = 30_000;
 
 /**
  * The mesh domain: the directory, the broker and what they run on.
@@ -22,7 +32,7 @@ import type { MeshAgentEnv } from "../../config/mesh-agent.env";
  * factory over `ConfigService` rather than a constant.
  */
 export class MeshDomainModule extends createModuleContext({
-  controllers: [MeshDirectoryController],
+  controllers: [MeshDirectoryController, MeshRelayController],
   providers: [
     {
       provide: NodeIdentity,
@@ -36,5 +46,23 @@ export class MeshDomainModule extends createModuleContext({
     { provide: KeyHints, useValue: KeyHints.live },
     { provide: MeshDirectory, useValue: MeshDirectory.live },
     { provide: MeshBroker, useValue: MeshBroker.live },
+    { provide: MeshRelay, useValue: MeshRelay.live },
+    { provide: NodeAgents, useValue: NodeAgents.live },
+    { provide: AgentLoad, useValue: AgentLoad.live },
+    {
+      // The two collaborators built from the environment: how to reach a replica, and how to sign a grant for it.
+      provide: ReplicaLinks,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<MeshAgentEnv, true>) => {
+        const secret = config.get("MESH_AGENT_SECRET", { infer: true });
+        return replicaLinksOver((replica) => openWebSocketConnection({ url: withCredential(replica.address, secret) }));
+      },
+    },
+    {
+      provide: LeaseSigner,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<MeshAgentEnv, true>) =>
+        leaseSignerOver({ secret: config.get("MESH_AGENT_SECRET", { infer: true }), ttlMs: LEASE_TTL_MS }),
+    },
   ],
 }) {}

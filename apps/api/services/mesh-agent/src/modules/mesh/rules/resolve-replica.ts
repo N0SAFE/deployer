@@ -39,7 +39,9 @@ function rendezvous(candidates: readonly ReplicaRecord[], key: string): ReplicaR
 export function resolveReplica(records: readonly ReplicaRecord[], query: ResolveQuery): Resolution | undefined {
   const excluded = new Set(query.exclude ?? []);
   const live = records.filter(
-    (record) => record.service === query.service && record.expiresAt > query.now && !excluded.has(record.replicaId),
+    (record) => record.service === query.service && record.expiresAt > query.now &&
+      !excluded.has(record.replicaId) &&
+      (query.localOnly !== true || record.nodeId === query.localNode),
   );
   if (live.length === 0) {
     return undefined;

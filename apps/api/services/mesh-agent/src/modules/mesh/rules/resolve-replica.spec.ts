@@ -103,4 +103,11 @@ describe("resolveReplica", () => {
     expect(resolveReplica([project1], { service: "project", localNode: "A", exclude: ["project-1"], now: NOW })).toBeUndefined();
     expect(resolveReplica([], { service: "project", localNode: "A", now: NOW })).toBeUndefined();
   });
+
+  it("never leaves the node when the call is pinned to it", () => {
+    const resolution = resolveReplica([project1, project2, project3], { service: "project", localNode: "B", localOnly: true, now: NOW });
+
+    expect(resolution?.replica.replicaId).toBe("project-2");
+    expect(resolveReplica([project1, project3], { service: "project", localNode: "B", localOnly: true, now: NOW })).toBeUndefined();
+  });
 });

@@ -30,5 +30,7 @@ export type ResolveQuery = {
   readonly localNode: string;
   /** Replicas the caller already tried; never returned. */
   readonly exclude?: readonly string[];
+  /** Serve only from the agent's own node: a call that was pinned to this node never leaves it. */
+  readonly localOnly?: boolean;
   readonly now: number;
 };

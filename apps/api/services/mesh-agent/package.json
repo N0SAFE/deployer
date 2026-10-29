@@ -24,6 +24,7 @@
         "@deployer/effect-orpc": "*",
         "@deployer/logger": "*",
         "@deployer/mesh-agent-contracts": "*",
+        "@deployer/mesh-client": "*",
         "@deployer/nest-effect": "*",
         "@deployer/orpc-utils": "*",
         "@deployer/shared": "*",
@@ -39,7 +40,6 @@
         "effect": "catalog:effect",
         "express": "catalog:api:nest",
         "reflect-metadata": "catalog:api:nest",
-        "rxjs": "catalog:api:nest",
         "zod": "catalog:utils"
     },
     "devDependencies": {

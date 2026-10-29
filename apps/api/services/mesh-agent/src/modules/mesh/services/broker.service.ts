@@ -21,6 +21,8 @@ export type CallOutcome<A> =
 export type BrokerInput<A, E, R> = {
   readonly service: string;
   readonly key?: string;
+  /** Never leave this agent's node: the call was pinned to it. */
+  readonly localOnly?: boolean;
   readonly maxHops: number;
   readonly hintTtlMs: number;
   readonly invoke: (replica: ReplicaRecord) => Effect.Effect<CallOutcome<A>, E, R>;
@@ -79,7 +81,7 @@ export class MeshBroker extends Context.Service<MeshBroker, MeshBrokerShape>()("
               named && !visited.has(named.replicaId)
                 ? named
                 : yield* directory
-                    .resolve({ service: input.service, key: input.key, exclude: [...visited] })
+                    .resolve({ service: input.service, key: input.key, localOnly: input.localOnly, exclude: [...visited] })
                     .pipe(
                       Effect.map((resolution) => resolution.replica),
                       Effect.catchTag("MeshNoReplica", () => Effect.succeed(undefined)),
@@ -95,7 +97,7 @@ export class MeshBroker extends Context.Service<MeshBroker, MeshBrokerShape>()("
         const hintedReplica = hinted === undefined ? undefined : yield* directory.get(hinted);
         const first =
           hintedReplica ??
-          (yield* directory.resolve({ service: input.service, key: input.key })).replica;
+          (yield* directory.resolve({ service: input.service, key: input.key, localOnly: input.localOnly })).replica;
 
         return yield* attempt(first, 0);
       }),

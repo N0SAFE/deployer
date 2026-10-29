@@ -18,3 +18,12 @@ export class MeshRedirectExhausted extends domainError("MeshRedirectExhausted", 
     return `${this.service} kept redirecting the call`;
   }
 }
+
+/** The agent has no link to the node a call is pinned to. */
+export class MeshNoNode extends domainError("MeshNoNode", "not_found")<{
+  readonly nodeId: string;
+}>() {
+  override publicMessage() {
+    return `Node ${this.nodeId} is not reachable from this agent`;
+  }
+}

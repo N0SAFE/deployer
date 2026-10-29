@@ -24,6 +24,8 @@ export type ReplicaQuery = {
   readonly key?: string;
   /** Replicas the caller already tried; never returned. */
   readonly exclude?: readonly string[];
+  /** Serve only from this agent's node. */
+  readonly localOnly?: boolean;
 };
 
 export type MeshDirectoryShape = {

@@ -144,6 +144,30 @@ its database exist:
 
 Its boot spec runs beside the unit specs instead of in `src/e2e`: the e2e project provisions a Postgres container.
 
+## The relay, as built
+
+Every call between services is one oRPC procedure on the local agent, `relay.call` (contract in
+`@deployer/mesh-agent-contracts`, `mesh/relay/`). The caller names a target, `{ service, key?, node?, direct?, heavy? }`,
+plus the procedure `path` and `input`; `relayLink` in `@deployer/mesh-client` turns every procedure of a client into
+such a call, and `grantFollowingLink` replays it on a replica when the agent answers `MESH_DIRECT`.
+
+The answer is an oRPC event iterator: one `value` event for a unary result, or a `stream` event then one `item` per
+element. It is a plain iterator and not the builder's `observable`, deliberately: an iterator is pulled, so a slow
+caller slows the stream at its source instead of an unbounded buffer growing on the agent, and the builder's
+observable output is wrapped in a detailed `{ status, body }` structure that the RPC protocol cannot validate.
+
+`MeshRelay` (in the service) decides, in order: forward to another node's agent when the call is pinned to a node that
+is not this one; grant a direct link when `leaseReason` says so; otherwise broker through `MeshBroker`, which resolves
+the replica (key, locality, load), calls it over the pooled link, answers `MESH_REDIRECT` itself and returns the final
+result. The target's own errors reach the caller with their code and data.
+
+Built and tested over real oRPC RPC peers (in-memory ports): unary, streams, redirects, errors, node pinning and grants.
+
+Not built yet: the websocket endpoint that services and agents expose for these links (the pooled link opens
+`ws://<replica>?credential=...`, and nothing serves it), the roster gossip that fills the directory and teaches the
+agent how to reach other nodes' agents, byte accounting from the transport, the onboarding agent, per-service
+`external`/`peer`/`node` routers, and the removal of the old mesh code.
+
 ## Agents
 
 - **mesh-agent** (global-mode Swarm service, one task per node): owns the node's WireGuard identity and link, the
