@@ -3,11 +3,18 @@
 The target: every piece of platform logic is an Effect service in a framework-free package, and
 NestJS only mounts those services (a module, a thin host class). No logic lives in a Nest class.
 
+## End state: no `@Injectable`
+
+Every service, repository, orchestrator and infra owner (`GlobalDatabaseService`, `EnvService`, the event
+buses) ends up an Effect service; Nest keeps only modules, controllers and lifecycle hooks as the mounting
+layer. A class left as `@Injectable` is migration work, not a design choice.
+
 ## Streaming stays RxJS
 
 Logic and state are Effect; streaming and observability stay RxJS. A host exposes changes to Nest
 callers as `Observable`s (SSE, subscriptions, `on(...)`), sourced from the Effect `Stream`/`PubSub`
-inside the package. Do not rewrite an RxJS bus or SSE pipeline into Effect streams.
+inside the package. Do not rewrite an RxJS bus or SSE pipeline into Effect streams; the bus itself becomes an Effect service that
+exposes the `Observable`.
 
 ## The pattern
 
