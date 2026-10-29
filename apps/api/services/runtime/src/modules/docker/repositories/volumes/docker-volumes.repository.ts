@@ -1,25 +1,26 @@
 import { dockerVolumeSchema, type DockerVolume } from "@deployer/contracts-entities";
 import type { DockerError, DockerEngineShape } from "@deployer/docker";
 import { DockerEngine } from "@deployer/docker";
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect } from "effect";
 
 const VOLUME_DRIVERS = ["local", "nfs", "csi", "tmpfs"];
 
 export type DockerVolumesRepositoryShape = {
 	/** Every volume the engine reports, with the containers that mount it. */
-	readonly list: Effect.Effect<DockerVolume[], DockerError>;
+	readonly list: Effect.Effect<DockerVolume[], DockerError, DockerEngine>;
 };
 
 /** The volumes of the local engine. */
 export class DockerVolumesRepository extends Context.Service<DockerVolumesRepository, DockerVolumesRepositoryShape>()(
 	"runtime/DockerVolumesRepository",
 ) {
-	static readonly Live: Layer.Layer<DockerVolumesRepository, never, DockerEngine> = Layer.effect(
-		DockerVolumesRepository,
-		Effect.gen(function* () {
-			return makeDockerVolumesRepository(yield* DockerEngine);
+	/** The engine is yielded when `list` runs, so this is a constant a Nest module provides with `useValue`. */
+	static readonly live: DockerVolumesRepositoryShape = {
+		list: Effect.gen(function* () {
+			const engine = yield* DockerEngine;
+			return yield* listDockerVolumes(engine);
 		}),
-	);
+	};
 }
 
 /** Volume name -> ids of the containers mounting it. */
@@ -37,9 +38,8 @@ const mountsByVolume = (containers: readonly { readonly Id?: unknown; readonly M
 	return used;
 };
 
-export function makeDockerVolumesRepository(engine: DockerEngineShape): DockerVolumesRepositoryShape {
-	return {
-		list: Effect.suspend(() => Effect.all([engine.volumes.list(), engine.containers.list({ all: true })], { concurrency: "unbounded" })).pipe(
+const listDockerVolumes = (engine: DockerEngineShape): Effect.Effect<DockerVolume[], DockerError> =>
+	Effect.suspend(() => Effect.all([engine.volumes.list(), engine.containers.list({ all: true })], { concurrency: "unbounded" })).pipe(
 			Effect.map(([volumes, containers]) => {
 				const used = mountsByVolume(containers as readonly { Id?: unknown; Mounts?: unknown }[]);
 				return volumes.map((volume) => {
@@ -58,6 +58,4 @@ export function makeDockerVolumesRepository(engine: DockerEngineShape): DockerVo
 					});
 				});
 			}),
-		),
-	};
-}
+		);

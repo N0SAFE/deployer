@@ -7,9 +7,9 @@ import { DockerContainerLinksRepository } from "./containers/links/docker-contai
 import { DockerImageCatalogRepository } from "./images/catalog/docker-image-catalog.repository";
 import { DockerImageSecurityRepository } from "./images/security/docker-image-security.repository";
 import { DockerRuntimeActivityRepository } from "./runtime/docker-runtime-activity.repository";
-import { DockerNetworksRepository, makeDockerNetworksRepository } from "./networks/docker-networks.repository";
-import { DockerVolumesRepository, makeDockerVolumesRepository } from "./volumes/docker-volumes.repository";
-import { DockerImagesRepository, makeDockerImagesRepository } from "./images/engine/docker-images.repository";
+import { DockerNetworksRepository } from "./networks/docker-networks.repository";
+import { DockerVolumesRepository } from "./volumes/docker-volumes.repository";
+import { DockerImagesRepository } from "./images/engine/docker-images.repository";
 import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-normalizer.service";
 
 @Module({
@@ -22,9 +22,9 @@ import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-norm
     DockerImageSecurityRepository,
     DockerRuntimeActivityRepository,
     // The Effect repositories over the engine are provided under their own tags.
-    { provide: DockerNetworksRepository, useFactory: (engine: DockerEngineShape) => makeDockerNetworksRepository(engine), inject: [DockerEngine] },
-    { provide: DockerImagesRepository, useFactory: (engine: DockerEngineShape) => makeDockerImagesRepository(engine), inject: [DockerEngine] },
-    { provide: DockerVolumesRepository, useFactory: (engine: DockerEngineShape) => makeDockerVolumesRepository(engine), inject: [DockerEngine] },
+    { provide: DockerNetworksRepository, useValue: DockerNetworksRepository.live },
+    { provide: DockerImagesRepository, useValue: DockerImagesRepository.live },
+    { provide: DockerVolumesRepository, useValue: DockerVolumesRepository.live },
   ],
   exports: [
     DockerRepository,

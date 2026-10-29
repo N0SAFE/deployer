@@ -1,14 +1,16 @@
-import { DockerUnavailable } from "@deployer/docker";
+import { DockerEngine, DockerUnavailable } from "@deployer/docker";
 import { Effect, Exit } from "effect";
 import { describe, expect, it } from "vitest";
 
-import { makeDockerNetworksRepository, normalizeNetworkDriver, normalizeNetworkScope } from "./docker-networks.repository";
+import { DockerNetworksRepository, normalizeNetworkDriver, normalizeNetworkScope } from "./docker-networks.repository";
 
 const engineWith = (networks: unknown[]) => ({ networks: { list: () => Effect.succeed(networks) } }) as never;
 
+const withEngine = (engine: never) => ({ list: DockerNetworksRepository.live.list.pipe(Effect.provideService(DockerEngine, engine)) });
+
 describe("DockerNetworksRepository", () => {
 	it("maps an engine network onto the network entity", async () => {
-		const repository = makeDockerNetworksRepository(
+		const repository = withEngine(
 			engineWith([
 				{
 					Id: "n1",
@@ -41,7 +43,7 @@ describe("DockerNetworksRepository", () => {
 	});
 
 	it("defaults what the engine leaves out", async () => {
-		const [network] = await Effect.runPromise(makeDockerNetworksRepository(engineWith([{ Id: "n2" }])).list);
+		const [network] = await Effect.runPromise(withEngine(engineWith([{ Id: "n2" }])).list);
 		expect(network).toMatchObject({ name: "unknown-network", driver: "custom", scope: "global", attachable: true, subnet: null, gateway: null, containerIds: [] });
 	});
 
@@ -54,7 +56,7 @@ describe("DockerNetworksRepository", () => {
 
 	it("fails with the engine's own typed error", async () => {
 		const failing = { networks: { list: () => Effect.fail(new DockerUnavailable({ reason: "socket gone" })) } } as never;
-		const exit = await Effect.runPromiseExit(makeDockerNetworksRepository(failing).list);
+		const exit = await Effect.runPromiseExit(withEngine(failing).list);
 		expect(Exit.isFailure(exit)).toBe(true);
 	});
 });

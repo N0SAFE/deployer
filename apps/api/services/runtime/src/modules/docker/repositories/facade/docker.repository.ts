@@ -59,7 +59,6 @@ import {
 } from "../images/engine/docker-image-reference";
 import {
   DockerImagesRepository,
-  makeDockerImagesRepository,
   type DockerImagesRepositoryShape,
 } from "../images/engine/docker-images.repository";
 import { deriveRegistries } from "../images/engine/docker-registries";
@@ -69,7 +68,6 @@ import {
 } from "../images/security/scanner-output";
 import {
   DockerNetworksRepository,
-  makeDockerNetworksRepository,
   type DockerNetworksRepositoryShape,
 } from "../networks/docker-networks.repository";
 import {
@@ -78,7 +76,6 @@ import {
 } from "../runtime/runtime-activity-mapping";
 import {
   DockerVolumesRepository,
-  makeDockerVolumesRepository,
   type DockerVolumesRepositoryShape,
 } from "../volumes/docker-volumes.repository";
 
@@ -169,9 +166,9 @@ export class DockerRepository {
     private readonly normalizer: ContainerDockerodeNormalizer,
     @Optional() @Inject(CONTAINER_LINK_RESOLVER)
     private readonly linkResolver?: IContainerLinkResolver,
-    @Inject(DockerNetworksRepository) private readonly networks: DockerNetworksRepositoryShape = makeDockerNetworksRepository(dockerEngine),
-    @Inject(DockerVolumesRepository) private readonly volumes: DockerVolumesRepositoryShape = makeDockerVolumesRepository(dockerEngine),
-    @Inject(DockerImagesRepository) private readonly images: DockerImagesRepositoryShape = makeDockerImagesRepository(dockerEngine),
+    @Inject(DockerNetworksRepository) private readonly networks: DockerNetworksRepositoryShape = DockerNetworksRepository.live,
+    @Inject(DockerVolumesRepository) private readonly volumes: DockerVolumesRepositoryShape = DockerVolumesRepository.live,
+    @Inject(DockerImagesRepository) private readonly images: DockerImagesRepositoryShape = DockerImagesRepository.live,
   ) {
     this.scanner = new DockerImageScannerService(dockerEngine, scannerPool, dockerHost, {
       read: (identifiers) => this.readPersistedImageSecurityScan(identifiers),
@@ -1733,7 +1730,7 @@ export class DockerRepository {
   }
 
   async listImages(input: DockerImageListInput) {
-    const mapped = await runPromiseUnwrapped(this.images.list);
+    const mapped = await runPromiseUnwrapped(this.images.list.pipe(Effect.provideService(DockerEngine, this.dockerEngine)));
 
     const filtered = mapped.filter((item) => {
       const registryMatch = this.matchString(item.registry, this.getFilterEntry(input, "registry"));
@@ -1760,7 +1757,7 @@ export class DockerRepository {
   }
 
   async listNetworks(input: DockerNetworkListInput) {
-    const mapped = await runPromiseUnwrapped(this.networks.list);
+    const mapped = await runPromiseUnwrapped(this.networks.list.pipe(Effect.provideService(DockerEngine, this.dockerEngine)));
 
     const filtered = mapped.filter((item) => {
       const nameMatch = this.matchString(item.name, this.getFilterEntry(input, "name"));
@@ -1785,7 +1782,7 @@ export class DockerRepository {
   }
 
   async listVolumes(input: DockerVolumeListInput) {
-    const mapped = await runPromiseUnwrapped(this.volumes.list);
+    const mapped = await runPromiseUnwrapped(this.volumes.list.pipe(Effect.provideService(DockerEngine, this.dockerEngine)));
 
     const filtered = mapped.filter((item) => {
       const nameMatch = this.matchString(item.name, this.getFilterEntry(input, "name"));

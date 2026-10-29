@@ -1,7 +1,7 @@
 import { dockerImageSchema, type DockerImage } from "@deployer/contracts-entities";
 import type { DockerEngineShape, DockerError } from "@deployer/docker";
 import { DockerEngine } from "@deployer/docker";
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect } from "effect";
 
 import {
 	buildFallbackImageRepository,
@@ -12,26 +12,26 @@ import {
 
 export type DockerImagesRepositoryShape = {
 	/** Every image the engine reports, as the runtime's image entity. Entries that do not fit the entity are skipped and logged. */
-	readonly list: Effect.Effect<DockerImage[], DockerError>;
+	readonly list: Effect.Effect<DockerImage[], DockerError, DockerEngine>;
 };
 
 /** The images of the local engine. */
 export class DockerImagesRepository extends Context.Service<DockerImagesRepository, DockerImagesRepositoryShape>()(
 	"runtime/DockerImagesRepository",
 ) {
-	static readonly Live: Layer.Layer<DockerImagesRepository, never, DockerEngine> = Layer.effect(
-		DockerImagesRepository,
-		Effect.gen(function* () {
-			return makeDockerImagesRepository(yield* DockerEngine);
+	/** The engine is yielded when `list` runs, so this is a constant a Nest module provides with `useValue`. */
+	static readonly live: DockerImagesRepositoryShape = {
+		list: Effect.gen(function* () {
+			const engine = yield* DockerEngine;
+			return yield* listDockerImages(engine);
 		}),
-	);
+	};
 }
 
 const stringArray = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []);
 
-export function makeDockerImagesRepository(engine: DockerEngineShape): DockerImagesRepositoryShape {
-	return {
-		list: Effect.suspend(() => engine.images.list()).pipe(
+const listDockerImages = (engine: DockerEngineShape): Effect.Effect<DockerImage[], DockerError> =>
+	Effect.suspend(() => engine.images.list()).pipe(
 			Effect.flatMap((rawImages) =>
 				Effect.gen(function* () {
 					const mapped: DockerImage[] = [];
@@ -68,6 +68,4 @@ export function makeDockerImagesRepository(engine: DockerEngineShape): DockerIma
 					return mapped;
 				}),
 			),
-		),
-	};
-}
+		);

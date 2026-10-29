@@ -1,7 +1,7 @@
 import { dockerNetworkSchema, type DockerNetwork } from "@deployer/contracts-entities";
 import type { DockerError, DockerEngineShape } from "@deployer/docker";
 import { DockerEngine } from "@deployer/docker";
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect } from "effect";
 
 const NETWORK_DRIVERS: readonly DockerNetwork["driver"][] = ["bridge", "overlay", "host", "macvlan", "ipvlan", "custom"];
 const NETWORK_SCOPES: readonly DockerNetwork["scope"][] = ["local", "swarm", "global"];
@@ -19,24 +19,24 @@ export const normalizeNetworkScope = (scope: string | undefined): DockerNetwork[
 
 export type DockerNetworksRepositoryShape = {
 	/** Every network the engine reports, as the runtime's network entity. */
-	readonly list: Effect.Effect<DockerNetwork[], DockerError>;
+	readonly list: Effect.Effect<DockerNetwork[], DockerError, DockerEngine>;
 };
 
 /** The networks of the local engine. */
 export class DockerNetworksRepository extends Context.Service<DockerNetworksRepository, DockerNetworksRepositoryShape>()(
 	"runtime/DockerNetworksRepository",
 ) {
-	static readonly Live: Layer.Layer<DockerNetworksRepository, never, DockerEngine> = Layer.effect(
-		DockerNetworksRepository,
-		Effect.gen(function* () {
-			return makeDockerNetworksRepository(yield* DockerEngine);
+	/** The engine is yielded when `list` runs, so this is a constant a Nest module provides with `useValue`. */
+	static readonly live: DockerNetworksRepositoryShape = {
+		list: Effect.gen(function* () {
+			const engine = yield* DockerEngine;
+			return yield* listDockerNetworks(engine);
 		}),
-	);
+	};
 }
 
-export function makeDockerNetworksRepository(engine: DockerEngineShape): DockerNetworksRepositoryShape {
-	return {
-		list: Effect.suspend(() => engine.networks.list()).pipe(
+const listDockerNetworks = (engine: DockerEngineShape): Effect.Effect<DockerNetwork[], DockerError> =>
+	Effect.suspend(() => engine.networks.list()).pipe(
 			Effect.map((networks) =>
 				networks.map((network) => {
 					const ipam = (network.IPAM?.Config ?? [])[0] ?? {};
@@ -56,6 +56,4 @@ export function makeDockerNetworksRepository(engine: DockerEngineShape): DockerN
 					});
 				}),
 			),
-		),
-	};
-}
+		);

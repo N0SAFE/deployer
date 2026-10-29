@@ -1,14 +1,17 @@
+import { DockerEngine } from "@deployer/docker";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 
-import { makeDockerVolumesRepository } from "./docker-volumes.repository";
+import { DockerVolumesRepository } from "./docker-volumes.repository";
 
 const engineWith = (volumes: unknown[], containers: unknown[]) =>
 	({ volumes: { list: () => Effect.succeed(volumes) }, containers: { list: () => Effect.succeed(containers) } }) as never;
 
+const withEngine = (engine: never) => ({ list: DockerVolumesRepository.live.list.pipe(Effect.provideService(DockerEngine, engine)) });
+
 describe("DockerVolumesRepository", () => {
 	it("maps a volume and lists the containers that mount it", async () => {
-		const repository = makeDockerVolumesRepository(
+		const repository = withEngine(
 			engineWith(
 				[{ Name: "data", Driver: "local", Mountpoint: "/var/lib/docker/volumes/data/_data", UsageData: { Size: 2048 }, Labels: { a: "b" }, CreatedAt: "2026-10-02T00:00:00.000Z" }],
 				[
@@ -34,7 +37,7 @@ describe("DockerVolumesRepository", () => {
 	});
 
 	it("reports an unused volume with no size when the engine has no usage data", async () => {
-		const [volume] = await Effect.runPromise(makeDockerVolumesRepository(engineWith([{ Name: "idle", Driver: "rexray" }], [])).list);
+		const [volume] = await Effect.runPromise(withEngine(engineWith([{ Name: "idle", Driver: "rexray" }], [])).list);
 		expect(volume).toMatchObject({ driver: "custom", sizeBytes: null, usedByContainerIds: [], mountpoint: null });
 	});
 });
