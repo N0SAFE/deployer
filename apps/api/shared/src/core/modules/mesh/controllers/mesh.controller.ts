@@ -6,7 +6,7 @@ import { meshContract } from "@deployer/fleet-contracts";
 import { requireAuth } from "../../auth/orpc/middlewares";
 import { AllowAnonymous } from "../../auth/decorators/decorators";
 import { CoreEventSyncService } from "../../events/services/core-event-sync.service";
-import { SystemMeshTopologyService } from "../services/system-mesh-topology/orchestrator/system-mesh-topology.service";
+import { DEPLOYER_VERSION } from "../../../utils/deployer-version";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { SystemMetrics, type SystemMetricsShape } from "@deployer/system-metrics";
 import { EnvService } from "../../../../config/env/env.module";
@@ -25,12 +25,30 @@ import { Client } from "pg";
 @Controller()
 export class MeshController {
     constructor(
-        private readonly meshTopologyService: SystemMeshTopologyService,
         private readonly coreEventSyncService: CoreEventSyncService,
         @Inject(SystemMetrics) private readonly systemMetrics: SystemMetricsShape,
         private readonly envService: EnvService,
         @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
     ) {}
+
+    /**
+     * What this node says about itself. The platform measures nothing else: the version is the build's, and the node's
+     * id is the one setup persisted (an unconfigured node has none, so it gets a throwaway one for this answer).
+     */
+    private localNodeInfo() {
+        return {
+            nodeId: crypto.randomUUID(),
+            version: DEPLOYER_VERSION,
+            region: null,
+            zone: null,
+            roles: null,
+            routingMode: null,
+            consistencyMode: null,
+            lifecycleState: null,
+            startedAt: null,
+            lastSeenAt: null,
+        };
+    }
 
     private resolveAdvertisedHost(): string | null {
         const candidate = this.envService.get("APP_URL")?.toString().trim()
@@ -52,7 +70,7 @@ export class MeshController {
     @AllowAnonymous()
     ping() {
         return implement(meshContract.ping).handler(() => {
-            const localNode = this.meshTopologyService.getLocalNode();
+            const localNode = this.localNodeInfo();
             return {
                 ok: true as const,
                 version: localNode.version,
@@ -135,7 +153,7 @@ export class MeshController {
             .use(requireAuth())
             .handler(() => {
                 const row = runSyncUnwrapped(this.nodeConfigRepository.find());
-                const localNode = this.meshTopologyService.getLocalNode();
+                const localNode = this.localNodeInfo();
 
                 return {
                     nodeId: row?.nodeId ?? localNode.nodeId,
@@ -179,7 +197,7 @@ export class MeshController {
                     meshSharedSecretUpdatedAt: existing?.meshSharedSecretUpdatedAt ?? null,
                 }));
 
-                const localNode = this.meshTopologyService.getLocalNode();
+                const localNode = this.localNodeInfo();
 
                 return {
                     success: true,

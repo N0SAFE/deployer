@@ -24,7 +24,6 @@ import { DockerDelegationController } from "./generated/docker.delegation";
 import { DomainDelegationController } from "./generated/domain.delegation";
 import { HealthDelegationController } from "./generated/health.delegation";
 import { MeshDelegationController } from "./generated/mesh.delegation";
-import { MeshResourceDelegationController } from "./generated/meshResource.delegation";
 import { NodesDelegationController } from "./generated/nodes.delegation";
 import { PlatformDelegationController } from "./generated/platform.delegation";
 import { ProjectDelegationController } from "./generated/project.delegation";
@@ -45,7 +44,6 @@ import { UserDelegationController } from "./generated/user.delegation";
 		DomainDelegationController,
 		HealthDelegationController,
 		MeshDelegationController,
-		MeshResourceDelegationController,
 		NodesDelegationController,
 		PlatformDelegationController,
 		ProjectDelegationController,

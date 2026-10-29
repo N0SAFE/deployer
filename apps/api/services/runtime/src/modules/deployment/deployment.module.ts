@@ -5,7 +5,6 @@ import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configura
 import { CoreDomainModule } from "@deployer/shared/core/modules/domain/domain.module";
 import { DeploymentCoreModule } from "@deployer/shared/core/modules/deployment/deployment-core.module";
 import { CoreEgressModule } from "@deployer/shared/core/modules/egress/egress.module";
-import { MeshCoreModule } from "@deployer/shared/core/modules/mesh/mesh-core.module";
 import { ProjectCoreModule } from "@deployer/shared/core/modules/project/project-core.module";
 import { DeploymentController } from "./controllers/deployment.controller";
 import { DeploymentRepository } from "./repositories/deployment.repository";
@@ -63,7 +62,6 @@ export class DeploymentDomainModule extends createModuleContext({
         // Post-deploy external probe goes through the egress policy; this service does not
         // get CoreReachabilityModule, so it imports the egress module itself.
         CoreEgressModule,
-        MeshCoreModule,
         DeploymentCoreModule,
         ProjectCoreModule,
         ProviderDomainsModule,

@@ -18,7 +18,6 @@ import { healthContract } from "@deployer/health-contracts";
 import { userContract, pushContract, analyticsContract } from "@deployer/identity-contracts";
 import { domainContract, projectContract, serviceContract, servicePreviewTopologyContract } from "@deployer/project-contracts";
 import { deploymentContract, dockerContract } from "@deployer/runtime-contracts";
-import { meshBaseResourceContract } from "@deployer/fleet-contracts/modules/mesh/resource/mesh-base-resource.contract";
 
 export const appContract = oc.router({
     user: userContract,
@@ -51,7 +50,6 @@ export const appContract = oc.router({
     // The resource-dispatcher catch-all (POST /mesh/:entityKey/:methodName)
     // remains reachable via the MeshResourceController. It is NOT part of the
     // public app contract either — the cross-node caller uses it directly.
-    meshResource: meshBaseResourceContract,
 });
 
 export type AppContract = typeof appContract;

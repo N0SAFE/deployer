@@ -19,7 +19,6 @@ import type {
 } from "@deployer/contracts-entities";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
-import { MeshQueueTransitionService } from "@deployer/shared/core/modules/mesh/services/mesh-queue-transition.service";
 
 import { runtimeDbOver } from "../../../core/database/runtime-db";
 import { RuntimeNotFound } from "../../../core/runtime.errors";
@@ -77,7 +76,6 @@ export class DeploymentQueueLifecycleService implements OnModuleInit, OnModuleDe
     constructor(
         private readonly databaseService: GlobalDatabaseService,
         private readonly deploymentQueueEventService: DeploymentQueueEventService,
-        @Optional() private readonly meshQueueTransitionService?: MeshQueueTransitionService,
         /** Unit specs inject an in-memory repository; the app builds the Postgres one lazily. */
         @Optional() @Inject(DEPLOYMENT_QUEUE_REPOSITORY) repository?: DeploymentQueueRepositoryShape,
     ) {
@@ -145,7 +143,6 @@ export class DeploymentQueueLifecycleService implements OnModuleInit, OnModuleDe
             { queue: "deployment" },
             { ...this.eventFields(job), deduplicated: false, job, timestamp: job.updatedAt },
         );
-        this.replicate(job, null, `${job.id}:queued:${job.updatedAt}`);
         return { enqueued: true, deduplicated: false, job };
     }
 
@@ -176,7 +173,6 @@ export class DeploymentQueueLifecycleService implements OnModuleInit, OnModuleDe
             { queue: "deployment" },
             { ...this.eventFields(job), leaseExpiresAt: job.leaseExpiresAt, timestamp: job.updatedAt },
         );
-        this.replicate(job, "running", `${job.id}:running:${job.updatedAt}`);
 
         return {
             acknowledged: true,
@@ -201,7 +197,6 @@ export class DeploymentQueueLifecycleService implements OnModuleInit, OnModuleDe
             { queue: "deployment" },
             { ...this.eventFields(job), job, timestamp: job.updatedAt },
         );
-        this.replicate(job, "running", `${job.id}:succeeded:${job.updatedAt}`);
         return { updated: true, job };
     }
 
@@ -225,7 +220,6 @@ export class DeploymentQueueLifecycleService implements OnModuleInit, OnModuleDe
                 timestamp: job.updatedAt,
             },
         );
-        this.replicate(job, "running", `${job.id}:${movedToDeadLetter ? "failed" : "retry-queued"}:${job.updatedAt}`);
         if (!movedToDeadLetter) this.scheduleRetryReEmit(job);
 
         return { transition: { updated: true, job }, failedJob: job, movedToDeadLetter };
@@ -236,7 +230,6 @@ export class DeploymentQueueLifecycleService implements OnModuleInit, OnModuleDe
         const job = await runPromiseUnwrapped(this.queue.cancel(jobId, reason));
         if (job === null) return null;
         this.clearRetryTimer(job.id);
-        this.replicate(job, "running", `${job.id}:cancelled:${job.updatedAt}`);
         this.jobCancelled$.next(job);
         return job;
     }
@@ -334,8 +327,7 @@ export class DeploymentQueueLifecycleService implements OnModuleInit, OnModuleDe
                     timestamp: job.updatedAt,
                 },
             );
-            this.replicate(job, "running", `${job.id}:lease-released:${job.updatedAt}`);
-            this.scheduleRetryReEmit(job);
+                this.scheduleRetryReEmit(job);
         }
         return released.length;
     }
@@ -346,7 +338,6 @@ export class DeploymentQueueLifecycleService implements OnModuleInit, OnModuleDe
             { queue: "deployment" },
             { ...this.eventFields(job), claimedCount: 1, job, timestamp: job.updatedAt },
         );
-        this.replicate(job, "queued", `${job.id}:claimed:${job.updatedAt}`);
     }
 
     private eventFields(job: DeploymentQueueJob) {
@@ -384,30 +375,4 @@ export class DeploymentQueueLifecycleService implements OnModuleInit, OnModuleDe
         this.retryTimers.set(retryJob.id, timer);
     }
 
-    private replicate(job: DeploymentQueueJob, fromStatus: string | null, idempotencyKey: string): void {
-        if (!this.meshQueueTransitionService) return;
-
-        const partitionKey = job.payload.deploymentId ? `deployment:${job.payload.deploymentId}` : `job:${job.id}`;
-        void this.meshQueueTransitionService
-            .appendAndReplicate({
-                queue: "deployment",
-                partitionKey,
-                jobId: job.id,
-                fromStatus,
-                toStatus: job.status,
-                workerId: job.workerId,
-                idempotencyKey,
-                occurredAt: job.updatedAt,
-                metadata: {
-                    serviceId: job.payload.serviceId,
-                    projectId: job.payload.projectId,
-                    deploymentId: job.payload.deploymentId,
-                    jobType: job.type,
-                    attempts: job.attempts,
-                },
-            })
-            .catch(() => {
-                // Best-effort mesh replication must not block queue lifecycle progression.
-            });
-    }
 }

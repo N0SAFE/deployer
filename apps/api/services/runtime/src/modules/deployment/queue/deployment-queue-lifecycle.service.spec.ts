@@ -6,7 +6,7 @@ import { DeploymentQueueLifecycleService } from "./deployment-queue-lifecycle.se
 import { makeInMemoryDeploymentQueueRepository } from "./repositories/in-memory-deployment-queue.repository";
 
 /**
- * What the lifecycle service itself owns: the typed events, the best-effort mesh replication, the RxJS
+ * What the lifecycle service itself owns: the typed events, the RxJS
  * `onJobQueued` channel and the sweep that re-announces claimable jobs. The storage rules (idempotency, guarded
  * claims, retry vs dead-letter, lease reaping) are the repository's, proven against Postgres in
  * `deployment-queue.e2e-spec.ts`; here they run on the in-memory repository.
@@ -21,7 +21,6 @@ describe("DeploymentQueueLifecycleService", () => {
     } as const;
 
     let eventService: { emit: ReturnType<typeof vi.fn> };
-    let mesh: { appendAndReplicate: ReturnType<typeof vi.fn> };
     let service: DeploymentQueueLifecycleService;
 
     const claimInput = { workerId: "w1", limit: 1, leaseDurationSec: 60 };
@@ -31,11 +30,9 @@ describe("DeploymentQueueLifecycleService", () => {
 
     beforeEach(() => {
         eventService = { emit: vi.fn() };
-        mesh = { appendAndReplicate: vi.fn().mockResolvedValue({ appended: true }) };
         service = new DeploymentQueueLifecycleService(
             undefined as never,
             eventService as never,
-            mesh as never,
             makeInMemoryDeploymentQueueRepository(),
         );
     });
@@ -45,19 +42,10 @@ describe("DeploymentQueueLifecycleService", () => {
         vi.useRealTimers();
     });
 
-    it("replicates the enqueue transition through the mesh and emits jobEnqueued once", async () => {
+    it("emits jobEnqueued once for a new job", async () => {
         const result = await enqueue("k-enqueue");
 
         expect(result).toMatchObject({ enqueued: true, deduplicated: false });
-        expect(mesh.appendAndReplicate).toHaveBeenCalledWith(
-            expect.objectContaining({
-                queue: "deployment",
-                fromStatus: null,
-                toStatus: "queued",
-                jobId: result.job.id,
-                partitionKey: `deployment:${basePayload.deploymentId}`,
-            }),
-        );
         expect(emitted("jobEnqueued")).toHaveLength(1);
     });
 
@@ -71,11 +59,6 @@ describe("DeploymentQueueLifecycleService", () => {
         expect(second.deduplicated).toBe(true);
         expect(seen).toEqual([first.job.id]);
         expect(emitted("jobEnqueued")).toHaveLength(1);
-    });
-
-    it("does not let mesh replication failures stop the lifecycle", async () => {
-        mesh.appendAndReplicate.mockRejectedValue(new Error("mesh down"));
-        await expect(enqueue("k-mesh")).resolves.toMatchObject({ enqueued: true });
     });
 
     it("emits claim, heartbeat and completion events for the holder only", async () => {
@@ -143,7 +126,7 @@ describe("DeploymentQueueLifecycleService", () => {
 
     it("the sweep re-announces jobs that were enqueued before a restart", async () => {
         const { job } = await enqueue("k-sweep");
-        const restarted = new DeploymentQueueLifecycleService(undefined as never, eventService as never, undefined, makeInMemoryDeploymentQueueRepository());
+        const restarted = new DeploymentQueueLifecycleService(undefined as never, eventService as never, makeInMemoryDeploymentQueueRepository());
         const sharedRepo = (service as unknown as { queue: unknown }).queue;
         (restarted as unknown as { repository: unknown }).repository = sharedRepo;
         const seen: string[] = [];

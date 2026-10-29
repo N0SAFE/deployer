@@ -509,7 +509,6 @@ describe('DeploymentService', () => {
                         new DeploymentQueueLifecycleService(
                             undefined as never,
                             mockDeploymentQueueEventService,
-                            undefined,
                             makeInMemoryDeploymentQueueRepository(),
                         ),
                 },

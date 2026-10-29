@@ -16,7 +16,6 @@ import { healthContract } from "@deployer/health-contracts";
 import { userContract, pushContract, analyticsContract } from "@deployer/identity-contracts";
 import { domainContract, projectContract, serviceContract, servicePreviewTopologyContract } from "@deployer/project-contracts";
 import { deploymentContract, dockerContract } from "@deployer/runtime-contracts";
-import { meshBaseResourceContract } from "@deployer/fleet-contracts/modules/mesh/resource/mesh-base-resource.contract";
 
 export const appContract = oc.router({
     user: userContract,
@@ -42,7 +41,6 @@ export const appContract = oc.router({
     mesh: meshContract,
     platform: platformContract,
     cluster: clusterContract,
-    meshResource: meshBaseResourceContract,
 });
 
 export type AppContract = typeof appContract;

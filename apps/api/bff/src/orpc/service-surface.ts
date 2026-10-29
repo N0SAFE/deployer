@@ -41,7 +41,6 @@ import {
 	providersContract,
 	reachabilityContract,
 } from "@deployer/fleet-contracts";
-import { meshBaseResourceContract } from "@deployer/fleet-contracts/modules/mesh/resource/mesh-base-resource.contract";
 import { healthContract } from "@deployer/health-contracts";
 
 /**
@@ -93,7 +92,6 @@ export function serviceSurface() {
 		reachability: reachabilityContract,
 		mesh: meshContract,
 		platform: platformContract,
-		meshResource: meshBaseResourceContract,
 
 		// health
 		health: healthContract,

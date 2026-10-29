@@ -1,8 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Subject } from "rxjs";
-import { resetHeavyWorkForTests } from "@deployer/shared/core/utils/heavy-work.registry";
-import { setScanPressureForTests } from "../../../services/scan-concurrency";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import { dockerContainerRuntimeEventSchema, dockerImageRuntimeEventSchema } from "@deployer/contracts-entities";
+import { resetHeavyWorkForTests } from "@deployer/shared/core/utils/heavy-work.registry";
+
+import { setScanPressureForTests } from "../../../services/scan-concurrency";
+
+
 import { DockerImageAutoScanListenerService } from "./docker-image-auto-scan-listener.service";
 
 /**
@@ -36,8 +40,8 @@ function createServiceHarness(options?: {
 }) {
   const runtimeEvents$ = new Subject<ReturnType<typeof dockerContainerRuntimeEventSchema.parse>>();
 
-  const systemMeshTopologyService = {
-    getLocalNode: vi.fn(() => ({ nodeId: "node-local" })),
+  const nodeMesh = {
+    selfNodeId: vi.fn(() => "node-local"),
   };
 
   const dockerRuntimeEventsStreamService = {
@@ -75,7 +79,7 @@ function createServiceHarness(options?: {
   };
 
   const service = new DockerImageAutoScanListenerService(
-    systemMeshTopologyService as never,
+    nodeMesh as never,
     dockerRuntimeEventsStreamService as never,
     dockerRuntimeMeshRelayService as never,
     dockerImagesApplicationService as never,
@@ -148,7 +152,7 @@ describe("DockerImageAutoScanListenerService", () => {
     const envService = { get: vi.fn(() => false) };
 
     const serviceWithCustomStream = new DockerImageAutoScanListenerService(
-      { getLocalNode: vi.fn(() => ({ nodeId: "node-local" })) } as never,
+      { selfNodeId: vi.fn(() => "node-local") } as never,
       dockerRuntimeEventsStreamService as never,
       { relayRuntimeEvent: vi.fn() } as never,
       dockerImagesApplicationService as never,

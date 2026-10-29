@@ -5,14 +5,10 @@ import { EffectRuntime } from "@deployer/nest-effect";
 import { DockerContainerOps } from "./runtime/docker-container-ops";
 import { DockerTerminalSessions } from "./runtime/docker-terminal-sessions";
 import { ContainerAccessMeshPort, DockerContainerAccess } from "./runtime/docker-container-access";
-import { MeshCoreModule } from "@deployer/shared/core/modules/mesh/mesh-core.module";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
 import { DockerRepositoriesModule } from "../../repositories/docker-repositories.module";
 import { DockerContainerMetricsStreamService } from "./events/docker-container-metrics-stream.service";
-import { SystemMeshTopicService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
-import { SystemMeshTopologyService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
-import { MeshInternalRequestService } from "@deployer/shared/core/modules/mesh/services/mesh-internal-request.service";
 import { DockerRepository } from "../../repositories/facade/docker.repository";
 import {
   ContainersLocalPort,
@@ -25,7 +21,7 @@ import { runtimeReplicaId } from "../../../../core/mesh/runtime-replica-id";
 import { DOCKER_NODE_MESH, NODE_MESH_AGENT, dockerNodeMeshOver, type NodeMeshAgent } from "./mesh/docker-node-mesh";
 
 export class DockerContainersModule extends createModuleContext({
-  imports: [MeshCoreModule, CoreDockerModule, EventsModule, DockerRepositoriesModule],
+  imports: [CoreDockerModule, EventsModule, DockerRepositoriesModule],
   providers: [
     // Built by factories rather than by decorator: they take collaborators, not Nest metadata.
     { provide: DockerContainerOps, useValue: DockerContainerOps.live },

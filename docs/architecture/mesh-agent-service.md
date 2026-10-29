@@ -184,7 +184,7 @@ Built and tested over real oRPC RPC peers (in-memory ports): unary, streams, red
   call is granted and followed directly, an unauthenticated call is refused, and a call pinned to another node is
   forwarded to that node's agent.
 
-Not built yet: the remaining `MeshCoreModule` imports in the runtime, byte accounting from the transport (the lease policy's bytes-per-second input is fed by nothing), the
+Not built yet: byte accounting from the transport (the lease policy's bytes-per-second input is fed by nothing), the
 bridge topology for large meshes (agents currently connect to every agent they learn of, which is the small-mesh
 design), the onboarding agent, services registering themselves with their agent (`replicaHeartbeat` exists, no
 service calls it), the per-service `external`/`peer`/`node` routers, a swarm global-mode deployment of the agent, and the
@@ -322,6 +322,25 @@ returns the credential. A node with no agent enrolls no one. The old exchange (a
 a one-time grant, a shared secret and a peer service token handed back) and the setup probes that served it
 (`probeMesh`, `remoteAuth`) are gone. Revoking a token before it expires is not built: tokens are as short as the
 operator makes them.
+
+## What was removed, and what is not the same thing
+
+The old control plane is gone from `@deployer/shared`: the topology service (peer sessions, membership, health, the trust
+keyring and strict mode, stream routing, queue replication, control envelopes), the topic bus and its registry, the
+resource dispatcher and its catch-all `/mesh/:entityKey/:methodName` route, the query executor, the ownership resolver,
+the stream manager and the orchestration service. `MeshCoreModule` is now small: the node's identity and configuration
+(`SystemMeshConfigService`), the registry of the fleet's nodes (`SystemMeshClusterRepository`), the ping, metrics,
+event-stream and node-configuration procedures, and the ping client the setup flow uses to read a version. The runtime no
+longer imports it at all: the deployment queue no longer replicates its transitions over a topic (nothing read them), the
+docker controller no longer honours a local-only header (the node router never fans out), and the image auto-scan
+listener names its node by the id its agent generated.
+
+The WireGuard network is a different system and is still live: `@deployer/mesh-network`, `apps/mesh-agent` (which
+manages the WireGuard interface, the ingress doors and the cluster settings) and the shared `mesh-agent` module that
+talks to it (`MeshAgentClient`, `MeshAdmissionService`, `ClusterSettingsService`). Edge, ingress, the Traefik supervisor,
+the swarm join and the enrollment's WireGuard admission use it. It carries the traffic between nodes; the mesh agent
+service decides which node a call goes to. `requireMesh()` and the peer-token helpers in `@deployer/auth` are part of
+the auth surface and also stay until they are retired on their own.
 
 ## Services and their clients on the mesh
 

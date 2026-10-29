@@ -112,7 +112,7 @@ registerSchemaCodecs();
 		FleetModule,
 		// ── WHY FLEET HOSTS THE MESH, AND RUNTIME MUST NOT ──────────────────────
 		// `meshContract` is owned by `@deployer/fleet-contracts`, and the BFF
-		// delegates the `mesh` and `meshResource` namespaces to "fleet"
+		// delegates the `mesh` namespace to "fleet"
 		// (`clients.for("fleet", meshContract)`). `MeshCoreModule` is what
 		// DECLARES those controllers — so without this import every mesh call
 		// through the BFF 404s, because the delegation target served neither.

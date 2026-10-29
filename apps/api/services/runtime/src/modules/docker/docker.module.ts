@@ -1,5 +1,4 @@
 import { createModuleContext } from "@deployer/nest-effect";
-import { MeshCoreModule } from "@deployer/shared/core/modules/mesh/mesh-core.module";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";
 import { DockerController } from "./controllers/docker.controller";
 import { DockerCommonModule } from "./common/docker-common.module";
@@ -12,7 +11,6 @@ import { DockerEntityModule } from "./domains/entity/docker-entity.module";
 
 export class DockerDomainModule extends createModuleContext({
   imports: [
-    MeshCoreModule,
     CoreDockerModule, 
     DockerCommonModule,
     DockerRepositoriesModule,

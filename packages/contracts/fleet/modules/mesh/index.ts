@@ -1,4 +1,3 @@
-export * from "./resource";
 export * from "./enrollment";
 
 import z from "zod/v4";

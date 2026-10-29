@@ -1,5 +1,4 @@
 import { Module } from "@nestjs/common";
-import { MeshCoreModule } from "@deployer/shared/core/modules/mesh/mesh-core.module";
 import { DockerCommonModule } from "../../common/docker-common.module";
 import { DockerRepositoriesModule } from "../../repositories/docker-repositories.module";
 import { DockerContainersModule } from "../containers/docker-containers.module";
@@ -10,7 +9,7 @@ import { DockerImagesApplicationService } from "./application/docker-images-appl
 import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
 
 @Module({
-  imports: [MeshCoreModule, DockerCommonModule, DockerRepositoriesModule, DockerContainersModule,
+  imports: [DockerCommonModule, DockerRepositoriesModule, DockerContainersModule,
 		EnvModule,
 	],
   providers: [

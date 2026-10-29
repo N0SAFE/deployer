@@ -7,6 +7,8 @@ import { DEPLOYER_VERSION } from "@deployer/shared/core/utils/deployer-version";
 import { MeshAdmissionService } from "@deployer/shared/core/modules/mesh-agent/mesh-admission.service";
 import { SystemMeshClusterRepository } from "@deployer/shared/core/modules/mesh/repositories/system-mesh-cluster.repository";
 import { MeshCoreModule } from "@deployer/shared/core/modules/mesh/mesh-core.module";
+import { MeshAgentModule } from "@deployer/shared/core/modules/mesh-agent/mesh-agent.module";
+import { SwarmCoreModule } from "@deployer/shared/core/modules/swarm/swarm.module";
 
 import { EnrollmentController } from "./enrollment.controller";
 import { EnrollmentService } from "./enrollment.service";
@@ -18,7 +20,8 @@ const sharedAgentLink = (() => {
 })();
 
 @Module({
-  imports: [MeshCoreModule],
+  // The fleet's swarm role decision, the WireGuard admission and the registry of nodes are what an enrollment touches.
+  imports: [MeshCoreModule, SwarmCoreModule, MeshAgentModule],
   controllers: [EnrollmentController],
   providers: [
     {

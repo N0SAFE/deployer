@@ -4,7 +4,6 @@ import { EffectRuntime } from "@deployer/nest-effect";
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 import { DockerContainerMetricsStreamService } from "../domains/containers/events/docker-container-metrics-stream.service";
 import { DockerRepository } from "../repositories/facade/docker.repository";
-import { MeshCoreModule } from "@deployer/shared/core/modules/mesh/mesh-core.module";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
 import { DockerRepositoriesModule } from "../repositories/docker-repositories.module";
@@ -17,7 +16,7 @@ import { DockerRuntimeMeshRelayService } from "./mesh/docker-runtime-mesh-relay.
 import { DockerRuntimeStreamOrchestratorService } from "./runtime/docker-runtime-stream-orchestrator.service";
 
 @Module({
-  imports: [MeshCoreModule, CoreDockerModule, EventsModule, DockerRepositoriesModule, DockerContainersModule],
+  imports: [CoreDockerModule, EventsModule, DockerRepositoriesModule, DockerContainersModule],
   providers: [
     {
       provide: DockerRuntimeEventsSourceService,

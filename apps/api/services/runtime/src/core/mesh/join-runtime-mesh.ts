@@ -40,7 +40,16 @@ export function joinRuntimeMesh(app: INestApplication): MeshMembership | undefin
 
   if (membership !== undefined) {
     // From now on the runtime can ask the other nodes through the same link: the docker callers read it from this holder.
-    app.get<NodeMeshAgent>(NODE_MESH_AGENT, { strict: false }).link = membership.agent;
+    const holder = app.get<NodeMeshAgent>(NODE_MESH_AGENT, { strict: false });
+    holder.link = membership.agent;
+    // The id of this node is what its agent generated; events and scans name the node by it, so learn it now rather
+    // than at the first question to the other nodes.
+    void membership.agent
+      .call(["roster", "view"], {}, { context: {} })
+      .then((view) => {
+        holder.selfNodeId = (view as { self: { nodeId: string } }).self.nodeId;
+      })
+      .catch(() => undefined);
   }
   return membership;
 }

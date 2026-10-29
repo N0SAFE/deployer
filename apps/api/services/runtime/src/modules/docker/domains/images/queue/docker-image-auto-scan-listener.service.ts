@@ -1,19 +1,22 @@
-import { Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
-import type { Subscription } from "rxjs";
+import { Inject, Injectable, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
+
 import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
 import { AppLogger } from "@deployer/logger";
 import { EnvService } from "@deployer/shared/config/env/env.module";
-import { SystemMeshTopologyService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
+import { heavyWorkSnapshot } from "@deployer/shared/core/utils/heavy-work.registry";
+
+import { DOCKER_NODE_MESH, type DockerNodeMesh } from "../../containers/mesh/docker-node-mesh";
 import { DockerRuntimeEventsStreamService } from "../../../common/events/docker-runtime-events-stream.service";
 import { DockerRuntimeMeshRelayService } from "../../../common/mesh/docker-runtime-mesh-relay.service";
-import { DockerImagesApplicationService } from "../application/docker-images-application.service";
 import { DockerImageSecurityRepository } from "../../../repositories/images/security/docker-image-security.repository";
-import { heavyWorkSnapshot } from "@deployer/shared/core/utils/heavy-work.registry";
 import {
 	planScanConcurrency,
 	readScanPressure,
 	resolveScanConcurrencyCeiling,
 } from "../../../services/scan-concurrency";
+import { DockerImagesApplicationService } from "../application/docker-images-application.service";
+
+import type { Subscription } from "rxjs";
 
 const AUTO_SCAN_EVENT_ACTIONS = new Set(["start"]);
 const AUTO_SCAN_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1_000;
@@ -41,14 +44,14 @@ export class DockerImageAutoScanListenerService implements OnModuleInit, OnModul
 	private readonly queuedByImage = new Set<string>();
 	private readonly pendingImageQueue: string[] = [];
 	private readonly lastTriggeredAtByImage = new Map<string, number>();
-	private localNodeId: string | null = null;
 	private isProcessingQueue = false;
 	/** Background scans that hold a claim right now (see tryClaimNextImage). */
 	private activeAutoScanJobs = 0;
 	private isBootstrapRunning = false;
 
 	constructor(
-		private readonly systemMeshTopologyService: SystemMeshTopologyService,
+		/** Names this node: the id its agent gave it, known once the runtime has joined the mesh. */
+		@Inject(DOCKER_NODE_MESH) private readonly nodeMesh: Pick<DockerNodeMesh, "selfNodeId">,
 		private readonly dockerRuntimeEventsStreamService: DockerRuntimeEventsStreamService,
 		private readonly dockerRuntimeMeshRelayService: DockerRuntimeMeshRelayService,
 		private readonly dockerImagesApplicationService: DockerImagesApplicationService,
@@ -68,8 +71,6 @@ export class DockerImageAutoScanListenerService implements OnModuleInit, OnModul
 			});
 			return;
 		}
-
-		this.localNodeId = this.systemMeshTopologyService.getLocalNode().nodeId;
 
 		this.runtimeEventSubscription = this.dockerRuntimeEventsStreamService.observeEvents().subscribe({
 			next: (event) => {
@@ -443,7 +444,7 @@ export class DockerImageAutoScanListenerService implements OnModuleInit, OnModul
 			? event.actorAttributes.meshNodeId.trim()
 			: "";
 
-		const localNodeId = typeof this.localNodeId === "string" ? this.localNodeId.trim() : "";
+		const localNodeId = this.nodeMesh.selfNodeId()?.trim() ?? "";
 
 		if (eventNodeId.length === 0 || localNodeId.length === 0) {
 			return true;
