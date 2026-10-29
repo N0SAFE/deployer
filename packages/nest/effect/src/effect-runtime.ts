@@ -5,7 +5,7 @@ import {
   type OnApplicationShutdown,
 } from "@nestjs/common";
 import { DiscoveryService } from "@nestjs/core";
-import { Context, type Effect, Layer, ManagedRuntime } from "effect";
+import { Cause, Context, type Effect, Exit, Layer, ManagedRuntime } from "effect";
 import { collectEffectLayer } from "./collect-effect-layer";
 import { EFFECT_RUNTIME_LAYERS } from "./effect-runtime.token";
 
@@ -52,6 +52,16 @@ export class EffectRuntime implements OnApplicationShutdown {
    */
   runPromise<A, E, R>(effect: Effect.Effect<A, E, R>): Promise<A> {
     return this.runtimeFor().runPromise(effect);
+  }
+
+  /**
+   * `runPromise` for callers that match on the failure: it rejects with the ORIGINAL failure value
+   * (a typed error, a Nest exception) instead of a fiber wrapper.
+   */
+  async runPromiseUnwrapped<A, E, R>(effect: Effect.Effect<A, E, R>): Promise<A> {
+    const exit = await this.runtimeFor().runPromiseExit(effect);
+    if (Exit.isSuccess(exit)) return exit.value;
+    throw Cause.squash(exit.cause);
   }
 
   private runtimeFor(): ManagedRuntime.ManagedRuntime<unknown, never> {

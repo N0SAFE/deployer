@@ -128,4 +128,12 @@ describe("EffectRuntime", () => {
     expect(first).not.toBe(earlyContext);
     expect(await runtime.runPromise(Effect.gen(function* () { return (yield* Slow).ready; }))).toBe(true);
   });
+
+  it("runPromiseUnwrapped rejects with the original failure", async () => {
+    class Boom extends Error {}
+    const module = await Test.createTestingModule({ imports: [EffectRuntimeModule] }).compile();
+    const runtime = module.get(EffectRuntime);
+    await expect(runtime.runPromiseUnwrapped(Effect.fail(new Boom("x")))).rejects.toBeInstanceOf(Boom);
+    expect(await runtime.runPromiseUnwrapped(Effect.succeed(3))).toBe(3);
+  });
 });
