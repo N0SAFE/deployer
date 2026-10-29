@@ -3,7 +3,7 @@ import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";
 import { DockerRepository } from "./facade/docker.repository";
-import { DockerContainerLinksRepository } from "./containers/links/docker-container-links.repository";
+import { DockerContainerLinks } from "./containers/links/docker-container-links";
 import { DockerImageCatalogRepository } from "./images/catalog/docker-image-catalog.repository";
 import { DockerImageSecurityRepository } from "./images/security/docker-image-security.repository";
 import { DockerRuntimeActivityRepository } from "./runtime/docker-runtime-activity.repository";
@@ -22,7 +22,6 @@ import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-norm
   providers: [
     DockerRepository,
     ContainerDockerodeNormalizer,
-    DockerContainerLinksRepository,
     DockerImageCatalogRepository,
     DockerImageSecurityRepository,
     DockerRuntimeActivityRepository,
@@ -35,11 +34,12 @@ import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-norm
     { provide: DockerRuntimeActivitiesStore, useValue: DockerRuntimeActivitiesStore.live },
     { provide: DockerContainersRepository, useValue: DockerContainersRepository.live },
     { provide: DockerContainerLinksLookup, useValue: DockerContainerLinksLookup.live },
+    { provide: DockerContainerLinks, useValue: DockerContainerLinks.live },
   ],
   exports: [
     DockerRepository,
     ContainerDockerodeNormalizer,
-    DockerContainerLinksRepository,
+    DockerContainerLinks,
     DockerImageCatalogRepository,
     DockerImageSecurityRepository,
     DockerRuntimeActivityRepository,

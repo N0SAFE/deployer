@@ -9,7 +9,8 @@ import type { MeshCallManyOptions, MeshCallManyResult, MeshQueryHandler } from "
 import { makeMeshNamespace, type MeshNamespace, type MeshNamespaceTopology } from "@deployer/shared/core/modules/mesh/services/mesh-namespace";
 import { SystemMeshTopicService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
 import { SystemMeshTopologyService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
-import { DockerDomainRuntimeEventsService } from "../events/docker-domain-runtime-events.service";
+import type { DockerRuntimeEventsSourceService } from "../events/docker-runtime-events-source.service";
+import { relayableRuntimeEvents } from "../events/relayable-runtime-events";
 
 const runtimeTopicInputSchema = z.object({
 });
@@ -39,7 +40,7 @@ export class DockerRuntimeMeshRelayService implements OnModuleInit, OnModuleDest
     constructor(
         meshTopicService: SystemMeshTopicService,
         meshTopologyService: SystemMeshTopologyService,
-        private readonly dockerDomainRuntimeEventsService: DockerDomainRuntimeEventsService,
+        private readonly runtimeEventsSource: Pick<DockerRuntimeEventsSourceService, "stream">,
     ) {
         this.meshTopologyService = meshTopologyService;
         this.meshNamespace = makeMeshNamespace({
@@ -125,7 +126,7 @@ export class DockerRuntimeMeshRelayService implements OnModuleInit, OnModuleDest
             phase: "relay_start",
         });
 
-        this.localRelaySubscription = this.dockerDomainRuntimeEventsService.stream({}).subscribe({
+        this.localRelaySubscription = relayableRuntimeEvents(this.runtimeEventsSource.stream({})).subscribe({
             next: (event) => {
                 this.relayedEventCount += 1;
                 if (this.shouldTraceEvent(this.relayedEventCount)) {

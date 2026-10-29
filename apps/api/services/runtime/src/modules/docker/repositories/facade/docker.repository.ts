@@ -201,25 +201,6 @@ export class DockerRepository {
     return this.localDockerDaemonIdLoadPromise;
   }
 
-  async attachContainerLinks(
-    containers: DockerContainer[],
-    includePaths: DockerContainerLinkPath[],
-    platformRole: string | null,
-  ): Promise<DockerContainerWithLinks[]> {
-    if (containers.length === 0) {
-      return [];
-    }
-
-    const include = inclusionOf(includePaths);
-
-    if (!include.deployment && !include.service && !include.project) {
-      return withoutLinks(containers);
-    }
-
-    const rows = await this.runOnDatabase(this.linkLookup.lookup(containers, include));
-    return assembleContainerLinks(containers, include, platformRole, rows);
-  }
-
   private async listRawContainers(): Promise<DockerodeContainerList[]> {
     return runPromiseUnwrapped(
       this.containers.listRaw.pipe(Effect.provideService(DockerEngine, this.dockerEngine)),

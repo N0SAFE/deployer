@@ -30,7 +30,8 @@ import {
 } from "@deployer/contracts-entities";
 import { AppLogger } from "@deployer/logger";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
-import { DockerContainerLinksRepository } from "../../../repositories/containers/links/docker-container-links.repository";
+import { Effect } from "effect";
+import { DockerContainerLinks } from "../../../repositories/containers/links/docker-container-links";
 import { DockerContainerRuntimeMeshService } from "../mesh/docker-container-runtime-mesh.service";
 import { DockerContainerLogsDomainService } from "../runtime/docker-container-logs-domain.service";
 import { DockerContainerRuntimeService } from "../runtime/docker-container-runtime.service";
@@ -58,7 +59,6 @@ export class DockerContainersOrchestratorService {
   });
 
   constructor(
-    private readonly dockerContainerLinksRepository: DockerContainerLinksRepository,
     private readonly dockerContainerRuntimeService: DockerContainerRuntimeService,
     private readonly dockerContainerLogsDomainService: DockerContainerLogsDomainService,
     private readonly dockerContainerShellDomainService: DockerContainerShellDomainService,
@@ -80,10 +80,11 @@ export class DockerContainersOrchestratorService {
     const containerList = await withContainerResolution(this.effectRuntime, (resolution) => resolution.listContainers(listInput));
     const includePaths = this.parseIncludePaths(include, maxDepth);
 
-    const data = await this.dockerContainerLinksRepository.attachContainerLinks(
-      containerList.data,
-      includePaths,
-      platformRole,
+    const data = await this.effectRuntime.runPromiseUnwrapped(
+      Effect.gen(function* () {
+        const links = yield* DockerContainerLinks;
+        return yield* links.attach(containerList.data, includePaths, platformRole);
+      }),
     );
 
     return {
