@@ -1,5 +1,7 @@
 import { createModuleContext } from "@deployer/nest-effect";
-import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
+import { EffectRuntime } from "@deployer/nest-effect";
+import { DockerContainerOps } from "./runtime/docker-container-ops";
+import { DockerTerminalSessions } from "./runtime/docker-terminal-sessions";
 import { MeshCoreModule } from "@deployer/shared/core/modules/mesh/mesh-core.module";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
@@ -28,7 +30,9 @@ export class DockerContainersModule extends createModuleContext({
   imports: [MeshCoreModule, CoreDockerModule, EventsModule, DockerRepositoriesModule],
   providers: [
     // Built by factories rather than by decorator: they take collaborators, not Nest metadata.
-    { provide: DockerContainerRuntimeService, useFactory: (engine: DockerEngineShape) => new DockerContainerRuntimeService(engine), inject: [DockerEngine] },
+    { provide: DockerContainerOps, useValue: DockerContainerOps.live },
+    { provide: DockerTerminalSessions, useValue: DockerTerminalSessions.live },
+    { provide: DockerContainerRuntimeService, useFactory: (runtime: EffectRuntime) => new DockerContainerRuntimeService(runtime), inject: [EffectRuntime] },
     {
       provide: DockerContainerLogsDomainService,
       useFactory: (runtime: DockerContainerRuntimeService, mesh: DockerContainerRuntimeMeshService) =>

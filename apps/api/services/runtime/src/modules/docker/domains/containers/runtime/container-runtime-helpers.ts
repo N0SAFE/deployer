@@ -3,6 +3,7 @@
  * `ps` output and timestamped log lines, and recognising recoverable exec errors. No engine and no Nest, so they
  * are tested on plain strings.
  */
+import type { DockerEngineShape } from "@deployer/docker";
 import { ReplaySubject, from } from "rxjs";
 import type { ExecShape } from "@deployer/docker";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
@@ -33,6 +34,8 @@ export type TerminalSession = {
   workingDir: string;
   profiles: DockerTerminalProfile[];
   openedAt: string;
+  /** The engine the session was opened on, used for its later exec calls. */
+  engine: DockerEngineShape;
   events: ReplaySubject<TerminalSessionEvent>;
   eventSequence: number;
   eventHistory: TerminalSessionStoredEvent[];
