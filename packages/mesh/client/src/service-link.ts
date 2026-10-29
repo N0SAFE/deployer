@@ -6,6 +6,8 @@ import { type PooledLink, pooledLink } from "./pooled-link";
 import { relayLink } from "./relay-link";
 import { openWebSocketConnection } from "./websocket-link";
 
+import { existsSync } from "node:fs";
+
 import type { ClientContext, ClientLink } from "@orpc/client";
 
 /**
@@ -23,6 +25,17 @@ export function agentLink(socketPath: string): PooledLink<ClientContext> {
     idleMs: 60_000,
     open: () => Promise.resolve(openWebSocketConnection({ url: `ws://agent${MESH_WEBSOCKET_PATH}`, socketPath, reconnectDelayMs: 250 })),
   });
+}
+
+/**
+ * The link to the agent of the node this process runs on, or `undefined` when the node has none.
+ *
+ * `MESH_AGENT_SOCKET` is where the deployment mounted the agent's socket, not a node setting. Without an agent a process
+ * reaches its peers directly, which is how a node works alone before it is part of anything.
+ */
+export function nodeAgentLink(env: Readonly<Record<string, string | undefined>> = process.env): PooledLink<ClientContext> | undefined {
+  const socketPath = env.MESH_AGENT_SOCKET ?? DEFAULT_AGENT_SOCKET;
+  return existsSync(socketPath) ? agentLink(socketPath) : undefined;
 }
 
 export type ServiceLinkOptions = {

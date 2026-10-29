@@ -1,7 +1,5 @@
-import { existsSync } from "node:fs";
-
 import { Injectable } from "@nestjs/common";
-import { DEFAULT_AGENT_SOCKET, agentLink, serviceLink } from "@deployer/mesh-client";
+import { nodeAgentLink, serviceLink } from "@deployer/mesh-client";
 
 import {
 	ServiceClientRegistry as PackageRegistry,
@@ -21,10 +19,7 @@ import { serviceAuthHeaders } from "./service-auth-context";
  * replica, answers redirects and carries the answer back. `MESH_AGENT_SOCKET` is where the deployment mounted the socket,
  * not a node setting.
  */
-const meshAgent = (() => {
-	const socketPath = process.env.MESH_AGENT_SOCKET ?? DEFAULT_AGENT_SOCKET;
-	return existsSync(socketPath) ? agentLink(socketPath) : undefined;
-})();
+const meshAgent = nodeAgentLink();
 
 /**
  * How the BFF reaches a service.

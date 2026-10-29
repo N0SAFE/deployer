@@ -80,6 +80,7 @@
         "@deployer/logger": "*",
         "@deployer/mesh-network": "*",
         "@deployer/docker": "*",
+        "@deployer/mesh-client": "*",
         "@deployer/events": "*",
         "@deployer/nest-effect": "*",
         "@deployer/platform-supervisors": "*",

@@ -1,10 +1,14 @@
 import { Module, Injectable, type DynamicModule } from "@nestjs/common";
 import { createORPCClient } from "@orpc/client";
+import { nodeAgentLink, serviceLink } from "@deployer/mesh-client";
 import { OpenAPILink } from "@orpc/openapi/fetch";
 import type { ContractRouterClient, RouterContract } from "@orpc/contract";
 
 import { apiServiceUrl, type ApiServiceName } from "./service-address";
 import { SYSTEM_ACTOR_HEADER } from "../core/modules/auth/system-actor/system-actor";
+
+/** The link to this node's agent, when it has one. Lazy: nothing connects until the first call. */
+const meshAgent = nodeAgentLink();
 
 /**
  * Reaching another SERVICE over its contract.
@@ -16,12 +20,12 @@ import { SYSTEM_ACTOR_HEADER } from "../core/modules/auth/system-actor/system-ac
  * deployment workflow wants the source checkout fleet resolves. The sanctioned route is the
  * owner's CONTRACT, and this is the client for it.
  *
- * ── WHY `OpenAPILink` AND NOT `RPCLink` ─────────────────────────────────────
- * Services implement their contracts with `@Implement`, which serves each procedure at the
- * OpenAPI route its contract declares (`GET /project/…`) rather than at an RPC path.
- * `RPCLink` would build URLs no service answers — a mismatch that only shows up at runtime,
- * which is precisely the drift a shared transport exists to prevent. The BFF's client uses
- * the same link for the same reason.
+ * ── THE TRANSPORT ───────────────────────────────────────────────────────────
+ * On a node that has an agent, every call goes through it: the agent picks the replica, answers redirects itself and
+ * carries the answer back, and the service serves the call over its mesh websocket, which is a persistent RPC link. On a
+ * node with no agent the call goes straight to the service's HTTP surface (`OpenAPILink`, because services implement their
+ * contracts with `@Implement`, which serves each procedure at the OpenAPI route its contract declares), which is how a node
+ * works alone before it is part of anything. The BFF's client makes the same choice for the same reason.
  */
 @Injectable()
 export class ServiceClient {
@@ -55,7 +59,9 @@ export class ServiceClient {
 		}
 
 		const client = createORPCClient<ContractRouterClient<TContract>>(
-			new OpenAPILink(contract, { origin: apiServiceUrl(name) }),
+			meshAgent === undefined
+				? new OpenAPILink(contract, { origin: apiServiceUrl(name) })
+				: serviceLink({ agent: meshAgent, service: name, contract }),
 		);
 		perContract.set(name, client);
 		return client;
@@ -73,11 +79,11 @@ export class ServiceClient {
 		contract: TContract,
 		token: string,
 	): ContractRouterClient<TContract> {
+		const headers = { [SYSTEM_ACTOR_HEADER]: token };
 		return createORPCClient<ContractRouterClient<TContract>>(
-			new OpenAPILink(contract, {
-				origin: apiServiceUrl(name),
-				headers: { [SYSTEM_ACTOR_HEADER]: token },
-			}),
+			meshAgent === undefined
+				? new OpenAPILink(contract, { origin: apiServiceUrl(name), headers })
+				: serviceLink({ agent: meshAgent, service: name, contract, headers: () => headers }),
 		);
 	}
 }
