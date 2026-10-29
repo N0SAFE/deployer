@@ -21,3 +21,11 @@
 **A**: "the orpc client should all use the createEffectClient to be able to use effect related things inside it"
 
 ---
+
+## Redirects are an interceptor plus a custom error code
+
+**Q**: (stated by the operator) Where does the auto redirect live?
+
+**A**: "the auto redirect should be done by an orpc interceptor on each caller and the service called should respond with a custom error code and the interceptor should catch it and do the things to retry the error on the right replicate or the right forwarded way"
+
+---

@@ -40,10 +40,14 @@ The global mesh is a small framework (an Effect library, `@deployer/service-mesh
    replicated through the mesh-agents' roster gossip, so every node can answer
    `resolve(service, { key? })` locally: the replica holding `key`, else a replica chosen by affinity hash, else the
    least loaded. Registrations carry a TTL and a generation, so a dead replica's keys age out.
-2. **Redirects.** A caller may address only the service. The replica that receives the call can answer with a typed
-   `MeshRedirect { replica, reason }` instead of a result (the resource lives elsewhere). The mesh link follows it
-   automatically, up to a hop limit with a loop guard, and remembers `key -> replica` for a short TTL so the next call
-   goes straight there. A redirect is part of the contract's error set, so it is typed and testable.
+2. **Redirects, done by a client interceptor.** A caller may address only the service. When the replica that
+   receives a call does not hold the resource, it fails with a dedicated oRPC error code, `MESH_REDIRECT`, whose data
+   is `{ replica, reason }` (a handler throws it through a helper such as `redirectTo(replica)`). Following it is not
+   a link feature: it is an oRPC client interceptor (`meshRedirectInterceptor`) installed on every caller's link. The
+   interceptor catches `MESH_REDIRECT`, retries the same call on the named replica (or through the forwarding path
+   below), up to a hop limit with a loop guard, and remembers `key -> replica` for a short TTL so the next call goes
+   straight there. Handlers and callers stay plain oRPC; the error code is declared once in a shared error map that
+   every contract spreads in, so it is typed and testable.
 3. **Replica peers.** A service can ask its own other replicas: `peers.ask(procedure, input, { first | all })` to find
    which one holds a resource (then redirect the caller to it), or `peers.forward(replica, procedure, input)` to
    fetch it on the caller's behalf when a redirect is not wanted (for example the caller cannot reach that replica).
