@@ -1,94 +1,28 @@
-import type { TestingModule } from "@nestjs/testing";
 import { Test } from "@nestjs/testing";
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { of } from "rxjs";
-import { DeploymentStreamOrchestratorService } from "./deployment-stream-orchestrator.service";
+import { describe, expect, it, vi } from "vitest";
+
 import { DeploymentService } from "../../services/deployment.service";
-import { DeploymentStreamBridgeService } from "./deployment-stream-bridge.service";
+import { DeploymentStreamOrchestratorService } from "./deployment-stream-orchestrator.service";
 
 describe("DeploymentStreamOrchestratorService", () => {
-    let service: DeploymentStreamOrchestratorService;
-    let mockDeploymentService: {
-        streamDeploymentEvents: ReturnType<typeof vi.fn>;
-    };
-    let mockDeploymentStreamBridgeService: {
-        tryProxyDeploymentStream: ReturnType<typeof vi.fn>;
-    };
-
-    beforeEach(async () => {
-        mockDeploymentService = {
-            streamDeploymentEvents: vi.fn(),
-        };
-
-        mockDeploymentStreamBridgeService = {
-            tryProxyDeploymentStream: vi.fn(),
-        };
-
-        const module: TestingModule = await Test.createTestingModule({
+    async function build(streamDeploymentEvents: ReturnType<typeof vi.fn>) {
+        const module = await Test.createTestingModule({
             providers: [
                 DeploymentStreamOrchestratorService,
-                { provide: DeploymentService, useFactory: () => mockDeploymentService },
-                {
-                    provide: DeploymentStreamBridgeService,
-                    useFactory: () => mockDeploymentStreamBridgeService,
-                },
+                { provide: DeploymentService, useFactory: () => ({ streamDeploymentEvents }) },
             ],
         }).compile();
+        return module.get(DeploymentStreamOrchestratorService);
+    }
 
-        service = module.get<DeploymentStreamOrchestratorService>(DeploymentStreamOrchestratorService);
+    it("opens the deployment's stream from this node, with the replay the caller asked for", async () => {
+        const stream = { subscribe: vi.fn() };
+        const streamDeploymentEvents = vi.fn().mockReturnValue(stream);
+        const orchestrator = await build(streamDeploymentEvents);
 
-        vi.clearAllMocks();
-    });
+        const result = orchestrator.openDeploymentStream({ deploymentId: "dep-1", replay: true, replayLimit: 25 });
 
-    it("returns proxied stream when mesh bridge resolves a remote owner", () => {
-        const proxiedStream = of({
-            type: "statusChanged",
-            sequence: 1,
-            replayed: false,
-            status: "queued",
-        });
-        mockDeploymentStreamBridgeService.tryProxyDeploymentStream.mockReturnValue(proxiedStream);
-
-        const result = service.openDeploymentStream({
-            deploymentId: "00000000-0000-0000-0000-000000000010",
-            replay: true,
-            replayLimit: 25,
-            context: {},
-        });
-
-        expect(result).toBe(proxiedStream);
-        expect(mockDeploymentStreamBridgeService.tryProxyDeploymentStream).toHaveBeenCalledWith({
-            deploymentId: "00000000-0000-0000-0000-000000000010",
-            replay: true,
-            replayLimit: 25,
-            context: {},
-        });
-        expect(mockDeploymentService.streamDeploymentEvents).not.toHaveBeenCalled();
-    });
-
-    it("falls back to local deployment stream when no remote owner is resolved", () => {
-        const localStream = of({
-            type: "statusChanged",
-            sequence: 2,
-            replayed: true,
-            status: "running",
-        });
-
-        mockDeploymentStreamBridgeService.tryProxyDeploymentStream.mockReturnValue(null);
-        mockDeploymentService.streamDeploymentEvents.mockReturnValue(localStream);
-
-        const result = service.openDeploymentStream({
-            deploymentId: "00000000-0000-0000-0000-000000000020",
-            replay: false,
-            replayLimit: 10,
-            context: {},
-        });
-
-        expect(result).toBe(localStream);
-        expect(mockDeploymentService.streamDeploymentEvents).toHaveBeenCalledWith({
-            deploymentId: "00000000-0000-0000-0000-000000000020",
-            replay: false,
-            replayLimit: 10,
-        });
+        expect(result).toBe(stream);
+        expect(streamDeploymentEvents).toHaveBeenCalledWith({ deploymentId: "dep-1", replay: true, replayLimit: 25 });
     });
 });

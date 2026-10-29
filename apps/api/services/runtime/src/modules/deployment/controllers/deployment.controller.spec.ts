@@ -208,7 +208,6 @@ describe("DeploymentController", () => {
             deploymentId: "00000000-0000-0000-0000-000000000010",
             replay: true,
             replayLimit: 25,
-            context: expect.any(Object),
         });
         expect(returnedStream).toBe(proxiedStream);
     });

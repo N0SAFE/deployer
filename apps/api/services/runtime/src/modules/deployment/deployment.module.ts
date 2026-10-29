@@ -30,11 +30,7 @@ import { DeploymentQueueReconciliationService } from "./queue/deployment-queue-r
 import { CoreEventSyncService } from "@deployer/shared/core/modules/events/index";
 import { ProviderDomainsModule } from "../providers/providers.module";
 import { RunnersDomainModule } from "../runners/runners.module";
-import { DeploymentMeshService } from "./mesh/services/deployment-mesh.service";
-import { DeploymentsMeshService } from "./mesh/services/deployments.mesh.service";
-import { DeploymentStreamBridgeService } from "./mesh/services/deployment-stream-bridge.service";
 import { DeploymentStreamOrchestratorService } from "./mesh/services/deployment-stream-orchestrator.service";
-import { DeploymentMeshHandlerRegistrar } from "./mesh/registrars/deployment-mesh-handler-registrar.service";
 import { PreviewEnvOverlayService } from "./preview/preview-env-overlay.service";
 import { DeploymentStorageProvidersModule } from "./storage/storage-providers.module";
 import { GitModule } from "@deployer/shared/core/modules/git/git/git.module";
@@ -92,10 +88,7 @@ export class DeploymentDomainModule extends createModuleContext({
         DeploymentQueueWorkerService,
         DeploymentQueueReconciliationService,
         DeploymentQueueEventService,
-        DeploymentMeshService,
-        DeploymentStreamBridgeService,
         DeploymentStreamOrchestratorService,
-        DeploymentMeshHandlerRegistrar,
         DeploymentArtifactBuilderService,
         // Builder strategies: one array under one token. A new builder is one class plus one entry
         // in this factory and its `inject` list; the registry and its callers stay untouched.
@@ -144,7 +137,6 @@ export class DeploymentDomainModule extends createModuleContext({
         { provide: DeploymentEventTriggerService, useValue: DeploymentEventTriggerService.live },
         PreviewEnvOverlayService,
         DeploymentContainerLinkService,
-        DeploymentsMeshService,
         {
             provide: CONTAINER_LINK_RESOLVER,
             useExisting: DeploymentContainerLinkService,

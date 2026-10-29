@@ -35,19 +35,6 @@ function createMeshListResult(
     };
 }
 
-function createTopologyStub() {
-    return {
-        listPeerSessions: vi.fn(() => ({ items: [] })),
-    };
-}
-
-function createMeshInternalRequestServiceStub() {
-    return {
-        buildInternalHeaders: vi.fn((input?: { includeLocalOnly?: boolean }) =>
-            input?.includeLocalOnly ? { "x-mesh-local-only": "1" } : {}),
-    };
-}
-
 function createContainer(input: {
     id: string;
     hash?: string;
@@ -132,14 +119,9 @@ describe("DockerContainerResolutionService", () => {
             listContainers: vi.fn(),
         };
 
-        const systemMeshTopologyService = createTopologyStub();
-        const meshInternalRequestService = createMeshInternalRequestServiceStub();
-
         const service = createResolution(
             dockerContainerMeshService as never,
             dockerRepository as never,
-            systemMeshTopologyService as never,
-            meshInternalRequestService as never,
         );
 
         const result = await service.listContainers(baseInput);
@@ -179,14 +161,9 @@ describe("DockerContainerResolutionService", () => {
             })),
         };
 
-        const systemMeshTopologyService = createTopologyStub();
-        const meshInternalRequestService = createMeshInternalRequestServiceStub();
-
         const service = createResolution(
             dockerContainerMeshService as never,
             dockerRepository as never,
-            systemMeshTopologyService as never,
-            meshInternalRequestService as never,
         );
 
         const result = await service.listContainers(baseInput);
@@ -289,14 +266,9 @@ describe("DockerContainerResolutionService", () => {
             listContainers: vi.fn(),
         };
 
-        const systemMeshTopologyService = createTopologyStub();
-        const meshInternalRequestService = createMeshInternalRequestServiceStub();
-
         const service = createResolution(
             dockerContainerMeshService as never,
             dockerRepository as never,
-            systemMeshTopologyService as never,
-            meshInternalRequestService as never,
         );
 
         const result = await service.listContainersGrouped({
@@ -387,14 +359,9 @@ describe("DockerContainerResolutionService", () => {
             listContainers: vi.fn(),
         };
 
-        const systemMeshTopologyService = createTopologyStub();
-        const meshInternalRequestService = createMeshInternalRequestServiceStub();
-
         const service = createResolution(
             dockerContainerMeshService as never,
             dockerRepository as never,
-            systemMeshTopologyService as never,
-            meshInternalRequestService as never,
         );
 
         const result = await service.listContainersGrouped({
@@ -422,14 +389,9 @@ describe("DockerContainerResolutionService", () => {
             })),
         };
 
-        const systemMeshTopologyService = createTopologyStub();
-        const meshInternalRequestService = createMeshInternalRequestServiceStub();
-
         const service = createResolution(
             dockerContainerMeshService as never,
             dockerRepository as never,
-            systemMeshTopologyService as never,
-            meshInternalRequestService as never,
         );
 
         const result = await service.listContainers(baseInput, { localOnly: true });
@@ -437,137 +399,6 @@ describe("DockerContainerResolutionService", () => {
         expect(dockerContainerMeshService.listContainersAcrossInstances).not.toHaveBeenCalled();
         expect(dockerRepository.listContainers).toHaveBeenCalledWith(baseInput);
         expect(result.data.map((item) => item.id)).toEqual(["local-only-1"]);
-    });
-
-    it("uses local-only header in peer fallback requests to prevent recursive mesh fanout", async () => {
-        const originalDevAuthKey = process.env.DEV_AUTH_KEY;
-        process.env.DEV_AUTH_KEY = "test-dev-key";
-
-        const dockerContainerMeshService = {
-            listContainersAcrossInstances: vi.fn(() => createMeshListResult([
-                {
-                    data: [createContainer({ id: "mesh-1", name: "mesh-1" })],
-                    meta: { total: 1, limit: 500, offset: 0, hasMore: false },
-                    responderNodeId: "node-a",
-                },
-            ], 2)),
-        };
-
-        const dockerRepository = {
-            listContainers: vi.fn(),
-        };
-
-        const systemMeshTopologyService = {
-            listPeerSessions: vi.fn(() => ({
-                items: [
-                    {
-                        state: "connected",
-                        peerNodeId: "node-b",
-                        endpointUrl: "ws://node-b.example.test/mesh",
-                        metadata: { serverUrl: "http://node-b.example.test" },
-                    },
-                ],
-            })),
-        };
-        const meshInternalRequestService = createMeshInternalRequestServiceStub();
-
-        const fetchMock = vi.fn(async (_input: unknown, _init?: RequestInit) => ({
-            ok: true,
-            json: async () => ({ data: [] }),
-        }));
-        vi.stubGlobal("fetch", fetchMock);
-
-        try {
-            const service = createResolution(
-                dockerContainerMeshService as never,
-                dockerRepository as never,
-                systemMeshTopologyService as never,
-                meshInternalRequestService as never,
-            );
-
-            await service.listContainers(baseInput);
-
-            expect(fetchMock).toHaveBeenCalledTimes(1);
-            const requestInit = fetchMock.mock.calls[0]?.[1];
-            const headers = requestInit?.headers as Record<string, string> | undefined;
-            expect(headers?.["x-mesh-local-only"]).toBe("1");
-        } finally {
-            vi.unstubAllGlobals();
-            if (typeof originalDevAuthKey === "undefined") {
-                delete process.env.DEV_AUTH_KEY;
-            } else {
-                process.env.DEV_AUTH_KEY = originalDevAuthKey;
-            }
-        }
-    });
-
-    it("retries aborted peer fallback once and recovers additional mesh responses", async () => {
-        const originalDevAuthKey = process.env.DEV_AUTH_KEY;
-        process.env.DEV_AUTH_KEY = "test-dev-key";
-
-        const dockerContainerMeshService = {
-            listContainersAcrossInstances: vi.fn(() => createMeshListResult([
-                {
-                    data: [createContainer({ id: "mesh-1", name: "mesh-1" })],
-                    meta: { total: 1, limit: 500, offset: 0, hasMore: false },
-                    responderNodeId: "node-a",
-                },
-            ], 2)),
-        };
-
-        const dockerRepository = {
-            listContainers: vi.fn(),
-        };
-
-        const systemMeshTopologyService = {
-            listPeerSessions: vi.fn(() => ({
-                items: [
-                    {
-                        state: "connected",
-                        peerNodeId: "node-b",
-                        endpointUrl: "ws://node-b.example.test/mesh",
-                        metadata: { serverUrl: "http://node-b.example.test" },
-                    },
-                ],
-            })),
-        };
-        const meshInternalRequestService = createMeshInternalRequestServiceStub();
-
-        const abortError = Object.assign(new Error("operation was aborted"), { name: "AbortError" });
-        const fetchMock = vi
-            .fn()
-            .mockRejectedValueOnce(abortError)
-            .mockResolvedValueOnce({
-                ok: true,
-                json: async () => ({ data: [createContainer({ id: "peer-1", name: "peer-1" })] }),
-            });
-        vi.stubGlobal("fetch", fetchMock);
-
-        try {
-            const service = createResolution(
-                dockerContainerMeshService as never,
-                dockerRepository as never,
-                systemMeshTopologyService as never,
-                meshInternalRequestService as never,
-            );
-
-            const result = await service.listContainers({
-                ...baseInput,
-                limit: 10,
-                offset: 0,
-            });
-
-            expect(fetchMock).toHaveBeenCalledTimes(2);
-            expect(result.meta.total).toBe(2);
-            expect(result.data.map((item) => item.id).sort()).toEqual(["mesh-1", "peer-1"]);
-        } finally {
-            vi.unstubAllGlobals();
-            if (typeof originalDevAuthKey === "undefined") {
-                delete process.env.DEV_AUTH_KEY;
-            } else {
-                process.env.DEV_AUTH_KEY = originalDevAuthKey;
-            }
-        }
     });
 
     it("falls back to mesh inspect when local inspect misses and picks the newest generatedAt", async () => {
@@ -656,14 +487,9 @@ describe("DockerContainerResolutionService", () => {
             }),
         };
 
-        const systemMeshTopologyService = createTopologyStub();
-        const meshInternalRequestService = createMeshInternalRequestServiceStub();
-
         const service = createResolution(
             dockerContainerMeshService as never,
             dockerRepository as never,
-            systemMeshTopologyService as never,
-            meshInternalRequestService as never,
         );
 
         const detail = await service.inspectContainer("ctr-1");
@@ -721,14 +547,9 @@ describe("DockerContainerResolutionService", () => {
             })),
         };
 
-        const systemMeshTopologyService = createTopologyStub();
-        const meshInternalRequestService = createMeshInternalRequestServiceStub();
-
         const service = createResolution(
             dockerContainerMeshService as never,
             dockerRepository as never,
-            systemMeshTopologyService as never,
-            meshInternalRequestService as never,
         );
 
         const detail = await service.inspectContainer("local-ctr");
@@ -753,14 +574,9 @@ describe("DockerContainerResolutionService", () => {
             }),
         };
 
-        const systemMeshTopologyService = createTopologyStub();
-        const meshInternalRequestService = createMeshInternalRequestServiceStub();
-
         const service = createResolution(
             dockerContainerMeshService as never,
             dockerRepository as never,
-            systemMeshTopologyService as never,
-            meshInternalRequestService as never,
         );
 
         await expect(service.inspectContainer("ghost-ctr")).rejects.toBeInstanceOf(NotFoundException);

@@ -278,33 +278,6 @@ export function isAbortLikeError(error: unknown): boolean {
     );
 }
 
-export function resolvePeerBaseUrl(endpointUrl: string, metadata: unknown): string | null {
-    const metadataServerUrl =
-        metadata && typeof metadata === "object"
-            ? (metadata as { serverUrl?: unknown }).serverUrl
-            : null;
-
-    if (typeof metadataServerUrl === "string" && metadataServerUrl.trim().length > 0) {
-        try {
-            return new URL(metadataServerUrl).origin;
-        } catch {
-            return null;
-        }
-    }
-
-    if (typeof endpointUrl !== "string" || endpointUrl.trim().length === 0) {
-        return null;
-    }
-
-    try {
-        const parsed = new URL(endpointUrl);
-        const protocol = parsed.protocol === "wss:" ? "https:" : "http:";
-        return `${protocol}//${parsed.host}`;
-    } catch {
-        return null;
-    }
-}
-
 export function applyContainerFilters(items: DockerContainer[], input: DockerContainerListInput): DockerContainer[] {
     return items.filter((item) => {
         const nameMatch = matchString(item.name, getFilterEntry(input, "name"));

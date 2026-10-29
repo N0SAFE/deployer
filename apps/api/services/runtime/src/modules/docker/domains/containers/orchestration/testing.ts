@@ -4,8 +4,6 @@ import {
     ContainersLocalPort,
     ContainersMeshPort,
     DockerContainerResolution,
-    MeshHeadersPort,
-    MeshTopologyPort,
 } from "./docker-container-resolution";
 
 type PromiseResolution = {
@@ -38,14 +36,12 @@ export function runtimeOverResolution(fake: PromiseResolution) {
 }
 
 /** The resolution built over fake collaborators, called as a Promise API the way the old class was. */
-export function createResolution(mesh: unknown, local: unknown, topology: unknown, headers: unknown) {
+export function createResolution(mesh: unknown, local: unknown) {
     const provide = <A, E>(effect: Effect.Effect<A, E, never>) => Effect.runPromise(effect);
     const withPorts = <A, E>(effect: Effect.Effect<A, E, unknown>) =>
         effect.pipe(
             Effect.provideService(ContainersMeshPort, mesh as never),
             Effect.provideService(ContainersLocalPort, local as never),
-            Effect.provideService(MeshTopologyPort, topology as never),
-            Effect.provideService(MeshHeadersPort, headers as never),
         ) as Effect.Effect<A, E, never>;
     return {
         listContainers: (...args: Parameters<typeof DockerContainerResolution.live.listContainers>) =>

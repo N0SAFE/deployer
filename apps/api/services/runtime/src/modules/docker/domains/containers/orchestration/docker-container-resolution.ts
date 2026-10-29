@@ -37,8 +37,6 @@ import {
     type DockerStack,
     type DockerVolume,
 } from "@deployer/contracts-entities";
-import { SystemMeshTopologyService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
-import { MeshInternalRequestService } from "@deployer/shared/core/modules/mesh/services/mesh-internal-request.service";
 import { DockerRepository } from "../../../repositories/facade/docker.repository";
 import type { DockerContainerInspectRequestPayload, DockerContainerInspectResponsePayload, DockerContainerListRequestPayload, DockerContainerListResponsePayload, DockerContainerListResult, DockerRuntimeCatalogResponsePayload } from "../mesh/node-mesh-types";
 import type { DockerNodeMesh } from "../mesh/docker-node-mesh";
@@ -47,14 +45,12 @@ import { isRecord, isObjectLike } from "@deployer/type-guards"
 
 
 import { formatError, normalizeContainer, toError } from "./mesh-entity-normalization";
-import { applyContainerFilters, buildDaemonScopedContainerFingerprint, computeSharedDaemonDiagnostics, dedupeResponsesByResponder, getFilterEntry, groupContainersForInventory, isAbortLikeError, matchEq, matchString, mergeContainerHealth, mergeContainerStatus, mergeRuntimeCatalogResponses, paginate, paginateList, pickBestInspectDetail, resolvePeerBaseUrl, sortContainers, sortItems } from "./mesh-universe-merge";
-import type { DockerContainerResolutionOptions, DockerGroupedDaemonDiagnostics, DockerListResult, MeshPeerSessionSummary, PeerFallbackAttemptResult } from "./mesh-universe-types";
+import { applyContainerFilters, buildDaemonScopedContainerFingerprint, computeSharedDaemonDiagnostics, dedupeResponsesByResponder, getFilterEntry, groupContainersForInventory, isAbortLikeError, matchEq, matchString, mergeContainerHealth, mergeContainerStatus, mergeRuntimeCatalogResponses, paginate, paginateList, pickBestInspectDetail, sortContainers, sortItems } from "./mesh-universe-merge";
+import type { DockerContainerResolutionOptions, DockerGroupedDaemonDiagnostics, DockerListResult } from "./mesh-universe-types";
 
 const MESH_FANOUT_LIMIT = 500;
-const PEER_FALLBACK_TIMEOUT_MS = 1_750;
-const PEER_FALLBACK_RETRY_TIMEOUT_MS = 2_750;
 
-/** The container resolution logic as a plain class over its four collaborators; the Effect service below builds it per call. */
+/** The container resolution logic as a plain class over its two collaborators; the Effect service below builds it per call. */
 class ContainerResolutionImpl {
     private readonly logger = new Logger("DockerContainerResolutionService");
 
@@ -64,8 +60,6 @@ class ContainerResolutionImpl {
             "listContainersAcrossInstances" | "inspectContainerAcrossInstances"
         >,
         private readonly dockerRepository: Pick<DockerRepository, "listContainers" | "inspectContainer">,
-        private readonly systemMeshTopologyService: Pick<SystemMeshTopologyService, "listPeerSessions">,
-        private readonly meshInternalRequestService: Pick<MeshInternalRequestService, "buildInternalHeaders">,
     ) {}
 
     async listContainers(
@@ -91,18 +85,7 @@ class ContainerResolutionImpl {
                 maxCollectedResponses: 128,
             });
 
-            const meshResponses = dedupeResponsesByResponder(meshResult.responses);
-            const missingMeshResponders = Math.max(0, meshResult.metrics.expectedResponders - meshResponses.length);
-
-            let resolvedResponses = meshResponses;
-            let peerFallbackResponses: DockerContainerListResponsePayload[] = [];
-
-            if (missingMeshResponders > 0) {
-                peerFallbackResponses = await this.collectPeerFallbackContainerResponses();
-                if (peerFallbackResponses.length > 0) {
-                    resolvedResponses = dedupeResponsesByResponder([...meshResponses, ...peerFallbackResponses]);
-                }
-            }
+            const resolvedResponses = dedupeResponsesByResponder(meshResult.responses);
 
             this.logger.debug(
                 [
@@ -113,7 +96,6 @@ class ContainerResolutionImpl {
                     `timedOut=${String(meshResult.metrics.timedOut)}`,
                     `stoppedEarly=${String(meshResult.stoppedEarly)}`,
                     `reason=${meshResult.reason}`,
-                    `fallbackResponses=${String(peerFallbackResponses.length)}`,
                     `payloadSizes=[${resolvedResponses.map((response) => String(response.data.length)).join(",")}]`,
                 ].join(" | "),
             );
@@ -235,18 +217,7 @@ class ContainerResolutionImpl {
                 maxCollectedResponses: 128,
             });
 
-            const meshResponses = dedupeResponsesByResponder(meshResult.responses);
-            const missingMeshResponders = Math.max(0, meshResult.metrics.expectedResponders - meshResponses.length);
-
-            let resolvedResponses = meshResponses;
-            let peerFallbackResponses: DockerContainerListResponsePayload[] = [];
-
-            if (missingMeshResponders > 0) {
-                peerFallbackResponses = await this.collectPeerFallbackContainerResponses();
-                if (peerFallbackResponses.length > 0) {
-                    resolvedResponses = dedupeResponsesByResponder([...meshResponses, ...peerFallbackResponses]);
-                }
-            }
+            const resolvedResponses = dedupeResponsesByResponder(meshResult.responses);
 
             this.logger.debug(
                 [
@@ -257,7 +228,6 @@ class ContainerResolutionImpl {
                     `timedOut=${String(meshResult.metrics.timedOut)}`,
                     `stoppedEarly=${String(meshResult.stoppedEarly)}`,
                     `reason=${meshResult.reason}`,
-                    `fallbackResponses=${String(peerFallbackResponses.length)}`,
                     `payloadSizes=[${resolvedResponses.map((response) => String(response.data.length)).join(",")}]`,
                 ].join(" | "),
             );
@@ -348,219 +318,6 @@ class ContainerResolutionImpl {
         return [...dedupedByDaemonFingerprint.values()];
     }
 
-    private async collectPeerFallbackContainerResponses(): Promise<DockerContainerListResponsePayload[]> {
-        const devAuthKey = process.env.DEV_AUTH_KEY?.trim();
-        if (!devAuthKey) {
-            return [];
-        }
-
-        const connectedPeerSessions = this.systemMeshTopologyService
-            .listPeerSessions()
-            .items
-            .filter((session) => session.state === "connected" && typeof session.peerNodeId === "string");
-
-        const uniquePeers = new Map<string, MeshPeerSessionSummary>();
-
-        for (const session of connectedPeerSessions) {
-            const peerNodeId = session.peerNodeId;
-            if (!peerNodeId) {
-                continue;
-            }
-
-            if (uniquePeers.has(peerNodeId)) {
-                continue;
-            }
-
-            uniquePeers.set(peerNodeId, {
-                peerNodeId,
-                endpointUrl: session.endpointUrl,
-                metadata: session.metadata,
-            });
-        }
-
-        if (uniquePeers.size === 0) {
-            return [];
-        }
-
-        const initialAttemptResults = await Promise.all(
-            [...uniquePeers.values()].map((peer) =>
-                this.fetchPeerFallbackContainers(peer, devAuthKey, PEER_FALLBACK_TIMEOUT_MS),
-            ),
-        );
-
-        const retryPeers = initialAttemptResults
-            .filter((result) => result.status !== "ok")
-            .map((result) => result.peer);
-
-        let retryAttemptResults: PeerFallbackAttemptResult[] = [];
-        if (retryPeers.length > 0) {
-            retryAttemptResults = await Promise.all(
-                retryPeers.map((peer) =>
-                    this.fetchPeerFallbackContainers(peer, devAuthKey, PEER_FALLBACK_RETRY_TIMEOUT_MS),
-                ),
-            );
-        }
-
-        const successfulByPeer = new Map<string, DockerContainerListResponsePayload>();
-        for (const result of initialAttemptResults) {
-            if (result.status === "ok" && result.response) {
-                successfulByPeer.set(result.peer.peerNodeId, result.response);
-            }
-        }
-
-        for (const result of retryAttemptResults) {
-            if (result.status === "ok" && result.response) {
-                successfulByPeer.set(result.peer.peerNodeId, result.response);
-            }
-        }
-
-        const failedResultByPeer = new Map<string, PeerFallbackAttemptResult>();
-        for (const result of initialAttemptResults) {
-            if (result.status !== "ok") {
-                failedResultByPeer.set(result.peer.peerNodeId, result);
-            }
-        }
-        for (const result of retryAttemptResults) {
-            failedResultByPeer.set(result.peer.peerNodeId, result);
-        }
-
-        const responses = [...successfulByPeer.values()];
-        const failures = [...failedResultByPeer.values()].filter((result) => result.status !== "ok");
-        const abortedCount = failures.filter((result) => result.status === "aborted").length;
-        const httpFailureCount = failures.filter((result) => result.status === "httpFailure").length;
-        const networkFailureCount = failures.filter((result) => result.status === "networkFailure").length;
-
-        if (abortedCount > 0 || httpFailureCount > 0 || networkFailureCount > 0 || retryPeers.length > 0) {
-            this.logger.debug(
-                [
-                    `Peer fallback summary: peers=${String(uniquePeers.size)}`,
-                    `ok=${String(responses.length)}`,
-                    `aborted=${String(abortedCount)}`,
-                    `httpFailures=${String(httpFailureCount)}`,
-                    `networkFailures=${String(networkFailureCount)}`,
-                    `retried=${String(retryPeers.length)}`,
-                    `retryRecovered=${String(retryAttemptResults.filter((result) => result.status === "ok").length)}`,
-                ].join(" | "),
-            );
-        }
-
-        return responses;
-    }
-
-    private async fetchPeerFallbackContainers(
-        peer: MeshPeerSessionSummary,
-        devAuthKey: string,
-        timeoutMs: number,
-    ): Promise<PeerFallbackAttemptResult> {
-        const peerBaseUrl = resolvePeerBaseUrl(peer.endpointUrl, peer.metadata);
-        if (!peerBaseUrl) {
-            return {
-                peer,
-                status: "networkFailure",
-            };
-        }
-
-        const internalHeaders = this.meshInternalRequestService.buildInternalHeaders({
-            includeLocalOnly: true,
-        });
-
-        const requestUrl = new URL("/docker", peerBaseUrl);
-        requestUrl.search = new URLSearchParams({
-            "query[limit]": String(MESH_FANOUT_LIMIT),
-            "query[offset]": "0",
-        }).toString();
-
-        const controller = new AbortController();
-        const timeout = setTimeout(() => {
-            controller.abort();
-        }, timeoutMs);
-
-        try {
-            const response = await fetch(requestUrl, {
-                method: "GET",
-                headers: {
-                    Authorization: `Bearer ${devAuthKey}`,
-                    ...internalHeaders,
-                },
-                signal: controller.signal,
-            });
-
-            if (!response.ok) {
-                return {
-                    peer,
-                    status: "httpFailure",
-                };
-            }
-
-            const payload = (await response.json());
-            const containers = this.extractContainersFromPeerPayload(payload);
-            if (containers.length === 0) {
-                return {
-                    peer,
-                    status: "ok",
-                };
-            }
-
-            const fallbackResponse: DockerContainerListResponsePayload = {
-                data: containers,
-                meta: {
-                    total: containers.length,
-                    limit: Math.max(1, containers.length),
-                    offset: 0,
-                    hasMore: false,
-                },
-                responderNodeId: peer.peerNodeId,
-                responderDaemonId: null,
-            };
-
-            return {
-                peer,
-                status: "ok",
-                response: fallbackResponse,
-            };
-        } catch (error) {
-            if (isAbortLikeError(error)) {
-                return {
-                    peer,
-                    status: "aborted",
-                };
-            }
-
-            this.logger.debug(
-                `Peer fallback request failed for '${peer.peerNodeId}': ${formatError(error)}`,
-            );
-
-            return {
-                peer,
-                status: "networkFailure",
-            };
-        } finally {
-            clearTimeout(timeout);
-        }
-    }
-
-    private extractContainersFromPeerPayload(payload: unknown): DockerContainer[] {
-        if (!payload || typeof payload !== "object") {
-            return [];
-        }
-
-        const data = (payload as { data?: unknown }).data;
-        if (!Array.isArray(data)) {
-            return [];
-        }
-
-        const containers: DockerContainer[] = [];
-        for (const entry of data) {
-            const normalized = normalizeContainer(entry, (m) => this.logger.warn(m));
-            if (normalized) {
-                containers.push(normalized);
-            }
-        }
-
-        return containers;
-    }
-
-
 }
 
 /** The mesh fan-out that lists and inspects containers on every node. */
@@ -575,19 +332,7 @@ export class ContainersLocalPort extends Context.Service<
     Pick<DockerRepository, "listContainers" | "inspectContainer">
 >()("runtime/ContainersLocalPort") {}
 
-/** The mesh topology, for the direct peer fallback. */
-export class MeshTopologyPort extends Context.Service<
-    MeshTopologyPort,
-    Pick<SystemMeshTopologyService, "listPeerSessions">
->()("runtime/MeshTopologyPort") {}
-
-/** The headers a node uses to call a peer's internal API. */
-export class MeshHeadersPort extends Context.Service<
-    MeshHeadersPort,
-    Pick<MeshInternalRequestService, "buildInternalHeaders">
->()("runtime/MeshHeadersPort") {}
-
-export type DockerContainerResolutionPorts = ContainersMeshPort | ContainersLocalPort | MeshTopologyPort | MeshHeadersPort;
+export type DockerContainerResolutionPorts = ContainersMeshPort | ContainersLocalPort;
 
 export type DockerContainerResolutionShape = {
     /** One page of containers across the mesh; this node's own when no peer answers or the fan-out fails. */
@@ -607,10 +352,8 @@ export type DockerContainerResolutionShape = {
 const resolutionOver = (ports: {
     mesh: ContainersMeshPort["Service"];
     local: ContainersLocalPort["Service"];
-    topology: MeshTopologyPort["Service"];
-    headers: MeshHeadersPort["Service"];
 }): DockerContainerResolutionShape => {
-    const impl = new ContainerResolutionImpl(ports.mesh, ports.local, ports.topology, ports.headers);
+    const impl = new ContainerResolutionImpl(ports.mesh, ports.local);
     return {
         listContainers: (input, options) => Effect.tryPromise({ try: () => impl.listContainers(input, options), catch: (error) => error }),
         listContainersGrouped: (input, options) =>
@@ -628,7 +371,7 @@ export class DockerContainerResolution extends Context.Service<
     Over<DockerContainerResolutionShape, DockerContainerResolutionPorts>
 >()("runtime/DockerContainerResolution") {
     static readonly live = serviceOver(
-        Effect.all({ mesh: ContainersMeshPort, local: ContainersLocalPort, topology: MeshTopologyPort, headers: MeshHeadersPort }),
+        Effect.all({ mesh: ContainersMeshPort, local: ContainersLocalPort }),
         resolutionOver,
     );
 }

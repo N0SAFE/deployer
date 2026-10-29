@@ -18,8 +18,6 @@ import {
   ContainersLocalPort,
   ContainersMeshPort,
   DockerContainerResolution,
-  MeshHeadersPort,
-  MeshTopologyPort,
 } from "./orchestration/docker-container-resolution";
 import { DockerContainersOrchestratorService } from "./orchestration/docker-containers-orchestrator.service";
 import { LOCAL_NODE_OPERATIONS, makeLocalNodeOperations } from "./mesh/local-node-operations";
@@ -46,8 +44,6 @@ export class DockerContainersModule extends createModuleContext({
     // Container resolution is a constant Effect service; the Nest providers it reads come in as ports.
     { provide: ContainersMeshPort, useExisting: DOCKER_NODE_MESH },
     { provide: ContainersLocalPort, useExisting: DockerRepository },
-    { provide: MeshTopologyPort, useExisting: SystemMeshTopologyService },
-    { provide: MeshHeadersPort, useExisting: MeshInternalRequestService },
     { provide: DockerContainerResolution, useValue: DockerContainerResolution.live },
     {
       provide: LOCAL_NODE_OPERATIONS,

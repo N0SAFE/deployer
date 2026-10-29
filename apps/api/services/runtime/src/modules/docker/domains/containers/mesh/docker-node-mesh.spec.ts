@@ -47,34 +47,33 @@ const replicas = [
 
 describe("dockerNodeMesh", () => {
   describe("a question for every node", () => {
-    it("asks every node but its own, and names each answer after the node that gave it", async () => {
+    it("asks every node, this one included, because a list is the union of what each node holds, and names each answer after the node that gave it", async () => {
+      const page = (id: string, daemonId: string) => ({ data: [{ id }], meta: { total: 1, limit: 20, offset: 0, hasMore: false }, daemonId });
       const { mesh, relayed } = agentWith({
         replicas,
-        nodes: {
-          B: () => ({ data: [{ id: "b1" }], meta: { total: 1, limit: 20, offset: 0, hasMore: false }, daemonId: "daemon-b" }),
-          C: () => ({ data: [{ id: "c1" }], meta: { total: 1, limit: 20, offset: 0, hasMore: false }, daemonId: "daemon-c" }),
-        },
+        nodes: { A: () => page("a1", "daemon-a"), B: () => page("b1", "daemon-b"), C: () => page("c1", "daemon-c") },
       });
 
       const result = await mesh.listContainersAcrossInstances({ query: { limit: 20, offset: 0 } });
 
-      expect(relayed.map((call) => call.node).sort()).toEqual(["B", "C"]);
+      expect(relayed.map((call) => call.node).sort()).toEqual(["A", "B", "C"]);
       expect(result.responses.map((response) => [response.responderNodeId, response.responderDaemonId]).sort()).toEqual([
+        ["A", "daemon-a"],
         ["B", "daemon-b"],
         ["C", "daemon-c"],
       ]);
-      expect(result.metrics).toMatchObject({ expectedResponders: 2, receivedResponses: 2, timedOut: false });
+      expect(result.metrics).toMatchObject({ expectedResponders: 3, receivedResponses: 3, timedOut: false });
     });
 
     it("goes on without a node that fails", async () => {
       const { mesh } = agentWith({
         replicas,
-        nodes: { B: () => Promise.reject(new Error("docker is down")), C: () => ({ catalog: { c: true } }) },
+        nodes: { A: () => ({ catalog: { a: true } }), B: () => Promise.reject(new Error("docker is down")), C: () => ({ catalog: { c: true } }) },
       });
 
       const result = await mesh.listRuntimeCatalogAcrossInstances({});
 
-      expect(result.responses).toEqual([{ catalog: { c: true }, responderNodeId: "C" }]);
+      expect(result.responses.map((response) => response.responderNodeId).sort()).toEqual(["A", "C"]);
     });
 
     it("stops as soon as it has as many answers as it was told to want", async () => {
@@ -89,11 +88,11 @@ describe("dockerNodeMesh", () => {
     });
 
     it("gives up on a node that does not answer in time, keeping the answers it has", async () => {
-      const { mesh } = agentWith({ replicas, nodes: { B: () => ({ catalog: { b: true } }), C: () => new Promise(() => undefined) } });
+      const { mesh } = agentWith({ replicas, nodes: { A: () => ({ catalog: { a: true } }), B: () => ({ catalog: { b: true } }), C: () => new Promise(() => undefined) } });
 
       const result = await mesh.listRuntimeCatalogAcrossInstances({}, { timeoutMs: 50 });
 
-      expect(result.responses).toEqual([{ catalog: { b: true }, responderNodeId: "B" }]);
+      expect(result.responses.map((response) => response.responderNodeId).sort()).toEqual(["A", "B"]);
       expect(result.metrics.timedOut).toBe(true);
     });
 
@@ -169,8 +168,8 @@ describe("dockerNodeMesh", () => {
       expect((await mesh.inspectContainerAcrossInstances({ query: { containerId: "c1" } })).responses).toEqual([]);
     });
 
-    it("answers with nobody when this is the only node", async () => {
-      const { mesh } = agentWith({ replicas: [{ replicaId: "runtime-a", nodeId: "A" }], nodes: {} });
+    it("answers with nobody when this is the only node and it cannot answer for itself yet", async () => {
+      const { mesh } = agentWith({ replicas: [], nodes: {} });
 
       const result = await mesh.listContainersAcrossInstances({ query: { limit: 20, offset: 0 } });
 

@@ -47,17 +47,3 @@ export type DockerGroupedDaemonDiagnostics = {
 export type DockerContainerResolutionOptions = {
     localOnly?: boolean;
 }
-
-export type MeshPeerSessionSummary = {
-    peerNodeId: string;
-    endpointUrl: string;
-    metadata: unknown;
-}
-
-export type PeerFallbackAttemptStatus = "ok" | "aborted" | "httpFailure" | "networkFailure";
-
-export type PeerFallbackAttemptResult = {
-    peer: MeshPeerSessionSummary;
-    status: PeerFallbackAttemptStatus;
-    response?: DockerContainerListResponsePayload;
-}

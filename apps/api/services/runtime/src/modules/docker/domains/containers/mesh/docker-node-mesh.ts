@@ -103,11 +103,13 @@ export function dockerNodeMeshOver(holder: NodeMeshAgent) {
     return snapshot.replicas.filter((replica) => replica.service === SERVICE);
   };
 
-  const otherNodes = async (link: ClientLink<ClientContext>): Promise<readonly string[]> => {
+  /** Every node that runs a runtime, this one included or not. */
+  const nodesOf = async (link: ClientLink<ClientContext>, includeSelf: boolean): Promise<readonly string[]> => {
     const all = await replicas(link);
     const self = all.find((replica) => replica.replicaId === holder.selfReplicaId)?.nodeId;
-    return [...new Set(all.map((replica) => replica.nodeId))].filter((nodeId) => nodeId !== self);
+    return [...new Set(all.map((replica) => replica.nodeId))].filter((nodeId) => includeSelf || nodeId !== self);
   };
+  const otherNodes = (link: ClientLink<ClientContext>) => nodesOf(link, false);
 
   /** The node that announced `key` (a container id) among the other nodes, if any. */
   const ownerOf = async (link: ClientLink<ClientContext>, key: string): Promise<string | undefined> => {
@@ -201,19 +203,23 @@ export function dockerNodeMeshOver(holder: NodeMeshAgent) {
     metrics: { expectedResponders: 0, receivedResponses: 0, droppedResponses: 0, retryResponses: 0, maxLagMs: 0, avgLagMs: 0, timedOut: false },
   });
 
-  /** A question for every other node. */
+  /**
+   * A question for every other node, or for every node when the caller merges the answers into one view: a list is the
+   * union of every node's own containers, this one's included, so leaving this node out would drop its containers.
+   */
   const everywhere =
     <TRequest, TOutput, TResponse>(
       path: readonly string[],
       input: (request: TRequest) => unknown,
       toResponse: (output: TOutput, node: string) => TResponse,
       timeoutMs = DEFAULT_TIMEOUT_MS,
+      includeSelf = false,
     ) =>
     async (request: TRequest, options: NodeMeshOptions<TResponse> = {}): Promise<NodeMeshResult<TResponse>> => {
       const link = agent();
       if (link === undefined) return empty();
       try {
-        const nodes = await otherNodes(link);
+        const nodes = await nodesOf(link, includeSelf);
         return await gather(nodes, (node) => callNode(link, node, path, input(request)) as Promise<TOutput>, toResponse, options, timeoutMs);
       } catch {
         return empty();
@@ -258,6 +264,8 @@ export function dockerNodeMeshOver(holder: NodeMeshAgent) {
       ["containers", "list"],
       (request) => request.query,
       (output, node) => ({ data: output.data, meta: output.meta, responderNodeId: node, responderDaemonId: output.daemonId }) as DockerContainerListResponsePayload,
+      DEFAULT_TIMEOUT_MS,
+      true,
     ),
     inspectContainerAcrossInstances: ofContainer<DockerContainerInspectRequestPayload, { detail: unknown }, DockerContainerInspectResponsePayload>(
       ["containers", "inspect"],
@@ -270,6 +278,7 @@ export function dockerNodeMeshOver(holder: NodeMeshAgent) {
       () => ({}),
       (output, node) => named(node, output) as DockerRuntimeCatalogResponsePayload,
       2_000,
+      true,
     ),
     listContainerLogsSnapshotAcrossInstances: ofContainer<DockerContainerLogsSnapshotRequestPayload, unknown, DockerContainerLogsSnapshotResponsePayload>(
       ["runtime", "logs"],

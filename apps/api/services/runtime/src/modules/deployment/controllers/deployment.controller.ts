@@ -231,12 +231,11 @@ export class DeploymentController {
     stream() {
         return implement(deploymentContract.stream)
             .use(requireAuth())
-            .handler(({ input, context }) => {
+            .handler(({ input }) => {
                 return this.deploymentStreamOrchestratorService.openDeploymentStream({
                     deploymentId: input.params.id,
                     replay: input.query.replay,
                     replayLimit: input.query.replayLimit,
-                    context,
                 });
             });
     }

@@ -5,7 +5,6 @@ import {
   mergeContainerHealth,
   mergeContainerStatus,
   paginateList,
-  resolvePeerBaseUrl,
 } from "./mesh-universe-merge";
 
 const container = (over: Record<string, unknown>) =>
@@ -38,10 +37,5 @@ describe("mesh universe merge", () => {
   it("pages a list and reports whether more remain", () => {
     expect(paginateList([1, 2, 3], 2, 0)).toEqual({ data: [1, 2], meta: { total: 3, limit: 2, offset: 0, hasMore: true } });
     expect(paginateList([1, 2, 3], 2, 2).meta.hasMore).toBe(false);
-  });
-
-  it("resolves a peer's base url from its endpoint when metadata names none", () => {
-    expect(resolvePeerBaseUrl("https://peer.example.com/mesh", {})).toBeTypeOf("string");
-    expect(resolvePeerBaseUrl("not a url", null)).toBeNull();
   });
 });
