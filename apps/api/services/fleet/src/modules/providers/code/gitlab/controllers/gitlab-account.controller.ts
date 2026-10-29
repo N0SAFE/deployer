@@ -5,30 +5,33 @@
  * A GitLab account is an instance URL + a personal/project access token
  * (no OAuth app manifest — unlike GitHub). Managed through the web UI.
  */
-import { Controller, Logger } from "@nestjs/common";
+import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
 import { providersContract } from "@deployer/fleet-contracts";
-import { standardErrorOptions } from "@deployer/orpc-utils";
+import { EffectContextOf } from "@deployer/nest-effect";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
-import { GitlabAppsRepository } from "../repositories/gitlab-apps.repository";
+import { Effect } from "effect";
 import z from "zod/v4";
+
+import { FleetConflict, FleetInvalid, FleetNotFound } from "@/core/fleet.errors";
+import { serve } from "@/core/orpc/serve";
+import { ProvidersModule } from "@/modules/providers/providers.module";
+import { GitlabAppsStore } from "../repositories/gitlab-apps.repository";
 
 /** GitLab instance URL must be an http(s) URL. */
 const URL_SCHEMA = z.string().url();
 
 @Controller()
 export class GitlabAppsController {
-    private readonly logger = new Logger(GitlabAppsController.name);
-
-    constructor(private readonly gitlabAppsRepository: GitlabAppsRepository) {}
-
     @Implement(providersContract.code.gitlab.list)
     list() {
         return implement(providersContract.code.gitlab.list)
             .use(requireAuth())
-            .handler(async () => {
-                const rows = await this.gitlabAppsRepository.list();
+            .use(ProvidersModule[EffectContextOf])
+            .effect(function* ({ context }) {
+                const apps = yield* GitlabAppsStore;
+                const rows = yield* serve(context)(apps.list());
 
                 return {
                     apps: rows.map((r) => ({
@@ -48,33 +51,33 @@ export class GitlabAppsController {
     create() {
         return implement(providersContract.code.gitlab.create)
             .use(requireAuth())
-            .handler(async ({ input, errors }) => {
-                const urlCheck = URL_SCHEMA.safeParse(input.url);
-                if (!urlCheck.success) {
-                    throw errors.BAD_REQUEST(
-                        standardErrorOptions("validation", `Invalid GitLab URL: ${input.url}`),
-                    );
-                }
+            .use(ProvidersModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const apps = yield* GitlabAppsStore;
+                const row = yield* serve(context)(
+                    Effect.gen(function* () {
+                        const urlCheck = URL_SCHEMA.safeParse(input.url);
+                        if (!urlCheck.success) {
+                            return yield* new FleetInvalid({ reason: `Invalid GitLab URL: ${input.url}` });
+                        }
 
-                // Name uniqueness (409).
-                const dup = await this.gitlabAppsRepository.findByName(input.name);
-                if (dup) {
-                    throw errors.CONFLICT(
-                        standardErrorOptions("conflict", `A GitLab account named '${input.name}' already exists`),
-                    );
-                }
+                        // Name uniqueness (409).
+                        const dup = yield* apps.findByName(input.name);
+                        if (dup) {
+                            return yield* new FleetConflict({ reason: `A GitLab account named '${input.name}' already exists` });
+                        }
 
-                const row = await this.gitlabAppsRepository.create({
-                    name: input.name,
-                    url: input.url,
-                    accessToken: input.accessToken,
-                });
-
-                if (!row) {
-                    throw errors.BAD_REQUEST(
-                        standardErrorOptions("validation", "Failed to create GitLab account"),
-                    );
-                }
+                        const created = yield* apps.create({
+                            name: input.name,
+                            url: input.url,
+                            accessToken: input.accessToken,
+                        });
+                        if (!created) {
+                            return yield* new FleetInvalid({ reason: "Failed to create GitLab account" });
+                        }
+                        return created;
+                    }),
+                );
 
                 return {
                     id: row.id,
@@ -91,16 +94,19 @@ export class GitlabAppsController {
     delete() {
         return implement(providersContract.code.gitlab.delete)
             .use(requireAuth())
-            .handler(async ({ input, errors }) => {
+            .use(ProvidersModule[EffectContextOf])
+            .effect(function* ({ input, context }) {
+                const apps = yield* GitlabAppsStore;
                 const id = input.params.id;
-                const removed = await this.gitlabAppsRepository.deleteById(id);
-
-                if (!removed) {
-                    throw errors.NOT_FOUND(
-                        standardErrorOptions("not_found", `GitLab account '${id}' not found`),
-                    );
-                }
-                return { success: true };
+                return yield* serve(context)(
+                    Effect.gen(function* () {
+                        const removed = yield* apps.deleteById(id);
+                        if (!removed) {
+                            return yield* new FleetNotFound({ reason: `GitLab account '${id}' not found` });
+                        }
+                        return { success: true };
+                    }),
+                );
             });
     }
 }

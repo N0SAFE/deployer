@@ -6,58 +6,81 @@
  * deactivates the traefik route, removes the DNS record, and marks the row
  * inactive via PreviewProvisioningService.
  *
- * Uses a plain setInterval (no external scheduler dep), matching the
- * mesh-cluster-sync pattern. Interval is fixed at 10 minutes.
+ * `runCleanup` is the Effect service; the cadence is a registration (`startPreviewTtlCleanup`) the
+ * module calls once when it is built, with a plain setInterval (no external scheduler dep), matching
+ * `startIngressDnsReconciler`. Interval is fixed at 10 minutes.
  */
-import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
-import { PreviewProvisioningService } from "./preview-provisioning.service";
+import { serviceOver, type Over } from "@deployer/effect-core";
+import type { EffectRuntime } from "@deployer/nest-effect";
+import { Logger } from "@nestjs/common";
+import { Context, Effect } from "effect";
 
-const TTL_CLEANUP_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+import { describeFailure, recover } from "@/core/effects";
+import { PreviewProvisioningService, type PreviewProvisioningServiceShape } from "./preview-provisioning.service";
 
-@Injectable()
-export class PreviewTtlCleanupService implements OnModuleInit, OnModuleDestroy {
-    private readonly logger = new Logger(PreviewTtlCleanupService.name);
-    private timer: ReturnType<typeof setInterval> | null = null;
+export const TTL_CLEANUP_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
-    constructor(
-        private readonly previewProvisioningService: PreviewProvisioningService,
-    ) {}
+function makePreviewTtlCleanupService(provisioning: PreviewProvisioningServiceShape) {
+    return {
+        /**
+         * Expire every preview whose TTL has passed. One preview failing is logged and the next one
+         * still runs; the run itself never fails.
+         */
+        runCleanup: Effect.fn("PreviewTtlCleanupService.runCleanup")(function* () {
+            yield* recover(
+                Effect.gen(function* () {
+                    const expired = yield* provisioning.findExpiredPreviews();
+                    for (const preview of expired) {
+                        yield* recover(
+                            provisioning
+                                .expirePreview(preview.id, preview.serviceId, preview.previewName)
+                                .pipe(Effect.andThen(Effect.logInfo(`Expired preview cleaned: ${preview.fullDomain}`))),
+                            (error) => Effect.logWarning(`Failed to expire preview ${preview.fullDomain}: ${describeFailure(error)}`),
+                        );
+                    }
+                }),
+                (error) => Effect.logWarning(`Preview TTL cleanup run failed: ${describeFailure(error)}`),
+            );
+        }),
+    };
+}
 
-    onModuleInit(): void {
-        if (this.timer) return;
-        this.timer = setInterval(() => {
-            void this.runCleanup();
-        }, TTL_CLEANUP_INTERVAL_MS);
-        this.logger.log(`Preview TTL cleanup scheduled every ${String(TTL_CLEANUP_INTERVAL_MS / 60000)} minutes`);
-    }
+export type PreviewTtlCleanupServiceShape = Over<ReturnType<typeof makePreviewTtlCleanupService>, PreviewProvisioningService>;
 
-    onModuleDestroy(): void {
-        if (this.timer) {
-            clearInterval(this.timer);
-            this.timer = null;
-        }
-    }
+/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
+export class PreviewTtlCleanupService extends Context.Service<PreviewTtlCleanupService, PreviewTtlCleanupServiceShape>()(
+    "fleet/PreviewTtlCleanupService",
+) {
+    /** The provisioning service is yielded when a method runs, so this is a constant the module provides with `useValue`. */
+    static readonly live: PreviewTtlCleanupServiceShape = serviceOver(PreviewProvisioningService, makePreviewTtlCleanupService);
+}
 
-    async runCleanup(): Promise<void> {
-        try {
-            const expired = await this.previewProvisioningService.findExpiredPreviews();
-            if (expired.length === 0) return;
+export const PREVIEW_TTL_CLEANUP = Symbol("fleet:preview-ttl-cleanup");
 
-            for (const preview of expired) {
-                try {
-                    await this.previewProvisioningService.expirePreview(
-                        preview.id,
-                        preview.serviceId,
-                        preview.previewName,
-                        preview.fullDomain,
-                    );
-                    this.logger.log(`Expired preview cleaned: ${preview.fullDomain}`);
-                } catch (error) {
-                    this.logger.warn(`Failed to expire preview ${preview.fullDomain}: ${error instanceof Error ? error.message : String(error)}`);
-                }
-            }
-        } catch (error) {
-            this.logger.warn(`Preview TTL cleanup run failed: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    }
+/**
+ * Schedules the cleanup when the module is built and stops it with the application. The handle it
+ * returns carries the shutdown hook, which Nest calls on a provider's instance whatever built it.
+ */
+export function startPreviewTtlCleanup(runtime: EffectRuntime, intervalMs: number = TTL_CLEANUP_INTERVAL_MS) {
+    const logger = new Logger("PreviewTtlCleanup");
+    const timer = setInterval(() => {
+        runtime
+            .runPromise(
+                Effect.gen(function* () {
+                    const cleanup = yield* PreviewTtlCleanupService;
+                    yield* cleanup.runCleanup();
+                }),
+            )
+            .catch((error: unknown) => {
+                logger.warn(`Preview TTL cleanup run failed: ${describeFailure(error)}`);
+            });
+    }, intervalMs);
+    timer.unref();
+    logger.log(`Preview TTL cleanup scheduled every ${String(intervalMs / 60000)} minutes`);
+
+    return {
+        onModuleDestroy(): void {
+            clearInterval(timer);
+        },
+    };
 }

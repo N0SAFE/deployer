@@ -156,8 +156,8 @@ export class UserDomainModule extends createModuleContext({
   in a value created once next to `live` (see `EdgeDnsService`).
 - Something that needs real construction stays an ordinary Nest provider, still under its Effect tag:
   a pool-bound database handle (`{ provide: ProjectDb, useFactory: makeProjectDb, inject: [GlobalDatabaseService] }`),
-  an event bus over the shared stream pool, or anything with a lifetime (a timer, a fiber: a small
-  `@Injectable()` next to the service, like `IngressDnsReconciler`). Keep a module's providers next to
+  an event bus over the shared stream pool, or anything with a lifetime (a timer, a fiber: a registration the
+  module builds with `useFactory`, returning a handle with the shutdown hook, like `startIngressDnsReconciler`). Keep a module's providers next to
   the controllers that use them; the root only imports `EffectRuntimeModule`.
 
 `createOrpcModule({ extraContext })` still puts the runtime `Context` under

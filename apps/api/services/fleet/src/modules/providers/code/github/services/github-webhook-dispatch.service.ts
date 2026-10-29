@@ -1,10 +1,12 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { PreviewNamingService } from "@deployer/shared/core/modules/deployment/services/preview-naming.service";
-import { PreviewCleanupPolicyService } from "@deployer/shared/core/modules/deployment/services/preview-cleanup-policy.service";
-import { DomainRoutingService } from "@deployer/shared/core/modules/domain/services/domain-routing.service";
-import { PreviewLifecycleEventService } from "../events/preview-lifecycle-event.service";
-import { PreviewProvisioningService } from "./preview-provisioning.service";
-import { GithubDeploymentRuleService } from "./github-deployment-rule.service";
+import { serviceOver, type Over } from "@deployer/effect-core";
+import { Context, Effect } from "effect";
+
+import { attempt, describeFailure, recover } from "@/core/effects";
+import { PreviewCleanupPolicy, type PreviewCleanupPolicyShape, PreviewNaming, type PreviewNamingShape } from "@/core/ports/preview-policy.port";
+import { DomainRouting, type DomainRoutingShape } from "@/core/ports/domain-routing.port";
+import { PreviewLifecycleEventService, type PreviewLifecycleEventServiceShape } from "../events/preview-lifecycle-event.service";
+import { PreviewProvisioningService, type PreviewProvisioningServiceShape } from "./preview-provisioning.service";
+import { GithubDeploymentRuleService, type GithubDeploymentRuleServiceShape } from "./github-deployment-rule.service";
 
 export type GithubPrAction =
     | "opened"
@@ -40,55 +42,20 @@ export type PreviewDispatchResult = {
     resolvedUrl?: string;
 }
 
+type Ports = {
+    readonly naming: PreviewNamingShape;
+    readonly cleanupPolicy: PreviewCleanupPolicyShape;
+    readonly lifecycle: PreviewLifecycleEventServiceShape;
+    readonly provisioning: PreviewProvisioningServiceShape;
+    readonly routing: DomainRoutingShape;
+    readonly rules: GithubDeploymentRuleServiceShape;
+};
+
 // T032: Webhook-driven preview create/update orchestration.
 // Dispatches GitHub PR events to the appropriate preview lifecycle action.
 // T037: Emits typed lifecycle audit events via PreviewLifecycleEventService.
-@Injectable()
-export class GithubWebhookDispatchService {
-    private readonly logger = new Logger(GithubWebhookDispatchService.name);
-
-    constructor(
-        private readonly previewNamingService: PreviewNamingService,
-        private readonly previewCleanupPolicyService: PreviewCleanupPolicyService,
-        private readonly previewLifecycleEventService: PreviewLifecycleEventService,
-        private readonly previewProvisioningService: PreviewProvisioningService,
-        private readonly domainRoutingService: DomainRoutingService,
-        private readonly deploymentRuleService: GithubDeploymentRuleService,
-    ) {}
-
-    async dispatchPrEvent(event: GithubPrEvent): Promise<PreviewDispatchResult> {
-        const { action, prNumber, branchName, commitSha, merged, serviceId, projectId, previewTemplateId, previewUrlPattern, deliveryId } = event;
-
-        // T0xx: Wire the per-project github_deployment_rules into the decision
-        // before the default behavior, so an event can be gated (skip) or
-        // explicitly routed (deploy/preview) by configured rules. Only runs
-        // when a real projectId is available (repo→project resolution not yet
-        // wired in the webhook controller).
-        if (projectId) {
-            const rule = await this.deploymentRuleService.resolveAction({
-                projectId,
-                event: "pull_request",
-                branch: branchName,
-                changedFiles: [],
-            });
-            if (rule.action === "skip") {
-                this.logger.log(`PR #${prNumber} skipped by rule (${rule.reason})`);
-                return { action: "skipped", reason: rule.reason };
-            }
-        }
-
-        if (action === "closed") {
-            return this.handlePrClosed({ prNumber, branchName, merged, serviceId, previewTemplateId, deliveryId });
-        }
-
-        if (action === "opened" || action === "synchronize" || action === "reopened") {
-            return this.handlePrOpenedOrUpdated({ prNumber, branchName, commitSha, serviceId, previewTemplateId, previewUrlPattern, deliveryId, action });
-        }
-
-        return { action: "skipped", reason: `unhandled_pr_action:${action}` };
-    }
-
-    private async handlePrOpenedOrUpdated(input: {
+function makeGithubWebhookDispatchService({ naming, cleanupPolicy, lifecycle, provisioning, routing, rules }: Ports) {
+    const handlePrOpenedOrUpdated = (input: {
         prNumber: number;
         branchName: string;
         commitSha: string;
@@ -97,120 +64,186 @@ export class GithubWebhookDispatchService {
         previewUrlPattern?: string | null;
         deliveryId: string;
         action: string;
-    }): Promise<PreviewDispatchResult> {
-        // B2: derive the preview base domain from the service's primary domain
-        // mapping (data-driven — never env vars, never a `.local` fallback).
-        const urls = await this.domainRoutingService.resolveServiceUrls(input.serviceId);
-        const primary = urls.find((u) => u.isPrimary) ?? urls[0];
-        const baseDomain = primary?.domain;
-        const urlPattern = input.previewUrlPattern
-            ?? (baseDomain ? `preview-pr-{{pr_number}}.${baseDomain}` : "preview-pr-{{pr_number}}");
+    }) =>
+        Effect.gen(function* () {
+            // B2: derive the preview base domain from the service's primary domain
+            // mapping (data-driven — never env vars, never a `.local` fallback).
+            const urls = yield* attempt(() => routing.resolveServiceUrls(input.serviceId));
+            const primary = urls.find((u) => u.isPrimary) ?? urls[0];
+            const baseDomain = primary?.domain;
+            const urlPattern = input.previewUrlPattern
+                ?? (baseDomain ? `preview-pr-{{pr_number}}.${baseDomain}` : "preview-pr-{{pr_number}}");
 
-        const naming = this.previewNamingService.buildPreviewName({
-            serviceId: input.serviceId,
-            branchName: input.branchName,
-            prNumber: input.prNumber,
-            commitSha: input.commitSha,
-            urlPattern,
-            namingStrategy: "pr",
-        });
-
-        const isCreate = input.action === "opened";
-        const timestamp = new Date().toISOString();
-
-        if (isCreate) {
-            await this.previewLifecycleEventService.emit("previewCreated", { serviceId: input.serviceId }, {
+            const previewNaming = naming.buildPreviewName({
                 serviceId: input.serviceId,
-                previewName: naming.previewName,
-                resolvedUrl: naming.resolvedUrl,
                 branchName: input.branchName,
                 prNumber: input.prNumber,
                 commitSha: input.commitSha,
-                previewTemplateId: input.previewTemplateId ?? null,
-                deliveryId: input.deliveryId,
-                timestamp,
+                urlPattern,
+                namingStrategy: "pr",
             });
-            this.logger.log(`Preview created: ${naming.previewName} for PR #${input.prNumber} (service=${input.serviceId})`);
-        } else {
-            await this.previewLifecycleEventService.emit("previewUpdated", { serviceId: input.serviceId }, {
-                serviceId: input.serviceId,
-                previewName: naming.previewName,
-                resolvedUrl: naming.resolvedUrl,
-                branchName: input.branchName,
-                prNumber: input.prNumber,
-                commitSha: input.commitSha,
-                deliveryId: input.deliveryId,
-                timestamp,
-            });
-            this.logger.log(`Preview updated: ${naming.previewName} (service=${input.serviceId})`);
-        }
 
-        // Provision DNS + route + preview record (non-blocking for the webhook).
-        void this.previewProvisioningService.provisionPreview({
-            serviceId: input.serviceId,
-            previewName: naming.previewName,
-            branchName: input.branchName,
-            prNumber: input.prNumber,
-            commitSha: input.commitSha,
-            deliveryId: input.deliveryId,
-        }).catch((error: unknown) => {
-            this.logger.warn(`Preview provisioning failed for ${naming.previewName}: ${error instanceof Error ? error.message : String(error)}`);
+            const isCreate = input.action === "opened";
+            const timestamp = new Date().toISOString();
+
+            if (isCreate) {
+                yield* lifecycle.emitEffect("previewCreated", { serviceId: input.serviceId }, {
+                    serviceId: input.serviceId,
+                    previewName: previewNaming.previewName,
+                    resolvedUrl: previewNaming.resolvedUrl,
+                    branchName: input.branchName,
+                    prNumber: input.prNumber,
+                    commitSha: input.commitSha,
+                    previewTemplateId: input.previewTemplateId ?? null,
+                    deliveryId: input.deliveryId,
+                    timestamp,
+                });
+                yield* Effect.logInfo(`Preview created: ${previewNaming.previewName} for PR #${input.prNumber} (service=${input.serviceId})`);
+            } else {
+                yield* lifecycle.emitEffect("previewUpdated", { serviceId: input.serviceId }, {
+                    serviceId: input.serviceId,
+                    previewName: previewNaming.previewName,
+                    resolvedUrl: previewNaming.resolvedUrl,
+                    branchName: input.branchName,
+                    prNumber: input.prNumber,
+                    commitSha: input.commitSha,
+                    deliveryId: input.deliveryId,
+                    timestamp,
+                });
+                yield* Effect.logInfo(`Preview updated: ${previewNaming.previewName} (service=${input.serviceId})`);
+            }
+
+            // Provision DNS + route + preview record (non-blocking for the webhook).
+            yield* Effect.forkDetach(
+                recover(
+                    provisioning.provisionPreview({
+                        serviceId: input.serviceId,
+                        previewName: previewNaming.previewName,
+                        branchName: input.branchName,
+                        prNumber: input.prNumber,
+                        commitSha: input.commitSha,
+                        deliveryId: input.deliveryId,
+                    }),
+                    (error) => Effect.logWarning(`Preview provisioning failed for ${previewNaming.previewName}: ${describeFailure(error)}`),
+                ),
+            );
+
+            return {
+                action: isCreate ? "created" : "updated",
+                reason: isCreate ? "pr_opened" : "pr_synchronize",
+                previewName: previewNaming.previewName,
+                resolvedUrl: previewNaming.resolvedUrl,
+            } satisfies PreviewDispatchResult;
         });
 
-        return {
-            action: isCreate ? "created" : "updated",
-            reason: isCreate ? "pr_opened" : "pr_synchronize",
-            previewName: naming.previewName,
-            resolvedUrl: naming.resolvedUrl,
-        };
-    }
-
-    private async handlePrClosed(input: {
+    const handlePrClosed = (input: {
         prNumber: number;
         branchName: string;
         merged: boolean;
         serviceId: string;
         previewTemplateId?: string | null;
         deliveryId: string;
-    }): Promise<PreviewDispatchResult> {
-        const trigger = input.merged ? "merge" : "close";
-        const decision = this.previewCleanupPolicyService.shouldCleanup(trigger, {
-            autoDeleteOnMerge: true,
-            autoDeleteOnClose: true,
-            ttlHours: 168,
+    }) =>
+        Effect.gen(function* () {
+            const trigger = input.merged ? "merge" : "close";
+            const decision = cleanupPolicy.shouldCleanup(trigger, {
+                autoDeleteOnMerge: true,
+                autoDeleteOnClose: true,
+                ttlHours: 168,
+            });
+
+            if (!decision.cleanup) {
+                return { action: "skipped", reason: decision.reason } satisfies PreviewDispatchResult;
+            }
+
+            // Resolve the preview name that was originally created for this PR
+            const previewName = `pr-${String(input.prNumber)}`;
+
+            yield* lifecycle.emitEffect("previewCleaned", { serviceId: input.serviceId }, {
+                serviceId: input.serviceId,
+                previewName,
+                trigger,
+                reason: decision.reason,
+                deliveryId: input.deliveryId,
+                timestamp: new Date().toISOString(),
+            });
+
+            yield* Effect.logInfo(`Preview cleaned: ${previewName} trigger=${trigger} reason=${decision.reason} (service=${input.serviceId})`);
+
+            // Deactivate route + remove DNS record + mark preview rows inactive.
+            yield* Effect.forkDetach(
+                recover(
+                    provisioning.cleanupPreview({
+                        serviceId: input.serviceId,
+                        previewName,
+                        branchName: input.branchName,
+                        prNumber: input.prNumber,
+                        trigger,
+                        reason: decision.reason,
+                        deliveryId: input.deliveryId,
+                    }),
+                    (error) => Effect.logWarning(`Preview cleanup failed for ${previewName}: ${describeFailure(error)}`),
+                ),
+            );
+
+            return { action: "cleaned", reason: decision.reason, previewName } satisfies PreviewDispatchResult;
         });
 
-        if (!decision.cleanup) {
-            return { action: "skipped", reason: decision.reason };
-        }
+    return {
+        dispatchPrEvent: Effect.fn("GithubWebhookDispatchService.dispatchPrEvent")(function* (event: GithubPrEvent) {
+            const { action, prNumber, branchName, commitSha, merged, serviceId, projectId, previewTemplateId, previewUrlPattern, deliveryId } = event;
 
-        // Resolve the preview name that was originally created for this PR
-        const previewName = `pr-${String(input.prNumber)}`;
+            // T0xx: Wire the per-project github_deployment_rules into the decision
+            // before the default behavior, so an event can be gated (skip) or
+            // explicitly routed (deploy/preview) by configured rules. Only runs
+            // when a real projectId is available (repo→project resolution not yet
+            // wired in the webhook controller).
+            if (projectId) {
+                const rule = yield* rules.resolveAction({
+                    projectId,
+                    event: "pull_request",
+                    branch: branchName,
+                    changedFiles: [],
+                });
+                if (rule.action === "skip") {
+                    yield* Effect.logInfo(`PR #${prNumber} skipped by rule (${rule.reason})`);
+                    return { action: "skipped", reason: rule.reason } satisfies PreviewDispatchResult;
+                }
+            }
 
-        await this.previewLifecycleEventService.emit("previewCleaned", { serviceId: input.serviceId }, {
-            serviceId: input.serviceId,
-            previewName,
-            trigger,
-            reason: decision.reason,
-            deliveryId: input.deliveryId,
-            timestamp: new Date().toISOString(),
-        });
+            if (action === "closed") {
+                return yield* handlePrClosed({ prNumber, branchName, merged, serviceId, previewTemplateId, deliveryId });
+            }
 
-        this.logger.log(`Preview cleaned: ${previewName} trigger=${trigger} reason=${decision.reason} (service=${input.serviceId})`);
+            return yield* handlePrOpenedOrUpdated({ prNumber, branchName, commitSha, serviceId, previewTemplateId, previewUrlPattern, deliveryId, action });
+        }),
+    };
+}
 
-        // Deactivate route + remove DNS record + mark preview rows inactive.
-        void this.previewProvisioningService.cleanupPreview({
-            serviceId: input.serviceId,
-            previewName,
-            branchName: input.branchName,
-            prNumber: input.prNumber,
-            trigger,
-            reason: decision.reason,
-            deliveryId: input.deliveryId,
-        }).catch((error: unknown) => {
-            this.logger.warn(`Preview cleanup failed for ${previewName}: ${error instanceof Error ? error.message : String(error)}`);
-        });
+export type GithubWebhookDispatchServiceShape = Over<
+    ReturnType<typeof makeGithubWebhookDispatchService>,
+    | PreviewNaming
+    | PreviewCleanupPolicy
+    | PreviewLifecycleEventService
+    | PreviewProvisioningService
+    | DomainRouting
+    | GithubDeploymentRuleService
+>;
 
-        return { action: "cleaned", reason: decision.reason, previewName };
-    }
+/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
+export class GithubWebhookDispatchService extends Context.Service<GithubWebhookDispatchService, GithubWebhookDispatchServiceShape>()(
+    "fleet/GithubWebhookDispatchService",
+) {
+    /** The collaborators are yielded when a method runs, so this is a constant the module provides with `useValue`. */
+    static readonly live: GithubWebhookDispatchServiceShape = serviceOver(
+        Effect.all({
+            naming: PreviewNaming,
+            cleanupPolicy: PreviewCleanupPolicy,
+            lifecycle: PreviewLifecycleEventService,
+            provisioning: PreviewProvisioningService,
+            routing: DomainRouting,
+            rules: GithubDeploymentRuleService,
+        }),
+        makeGithubWebhookDispatchService,
+    );
 }

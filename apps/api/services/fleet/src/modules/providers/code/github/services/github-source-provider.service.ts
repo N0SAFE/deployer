@@ -1,11 +1,12 @@
-import { FleetInvalid } from "../../../../../core/fleet.errors";
-import { Injectable } from "@nestjs/common";
-import { GitService } from "@deployer/shared/core/modules/git/index";
+import { serviceOver, type Over } from "@deployer/effect-core";
+import { Context, Effect } from "effect";
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import z from "zod/v4";
-import type { DeploymentSourceCheckoutContext } from "../../../base/source-provider.interface";
+import { attempt, attemptSync } from "@/core/effects";
+import { FleetInvalid } from "@/core/fleet.errors";
+import { Git, type GitShape } from "@/core/ports/git.port";
 import { githubSourceCheckoutContextSchema } from "../../../base/source-provider.interface";
-import { CodeProvider } from "../../shared/code-provider.interface";
+import type { CodeProvider } from "../../shared/code-provider.interface";
 
 const githubSourceContextSchema = z.object({
     repositoryUrl: z.string().min(1),
@@ -14,49 +15,50 @@ const githubSourceContextSchema = z.object({
     pullRequestNumber: z.number().int().positive().optional(),
 });
 
-@Injectable()
-export class GithubSourceProviderService extends CodeProvider {
-    readonly sourceType = "github";
+/** The provider for a GitHub repository: validates it is reachable, then names the ref to check out. */
+function makeGithubSourceProviderService(git: GitShape) {
+    return {
+        resolveSourceCheckout: (input: DeploymentTriggerInput) =>
+            Effect.gen(function* () {
+                if (input.source.sourceType !== "github") return null;
 
-    constructor(private readonly gitService: GitService) {
-        super();
-    }
+                const parsed = githubSourceContextSchema.safeParse({
+                    repositoryUrl: input.source.repositoryUrl,
+                    branch: input.source.branch,
+                    commitSha: input.source.commitSha,
+                    pullRequestNumber: input.source.pullRequestNumber,
+                });
+                if (!parsed.success) {
+                    return yield* new FleetInvalid({ reason: "GitHub source requires source.repositoryUrl" });
+                }
 
-    async resolveSourceCheckout(
-        input: DeploymentTriggerInput,
-    ): Promise<DeploymentSourceCheckoutContext | null> {
-        if (!this.matchesSourceType(input)) {
-            return null;
-        }
+                const { repositoryUrl, branch, commitSha, pullRequestNumber } = parsed.data;
+                const resolvedBranch = branch ?? (pullRequestNumber ? `refs/pull/${pullRequestNumber}/head` : "main");
 
-        if (input.source.sourceType !== "github") {
-            return null;
-        }
+                const isValidRepository = yield* attempt(() => git.validateRepository(repositoryUrl));
+                if (!isValidRepository) {
+                    return yield* new FleetInvalid({ reason: `GitHub repository '${repositoryUrl}' is not accessible` });
+                }
 
-        const parsed = githubSourceContextSchema.safeParse({
-            repositoryUrl: input.source.repositoryUrl,
-            branch: input.source.branch,
-            commitSha: input.source.commitSha,
-            pullRequestNumber: input.source.pullRequestNumber,
-        });
-        if (!parsed.success) {
-            throw new FleetInvalid({ reason: "GitHub source requires source.repositoryUrl" });
-        }
+                return yield* attemptSync(() =>
+                    githubSourceCheckoutContextSchema.parse({
+                        provider: "github",
+                        repositoryUrl,
+                        branch: resolvedBranch,
+                        ...(commitSha ? { commitSha } : {}),
+                        ...(pullRequestNumber ? { pullRequestNumber } : {}),
+                    }),
+                );
+            }),
+    } satisfies CodeProvider;
+}
 
-        const { repositoryUrl, branch, commitSha, pullRequestNumber } = parsed.data;
-        const resolvedBranch = branch ?? (pullRequestNumber ? `refs/pull/${pullRequestNumber}/head` : "main");
+export type GithubSourceProviderServiceShape = Over<ReturnType<typeof makeGithubSourceProviderService>, Git>;
 
-        const isValidRepository = await this.gitService.validateRepository(repositoryUrl);
-        if (!isValidRepository) {
-            throw new FleetInvalid({ reason: `GitHub repository '${repositoryUrl}' is not accessible` });
-        }
-
-        return githubSourceCheckoutContextSchema.parse({
-            provider: "github",
-            repositoryUrl,
-            branch: resolvedBranch,
-            ...(commitSha ? { commitSha } : {}),
-            ...(pullRequestNumber ? { pullRequestNumber } : {}),
-        });
-    }
+/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
+export class GithubSourceProviderService extends Context.Service<GithubSourceProviderService, GithubSourceProviderServiceShape>()(
+    "fleet/GithubSourceProviderService",
+) {
+    /** The git service is yielded when a method runs, so this is a constant the module provides with `useValue`. */
+    static readonly live: GithubSourceProviderServiceShape = serviceOver(Git, makeGithubSourceProviderService);
 }

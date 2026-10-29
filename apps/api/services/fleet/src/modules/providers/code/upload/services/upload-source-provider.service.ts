@@ -1,5 +1,5 @@
-import { FleetInvalid } from "../../../../../core/fleet.errors";
-import { Injectable } from "@nestjs/common";
+import { serviceOver, type Over } from "@deployer/effect-core";
+import { Context, Effect } from "effect";
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import z from "zod/v4";
 import type {
@@ -11,8 +11,10 @@ import { runtimeRunnerOptionsSchema } from "../../../base/runtime-runner-options
 import {
     uploadSourceCheckoutContextSchema,
 } from "../../../base/source-provider.interface";
-import { UploadBundleRegistryService } from "./upload-bundle-registry.service";
-import { CodeProvider } from "../../shared/code-provider.interface";
+import { attemptSync } from "@/core/effects";
+import { FleetInvalid } from "@/core/fleet.errors";
+import { UploadBundleRegistryService, type UploadBundleRegistryServiceShape } from "./upload-bundle-registry.service";
+import type { CodeProvider } from "../../shared/code-provider.interface";
 
 const uploadSourceContextSchema = z.object({
     sourceType: z.literal("upload"),
@@ -70,89 +72,88 @@ function buildRuntimeRunnerOptionsFallback(input: {
     return parsed.success ? parsed.data : null;
 }
 
-@Injectable()
-export class UploadSourceProviderService extends CodeProvider {
-    readonly sourceType = "upload";
+/** The provider for an uploaded archive: the bundle is on disk, the trigger names it. */
+function makeUploadSourceProviderService(uploadBundleRegistryService: UploadBundleRegistryServiceShape) {
+    return {
+        resolveSourceCheckout: (input: DeploymentTriggerInput) =>
+            Effect.gen(function* () {
+                if (input.source.sourceType !== "upload") return null;
 
-    constructor(private readonly uploadBundleRegistryService: UploadBundleRegistryService) {
-        super();
-    }
+                const parsed = uploadSourceContextSchema.safeParse(input.source);
+                if (!parsed.success) {
+                    return yield* new FleetInvalid({ reason: "Upload source requires valid source with customData.uploadId" });
+                }
 
-    resolveSourceCheckout(
-        input: DeploymentTriggerInput,
-    ): Promise<DeploymentSourceCheckoutContext | null> {
-        if (!this.matchesSourceType(input)) {
-            return Promise.resolve(null);
-        }
+                // `uploadId`/`uploadPath` are declared BOTH at the root of the source and
+                // inside `customData`, and the provider used to read only the nested copies.
+                // A caller that followed the root-level schema — which is the documented
+                // shape this source type validates — was then told its bundle
+                // "was not found", naming a field it had in fact supplied. Prefer the
+                // nested value (the more specific one) and fall back to the root.
+                const { customData, fileName, fileSize } = parsed.data;
+                const uploadId = customData.uploadId;
+                const declaredUploadPath = customData.uploadPath ?? parsed.data.uploadPath;
+                const registryRecord = declaredUploadPath ? null : yield* uploadBundleRegistryService.findByUploadId(uploadId);
 
-        if (input.source.sourceType !== "upload") {
-            return Promise.resolve(null);
-        }
+                if (!declaredUploadPath && !registryRecord) {
+                    return yield* new FleetInvalid({ reason: `Upload bundle with id '${uploadId}' was not found. Upload the archive first via /deployments/upload-bundle.` });
+                }
 
-        const parsed = uploadSourceContextSchema.safeParse(input.source);
-        if (!parsed.success) {
-            throw new FleetInvalid({ reason: "Upload source requires valid source with customData.uploadId" });
-        }
+                const resolvedUploadPath = declaredUploadPath ?? registryRecord?.uploadPath;
+                const resolvedFileName = fileName ?? registryRecord?.fileName;
+                const resolvedFileSize = typeof fileSize === "number" ? fileSize : registryRecord?.fileSize;
 
-        // `uploadId`/`uploadPath` are declared BOTH at the root of the source and
-        // inside `customData`, and the provider used to read only the nested copies.
-        // A caller that followed the root-level schema — which is the documented
-        // shape this source type validates — was then told its bundle
-        // "was not found", naming a field it had in fact supplied. Prefer the
-        // nested value (the more specific one) and fall back to the root.
-        const { customData, fileName, fileSize } = parsed.data;
-        const uploadId = customData.uploadId;
-        const declaredUploadPath = customData.uploadPath ?? parsed.data.uploadPath;
-        const registryRecord = declaredUploadPath
-            ? null
-            : this.uploadBundleRegistryService.findByUploadId(uploadId);
+                if (!resolvedUploadPath) {
+                    return yield* new FleetInvalid({ reason: `Upload source with id '${uploadId}' is missing a resolved upload path` });
+                }
 
-        if (!declaredUploadPath && !registryRecord) {
-            throw new FleetInvalid({ reason: `Upload bundle with id '${uploadId}' was not found. Upload the archive first via /deployments/upload-bundle.` });
-        }
+                const runtimeRunnerOptions = buildRuntimeRunnerOptionsFallback({
+                    runtimeRunnerOptions: customData.runtimeRunnerOptions,
+                    runtimeRunner: customData.runtimeRunner,
+                    containerName: customData.containerName,
+                    networkMode: customData.networkMode,
+                    cpuShares: customData.cpuShares,
+                    memoryLimitBytes: customData.memoryLimitBytes,
+                    healthCheckMaxRetries: customData.healthCheckMaxRetries,
+                    healthCheckRetryIntervalMs: customData.healthCheckRetryIntervalMs,
+                });
 
-        const resolvedUploadPath = declaredUploadPath ?? registryRecord?.uploadPath;
-        const resolvedFileName = fileName ?? registryRecord?.fileName;
-        const resolvedFileSize = typeof fileSize === "number" ? fileSize : registryRecord?.fileSize;
+                return yield* attemptSync(() =>
+                    uploadSourceCheckoutContextSchema.parse({
+                        provider: "upload",
+                        uploadId,
+                        uploadPath: resolvedUploadPath,
+                        ...(resolvedFileName ? { fileName: resolvedFileName } : {}),
+                        ...(typeof resolvedFileSize === "number" ? { fileSize: resolvedFileSize } : {}),
+                        // Backward compatibility only: runtime/build concerns should be sent via
+                        // trigger input execution config (execution.builder / execution.runner / execution.healthChecks).
+                        ...(customData.containerImage ? { containerImage: customData.containerImage } : {}),
+                        ...(customData.containerName ? { containerName: customData.containerName } : {}),
+                        ...(customData.runtimeRunner ? { runtimeRunner: customData.runtimeRunner } : {}),
+                        ...(customData.networkMode ? { networkMode: customData.networkMode } : {}),
+                        ...(typeof customData.cpuShares === "number" ? { cpuShares: customData.cpuShares } : {}),
+                        ...(typeof customData.memoryLimitBytes === "number"
+                            ? { memoryLimitBytes: customData.memoryLimitBytes }
+                            : {}),
+                        ...(typeof customData.healthCheckMaxRetries === "number"
+                            ? { healthCheckMaxRetries: customData.healthCheckMaxRetries }
+                            : {}),
+                        ...(typeof customData.healthCheckRetryIntervalMs === "number"
+                            ? { healthCheckRetryIntervalMs: customData.healthCheckRetryIntervalMs }
+                            : {}),
+                        ...(runtimeRunnerOptions ? { runtimeRunnerOptions } : {}),
+                    }),
+                );
+            }),
+    } satisfies CodeProvider;
+}
 
-        if (!resolvedUploadPath) {
-            throw new FleetInvalid({ reason: `Upload source with id '${uploadId}' is missing a resolved upload path` });
-        }
+export type UploadSourceProviderServiceShape = Over<ReturnType<typeof makeUploadSourceProviderService>, UploadBundleRegistryService>;
 
-        const runtimeRunnerOptions = buildRuntimeRunnerOptionsFallback({
-            runtimeRunnerOptions: customData.runtimeRunnerOptions,
-            runtimeRunner: customData.runtimeRunner,
-            containerName: customData.containerName,
-            networkMode: customData.networkMode,
-            cpuShares: customData.cpuShares,
-            memoryLimitBytes: customData.memoryLimitBytes,
-            healthCheckMaxRetries: customData.healthCheckMaxRetries,
-            healthCheckRetryIntervalMs: customData.healthCheckRetryIntervalMs,
-        });
-
-        return Promise.resolve(uploadSourceCheckoutContextSchema.parse({
-            provider: "upload",
-            uploadId,
-            uploadPath: resolvedUploadPath,
-            ...(resolvedFileName ? { fileName: resolvedFileName } : {}),
-            ...(typeof resolvedFileSize === "number" ? { fileSize: resolvedFileSize } : {}),
-            // Backward compatibility only: runtime/build concerns should be sent via
-            // trigger input execution config (execution.builder / execution.runner / execution.healthChecks).
-            ...(customData.containerImage ? { containerImage: customData.containerImage } : {}),
-            ...(customData.containerName ? { containerName: customData.containerName } : {}),
-            ...(customData.runtimeRunner ? { runtimeRunner: customData.runtimeRunner } : {}),
-            ...(customData.networkMode ? { networkMode: customData.networkMode } : {}),
-            ...(typeof customData.cpuShares === "number" ? { cpuShares: customData.cpuShares } : {}),
-            ...(typeof customData.memoryLimitBytes === "number"
-                ? { memoryLimitBytes: customData.memoryLimitBytes }
-                : {}),
-            ...(typeof customData.healthCheckMaxRetries === "number"
-                ? { healthCheckMaxRetries: customData.healthCheckMaxRetries }
-                : {}),
-            ...(typeof customData.healthCheckRetryIntervalMs === "number"
-                ? { healthCheckRetryIntervalMs: customData.healthCheckRetryIntervalMs }
-                : {}),
-            ...(runtimeRunnerOptions ? { runtimeRunnerOptions } : {}),
-        }));
-    }
+/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
+export class UploadSourceProviderService extends Context.Service<UploadSourceProviderService, UploadSourceProviderServiceShape>()(
+    "fleet/UploadSourceProviderService",
+) {
+    /** The bundle registry is yielded when a method runs, so this is a constant the module provides with `useValue`. */
+    static readonly live: UploadSourceProviderServiceShape = serviceOver(UploadBundleRegistryService, makeUploadSourceProviderService);
 }

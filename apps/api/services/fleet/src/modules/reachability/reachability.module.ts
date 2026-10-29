@@ -10,7 +10,7 @@
  * Effect runtime. The shared platform services they depend on stay Nest providers and are exposed
  * to the Effect side as ports with `useExisting`.
  */
-import { createModuleContext } from "@deployer/nest-effect";
+import { createModuleContext, EffectRuntime } from "@deployer/nest-effect";
 import { EdgeProviderRegistry } from "@deployer/shared/core/modules/edge/edge-provider.registry";
 import { EgressService } from "@deployer/shared/core/modules/egress/egress.service";
 import { MeshAgentClient } from "@deployer/shared/core/modules/mesh-agent/mesh-agent.client";
@@ -37,7 +37,7 @@ import {
     TraefikRefresherPort,
 } from "./reachability.ports";
 import { EdgeDnsService } from "./services/edge-dns.service";
-import { IngressDnsReconciler } from "./services/ingress-dns-reconciler";
+import { INGRESS_DNS_RECONCILER, startIngressDnsReconciler } from "./services/ingress-dns-reconciler";
 import { IngressEdgeService } from "./services/ingress-edge.service";
 import { NodeReachabilityService } from "./services/node-reachability.service";
 
@@ -58,7 +58,8 @@ export class ReachabilityModule extends createModuleContext(
             { provide: EdgeDnsService, useValue: EdgeDnsService.live },
             { provide: IngressEdgeService, useValue: IngressEdgeService.live },
             { provide: NodeReachabilityService, useValue: NodeReachabilityService.live },
-            IngressDnsReconciler,
+            // Converges lane DNS on a cadence from when the module is built; stopped with the application.
+            { provide: INGRESS_DNS_RECONCILER, useFactory: startIngressDnsReconciler, inject: [EffectRuntime] },
         ],
     },
 ) {}

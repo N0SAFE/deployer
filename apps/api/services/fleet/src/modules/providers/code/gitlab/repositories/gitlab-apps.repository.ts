@@ -1,71 +1,78 @@
-import { Injectable } from "@nestjs/common";
-import { and, eq } from "drizzle-orm";
-import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/global/global-database.service";
+import { eq } from "drizzle-orm";
+import { Context, Effect } from "effect";
 import { gitlabApps } from "@deployer/nest-schema/global/fleet/gitlab-provider";
 
+import { FleetDb } from "@/core/database/fleet-db";
+
 /**
- * GitlabAppsRepository — the single data-access layer for GitLab account
- * configurations. Extracted from GitlabAppsController, which was reaching
- * into the DB directly (violating the controller → service → repository
- * layering).
+ * The single data-access layer for GitLab account configurations. Drizzle only: no constructor DI,
+ * every method yields `FleetDb` when it runs.
  */
-@Injectable()
-export class GitlabAppsRepository {
-    constructor(private readonly globalDatabaseService: GlobalDatabaseService) {}
+export class GitlabAppsStoreImpl {
+	/** List all GitLab accounts, oldest first. */
+	list() {
+		return Effect.gen(function* () {
+			const database = yield* FleetDb;
+			return yield* database.use(async (db) =>
+				db
+					.select({
+						id: gitlabApps.id,
+						name: gitlabApps.name,
+						url: gitlabApps.url,
+						isActive: gitlabApps.isActive,
+						createdAt: gitlabApps.createdAt,
+						updatedAt: gitlabApps.updatedAt,
+					})
+					.from(gitlabApps)
+					.orderBy(gitlabApps.createdAt),
+			);
+		});
+	}
 
-    private get db() {
-        return this.globalDatabaseService.db;
-    }
+	/** Look up an account by name, to refuse a duplicate. */
+	findByName(name: string) {
+		return Effect.gen(function* () {
+			const database = yield* FleetDb;
+			return yield* database.use(async (db) => {
+				const rows = await db.select({ id: gitlabApps.id }).from(gitlabApps).where(eq(gitlabApps.name, name)).limit(1);
+				return rows[0] ?? null;
+			});
+		});
+	}
 
-    /** List all GitLab accounts, oldest first. */
-    async list() {
-        return this.db
-            .select({
-                id: gitlabApps.id,
-                name: gitlabApps.name,
-                url: gitlabApps.url,
-                isActive: gitlabApps.isActive,
-                createdAt: gitlabApps.createdAt,
-                updatedAt: gitlabApps.updatedAt,
-            })
-            .from(gitlabApps)
-            .orderBy(gitlabApps.createdAt);
-    }
+	/** Create a GitLab account row. */
+	create(input: { name: string; url: string; accessToken: string }) {
+		return Effect.gen(function* () {
+			const database = yield* FleetDb;
+			return yield* database.use(async (db) => {
+				const [row] = await db
+					.insert(gitlabApps)
+					.values({ name: input.name, url: input.url, accessToken: input.accessToken, isActive: true })
+					.returning();
+				return row ?? null;
+			});
+		});
+	}
 
-    /** Check whether an account with this name already exists. */
-    async findByName(name: string) {
-        const rows = await this.db
-            .select({ id: gitlabApps.id })
-            .from(gitlabApps)
-            .where(eq(gitlabApps.name, name))
-            .limit(1);
-        return rows[0] ?? null;
-    }
+	/** Delete a GitLab account row by id. Returns the removed id or null. */
+	deleteById(id: string) {
+		return Effect.gen(function* () {
+			const database = yield* FleetDb;
+			return yield* database.use(async (db) => {
+				const removed = await db.delete(gitlabApps).where(eq(gitlabApps.id, id)).returning({ id: gitlabApps.id });
+				return removed[0] ?? null;
+			});
+		});
+	}
+}
 
-    /** Create a GitLab account row. */
-    async create(input: {
-        name: string;
-        url: string;
-        accessToken: string;
-    }) {
-        const [row] = await this.db
-            .insert(gitlabApps)
-            .values({
-                name: input.name,
-                url: input.url,
-                accessToken: input.accessToken,
-                isActive: true,
-            })
-            .returning();
-        return row ?? null;
-    }
+/** The store's public surface is exactly the implementation's methods. */
+export type GitlabAppsStoreShape = GitlabAppsStoreImpl;
 
-    /** Delete a GitLab account row by id. Returns the removed id or null. */
-    async deleteById(id: string) {
-        const removed = await this.db
-            .delete(gitlabApps)
-            .where(eq(gitlabApps.id, id))
-            .returning({ id: gitlabApps.id });
-        return removed[0] ?? null;
-    }
+/** Effect key = NestJS token. */
+export class GitlabAppsStore extends Context.Service<GitlabAppsStore, GitlabAppsStoreShape>()(
+	"fleet/GitlabAppsStore",
+) {
+	/** Resolves the requirements the methods name when a call runs. */
+	static readonly live: GitlabAppsStoreShape = new GitlabAppsStoreImpl();
 }

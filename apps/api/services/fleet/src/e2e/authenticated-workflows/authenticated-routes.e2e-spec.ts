@@ -75,4 +75,31 @@ describe("Fleet routes e2e: an authenticated admin", () => {
 		expect(typeof body.enabled).toBe("boolean");
 		expect(body.webHostname.length).toBeGreaterThan(0);
 	});
+
+	// The code and DNS providers' Effect services over the fleet database: each answer reads Postgres
+	// through `FleetDb`, so these routes prove the stores, the ports and the module context are real.
+	it.each([
+		["/github/apps", "apps"],
+		["/gitlab/apps", "apps"],
+		["/dns/providers", "providers"],
+	])("lists %s through the Effect services", async (path, key) => {
+		const response = await context.http.get(path).set("cookie", admin.cookie).expect(200);
+
+		const body = response.body as Record<string, unknown>;
+		expect(Array.isArray(body[key])).toBe(true);
+	});
+
+	// The webhook guard is an Effect over the idempotency service and the apps store: with no webhook
+	// secret configured it fails closed, as a domain error the host answers 401.
+	it("refuses a GitHub webhook delivery when no webhook secret is configured", async () => {
+		const response = await context.http
+			.post("/webhooks/github")
+			.set("cookie", admin.cookie)
+			.set("x-github-event", "ping")
+			.set("x-github-delivery", "e2e-delivery-1")
+			.send({ zen: "keep it logically awesome" })
+			.expect(401);
+
+		expect((response.body as { code: string }).code).toBe("UNAUTHORIZED");
+	});
 });

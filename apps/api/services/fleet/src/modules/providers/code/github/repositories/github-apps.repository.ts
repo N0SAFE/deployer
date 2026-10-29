@@ -1,319 +1,290 @@
-import { Injectable } from "@nestjs/common";
-import { and, eq } from "drizzle-orm";
-import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/global/global-database.service";
+import { eq } from "drizzle-orm";
+import { Context, Effect } from "effect";
 import { appConfig } from "@deployer/nest-schema/global/platform/app-config";
-import { githubApps, githubRepositoryConfigs, githubWebhookEvents } from "@deployer/nest-schema/global/fleet/github-provider";
+import { githubApps, githubWebhookEvents } from "@deployer/nest-schema/global/fleet/github-provider";
 import { services } from "@deployer/nest-schema/global/project/deployment";
 
+import { FleetDb } from "@/core/database/fleet-db";
+
+type GithubAppInsert = typeof githubApps.$inferInsert;
+
 /**
- * GithubAppsRepository — the single data-access layer for the GitHub apps +
- * webhook runtime config, extracted from GithubWebhookController (which was
- * reaching into the DB directly, violating the controller → service →
- * repository layering).
+ * The single data-access layer for the GitHub apps and the webhook runtime config. Drizzle only: no
+ * constructor DI, every method yields `FleetDb` when it runs.
  */
-@Injectable()
-export class GithubAppsRepository {
-    constructor(private readonly globalDatabaseService: GlobalDatabaseService) {}
+export class GithubAppsStoreImpl {
+	/** List all GitHub apps, oldest first. */
+	list() {
+		return Effect.gen(function* () {
+			const database = yield* FleetDb;
+			return yield* database.use(async (db) =>
+				db
+					.select({
+						id: githubApps.id,
+						name: githubApps.name,
+						appId: githubApps.appId,
+						clientId: githubApps.clientId,
+						isActive: githubApps.isActive,
+						createdAt: githubApps.createdAt,
+						updatedAt: githubApps.updatedAt,
+					})
+					.from(githubApps)
+					.orderBy(githubApps.createdAt),
+			);
+		});
+	}
 
-    private get db() {
-        return this.globalDatabaseService.db;
-    }
+	/** Select the full app row by DB id (for registration + installation access). */
+	findById(id: string) {
+		return Effect.gen(function* () {
+			const database = yield* FleetDb;
+			return yield* database.use(async (db) => {
+				const rows = await db
+					.select({
+						id: githubApps.id,
+						appId: githubApps.appId,
+						privateKey: githubApps.privateKey,
+						clientId: githubApps.clientId,
+						clientSecret: githubApps.clientSecret,
+						webhookSecret: githubApps.webhookSecret,
+						installationId: githubApps.installationId,
+					})
+					.from(githubApps)
+					.where(eq(githubApps.id, id))
+					.limit(1);
+				return rows[0] ?? null;
+			});
+		});
+	}
 
-    // ─── CRUD ────────────────────────────────────────────────────────────────
+	/** Select app rows for provider operations (active apps, optionally scoped by id). */
+	findProviderApps(providerAppId?: string) {
+		return Effect.gen(function* () {
+			const database = yield* FleetDb;
+			return yield* database.use(async (db) => {
+				const qb = db
+					.select({
+						id: githubApps.id,
+						name: githubApps.name,
+						appId: githubApps.appId,
+						privateKey: githubApps.privateKey,
+						clientId: githubApps.clientId,
+						clientSecret: githubApps.clientSecret,
+						webhookSecret: githubApps.webhookSecret,
+						installationId: githubApps.installationId,
+					})
+					.from(githubApps);
+				return providerAppId
+					? await qb.where(eq(githubApps.id, providerAppId)).limit(1)
+					: await qb.where(eq(githubApps.isActive, true));
+			});
+		});
+	}
 
-    /** List all GitHub apps, oldest first. */
-    async list() {
-        return this.db
-            .select({
-                id: githubApps.id,
-                name: githubApps.name,
-                appId: githubApps.appId,
-                clientId: githubApps.clientId,
-                isActive: githubApps.isActive,
-                createdAt: githubApps.createdAt,
-                updatedAt: githubApps.updatedAt,
-            })
-            .from(githubApps)
-            .orderBy(githubApps.createdAt);
-    }
+	/** Create a GitHub app row. */
+	create(input: {
+		name: string;
+		appId: string;
+		clientId: string;
+		clientSecret: string;
+		privateKey: string;
+		webhookSecret: string;
+		installationId?: string | null;
+		isActive?: boolean;
+	}) {
+		return Effect.gen(function* () {
+			const database = yield* FleetDb;
+			return yield* database.use(async (db) => {
+				const [row] = await db
+					.insert(githubApps)
+					.values({
+						name: input.name,
+						appId: input.appId,
+						clientId: input.clientId,
+						clientSecret: input.clientSecret,
+						privateKey: input.privateKey,
+						webhookSecret: input.webhookSecret,
+						installationId: input.installationId ?? null,
+						isActive: input.isActive ?? true,
+					})
+					.returning();
+				return row ?? null;
+			});
+		});
+	}
 
-    /** Select the full app row by DB id (for registration + installation access). */
-    async findById(id: string) {
-        const rows = await this.db
-            .select({
-                id: githubApps.id,
-                appId: githubApps.appId,
-                privateKey: githubApps.privateKey,
-                clientId: githubApps.clientId,
-                clientSecret: githubApps.clientSecret,
-                webhookSecret: githubApps.webhookSecret,
-                installationId: githubApps.installationId,
-            })
-            .from(githubApps)
-            .where(eq(githubApps.id, id))
-            .limit(1);
-        return rows[0] ?? null;
-    }
+	/** Update a GitHub app row by id. Returns the updated row or null. */
+	updateById(id: string, values: Partial<GithubAppInsert>) {
+		return Effect.gen(function* () {
+			const database = yield* FleetDb;
+			return yield* database.use(async (db) => {
+				const [row] = await db
+					.update(githubApps)
+					.set({ ...values, updatedAt: new Date() })
+					.where(eq(githubApps.id, id))
+					.returning();
+				return row ?? null;
+			});
+		});
+	}
 
-    /** Select app rows for provider operations (active apps, optionally scoped by id). */
-    async findProviderApps(providerAppId?: string) {
-        const qb = this.db
-            .select({
-                id: githubApps.id,
-                name: githubApps.name,
-                appId: githubApps.appId,
-                privateKey: githubApps.privateKey,
-                clientId: githubApps.clientId,
-                clientSecret: githubApps.clientSecret,
-                webhookSecret: githubApps.webhookSecret,
-                installationId: githubApps.installationId,
-            })
-            .from(githubApps);
+	/** Delete a GitHub app row by id. */
+	deleteById(id: string) {
+		return Effect.gen(function* () {
+			const database = yield* FleetDb;
+			yield* database.use(async (db) => {
+				await db.delete(githubApps).where(eq(githubApps.id, id));
+			});
+		});
+	}
 
-        return providerAppId
-            ? qb.where(eq(githubApps.id, providerAppId)).limit(1)
-            : qb.where(eq(githubApps.isActive, true));
-    }
+	/** Record the installation id for an app matched by name. Returns the updated row or null. */
+	setInstallationByName(name: string, installationId: string) {
+		return Effect.gen(function* () {
+			const database = yield* FleetDb;
+			return yield* database.use(async (db) => {
+				const [updated] = await db
+					.update(githubApps)
+					.set({ installationId, updatedAt: new Date() })
+					.where(eq(githubApps.name, name))
+					.returning({ id: githubApps.id, appId: githubApps.appId });
+				return updated ?? null;
+			});
+		});
+	}
 
-    /** Create a GitHub app row. */
-    async create(input: {
-        name: string;
-        appId: string;
-        clientId: string;
-        clientSecret: string;
-        privateKey: string;
-        webhookSecret: string;
-        installationId?: string | null;
-        isActive?: boolean;
-    }) {
-        const [row] = await this.db
-            .insert(githubApps)
-            .values({
-                name: input.name,
-                appId: input.appId,
-                clientId: input.clientId,
-                clientSecret: input.clientSecret,
-                privateKey: input.privateKey,
-                webhookSecret: input.webhookSecret,
-                installationId: input.installationId ?? null,
-                isActive: input.isActive ?? true,
-            })
-            .returning();
-        return row ?? null;
-    }
+	/** Select the clientId for an app by id (OAuth init). */
+	findClientIdById(id: string) {
+		return Effect.gen(function* () {
+			const database = yield* FleetDb;
+			return yield* database.use(async (db) => {
+				const rows = await db
+					.select({ id: githubApps.id, clientId: githubApps.clientId })
+					.from(githubApps)
+					.where(eq(githubApps.id, id))
+					.limit(1);
+				return rows[0] ?? null;
+			});
+		});
+	}
 
-    /** Update a GitHub app row by id. Returns the updated row or null. */
-    async updateById(id: string, values: Partial<typeof githubApps.$inferInsert>) {
-        const [row] = await this.db
-            .update(githubApps)
-            .set({ ...values, updatedAt: new Date() })
-            .where(eq(githubApps.id, id))
-            .returning();
-        return row ?? null;
-    }
+	/** Select the client credentials for an app by id (OAuth callback). */
+	findClientCredentialsById(id: string) {
+		return Effect.gen(function* () {
+			const database = yield* FleetDb;
+			return yield* database.use(async (db) => {
+				const rows = await db
+					.select({
+						id: githubApps.id,
+						clientId: githubApps.clientId,
+						clientSecret: githubApps.clientSecret,
+					})
+					.from(githubApps)
+					.where(eq(githubApps.id, id))
+					.limit(1);
+				return rows[0] ?? null;
+			});
+		});
+	}
 
-    /** Delete a GitHub app row by id. */
-    async deleteById(id: string) {
-        await this.db
-            .delete(githubApps)
-            .where(eq(githubApps.id, id));
-    }
+	// ─── Webhook runtime config ──────────────────────────────────────────────
 
-    /** Record the installation id for an app matched by name. Returns the updated row or null. */
-    async setInstallationByName(name: string, installationId: string) {
-        const [updated] = await this.db
-            .update(githubApps)
-            .set({ installationId, updatedAt: new Date() })
-            .where(eq(githubApps.name, name))
-            .returning({ id: githubApps.id, appId: githubApps.appId });
-        return updated ?? null;
-    }
+	/**
+	 * Record (or clear, when `installationId` is null) the GitHub App installation id for a given
+	 * app id. Answers true when a row matched.
+	 */
+	setInstallation(appId: string, installationId: string | null) {
+		return Effect.gen(function* () {
+			const database = yield* FleetDb;
+			return yield* database.use(async (db): Promise<boolean> => {
+				const [updated] = await db
+					.update(githubApps)
+					.set({ installationId, updatedAt: new Date() })
+					.where(eq(githubApps.appId, appId))
+					.returning({ id: githubApps.id });
+				return Boolean(updated);
+			});
+		});
+	}
 
-    /** Select the clientId for an app by id (OAuth init). */
-    async findClientIdById(id: string) {
-        const rows = await this.db
-            .select({ id: githubApps.id, clientId: githubApps.clientId })
-            .from(githubApps)
-            .where(eq(githubApps.id, id))
-            .limit(1);
-        return rows[0] ?? null;
-    }
+	/**
+	 * Load the runtime webhook secret for the `github_webhook` config key. Answers null when it is
+	 * not configured, or when the database is not available yet: the webhook guard fails closed on it.
+	 */
+	getWebhookSecret() {
+		return Effect.gen(function* () {
+			const database = yield* FleetDb;
+			return yield* database.use(async (db): Promise<string | null> => {
+				const rows = await db.select().from(appConfig).where(eq(appConfig.key, "github_webhook")).limit(1);
+				const config = rows[0];
+				if (config?.value) {
+					const parsed = JSON.parse(config.value) as { webhookSecret?: string };
+					if (parsed.webhookSecret) return parsed.webhookSecret;
+				}
+				return null;
+			});
+		}).pipe(Effect.orElseSucceed((): string | null => null));
+	}
 
-    /** Select the client credentials for an app by id (OAuth callback). */
-    async findClientCredentialsById(id: string) {
-        const rows = await this.db
-            .select({
-                id: githubApps.id,
-                clientId: githubApps.clientId,
-                clientSecret: githubApps.clientSecret,
-            })
-            .from(githubApps)
-            .where(eq(githubApps.id, id))
-            .limit(1);
-        return rows[0] ?? null;
-    }
+	/**
+	 * Find the platform service mapped to a repository source URL, the webhook-to-service bridge.
+	 * Matches `providerConfig.sourceUrl` normalized (trimmed, lowercased, trailing slashes stripped).
+	 * When `projectId` is given the scan is project-scoped.
+	 */
+	findServiceBySourceUrl(sourceUrl: string, projectId?: string) {
+		return Effect.gen(function* () {
+			const database = yield* FleetDb;
+			return yield* database.use(async (db) => {
+				const normalized = sourceUrl.trim().toLowerCase().replace(/\/+$/, "");
+				const rows = projectId
+					? await db.select().from(services).where(eq(services.projectId, projectId))
+					: await db.select().from(services);
+				const match = rows.find((row) => {
+					const source = (row.providerConfig as { sourceUrl?: string } | null)?.sourceUrl;
+					return (
+						source !== undefined &&
+						typeof source === "string" &&
+						source.trim().toLowerCase().replace(/\/+$/, "") === normalized
+					);
+				});
+				return match ?? null;
+			});
+		});
+	}
 
-    // ─── Webhook runtime config ──────────────────────────────────────────────
+	/**
+	 * Atomically claim a webhook delivery by `delivery_id` (durable idempotency). The unique index on
+	 * `delivery_id` makes the first INSERT the claim; a redelivery conflicts (ON CONFLICT DO NOTHING)
+	 * and answers false. Survives process restarts.
+	 */
+	claimWebhookDelivery(input: { event: string; deliveryId: string; payload: unknown }) {
+		return Effect.gen(function* () {
+			const database = yield* FleetDb;
+			return yield* database.use(async (db): Promise<boolean> => {
+				const [row] = await db
+					.insert(githubWebhookEvents)
+					.values({
+						githubAppId: null,
+						event: input.event,
+						deliveryId: input.deliveryId,
+						payload: input.payload,
+						processed: false,
+					})
+					.onConflictDoNothing({ target: githubWebhookEvents.deliveryId })
+					.returning({ id: githubWebhookEvents.id });
+				return row !== undefined;
+			});
+		});
+	}
+}
 
-    /**
-     * Record (or clear, when `installationId` is null) the GitHub App
-     * installation id for a given app id. Returns true when a row matched.
-     */
-    async setInstallation(appId: string, installationId: string | null): Promise<boolean> {
-        const [updated] = await this.db
-            .update(githubApps)
-            .set({ installationId, updatedAt: new Date() })
-            .where(eq(githubApps.appId, appId))
-            .returning({ id: githubApps.id });
-        return Boolean(updated);
-    }
+/** The store's public surface is exactly the implementation's methods. */
+export type GithubAppsStoreShape = GithubAppsStoreImpl;
 
-    /**
-     * Load the runtime webhook secret for the `github_webhook` config key.
-     * Returns null when not configured (or DB unavailable).
-     */
-    async getWebhookSecret(): Promise<string | null> {
-        try {
-            const rows = await this.db
-                .select()
-                .from(appConfig)
-                .where(eq(appConfig.key, "github_webhook"))
-                .limit(1);
-            const config = rows[0];
-            if (config?.value) {
-                const parsed = JSON.parse(config.value) as { webhookSecret?: string };
-                if (parsed.webhookSecret) return parsed.webhookSecret;
-            }
-        } catch {
-            // DB not available yet — webhook validation falls through.
-        }
-        return null;
-    }
-
-    // ─── Webhook → app/installation resolution (W7) ─────────────────────────
-
-    /** Match the app row by the installation id carried in webhook payloads. */
-    async findByInstallationId(installationId: string) {
-        const rows = await this.db
-            .select()
-            .from(githubApps)
-            .where(eq(githubApps.installationId, installationId))
-            .limit(1);
-        return rows[0] ?? null;
-    }
-
-    /** First active app — fallback when a delivery carries no installation id. */
-    async findPrimaryApp() {
-        const rows = await this.db
-            .select()
-            .from(githubApps)
-            .where(eq(githubApps.isActive, true))
-            .limit(1);
-        return rows[0] ?? null;
-    }
-
-    // ─── Repository mapping (github_repository_configs, W6) ─────────────────
-
-    /** Config row for a repository full name ("owner/repo"). */
-    async findRepositoryConfigByFullName(repositoryFullName: string) {
-        const rows = await this.db
-            .select()
-            .from(githubRepositoryConfigs)
-            .where(
-                eq(githubRepositoryConfigs.repositoryFullName, repositoryFullName),
-            )
-            .limit(1);
-        return rows[0] ?? null;
-    }
-
-    /**
-     * Bootstrap write-side: upsert a repo→project+app mapping so webhooks
-     * resolve a service. Idempotent by repositoryFullName — an existing row
-     * (with operator settings) is returned unchanged.
-     */
-    async upsertRepositoryConfig(input: {
-        projectId: string;
-        githubAppId: string;
-        repositoryId: string;
-        repositoryFullName: string;
-    }) {
-        const existing = await this.findRepositoryConfigByFullName(input.repositoryFullName);
-        if (existing) return existing;
-        const [row] = await this.db
-            .insert(githubRepositoryConfigs)
-            .values(input)
-            .returning();
-        return row ?? null;
-    }
-
-    /**
-     * Find the platform service mapped to a repository source URL — the
-     * webhook→service bridge. Matches `providerConfig.sourceUrl` normalized
-     * (trimmed, lowercased, trailing slashes stripped). When `projectId` is
-     * given the scan is project-scoped.
-     */
-    async findServiceBySourceUrl(sourceUrl: string, projectId?: string) {
-        const normalized = sourceUrl.trim().toLowerCase().replace(/\/+$/, "");
-        const rows = projectId
-            ? await this.db
-                  .select()
-                  .from(services)
-                  .where(eq(services.projectId, projectId))
-            : await this.db.select().from(services);
-        const match = rows.find((row) => {
-            const source = (row.providerConfig as { sourceUrl?: string } | null)?.sourceUrl;
-            return source !== undefined &&
-                typeof source === "string" &&
-                source.trim().toLowerCase().replace(/\/+$/, "") === normalized;
-        });
-        return match ?? null;
-    }
-
-    // ─── Webhook event journal (github_webhook_events writer, W7/CF-6) ──────
-
-    /** Record a delivery so inspection/replay has a durable trail. */
-    async recordWebhookEvent(input: {
-        githubAppId: string;
-        event: string;
-        deliveryId: string;
-        payload: unknown;
-        processed: boolean;
-    }) {
-        const [row] = await this.db
-            .insert(githubWebhookEvents)
-            .values({
-                githubAppId: input.githubAppId,
-                event: input.event,
-                deliveryId: input.deliveryId,
-                payload: input.payload,
-                processed: input.processed,
-            })
-            .returning();
-        return row ?? null;
-    }
-
-    /**
-     * W-P2 (durable idempotency): atomically claim a delivery by `delivery_id`.
-     * The unique index on `delivery_id` makes the first INSERT the claim; a
-     * redelivery/duplicate conflicts (ON CONFLICT DO NOTHING) and returns
-     * `false`. Survives process restarts — unlike the old in-memory LRU.
-     */
-    async claimWebhookDelivery(input: {
-        event: string;
-        deliveryId: string;
-        payload: unknown;
-    }): Promise<boolean> {
-        const [row] = await this.db
-            .insert(githubWebhookEvents)
-            .values({
-                githubAppId: null,
-                event: input.event,
-                deliveryId: input.deliveryId,
-                payload: input.payload,
-                processed: false,
-            })
-            .onConflictDoNothing({ target: githubWebhookEvents.deliveryId })
-            .returning({ id: githubWebhookEvents.id });
-        return row !== undefined;
-    }
+/** Effect key = NestJS token. */
+export class GithubAppsStore extends Context.Service<GithubAppsStore, GithubAppsStoreShape>()(
+	"fleet/GithubAppsStore",
+) {
+	/** Resolves the requirements the methods name when a call runs. */
+	static readonly live: GithubAppsStoreShape = new GithubAppsStoreImpl();
 }

@@ -1,35 +1,45 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { GithubWebhooksController } from "./github.webhooks.controller";
-import { githubWebhookAuth } from "@/modules/providers/middleware/github-webhook-auth.middleware";
-import { ORPCError } from "@orpc/server";
-import type { GithubWebhookDispatchService } from "../services/github-webhook-dispatch.service";
-import type { WebhookIdempotencyService } from "../services/webhook-idempotency.service";
-import type { GithubAppsRepository } from "../repositories/github-apps.repository";
-import type { DeploymentTriggerGateway } from "../services/deployment-trigger.gateway";
+import "@orpc/effect/extensions/effect";
+
+import { createHmac } from "node:crypto";
+import { effectContext } from "@deployer/nest-effect/testing";
+import { callProcedure } from "@deployer/orpc-utils/testing";
+import { Cause, Context, Effect, Exit } from "effect";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type GithubWebhookInput } from "@deployer/fleet-contracts";
 
-// ─── Mocks ────────────────────────────────────────────────────────────────
+import { FleetUnauthorized } from "@/core/fleet.errors";
+import { guardGithubWebhook, type GithubWebhookContext } from "@/modules/providers/middleware/github-webhook-auth.middleware";
+import { GithubWebhooksController } from "./github.webhooks.controller";
+import { GithubAppsStore, type GithubAppsStoreShape } from "../repositories/github-apps.repository";
+import { DeploymentTriggerGateway, type DeploymentTriggerGatewayShape, type TriggerRelayResult } from "../services/deployment-trigger.gateway";
+import { GithubWebhookDispatchService, type GithubWebhookDispatchServiceShape } from "../services/github-webhook-dispatch.service";
+import { WebhookIdempotencyService, type WebhookIdempotencyServiceShape } from "../services/webhook-idempotency.service";
 
-const makeMockDispatch = (): GithubWebhookDispatchService =>
-    ({
-        dispatchPrEvent: vi.fn().mockResolvedValue({ action: "created", reason: "pr_opened", previewName: "pr-1", resolvedUrl: "pr-1.preview.local" }),
-    }) as unknown as GithubWebhookDispatchService;
+const SECRET = "my-secret";
 
-const makeMockIdempotency = (): WebhookIdempotencyService =>
-    ({
-        isDuplicate: vi.fn().mockReturnValue(false),
-        markSeen: vi.fn(),
-    }) as unknown as WebhookIdempotencyService;
+// ─── Fakes: plain objects of `vi.fn()` answering Effects ───────────────────
 
-const makeMockRepo = (): GithubAppsRepository =>
-    ({
-        setInstallation: vi.fn().mockResolvedValue(true),
-        getWebhookSecret: vi.fn().mockResolvedValue(null),
-        findServiceBySourceUrl: vi.fn().mockResolvedValue({ id: "svc-1" }),
-    }) as unknown as GithubAppsRepository;
+const makeDispatch = () => ({
+    dispatchPrEvent: vi.fn(() =>
+        Effect.succeed({ action: "created", reason: "pr_opened", previewName: "pr-1", resolvedUrl: "pr-1.preview.local" }),
+    ),
+});
 
-const makeMockGateway = () => ({
-    relay: vi.fn().mockResolvedValue({ dispatched: false, sourceId: null, deploymentId: null, reason: "no_trigger_source:github/push" }),
+const makeIdempotency = () => ({
+    isDuplicate: vi.fn((_deliveryId: string) => Effect.succeed(false)),
+    markSeen: vi.fn((_deliveryId: string) => Effect.void),
+});
+
+const makeStore = () => ({
+    setInstallation: vi.fn((_appId: string, _installationId: string | null) => Effect.succeed(true)),
+    getWebhookSecret: vi.fn((): Effect.Effect<string | null> => Effect.succeed(SECRET)),
+    findServiceBySourceUrl: vi.fn((_url: string): Effect.Effect<{ id: string } | null> => Effect.succeed({ id: "svc-1" })),
+});
+
+const makeGateway = () => ({
+    relay: vi.fn((): Effect.Effect<TriggerRelayResult> =>
+        Effect.succeed({ dispatched: false, sourceId: null, deploymentId: null, reason: "no_trigger_source:github/push" }),
+    ),
 });
 
 const prPayload = {
@@ -42,128 +52,73 @@ const prPayload = {
     repository: { full_name: "org/repo", html_url: "https://github.com/org/repo" },
 };
 
-// The DETAILED webhook input the contract produces:
-//   { body: WebhookEvent, headers: { "x-github-event"?, ... } }
-const makeInput = (body: unknown, headers?: GithubWebhookInput["headers"]): GithubWebhookInput =>
-    ({ body, headers }) as GithubWebhookInput;
+const sign = (body: unknown, secret = SECRET) => `sha256=${createHmac("sha256", secret).update(JSON.stringify(body)).digest("hex")}`;
 
-// Handler execution helper — the controller registers its handler via
-// `implement(contract).use(mw).handler(fn)`; a singleton chainable mock
-// captures the latest registered fn so tests can invoke it directly.
-type HandlerFn = (opts: { context: { webhook: { eventType: string; deliveryId: string; skippedReason?: string } }; input: GithubWebhookInput; errors: Record<string, (options?: { message?: string }) => ORPCError<string, unknown>> }) => Promise<{ received: true; deliveryId: string; action?: string; reason?: string }>;
+/** The DETAILED webhook input the contract produces: `{ body, headers }`, signed over the body like GitHub does. */
+const delivery = (event: string, deliveryId: string, body: unknown) => ({
+    body,
+    headers: { "x-github-event": event, "x-github-delivery": deliveryId, "x-hub-signature-256": sign(body) },
+});
 
-const implementChainable = {
-    use: vi.fn().mockReturnThis(),
-    handler: vi.fn((fn: unknown) => ({ handler: fn })),
-};
-
-// oRPC v2 split these across packages: the `Implement` DECORATOR stays
-// in `@orpc/nest`, lowercase `implement` lives in `@orpc/server`.
-vi.mock("@orpc/nest", () => ({
-    Implement: vi.fn(() => () => {}),
-}));
-vi.mock("@orpc/server", async (importOriginal) => ({
-    // Spread the REAL module: these specs also import `ORPCError` from
-    // here, and replacing the module wholesale would make it undefined.
-    ...(await importOriginal<typeof import("@orpc/server")>()),
-    implement: vi.fn(() => implementChainable),
-}));
-
-/** Test double for the ORPC typed-errors parameter (mirrors runtime factory map). */
-function makeErrorsParam(): Record<string, (options?: { message?: string }) => ORPCError<string, unknown>> {
-    return new Proxy({}, {
-        get: (_target, code: string) =>
-            (options?: { message?: string }) => new ORPCError(code, options ?? {}),
-    });
-}
-
-async function runHandler(controller: GithubWebhooksController, opts: { eventType: string; deliveryId: string; skippedReason?: string; input: GithubWebhookInput }) {
-    controller;
-    controller.receive();
-    const handler = implementChainable.handler.mock.calls.at(-1)?.[0] as HandlerFn;
-    return handler({
-        context: {
-            webhook: {
-                eventType: opts.eventType,
-                deliveryId: opts.deliveryId,
-                skippedReason: opts.skippedReason,
-            },
-        },
-        input: opts.input,
-        errors: makeErrorsParam(),
-    });
-}
+// ─── Controller ────────────────────────────────────────────────────────────
 
 describe("GithubWebhooksController", () => {
-    let controller: GithubWebhooksController;
-    let dispatch: GithubWebhookDispatchService;
-    let idempotency: WebhookIdempotencyService;
-    let repo: GithubAppsRepository;
-    let gateway: ReturnType<typeof makeMockGateway>;
+    let dispatch: ReturnType<typeof makeDispatch>;
+    let idempotency: ReturnType<typeof makeIdempotency>;
+    let store: ReturnType<typeof makeStore>;
+    let gateway: ReturnType<typeof makeGateway>;
+    let call: <T = { received: true; deliveryId: string; action?: string; reason?: string }>(input: unknown) => Promise<T>;
 
     beforeEach(() => {
-        dispatch = makeMockDispatch();
-        idempotency = makeMockIdempotency();
-        repo = makeMockRepo();
-        gateway = makeMockGateway();
-        controller = new GithubWebhooksController(
-            idempotency,
-            dispatch,
-            repo,
-            gateway as unknown as DeploymentTriggerGateway,
-        );
+        dispatch = makeDispatch();
+        idempotency = makeIdempotency();
+        store = makeStore();
+        gateway = makeGateway();
+        const context = {
+            ...effectContext(
+                Context.make(GithubAppsStore, store as unknown as GithubAppsStoreShape).pipe(
+                    Context.add(WebhookIdempotencyService, idempotency as unknown as WebhookIdempotencyServiceShape),
+                    Context.add(GithubWebhookDispatchService, dispatch as unknown as GithubWebhookDispatchServiceShape),
+                    Context.add(DeploymentTriggerGateway, gateway as unknown as DeploymentTriggerGatewayShape),
+                ),
+            ),
+            request: { headers: { "x-correlation-id": "c-1" } },
+        };
+        const controller = new GithubWebhooksController();
+        call = <T>(input: unknown) => callProcedure<T>(controller.receive(), input, context);
     });
 
     it("returns received=true for a valid pull_request event", async () => {
-        const result = await runHandler(controller, {
-            eventType: "pull_request",
-            deliveryId: "delivery-1",
-            input: makeInput(prPayload),
-        });
+        const result = await call(delivery("pull_request", "delivery-1", prPayload));
         expect(result.received).toBe(true);
         expect(result.deliveryId).toBe("delivery-1");
         expect(result.action).toBe("created");
+        expect(idempotency.markSeen).toHaveBeenCalledWith("delivery-1");
     });
 
-    it("skips duplicate deliveries (middleware short-circuit) without re-dispatching", async () => {
-        const result = await runHandler(controller, {
-            eventType: "pull_request",
-            deliveryId: "delivery-dupe",
-            skippedReason: "duplicate_delivery",
-            input: makeInput(prPayload),
-        });
+    it("skips duplicate deliveries (guard short-circuit) without re-dispatching", async () => {
+        idempotency.isDuplicate.mockReturnValue(Effect.succeed(true));
+        const result = await call(delivery("pull_request", "delivery-dupe", prPayload));
         expect(result.action).toBe("skipped");
         expect(result.reason).toBe("duplicate_delivery");
         expect(dispatch.dispatchPrEvent).not.toHaveBeenCalled();
     });
 
     it("dispatches a pull_request with the service the repository is linked to, not its name", async () => {
-        await runHandler(controller, {
-            eventType: "pull_request",
-            deliveryId: "delivery-pr",
-            input: makeInput(prPayload),
-        });
-        expect(repo.findServiceBySourceUrl).toHaveBeenCalledWith("https://github.com/org/repo");
+        await call(delivery("pull_request", "delivery-pr", prPayload));
+        expect(store.findServiceBySourceUrl).toHaveBeenCalledWith("https://github.com/org/repo");
         expect(dispatch.dispatchPrEvent).toHaveBeenCalledWith(expect.objectContaining({ serviceId: "svc-1" }));
     });
 
     it("ignores a pull_request on a repository no service is linked to", async () => {
-        vi.mocked(repo.findServiceBySourceUrl).mockResolvedValue(null);
-        const result = await runHandler(controller, {
-            eventType: "pull_request",
-            deliveryId: "delivery-pr-2",
-            input: makeInput(prPayload),
-        });
+        store.findServiceBySourceUrl.mockReturnValue(Effect.succeed(null));
+        const result = await call(delivery("pull_request", "delivery-pr-2", prPayload));
         expect(result.reason).toBe("pull_request:no_linked_service");
         expect(dispatch.dispatchPrEvent).not.toHaveBeenCalled();
     });
 
     it("returns skipped when no trigger source claims the event", async () => {
-        const result = await runHandler(controller, {
-            eventType: "issues",
-            deliveryId: "delivery-3",
-            input: makeInput({}),
-        });
+        const result = await call(delivery("issues", "delivery-3", {}));
         expect(gateway.relay).toHaveBeenCalledWith(
             expect.objectContaining({ provider: "github", eventName: "issues", deliveryId: "delivery-3" }),
         );
@@ -172,176 +127,142 @@ describe("GithubWebhooksController", () => {
     });
 
     it("reports a deployment the registry queued for a push", async () => {
-        gateway.relay.mockResolvedValue({ dispatched: true, sourceId: "github-push", deploymentId: "dep-1", reason: null });
-        const result = await runHandler(controller, {
-            eventType: "push",
-            deliveryId: "delivery-4",
-            input: makeInput({ ref: "refs/heads/main" }),
-        });
+        gateway.relay.mockReturnValue(Effect.succeed({ dispatched: true, sourceId: "github-push", deploymentId: "dep-1", reason: null }));
+        const result = await call(delivery("push", "delivery-4", { ref: "refs/heads/main" }));
         expect(result.action).toBe("deployed");
         expect(result.reason).toBe("trigger:github-push:dep-1");
     });
 
-    it("throws ORPCError BAD_REQUEST for malformed pull_request payload", async () => {
-        await expect(
-            runHandler(controller, {
-                eventType: "pull_request",
-                deliveryId: "delivery-4",
-                input: makeInput({ action: "opened" }),
-            }),
-        ).rejects.toThrow("Malformed");
+    it("answers BAD_REQUEST for a malformed pull_request payload", async () => {
+        await expect(call(delivery("pull_request", "delivery-4", { action: "opened" }))).rejects.toMatchObject({
+            code: "BAD_REQUEST",
+            message: "Malformed pull_request webhook payload",
+        });
     });
 
-    it("throws ORPCError BAD_REQUEST when PR is missing head.sha (guard rejects)", async () => {
-        await expect(
-            runHandler(controller, {
-                eventType: "pull_request",
-                deliveryId: "delivery-5",
-                input: makeInput({ action: "opened", pull_request: { number: 2, head: { ref: "feat/x" }, merged: false } }),
-            }),
-        ).rejects.toThrow("Malformed pull_request webhook payload");
+    it("answers BAD_REQUEST when the PR is missing head.sha (the type guard rejects it)", async () => {
+        const body = { action: "opened", pull_request: { number: 2, head: { ref: "feat/x" }, merged: false } };
+        await expect(call(delivery("pull_request", "delivery-5", body))).rejects.toMatchObject({
+            code: "BAD_REQUEST",
+            message: "Malformed pull_request webhook payload",
+        });
     });
 
     it("acknowledges non-dispatchable pull_request actions without dispatching", async () => {
-        const result = await runHandler(controller, {
-            eventType: "pull_request",
-            deliveryId: "delivery-6",
-            input: makeInput({
-                action: "edited",
-                pull_request: { number: 2, head: { ref: "feat/x", sha: "abc" }, merged: false },
-            }),
-        });
+        const body = { action: "edited", pull_request: { number: 2, head: { ref: "feat/x", sha: "abc" }, merged: false } };
+        const result = await call(delivery("pull_request", "delivery-6", body));
         expect(result.action).toBe("edited");
         expect(result.reason).toBe("pull_request:edited");
         expect(dispatch.dispatchPrEvent).not.toHaveBeenCalled();
     });
 
-    it("throws ORPCError BAD_REQUEST for malformed installation payload", async () => {
+    it("answers BAD_REQUEST for a malformed installation payload", async () => {
+        await expect(call(delivery("installation", "delivery-7", { action: "created", installation: { id: 1 } }))).rejects.toMatchObject({
+            code: "BAD_REQUEST",
+            message: "Malformed installation webhook payload",
+        });
+    });
+
+    it("records the installation id on the matching app", async () => {
+        const body = { action: "created", installation: { id: 42, app_id: 7 } };
+        const result = await call(delivery("installation", "delivery-8", body));
+        expect(store.setInstallation).toHaveBeenCalledWith("7", "42");
+        expect(result.reason).toBe("installation:created");
+    });
+
+    it("clears the installation id when the app is uninstalled", async () => {
+        const body = { action: "deleted", installation: { id: 42, app_id: 7 } };
+        const result = await call(delivery("installation", "delivery-9", body));
+        expect(store.setInstallation).toHaveBeenCalledWith("7", null);
+        expect(result.reason).toBe("installation:deleted");
+    });
+
+    it("says so when the installation belongs to an app the fleet does not know", async () => {
+        store.setInstallation.mockReturnValue(Effect.succeed(false));
+        const body = { action: "created", installation: { id: 42, app_id: 7 } };
+        const result = await call(delivery("installation", "delivery-10", body));
+        expect(result.reason).toBe("installation:app_not_found");
+    });
+
+    it("refuses an unsigned delivery with UNAUTHORIZED, before anything is dispatched", async () => {
         await expect(
-            runHandler(controller, {
-                eventType: "installation",
-                deliveryId: "delivery-7",
-                input: makeInput({ action: "created", installation: { id: 1 } }),
-            }),
-        ).rejects.toThrow("Malformed installation webhook payload");
+            call({ body: prPayload, headers: { "x-github-event": "pull_request", "x-github-delivery": "d-unsigned" } }),
+        ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+        expect(dispatch.dispatchPrEvent).not.toHaveBeenCalled();
     });
 });
 
-// ─── Middleware tests (githubWebhookAuth) ────────────────────────────────
+// ─── Route guard (guardGithubWebhook) ──────────────────────────────────────
 
-describe("githubWebhookAuth middleware", () => {
-    let idempotency: WebhookIdempotencyService;
-    let repo: GithubAppsRepository;
+describe("guardGithubWebhook", () => {
+    let idempotency: ReturnType<typeof makeIdempotency>;
+    let store: ReturnType<typeof makeStore>;
 
     beforeEach(() => {
-        idempotency = makeMockIdempotency();
-        repo = makeMockRepo();
+        idempotency = makeIdempotency();
+        store = makeStore();
     });
 
-    const callMiddleware = async (middleware: ReturnType<typeof githubWebhookAuth>, input: GithubWebhookInput) => {
-        // oRPC invokes a middleware as (options, input, outputFn) — the
-        // options carry { context, next, errors, ... }. Mirror that shape,
-        // supplying a UNAUTHORIZED factory from the contract error map so the
-        // middleware's `errors.UNAUTHORIZED(...)` throws are real ORPCErrors
-        // (what the resolver asserts).
-        const errorsMap = {
-            UNAUTHORIZED: (options?: { message?: string }) => new ORPCError("UNAUTHORIZED", options ?? {}),
-        };
-        const next = async ({ context }: { context: Record<string, unknown> }) =>
-            ({ context, output: undefined });
-        const outputFn = (output: unknown) => ({ context: {}, output });
+    const guard = (input: unknown) =>
+        guardGithubWebhook(input as GithubWebhookInput).pipe(
+            Effect.provideService(GithubAppsStore, store as unknown as GithubAppsStoreShape),
+            Effect.provideService(WebhookIdempotencyService, idempotency as unknown as WebhookIdempotencyServiceShape),
+            // The fakes need nothing from the context beyond what is provided here.
+        ) as Effect.Effect<GithubWebhookContext, unknown>;
 
-        const fn = middleware as unknown as (
-            options: {
-                context: Record<string, unknown>;
-                next: typeof next;
-                errors: typeof errorsMap;
-                path: readonly string[];
-                signal?: AbortSignal;
-                lastEventId: string | undefined;
-            },
-            input: GithubWebhookInput,
-            output: typeof outputFn,
-        ) => Promise<{ context: { webhook: unknown }; output: unknown }>;
-
-        return fn(
-            {
-                context: {},
-                next,
-                errors: errorsMap,
-                path: ["/webhooks/github"],
-                signal: undefined,
-                lastEventId: undefined,
-            },
-            input,
-            outputFn,
-        );
+    /** Run the guard and reject with the ORIGINAL failure, so a test can assert on the tagged error. */
+    const run = async (input: unknown) => {
+        const exit = await Effect.runPromiseExit(guard(input));
+        if (Exit.isSuccess(exit)) return exit.value;
+        throw Cause.squash(exit.cause);
     };
 
-    it("attaches webhook context with eventType + deliveryId", async () => {
-        vi.mocked(repo.getWebhookSecret).mockResolvedValue("my-secret");
-        const { createHmac } = await import("node:crypto");
-        const signature = `sha256=${createHmac("sha256", "my-secret").update(JSON.stringify(prPayload)).digest("hex")}`;
-
-        const middleware = githubWebhookAuth({ idempotencyService: idempotency, githubAppsRepository: repo });
-        const result = await callMiddleware(
-            middleware,
-            makeInput(prPayload, {
-                "x-github-event": "pull_request",
-                "x-github-delivery": "d-1",
-                "x-hub-signature-256": signature,
-            }),
-        );
-        expect(result.context.webhook).toEqual({ eventType: "pull_request", deliveryId: "d-1" });
+    it("answers the webhook context with eventType + deliveryId", async () => {
+        const input = delivery("pull_request", "d-1", prPayload);
+        expect(await run(input)).toEqual({ eventType: "pull_request", deliveryId: "d-1" });
         expect(idempotency.markSeen).toHaveBeenCalledWith("d-1");
     });
 
     it("short-circuits duplicate deliveries with skippedReason", async () => {
-        vi.mocked(idempotency.isDuplicate).mockReturnValue(true);
-        const middleware = githubWebhookAuth({ idempotencyService: idempotency, githubAppsRepository: repo });
-        const result = await callMiddleware(middleware, makeInput(prPayload, { "x-github-event": "pull_request", "x-github-delivery": "d-2" }));
-        expect(result.context.webhook).toEqual({
-            eventType: "pull_request",
-            deliveryId: "d-2",
-            skippedReason: "duplicate_delivery",
+        idempotency.isDuplicate.mockReturnValue(Effect.succeed(true));
+        const input = { body: prPayload, headers: { "x-github-event": "pull_request", "x-github-delivery": "d-2" } };
+        expect(await run(input)).toEqual({ eventType: "pull_request", deliveryId: "d-2", skippedReason: "duplicate_delivery" });
+        expect(idempotency.markSeen).not.toHaveBeenCalled();
+        expect(store.getWebhookSecret).not.toHaveBeenCalled();
+    });
+
+    it("rejects when the signature is missing but a secret is configured", async () => {
+        const input = { body: prPayload, headers: { "x-github-event": "pull_request", "x-github-delivery": "d-3" } };
+        await expect(run(input)).rejects.toBeInstanceOf(FleetUnauthorized);
+        expect(idempotency.markSeen).not.toHaveBeenCalled();
+    });
+
+    it("rejects when signature verification fails", async () => {
+        const input = {
+            body: prPayload,
+            headers: { "x-github-event": "pull_request", "x-github-delivery": "d-4", "x-hub-signature-256": "sha256=invalid" },
+        };
+        await expect(run(input)).rejects.toBeInstanceOf(FleetUnauthorized);
+        expect(idempotency.markSeen).not.toHaveBeenCalled();
+    });
+
+    it("rejects a signature made with another secret", async () => {
+        const input = {
+            body: prPayload,
+            headers: { "x-github-event": "pull_request", "x-github-delivery": "d-6", "x-hub-signature-256": sign(prPayload, "other-secret") },
+        };
+        await expect(run(input)).rejects.toBeInstanceOf(FleetUnauthorized);
+    });
+
+    it("fails closed when no webhook secret is configured, even for a signed delivery", async () => {
+        store.getWebhookSecret.mockReturnValue(Effect.succeed(null));
+        await expect(run(delivery("pull_request", "d-7", prPayload))).rejects.toMatchObject({
+            reason: "Webhook secret is not configured",
         });
         expect(idempotency.markSeen).not.toHaveBeenCalled();
     });
 
-    it("rejects when signature is missing but a secret is configured", async () => {
-        vi.mocked(repo.getWebhookSecret).mockResolvedValue("my-secret");
-        const middleware = githubWebhookAuth({ idempotencyService: idempotency, githubAppsRepository: repo });
-        await expect(
-            callMiddleware(middleware, makeInput(prPayload, { "x-github-event": "pull_request", "x-github-delivery": "d-3" })),
-        ).rejects.toThrow(ORPCError);
-    });
-
-    it("rejects when signature verification fails", async () => {
-        vi.mocked(repo.getWebhookSecret).mockResolvedValue("my-secret");
-        const middleware = githubWebhookAuth({ idempotencyService: idempotency, githubAppsRepository: repo });
-        await expect(
-            callMiddleware(middleware, makeInput(prPayload, {
-                "x-github-event": "pull_request",
-                "x-github-delivery": "d-4",
-                "x-hub-signature-256": "sha256=invalid",
-            })),
-        ).rejects.toThrow(ORPCError);
-    });
-
     it("accepts a valid signature", async () => {
-        vi.mocked(repo.getWebhookSecret).mockResolvedValue("my-secret");
-        // Compute the expected HMAC over JSON.stringify(body) — matches the
-        // middleware's SDK-based verification.
-        const { createHmac } = await import("node:crypto");
-        const body = JSON.stringify(prPayload);
-        const signature = `sha256=${createHmac("sha256", "my-secret").update(body).digest("hex")}`;
-
-        const middleware = githubWebhookAuth({ idempotencyService: idempotency, githubAppsRepository: repo });
-        const result = await callMiddleware(middleware, makeInput(prPayload, {
-            "x-github-event": "pull_request",
-            "x-github-delivery": "d-5",
-            "x-hub-signature-256": signature,
-        }));
-        expect(result.context.webhook).toEqual({ eventType: "pull_request", deliveryId: "d-5" });
+        expect(await run(delivery("pull_request", "d-5", prPayload))).toEqual({ eventType: "pull_request", deliveryId: "d-5" });
     });
 });

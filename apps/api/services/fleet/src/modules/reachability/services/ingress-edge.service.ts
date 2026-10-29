@@ -105,7 +105,7 @@ export class IngressEdgeService extends Context.Service<
 ) {
 	/**
 	 * The ports are yielded when a method runs, so this is a constant the module provides with `useValue`.
-	 * The periodic DNS reconcile is `IngressDnsReconciler`'s job: a constant has no lifetime of its own.
+	 * The periodic DNS reconcile is `startIngressDnsReconciler`'s job: a constant has no lifetime of its own.
 	 */
 	static readonly live = serviceOver(
 		Effect.gen(function* () {

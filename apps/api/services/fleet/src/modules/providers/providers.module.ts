@@ -4,9 +4,9 @@
  * Structure:
  *   providers/
  *     base/          shared schema re-exports + source-provider contract (across ALL types)
- *     middleware/    ORPC middleware (webhook guards: github challenge, ...)
+ *     middleware/    webhook route guards (github challenge, ...), run first by the webhook handler
  *     code/          CODE providers (github, upload, custom, gitlab, docker-hub)
- *       shared/      code-provider.interface.ts (abstract class = DI token) + registry
+ *       shared/      code-provider.interface.ts (the contract every provider answers) + registry
  *       github/      controllers (github-account, github.webhooks) + services + repositories + events
  *       custom/      services/custom-source-provider.service.ts
  *       upload/      services/upload-source-provider.service.ts + upload-bundle-registry.service.ts
@@ -17,19 +17,25 @@
  *       cloudflare-tunnel/  registers itself into the core EdgeProviderRegistry
  *                           (the account-free `direct` edge is built into core/modules/edge)
  */
-import { createModuleContext } from "@deployer/nest-effect";
+import { createModuleContext, EffectRuntime } from "@deployer/nest-effect";
 import { CorePlatformIngressModule } from "@deployer/shared/core/modules/platform-ingress/platform-ingress.module";
 import { IngressLanesService } from "@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service";
 import { EdgeProviderRegistry } from "@deployer/shared/core/modules/edge/edge-provider.registry";
 import { GlobalDatabaseModule } from "@deployer/shared/core/modules/database/global/global-database.module";
 import { GitHubModule } from "@deployer/shared/core/modules/git/github/github.module";
 import { CoreReachabilityModule } from "@deployer/shared/core/modules/reachability/core-reachability.module";
-import { GitModule } from "@deployer/shared/core/modules/git/index";
+import { GitModule, GitService } from "@deployer/shared/core/modules/git/index";
 import { DeploymentCoreModule } from "@deployer/shared/core/modules/deployment/deployment-core.module";
 import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configuration/configuration-core.module";
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
+import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
+import { GitHubService } from "@deployer/shared/core/modules/git/github/services/github.service";
+import { PublicAccessPointService } from "@deployer/shared/core/modules/reachability/services/public-access-point.service";
+import { PreviewCleanupPolicyService } from "@deployer/shared/core/modules/deployment/services/preview-cleanup-policy.service";
+import { PreviewNamingService } from "@deployer/shared/core/modules/deployment/services/preview-naming.service";
+import { DomainRoutingService } from "@deployer/shared/core/modules/domain/services/domain-routing.service";
+import { ServiceClient } from "@deployer/shared/server";
 import { TraefikCoreModule } from "@deployer/shared/core/modules/traefik/traefik.module";
-import { CodeProvider } from "./code/shared/code-provider.interface";
 import { CodeProviderRegistryService } from "./code/shared/code-provider-registry.service";
 import { GithubSourceProviderService } from "./code/github/services/github-source-provider.service";
 import { GitlabSourceProviderService } from "./code/gitlab/services/gitlab-source-provider.service";
@@ -46,12 +52,20 @@ import { FleetDb } from "@/core/database/fleet-db";
 import { EdgeProviders } from "@/core/ports/edge-providers.port";
 import { IngressLanes } from "@/core/ports/ingress-lanes.port";
 import { TunnelEdge } from "@/core/ports/tunnel-edge.port";
+import { DomainRouting } from "@/core/ports/domain-routing.port";
+import { Git } from "@/core/ports/git.port";
+import { GitHub } from "@/core/ports/github.port";
+import { GithubDeploymentRules } from "@/core/ports/github-deployment-rules.port";
+import { PlatformEnv } from "@/core/ports/platform-env.port";
+import { PreviewCleanupPolicy, PreviewNaming } from "@/core/ports/preview-policy.port";
+import { PublicAccessPoint } from "@/core/ports/public-access-point.port";
+import { SystemActorClients } from "@/core/ports/system-actor-clients.port";
 import { CloudflareTunnelEdgeProvider } from "./edge/cloudflare-tunnel/cloudflare-tunnel.edge-provider";
 import { CoreEdgeModule } from "@deployer/shared/core/modules/edge/edge.module";
 // `GithubWebhookDispatchService` injects `DomainRoutingService`, which
 // `CoreDomainModule` owns — without this import the module cannot be constructed.
 import { CoreDomainModule } from "@deployer/shared/core/modules/domain/domain.module";
-import { EnvModule } from "@deployer/shared/config/env/env.module";
+import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
 import { GitHubAppsController } from "./code/github/controllers/github-account.controller";
 import { GitlabAppsController } from "./code/gitlab/controllers/gitlab-account.controller";
 import { GithubWebhooksController } from "./code/github/controllers/github.webhooks.controller";
@@ -63,12 +77,12 @@ import { DeploymentTriggerGateway } from "./code/github/services/deployment-trig
 import { GithubDeploymentRuleService } from "./code/github/services/github-deployment-rule.service";
 import { WebhookIdempotencyService } from "./code/github/services/webhook-idempotency.service";
 import { PreviewProvisioningService } from "./code/github/services/preview-provisioning.service";
-import { PreviewTtlCleanupService } from "./code/github/services/preview-ttl-cleanup.service";
-import { GithubAppsRepository } from "./code/github/repositories/github-apps.repository";
-import { GitlabAppsRepository } from "./code/gitlab/repositories/gitlab-apps.repository";
+import { PREVIEW_TTL_CLEANUP, PreviewTtlCleanupService, startPreviewTtlCleanup } from "./code/github/services/preview-ttl-cleanup.service";
+import { GithubAppsStore } from "./code/github/repositories/github-apps.repository";
+import { GitlabAppsStore } from "./code/gitlab/repositories/gitlab-apps.repository";
 import { GithubDeploymentRulesRepository } from "@deployer/shared/core/modules/git/github/repositories/github-deployment-rules.repository";
-import { PreviewEnvironmentRepository } from "./code/github/repositories/preview-environment.repository";
-import { PreviewLifecycleEventService } from "./code/github/events/preview-lifecycle-event.service";
+import { PreviewEnvironmentStore } from "./code/github/repositories/preview-environment.repository";
+import { PreviewLifecycleEventService, PreviewLifecycleEventServiceImpl } from "./code/github/events/preview-lifecycle-event.service";
 
 export class ProvidersModule extends createModuleContext({
     imports: [
@@ -93,27 +107,14 @@ export class ProvidersModule extends createModuleContext({
         CloudflareController,
     ],
     providers: [
-        // Code providers — multi-bound via the abstract class token
-        GithubSourceProviderService,
-        GitlabSourceProviderService,
-        UploadSourceProviderService,
-        CustomSourceProviderService,
-        UploadBundleRegistryService,
-        {
-            provide: CodeProvider,
-            useFactory: (
-                github: GithubSourceProviderService,
-                gitlab: GitlabSourceProviderService,
-                upload: UploadSourceProviderService,
-                custom: CustomSourceProviderService,
-            ) => [github, gitlab, upload, custom],
-            inject: [GithubSourceProviderService, GitlabSourceProviderService, UploadSourceProviderService, CustomSourceProviderService],
-        },
-        {
-            provide: CodeProviderRegistryService,
-            useFactory: (providers: CodeProvider[]) => new CodeProviderRegistryService(providers),
-            inject: [CodeProvider],
-        },
+        // Code providers — Effect services; the registry dispatches over the four by source type.
+        { provide: Git, useExisting: GitService },
+        { provide: UploadBundleRegistryService, useValue: UploadBundleRegistryService.live },
+        { provide: GithubSourceProviderService, useValue: GithubSourceProviderService.live },
+        { provide: GitlabSourceProviderService, useValue: GitlabSourceProviderService.live },
+        { provide: UploadSourceProviderService, useValue: UploadSourceProviderService.live },
+        { provide: CustomSourceProviderService, useValue: CustomSourceProviderService.live },
+        { provide: CodeProviderRegistryService, useValue: CodeProviderRegistryService.live },
         // DNS providers — Effect services over the fleet database and two shared platform services.
         // Each is a constant (`useValue`); the 15 s state cache lives in `CloudflareAppService.live`.
         { provide: FleetDb, useValue: FleetDb.live },
@@ -128,18 +129,32 @@ export class ProvidersModule extends createModuleContext({
         { provide: DnsProviderRegistryService, useValue: DnsProviderRegistryService.live },
         // Edge providers — register themselves into the core EdgeProviderRegistry
         CloudflareTunnelEdgeProvider,
-        // GitHub webhook / preview stack
-        GithubAppsRepository,
-        GitlabAppsRepository,
-        PreviewEnvironmentRepository,
+        // GitHub webhook / preview stack — stores and use cases are constants; the lifecycle bus is built over the stream pool.
+        { provide: GithubAppsStore, useValue: GithubAppsStore.live },
+        { provide: GitlabAppsStore, useValue: GitlabAppsStore.live },
+        { provide: PreviewEnvironmentStore, useValue: PreviewEnvironmentStore.live },
         GithubDeploymentRulesRepository,
-        GithubDeploymentRuleService,
-        GithubWebhookDispatchService,
-        DeploymentTriggerGateway,
-        PreviewProvisioningService,
-        PreviewTtlCleanupService,
-        WebhookIdempotencyService,
-        PreviewLifecycleEventService,
+        { provide: GithubDeploymentRules, useExisting: GithubDeploymentRulesRepository },
+        { provide: GitHub, useExisting: GitHubService },
+        { provide: PublicAccessPoint, useExisting: PublicAccessPointService },
+        { provide: DomainRouting, useExisting: DomainRoutingService },
+        { provide: PreviewNaming, useExisting: PreviewNamingService },
+        { provide: PreviewCleanupPolicy, useExisting: PreviewCleanupPolicyService },
+        { provide: SystemActorClients, useExisting: ServiceClient },
+        { provide: PlatformEnv, useExisting: EnvService },
+        { provide: GithubDeploymentRuleService, useValue: GithubDeploymentRuleService.live },
+        { provide: GithubWebhookDispatchService, useValue: GithubWebhookDispatchService.live },
+        { provide: DeploymentTriggerGateway, useValue: DeploymentTriggerGateway.live },
+        { provide: PreviewProvisioningService, useValue: PreviewProvisioningService.live },
+        { provide: PreviewTtlCleanupService, useValue: PreviewTtlCleanupService.live },
+        { provide: WebhookIdempotencyService, useValue: WebhookIdempotencyService.live },
+        {
+            provide: PreviewLifecycleEventService,
+            useFactory: (pool: CoreEventStreamPoolService) => new PreviewLifecycleEventServiceImpl(pool),
+            inject: [CoreEventStreamPoolService],
+        },
+        // Schedules the expired-preview cleanup when the module is built; stopped with the application.
+        { provide: PREVIEW_TTL_CLEANUP, useFactory: startPreviewTtlCleanup, inject: [EffectRuntime] },
     ],
     exports: [
         CodeProviderRegistryService,

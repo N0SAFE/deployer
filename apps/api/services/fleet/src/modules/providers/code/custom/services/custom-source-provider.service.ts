@@ -1,13 +1,13 @@
-import { FleetInvalid } from "../../../../../core/fleet.errors";
-import { Injectable } from "@nestjs/common";
+import { Context, Effect } from "effect";
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import z from "zod/v4";
-import type { DeploymentSourceCheckoutContext } from "../../../base/source-provider.interface";
 import { customSourceCheckoutContextSchema } from "../../../base/source-provider.interface";
 import type { RuntimeRunnerOptions } from "../../../base/runtime-runner-options.schema";
 import { resolveRuntimeRunnerKind } from "../../../base/runtime-runner-options.schema";
 import { runtimeRunnerOptionsSchema } from "../../../base/runtime-runner-options.schema";
-import { CodeProvider } from "../../shared/code-provider.interface";
+import { attemptSync } from "@/core/effects";
+import { FleetInvalid } from "@/core/fleet.errors";
+import type { CodeProvider } from "../../shared/code-provider.interface";
 
 const customSourceContextSchema = z.object({
     sourceType: z.literal("custom"),
@@ -59,57 +59,60 @@ function buildRuntimeRunnerOptionsFallback(input: {
     return parsed.success ? parsed.data : null;
 }
 
-@Injectable()
-export class CustomSourceProviderService extends CodeProvider {
-    readonly sourceType = "custom";
+/** The provider for a ready-made container image: nothing to fetch, the trigger names the image. */
+function makeCustomSourceProviderService() {
+    return {
+        resolveSourceCheckout: (input: DeploymentTriggerInput) =>
+            Effect.gen(function* () {
+                if (input.source.sourceType !== "custom") return null;
 
-    resolveSourceCheckout(
-        input: DeploymentTriggerInput,
-    ): Promise<DeploymentSourceCheckoutContext | null> {
-        if (!this.matchesSourceType(input)) {
-            return Promise.resolve(null);
-        }
+                const parsed = customSourceContextSchema.safeParse(input.source);
+                if (!parsed.success) {
+                    return yield* new FleetInvalid({ reason: "Custom/manual source requires source.customData.containerImage" });
+                }
 
-        if (input.source.sourceType !== "custom") {
-            return Promise.resolve(null);
-        }
+                const details = parsed.data.customData;
+                const runtimeRunnerOptions = buildRuntimeRunnerOptionsFallback({
+                    runtimeRunnerOptions: details.runtimeRunnerOptions,
+                    runtimeRunner: details.runtimeRunner,
+                    containerName: details.containerName,
+                    networkMode: details.networkMode,
+                    cpuShares: details.cpuShares,
+                    memoryLimitBytes: details.memoryLimitBytes,
+                    healthCheckMaxRetries: details.healthCheckMaxRetries,
+                    healthCheckRetryIntervalMs: details.healthCheckRetryIntervalMs,
+                });
 
-        const parsed = customSourceContextSchema.safeParse(input.source);
-        if (!parsed.success) {
-            throw new FleetInvalid({ reason: "Custom/manual source requires source.customData.containerImage" });
-        }
-
-        const details = parsed.data.customData;
-        const runtimeRunnerOptions = buildRuntimeRunnerOptionsFallback({
-            runtimeRunnerOptions: details.runtimeRunnerOptions,
-            runtimeRunner: details.runtimeRunner,
-            containerName: details.containerName,
-            networkMode: details.networkMode,
-            cpuShares: details.cpuShares,
-            memoryLimitBytes: details.memoryLimitBytes,
-            healthCheckMaxRetries: details.healthCheckMaxRetries,
-            healthCheckRetryIntervalMs: details.healthCheckRetryIntervalMs,
-        });
-
-        return Promise.resolve(
-            customSourceCheckoutContextSchema.parse({
-                provider: "custom",
-                containerImage: details.containerImage,
-                ...(details.containerName ? { containerName: details.containerName } : {}),
-                ...(details.runtimeRunner ? { runtimeRunner: details.runtimeRunner } : {}),
-                ...(details.networkMode ? { networkMode: details.networkMode } : {}),
-                ...(typeof details.cpuShares === "number" ? { cpuShares: details.cpuShares } : {}),
-                ...(typeof details.memoryLimitBytes === "number"
-                    ? { memoryLimitBytes: details.memoryLimitBytes }
-                    : {}),
-                ...(typeof details.healthCheckMaxRetries === "number"
-                    ? { healthCheckMaxRetries: details.healthCheckMaxRetries }
-                    : {}),
-                ...(typeof details.healthCheckRetryIntervalMs === "number"
-                    ? { healthCheckRetryIntervalMs: details.healthCheckRetryIntervalMs }
-                    : {}),
-                ...(runtimeRunnerOptions ? { runtimeRunnerOptions } : {}),
+                return yield* attemptSync(() =>
+                    customSourceCheckoutContextSchema.parse({
+                        provider: "custom",
+                        containerImage: details.containerImage,
+                        ...(details.containerName ? { containerName: details.containerName } : {}),
+                        ...(details.runtimeRunner ? { runtimeRunner: details.runtimeRunner } : {}),
+                        ...(details.networkMode ? { networkMode: details.networkMode } : {}),
+                        ...(typeof details.cpuShares === "number" ? { cpuShares: details.cpuShares } : {}),
+                        ...(typeof details.memoryLimitBytes === "number"
+                            ? { memoryLimitBytes: details.memoryLimitBytes }
+                            : {}),
+                        ...(typeof details.healthCheckMaxRetries === "number"
+                            ? { healthCheckMaxRetries: details.healthCheckMaxRetries }
+                            : {}),
+                        ...(typeof details.healthCheckRetryIntervalMs === "number"
+                            ? { healthCheckRetryIntervalMs: details.healthCheckRetryIntervalMs }
+                            : {}),
+                        ...(runtimeRunnerOptions ? { runtimeRunnerOptions } : {}),
+                    }),
+                );
             }),
-        );
-    }
+    } satisfies CodeProvider;
+}
+
+export type CustomSourceProviderServiceShape = ReturnType<typeof makeCustomSourceProviderService>;
+
+/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
+export class CustomSourceProviderService extends Context.Service<CustomSourceProviderService, CustomSourceProviderServiceShape>()(
+    "fleet/CustomSourceProviderService",
+) {
+    /** Needs nothing from the context, so this is a constant the module provides with `useValue`. */
+    static readonly live: CustomSourceProviderServiceShape = makeCustomSourceProviderService();
 }

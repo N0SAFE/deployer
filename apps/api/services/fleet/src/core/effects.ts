@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Cause, Effect } from 'effect'
 
 /**
  * Lift a Promise-returning call to a platform collaborator.
@@ -15,4 +15,22 @@ export function attempt<A>(run: () => Promise<A>): Effect.Effect<A, unknown> {
 /** Lift a synchronous call that may throw; same failure contract as `attempt`. */
 export function attemptSync<A>(run: () => A): Effect.Effect<A, unknown> {
     return Effect.try({ try: run, catch: (cause) => cause })
+}
+
+/** What `recover` hands its handler: the failure, or the defect, as thrown. */
+export function describeFailure(error: unknown): string {
+    return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * Run a step that must not fail its caller. A failure or a defect goes to `onFailure` (with the
+ * value as thrown), which answers instead; an interruption still interrupts.
+ */
+export function recover<A, E, R, B, R2 = never>(
+    effect: Effect.Effect<A, E, R>,
+    onFailure: (error: unknown) => Effect.Effect<B, never, R2>,
+): Effect.Effect<A | B, never, R | R2> {
+    return Effect.catchCause(effect, (cause) =>
+        Cause.hasInterrupts(cause) ? Effect.failCause(cause as Cause.Cause<never>) : onFailure(Cause.squash(cause)),
+    )
 }
