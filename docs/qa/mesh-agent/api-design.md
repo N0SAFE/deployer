@@ -29,3 +29,11 @@
 **A**: "the auto redirect should be done by an orpc interceptor on each caller and the service called should respond with a custom error code and the interceptor should catch it and do the things to retry the error on the right replicate or the right forwarded way"
 
 ---
+
+## Separate routers, non-public mesh contracts
+
+**Q**: (stated by the operator) How are mesh contracts organised?
+
+**A**: "the different contract type should be in different router so the peer request and the external service and per node request should be in different router and also all contract should be not public so inside a dedicated mesh folder."
+
+---

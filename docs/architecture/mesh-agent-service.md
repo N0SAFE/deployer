@@ -56,6 +56,23 @@ The global mesh is a small framework (an Effect library, `@deployer/service-mesh
 Direct service-to-service calls are normal oRPC over the overlay network; the directory only decides *where*. Nothing
 holds a connection per service pair: links are created on first use and closed when idle.
 
+## Contract routers and visibility
+
+A service that takes part in the mesh keeps three kinds of contract in three separate routers, never mixed:
+
+| Router | Called by | Contains |
+|---|---|---|
+| `external` | other services and the BFF (through the global mesh) | the service's ordinary mesh-facing procedures |
+| `peer` | the service's own other replicas | resource lookup, state handover, forwarded requests (`peers.ask` / `peers.forward`) |
+| `node` | the local mesh-agent, over the node mesh | per-node operations (containers, logs, files, usage, inventory) |
+
+Mesh contracts are **not public**: they are not part of the public API contract and are never exposed to the web
+client or the generated docs. They live in a dedicated `mesh/` folder of the owning contract package, for example
+`packages/contracts/runtime/mesh/{external,peer,node}/`, assembled into `meshContract = { external, peer, node }` and
+exported only from a `./mesh` entry that server-side code imports. The public contract index never re-exports it.
+Each router is served on its own link, so a replica can refuse `peer` calls from anything but its own service, and
+`node` calls from anything but the local agent. The `MESH_REDIRECT` error map is shared by `external` and `peer`.
+
 ## Agents
 
 - **mesh-agent** (global-mode Swarm service, one task per node): owns the node's WireGuard identity and link, the
