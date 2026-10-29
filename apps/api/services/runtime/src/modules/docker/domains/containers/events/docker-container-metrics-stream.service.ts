@@ -14,21 +14,25 @@ import { AbstractDomainEventStreamService } from "@deployer/shared/core/modules/
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 import { isRecord, isObjectLike } from "@deployer/type-guards"
 
-type RuntimeEventFilterNode = {
-  [key: string]: unknown;
-  _and?: RuntimeEventFilterNode[];
-  _or?: RuntimeEventFilterNode[];
-}
-
-type RuntimeEventFieldFilter = {
-  operator: string;
-  value: unknown;
-}
-
-type ContainerMetricsSelector = {
-  containerIds?: string[];
-  containerNames?: string[];
-}
+import {
+  buildMetricsPoolKey,
+  extractContainerSelector,
+  matchesSelector,
+  normalizePercent,
+  readNumber,
+  readString,
+  sumBlockIoBytes,
+  sumNetworkBytes,
+  toContainerMetricEvent,
+  shouldTraceTick,
+  formatError,
+  type ContainerMetricsSelector,
+} from "./container-metrics";
+import {
+  isRuntimeEventFilterNode,
+  matchesIdentifier,
+  type RuntimeEventFilterNode,
+} from "../../../common/runtime/runtime-event-filter";
 
 const DEFAULT_METRICS_INTERVAL_MS = 400;
 
@@ -56,12 +60,12 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
 
   stream(query: DockerRuntimeEventsStreamQueryInput): Observable<DockerRuntimeEvent> {
     const rawQuery = isRecord(query) ? query : {};
-    const filterNode = this.isRuntimeEventFilterNode(rawQuery.filter)
+    const filterNode = isRuntimeEventFilterNode(rawQuery.filter)
       ? rawQuery.filter
       : undefined;
 
-    const selector = this.extractContainerSelector(filterNode);
-    const streamKey = this.buildMetricsPoolKey(selector, DEFAULT_METRICS_INTERVAL_MS);
+    const selector = extractContainerSelector(filterNode);
+    const streamKey = buildMetricsPoolKey(selector, DEFAULT_METRICS_INTERVAL_MS);
 
     this.debug("stream", {
       phase: "stream_subscribe",
@@ -106,16 +110,16 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
     const timestamp = new Date(now).toISOString();
 
     const samples = await systeminformation.dockerContainers(true).catch((error: unknown) => {
-      this.logger.warn(`Failed to read dockerContainers() metrics: ${this.formatError(error)}`);
+      this.logger.warn(`Failed to read dockerContainers() metrics: ${formatError(error)}`);
       return [] as systeminformation.Systeminformation.DockerContainerData[];
     });
 
     const stats = await systeminformation.dockerContainerStats().catch((error: unknown) => {
-      this.logger.warn(`Failed to read dockerContainerStats() metrics: ${this.formatError(error)}`);
+      this.logger.warn(`Failed to read dockerContainerStats() metrics: ${formatError(error)}`);
       return [] as systeminformation.Systeminformation.DockerContainerStatsData[];
     });
 
-    const filteredSamples = samples.filter((sample) => this.matchesSelector(sample, selector));
+    const filteredSamples = samples.filter((sample) => matchesSelector(sample, selector));
 
     if (tick <= 3) {
       this.scopedLogger.info("[docker-metrics-stream] collect_tick", {
@@ -127,7 +131,7 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
       });
     }
 
-    if (this.shouldTraceTick(tick)) {
+    if (shouldTraceTick(tick)) {
       this.debug("collectMetricEvents", {
         phase: "collect_metrics",
         tick,
@@ -140,13 +144,13 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
 
     const events = filteredSamples.map((sample) => {
       const sampleRecord = isRecord(sample) ? sample : {};
-      const sampleId = this.readString(sampleRecord, ["id", "containerId"]);
+      const sampleId = readString(sampleRecord, ["id", "containerId"]);
 
       const sampleStats = sampleId
-        ? stats.find((entry) => typeof entry.id === "string" && this.matchesIdentifier(entry.id, sampleId))
+        ? stats.find((entry) => typeof entry.id === "string" && matchesIdentifier(entry.id, sampleId))
         : undefined;
 
-      return this.toContainerMetricEvent(
+      return toContainerMetricEvent(
         sampleRecord,
         isRecord(sampleStats) ? sampleStats : undefined,
         timestamp,
@@ -163,7 +167,7 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
         });
       }
 
-      if (this.shouldTraceTick(tick)) {
+      if (shouldTraceTick(tick)) {
         this.debug("collectMetricEvents", {
           phase: "collect_metrics_events",
           tick,
@@ -174,7 +178,7 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
       return events;
     }
 
-    if (this.shouldTraceTick(tick)) {
+    if (shouldTraceTick(tick)) {
       this.debug("collectMetricEvents", {
         phase: "collect_metrics_fallback",
         tick,
@@ -220,25 +224,25 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
         const rawStats = isRecord(rawStatsUnknown) ? rawStatsUnknown : {};
 
         const cpuDelta =
-          this.readNumber(rawStats, ["cpu_stats.cpu_usage.total_usage"])
-          - this.readNumber(rawStats, ["precpu_stats.cpu_usage.total_usage"]);
+          readNumber(rawStats, ["cpu_stats.cpu_usage.total_usage"])
+          - readNumber(rawStats, ["precpu_stats.cpu_usage.total_usage"]);
         const systemDelta =
-          this.readNumber(rawStats, ["cpu_stats.system_cpu_usage"])
-          - this.readNumber(rawStats, ["precpu_stats.system_cpu_usage"]);
-        const onlineCpus = Math.max(1, this.readNumber(rawStats, ["cpu_stats.online_cpus"]));
+          readNumber(rawStats, ["cpu_stats.system_cpu_usage"])
+          - readNumber(rawStats, ["precpu_stats.system_cpu_usage"]);
+        const onlineCpus = Math.max(1, readNumber(rawStats, ["cpu_stats.online_cpus"]));
 
         const cpuPercent = cpuDelta > 0 && systemDelta > 0
           ? (cpuDelta / systemDelta) * onlineCpus * 100
           : 0;
 
-        const memoryUsage = this.readNumber(rawStats, ["memory_stats.usage"]);
-        const memoryLimit = this.readNumber(rawStats, ["memory_stats.limit"]);
+        const memoryUsage = readNumber(rawStats, ["memory_stats.usage"]);
+        const memoryLimit = readNumber(rawStats, ["memory_stats.limit"]);
         const memoryPercent = memoryLimit > 0 ? (memoryUsage / memoryLimit) * 100 : 0;
 
-        const networkRxKb = this.sumNetworkBytes(rawStats, "rx_bytes") / 1024;
-        const networkTxKb = this.sumNetworkBytes(rawStats, "tx_bytes") / 1024;
-        const ioReadKb = this.sumBlockIoBytes(rawStats, "Read") / 1024;
-        const ioWriteKb = this.sumBlockIoBytes(rawStats, "Write") / 1024;
+        const networkRxKb = sumNetworkBytes(rawStats, "rx_bytes") / 1024;
+        const networkTxKb = sumNetworkBytes(rawStats, "tx_bytes") / 1024;
+        const ioReadKb = sumBlockIoBytes(rawStats, "Read") / 1024;
+        const ioWriteKb = sumBlockIoBytes(rawStats, "Write") / 1024;
 
         events.push(
           dockerContainerRuntimeEventSchema.parse({
@@ -265,8 +269,8 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
               signal: null,
               metrics: {
                 at: timestamp,
-                cpu: this.normalizePercent(cpuPercent),
-                memory: this.normalizePercent(memoryPercent),
+                cpu: normalizePercent(cpuPercent),
+                memory: normalizePercent(memoryPercent),
                 networkRxKb,
                 networkTxKb,
                 ioReadKb,
@@ -277,7 +281,7 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
           }),
         );
       } catch (error) {
-        this.logger.warn(`Fallback metrics collection failed for ${candidateId}: ${this.formatError(error)}`);
+        this.logger.warn(`Fallback metrics collection failed for ${candidateId}: ${formatError(error)}`);
       }
     }
 
@@ -293,339 +297,6 @@ export class DockerContainerMetricsStreamService extends AbstractDomainEventStre
     });
 
     return events;
-  }
-
-  private sumNetworkBytes(source: Record<string, unknown>, key: "rx_bytes" | "tx_bytes"): number {
-    const networks = this.readByPath(source, "networks");
-    if (typeof networks !== "object" || networks === null) {
-      return 0;
-    }
-
-    return Object.values(isRecord(networks) ? networks : {}).reduce<number>((sum, networkStats) => {
-      if (typeof networkStats !== "object" || networkStats === null) {
-        return sum;
-      }
-
-      const numeric = this.readNumber(isRecord(networkStats) ? networkStats : {}, [key]);
-      return sum + numeric;
-    }, 0);
-  }
-
-  private sumBlockIoBytes(source: Record<string, unknown>, op: "Read" | "Write"): number {
-    const ioEntries = this.readByPath(source, "blkio_stats.io_service_bytes_recursive");
-    if (!Array.isArray(ioEntries)) {
-      return 0;
-    }
-
-    return ioEntries.reduce<number>((sum, entry) => {
-      if (typeof entry !== "object" || entry === null) {
-        return sum;
-      }
-
-      const record = isRecord(entry) ? entry : {};
-      const entryOp = this.readString(record, ["op"]);
-      if (entryOp !== op) {
-        return sum;
-      }
-
-      return sum + this.readNumber(record, ["value"]);
-    }, 0);
-  }
-
-  private toContainerMetricEvent(
-    sample: Record<string, unknown>,
-    stats: Record<string, unknown> | undefined,
-    timestamp: string,
-    nowMs: number,
-  ): DockerRuntimeEvent {
-    const containerId = this.readString(sample, ["id", "containerId"]) ?? null;
-    const containerName =
-      this.readString(sample, ["name", "containerName"]) ??
-      this.readStringArrayFirst(sample, ["names"]) ??
-      null;
-
-    const metrics = {
-      at: timestamp,
-      cpu: this.normalizePercent(
-        this.readNumber(stats ?? sample, ["cpuPercent", "cpu"]),
-      ),
-      memory: this.normalizePercent(
-        this.readNumber(stats ?? sample, ["memPercent", "memoryPercent", "memory"]),
-      ),
-      networkRxKb: this.readNumber(stats ?? sample, ["netIO.rx", "netRx", "rx"]) / 1024,
-      networkTxKb: this.readNumber(stats ?? sample, ["netIO.wx", "netIO.tx", "netTx", "tx"]) / 1024,
-      ioReadKb: this.readNumber(stats ?? sample, ["blockIO.r", "blockIO.read", "blockRead", "blkRead"]) / 1024,
-      ioWriteKb: this.readNumber(stats ?? sample, ["blockIO.w", "blockIO.write", "blockWrite", "blkWrite"]) / 1024,
-    };
-
-    return dockerContainerRuntimeEventSchema.parse({
-      type: "docker_event",
-      source: "container",
-      action: "metrics",
-      actorId: containerId,
-      actorAttributes: {
-        metricsSource: "systeminformation",
-        status: this.readString(sample, ["state", "status"]) ?? "unknown",
-      },
-      scope: null,
-      from: this.readString(sample, ["image", "imageName"]) ?? null,
-      eventId: `metrics-${containerId ?? containerName ?? "unknown"}-${String(nowMs)}`,
-      nodeId: null,
-      timestamp,
-      timestampNano: null,
-      raw: sample,
-      payload: {
-        containerId,
-        containerName,
-        image: this.readString(sample, ["image", "imageName"]) ?? null,
-        exitCode: null,
-        signal: null,
-        metrics,
-        metricsSource: "systeminformation",
-      },
-    });
-  }
-
-  private normalizePercent(value: number): number {
-    if (!Number.isFinite(value)) {
-      return 0;
-    }
-
-    return Math.max(0, Math.min(100, value));
-  }
-
-  private buildMetricsPoolKey(
-    selector: ContainerMetricsSelector,
-    intervalMs: number,
-  ): string {
-    const ids = (selector.containerIds ?? []).slice().sort();
-    const names = (selector.containerNames ?? []).slice().sort();
-
-    return [
-      "docker-container-metrics",
-      `interval:${String(intervalMs)}`,
-      `ids:${ids.join(",") || "*"}`,
-      `names:${names.join(",") || "*"}`,
-    ].join("|");
-  }
-
-  private matchesSelector(
-    sample: systeminformation.Systeminformation.DockerContainerData,
-    selector: ContainerMetricsSelector,
-  ): boolean {
-    const sampleRecord = isRecord(sample) ? sample : {};
-    const sampleId = this.readString(sampleRecord, ["id", "containerId"]);
-    const sampleName =
-      this.readString(sampleRecord, ["name", "containerName"]) ??
-      this.readStringArrayFirst(sampleRecord, ["names"]);
-
-    const hasIdFilter = !!selector.containerIds && selector.containerIds.length > 0;
-    const hasNameFilter = !!selector.containerNames && selector.containerNames.length > 0;
-
-    const idMatches = !hasIdFilter || (
-      sampleId !== null
-      && !!selector.containerIds?.some((candidateId) => this.matchesIdentifier(sampleId, candidateId))
-    );
-    const nameMatches = !hasNameFilter || (sampleName !== null && !!selector.containerNames?.includes(sampleName));
-
-    return idMatches && nameMatches;
-  }
-
-  private matchesIdentifier(actual: string, expected: string): boolean {
-    const normalizedActual = actual.trim();
-    const normalizedExpected = expected.trim();
-
-    if (normalizedActual.length === 0 || normalizedExpected.length === 0) {
-      return false;
-    }
-
-    return normalizedActual === normalizedExpected
-      || normalizedActual.startsWith(normalizedExpected)
-      || normalizedExpected.startsWith(normalizedActual);
-  }
-
-  private extractContainerSelector(
-    filterNode: RuntimeEventFilterNode | undefined,
-  ): ContainerMetricsSelector {
-    if (!filterNode) {
-      return {};
-    }
-
-    const containerIds = new Set<string>();
-    const containerNames = new Set<string>();
-
-    this.collectFieldFilterValues(filterNode, "containerId", containerIds);
-    this.collectFieldFilterValues(filterNode, "containerName", containerNames);
-
-    return {
-      containerIds: containerIds.size > 0 ? [...containerIds] : undefined,
-      containerNames: containerNames.size > 0 ? [...containerNames] : undefined,
-    };
-  }
-
-  private collectFieldFilterValues(
-    filterNode: RuntimeEventFilterNode,
-    field: string,
-    target: Set<string>,
-  ): void {
-    const candidate = filterNode[field];
-    if (this.isRuntimeEventFieldFilter(candidate)) {
-      if (candidate.operator === "eq" && typeof candidate.value === "string" && candidate.value.length > 0) {
-        target.add(candidate.value);
-      }
-
-      if (candidate.operator === "in") {
-        for (const value of this.toUnknownArray(candidate.value)) {
-          if (typeof value === "string" && value.length > 0) {
-            target.add(value);
-          }
-        }
-      }
-    }
-
-    for (const child of this.toFilterNodeArray(filterNode._and)) {
-        if (this.isRuntimeEventFilterNode(child)) {
-          this.collectFieldFilterValues(child, field, target);
-        }
-    }
-
-    for (const child of this.toFilterNodeArray(filterNode._or)) {
-        if (this.isRuntimeEventFilterNode(child)) {
-          this.collectFieldFilterValues(child, field, target);
-        }
-    }
-  }
-
-  private toFilterNodeArray(value: unknown): RuntimeEventFilterNode[] {
-    if (Array.isArray(value)) {
-      return value.filter((item): item is RuntimeEventFilterNode => this.isRuntimeEventFilterNode(item));
-    }
-
-    if (typeof value !== "object" || value === null) {
-      return [];
-    }
-
-    return Object.entries(isRecord(value) ? value : {})
-      .sort(([leftKey], [rightKey]) => this.compareObjectKeys(leftKey, rightKey))
-      .map(([, entryValue]) => entryValue)
-      .filter((item): item is RuntimeEventFilterNode => this.isRuntimeEventFilterNode(item));
-  }
-
-  private isRuntimeEventFilterNode(value: unknown): value is RuntimeEventFilterNode {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
-  }
-
-  private isRuntimeEventFieldFilter(value: unknown): value is RuntimeEventFieldFilter {
-    if (typeof value !== "object" || value === null || Array.isArray(value)) {
-      return false;
-    }
-
-    const record = isRecord(value) ? value : {};
-    return typeof record.operator === "string" && "value" in record;
-  }
-
-  private toUnknownArray(value: unknown): unknown[] {
-    if (Array.isArray(value)) {
-      return value;
-    }
-
-    if (typeof value !== "object" || value === null) {
-      return [];
-    }
-
-    return Object.entries(isRecord(value) ? value : {})
-      .sort(([leftKey], [rightKey]) => this.compareObjectKeys(leftKey, rightKey))
-      .map(([, entryValue]) => entryValue);
-  }
-
-  private compareObjectKeys(leftKey: string, rightKey: string): number {
-    const leftNumber = Number(leftKey);
-    const rightNumber = Number(rightKey);
-
-    const leftIsNumeric = Number.isInteger(leftNumber) && String(leftNumber) === leftKey;
-    const rightIsNumeric = Number.isInteger(rightNumber) && String(rightNumber) === rightKey;
-
-    if (leftIsNumeric && rightIsNumeric) {
-      return leftNumber - rightNumber;
-    }
-
-    if (leftIsNumeric) {
-      return -1;
-    }
-
-    if (rightIsNumeric) {
-      return 1;
-    }
-
-    return leftKey.localeCompare(rightKey);
-  }
-
-  private readString(
-    source: Record<string, unknown>,
-    fieldPaths: string[],
-  ): string | null {
-    for (const path of fieldPaths) {
-      const value = this.readByPath(source, path);
-      if (typeof value === "string" && value.length > 0) {
-        return value;
-      }
-    }
-
-    return null;
-  }
-
-  private readStringArrayFirst(
-    source: Record<string, unknown>,
-    fieldPaths: string[],
-  ): string | null {
-    for (const path of fieldPaths) {
-      const value = this.readByPath(source, path);
-      if (Array.isArray(value)) {
-        const first = value.find((entry): entry is string => typeof entry === "string" && entry.length > 0);
-        if (first) {
-          return first;
-        }
-      }
-    }
-
-    return null;
-  }
-
-  private readNumber(
-    source: Record<string, unknown>,
-    fieldPaths: string[],
-  ): number {
-    for (const path of fieldPaths) {
-      const value = this.readByPath(source, path);
-      const numeric = typeof value === "number" ? value : typeof value === "string" ? Number(value) : Number.NaN;
-      if (Number.isFinite(numeric)) {
-        return numeric;
-      }
-    }
-
-    return 0;
-  }
-
-  private readByPath(source: Record<string, unknown>, path: string): unknown {
-    return path.split(".").reduce<unknown>((current, segment) => {
-      if (typeof current === "object" && current !== null && segment in (isRecord(current) ? current : {})) {
-        return (isRecord(current) ? current : {})[segment];
-      }
-
-      return undefined;
-    }, source);
-  }
-
-  private formatError(error: unknown): string {
-    if (error instanceof Error) {
-      return error.message;
-    }
-
-    return String(error);
-  }
-
-  private shouldTraceTick(tick: number): boolean {
-    return tick <= 10 || tick % 50 === 0;
   }
 
   private debug(source: unknown, context?: Record<string, unknown>): void {

@@ -167,7 +167,7 @@ export function isRuntimeEventFilterNode(value: unknown): value is RuntimeEventF
 }
 
 export function isRuntimeEventFieldFilter(value: unknown): value is RuntimeEventFieldFilter {
-    if (typeof value !== "object" || value === null) {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
     }
 
