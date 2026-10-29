@@ -19,10 +19,27 @@ import { dockerodeContainerListSchema, dockerodeImageSummarySchema, dockerodeIma
 import z from "zod/v4"
 import { isRecord } from "@deployer/type-guards"
 import {
+  parseRegistryAndRepository,
+  resolvePrimaryImageTag,
+  buildFallbackImageRepository,
+  normalizeImageRegistrySegment,
+  normalizeImageRepositoryPath,
+  normalizeImageTag,
+  normalizeImageDigest,
+  isPlaceholderImageSegment,
+} from "../images/engine/docker-image-identity";
+
+import {
   DockerNetworksRepository,
   makeDockerNetworksRepository,
   type DockerNetworksRepositoryShape,
 } from "../networks/docker-networks.repository";
+import { deriveRegistries } from "../images/engine/docker-registries";
+import {
+  DockerImagesRepository,
+  makeDockerImagesRepository,
+  type DockerImagesRepositoryShape,
+} from "../images/engine/docker-images.repository";
 import {
   DockerVolumesRepository,
   makeDockerVolumesRepository,
@@ -223,6 +240,7 @@ export class DockerRepository {
     private readonly linkResolver?: IContainerLinkResolver,
     @Inject(DockerNetworksRepository) private readonly networks: DockerNetworksRepositoryShape = makeDockerNetworksRepository(dockerEngine),
     @Inject(DockerVolumesRepository) private readonly volumes: DockerVolumesRepositoryShape = makeDockerVolumesRepository(dockerEngine),
+    @Inject(DockerImagesRepository) private readonly images: DockerImagesRepositoryShape = makeDockerImagesRepository(dockerEngine),
   ) {}
 
   async getLocalDockerDaemonId(): Promise<string | null> {
@@ -347,129 +365,6 @@ export class DockerRepository {
     };
   }
 
-
-  private parseRegistryAndRepository(repoTag: string): {
-    registry: string;
-    repository: string;
-    tag: string | null;
-  } {
-    const normalizedRepoTag = repoTag.trim();
-    const withoutDigest = normalizedRepoTag.includes("@")
-      ? normalizedRepoTag.slice(0, normalizedRepoTag.indexOf("@"))
-      : normalizedRepoTag;
-
-    const lastSlashIndex = withoutDigest.lastIndexOf("/");
-    const lastColonIndex = withoutDigest.lastIndexOf(":");
-    const hasTagSuffix = lastColonIndex > lastSlashIndex;
-
-    const namePart = hasTagSuffix ? withoutDigest.slice(0, lastColonIndex) : withoutDigest;
-    const tagPart = hasTagSuffix ? withoutDigest.slice(lastColonIndex + 1) : null;
-
-    const safeNamePart = namePart.length > 0 ? namePart : "library/unknown";
-    const firstSegment = safeNamePart.split("/")[0] ?? "";
-    const hasExplicitRegistry =
-      firstSegment.includes(".") || firstSegment.includes(":") || firstSegment === "localhost";
-
-    if (hasExplicitRegistry) {
-      const [registry, ...repoParts] = safeNamePart.split("/");
-      return {
-        registry: this.normalizeImageRegistrySegment(registry),
-        repository: this.normalizeImageRepositoryPath(repoParts.join("/")),
-        tag: this.normalizeImageTag(tagPart),
-      };
-    }
-
-    return {
-      registry: "docker.io",
-      repository: this.normalizeImageRepositoryPath(safeNamePart),
-      tag: this.normalizeImageTag(tagPart),
-    };
-  }
-
-  private resolvePrimaryImageTag(repoTags: string[], repoDigests: string[] = []): string | null {
-    const tagCandidates = repoTags
-      .map((candidate) => candidate.trim())
-      .filter((candidate) => candidate.length > 0 && candidate !== "<none>:<none>");
-
-    const digestCandidates = repoDigests
-      .map((candidate) => candidate.trim())
-      .filter((candidate) => candidate.length > 0 && candidate !== "<none>@<none>")
-      .map((candidate) => {
-        const digestSeparatorIndex = candidate.indexOf("@");
-        return digestSeparatorIndex === -1 ? candidate : candidate.slice(0, digestSeparatorIndex);
-      })
-      .filter((candidate) => candidate.length > 0);
-
-    const candidates = [...tagCandidates, ...digestCandidates];
-
-    for (const candidate of candidates) {
-      const parsed = this.parseRegistryAndRepository(candidate);
-      if (parsed.repository !== "library/unknown") {
-        return candidate;
-      }
-    }
-
-    return candidates[0] ?? null;
-  }
-
-  private buildFallbackImageRepository(imageId: string): string {
-    const normalizedId = imageId.replace(/^sha256:/, "").trim();
-    const shortId = normalizedId.length > 0 ? normalizedId.slice(0, 12) : "unknown";
-    return `untagged/${shortId}`;
-  }
-
-  private normalizeImageRegistrySegment(value: string | null | undefined): string {
-    const normalized = (value ?? "").trim();
-    if (normalized.length === 0 || normalized === "<none>" || this.isPlaceholderImageSegment(normalized)) {
-      return "docker.io";
-    }
-
-    return normalized;
-  }
-
-  private normalizeImageRepositoryPath(value: string | null | undefined): string {
-    const segments = (value ?? "")
-      .split("/")
-      .map((segment) => segment.trim())
-      .filter((segment) => segment.length > 0 && segment !== "<none>" && !this.isPlaceholderImageSegment(segment));
-
-    if (segments.length === 0) {
-      return "library/unknown";
-    }
-
-    return segments.join("/");
-  }
-
-  private normalizeImageTag(value: string | null | undefined): string | null {
-    if (typeof value !== "string") {
-      return null;
-    }
-
-    const normalized = value.trim();
-    if (normalized.length === 0 || normalized === "<none>" || this.isPlaceholderImageSegment(normalized)) {
-      return null;
-    }
-
-    return normalized;
-  }
-
-  private normalizeImageDigest(value: string | null | undefined): string | null {
-    if (typeof value !== "string") {
-      return null;
-    }
-
-    const normalized = value.trim();
-    if (normalized.length === 0 || normalized === "<none>" || this.isPlaceholderImageSegment(normalized)) {
-      return null;
-    }
-
-    return normalized;
-  }
-
-  private isPlaceholderImageSegment(value: string): boolean {
-    const normalized = value.trim().toLowerCase();
-    return normalized === "undefined" || normalized === "null" || normalized === "none" || normalized === "nan";
-  }
 
   private resolveRoleTier(platformRole: string | null): DockerRoleTier {
     const normalized = (platformRole ?? "").trim().toLowerCase();
@@ -1212,12 +1107,12 @@ export class DockerRepository {
       .toStringArray(inspect.RepoTags as string | string[] | undefined)
       .filter((tag) => tag !== "<none>:<none>");
     const repoDigests = this.toStringArray(inspect.RepoDigests);
-    const resolvedPrimaryTag = this.resolvePrimaryImageTag(repoTags, repoDigests);
-    const fallbackRepository = this.buildFallbackImageRepository(inspectId);
+    const resolvedPrimaryTag = resolvePrimaryImageTag(repoTags, repoDigests);
+    const fallbackRepository = buildFallbackImageRepository(inspectId);
     const fallbackRegistry = "local";
     const primaryTag = resolvedPrimaryTag ?? `${fallbackRegistry}/${fallbackRepository}`;
     const parsedPrimary = resolvedPrimaryTag
-      ? this.parseRegistryAndRepository(primaryTag)
+      ? parseRegistryAndRepository(primaryTag)
       : { registry: fallbackRegistry, repository: fallbackRepository, tag: null };
     const repository = parsedPrimary.repository === "library/unknown"
       ? fallbackRepository
@@ -1277,7 +1172,7 @@ export class DockerRepository {
       registry: parsedPrimary.registry,
       repository,
       tag: parsedPrimary.tag,
-      digest: this.normalizeImageDigest(repoDigests[0] ?? null),
+      digest: normalizeImageDigest(repoDigests[0] ?? null),
       sizeBytes: typeof inspect.Size === "number" ? inspect.Size : null,
       createdAt,
       lastSeenAt: generatedAt,
@@ -1725,8 +1620,8 @@ export class DockerRepository {
       return this.normalizeImageIdentifier(input.fallbackId);
     }
 
-    const registry = this.normalizeImageRegistrySegment(input.registry).toLowerCase();
-    const repository = this.normalizeImageRepositoryPath(input.repository).toLowerCase();
+    const registry = normalizeImageRegistrySegment(input.registry).toLowerCase();
+    const repository = normalizeImageRepositoryPath(input.repository).toLowerCase();
     return `${registry}/${repository}@${digestHash}`;
   }
 
@@ -1740,9 +1635,9 @@ export class DockerRepository {
     const repoDigests = this.toStringArray(inspect.RepoDigests as string | string[] | undefined)
       .filter((digest) => digest !== "<none>@<none>");
 
-    const primaryRef = this.resolvePrimaryImageTag(repoTags, repoDigests) ?? imageId;
-    const parsed = this.parseRegistryAndRepository(primaryRef);
-    const normalizedDigest = this.normalizeImageDigest(repoDigests[0] ?? null);
+    const primaryRef = resolvePrimaryImageTag(repoTags, repoDigests) ?? imageId;
+    const parsed = parseRegistryAndRepository(primaryRef);
+    const normalizedDigest = normalizeImageDigest(repoDigests[0] ?? null);
 
     return {
       imageIdentifierNormalized: this.buildCanonicalImageIdentifier({
@@ -3793,53 +3688,7 @@ export class DockerRepository {
   }
 
   async listImages(input: DockerImageListInput) {
-    const rawImages = await runPromiseUnwrapped(this.dockerEngine.images.list());
-
-    const mapped: DockerImage[] = [];
-
-    for (const image of rawImages) {
-      const imageId = image.Id.trim();
-      const repoTags = (image.RepoTags ?? []).filter((tag) => tag !== "<none>:<none>");
-      const repoDigests = this.toStringArray(image.RepoDigests ?? []);
-      const resolvedPrimaryTag = this.resolvePrimaryImageTag(repoTags, repoDigests);
-      const fallbackRepository = this.buildFallbackImageRepository(imageId);
-      const fallbackRegistry = "local";
-      const primaryTag = resolvedPrimaryTag ?? `${fallbackRegistry}/${fallbackRepository}`;
-      const parsed = resolvedPrimaryTag
-        ? this.parseRegistryAndRepository(primaryTag)
-        : { registry: fallbackRegistry, repository: fallbackRepository, tag: null };
-      const repository = parsed.repository === "library/unknown"
-        ? fallbackRepository
-        : parsed.repository;
-
-      const normalizedDigest = repoDigests
-        .map((digest) => this.normalizeImageDigest(digest))
-        .find((digest): digest is string => digest !== null) ?? null;
-
-      const parsedImage = dockerImageSchema.safeParse({
-        id: imageId,
-        registry: parsed.registry,
-        repository,
-        tag: parsed.tag,
-        digest: normalizedDigest,
-        sizeBytes: typeof image.Size === "number" ? image.Size : null,
-        createdAt:
-          typeof image.Created === "number"
-            ? new Date(image.Created * 1000).toISOString()
-            : new Date().toISOString(),
-        lastSeenAt: new Date().toISOString(),
-        labels: image.Labels,
-      });
-
-      if (!parsedImage.success) {
-        this.logger.warn(
-          `Skipping invalid docker image entry in listImages: ${JSON.stringify(parsedImage.error.issues[0] ?? null)}`,
-        );
-        continue;
-      }
-
-      mapped.push(parsedImage.data);
-    }
+    const mapped = await runPromiseUnwrapped(this.images.list);
 
     const filtered = mapped.filter((item) => {
       const registryMatch = this.matchString(item.registry, this.getFilterEntry(input, "registry"));
@@ -3923,34 +3772,7 @@ export class DockerRepository {
       filter: {},
     });
 
-    const grouped = new Map<string, { repositories: Set<string>; lastSeenAt: string }>();
-
-    for (const image of images.data) {
-      const current = grouped.get(image.registry) ?? {
-        repositories: new Set<string>(),
-        lastSeenAt: image.lastSeenAt,
-      };
-      current.repositories.add(image.repository);
-      if (image.lastSeenAt > current.lastSeenAt) {
-        current.lastSeenAt = image.lastSeenAt;
-      }
-      grouped.set(image.registry, current);
-    }
-
-    const mapped = [...grouped.entries()].map(([registry, value]) =>
-      dockerRegistrySchema.parse({
-        id: registry,
-        name: registry,
-        url: registry,
-        authMode: "anonymous",
-        status: "unknown",
-        isPrimary: registry === "docker.io",
-        repositories: [...value.repositories].sort(),
-        lastSyncedAt: value.lastSeenAt,
-        createdAt: value.lastSeenAt,
-        updatedAt: value.lastSeenAt,
-      }),
-    );
+    const mapped = deriveRegistries(images.data);
 
     const filtered = mapped.filter((item) => {
       const nameMatch = this.matchString(item.name, this.getFilterEntry(input, "name"));
