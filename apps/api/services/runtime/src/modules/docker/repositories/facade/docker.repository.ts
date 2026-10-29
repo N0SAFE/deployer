@@ -42,6 +42,23 @@ import {
   buildScanEvent,
   parseDiveLayerEfficiency,
 } from "../images/security/scanner-output";
+import {
+  toStringArray,
+  normalizeImageIdentifier,
+  buildCanonicalImageIdentifier,
+  buildImageInspectCandidates,
+  buildImageInspectCandidatesFromImageList,
+} from "../images/engine/docker-image-reference";
+import {
+  toNullableNonEmptyString,
+  toTimestampDate,
+  toProgress,
+  inferRuntimeActivityStatus,
+  inferRuntimeActivitySeverity,
+  resolveRuntimeActivityMessage,
+  createRuntimeActivityFingerprint,
+  parseRuntimeActivitySource,
+} from "../runtime/runtime-activity-mapping";
 import { deriveRegistries } from "../images/engine/docker-registries";
 import {
   DockerImagesRepository,
@@ -790,17 +807,6 @@ export class DockerRepository {
     return this.paginate(sorted, input);
   }
 
-  private toStringArray(value: string | string[] | undefined | null): string[] {
-    if (Array.isArray(value)) {
-      return value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0);
-    }
-
-    if (typeof value === "string" && value.length > 0) {
-      return [value];
-    }
-
-    return [];
-  }
 
   private extractRootFsLayers(source: unknown): string[] {
     if (!isRecord(source)) {
@@ -872,8 +878,8 @@ export class DockerRepository {
 
     const generatedAt = new Date().toISOString();
     const labels = inspect.Config?.Labels ?? {};
-    const envEntries = this.toStringArray(inspect.Config.Env);
-    const healthcheckTest = this.toStringArray(inspect.Config.Healthcheck?.Test);
+    const envEntries = toStringArray(inspect.Config.Env);
+    const healthcheckTest = toStringArray(inspect.Config.Healthcheck?.Test);
     const healthcheckCommand =
       healthcheckTest.length > 1
         ? healthcheckTest.slice(1).join(" ")
@@ -889,11 +895,11 @@ export class DockerRepository {
         ipv6: networkAttachment.GlobalIPv6Address || null,
         gateway: networkAttachment.Gateway || null,
         macAddress: networkAttachment.MacAddress || null,
-        aliases: this.toStringArray(networkAttachment.Aliases),
-        dnsServers: this.toStringArray(inspect.HostConfig.Dns),
-        dnsSearch: this.toStringArray(inspect.HostConfig.DnsSearch),
-        dnsOptions: this.toStringArray(inspect.HostConfig.DnsOptions),
-        extraHosts: this.toStringArray(inspect.HostConfig?.ExtraHosts),
+        aliases: toStringArray(networkAttachment.Aliases),
+        dnsServers: toStringArray(inspect.HostConfig.Dns),
+        dnsSearch: toStringArray(inspect.HostConfig.DnsSearch),
+        dnsOptions: toStringArray(inspect.HostConfig.DnsOptions),
+        extraHosts: toStringArray(inspect.HostConfig?.ExtraHosts),
       }),
     );
 
@@ -969,8 +975,8 @@ export class DockerRepository {
     const runtimeConfig = {
       user: inspect.Config.User || null,
       workingDir: inspect.Config.WorkingDir || null,
-      entrypoint: this.toStringArray(inspect.Config.Entrypoint),
-      command: this.toStringArray(inspect.Config.Cmd),
+      entrypoint: toStringArray(inspect.Config.Entrypoint),
+      command: toStringArray(inspect.Config.Cmd),
       restartPolicy: inspect.HostConfig.RestartPolicy?.Name || "no",
       restartMaxRetries:
         typeof inspect.HostConfig.RestartPolicy?.MaximumRetryCount === "number"
@@ -1019,9 +1025,9 @@ export class DockerRepository {
           projectName: composeProjectName,
           composeFilePath: composeConfigPath,
           dependsOn: composeDependsOn,
-          dns: this.toStringArray(inspect.HostConfig.Dns),
-          dnsSearch: this.toStringArray(inspect.HostConfig.DnsSearch),
-          dnsOptions: this.toStringArray(inspect.HostConfig.DnsOptions),
+          dns: toStringArray(inspect.HostConfig.Dns),
+          dnsSearch: toStringArray(inspect.HostConfig.DnsSearch),
+          dnsOptions: toStringArray(inspect.HostConfig.DnsOptions),
           memLimitMb:
             typeof inspect.HostConfig.Memory === "number" && inspect.HostConfig.Memory > 0
               ? Math.round(inspect.HostConfig.Memory / (1024 * 1024))
@@ -1098,10 +1104,9 @@ export class DockerRepository {
 
     const generatedAt = new Date().toISOString();
     const inspectId = typeof inspect.Id === "string" && inspect.Id.length > 0 ? inspect.Id : imageId;
-    const repoTags = this
-      .toStringArray(inspect.RepoTags as string | string[] | undefined)
+    const repoTags = toStringArray(inspect.RepoTags as string | string[] | undefined)
       .filter((tag) => tag !== "<none>:<none>");
-    const repoDigests = this.toStringArray(inspect.RepoDigests);
+    const repoDigests = toStringArray(inspect.RepoDigests);
     const resolvedPrimaryTag = resolvePrimaryImageTag(repoTags, repoDigests);
     const fallbackRepository = buildFallbackImageRepository(inspectId);
     const fallbackRegistry = "local";
@@ -1131,7 +1136,7 @@ export class DockerRepository {
         ? new Date(inspect.Created).toISOString()
         : generatedAt;
 
-    const layers = this.toStringArray(rootFs.Layers as string | string[] | undefined).map((layerId, index) => ({
+    const layers = toStringArray(rootFs.Layers as string | string[] | undefined).map((layerId, index) => ({
       id: layerId,
       instruction: `LAYER ${String(index + 1)}`,
       size: "unknown",
@@ -1186,15 +1191,15 @@ export class DockerRepository {
       scanSummary: securityScan.scanSummary ?? null,
       usedByContainerIds: [...new Set(usedByContainerIds)],
       runtimeConfig: {
-        env: this.toStringArray(config.Env),
+        env: toStringArray(config.Env),
         exposedPorts:
           typeof config.ExposedPorts === "object" && config.ExposedPorts !== null
             ? Object.keys(config.ExposedPorts)
             : [],
         workingDir: typeof config.WorkingDir === "string" ? config.WorkingDir : null,
         user: typeof config.User === "string" && config.User.length > 0 ? config.User : null,
-        entrypoint: this.toStringArray(config.Entrypoint),
-        command: this.toStringArray(config.Cmd),
+        entrypoint: toStringArray(config.Entrypoint),
+        command: toStringArray(config.Cmd),
       },
     });
   }
@@ -1206,8 +1211,7 @@ export class DockerRepository {
     const inspect = await this.inspectImageWithCandidates(imageId);
 
     const inspectId = typeof inspect.Id === "string" && inspect.Id.length > 0 ? inspect.Id : imageId;
-    const repoTags = this
-      .toStringArray(inspect.RepoTags as string | string[] | undefined)
+    const repoTags = toStringArray(inspect.RepoTags as string | string[] | undefined)
       .filter((tag) => tag !== "<none>:<none>");
 
     const scanTargets = [inspectId, ...repoTags]
@@ -1247,8 +1251,7 @@ export class DockerRepository {
     const inspect = await this.inspectImageWithCandidates(imageId);
 
     const inspectId = typeof inspect.Id === "string" && inspect.Id.length > 0 ? inspect.Id : imageId;
-    const repoTags = this
-      .toStringArray(inspect.RepoTags as string | string[] | undefined)
+    const repoTags = toStringArray(inspect.RepoTags as string | string[] | undefined)
       .filter((tag) => tag !== "<none>:<none>");
 
     const scanTargets = [inspectId, ...repoTags]
@@ -1382,7 +1385,7 @@ export class DockerRepository {
       ? event.actorId.trim()
       : null;
     const now = new Date();
-    const occurredAt = this.toTimestampDate(event.timestamp) ?? now;
+    const occurredAt = toTimestampDate(event.timestamp) ?? now;
     const isImageScanEvent = event.source === "image" && event.action.startsWith("scan_");
 
     const flowId = isImageScanEvent
@@ -1393,16 +1396,16 @@ export class DockerRepository {
       ? `image-scan-queue:${normalizedActorId ?? "unknown"}`
       : null;
 
-    const status = this.inferRuntimeActivityStatus(event.action, event.actorAttributes.scanState);
-    const severity = this.inferRuntimeActivitySeverity(event.action);
-    const progress = this.toProgress(event.actorAttributes.scanProgress);
-    const scanner = this.toNullableNonEmptyString(event.actorAttributes.scanScanner);
-    const stage = this.toNullableNonEmptyString(event.actorAttributes.scanStage) ?? this.toNullableNonEmptyString(event.actorAttributes.scanState);
-    const message = this.toNullableNonEmptyString(event.actorAttributes.scanMessage)
-      ?? this.toNullableNonEmptyString(event.actorAttributes.scanError)
-      ?? this.resolveRuntimeActivityMessage(event);
+    const status = inferRuntimeActivityStatus(event.action, event.actorAttributes.scanState);
+    const severity = inferRuntimeActivitySeverity(event.action);
+    const progress = toProgress(event.actorAttributes.scanProgress);
+    const scanner = toNullableNonEmptyString(event.actorAttributes.scanScanner);
+    const stage = toNullableNonEmptyString(event.actorAttributes.scanStage) ?? toNullableNonEmptyString(event.actorAttributes.scanState);
+    const message = toNullableNonEmptyString(event.actorAttributes.scanMessage)
+      ?? toNullableNonEmptyString(event.actorAttributes.scanError)
+      ?? resolveRuntimeActivityMessage(event);
 
-    const eventFingerprint = this.createRuntimeActivityFingerprint(event);
+    const eventFingerprint = createRuntimeActivityFingerprint(event);
 
     await this.globalDatabaseService.db
       .insert(dockerRuntimeActivities)
@@ -1449,7 +1452,7 @@ export class DockerRepository {
       eventFingerprint: row.eventFingerprint,
       flowId: row.flowId,
       dependsOnFlowId: row.dependsOnFlowId,
-      source: this.parseRuntimeActivitySource(row.source),
+      source: parseRuntimeActivitySource(row.source),
       action: row.action,
       actorId: row.actorId,
       status: row.status,
@@ -1538,7 +1541,7 @@ export class DockerRepository {
       eventFingerprint: row.eventFingerprint,
       flowId: row.flowId,
       dependsOnFlowId: row.dependsOnFlowId,
-      source: this.parseRuntimeActivitySource(row.source),
+      source: parseRuntimeActivitySource(row.source),
       action: row.action,
       actorId: row.actorId,
       status: row.status,
@@ -1559,75 +1562,18 @@ export class DockerRepository {
     } satisfies DockerRuntimeActivityEntity);
   }
 
-  private buildImageInspectCandidates(imageId: string): string[] {
-    const normalized = imageId.trim();
-    if (normalized.length === 0) {
-      return [];
-    }
 
-    const candidates = new Set<string>([normalized]);
-    const shaPrefix = "sha256:";
 
-    if (normalized.startsWith(shaPrefix)) {
-      const withoutPrefix = normalized.slice(shaPrefix.length);
-      if (withoutPrefix.length > 0) {
-        candidates.add(withoutPrefix);
-      }
-    } else {
-      candidates.add(`${shaPrefix}${normalized}`);
-    }
 
-    return [...candidates];
-  }
-
-  private normalizeImageIdentifier(value: string | null | undefined): string {
-    if (typeof value !== "string") {
-      return "";
-    }
-
-    return value.trim().toLowerCase().replace(/^sha256:/u, "");
-  }
-
-  private normalizeDigestHash(value: string | null | undefined): string | null {
-    if (typeof value !== "string") {
-      return null;
-    }
-
-    const trimmed = value.trim().toLowerCase();
-    if (trimmed.length === 0) {
-      return null;
-    }
-
-    const digestPart = trimmed.includes(":")
-      ? trimmed.slice(trimmed.indexOf(":") + 1)
-      : trimmed;
-    return digestPart.length > 0 ? digestPart : null;
-  }
-
-  private buildCanonicalImageIdentifier(input: {
-    registry: string;
-    repository: string;
-    digest: string | null;
-    fallbackId: string;
-  }): string {
-    const digestHash = this.normalizeDigestHash(input.digest);
-    if (!digestHash) {
-      return this.normalizeImageIdentifier(input.fallbackId);
-    }
-
-    const registry = normalizeImageRegistrySegment(input.registry).toLowerCase();
-    const repository = normalizeImageRepositoryPath(input.repository).toLowerCase();
-    return `${registry}/${repository}@${digestHash}`;
-  }
 
   private async resolveLifecycleIdentifier(imageId: string): Promise<{
     imageIdentifierNormalized: string;
   }> {
     const inspect = await this.inspectImageWithCandidates(imageId);
     const inspectId = typeof inspect.Id === "string" && inspect.Id.length > 0 ? inspect.Id : imageId;
-    const repoTags = this.toStringArray(inspect.RepoTags as string | string[] | undefined)
+    const repoTags = toStringArray(inspect.RepoTags as string | string[] | undefined)
       .filter((tag) => tag !== "<none>:<none>");
-    const repoDigests = this.toStringArray(inspect.RepoDigests as string | string[] | undefined)
+    const repoDigests = toStringArray(inspect.RepoDigests as string | string[] | undefined)
       .filter((digest) => digest !== "<none>@<none>");
 
     const primaryRef = resolvePrimaryImageTag(repoTags, repoDigests) ?? imageId;
@@ -1635,7 +1581,7 @@ export class DockerRepository {
     const normalizedDigest = normalizeImageDigest(repoDigests[0] ?? null);
 
     return {
-      imageIdentifierNormalized: this.buildCanonicalImageIdentifier({
+      imageIdentifierNormalized: buildCanonicalImageIdentifier({
         registry: parsed.registry,
         repository: parsed.repository,
         digest: normalizedDigest,
@@ -1800,198 +1746,18 @@ export class DockerRepository {
     });
   }
 
-  private toNullableNonEmptyString(value: unknown): string | null {
-    if (typeof value !== "string") {
-      return null;
-    }
 
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : null;
-  }
 
-  private toTimestampDate(value: string): Date | null {
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-  }
 
-  private toProgress(value: string | undefined): number | null {
-    if (typeof value !== "string") {
-      return null;
-    }
 
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) {
-      return null;
-    }
 
-    if (parsed <= 0) return 0;
-    if (parsed >= 100) return 100;
-    return Math.round(parsed);
-  }
 
-  private inferRuntimeActivityStatus(
-    action: string,
-    scanState?: string,
-  ): "queued" | "running" | "completed" | "error" | "info" {
-    const normalizedAction = action.toLowerCase();
-    const normalizedState = scanState?.toLowerCase();
 
-    if (normalizedState === "queued" || normalizedAction.includes("queued")) {
-      return "queued";
-    }
 
-    if (normalizedState === "error" || normalizedAction.includes("error") || normalizedAction.includes("fail")) {
-      return "error";
-    }
 
-    if (normalizedState === "completed" || normalizedAction.includes("complete") || normalizedAction.includes("done")) {
-      return "completed";
-    }
-
-    if (
-      normalizedAction.includes("start")
-      || normalizedAction.includes("progress")
-      || normalizedAction.includes("pull")
-      || normalizedAction.includes("create")
-      || normalizedAction.includes("update")
-    ) {
-      return "running";
-    }
-
-    return "info";
-  }
-
-  private inferRuntimeActivitySeverity(action: string): "info" | "warning" | "error" {
-    const normalizedAction = action.toLowerCase();
-    if (normalizedAction.includes("error") || normalizedAction.includes("fail")) {
-      return "error";
-    }
-
-    if (
-      normalizedAction.includes("die")
-      || normalizedAction.includes("kill")
-      || normalizedAction.includes("destroy")
-      || normalizedAction.includes("delete")
-      || normalizedAction.includes("remove")
-    ) {
-      return "warning";
-    }
-
-    return "info";
-  }
-
-  private resolveRuntimeActivityMessage(event: DockerRuntimeEvent): string | null {
-    const payload: Record<string, unknown> = isRecord(event.payload) ? event.payload : {};
-    const candidates = [
-      payload.containerName,
-      payload.imageName,
-      payload.repository,
-      payload.networkName,
-      payload.volumeName,
-      payload.serviceName,
-    ];
-
-    for (const candidate of candidates) {
-      const normalized = this.toNullableNonEmptyString(candidate);
-      if (normalized) {
-        return normalized;
-      }
-    }
-
-    return null;
-  }
-
-  private createRuntimeActivityFingerprint(event: DockerRuntimeEvent): string {
-    const payload = isRecord(event.payload) ? event.payload : {};
-    return createHash("sha1")
-      .update(
-        [
-          event.eventId ?? "",
-          event.timestamp,
-          event.source,
-          event.action,
-          event.actorId ?? "",
-          JSON.stringify(payload),
-        ].join("|"),
-      )
-      .digest("hex");
-  }
-
-  private parseRuntimeActivitySource(value: string): DockerRuntimeEvent["source"] {
-    const parsed = dockerRuntimeEventSourceSchema.safeParse(value);
-    return parsed.success ? parsed.data : "unknown";
-  }
-
-  private identifiersMatch(left: string | null | undefined, right: string | null | undefined): boolean {
-    const normalizedLeft = this.normalizeImageIdentifier(left);
-    const normalizedRight = this.normalizeImageIdentifier(right);
-
-    if (normalizedLeft.length === 0 || normalizedRight.length === 0) {
-      return false;
-    }
-
-    return (
-      normalizedLeft === normalizedRight
-      || normalizedLeft.startsWith(normalizedRight)
-      || normalizedRight.startsWith(normalizedLeft)
-    );
-  }
-
-  private buildImageInspectCandidatesFromImageList(
-    imageId: string,
-    images: DockerodeImageSummary[],
-  ): string[] {
-    const requested = imageId.trim();
-    const candidates = new Set<string>();
-
-    for (const image of images) {
-      const rawImageId = typeof image.Id === "string" ? image.Id.trim() : "";
-      const repoTags = this
-        .toStringArray(image.RepoTags as string | string[] | undefined)
-        .map((tag) => tag.trim())
-        .filter((tag) => tag.length > 0 && tag !== "<none>:<none>");
-
-      const repoDigests = this
-        .toStringArray(image.RepoDigests as string | string[] | undefined)
-        .map((digest) => digest.trim())
-        .filter((digest) => digest.length > 0 && digest !== "<none>@<none>");
-
-      const digestHashes = repoDigests
-        .map((digest) => {
-          const digestSeparatorIndex = digest.indexOf("@");
-          return digestSeparatorIndex === -1 ? digest : digest.slice(digestSeparatorIndex + 1);
-        })
-        .filter((digest) => digest.length > 0);
-
-      const hasMatch = [
-        rawImageId,
-        ...repoTags,
-        ...repoDigests,
-        ...digestHashes,
-      ].some((candidate) => this.identifiersMatch(candidate, requested));
-
-      if (!hasMatch) {
-        continue;
-      }
-
-      if (rawImageId.length > 0) {
-        candidates.add(rawImageId);
-      }
-
-      for (const repoTag of repoTags) {
-        candidates.add(repoTag);
-      }
-
-      for (const repoDigest of repoDigests) {
-        candidates.add(repoDigest);
-      }
-    }
-
-    return [...candidates];
-  }
 
   private async inspectImageWithCandidates(imageId: string): Promise<DockerodeImageInspect> {
-    const candidates = this.buildImageInspectCandidates(imageId);
+    const candidates = buildImageInspectCandidates(imageId);
 
     for (const candidate of candidates) {
       const raw = await this.inspectImageOrNull(candidate);
@@ -2001,7 +1767,7 @@ export class DockerRepository {
 
     const images = await runPromiseUnwrapped(this.dockerEngine.images.list());
 
-    const resolvedCandidates = this.buildImageInspectCandidatesFromImageList(imageId, images);
+    const resolvedCandidates = buildImageInspectCandidatesFromImageList(imageId, images);
 
     for (const candidate of resolvedCandidates) {
       const raw = await this.inspectImageOrNull(candidate);
@@ -2024,7 +1790,7 @@ export class DockerRepository {
   ): Promise<{ vulnerabilities: DockerImageInspectDetail["vulnerabilities"]; scanSummary: RawImageSecurityScan["scanSummary"] } | null> {
     const normalizedCandidates = [...new Set(
       imageCandidates
-        .map((candidate) => this.normalizeImageIdentifier(candidate))
+        .map((candidate) => normalizeImageIdentifier(candidate))
         .filter((candidate) => candidate.length > 0),
     )];
 
