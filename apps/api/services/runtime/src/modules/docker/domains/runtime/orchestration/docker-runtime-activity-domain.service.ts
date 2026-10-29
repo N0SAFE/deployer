@@ -9,7 +9,7 @@ import type { DockerRuntimeEventsStreamQueryInput } from "@deployer/runtime-cont
 import { dockerRuntimeEventSourceSchema, type DockerRuntimeActivityEntity } from "@deployer/contracts-entities";
 import { DockerContainerResolutionService } from "../../containers/orchestration/docker-container-resolution.service";
 import { DockerRuntimeStreamOrchestratorService } from "../../../common/runtime/docker-runtime-stream-orchestrator.service";
-import { DockerRuntimeActivityProjectorService } from "../../../common/events/docker-runtime-activity-projector.service";
+import { projectRuntimeEvent } from "../../../common/events/runtime-activity-projection";
 import { SwarmActivityEnricherService } from "../../../common/events/swarm-activity-enricher.service";
 import { DockerRuntimeActivityRepository } from "../../../repositories/runtime/docker-runtime-activity.repository";
 
@@ -19,7 +19,6 @@ export class DockerRuntimeActivityDomainService {
     private readonly dockerContainerResolutionService: DockerContainerResolutionService,
     private readonly dockerRuntimeStreamOrchestratorService: DockerRuntimeStreamOrchestratorService,
     private readonly dockerRuntimeActivityRepository: DockerRuntimeActivityRepository,
-    private readonly dockerRuntimeActivityProjectorService: DockerRuntimeActivityProjectorService,
     private readonly swarmActivityEnricherService: SwarmActivityEnricherService,
   ) {}
 
@@ -68,7 +67,7 @@ export class DockerRuntimeActivityDomainService {
         mergeMap((event) =>
           from(this.swarmActivityEnricherService.enrichEvent(event)).pipe(
             map((enrichment): DockerRuntimeActivityEntity =>
-              this.dockerRuntimeActivityProjectorService.project(
+              projectRuntimeEvent(
                 enrichment.event,
                 enrichment,
               ),

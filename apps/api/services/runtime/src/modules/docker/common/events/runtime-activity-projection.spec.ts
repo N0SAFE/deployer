@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DockerRuntimeActivityProjectorService } from "./docker-runtime-activity-projector.service";
+import { projectRuntimeEvent } from "./runtime-activity-projection";
 import type { DockerRuntimeEvent } from "@deployer/contracts-entities";
 
 function makeEvent(overrides: Partial<DockerRuntimeEvent> = {}): DockerRuntimeEvent {
@@ -17,8 +17,8 @@ function makeEvent(overrides: Partial<DockerRuntimeEvent> = {}): DockerRuntimeEv
   return { ...base, ...overrides } as DockerRuntimeEvent;
 }
 
-describe("DockerRuntimeActivityProjectorService", () => {
-  const service = new DockerRuntimeActivityProjectorService();
+describe("projectRuntimeEvent", () => {
+  const service = { project: projectRuntimeEvent };
 
   it("projects a container start event into a running activity", () => {
     const activity = service.project(makeEvent());
