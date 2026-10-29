@@ -35,6 +35,13 @@ export type MeshDirectoryShape = {
   readonly unregister: (replicaId: string) => Effect.Effect<boolean, never, MeshDirectoryRepository>;
   readonly get: (replicaId: string) => Effect.Effect<ReplicaRecord | undefined, never, MeshDirectoryRepository | MeshClock>;
   readonly snapshot: () => Effect.Effect<readonly ReplicaRecord[], never, MeshDirectoryRepository | MeshClock>;
+  /**
+   * Takes in the replicas another agent knows of. Replicas of this node are never taken from gossip: they register
+   * here, so this agent is their authority and a peer's stale copy cannot overwrite them. Returns how many changed.
+   */
+  readonly merge: (
+    records: readonly ReplicaRecord[],
+  ) => Effect.Effect<number, never, MeshDirectoryRepository | NodeIdentity | MeshClock>;
   readonly resolve: (
     query: ReplicaQuery,
   ) => Effect.Effect<Resolution, MeshNoReplica, MeshDirectoryRepository | NodeIdentity | MeshClock>;
@@ -85,6 +92,21 @@ export class MeshDirectory extends Context.Service<MeshDirectory, MeshDirectoryS
       const repository = yield* MeshDirectoryRepository;
       const clock = yield* MeshClock;
       return yield* repository.snapshot(clock.now());
+    }),
+
+    merge: Effect.fn("MeshDirectory.merge")(function* (records: readonly ReplicaRecord[]) {
+      const repository = yield* MeshDirectoryRepository;
+      const { nodeId } = yield* NodeIdentity;
+      const clock = yield* MeshClock;
+
+      const now = clock.now();
+      let changed = 0;
+      for (const record of records) {
+        if (record.nodeId !== nodeId && record.expiresAt > now && (yield* repository.upsert(record))) {
+          changed += 1;
+        }
+      }
+      return changed;
     }),
 
     resolve: Effect.fn("MeshDirectory.resolve")(function* (query: ReplicaQuery) {

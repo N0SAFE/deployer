@@ -5,6 +5,7 @@ import {
   createDirectoryStore,
   directoryRepositoryOver,
 } from "../repositories/directory.repository";
+import { AgentLinkFactory, agentLinkFactoryOver } from "../services/agent-link-factory.service";
 import { AgentLoad, agentLoadOver } from "../services/agent-load.service";
 import { MeshBroker } from "../services/broker.service";
 import { MeshDirectory } from "../services/directory.service";
@@ -15,6 +16,7 @@ import { NodeAgents, nodeAgentsOver } from "../services/node-agents.service";
 import { NodeIdentity } from "../services/node-identity.service";
 import { MeshRelay } from "../services/relay.service";
 import { ReplicaLinks, type ReplicaLinksShape } from "../services/replica-links.service";
+import { AdvertisedAddress, RosterGossip } from "../services/roster-gossip.service";
 
 import type { ReplicaRecord } from "../rules/replica-record";
 import type { ClientContext, ClientLink } from "@orpc/client";
@@ -30,7 +32,10 @@ export type MeshServices =
   | NodeAgents
   | ReplicaLinks
   | AgentLoad
-  | LeaseSigner;
+  | LeaseSigner
+  | RosterGossip
+  | AdvertisedAddress
+  | AgentLinkFactory;
 
 export const LEASE_SECRET = "mesh-fixture-secret-of-at-least-32-characters";
 
@@ -63,6 +68,10 @@ export function meshFixture(
     replicas?: Record<string, Link>;
     /** The link to each other node's agent. */
     nodes?: Record<string, Link>;
+    /** The agent a link to each address reaches: how this agent connects to an agent it learned of by address. */
+    addresses?: Record<string, Link>;
+    /** Where this agent says it can be reached. */
+    advertise?: string;
     /** What the agent reports about its own pressure. */
     load?: Partial<{ eventLoopLagMs: number; bytesPerSecond: number; openStreams: number }>;
   } = {},
@@ -70,6 +79,7 @@ export function meshFixture(
   const clock = { now: options.now ?? 1_000 };
   const repository = directoryRepositoryOver(createDirectoryStore());
   const hints = keyHintsOver(new Map());
+  const nodeAgents = nodeAgentsOver(new Map(Object.entries(options.nodes ?? {}).map(([nodeId, link]) => [nodeId, { nodeId, address: `ws://${nodeId}`, link }])));
   const links: ReplicaLinksShape = {
     linkTo: (replica) => options.replicas?.[replica.replicaId] ?? { call: () => Promise.reject(new Error(`no link to ${replica.replicaId}`)) },
     evictIdle: () => Promise.resolve(0),
@@ -91,11 +101,21 @@ export function meshFixture(
       Effect.provideService(KeyHints, hints),
       Effect.provideService(MeshBroker, MeshBroker.live),
       Effect.provideService(MeshRelay, MeshRelay.live),
-      Effect.provideService(NodeAgents, nodeAgentsOver(new Map(Object.entries(options.nodes ?? {})))),
+      Effect.provideService(NodeAgents, nodeAgents),
       Effect.provideService(ReplicaLinks, links),
       Effect.provideService(AgentLoad, load),
       Effect.provideService(LeaseSigner, leaseSignerOver({ secret: LEASE_SECRET, ttlMs: 30_000 })),
+      Effect.provideService(RosterGossip, RosterGossip.live),
+      Effect.provideService(AdvertisedAddress, advertised),
+      Effect.provideService(AgentLinkFactory, agentLinks),
     );
+
+  const advertised = { address: options.advertise ?? `ws://${options.nodeId ?? "A"}` };
+  const agentLinks = agentLinkFactoryOver((address) => ({
+    link: options.addresses?.[address] ?? { call: () => Promise.reject(new Error(`no agent at ${address}`)) },
+    close: () => Promise.resolve(),
+    healthy: () => true,
+  }));
 
   const context = Context.empty().pipe(
     Context.add(MeshDirectoryRepository, repository),
@@ -105,10 +125,13 @@ export function meshFixture(
     Context.add(KeyHints, hints),
     Context.add(MeshBroker, MeshBroker.live),
     Context.add(MeshRelay, MeshRelay.live),
-    Context.add(NodeAgents, nodeAgentsOver(new Map(Object.entries(options.nodes ?? {})))),
+    Context.add(NodeAgents, nodeAgents),
     Context.add(ReplicaLinks, links),
     Context.add(AgentLoad, load),
     Context.add(LeaseSigner, leaseSignerOver({ secret: LEASE_SECRET, ttlMs: 30_000 })),
+    Context.add(RosterGossip, RosterGossip.live),
+    Context.add(AdvertisedAddress, advertised),
+    Context.add(AgentLinkFactory, agentLinks),
   );
 
   return {

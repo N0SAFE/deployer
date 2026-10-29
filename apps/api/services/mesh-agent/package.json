@@ -25,6 +25,7 @@
         "@deployer/logger": "*",
         "@deployer/mesh-agent-contracts": "*",
         "@deployer/mesh-client": "*",
+        "@deployer/mesh-server": "*",
         "@deployer/nest-effect": "*",
         "@deployer/orpc-utils": "*",
         "@deployer/shared": "*",

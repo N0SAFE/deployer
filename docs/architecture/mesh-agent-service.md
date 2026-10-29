@@ -163,10 +163,32 @@ result. The target's own errors reach the caller with their code and data.
 
 Built and tested over real oRPC RPC peers (in-memory ports): unary, streams, redirects, errors, node pinning and grants.
 
-Not built yet: the websocket endpoint that services and agents expose for these links (the pooled link opens
-`ws://<replica>?credential=...`, and nothing serves it), the roster gossip that fills the directory and teaches the
-agent how to reach other nodes' agents, byte accounting from the transport, the onboarding agent, per-service
-`external`/`peer`/`node` routers, and the removal of the old mesh code.
+## The transport and the roster, as built
+
+- **Websocket.** `@deployer/mesh-server` serves an oRPC router over a persistent websocket on the service's own HTTP
+  port, at `MESH_WEBSOCKET_PATH` (`/mesh/ws`). The mesh credential travels in the `credential` query parameter and is
+  checked at the upgrade, so an unauthenticated peer never holds a socket. Silent peers are pinged and dropped, and the
+  oRPC context is read per call, not per connection. The agent serves its directory, relay and roster procedures on it
+  with the same controllers that serve HTTP, so the two surfaces cannot drift.
+- **Client links.** `@deployer/mesh-client` opens those websockets (`openWebSocketConnection`), pools them
+  (`pooledLink`), follows grants (`grantFollowingLink`), relays (`relayLink`), builds Effect clients
+  (`createMeshClient`) and keeps a replica registered (`replicaHeartbeat`). A refused handshake counts as a failed
+  attempt and fails the waiting calls after a bounded number of tries.
+- **Roster gossip.** Agents exchange what they know every few seconds (`roster.exchange`): the replicas and the agents
+  each one can reach. One reachable seed (`MESH_SEEDS`) is enough, because an exchange also carries the agents the peer
+  knows of, so a fresh agent finds the whole mesh through it. A node's own replicas are never taken from gossip, only
+  from registration, and expiry ages out a node that stopped being gossiped. Records expire on the clock of the agent
+  that stamped them, so agents' clocks must be kept in sync (NTP) to within a fraction of the registration TTL.
+- **Proven over real sockets.** `src/boot/mesh-cluster.spec.ts` boots two real agents and one real replica: the replica
+  registers with agent A, agent B learns it by gossip alone, a call to B reaches the replica through B's relay, a heavy
+  call is granted and followed directly, an unauthenticated call is refused, and a call pinned to another node is
+  forwarded to that node's agent.
+
+Not built yet: byte accounting from the transport (the lease policy's bytes-per-second input is fed by nothing), the
+bridge topology for large meshes (agents currently connect to every agent they learn of, which is the small-mesh
+design), the onboarding agent, services registering themselves with their agent (`replicaHeartbeat` exists, no
+service calls it), the per-service `external`/`peer`/`node` routers, a swarm global-mode deployment of the agent, and the
+removal of the old mesh code.
 
 ## Agents
 

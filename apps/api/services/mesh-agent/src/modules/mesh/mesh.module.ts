@@ -3,11 +3,13 @@ import { ConfigService } from "@nestjs/config";
 import { openWebSocketConnection } from "@deployer/mesh-client";
 import { createModuleContext } from "@deployer/nest-effect";
 
-import { resolveNodeId } from "../../config/mesh-agent.env";
+import { resolveAdvertisedAddress, resolveNodeId } from "../../config/mesh-agent.env";
 
 import { MeshDirectoryController } from "./controllers/mesh-directory.controller";
 import { MeshRelayController } from "./controllers/mesh-relay.controller";
+import { MeshRosterController } from "./controllers/mesh-roster.controller";
 import { MeshDirectoryRepository } from "./repositories/directory.repository";
+import { AgentLinkFactory, agentLinkFactoryOver } from "./services/agent-link-factory.service";
 import { AgentLoad } from "./services/agent-load.service";
 import { MeshBroker } from "./services/broker.service";
 import { MeshDirectory } from "./services/directory.service";
@@ -18,6 +20,7 @@ import { NodeAgents } from "./services/node-agents.service";
 import { NodeIdentity } from "./services/node-identity.service";
 import { MeshRelay } from "./services/relay.service";
 import { ReplicaLinks, replicaLinksOver, withCredential } from "./services/replica-links.service";
+import { AdvertisedAddress, RosterGossip } from "./services/roster-gossip.service";
 
 import type { MeshAgentEnv } from "../../config/mesh-agent.env";
 
@@ -32,7 +35,7 @@ const LEASE_TTL_MS = 30_000;
  * factory over `ConfigService` rather than a constant.
  */
 export class MeshDomainModule extends createModuleContext({
-  controllers: [MeshDirectoryController, MeshRelayController],
+  controllers: [MeshDirectoryController, MeshRelayController, MeshRosterController],
   providers: [
     {
       provide: NodeIdentity,
@@ -49,6 +52,26 @@ export class MeshDomainModule extends createModuleContext({
     { provide: MeshRelay, useValue: MeshRelay.live },
     { provide: NodeAgents, useValue: NodeAgents.live },
     { provide: AgentLoad, useValue: AgentLoad.live },
+    { provide: RosterGossip, useValue: RosterGossip.live },
+    {
+      provide: AdvertisedAddress,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<MeshAgentEnv, true>) => ({
+        address: resolveAdvertisedAddress({
+          MESH_AGENT_SECRET: config.get("MESH_AGENT_SECRET", { infer: true }),
+          MESH_NODE_ID: config.get("MESH_NODE_ID", { infer: true }),
+          MESH_ADVERTISE_URL: config.get("MESH_ADVERTISE_URL", { infer: true }),
+        }),
+      }),
+    },
+    {
+      provide: AgentLinkFactory,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<MeshAgentEnv, true>) => {
+        const secret = config.get("MESH_AGENT_SECRET", { infer: true });
+        return agentLinkFactoryOver((address) => openWebSocketConnection({ url: withCredential(address, secret) }));
+      },
+    },
     {
       // The two collaborators built from the environment: how to reach a replica, and how to sign a grant for it.
       provide: ReplicaLinks,

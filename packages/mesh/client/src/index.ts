@@ -4,3 +4,4 @@ export { pooledLink, type PooledConnection, type PooledLink, type PooledLinkOpti
 export { openWebSocketConnection, type WebSocketConnectionOptions } from "./websocket-link";
 export { LinkOpenFailed, linkPool, type LinkPoolOptions, type PooledLink as PoolLease } from "./pool/link-pool";
 export { relayLink, type RelayLinkOptions } from "./relay-link";
+export { replicaHeartbeat, type ReplicaHeartbeatOptions } from "./replica-heartbeat";
