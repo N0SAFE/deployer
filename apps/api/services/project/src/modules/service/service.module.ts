@@ -1,5 +1,5 @@
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
-import { createModuleContext } from "@deployer/nest-effect";
+import { createModuleContext, EffectRuntime } from "@deployer/nest-effect";
 
 import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configuration/configuration-core.module";
 import { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
@@ -13,17 +13,15 @@ import { ProjectAccessService } from "@deployer/shared/core/modules/project/serv
 import { ProjectCoreModule } from "@deployer/shared/core/modules/project/project-core.module";
 import { DatabasePort } from "@project/core/database/database.port";
 import { CoreEventSync } from "@project/core/ports/core-event-sync.port";
-import { DnsProvider } from "@project/core/ports/dns-provider.port";
 import { ProjectAccess } from "@project/core/ports/project-access.port";
 import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
 import { RuntimeConfigurationAccessor } from "@project/core/ports/runtime-configuration-accessor.port";
 import { ServiceDomainMappingLookup } from "@project/core/ports/service-domain-mapping-lookup.port";
-import { DnsProviderGateway } from "@/modules/network/dns-provider.gateway";
 import { ProjectDomainModule } from "@/modules/project/project.module";
 
 import { ServiceController } from "./controllers/service.controller";
 import { ServiceStore } from "./repositories/service.repository";
-import { ServiceEventAdapter } from "./services/service-event-adapter";
+import { registerServiceEventAdapter, SERVICE_EVENT_REGISTRATION } from "./services/service-event-adapter";
 import { ServiceEventService, ServiceEventServiceImpl } from "./services/service-event.service";
 import { PreviewTopologyService } from "./services/preview-topology.service";
 import { ServiceNetworkService } from "./services/service-network.service";
@@ -52,7 +50,6 @@ export class ServiceDomainModule extends createModuleContext({
 	],
 	controllers: [ServiceController],
 	providers: [
-		{ provide: DnsProvider, useExisting: DnsProviderGateway },
 		{ provide: ProjectAccess, useExisting: ProjectAccessService },
 		{ provide: ProjectDomainRepo, useExisting: ProjectDomainRepository },
 		{
@@ -64,7 +61,8 @@ export class ServiceDomainModule extends createModuleContext({
 			provide: ServiceDomainMappingLookup,
 			useExisting: ServiceDomainMappingRepository,
 		},
-		ServiceEventAdapter,
+		// Registers the service namespace on the core event bus when the module is built.
+		{ provide: SERVICE_EVENT_REGISTRATION, useFactory: registerServiceEventAdapter, inject: [CoreEventSyncService, EffectRuntime] },
 		{
 			provide: ServiceEventService,
 			useFactory: (pool: CoreEventStreamPoolService) => new ServiceEventServiceImpl(pool),

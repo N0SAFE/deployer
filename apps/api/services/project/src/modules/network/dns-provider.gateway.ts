@@ -1,9 +1,8 @@
-import { Injectable, Logger } from "@nestjs/common";
 // `providersContract` from the package root: the wildcard subpath (`./*` → `./*.ts`)
 // does not resolve a directory's `index.ts`, so `modules/providers` is not importable
 // even though the file exists.
 import { providersContract } from "@deployer/fleet-contracts";
-import { ServiceClient } from "@deployer/shared/server";
+import type { ServiceClient } from "@deployer/shared/server";
 
 /**
  * The DNS/provider facts `project` needs, reached through fleet's CONTRACT.
@@ -22,45 +21,38 @@ import { ServiceClient } from "@deployer/shared/server";
  * silently returning an empty network view, which would look like "no zones configured"
  * on a screen that is actually broken.
  */
-@Injectable()
-export class DnsProviderGateway {
-    private readonly logger = new Logger(DnsProviderGateway.name);
-
-    constructor(private readonly clients: ServiceClient) {}
-
+/** The fleet DNS calls project needs. A plain object over the service client: nothing here needs a lifecycle. */
+export function makeDnsProviderGateway(clients: Pick<ServiceClient, "clientFor">) {
     /** The provider apps an operator can pin a project to, with their live state. */
-    async listProviders() {
-        const client = this.clients.clientFor("fleet", providersContract);
+    const listProviders = async () => {
+        const client = clients.clientFor("fleet", providersContract);
         const result = await client.dns.list({});
         return result.providers;
-    }
+    };
+
     /** The zones a provider account exposes. */
-    async listZones(providerId: string) {
-        const client = this.clients.clientFor("fleet", providersContract);
+    const listZones = async (providerId: string) => {
+        const client = clients.clientFor("fleet", providersContract);
         const result = await client.dns.cloudflare.listZones({ params: { providerId } });
         return result.zones;
-    }
+    };
 
     /** The DNS records in a zone. */
-    async listRecords(providerId: string, zoneId: string) {
-        const client = this.clients.clientFor("fleet", providersContract);
+    const listRecords = async (providerId: string, zoneId: string) => {
+        const client = clients.clientFor("fleet", providersContract);
         const result = await client.dns.cloudflare.listRecords({ params: { providerId, zoneId } });
         return result.records;
-    }
+    };
 
     /** Create a record in a zone. */
-    async createRecord(
+    const createRecord = async (
         providerId: string,
         zoneId: string,
         input: { type: "A" | "AAAA" | "CNAME" | "TXT"; name: string; content: string; ttl?: number; proxied?: boolean },
-    ) {
-        const client = this.clients.clientFor("fleet", providersContract);
-        const result = await client.dns.cloudflare.createRecord({
-            params: { providerId, zoneId },
-            body: input,
-        });
-        return result;
-    }
+    ) => {
+        const client = clients.clientFor("fleet", providersContract);
+        return await client.dns.cloudflare.createRecord({ params: { providerId, zoneId }, body: input });
+    };
 
     /**
      * Resolve a zone's name, for syncing a project's base domain.
@@ -69,8 +61,12 @@ export class DnsProviderGateway {
      * lets a transport failure propagate — the two cases mean different things and
      * collapsing them would hide a broken fleet behind "zone not found".
      */
-    async findZoneName(providerId: string, zoneId: string): Promise<string | undefined> {
-        const zones = await this.listZones(providerId);
+    const findZoneName = async (providerId: string, zoneId: string): Promise<string | undefined> => {
+        const zones = await listZones(providerId);
         return zones.find((z) => z.id === zoneId)?.name;
-    }
+    };
+
+    return { listProviders, listZones, listRecords, createRecord, findZoneName };
 }
+
+export type DnsProviderGateway = ReturnType<typeof makeDnsProviderGateway>;

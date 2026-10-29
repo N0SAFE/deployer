@@ -1,8 +1,7 @@
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
-import { createModuleContext } from "@deployer/nest-effect";
+import { createModuleContext, EffectRuntime } from "@deployer/nest-effect";
 
-import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
-import { ProjectDb, makeProjectDb } from "@project/core/database/project-db";
+import { ProjectDb } from "@project/core/database/project-db";
 import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configuration/configuration-core.module";
 import { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
@@ -15,14 +14,15 @@ import { DnsProvider } from "@project/core/ports/dns-provider.port";
 import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
 import { RuntimeConfigurationAccessor } from "@project/core/ports/runtime-configuration-accessor.port";
 import { DatabasePort } from "@project/core/database/database.port";
-import { DnsProviderGateway } from "@/modules/network/dns-provider.gateway";
+import { makeDnsProviderGateway } from "@/modules/network/dns-provider.gateway";
+import { ServiceClient } from "@deployer/shared/server";
 
 import { ProjectController } from "./controllers/project.controller";
 import { ApiKeyStore } from "./repositories/api-key.repository";
 import { ProjectStore } from "./repositories/project.repository";
 import { WebhookStore } from "./repositories/webhook.repository";
 import { ApiKeyService } from "./services/api-key.service";
-import { ProjectEventAdapter } from "./services/project-event-adapter";
+import { PROJECT_EVENT_REGISTRATION, registerProjectEventAdapter } from "./services/project-event-adapter";
 import { ProjectEventService, ProjectEventServiceImpl } from "./services/project-event.service";
 import { ProjectNetworkService } from "./services/project-network.service";
 import { ProjectService } from "./services/project.service";
@@ -34,22 +34,23 @@ import { WebhookService } from "./services/webhook.service";
  *
  * Shared core services stay Nest providers; each one is exposed to the Effect layer through a
  * port so the services can `yield*` them. The stores and use cases are constants provided here
- * (`useValue`); the database handle and the event bus are built over Nest providers (`useFactory`).
+ * (`useValue`); the event bus is built over the stream pool (`useFactory`).
  */
 export class ProjectDomainModule extends createModuleContext({
 	imports: [DatabaseModule, ConfigurationCoreModule, EventsModule, CoreDomainModule],
 	controllers: [ProjectController],
 	providers: [
-		{ provide: DnsProvider, useExisting: DnsProviderGateway },
+		{ provide: DnsProvider, useFactory: makeDnsProviderGateway, inject: [ServiceClient] },
 		{ provide: ProjectDomainRepo, useExisting: ProjectDomainRepository },
 		{
 			provide: RuntimeConfigurationAccessor,
 			useExisting: RuntimeConfigurationAccessorService,
 		},
 		{ provide: CoreEventSync, useExisting: CoreEventSyncService },
-		ProjectEventAdapter,
-		DnsProviderGateway,
-		{ provide: ProjectDb, useFactory: makeProjectDb, inject: [GlobalDatabaseService] },
+		// Registers the project namespace on the core event bus when the module is built, so another service can subscribe
+		// before the first project request arrives.
+		{ provide: PROJECT_EVENT_REGISTRATION, useFactory: registerProjectEventAdapter, inject: [CoreEventSyncService, EffectRuntime] },
+		{ provide: ProjectDb, useValue: ProjectDb.live },
 		{
 			provide: ProjectEventService,
 			useFactory: (pool: CoreEventStreamPoolService) => new ProjectEventServiceImpl(pool),
@@ -63,7 +64,7 @@ export class ProjectDomainModule extends createModuleContext({
 		{ provide: WebhookService, useValue: WebhookService.live },
 		{ provide: ApiKeyService, useValue: ApiKeyService.live },
 	],
-	exports: [DnsProviderGateway],
+	exports: [DnsProvider],
 }, DatabasePort) {}
 
 // ── `ProjectDomainModule`, NOT `ProjectModule` ─────────────────────────────────
