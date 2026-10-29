@@ -11,6 +11,9 @@ import { ProviderSchemaService } from "./services/provider-schema.service";
  * runtime; the module declares the controller and which services its handlers may use.
  */
 export class ProviderSchemaModule extends createModuleContext(
-    { imports: [ConfigurationCoreModule], controllers: [ProviderSchemaController] },
-    ProviderSchemaService,
+    {
+        imports: [ConfigurationCoreModule],
+        controllers: [ProviderSchemaController],
+        providers: [{ provide: ProviderSchemaService, useValue: ProviderSchemaService.live }],
+    },
 ) {}

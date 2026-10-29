@@ -4,7 +4,8 @@ import {
   clusterServerAllocations,
   clusterAdmissionRequests,
 } from "@deployer/nest-schema/global/fleet/cluster";
-import { Context, Effect, Layer } from "effect";
+import { serviceOver, type Over } from "@deployer/effect-core";
+import { Context, Effect } from "effect";
 
 import type { FleetRepositoryShape } from "../repositories/fleet.repository";
 import { FleetRepository } from "../repositories/fleet.repository";
@@ -78,7 +79,7 @@ const toAdmissionRequest = (row: AdmissionRequestRow) => {
         };
     };
 
-export function makeFleetService(fleetRepository: FleetRepositoryShape) {
+function makeFleetService(fleetRepository: FleetRepositoryShape) {
     return {
         listServers: Effect.fn("FleetService.listServers")(function* () {
         const rows = yield* fleetRepository.listServersWithMetrics();
@@ -288,12 +289,8 @@ export function makeFleetService(fleetRepository: FleetRepositoryShape) {
 export type FleetServiceShape = ReturnType<typeof makeFleetService>;
 
 /** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
-export class FleetService extends Context.Service<FleetService, FleetServiceShape>()("fleet/FleetService") {
-    /** Leaves the repository open, so a test swaps it without a database. */
-    static readonly Live: Layer.Layer<FleetService, never, FleetRepository> = Layer.effect(
-        FleetService,
-        Effect.gen(function* () {
-            return makeFleetService(yield* FleetRepository);
-        }),
-    );
+export class FleetService extends Context.Service<FleetService, Over<FleetServiceShape, FleetRepository>>()("fleet/FleetService") {
+    /** The repository is yielded when a method runs, so this is a constant the module provides with `useValue`. */
+    static readonly live = serviceOver(FleetRepository, makeFleetService);
+
 }

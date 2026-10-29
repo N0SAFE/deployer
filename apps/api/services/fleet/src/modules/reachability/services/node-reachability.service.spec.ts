@@ -2,13 +2,15 @@ import { EgressRequestError } from "@deployer/shared/core/modules/egress/egress.
 import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { makeNodeReachabilityService } from "./node-reachability.service";
+import { provideTo } from "@deployer/effect-core";
+import { EgressPort, PublicAccessPointPort, ReachabilityCorePort, TraefikRefresherPort } from "../reachability.ports";
+import { NodeReachabilityService } from "./node-reachability.service";
 
 describe("NodeReachabilityService outbound probes", () => {
     let egress: { operator: ReturnType<typeof vi.fn> };
     let reachability: { getNodePublicUrl: ReturnType<typeof vi.fn>; updateNodeNetworkConfig: ReturnType<typeof vi.fn> };
     let refresher: { refresh: ReturnType<typeof vi.fn> };
-    let service: ReturnType<typeof makeNodeReachabilityService>;
+    let service: ReturnType<typeof provideTo<typeof NodeReachabilityService.live>>;
 
     const res = (status: number) => ({ status, headers: {}, body: new Uint8Array(), url: "" });
 
@@ -16,12 +18,14 @@ describe("NodeReachabilityService outbound probes", () => {
         egress = { operator: vi.fn() };
         reachability = { getNodePublicUrl: vi.fn(), updateNodeNetworkConfig: vi.fn() };
         refresher = { refresh: vi.fn() };
-        service = makeNodeReachabilityService({
-            reachability: reachability as never,
-            accessPoint: {} as never,
-            egress: egress as never,
-            refresher: refresher as never,
-        });
+        service = provideTo(NodeReachabilityService.live, (effect) =>
+            effect.pipe(
+                Effect.provideService(ReachabilityCorePort, reachability as never),
+                Effect.provideService(PublicAccessPointPort, {} as never),
+                Effect.provideService(EgressPort, egress as never),
+                Effect.provideService(TraefikRefresherPort, refresher as never),
+            ),
+        );
     });
 
     describe("check", () => {

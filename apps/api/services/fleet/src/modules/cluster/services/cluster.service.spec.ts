@@ -1,7 +1,16 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { ClusterSnapshot } from "@deployer/contracts-entities";
 import { Cause, Effect, Exit } from "effect";
-import { makeClusterService } from "./cluster.service";
+import { provideTo } from "@deployer/effect-core";
+import {
+    ClusterEnvPort,
+    ClusterNodeRepoPort,
+    NodeInventoryPort,
+    SwarmClusterPort,
+    SwarmFleetPort,
+    SwarmParticipationPort,
+} from "../cluster.ports";
+import { ClusterService } from "./cluster.service";
 
 /** Run an Effect and reject with the ORIGINAL failure, so `rejects` assertions read the real error. */
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
@@ -70,7 +79,7 @@ const nodeRow = {
 };
 
 describe("ClusterService", () => {
-    let service: ReturnType<typeof makeClusterService>;
+    let service: ReturnType<typeof provideTo<typeof ClusterService.live>>;
     let swarm: {
         getLocalClusterSnapshot: ReturnType<typeof vi.fn>;
         listSwarmNodes: ReturnType<typeof vi.fn>;
@@ -145,14 +154,16 @@ describe("ClusterService", () => {
             view: vi.fn().mockReturnValue(Effect.succeed({})),
             applyConfig: vi.fn().mockReturnValue(Effect.succeed({})),
         };
-        service = makeClusterService({
-            swarmClusterService: swarm as never,
-            swarmFleetService: fleet as never,
-            participation: participation as never,
-            clusterNodeRepository: nodeRepo as never,
-            inventoryRepository: inventoryRepo as never,
-            env: env as never,
-        });
+        service = provideTo(ClusterService.live, (effect) =>
+            effect.pipe(
+                Effect.provideService(SwarmClusterPort, swarm as never),
+                Effect.provideService(SwarmFleetPort, fleet as never),
+                Effect.provideService(SwarmParticipationPort, participation as never),
+                Effect.provideService(ClusterNodeRepoPort, nodeRepo as never),
+                Effect.provideService(NodeInventoryPort, inventoryRepo as never),
+                Effect.provideService(ClusterEnvPort, env as never),
+            ),
+        );
     });
 
     it("getSnapshot delegates to the swarm cluster service", async () => {

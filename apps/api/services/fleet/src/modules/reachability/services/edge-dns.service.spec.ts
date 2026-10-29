@@ -5,7 +5,9 @@ import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-enti
 import type { DnsProviderRegistryService } from "@/modules/providers/dns/shared/dns-provider-registry.service";
 import type { DnsProviderRecord } from "@/modules/providers/dns/shared/dns-provider.interface";
 
-import { makeEdgeDnsService } from "./edge-dns.service";
+import { provideTo } from "@deployer/effect-core";
+import { DnsProvidersPort } from "../reachability.ports";
+import { EdgeDnsService } from "./edge-dns.service";
 import { isPubliclyResolvable, planLaneDnsRecords } from "./lane-dns-plan";
 
 const tunnelRecord = { name: "*.apps.example.com", type: "CNAME" as const, contents: ["tun-1.cfargotunnel.com"], proxied: true, preferredAccountId: "acc-1" };
@@ -66,6 +68,10 @@ const record = (id: string, type: string, content: string, proxied = false): Dns
 	ttl: 1,
 	proxied,
 });
+
+/** The service over a fake registry. */
+const makeEdgeDnsService = (registry: DnsProviderRegistryService) =>
+	provideTo(EdgeDnsService.live, (effect) => effect.pipe(Effect.provideService(DnsProvidersPort, registry)));
 
 describe("EdgeDnsService", () => {
 	const plan = { lane: "public" as const, name: "*.apps.example.com", type: "A" as const, contents: ["1.1.1.1", "2.2.2.2"], proxied: false, preferredAccountId: null };

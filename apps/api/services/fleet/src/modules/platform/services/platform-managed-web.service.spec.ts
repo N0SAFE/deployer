@@ -3,7 +3,17 @@ import { Cause, Effect, Exit } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FleetInvalid } from "../../../core/fleet.errors";
-import { makePlatformManagedWebService } from "./platform-managed-web.service";
+import { provideTo } from "@deployer/effect-core";
+import {
+	CloudflareAppsPort,
+	PlatformConfigPort,
+	PlatformEnvPort,
+	PlatformHostnamesPort,
+	PlatformRefresherPort,
+	SupervisorsPort,
+	WebTunnelPort,
+} from "../platform.ports";
+import { PlatformManagedWebService } from "./platform-managed-web.service";
 
 /** Run an Effect and reject with the ORIGINAL failure. */
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
@@ -20,7 +30,7 @@ describe("PlatformManagedWebService", () => {
 	let refresher: { refresh: ReturnType<typeof vi.fn> };
 	let supervisor: { id: string; getStateSnapshot: unknown; getHealth: unknown; ensureDesiredState: unknown };
 	const ensured = vi.fn();
-	let service: ReturnType<typeof makePlatformManagedWebService>;
+	let service: ReturnType<typeof provideTo<typeof PlatformManagedWebService.live>>;
 	let enabled: boolean;
 
 	beforeEach(() => {
@@ -52,15 +62,17 @@ describe("PlatformManagedWebService", () => {
 			getHealth: Effect.succeed({ healthy: true, detail: "ok" }),
 			ensureDesiredState: Effect.sync(() => { ensured(); }),
 		};
-		service = makePlatformManagedWebService({
-			env: { get: vi.fn(() => false) } as never,
-			hostnameService: { webHostname: () => "web.deployer.localhost" } as never,
-			platformConfig: platformConfig as never,
-			orchestrator: { list: () => [supervisor] } as never,
-			tunnelService: tunnel as never,
-			cloudflareApps: apps as never,
-			ingressRefresher: refresher as never,
-		});
+		service = provideTo(PlatformManagedWebService.live, (effect) =>
+			effect.pipe(
+				Effect.provideService(PlatformEnvPort, { get: vi.fn(() => false) } as never),
+				Effect.provideService(PlatformHostnamesPort, { webHostname: () => "web.deployer.localhost" } as never),
+				Effect.provideService(PlatformConfigPort, platformConfig as never),
+				Effect.provideService(SupervisorsPort, { list: () => [supervisor] } as never),
+				Effect.provideService(WebTunnelPort, tunnel as never),
+				Effect.provideService(CloudflareAppsPort, apps as never),
+				Effect.provideService(PlatformRefresherPort, refresher as never),
+			),
+		);
 	});
 
 	// `getIdentifier()` is read at module load, so rebind the fake supervisor to whatever it returns.

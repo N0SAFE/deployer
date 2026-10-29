@@ -1,11 +1,11 @@
-import { runPromiseUnwrapped, runSyncUnwrapped } from "@deployer/effect-core";
+import { runPromiseUnwrapped, runSyncUnwrapped, serviceOver, type Over } from "@deployer/effect-core";
 /**
  * ClusterService — platform-facing facade over the Swarm cluster (SW-003).
  * Implements the data needs of the `cluster` ORPC contract using the
  * swarm core services (bootstrap/snapshot, election, inventory, placement).
  */
 
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect } from "effect";
 import { Observable } from "rxjs";
 
 import { attempt, attemptSync } from "../../../core/effects";
@@ -83,28 +83,33 @@ export type ClusterServiceShape = {
     readonly getNodeResources: (nodeId: string) => Effect.Effect<SwarmNodeResources, unknown>;
 };
 
+/** What the cluster service reads from the Effect context while it runs. */
+export type ClusterServicePorts =
+    | SwarmClusterPort
+    | SwarmFleetPort
+    | SwarmParticipationPort
+    | ClusterNodeRepoPort
+    | NodeInventoryPort
+    | ClusterEnvPort;
+
 /** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
-export class ClusterService extends Context.Service<ClusterService, ClusterServiceShape>()("fleet/ClusterService") {
-    static readonly Live: Layer.Layer<
-        ClusterService,
-        never,
-        SwarmClusterPort | SwarmFleetPort | SwarmParticipationPort | ClusterNodeRepoPort | NodeInventoryPort | ClusterEnvPort
-    > = Layer.effect(
-        ClusterService,
-        Effect.gen(function* () {
-            return makeClusterService({
-                swarmClusterService: yield* SwarmClusterPort,
-                swarmFleetService: yield* SwarmFleetPort,
-                participation: yield* SwarmParticipationPort,
-                clusterNodeRepository: yield* ClusterNodeRepoPort,
-                inventoryRepository: yield* NodeInventoryPort,
-                env: yield* ClusterEnvPort,
-            });
+export class ClusterService extends Context.Service<ClusterService, Over<ClusterServiceShape, ClusterServicePorts>>()("fleet/ClusterService") {
+    /** The ports are yielded when a method runs, so this is a constant the module provides with `useValue`. */
+    static readonly live = serviceOver(
+        Effect.all({
+            swarmClusterService: SwarmClusterPort,
+            swarmFleetService: SwarmFleetPort,
+            participation: SwarmParticipationPort,
+            clusterNodeRepository: ClusterNodeRepoPort,
+            inventoryRepository: NodeInventoryPort,
+            env: ClusterEnvPort,
         }),
+        makeClusterService,
     );
+
 }
 
-export function makeClusterService(ports: Ports): ClusterServiceShape {
+function makeClusterService(ports: Ports): ClusterServiceShape {
     const { swarmClusterService, swarmFleetService, participation, clusterNodeRepository, inventoryRepository, env } = ports;
 
     const toInventoryRows = (includeDown: boolean) =>

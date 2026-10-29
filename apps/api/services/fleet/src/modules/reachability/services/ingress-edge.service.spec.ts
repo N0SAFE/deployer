@@ -13,7 +13,18 @@ import { PublicEdgeService } from "@deployer/shared/core/modules/reachability/se
 import type { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
 
 import type { EdgeDnsServiceShape } from "./edge-dns.service";
-import { makeIngressEdgeService } from "./ingress-edge.service";
+import { provideTo } from "@deployer/effect-core";
+import {
+	DnsProvidersPort,
+	EdgeProvidersPort,
+	HostnamesPort,
+	IngressLanesPort,
+	MeshAgentPort,
+	PublicEdgePort,
+	TraefikRefresherPort,
+} from "../reachability.ports";
+import { EdgeDnsService } from "./edge-dns.service";
+import { IngressEdgeService } from "./ingress-edge.service";
 
 /** Run an Effect and reject with the ORIGINAL failure, so `toThrow(/text/)` reads the real message. */
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
@@ -86,15 +97,19 @@ function setup(initial: IngressLanes = defaultIngressLanes()) {
 		revoke: vi.fn(() => Promise.resolve()),
 	} as unknown as MeshAgentClient;
 	const refresher = { refresh: vi.fn() } as unknown as TraefikConfigRefresher;
-	const service = makeIngressEdgeService({
-		lanes: lanesService,
-		edges: registry,
-		publicEdge,
-		dns,
-		mesh,
-		hostnames: new EnvHostnameService(env),
-		refresher,
-	});
+	const service = provideTo(IngressEdgeService.live, (effect) =>
+		effect.pipe(
+			Effect.provideService(IngressLanesPort, lanesService as never),
+			Effect.provideService(EdgeProvidersPort, registry as never),
+			Effect.provideService(PublicEdgePort, publicEdge as never),
+			Effect.provideService(EdgeDnsService, dns as never),
+			// The fake DNS service reads no registry; the context only has to hold the port.
+			Effect.provideService(DnsProvidersPort, {} as never),
+			Effect.provideService(MeshAgentPort, mesh as never),
+			Effect.provideService(HostnamesPort, new EnvHostnameService(env) as never),
+			Effect.provideService(TraefikRefresherPort, refresher as never),
+		),
+	);
 	return { service, lanesService, tunnel, dns, mesh, refresher, order, getLanes: () => lanes };
 }
 

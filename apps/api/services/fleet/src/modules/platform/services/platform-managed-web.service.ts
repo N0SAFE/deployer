@@ -7,7 +7,8 @@ import type { PlatformConfigService } from "@deployer/shared/core/modules/platfo
 import { platformTraefikContainerName } from "@deployer/shared/core/modules/platform-ingress/services/platform-names";
 import { PLATFORM_MANAGED_WEB_SUPERVISOR_ID } from "@deployer/platform-supervisors";
 import type { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
-import { Context, Effect, Layer } from "effect";
+import { serviceOver, type Over } from "@deployer/effect-core";
+import { Context, Effect } from "effect";
 
 import { attempt } from "../../../core/effects";
 import { FleetInvalid } from "../../../core/fleet.errors";
@@ -79,38 +80,28 @@ type Ports = {
 };
 
 /** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
-export class PlatformManagedWebService extends Context.Service<PlatformManagedWebService, PlatformManagedWebServiceShape>()(
+export class PlatformManagedWebService extends Context.Service<PlatformManagedWebService, Over<PlatformManagedWebServiceShape, PlatformEnvPort | PlatformHostnamesPort | PlatformConfigPort | SupervisorsPort | WebTunnelPort | CloudflareAppsPort | PlatformRefresherPort>>()(
 	"fleet/PlatformManagedWebService",
 ) {
-	static readonly Live: Layer.Layer<
-		PlatformManagedWebService,
-		never,
-		| PlatformEnvPort
-		| PlatformHostnamesPort
-		| PlatformConfigPort
-		| SupervisorsPort
-		| WebTunnelPort
-		| CloudflareAppsPort
-		| PlatformRefresherPort
-	> = Layer.effect(
-		PlatformManagedWebService,
-		Effect.gen(function* () {
-			return makePlatformManagedWebService({
-				env: yield* PlatformEnvPort,
-				hostnameService: yield* PlatformHostnamesPort,
-				platformConfig: yield* PlatformConfigPort,
-				orchestrator: yield* SupervisorsPort,
-				tunnelService: yield* WebTunnelPort,
-				cloudflareApps: yield* CloudflareAppsPort,
-				ingressRefresher: yield* PlatformRefresherPort,
-			});
+	/** The ports are yielded when a method runs, so this is a constant the module provides with `useValue`. */
+	static readonly live = serviceOver(
+		Effect.all({
+			env: PlatformEnvPort,
+			hostnameService: PlatformHostnamesPort,
+			platformConfig: PlatformConfigPort,
+			orchestrator: SupervisorsPort,
+			tunnelService: WebTunnelPort,
+			cloudflareApps: CloudflareAppsPort,
+			ingressRefresher: PlatformRefresherPort,
 		}),
+		makePlatformManagedWebService,
 	);
+
 }
 
 const describe = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-export function makePlatformManagedWebService(ports: Ports): PlatformManagedWebServiceShape {
+function makePlatformManagedWebService(ports: Ports): PlatformManagedWebServiceShape {
 	const { env, hostnameService, platformConfig, orchestrator, tunnelService, cloudflareApps, ingressRefresher } = ports;
 
 	const supervisor = () => orchestrator.list().find((s) => s.id === CONSOLE_SUPERVISOR_ID);

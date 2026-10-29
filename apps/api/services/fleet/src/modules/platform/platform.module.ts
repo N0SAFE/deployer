@@ -51,7 +51,7 @@ export class PlatformModule extends createModuleContext(
             { provide: WebTunnelPort, useExisting: CloudflareTunnelService },
             { provide: CloudflareAppsPort, useExisting: CloudflareAppService },
             { provide: PlatformRefresherPort, useExisting: TraefikConfigRefresher },
+            { provide: PlatformManagedWebService, useValue: PlatformManagedWebService.live },
         ],
     },
-    PlatformManagedWebService,
 ) {}

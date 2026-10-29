@@ -3,7 +3,8 @@ import type { NodeNetworkConfigData } from "@deployer/shared/core/modules/reacha
 import type { PublicAccessPointService } from "@deployer/shared/core/modules/reachability/services/public-access-point.service";
 import type { ReachabilityService } from "@deployer/shared/core/modules/reachability/services/reachability.service";
 import type { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
-import { Context, Effect, Layer } from "effect";
+import { serviceOver, type Over } from "@deployer/effect-core";
+import { Context, Effect } from "effect";
 import { Observable } from "rxjs";
 
 import { attempt, attemptSync } from "../../../core/effects";
@@ -78,24 +79,20 @@ type Ports = {
 };
 
 /** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
-export class NodeReachabilityService extends Context.Service<NodeReachabilityService, NodeReachabilityServiceShape>()(
+export class NodeReachabilityService extends Context.Service<NodeReachabilityService, Over<NodeReachabilityServiceShape, ReachabilityCorePort | PublicAccessPointPort | EgressPort | TraefikRefresherPort>>()(
 	"fleet/NodeReachabilityService",
 ) {
-	static readonly Live: Layer.Layer<
-		NodeReachabilityService,
-		never,
-		ReachabilityCorePort | PublicAccessPointPort | EgressPort | TraefikRefresherPort
-	> = Layer.effect(
-		NodeReachabilityService,
-		Effect.gen(function* () {
-			return makeNodeReachabilityService({
-				reachability: yield* ReachabilityCorePort,
-				accessPoint: yield* PublicAccessPointPort,
-				egress: yield* EgressPort,
-				refresher: yield* TraefikRefresherPort,
-			});
+	/** The ports are yielded when a method runs, so this is a constant the module provides with `useValue`. */
+	static readonly live = serviceOver(
+		Effect.all({
+			reachability: ReachabilityCorePort,
+			accessPoint: PublicAccessPointPort,
+			egress: EgressPort,
+			refresher: TraefikRefresherPort,
 		}),
+		makeNodeReachabilityService,
 	);
+
 }
 
 const toNodeNetworkView = (config: NodeNetworkConfigData): NodeNetworkView => ({
@@ -105,7 +102,7 @@ const toNodeNetworkView = (config: NodeNetworkConfigData): NodeNetworkView => ({
 	updatedAt: config.updatedAt,
 });
 
-export function makeNodeReachabilityService({ reachability, accessPoint, egress, refresher }: Ports): NodeReachabilityServiceShape {
+function makeNodeReachabilityService({ reachability, accessPoint, egress, refresher }: Ports): NodeReachabilityServiceShape {
 	const isOk = (status: number) => status >= 200 && status < 300;
 
 	const probePublicUrl = Effect.fn("NodeReachabilityService.probePublicUrl")(function* () {

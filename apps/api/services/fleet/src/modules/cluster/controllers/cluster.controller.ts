@@ -11,7 +11,7 @@ import { attemptSync } from "../../../core/effects";
 import { serve } from "../../../core/orpc/serve";
 import { ClusterModule } from "../cluster.module";
 import { ClusterEventsPort } from "../cluster.ports";
-import { ClusterService } from "../services/cluster.service";
+import { ClusterService, type ClusterServicePorts } from "../services/cluster.service";
 
 /**
  * Re-evaluation cadence for `streamSwarmConfig` — the interval the dashboard used
@@ -99,8 +99,9 @@ export class ClusterController {
             .use(ClusterModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const cluster = yield* ClusterService;
+                const ports = yield* Effect.context<ClusterServicePorts>();
                 // Each evaluation runs through `serve`, so a poll provides the actor like any request.
-                return liveSnapshot(() => Effect.runPromise(serve(context)(cluster.getSwarmConfig())), {
+                return liveSnapshot(() => Effect.runPromise(serve(context)(cluster.getSwarmConfig().pipe(Effect.provideContext(ports)))), {
                     intervalMs: SWARM_CONFIG_STREAM_INTERVAL_MS,
                 });
             });

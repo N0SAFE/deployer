@@ -39,7 +39,7 @@ export class ClusterModule extends createModuleContext(
             { provide: NodeInventoryPort, useExisting: ClusterNodeInventoryRepository },
             { provide: ClusterEnvPort, useExisting: EnvService },
             { provide: ClusterEventsPort, useExisting: ClusterSwarmEventsService },
+            { provide: ClusterService, useValue: ClusterService.live },
         ],
     },
-    ClusterService,
 ) {}

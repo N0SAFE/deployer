@@ -4,7 +4,7 @@ import { GlobalDatabaseModule } from "@deployer/shared/core/modules/database/glo
 import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
 
 import { FleetController } from "./controllers/fleet.controller";
-import { FleetDatabasePort } from "./repositories/fleet.repository";
+import { FleetDatabasePort, FleetRepository } from "./repositories/fleet.repository";
 import { FleetService } from "./services/fleet.service";
 
 /**
@@ -20,7 +20,10 @@ export class FleetModule extends createModuleContext(
     {
         imports: [ConfigurationCoreModule, GlobalDatabaseModule],
         controllers: [FleetController],
-        providers: [{ provide: FleetDatabasePort, useExisting: GlobalDatabaseService }],
+        providers: [
+            { provide: FleetDatabasePort, useExisting: GlobalDatabaseService },
+            { provide: FleetRepository, useValue: FleetRepository.live },
+            { provide: FleetService, useValue: FleetService.live },
+        ],
     },
-    FleetService,
 ) {}

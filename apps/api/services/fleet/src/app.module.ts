@@ -16,7 +16,6 @@ import { DatabaseModule } from "@deployer/shared/core/modules/database/database.
 import { AuthModule } from "@deployer/shared/core/modules/auth/auth.module";
 import { createBetterAuth } from "@deployer/shared/config/auth/auth";
 
-import { FleetLive } from "./app.layers";
 import { ClusterModule } from "./modules/cluster/cluster.module";
 import { FleetModule } from "./modules/fleet/fleet.module";
 import { MeshCoreModule } from "@deployer/shared/core/modules/mesh/mesh-core.module";
@@ -103,7 +102,7 @@ registerSchemaCodecs();
 			},
 		}),
 		// The Effect services of the modules already migrated (see `app.layers.ts`).
-		EffectRuntimeModule.forRoot({ layers: [FleetLive] }),
+		EffectRuntimeModule,
 		// Fleet receives the webhooks; runtime owns deployments, so fleet reaches it by contract.
 		ServiceClientModule.forRoot(),
 

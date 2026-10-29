@@ -6,7 +6,7 @@ import {
     providerConfigValidators,
     providerSchemasCatalog,
 } from "@deployer/provider-schema";
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect } from "effect";
 
 import { FleetNotFound } from "../../../core/fleet.errors";
 
@@ -61,13 +61,12 @@ export type ProviderSchemaServiceShape = {
 export class ProviderSchemaService extends Context.Service<ProviderSchemaService, ProviderSchemaServiceShape>()(
     "fleet/ProviderSchemaService",
 ) {
-    static readonly Live: Layer.Layer<ProviderSchemaService> = Layer.sync(ProviderSchemaService, () =>
-        makeProviderSchemaService(),
-    );
+	static readonly live: ProviderSchemaServiceShape = makeProviderSchemaService();
+
 }
 
 /** The service over the shipped catalogs; a plain record, so it needs no Nest to exist. */
-export function makeProviderSchemaService(): ProviderSchemaServiceShape {
+function makeProviderSchemaService(): ProviderSchemaServiceShape {
     const notFound = (what: string, id: string) => new FleetNotFound({ reason: `${what} '${id}' not found` });
 
     return {

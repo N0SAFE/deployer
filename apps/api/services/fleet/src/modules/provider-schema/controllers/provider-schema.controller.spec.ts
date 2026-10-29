@@ -6,7 +6,7 @@ import { Context } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import { ProviderSchemaController } from "./provider-schema.controller";
-import { makeProviderSchemaService, ProviderSchemaService } from "../services/provider-schema.service";
+import { ProviderSchemaService } from "../services/provider-schema.service";
 
 // Authentication is the shared middleware's concern; here it lets the call through so the rest of
 // the chain (Effect context, `serve`, error mapping) runs for real.
@@ -16,7 +16,7 @@ vi.mock("@deployer/shared/core/modules/auth/orpc/middlewares", async () => {
 });
 
 const context = {
-    ...effectContext(Context.make(ProviderSchemaService, makeProviderSchemaService())),
+    ...effectContext(Context.make(ProviderSchemaService, ProviderSchemaService.live)),
     auth: { user: { id: "u1", role: "admin" } },
     request: { headers: { "x-correlation-id": "c-1" } },
 };

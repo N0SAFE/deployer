@@ -2,9 +2,9 @@ import { Effect, Exit } from "effect";
 import { describe, expect, it } from "vitest";
 
 import { FleetNotFound } from "@/core/fleet.errors";
-import { makeProviderSchemaService } from "./provider-schema.service";
+import { ProviderSchemaService } from "./provider-schema.service";
 
-const service = makeProviderSchemaService();
+const service = ProviderSchemaService.live;
 const run = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(effect);
 const failure = <A, E>(effect: Effect.Effect<A, E>) => Effect.runPromise(Effect.flip(effect));
 

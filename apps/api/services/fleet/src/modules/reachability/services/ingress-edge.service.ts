@@ -37,11 +37,13 @@ import type { HostnameService } from "@deployer/shared/core/modules/platform-ing
 import type { IngressLanesService } from "@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service";
 import type { PublicEdgeService } from "@deployer/shared/core/modules/reachability/services/public-edge.service";
 import type { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
-import { Context, Effect, Layer } from "effect";
+import { bindServices, serviceOver, type Over } from "@deployer/effect-core";
+import { Context, Effect } from "effect";
 
 import { attempt, attemptSync } from "../../../core/effects";
 import { FleetInvalid } from "../../../core/fleet.errors";
 import {
+	DnsProvidersPort,
 	EdgeProvidersPort,
 	HostnamesPort,
 	IngressLanesPort,
@@ -53,7 +55,7 @@ import { EdgeDnsService, type EdgeDnsServiceShape } from "./edge-dns.service";
 import { planLaneDnsRecords } from "./lane-dns-plan";
 
 /** Converge DNS on this cadence too: mesh addresses and public addresses change. */
-const DNS_RECONCILE_INTERVAL_MS = 10 * 60_000;
+export const DNS_RECONCILE_INTERVAL_MS = 10 * 60_000;
 
 type MeshView = IngressState["mesh"];
 
@@ -92,38 +94,37 @@ type Ports = {
 };
 
 /** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
-export class IngressEdgeService extends Context.Service<IngressEdgeService, IngressEdgeServiceShape>()(
+export class IngressEdgeService extends Context.Service<
+	IngressEdgeService,
+	Over<
+		IngressEdgeServiceShape,
+		IngressLanesPort | EdgeProvidersPort | PublicEdgePort | MeshAgentPort | HostnamesPort | TraefikRefresherPort | EdgeDnsService | DnsProvidersPort
+	>
+>()(
 	"fleet/IngressEdgeService",
 ) {
 	/**
-	 * Built over the platform ports. It also owns the periodic DNS reconcile: a fiber scoped to the
-	 * layer, so it starts with the runtime and is interrupted when the runtime is disposed.
+	 * The ports are yielded when a method runs, so this is a constant the module provides with `useValue`.
+	 * The periodic DNS reconcile is `IngressDnsReconciler`'s job: a constant has no lifetime of its own.
 	 */
-	static readonly Live: Layer.Layer<
-		IngressEdgeService,
-		never,
-		IngressLanesPort | EdgeProvidersPort | PublicEdgePort | MeshAgentPort | HostnamesPort | TraefikRefresherPort | EdgeDnsService
-	> = Layer.effect(
-		IngressEdgeService,
+	static readonly live = serviceOver(
 		Effect.gen(function* () {
-			const service = makeIngressEdgeService({
-				lanes: yield* IngressLanesPort,
-				edges: yield* EdgeProvidersPort,
-				publicEdge: yield* PublicEdgePort,
-				mesh: yield* MeshAgentPort,
-				hostnames: yield* HostnamesPort,
-				refresher: yield* TraefikRefresherPort,
-				dns: yield* EdgeDnsService,
-			});
-			yield* Effect.forkScoped(
-				Effect.forever(Effect.sleep(DNS_RECONCILE_INTERVAL_MS).pipe(Effect.andThen(service.reconcileDns()))),
-			);
-			return service;
+			const lanes = yield* IngressLanesPort;
+			const edges = yield* EdgeProvidersPort;
+			const publicEdge = yield* PublicEdgePort;
+			const mesh = yield* MeshAgentPort;
+			const hostnames = yield* HostnamesPort;
+			const refresher = yield* TraefikRefresherPort;
+			// The DNS service reads its own registry from the context; hand it over with that settled.
+			const dns = bindServices(yield* EdgeDnsService, yield* Effect.context<DnsProvidersPort>());
+			return { lanes, edges, publicEdge, mesh, hostnames, refresher, dns };
 		}),
+		makeIngressEdgeService,
 	);
+
 }
 
-export function makeIngressEdgeService(ports: Ports): IngressEdgeServiceShape {
+function makeIngressEdgeService(ports: Ports): IngressEdgeServiceShape {
 	const { lanes: lanesPort, edges, publicEdge, mesh, hostnames, refresher, dns } = ports;
 
 	const consoleUrls = (lanes: IngressLanes): IngressState["consoleUrls"] => {

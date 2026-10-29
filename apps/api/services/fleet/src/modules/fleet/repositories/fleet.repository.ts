@@ -1,5 +1,6 @@
 import { and, asc, desc, eq } from "drizzle-orm";
-import { Context, Effect, Layer } from "effect";
+import { serviceOver, type Over } from "@deployer/effect-core";
+import { Context, Effect } from "effect";
 import type { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
 import { attempt } from "../../../core/effects";
 import {
@@ -21,7 +22,7 @@ import {
  * Each method is lifted into an Effect that fails with whatever the driver raised (an
  * infrastructure failure the boundary answers as internal). The query builders return rows when awaited.
  */
-export function makeFleetRepository(database: GlobalDatabaseService) {
+function makeFleetRepository(database: GlobalDatabaseService) {
     return {
         listServersWithMetrics: () => attempt(async () => {
         return database.db
@@ -229,10 +230,7 @@ export class FleetDatabasePort extends Context.Service<FleetDatabasePort, Global
 export class FleetRepository extends Context.Service<FleetRepository, FleetRepositoryShape>()(
     "fleet/FleetRepository",
 ) {
-    static readonly Live: Layer.Layer<FleetRepository, never, FleetDatabasePort> = Layer.effect(
-        FleetRepository,
-        Effect.gen(function* () {
-            return makeFleetRepository(yield* FleetDatabasePort);
-        }),
-    );
+    /** The database is yielded when a method runs, so this is a constant the module provides with `useValue`. */
+    static readonly live = serviceOver(FleetDatabasePort, makeFleetRepository);
+
 }

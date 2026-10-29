@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { FleetInvalid, FleetNotFound } from "@/core/fleet.errors";
 import { Cause, Effect, Exit } from "effect";
-import { makeFleetService } from "./fleet.service";
-import type { FleetRepositoryShape } from "../repositories/fleet.repository";
+import { provideTo } from "@deployer/effect-core";
+import { FleetService } from "./fleet.service";
+import { FleetRepository, type FleetRepositoryShape } from "../repositories/fleet.repository";
 
 /** Run an Effect and reject with the ORIGINAL failure, so `rejects.toBeInstanceOf(...)` reads the real error. */
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
@@ -71,7 +72,7 @@ function mkAllocationRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe("FleetService", () => {
-    let service: ReturnType<typeof makeFleetService>;
+    let service: ReturnType<typeof provideTo<typeof FleetService.live>>;
     let repo: {
         listServersWithMetrics: ReturnType<typeof vi.fn>;
         listEnabledAllocations: ReturnType<typeof vi.fn>;
@@ -104,7 +105,9 @@ describe("FleetService", () => {
             insertAllocation: vi.fn().mockResolvedValue([]),
             deleteAllocation: vi.fn().mockResolvedValue({ rowCount: 0 }),
         };
-        service = makeFleetService(asEffects(repo));
+        service = provideTo(FleetService.live, (effect) =>
+            effect.pipe(Effect.provideService(FleetRepository, asEffects(repo))),
+        );
     });
 
     describe("listServers — allocation aggregation", () => {

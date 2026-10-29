@@ -38,6 +38,8 @@ import {
     ReachabilityCorePort,
     TraefikRefresherPort,
 } from "./reachability.ports";
+import { EdgeDnsService } from "./services/edge-dns.service";
+import { IngressDnsReconciler } from "./services/ingress-dns-reconciler";
 import { IngressEdgeService } from "./services/ingress-edge.service";
 import { NodeReachabilityService } from "./services/node-reachability.service";
 
@@ -56,8 +58,10 @@ export class ReachabilityModule extends createModuleContext(
             { provide: ReachabilityCorePort, useExisting: ReachabilityService },
             { provide: PublicAccessPointPort, useExisting: PublicAccessPointService },
             { provide: EgressPort, useExisting: EgressService },
+            { provide: EdgeDnsService, useValue: EdgeDnsService.live },
+            { provide: IngressEdgeService, useValue: IngressEdgeService.live },
+            { provide: NodeReachabilityService, useValue: NodeReachabilityService.live },
+            IngressDnsReconciler,
         ],
     },
-    IngressEdgeService,
-    NodeReachabilityService,
 ) {}

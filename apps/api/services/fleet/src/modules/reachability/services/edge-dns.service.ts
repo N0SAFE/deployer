@@ -9,7 +9,8 @@
  * step, not an error.
  */
 
-import { Context, Effect, Layer } from "effect";
+import { serviceOver, type Over } from "@deployer/effect-core";
+import { Context, Effect } from "effect";
 
 import { attempt } from "../../../core/effects";
 import type { DnsProviderAccountRef } from "@/modules/providers/dns/shared/dns-provider.interface";
@@ -45,18 +46,19 @@ export type EdgeDnsServiceShape = {
 };
 
 /** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
-export class EdgeDnsService extends Context.Service<EdgeDnsService, EdgeDnsServiceShape>()("fleet/EdgeDnsService") {
-	/** Holds the last reconcile's results, so it is built once per runtime. */
-	static readonly Live: Layer.Layer<EdgeDnsService, never, DnsProvidersPort> = Layer.effect(
-		EdgeDnsService,
-		Effect.gen(function* () {
-			return makeEdgeDnsService(yield* DnsProvidersPort);
-		}),
-	);
+export class EdgeDnsService extends Context.Service<EdgeDnsService, Over<EdgeDnsServiceShape, DnsProvidersPort>>()("fleet/EdgeDnsService") {
+	/** The registry is yielded when a method runs; the last results live in one state shared by every call. */
+	static readonly live = (() => {
+		const state: EdgeDnsState = { lastResults: [] };
+		return serviceOver(DnsProvidersPort, (registry) => makeEdgeDnsService(registry, state));
+	})();
+
 }
 
-export function makeEdgeDnsService(registry: DnsProviderRegistryService): EdgeDnsServiceShape {
-	let lastResults: LaneDnsResult[] = [];
+/** What the last reconcile found, kept across calls. */
+type EdgeDnsState = { lastResults: LaneDnsResult[] };
+
+function makeEdgeDnsService(registry: DnsProviderRegistryService, state: EdgeDnsState): EdgeDnsServiceShape {
 
 	/** Find the account + zone serving `hostname`, trying `preferred` first. */
 	const locateZone = (hostname: string, preferred: string | null) =>
@@ -122,12 +124,12 @@ export function makeEdgeDnsService(registry: DnsProviderRegistryService): EdgeDn
 	};
 
 	return {
-		results: () => Effect.sync(() => lastResults),
+		results: () => Effect.sync(() => state.lastResults),
 
 		reconcile: Effect.fn("EdgeDnsService.reconcile")(function* (plans) {
 			const results: LaneDnsResult[] = [];
 			for (const plan of plans) results.push(yield* reconcileOne(plan, plan.preferredAccountId));
-			lastResults = results;
+			state.lastResults = results;
 			return results;
 		}),
 
