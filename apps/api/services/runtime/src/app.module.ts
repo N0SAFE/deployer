@@ -1,5 +1,4 @@
 import { EffectRuntime, EffectRuntimeModule } from "@deployer/nest-effect";
-import { RuntimeLive } from "./app.layers";
 import { Module } from "@nestjs/common";
 import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
 import {
@@ -81,8 +80,8 @@ registerSchemaCodecs();
 				resolve: async (runtime) => ({ "effect/context": await runtime.context() }),
 			},
 		}),
-		// The Effect services of the modules already migrated (see `app.layers.ts`).
-		EffectRuntimeModule.forRoot({ layers: [RuntimeLive] }),
+		// Effect services are provided by the modules that own them; the runtime discovers them.
+		EffectRuntimeModule,
 
 		DeploymentDomainModule,
 		DockerDomainModule,
