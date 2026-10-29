@@ -7,6 +7,8 @@ export type WebSocketConnectionOptions = {
   readonly url: string;
   /** Reconnect delay in ms. A connection that cannot come back is evicted by the pool and replaced. */
   readonly reconnectDelayMs?: number;
+  /** Consecutive failed attempts before waiting calls fail. */
+  readonly maxAttempts?: number;
 };
 
 /**
@@ -15,14 +17,28 @@ export type WebSocketConnectionOptions = {
  */
 export function openWebSocketConnection<C extends ClientContext>(options: WebSocketConnectionOptions): PooledConnection<C> {
   let socket: WebSocket | undefined;
-  const connect = () => {
-    socket = new WebSocket(options.url);
-    return socket;
-  };
+  // Resolves once the socket is open and rejects when the handshake fails. A refused handshake (a wrong credential, a
+  // replica that is gone) reports an `error` and, in some runtimes, never a `close`; the transport counts attempts on
+  // a failed `connect`, so rejecting here is what makes a refusal a failed attempt instead of a call that waits forever.
+  const connect = () =>
+    new Promise<WebSocket>((resolve, reject) => {
+      const next = new WebSocket(options.url);
+      next.addEventListener("open", () => {
+        socket = next;
+        resolve(next);
+      }, { once: true });
+      next.addEventListener("error", () => { reject(new Error(`Could not connect to ${new URL(options.url).host}`)); }, { once: true });
+    });
 
   const link = new RPCLink<C>({
     connect,
-    reconnect: { enabled: true, delay: ({ attempt }) => (attempt === 1 ? 0 : (options.reconnectDelayMs ?? 2_000)) },
+    // A bounded number of attempts: a peer that refuses the connection (a wrong credential, a replica that is gone) fails
+    // the calls waiting on it instead of holding them forever. The pool then opens a fresh connection for the next call.
+    reconnect: {
+      enabled: true,
+      maxAttempt: options.maxAttempts ?? 3,
+      delay: ({ attempt }) => (attempt === 1 ? 0 : (options.reconnectDelayMs ?? 2_000)),
+    },
   });
 
   return {

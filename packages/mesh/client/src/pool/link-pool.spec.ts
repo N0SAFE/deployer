@@ -127,4 +127,13 @@ describe("linkPool", () => {
     expect(closed).toEqual([1]);
     expect(pool.size()).toBe(0);
   });
+
+  it("waits for a connection that is being opened instead of opening past the cap", async () => {
+    const { pool, open } = fixture({ maxConnections: 1, multiplex: 8 });
+
+    const all = await Promise.all([acquire(pool), acquire(pool), acquire(pool)]);
+
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(new Set(all.map((link) => link.connection.id)).size).toBe(1);
+  });
 });

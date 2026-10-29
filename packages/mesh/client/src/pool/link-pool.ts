@@ -42,6 +42,7 @@ type Entry<C> = { connection: C; inFlight: number; lastUsed: number };
 export function linkPool<C>(options: LinkPoolOptions<C>) {
   const entries: Entry<C>[] = [];
   let opening = 0;
+  const pending = new Set<Promise<Entry<C>>>();
 
   const take = (entry: Entry<C>): PooledLink<C> => {
     entry.inFlight += 1;
@@ -76,15 +77,30 @@ export function linkPool<C>(options: LinkPoolOptions<C>) {
       return take(least);
     }
 
-    opening += 1;
-    const connection = yield* Effect.tryPromise({
-      try: () => options.open(),
-      catch: (cause) => new LinkOpenFailed({ target: options.target, cause }),
-    }).pipe(Effect.ensuring(Effect.sync(() => (opening -= 1))));
+    // Every connection of the cap is already being opened: wait for one instead of opening past the cap.
+    const waiting = [...pending][0];
+    if (!least && entries.length + opening >= options.maxConnections && waiting) {
+      return take(
+        yield* Effect.tryPromise({ try: () => waiting, catch: (cause) => new LinkOpenFailed({ target: options.target, cause }) }),
+      );
+    }
 
-    const entry: Entry<C> = { connection, inFlight: 0, lastUsed: options.now() };
-    entries.push(entry);
-    return take(entry);
+    opening += 1;
+    const opened: Promise<Entry<C>> = (async () => {
+      try {
+        const entry: Entry<C> = { connection: await options.open(), inFlight: 0, lastUsed: options.now() };
+        entries.push(entry);
+        return entry;
+      } finally {
+        opening -= 1;
+      }
+    })();
+    pending.add(opened);
+    const forget = () => void pending.delete(opened);
+    opened.then(forget, forget);
+    return take(
+      yield* Effect.tryPromise({ try: () => opened, catch: (cause) => new LinkOpenFailed({ target: options.target, cause }) }),
+    );
   });
 
   return {
