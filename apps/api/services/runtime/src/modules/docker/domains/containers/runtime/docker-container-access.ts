@@ -19,8 +19,8 @@ import { DockerEngine } from "@deployer/docker";
 import { Context, Effect } from "effect";
 import { Observable, catchError, from, map, switchMap, throwError } from "rxjs";
 
-import type { DockerContainerTerminalOpenResult } from "../mesh/docker-container-runtime-mesh.contracts";
-import type { DockerContainerRuntimeMeshService } from "../mesh/docker-container-runtime-mesh.service";
+import type { DockerNodeMesh } from "../mesh/docker-node-mesh";
+import type { DockerContainerTerminalOpenResult } from "../mesh/node-mesh-types";
 import { pollSnapshot, streamLogs, streamProcessLogs } from "./container-streams";
 import type { FileMutationAck } from "./container-file-ops";
 import { DockerContainerOps, type DockerContainerOpsShape } from "./docker-container-ops";
@@ -40,7 +40,7 @@ import {
 export class ContainerAccessMeshPort extends Context.Service<
   ContainerAccessMeshPort,
   Pick<
-    DockerContainerRuntimeMeshService,
+    DockerNodeMesh,
     | "listContainerLogsSnapshotAcrossInstances"
     | "listContainerProcessesSnapshotAcrossInstances"
     | "listContainerProcessLogsSnapshotAcrossInstances"

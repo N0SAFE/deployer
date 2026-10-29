@@ -4,9 +4,70 @@ import { Effect } from "effect";
 import type { DockerRepository } from "../../../repositories/facade/docker.repository";
 import { DockerContainerOps } from "../runtime/docker-container-ops";
 import { DockerTerminalSessions } from "../runtime/docker-terminal-sessions";
-import type { LocalNodeOperations } from "./mesh-handlers";
 
-/** DI token for this node's local operations: the one set of answers both the old topic handlers and the node router serve. */
+import type {
+  DockerContainerListRequestPayload,
+  DockerContainerListResponsePayload,
+  DockerContainerInspectResponsePayload,
+  DockerRuntimeCatalogResponsePayload,
+} from "./node-mesh-types";
+import type {
+  DockerContainerCreateDirectoryRequestPayload,
+  DockerContainerDeletePathRequestPayload,
+  DockerContainerFilesSnapshot,
+  DockerContainerFilesSnapshotRequestPayload,
+  DockerContainerLogsSnapshot,
+  DockerContainerLogsSnapshotRequestPayload,
+  DockerContainerMutationAck,
+  DockerContainerProcessLogsSnapshotRequestPayload,
+  DockerContainerProcessesSnapshot,
+  DockerContainerProcessesSnapshotRequestPayload,
+  DockerContainerReadFileSnapshot,
+  DockerContainerReadFileSnapshotRequestPayload,
+  DockerContainerRenamePathRequestPayload,
+  DockerContainerTerminalCloseRequestPayload,
+  DockerContainerTerminalEventsRequestPayload,
+  DockerContainerTerminalEventsSnapshot,
+  DockerContainerTerminalInputRequestPayload,
+  DockerContainerTerminalOpenRequestPayload,
+  DockerContainerTerminalOpenResult,
+  DockerContainerWriteFileRequestPayload,
+  DockerImageInspectRequestPayload,
+} from "./node-mesh-types";
+import type { DockerContainerInspectDetail, DockerImageInspectDetail } from "@deployer/contracts-entities";
+
+
+type Ack = DockerContainerMutationAck;
+/** The local operations the mesh asks of this node (each already running on the app's Effect runtime). */
+export type LocalNodeOperations = {
+  readonly listContainers: (
+    query: DockerContainerListRequestPayload["query"],
+  ) => Promise<Pick<DockerContainerListResponsePayload, "data" | "meta">>;
+  readonly getLocalDockerDaemonId: () => Promise<string | null>;
+  readonly inspectContainer: (containerId: string) => Promise<DockerContainerInspectDetail>;
+  readonly getRuntimeCatalogSnapshot: () => Promise<DockerRuntimeCatalogResponsePayload["catalog"]>;
+  readonly inspectImage: (imageId: string) => Promise<DockerImageInspectDetail>;
+  readonly logsSnapshot: (query: DockerContainerLogsSnapshotRequestPayload["query"]) => Promise<DockerContainerLogsSnapshot>;
+  readonly processes: (query: DockerContainerProcessesSnapshotRequestPayload["query"]) => Promise<DockerContainerProcessesSnapshot>;
+  readonly processLogsSnapshot: (
+    query: DockerContainerProcessLogsSnapshotRequestPayload["query"],
+  ) => Promise<DockerContainerLogsSnapshot>;
+  readonly listFiles: (query: DockerContainerFilesSnapshotRequestPayload["query"]) => Promise<DockerContainerFilesSnapshot>;
+  readonly readFile: (query: DockerContainerReadFileSnapshotRequestPayload["query"]) => Promise<DockerContainerReadFileSnapshot>;
+  readonly writeFile: (body: DockerContainerWriteFileRequestPayload["body"]) => Promise<Ack>;
+  readonly deletePath: (body: DockerContainerDeletePathRequestPayload["body"]) => Promise<Ack>;
+  readonly renamePath: (body: DockerContainerRenamePathRequestPayload["body"]) => Promise<Ack>;
+  readonly createDirectory: (body: DockerContainerCreateDirectoryRequestPayload["body"]) => Promise<Ack>;
+  readonly openTerminal: (body: DockerContainerTerminalOpenRequestPayload["body"]) => Promise<DockerContainerTerminalOpenResult>;
+  readonly terminalEvents: (
+    query: DockerContainerTerminalEventsRequestPayload["query"],
+  ) => Promise<DockerContainerTerminalEventsSnapshot>;
+  readonly sendTerminalInput: (body: DockerContainerTerminalInputRequestPayload["body"]) => Promise<Ack>;
+  readonly closeTerminal: (body: DockerContainerTerminalCloseRequestPayload["body"]) => Promise<Ack>;
+};
+
+
+/** DI token for this node's local operations: the answers the node router serves. */
 export const LOCAL_NODE_OPERATIONS = Symbol("runtime:local-node-operations");
 
 /** Anything that runs an Effect for a Promise caller and rejects with the original failure (the app's Effect runtime). */

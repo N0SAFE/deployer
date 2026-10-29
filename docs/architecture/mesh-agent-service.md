@@ -265,9 +265,14 @@ one it takes part through `joinMesh`: it registers every few seconds, announcing
 so a call about a container reaches the node that owns it, and it serves the node router on its websocket. It holds no
 credential: its agent vouches for the peers that connect.
 
-The old topic-based docker mesh (`DockerContainerMeshService`, `DockerContainerRuntimeMeshService` and the registrar) is
-still registered and answers the same operations from the same `LocalNodeOperations`, because its callers have not been
-moved to the node router yet. It is removed when they are.
+The runtime's docker callers (container resolution, container access, the runtime catalog) ask the other nodes through
+`DockerNodeMesh`, which replaced the topic-based docker mesh services and their registrar, now deleted. It keeps the old
+methods' names, arguments and result shapes, so the code that merges lists, dedupes by responder and falls back to the node
+that owns a container did not change; what changed is how a node is reached. It asks through the runtime's link to its own
+agent: a question about a container goes first to the node that announced that container id (the directory's key holder),
+and to every other node if that fails or nobody announced it; a question with no owner (a list, a catalog, a terminal
+session, which is not announced as a key) goes to every other node. Each node answers from its own engine only. A runtime
+with no agent, or with nobody to ask, gets no responses, which is what a lone node always meant.
 
 ## Agents
 

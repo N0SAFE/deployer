@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { buildNodeRouter, containerIds } from "./node-router";
 
-import type { LocalNodeOperations } from "./mesh-handlers";
+import type { LocalNodeOperations } from "./local-node-operations";
 import type { ClientContext } from "@orpc/client";
 
 const ack = { ok: true as const, timestamp: "2026-10-29T00:00:00.000Z" };

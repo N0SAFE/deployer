@@ -1,6 +1,6 @@
 import { createModuleContext } from "@deployer/nest-effect";
 
-import { DockerContainerMeshService } from "../domains/containers/mesh/docker-container-mesh.service";
+import { DOCKER_NODE_MESH } from "../domains/containers/mesh/docker-node-mesh";
 import { DockerContainersModule } from "../domains/containers/docker-containers.module";
 import { DockerRepository } from "../repositories/facade/docker.repository";
 import { DockerRepositoriesModule } from "../repositories/docker-repositories.module";
@@ -10,7 +10,7 @@ import { CatalogLocalPort, CatalogMeshPort, DockerCatalog } from "./docker-catal
 export class DockerCatalogModule extends createModuleContext({
   imports: [DockerContainersModule, DockerRepositoriesModule],
   providers: [
-    { provide: CatalogMeshPort, useExisting: DockerContainerMeshService },
+    { provide: CatalogMeshPort, useExisting: DOCKER_NODE_MESH },
     { provide: CatalogLocalPort, useExisting: DockerRepository },
     { provide: DockerCatalog, useValue: DockerCatalog.live },
   ],

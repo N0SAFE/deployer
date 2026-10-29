@@ -2,7 +2,7 @@ import { implement } from "@orpc/server";
 
 import { runtimeNodeContract } from "@deployer/runtime-contracts/mesh/index";
 
-import type { LocalNodeOperations } from "./mesh-handlers";
+import type { LocalNodeOperations } from "./local-node-operations";
 
 /**
  * What this node answers when the mesh asks about its own docker engine, as the runtime's node router.

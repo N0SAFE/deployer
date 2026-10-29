@@ -11,6 +11,7 @@ import { MESH_WEBSOCKET_PATH } from "@deployer/mesh-agent-contracts";
 import { openWebSocketConnection, pooledLink } from "@deployer/mesh-client";
 import { attachMeshWebSocket } from "@deployer/mesh-server";
 
+import { NODE_MESH_AGENT, type NodeMeshAgent } from "../../modules/docker/domains/containers/mesh/docker-node-mesh";
 import { LOCAL_NODE_OPERATIONS } from "../../modules/docker/domains/containers/mesh/local-node-operations";
 
 import { joinRuntimeMesh } from "./join-runtime-mesh";
@@ -81,8 +82,14 @@ describe("joinRuntimeMesh", () => {
     rmSync(directory, { recursive: true, force: true });
   });
 
-  const appWith = (local: unknown) =>
-    ({ get: (token: unknown) => (token === LOCAL_NODE_OPERATIONS ? local : undefined), getHttpServer: () => server }) as unknown as INestApplication;
+  let holder: NodeMeshAgent;
+  const appWith = (local: unknown) => {
+    holder = { link: undefined, selfReplicaId: "runtime-test" };
+    return {
+      get: (token: unknown) => (token === LOCAL_NODE_OPERATIONS ? local : token === NODE_MESH_AGENT ? holder : undefined),
+      getHttpServer: () => server,
+    } as unknown as INestApplication;
+  };
 
   it("runs without the mesh when the node has no agent, as it always did", async () => {
     process.env.MESH_AGENT_SOCKET = join(directory, "no-such-agent.sock");
@@ -101,6 +108,17 @@ describe("joinRuntimeMesh", () => {
     await vi.waitFor(() => { expect(agent.registrations.length).toBeGreaterThan(0); }, { timeout: 8_000 });
     expect(agent.registrations[0]).toMatchObject({ service: "runtime", address: "ws://runtime-host:3105/mesh/ws", keys: ["c1", "c2"] });
     expect(agent.registrations[0]?.replicaId).toMatch(/^runtime-/);
+  });
+
+  it("gives the docker callers the link to the agent once it has joined, and not before", async () => {
+    process.env.MESH_AGENT_SOCKET = agent.socketPath;
+    const app = appWith({ listContainers: vi.fn().mockResolvedValue(containers([])) });
+    expect(holder.link).toBeUndefined();
+
+    const membership = await joinRuntimeMesh(app);
+    stops.push(() => membership?.stop() ?? Promise.resolve());
+
+    expect(holder.link).toBe(membership?.agent);
   });
 
   it("keeps beating when the engine cannot be listed, announcing nothing for that round", async () => {

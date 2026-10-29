@@ -37,6 +37,11 @@ export type JoinMeshOptions<T extends Context> = {
 };
 
 export type MeshMembership = {
+  /**
+   * The service's persistent link to its own agent. A service asks the mesh through it: other nodes, other services, the
+   * directory. It is the same link the service registers over, so it is open already and shared.
+   */
+  readonly agent: ClientLink<ClientContext>;
   /** Stops beating, closes the websocket and the link to the agent. The agent forgets the replica when its lease ends. */
   readonly stop: () => Promise<void>;
 };
@@ -115,6 +120,7 @@ export function joinMesh<T extends Context>(options: JoinMeshOptions<T>): MeshMe
   );
 
   return {
+    agent,
     async stop() {
       await Effect.runPromise(Fiber.interrupt(beating));
       await agent.closeAll();

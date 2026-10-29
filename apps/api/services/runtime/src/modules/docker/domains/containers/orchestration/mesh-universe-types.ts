@@ -1,6 +1,6 @@
 /** The shapes and priorities the mesh container universe is merged with. */
 import { type DockerContainer } from "@deployer/contracts-entities";
-import type { DockerContainerListResponsePayload } from "../mesh/docker-container-mesh.contracts";
+import type { DockerContainerListResponsePayload } from "../mesh/node-mesh-types";
 
 export const STATUS_PRIORITY: Record<DockerContainer["status"], number> = {
     dead: 6,

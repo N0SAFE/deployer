@@ -8,9 +8,11 @@ import { type MeshMembership, joinMesh } from "@deployer/mesh-service";
 import { apiServicePort } from "@deployer/shared/server";
 
 import { LOCAL_NODE_OPERATIONS } from "../../modules/docker/domains/containers/mesh/local-node-operations";
+import { NODE_MESH_AGENT, type NodeMeshAgent } from "../../modules/docker/domains/containers/mesh/docker-node-mesh";
 import { buildNodeRouter, containerIds } from "../../modules/docker/domains/containers/mesh/node-router";
+import { runtimeReplicaId } from "./runtime-replica-id";
 
-import type { LocalNodeOperations } from "../../modules/docker/domains/containers/mesh/mesh-handlers";
+import type { LocalNodeOperations } from "../../modules/docker/domains/containers/mesh/local-node-operations";
 import type { Server } from "node:http";
 
 /**
@@ -41,7 +43,7 @@ export async function joinRuntimeMesh(app: INestApplication): Promise<MeshMember
 
   const membership = joinMesh({
     service: "runtime",
-    replicaId: `runtime-${hostname()}`,
+    replicaId: runtimeReplicaId(),
     server: app.getHttpServer() as Server,
     router: buildNodeRouter(local) as never,
     context: () => ({}),
@@ -50,6 +52,8 @@ export async function joinRuntimeMesh(app: INestApplication): Promise<MeshMember
     // An engine that cannot be listed right now must not stop the replica from beating: it announces nothing this round.
     keys: () => containerIds(local).catch(() => []),
   });
+  // From now on the runtime can ask the other nodes through the same link: the docker callers read it from this holder.
+  app.get<NodeMeshAgent>(NODE_MESH_AGENT, { strict: false }).link = membership.agent;
   logger.log(`The runtime joined the mesh through ${socketPath}, advertised at ${advertiseUrl}`);
   return membership;
 }

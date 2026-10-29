@@ -10,9 +10,6 @@ import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.mo
 import { EventsModule } from "@deployer/shared/core/modules/events/events.module";
 import { DockerRepositoriesModule } from "../../repositories/docker-repositories.module";
 import { DockerContainerMetricsStreamService } from "./events/docker-container-metrics-stream.service";
-import { DockerContainerMeshService } from "./mesh/docker-container-mesh.service";
-import { DockerContainerRuntimeMeshService } from "./mesh/docker-container-runtime-mesh.service";
-import { DockerMeshHandlerRegistrar } from "./mesh/docker-mesh-handler-registrar.service";
 import { SystemMeshTopicService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topic/orchestrator/system-mesh-topic.service";
 import { SystemMeshTopologyService } from "@deployer/shared/core/modules/mesh/services/system-mesh-topology/orchestrator/system-mesh-topology.service";
 import { MeshInternalRequestService } from "@deployer/shared/core/modules/mesh/services/mesh-internal-request.service";
@@ -26,7 +23,8 @@ import {
 } from "./orchestration/docker-container-resolution";
 import { DockerContainersOrchestratorService } from "./orchestration/docker-containers-orchestrator.service";
 import { LOCAL_NODE_OPERATIONS, makeLocalNodeOperations } from "./mesh/local-node-operations";
-import type { LocalNodeOperations } from "./mesh/mesh-handlers";
+import { runtimeReplicaId } from "../../../../core/mesh/runtime-replica-id";
+import { DOCKER_NODE_MESH, NODE_MESH_AGENT, dockerNodeMeshOver, type NodeMeshAgent } from "./mesh/docker-node-mesh";
 
 export class DockerContainersModule extends createModuleContext({
   imports: [MeshCoreModule, CoreDockerModule, EventsModule, DockerRepositoriesModule],
@@ -34,28 +32,19 @@ export class DockerContainersModule extends createModuleContext({
     // Built by factories rather than by decorator: they take collaborators, not Nest metadata.
     { provide: DockerContainerOps, useValue: DockerContainerOps.live },
     { provide: DockerTerminalSessions, useValue: DockerTerminalSessions.live },
-    { provide: ContainerAccessMeshPort, useExisting: DockerContainerRuntimeMeshService },
+    { provide: ContainerAccessMeshPort, useExisting: DOCKER_NODE_MESH },
     { provide: DockerContainerAccess, useValue: DockerContainerAccess.live },
     {
       provide: DockerContainerMetricsStreamService,
       useFactory: (engine: DockerEngineShape, pool: CoreEventStreamPoolService) => new DockerContainerMetricsStreamService(engine, pool),
       inject: [DockerEngine, CoreEventStreamPoolService],
     },
-    // The mesh services compose a namespace over the topic and topology services; they are built here, not injected by decorator.
-    {
-      provide: DockerContainerMeshService,
-      useFactory: (topics: SystemMeshTopicService, topology: SystemMeshTopologyService) =>
-        new DockerContainerMeshService(topics, topology),
-      inject: [SystemMeshTopicService, SystemMeshTopologyService],
-    },
-    {
-      provide: DockerContainerRuntimeMeshService,
-      useFactory: (topics: SystemMeshTopicService, topology: SystemMeshTopologyService) =>
-        new DockerContainerRuntimeMeshService(topics, topology),
-      inject: [SystemMeshTopicService, SystemMeshTopologyService],
-    },
+    // The runtime asks the other nodes through the agent of its own node. The holder is empty until `joinRuntimeMesh` fills it,
+    // and a runtime with no agent is simply alone on its node: every question to the mesh answers with nobody.
+    { provide: NODE_MESH_AGENT, useFactory: (): NodeMeshAgent => ({ link: undefined, selfReplicaId: runtimeReplicaId() }) },
+    { provide: DOCKER_NODE_MESH, useFactory: (holder: NodeMeshAgent) => dockerNodeMeshOver(holder), inject: [NODE_MESH_AGENT] },
     // Container resolution is a constant Effect service; the Nest providers it reads come in as ports.
-    { provide: ContainersMeshPort, useExisting: DockerContainerMeshService },
+    { provide: ContainersMeshPort, useExisting: DOCKER_NODE_MESH },
     { provide: ContainersLocalPort, useExisting: DockerRepository },
     { provide: MeshTopologyPort, useExisting: SystemMeshTopologyService },
     { provide: MeshHeadersPort, useExisting: MeshInternalRequestService },
@@ -65,23 +54,13 @@ export class DockerContainersModule extends createModuleContext({
       useFactory: (runtime: EffectRuntime, repository: DockerRepository) => makeLocalNodeOperations(runtime, repository),
       inject: [EffectRuntime, DockerRepository],
     },
-    {
-      provide: DockerMeshHandlerRegistrar,
-      useFactory: (
-        containerMesh: DockerContainerMeshService,
-        runtimeMesh: DockerContainerRuntimeMeshService,
-        local: LocalNodeOperations,
-        topology: SystemMeshTopologyService,
-      ) => new DockerMeshHandlerRegistrar(containerMesh, runtimeMesh, local, () => topology.getLocalNode().nodeId),
-      inject: [DockerContainerMeshService, DockerContainerRuntimeMeshService, LOCAL_NODE_OPERATIONS, SystemMeshTopologyService],
-    },
     DockerContainersOrchestratorService,
   ],
   exports: [
     LOCAL_NODE_OPERATIONS,
+    NODE_MESH_AGENT,
+    DOCKER_NODE_MESH,
     DockerContainerMetricsStreamService,
-    DockerContainerMeshService,
-    DockerContainerRuntimeMeshService,
     DockerContainerResolution,
     DockerContainersOrchestratorService,
   ],
