@@ -3,9 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Actor, Correlation, CurrentActor } from "@deployer/effect-core";
 import type { User } from "../domain/user.types";
-import type { UserRepositoryShape } from "../repositories/user.repository";
+import { UserRepository, type UserRepositoryShape } from "../repositories/user.repository";
 import { EmailTaken, UserForbidden, UserInvalid, UserNotFound } from "../domain/user.errors";
-import { makeUserService, type UserFailure, type UserServiceShape } from "./user.service";
+import { UserService, type UserFailure, type UserServiceShape } from "./user.service";
 
 const admin = { userId: "admin-1", role: "admin" };
 const root = { userId: "root-1", role: "superAdmin" };
@@ -49,10 +49,11 @@ describe("UserService", () => {
 		get:
 			(_target, key: keyof UserServiceShape) =>
 			(actor: Acting, ...args: unknown[]) => {
-				const method = makeUserService(repo as unknown as UserRepositoryShape)[key] as (
+				const method = UserService.live[key] as (
 					...a: unknown[]
-				) => Effect.Effect<unknown, UserFailure, CurrentActor | Correlation>;
+				) => Effect.Effect<unknown, UserFailure, UserRepository | CurrentActor | Correlation>;
 				return method(...args).pipe(
+					Effect.provideService(UserRepository, repo as unknown as UserRepositoryShape),
 					Effect.provideService(CurrentActor, Actor.user(actor.userId, actor.role)),
 					Effect.provideService(Correlation, { id: "test" }),
 				);

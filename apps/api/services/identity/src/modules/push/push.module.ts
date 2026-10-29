@@ -2,6 +2,7 @@ import { createModuleContext } from '@deployer/nest-effect'
 import { DatabasePort } from '@identity/core/database/database.port'
 
 import { PushController } from './controllers/push.controller'
+import { PushRepository } from './repositories/push.repository'
 import { PushService } from './services/push.service'
 
 /**
@@ -12,7 +13,12 @@ import { PushService } from './services/push.service'
  * may use. A repository is this domain's private data access: nothing exports it.
  */
 export class PushDomainModule extends createModuleContext(
-    { controllers: [PushController] },
-    PushService,
+    {
+        controllers: [PushController],
+        providers: [
+            { provide: PushService, useValue: PushService.live },
+            { provide: PushRepository, useValue: PushRepository.live },
+        ],
+    },
     DatabasePort
 ) {}

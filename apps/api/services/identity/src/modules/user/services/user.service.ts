@@ -1,5 +1,5 @@
-import { CurrentActor, type Ambient } from '@deployer/effect-core'
-import { Context, Effect, Layer } from 'effect'
+import { CurrentActor, type Ambient, serviceOver, type Over } from '@deployer/effect-core'
+import { Context, Effect } from 'effect'
 
 import { actorFromCurrent } from '@identity/core/utils/actor.utils'
 import {
@@ -62,15 +62,9 @@ export class UserService extends Context.Service<
     UserService,
     UserServiceShape
 >()('identity/UserService') {
-    /** Leaves `UserRepository` open, so a test swaps it without touching the database. */
-    static readonly Live: Layer.Layer<UserService, never, UserRepository> =
-        Layer.effect(
-            UserService,
-            Effect.gen(function* () {
-                const users = yield* UserRepository
-                return makeUserService(users)
-            })
-        )
+    /** The repository is yielded when a method runs, so this is a constant the module provides with `useValue`. */
+    static readonly live = serviceOver(UserRepository, makeUserService);
+
 }
 
 const actingUser = Effect.gen(function* () {
@@ -84,7 +78,7 @@ const actingUser = Effect.gen(function* () {
  * repository. Each refusal is its own tagged `DomainError`, which the boundary maps by kind; a
  * repository failure is left unmapped on purpose.
  */
-export function makeUserService(users: UserRepositoryShape): UserServiceShape {
+function makeUserService(users: UserRepositoryShape): UserServiceShape {
     return {
         list: Effect.fn('UserService.list')(function* (query) {
             const actor = yield* actingUser

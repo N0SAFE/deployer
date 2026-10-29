@@ -4,7 +4,6 @@ import { ForbiddenError, type ResourceRule } from '@deployer/auth/permissions'
 
 import { PermissionRepository } from '../repositories/permission.repository'
 import {
-    makePermissionService,
     PermissionService,
     type PermissionServiceShape,
 } from './permission.service'
@@ -43,13 +42,7 @@ const service = new Proxy({} as RepoBound, {
     get:
         (_target, key: keyof PermissionServiceShape) =>
         (...args: unknown[]) =>
-            Effect.flatMap(PermissionRepository, (repo) =>
-                (
-                    makePermissionService(repo)[key] as (
-                        ...a: unknown[]
-                    ) => Effect.Effect<unknown, unknown>
-                )(...args)
-            ),
+            (PermissionService.live[key] as (...a: unknown[]) => Effect.Effect<unknown, unknown, PermissionRepository>)(...args),
 })
 
 /** Fake repository whose methods are plain Effects — no DB needed. */

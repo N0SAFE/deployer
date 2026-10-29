@@ -5,7 +5,9 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { getSharedApiRuntimeContext, type SharedApiRuntimeContext } from "@/e2e/runtime";
 import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
 import { user } from "@deployer/nest-schema/global/identity/auth";
-import { makePushRepository, type PushRepositoryShape } from "@/modules/push/repositories/push.repository";
+import { DatabasePort } from "@identity/core/database/database.port";
+import { provideTo } from "@deployer/effect-core";
+import { PushRepository } from "@/modules/push/repositories/push.repository";
 import type { PushRepositoryFailure } from "@/modules/push/push.failures";
 
 /**
@@ -16,7 +18,7 @@ import type { PushRepositoryFailure } from "@/modules/push/push.failures";
  * the calls rather than the outcome, so these run against the database the harness provides.
  */
 describe("Push repository e2e: the SQL rules", () => {
-	let repository: PushRepositoryShape;
+	let repository: ReturnType<typeof provideTo<typeof PushRepository.live>>;
 	let db: GlobalDatabaseService["db"];
 
 	const run = <A>(effect: Effect.Effect<A, PushRepositoryFailure>) => Effect.runPromise(effect);
@@ -49,7 +51,9 @@ describe("Push repository e2e: the SQL rules", () => {
 		const runtime: SharedApiRuntimeContext = await getSharedApiRuntimeContext();
 		const globalDatabase = runtime.serviceMapper.get(GlobalDatabaseService);
 		db = globalDatabase.db;
-		repository = makePushRepository(db);
+		repository = provideTo(PushRepository.live, (effect) =>
+			effect.pipe(Effect.provideService(DatabasePort, { db } as never)),
+		);
 	});
 
 	it("stores a subscription and finds it by endpoint", async () => {

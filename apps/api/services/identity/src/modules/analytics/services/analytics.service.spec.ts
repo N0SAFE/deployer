@@ -4,7 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AnalyticsReportNotFound } from "../domain/analytics.errors";
 
 
-import { makeAnalyticsService } from "./analytics.service";
+import { provideTo } from "@deployer/effect-core";
+import { AnalyticsRepository } from "../repositories/analytics.repository";
+import { AnalyticsService } from "./analytics.service";
 
 /** Run an Effect and reject with the ORIGINAL failure, so `rejects` assertions read the real error. */
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
@@ -46,13 +48,15 @@ function makeRepository() {
 
 describe("AnalyticsService", () => {
 	let repo: ReturnType<typeof makeRepository>;
-	let service: ReturnType<typeof makeAnalyticsService>;
+	let service: ReturnType<typeof provideTo<typeof AnalyticsService.live>>;
 
 	beforeEach(() => {
 		vi.useFakeTimers();
 		vi.setSystemTime(NOW);
 		repo = makeRepository();
-		service = makeAnalyticsService(repo as never);
+		service = provideTo(AnalyticsService.live, (effect) =>
+			effect.pipe(Effect.provideService(AnalyticsRepository, repo as never)),
+		);
 	});
 
 	afterEach(() => {

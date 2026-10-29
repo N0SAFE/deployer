@@ -15,11 +15,11 @@ import { projects, services } from "@deployer/nest-schema/global/project/deploym
 import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
 
 import { getSharedApiRuntimeContext, type SharedApiRuntimeContext } from "@/e2e/runtime";
-import { AnalyticsLive } from "@/modules/analytics/analytics.layers";
+import { AnalyticsRepository } from "@/modules/analytics/repositories/analytics.repository";
 import { AnalyticsService, type AnalyticsServiceShape } from "@/modules/analytics/services/analytics.service";
 import { UserService, type UserServiceShape } from "@/modules/user/services/user.service";
 import type { UserFailure } from "@/modules/user/services/user.service";
-import { UserLive } from "@/modules/user/user.layers";
+import { UserRepository } from "@/modules/user/repositories/user.repository";
 
 import { DatabasePort, type DatabaseShape } from "@identity/core/database/database.port";
 
@@ -35,7 +35,8 @@ function runUsers<T>(
 			const users = yield* UserService;
 			return yield* use(users);
 		}).pipe(
-			Effect.provide(UserLive),
+			Effect.provideService(UserService, UserService.live),
+			Effect.provideService(UserRepository, UserRepository.live),
 			Effect.provideService(DatabasePort, database),
 			Effect.provideService(CurrentActor, Actor.user(actor.userId, actor.role)),
 			Effect.provideService(Correlation, { id: "e2e" }),
@@ -52,7 +53,11 @@ function runAnalytics<A, E>(
 		Effect.gen(function* () {
 			const analytics = yield* AnalyticsService;
 			return yield* use(analytics);
-		}).pipe(Effect.provide(AnalyticsLive), Effect.provideService(DatabasePort, database)),
+		}).pipe(
+			Effect.provideService(AnalyticsService, AnalyticsService.live),
+			Effect.provideService(AnalyticsRepository, AnalyticsRepository.live),
+			Effect.provideService(DatabasePort, database),
+		),
 	);
 }
 

@@ -1,4 +1,5 @@
-import { Context, Effect, Layer } from 'effect'
+import { serviceOver, type Over } from "@deployer/effect-core"
+import { Context, Effect } from 'effect'
 import {
     PermissionEngine,
     ForbiddenError,
@@ -78,18 +79,9 @@ export class PermissionService extends Context.Service<
     PermissionService,
     PermissionServiceShape
 >()('identity/PermissionService') {
-    /** Leaves `PermissionRepository` open, so a test swaps it without touching the database. */
-    static readonly Live: Layer.Layer<
-        PermissionService,
-        never,
-        PermissionRepository
-    > = Layer.effect(
-        PermissionService,
-        Effect.gen(function* () {
-            const roleRules = yield* PermissionRepository
-            return makePermissionService(roleRules)
-        })
-    )
+    /** The repository is yielded when a method runs, so this is a constant the module provides with `useValue`. */
+    static readonly live = serviceOver(PermissionRepository, makePermissionService);
+
 
     /** Re-export so callers can catch typed permission denials */
     static readonly ForbiddenError = ForbiddenError
@@ -101,7 +93,7 @@ export class PermissionService extends Context.Service<
  * The engine is built per call, over the repository handed in here, so nothing about a request
  * lives in a long-lived field.
  */
-export function makePermissionService(
+function makePermissionService(
     roleRules: PermissionRepositoryShape
 ): PermissionServiceShape {
     const withEngine = <A>(

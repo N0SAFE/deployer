@@ -1,4 +1,5 @@
-import { Context, Effect, Layer } from 'effect'
+import { serviceOver, type Over } from "@deployer/effect-core"
+import { Context, Effect } from 'effect'
 import { and, count, desc, eq } from 'drizzle-orm'
 import {
     pushSubscription,
@@ -74,19 +75,13 @@ export class PushRepository extends Context.Service<
     PushRepository,
     PushRepositoryShape
 >()('identity/PushRepository') {
-    /** Resolves the database at layer build, so no method carries it in `R`. */
-    static readonly Live: Layer.Layer<PushRepository, never, DatabasePort> =
-        Layer.effect(
-            PushRepository,
-            Effect.gen(function* () {
-                const { db } = yield* DatabasePort
-                return makePushRepository(db)
-            })
-        )
+    /** The database is yielded when a method runs, so this is a constant the module provides with `useValue`. */
+    static readonly live = serviceOver(DatabasePort, ({ db }) => makePushRepository(db));
+
 }
 
 /** Drizzle implementation over one database handle. */
-export function makePushRepository(
+function makePushRepository(
     db: DatabaseShape['db']
 ): PushRepositoryShape {
     return {

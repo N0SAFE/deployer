@@ -1,5 +1,5 @@
-import { CurrentActor, type Ambient } from '@deployer/effect-core'
-import { Context, Effect, Layer } from 'effect'
+import { CurrentActor, type Ambient, serviceOver, type Over } from '@deployer/effect-core'
+import { Context, Effect } from 'effect'
 import { generateVAPIDKeys } from 'web-push'
 
 import { actorFromCurrent } from '@identity/core/utils/actor.utils'
@@ -59,15 +59,9 @@ export class PushService extends Context.Service<
     PushService,
     PushServiceShape
 >()('identity/PushService') {
-    /** Leaves `PushRepository` open, so a test swaps it without touching the database. */
-    static readonly Live: Layer.Layer<PushService, never, PushRepository> =
-        Layer.effect(
-            PushService,
-            Effect.gen(function* () {
-                const subscriptions = yield* PushRepository
-                return makePushService(subscriptions)
-            })
-        )
+    /** The repository is yielded when a method runs, so this is a constant the module provides with `useValue`. */
+    static readonly live = serviceOver(PushRepository, makePushService);
+
 }
 
 const actingUserId = Effect.gen(function* () {
@@ -84,7 +78,7 @@ const actingUserId = Effect.gen(function* () {
  * Not here: SQL (the repository), the HTTP shape (the controller), or the
  * notification PAYLOAD — composing what a message says is a caller's concern.
  */
-export function makePushService(
+function makePushService(
     subscriptions: PushRepositoryShape
 ): PushServiceShape {
     /**

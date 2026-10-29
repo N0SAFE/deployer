@@ -1,5 +1,6 @@
 import { Logger } from "@nestjs/common";
-import { Context, Effect, Layer } from "effect";
+import { serviceOver, type Over } from "@deployer/effect-core"
+import { Context, Effect } from "effect";
 import * as systeminformation from "systeminformation";
 
 import type {
@@ -114,7 +115,7 @@ export type CreateReportConfigInput = {
  * That is why `dataSource` is on every metrics response instead of being implicit:
  * it forces the caller to be able to tell the two apart.
  */
-export function makeAnalyticsService(repository: AnalyticsRepositoryShape) {
+function makeAnalyticsService(repository: AnalyticsRepositoryShape) {
 	const logger = new Logger("AnalyticsService");
 
 	// ─── Metrics ────────────────────────────────────────────────────────────
@@ -904,11 +905,7 @@ export type AnalyticsServiceShape = ReturnType<typeof makeAnalyticsService>;
 export class AnalyticsService extends Context.Service<AnalyticsService, AnalyticsServiceShape>()(
 	"identity/AnalyticsService",
 ) {
-	/** Leaves `AnalyticsRepository` open, so a test swaps it without touching the database. */
-	static readonly Live: Layer.Layer<AnalyticsService, never, AnalyticsRepository> = Layer.effect(
-		AnalyticsService,
-		Effect.gen(function* () {
-			return makeAnalyticsService(yield* AnalyticsRepository);
-		}),
-	);
+    /** The repository is yielded when a method runs, so this is a constant the module provides with `useValue`. */
+    static readonly live = serviceOver(AnalyticsRepository, makeAnalyticsService);
+
 }

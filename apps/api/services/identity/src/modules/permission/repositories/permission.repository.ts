@@ -1,4 +1,5 @@
-import { Context, Effect, Layer } from 'effect'
+import { serviceOver, type Over } from "@deployer/effect-core"
+import { Context, Effect } from 'effect'
 import { eq, inArray } from 'drizzle-orm'
 import { roleRules } from '@deployer/nest-schema/global/identity/permissions'
 import type { ResourceRule } from '@deployer/auth/permissions'
@@ -40,18 +41,9 @@ export class PermissionRepository extends Context.Service<
     PermissionRepository,
     PermissionRepositoryShape
 >()('identity/PermissionRepository') {
-    /** Resolves the database at layer build, so no method carries it in `R`. */
-    static readonly Live: Layer.Layer<
-        PermissionRepository,
-        never,
-        DatabasePort
-    > = Layer.effect(
-        PermissionRepository,
-        Effect.gen(function* () {
-            const { db } = yield* DatabasePort
-            return makePermissionRepository(db)
-        })
-    )
+    /** The database is yielded when a method runs, so this is a constant the module provides with `useValue`. */
+    static readonly live = serviceOver(DatabasePort, ({ db }) => makePermissionRepository(db));
+
 }
 
 /** One async database boundary; driver errors become `PermissionRepositoryFailure`. */
@@ -65,7 +57,7 @@ function attempt<T>(
 }
 
 /** Drizzle implementation over one database handle. */
-export function makePermissionRepository(
+function makePermissionRepository(
     db: DatabaseShape['db']
 ): PermissionRepositoryShape {
     return {

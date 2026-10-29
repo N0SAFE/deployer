@@ -13,7 +13,7 @@ import type {
 } from '../repositories/push.repository.types'
 import { PushInvalid, PushSubscriptionNotFound } from '../domain/push.errors'
 import {
-    makePushService,
+    PushService,
     type PushFailure,
     type PushServiceShape,
 } from './push.service'
@@ -50,12 +50,7 @@ const service = new Proxy({} as ActingService, {
     get:
         (_target, key: keyof PushServiceShape) =>
         (actor: Acting, ...args: unknown[]) =>
-            Effect.flatMap(PushRepository, (repo) => {
-                const method = makePushService(repo)[key] as (
-                    ...a: unknown[]
-                ) => Effect.Effect<unknown, PushFailure, CurrentActor | Correlation>
-                return method(...args)
-            }).pipe(
+            (PushService.live[key] as (...a: unknown[]) => Effect.Effect<unknown, PushFailure, PushRepository | CurrentActor | Correlation>)(...args).pipe(
                 Effect.provideService(
                     CurrentActor,
                     Actor.user(actor.userId, actor.role)

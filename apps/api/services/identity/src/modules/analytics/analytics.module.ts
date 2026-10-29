@@ -3,6 +3,7 @@ import { createModuleContext } from "@deployer/nest-effect";
 import { DatabasePort } from "@identity/core/database/database.port";
 
 import { AnalyticsController } from "./controllers/analytics.controller";
+import { AnalyticsRepository } from "./repositories/analytics.repository";
 import { AnalyticsService } from "./services/analytics.service";
 
 /**
@@ -13,7 +14,12 @@ import { AnalyticsService } from "./services/analytics.service";
  * The repository is this domain's private data access, so it is not in the handler context.
  */
 export class AnalyticsDomainModule extends createModuleContext(
-	{ controllers: [AnalyticsController] },
-	AnalyticsService,
+	{
+		controllers: [AnalyticsController],
+		providers: [
+			{ provide: AnalyticsService, useValue: AnalyticsService.live },
+			{ provide: AnalyticsRepository, useValue: AnalyticsRepository.live },
+		],
+	},
 	DatabasePort,
 ) {}

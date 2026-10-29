@@ -1,5 +1,6 @@
 import { and, asc, count, desc, eq, gte, inArray, lte, type SQL } from "drizzle-orm";
-import { Context, Effect, Layer } from "effect";
+import { serviceOver, type Over } from "@deployer/effect-core"
+import { Context, Effect } from "effect";
 
 
 import { analyticsReports } from "@deployer/nest-schema/global/identity/analytics";
@@ -439,14 +440,9 @@ const makeAnalyticsRepository = (database: DatabaseShape): AnalyticsRepositorySh
 export class AnalyticsRepository extends Context.Service<AnalyticsRepository, AnalyticsRepositoryShape>()(
 	"identity/AnalyticsRepository",
 ) {
-	/** Resolves the database at layer build, so no method carries it in `R`. */
-	static readonly Live: Layer.Layer<AnalyticsRepository, never, DatabasePort> = Layer.effect(
-		AnalyticsRepository,
-		Effect.gen(function* () {
-			const database = yield* DatabasePort;
-			return makeAnalyticsRepository(database);
-		}),
-	);
+    /** The database is yielded when a method runs, so this is a constant the module provides with `useValue`. */
+    static readonly live = serviceOver(DatabasePort, makeAnalyticsRepository);
+
 }
 
 /**
