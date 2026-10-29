@@ -191,22 +191,49 @@ design), the onboarding agent, services registering themselves with their agent 
 service calls it), the per-service `external`/`peer`/`node` routers, a swarm global-mode deployment of the agent, and the
 removal of the old mesh code.
 
-## Alone first, swarm later
+## Plug and play: alone first, swarm later
 
-An agent is useful the moment it starts, on a node that is not part of any swarm yet. Everything it keeps is in memory
-and nothing needs the swarm or a database: the directory, the key hints, the pooled links and the load counters. Two
-runtimes on one node register with their local agent and are resolved by key, locality and load, redirected between
-each other and relayed, exactly as in a cluster; there is simply nobody else to gossip with.
+A node is never created from environment variables. An agent starts empty, on a node that is in no swarm, and works at
+once; it is configured later, by joining a swarm.
 
-Joining the swarm is a separate, later act: `roster.join { address }` (or `MESH_SEEDS` at boot) points the agent at any
-one agent of the swarm. The agent keeps that seed until it answers, so the swarm does not have to be up yet. The first
-exchange sends everything the agent already holds and brings back everything the swarm knows, so nothing is redone and
-nothing is lost, and the gossip rounds that follow keep both sides fresh. Because a node's own replicas are only ever
-taken from registration, never from a peer, joining cannot overwrite what the agent knows first-hand.
+**First boot.** The agent owns the node's local store, a SQLite file in its data directory (`MESH_DATA_DIR`, a mount
+point, default `/var/lib/deployer/mesh-agent`; owner-only permissions). On the first boot it creates the file, applies its
+schema steps and generates two things: the node's id (`node-<uuid>`) and a standalone credential of its own. Every later boot
+reads them back, so a node is the same node after a restart. Nothing is read from the environment, and nothing
+reaches the agent until someone holds its credential.
 
-The node id must outlive the join: it is `MESH_NODE_ID`, else the hostname, and replicas are stamped with it at every
-beat. If it changes (for example to the swarm's own node id once the node joins), the replicas re-register under the new
-id within one beat and the old records age out, so a change is safe but briefly shows the node twice.
+**Everything else is in memory** and rebuilt by registration and gossip: the directory, the key hints, the pooled links
+and the load counters. Two runtimes on one node register with their local agent and are resolved by key, locality and load,
+redirected between each other and relayed, exactly as in a cluster; there is simply nobody else to gossip with.
+
+**Joining.** An agent that is already in a swarm, or a standalone one (which becomes the first node of a new swarm,
+under a fresh swarm id, by issuing a token), issues a join token with `roster.token`. The new node redeems it with
+`roster.join { token }`. The token carries the address of an agent of the swarm, the swarm's credential and an expiry
+(an hour by default, a day at most); it is the swarm's secret, so it is shown once. Redeeming it:
+
+1. decodes and checks the token (a malformed or expired one is refused and changes nothing);
+2. installs the swarm's credential in the store first, then in force, so the very first connection already carries it;
+3. remembers the seed in the store, so a restarted node rejoins by itself;
+4. gossips with the seed at once: everything the agent already holds is sent, everything the swarm knows comes back.
+
+The seed is retried every round until it answers, so the swarm does not have to be up yet. A node's own replicas are
+only ever taken from registration, never from a peer, so joining cannot overwrite what the agent knows first-hand.
+
+**The environment is dev-only.** `MESH_NODE_ID`, `MESH_AGENT_SECRET`, `MESH_SEEDS` and `MESH_ADVERTISE_URL` exist so a
+developer or a test can pin a value or form a stack without a token; a node that is plug and play sets none of them. A
+future CLI will drive the same `roster.token` and `roster.join` procedures.
+
+**Who owns the node-local database.** The agent, because it is the only service on every node. Today it holds the node's
+identity, credential and seeds. The existing `@deployer/node-state` tables (`node_config`, `node_mesh_config`) and the
+`NODE_LOCAL_DB_PATH` file that each service opens now are to move behind the agent, and services will ask the agent over
+the mesh instead of opening the file.
+
+The node id must outlive the join. It is generated once and stored, so a join does not change it.
+
+Known limits, stated plainly: the swarm credential is one shared secret with no rotation yet, a token cannot be revoked
+before it expires, the advertised address defaults to the host's name (no overlay-address discovery yet), and a service
+on the node still has to be given the credential to talk to the agent (a local socket is the planned way, so a service
+never holds it).
 
 ## Agents
 

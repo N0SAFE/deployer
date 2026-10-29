@@ -1,6 +1,12 @@
 import "@orpc/effect/extensions/effect";
 import "@deployer/shared/core/orpc/context";
 
+
+
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { MESH_CREDENTIAL_HEADER, createApiServerApp } from "@deployer/shared/server";
@@ -26,6 +32,7 @@ describe("mesh-agent service boot e2e", () => {
   beforeAll(async () => {
     process.env.MESH_AGENT_SECRET = SECRET;
     process.env.MESH_NODE_ID = "node-e2e";
+    process.env.MESH_DATA_DIR = mkdtempSync(join(tmpdir(), "mesh-agent-boot-"));
     const { MeshAgentServiceModule } = await import("@/app.module");
     app = await createApiServerApp(MeshAgentServiceModule);
     await app.listen(0, "127.0.0.1");

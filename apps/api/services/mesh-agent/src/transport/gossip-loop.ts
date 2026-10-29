@@ -8,6 +8,8 @@ export type GossipLoopOptions = {
   /** One gossip round with every known agent. Never throws. */
   readonly round: () => Promise<unknown>;
   readonly intervalMs: number;
+  /** A round failed. The loop goes on; this is only to report it. */
+  readonly onError?: (error: unknown) => void;
 };
 
 export type GossipLoop = {
@@ -26,7 +28,7 @@ export function startGossipLoop(options: GossipLoopOptions): GossipLoop {
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
-  const tick = async () => {
+  const work = async () => {
     for (const address of await options.pending()) {
       if (stopped) {
         return;
@@ -37,6 +39,18 @@ export function startGossipLoop(options: GossipLoopOptions): GossipLoop {
     }
     if (!stopped) {
       await options.round();
+    }
+  };
+
+  const tick = async () => {
+    try {
+      await work();
+    } catch (error) {
+      // A failed round must never end the loop: the mesh heals only while this keeps running. While stopping, the
+      // runtime may be torn down under an in-flight round, which is expected and not worth reporting.
+      if (!stopped) {
+        options.onError?.(error);
+      }
     }
     if (!stopped) {
       timer = setTimeout(() => void tick(), options.intervalMs);

@@ -7,49 +7,19 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { MESH_WEBSOCKET_PATH } from "@deployer/mesh-agent-contracts";
 import { openWebSocketConnection, pooledLink, relayLink } from "@deployer/mesh-client";
 import { attachMeshWebSocket, type MeshWebSocket } from "@deployer/mesh-server";
-import { MESH_CREDENTIAL_HEADER, createApiServerApp } from "@deployer/shared/server";
+import { MESH_CREDENTIAL_HEADER } from "@deployer/shared/server";
 
-import type { MeshTransport } from "@/transport/mesh-transport";
+import { type BootedAgent, bootAgent, removeDataDir } from "./boot-agent";
 
-import type { INestApplication } from "@nestjs/common";
 import type { ClientContext } from "@orpc/client";
 import type { AddressInfo } from "node:net";
 
 const SECRET = "mesh-cluster-spec-secret-of-at-least-32-chars";
 
-type Agent = { app: INestApplication; transport: MeshTransport; http: string; ws: string };
+type Agent = BootedAgent;
 
-async function freePort(): Promise<number> {
-  const probe = createServer();
-  await new Promise<void>((resolve) => probe.listen(0, "127.0.0.1", resolve));
-  const { port } = probe.address() as AddressInfo;
-  await new Promise<void>((resolve) => probe.close(() => { resolve(); }));
-  return port;
-}
-
-/**
- * One real agent: the real root module on a real port, serving the real websocket, gossiping for real. Each agent loads
- * its own copy of the modules, because the environment is read once when the module graph is first imported.
- */
-async function bootAgent(nodeId: string, seeds: string[] = []): Promise<Agent> {
-  const port = await freePort();
-  const ws = `ws://127.0.0.1:${String(port)}${MESH_WEBSOCKET_PATH}`;
-  Object.assign(process.env, {
-    MESH_AGENT_SECRET: SECRET,
-    MESH_NODE_ID: nodeId,
-    MESH_ADVERTISE_URL: ws,
-    MESH_SEEDS: seeds.join(","),
-  });
-  vi.resetModules();
-  // The Effect extension patches `@orpc/server`, and a reset gives the new graph a fresh, unpatched copy.
-  await import("@orpc/effect/extensions/effect");
-  await import("@deployer/shared/core/orpc/context");
-  const { MeshAgentServiceModule } = await import("@/app.module");
-  const { startMeshTransport } = await import("@/transport/mesh-transport");
-  const app = await createApiServerApp(MeshAgentServiceModule);
-  await app.listen(port, "127.0.0.1");
-  return { app, transport: await startMeshTransport(app, { gossipIntervalMs: 100 }), http: `http://127.0.0.1:${String(port)}`, ws };
-}
+/** A dev agent: its credential is pinned, so the test needs no join. */
+const bootAgentNamed = (nodeId: string, seeds: string[] = []) => bootAgent({ pin: { nodeId, secret: SECRET, seeds } });
 
 const post = (agent: Agent, path: string, body: unknown) =>
   fetch(`${agent.http}${path}`, { method: "POST", headers: { "content-type": "application/json", [MESH_CREDENTIAL_HEADER]: SECRET }, body: JSON.stringify(body) });
@@ -86,20 +56,16 @@ describe("mesh cluster over real sockets", () => {
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     replica = { server, gateway, address: `ws://127.0.0.1:${String((server.address() as AddressInfo).port)}${MESH_WEBSOCKET_PATH}` };
 
-    a = await bootAgent("node-a");
+    a = await bootAgentNamed("node-a");
     const registered = await post(a, "/mesh/directory/register", { service: "runtime", replicaId: "runtime-1", address: replica.address, keys: ["stream-1"] });
     expect(registered.status).toBe(200);
 
-    b = await bootAgent("node-b", [a.ws]);
+    b = await bootAgentNamed("node-b", [a.ws]);
   }, 60_000);
 
   afterAll(async () => {
-    await Promise.all(
-      [a, b].map(async (agent) => {
-        await agent.transport.stop();
-        await agent.app.close();
-      }),
-    );
+    await Promise.all([a, b].map((agent) => agent.stop()));
+    [a, b].forEach((agent) => { removeDataDir(agent.dataDir); });
     await replica.gateway.close();
     await new Promise<void>((resolve) => replica.server.close(() => { resolve(); }));
   });
@@ -162,7 +128,7 @@ describe("mesh cluster over real sockets", () => {
   });
 
   it("starts alone and fully working, then joins the swarm later without redoing anything", async () => {
-    const c = await bootAgent("node-c");
+    const c = await bootAgentNamed("node-c");
     try {
       await post(c, "/mesh/directory/register", { service: "billing", replicaId: "billing-1", address: replica.address, load: 0.6 });
       await post(c, "/mesh/directory/register", { service: "billing", replicaId: "billing-2", address: replica.address, load: 0.1 });
@@ -175,7 +141,7 @@ describe("mesh cluster over real sockets", () => {
       expect(noRuntime.status).toBe(404);
 
       // Later: it is pointed at the swarm. What it held reaches the swarm, and what the swarm knows reaches it.
-      const joined = await post(c, "/mesh/roster/join", { address: a.ws });
+      const joined = await post(c, "/mesh/roster/join", { token: (await (await post(a, "/mesh/roster/token", {})).json() as { token: string }).token });
       expect(joined.status).toBe(200);
       expect(await joined.json()).toMatchObject({ learned: true });
 
@@ -189,8 +155,8 @@ describe("mesh cluster over real sockets", () => {
         expect(await announced.json()).toMatchObject({ replica: { nodeId: "node-c" } });
       });
     } finally {
-      await c.transport.stop();
-      await c.app.close();
+      await c.stop();
+      removeDataDir(c.dataDir);
     }
   });
 });

@@ -8,6 +8,8 @@ import { EffectContextOf } from "@deployer/nest-effect";
 
 import { serveMeshPeer } from "../../../core/orpc/serve";
 import { MeshDomainModule } from "../mesh.module";
+import { JoinTokens } from "../services/join-tokens.service";
+import { NodeAgents } from "../services/node-agents.service";
 import { RosterGossip } from "../services/roster-gossip.service";
 
 const roster = meshAgentContract.roster;
@@ -27,15 +29,29 @@ export class MeshRosterController {
     });
   }
 
-  /** Points the agent at one agent of the swarm. It can be called at any time: the agent works alone until it is. */
+  /** Joins the swarm a token names. It can be called at any time: the agent works alone until it is. */
   @Implement(roster.join)
   join() {
     return implement(roster.join).use(MeshDomainModule[EffectContextOf]).effect(function* ({ input, context }) {
       return yield* serveMeshPeer(context)(
         Effect.gen(function* () {
-          const gossip = yield* RosterGossip;
-          const { learned, agents } = yield* gossip.join(input.address);
-          return { learned, agents: [...agents] };
+          const tokens = yield* JoinTokens;
+          const { learned } = yield* tokens.redeem(input.token);
+          const known = yield* (yield* NodeAgents).known();
+          return { learned, agents: known.map(({ nodeId, address }) => ({ nodeId, address })) };
+        }),
+      );
+    });
+  }
+
+  /** Issues a token for a new node to join this agent's swarm. */
+  @Implement(roster.token)
+  token() {
+    return implement(roster.token).use(MeshDomainModule[EffectContextOf]).effect(function* ({ input, context }) {
+      return yield* serveMeshPeer(context)(
+        Effect.gen(function* () {
+          const tokens = yield* JoinTokens;
+          return yield* tokens.issue(input.ttlMs);
         }),
       );
     });

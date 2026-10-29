@@ -3,9 +3,9 @@ import { standard, standardDomainErrorContracts } from "@deployer/orpc-utils";
 
 import { agentInfoSchema } from "./exchange";
 
-/** The agent to learn the mesh from: any reachable agent of the swarm will do, gossip finds the rest. */
+/** A join token issued by an agent of the swarm: it carries where to find the swarm and the credential that proves membership. */
 export const meshJoinInput = z.object({
-  address: z.string().min(1),
+  token: z.string().min(1),
 });
 
 export const meshJoinOutput = z.object({
@@ -19,8 +19,9 @@ const meshJoinOps = standard.zod(meshJoinOutput, "meshJoin");
 
 /**
  * An agent starts alone and useful: it serves the replicas of its own node from memory. Joining the swarm is a later,
- * separate act, and this is it: point the agent at one agent of the swarm, at any time, and it merges what it holds
- * with what the swarm knows. Nothing needs to be redone, because nothing was persisted.
+ * separate act, and this is it: redeem a token from an agent of the swarm, at any time. The agent adopts the swarm's
+ * credential, remembers the seed so it rejoins by itself after a restart, and merges what it holds with what the swarm
+ * knows. Nothing about the node was configured beforehand.
  */
 export const meshJoinContract = meshJoinOps
   .create()

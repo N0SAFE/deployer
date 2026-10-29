@@ -1,4 +1,5 @@
 
+import { type INestApplication, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Effect } from "effect";
 
@@ -8,6 +9,7 @@ import { EffectRuntime } from "@deployer/nest-effect";
 import { MESH_CREDENTIAL_VERIFIER, type MeshCredentialVerifier } from "@deployer/shared/server";
 
 import { type MeshAgentEnv, resolveSeeds } from "../config/mesh-agent.env";
+import { AgentStore } from "../local/agent-store";
 import { MeshDirectoryController } from "../modules/mesh/controllers/mesh-directory.controller";
 import { MeshRelayController } from "../modules/mesh/controllers/mesh-relay.controller";
 import { MeshRosterController } from "../modules/mesh/controllers/mesh-roster.controller";
@@ -16,11 +18,12 @@ import { RosterGossip } from "../modules/mesh/services/roster-gossip.service";
 
 import { type GossipLoop, startGossipLoop } from "./gossip-loop";
 
-import type { INestApplication } from "@nestjs/common";
 import type { Context, Router } from "@orpc/server";
 import type { IncomingMessage } from "node:http";
 
 const DEFAULT_GOSSIP_INTERVAL_MS = 5_000;
+
+const logger = new Logger("MeshTransport");
 
 export type MeshTransport = {
   readonly stop: () => Promise<void>;
@@ -64,13 +67,16 @@ export async function startMeshTransport(app: INestApplication, options: { reado
       ({ request: { headers: request.headers }, "effect/context": await runtime.context() }),
   });
 
-  // Seeds from the environment are only the first ones: `roster.join` adds more at any time.
-  for (const address of resolveSeeds({ MESH_AGENT_SECRET: "", MESH_SEEDS: config.get("MESH_SEEDS", { infer: true }) })) {
+  // A node that joined a swarm rejoins by itself: the seeds it was given are kept in its store. The environment can add
+  // more (dev only), and `roster.join` adds one at any time.
+  const remembered = await runtime.runPromiseUnwrapped(Effect.flatMap(AgentStore, (store) => store.seeds()));
+  for (const address of [...remembered, ...resolveSeeds({ MESH_SEEDS: config.get("MESH_SEEDS", { infer: true }) })]) {
     await runtime.runPromiseUnwrapped(Effect.flatMap(PendingSeeds, (seeds) => seeds.add(address)));
   }
 
   const gossip: GossipLoop = startGossipLoop({
     intervalMs: options.gossipIntervalMs ?? DEFAULT_GOSSIP_INTERVAL_MS,
+    onError: (error) => { logger.warn(`Gossip round failed: ${error instanceof Error ? error.message : String(error)}`); },
     pending: () => runtime.runPromiseUnwrapped(Effect.flatMap(PendingSeeds, (seeds) => seeds.pending())),
     seed: (address) => runtime.runPromiseUnwrapped(Effect.flatMap(RosterGossip, (g) => g.seed(address))),
     reached: (address) => runtime.runPromiseUnwrapped(Effect.flatMap(PendingSeeds, (seeds) => seeds.reached(address))),

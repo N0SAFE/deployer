@@ -27,3 +27,12 @@ export class MeshNoNode extends domainError("MeshNoNode", "not_found")<{
     return `Node ${this.nodeId} is not reachable from this agent`;
   }
 }
+
+/** A join token could not be redeemed: it is not one of ours, or it has expired. */
+export class MeshJoinRejected extends domainError("MeshJoinRejected", "validation")<{
+  readonly reason: "malformed" | "expired";
+}>() {
+  override publicMessage() {
+    return this.reason === "expired" ? "The join token has expired" : "The join token is not valid";
+  }
+}

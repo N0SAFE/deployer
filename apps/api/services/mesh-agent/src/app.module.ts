@@ -2,7 +2,7 @@ import { createModuleContext, EffectRuntime, EffectRuntimeModule } from "@deploy
 import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
 import { PreflightModule, DEPENDENCIES, ServiceHealthModule, createMeshOrpcModule } from "@deployer/shared/server";
 
-import { MeshAgentConfigModule } from "./config/mesh-agent-config.module";
+import { AgentLocalModule } from "./local/agent-local.module";
 import { MeshDomainModule } from "./modules/mesh/mesh.module";
 
 /**
@@ -17,7 +17,7 @@ import { MeshDomainModule } from "./modules/mesh/mesh.module";
  */
 export class MeshAgentServiceModule extends createModuleContext({
   imports: [
-    MeshAgentConfigModule,
+    AgentLocalModule,
     AppLifecycleModule.forRoot(),
     PreflightModule.forRoot({ dependencies: DEPENDENCIES.none }),
     ServiceHealthModule,

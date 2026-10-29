@@ -1,5 +1,9 @@
+import { DatabaseSync } from "node:sqlite";
+
 import { Context, Effect } from "effect";
 
+import { AgentStore, agentStoreOver } from "../../../local/agent-store";
+import { SwarmCredential, swarmCredentialFrom } from "../../../local/swarm-credential";
 import {
   MeshDirectoryRepository,
   createDirectoryStore,
@@ -9,6 +13,7 @@ import { AgentLinkFactory, agentLinkFactoryOver } from "../services/agent-link-f
 import { AgentLoad, agentLoadOver } from "../services/agent-load.service";
 import { MeshBroker } from "../services/broker.service";
 import { MeshDirectory } from "../services/directory.service";
+import { JoinTokens } from "../services/join-tokens.service";
 import { KeyHints, keyHintsOver } from "../services/key-hints.service";
 import { LeaseSigner, leaseSignerOver } from "../services/lease-signer.service";
 import { MeshClock } from "../services/mesh-clock.service";
@@ -37,7 +42,10 @@ export type MeshServices =
   | RosterGossip
   | AdvertisedAddress
   | AgentLinkFactory
-  | PendingSeeds;
+  | PendingSeeds
+  | AgentStore
+  | SwarmCredential
+  | JoinTokens;
 
 export const LEASE_SECRET = "mesh-fixture-secret-of-at-least-32-characters";
 
@@ -74,6 +82,10 @@ export function meshFixture(
     addresses?: Record<string, Link>;
     /** Where this agent says it can be reached. */
     advertise?: string;
+    /** The credential this agent starts with: its own until it joins a swarm. */
+    secret?: string;
+    /** The swarm it already belongs to. */
+    swarmId?: string;
     /** What the agent reports about its own pressure. */
     load?: Partial<{ eventLoopLagMs: number; bytesPerSecond: number; openStreams: number }>;
   } = {},
@@ -82,6 +94,8 @@ export function meshFixture(
   const repository = directoryRepositoryOver(createDirectoryStore());
   const hints = keyHintsOver(new Map());
   const pendingSeeds = pendingSeedsOver(new Set());
+  const store = agentStoreOver(new DatabaseSync(":memory:") as never, () => clock.now);
+  const credential = swarmCredentialFrom({ secret: options.secret ?? LEASE_SECRET, swarmId: options.swarmId ?? null });
   const nodeAgents = nodeAgentsOver(new Map(Object.entries(options.nodes ?? {}).map(([nodeId, link]) => [nodeId, { nodeId, address: `ws://${nodeId}`, link }])));
   const links: ReplicaLinksShape = {
     linkTo: (replica) => options.replicas?.[replica.replicaId] ?? { call: () => Promise.reject(new Error(`no link to ${replica.replicaId}`)) },
@@ -112,6 +126,9 @@ export function meshFixture(
       Effect.provideService(AdvertisedAddress, advertised),
       Effect.provideService(AgentLinkFactory, agentLinks),
       Effect.provideService(PendingSeeds, pendingSeeds),
+      Effect.provideService(AgentStore, store),
+      Effect.provideService(SwarmCredential, credential),
+      Effect.provideService(JoinTokens, JoinTokens.live),
     );
 
   const advertised = { address: options.advertise ?? `ws://${options.nodeId ?? "A"}` };
@@ -137,12 +154,18 @@ export function meshFixture(
     Context.add(AdvertisedAddress, advertised),
     Context.add(AgentLinkFactory, agentLinks),
     Context.add(PendingSeeds, pendingSeeds),
+    Context.add(AgentStore, store),
+    Context.add(SwarmCredential, credential),
+    Context.add(JoinTokens, JoinTokens.live),
   );
 
   return {
     clock,
     /** Every service of this agent, as the `effect/context` a controller resolves its handlers against. */
     context,
+    /** The agent's own store and credential, to see what a join left behind. */
+    store,
+    credential,
     /** Stores records exactly as given, as if gossip or an earlier registration had delivered them. */
     seed: (...records: readonly ReplicaRecord[]) =>
       Promise.all(records.map((record) => Effect.runPromise(repository.upsert(record)))),

@@ -14,7 +14,8 @@ export type LeaseSignerShape = {
 };
 
 /** Signer over a secret and a lifetime, both from the environment. */
-export function leaseSignerOver(options: { readonly secret: string; readonly ttlMs: number }): LeaseSignerShape {
+/** `secret` may be a function, so a credential replaced by a join is used by the very next grant. */
+export function leaseSignerOver(options: { readonly secret: string | (() => string); readonly ttlMs: number }): LeaseSignerShape {
   return {
     issue: Effect.fn("LeaseSigner.issue")(function* (replica: ReplicaRecord) {
       const clock = yield* MeshClock;
@@ -24,7 +25,7 @@ export function leaseSignerOver(options: { readonly secret: string; readonly ttl
         address: replica.address,
         // The caller is a mesh peer authenticated by the shared credential, so the grant names the replica and the
         // expiry and nothing about who asked: the credential is what limits who can present it.
-        token: signLease({ replicaId: replica.replicaId, callerId: "mesh-peer", expiresAt }, options.secret),
+        token: signLease({ replicaId: replica.replicaId, callerId: "mesh-peer", expiresAt }, typeof options.secret === "function" ? options.secret() : options.secret),
         expiresAt,
       };
     }),

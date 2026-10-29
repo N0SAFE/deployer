@@ -79,4 +79,30 @@ describe("startGossipLoop", () => {
 
     expect(round.mock.calls.length).toBe(after);
   });
+
+  it("goes on after a round that failed, and reports it", async () => {
+    const round = vi.fn().mockRejectedValueOnce(new Error("runtime hiccup")).mockResolvedValue(0);
+    const onError = vi.fn();
+
+    const loop = startGossipLoop({ ...seedList(), seed: () => Promise.resolve({ reached: true }), round, onError, intervalMs: 1_000 });
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(round.mock.calls.length).toBeGreaterThanOrEqual(3);
+    loop.stop();
+  });
+
+  it("does not report a round that was cut short by stopping", async () => {
+    let fail: (error: Error) => void = () => undefined;
+    const round = vi.fn(() => new Promise<number>((_resolve, reject) => { fail = reject; }));
+    const onError = vi.fn();
+
+    const loop = startGossipLoop({ ...seedList(), seed: () => Promise.resolve({ reached: true }), round, onError, intervalMs: 1_000 });
+    await vi.advanceTimersByTimeAsync(0);
+    loop.stop();
+    fail(new Error("All fibers interrupted"));
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(onError).not.toHaveBeenCalled();
+  });
 });
