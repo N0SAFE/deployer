@@ -9,6 +9,9 @@ import { MermaidDiagram } from './components/docs/MermaidDiagram';
 import { DocChart } from './components/docs/DocChart';
 import { DocCard, DocCardGrid } from './components/docs/DocCardGrid';
 import { DocStepFlow } from './components/docs/DocStepFlow';
+import { MeshLifecycle } from './components/docs/mesh/MeshLifecycle';
+import { MeshRelayDecision } from './components/docs/mesh/MeshRelayDecision';
+import { MeshStories } from './components/docs/mesh/MeshStories';
 
 interface NodeProps {
   className?: string;
@@ -96,6 +99,9 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
     DocCard,
     DocCardGrid,
     DocStepFlow,
+    MeshLifecycle,
+    MeshRelayDecision,
+    MeshStories,
     Mermaid: MermaidDiagram,
     DocChart,
     Chart: DocChart,

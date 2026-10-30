@@ -85,6 +85,20 @@ sequenceDiagram
     AA-->>BFF: answer (typed errors keep their code and data)
 ```
 
+### What the agent does with one call
+
+Every relayed call goes through the same four questions, in this order. The first answer that applies wins.
+
+<MeshRelayDecision />
+
+1. **Is the call pinned to another node?** Per-node operations (a node's containers, a terminal on a given node) name a
+   node. If it is not this one, the agent forwards the call to that node's agent, which serves its own node only.
+2. **Does the lease policy say direct?** The agent steps aside and answers `MESH_DIRECT` (see below).
+3. **Otherwise it resolves a replica and calls it**, as in the next section, over a pooled link, with the same path and
+   input untouched. It routes on the procedure and headers only and does not re-parse the payload.
+4. **If the replica answers `MESH_REDIRECT`**, the agent replays the call on the replica it names, up to 3 hops, then
+   returns the result or stream. The caller only ever sees the final answer.
+
 ### How the agent picks a replica
 
 In this order, stopping at the first that applies:
@@ -123,6 +137,43 @@ lag, 64 MB/s, 512 streams, 200 calls/s per pair) are starting points, not measur
 
 **Pools live inside the link.** Callers and handlers never see a connection: the link keeps a small multiplexed pool
 per target, closes idle connections, reconnects with backoff and evicts unhealthy ones.
+
+## Walk through eight stories
+
+The same machinery, seen from eight situations. The picture has three nodes with an agent each (the tall bar) and a few
+service replicas (the blue boxes). **Pick a story, then step through it**: each step lights up the agents involved and
+draws the hop that just happened, with the earlier hops dimmed.
+
+<MeshStories />
+
+How to read it:
+
+- **The tall bars are the mesh agents**, one per node. A service box is always attached to the agent of its own node
+  and never to a box on another node: a service talks to its local agent only. The dashed rectangles are the nodes.
+- **The line colour is the kind of contract the call is on.** Coral: the **node router** (per-node operations). Purple:
+  the **external router** (an ordinary service call), and a dashed purple line is a **redirect** the agent receives and
+  answers. Green: the **peer router** (replicas asking each other). Amber: a **direct lease**, drawn thick when the
+  caller's link to a replica is open.
+- **The strip at the bottom is the overlay network.** Brokered calls travel agent to agent over the persistent links;
+  only a direct lease uses the overlay to reach a replica without the agent in the middle.
+- **Each story carries a status**, because not every story is wired yet:
+  - *Built*: it works in the code today (container logs, list projects, log in, terminal).
+  - *Mechanism built*: the agent side is built and tested, but no service uses it yet (a service answering
+    `MESH_REDIRECT`; deployment streams over a lease).
+  - *Design*: the story is the target, not the code (fleet-wide usage through the agent, replicas asking their peers).
+
+The stories in short:
+
+| Story | What it shows |
+|---|---|
+| **Container logs** | A call pinned to a node: the agent forwards it to that node's agent, which reads its own docker socket. The stream returns over the same links. |
+| **List projects** | Locality: the service is on every node, so the agent serves it from its own node and nothing crosses the network. |
+| **Log in** | No local replica: the agent picks the least loaded replica of the whole fleet from the gossiped directory and the answer comes back the same way. |
+| **Terminal** | A stateful session on a node: opened through the pinned path, then output and keystrokes stream over links that are already open. |
+| **Deploy** | A redirect: the replica that receives the call does not hold the resource and names the one that does; the agent replays the call there. |
+| **Live deploy log** | A direct lease: a long, heavy stream on one resource, so the agent hands the caller a signed grant and carries none of the bytes. |
+| **Fleet usage** | A fan-out: one call with the target "all nodes" is answered by every agent from its own node and merged. |
+| **Find a resource** | Replicas asking each other (`peers.ask`), ending in a redirect to the one that holds the resource. |
 
 ## How a service takes part
 
@@ -181,6 +232,17 @@ node as a key**, so a question about a container reaches the node that owns it.
 A runtime with no agent is simply alone on its node: every question to the mesh answers with nobody.
 
 ## A node's life: alone first, fleet later
+
+The same life as a diagram you can step through: the node boots alone, two runtimes register, it brokers calls between
+them with nobody else around, then it redeems a join token, gossips, serves a cross-node call, hands out a direct lease
+and loses a replica.
+
+<MeshLifecycle />
+
+In the picture, each agent shows its **directory** (one line per replica it knows: service, node, load and the key it
+holds). Node B is dimmed until the node has joined. The coloured arrows are, in order of appearance: green,
+a replica **registering** with its agent; purple, a **call** and its answer; coral, **join and gossip** between agents;
+amber, a **grant** (dashed) and the **direct link** it opens (thick).
 
 ```mermaid
 flowchart TD
