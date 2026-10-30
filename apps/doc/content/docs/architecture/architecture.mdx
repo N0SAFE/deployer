@@ -55,7 +55,7 @@ The v3 runtime baseline is a Docker Swarm cluster with manager/worker roles (imp
 - **Control-plane services** (`traefik`, `api`, `web`): deployed as Swarm services and managed from managers.
 - **Worker node(s)**: execute scheduled service tasks/replicas.
 - **Shared PostgreSQL**: primary source of truth for platform state.
-- **Mesh (ORPC EventIterator over HTTP/SSE)**: cross-node event/resource coordination between API nodes.
+- **Mesh (one mesh agent per node)**: service discovery, routing and persistent oRPC links between nodes. See [The Mesh Agent](/docs/architecture/mesh-agent).
 
 <DocCallout title="Implementation status" tone="success">
 The Swarm execution backend, master election, node sharing, and cluster API surface are implemented behind the dockerode SDK (zero CLI). See `docs/swarm-orchestration/` for design docs and the `IMPLEMENTATION_TODO.md` status checklist.
@@ -67,7 +67,7 @@ In a multi-node Swarm cluster, nodes are connected by:
 
 1. **Swarm control plane** — manager quorum + worker membership.
 2. **Shared PostgreSQL** — users, orgs, projects, deployments, topology metadata.
-3. **Mesh** — distributed event/resource coordination across API nodes.
+3. **Mesh** — the agents of the nodes: discovery of every service replica, locality-first routing, and the links between nodes ([The Mesh Agent](/docs/architecture/mesh-agent)).
 4. **Traefik ingress** — Swarm-aware routing and balancing for platform and deployed HTTP services.
 5. **Optional custom LB app** — only for advanced owner-aware routing/diagnostic scenarios.
 
@@ -94,7 +94,7 @@ graph LR
 	M1 --> W1
 	M1 --> W2
 	Tr --> App
-	ApiA <-->|"Mesh events"| ApiB
+	ApiA <-->|"Mesh agents (persistent RPC)"| ApiB
 	ApiA --> PG
 	ApiB --> PG
 ```
@@ -130,7 +130,7 @@ See [Production Deployment](/docs/deployment/production-deployment) for the base
 - [Entity & Model Hierarchy](/docs/architecture/entity-model-hierarchy)
 - [Tech Stack](/docs/architecture/tech-stack)
 - [Mesh-Consumer Boundary Pattern](/docs/architecture/mesh-consumer-boundary-pattern)
-- [Mesh Peer Selection Algorithm](/docs/architecture/mesh-peer-selection-algorithm)
+- [The Mesh Agent](/docs/architecture/mesh-agent)
 - [Development Workflow](/docs/dev/development-workflow)
 - [ORPC Type-Safe API Workflow](/docs/dev/orpc)
 - [Event System & Stream Sync](/docs/dev/event-system-streams)

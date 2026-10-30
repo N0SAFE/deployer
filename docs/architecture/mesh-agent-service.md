@@ -425,3 +425,8 @@ the BFF views) are covered by the open question below.
 - Whether the browser clients (`apps/web`, `apps/setup`, BFF views) should also use `createEffectClient`, or only the
   server-side ones and the mesh links.
 - The hop limit and `key -> replica` hint TTL for redirects (proposed: 3 hops, 5 s).
+
+## Where the explanation lives
+
+How the mesh works today (concepts, how a call travels, joining a fleet, what the dashboard shows) is the canonical page
+`apps/doc/content/docs/architecture/mesh-agent.mdx`. This file is the design and build log behind it.
