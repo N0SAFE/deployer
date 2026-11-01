@@ -62,8 +62,8 @@ Two doors, two kinds of trust:
 - **The network door** is the agent's HTTP port, with a websocket at `/mesh/ws`. It serves the other agents and is
   guarded by the swarm's credential, checked when the socket is opened.
 
-The routers behind those doors are declarative: a procedure class is a singleton provider marked with `@MeshTransport()`,
-each method declares its door/group/contract with `@MeshProcedure` (or `@NodeProcedure`), and the agent's transport
+The routers behind those doors are declarative: a procedure class extends `MeshController` and lists its methods in a
+`static procedures` map (door, group and contract per method), and the agent's transport
 module resolves them at boot and owns the sockets and loops. No mesh or node procedure is mounted on HTTP.
 
 Everything on the mesh is **oRPC over the RPC protocol on a persistent websocket**, never the OpenAPI link: calls,

@@ -35,22 +35,22 @@
     "semantic_hash": ""
   },
   "apps/doc/.source/browser.ts": {
-    "mtime": 1793553246.0659437,
+    "mtime": 1793558132.1438344,
     "ast_hash": "e571e9d2e0583f13df9bd14712d8ab80",
     "semantic_hash": ""
   },
   "apps/doc/.source/dynamic.ts": {
-    "mtime": 1793553246.0659437,
+    "mtime": 1793558132.1438344,
     "ast_hash": "c80a1fd790d855a435c74229f9a14811",
     "semantic_hash": ""
   },
   "apps/doc/.source/server.ts": {
-    "mtime": 1793553246.0659437,
+    "mtime": 1793558132.1438344,
     "ast_hash": "e909cc5b3f8a64174f4ce8e79c5bd4ab",
     "semantic_hash": ""
   },
   "apps/doc/.source/source.config.mjs": {
-    "mtime": 1793553245.8079827,
+    "mtime": 1793558131.8578365,
     "ast_hash": "7593956476953d4f0a0f83a6784eba35",
     "semantic_hash": "7593956476953d4f0a0f83a6784eba35"
   },
@@ -13020,13 +13020,13 @@
     "semantic_hash": ""
   },
   "packages/nest/effect/src/effect-runtime.ts": {
-    "mtime": 1793325037.778933,
-    "ast_hash": "43e52911c356d1f7b1ce845478f75da3",
+    "mtime": 1793554901.2524042,
+    "ast_hash": "eb906e3f73e3f06577cd3dccf8632f5b",
     "semantic_hash": ""
   },
   "packages/nest/effect/src/index.ts": {
-    "mtime": 1793331633.1325681,
-    "ast_hash": "49c3e1498fa43848783203e46edd34da",
+    "mtime": 1793557437.9098713,
+    "ast_hash": "c07486190a53fc7969f9d9931f8a8cb9",
     "semantic_hash": ""
   },
   "packages/nest/effect/src/orpc-effect-context.ts": {
@@ -13350,8 +13350,8 @@
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/ROADMAP.md": {
-    "mtime": 1793554741.4737244,
-    "ast_hash": "f9fe871b332d42623e92e78aebb35d14",
+    "mtime": 1793558336.4765663,
+    "ast_hash": "2c62433b79c299ba32deacd5d9361091",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/architecture.md": {
@@ -14105,13 +14105,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/fleet/package.json": {
-    "mtime": 1793535004.330387,
-    "ast_hash": "ed8fdc9a18e112ed3074d0ec9bd590de",
+    "mtime": 1793558131.2538407,
+    "ast_hash": "c06ee70d9c7098fe5a38e5922b398d42",
     "semantic_hash": ""
   },
   "apps/api/services/fleet/src/app.module.ts": {
-    "mtime": 1793331347.3627892,
-    "ast_hash": "1a36d49cd6b930af22b6b6d01550bd39",
+    "mtime": 1793557470.8019161,
+    "ast_hash": "cd6ea5b174ea730044a3443f320edc04",
     "semantic_hash": ""
   },
   "apps/api/services/fleet/src/e2e/authenticated-workflows/authenticated-routes.e2e-spec.ts": {
@@ -14120,8 +14120,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/fleet/src/e2e/platform-workflows/app-instance-lifecycle.e2e-spec.ts": {
-    "mtime": 1793107637.3603292,
-    "ast_hash": "171bc88ccf03d64458f4b2ab22d0e576",
+    "mtime": 1793558085.5393999,
+    "ast_hash": "80a9f33e733e92d21c8c1e8609a4bdeb",
     "semantic_hash": ""
   },
   "apps/api/services/fleet/src/e2e/runtime.ts": {
@@ -14375,8 +14375,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/fleet/src/modules/providers/code/github/services/preview-ttl-cleanup.service.ts": {
-    "mtime": 1793313364.227074,
-    "ast_hash": "94519402f23a9092e9439212b0eecc4d",
+    "mtime": 1793555385.8688834,
+    "ast_hash": "a808e1f94abde21d1f097b1edade779d",
     "semantic_hash": ""
   },
   "apps/api/services/fleet/src/modules/providers/code/github/services/webhook-idempotency.service.spec.ts": {
@@ -14480,13 +14480,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/fleet/src/modules/providers/edge/cloudflare-tunnel/cloudflare-tunnel.edge-provider.spec.ts": {
-    "mtime": 1793311559.3506296,
-    "ast_hash": "8f3e4d9139895e71630abe1e4bc52afc",
+    "mtime": 1793555357.963227,
+    "ast_hash": "2825f4f3f89ef79f82e626a6787f2c6a",
     "semantic_hash": ""
   },
   "apps/api/services/fleet/src/modules/providers/edge/cloudflare-tunnel/cloudflare-tunnel.edge-provider.ts": {
-    "mtime": 1793311552.9685652,
-    "ast_hash": "ac017c84e70c9f75b834e4dfd1697059",
+    "mtime": 1793555786.8790126,
+    "ast_hash": "410620c5fbb6edaed126a80debc4e13c",
     "semantic_hash": ""
   },
   "apps/api/services/fleet/src/modules/providers/middleware/github-webhook-auth.middleware.ts": {
@@ -14495,8 +14495,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/fleet/src/modules/providers/providers.module.ts": {
-    "mtime": 1793333042.0078056,
-    "ast_hash": "25e53d60f3c77b11b44dee0110c3de0a",
+    "mtime": 1793555243.6790652,
+    "ast_hash": "2d2de4bca0b953f16fc48a462713a33a",
     "semantic_hash": ""
   },
   "apps/api/services/fleet/src/modules/reachability/controllers/reachability.controller.spec.ts": {
@@ -14510,8 +14510,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/fleet/src/modules/reachability/reachability.module.ts": {
-    "mtime": 1793441831.25449,
-    "ast_hash": "bda905db758829b7244a1213c924e77c",
+    "mtime": 1793555232.5711408,
+    "ast_hash": "c2edbd4765aa178c1e60b7a7f5bbc257",
     "semantic_hash": ""
   },
   "apps/api/services/fleet/src/modules/reachability/services/edge-dns.service.spec.ts": {
@@ -14555,8 +14555,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/health/src/app.module.ts": {
-    "mtime": 1793324814.126328,
-    "ast_hash": "53753c6d7efdc83eaa9e1e07a5158e54",
+    "mtime": 1793558027.3974032,
+    "ast_hash": "13fdeac519e7fd47ae97b595fc1f4032",
     "semantic_hash": ""
   },
   "apps/api/services/health/src/e2e/authenticated-workflows/authenticated-routes.e2e-spec.ts": {
@@ -14590,8 +14590,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/health/src/modules/health/controllers/health.controller.ts": {
-    "mtime": 1793538258.1275477,
-    "ast_hash": "5d96b845693563a083315566eb92dd82",
+    "mtime": 1793558027.3977733,
+    "ast_hash": "865907f56d646d9e3687d11172db76ed",
     "semantic_hash": ""
   },
   "apps/api/services/health/src/modules/health/health.errors.ts": {
@@ -14600,8 +14600,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/health/src/modules/health/health.module.ts": {
-    "mtime": 1793334726.5564542,
-    "ast_hash": "986ad13b6497ffc7f7dab939592bf8e1",
+    "mtime": 1793558027.3981001,
+    "ast_hash": "2f151b4df7f37be549e2033fde593e15",
     "semantic_hash": ""
   },
   "apps/api/services/health/src/modules/health/services/health.service.spec.ts": {
@@ -14635,8 +14635,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/identity/src/app.module.ts": {
-    "mtime": 1793331019.055703,
-    "ast_hash": "796685322903a9d40ed2f833804544cc",
+    "mtime": 1793557449.5818238,
+    "ast_hash": "c288f84e408a6d6b7fbda59a2da60528",
     "semantic_hash": ""
   },
   "apps/api/services/identity/src/core/database/database.port.ts": {
@@ -14915,8 +14915,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/project/src/app.module.ts": {
-    "mtime": 1793329792.8526034,
-    "ast_hash": "054f4983025f0bf892e2441b8698fe4f",
+    "mtime": 1793557449.5821311,
+    "ast_hash": "a50cc00e63d76a2ed6d116af771d0965",
     "semantic_hash": ""
   },
   "apps/api/services/project/src/core/database/database.port.ts": {
@@ -15055,8 +15055,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/project/src/modules/project/project.module.ts": {
-    "mtime": 1793328899.2175555,
-    "ast_hash": "ea632600d665062dfa481868d6ee5f79",
+    "mtime": 1793555108.6680102,
+    "ast_hash": "4c9609c81770b01613e4af829eb2741e",
     "semantic_hash": ""
   },
   "apps/api/services/project/src/modules/project/repositories/api-key.repository.ts": {
@@ -15100,8 +15100,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/project/src/modules/project/services/project-event-adapter.ts": {
-    "mtime": 1793310961.3945894,
-    "ast_hash": "20c09625ad40bb346af7e35643df3f6b",
+    "mtime": 1793555099.4660776,
+    "ast_hash": "f322a51146b3eb8f9ff957adcde4116e",
     "semantic_hash": ""
   },
   "apps/api/services/project/src/modules/project/services/project-event.service.ts": {
@@ -15155,8 +15155,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/project/src/modules/service/service.module.ts": {
-    "mtime": 1793310971.48736,
-    "ast_hash": "1e72436d1251aa0cbab2839dbb23aba9",
+    "mtime": 1793555113.1369777,
+    "ast_hash": "e6849b8c650cfb0a250916e233245251",
     "semantic_hash": ""
   },
   "apps/api/services/project/src/modules/service/services/preview-topology.resolver.ts": {
@@ -15185,8 +15185,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/project/src/modules/service/services/service-event-adapter.ts": {
-    "mtime": 1793310961.3947322,
-    "ast_hash": "58836a7574232fc2be688b7a3fe8131d",
+    "mtime": 1793555104.5040407,
+    "ast_hash": "027f130b3fd3a09b67cbdeb3dd0c196f",
     "semantic_hash": ""
   },
   "apps/api/services/project/src/modules/service/services/service-event.service.ts": {
@@ -15225,8 +15225,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/app.module.ts": {
-    "mtime": 1793331347.3626568,
-    "ast_hash": "b6eee1092a0e775f3091c1bc50df9667",
+    "mtime": 1793557449.5823743,
+    "ast_hash": "8c67199bbec612f2408e806f43d1ba31",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/e2e/authenticated-workflows/authenticated-routes.e2e-spec.ts": {
@@ -15420,8 +15420,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/deployment/services/deployment.service.spec.ts": {
-    "mtime": 1793308160.3844285,
-    "ast_hash": "251184920c9321fb1e16d18869aa5b11",
+    "mtime": 1793555505.3238132,
+    "ast_hash": "5eeb14f8f08df7bfa44ca6b24452204a",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/deployment/services/deployment.service.ts": {
@@ -15565,13 +15565,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/common/docker-common.module.ts": {
-    "mtime": 1793458358.2203739,
-    "ast_hash": "96ccca59c3130c420f163d817fd00ff4",
+    "mtime": 1793555134.1528258,
+    "ast_hash": "1737566a85a5a8cdd56258e941570341",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/common/events/docker-runtime-activity-persistence.service.ts": {
-    "mtime": 1793290393.8578506,
-    "ast_hash": "99b3f7da84d1cb149ee1916fd42d17d6",
+    "mtime": 1793555103.614047,
+    "ast_hash": "fee174f6f1ca3c0727e0ad297cf33994",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/common/events/docker-runtime-events-source.service.ts": {
@@ -15605,13 +15605,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/common/runtime/docker-runtime-stream-orchestrator.service.spec.ts": {
-    "mtime": 1793290393.8588505,
-    "ast_hash": "a26e6f8f861b14531944a4f10d8f92a2",
+    "mtime": 1793555121.775915,
+    "ast_hash": "1f552f656a16595ebb617e0888db5c0d",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/common/runtime/docker-runtime-stream-orchestrator.service.ts": {
-    "mtime": 1793290393.8588505,
-    "ast_hash": "b03a40bf0a0a94888d48f2d1d2744e2a",
+    "mtime": 1793555112.919979,
+    "ast_hash": "041ab4caae8efb8f3bad936ae456ddb7",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/controllers/docker.controller.ts": {
@@ -15625,8 +15625,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/containers/docker-containers.module.ts": {
-    "mtime": 1793532563.8158116,
-    "ast_hash": "025ee8a8cf058f4b776a0e770fe59a37",
+    "mtime": 1793555548.258131,
+    "ast_hash": "eefbfdf65856a2f37b7a7bd8bd623784",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/containers/events/docker-container-metrics-stream.service.ts": {
@@ -15635,13 +15635,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/containers/orchestration/docker-containers-orchestrator.service.ts": {
-    "mtime": 1793540018.5026093,
-    "ast_hash": "091460f200258af308742167d17903b5",
+    "mtime": 1793555813.6597939,
+    "ast_hash": "d7519a37bf2811317b54df75aed54c41",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/entity/docker-entity.module.ts": {
-    "mtime": 1793532806.763021,
-    "ast_hash": "5ce41a654c8b2db56511dc6fd096f445",
+    "mtime": 1793555747.7493374,
+    "ast_hash": "1559547d64b014db6acab2f91a2ecea7",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/entity/orchestration/docker-entity-cache.service.spec.ts": {
@@ -15655,13 +15655,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/entity/orchestration/docker-entity-domain.service.ts": {
-    "mtime": 1793290393.8618505,
-    "ast_hash": "3206c866dee7cfd648f4c516b17b97a9",
+    "mtime": 1793556527.6084254,
+    "ast_hash": "ba08a0db3560d563f02822ea4b6bfa4e",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/entity/orchestration/docker-entity-orchestrator.service.ts": {
-    "mtime": 1793290393.8628504,
-    "ast_hash": "60fd7e6a8596cbcc49bbed679e8ce9f9",
+    "mtime": 1793555825.6406968,
+    "ast_hash": "1962f8da272cddf1392e182d80d6edd2",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/images/application/docker-images-application.service.ts": {
@@ -15835,13 +15835,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/runners/runners.module.ts": {
-    "mtime": 1793458328.893113,
-    "ast_hash": "69c67d003b6f1b222fafa480748c5e1a",
+    "mtime": 1793555153.0836914,
+    "ast_hash": "6d6b1bedc1a2b3dbfb4c8e555d4a5093",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/runners/runtime-runner-registry.service.ts": {
-    "mtime": 1793290393.8678505,
-    "ast_hash": "f2cee729c970ba3b0d541dcf4c2b6ef0",
+    "mtime": 1793555161.8877442,
+    "ast_hash": "728999d74e2bbd1961e703baf590d571",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/runners/runtime-runner.interface.ts": {
@@ -19680,8 +19680,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/fleet/src/modules/reachability/services/ingress-dns-reconciler.ts": {
-    "mtime": 1793313360.2741773,
-    "ast_hash": "d69586dbfb3720605581878bffc6ed59",
+    "mtime": 1793555392.0188096,
+    "ast_hash": "1da6d55d13bbdf36c00db33f71c14238",
     "semantic_hash": ""
   },
   "samples/nest-effect-module-graph/package.json": {
@@ -19940,8 +19940,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/containers/orchestration/docker-container-resolution.ts": {
-    "mtime": 1793333286.6617334,
-    "ast_hash": "fb8e92138602e427bc622062b5f9f159",
+    "mtime": 1793555459.870039,
+    "ast_hash": "c50b443bd58c41a2c9fa325e4cf1d2ab",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/containers/orchestration/testing.ts": {
@@ -20060,8 +20060,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/containers/runtime/docker-container-access.ts": {
-    "mtime": 1793290668.1416526,
-    "ast_hash": "1e0bbda8675bb8a7bc6d2d70348f59eb",
+    "mtime": 1793555474.7348795,
+    "ast_hash": "96322708cd402eabaa2c494e899f6b5a",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/containers/runtime/mesh-fallback.spec.ts": {
@@ -20075,8 +20075,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/containers/mesh/local-node-operations.ts": {
-    "mtime": 1793290689.931623,
-    "ast_hash": "96c7cb29c844ebada0e17dd065814d41",
+    "mtime": 1793555871.3884642,
+    "ast_hash": "7eb3d233fc06371e2000cbd071dcbbbd",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/entity/orchestration/entity-chunks.spec.ts": {
@@ -20685,8 +20685,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/fleet/src/modules/providers/code/github/services/preview-ttl-cleanup.service.spec.ts": {
-    "mtime": 1793313532.4971561,
-    "ast_hash": "688774bccef5c0fdd1d0a92ee7b32ff9",
+    "mtime": 1793555337.0814388,
+    "ast_hash": "51c28725ae5c12e6f765124418394a3c",
     "semantic_hash": ""
   },
   "apps/api/services/fleet/src/modules/providers/code/gitlab/controllers/gitlab-account.controller.spec.ts": {
@@ -20705,8 +20705,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/fleet/src/modules/reachability/services/ingress-dns-reconciler.spec.ts": {
-    "mtime": 1793313729.699399,
-    "ast_hash": "b3f62ab40ad69474746fb7d8a60a2cc5",
+    "mtime": 1793555347.359362,
+    "ast_hash": "41d49224a4c8387140d12ce0b3f2a06b",
     "semantic_hash": ""
   },
   "apps/api/services/fleet/src/core/database/database.module.ts": {
@@ -20820,8 +20820,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/app.module.ts": {
-    "mtime": 1793447508.7805655,
-    "ast_hash": "61cc863706635d734008406fb5eb795a",
+    "mtime": 1793557449.5825047,
+    "ast_hash": "ba322c036cb9854fce5ecf2ef67b0727",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/boot/boot-agent.ts": {
@@ -20975,8 +20975,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/mesh.module.ts": {
-    "mtime": 1793467996.9803789,
-    "ast_hash": "c1d9bc8db717e26f6df9a96fbeb039dd",
+    "mtime": 1793558085.5391903,
+    "ast_hash": "5df6ca5fb79dd9c452b37e91d1418fa4",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/repositories/directory.repository.spec.ts": {
@@ -21315,13 +21315,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/transport/mesh-transport.module.ts": {
-    "mtime": 1793464875.4180095,
-    "ast_hash": "6a946c8005c569e51198ce91eb16bf13",
+    "mtime": 1793555122.7079082,
+    "ast_hash": "869e480c800a1965c2fe0532dde1cee6",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/transport/mesh-transport.service.ts": {
-    "mtime": 1793464748.648366,
-    "ast_hash": "c225450562e5da7c362177b6aa9eeb89",
+    "mtime": 1793555590.6097257,
+    "ast_hash": "6aa1a53421ec346fd53b9ddafccb3ceb",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/transport/service-door.ts": {
@@ -21340,13 +21340,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/containers/orchestration/docker-containers.service.ts": {
-    "mtime": 1793532525.1736617,
-    "ast_hash": "a2ee2ce47ae7ffa59f2bec60c12f1150",
+    "mtime": 1793556435.7764473,
+    "ast_hash": "d6eaa251b364e59c1d3ea31ca8a7a4fb",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/entity/orchestration/docker-entity.service.ts": {
-    "mtime": 1793532841.819537,
-    "ast_hash": "4b82819315f12367a7d0571aa41e3cb9",
+    "mtime": 1793555890.4651797,
+    "ast_hash": "c33f75ca75cc845091082f17d0aa86ea",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/images/orchestration/docker-images.service.ts": {
@@ -21835,8 +21835,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/containers/orchestration/docker-containers-orchestrator.service.spec.ts": {
-    "mtime": 1793540113.1724005,
-    "ast_hash": "009aeee27144da8097dc4747555e3707",
+    "mtime": 1793556445.8890204,
+    "ast_hash": "08a70c617c6b8429f726d996ae7c7116",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/runners/base/reserved-labels.ts": {
@@ -21962,6 +21962,41 @@
   "docs/qa/web/frontend-purpose-2026-11-01.md": {
     "mtime": 1793554753.3248222,
     "ast_hash": "b43f80728b8072e2df9f9bc2665b151a",
+    "semantic_hash": ""
+  },
+  "apps/api/services/runtime/src/modules/docker/domains/containers/runtime/docker-container-streams.ts": {
+    "mtime": 1793555485.3627675,
+    "ast_hash": "05713be0bed4981833a84870318297c3",
+    "semantic_hash": ""
+  },
+  "apps/api/services/runtime/src/modules/docker/domains/entity/orchestration/docker-entity-cache.port.ts": {
+    "mtime": 1793555556.5510504,
+    "ast_hash": "06f882a56a71e5b1aa7c29a976d95332",
+    "semantic_hash": ""
+  },
+  "apps/api/services/runtime/src/modules/docker/domains/entity/orchestration/docker-entity-streams.ts": {
+    "mtime": 1793556516.2295082,
+    "ast_hash": "255829a3e2791dd6d6eb7f61b6d7b195",
+    "semantic_hash": ""
+  },
+  "packages/nest/effect/src/effect-host.module.ts": {
+    "mtime": 1793557437.886844,
+    "ast_hash": "4d7f55b498f4b6b55307138579701a4a",
+    "semantic_hash": ""
+  },
+  "packages/nest/effect/src/effect-host.spec.ts": {
+    "mtime": 1793555004.8812103,
+    "ast_hash": "fd52d04d9a6c7864e39b0a27fb134bf4",
+    "semantic_hash": ""
+  },
+  "packages/nest/effect/src/effect-host.ts": {
+    "mtime": 1793556939.3371966,
+    "ast_hash": "7f52a9fc79b7c34f5aed5c64a463ffcb",
+    "semantic_hash": ""
+  },
+  "docs/architecture/effect-host.md": {
+    "mtime": 1793558321.6154673,
+    "ast_hash": "04759a50a4568e1319c9a60c2f948363",
     "semantic_hash": ""
   }
 }

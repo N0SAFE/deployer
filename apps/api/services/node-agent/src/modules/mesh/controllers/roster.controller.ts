@@ -2,7 +2,7 @@ import { Controller } from "@nestjs/common";
 import { Effect } from "effect";
 
 import { nodeAgentContract } from "@deployer/node-agent-contracts";
-import { MeshProcedure, MeshTransport } from "@deployer/nest-mesh";
+import { declareProcedures, MeshController } from "@deployer/nest-mesh";
 import { procedure } from "@deployer/nest-effect";
 
 import { AgentStore } from "../../../local/agent-store";
@@ -39,10 +39,22 @@ const clampRotation = (input: { readonly validUntil?: number; readonly epoch?: n
 });
 
 /** The gossip between agents: a peer says what it knows and is answered with what this agent knows. */
-@MeshTransport()
 @Controller()
-export class RosterController {
-  @MeshProcedure({ door: "peer", group: "roster", contract: roster.exchange })
+export class RosterController extends MeshController {
+  static readonly procedures = declareProcedures({
+    exchange: { door: "peer", group: "roster", contract: roster.exchange },
+    join: { door: "peer", group: "roster", contract: roster.join },
+    check: { door: "peer", group: "roster", contract: roster.check },
+    token: { door: "peer", group: "roster", contract: roster.token },
+    revoke: { door: "peer", group: "roster", contract: roster.revoke },
+    rotate: { door: "peer", group: "roster", contract: roster.rotate },
+    credential: { door: "peer", group: "roster", contract: roster.credential },
+    setting: { door: "peer", group: "roster", contract: roster.setting },
+    view: { door: "peer", group: "roster", contract: roster.view },
+    block: { door: "peer", group: "roster", contract: roster.block },
+    unblock: { door: "peer", group: "roster", contract: roster.unblock },
+  });
+
   exchange() {
     return procedure(roster.exchange).effect(function* ({ input, context }) {
       return yield* serveMeshPeer(context)(
@@ -55,7 +67,6 @@ export class RosterController {
   }
 
   /** Joins the swarm a token names. It can be called at any time: the agent works alone until it is. */
-  @MeshProcedure({ door: "peer", group: "roster", contract: roster.join })
   join() {
     return procedure(roster.join).effect(function* ({ input, context }) {
       return yield* serveMeshPeer(context)(
@@ -74,7 +85,6 @@ export class RosterController {
   }
 
   /** Whether a join token is this swarm's and still good. Asked by the services on this node, never answered with the credential. */
-  @MeshProcedure({ door: "peer", group: "roster", contract: roster.check })
   check() {
     return procedure(roster.check).effect(function* ({ input, context }) {
       return yield* serveMeshPeer(context)(
@@ -87,7 +97,6 @@ export class RosterController {
   }
 
   /** Issues a token for a new node to join this agent's swarm. */
-  @MeshProcedure({ door: "peer", group: "roster", contract: roster.token })
   token() {
     return procedure(roster.token).effect(function* ({ input, context }) {
       return yield* serveMeshPeer(context)(
@@ -100,7 +109,6 @@ export class RosterController {
   }
 
   /** Revokes a join token before it expires. */
-  @MeshProcedure({ door: "peer", group: "roster", contract: roster.revoke })
   revoke() {
     return procedure(roster.revoke).effect(function* ({ input, context }) {
       return yield* serveMeshPeer(context)(
@@ -116,7 +124,6 @@ export class RosterController {
    * Rotates the swarm's credential. Without a secret this agent mints one, tells every peer, then installs it; with
    * one it adopts the rotation a peer broadcast. The old secret stays accepted until `validUntil`.
    */
-  @MeshProcedure({ door: "peer", group: "roster", contract: roster.rotate })
   rotate() {
     return procedure(roster.rotate).effect(function* ({ input, context }) {
       return yield* serveMeshPeer(context)(
@@ -137,7 +144,6 @@ export class RosterController {
   }
 
   /** The credential in force here, for a peer that missed the rotation. Behind the credential itself, on the peer door. */
-  @MeshProcedure({ door: "peer", group: "roster", contract: roster.credential })
   credential() {
     return procedure(roster.credential).effect(function* ({ context }) {
       return yield* serveMeshPeer(context)(
@@ -150,7 +156,6 @@ export class RosterController {
   }
 
   /** Publishes one setting into this agent (the API writes `node.doors`); gossip carries it to the swarm. */
-  @MeshProcedure({ door: "peer", group: "roster", contract: roster.setting })
   setting() {
     return procedure(roster.setting).effect(function* ({ input, context }) {
       return yield* serveMeshPeer(context)(
@@ -166,7 +171,6 @@ export class RosterController {
   }
 
   /** What this agent knows of the swarm, for the dashboard. Read-only. */
-  @MeshProcedure({ door: "peer", group: "roster", contract: roster.view })
   view() {
     return procedure(roster.view).effect(function* ({ context }) {
       return yield* serveMeshPeer(context)(
@@ -194,7 +198,6 @@ export class RosterController {
   }
 
   /** Excludes a node from this agent: it is forgotten, and nothing it gossips is absorbed from now on. */
-  @MeshProcedure({ door: "peer", group: "roster", contract: roster.block })
   block() {
     return procedure(roster.block).effect(function* ({ input, context }) {
       return yield* serveMeshPeer(context)(
@@ -209,7 +212,6 @@ export class RosterController {
   }
 
   /** Lifts a block: the node may be learned again the next time it gossips. */
-  @MeshProcedure({ door: "peer", group: "roster", contract: roster.unblock })
   unblock() {
     return procedure(roster.unblock).effect(function* ({ input, context }) {
       return yield* serveMeshPeer(context)(

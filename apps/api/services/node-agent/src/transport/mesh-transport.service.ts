@@ -10,7 +10,13 @@ import { Effect } from "effect";
 import { MESH_WEBSOCKET_PATH } from "@deployer/node-agent-contracts";
 import { attachMeshWebSocket, type MeshWebSocket } from "@deployer/mesh-server";
 import { EffectHost } from "@deployer/nest-effect";
-import { MESH_INTERVAL_DEFAULTS, MESH_TRANSPORT_OPTIONS, MeshRouterResolver, type MeshRouter, type MeshTransportOptions } from "@deployer/nest-mesh";
+import {
+  MESH_INTERVAL_DEFAULTS,
+  MESH_TRANSPORT_OPTIONS,
+  MeshRoutersService,
+  type MeshRouter,
+  type MeshTransportOptions,
+} from "@deployer/nest-mesh";
 import { MESH_CREDENTIAL_VERIFIER, type MeshCredentialVerifier } from "@deployer/shared/server";
 
 import {
@@ -44,7 +50,7 @@ type Loop = { readonly stop: () => void };
  * What an agent does once its HTTP port is bound: serve the mesh over a persistent websocket, and keep its view of the
  * other agents and of every replica fresh by gossip.
  *
- * The routers come from `MeshRouterResolver`, which reads the `@MeshProcedure` metadata of every `@MeshTransport()`
+ * The routers come from `MeshRouterResolver`, which reads the `static procedures` map of every `MeshController`
  * provider: a procedure is declared once, on its method, and both doors are assembled from that. The oRPC context is
  * read per call from the Effect host, so a call on a connection that lives for hours still sees the services of the
  * moment.
@@ -67,7 +73,7 @@ export class MeshTransportService implements OnApplicationBootstrap, OnModuleDes
   constructor(
     private readonly config: ConfigService<NodeAgentEnv, true>,
     @Inject(EffectHost) private readonly host: EffectHost["Service"],
-    private readonly resolver: MeshRouterResolver,
+    @Inject(MeshRoutersService) private readonly routers: MeshRoutersService["Service"],
     private readonly adapterHost: HttpAdapterHost,
     @Inject(MESH_CREDENTIAL_VERIFIER) private readonly verify: MeshCredentialVerifier,
     @Inject(MESH_TRANSPORT_OPTIONS) private readonly options: MeshTransportOptions,
@@ -89,7 +95,7 @@ export class MeshTransportService implements OnApplicationBootstrap, OnModuleDes
   }
 
   async onApplicationBootstrap(): Promise<void> {
-    const { peer, node, admin } = this.resolver.resolve();
+    const { peer, node, admin } = this.routers;
     // The lease policy's bytes-per-second input: counted on the socket, never by parsing a payload.
     const load = await this.host.runUnwrapped(AgentLoad);
 

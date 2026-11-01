@@ -1,13 +1,12 @@
 export {
-	isMeshTransport,
-	MeshProcedure,
-	MeshTransport,
-	meshProceduresOf,
-	NodeProcedure,
+	declareProcedures,
+	isMeshController,
+	MeshController,
 	type MeshDoor,
+	type MeshProcedureDeclarations,
 	type MeshProcedureMeta,
-} from "./mesh-procedure.decorator";
-export { MeshRouterResolver, type MeshRouters } from "./mesh-router.resolver";
+} from "./mesh-controller";
+export { MeshRouterResolver, MeshRoutersService, type MeshRouters } from "./mesh-router.resolver";
 export { MeshTransportModule } from "./mesh-transport.module";
 export {
 	MESH_INTERVAL_DEFAULTS,

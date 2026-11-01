@@ -2,7 +2,7 @@ import { Controller } from "@nestjs/common";
 import { Effect } from "effect";
 
 import { nodeAgentContract } from "@deployer/node-agent-contracts";
-import { MeshProcedure, MeshTransport } from "@deployer/nest-mesh";
+import { declareProcedures, MeshController } from "@deployer/nest-mesh";
 import { procedure } from "@deployer/nest-effect";
 
 import { serveMeshPeer } from "../../../core/orpc/serve";
@@ -22,11 +22,16 @@ const toReplicaDto = (record: ReplicaRecord) => ({ ...record, keys: [...record.k
  * the shapes the contract declares. `MeshNoReplica` is the one domain error; its kind (`not_found`) maps to the
  * declared `NOT_FOUND`.
  */
-@MeshTransport()
 @Controller()
-export class DirectoryController {
+export class DirectoryController extends MeshController {
+  static readonly procedures = declareProcedures({
+    register: { door: "peer", group: "directory", contract: directory.register },
+    unregister: { door: "peer", group: "directory", contract: directory.unregister },
+    resolve: { door: "peer", group: "directory", contract: directory.resolve },
+    snapshot: { door: "peer", group: "directory", contract: directory.snapshot },
+  });
+
   /** A replica announces itself or refreshes its lease. */
-  @MeshProcedure({ door: "peer", group: "directory", contract: directory.register })
   register() {
       return procedure(directory.register).effect(function* ({ input, context }) {
       return yield* serveMeshPeer(context)(
@@ -39,7 +44,6 @@ export class DirectoryController {
   }
 
   /** A replica leaves, or its process is stopping. */
-  @MeshProcedure({ door: "peer", group: "directory", contract: directory.unregister })
   unregister() {
       return procedure(directory.unregister).effect(function* ({ input, context }) {
       return yield* serveMeshPeer(context)(
@@ -52,7 +56,6 @@ export class DirectoryController {
   }
 
   /** Which replica a call should go to. */
-  @MeshProcedure({ door: "peer", group: "directory", contract: directory.resolve })
   resolve() {
       return procedure(directory.resolve).effect(function* ({ input, context }) {
       return yield* serveMeshPeer(context)(
@@ -66,7 +69,6 @@ export class DirectoryController {
   }
 
   /** Every live replica this agent knows of. */
-  @MeshProcedure({ door: "peer", group: "directory", contract: directory.snapshot })
   snapshot() {
       return procedure(directory.snapshot).effect(function* ({ context }) {
       return yield* serveMeshPeer(context)(

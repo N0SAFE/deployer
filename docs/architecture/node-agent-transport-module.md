@@ -10,7 +10,7 @@ routers are assembled by hand in `transport/mesh-transport.ts`:
 
 - four controllers (`access`, `directory`, `relay`, `roster`) are resolved one by one and their methods called in a
   literal object;
-- the node door is a provider class with `@NodeProcedure`, but its router is built by a second hand-written call;
+- the node door was a provider class whose router was built by a second hand-written call;
 - `startMeshTransport` owns the websocket, the unix socket, five loops and their shutdown, outside Nest's lifecycle;
 - adding a procedure means editing the transport's object literal, the controller and sometimes the contract validator.
 
@@ -19,25 +19,29 @@ which door.
 
 ## 2. Target model
 
-One rule: **a class declares the door, a method declares the procedure; a module resolves both and starts the transport.**
+One rule: **a class declares its procedures as data; a module resolves them and starts the transport.**
 
 ```
-@MeshTransport()                 // class marker: "the resolver owns this class"
-@Injectable()
-export class DirectoryController {
-  @MeshProcedure({ door: "peer", group: "directory", contract: directory.register })
-  register() { return procedure(directory.register).effect(...); }
-  ...
+@Controller()
+export class DirectoryController extends MeshController {
+  static readonly procedures = declareProcedures({
+    register: { door: "peer", group: "directory", contract: directory.register },
+  });
+
+  register() {
+    return procedure(directory.register).effect(...);
+  }
 }
 ```
 
-- The class is a **Nest controller without routes**: `@Controller()` + `@MeshTransport()`, no `@Implement`. Being in
+- The class is a **Nest controller without routes**: `@Controller()` + `extends MeshController`, no `@Implement`. Being in
   `controllers` is what puts its methods' `R` under `assertRequirementsMet`, exactly like every other controller; the
   missing `@Implement` is what keeps Nest/oRPC from mounting an HTTP route for it. There is no request scope: a
   procedure class holds no request state.
-- `@NodeProcedure(contract)` remains sugar for `@MeshProcedure({ door: "node", group: "node", contract })`.
-- A procedure class can serve both doors (it would repeat the method with another decorator only if the behaviour
-  differs; the same method cannot sit under two doors without a second router entry — not needed today).
+- The declaration is **data, not a decorator or a class field**, on purpose: the vitest pipeline compiles class fields
+  differently from `bun`, and a field-based declaration was present in one runtime and absent in the other (the resolver
+  then saw an empty instance). A static literal is part of the class object in both.
+- A node-door procedure is an entry with `group: "node"`; a class may serve both doors.
 
 ## 3. Metadata
 
@@ -56,23 +60,21 @@ export type MeshProcedureMeta = {
   readonly contract: unknown;
 };
 
-@MeshTransport()                       // class decorator, stores a marker
-@MeshProcedure(meta)                   // method decorator, stores meta on the prototype
-@NodeProcedure(contract)               // sugar for door "node", group "node"
-```
+export type MeshProcedureDeclarations = Readonly<Record<string, MeshProcedureMeta>>;
 
-The decorator stores metadata only; nothing runs at decoration time. Resolution is explicit and happens once, at
-bootstrap.
+declareProcedures({ … })               // identity helper, for typing the static map
+MeshController                         // base class: a global-symbol marker, no members
+```
 
 ## 4. Resolver
 
 `MeshRouterResolver` (in `@deployer/nest-mesh`) is a singleton provider:
 
 - injects `DiscoveryService`, `MetadataScanner`, `ModuleRef`, and the contract (module option);
-- reads `DiscoveryService.getControllers()` wrappers whose metatype carries `@MeshTransport()`, using the instance Nest
+- reads `DiscoveryService.getControllers()` wrappers whose metatype extends `MeshController`, using the instance Nest
   already created (a request-scoped class or a controller Nest did not instantiate fails the boot with its name);
-- refuses a marked class that is registered as a **provider**, naming it: a provider would escape the requirement gate;
-- reads the prototype metadata, calls each decorated method once, and places the returned procedure at
+- refuses such a class when it is registered as a **provider**, naming it: a provider would escape the requirement gate;
+- reads the class's `static procedures`, calls each named method once, and places the returned procedure at
   `router[door][group][key]`;
 - rejects duplicate `door/group/key` and a method whose returned procedure is not a procedure;
 - validates every contract procedure against the union of the two routers: `peer` must contain every contract key except
@@ -119,7 +121,7 @@ apps/api/services/node-agent/src/
   modules/mesh/controllers/directory.controller.ts
   modules/mesh/controllers/relay.controller.ts
   modules/mesh/controllers/roster.controller.ts
-  modules/node/node-door.controller.ts                           (already a provider; gains @MeshTransport)
+  modules/node/node-door.controller.ts                           (controller without routes; static procedures)
   transport/mesh-transport.service.ts                 (was mesh-transport.ts; lifecycle)
   transport/mesh-transport.module.ts                  (imports @deployer/nest-mesh)
   transport/service-door.ts                           (what a service may ask: the allowlist)
@@ -129,11 +131,11 @@ apps/api/services/node-agent/src/
 
 ## 7. What changes for each door
 
-| Door | Served on | Router | Decorator |
+| Door | Served on | Router | Declared by |
 |---|---|---|---|
-| peer | HTTP `/mesh/ws` (credential) | `peer` | `@MeshProcedure({ door: "peer", group, contract })` |
-| service | unix socket, mode 0660 (file permissions) | `node`, filtered to `serviceProcedures` | `@NodeProcedure(contract)` or a peer procedure named in the allowlist |
-| admin | unix socket, mode 0600, own volume | `admin` (peer router + every `node` procedure) | every `@MeshProcedure` the agent serves locally |
+| peer | HTTP `/mesh/ws` (credential) | `peer` | a `static procedures` entry with `door: "peer"` |
+| service | unix socket, mode 0660 (file permissions) | `node`, filtered to `serviceProcedures` | a `group: "node"` entry, or a peer procedure named in the allowlist |
+| admin | unix socket, mode 0600, own volume | `admin` (peer router + every `node` procedure) | every procedure the agent serves locally |
 
 The service door is an **allowlist**, not the local router minus a few: a procedure is reachable from a service container
 only by being named in `serviceProcedures` (`apps/api/services/node-agent/src/transport/service-door.ts`). What it names:
@@ -164,9 +166,9 @@ node.
 
 ## 9. Migration order
 
-1. Add `@deployer/nest-mesh` (decorators + resolver + tests) and wire it into the workspace.
-2. Convert the four controllers to `@MeshTransport()` providers, method decorators, no `@Implement`; add them to
-   `MeshDomainModule.providers`; delete the controller entries.
+1. Add `@deployer/nest-mesh` (MeshController + resolver + tests) and wire it into the workspace.
+2. Convert the four controllers to `MeshController` subclasses with static procedure maps, no `@Implement`; add them to
+   `MeshDomainModule.controllers`; the transport module resolves them.
 3. Move `mesh-transport.ts` into `MeshTransportService` (+ module), delete `startMeshTransport`; update `main.ts`.
 4. Update the boot harness to read the service from the app and rely on `app.close()`.
 5. Switch the tests that used the HTTP mesh routes to the peer websocket; keep one 404 assertion as proof there is no

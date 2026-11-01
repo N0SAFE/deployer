@@ -1428,8 +1428,10 @@
       "name": "@deployer/nest-mesh",
       "version": "0.0.0",
       "dependencies": {
+        "@deployer/nest-effect": "*",
         "@nestjs/common": "catalog:api:nest",
         "@nestjs/core": "catalog:api:nest",
+        "effect": "catalog:effect",
         "reflect-metadata": "catalog:api:nest",
       },
       "devDependencies": {

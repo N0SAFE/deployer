@@ -2,7 +2,7 @@ import { Controller } from "@nestjs/common";
 import { Effect } from "effect";
 
 import { nodeAgentContract } from "@deployer/node-agent-contracts";
-import { MeshProcedure, MeshTransport } from "@deployer/nest-mesh";
+import { declareProcedures, MeshController } from "@deployer/nest-mesh";
 import { procedure } from "@deployer/nest-effect";
 
 import { serveMeshPeer } from "../../../core/orpc/serve";
@@ -16,10 +16,12 @@ const relay = nodeAgentContract.relay;
  * Thin by design: the handler asks `MeshRelay` what the call came to and returns it as the contract's event sequence.
  * Failures are the target's own `ORPCError`s, `MESH_DIRECT` grants, or the agent's domain errors mapped by kind.
  */
-@MeshTransport()
 @Controller()
-export class RelayController {
-  @MeshProcedure({ door: "peer", group: "relay", contract: relay.call })
+export class RelayController extends MeshController {
+  static readonly procedures = declareProcedures({
+    call: { door: "peer", group: "relay", contract: relay.call },
+  });
+
   call() {
       return procedure(relay.call).effect(function* ({ input, context }) {
       const outcome = yield* serveMeshPeer(context)(

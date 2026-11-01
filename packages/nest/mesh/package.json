@@ -2,7 +2,7 @@
 	"name": "@deployer/nest-mesh",
 	"version": "0.0.0",
 	"private": true,
-	"description": "Declarative mesh transport for NestJS: a class marks a door, a method marks a procedure, one resolver builds the routers.",
+	"description": "Declarative mesh transport for NestJS: a class extends MeshController, a field declares a procedure, one resolver builds the routers.",
 	"main": "./dist/cjs/index.js",
 	"module": "./dist/esm/index.mjs",
 	"types": "./dist/types/index.d.ts",
@@ -34,8 +34,10 @@
 		"test:watch": "vitest"
 	},
 	"dependencies": {
+		"@deployer/nest-effect": "*",
 		"@nestjs/common": "catalog:api:nest",
 		"@nestjs/core": "catalog:api:nest",
+		"effect": "catalog:effect",
 		"reflect-metadata": "catalog:api:nest"
 	},
 	"peerDependencies": {

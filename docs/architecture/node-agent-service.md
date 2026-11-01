@@ -8,13 +8,13 @@ dashboard view are in code and tested (`apps/api/services/node-agent`, `packages
 `packages/node/agent-container`, `packages/contracts/{node-agent,runtime}`, fleet's `mesh-view`). The decisions it rests
 on are in `docs/qa/node-agent/`.
 
-**The transport is a module, and a procedure is a decorator.** `@deployer/nest-mesh` reads `@MeshTransport()` classes:
-each `@MeshProcedure({ door, group, contract })` method becomes one router entry, and `MeshRouterResolver` builds
-`{ peer, node, admin }` from them, validating that every contract procedure is reachable (`peer` = every group except
-`node`, `node` = the service door's allowlist, `admin` = the full local router). `@NodeProcedure(contract)` is sugar for
-the node door. The four procedure classes (`AccessController`, `DirectoryController`, `RelayController`,
-`RosterController`) and `NodeDoorController` are **controllers without routes** — `@Controller()` and no `@Implement`, so
-the requirement gate audits them and the agent's HTTP surface stays health only. The transport
+**The transport is a module, and a procedure is data on the class.** `@deployer/nest-mesh` reads classes that extend
+`MeshController`: each entry of their `static procedures` map (`{ door, group, contract }`) names a method, and
+`MeshRouterResolver` builds `{ peer, node, admin }` from them, validating that every contract procedure is reachable (`peer` = every group except
+`node`, `node` = the service door's allowlist, `admin` = the full local router). A `group: "node"` entry is the node
+door. The four procedure classes (`AccessController`, `DirectoryController`, `RelayController`,
+`RosterController`) and `NodeDoorController` are **controllers without routes** — `@Controller()`, a `static procedures`
+map and no `@Implement`, so the requirement gate audits them and the agent's HTTP surface stays health only. The transport
 itself (`MeshTransportService`) is a module provider: Nest's bootstrap binds the peer websocket and the unix socket and
 starts the gossip/doors/wireguard/eviction loops, and `app.close()` stops everything. The intervals are environment
 settings (`MESH_GOSSIP_INTERVAL_MS`, `MESH_DOORS_INTERVAL_MS`, `MESH_WIREGUARD_INTERVAL_MS`, `MESH_EVICTION_INTERVAL_MS`;
@@ -449,11 +449,11 @@ services of its own node; the socket's file permissions are the only credential 
 secret and there is nothing in it to leak or to rotate. It is also the only door that routes the `node` router, so the
 node's configuration is not addressable from the network at all.
 
-The routers are **declared, not hand-assembled**. A procedure class is `@Injectable()` and marked `@MeshTransport()`; each
-method carries `@MeshProcedure({ door, group, contract })` (or `@NodeProcedure(contract)` for the node door) and returns
+The routers are **declared, not hand-assembled**. A procedure class extends `MeshController` and lists its methods in a
+`static procedures` map (`{ door, group, contract }` per method); each named method returns
 `procedure(contract).effect(...)`. `@deployer/nest-mesh`'s `MeshRouterResolver` discovers them as **controllers** through Nest's `DiscoveryService`
 (declared in `controllers` so `assertRequirementsMet` audits every method's `R`, but without `@Implement`, so no HTTP
-route exists), builds `{ peer, node, admin }` from the metadata and validates the peer and admin routers against the
+route exists), builds `{ peer, node, admin }` from that map and validates the peer and admin routers against the
 contract at boot. `node` is the **service door**: only the ids listed in `serviceProcedures` (register, resolve, relay,
 verify, settings, view, node status/labels/state), so a service cannot rotate the swarm credential, issue a join token,
 join a swarm, cut a member off or reconfigure the node; those live on `admin`, bound to a second socket (mode 0600, its

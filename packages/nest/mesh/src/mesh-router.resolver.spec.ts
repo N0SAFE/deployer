@@ -1,37 +1,42 @@
 import { describe, expect, it } from "vitest";
 
-import { MeshProcedure, MeshTransport, NodeProcedure } from "./mesh-procedure.decorator";
+import { declareProcedures, MeshController } from "./mesh-controller";
 import { MeshRouterResolver } from "./mesh-router.resolver";
 
-@MeshTransport()
-class DirectoryFakes {
+class DirectoryFakes extends MeshController {
 	calls = 0;
 
-	@MeshProcedure({ door: "peer", group: "directory", contract: "directory.list" })
+	static readonly procedures = declareProcedures({
+		list: { door: "peer", group: "directory", contract: "directory.list" },
+	});
+
 	list() {
 		this.calls += 1;
 		return { procedure: "directory.list" };
 	}
 }
 
-@MeshTransport()
-class NodeFakes {
-	@NodeProcedure("node.state")
+class NodeFakes extends MeshController {
+	static readonly procedures = declareProcedures({
+		state: { door: "node", group: "node", contract: "node.state" },
+	});
+
 	state() {
 		return { procedure: "node.state" };
 	}
 }
 
 class UnmarkedFakes {
-	@MeshProcedure({ door: "peer", group: "directory", contract: "directory.list" })
 	list() {
 		return { procedure: "unmarked" };
 	}
 }
 
-@MeshTransport()
-class RequestScopedFakes {
-	@MeshProcedure({ door: "peer", group: "directory", contract: "directory.list" })
+class RequestScopedFakes extends MeshController {
+	static readonly procedures = declareProcedures({
+		list: { door: "peer", group: "directory", contract: "directory.list" },
+	});
+
 	list() {
 		return { procedure: "request-scoped" };
 	}
@@ -93,13 +98,15 @@ describe("MeshRouterResolver", () => {
 	it("refuses a class declared as a provider instead of a controller", () => {
 		const resolver = resolverOver([], {}, [DirectoryFakes]);
 
-		expect(() => resolver.resolve()).toThrow(/DirectoryFakes is decorated with @MeshTransport\(\) but is a provider/);
+		expect(() => resolver.resolve()).toThrow(/DirectoryFakes extends MeshController but is a provider/);
 	});
 
 	it("refuses a key served twice", () => {
-		@MeshTransport()
-		class Duplicate {
-			@MeshProcedure({ door: "peer", group: "directory", contract: "directory.list", key: "list" })
+		class Duplicate extends MeshController {
+			static readonly procedures = declareProcedures({
+				other: { door: "peer", group: "directory", contract: "directory.list", key: "list" },
+			});
+
 			other() {
 				return { procedure: "duplicate" };
 			}
@@ -123,7 +130,7 @@ describe("MeshRouterResolver", () => {
 	it("refuses a non-singleton controller by name", () => {
 		const resolver = resolverOver([{ metatype: RequestScopedFakes, singleton: false }]);
 
-		expect(() => resolver.resolve()).toThrow(/RequestScopedFakes is decorated with @MeshTransport\(\) but is not a singleton controller/);
+		expect(() => resolver.resolve()).toThrow(/RequestScopedFakes extends MeshController but is not a singleton controller/);
 	});
 
 	it("refuses a controller Nest did not instantiate", () => {

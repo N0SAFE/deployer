@@ -1,7 +1,8 @@
 import { Inject, Injectable, type Type } from "@nestjs/common";
 import { DiscoveryService } from "@nestjs/core";
+import { Context } from "effect";
 
-import { isMeshTransport, meshProceduresOf, type MeshProcedureMeta } from "./mesh-procedure.decorator";
+import { isMeshController, MeshController, type MeshProcedureMeta } from "./mesh-controller";
 import { MESH_TRANSPORT_OPTIONS, type MeshRouter, type MeshTransportOptions } from "./mesh-transport.options";
 
 export type MeshRouters = {
@@ -17,14 +18,17 @@ export type MeshRouters = {
 	readonly admin: MeshRouter;
 };
 
+/** The routers, as an Effect service: consumers yield them instead of calling the resolver themselves. */
+export class MeshRoutersService extends Context.Service<MeshRoutersService, MeshRouters>()("mesh/Routers") {}
+
 /**
- * Builds the two mesh routers from decorator metadata.
+ * Builds the two mesh routers from the classes that extend `MeshController`.
  *
- * Only controllers are read. A mesh procedure class is declared in `controllers` (with `@MeshTransport()` and no
- * `@Implement`, so Nest mounts no HTTP route for it) precisely so the endpoint-requirement audit sees it like any other
- * controller: its methods' `R` is checked at the root by `assertRequirementsMet`. Each controller's decorated methods
- * are called once to obtain their procedure, and the results are placed at `router[door][group][key]`. Every contract
- * procedure must then be reachable, or the boot fails naming it.
+ * Only controllers are read. A mesh procedure class is declared in `controllers` (and mounts no HTTP route, because it
+ * has no `@Implement`) precisely so the endpoint-requirement audit sees it like any other controller: the `R` of every
+ * method named in its `static procedures` is checked at the root by `assertRequirementsMet`. Each declared method is
+ * called once to obtain its procedure, and the result is placed at `router[door][group][key]`. Every contract procedure
+ * must then be reachable, or the boot fails naming it.
  */
 @Injectable()
 export class MeshRouterResolver {
@@ -43,29 +47,35 @@ export class MeshRouterResolver {
 		// under `assertRequirementsMet`. Declaring one as a provider is a boot error, not a silent gap in the gate.
 		for (const wrapper of this.discovery.getProviders()) {
 			const metatype = wrapper.metatype as Type<unknown> | null;
-			if (metatype !== null && isMeshTransport(metatype)) {
+			if (metatype !== null && isMeshController(metatype)) {
 				throw new Error(
-					`${metatype.name} is decorated with @MeshTransport() but is a provider; declare it in this module's "controllers" (without @Implement) so the requirement gate audits it`,
+					`${metatype.name} extends MeshController but is a provider; declare it in this module's "controllers" (without @Implement) so the requirement gate audits it`,
 				);
 			}
 		}
 
 		for (const wrapper of this.discovery.getControllers()) {
 			const metatype = wrapper.metatype as Type<unknown> | null;
-			if (metatype === null || !isMeshTransport(metatype)) continue;
+			if (metatype === null || !isMeshController(metatype)) continue;
 			if (read.has(metatype)) continue;
 			read.add(metatype);
 
 			if (!(wrapper.isDependencyTreeStatic?.() ?? true) || wrapper.instance === null) {
 				throw new Error(
-					`${metatype.name} is decorated with @MeshTransport() but is not a singleton controller: a mesh procedure class holds no request state`,
+					`${metatype.name} extends MeshController but is not a singleton controller: a mesh procedure class holds no request state`,
 				);
 			}
 
 			const router = (meta: MeshProcedureMeta) => (meta.door === "peer" ? peer : node);
 			const instance = wrapper.instance as Record<string, unknown>;
-			for (const [method, meta] of meshProceduresOf(instance)) {
-				this.place(instance, metatype.name, method, meta, router(meta), seen);
+			const declared = (metatype as unknown as typeof MeshController).procedures ?? {};
+			if (Object.keys(declared).length === 0) {
+				throw new Error(
+					`${metatype.name} extends MeshController but declares no procedures: add static readonly procedures = declareProcedures({ … })`,
+				);
+			}
+			for (const [method, meta] of Object.entries(declared)) {
+				this.place(instance, metatype.name, method, { ...meta, key: meta.key ?? method }, router(meta), seen);
 			}
 		}
 
@@ -101,7 +111,7 @@ export class MeshRouterResolver {
 			const procedure = separator === -1 ? undefined : local[group]?.[key];
 			if (procedure === undefined) {
 				throw new Error(
-					`serviceProcedures names ${id}, which no @MeshProcedure serves: list "group.key" of a procedure on a @MeshTransport() controller`,
+					`serviceProcedures names ${id}, which no MeshController declares: list "group.key" of a procedure in a class's static procedures`,
 				);
 			}
 			service[group] = { ...service[group], [key]: procedure };
@@ -125,7 +135,7 @@ export class MeshRouterResolver {
 
 		const procedure = instance[method];
 		if (typeof procedure !== "function") {
-			throw new Error(`${className}.${method} carries @MeshProcedure but is not a method`);
+			throw new Error(`${className}.${method} is declared in static procedures but is not a method`);
 		}
 		const group = router[meta.group] ?? {};
 		router[meta.group] = group;
@@ -143,7 +153,7 @@ export class MeshRouterResolver {
 			const missing = Object.keys(procedures).filter((key) => typeof served?.[key] !== "object");
 			if (missing.length === 0) continue;
 			throw new Error(
-				`The ${door} door serves no ${missing.map((key) => `${group}.${key}`).join(", ")}: add @MeshProcedure({ door: "${door}", group: "${group}" }) to a @MeshTransport() provider`,
+				`The ${door} door serves no ${missing.map((key) => `${group}.${key}`).join(", ")}: declare it in the static procedures of a MeshController class listed in this module's "controllers"`,
 			);
 		}
 	}
