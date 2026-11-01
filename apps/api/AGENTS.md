@@ -178,7 +178,10 @@ check() {
   nothing is built at the root, and there is no `forRoot({ layers })`, no `*.layers.ts`, no exported `make…`
   factory. A method body is `return Effect.gen(function* () { … });`; annotate it `: ReturnType<Shape["member"]>`
   when inference would widen a literal union or when it references the class itself (a self-reference makes the
-  whole `live` type `any`). `serviceOver(Collaborator, make)` stays the form for a service that is a bag of
+  whole `live` type `any`). A state field is `private`, never `#private`: a spec overrides one method with a `Proxy`
+  over the instance, and a `#` field cannot be read through a proxy. Any state the class owns (a map, a store, a
+  counter) is a constructor argument with a default, so the module wires nothing and a spec passes its own — there is
+  no separate `xOver(state)` factory returning the shape. `serviceOver(Collaborator, make)` stays the form for a service that is a bag of
   closures over one collaborator; it runs `make` on every call, so keep such a service stateless and put state
   shared by calls in a value created once next to `live` (see `EdgeDnsService`). A spec instantiates the class:
   `provideTo(new Service.live(), (e) => e.pipe(Effect.provideService(Tag, fake)))`.

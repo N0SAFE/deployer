@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { AgentInfo } from "@deployer/node-agent-contracts";
 
 import { AgentLinkFactory, type AgentLinkFactoryShape } from "./agent-link-factory.service";
-import { nodeAgentsOver } from "./node-agents.service";
+import { NodeAgents } from "./node-agents.service";
 
 import type { ClientContext, ClientLink } from "@orpc/client";
 
@@ -15,7 +15,7 @@ const fakeLink = () => ({ call: vi.fn(), closeAll: vi.fn(async () => undefined) 
 /** A registry over an empty (or pre-seeded) roster, with a link factory that records how often it is asked for a link. */
 function registry(nodeIds: readonly string[] = []) {
   const factory: AgentLinkFactoryShape = { linkTo: vi.fn(() => fakeLink() as ClientLink<ClientContext>) };
-  const agents = nodeAgentsOver(new Map(nodeIds.map((nodeId) => [nodeId, agent(nodeId)])));
+  const agents = new NodeAgents.live(new Map(nodeIds.map((nodeId) => [nodeId, agent(nodeId)])));
   const run = <A, E>(effect: Effect.Effect<A, E, AgentLinkFactory>) =>
     Effect.runPromise(effect.pipe(Effect.provideService(AgentLinkFactory, factory)));
   return { agents, factory, run };

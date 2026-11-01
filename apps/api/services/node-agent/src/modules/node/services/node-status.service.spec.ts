@@ -8,10 +8,10 @@ import { SwarmCredential, swarmCredentialFrom } from "../../../local/swarm-crede
 import { OVERLAY_SELF_SECRET } from "../../../network/overlay";
 import { type WireguardDump } from "../../../network/wireguard";
 import { HostCommands, WireguardDriver, WireguardPaths } from "../../../network/wireguard.service";
-import { AgentLoad, agentLoadOver } from "../../mesh/services/agent-load.service";
-import { NodeAgents, nodeAgentsOver, type KnownAgent } from "../../mesh/services/node-agents.service";
+import { AgentLoad } from "../../mesh/services/agent-load.service";
+import { NodeAgents, type KnownAgent } from "../../mesh/services/node-agents.service";
 import { NodeIdentity } from "../../mesh/services/node-identity.service";
-import { RelayMetrics, relayMetricsOver } from "../../mesh/services/relay-metrics.service";
+import { RelayMetrics } from "../../mesh/services/relay-metrics.service";
 import { AdvertisedAddress } from "../../mesh/services/roster-gossip.service";
 
 import { NodeStatus } from "./node-status.service";
@@ -50,7 +50,7 @@ const agent = (nodeId: string, overlay: KnownAgent["overlay"]): KnownAgent => ({
 /** A node with a real (in-memory) store; the kernel and the roster are the two things a test replaces. */
 function statusFixture(options: { readonly dump?: WireguardDump | null; readonly agents?: readonly KnownAgent[] } = {}) {
   const store = agentStoreOver(new DatabaseSync(":memory:") as never);
-  const agents = nodeAgentsOver(new Map((options.agents ?? []).map((known) => [known.nodeId, known])));
+  const agents = new NodeAgents.live(new Map((options.agents ?? []).map((known) => [known.nodeId, known])));
   const driver = { dump: () => Effect.succeed(options.dump ?? null) } as unknown as WireguardDriver["Service"];
 
   const run = <A, E>(
@@ -77,8 +77,8 @@ function statusFixture(options: { readonly dump?: WireguardDump | null; readonly
       Effect.provideService(HostCommands, new HostCommands.live()),
       Effect.provideService(WireguardPaths, new WireguardPaths.live()),
       Effect.provideService(SwarmCredential, swarmCredentialFrom({ secret: "swarm-secret", swarmId: "swarm-1" })),
-      Effect.provideService(AgentLoad, agentLoadOver({ now: () => 0, eventLoopLagMs: () => 3 })),
-      Effect.provideService(RelayMetrics, relayMetricsOver()),
+      Effect.provideService(AgentLoad, new AgentLoad.live({ now: () => 0, eventLoopLagMs: () => 3 })),
+      Effect.provideService(RelayMetrics, new RelayMetrics.live()),
       Effect.provideService(AdvertisedAddress, { address: ADVERTISED }),
     ) as Effect.Effect<A, E>;
     return Effect.runPromise(withPorts);

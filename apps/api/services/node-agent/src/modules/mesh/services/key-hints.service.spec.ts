@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 
-import { keyHintsOver } from "./key-hints.service";
+import { KeyHints } from "./key-hints.service";
 import { MeshClock } from "./mesh-clock.service";
 
 import type { KeyHintsShape } from "./key-hints.service";
@@ -12,7 +12,7 @@ const withClock = <A>(hints: KeyHintsShape, effect: Effect.Effect<A, never, Mesh
 
 describe("KeyHints", () => {
 	it("drops the oldest hint when the cap is reached", async () => {
-		const hints = keyHintsOver(new Map(), 2);
+		const hints = new KeyHints.live(new Map(), 2);
 
 		await withClock(hints, hints.remember("runtime", "a", "replica-1", 60_000));
 		await withClock(hints, hints.remember("runtime", "b", "replica-1", 60_000));
@@ -24,7 +24,7 @@ describe("KeyHints", () => {
 	});
 
 	it("refreshes a key it already holds without evicting anything", async () => {
-		const hints = keyHintsOver(new Map(), 2);
+		const hints = new KeyHints.live(new Map(), 2);
 
 		await withClock(hints, hints.remember("runtime", "a", "replica-1", 60_000));
 		await withClock(hints, hints.remember("runtime", "b", "replica-1", 60_000));
@@ -35,7 +35,7 @@ describe("KeyHints", () => {
 	});
 
 	it("forgets a hint whose TTL has passed", async () => {
-		const hints = keyHintsOver(new Map());
+		const hints = new KeyHints.live(new Map());
 
 		await withClock(hints, hints.remember("runtime", "a", "replica-1", 0));
 

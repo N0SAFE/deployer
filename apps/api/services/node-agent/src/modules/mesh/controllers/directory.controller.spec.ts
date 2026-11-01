@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { effectContext } from "@deployer/nest-effect/testing";
 import { callProcedure } from "@deployer/orpc-utils/testing";
 
-import { MeshDirectoryRepository, createDirectoryStore, directoryRepositoryOver } from "../repositories/directory.repository";
+import { MeshDirectoryRepository } from "../repositories/directory.repository";
 import { MeshDirectory } from "../services/directory.service";
 import { MeshClock } from "../services/mesh-clock.service";
 import { NodeIdentity } from "../services/node-identity.service";
@@ -27,7 +27,7 @@ describe("DirectoryController", () => {
     effectContext(
       Context.empty().pipe(
         Context.add(MeshDirectory, new MeshDirectory.live()),
-        Context.add(MeshDirectoryRepository, directoryRepositoryOver(createDirectoryStore())),
+        Context.add(MeshDirectoryRepository, new MeshDirectoryRepository.live()),
         Context.add(NodeIdentity, { nodeId: "A" }),
         Context.add(MeshClock, { now: () => 1_000 }),
       ),

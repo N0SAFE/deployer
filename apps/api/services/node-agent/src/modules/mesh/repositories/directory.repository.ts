@@ -53,19 +53,37 @@ export type MeshDirectoryRepositoryShape = {
   readonly snapshot: (now: number) => Effect.Effect<readonly ReplicaRecord[]>;
 };
 
-/** Repository over a given store. Separate from `live` so a test gets a store of its own. */
-export function directoryRepositoryOver(store: DirectoryStore): MeshDirectoryRepositoryShape {
-  return {
-    upsert: (record) => Effect.sync(() => store.upsert(record)),
-    remove: (replicaId) => Effect.sync(() => store.remove(replicaId)),
-    get: (replicaId, now) => Effect.sync(() => store.get(replicaId, now)),
-    snapshot: (now) => Effect.sync(() => store.snapshot(now)),
-  };
-}
-
 /** Where the agent keeps every replica of every service, in memory. State is rebuilt by registrations and gossip, so nothing is persisted. */
-export class MeshDirectoryRepository extends Context.Service<MeshDirectoryRepository, MeshDirectoryRepositoryShape>()(
-  "node-agent/MeshDirectoryRepository",
-) {
-  static readonly live: MeshDirectoryRepositoryShape = directoryRepositoryOver(createDirectoryStore());
+export class MeshDirectoryRepository extends Context.Service<
+  MeshDirectoryRepository,
+  MeshDirectoryRepositoryShape
+>()("node-agent/MeshDirectoryRepository") {
+  /**
+   * The store is the one thing this repository owns; it is the constructor argument, defaulted so the module can
+   * provide `MeshDirectoryRepository.live` with no wiring and a spec can hand in a store of its own:
+   * `new MeshDirectoryRepository.live(store)`.
+   */
+  static readonly live = class MeshDirectoryRepositoryImpl implements MeshDirectoryRepositoryShape {
+    private readonly store: DirectoryStore;
+
+    constructor(store: DirectoryStore = createDirectoryStore()) {
+      this.store = store;
+    }
+
+    upsert(record: ReplicaRecord) {
+      return Effect.sync(() => this.store.upsert(record));
+    }
+
+    remove(replicaId: string) {
+      return Effect.sync(() => this.store.remove(replicaId));
+    }
+
+    get(replicaId: string, now: number) {
+      return Effect.sync(() => this.store.get(replicaId, now));
+    }
+
+    snapshot(now: number) {
+      return Effect.sync(() => this.store.snapshot(now));
+    }
+  };
 }

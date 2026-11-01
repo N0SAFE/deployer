@@ -15,18 +15,6 @@ export type RelayMetricsShape = {
   readonly snapshot: () => Effect.Effect<RelayCounters>;
 };
 
-/** Counters over a fresh, mutable record: one per agent, never process-wide, so two fixtures never share a count. */
-export function relayMetricsOver(): RelayMetricsShape {
-  const counters = { forwarded: 0, noRoute: 0, unreachable: 0 };
-  return {
-    count: (counter) =>
-      Effect.sync(() => {
-        counters[counter] += 1;
-      }),
-    snapshot: () => Effect.sync(() => ({ ...counters })),
-  };
-}
-
 /**
  * The relay's own counters for `node.status` and for an operator watching a partition.
  *
@@ -34,5 +22,21 @@ export function relayMetricsOver(): RelayMetricsShape {
  * diagnosing a route, and losing them on restart costs nothing.
  */
 export class RelayMetrics extends Context.Service<RelayMetrics, RelayMetricsShape>()("node-agent/RelayMetrics") {
-  static readonly live: RelayMetricsShape = relayMetricsOver();
+  static readonly live = class RelayMetricsImpl implements RelayMetricsShape {
+    private readonly counters: { -readonly [K in keyof RelayCounters]: number } = {
+      forwarded: 0,
+      noRoute: 0,
+      unreachable: 0,
+    };
+
+    count(counter: keyof RelayCounters) {
+      return Effect.sync(() => {
+        this.counters[counter] += 1;
+      });
+    }
+
+    snapshot() {
+      return Effect.sync(() => ({ ...this.counters }));
+    }
+  };
 }

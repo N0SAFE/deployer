@@ -34,11 +34,19 @@ const deadLink: ClientLink<ClientContext> = {
   call: () => Promise.reject(new Error("connect ECONNREFUSED 127.0.0.1:1")),
 } as unknown as ClientLink<ClientContext>;
 
-/** A's roster, with its link to C replaced: A cannot dial C, and everyone else can. */
-const cannotReach = (nodeId: string) => (base: NodeAgentsShape): NodeAgentsShape => ({
-  ...base,
-  linkTo: (target) => (target === nodeId ? Effect.succeed(deadLink) : base.linkTo(target)),
-});
+/**
+ * A's roster, with its link to C replaced: A cannot dial C, and everyone else can.
+ *
+ * A proxy, not a spread: `base` is a class instance whose methods live on the prototype, so `{ ...base }` would copy the
+ * state fields and none of the methods.
+ */
+const cannotReach = (nodeId: string) => (base: NodeAgentsShape): NodeAgentsShape =>
+  new Proxy(base, {
+    get: (target, key) =>
+      key === "linkTo"
+        ? (id: string) => (id === nodeId ? Effect.succeed(deadLink) : target.linkTo(id))
+        : Reflect.get(target, key) as unknown,
+  });
 
 /**
  * A three-agent partition, on real sockets: A can reach B, B can reach C, and A cannot reach C at all.

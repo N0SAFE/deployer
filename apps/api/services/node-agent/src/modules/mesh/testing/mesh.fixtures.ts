@@ -4,26 +4,22 @@ import { Context, Effect } from "effect";
 
 import { AgentStore, agentStoreOver } from "../../../local/agent-store";
 import { SwarmCredential, swarmCredentialFrom } from "../../../local/swarm-credential";
-import {
-  MeshDirectoryRepository,
-  createDirectoryStore,
-  directoryRepositoryOver,
-} from "../repositories/directory.repository";
+import { MeshDirectoryRepository } from "../repositories/directory.repository";
 import { AccessChecks } from "../services/access-checks.service";
 import { AgentLinkFactory, agentLinkFactoryOver } from "../services/agent-link-factory.service";
-import { AgentLoad, agentLoadOver } from "../services/agent-load.service";
+import { AgentLoad } from "../services/agent-load.service";
 import { MeshBroker } from "../services/broker.service";
 import { CredentialRotation } from "../services/credential-rotation.service";
 import { MeshDirectory } from "../services/directory.service";
 import { JoinTokens } from "../services/join-tokens.service";
-import { KeyHints, keyHintsOver } from "../services/key-hints.service";
+import { KeyHints } from "../services/key-hints.service";
 import { LeaseSigner, leaseSignerOver } from "../services/lease-signer.service";
 import { MeshClock } from "../services/mesh-clock.service";
-import { NodeAgents, nodeAgentsOver } from "../services/node-agents.service";
+import { NodeAgents } from "../services/node-agents.service";
 import { NodeIdentity } from "../services/node-identity.service";
 import { NodeLabels } from "../../node/services/node-labels.service";
-import { PendingSeeds, pendingSeedsOver } from "../services/pending-seeds.service";
-import { RelayMetrics, relayMetricsOver, type RelayMetricsShape } from "../services/relay-metrics.service";
+import { PendingSeeds } from "../services/pending-seeds.service";
+import { RelayMetrics, type RelayMetricsShape } from "../services/relay-metrics.service";
 import { RelaySettings, type RelaySettingsShape } from "../services/relay-settings.service";
 import { MeshRelay } from "../services/relay.service";
 import { ReplicaLinks, type ReplicaLinksShape } from "../services/replica-links.service";
@@ -110,9 +106,9 @@ export function meshFixture(
   } = {},
 ) {
   const clock = { now: options.now ?? 1_000 };
-  const repository = directoryRepositoryOver(createDirectoryStore());
-  const hints = keyHintsOver(new Map());
-  const pendingSeeds = pendingSeedsOver(new Set());
+  const repository = new MeshDirectoryRepository.live();
+  const hints = new KeyHints.live(new Map());
+  const pendingSeeds = new PendingSeeds.live(new Set());
   const store = agentStoreOver(new DatabaseSync(":memory:") as never, () => clock.now);
   const secret = options.secret ?? LEASE_SECRET;
   // The store holds the credential the cell starts from, as a first boot would have written it: a rotation reads the
@@ -120,7 +116,7 @@ export function meshFixture(
   Effect.runSync(store.installCredential(secret, options.swarmId ?? null));
   const credential = swarmCredentialFrom({ secret, swarmId: options.swarmId ?? null, installedAt: clock.now });
   const nodeLinks = new Map<string, Link>(Object.entries(options.nodes ?? {}));
-  const nodeAgents = nodeAgentsOver(
+  const nodeAgents = new NodeAgents.live(
     new Map(
       [...nodeLinks.keys()].map((nodeId) => [
         nodeId,
@@ -133,7 +129,7 @@ export function meshFixture(
     linkTo: (replica) => options.replicas?.[replica.replicaId] ?? { call: () => Promise.reject(new Error(`no link to ${replica.replicaId}`)) },
     evictIdle: () => Promise.resolve(0),
   };
-  const load = agentLoadOver({ now: () => clock.now, eventLoopLagMs: () => options.load?.eventLoopLagMs ?? 0 });
+  const load = new AgentLoad.live({ now: () => clock.now, eventLoopLagMs: () => options.load?.eventLoopLagMs ?? 0 });
   if (options.load?.bytesPerSecond) {
     load.bytesMoved(options.load.bytesPerSecond);
   }
@@ -148,7 +144,7 @@ export function meshFixture(
     unreachableMs: options.relay?.unreachableMs ?? new RelaySettings.live().unreachableMs,
     callTimeoutMs: options.relay?.callTimeoutMs ?? new RelaySettings.live().callTimeoutMs,
   };
-  const metrics: RelayMetricsShape = relayMetricsOver();
+  const metrics: RelayMetricsShape = new RelayMetrics.live();
   const agentLinks = agentLinkFactoryOver((address) => ({
     link: options.addresses?.[address] ?? { call: () => Promise.reject(new Error(`no agent at ${address}`)) },
     close: () => Promise.resolve(),

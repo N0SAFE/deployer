@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { agentLoadOver } from "./agent-load.service";
+import { AgentLoad } from "./agent-load.service";
 
 /**
  * The load windows are read by the lease policy, so they must stay honest AND bounded: a peer flooding bytes or calls
@@ -9,7 +9,7 @@ import { agentLoadOver } from "./agent-load.service";
 
 describe("AgentLoad", () => {
 	it("keeps the bytes window bounded, dropping the oldest samples", () => {
-		const load = agentLoadOver({ now: () => 1_000, eventLoopLagMs: () => 0 });
+		const load = new AgentLoad.live({ now: () => 1_000, eventLoopLagMs: () => 0 });
 
 		for (let sample = 0; sample < 10_050; sample += 1) {
 			load.bytesMoved(1);
@@ -20,7 +20,7 @@ describe("AgentLoad", () => {
 	});
 
 	it("keeps each pair's call window bounded", () => {
-		const load = agentLoadOver({ now: () => 1_000, eventLoopLagMs: () => 0 });
+		const load = new AgentLoad.live({ now: () => 1_000, eventLoopLagMs: () => 0 });
 		let calls = 0;
 
 		for (let call = 0; call < 10_050; call += 1) {

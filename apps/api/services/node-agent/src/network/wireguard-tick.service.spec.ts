@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { AgentOverlay } from "@deployer/node-agent-contracts";
 
 import { AgentStore, agentStoreOver } from "../local/agent-store";
-import { NodeAgents, nodeAgentsOver } from "../modules/mesh/services/node-agents.service";
+import { NodeAgents } from "../modules/mesh/services/node-agents.service";
 import { NodeIdentity } from "../modules/mesh/services/node-identity.service";
 import { AdvertisedAddress } from "../modules/mesh/services/roster-gossip.service";
 
@@ -80,7 +80,7 @@ function harness(
 		removeInterface: () => Effect.void,
 	};
 
-	const agents = nodeAgentsOver(new Map((options.agents ?? []).map((entry) => [entry.nodeId, entry])));
+	const agents = new NodeAgents.live(new Map((options.agents ?? []).map((entry) => [entry.nodeId, entry])));
 	const commands = {
 		run: () => Effect.succeed({ code: 0, stdout: "", stderr: "" }),
 		runWithInput: () => Effect.succeed({ code: 0, stdout: "", stderr: "" }),

@@ -13,40 +13,56 @@ export type KeyHintsShape = {
  */
 const MAX_HINTS = 10_000;
 
-/** `key -> replica` hints, so the call after a redirect goes straight to the replica that answered. They only ever speed things up: a stale hint costs one redirect. */
-export function keyHintsOver(
-  entries: Map<string, { replicaId: string; expiresAt: number }>,
-  capacity = MAX_HINTS,
-): KeyHintsShape {
-  const id = (service: string, key: string) => `${service}\u0000${key}`;
-  return {
-    remember: Effect.fn("KeyHints.remember")(function* (service: string, key: string, replicaId: string, ttlMs: number) {
-      const clock = yield* MeshClock;
-      // A key already held is refreshed in place, so a busy key never evicts anything.
-      if (!entries.has(id(service, key))) {
-        while (entries.size >= capacity) {
-          const oldest = entries.keys().next().value;
-          if (oldest === undefined) break;
-          entries.delete(oldest);
-        }
-      }
-      entries.set(id(service, key), { replicaId, expiresAt: clock.now() + ttlMs });
-    }),
-    lookup: Effect.fn("KeyHints.lookup")(function* (service: string, key: string) {
-      const clock = yield* MeshClock;
-      const entry = entries.get(id(service, key));
-      if (!entry) {
-        return undefined;
-      }
-      if (entry.expiresAt <= clock.now()) {
-        entries.delete(id(service, key));
-        return undefined;
-      }
-      return entry.replicaId;
-    }),
-  };
-}
+/** One key space for the map: a service and a key cannot be confused with each other's. */
+const hintId = (service: string, key: string): string => `${service}\u0000${key}`;
 
+/** `key -> replica` hints, so the call after a redirect goes straight to the replica that answered. They only ever speed things up: a stale hint costs one redirect. */
 export class KeyHints extends Context.Service<KeyHints, KeyHintsShape>()("node-agent/KeyHints") {
-  static readonly live: KeyHintsShape = keyHintsOver(new Map());
+  static readonly live = class KeyHintsImpl implements KeyHintsShape {
+    private readonly entries: Map<string, { replicaId: string; expiresAt: number }>;
+    private readonly capacity: number;
+
+    constructor(
+      entries: Map<string, { replicaId: string; expiresAt: number }> = new Map(),
+      capacity: number = MAX_HINTS,
+    ) {
+      this.entries = entries;
+      this.capacity = capacity;
+    }
+
+    remember(service: string, key: string, replicaId: string, ttlMs: number) {
+      const entries = this.entries;
+      const capacity = this.capacity;
+      const id = hintId(service, key);
+      return Effect.gen(function* () {
+        const clock = yield* MeshClock;
+        // A key already held is refreshed in place, so a busy key never evicts anything.
+        if (!entries.has(id)) {
+          while (entries.size >= capacity) {
+            const oldest = entries.keys().next().value;
+            if (oldest === undefined) break;
+            entries.delete(oldest);
+          }
+        }
+        entries.set(id, { replicaId, expiresAt: clock.now() + ttlMs });
+      });
+    }
+
+    lookup(service: string, key: string) {
+      const entries = this.entries;
+      const id = hintId(service, key);
+      return Effect.gen(function* () {
+        const clock = yield* MeshClock;
+        const entry = entries.get(id);
+        if (!entry) {
+          return undefined;
+        }
+        if (entry.expiresAt <= clock.now()) {
+          entries.delete(id);
+          return undefined;
+        }
+        return entry.replicaId;
+      });
+    }
+  };
 }

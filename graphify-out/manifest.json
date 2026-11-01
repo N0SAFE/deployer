@@ -13000,8 +13000,8 @@
     "semantic_hash": ""
   },
   "packages/nest/effect/src/create-module-context.ts": {
-    "mtime": 1793456163.8292005,
-    "ast_hash": "2c7c4ac2eebb5fa5a23f8dd5542e5c60",
+    "mtime": 1793563564.1603677,
+    "ast_hash": "036376f83e75623ca4aae810d627ac90",
     "semantic_hash": ""
   },
   "packages/nest/effect/src/effect-runtime.module.ts": {
@@ -13350,8 +13350,8 @@
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/ROADMAP.md": {
-    "mtime": 1793562971.543683,
-    "ast_hash": "048f7b240ce45097cf8f514d70fcedfd",
+    "mtime": 1793564711.790549,
+    "ast_hash": "8338c7b42c5d62d220771e6990c509ea",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/architecture.md": {
@@ -14585,8 +14585,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/health/src/modules/health/controllers/health.controller.spec.ts": {
-    "mtime": 1793538398.7743397,
-    "ast_hash": "d78b893c0f0ed10b35685008015c7086",
+    "mtime": 1793563563.7617803,
+    "ast_hash": "7ff5f1d4daded91539652b705ed4387b",
     "semantic_hash": ""
   },
   "apps/api/services/health/src/modules/health/controllers/health.controller.ts": {
@@ -14600,18 +14600,18 @@
     "semantic_hash": ""
   },
   "apps/api/services/health/src/modules/health/health.module.ts": {
-    "mtime": 1793558027.3981001,
-    "ast_hash": "2f151b4df7f37be549e2033fde593e15",
+    "mtime": 1793563563.7600758,
+    "ast_hash": "0b5f98296b699750affbdbceb44a8236",
     "semantic_hash": ""
   },
   "apps/api/services/health/src/modules/health/services/health.service.spec.ts": {
-    "mtime": 1793334701.9175594,
-    "ast_hash": "d26d82af85bea04c0778f09e09f980c0",
+    "mtime": 1793563724.0764966,
+    "ast_hash": "7b206386ccdaec525b9372e5265e5e96",
     "semantic_hash": ""
   },
   "apps/api/services/health/src/modules/health/services/health.service.ts": {
-    "mtime": 1793334822.578218,
-    "ast_hash": "24abfa08a16b7669d3718008640abf5c",
+    "mtime": 1793564575.2112777,
+    "ast_hash": "aeeab47e5df9a23508820b01198f9a68",
     "semantic_hash": ""
   },
   "apps/api/services/health/src/modules/health/testing/health.fixtures.ts": {
@@ -15320,8 +15320,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/deployment/deployment.module.ts": {
-    "mtime": 1793330926.0755591,
-    "ast_hash": "a485fa28df49a6186a072cc19c743d82",
+    "mtime": 1793563563.9239538,
+    "ast_hash": "ebe10f783f0e5965f1c2b1323fdc9b4c",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/deployment/events/deployment-event.contracts.ts": {
@@ -15420,8 +15420,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/deployment/services/deployment.service.spec.ts": {
-    "mtime": 1793555505.3238132,
-    "ast_hash": "5eeb14f8f08df7bfa44ca6b24452204a",
+    "mtime": 1793563563.9798439,
+    "ast_hash": "f40bac52b16f1816f4d481b7f3522664",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/deployment/services/deployment.service.ts": {
@@ -15540,13 +15540,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/deployment/triggers/deployment-event-trigger.service.spec.ts": {
-    "mtime": 1793290393.8558505,
-    "ast_hash": "8ba664df4d2d1343bd5bdb125d7338ac",
+    "mtime": 1793563724.0774457,
+    "ast_hash": "d60ea019c100d6c10cd5e6658011e2be",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/deployment/triggers/deployment-event-trigger.service.ts": {
-    "mtime": 1793290393.8568504,
-    "ast_hash": "a9bb2a9a5abdb39a42f110bd2f173579",
+    "mtime": 1793564340.6022246,
+    "ast_hash": "6a6a6809bed8c2fcf94dc0ee02f82ea1",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/deployment/triggers/deployment-trigger-registry.service.spec.ts": {
@@ -15625,8 +15625,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/containers/docker-containers.module.ts": {
-    "mtime": 1793555548.258131,
-    "ast_hash": "eefbfdf65856a2f37b7a7bd8bd623784",
+    "mtime": 1793563564.04824,
+    "ast_hash": "d06f86a0aacf39ad1ac7efc115b06da0",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/containers/events/docker-container-metrics-stream.service.ts": {
@@ -15710,13 +15710,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/repositories/docker-repositories.module.ts": {
-    "mtime": 1793467662.2786796,
-    "ast_hash": "8bf4cd316c831a8c69b54b4b8c5cbda2",
+    "mtime": 1793563564.0054266,
+    "ast_hash": "197d5e86fbe5746dc396465add3a2d0f",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/repositories/facade/docker.repository.ts": {
-    "mtime": 1793290393.8638504,
-    "ast_hash": "e0b9565ec0e6fae772c60271f7e747e0",
+    "mtime": 1793563564.0144527,
+    "ast_hash": "57749612d570cbde2e929f4796c3bfbb",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/repositories/images/catalog/docker-image-catalog.repository.ts": {
@@ -15805,13 +15805,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/runners/docker/docker-runtime-runner.service.spec.ts": {
-    "mtime": 1793538239.773396,
-    "ast_hash": "a05d92141081c1fde70bc285434de1f5",
+    "mtime": 1793563724.0752022,
+    "ast_hash": "7ad6fe7fb86264f195eb68a4409c6cfc",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/runners/docker/docker-runtime-runner.service.ts": {
-    "mtime": 1793538219.7402163,
-    "ast_hash": "e7082887c304158453ddbb8435503cda",
+    "mtime": 1793563386.1835876,
+    "ast_hash": "7c25e05a0321ee63814758d30d169b18",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/runners/dockerfile/dockerfile-runtime-runner.service.ts": {
@@ -15835,13 +15835,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/runners/runners.module.ts": {
-    "mtime": 1793555153.0836914,
-    "ast_hash": "6d6b1bedc1a2b3dbfb4c8e555d4a5093",
+    "mtime": 1793563563.9248493,
+    "ast_hash": "e20368b6f02cc34c4512c829f5481efd",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/runners/runtime-runner-registry.service.ts": {
-    "mtime": 1793555161.8877442,
-    "ast_hash": "728999d74e2bbd1961e703baf590d571",
+    "mtime": 1793563639.3257086,
+    "ast_hash": "abc1217b254ee42f4e3dc1d84bf8a989",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/runners/runtime-runner.interface.ts": {
@@ -15860,13 +15860,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/runners/swarm/swarm-runtime-runner.service.spec.ts": {
-    "mtime": 1793538248.188467,
-    "ast_hash": "41ecb4dac3edbd32075cdf1cf81c5257",
+    "mtime": 1793563724.0756943,
+    "ast_hash": "dd362a1e379b77c1b04540fd87965a32",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/runners/swarm/swarm-runtime-runner.service.ts": {
-    "mtime": 1793538219.7402163,
-    "ast_hash": "fd77914ab5330cd43058310206da0712",
+    "mtime": 1793563639.3501608,
+    "ast_hash": "d31b763a5843d9e1c24b5ee6fccfdc99",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/tsconfig.json": {
@@ -17490,8 +17490,8 @@
     "semantic_hash": ""
   },
   "apps/api/AGENTS.md": {
-    "mtime": 1793322775.3050091,
-    "ast_hash": "5d55a20f80b7fb9bd7d605f5c43a732b",
+    "mtime": 1793564711.7894409,
+    "ast_hash": "9ad15a5c7facd8379ce058e7fd398f3f",
     "semantic_hash": ""
   },
   "apps/api/ARCHITECTURE.md": {
@@ -18015,8 +18015,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/runners/runtime-runner-registry.service.spec.ts": {
-    "mtime": 1793290393.8678505,
-    "ast_hash": "ae60a6f056da9562e78fdc8a6715b50f",
+    "mtime": 1793563563.92728,
+    "ast_hash": "cab28e4796dc02b002ed27f320b89230",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/runners/swarm/swarm-runner.helpers.ts": {
@@ -19565,23 +19565,23 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/repositories/networks/docker-networks.repository.spec.ts": {
-    "mtime": 1793290393.8648505,
-    "ast_hash": "64e632b70be76d6196e2cf376c4f9b1b",
+    "mtime": 1793563564.01503,
+    "ast_hash": "af0f6cfd3ed1deb6ac952974afee34d3",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/repositories/networks/docker-networks.repository.ts": {
-    "mtime": 1793290393.8648505,
-    "ast_hash": "7e94b0eb95ce4efdae937e518cce44fb",
+    "mtime": 1793563639.35458,
+    "ast_hash": "b484ab479ddb2ca6d45f0d0993e034ea",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/repositories/volumes/docker-volumes.repository.spec.ts": {
-    "mtime": 1793290393.8658504,
-    "ast_hash": "351fa4cd91e980a6fb46c9e0c47dceff",
+    "mtime": 1793563564.0159934,
+    "ast_hash": "69e2389fde72d3bef0ae8ff17d28f404",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/repositories/volumes/docker-volumes.repository.ts": {
-    "mtime": 1793290393.8658504,
-    "ast_hash": "2cdce6dbb75cc139cc6491596177d2ad",
+    "mtime": 1793563639.355425,
+    "ast_hash": "1bd093a1b6e7c7ca2b3308a54c873bb1",
     "semantic_hash": ""
   },
   "docs/qa/runtime-docker/business-logic.md": {
@@ -19595,13 +19595,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/repositories/images/engine/docker-images.repository.spec.ts": {
-    "mtime": 1793290393.8638504,
-    "ast_hash": "99e1e682599fc26df514efabd54eb834",
+    "mtime": 1793563564.0181038,
+    "ast_hash": "892717685ab194f1da07ba8b7fb642b7",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/repositories/images/engine/docker-images.repository.ts": {
-    "mtime": 1793290393.8638504,
-    "ast_hash": "848bef1dbb250fc0b313f63eb3bb7c50",
+    "mtime": 1793563639.3578165,
+    "ast_hash": "cbece24ab2a9086308ae416a1f8e0e86",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/repositories/images/engine/docker-registries.spec.ts": {
@@ -19750,8 +19750,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/repositories/images/lifecycle/docker-image-lifecycle.repository.ts": {
-    "mtime": 1793290393.8648505,
-    "ast_hash": "a7f9f3260bf546cabffb63bfd93910b8",
+    "mtime": 1793563639.359292,
+    "ast_hash": "0adacacac23aa05a51647028dbf51c03",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/repositories/images/lifecycle/image-lifecycle-plan.spec.ts": {
@@ -19785,8 +19785,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/repositories/containers/links/docker-container-links-lookup.repository.ts": {
-    "mtime": 1793290393.8638504,
-    "ast_hash": "6f9202bc47f82d7cc8899b296ac48a1f",
+    "mtime": 1793563639.3649158,
+    "ast_hash": "ec6b9ef517666566f518fa573bdae3a3",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/repositories/containers/engine/container-inspect-detail.spec.ts": {
@@ -19810,18 +19810,18 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/repositories/containers/engine/docker-containers.repository.spec.ts": {
-    "mtime": 1793290393.8638504,
-    "ast_hash": "8b8c92a5af7d7573c1315ac7bf4daf77",
+    "mtime": 1793563564.0296743,
+    "ast_hash": "640e7fdd806c36222aa17d9f6b6879f1",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/repositories/containers/engine/docker-containers.repository.ts": {
-    "mtime": 1793290393.8638504,
-    "ast_hash": "562c44da9c31e461e8831dbf7b1fc223",
+    "mtime": 1793563639.3628812,
+    "ast_hash": "f81c170ec366f40b762565d4b2c4b1a4",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/repositories/images/engine/image-inspect-detail.spec.ts": {
-    "mtime": 1793290393.8648505,
-    "ast_hash": "5eea6fa72ab2d7acd2b392bf5c14472b",
+    "mtime": 1793563564.0185986,
+    "ast_hash": "2a750d6a4a8ea238a699750b8d8066a6",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/repositories/images/engine/image-inspect-detail.ts": {
@@ -19840,8 +19840,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/repositories/runtime/docker-runtime-activities.store.ts": {
-    "mtime": 1793290393.8648505,
-    "ast_hash": "9e720d7d6cb83c260543658c2a34b5a4",
+    "mtime": 1793563639.356288,
+    "ast_hash": "a9c3c7ec3ecb3bc287a8feee4dc6f6c6",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/repositories/shared/list-query.spec.ts": {
@@ -19855,8 +19855,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/repositories/images/security/docker-image-scans.store.ts": {
-    "mtime": 1793290393.8648505,
-    "ast_hash": "be558afe32c1c1249eac4c90038f3a5a",
+    "mtime": 1793563639.3620892,
+    "ast_hash": "441c4ab072fbc32b70bb3ac13b9a2293",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/repositories/images/security/tolerate-missing-scan-table.spec.ts": {
@@ -20035,13 +20035,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/containers/runtime/docker-container-ops.spec.ts": {
-    "mtime": 1793290393.8618505,
-    "ast_hash": "1dde4951da6cab100b2c867fd0f32930",
+    "mtime": 1793563564.077511,
+    "ast_hash": "9fece67e9a89bdebf9e11b9451ff6a4c",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/containers/runtime/docker-container-ops.ts": {
-    "mtime": 1793290393.8618505,
-    "ast_hash": "fe3de5c25ab1df77eb841f4b5f17a764",
+    "mtime": 1793563639.3803127,
+    "ast_hash": "a1c3d462ab7199043e3d391ad0b7cc0c",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/containers/runtime/docker-terminal-session-manager.ts": {
@@ -20055,13 +20055,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/containers/runtime/docker-container-access.spec.ts": {
-    "mtime": 1793290393.8608503,
-    "ast_hash": "6036b5345d2022dbf9b3edcd41f4f57f",
+    "mtime": 1793563564.0752368,
+    "ast_hash": "3f22d18d73640211bc9a07e79208c28f",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/containers/runtime/docker-container-access.ts": {
-    "mtime": 1793555474.7348795,
-    "ast_hash": "96322708cd402eabaa2c494e899f6b5a",
+    "mtime": 1793563639.3786755,
+    "ast_hash": "6b5fb0739ff8caccadd6893a940f6d6c",
     "semantic_hash": ""
   },
   "apps/api/services/runtime/src/modules/docker/domains/containers/runtime/mesh-fallback.spec.ts": {
@@ -20905,8 +20905,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/local/agent-local.module.ts": {
-    "mtime": 1793456264.540067,
-    "ast_hash": "dedb5e5306b97c819ad99cd257ea41f6",
+    "mtime": 1793563504.8367167,
+    "ast_hash": "990d7272602853e12de981957e30bebd",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/local/agent-store.spec.ts": {
@@ -20945,8 +20945,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/controllers/directory.controller.spec.ts": {
-    "mtime": 1793467996.9805706,
-    "ast_hash": "3b703b3aa791d6181fe2dfcb8ffb72f4",
+    "mtime": 1793563504.8620856,
+    "ast_hash": "cd0f630bbd6f1975062125609325cfda",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/controllers/directory.controller.ts": {
@@ -20975,8 +20975,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/mesh.module.ts": {
-    "mtime": 1793563111.9855852,
-    "ast_hash": "8a46a4747863fcffe82fb8d874a4eaba",
+    "mtime": 1793563504.8531494,
+    "ast_hash": "c8c5ce78fef25a9ddb373643109beb61",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/repositories/directory.repository.spec.ts": {
@@ -21015,13 +21015,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/access-checks.service.spec.ts": {
-    "mtime": 1793290047.249825,
-    "ast_hash": "0f169d815ffbf2166fa840a39a46cf30",
+    "mtime": 1793563504.8703642,
+    "ast_hash": "5c12f9715b5d1893b5d4ee5c6d952f44",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/access-checks.service.ts": {
-    "mtime": 1793441831.2606971,
-    "ast_hash": "99a3dfedd6d89b97331e261901b5b72c",
+    "mtime": 1793564340.4147165,
+    "ast_hash": "6e9982c8927e3ac22e6a643bf67f3284",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/agent-link-factory.service.ts": {
@@ -21045,18 +21045,18 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/broker.service.ts": {
-    "mtime": 1793563069.7928553,
+    "mtime": 1793563639.3952563,
     "ast_hash": "9e0409107527b01005b4812df86f4d17",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/directory.service.spec.ts": {
-    "mtime": 1793287342.1675422,
-    "ast_hash": "594130195331ab1db2e4fc9c138d3113",
+    "mtime": 1793563504.867477,
+    "ast_hash": "29eae6175936f46e5e09a2cc7b7146d6",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/directory.service.ts": {
-    "mtime": 1793441831.2618537,
-    "ast_hash": "c2158d2db5700bd56fb1a9651f94e3e6",
+    "mtime": 1793564340.3878179,
+    "ast_hash": "9e909bea74b70b1731e8100ccd9576da",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/key-hints.service.spec.ts": {
@@ -21075,8 +21075,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/mesh-clock.service.ts": {
-    "mtime": 1793441831.2703903,
-    "ast_hash": "69e2b993b2162cd9002e5fc9732a5cb0",
+    "mtime": 1793563639.3932285,
+    "ast_hash": "c909f1f33a9eed81b967551d0890fc1e",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/node-agents.service.spec.ts": {
@@ -21105,18 +21105,18 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/relay-settings.service.ts": {
-    "mtime": 1793443203.1347075,
-    "ast_hash": "09e95e2e9879568212c5d425604a0b26",
+    "mtime": 1793563639.3968637,
+    "ast_hash": "d61e8bf2406f29a4d98e42b76a3bc31e",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/relay.service.spec.ts": {
-    "mtime": 1793443543.599994,
-    "ast_hash": "316cd80affeb55e6877ce46338f449de",
+    "mtime": 1793563504.8695903,
+    "ast_hash": "e0061f3da38915f5311139643e19d91d",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/relay.service.ts": {
-    "mtime": 1793443210.637661,
-    "ast_hash": "2ec82e05c3a4863ff885ae72f41224d3",
+    "mtime": 1793564340.2792432,
+    "ast_hash": "1b3ba05de36a599da5d6fcbae54d066f",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/replica-links.service.ts": {
@@ -21125,18 +21125,18 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/roster-gossip.service.spec.ts": {
-    "mtime": 1793443543.6006205,
-    "ast_hash": "eabc765b3723d4f644cc8a61c5d32b41",
+    "mtime": 1793563504.876138,
+    "ast_hash": "8b8af127c83acc8030d8287da689b5ca",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/roster-gossip.service.ts": {
-    "mtime": 1793443225.5874531,
-    "ast_hash": "f6fd4231e3d97559cb4f64f2935a51d1",
+    "mtime": 1793564474.857665,
+    "ast_hash": "e3793502a6e0e186814457edfc974213",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/testing/mesh.fixtures.ts": {
-    "mtime": 1793563111.9859383,
-    "ast_hash": "6782d29236a3363f10a48fa7815088d2",
+    "mtime": 1793563504.8607464,
+    "ast_hash": "85144a8777daebbecd87f9bd29e23260",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/node/node-door.controller.ts": {
@@ -21145,43 +21145,43 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/node/services/node-labels.service.spec.ts": {
-    "mtime": 1793392247.939103,
-    "ast_hash": "a70e61d1ff4dd90780da7ceeea2169fb",
+    "mtime": 1793563504.8544717,
+    "ast_hash": "00bf6f387c36a789087c64a30ab3bd2f",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/node/services/node-labels.service.ts": {
-    "mtime": 1793441831.2778676,
-    "ast_hash": "e9cf2e2197df5c90938d72c9fbb082d5",
+    "mtime": 1793564340.4684536,
+    "ast_hash": "007851e8a845c2da45cae9d75f7b98b0",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/node/services/node-settings.service.spec.ts": {
-    "mtime": 1793379342.606249,
-    "ast_hash": "d7f3e7ae08d4413fe64fda11dcdefc5f",
+    "mtime": 1793563504.8572893,
+    "ast_hash": "ab915d498f3bb655a368771189e3af54",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/node/services/node-settings.service.ts": {
-    "mtime": 1793441831.2780826,
-    "ast_hash": "68e1d93732390b2bc325251b69100163",
+    "mtime": 1793564340.4955556,
+    "ast_hash": "fac5f1b6feeaca817e88cd1278fbc4d0",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/node/services/node-state.service.spec.ts": {
-    "mtime": 1793378589.4536319,
-    "ast_hash": "348f53a3d8816ae952606630c3db4942",
+    "mtime": 1793563504.8568687,
+    "ast_hash": "c282acbd1abbfd406bda85675ba30729",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/node/services/node-state.service.ts": {
-    "mtime": 1793441831.278368,
-    "ast_hash": "38d1a428862fea56a7feaf9ecef9dcf0",
+    "mtime": 1793564340.5227287,
+    "ast_hash": "568fc295147cecf6a317faa46dfcf3fa",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/node/services/node-status.service.spec.ts": {
-    "mtime": 1793444420.564811,
-    "ast_hash": "4013dc85b3eaefbba11c766e19f841ee",
+    "mtime": 1793563504.855487,
+    "ast_hash": "23a001d573f60dfba03b31b69b1e537c",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/node/services/node-status.service.ts": {
-    "mtime": 1793444390.3590703,
-    "ast_hash": "086d31775c452a7625b97c6f46c732ef",
+    "mtime": 1793564340.5492125,
+    "ast_hash": "0d656adaf2e7fe29691b2f3388d09ad6",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/network/doors/docker-engine.spec.ts": {
@@ -21190,8 +21190,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/network/doors/docker-engine.ts": {
-    "mtime": 1793533576.6354814,
-    "ast_hash": "19ab8735356f820cc07ca26a4b1b9466",
+    "mtime": 1793563385.4064786,
+    "ast_hash": "0f5dea00e80cb8217fe0efb6aa10187f",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/network/doors/door-config.spec.ts": {
@@ -21205,23 +21205,23 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/network/doors/door-converger.spec.ts": {
-    "mtime": 1793353741.689597,
-    "ast_hash": "e6ef596132296a1b413b3876f5d6858e",
+    "mtime": 1793563504.8497517,
+    "ast_hash": "d89fdc6ca432ec6976eb2e11f4a97877",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/network/doors/door-converger.ts": {
-    "mtime": 1793441831.2803159,
-    "ast_hash": "b43e7286f94033e6d81e92ff82dedb95",
+    "mtime": 1793563639.3878508,
+    "ast_hash": "5e4cd6580eb2540df8e6f0993665d87d",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/network/doors/doors-tick.service.spec.ts": {
-    "mtime": 1793443305.6712823,
-    "ast_hash": "25850ab1970b6ba3b4ff057b5820b02c",
+    "mtime": 1793563504.8473833,
+    "ast_hash": "7232b83cbb7f3285ee226bdbca5db2ad",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/network/doors/doors-tick.service.ts": {
-    "mtime": 1793534974.5963328,
-    "ast_hash": "ba8bd8b12d53eb918dc017b846879f28",
+    "mtime": 1793563639.3891084,
+    "ast_hash": "9ffbb7c467a4c6909e304644aacd7a8f",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/network/doors/doors.setting.spec.ts": {
@@ -21230,8 +21230,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/network/doors/doors.setting.ts": {
-    "mtime": 1793443282.3382204,
-    "ast_hash": "4b539b310c4bcc24ad166d7e63241334",
+    "mtime": 1793563385.445928,
+    "ast_hash": "fca657062d8d36ad49289032b21e3f1e",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/network/doors/doors.types.ts": {
@@ -21280,13 +21280,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/network/wireguard-tick.service.spec.ts": {
-    "mtime": 1793534990.177037,
-    "ast_hash": "0c1edc1759f11974428f239dfad120d1",
+    "mtime": 1793563504.8286679,
+    "ast_hash": "0d56ace138c9ff504ef9ede2ee6e4868",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/network/wireguard-tick.service.ts": {
-    "mtime": 1793441831.2829342,
-    "ast_hash": "3066712b02d2bdaf14b2379b5ca644b9",
+    "mtime": 1793564563.835378,
+    "ast_hash": "ecd6102087330ce79152a11b19d64620",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/network/wireguard.service.spec.ts": {
@@ -21295,8 +21295,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/network/wireguard.service.ts": {
-    "mtime": 1793441831.281924,
-    "ast_hash": "2f93b9ae365a22bc0c006341fb0d5ffa",
+    "mtime": 1793563385.5874667,
+    "ast_hash": "77481c8c0f1031cc85157ae499ef79fb",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/network/wireguard.ts": {

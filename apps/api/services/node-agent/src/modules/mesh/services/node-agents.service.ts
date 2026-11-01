@@ -40,20 +40,36 @@ const closeLink = (link: ClientLink<ClientContext> | undefined) =>
   }).pipe(Effect.catch(() => Effect.void));
 
 /**
- * Registry over a given map, so a test starts with the nodes it needs. `links` is the lazy cache, per node id: a test
- * that needs a fake transport pre-fills it, and a real agent leaves it empty so nothing connects until `linkTo` is used.
- * `marks` is the negative cache (node id → epoch milliseconds until which it is considered unreachable), and `sources`
- * is who taught this agent about each node.
+ * The other agents this one knows: where they answer, the link cached for each, who taught this one about them, and the
+ * negative cache that says a direct link failed recently.
+ *
+ * The four maps are constructor arguments with defaults, so the module provides `NodeAgents.live` with nothing to wire
+ * and a spec starts with the nodes it needs: `new NodeAgents.live(new Map([...]))`. A test that needs a fake transport
+ * pre-fills `links`; a real agent leaves it empty, so nothing connects until `linkTo` is used.
  */
-export function nodeAgentsOver(
-  agents: Map<string, KnownAgent>,
-  links: Map<string, ClientLink<ClientContext>> = new Map(),
-  marks: Map<string, number> = new Map(),
-  sources: Map<string, Set<string>> = new Map(),
-): NodeAgentsShape {
-  return {
-    linkTo: (nodeId) =>
-      Effect.gen(function* () {
+export class NodeAgents extends Context.Service<NodeAgents, NodeAgentsShape>()("node-agent/NodeAgents") {
+  static readonly live = class NodeAgentsImpl implements NodeAgentsShape {
+    private readonly agents: Map<string, KnownAgent>;
+    private readonly links: Map<string, ClientLink<ClientContext>>;
+    private readonly marks: Map<string, number>;
+    private readonly sources: Map<string, Set<string>>;
+
+    constructor(
+      agents: Map<string, KnownAgent> = new Map(),
+      links: Map<string, ClientLink<ClientContext>> = new Map(),
+      marks: Map<string, number> = new Map(),
+      sources: Map<string, Set<string>> = new Map(),
+    ) {
+      this.agents = agents;
+      this.links = links;
+      this.marks = marks;
+      this.sources = sources;
+    }
+
+    linkTo(nodeId: string) {
+      const agents = this.agents;
+      const links = this.links;
+      return Effect.gen(function* () {
         const cached = links.get(nodeId);
         if (cached !== undefined) return cached;
         const agent = agents.get(nodeId);
@@ -61,9 +77,15 @@ export function nodeAgentsOver(
         const link = (yield* AgentLinkFactory).linkTo(agent.address);
         links.set(nodeId, link);
         return link;
-      }),
-    know: (agent, learnedFrom) =>
-      Effect.sync(() => {
+      });
+    }
+
+    know(agent: AgentInfo, learnedFrom?: string) {
+      const agents = this.agents;
+      const links = this.links;
+      const marks = this.marks;
+      const sources = this.sources;
+      return Effect.sync(() => {
         const isNew = !agents.has(agent.nodeId);
         const previous = agents.get(agent.nodeId);
         // Re-learned at another address: the link cached for the old one is not the way to this node any more, and a
@@ -79,38 +101,57 @@ export function nodeAgentsOver(
           sources.set(agent.nodeId, from);
         }
         return isNew;
-      }),
-    forget: (nodeId) =>
-      Effect.suspend(() => {
+      });
+    }
+
+    forget(nodeId: string) {
+      const agents = this.agents;
+      const links = this.links;
+      const marks = this.marks;
+      const sources = this.sources;
+      return Effect.suspend(() => {
         agents.delete(nodeId);
         marks.delete(nodeId);
         sources.delete(nodeId);
         const link = links.get(nodeId);
         links.delete(nodeId);
         return closeLink(link);
-      }),
-    known: () => Effect.sync(() => [...agents.values()]),
-    sourcesOf: (nodeId) => Effect.sync(() => [...(sources.get(nodeId) ?? [])]),
-    markUnreachable: (nodeId, ms) =>
-      Effect.sync(() => {
+      });
+    }
+
+    known() {
+      const agents = this.agents;
+      return Effect.sync(() => [...agents.values()]);
+    }
+
+    sourcesOf(nodeId: string) {
+      const sources = this.sources;
+      return Effect.sync(() => [...(sources.get(nodeId) ?? [])]);
+    }
+
+    markUnreachable(nodeId: string, ms: number) {
+      const marks = this.marks;
+      return Effect.sync(() => {
         marks.set(nodeId, Date.now() + ms);
-      }),
-    isUnreachable: (nodeId) =>
-      Effect.sync(() => {
+      });
+    }
+
+    isUnreachable(nodeId: string) {
+      const marks = this.marks;
+      return Effect.sync(() => {
         const until = marks.get(nodeId);
         if (until === undefined) return false;
         if (until > Date.now()) return true;
         marks.delete(nodeId);
         return false;
-      }),
-    clearUnreachable: (nodeId) =>
-      Effect.sync(() => {
-        marks.delete(nodeId);
-      }),
-  };
-}
+      });
+    }
 
-export class NodeAgents extends Context.Service<NodeAgents, NodeAgentsShape>()("node-agent/NodeAgents") {
-  /** Starts empty: the other agents are learned from the roster, and connected to only when they are used. */
-  static readonly live: NodeAgentsShape = nodeAgentsOver(new Map());
+    clearUnreachable(nodeId: string) {
+      const marks = this.marks;
+      return Effect.sync(() => {
+        marks.delete(nodeId);
+      });
+    }
+  };
 }

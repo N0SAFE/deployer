@@ -25,26 +25,42 @@ const WINDOW_MS = 1_000;
  */
 const MAX_WINDOW_ENTRIES = 10_000;
 
-/** Load tracking over a clock and a loop-lag reader, so a test drives time itself. */
-export function agentLoadOver(inputs: { readonly now: () => number; readonly eventLoopLagMs: () => number }): AgentLoadShape {
-  const pairs = new Map<string, number[]>();
-  const bytes: { at: number; size: number }[] = [];
-  let openStreams = 0;
+/**
+ * Load tracking over a clock and a loop-lag reader, so a test drives time itself.
+ *
+ * The two inputs are constructor arguments with defaults, so the module provides `AgentLoad.live` with the real clock
+ * and a spec hands in its own: `new AgentLoad.live({ now: () => 1_000, eventLoopLagMs: () => 0 })`.
+ */
+export class AgentLoad extends Context.Service<AgentLoad, AgentLoadShape>()("node-agent/AgentLoad") {
+  static readonly live = class AgentLoadImpl implements AgentLoadShape {
+    private readonly inputs: { readonly now: () => number; readonly eventLoopLagMs: () => number };
+    private readonly pairs = new Map<string, number[]>();
+    private readonly bytes: { at: number; size: number }[] = [];
+    private openStreams = 0;
 
-  return {
+    constructor(inputs: { readonly now: () => number; readonly eventLoopLagMs: () => number } = {
+      now: () => Date.now(),
+      eventLoopLagMs: liveEventLoopLag(),
+    }) {
+      this.inputs = inputs;
+    }
+
     sample() {
-      const cutoff = inputs.now() - WINDOW_MS;
+      const cutoff = this.inputs.now() - WINDOW_MS;
+      const bytes = this.bytes;
       while (bytes.length > 0 && (bytes[0]?.at ?? cutoff) <= cutoff) {
         bytes.shift();
       }
       return {
-        eventLoopLagMs: inputs.eventLoopLagMs(),
+        eventLoopLagMs: this.inputs.eventLoopLagMs(),
         bytesPerSecond: bytes.reduce((total, entry) => total + entry.size, 0),
-        openStreams,
+        openStreams: this.openStreams,
       };
-    },
-    callStarted(pairKey) {
-      const now = inputs.now();
+    }
+
+    callStarted(pairKey: string) {
+      const now = this.inputs.now();
+      const pairs = this.pairs;
       const calls = (pairs.get(pairKey) ?? []).filter((at) => at > now - WINDOW_MS);
       calls.push(now);
       if (calls.length > MAX_WINDOW_ENTRIES) {
@@ -52,19 +68,23 @@ export function agentLoadOver(inputs: { readonly now: () => number; readonly eve
       }
       pairs.set(pairKey, calls);
       return calls.length;
-    },
+    }
+
     streamOpened() {
-      openStreams += 1;
-    },
+      this.openStreams += 1;
+    }
+
     streamClosed() {
-      openStreams = Math.max(0, openStreams - 1);
-    },
-    bytesMoved(size) {
-      bytes.push({ at: inputs.now(), size });
+      this.openStreams = Math.max(0, this.openStreams - 1);
+    }
+
+    bytesMoved(size: number) {
+      const bytes = this.bytes;
+      bytes.push({ at: this.inputs.now(), size });
       if (bytes.length > MAX_WINDOW_ENTRIES) {
         bytes.splice(0, bytes.length - MAX_WINDOW_ENTRIES);
       }
-    },
+    }
   };
 }
 
@@ -76,8 +96,4 @@ function liveEventLoopLag(): () => number {
     histogram.reset();
     return Number.isFinite(lag) ? lag : 0;
   };
-}
-
-export class AgentLoad extends Context.Service<AgentLoad, AgentLoadShape>()("node-agent/AgentLoad") {
-  static readonly live: AgentLoadShape = agentLoadOver({ now: () => Date.now(), eventLoopLagMs: liveEventLoopLag() });
 }

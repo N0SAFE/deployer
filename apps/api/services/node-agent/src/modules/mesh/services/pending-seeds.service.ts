@@ -9,18 +9,28 @@ export type PendingSeedsShape = {
   readonly pending: () => Effect.Effect<readonly string[]>;
 };
 
-export function pendingSeedsOver(addresses: Set<string>): PendingSeedsShape {
-  return {
-    add: (address) => Effect.sync(() => void addresses.add(address)),
-    reached: (address) => Effect.sync(() => void addresses.delete(address)),
-    pending: () => Effect.sync(() => [...addresses]),
-  };
-}
-
 /**
  * The agents this one is trying to join. Empty for an agent that has not been pointed at a swarm yet, which is a normal
  * and fully working state: it serves its own node's replicas from memory, and joining happens whenever a seed is added.
  */
 export class PendingSeeds extends Context.Service<PendingSeeds, PendingSeedsShape>()("node-agent/PendingSeeds") {
-  static readonly live: PendingSeedsShape = pendingSeedsOver(new Set());
+  static readonly live = class PendingSeedsImpl implements PendingSeedsShape {
+    private readonly addresses: Set<string>;
+
+    constructor(addresses: Set<string> = new Set()) {
+      this.addresses = addresses;
+    }
+
+    add(address: string) {
+      return Effect.sync(() => void this.addresses.add(address));
+    }
+
+    reached(address: string) {
+      return Effect.sync(() => void this.addresses.delete(address));
+    }
+
+    pending() {
+      return Effect.sync(() => [...this.addresses]);
+    }
+  };
 }
