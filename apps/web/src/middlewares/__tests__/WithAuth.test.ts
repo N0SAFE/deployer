@@ -54,6 +54,7 @@ describe("WithAuth middleware", () => {
     }));
 
     vi.doMock("@/routes/index", () => ({
+      AuthDashboard: vi.fn(() => "/dashboard"),
       AuthSignin: vi.fn((_: unknown = {}, search: Record<string, string> = {}) => {
         const params = new URLSearchParams(search);
         const query = params.toString();
@@ -82,6 +83,101 @@ describe("WithAuth middleware", () => {
     expect(location).toContain("/auth/signin");
     expect(location).toContain("redirectTo=%2Fdashboard%2Fservices");
     expect(next).not.toHaveBeenCalled();
+  });
+
+  describe("authGateDecision", () => {
+    it("sends a request without a session cookie to sign-in, even if a cache blob was passed", async () => {
+      const { authGateDecision } = await import("../WithAuth");
+
+      expect(authGateDecision({ hasSessionCookie: false, session: { user: { role: "admin" } }, path: "/dashboard" })).toBe(
+        "signin",
+      );
+    });
+
+    it("sends a request whose session did not resolve to sign-in", async () => {
+      const { authGateDecision } = await import("../WithAuth");
+
+      expect(authGateDecision({ hasSessionCookie: true, session: null, path: "/dashboard" })).toBe("signin");
+    });
+
+    it("allows any signed-in role on a normal page", async () => {
+      const { authGateDecision } = await import("../WithAuth");
+
+      expect(authGateDecision({ hasSessionCookie: true, session: { user: { role: "viewer" } }, path: "/dashboard" })).toBe(
+        "allow",
+      );
+    });
+
+    it("refuses a viewer the user-administration page", async () => {
+      const { authGateDecision } = await import("../WithAuth");
+
+      expect(
+        authGateDecision({ hasSessionCookie: true, session: { user: { role: "viewer" } }, path: "/settings/users" }),
+      ).toBe("forbidden");
+      expect(
+        authGateDecision({ hasSessionCookie: true, session: { user: { role: "user" } }, path: "/settings/users/42" }),
+      ).toBe("forbidden");
+    });
+
+    it("lets an administrator through the user-administration page", async () => {
+      const { authGateDecision } = await import("../WithAuth");
+
+      expect(
+        authGateDecision({ hasSessionCookie: true, session: { user: { role: "admin" } }, path: "/settings/users" }),
+      ).toBe("allow");
+      expect(
+        authGateDecision({ hasSessionCookie: true, session: { user: { role: "superAdmin" } }, path: "/settings/users" }),
+      ).toBe("allow");
+    });
+
+    it("protects the device-approval page like any other signed-in page", async () => {
+      const { authGateDecision } = await import("../WithAuth");
+
+      expect(authGateDecision({ hasSessionCookie: false, session: null, path: "/device" })).toBe("signin");
+      expect(authGateDecision({ hasSessionCookie: true, session: { user: { role: "user" } }, path: "/device" })).toBe(
+        "allow",
+      );
+    });
+  });
+
+  it("verifies a cold cookie cache against the API instead of trusting the cookie alone", async () => {
+    mockGetSessionCookie.mockReturnValue("session-token");
+    mockGetCookieCache.mockResolvedValue(null);
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ user: { role: "viewer" } }) }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { default: withAuth } = await import("../WithAuth");
+    const next = vi.fn().mockReturnValue(NextResponse.next());
+    const middleware = withAuth(next);
+
+    const request = createRequest("http://localhost:3003/dashboard");
+    await middleware(request, {} as NextFetchEvent);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:3001/api/auth/get-session",
+      expect.objectContaining({ cache: "no-store" }),
+    );
+    expect(next).toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
+  });
+
+  it("sends the request to sign-in when the API refuses the cold session", async () => {
+    mockGetSessionCookie.mockReturnValue("session-token");
+    mockGetCookieCache.mockResolvedValue(null);
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => null })));
+
+    const { default: withAuth } = await import("../WithAuth");
+    const next = vi.fn().mockReturnValue(NextResponse.next());
+    const middleware = withAuth(next);
+
+    const request = createRequest("http://localhost:3003/dashboard");
+    const response = await middleware(request, {} as NextFetchEvent);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(response?.headers.get("location") ?? "").toContain("/auth/signin");
+
+    vi.unstubAllGlobals();
   });
 
   it("passes through when session exists", async () => {

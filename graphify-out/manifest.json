@@ -320,8 +320,8 @@
     "semantic_hash": "4e7d1da6e90d176d85ff629ddb31dc85"
   },
   "apps/web/src/app/auth/me/page.tsx": {
-    "mtime": 1793107637.484925,
-    "ast_hash": "69a164ffd1c90303ef85dbc2cc8ac2a6",
+    "mtime": 1793574454.9896429,
+    "ast_hash": "13cd1c29c4c1a21e7af04c70769e6eb1",
     "semantic_hash": ""
   },
   "apps/web/src/app/auth/me/route.info.ts": {
@@ -3435,8 +3435,8 @@
     "semantic_hash": "07a90e24fdb70f351e9b2cef667deeac"
   },
   "apps/doc/content/docs/index.mdx": {
-    "mtime": 1793441999.7623665,
-    "ast_hash": "746cf4d0dcfa335d63d75e4699ae3a4b",
+    "mtime": 1793574265.9997196,
+    "ast_hash": "e54648f278d93f3f6b135d4c72fc1efe",
     "semantic_hash": ""
   },
   "apps/doc/content/docs/intro/getting-started.mdx": {
@@ -5725,17 +5725,17 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/auth/me/_components/accounts-section.test.tsx": {
-    "mtime": 1793107637.483925,
+    "mtime": 1793574454.992759,
     "ast_hash": "4057b5c43cf4d91a5acf8d8c4930c847",
     "semantic_hash": ""
   },
   "apps/web/src/app/auth/me/_components/accounts-section.tsx": {
-    "mtime": 1793107637.483925,
+    "mtime": 1793574432.6228476,
     "ast_hash": "5979826ef175824d4a859e30bad753a0",
     "semantic_hash": ""
   },
   "apps/web/src/app/auth/me/_hooks/use-device-accounts.ts": {
-    "mtime": 1793107637.483925,
+    "mtime": 1793574454.995699,
     "ast_hash": "ee822691b7b0a9db6374c464e0d128fa",
     "semantic_hash": ""
   },
@@ -7190,13 +7190,13 @@
     "semantic_hash": ""
   },
   "packages/auth/src/server/auth.spec.ts": {
-    "mtime": 1793571218.6714962,
-    "ast_hash": "40dba6aa328b14d171e921c94ac37b7a",
+    "mtime": 1793574023.9096856,
+    "ast_hash": "d1a772390335762acdf7509944d4898d",
     "semantic_hash": ""
   },
   "packages/auth/src/server/auth.ts": {
-    "mtime": 1793571085.9114263,
-    "ast_hash": "87c6ebcdd9c7177911c889a86ef614dd",
+    "mtime": 1793573984.1815894,
+    "ast_hash": "c8857afe6390d7002dbefc24a7ef65e0",
     "semantic_hash": ""
   },
   "packages/auth/src/server/index.ts": {
@@ -7210,8 +7210,8 @@
     "semantic_hash": ""
   },
   "packages/auth/src/server/plugins/index.ts": {
-    "mtime": 1793571286.9244905,
-    "ast_hash": "44066bc8e0969469df5174a7603cea16",
+    "mtime": 1793573984.2182043,
+    "ast_hash": "df9d101298a70140c2ad5ef262302756",
     "semantic_hash": ""
   },
   "packages/auth/src/server/plugins/invite.spec.ts": {
@@ -13350,8 +13350,8 @@
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/ROADMAP.md": {
-    "mtime": 1793572256.4471705,
-    "ast_hash": "d089a7af0528060b0c541ef15591e987",
+    "mtime": 1793574553.2496376,
+    "ast_hash": "45cd309b6be56de07fc24a690e72d9b9",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/architecture.md": {
@@ -13495,8 +13495,8 @@
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/roadmap/auth-security.md": {
-    "mtime": 1793572256.4206133,
-    "ast_hash": "705e1ed515231f43d197969e8fea445d",
+    "mtime": 1793574553.2057588,
+    "ast_hash": "6667a49573916ab4f7bea3d8040ab7fc",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/roadmap/cluster.md": {
@@ -14855,8 +14855,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/identity/src/modules/user/repositories/user.repository.ts": {
-    "mtime": 1793332341.2609408,
-    "ast_hash": "4d719380dee3a77527a1f28e1e9b6af7",
+    "mtime": 1793574104.9581537,
+    "ast_hash": "c11344581f29c5481e278b8fc2765c4e",
     "semantic_hash": ""
   },
   "apps/api/services/identity/src/modules/user/repositories/user.repository.types.ts": {
@@ -14870,13 +14870,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/identity/src/modules/user/services/user.service.spec.ts": {
-    "mtime": 1793571174.9624789,
-    "ast_hash": "2ea6e431bb9dce5b48d80c0580a95b09",
+    "mtime": 1793574227.4170477,
+    "ast_hash": "7763850426758f61f7885ddfe5b2aebe",
     "semantic_hash": ""
   },
   "apps/api/services/identity/src/modules/user/services/user.service.ts": {
-    "mtime": 1793334862.9958706,
-    "ast_hash": "0a4f803dfa01baa8037850229af27f98",
+    "mtime": 1793574115.067992,
+    "ast_hash": "a3103e887a155ef5a06b51b0f9a72cfa",
     "semantic_hash": ""
   },
   "apps/api/services/identity/src/modules/user/services/user.service.types.ts": {
@@ -22052,6 +22052,16 @@
   "packages/auth/src/server/plugins/invite.behaviour.spec.ts": {
     "mtime": 1793572103.4349215,
     "ast_hash": "ca3cc04358b7f35a4465932ca8071446",
+    "semantic_hash": ""
+  },
+  "packages/auth/src/server/plugins/adminSessionRevocation.spec.ts": {
+    "mtime": 1793574037.5026464,
+    "ast_hash": "81f6e86f71a3d67f680410a5a9f71714",
+    "semantic_hash": ""
+  },
+  "packages/auth/src/server/plugins/adminSessionRevocation.ts": {
+    "mtime": 1793573972.033958,
+    "ast_hash": "02b5860323f94a269633489856564242",
     "semantic_hash": ""
   }
 }

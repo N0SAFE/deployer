@@ -112,11 +112,12 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Effect-impact (2026-10-26): identity `setBanned` (`user.service.ts:164`) is a raw DB write, ported but exposed by no procedure; `update` can ban without `assertNotSelfDestruct`. Session revocation and cookie-cache bypass are still missing there. Evidence: `effect-health-identity.md` §4.3.
   - Design-impact (2026-10-26): satisfied structurally: authz never reads role or ban from the cookie cache (`AUTH-055`), grants come from the DB with epoch invalidation (`SEC-055`), and ban/disable is one transaction {grant revoke, session revoke, token revoke, epoch bump}; `user.role` is only a projection. Keep this item as the ban-transaction deliverable.
 
-- [ ] `AUTH-014` **Validate session server-side in web middleware for `/device` and role-gated routes** · FIX · P2 · S · Deps: none
+- [x] `AUTH-014` **Validate session server-side in web middleware for `/device` and role-gated routes** · FIX · P2 · S · Deps: none
   - Why/Problem: `middlewares/WithAuth.ts` checks only cookie presence (`getSessionCookie`); `/device` not in the matcher; not-signed-in state on the device page has no sign-in link.
   - Do: validate session (cookie-cache result is already computed but unused), add `/device` to matcher with sign-in redirect.
   - Done when: invalid/forged cookie cannot reach role-gated pages; `/device` redirects to sign-in.
   - Status: todo · Verified-in-code: unverified · Source: auth.md#1 (web route protection), auth.md#4 (13)
+  - Status (2026-11-01): **done**. `WithAuth` no longer trusts a cookie's presence: it reads the cookie cache and, when that is cold (the API caps it at 60 s), verifies the session against `GET /api/auth/get-session` with the request's own cookie — one request, only on protected paths, and an API that refuses or is unreachable means `signin`, never `allow`. The decision is a pure `authGateDecision({ hasSessionCookie, session, path })` (`allow`/`signin`/`forbidden`), so it is tested without a request: a viewer or a `user` gets `forbidden` on `/settings/users` (redirected to `/dashboard`), an admin/superAdmin is allowed, and any signed-in role passes a normal page. `/device` and `/settings/users` were added to the matcher, so the device-approval page now sends a signed-out visitor to sign-in with `redirectTo=/device`. 24 middleware tests.
 
 - [ ] `AUTH-015` **Password lifecycle and mail transport** · NEW · P1 · L · Deps: none
   - Why/Problem: no change-password, forgot/reset, email verification or change-email (`sendResetPassword`/`sendVerificationEmail` absent); no mail transport. Needs a "mail not configured" operator path.
