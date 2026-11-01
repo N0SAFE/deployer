@@ -182,90 +182,92 @@ const forward = (target: string, request: MeshRelayInput, selfId: string, visite
  * target's own result, or its own errors, unchanged.
  */
 export class MeshRelay extends Context.Service<MeshRelay, MeshRelayShape>()("node-agent/MeshRelay") {
-  static readonly live: MeshRelayShape = {
-    relay: Effect.fn("MeshRelay.relay")(function* (request: MeshRelayInput) {
-      const self = yield* NodeIdentity;
+  static readonly live = class MeshRelayImpl implements MeshRelayShape {
+    relay(request: MeshRelayInput) {
+      return Effect.gen(function* () {
+        const self = yield* NodeIdentity;
 
-      if (request.node !== undefined && request.node !== self.nodeId) {
-        const target = request.node;
-        const visited = request.via?.visited ?? [];
-        // A call that came back to a node it has been through would loop for as long as the ttl allows: refuse it here.
-        const looped = visited.includes(target) ? target : visited.includes(self.nodeId) ? self.nodeId : undefined;
-        if (looped !== undefined) {
-          return yield* Effect.fail(new MeshRelayLoop({ nodeId: looped }));
-        }
+        if (request.node !== undefined && request.node !== self.nodeId) {
+          const target = request.node;
+          const visited = request.via?.visited ?? [];
+          // A call that came back to a node it has been through would loop for as long as the ttl allows: refuse it here.
+          const looped = visited.includes(target) ? target : visited.includes(self.nodeId) ? self.nodeId : undefined;
+          if (looped !== undefined) {
+            return yield* Effect.fail(new MeshRelayLoop({ nodeId: looped }));
+          }
 
-        const settings = yield* RelaySettings;
-        const ttl = request.via?.ttl ?? settings.maxHops;
-        if (request.via !== undefined && ttl === 0) {
-          return yield* Effect.fail(new MeshNoRoute({ nodeId: target, hops: visited }));
-        }
+          const settings = yield* RelaySettings;
+          const ttl = request.via?.ttl ?? settings.maxHops;
+          if (request.via !== undefined && ttl === 0) {
+            return yield* Effect.fail(new MeshNoRoute({ nodeId: target, hops: visited }));
+          }
 
-        const agents = yield* NodeAgents;
-        const metrics = yield* RelayMetrics;
+          const agents = yield* NodeAgents;
+          const metrics = yield* RelayMetrics;
 
-        if (yield* agents.isUnreachable(target)) {
+          if (yield* agents.isUnreachable(target)) {
+            return yield* forward(target, request, self.nodeId, visited, ttl);
+          }
+
+          const attempt = yield* direct(target, request).pipe(
+            Effect.map((events) => ({ events }) as const),
+            Effect.catch((error) =>
+              isTargetAnswer(error) ? Effect.fail(error) : Effect.succeed({ transport: error } as const),
+            ),
+          );
+          if ("events" in attempt) {
+            // The address works again: a stale negative cache entry must not survive it.
+            yield* agents.clearUnreachable(target);
+            return { kind: "events", events: attempt.events } as const satisfies RelayOutcome;
+          }
+          yield* agents.markUnreachable(target, settings.unreachableMs);
+          yield* metrics.count("unreachable");
           return yield* forward(target, request, self.nodeId, visited, ttl);
         }
 
-        const attempt = yield* direct(target, request).pipe(
-          Effect.map((events) => ({ events }) as const),
-          Effect.catch((error) =>
-            isTargetAnswer(error) ? Effect.fail(error) : Effect.succeed({ transport: error } as const),
-          ),
-        );
-        if ("events" in attempt) {
-          // The address works again: a stale negative cache entry must not survive it.
-          yield* agents.clearUnreachable(target);
-          return { kind: "events", events: attempt.events } as const satisfies RelayOutcome;
+        const localOnly = request.node === self.nodeId;
+        const load = yield* AgentLoad;
+        // A call an agent forwarded was pinned by a caller that cannot reach the target itself: a lease would be useless
+        // to it, so a forwarded call is always brokered, whatever it asks for.
+        if (request.via === undefined) {
+          const directory = yield* MeshDirectory;
+
+          const reason = leaseReason({
+            heavy: request.heavy === true,
+            callerWantsDirect: request.direct === true,
+            agent: load.sample(),
+            pairCallsPerSecond: load.callStarted(request.service),
+          });
+          if (reason !== undefined) {
+            const resolution = yield* directory.resolve({ service: request.service, key: request.key, localOnly });
+            const signer = yield* LeaseSigner;
+            return yield* Effect.fail(grantDirect(yield* signer.issue(resolution.replica)));
+          }
         }
-        yield* agents.markUnreachable(target, settings.unreachableMs);
-        yield* metrics.count("unreachable");
-        return yield* forward(target, request, self.nodeId, visited, ttl);
-      }
 
-      const localOnly = request.node === self.nodeId;
-      const load = yield* AgentLoad;
-      // A call an agent forwarded was pinned by a caller that cannot reach the target itself: a lease would be useless
-      // to it, so a forwarded call is always brokered, whatever it asks for.
-      if (request.via === undefined) {
-        const directory = yield* MeshDirectory;
-
-        const reason = leaseReason({
-          heavy: request.heavy === true,
-          callerWantsDirect: request.direct === true,
-          agent: load.sample(),
-          pairCallsPerSecond: load.callStarted(request.service),
+        const links = yield* ReplicaLinks;
+        const broker = yield* MeshBroker;
+        const value = yield* broker.call({
+          service: request.service,
+          key: request.key,
+          localOnly,
+          maxHops: MAX_HOPS,
+          hintTtlMs: HINT_TTL_MS,
+          invoke: (replica) =>
+            Effect.tryPromise({ try: () => links.linkTo(replica).call(request.path, request.input, { context: { headers: request.headers ?? {} } }), catch: (error) => error }).pipe(
+              Effect.map((answer): CallOutcome<unknown> => ({ kind: "ok", value: answer })),
+              Effect.catch((error) => {
+                const redirect = readRedirect(error);
+                return redirect
+                  ? Effect.succeed<CallOutcome<unknown>>({ kind: "redirect", replicaId: redirect.replicaId, reason: redirect.reason })
+                  : Effect.fail(toOrpcError(error));
+              }),
+            ),
         });
-        if (reason !== undefined) {
-          const resolution = yield* directory.resolve({ service: request.service, key: request.key, localOnly });
-          const signer = yield* LeaseSigner;
-          return yield* Effect.fail(grantDirect(yield* signer.issue(resolution.replica)));
-        }
-      }
 
-      const links = yield* ReplicaLinks;
-      const broker = yield* MeshBroker;
-      const value = yield* broker.call({
-        service: request.service,
-        key: request.key,
-        localOnly,
-        maxHops: MAX_HOPS,
-        hintTtlMs: HINT_TTL_MS,
-        invoke: (replica) =>
-          Effect.tryPromise({ try: () => links.linkTo(replica).call(request.path, request.input, { context: { headers: request.headers ?? {} } }), catch: (error) => error }).pipe(
-            Effect.map((answer): CallOutcome<unknown> => ({ kind: "ok", value: answer })),
-            Effect.catch((error) => {
-              const redirect = readRedirect(error);
-              return redirect
-                ? Effect.succeed<CallOutcome<unknown>>({ kind: "redirect", replicaId: redirect.replicaId, reason: redirect.reason })
-                : Effect.fail(toOrpcError(error));
-            }),
-          ),
+        return isAsyncIterator(value) ? ({ kind: "stream", items: trackStream(value, load) } as const) : ({ kind: "value", value } as const);
       });
-
-      return isAsyncIterator(value) ? ({ kind: "stream", items: trackStream(value, load) } as const) : ({ kind: "value", value } as const);
-    }),
+    }
   };
 }
 

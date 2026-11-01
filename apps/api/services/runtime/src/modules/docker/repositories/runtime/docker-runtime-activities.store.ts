@@ -23,8 +23,8 @@ export class DockerRuntimeActivitiesStore extends Context.Service<
   DockerRuntimeActivitiesStore,
   DockerRuntimeActivitiesStoreShape
 >()("runtime/DockerRuntimeActivitiesStore") {
-  static readonly live: DockerRuntimeActivitiesStoreShape = {
-    insert: (record) =>
+  static readonly live = class DockerRuntimeActivitiesStoreImpl implements DockerRuntimeActivitiesStoreShape {
+    insert = (record) =>
       Effect.flatMap(RuntimeDb, (database) =>
         database.use(async (db) => {
           await db
@@ -32,16 +32,16 @@ export class DockerRuntimeActivitiesStore extends Context.Service<
             .values(record)
             .onConflictDoNothing({ target: [dockerRuntimeActivities.eventFingerprint] });
         }),
-      ),
+      )
 
-    listRecent: (limit) =>
+    listRecent = (limit) =>
       Effect.flatMap(RuntimeDb, (database) =>
         database.use((db) =>
           db.select().from(dockerRuntimeActivities).orderBy(desc(dockerRuntimeActivities.occurredAt)).limit(limit),
         ),
-      ),
+      )
 
-    findById: (id) =>
+    findById = (id) =>
       Effect.flatMap(RuntimeDb, (database) =>
         database.use((db) =>
           db
@@ -51,6 +51,6 @@ export class DockerRuntimeActivitiesStore extends Context.Service<
             .limit(1)
             .then((rows) => rows[0] ?? null),
         ),
-      ),
+      )
   };
 }

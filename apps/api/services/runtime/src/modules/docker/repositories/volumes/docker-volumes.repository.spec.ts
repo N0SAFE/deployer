@@ -7,7 +7,7 @@ import { DockerVolumesRepository } from "./docker-volumes.repository";
 const engineWith = (volumes: unknown[], containers: unknown[]) =>
 	({ volumes: { list: () => Effect.succeed(volumes) }, containers: { list: () => Effect.succeed(containers) } }) as never;
 
-const withEngine = (engine: never) => ({ list: DockerVolumesRepository.live.list.pipe(Effect.provideService(DockerEngine, engine)) });
+const withEngine = (engine: never) => ({ list: new DockerVolumesRepository.live().list.pipe(Effect.provideService(DockerEngine, engine)) });
 
 describe("DockerVolumesRepository", () => {
 	it("maps a volume and lists the containers that mount it", async () => {

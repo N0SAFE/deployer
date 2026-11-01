@@ -59,7 +59,7 @@ function memoryEngine() {
 }
 
 const converge = (engine: DockerEngineShape, plan: NodeDoorsSetting | null, mesh: string | null, lan: string | null) =>
-	Effect.runPromise(DoorConverger.live.converge(plan, mesh, lan).pipe(Effect.provideService(DockerEngine, engine)));
+	Effect.runPromise(new DoorConverger.live().converge(plan, mesh, lan).pipe(Effect.provideService(DockerEngine, engine)));
 
 describe("DoorConverger", () => {
 	it("does nothing before the API published a plan", async () => {

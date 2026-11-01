@@ -19,15 +19,15 @@ export class DoorAddresses extends Context.Service<
 	DoorAddresses,
 	{ readonly current: () => Effect.Effect<{ readonly meshAddress: string | null; readonly lanAddress: string | null }, AgentStoreError, AgentStore> }
 >()("node-agent/DoorAddresses") {
-	static readonly live = {
-		current: () =>
+	static readonly live = class DoorAddressesImpl {
+		current = () =>
 			Effect.gen(function* () {
 				const store = yield* AgentStore;
 				const overlay = parseOverlaySelf(
 					yield* store.secret(OVERLAY_SELF_SECRET).pipe(Effect.catch(() => Effect.succeed(undefined))),
 				);
 				return { meshAddress: overlay?.meshAddress ?? null, lanAddress: primaryLanAddress() };
-			}),
+			})
 	};
 }
 
@@ -52,8 +52,8 @@ const refusedImages = new Set<string>();
  * setting trying to run code of its own choosing.
  */
 export class DoorsTick extends Context.Service<DoorsTick, DoorsTickShape>()("node-agent/DoorsTick") {
-	static readonly live: DoorsTickShape = {
-		convergeOnce: () =>
+	static readonly live = class DoorsTickImpl implements DoorsTickShape {
+		convergeOnce = () =>
 			Effect.gen(function* () {
 				const store = yield* AgentStore;
 				const converger = yield* DoorConverger;
@@ -79,6 +79,6 @@ export class DoorsTick extends Context.Service<DoorsTick, DoorsTickShape>()("nod
 				const { meshAddress, lanAddress } = yield* addresses.current();
 
 				return yield* converger.converge(setting satisfies NodeDoorsSetting, meshAddress, lanAddress);
-			}),
+			})
 	};
 }

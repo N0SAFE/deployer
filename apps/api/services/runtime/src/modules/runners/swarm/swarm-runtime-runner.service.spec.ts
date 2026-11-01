@@ -97,7 +97,7 @@ describe("SwarmRuntimeRunner", () => {
     let clusterService: {
         assertClusterReady: ReturnType<typeof vi.fn>;
     };
-    let service: ReturnType<typeof provideTo<typeof SwarmRuntimeRunner.live>>;
+    let service: ReturnType<typeof provideTo<InstanceType<typeof SwarmRuntimeRunner.live>>>;
 
     beforeEach(() => {
         swarmServices = {
@@ -113,7 +113,7 @@ describe("SwarmRuntimeRunner", () => {
         clusterService = {
             assertClusterReady: vi.fn(() => Effect.void),
         };
-        service = provideTo(SwarmRuntimeRunner.live, (effect) =>
+        service = provideTo(new SwarmRuntimeRunner.live(), (effect) =>
             effect.pipe(
                 Effect.provideService(DockerEngine, { swarmServices, networks } as never),
                 Effect.provideService(SwarmCluster, clusterService as never),

@@ -74,8 +74,8 @@ function statusFixture(options: { readonly dump?: WireguardDump | null; readonly
     const withPorts = provided.pipe(
       Effect.provideService(NodeAgents, agents),
       Effect.provideService(WireguardDriver, driver),
-      Effect.provideService(HostCommands, HostCommands.live),
-      Effect.provideService(WireguardPaths, WireguardPaths.live),
+      Effect.provideService(HostCommands, new HostCommands.live()),
+      Effect.provideService(WireguardPaths, new WireguardPaths.live()),
       Effect.provideService(SwarmCredential, swarmCredentialFrom({ secret: "swarm-secret", swarmId: "swarm-1" })),
       Effect.provideService(AgentLoad, agentLoadOver({ now: () => 0, eventLoopLagMs: () => 3 })),
       Effect.provideService(RelayMetrics, relayMetricsOver()),
@@ -91,7 +91,7 @@ describe("NodeStatus", () => {
   it("answers with the interface down and the roster's peers when the overlay interface is absent", async () => {
     const node = statusFixture({ agents: [agent("node-b", { wireguardKey: "peer-a-key", meshAddress: "10.88.0.2", endpoint: "203.0.113.9:51820", listenPort: 51_820 })] });
 
-    const status = await node.run(NodeStatus.live.status());
+    const status = await node.run(new NodeStatus.live().status());
 
     expect(status).toEqual({
       agentId: "node-a",
@@ -113,7 +113,7 @@ describe("NodeStatus", () => {
     });
     await Effect.runPromise(node.store.putSecret(OVERLAY_SELF_SECRET, JSON.stringify(ourOverlay)));
 
-    const status = await node.run(NodeStatus.live.status());
+    const status = await node.run(new NodeStatus.live().status());
 
     expect(status).toMatchObject({
       interfaceUp: true,
@@ -126,10 +126,10 @@ describe("NodeStatus", () => {
   it("lists a peer with no overlay as nulls instead of hiding it, and no peer as an empty list", async () => {
     const node = statusFixture({ dump: dump(null), agents: [agent("node-b", null)] });
 
-    const withPeer = await node.run(NodeStatus.live.status());
+    const withPeer = await node.run(new NodeStatus.live().status());
     expect(withPeer.peers).toEqual([{ nodeId: "node-b", meshAddress: null, endpoint: null, latestHandshakeAt: null }]);
 
     const alone = statusFixture();
-    expect((await alone.run(NodeStatus.live.status())).peers).toEqual([]);
+    expect((await alone.run(new NodeStatus.live().status())).peers).toEqual([]);
   });
 });

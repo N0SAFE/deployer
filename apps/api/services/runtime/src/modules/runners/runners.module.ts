@@ -34,9 +34,9 @@ export class RunnersDomainModule extends createModuleContext({
         // The runners are constant Effect services; the ports, the docker engine and the cluster are read from the context.
         { provide: RunnerTraefikPort, useExisting: TraefikService },
         { provide: RunnerEnvPort, useExisting: EnvService },
-        { provide: DockerRuntimeRunner, useValue: DockerRuntimeRunner.live },
-        { provide: SwarmRuntimeRunner, useValue: SwarmRuntimeRunner.live },
-        { provide: RuntimeRunnerRegistry, useValue: RuntimeRunnerRegistry.live },
+        { provide: DockerRuntimeRunner, useClass: DockerRuntimeRunner.live },
+        { provide: SwarmRuntimeRunner, useClass: SwarmRuntimeRunner.live },
+        { provide: RuntimeRunnerRegistry, useClass: RuntimeRunnerRegistry.live },
         SwarmComposeRealizerService,
         {
             provide: RuntimeRunnerRegistryService,

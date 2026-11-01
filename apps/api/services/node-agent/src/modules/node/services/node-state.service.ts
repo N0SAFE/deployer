@@ -56,33 +56,37 @@ export type NodeStateShape = {
  * `node.configure`. The write is a patch, so the callers never need to know what the others wrote.
  */
 export class NodeState extends Context.Service<NodeState, NodeStateShape>()("node-agent/NodeState") {
-  static readonly live: NodeStateShape = {
-    state: Effect.fn("NodeState.state")(function* () {
-      const store = yield* AgentStore;
-      const identity = yield* NodeIdentity;
-      const stored = yield* store.nodeConfig();
-      if (stored === null) return { agentId: identity.nodeId, configured: false, config: null } as const;
-      return { agentId: identity.nodeId, configured: true, config: yield* decode(stored.config) };
-    }),
+  static readonly live = class NodeStateImpl implements NodeStateShape {
+    state() {
+      return Effect.gen(function* () {
+        const store = yield* AgentStore;
+        const identity = yield* NodeIdentity;
+        const stored = yield* store.nodeConfig();
+        if (stored === null) return { agentId: identity.nodeId, configured: false, config: null } as const;
+        return { agentId: identity.nodeId, configured: true, config: yield* decode(stored.config) };
+      });
+    }
 
-    configure: Effect.fn("NodeState.configure")(function* (patch: MeshNodeConfigureInput) {
-      const store = yield* AgentStore;
-      const identity = yield* NodeIdentity;
-      const stored = yield* store.nodeConfig();
-      const current = stored === null ? null : yield* decode(stored.config);
+    configure(patch: MeshNodeConfigureInput) {
+      return Effect.gen(function* () {
+        const store = yield* AgentStore;
+        const identity = yield* NodeIdentity;
+        const stored = yield* store.nodeConfig();
+        const current = stored === null ? null : yield* decode(stored.config);
 
-      const now = new Date().toISOString();
-      const next: MeshNodeConfig = {
-        ...(current ?? UNCONFIGURED),
-        ...patch,
-        // Server-owned: the first write is when the node was created, every write moves `updatedAt`.
-        configuredAt: current?.configuredAt ?? now,
-        updatedAt: now,
-      };
+        const now = new Date().toISOString();
+        const next: MeshNodeConfig = {
+          ...(current ?? UNCONFIGURED),
+          ...patch,
+          // Server-owned: the first write is when the node was created, every write moves `updatedAt`.
+          configuredAt: current?.configuredAt ?? now,
+          updatedAt: now,
+        };
 
-      yield* store.putNodeConfig(JSON.stringify(next), Date.parse(now));
-      return { agentId: identity.nodeId, configured: true, config: next };
-    }),
+        yield* store.putNodeConfig(JSON.stringify(next), Date.parse(now));
+        return { agentId: identity.nodeId, configured: true, config: next };
+      });
+    }
   };
 }
 

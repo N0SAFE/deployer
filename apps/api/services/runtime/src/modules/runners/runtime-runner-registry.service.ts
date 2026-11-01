@@ -40,8 +40,8 @@ export class RuntimeRunnerRegistry extends Context.Service<RuntimeRunnerRegistry
     "runtime/RuntimeRunnerRegistry",
 ) {
     /** The runners are yielded when `execute` runs, so this is a constant a module provides with `useValue`. */
-    static readonly live: RuntimeRunnerRegistryShape = {
-        execute: (runnerKind, input) =>
+    static readonly live = class RuntimeRunnerRegistryImpl implements RuntimeRunnerRegistryShape {
+        execute = (runnerKind, input) =>
             Effect.gen(function* () {
                 const docker = yield* DockerRuntimeRunner;
                 const swarm = yield* SwarmRuntimeRunner;
@@ -63,7 +63,7 @@ export class RuntimeRunnerRegistry extends Context.Service<RuntimeRunnerRegistry
                     );
                 }
                 return yield* selectedRunner.executeRuntime(input);
-            }),
+            })
     };
 }
 

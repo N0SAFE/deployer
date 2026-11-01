@@ -77,10 +77,10 @@ const runShell = (containerId: string, script: string) =>
 export class DockerContainerOps extends Context.Service<DockerContainerOps, DockerContainerOpsShape>()(
   "runtime/DockerContainerOps",
 ) {
-  static readonly live: DockerContainerOpsShape = {
-    logsCollector: (containerId) => Effect.map(DockerEngine, (engine) => collectLogs(engine, containerId)),
+  static readonly live = class DockerContainerOpsImpl implements DockerContainerOpsShape {
+    logsCollector = (containerId) => Effect.map(DockerEngine, (engine) => collectLogs(engine, containerId))
 
-    logsSnapshot: (input) =>
+    logsSnapshot = (input) =>
       Effect.gen(function* () {
         const engine = yield* DockerEngine;
         const raw = yield* engine.logs.read(input.containerId, {
@@ -93,17 +93,17 @@ export class DockerContainerOps extends Context.Service<DockerContainerOps, Dock
         });
         const generatedAt = new Date().toISOString();
         return { generatedAt, entries: parseContainerLogEntries(raw, input.containerId, generatedAt) };
-      }),
+      })
 
-    processes: (input) =>
+    processes = (input) =>
       Effect.gen(function* () {
         const engine = yield* DockerEngine;
         const generatedAt = new Date().toISOString();
         const top = yield* engine.containers.top(input.containerId, "aux");
         return { generatedAt, data: parseContainerProcesses(top, generatedAt) };
-      }),
+      })
 
-    processLogsSnapshot: (input) =>
+    processLogsSnapshot = (input) =>
       Effect.gen(function* () {
         const engine = yield* DockerEngine;
         const raw = yield* engine.logs.read(input.containerId, {
@@ -119,16 +119,16 @@ export class DockerContainerOps extends Context.Service<DockerContainerOps, Dock
         const pidNeedle = input.pid.toString();
         const matched = entries.filter((entry) => logMatchesProcess(entry.message, pidNeedle));
         return { generatedAt, entries: matched.length > 0 ? matched : entries };
-      }),
+      })
 
-    listFiles: (input) =>
+    listFiles = (input) =>
       Effect.gen(function* () {
         const containerPath = normalizeContainerPath(input.path ?? "/");
         const { output } = yield* runShell(input.containerId, `ls -la ${escapeShellArg(containerPath)}`);
         return buildFileListing(input.containerId, containerPath, output, new Date().toISOString());
-      }),
+      })
 
-    readFile: (input) =>
+    readFile = (input) =>
       Effect.gen(function* () {
         const containerPath = normalizeContainerPath(input.path);
         const maxBytes = input.maxBytes ?? 1_000_000;
@@ -140,9 +140,9 @@ export class DockerContainerOps extends Context.Service<DockerContainerOps, Dock
           encoding: "utf8" as const,
           content: output,
         };
-      }),
+      })
 
-    writeFile: (input) =>
+    writeFile = (input) =>
       Effect.gen(function* () {
         const containerPath = normalizeContainerPath(input.path);
         const encoded = Buffer.from(input.content, "utf8").toString("base64");
@@ -152,21 +152,21 @@ export class DockerContainerOps extends Context.Service<DockerContainerOps, Dock
           `${mkdirPrefix}printf %s ${escapeShellArg(encoded)} | base64 -d > ${escapeShellArg(containerPath)}`,
         );
         return ack();
-      }),
+      })
 
-    deletePath: (input) =>
-      Effect.as(runShell(input.containerId, `rm -rf ${escapeShellArg(normalizeContainerPath(input.path))}`), ack()),
+    deletePath = (input) =>
+      Effect.as(runShell(input.containerId, `rm -rf ${escapeShellArg(normalizeContainerPath(input.path))}`), ack())
 
-    renamePath: (input) =>
+    renamePath = (input) =>
       Effect.as(
         runShell(
           input.containerId,
           `mv ${escapeShellArg(normalizeContainerPath(input.path))} ${escapeShellArg(normalizeContainerPath(input.nextPath))}`,
         ),
         ack(),
-      ),
+      )
 
-    createDirectory: (input) =>
-      Effect.as(runShell(input.containerId, `mkdir -p ${escapeShellArg(normalizeContainerPath(input.path))}`), ack()),
+    createDirectory = (input) =>
+      Effect.as(runShell(input.containerId, `mkdir -p ${escapeShellArg(normalizeContainerPath(input.path))}`), ack())
   };
 }

@@ -470,9 +470,9 @@ describe('DeploymentService', () => {
                             run: (effect: Effect.Effect<unknown>) =>
                                 runEffect(
                                     effect.pipe(
-                                        Effect.provideService(RuntimeRunnerRegistry, RuntimeRunnerRegistry.live),
-                                        Effect.provideService(DockerRuntimeRunner, DockerRuntimeRunner.live),
-                                        Effect.provideService(SwarmRuntimeRunner, SwarmRuntimeRunner.live),
+                                        Effect.provideService(RuntimeRunnerRegistry, new RuntimeRunnerRegistry.live()),
+                                        Effect.provideService(DockerRuntimeRunner, new DockerRuntimeRunner.live()),
+                                        Effect.provideService(SwarmRuntimeRunner, new SwarmRuntimeRunner.live()),
                                         Effect.provideService(DockerEngine, {
                                             containers: mockContainers,
                                             swarmServices: {},

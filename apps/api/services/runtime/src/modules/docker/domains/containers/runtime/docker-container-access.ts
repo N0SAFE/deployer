@@ -119,8 +119,8 @@ const terminalFallback = <A>(
 export class DockerContainerAccess extends Context.Service<DockerContainerAccess, DockerContainerAccessShape>()(
   "runtime/DockerContainerAccess",
 ) {
-  static readonly live: DockerContainerAccessShape = {
-    streamLogs: (input) =>
+  static readonly live = class DockerContainerAccessImpl implements DockerContainerAccessShape {
+    streamLogs = (input) =>
       Effect.gen(function* () {
         const ops = yield* DockerContainerOps;
         const mesh = yield* ContainerAccessMeshPort;
@@ -137,23 +137,23 @@ export class DockerContainerAccess extends Context.Service<DockerContainerAccess
               : throwError(() => error),
           ),
         );
-      }),
+      })
 
-    listLogs: (input) =>
+    listLogs = (input) =>
       Effect.flatMap(DockerContainerOps, (ops) =>
         containerFallback(ops.logsSnapshot(input), async (mesh) =>
           (await firstResponse(mesh.listContainerLogsSnapshotAcrossInstances({ query: input }, MESH_FIRST_RESPONSE)))?.snapshot ?? null,
         ),
-      ),
+      )
 
-    listProcesses: (input) =>
+    listProcesses = (input) =>
       Effect.flatMap(DockerContainerOps, (ops) =>
         containerFallback(ops.processes(input), async (mesh) =>
           (await firstResponse(mesh.listContainerProcessesSnapshotAcrossInstances({ query: input }, MESH_FIRST_RESPONSE)))?.snapshot ?? null,
         ),
-      ),
+      )
 
-    streamProcesses: (input) =>
+    streamProcesses = (input) =>
       Effect.gen(function* () {
         const ops = yield* DockerContainerOps;
         const mesh = yield* ContainerAccessMeshPort;
@@ -173,9 +173,9 @@ export class DockerContainerAccess extends Context.Service<DockerContainerAccess
               : throwError(() => error),
           ),
         );
-      }),
+      })
 
-    streamProcessLogs: (input) =>
+    streamProcessLogs = (input) =>
       Effect.gen(function* () {
         const ops = yield* DockerContainerOps;
         const mesh = yield* ContainerAccessMeshPort;
@@ -192,51 +192,51 @@ export class DockerContainerAccess extends Context.Service<DockerContainerAccess
               : throwError(() => error),
           ),
         );
-      }),
+      })
 
-    listFiles: (input) =>
+    listFiles = (input) =>
       Effect.flatMap(DockerContainerOps, (ops) =>
         containerFallback(ops.listFiles(input), async (mesh) =>
           (await firstResponse(mesh.listContainerFilesSnapshotAcrossInstances({ query: input }, MESH_FIRST_RESPONSE)))?.snapshot ?? null,
         ),
-      ),
+      )
 
-    readFile: (input) =>
+    readFile = (input) =>
       Effect.flatMap(DockerContainerOps, (ops) =>
         containerFallback(ops.readFile(input), async (mesh) =>
           (await firstResponse(mesh.readContainerFileSnapshotAcrossInstances({ query: input }, MESH_FIRST_RESPONSE)))?.snapshot ?? null,
         ),
-      ),
+      )
 
-    writeFile: (input) =>
+    writeFile = (input) =>
       Effect.flatMap(DockerContainerOps, (ops) =>
         containerFallback(ops.writeFile(input), async (mesh) =>
           (await firstResponse(mesh.writeContainerFileAcrossInstances({ body: input }, MESH_FIRST_RESPONSE)))?.ack ?? null,
         ),
-      ),
+      )
 
-    deletePath: (input) =>
+    deletePath = (input) =>
       Effect.flatMap(DockerContainerOps, (ops) =>
         containerFallback(ops.deletePath(input), async (mesh) =>
           (await firstResponse(mesh.deleteContainerPathAcrossInstances({ body: input }, MESH_FIRST_RESPONSE)))?.ack ?? null,
         ),
-      ),
+      )
 
-    renamePath: (input) =>
+    renamePath = (input) =>
       Effect.flatMap(DockerContainerOps, (ops) =>
         containerFallback(ops.renamePath(input), async (mesh) =>
           (await firstResponse(mesh.renameContainerPathAcrossInstances({ body: input }, MESH_FIRST_RESPONSE)))?.ack ?? null,
         ),
-      ),
+      )
 
-    createDirectory: (input) =>
+    createDirectory = (input) =>
       Effect.flatMap(DockerContainerOps, (ops) =>
         containerFallback(ops.createDirectory(input), async (mesh) =>
           (await firstResponse(mesh.createContainerDirectoryAcrossInstances({ body: input }, MESH_FIRST_RESPONSE)))?.ack ?? null,
         ),
-      ),
+      )
 
-    openTerminal: (input) =>
+    openTerminal = (input) =>
       Effect.flatMap(DockerTerminalSessions, (sessions) =>
         Effect.flatMap(ContainerAccessMeshPort, (ports) =>
           withMeshFallback(
@@ -245,9 +245,9 @@ export class DockerContainerAccess extends Context.Service<DockerContainerAccess
             isContainerNotFoundLikeError,
           ),
         ),
-      ),
+      )
 
-    streamTerminal: (input) =>
+    streamTerminal = (input) =>
       Effect.gen(function* () {
         const sessions = yield* DockerTerminalSessions;
         const mesh = yield* ContainerAccessMeshPort;
@@ -281,16 +281,16 @@ export class DockerContainerAccess extends Context.Service<DockerContainerAccess
               : throwError(() => error),
           ),
         );
-      }),
+      })
 
-    sendTerminalInput: (input) =>
+    sendTerminalInput = (input) =>
       Effect.flatMap(DockerTerminalSessions, (sessions) =>
         terminalFallback(sessions.sendInput(input), async (mesh) =>
           (await firstResponse(mesh.sendContainerTerminalInputAcrossInstances({ body: input }, MESH_FIRST_RESPONSE)))?.ack ?? null,
         ),
-      ),
+      )
 
-    closeTerminal: (input) =>
+    closeTerminal = (input) =>
       Effect.flatMap(DockerTerminalSessions, (sessions) =>
         terminalFallback(
           sessions.close(input),
@@ -299,6 +299,6 @@ export class DockerContainerAccess extends Context.Service<DockerContainerAccess
           // Nobody has the session either: closing something that is gone is a success.
           () => ({ ok: true as const, timestamp: new Date() }) as never,
         ),
-      ),
+      )
   };
 }

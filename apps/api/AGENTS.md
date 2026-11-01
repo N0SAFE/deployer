@@ -171,15 +171,17 @@ check() {
   holds `Pick<RealClass, "method">` + a `Context.Service` tag, and the module provides
   `{ provide: Tag, useExisting: NestClass }`. The port names only the methods the
   Effect layer may use, so a service cannot reach the rest of the shared class.
-- **A service is a constant its own module provides**: `{ provide: UserService, useValue: UserService.live }`.
-  The tag class carries the implementation as `static readonly live`; its collaborators (the repository,
-  the ports) are yielded from the Effect context when a method runs, so nothing is built at the root and
-  there is no `forRoot({ layers })`, no `*.layers.ts`, no exported `make…` factory. Write the body as
-  closures over its collaborators and expose it with `serviceOver(Collaborator, make)` from
-  `@deployer/effect-core` (class-style services just yield inside their methods). A spec substitutes a
-  collaborator with `provideTo(Service.live, (e) => e.pipe(Effect.provideService(Tag, fake)))`.
-  `serviceOver` runs `make` on every call, so keep such a service stateless; state shared by calls lives
-  in a value created once next to `live` (see `EdgeDnsService`).
+- **A service is a constant its own module provides**: `{ provide: UserService, useClass: UserService.live }`.
+  One class declares and implements it — the tag extends `Context.Service<Tag, Shape>()("scope/Name")` and carries
+  `static readonly live = class UserServiceImpl implements Shape { … }`. Collaborators (the repository, the ports)
+  are yielded from the Effect context inside each method, so the implementation takes no constructor arguments,
+  nothing is built at the root, and there is no `forRoot({ layers })`, no `*.layers.ts`, no exported `make…`
+  factory. A method body is `return Effect.gen(function* () { … });`; annotate it `: ReturnType<Shape["member"]>`
+  when inference would widen a literal union or when it references the class itself (a self-reference makes the
+  whole `live` type `any`). `serviceOver(Collaborator, make)` stays the form for a service that is a bag of
+  closures over one collaborator; it runs `make` on every call, so keep such a service stateless and put state
+  shared by calls in a value created once next to `live` (see `EdgeDnsService`). A spec instantiates the class:
+  `provideTo(new Service.live(), (e) => e.pipe(Effect.provideService(Tag, fake)))`.
 - Something that needs real construction stays an ordinary Nest provider, still under its Effect tag:
   a pool-bound database handle (`{ provide: ProjectDb, useFactory: makeProjectDb, inject: [GlobalDatabaseService] }`),
   an event bus over the shared stream pool, or anything with a lifetime (a timer, a fiber: a registration the

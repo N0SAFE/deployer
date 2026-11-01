@@ -14,11 +14,13 @@ export type AccessChecksShape = {
 };
 
 export class AccessChecks extends Context.Service<AccessChecks, AccessChecksShape>()("node-agent/AccessChecks") {
-  static readonly live: AccessChecksShape = {
-    verify: Effect.fn("AccessChecks.verify")(function* (presented: string, replicaId: string) {
-      const credential = yield* SwarmCredential;
-      const clock = yield* MeshClock;
-      return credential.verify(presented) || verifyLease(presented, credential.current(), replicaId, clock.now()).ok;
-    }),
+  static readonly live = class AccessChecksImpl implements AccessChecksShape {
+    verify(presented: string, replicaId: string) {
+      return Effect.gen(function* () {
+        const credential = yield* SwarmCredential;
+        const clock = yield* MeshClock;
+        return credential.verify(presented) || verifyLease(presented, credential.current(), replicaId, clock.now()).ok;
+      });
+    }
   };
 }

@@ -20975,8 +20975,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/mesh.module.ts": {
-    "mtime": 1793558085.5391903,
-    "ast_hash": "5df6ca5fb79dd9c452b37e91d1418fa4",
+    "mtime": 1793563111.9855852,
+    "ast_hash": "8a46a4747863fcffe82fb8d874a4eaba",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/repositories/directory.repository.spec.ts": {
@@ -21040,13 +21040,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/broker.service.spec.ts": {
-    "mtime": 1793287342.1675146,
-    "ast_hash": "7bb642feada5fe519420ee30f55b3b4f",
+    "mtime": 1793563111.9864514,
+    "ast_hash": "30edcc944dcada0fdbc1a7d6577d8c68",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/broker.service.ts": {
-    "mtime": 1793562984.2515602,
-    "ast_hash": "1f364648b80a6ce7392c31a225481ca6",
+    "mtime": 1793563069.7928553,
+    "ast_hash": "9e0409107527b01005b4812df86f4d17",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/directory.service.spec.ts": {
@@ -21135,8 +21135,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/testing/mesh.fixtures.ts": {
-    "mtime": 1793443323.4446368,
-    "ast_hash": "f7307bb3d43dc12ba27f1e25e38fc763",
+    "mtime": 1793563111.9859383,
+    "ast_hash": "6782d29236a3363f10a48fa7815088d2",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/node/node-door.controller.ts": {

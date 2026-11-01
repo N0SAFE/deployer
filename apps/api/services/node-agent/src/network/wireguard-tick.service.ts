@@ -95,64 +95,66 @@ export class WireguardTick extends Context.Service<
 		>;
 	}
 >()("node-agent/WireguardTick") {
-	static readonly live: WireguardTick["Service"] = {
-		convergeOnce: Effect.fn("WireguardTick.convergeOnce")(function* () {
-			const store = yield* AgentStore;
-			const driver = yield* WireguardDriver;
-			const identity = yield* NodeIdentity;
-			const agents = yield* NodeAgents;
-			const advertised = yield* AdvertisedAddress;
-			const settings = yield* OverlaySettings;
+	static readonly live = class WireguardTickImpl {
+		convergeOnce() {
+			return Effect.gen(function* () {
+				const store = yield* AgentStore;
+				const driver = yield* WireguardDriver;
+				const identity = yield* NodeIdentity;
+				const agents = yield* NodeAgents;
+				const advertised = yield* AdvertisedAddress;
+				const settings = yield* OverlaySettings;
 
-			const endpoint = yield* chooseSelfEndpoint(advertised.address, settings);
-			if (endpoint === null) return { applied: false, reason: "no-endpoint" } as const;
+				const endpoint = yield* chooseSelfEndpoint(advertised.address, settings);
+				if (endpoint === null) return { applied: false, reason: "no-endpoint" } as const;
 
-			const storedPrivateKey = yield* store.secret(WIREGUARD_PRIVATE_KEY_SECRET);
-			const storedPublicKey = yield* store.secret(WIREGUARD_PUBLIC_KEY_SECRET);
-			let privateKey: string;
-			let publicKey: string;
-			if (storedPrivateKey === undefined || storedPublicKey === undefined) {
-				const generated = yield* driver.generateKeypair();
-				yield* store.putSecret(WIREGUARD_PRIVATE_KEY_SECRET, generated.privateKey);
-				yield* store.putSecret(WIREGUARD_PUBLIC_KEY_SECRET, generated.publicKey);
-				privateKey = generated.privateKey;
-				publicKey = generated.publicKey;
-			} else {
-				privateKey = storedPrivateKey;
-				publicKey = storedPublicKey;
-			}
+				const storedPrivateKey = yield* store.secret(WIREGUARD_PRIVATE_KEY_SECRET);
+				const storedPublicKey = yield* store.secret(WIREGUARD_PUBLIC_KEY_SECRET);
+				let privateKey: string;
+				let publicKey: string;
+				if (storedPrivateKey === undefined || storedPublicKey === undefined) {
+					const generated = yield* driver.generateKeypair();
+					yield* store.putSecret(WIREGUARD_PRIVATE_KEY_SECRET, generated.privateKey);
+					yield* store.putSecret(WIREGUARD_PUBLIC_KEY_SECRET, generated.publicKey);
+					privateKey = generated.privateKey;
+					publicKey = generated.publicKey;
+				} else {
+					privateKey = storedPrivateKey;
+					publicKey = storedPublicKey;
+				}
 
-			const known = yield* agents.known();
-			const others = known.flatMap((agent) =>
-				agent.nodeId !== identity.nodeId && agent.overlay !== null ? [{ nodeId: agent.nodeId, overlay: agent.overlay }] : [],
-			);
-			const taken = new Map(others.map((agent) => [agent.nodeId, agent.overlay.meshAddress]));
+				const known = yield* agents.known();
+				const others = known.flatMap((agent) =>
+					agent.nodeId !== identity.nodeId && agent.overlay !== null ? [{ nodeId: agent.nodeId, overlay: agent.overlay }] : [],
+				);
+				const taken = new Map(others.map((agent) => [agent.nodeId, agent.overlay.meshAddress]));
 
-			const storedSalt = Number(yield* store.secret(OVERLAY_SALT_SECRET));
-			const salt = Number.isFinite(storedSalt) ? storedSalt : 0;
-			const settled = settleOverlayAddress(identity.nodeId, salt, taken);
-			if (settled.salt !== salt) yield* store.putSecret(OVERLAY_SALT_SECRET, String(settled.salt));
+				const storedSalt = Number(yield* store.secret(OVERLAY_SALT_SECRET));
+				const salt = Number.isFinite(storedSalt) ? storedSalt : 0;
+				const settled = settleOverlayAddress(identity.nodeId, salt, taken);
+				if (settled.salt !== salt) yield* store.putSecret(OVERLAY_SALT_SECRET, String(settled.salt));
 
-			const peers: readonly PlannedPeer[] = others.map((agent) => ({
-				wireguardKey: agent.overlay.wireguardKey,
-				allowedIps: [`${agent.overlay.meshAddress}/32`],
-				endpoint: agent.overlay.endpoint,
-				persistentKeepaliveSeconds: WIREGUARD_KEEPALIVE_SECONDS,
-			}));
+				const peers: readonly PlannedPeer[] = others.map((agent) => ({
+					wireguardKey: agent.overlay.wireguardKey,
+					allowedIps: [`${agent.overlay.meshAddress}/32`],
+					endpoint: agent.overlay.endpoint,
+					persistentKeepaliveSeconds: WIREGUARD_KEEPALIVE_SECONDS,
+				}));
 
-			const self: OverlaySelf = {
-				wireguardKey: publicKey,
-				meshAddress: settled.address,
-				endpoint,
-				listenPort: settings.listenPort,
-			};
-			// Before the kernel: a node that crashes here still advertises what it will hold, not an address it does not.
-			yield* store.putSecret(OVERLAY_SELF_SECRET, JSON.stringify(self));
+				const self: OverlaySelf = {
+					wireguardKey: publicKey,
+					meshAddress: settled.address,
+					endpoint,
+					listenPort: settings.listenPort,
+				};
+				// Before the kernel: a node that crashes here still advertises what it will hold, not an address it does not.
+				yield* store.putSecret(OVERLAY_SELF_SECRET, JSON.stringify(self));
 
-			yield* driver.ensureInterface(settled.address, OVERLAY_PREFIX_LENGTH);
-			yield* driver.syncConfig(renderWireguardConfig({ privateKey, listenPort: settings.listenPort, peers }));
+				yield* driver.ensureInterface(settled.address, OVERLAY_PREFIX_LENGTH);
+				yield* driver.syncConfig(renderWireguardConfig({ privateKey, listenPort: settings.listenPort, peers }));
 
-			return { applied: true, address: settled.address, peers: peers.length, salt: settled.salt } as const;
-		}),
+				return { applied: true, address: settled.address, peers: peers.length, salt: settled.salt } as const;
+			});
+		}
 	};
 }

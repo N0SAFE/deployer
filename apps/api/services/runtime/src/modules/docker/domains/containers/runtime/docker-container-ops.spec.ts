@@ -14,7 +14,7 @@ describe("DockerContainerOps", () => {
     const execRun = vi.fn(() =>
       Effect.succeed({ output: "total 0\ndrwxr-xr-x 2 root root 4096 Oct 1 10:00 .\n-rw-r--r-- 1 app app 5 Oct 1 10:00 a b.txt\n", exitCode: 0 }),
     );
-    const listing = await run(DockerContainerOps.live.listFiles({ containerId: "c1", path: "/app dir" } as never), engineWith({ exec: { run: execRun } }));
+    const listing = await run(new DockerContainerOps.live().listFiles({ containerId: "c1", path: "/app dir" } as never), engineWith({ exec: { run: execRun } }));
     expect(execRun).toHaveBeenCalledWith("c1", ["sh", "-lc", "ls -la '/app dir'"]);
     expect(listing.entries.map((entry) => entry.path)).toEqual(["/app dir/a b.txt"]);
   });
@@ -22,7 +22,7 @@ describe("DockerContainerOps", () => {
   it("writes a file as base64, creating parents when asked, and acknowledges", async () => {
     const execRun = vi.fn(() => Effect.succeed({ output: "", exitCode: 0 }));
     const ack = await run(
-      DockerContainerOps.live.writeFile({ containerId: "c1", path: "/x/y.txt", content: "hi", createParents: true } as never),
+      new DockerContainerOps.live().writeFile({ containerId: "c1", path: "/x/y.txt", content: "hi", createParents: true } as never),
       engineWith({ exec: { run: execRun } }),
     );
     expect(ack.ok).toBe(true);
@@ -33,14 +33,14 @@ describe("DockerContainerOps", () => {
   it("renames and deletes with each path quoted", async () => {
     const execRun = vi.fn(() => Effect.succeed({ output: "", exitCode: 0 }));
     const engine = engineWith({ exec: { run: execRun } });
-    await run(DockerContainerOps.live.renamePath({ containerId: "c1", path: "/a", nextPath: "/b c" } as never), engine);
-    await run(DockerContainerOps.live.deletePath({ containerId: "c1", path: "/a" } as never), engine);
+    await run(new DockerContainerOps.live().renamePath({ containerId: "c1", path: "/a", nextPath: "/b c" } as never), engine);
+    await run(new DockerContainerOps.live().deletePath({ containerId: "c1", path: "/a" } as never), engine);
     expect(execRun.mock.calls.map((call) => (call as unknown as [string, string[]])[1][2])).toEqual(["mv '/a' '/b c'", "rm -rf '/a'"]);
   });
 
   it("reads the logs the engine returns as entries", async () => {
     const read = vi.fn(() => Effect.succeed("2026-10-01T10:00:00.000Z hello\n"));
-    const snapshot = await run(DockerContainerOps.live.logsSnapshot({ containerId: "c1" } as never), engineWith({ logs: { read } }));
+    const snapshot = await run(new DockerContainerOps.live().logsSnapshot({ containerId: "c1" } as never), engineWith({ logs: { read } }));
     expect(read).toHaveBeenCalledWith("c1", expect.objectContaining({ tail: 300, timestamps: true }));
     expect(snapshot.entries.map((entry) => entry.message)).toEqual(["hello"]);
   });

@@ -21,8 +21,8 @@ export class DockerContainerLinksLookup extends Context.Service<
   DockerContainerLinksLookup,
   DockerContainerLinksLookupShape
 >()("runtime/DockerContainerLinksLookup") {
-  static readonly live: DockerContainerLinksLookupShape = {
-    lookup: (containers, include) =>
+  static readonly live = class DockerContainerLinksLookupImpl implements DockerContainerLinksLookupShape {
+    lookup = (containers, include) =>
       Effect.gen(function* () {
         const database = yield* RuntimeDb;
         const ids = collectContainerLinkIds(containers, include);
@@ -91,6 +91,6 @@ export class DockerContainerLinksLookup extends Context.Service<
               );
 
         return { deployments: deploymentRows, services: serviceRows, projects: projectRows };
-      }),
+      })
   };
 }

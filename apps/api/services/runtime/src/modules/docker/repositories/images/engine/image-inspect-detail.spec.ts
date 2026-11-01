@@ -67,7 +67,7 @@ describe("image inspect detail", () => {
 
 describe("DockerImagesRepository.inspectResolved", () => {
   const run = (engine: unknown, id: string) =>
-    Effect.runPromiseExit(DockerImagesRepository.live.inspectResolved(id).pipe(Effect.provideService(DockerEngine, engine as never)));
+    Effect.runPromiseExit(new DockerImagesRepository.live().inspectResolved(id).pipe(Effect.provideService(DockerEngine, engine as never)));
 
   it("finds the image from the engine's own list when the reference does not inspect", async () => {
     const engine = {

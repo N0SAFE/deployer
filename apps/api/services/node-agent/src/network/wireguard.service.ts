@@ -31,9 +31,9 @@ export class HostCommands extends Context.Service<
 		readonly runWithInput: (command: string, args: readonly string[], input: string) => Effect.Effect<CommandResult>;
 	}
 >()("node-agent/HostCommands") {
-	static readonly live = {
-		run: (command: string, args: readonly string[]) => spawn(command, args),
-		runWithInput: (command: string, args: readonly string[], input: string) => spawn(command, args, input),
+	static readonly live = class HostCommandsImpl {
+		run = (command: string, args: readonly string[]) => spawn(command, args)
+		runWithInput = (command: string, args: readonly string[], input: string) => spawn(command, args, input)
 	};
 }
 
@@ -63,9 +63,9 @@ export class WireguardPaths extends Context.Service<
 	WireguardPaths,
 	{ readonly interfaceName: string; readonly configPath: string }
 >()("node-agent/WireguardPaths") {
-	static readonly live = {
-		interfaceName: MESH_INTERFACE_NAME,
-		configPath: `${process.env.NODE_AGENT_STATE_DIR ?? "/var/lib/deployer/node-agent"}/wireguard.conf`,
+	static readonly live = class WireguardPathsImpl {
+		interfaceName = MESH_INTERFACE_NAME
+		configPath = `${process.env.NODE_AGENT_STATE_DIR ?? "/var/lib/deployer/node-agent"}/wireguard.conf`
 	};
 }
 

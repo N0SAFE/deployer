@@ -15,7 +15,7 @@ describe("DockerContainersRepository", () => {
   it("lists from the engine it yields", async () => {
     const engine = { containers: { list: () => Effect.succeed([valid]) } } as never;
     const listed = await Effect.runPromise(
-      DockerContainersRepository.live.listRaw.pipe(Effect.provideService(DockerEngine, engine)),
+      new DockerContainersRepository.live().listRaw.pipe(Effect.provideService(DockerEngine, engine)),
     );
     expect(listed).toHaveLength(1);
   });

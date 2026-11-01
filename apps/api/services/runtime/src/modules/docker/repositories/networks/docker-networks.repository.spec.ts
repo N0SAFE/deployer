@@ -6,7 +6,7 @@ import { DockerNetworksRepository, normalizeNetworkDriver, normalizeNetworkScope
 
 const engineWith = (networks: unknown[]) => ({ networks: { list: () => Effect.succeed(networks) } }) as never;
 
-const withEngine = (engine: never) => ({ list: DockerNetworksRepository.live.list.pipe(Effect.provideService(DockerEngine, engine)) });
+const withEngine = (engine: never) => ({ list: new DockerNetworksRepository.live().list.pipe(Effect.provideService(DockerEngine, engine)) });
 
 describe("DockerNetworksRepository", () => {
 	it("maps an engine network onto the network entity", async () => {

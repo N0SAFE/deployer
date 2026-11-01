@@ -37,14 +37,14 @@ export type DockerContainersRepositoryShape = {
 export class DockerContainersRepository extends Context.Service<DockerContainersRepository, DockerContainersRepositoryShape>()(
   "runtime/DockerContainersRepository",
 ) {
-  static readonly live: DockerContainersRepositoryShape = {
-    listRaw: Effect.gen(function* () {
+  static readonly live = class DockerContainersRepositoryImpl implements DockerContainersRepositoryShape {
+    listRaw = Effect.gen(function* () {
       const engine = yield* DockerEngine;
       const raw = yield* engine.containers.list({ all: true });
       return parseDockerodeContainers(raw);
-    }),
+    })
 
-    inspect: (containerId) =>
+    inspect = (containerId) =>
       Effect.gen(function* () {
         const engine = yield* DockerEngine;
         const inspect = yield* engine.containers.inspect(containerId).pipe(
@@ -64,6 +64,6 @@ export class DockerContainersRepository extends Context.Service<DockerContainers
         }
 
         return buildContainerInspectDetail(containerId, inspect, layerIds, generatedAt);
-      }),
+      })
   };
 }

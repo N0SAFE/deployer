@@ -130,7 +130,7 @@ export class DeploymentDomainModule extends createModuleContext({
         { provide: TriggerRegistryPort, useExisting: DeploymentTriggerRegistryService },
         { provide: RuntimeDb, useValue: RuntimeDb.live },
         { provide: SystemDeploymentsPort, useExisting: DeploymentService },
-        { provide: DeploymentEventTriggerService, useValue: DeploymentEventTriggerService.live },
+        { provide: DeploymentEventTriggerService, useClass: DeploymentEventTriggerService.live },
         PreviewEnvOverlayService,
         DeploymentContainerLinkService,
         {

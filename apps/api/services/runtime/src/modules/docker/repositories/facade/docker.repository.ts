@@ -157,14 +157,14 @@ export class DockerRepository {
     private readonly normalizer: ContainerDockerodeNormalizer,
     @Optional() @Inject(CONTAINER_LINK_RESOLVER)
     private readonly linkResolver?: IContainerLinkResolver,
-    @Inject(DockerNetworksRepository) private readonly networks: DockerNetworksRepositoryShape = DockerNetworksRepository.live,
-    @Inject(DockerVolumesRepository) private readonly volumes: DockerVolumesRepositoryShape = DockerVolumesRepository.live,
-    @Inject(DockerImagesRepository) private readonly images: DockerImagesRepositoryShape = DockerImagesRepository.live,
-    @Inject(DockerImageLifecycleRepository) private readonly lifecycle: DockerImageLifecycleRepositoryShape = DockerImageLifecycleRepository.live,
-    @Inject(DockerContainersRepository) private readonly containers: DockerContainersRepositoryShape = DockerContainersRepository.live,
-    @Inject(DockerRuntimeActivitiesStore) private readonly activities: DockerRuntimeActivitiesStoreShape = DockerRuntimeActivitiesStore.live,
-    @Inject(DockerImageScansStore) private readonly scans: DockerImageScansStoreShape = DockerImageScansStore.live,
-    @Inject(DockerContainerLinksLookup) private readonly linkLookup: DockerContainerLinksLookupShape = DockerContainerLinksLookup.live,
+    @Inject(DockerNetworksRepository) private readonly networks: DockerNetworksRepositoryShape = new DockerNetworksRepository.live(),
+    @Inject(DockerVolumesRepository) private readonly volumes: DockerVolumesRepositoryShape = new DockerVolumesRepository.live(),
+    @Inject(DockerImagesRepository) private readonly images: DockerImagesRepositoryShape = new DockerImagesRepository.live(),
+    @Inject(DockerImageLifecycleRepository) private readonly lifecycle: DockerImageLifecycleRepositoryShape = new DockerImageLifecycleRepository.live(),
+    @Inject(DockerContainersRepository) private readonly containers: DockerContainersRepositoryShape = new DockerContainersRepository.live(),
+    @Inject(DockerRuntimeActivitiesStore) private readonly activities: DockerRuntimeActivitiesStoreShape = new DockerRuntimeActivitiesStore.live(),
+    @Inject(DockerImageScansStore) private readonly scans: DockerImageScansStoreShape = new DockerImageScansStore.live(),
+    @Inject(DockerContainerLinksLookup) private readonly linkLookup: DockerContainerLinksLookupShape = new DockerContainerLinksLookup.live(),
   ) {
     this.scanner = new DockerImageScannerService(dockerEngine, scannerPool, dockerHost, {
       read: (identifiers) => this.readPersistedImageSecurityScan(identifiers),

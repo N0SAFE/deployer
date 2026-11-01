@@ -26,7 +26,7 @@ async function run<A, E>(
 describe("DeploymentEventTriggerService", () => {
     const registry = { toTriggerInput: vi.fn() };
     const deploymentService = { triggerDeploymentAsSystem: vi.fn() };
-    const service = DeploymentEventTriggerService.live;
+    const service = new DeploymentEventTriggerService.live();
     const runWith = <A, E>(effect: Effect.Effect<A, E, CurrentActor | TriggerRegistryPort | SystemDeploymentsPort>) =>
         run(effect, { registry, deploymentService });
 

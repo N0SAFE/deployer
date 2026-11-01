@@ -7,7 +7,7 @@ import { DockerImagesRepository } from "./docker-images.repository";
 const engineWith = (images: unknown[]) => ({ images: { list: () => Effect.succeed(images) } }) as never;
 const list = (images: unknown[]) => Effect.runPromise(withEngine(engineWith(images)).list);
 
-const withEngine = (engine: never) => ({ list: DockerImagesRepository.live.list.pipe(Effect.provideService(DockerEngine, engine)) });
+const withEngine = (engine: never) => ({ list: new DockerImagesRepository.live().list.pipe(Effect.provideService(DockerEngine, engine)) });
 
 describe("DockerImagesRepository", () => {
 	it("splits a tagged reference into registry, repository and tag", async () => {

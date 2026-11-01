@@ -38,41 +38,43 @@ export type NodeStatusShape = {
  * listed with nulls instead of disappearing from the answer.
  */
 export class NodeStatus extends Context.Service<NodeStatus, NodeStatusShape>()("node-agent/NodeStatus") {
-  static readonly live: NodeStatusShape = {
-    status: Effect.fn("NodeStatus.status")(function* () {
-      const store = yield* AgentStore;
-      const identity = yield* NodeIdentity;
-      const agents = yield* NodeAgents;
-      const driver = yield* WireguardDriver;
-      const credential = yield* SwarmCredential;
-      const load = (yield* AgentLoad).sample();
-      const relay = yield* (yield* RelayMetrics).snapshot();
-      const advertised = yield* AdvertisedAddress;
+  static readonly live = class NodeStatusImpl implements NodeStatusShape {
+    status() {
+      return Effect.gen(function* () {
+        const store = yield* AgentStore;
+        const identity = yield* NodeIdentity;
+        const agents = yield* NodeAgents;
+        const driver = yield* WireguardDriver;
+        const credential = yield* SwarmCredential;
+        const load = (yield* AgentLoad).sample();
+        const relay = yield* (yield* RelayMetrics).snapshot();
+        const advertised = yield* AdvertisedAddress;
 
-      // An unreadable overlay is an absent one: the node still answers about itself.
-      const overlay = parseOverlaySelf(
-        yield* store.secret(OVERLAY_SELF_SECRET).pipe(Effect.catch(() => Effect.succeed(undefined))),
-      );
-      const dump = yield* driver.dump();
-      const known = yield* agents.known();
+        // An unreadable overlay is an absent one: the node still answers about itself.
+        const overlay = parseOverlaySelf(
+          yield* store.secret(OVERLAY_SELF_SECRET).pipe(Effect.catch(() => Effect.succeed(undefined))),
+        );
+        const dump = yield* driver.dump();
+        const known = yield* agents.known();
 
-      return {
-        agentId: identity.nodeId,
-        swarmId: credential.swarmId(),
-        advertiseAddress: advertised.address,
-        load,
-        relay,
-        interfaceUp: dump !== null,
-        meshAddress: overlay?.meshAddress ?? null,
-        listenPort: overlay?.listenPort ?? DEFAULT_WIREGUARD_PORT,
-        peers: known.map((agent) => ({
-          nodeId: agent.nodeId,
-          meshAddress: agent.overlay?.meshAddress ?? null,
-          endpoint: agent.overlay?.endpoint ?? null,
-          latestHandshakeAt:
-            agent.overlay === null ? null : (dump?.peers[agent.overlay.wireguardKey]?.latestHandshakeAt ?? null),
-        })),
-      };
-    }),
+        return {
+          agentId: identity.nodeId,
+          swarmId: credential.swarmId(),
+          advertiseAddress: advertised.address,
+          load,
+          relay,
+          interfaceUp: dump !== null,
+          meshAddress: overlay?.meshAddress ?? null,
+          listenPort: overlay?.listenPort ?? DEFAULT_WIREGUARD_PORT,
+          peers: known.map((agent) => ({
+            nodeId: agent.nodeId,
+            meshAddress: agent.overlay?.meshAddress ?? null,
+            endpoint: agent.overlay?.endpoint ?? null,
+            latestHandshakeAt:
+              agent.overlay === null ? null : (dump?.peers[agent.overlay.wireguardKey]?.latestHandshakeAt ?? null),
+          })),
+        };
+      });
+    }
   };
 }

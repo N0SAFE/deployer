@@ -44,7 +44,7 @@ describe("MeshRelay", () => {
       const mesh = meshFixture({ nodeId: "A", replicas: { "runtime-1": local, "runtime-2": remote } });
       await mesh.seed(runtime("runtime-1", "A"), runtime("runtime-2", "B"));
 
-      const result = await mesh.settle(MeshRelay.live.relay(request()));
+      const result = await mesh.settle(new MeshRelay.live().relay(request()));
 
       expect(result).toEqual({ value: { kind: "value", value: { lines: 3 } } });
       expect(local.call).toHaveBeenCalledWith(["logs", "list"], { id: 1 }, { context: { headers: {} } });
@@ -57,7 +57,7 @@ describe("MeshRelay", () => {
       const mesh = meshFixture({ nodeId: "A", replicas: { "runtime-1": first, "runtime-3": owner } });
       await mesh.seed(runtime("runtime-1", "A"), runtime("runtime-3", "C"));
 
-      const result = await mesh.settle(MeshRelay.live.relay(request({ key: "stream-1" })));
+      const result = await mesh.settle(new MeshRelay.live().relay(request({ key: "stream-1" })));
 
       expect(result).toEqual({ value: { kind: "value", value: "served by runtime-3" } });
       expect(first.call).toHaveBeenCalledTimes(1);
@@ -68,7 +68,7 @@ describe("MeshRelay", () => {
       const mesh = meshFixture({ replicas: { "runtime-1": answering(streamOf(1, 2)) } });
       await mesh.seed(runtime("runtime-1", "A"));
 
-      const result = await mesh.run(MeshRelay.live.relay(request()));
+      const result = await mesh.run(new MeshRelay.live().relay(request()));
       expect(result.kind).toBe("stream");
 
       const events = await collect(relayEvents(result));
@@ -80,7 +80,7 @@ describe("MeshRelay", () => {
       const mesh = meshFixture({ replicas: { "runtime-1": failing } });
       await mesh.seed(runtime("runtime-1", "A"));
 
-      const result = await mesh.settle(MeshRelay.live.relay(request()));
+      const result = await mesh.settle(new MeshRelay.live().relay(request()));
 
       expect(result).toMatchObject({ error: { code: "NOT_FOUND", message: "no such stream" } });
     });
@@ -89,7 +89,7 @@ describe("MeshRelay", () => {
       const mesh = meshFixture({});
       await mesh.seed(runtime("runtime-1", "A"));
 
-      const result = await mesh.settle(MeshRelay.live.relay(request()));
+      const result = await mesh.settle(new MeshRelay.live().relay(request()));
 
       expect(result).toMatchObject({ error: { code: "BAD_GATEWAY" } });
     });
@@ -97,7 +97,7 @@ describe("MeshRelay", () => {
     it("fails with the service when no replica is known", async () => {
       const mesh = meshFixture();
 
-      const result = await mesh.settle(MeshRelay.live.relay(request({ service: "ghost" })));
+      const result = await mesh.settle(new MeshRelay.live().relay(request({ service: "ghost" })));
 
       expect(result).toMatchObject({ error: { _tag: "MeshNoReplica", service: "ghost" } });
     });
@@ -109,7 +109,7 @@ describe("MeshRelay", () => {
       const mesh = meshFixture({ nodeId: "A", replicas: { "runtime-1": local } });
       await mesh.seed(runtime("runtime-1", "A"));
 
-      await mesh.settle(MeshRelay.live.relay(request({ headers: { cookie: "session=alice", authorization: "Bearer t" } })));
+      await mesh.settle(new MeshRelay.live().relay(request({ headers: { cookie: "session=alice", authorization: "Bearer t" } })));
 
       expect(local.call).toHaveBeenCalledWith(["logs", "list"], { id: 1 }, { context: { headers: { cookie: "session=alice", authorization: "Bearer t" } } });
     });
@@ -118,7 +118,7 @@ describe("MeshRelay", () => {
       const remoteAgent = answering(streamOf<MeshRelayEvent>({ kind: "value", value: 1 }));
       const mesh = meshFixture({ nodeId: "A", nodes: { B: remoteAgent } });
 
-      await mesh.run(MeshRelay.live.relay(request({ node: "B", headers: { cookie: "session=alice" } })));
+      await mesh.run(new MeshRelay.live().relay(request({ node: "B", headers: { cookie: "session=alice" } })));
 
       expect(remoteAgent.call).toHaveBeenCalledWith(["relay", "call"], expect.objectContaining({ headers: { cookie: "session=alice" } }), { context: { headers: { cookie: "session=alice" } } });
     });
@@ -129,7 +129,7 @@ describe("MeshRelay", () => {
       const remoteAgent = answering(streamOf<MeshRelayEvent>({ kind: "value", value: "from node B" }));
       const mesh = meshFixture({ nodeId: "A", nodes: { B: remoteAgent } });
 
-      const outcome = await mesh.run(MeshRelay.live.relay(request({ node: "B" })));
+      const outcome = await mesh.run(new MeshRelay.live().relay(request({ node: "B" })));
 
       expect(remoteAgent.call).toHaveBeenCalledWith(["relay", "call"], expect.objectContaining({ node: "B", service: "runtime" }), { context: { headers: {} } });
       expect(await collect(relayEvents(outcome))).toEqual([{ kind: "value", value: "from node B" }]);
@@ -138,7 +138,7 @@ describe("MeshRelay", () => {
     it("fails with MeshNoRoute when the agent knows neither a link nor a next hop to the node", async () => {
       const mesh = meshFixture({ nodeId: "A" });
 
-      const result = await mesh.settle(MeshRelay.live.relay(request({ node: "Z" })));
+      const result = await mesh.settle(new MeshRelay.live().relay(request({ node: "Z" })));
 
       expect(result).toMatchObject({ error: { _tag: "MeshNoRoute", nodeId: "Z" } });
     });
@@ -147,7 +147,7 @@ describe("MeshRelay", () => {
       const mesh = meshFixture({ nodeId: "A", replicas: { "runtime-2": answering("remote") } });
       await mesh.seed(runtime("runtime-2", "B"));
 
-      const result = await mesh.settle(MeshRelay.live.relay(request({ node: "A" })));
+      const result = await mesh.settle(new MeshRelay.live().relay(request({ node: "A" })));
 
       expect(result).toMatchObject({ error: { _tag: "MeshNoReplica" } });
     });
@@ -165,7 +165,7 @@ describe("MeshRelay", () => {
       const mesh = meshFixture({ nodeId: "A", now: 1_000, load, replicas: { "runtime-1": replica } });
       await mesh.seed(runtime("runtime-1", "A", { address: "ws://10.0.0.1:3105" }));
 
-      const settled = await mesh.settle(MeshRelay.live.relay(request({ key: "stream-1", ...flags })));
+      const settled = await mesh.settle(new MeshRelay.live().relay(request({ key: "stream-1", ...flags })));
       const grant = grantOf(settled as { error?: unknown });
 
       expect(grant).toMatchObject({ replicaId: "runtime-1", address: "ws://10.0.0.1:3105", expiresAt: 31_000 });
@@ -177,7 +177,7 @@ describe("MeshRelay", () => {
       const mesh = meshFixture({ nodeId: "A" });
       await mesh.seed(runtime("runtime-1", "A"), runtime("runtime-3", "C", { keys: ["stream-1"] }));
 
-      const settled = await mesh.settle(MeshRelay.live.relay(request({ key: "stream-1", heavy: true })));
+      const settled = await mesh.settle(new MeshRelay.live().relay(request({ key: "stream-1", heavy: true })));
 
       expect(readDirectGrant((settled as { error?: unknown }).error)?.replicaId).toBe("runtime-3");
     });
@@ -187,9 +187,9 @@ describe("MeshRelay", () => {
       await mesh.seed(runtime("runtime-1", "A"));
 
       for (let call = 0; call < 200; call += 1) {
-        await mesh.settle(MeshRelay.live.relay(request()));
+        await mesh.settle(new MeshRelay.live().relay(request()));
       }
-      const settled = await mesh.settle(MeshRelay.live.relay(request()));
+      const settled = await mesh.settle(new MeshRelay.live().relay(request()));
 
       expect(readDirectGrant((settled as { error?: unknown }).error)).toMatchObject({ replicaId: "runtime-1" });
     });
@@ -197,7 +197,7 @@ describe("MeshRelay", () => {
     it("fails with the service when the grant has no replica to name", async () => {
       const mesh = meshFixture();
 
-      const settled = await mesh.settle(MeshRelay.live.relay(request({ heavy: true })));
+      const settled = await mesh.settle(new MeshRelay.live().relay(request({ heavy: true })));
 
       expect(settled).toMatchObject({ error: { _tag: "MeshNoReplica" } });
     });
@@ -218,7 +218,7 @@ describe("MeshRelay", () => {
       const hop = answeringWith("never");
       const mesh = meshFixture({ nodeId: "A", nodes: { C: target, B: hop } });
 
-      const outcome = await mesh.run(MeshRelay.live.relay(request({ node: "C" })));
+      const outcome = await mesh.run(new MeshRelay.live().relay(request({ node: "C" })));
 
       expect(await collect(relayEvents(outcome))).toEqual([{ kind: "value", value: "from C" }]);
       expect(hop.call).not.toHaveBeenCalled();
@@ -231,7 +231,7 @@ describe("MeshRelay", () => {
       const hop = answeringWith("from C through B");
       const mesh = meshFixture({ nodeId: "A", nodes: { C: target, B: hop }, relay: { maxHops: 2 } });
 
-      const outcome = await mesh.run(MeshRelay.live.relay(request({ node: "C", headers: { cookie: "session=alice" } })));
+      const outcome = await mesh.run(new MeshRelay.live().relay(request({ node: "C", headers: { cookie: "session=alice" } })));
 
       expect(hop.call).toHaveBeenCalledWith(
         ["relay", "call"],
@@ -248,7 +248,7 @@ describe("MeshRelay", () => {
       const mesh = meshFixture({ nodeId: "A", nodes: { C: failing(), B: b, D: d } });
       await taughtBy(mesh, "C", "D");
 
-      const outcome = await mesh.run(MeshRelay.live.relay(request({ node: "C" })));
+      const outcome = await mesh.run(new MeshRelay.live().relay(request({ node: "C" })));
 
       expect(d.call).toHaveBeenCalledTimes(1);
       expect(b.call).not.toHaveBeenCalled();
@@ -259,7 +259,7 @@ describe("MeshRelay", () => {
       const mesh = meshFixture({ nodeId: "A", nodes: { C: failing(), B: failing(), D: answeringWith("from D") } });
       await taughtBy(mesh, "C", "B");
 
-      const outcome = await mesh.run(MeshRelay.live.relay(request({ node: "C" })));
+      const outcome = await mesh.run(new MeshRelay.live().relay(request({ node: "C" })));
 
       expect(await collect(relayEvents(outcome))).toEqual([{ kind: "value", value: "from D" }]);
       expect(await Effect.runPromise(mesh.metrics.snapshot())).toMatchObject({ forwarded: 1 });
@@ -268,7 +268,7 @@ describe("MeshRelay", () => {
     it("fails with MeshNoRoute when no candidate answers", async () => {
       const mesh = meshFixture({ nodeId: "A", nodes: { C: failing() } });
 
-      const result = await mesh.settle(MeshRelay.live.relay(request({ node: "C" })));
+      const result = await mesh.settle(new MeshRelay.live().relay(request({ node: "C" })));
 
       expect(result).toMatchObject({ error: { _tag: "MeshNoRoute", nodeId: "C" } });
       expect(await Effect.runPromise(mesh.metrics.snapshot())).toMatchObject({ noRoute: 1 });
@@ -278,7 +278,7 @@ describe("MeshRelay", () => {
       const hung: Link = { call: vi.fn(() => new Promise<never>(() => undefined)) };
       const mesh = meshFixture({ nodeId: "A", nodes: { C: hung }, relay: { callTimeoutMs: 10 } });
 
-      const result = await mesh.settle(MeshRelay.live.relay(request({ node: "C" })));
+      const result = await mesh.settle(new MeshRelay.live().relay(request({ node: "C" })));
 
       expect(result).toMatchObject({ error: { _tag: "MeshNoRoute", nodeId: "C" } });
       expect(await Effect.runPromise(mesh.metrics.snapshot())).toMatchObject({ unreachable: 1, noRoute: 1 });
@@ -289,7 +289,7 @@ describe("MeshRelay", () => {
       const hop = answeringWith("never");
       const mesh = meshFixture({ nodeId: "A", nodes: { C: target, B: hop } });
 
-      const result = await mesh.settle(MeshRelay.live.relay(request({ node: "C", via: { visited: ["B"], ttl: 0 } })));
+      const result = await mesh.settle(new MeshRelay.live().relay(request({ node: "C", via: { visited: ["B"], ttl: 0 } })));
 
       expect(result).toMatchObject({ error: { _tag: "MeshNoRoute", nodeId: "C" } });
       expect(target.call).not.toHaveBeenCalled();
@@ -300,8 +300,8 @@ describe("MeshRelay", () => {
       const target = answeringWith("never");
       const mesh = meshFixture({ nodeId: "A", nodes: { C: target } });
 
-      const throughTarget = await mesh.settle(MeshRelay.live.relay(request({ node: "C", via: { visited: ["C"], ttl: 2 } })));
-      const throughSelf = await mesh.settle(MeshRelay.live.relay(request({ node: "C", via: { visited: ["A"], ttl: 2 } })));
+      const throughTarget = await mesh.settle(new MeshRelay.live().relay(request({ node: "C", via: { visited: ["C"], ttl: 2 } })));
+      const throughSelf = await mesh.settle(new MeshRelay.live().relay(request({ node: "C", via: { visited: ["A"], ttl: 2 } })));
 
       expect(throughTarget).toMatchObject({ error: { _tag: "MeshRelayLoop", nodeId: "C" } });
       expect(throughSelf).toMatchObject({ error: { _tag: "MeshRelayLoop", nodeId: "A" } });
@@ -313,7 +313,7 @@ describe("MeshRelay", () => {
       const hop = answeringWith("never");
       const mesh = meshFixture({ nodeId: "A", nodes: { C: target, B: hop } });
 
-      const result = await mesh.settle(MeshRelay.live.relay(request({ node: "C" })));
+      const result = await mesh.settle(new MeshRelay.live().relay(request({ node: "C" })));
 
       expect(result).toMatchObject({ error: { code: "NOT_FOUND", message: "no such stream" } });
       expect(hop.call).not.toHaveBeenCalled();
@@ -325,7 +325,7 @@ describe("MeshRelay", () => {
       const mesh = meshFixture({ nodeId: "A", replicas: { "runtime-1": local } });
       await mesh.seed(runtime("runtime-1", "A", { address: "ws://10.0.0.1:3105" }));
 
-      const result = await mesh.settle(MeshRelay.live.relay(request({ node: "A", key: "stream-1", heavy: true, via: { visited: ["B"], ttl: 1 } })));
+      const result = await mesh.settle(new MeshRelay.live().relay(request({ node: "A", key: "stream-1", heavy: true, via: { visited: ["B"], ttl: 1 } })));
 
       expect(result).toEqual({ value: { kind: "value", value: "brokered" } });
       expect(local.call).toHaveBeenCalledTimes(1);
@@ -337,8 +337,8 @@ describe("MeshRelay", () => {
       const hop = answeringWith("from B");
       const mesh = meshFixture({ nodeId: "A", nodes: { C: target, B: hop } });
 
-      await mesh.run(MeshRelay.live.relay(request({ node: "C" })));
-      await mesh.run(MeshRelay.live.relay(request({ node: "C" })));
+      await mesh.run(new MeshRelay.live().relay(request({ node: "C" })));
+      await mesh.run(new MeshRelay.live().relay(request({ node: "C" })));
 
       expect(target.call).toHaveBeenCalledTimes(1);
       expect(hop.call).toHaveBeenCalledTimes(2);

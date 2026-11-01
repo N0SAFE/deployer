@@ -42,7 +42,7 @@ export type DockerEngineShape = {
 
 /** Where the engine listens. Defaults to the unix socket every engine mounts; a dev proxy can override it. */
 export class DockerSocket extends Context.Service<DockerSocket, { readonly socketPath: string }>()("node-agent/DockerSocket") {
-	static readonly live = { socketPath: process.env.NODE_AGENT_DOCKER_SOCKET ?? "/var/run/docker.sock" };
+	static readonly live = class DockerSocketImpl { socketPath = process.env.NODE_AGENT_DOCKER_SOCKET ?? "/var/run/docker.sock" };
 }
 
 /** The engine the converger talks to; the module binds it to the socket. */

@@ -244,7 +244,7 @@ function assertClaims(module: AnyModule, claimed: readonly unknown[] | undefined
  * Brings a module you do not own into the flow, without touching it.
  *
  * ```ts
- * @Module({ providers: [{ provide: MeshClock, useValue: MeshClock.live }], exports: [MeshClock] })
+ * @Module({ providers: [{ provide: MeshClock, useClass: MeshClock.live }], exports: [MeshClock] })
  * class PlatformModule {}
  *
  * export const Platform = declareModule(PlatformModule, { provides: [MeshClock], exports: [MeshClock] });

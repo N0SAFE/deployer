@@ -38,48 +38,50 @@ export class DeploymentEventTriggerService extends Context.Service<
     DeploymentEventTriggerService,
     DeploymentEventTriggerServiceShape
 >()("runtime/DeploymentEventTriggerService") {
-    static readonly live: DeploymentEventTriggerServiceShape = {
-        trigger: Effect.fn("DeploymentEventTriggerService.trigger")(function* (event, deliveryId) {
-            const registry = yield* TriggerRegistryPort;
-            const deploymentService = yield* SystemDeploymentsPort;
-            const actor = yield* CurrentActor;
-            const resolution = yield* attempt(() =>
-                registry.toTriggerInput({
-                    provider: event.provider,
-                    eventName: event.eventName,
-                    payload: event.payload,
-                }),
-            );
+    static readonly live = class DeploymentEventTriggerServiceImpl implements DeploymentEventTriggerServiceShape {
+        trigger(event, deliveryId) {
+          return Effect.gen(function* () {
+              const registry = yield* TriggerRegistryPort;
+              const deploymentService = yield* SystemDeploymentsPort;
+              const actor = yield* CurrentActor;
+              const resolution = yield* attempt(() =>
+                  registry.toTriggerInput({
+                      provider: event.provider,
+                      eventName: event.eventName,
+                      payload: event.payload,
+                  }),
+              );
 
-            if (!resolution) {
-                return {
-                    dispatched: false as const,
-                    sourceId: null,
-                    deploymentId: null,
-                    reason: `no_trigger_source:${event.provider}/${event.eventName}`,
-                };
-            }
-            if (resolution.input === null) {
-                return {
-                    dispatched: false as const,
-                    sourceId: resolution.sourceId,
-                    deploymentId: null,
-                    reason: `not_deployable:${resolution.sourceId}`,
-                };
-            }
+              if (!resolution) {
+                  return {
+                      dispatched: false as const,
+                      sourceId: null,
+                      deploymentId: null,
+                      reason: `no_trigger_source:${event.provider}/${event.eventName}`,
+                  };
+              }
+              if (resolution.input === null) {
+                  return {
+                      dispatched: false as const,
+                      sourceId: resolution.sourceId,
+                      deploymentId: null,
+                      reason: `not_deployable:${resolution.sourceId}`,
+                  };
+              }
 
-            const input = resolution.input;
-            const deployment = yield* attempt(() => deploymentService.triggerDeploymentAsSystem(input));
-            yield* Effect.logInfo(
-                `Deployment ${deployment.id} queued by system actor '${actor.id}' ` +
-                    `(delivery=${deliveryId ?? "none"}, trigger=${resolution.sourceId}, service=${input.serviceId})`,
-            );
-            return {
-                dispatched: true as const,
-                sourceId: resolution.sourceId,
-                deploymentId: deployment.id,
-                reason: null,
-            };
-        }),
+              const input = resolution.input;
+              const deployment = yield* attempt(() => deploymentService.triggerDeploymentAsSystem(input));
+              yield* Effect.logInfo(
+                  `Deployment ${deployment.id} queued by system actor '${actor.id}' ` +
+                      `(delivery=${deliveryId ?? "none"}, trigger=${resolution.sourceId}, service=${input.serviceId})`,
+              );
+              return {
+                  dispatched: true as const,
+                  sourceId: resolution.sourceId,
+                  deploymentId: deployment.id,
+                  reason: null,
+              };
+          });
+        }
     };
 }

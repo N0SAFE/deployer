@@ -16,14 +16,14 @@ const fixture = () => {
 
 describe("NodeSettings", () => {
   it("answers with nothing on a node nobody published to", async () => {
-    expect(await fixture().run(NodeSettings.live.all())).toEqual({ settings: [] });
+    expect(await fixture().run(new NodeSettings.live().all())).toEqual({ settings: [] });
   });
 
   it("serves every setting this node holds, with the writer's clock", async () => {
     const node = fixture();
     await Effect.runPromise(node.store.putSetting("node.doors", "{\"web\":80}", 1_700_000_000_000));
 
-    expect(await node.run(NodeSettings.live.all())).toEqual({
+    expect(await node.run(new NodeSettings.live().all())).toEqual({
       settings: [{ key: "node.doors", value: "{\"web\":80}", updatedAt: 1_700_000_000_000 }],
     });
   });

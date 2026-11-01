@@ -7,5 +7,5 @@ export type MeshClockShape = {
 
 /** The agent's time source, an input so leases, expiry and hints are testable without waiting. */
 export class MeshClock extends Context.Service<MeshClock, MeshClockShape>()("node-agent/MeshClock") {
-  static readonly live: MeshClockShape = { now: () => Date.now() };
+  static readonly live = class MeshClockImpl implements MeshClockShape { now = () => Date.now() };
 }

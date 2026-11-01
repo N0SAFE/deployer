@@ -14,7 +14,7 @@ const registration = (overrides: Partial<ReplicaRegistration> = {}): ReplicaRegi
   ...overrides,
 });
 
-const register = (input: ReplicaRegistration) => MeshDirectory.live.register(input);
+const register = (input: ReplicaRegistration) => new MeshDirectory.live().register(input);
 
 describe("MeshDirectory", () => {
   it("stamps the agent's node, a first generation and an expiry from its own clock", async () => {
@@ -39,7 +39,7 @@ describe("MeshDirectory", () => {
     const mesh = meshFixture();
     await mesh.run(register(registration()));
 
-    const result = await mesh.settle(MeshDirectory.live.resolve({ service: "runtime" }));
+    const result = await mesh.settle(new MeshDirectory.live().resolve({ service: "runtime" }));
 
     expect(result).toMatchObject({ value: { reason: "local-node", replica: { replicaId: "runtime-1" } } });
   });
@@ -47,7 +47,7 @@ describe("MeshDirectory", () => {
   it("fails with the service when no replica is known", async () => {
     const mesh = meshFixture();
 
-    const result = await mesh.settle(MeshDirectory.live.resolve({ service: "runtime" }));
+    const result = await mesh.settle(new MeshDirectory.live().resolve({ service: "runtime" }));
 
     expect(result).toMatchObject({ error: { _tag: "MeshNoReplica", service: "runtime" } });
   });
@@ -57,7 +57,7 @@ describe("MeshDirectory", () => {
     await mesh.run(register(registration({ ttlMs: 1_000 })));
 
     mesh.clock.now = 2_000;
-    const snapshot = await mesh.run(MeshDirectory.live.snapshot());
+    const snapshot = await mesh.run(new MeshDirectory.live().snapshot());
 
     expect(snapshot).toEqual([]);
   });
@@ -66,8 +66,8 @@ describe("MeshDirectory", () => {
     const mesh = meshFixture();
     await mesh.run(register(registration()));
 
-    const first = await mesh.run(MeshDirectory.live.unregister("runtime-1"));
-    const second = await mesh.run(MeshDirectory.live.unregister("runtime-1"));
+    const first = await mesh.run(new MeshDirectory.live().unregister("runtime-1"));
+    const second = await mesh.run(new MeshDirectory.live().unregister("runtime-1"));
 
     expect([first, second]).toEqual([true, false]);
   });
@@ -76,7 +76,7 @@ describe("MeshDirectory", () => {
     const mesh = meshFixture({ nodeId: "A" });
     await mesh.seed(replicaRecord({ service: "runtime", replicaId: "runtime-3", nodeId: "C" }));
 
-    const result = await mesh.settle(MeshDirectory.live.resolve({ service: "runtime" }));
+    const result = await mesh.settle(new MeshDirectory.live().resolve({ service: "runtime" }));
 
     expect(result).toMatchObject({ value: { replica: { nodeId: "C" } } });
   });

@@ -43,7 +43,7 @@ describe("HealthController", () => {
 
 		context = effectContext(
 			Context.empty().pipe(
-				Context.add(HealthService, HealthService.live),
+				Context.add(HealthService, new HealthService.live()),
 				Context.add(HealthRegistryRepository, healthRegistryFake(runOnce)),
 				Context.add(UptimeSource, () => UPTIME_SECONDS),
 			),

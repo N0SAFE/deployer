@@ -35,7 +35,7 @@ function run(
 				const tick = yield* DoorsTick;
 				return yield* tick.convergeOnce();
 			}).pipe(
-				Effect.provideService(DoorsTick, DoorsTick.live),
+				Effect.provideService(DoorsTick, new DoorsTick.live()),
 				Effect.provideService(AgentStore, store),
 				Effect.provideService(DoorConverger, converger),
 				Effect.provideService(DoorAddresses, { current: () => Effect.succeed(addresses) }),
@@ -109,7 +109,7 @@ describe("DoorAddresses.live", () => {
 
 		const addresses = await Effect.runPromise(
 			Effect.flatMap(DoorAddresses, (door) => door.current()).pipe(
-				Effect.provideService(DoorAddresses, DoorAddresses.live),
+				Effect.provideService(DoorAddresses, new DoorAddresses.live()),
 				Effect.provideService(AgentStore, store),
 			),
 		);
@@ -123,7 +123,7 @@ describe("DoorAddresses.live", () => {
 
 		const addresses = await Effect.runPromise(
 			Effect.flatMap(DoorAddresses, (door) => door.current()).pipe(
-				Effect.provideService(DoorAddresses, DoorAddresses.live),
+				Effect.provideService(DoorAddresses, new DoorAddresses.live()),
 				Effect.provideService(AgentStore, store),
 			),
 		);

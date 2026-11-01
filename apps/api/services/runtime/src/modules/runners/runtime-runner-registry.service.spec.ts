@@ -28,7 +28,7 @@ function fakeRunner(runnerType: DeploymentRuntimeRunner["runnerType"]) {
 describe("RuntimeRunnerRegistry", () => {
     const docker = fakeRunner("docker");
     const swarm = fakeRunner("swarm");
-    const registry = provideTo(RuntimeRunnerRegistry.live, (effect) =>
+    const registry = provideTo(new RuntimeRunnerRegistry.live(), (effect) =>
         effect.pipe(
             Effect.provideService(DockerRuntimeRunner, docker.runner as never),
             Effect.provideService(SwarmRuntimeRunner, swarm.runner as never),

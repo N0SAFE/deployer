@@ -143,10 +143,10 @@ export function meshFixture(
 
   const advertised = { address: options.advertise ?? `ws://${options.nodeId ?? "A"}` };
   const relaySettings: RelaySettingsShape = {
-    maxHops: options.relay?.maxHops ?? RelaySettings.live.maxHops,
-    nextHopAttempts: options.relay?.nextHopAttempts ?? RelaySettings.live.nextHopAttempts,
-    unreachableMs: options.relay?.unreachableMs ?? RelaySettings.live.unreachableMs,
-    callTimeoutMs: options.relay?.callTimeoutMs ?? RelaySettings.live.callTimeoutMs,
+    maxHops: options.relay?.maxHops ?? new RelaySettings.live().maxHops,
+    nextHopAttempts: options.relay?.nextHopAttempts ?? new RelaySettings.live().nextHopAttempts,
+    unreachableMs: options.relay?.unreachableMs ?? new RelaySettings.live().unreachableMs,
+    callTimeoutMs: options.relay?.callTimeoutMs ?? new RelaySettings.live().callTimeoutMs,
   };
   const metrics: RelayMetricsShape = relayMetricsOver();
   const agentLinks = agentLinkFactoryOver((address) => ({
@@ -162,29 +162,29 @@ export function meshFixture(
       Context.add(MeshDirectoryRepository, repository),
       Context.add(NodeIdentity, { nodeId: options.nodeId ?? "A" }),
       Context.add(MeshClock, { now: () => clock.now }),
-      Context.add(MeshDirectory, MeshDirectory.live),
+      Context.add(MeshDirectory, new MeshDirectory.live()),
       Context.add(KeyHints, hints),
       Context.add(MeshBroker, new MeshBroker.live()),
-      Context.add(MeshRelay, MeshRelay.live),
-      Context.add(CredentialRotation, CredentialRotation.live),
+      Context.add(MeshRelay, new MeshRelay.live()),
+      Context.add(CredentialRotation, new CredentialRotation.live()),
       Context.add(NodeAgents, nodeAgents),
       Context.add(ReplicaLinks, links),
       Context.add(AgentLoad, load),
       Context.add(LeaseSigner, leaseSignerOver({ secret: LEASE_SECRET, ttlMs: 30_000 })),
-      Context.add(RosterGossip, RosterGossip.live),
+      Context.add(RosterGossip, new RosterGossip.live()),
       Context.add(AdvertisedAddress, advertised),
       Context.add(AgentLinkFactory, agentLinks),
       Context.add(PendingSeeds, pendingSeeds),
       Context.add(AgentStore, store),
       Context.add(SwarmCredential, credential),
-      Context.add(JoinTokens, JoinTokens.live),
-      Context.add(AccessChecks, AccessChecks.live),
+      Context.add(JoinTokens, new JoinTokens.live()),
+      Context.add(AccessChecks, new AccessChecks.live()),
     )
     .pipe(
-      Context.add(NodeLabels, NodeLabels.live),
+      Context.add(NodeLabels, new NodeLabels.live()),
       Context.add(GossipSettings, {
-        fanout: options.gossip?.fanout ?? GossipSettings.live.fanout,
-        callTimeoutMs: options.gossip?.callTimeoutMs ?? GossipSettings.live.callTimeoutMs,
+        fanout: options.gossip?.fanout ?? new GossipSettings.live().fanout,
+        callTimeoutMs: options.gossip?.callTimeoutMs ?? new GossipSettings.live().callTimeoutMs,
       }),
       Context.add(RelaySettings, relaySettings),
       Context.add(RelayMetrics, metrics),

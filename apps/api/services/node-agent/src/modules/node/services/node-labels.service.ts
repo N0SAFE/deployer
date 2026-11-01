@@ -31,17 +31,21 @@ const parse = (raw: string | undefined): Record<string, string> => {
  * the roster (`from` and `agents`), so a peer — and the dashboard through any agent — sees them.
  */
 export class NodeLabels extends Context.Service<NodeLabels, NodeLabelsShape>()("node-agent/NodeLabels") {
-  static readonly live: NodeLabelsShape = {
-    read: Effect.fn("NodeLabels.read")(function* () {
-      const store = yield* AgentStore;
-      return parse(yield* store.secret(NODE_LABELS_SECRET));
-    }),
+  static readonly live = class NodeLabelsImpl implements NodeLabelsShape {
+    read() {
+      return Effect.gen(function* () {
+        const store = yield* AgentStore;
+        return parse(yield* store.secret(NODE_LABELS_SECRET));
+      });
+    }
 
-    merge: Effect.fn("NodeLabels.merge")(function* (labels) {
-      const store = yield* AgentStore;
-      const merged = { ...parse(yield* store.secret(NODE_LABELS_SECRET)), ...labels };
-      yield* store.putSecret(NODE_LABELS_SECRET, JSON.stringify(merged));
-      return merged;
-    }),
+    merge(labels) {
+      return Effect.gen(function* () {
+        const store = yield* AgentStore;
+        const merged = { ...parse(yield* store.secret(NODE_LABELS_SECRET)), ...labels };
+        yield* store.putSecret(NODE_LABELS_SECRET, JSON.stringify(merged));
+        return merged;
+      });
+    }
   };
 }

@@ -28,14 +28,14 @@ describe("NodeState", () => {
   it("reports a running node as unconfigured, with nothing invented", async () => {
     const node = nodeFixture("node-fresh");
 
-    expect(await node.run(NodeState.live.state())).toEqual({ agentId: "node-fresh", configured: false, config: null });
+    expect(await node.run(new NodeState.live().state())).toEqual({ agentId: "node-fresh", configured: false, config: null });
   });
 
   it("creates the node by writing its config, and stamps when it was created", async () => {
     const node = nodeFixture();
 
     const configured = await node.run(
-      NodeState.live.configure({
+      new NodeState.live().configure({
         nodeId: PLATFORM_NODE_ID,
         strategy: "local",
         swarmConfig: { mode: "create", policy: "auto", advertiseAddr: null, joinToken: null, joinAddrs: [] },
@@ -57,15 +57,15 @@ describe("NodeState", () => {
       },
     });
     expect(configured.config?.configuredAt).toBe(configured.config?.updatedAt);
-    expect((await node.run(NodeState.live.state())).config).toEqual(configured.config);
+    expect((await node.run(new NodeState.live().state())).config).toEqual(configured.config);
   });
 
   it("patches: a named field replaces the stored one and an absent one keeps its value", async () => {
     const node = nodeFixture();
-    await node.run(NodeState.live.configure({ strategy: "local", databaseUrl: "postgres://db" }));
-    const created = (await node.run(NodeState.live.state())).config;
+    await node.run(new NodeState.live().configure({ strategy: "local", databaseUrl: "postgres://db" }));
+    const created = (await node.run(new NodeState.live().state())).config;
 
-    const patched = await node.run(NodeState.live.configure({ setupState: "setup_done", databaseUrl: "postgres://other" }));
+    const patched = await node.run(new NodeState.live().configure({ setupState: "setup_done", databaseUrl: "postgres://other" }));
 
     expect(patched.config).toMatchObject({
       setupState: "setup_done",
@@ -90,12 +90,12 @@ describe("NodeState", () => {
       controlEnvelopeTrustRequired: true,
     };
 
-    expect((await node.run(NodeState.live.state())).config).toBeNull();
-    const written = await node.run(NodeState.live.configure({ mesh }));
+    expect((await node.run(new NodeState.live().state())).config).toBeNull();
+    const written = await node.run(new NodeState.live().configure({ mesh }));
     expect(written.config?.mesh).toEqual(mesh);
-    expect((await node.run(NodeState.live.state())).config?.mesh).toEqual(mesh);
+    expect((await node.run(new NodeState.live().state())).config?.mesh).toEqual(mesh);
 
-    const patched = await node.run(NodeState.live.configure({ setupState: "setup_done" }));
+    const patched = await node.run(new NodeState.live().configure({ setupState: "setup_done" }));
     expect(patched.config?.mesh).toEqual(mesh);
   });
 
@@ -104,7 +104,7 @@ describe("NodeState", () => {
     await Effect.runPromise(store.putNodeConfig("{ not a config"));
 
     const outcome = await Effect.runPromise(
-      NodeState.live.state().pipe(
+      new NodeState.live().state().pipe(
         Effect.provideService(AgentStore, store),
         Effect.provideService(NodeIdentity, { nodeId: "node-a" }),
         Effect.match({ onSuccess: (value) => ({ value }), onFailure: (error) => ({ error }) }),

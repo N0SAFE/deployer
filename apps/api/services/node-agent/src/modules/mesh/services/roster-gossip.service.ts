@@ -41,9 +41,9 @@ export class GossipSettings extends Context.Service<
   GossipSettings,
   { readonly fanout: number; readonly callTimeoutMs: number }
 >()("node-agent/GossipSettings") {
-  static readonly live: { readonly fanout: number; readonly callTimeoutMs: number } = {
-    fanout: DEFAULT_GOSSIP_FANOUT,
-    callTimeoutMs: DEFAULT_CALL_TIMEOUT_MS,
+  static readonly live = class GossipSettingsImpl {
+    fanout = DEFAULT_GOSSIP_FANOUT
+    callTimeoutMs = DEFAULT_CALL_TIMEOUT_MS
   };
 }
 
@@ -75,7 +75,7 @@ export type RosterGossipShape = {
   readonly join: (address: string) => Effect.Effect<SeedResult & { readonly agents: readonly AgentInfo[] }, never, GossipDeps>;
 };
 
-const view = Effect.fn("RosterGossip.view")(function* () {
+const view: () => Effect.Effect<MeshRosterView, never, GossipDeps> = Effect.fn("RosterGossip.view")(function* () {
   const directory = yield* MeshDirectory;
   const agents = yield* NodeAgents;
   const self = yield* NodeIdentity;
@@ -298,47 +298,56 @@ const nextRound = (agents: NodeAgentsShape): number => {
  * authority for its own, and expiry ages out a node that stopped being gossiped.
  */
 export class RosterGossip extends Context.Service<RosterGossip, RosterGossipShape>()("node-agent/RosterGossip") {
-  static readonly live: RosterGossipShape = {
-    exchange: Effect.fn("RosterGossip.exchange")(function* (incoming: MeshRosterView) {
-      yield* absorb(incoming);
-      return yield* view();
-    }),
+  static readonly live = class RosterGossipImpl implements RosterGossipShape {
+    exchange(incoming: MeshRosterView): ReturnType<RosterGossipShape["exchange"]> {
+      return Effect.gen(function* () {
+        yield* absorb(incoming);
+        return yield* view();
+      });
+    }
 
-    round: Effect.fn("RosterGossip.round")(function* () {
-      const agents = yield* NodeAgents;
-      const settings = yield* GossipSettings;
-      const peers = gossipPeers(yield* agents.known(), settings.fanout, nextRound(agents));
-      let changed = 0;
-      for (const peer of peers) {
-        // A peer forgotten between the snapshot and the call is simply skipped: the next round sees the registry afresh.
-        const link = yield* agents.linkTo(peer.nodeId).pipe(Effect.option);
-        if (Option.isSome(link)) {
-          changed += (yield* exchangeOver(link.value, peer.nodeId)) ?? 0;
+    round() {
+      return Effect.gen(function* () {
+        const agents = yield* NodeAgents;
+        const settings = yield* GossipSettings;
+        const peers = gossipPeers(yield* agents.known(), settings.fanout, nextRound(agents));
+        let changed = 0;
+        for (const peer of peers) {
+          // A peer forgotten between the snapshot and the call is simply skipped: the next round sees the registry afresh.
+          const link = yield* agents.linkTo(peer.nodeId).pipe(Effect.option);
+          if (Option.isSome(link)) {
+            changed += (yield* exchangeOver(link.value, peer.nodeId)) ?? 0;
+          }
         }
-      }
-      return changed;
-    }),
+        return changed;
+      });
+    }
 
-    seed: Effect.fn("RosterGossip.seed")(function* (address: string) {
-      const factory = yield* AgentLinkFactory;
-      const agents = yield* NodeAgents;
-      const before = (yield* agents.known()).length;
-      const outcome = yield* exchangeOver(factory.linkTo(address), address);
-      return { reached: outcome !== undefined, learned: (yield* agents.known()).length > before } satisfies SeedResult;
-    }),
+    seed(address: string) {
+      return Effect.gen(function* () {
+        const factory = yield* AgentLinkFactory;
+        const agents = yield* NodeAgents;
+        const before = (yield* agents.known()).length;
+        const outcome = yield* exchangeOver(factory.linkTo(address), address);
+        return { reached: outcome !== undefined, learned: (yield* agents.known()).length > before } satisfies SeedResult;
+      });
+    }
 
-    join: Effect.fn("RosterGossip.join")(function* (address: string) {
-      const seeds = yield* PendingSeeds;
-      yield* seeds.add(address);
-      const result = yield* RosterGossip.live.seed(address);
-      if (result.reached) {
-        yield* seeds.reached(address);
-      }
-      const known = yield* (yield* NodeAgents).known();
-      return {
-        ...result,
-        agents: known.map(({ nodeId, address: where, overlay, labels }) => ({ nodeId, address: where, overlay, labels })),
-      };
-    }),
+    join(address: string) {
+      const seed = this.seed;
+      return Effect.gen(function* () {
+        const seeds = yield* PendingSeeds;
+        yield* seeds.add(address);
+        const result = yield* seed(address);
+        if (result.reached) {
+          yield* seeds.reached(address);
+        }
+        const known = yield* (yield* NodeAgents).known();
+        return {
+          ...result,
+          agents: known.map(({ nodeId, address: where, overlay, labels }) => ({ nodeId, address: where, overlay, labels })),
+        };
+      });
+    }
   };
 }

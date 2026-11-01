@@ -23,7 +23,7 @@ describe("DockerRuntimeRunner", () => {
         getHealthStatus: ReturnType<typeof vi.fn>;
         createServiceConfiguration: ReturnType<typeof vi.fn>;
     };
-    let service: ReturnType<typeof provideTo<typeof DockerRuntimeRunner.live>>;
+    let service: ReturnType<typeof provideTo<InstanceType<typeof DockerRuntimeRunner.live>>>;
 
     beforeEach(() => {
         containers = {
@@ -48,7 +48,7 @@ describe("DockerRuntimeRunner", () => {
             createServiceConfiguration: vi.fn().mockResolvedValue({ id: "cfg-generated" }),
         };
 
-        service = provideTo(DockerRuntimeRunner.live, (effect) =>
+        service = provideTo(new DockerRuntimeRunner.live(), (effect) =>
             effect.pipe(
                 Effect.provideService(DockerEngine, { containers } as never),
                 Effect.provideService(RunnerTraefikPort, traefikService as never),

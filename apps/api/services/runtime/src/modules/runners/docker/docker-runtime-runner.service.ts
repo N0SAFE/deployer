@@ -32,14 +32,14 @@ export class DockerRuntimeRunner extends Context.Service<
     DeploymentRuntimeRunner<DockerEngine | RunnerTraefikPort>
 >()("runtime/DockerRuntimeRunner") {
     /** The engine and traefik are yielded when a run starts, so this is a constant a module provides with `useValue`. */
-    static readonly live: DeploymentRuntimeRunner<DockerEngine | RunnerTraefikPort> = {
-        runnerType: RUNNER_TYPE,
-        executeRuntime: (input) =>
+    static readonly live = class DockerRuntimeRunnerImpl {
+        runnerType = RUNNER_TYPE
+        executeRuntime = (input) =>
             Effect.gen(function* () {
                 const docker = yield* DockerEngine;
                 const traefik = yield* RunnerTraefikPort;
                 return yield* buildDockerRuntimeRunner({ docker, traefik }).executeRuntime(input);
-            }),
+            })
     };
 }
 

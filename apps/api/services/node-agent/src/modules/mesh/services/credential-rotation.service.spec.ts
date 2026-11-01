@@ -30,7 +30,7 @@ describe("CredentialRotation", () => {
     const peer = recordingPeer();
     const a = meshFixture({ nodeId: "A", nodes: { B: peer.link } });
 
-    const rotation = await a.run(CredentialRotation.live.rotate());
+    const rotation = await a.run(new CredentialRotation.live().rotate());
 
     expect(peer.calls).toEqual([{ path: ["roster", "rotate"], input: { secret: rotation.secret, validUntil: rotation.validUntil, epoch: rotation.epoch } }]);
     // The same secret every peer was told is the one this agent installs: no second mint.
@@ -49,7 +49,7 @@ describe("CredentialRotation", () => {
     const peer = recordingPeer();
     const a = meshFixture({ nodeId: "A", nodes: { B: peer.link, Z: dead } });
 
-    const rotation = await a.run(CredentialRotation.live.rotate());
+    const rotation = await a.run(new CredentialRotation.live().rotate());
 
     expect(a.credential.current()).toBe(rotation.secret);
     // The peer that answered still got the secret; the dead one is a warning, not a failure.
@@ -61,11 +61,11 @@ describe("CredentialRotation", () => {
     const a = meshFixture({ nodeId: "A" });
     const validUntil = Date.now() + 60_000;
 
-    await a.run(CredentialRotation.live.adopt("peer-secret", validUntil, 5_000));
+    await a.run(new CredentialRotation.live().adopt("peer-secret", validUntil, 5_000));
 
     expect(a.credential.current()).toBe("peer-secret");
     expect(a.credential.previous()).toBe(LEASE_SECRET);
-    expect(await a.run(CredentialRotation.live.currentForPeer())).toEqual({
+    expect(await a.run(new CredentialRotation.live().currentForPeer())).toEqual({
       secret: "peer-secret",
       validUntil,
       epoch: 5_000,

@@ -101,8 +101,8 @@ export type DoorConvergerShape = {
 
 /** One pass over this node's doors; a failure is reported per door, never thrown. */
 export class DoorConverger extends Context.Service<DoorConverger, DoorConvergerShape>()("node-agent/DoorConverger") {
-	static readonly live: DoorConvergerShape = {
-		converge: (setting, meshAddress, lanAddress) =>
+	static readonly live = class DoorConvergerImpl implements DoorConvergerShape {
+		converge = (setting, meshAddress, lanAddress) =>
 			Effect.gen(function* () {
 				const views: AgentDoorView[] = [];
 				// No plan yet (the API has not published one): leave the node exactly as it is.
@@ -113,6 +113,6 @@ export class DoorConverger extends Context.Service<DoorConverger, DoorConvergerS
 				for (const plan of desired) views.push(yield* convergeDoor(engine, plan));
 				for (const lane of absent) yield* removeDoor(engine, doorContainerName(setting.namePrefix, lane), lane);
 				return views;
-			}),
+			})
 	};
 }

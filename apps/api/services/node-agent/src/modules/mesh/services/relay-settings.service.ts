@@ -25,10 +25,10 @@ export type RelaySettingsShape = {
 };
 
 export class RelaySettings extends Context.Service<RelaySettings, RelaySettingsShape>()("node-agent/RelaySettings") {
-  static readonly live: RelaySettingsShape = {
-    maxHops: DEFAULT_RELAY_MAX_HOPS,
-    nextHopAttempts: DEFAULT_RELAY_NEXT_HOP_ATTEMPTS,
-    unreachableMs: DEFAULT_RELAY_UNREACHABLE_MS,
-    callTimeoutMs: DEFAULT_CALL_TIMEOUT_MS,
+  static readonly live = class RelaySettingsImpl implements RelaySettingsShape {
+    maxHops = DEFAULT_RELAY_MAX_HOPS
+    nextHopAttempts = DEFAULT_RELAY_NEXT_HOP_ATTEMPTS
+    unreachableMs = DEFAULT_RELAY_UNREACHABLE_MS
+    callTimeoutMs = DEFAULT_CALL_TIMEOUT_MS
   };
 }

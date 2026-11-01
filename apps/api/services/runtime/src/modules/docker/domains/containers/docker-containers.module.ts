@@ -26,10 +26,10 @@ export class DockerContainersModule extends createModuleContext({
   providers: [
     effectHostProvider(),
     // Built by factories rather than by decorator: they take collaborators, not Nest metadata.
-    { provide: DockerContainerOps, useValue: DockerContainerOps.live },
+    { provide: DockerContainerOps, useClass: DockerContainerOps.live },
     { provide: DockerTerminalSessions, useValue: DockerTerminalSessions.live },
     { provide: ContainerAccessMeshPort, useExisting: DOCKER_NODE_MESH },
-    { provide: DockerContainerAccess, useValue: DockerContainerAccess.live },
+    { provide: DockerContainerAccess, useClass: DockerContainerAccess.live },
     {
       provide: DockerContainerMetricsStreamService,
       useFactory: (engine: DockerEngineShape, pool: CoreEventStreamPoolService) => new DockerContainerMetricsStreamService(engine, pool),

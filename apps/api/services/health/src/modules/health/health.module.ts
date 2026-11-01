@@ -30,7 +30,7 @@ export class HealthDomainModule extends createModuleContext({
     { provide: HealthRegistryRepository, useExisting: HealthRegistry },
     // The process clock, as a value: the service reports uptime in seconds and never converts.
     { provide: UptimeSource, useValue: () => process.uptime() },
-    { provide: HealthService, useValue: HealthService.live },
+    { provide: HealthService, useClass: HealthService.live },
   ],
   // The domain's public surface: what a module that imports this one may yield. Nothing imports it today, and that is
   // why the list is explicit — an export that is not written is a service no other module can reach.

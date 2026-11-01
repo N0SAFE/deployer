@@ -16,11 +16,13 @@ export type NodeSettingsShape = {
  * would be replaced by the newest value anyway.
  */
 export class NodeSettings extends Context.Service<NodeSettings, NodeSettingsShape>()("node-agent/NodeSettings") {
-  static readonly live: NodeSettingsShape = {
-    all: Effect.fn("NodeSettings.all")(function* () {
-      const store = yield* AgentStore;
-      const settings = yield* store.settings();
-      return { settings: settings.map(({ key, value, updatedAt }) => ({ key, value, updatedAt })) };
-    }),
+  static readonly live = class NodeSettingsImpl implements NodeSettingsShape {
+    all() {
+      return Effect.gen(function* () {
+        const store = yield* AgentStore;
+        const settings = yield* store.settings();
+        return { settings: settings.map(({ key, value, updatedAt }) => ({ key, value, updatedAt })) };
+      });
+    }
   };
 }

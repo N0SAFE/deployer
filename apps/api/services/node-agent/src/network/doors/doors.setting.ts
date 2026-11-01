@@ -52,7 +52,7 @@ export function parseNodeDoorsSetting(raw: string | undefined): DoorsSettingPars
  * another one is refused, so a written setting can never make the node run an image the deployment did not choose.
  */
 export class DoorImage extends Context.Service<DoorImage, { readonly image: string }>()("node-agent/DoorImage") {
-	static readonly live: { readonly image: string } = {
-		image: resolveDoorImage({ NODE_AGENT_DOOR_IMAGE: process.env.NODE_AGENT_DOOR_IMAGE || undefined }),
+	static readonly live = class DoorImageImpl {
+		image = resolveDoorImage({ NODE_AGENT_DOOR_IMAGE: process.env.NODE_AGENT_DOOR_IMAGE || undefined })
 	};
 }

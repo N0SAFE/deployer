@@ -34,13 +34,13 @@ export class DockerImagesRepository extends Context.Service<DockerImagesReposito
 	"runtime/DockerImagesRepository",
 ) {
 	/** The engine is yielded when `list` runs, so this is a constant a Nest module provides with `useValue`. */
-	static readonly live: DockerImagesRepositoryShape = {
-		list: Effect.gen(function* () {
+	static readonly live = class DockerImagesRepositoryImpl implements DockerImagesRepositoryShape {
+		list = Effect.gen(function* () {
 			const engine = yield* DockerEngine;
 			return yield* listDockerImages(engine);
-		}),
+		})
 
-		inspectResolved: (imageId) =>
+		inspectResolved = (imageId) =>
 			Effect.gen(function* () {
 				const engine = yield* DockerEngine;
 				// A candidate the engine cannot inspect, or describes in a shape we do not read, is skipped.
@@ -61,7 +61,7 @@ export class DockerImagesRepository extends Context.Service<DockerImagesReposito
 				if (resolved !== null) return resolved;
 
 				return yield* Effect.fail(new ImageNotFound({ imageId }));
-			}),
+			})
 	};
 }
 

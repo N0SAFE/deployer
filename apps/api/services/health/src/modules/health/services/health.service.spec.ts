@@ -5,7 +5,7 @@ import { HealthRegistryRepository, UptimeSource } from "../services/health.servi
 import { HealthService, SERVICE_NAME } from "./health.service";
 import { healthRegistryFake, healthSnapshot } from "../testing/health.fixtures";
 
-const service = HealthService.live;
+const service = new HealthService.live();
 
 function report(
   runOnce: () => Promise<ReturnType<typeof healthSnapshot>>,

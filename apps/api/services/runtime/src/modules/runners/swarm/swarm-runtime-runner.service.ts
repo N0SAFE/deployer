@@ -70,12 +70,12 @@ export class SwarmRuntimeRunner extends Context.Service<SwarmRuntimeRunner, Swar
     "runtime/SwarmRuntimeRunner",
 ) {
     /** The engine, cluster and env are yielded when a call starts, so this is a constant a module provides with `useValue`. */
-    static readonly live: SwarmRuntimeRunnerShape = {
-        runnerType: RUNNER_TYPE,
-        executeRuntime: (input) => withSwarmServices((runner) => runner.executeRuntime(input)),
-        removeService: (name) => withSwarmServices((runner) => runner.removeService(name)),
-        scaleService: (name, replicas) => withSwarmServices((runner) => runner.scaleService(name, replicas)),
-        rollbackService: (name) => withSwarmServices((runner) => runner.rollbackService(name)),
+    static readonly live = class SwarmRuntimeRunnerImpl implements SwarmRuntimeRunnerShape {
+        runnerType = RUNNER_TYPE
+        executeRuntime = (input) => withSwarmServices((runner) => runner.executeRuntime(input))
+        removeService = (name) => withSwarmServices((runner) => runner.removeService(name))
+        scaleService = (name, replicas) => withSwarmServices((runner) => runner.scaleService(name, replicas))
+        rollbackService = (name) => withSwarmServices((runner) => runner.rollbackService(name))
     };
 }
 

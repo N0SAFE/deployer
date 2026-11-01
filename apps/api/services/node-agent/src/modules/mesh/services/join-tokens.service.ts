@@ -52,71 +52,79 @@ export type JoinTokensShape = {
 };
 
 export class JoinTokens extends Context.Service<JoinTokens, JoinTokensShape>()("node-agent/JoinTokens") {
-  static readonly live: JoinTokensShape = {
-    issue: Effect.fn("JoinTokens.issue")(function* (ttlMs: number) {
-      const credential = yield* SwarmCredential;
-      const clock = yield* MeshClock;
-      const advertised = yield* AdvertisedAddress;
+  static readonly live = class JoinTokensImpl implements JoinTokensShape {
+    issue(ttlMs: number) {
+      return Effect.gen(function* () {
+        const credential = yield* SwarmCredential;
+        const clock = yield* MeshClock;
+        const advertised = yield* AdvertisedAddress;
 
-      let swarmId = credential.swarmId();
-      if (swarmId === null) {
-        swarmId = `swarm-${randomUUID()}`;
-        yield* credential.install(credential.current(), swarmId);
-      }
-      const expiresAt = clock.now() + ttlMs;
-      return {
-        token: encodeJoinToken({ jti: randomUUID(), address: advertised.address, secret: credential.current(), swarmId, expiresAt }),
-        expiresAt,
-      };
-    }),
+        let swarmId = credential.swarmId();
+        if (swarmId === null) {
+          swarmId = `swarm-${randomUUID()}`;
+          yield* credential.install(credential.current(), swarmId);
+        }
+        const expiresAt = clock.now() + ttlMs;
+        return {
+          token: encodeJoinToken({ jti: randomUUID(), address: advertised.address, secret: credential.current(), swarmId, expiresAt }),
+          expiresAt,
+        };
+      });
+    }
 
-    check: Effect.fn("JoinTokens.check")(function* (encoded: string) {
-      const credential = yield* SwarmCredential;
-      const clock = yield* MeshClock;
-      const store = yield* AgentStore;
-      const decoded = decodeJoinToken(encoded, clock.now());
-      // `verify` is grace-aware: a token minted before a rotation still passes on the secret it carries until the
-      // window closes, and fails closed after it.
-      const good = decoded.ok && credential.verify(decoded.token.secret) && decoded.token.swarmId === credential.swarmId();
-      if (!good) return false;
+    check(encoded: string) {
+      return Effect.gen(function* () {
+        const credential = yield* SwarmCredential;
+        const clock = yield* MeshClock;
+        const store = yield* AgentStore;
+        const decoded = decodeJoinToken(encoded, clock.now());
+        // `verify` is grace-aware: a token minted before a rotation still passes on the secret it carries until the
+        // window closes, and fails closed after it.
+        const good = decoded.ok && credential.verify(decoded.token.secret) && decoded.token.swarmId === credential.swarmId();
+        if (!good) return false;
 
-      // Fail closed: if the revocation list cannot be read, a token is not accepted.
-      const revoked = yield* store.isTokenRevoked(encoded).pipe(
-        Effect.catch((error) =>
-          Effect.sync(() => {
-            console.warn(`[node-agent] could not read the revoked-token list: ${error.operation}`);
-            return true;
-          }),
-        ),
-      );
-      return !revoked;
-    }),
+        // Fail closed: if the revocation list cannot be read, a token is not accepted.
+        const revoked = yield* store.isTokenRevoked(encoded).pipe(
+          Effect.catch((error) =>
+            Effect.sync(() => {
+              console.warn(`[node-agent] could not read the revoked-token list: ${error.operation}`);
+              return true;
+            }),
+          ),
+        );
+        return !revoked;
+      });
+    }
 
-    redeem: Effect.fn("JoinTokens.redeem")(function* (encoded: string) {
-      const clock = yield* MeshClock;
-      const decoded = decodeJoinToken(encoded, clock.now());
-      if (!decoded.ok) {
-        return yield* new MeshJoinRejected({ reason: decoded.reason });
-      }
+    redeem(encoded: string) {
+      return Effect.gen(function* () {
+        const clock = yield* MeshClock;
+        const decoded = decodeJoinToken(encoded, clock.now());
+        if (!decoded.ok) {
+          return yield* new MeshJoinRejected({ reason: decoded.reason });
+        }
 
-      const { address, secret, swarmId } = decoded.token;
-      const credential = yield* SwarmCredential;
-      const store = yield* AgentStore;
+        const { address, secret, swarmId } = decoded.token;
+        const credential = yield* SwarmCredential;
+        const store = yield* AgentStore;
 
-      if (yield* store.isTokenRevoked(encoded)) {
-        return yield* new MeshJoinRejected({ reason: "revoked" });
-      }
+        if (yield* store.isTokenRevoked(encoded)) {
+          return yield* new MeshJoinRejected({ reason: "revoked" });
+        }
 
-      yield* credential.install(secret, swarmId);
-      yield* store.addSeed(address);
-      const result = yield* (yield* RosterGossip).join(address);
-      return { reached: result.reached, learned: result.learned, swarmId };
-    }),
+        yield* credential.install(secret, swarmId);
+        yield* store.addSeed(address);
+        const result = yield* (yield* RosterGossip).join(address);
+        return { reached: result.reached, learned: result.learned, swarmId };
+      });
+    }
 
-    revoke: Effect.fn("JoinTokens.revoke")(function* (encoded: string) {
-      const store = yield* AgentStore;
-      yield* store.revokeToken(encoded);
-      return { revoked: true };
-    }),
+    revoke(encoded: string) {
+      return Effect.gen(function* () {
+        const store = yield* AgentStore;
+        yield* store.revokeToken(encoded);
+        return { revoked: true };
+      });
+    }
   };
 }

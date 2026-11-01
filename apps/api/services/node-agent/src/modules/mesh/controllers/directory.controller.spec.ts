@@ -26,7 +26,7 @@ describe("DirectoryController", () => {
   const contextFor = () =>
     effectContext(
       Context.empty().pipe(
-        Context.add(MeshDirectory, MeshDirectory.live),
+        Context.add(MeshDirectory, new MeshDirectory.live()),
         Context.add(MeshDirectoryRepository, directoryRepositoryOver(createDirectoryStore())),
         Context.add(NodeIdentity, { nodeId: "A" }),
         Context.add(MeshClock, { now: () => 1_000 }),

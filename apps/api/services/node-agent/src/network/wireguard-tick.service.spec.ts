@@ -89,7 +89,7 @@ function harness(
 	const run = () =>
 		Effect.runPromise(
 			Effect.flatMap(WireguardTick, (tick) => tick.convergeOnce()).pipe(
-				Effect.provideService(WireguardTick, WireguardTick.live),
+				Effect.provideService(WireguardTick, new WireguardTick.live()),
 				Effect.provideService(AgentStore, store),
 				Effect.provideService(NodeIdentity, { nodeId }),
 				Effect.provideService(NodeAgents, agents),

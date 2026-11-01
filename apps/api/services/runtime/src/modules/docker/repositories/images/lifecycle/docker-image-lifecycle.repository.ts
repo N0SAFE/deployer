@@ -31,8 +31,8 @@ export class DockerImageLifecycleRepository extends Context.Service<
   DockerImageLifecycleRepository,
   DockerImageLifecycleRepositoryShape
 >()("runtime/DockerImageLifecycleRepository") {
-  static readonly live: DockerImageLifecycleRepositoryShape = {
-    ensureAlive: (identifier) =>
+  static readonly live = class DockerImageLifecycleRepositoryImpl implements DockerImageLifecycleRepositoryShape {
+    ensureAlive = (identifier) =>
       Effect.gen(function* () {
         const database = yield* RuntimeDb;
         const now = new Date();
@@ -82,9 +82,9 @@ export class DockerImageLifecycleRepository extends Context.Service<
         });
 
         return { imageGeneration: plan.generation, revived: plan.action === "revive", event: plan.event };
-      }),
+      })
 
-    listAlive: () =>
+    listAlive = () =>
       Effect.flatMap(RuntimeDb, (database) =>
         database.use(async (db) => {
           const rows = await db
@@ -93,9 +93,9 @@ export class DockerImageLifecycleRepository extends Context.Service<
             .where(eq(dockerImageSecurityLifecycle.lifecycleState, "alive"));
           return rows.map((row) => row.imageIdentifierNormalized);
         }),
-      ).pipe(tolerateMissingScanTable([] as string[])),
+      ).pipe(tolerateMissingScanTable([] as string[]))
 
-    markDeleted: (identifiers) =>
+    markDeleted = (identifiers) =>
       identifiers.length === 0
         ? Effect.void
         : Effect.flatMap(RuntimeDb, (database) =>
@@ -106,6 +106,6 @@ export class DockerImageLifecycleRepository extends Context.Service<
                 .set({ lifecycleState: "deleted", deletedAt: now, updatedAt: now })
                 .where(inArray(dockerImageSecurityLifecycle.imageIdentifierNormalized, [...identifiers]));
             }),
-          ),
+          )
   };
 }

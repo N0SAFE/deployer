@@ -60,36 +60,38 @@ export type HealthServiceShape = {
  * Tag and implementation together: the tag is the contract, `live` the one implementation. No class,
  * no decorator, no factory: the service is a plain record whose dependencies (the registry, the clock)
  * are yielded inside `report()`, so it is a constant a Nest module provides as `{ provide:
- * HealthService, useValue: HealthService.live }`.
+ * HealthService, useClass: HealthService.live }`.
  */
 export class HealthService extends Context.Service<HealthService, HealthServiceShape>()(
   "health/HealthService",
 ) {
-  static readonly live: HealthServiceShape = {
-    report: Effect.fn("HealthService.report")(function* () {
-      const registry = yield* HealthRegistryRepository;
-      const uptime = yield* UptimeSource;
+  static readonly live = class HealthServiceImpl implements HealthServiceShape {
+    report(): ReturnType<HealthServiceShape["report"]> {
+      return Effect.gen(function* () {
+        const registry = yield* HealthRegistryRepository;
+        const uptime = yield* UptimeSource;
 
-      const snapshot = yield* Effect.tryPromise({
-        try: () => registry.runOnce(),
-        catch: (cause) =>
-          new HealthCheckFailed({
-            message: "Health registry failed to produce a snapshot",
-            cause,
-          }),
+        const snapshot = yield* Effect.tryPromise({
+          try: () => registry.runOnce(),
+          catch: (cause) =>
+            new HealthCheckFailed({
+              message: "Health registry failed to produce a snapshot",
+              cause,
+            }),
+        });
+
+        return {
+          status: snapshot.status === "up" ? "ok" : "degraded",
+          timestamp: new Date(snapshot.checkedAt),
+          service: SERVICE_NAME,
+          // `process.uptime()` is already seconds, which is what the contract declares: no division.
+          uptime: uptime(),
+          info: snapshot.info,
+          error: snapshot.error,
+          details: snapshot.details,
+          indicators: snapshot.indicators,
+        };
       });
-
-      return {
-        status: snapshot.status === "up" ? "ok" : "degraded",
-        timestamp: new Date(snapshot.checkedAt),
-        service: SERVICE_NAME,
-        // `process.uptime()` is already seconds, which is what the contract declares: no division.
-        uptime: uptime(),
-        info: snapshot.info,
-        error: snapshot.error,
-        details: snapshot.details,
-        indicators: snapshot.indicators,
-      };
-    }),
+    }
   };
 }

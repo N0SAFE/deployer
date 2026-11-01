@@ -33,44 +33,50 @@ export type RotationDeps = SwarmCredential | AgentStore | NodeAgents | AgentLink
 export class CredentialRotation extends Context.Service<CredentialRotation, CredentialRotationShape>()(
   "node-agent/CredentialRotation",
 ) {
-  static readonly live: CredentialRotationShape = {
-    rotate: Effect.fn("CredentialRotation.rotate")(function* () {
-      const credential = yield* SwarmCredential;
-      const agents = yield* NodeAgents;
+  static readonly live = class CredentialRotationImpl implements CredentialRotationShape {
+    rotate() {
+      return Effect.gen(function* () {
+        const credential = yield* SwarmCredential;
+        const agents = yield* NodeAgents;
 
-      // Minted here, not by the cell: the peers must learn the same secret the originator installs, so the local
-      // rotation takes it as an input (`rotateTo`) instead of minting a second one.
-      const secret = randomBytes(32).toString("base64url");
-      const validUntil = Date.now() + ROTATION_GRACE_MS;
-      // The epoch is fixed before the broadcast: a receiver that adopts it then fetches the same rotation from gossip
-      // must see an equal epoch and do nothing, not rotate its "previous" secret into the new one.
-      const epoch = Date.now();
+        // Minted here, not by the cell: the peers must learn the same secret the originator installs, so the local
+        // rotation takes it as an input (`rotateTo`) instead of minting a second one.
+        const secret = randomBytes(32).toString("base64url");
+        const validUntil = Date.now() + ROTATION_GRACE_MS;
+        // The epoch is fixed before the broadcast: a receiver that adopts it then fetches the same rotation from gossip
+        // must see an equal epoch and do nothing, not rotate its "previous" secret into the new one.
+        const epoch = Date.now();
 
-      for (const agent of yield* agents.known()) {
-        // A link is opened for the broadcast only: a rotation is rare, and gossip catches up whatever it cannot reach.
-        const link = yield* agents.linkTo(agent.nodeId).pipe(Effect.option);
-        const reached = Option.isSome(link) ? yield* broadcast(link.value, { secret, validUntil, epoch }) : false;
-        if (!reached) {
-          // Not fatal: the peer converges from gossip, inside the window this rotation opened.
-          yield* Effect.sync(() => {
-            console.warn(`[node-agent] ${agent.nodeId} did not take the rotation; gossip will catch it up`);
-          });
+        for (const agent of yield* agents.known()) {
+          // A link is opened for the broadcast only: a rotation is rare, and gossip catches up whatever it cannot reach.
+          const link = yield* agents.linkTo(agent.nodeId).pipe(Effect.option);
+          const reached = Option.isSome(link) ? yield* broadcast(link.value, { secret, validUntil, epoch }) : false;
+          if (!reached) {
+            // Not fatal: the peer converges from gossip, inside the window this rotation opened.
+            yield* Effect.sync(() => {
+              console.warn(`[node-agent] ${agent.nodeId} did not take the rotation; gossip will catch it up`);
+            });
+          }
         }
-      }
 
-      return yield* credential.rotateTo(secret, validUntil, epoch);
-    }),
+        return yield* credential.rotateTo(secret, validUntil, epoch);
+      });
+    }
 
-    adopt: Effect.fn("CredentialRotation.adopt")(function* (secret: string, validUntil: number, epoch: number) {
-      const credential = yield* SwarmCredential;
-      yield* credential.adopt(secret, validUntil, epoch);
-    }),
+    adopt(secret: string, validUntil: number, epoch: number) {
+      return Effect.gen(function* () {
+        const credential = yield* SwarmCredential;
+        yield* credential.adopt(secret, validUntil, epoch);
+      });
+    }
 
-    currentForPeer: Effect.fn("CredentialRotation.currentForPeer")(function* () {
-      const credential = yield* SwarmCredential;
-      // `validUntil` is the window the previous secret was granted, which is the transition still in force.
-      return { secret: credential.current(), validUntil: credential.validUntil(), epoch: credential.epoch() };
-    }),
+    currentForPeer() {
+      return Effect.gen(function* () {
+        const credential = yield* SwarmCredential;
+        // `validUntil` is the window the previous secret was granted, which is the transition still in force.
+        return { secret: credential.current(), validUntil: credential.validUntil(), epoch: credential.epoch() };
+      });
+    }
   };
 }
 

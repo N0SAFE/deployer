@@ -55,72 +55,84 @@ export type MeshDirectoryShape = {
  * outlive its own heartbeat.
  */
 export class MeshDirectory extends Context.Service<MeshDirectory, MeshDirectoryShape>()("node-agent/MeshDirectory") {
-  static readonly live: MeshDirectoryShape = {
-    register: Effect.fn("MeshDirectory.register")(function* (registration: ReplicaRegistration) {
-      const repository = yield* MeshDirectoryRepository;
-      const { nodeId } = yield* NodeIdentity;
-      const clock = yield* MeshClock;
+  static readonly live = class MeshDirectoryImpl implements MeshDirectoryShape {
+    register(registration: ReplicaRegistration) {
+      return Effect.gen(function* () {
+        const repository = yield* MeshDirectoryRepository;
+        const { nodeId } = yield* NodeIdentity;
+        const clock = yield* MeshClock;
 
-      const now = clock.now();
-      const current = yield* repository.get(registration.replicaId, now);
-      const record: ReplicaRecord = {
-        service: registration.service,
-        replicaId: registration.replicaId,
-        nodeId,
-        address: registration.address,
-        load: registration.load,
-        keys: registration.keys,
-        generation: (current?.generation ?? 0) + 1,
-        expiresAt: now + registration.ttlMs,
-      };
-      yield* repository.upsert(record);
-      return record;
-    }),
+        const now = clock.now();
+        const current = yield* repository.get(registration.replicaId, now);
+        const record: ReplicaRecord = {
+          service: registration.service,
+          replicaId: registration.replicaId,
+          nodeId,
+          address: registration.address,
+          load: registration.load,
+          keys: registration.keys,
+          generation: (current?.generation ?? 0) + 1,
+          expiresAt: now + registration.ttlMs,
+        };
+        yield* repository.upsert(record);
+        return record;
+      });
+    }
 
-    unregister: Effect.fn("MeshDirectory.unregister")(function* (replicaId: string) {
-      const repository = yield* MeshDirectoryRepository;
-      return yield* repository.remove(replicaId);
-    }),
+    unregister(replicaId: string) {
+      return Effect.gen(function* () {
+        const repository = yield* MeshDirectoryRepository;
+        return yield* repository.remove(replicaId);
+      });
+    }
 
-    get: Effect.fn("MeshDirectory.get")(function* (replicaId: string) {
-      const repository = yield* MeshDirectoryRepository;
-      const clock = yield* MeshClock;
-      return yield* repository.get(replicaId, clock.now());
-    }),
+    get(replicaId: string) {
+      return Effect.gen(function* () {
+        const repository = yield* MeshDirectoryRepository;
+        const clock = yield* MeshClock;
+        return yield* repository.get(replicaId, clock.now());
+      });
+    }
 
-    snapshot: Effect.fn("MeshDirectory.snapshot")(function* () {
-      const repository = yield* MeshDirectoryRepository;
-      const clock = yield* MeshClock;
-      return yield* repository.snapshot(clock.now());
-    }),
+    snapshot() {
+      return Effect.gen(function* () {
+        const repository = yield* MeshDirectoryRepository;
+        const clock = yield* MeshClock;
+        return yield* repository.snapshot(clock.now());
+      });
+    }
 
-    merge: Effect.fn("MeshDirectory.merge")(function* (records: readonly ReplicaRecord[]) {
-      const repository = yield* MeshDirectoryRepository;
-      const { nodeId } = yield* NodeIdentity;
-      const clock = yield* MeshClock;
+    merge(records: readonly ReplicaRecord[]) {
+      return Effect.gen(function* () {
+        const repository = yield* MeshDirectoryRepository;
+        const { nodeId } = yield* NodeIdentity;
+        const clock = yield* MeshClock;
 
-      const now = clock.now();
-      let changed = 0;
-      for (const record of records) {
-        if (record.nodeId !== nodeId && record.expiresAt > now && (yield* repository.upsert(record))) {
-          changed += 1;
+        const now = clock.now();
+        let changed = 0;
+        for (const record of records) {
+          if (record.nodeId !== nodeId && record.expiresAt > now && (yield* repository.upsert(record))) {
+            changed += 1;
+          }
         }
-      }
-      return changed;
-    }),
+        return changed;
+      });
+    }
 
-    resolve: Effect.fn("MeshDirectory.resolve")(function* (query: ReplicaQuery) {
-      const repository = yield* MeshDirectoryRepository;
-      const { nodeId } = yield* NodeIdentity;
-      const clock = yield* MeshClock;
+    resolve(query: ReplicaQuery) {
+      return Effect.gen(function* () {
+        const repository = yield* MeshDirectoryRepository;
+        const { nodeId } = yield* NodeIdentity;
+        const clock = yield* MeshClock;
 
-      const now = clock.now();
-      const records = yield* repository.snapshot(now);
-      const resolution = resolveReplica(records, { ...query, localNode: nodeId, now });
-      if (!resolution) {
-        return yield* new MeshNoReplica({ service: query.service });
-      }
-      return resolution;
-    }),
+        const now = clock.now();
+        const records = yield* repository.snapshot(now);
+        const resolution = resolveReplica(records, { ...query, localNode: nodeId, now });
+        if (!resolution) {
+          return yield* new MeshNoReplica({ service: query.service });
+        }
+        return resolution;
+      });
+    }
   };
 }

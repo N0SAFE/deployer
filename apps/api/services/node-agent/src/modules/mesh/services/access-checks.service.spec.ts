@@ -12,13 +12,13 @@ describe("AccessChecks", () => {
   it("accepts the swarm's credential, as another agent relaying a call presents it", async () => {
     const mesh = meshFixture();
 
-    expect(await mesh.run(AccessChecks.live.verify(LEASE_SECRET, "runtime-1"))).toBe(true);
+    expect(await mesh.run(new AccessChecks.live().verify(LEASE_SECRET, "runtime-1"))).toBe(true);
   });
 
   it("accepts a direct grant that names this replica and has not expired", async () => {
     const mesh = meshFixture({ now: 1_000 });
 
-    expect(await mesh.run(AccessChecks.live.verify(grant(), "runtime-1"))).toBe(true);
+    expect(await mesh.run(new AccessChecks.live().verify(grant(), "runtime-1"))).toBe(true);
   });
 
   it.each([
@@ -29,17 +29,17 @@ describe("AccessChecks", () => {
   ])("refuses %s", async (_name, presented) => {
     const mesh = meshFixture({ now: 1_000 });
 
-    expect(await mesh.run(AccessChecks.live.verify(presented(), "runtime-1"))).toBe(false);
+    expect(await mesh.run(new AccessChecks.live().verify(presented(), "runtime-1"))).toBe(false);
   });
 
   it("follows a credential replaced by a join: the old one stops being good at once", async () => {
     const mesh = meshFixture();
-    const before = await mesh.run(AccessChecks.live.verify(LEASE_SECRET, "runtime-1"));
+    const before = await mesh.run(new AccessChecks.live().verify(LEASE_SECRET, "runtime-1"));
 
     await mesh.run(mesh.credential.install("the-swarm-secret", "swarm-1"));
 
     expect(before).toBe(true);
-    expect(await mesh.run(AccessChecks.live.verify(LEASE_SECRET, "runtime-1"))).toBe(false);
-    expect(await mesh.run(AccessChecks.live.verify("the-swarm-secret", "runtime-1"))).toBe(true);
+    expect(await mesh.run(new AccessChecks.live().verify(LEASE_SECRET, "runtime-1"))).toBe(false);
+    expect(await mesh.run(new AccessChecks.live().verify("the-swarm-secret", "runtime-1"))).toBe(true);
   });
 });

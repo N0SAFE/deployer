@@ -62,9 +62,9 @@ export class AgentLocalModule extends createModuleContext({
         nodeId: (await Effect.runPromise(store.identity(config.get("MESH_NODE_ID", { infer: true })))).nodeId,
       }),
     },
-    { provide: NodeState, useValue: NodeState.live },
-    { provide: NodeSettings, useValue: NodeSettings.live },
-    { provide: NodeLabels, useValue: NodeLabels.live },
+    { provide: NodeState, useClass: NodeState.live },
+    { provide: NodeSettings, useClass: NodeSettings.live },
+    { provide: NodeLabels, useClass: NodeLabels.live },
     {
       provide: MESH_CREDENTIAL_VERIFIER,
       inject: [SwarmCredential],

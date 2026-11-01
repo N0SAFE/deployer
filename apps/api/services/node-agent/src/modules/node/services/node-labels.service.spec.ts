@@ -28,29 +28,29 @@ describe("NodeLabels", () => {
   it("answers with nothing on a node that published no label", async () => {
     const run = over(agentStoreOver(new DatabaseSync(":memory:") as never));
 
-    expect(await run(NodeLabels.live.read())).toEqual({});
+    expect(await run(new NodeLabels.live().read())).toEqual({});
   });
 
   it("merges labels without dropping the ones already there", async () => {
     const store = agentStoreOver(new DatabaseSync(":memory:") as never);
     const run = over(store);
 
-    expect(await run(NodeLabels.live.merge({ "deployer.node-id": "node-1" }))).toEqual({ "deployer.node-id": "node-1" });
-    expect(await run(NodeLabels.live.merge({ environment: "prod" }))).toEqual({
+    expect(await run(new NodeLabels.live().merge({ "deployer.node-id": "node-1" }))).toEqual({ "deployer.node-id": "node-1" });
+    expect(await run(new NodeLabels.live().merge({ environment: "prod" }))).toEqual({
       "deployer.node-id": "node-1",
       environment: "prod",
     });
-    expect(await run(NodeLabels.live.read())).toEqual({ "deployer.node-id": "node-1", environment: "prod" });
+    expect(await run(new NodeLabels.live().read())).toEqual({ "deployer.node-id": "node-1", environment: "prod" });
   });
 
   it("keeps the labels across a reopen of the store", async () => {
     const dir = freshDir();
     const first = await openAgentStore(dir);
-    await over(first)(NodeLabels.live.merge({ "deployer.node-id": "node-1" }));
+    await over(first)(new NodeLabels.live().merge({ "deployer.node-id": "node-1" }));
     await Effect.runPromise(first.close());
 
     const second = await openAgentStore(dir);
-    expect(await over(second)(NodeLabels.live.read())).toEqual({ "deployer.node-id": "node-1" });
+    expect(await over(second)(new NodeLabels.live().read())).toEqual({ "deployer.node-id": "node-1" });
     await Effect.runPromise(second.close());
   });
 
@@ -58,7 +58,7 @@ describe("NodeLabels", () => {
     const store = agentStoreOver(new DatabaseSync(":memory:") as never);
     await Effect.runPromise(store.putSecret(NODE_LABELS_SECRET, "{not-json"));
 
-    expect(await over(store)(NodeLabels.live.read())).toEqual({});
-    expect(await over(store)(NodeLabels.live.merge({ a: "1" }))).toEqual({ a: "1" });
+    expect(await over(store)(new NodeLabels.live().read())).toEqual({});
+    expect(await over(store)(new NodeLabels.live().merge({ a: "1" }))).toEqual({ a: "1" });
   });
 });

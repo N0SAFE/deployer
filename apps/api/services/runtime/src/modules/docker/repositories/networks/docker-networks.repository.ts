@@ -27,11 +27,11 @@ export class DockerNetworksRepository extends Context.Service<DockerNetworksRepo
 	"runtime/DockerNetworksRepository",
 ) {
 	/** The engine is yielded when `list` runs, so this is a constant a Nest module provides with `useValue`. */
-	static readonly live: DockerNetworksRepositoryShape = {
-		list: Effect.gen(function* () {
+	static readonly live = class DockerNetworksRepositoryImpl implements DockerNetworksRepositoryShape {
+		list = Effect.gen(function* () {
 			const engine = yield* DockerEngine;
 			return yield* listDockerNetworks(engine);
-		}),
+		})
 	};
 }
 
