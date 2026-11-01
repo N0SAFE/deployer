@@ -13350,8 +13350,8 @@
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/ROADMAP.md": {
-    "mtime": 1793540226.4816084,
-    "ast_hash": "19638d34bc40a7dea597bd516a7491e6",
+    "mtime": 1793552150.0795968,
+    "ast_hash": "974f7700fb8692575877ba9521bfac3b",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/architecture.md": {
@@ -13495,8 +13495,8 @@
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/roadmap/auth-security.md": {
-    "mtime": 1793540164.7537043,
-    "ast_hash": "14bf0b8f4131807d50a7db43bf16b271",
+    "mtime": 1793552170.0338027,
+    "ast_hash": "f926e2632e29087026fbaa60b05e2e5a",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/roadmap/cluster.md": {
@@ -21892,6 +21892,21 @@
   "packages/swarm/src/participation/swarm-participation.spec.ts": {
     "mtime": 1793538651.2484903,
     "ast_hash": "8d617bd834d914add7a83efcf720c215",
+    "semantic_hash": ""
+  },
+  "docs/audit-2026-10-25/PERMISSIONS-ROADMAP.md": {
+    "mtime": 1793552081.1540549,
+    "ast_hash": "0446d14f653293b0041fba0daa4c9574",
+    "semantic_hash": ""
+  },
+  "docs/audit-2026-10-25/permissions/model-research.md": {
+    "mtime": 1793552026.8677619,
+    "ast_hash": "aa1118487105b8665b2782c319afa5d2",
+    "semantic_hash": ""
+  },
+  "docs/qa/permissions/requirements-2026-11-01.md": {
+    "mtime": 1793552098.7543094,
+    "ast_hash": "5c3ee71d8bdacdfa1d8f9a00a9f3bf3d",
     "semantic_hash": ""
   }
 }

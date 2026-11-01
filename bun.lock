@@ -1387,6 +1387,7 @@
       "name": "@deployer/nest-effect",
       "version": "1.0.0",
       "dependencies": {
+        "@deployer/auth": "*",
         "@deployer/contracts-entities": "*",
         "@deployer/effect-core": "*",
         "@deployer/errors": "*",
@@ -1406,6 +1407,7 @@
         "@deployer/config-vitest": "*",
         "@deployer/pkg-build": "*",
         "@nestjs/testing": "catalog:api:nest",
+        "@orpc/effect": "catalog:orpc",
         "@types/dockerode": "*",
         "@types/node": "catalog:build",
         "chokidar": "catalog:build",

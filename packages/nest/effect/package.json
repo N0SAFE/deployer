@@ -1,5 +1,6 @@
 {
 	"dependencies": {
+		"@deployer/auth": "*",
 		"@deployer/contracts-entities": "*",
 		"@deployer/effect-core": "*",
 		"@deployer/errors": "*",
@@ -20,14 +21,15 @@
 		"@deployer/config-vitest": "*",
 		"@deployer/pkg-build": "*",
 		"@nestjs/testing": "catalog:api:nest",
+		"@orpc/effect": "catalog:orpc",
+		"@types/dockerode": "*",
 		"@types/node": "catalog:build",
 		"chokidar": "catalog:build",
 		"eslint": "catalog:linting",
 		"reflect-metadata": "catalog:api:nest",
 		"rimraf": "catalog:build",
 		"typescript": "catalog:build",
-		"vitest": "catalog:testing",
-		"@types/dockerode": "*"
+		"vitest": "catalog:testing"
 	},
 	"exports": {
 		".": {

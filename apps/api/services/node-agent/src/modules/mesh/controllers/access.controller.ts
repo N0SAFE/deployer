@@ -17,12 +17,12 @@ export class AccessController {
   @MeshProcedure({ door: "peer", group: "access", contract: access.verify })
   verify() {
       return procedure(access.verify).effect(function* ({ input, context }) {
-      return yield* serveMeshPeer(context)(
-          Effect.gen(function* () {
-        const checks = yield* AccessChecks;
-        return { ok: yield* checks.verify(input.presented, input.replicaId) };
-          }),
-      );
+        return yield* serveMeshPeer(context)(
+            Effect.gen(function* () {
+          const checks = yield* AccessChecks;
+          return { ok: yield* checks.verify(input.presented, input.replicaId) };
+            }),
+        );
       });
   }
 }

@@ -1,4 +1,6 @@
 import { implement, ORPCError, os } from "@orpc/server";
+
+import { authzConfigured, authzGate } from "./authz";
 import { Context as EffectContext } from "effect";
 
 
@@ -144,7 +146,14 @@ export type RequirementProcedure<
 	>;
 };
 
-/** `implement(contract, config)`, with `.effect()` returning the requirements it inferred. */
+/**
+ * `implement(contract, config)`, with `.effect()` returning the requirements it inferred.
+ *
+ * When a host has called `configureAuthz` (`@deployer/nest-effect/authz`), every `.effect()` handler gets the authz gate
+ * appended **after** the middlewares the controller declared — so it sees the authenticated actor, and a new procedure
+ * cannot forget the check. `.handler()`-based procedures are not covered yet; they are the streaming/Promise surface the
+ * audit still tracks (`AUTHZ-010..012`).
+ */
 export function procedure<
 	TContract extends RouterContract,
 	TInitialContext extends Context = DefaultInitialContext,
@@ -152,10 +161,21 @@ export function procedure<
 	contract: TContract,
 	config?: ProcedureConfig,
 ): RequirementImplementer<TContract, TInitialContext & object> {
-	return wrap(implement(contract, config)) as unknown as RequirementImplementer<
-		TContract,
-		TInitialContext & object
-	>;
+	const wrapped = wrap(implement(contract, config)) as unknown as Record<PropertyKey, unknown>;
+	const gated = new Proxy(wrapped, {
+		get(target, property, receiver) {
+			if (property !== "effect") return Reflect.get(target, property, receiver);
+			return (handler: unknown) => {
+				const options = authzConfigured();
+				// `authzGate` is structurally a middleware; oRPC types it against the implementer's context, which this
+				// generic wrapper cannot name.
+				const target = options === null || options.mode === "off" ? wrapped : (Reflect.get(wrapped, "use", receiver) as (m: unknown) => Record<PropertyKey, unknown>)(authzGate(options));
+				const effect = Reflect.get(target, "effect") as (h: unknown) => unknown;
+				return effect.call(target, handler);
+			};
+		},
+	});
+	return gated as unknown as RequirementImplementer<TContract, TInitialContext & object>;
 }
 
 /** Delegates everything to the library; only re-wraps values that are implementers, so `.effect` stays ours. */

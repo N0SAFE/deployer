@@ -1,6 +1,7 @@
 import { domainErrorInterceptor } from "@deployer/effect-orpc";
 import { Logger } from "@nestjs/common";
 import { REQUEST } from "@nestjs/core";
+import { configureAuthz, platformRoleStore, type AuthzMode, type DecisionEvent } from "@deployer/nest-effect/authz";
 import { ORPCModule } from "@orpc/nest";
 import type { DefaultInitialContext, Router } from "@orpc/server";
 import { AuthPlugin } from "../core/modules/auth/orpc/plugins/auth.plugin";
@@ -64,6 +65,30 @@ type ExtraContext<D extends ExtraTokens> = {
 	) => Promise<Record<string, unknown>> | Record<string, unknown>;
 };
 
+/** `AUTHZ_MODE=off|shadow|enforce`; anything else is `off` with one warning, so a typo cannot lock the platform out. */
+function authzFromEnv(): Parameters<typeof configureAuthz>[0] {
+	const raw = process.env.AUTHZ_MODE?.trim().toLowerCase();
+	if (raw === undefined || raw === "" || raw === "off") return null;
+	if (raw !== "shadow" && raw !== "enforce") {
+		console.warn(`[authz] AUTHZ_MODE="${raw}" is not off|shadow|enforce; authorization stays off`);
+		return null;
+	}
+	const mode: AuthzMode = raw;
+	return {
+		store: platformRoleStore,
+		mode,
+		// Shadow mode is only useful if the would-denies are visible: one line per refusal, no payload.
+		onDecision: (event: DecisionEvent) => {
+			if (event.decision.allowed) return;
+			console.debug(
+				`[authz] would deny ${event.decision.permission} on ${event.decision.scope.kind}` +
+					`${event.decision.scope.id === undefined ? "" : `:${event.decision.scope.id}`}` +
+					` for ${event.actor?.id ?? "anonymous"} (${event.decision.reason})${event.mode === "enforce" ? "" : " [shadow]"}`,
+			);
+		},
+	};
+}
+
 export type CreateOrpcModuleOptions<ExtraD extends ExtraTokens = []> = {
 	/**
 	 * Extra initial-context fields resolved from DI per request.
@@ -82,6 +107,11 @@ export function createOrpcModule<ExtraD extends ExtraTokens = []>(
 	options: CreateOrpcModuleOptions<ExtraD> = {},
 ): DynamicModule {
 	const extra = options.extraContext;
+
+	// Authorization is configured once, here, so every `.effect()` procedure in the app gets the gate from `procedure()`
+	// without a controller remembering to apply it. `shadow` evaluates and logs without refusing (the rollout mode from
+	// PERMISSIONS-ROADMAP.md); `enforce` refuses; unset/`off` installs nothing and leaves the app byte-identical.
+	configureAuthz(authzFromEnv());
 
 	return ORPCModule.forRootAsync({
 		useFactory: async (

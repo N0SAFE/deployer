@@ -186,6 +186,21 @@
                 "import": "./dist/production/esm/mesh/index.mjs",
                 "require": "./dist/production/cjs/mesh/index.js"
             }
+        },
+        "./authz": {
+            "types": "./dist/types/authz/index.d.ts",
+            "development": {
+                "import": "./dist/development/esm/authz/index.mjs",
+                "require": "./dist/development/cjs/authz/index.js"
+            },
+            "production": {
+                "import": "./dist/production/esm/authz/index.mjs",
+                "require": "./dist/production/cjs/authz/index.js"
+            },
+            "default": {
+                "import": "./dist/production/esm/authz/index.mjs",
+                "require": "./dist/production/cjs/authz/index.js"
+            }
         }
     },
     "scripts": {

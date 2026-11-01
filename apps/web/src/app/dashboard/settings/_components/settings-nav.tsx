@@ -9,7 +9,7 @@ import {
   AuthDashboardSettingsNode,
   AuthDashboardSettingsUsers,
 } from '@/routes'
-import { useIsPlatformAdmin } from './use-is-admin'
+import { useCan } from '@/lib/access/permissions'
 
 /**
  * Personal settings first, then the platform-wide ones. Integrations links OUT to
@@ -17,13 +17,15 @@ import { useIsPlatformAdmin } from './use-is-admin'
  * registered externally, so that tab leaves this section's layout.
  */
 export function SettingsNav() {
-  const isAdmin = useIsPlatformAdmin()
+  // `settings:manage` is what the users/node areas need; it is the catalog's name for "platform admin", so the nav
+  // cannot disagree with the API about who may open them.
+  const canManageSettings = useCan('settings:manage')
   const items: readonly SectionNavItem[] = [
     { title: 'Overview', route: AuthDashboardSettings, icon: LayoutGrid, exact: true },
     { title: 'Account', route: AuthDashboardSettingsAccount, icon: User },
-    { title: 'Users & access', route: AuthDashboardSettingsUsers, icon: Users, visible: isAdmin },
+    { title: 'Users & access', route: AuthDashboardSettingsUsers, icon: Users, visible: canManageSettings },
     { title: 'Integrations', route: AuthDashboardAdminProviders, icon: Plug },
-    { title: 'This node', route: AuthDashboardSettingsNode, icon: Server, visible: isAdmin },
+    { title: 'This node', route: AuthDashboardSettingsNode, icon: Server, visible: canManageSettings },
   ]
   return <SectionNav label="Settings sections" items={items} />
 }

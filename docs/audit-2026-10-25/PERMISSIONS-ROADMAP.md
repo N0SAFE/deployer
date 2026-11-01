@@ -405,3 +405,43 @@ When an `AUTHZ-*` item is done, tick the mapped `SEC-*`/`AUTH-*`/`EFF-*` item in
    Recommendation: opt-in per permission, with the production preset one click away.
 4. **Step-up window**: 5 minutes for `reveal`, 15 for `admin`?
 5. **Public surface**: health, setup claim, invite accept, sign-in — confirm the list before `AUTHZ-012` freezes it.
+
+## 15. What landed first (2026-11-01)
+
+The DX half of Phase A/B is in, behind `AUTHZ_MODE` (default `off`, so nothing changes until an operator opts in):
+
+| Piece | Where | State |
+|---|---|---|
+| Catalog: 60 permissions, 8 bundles, 8 system roles, risk tiers, `capabilitiesOfRole` | `packages/auth/src/authz/catalog.ts` → `@deployer/auth/authz` | done; used by API **and** web |
+| Types + pure decision (`decide`, `can`, conditions `ownerOnly` / `notEnvironment`) | `packages/auth/src/authz/{types,evaluate}.ts` | done; 11 table tests |
+| Effect service (`Authz.check/require/explain`) over a `PermissionStore` port, request-scoped memo | `packages/nest/effect/src/authz.ts` → `@deployer/nest-effect/authz` | done |
+| `.access()` metadata plugin + `accessOf` | `@deployer/nest-effect/authz` | done (`defineMeta`, so it composes with OpenAPI metadata) |
+| Gate appended by `procedure()` after the controller's middlewares; `off`/`shadow`/`enforce` | `procedure()` in `packages/nest/effect/src/requirements.ts` | done; deny path proved end-to-end through a real contract |
+| Host configuration from `AUTHZ_MODE` | `apps/api/shared/src/server/orpc-host.ts` | done |
+| Web capability check from the same catalog | `apps/web/src/lib/access/permissions.ts` (`useCan`, `useCapabilities`) | done; settings nav migrated |
+
+Usage, which is the whole point:
+
+```ts
+// contract
+export const deployService = os
+  .input(input)
+  .meta(access({ permission: "service:deploy", scope: { by: "input", path: "serviceId" } }));
+
+// controller — the gate is appended by `procedure()`, the handler asks when it needs the decision itself
+procedure(deployService)
+  .use(requireAuth())
+  .effect(function* ({ input }) {
+    const authz = yield* Authz;
+    yield* authz.require({ actor, permission: "service:deploy", scope: { kind: "service", id: input.serviceId } });
+    …
+  });
+
+// web — one import, no role logic
+const canDeploy = useCan("service:deploy");
+```
+
+Not yet: a database-backed `PermissionStore` (grants, deny, expiry — Phase A `AUTHZ-003/004/005`), the completeness check
+(`AUTHZ-010`), annotating every procedure (`AUTHZ-012`), and the editor UI (`AUTHZ-040`). Until the store lands, the
+platform-role store above is what the gate reads, and a project-scoped check resolves to a deny by design.
+
