@@ -1,4 +1,5 @@
 import { Logger, Module, type DynamicModule } from "@nestjs/common";
+import { declareModule } from "@deployer/nest-effect";
 import { REQUEST } from "@nestjs/core";
 import { ORPCModule, type ORPCModuleConfig } from "@orpc/nest";
 import { onError, ORPCError } from "@orpc/server";
@@ -157,7 +158,8 @@ function errorMappingInterceptors(): ModuleInterceptor[] {
 @Module({})
 export class WizardOrpcModule {
   static forRoot(): DynamicModule {
-    return {
+    return declareModule(
+      {
       module: WizardOrpcModule,
       imports: [
         ORPCModule.forRootAsync({
@@ -168,6 +170,8 @@ export class WizardOrpcModule {
           }),
         }),
       ],
-    };
+      },
+      {},
+    );
   }
 }

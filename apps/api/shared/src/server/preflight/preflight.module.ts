@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { declareModule } from "@deployer/nest-effect";
 import type { DynamicModule } from "@nestjs/common";
 
 import { WAIT_FOR_DEPENDENCIES, type PreflightPolicy } from "./runner";
@@ -32,7 +33,8 @@ export class PreflightModule {
 		 */
 		readonly policy?: PreflightPolicy;
 	}): DynamicModule {
-		return {
+		return declareModule(
+			{
 			module: PreflightModule,
 			// ── GLOBAL, BECAUSE THE READINESS PORT MUST BE VISIBLE EVERYWHERE ────
 			// The comment below has always claimed that "`SERVICE_READINESS` and
@@ -71,6 +73,10 @@ export class PreflightModule {
 				{ provide: SERVICE_READINESS, useExisting: PreflightService },
 			],
 			exports: [PreflightService, SERVICE_READINESS],
-		};
+			},
+			// Dynamic by nature: the dependency set is the app's. No Effect tag to claim, and the readiness token is a
+			// symbol — `declareModule` is the documented form for a `forRoot` result.
+			{ global: true },
+		);
 	}
 }

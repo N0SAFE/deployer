@@ -1,4 +1,5 @@
 import { Module, Injectable, type DynamicModule } from "@nestjs/common";
+import { declareModule } from "@deployer/nest-effect";
 import { createORPCClient } from "@orpc/client";
 import { nodeAgentLink, serviceLink } from "@deployer/mesh-client";
 import { OpenAPILink } from "@orpc/openapi/fetch";
@@ -98,11 +99,14 @@ export class ServiceClient {
 @Module({})
 export class ServiceClientModule {
 	static forRoot(): DynamicModule {
-		return {
-			module: ServiceClientModule,
-			global: true,
-			providers: [ServiceClient],
-			exports: [ServiceClient],
-		};
+		return declareModule(
+			{
+				module: ServiceClientModule,
+				global: true,
+				providers: [ServiceClient],
+				exports: [ServiceClient],
+			},
+			{ global: true },
+		);
 	}
 }

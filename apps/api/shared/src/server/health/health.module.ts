@@ -1,4 +1,5 @@
 import { Controller, Inject, Module, Sse } from "@nestjs/common";
+import { declareModule } from "@deployer/nest-effect";
 import type { DynamicModule } from "@nestjs/common";
 import { TerminusModule } from "@nestjs/terminus";
 import type { Observable } from "rxjs";
@@ -86,7 +87,8 @@ export class HealthModule {
 	static forRoot(options: { indicators: IndicatorSet }): DynamicModule {
 		const names = INDICATORS[options.indicators];
 
-		return {
+		return declareModule(
+			{
 			module: HealthModule,
 			imports: [TerminusModule.forRoot({ logger: false })],
 			providers: [
@@ -119,7 +121,9 @@ export class HealthModule {
 			],
 			controllers: [HealthStreamController],
 			exports: [HealthRegistry, HEALTH_INDICATORS],
-		};
+			},
+			{},
+		);
 	}
 }
 

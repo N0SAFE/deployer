@@ -1,4 +1,5 @@
 import { Module, type DynamicModule } from "@nestjs/common";
+import { declareModule } from "@deployer/nest-effect";
 import { DiscoveryModule } from "@nestjs/core";
 
 import { MeshRouterResolver, MeshRoutersService } from "./mesh-router.resolver";
@@ -14,15 +15,18 @@ import { MESH_TRANSPORT_OPTIONS, type MeshTransportOptions } from "./mesh-transp
 @Module({})
 export class MeshTransportModule {
 	static forRoot(options: MeshTransportOptions): DynamicModule {
-		return {
-			module: MeshTransportModule,
-			imports: [DiscoveryModule],
-			providers: [
-				MeshRouterResolver,
-				{ provide: MESH_TRANSPORT_OPTIONS, useValue: options },
-				{ provide: MeshRoutersService, useFactory: (resolver: MeshRouterResolver) => resolver.resolve(), inject: [MeshRouterResolver] },
-			],
-			exports: [MeshRouterResolver, MeshRoutersService, MESH_TRANSPORT_OPTIONS],
-		};
+		return declareModule(
+			{
+				module: MeshTransportModule,
+				imports: [DiscoveryModule],
+				providers: [
+					MeshRouterResolver,
+					{ provide: MESH_TRANSPORT_OPTIONS, useValue: options },
+					{ provide: MeshRoutersService, useFactory: (resolver: MeshRouterResolver) => resolver.resolve(), inject: [MeshRouterResolver] },
+				],
+				exports: [MeshRouterResolver, MeshRoutersService, MESH_TRANSPORT_OPTIONS],
+			},
+			{},
+		);
 	}
 }

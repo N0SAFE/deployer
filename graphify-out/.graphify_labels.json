@@ -3204,7 +3204,15 @@
   "3202": "13. Optimistic Mutations",
   "3203": "16. Typed Event Subscriptions — `.on()`",
   "3204": "19. Mesh Discovery — Resource Location",
+  "3205": "base-event.service.spec.ts",
+  "3206": "TraefikVariableResolverService",
+  "3207": "TraefikMiddlewareLibraryService",
+  "3208": "@eslint/compat",
+  "3209": "eslint-config-nestjs",
+  "3210": "eslint-config-turbo",
+  "3211": "eslint-plugin-react",
+  "3212": "eslint-plugin-react-hooks",
+  "3213": "eslint-plugin-react-refresh",
   "3214": "verify.ts",
-  "3215": "add.ts",
-  "3219": "index.ts"
+  "3215": "add.ts"
 }

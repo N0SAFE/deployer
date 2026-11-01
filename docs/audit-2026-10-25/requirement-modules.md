@@ -402,8 +402,12 @@ Every module the repository owns is a context module; the audit is only sound wh
 | `effect-runtime.module.ts` | plain `@Module` | it is the runtime host, not a consumer |
 
 Migration result: 25 static `declareModule` wrappers became `createGlobalModule`, 41 plain `@Module` classes became
-`createModuleContext` (including the ones with no Effect surface — config, clients, docker sub-modules, setup), and the
-five `forRoot`/dynamic ones stayed `declareModule`. `EffectRuntime` is untouched by this: it is provided once per app root
+`createModuleContext` (including the ones with no Effect surface — config, clients, docker sub-modules, setup). Every
+remaining `@Module` is dynamic by construction: `forRoot`/`forRootAsync` results now go through `declareModule`
+(`PreflightModule`, `HealthModule`, `ServiceClientModule`, `SupervisorsModule`, `AppLifecycleModule`,
+`WizardOrpcModule`, `MeshTransportModule`), `ServiceHealthModule` was static and is now a `createModuleContext`, and the
+two exceptions are `AuthModule` (extends Nest's `ConfigurableModuleClass`, so its class cannot be wrapped) and
+`EffectRuntimeModule` (the runtime host). `EffectRuntime` is untouched by this: it is provided once per app root
 and injected only by out-of-request adapters, never by a domain service.
 
 The DI gate reads module metadata in all three forms (`@Module(`, `createModuleContext(`, `createGlobalModule(`), so the

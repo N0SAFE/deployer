@@ -1,4 +1,5 @@
-import { Controller, Get, Inject, Module, Optional, Res } from "@nestjs/common";
+import { Controller, Get, Inject, Optional, Res } from "@nestjs/common";
+import { createModuleContext } from "@deployer/nest-effect";
 import type { Response } from "express";
 
 import { AllowAnonymous } from "../core/modules/auth/decorators/decorators";
@@ -93,14 +94,16 @@ export class ServiceHealthController {
 	}
 }
 
-@Module({
+/**
+ * NO providers and NO exports.
+ *
+ * The readiness port belongs to whoever BINDS it (`PreflightModule`, or the health registry), and that module is the one
+ * that exports it. Declaring an export here would make this module claim to provide a token it does not — which Nest
+ * rejects at boot with `UnknownExportException`, breaking every service that imports this one.
+ *
+ * A context module even without Effect services: its metadata is static, so the controller's requirements are derived
+ * instead of declared, and `ServiceHealthController`'s `@Optional() SERVICE_READINESS` stays visible to the audit.
+ */
+export class ServiceHealthModule extends createModuleContext({
 	controllers: [ServiceHealthController],
-	// NO providers and NO exports.
-	//
-	// The readiness port belongs to whoever BINDS it (`PreflightModule`, or the
-	// health registry), and that module is the one that exports it. Declaring an
-	// export here would make this module claim to provide a token it does not —
-	// which Nest rejects at boot with `UnknownExportException`, breaking every
-	// service that imports this one.
-})
-export class ServiceHealthModule {}
+}) {}

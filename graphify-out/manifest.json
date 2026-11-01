@@ -35,22 +35,22 @@
     "semantic_hash": ""
   },
   "apps/doc/.source/browser.ts": {
-    "mtime": 1793558132.1438344,
+    "mtime": 1793558571.4326649,
     "ast_hash": "e571e9d2e0583f13df9bd14712d8ab80",
     "semantic_hash": ""
   },
   "apps/doc/.source/dynamic.ts": {
-    "mtime": 1793558132.1438344,
+    "mtime": 1793558571.4326649,
     "ast_hash": "c80a1fd790d855a435c74229f9a14811",
     "semantic_hash": ""
   },
   "apps/doc/.source/server.ts": {
-    "mtime": 1793558132.1438344,
+    "mtime": 1793558571.431665,
     "ast_hash": "e909cc5b3f8a64174f4ce8e79c5bd4ab",
     "semantic_hash": ""
   },
   "apps/doc/.source/source.config.mjs": {
-    "mtime": 1793558131.8578365,
+    "mtime": 1793558571.1806667,
     "ast_hash": "7593956476953d4f0a0f83a6784eba35",
     "semantic_hash": "7593956476953d4f0a0f83a6784eba35"
   },
@@ -13350,8 +13350,8 @@
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/ROADMAP.md": {
-    "mtime": 1793558336.4765663,
-    "ast_hash": "2c62433b79c299ba32deacd5d9361091",
+    "mtime": 1793560288.9237325,
+    "ast_hash": "8f1ce6ad763f246f59e89b394ff7d5b9",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/architecture.md": {
@@ -20765,8 +20765,8 @@
     "semantic_hash": ""
   },
   "apps/doc/content/docs/architecture/mesh-agent.mdx": {
-    "mtime": 1793448733.2018833,
-    "ast_hash": "22f399357519c7e9f72be41e432f7735",
+    "mtime": 1793560249.5903568,
+    "ast_hash": "9f7b3692a39010b2f54251f6914b0173",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/requirement-modules.md": {
@@ -20935,8 +20935,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/controllers/access.controller.ts": {
-    "mtime": 1793553761.8699005,
-    "ast_hash": "3eb5dde54901194a870ae91de942197b",
+    "mtime": 1793559765.7612047,
+    "ast_hash": "2c9e02c344613544f91178b432096812",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/controllers/directory.contract.spec.ts": {
@@ -20950,8 +20950,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/controllers/directory.controller.ts": {
-    "mtime": 1793467990.5070012,
-    "ast_hash": "87ca4b538363c9881f263a09cfeff273",
+    "mtime": 1793559765.7613668,
+    "ast_hash": "243ebcf78a6d147550bc62b403ebaafc",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/controllers/relay.controller.spec.ts": {
@@ -20960,13 +20960,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/controllers/relay.controller.ts": {
-    "mtime": 1793467990.5078373,
-    "ast_hash": "8e4caf8e8dd287b53b507cd7d560a2df",
+    "mtime": 1793559765.7614727,
+    "ast_hash": "0391039b5792ed3f67114d31bcdab329",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/controllers/roster.controller.ts": {
-    "mtime": 1793467990.5090861,
-    "ast_hash": "0a472cecc70c91ca0e1380a4109ea14f",
+    "mtime": 1793559765.761594,
+    "ast_hash": "f61fc3e95b9d11d8ba463fb406cbb048",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/mesh.errors.ts": {
@@ -21140,8 +21140,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/node/node-door.controller.ts": {
-    "mtime": 1793467990.509483,
-    "ast_hash": "64de2576771d7bbe6001e26aa8667cc1",
+    "mtime": 1793559991.4285848,
+    "ast_hash": "788055107c51909316753175de12baa0",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/node/services/node-labels.service.spec.ts": {
@@ -21320,8 +21320,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/transport/mesh-transport.service.ts": {
-    "mtime": 1793555590.6097257,
-    "ast_hash": "6aa1a53421ec346fd53b9ddafccb3ceb",
+    "mtime": 1793560013.2666695,
+    "ast_hash": "c8d70a58326b041238c0a32a51753a6b",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/transport/service-door.ts": {
@@ -21660,8 +21660,8 @@
     "semantic_hash": ""
   },
   "packages/nest/mesh/package.json": {
-    "mtime": 1793447277.840142,
-    "ast_hash": "cfd2aa3b119875c6cf16209dcefd8d2d",
+    "mtime": 1793558548.4524417,
+    "ast_hash": "832e96efd4b1da32bd9c00e8cb483df6",
     "semantic_hash": ""
   },
   "packages/nest/mesh/pkg-build.config.ts": {
@@ -21670,33 +21670,23 @@
     "semantic_hash": ""
   },
   "packages/nest/mesh/src/index.ts": {
-    "mtime": 1793447329.6276727,
-    "ast_hash": "fae429b05d24dfc758b09ac4fd8528fd",
-    "semantic_hash": ""
-  },
-  "packages/nest/mesh/src/mesh-procedure.decorator.spec.ts": {
-    "mtime": 1793447345.6214156,
-    "ast_hash": "12395336eda0eff8782d9315ddffc383",
-    "semantic_hash": ""
-  },
-  "packages/nest/mesh/src/mesh-procedure.decorator.ts": {
-    "mtime": 1793447289.0788949,
-    "ast_hash": "95a8f94220f0e69db66c89bc24c5823a",
+    "mtime": 1793559867.6326654,
+    "ast_hash": "279c2141093aa3bb36dd444b8100da8c",
     "semantic_hash": ""
   },
   "packages/nest/mesh/src/mesh-router.resolver.spec.ts": {
-    "mtime": 1793465044.7506316,
-    "ast_hash": "5dac74e26815923c61d0c7e386a72087",
+    "mtime": 1793559867.6332977,
+    "ast_hash": "247e982e6cf9baf5ca257eedc357c281",
     "semantic_hash": ""
   },
   "packages/nest/mesh/src/mesh-router.resolver.ts": {
-    "mtime": 1793464693.8071089,
-    "ast_hash": "2dda5277ebad88f613ed1bf5ac06c0d7",
+    "mtime": 1793559950.8914242,
+    "ast_hash": "c86070f4bfeb9a3fdf1184fa1e9ebbc6",
     "semantic_hash": ""
   },
   "packages/nest/mesh/src/mesh-transport.module.ts": {
-    "mtime": 1793447329.6276727,
-    "ast_hash": "9f5a2118db17b29bb487641b1c98a202",
+    "mtime": 1793558548.4528973,
+    "ast_hash": "9cfae552a5149d89d88f1037df26b918",
     "semantic_hash": ""
   },
   "packages/nest/mesh/src/mesh-transport.options.ts": {
@@ -21795,13 +21785,13 @@
     "semantic_hash": ""
   },
   "docs/architecture/node-agent-service.md": {
-    "mtime": 1793468035.0844586,
-    "ast_hash": "85fb185776dd604d3063e7a1e209731d",
+    "mtime": 1793560053.3084207,
+    "ast_hash": "70f46df202acb83ff26c95498c464c71",
     "semantic_hash": ""
   },
   "docs/architecture/node-agent-transport-module.md": {
-    "mtime": 1793468021.4303908,
-    "ast_hash": "c9f7ee05c55ab5667c197dff5b6f5cd1",
+    "mtime": 1793560227.7801783,
+    "ast_hash": "ec4cdd06530e05ed78bcd6d60534f353",
     "semantic_hash": ""
   },
   "docs/qa/node-agent/api-design.md": {
@@ -21997,6 +21987,16 @@
   "docs/architecture/effect-host.md": {
     "mtime": 1793558321.6154673,
     "ast_hash": "04759a50a4568e1319c9a60c2f948363",
+    "semantic_hash": ""
+  },
+  "packages/nest/mesh/src/mesh-controller.spec.ts": {
+    "mtime": 1793559867.6336725,
+    "ast_hash": "646d3811d9a60bbb76e8106ca789914d",
+    "semantic_hash": ""
+  },
+  "packages/nest/mesh/src/mesh-controller.ts": {
+    "mtime": 1793559908.218147,
+    "ast_hash": "14b243973129245696f9d698aebb33ae",
     "semantic_hash": ""
   }
 }
