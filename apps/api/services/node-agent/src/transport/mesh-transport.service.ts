@@ -13,7 +13,7 @@ import { EffectHost } from "@deployer/nest-effect";
 import {
   MESH_INTERVAL_DEFAULTS,
   MESH_TRANSPORT_OPTIONS,
-  MeshRoutersService,
+  MeshRouterResolver,
   type MeshRouter,
   type MeshTransportOptions,
 } from "@deployer/nest-mesh";
@@ -73,7 +73,7 @@ export class MeshTransportService implements OnApplicationBootstrap, OnModuleDes
   constructor(
     private readonly config: ConfigService<NodeAgentEnv, true>,
     @Inject(EffectHost) private readonly host: EffectHost["Service"],
-    @Inject(MeshRoutersService) private readonly routers: MeshRoutersService["Service"],
+    @Inject(MeshRouterResolver) private readonly resolver: MeshRouterResolver["Service"],
     private readonly adapterHost: HttpAdapterHost,
     @Inject(MESH_CREDENTIAL_VERIFIER) private readonly verify: MeshCredentialVerifier,
     @Inject(MESH_TRANSPORT_OPTIONS) private readonly options: MeshTransportOptions,
@@ -95,7 +95,7 @@ export class MeshTransportService implements OnApplicationBootstrap, OnModuleDes
   }
 
   async onApplicationBootstrap(): Promise<void> {
-    const { peer, node, admin } = this.routers;
+    const { peer, node, admin } = this.resolver.resolve();
     // The lease policy's bytes-per-second input: counted on the socket, never by parsing a payload.
     const load = await this.host.runUnwrapped(AgentLoad);
 

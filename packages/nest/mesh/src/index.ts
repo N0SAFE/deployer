@@ -6,7 +6,12 @@ export {
 	type MeshProcedureDeclarations,
 	type MeshProcedureMeta,
 } from "./mesh-controller";
-export { MeshRouterResolver, MeshRoutersService, type MeshRouters } from "./mesh-router.resolver";
+export {
+	MeshRouterResolver,
+	type MeshResolverDeps,
+	type MeshRouterResolverShape,
+	type MeshRouters,
+} from "./mesh-router.resolver";
 export { MeshTransportModule } from "./mesh-transport.module";
 export {
 	MESH_INTERVAL_DEFAULTS,

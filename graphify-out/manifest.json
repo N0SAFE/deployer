@@ -8525,8 +8525,8 @@
     "semantic_hash": ""
   },
   "apps/setup/src/modules/wizard/wizard-orpc.module.ts": {
-    "mtime": 1793107637.479925,
-    "ast_hash": "df560470cd65f3314b72b5323aae1845",
+    "mtime": 1793561957.5409586,
+    "ast_hash": "24498f6d9e490e999bbc4b6ab829ad18",
     "semantic_hash": ""
   },
   "apps/web/src/app/auth/_utils/dev-only.test.ts": {
@@ -17380,8 +17380,8 @@
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/health/health.module.ts": {
-    "mtime": 1793107637.465436,
-    "ast_hash": "34846ef77020a5d9cb44bb5c7681dc0a",
+    "mtime": 1793561928.1457841,
+    "ast_hash": "41c355cb734cf21e2d560f544506ff7f",
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/health/index.ts": {
@@ -17455,8 +17455,8 @@
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/preflight/preflight.module.ts": {
-    "mtime": 1793107637.4664075,
-    "ast_hash": "f22cf49544735e10e8055044b93d26ae",
+    "mtime": 1793561855.9238024,
+    "ast_hash": "40f56f09a5c02df96e7c90bd95f757c8",
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/preflight/preflight.service.ts": {
@@ -17475,13 +17475,13 @@
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/service-client.ts": {
-    "mtime": 1793534992.4169943,
-    "ast_hash": "22df715137dbe3a10bb1559939cbff91",
+    "mtime": 1793561928.1462214,
+    "ast_hash": "6180af4b64eb96af7b1537f571eeb042",
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/service-health.ts": {
-    "mtime": 1793107637.4664075,
-    "ast_hash": "9b64fba1d36c2dcfd6e82ce14f6e8944",
+    "mtime": 1793561842.0296776,
+    "ast_hash": "5c016191276c1d5a6c5583e29a496d23",
     "semantic_hash": ""
   },
   "apps/api/shared/tsconfig.json": {
@@ -20770,8 +20770,8 @@
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/requirement-modules.md": {
-    "mtime": 1793533006.4739177,
-    "ast_hash": "3c641272d6e0c7fcdb893211a401d4a8",
+    "mtime": 1793562482.4727983,
+    "ast_hash": "d42ddee3f6fb0402c270e28a9d7d5a57",
     "semantic_hash": ""
   },
   "samples/api-sample/requirements-demo/caveats.html": {
@@ -21685,8 +21685,8 @@
     "semantic_hash": ""
   },
   "packages/nest/mesh/src/mesh-transport.module.ts": {
-    "mtime": 1793558548.4528973,
-    "ast_hash": "9cfae552a5149d89d88f1037df26b918",
+    "mtime": 1793562411.0041068,
+    "ast_hash": "abdce5204d234ce53a2dc5d9b79b7f1b",
     "semantic_hash": ""
   },
   "packages/nest/mesh/src/mesh-transport.options.ts": {

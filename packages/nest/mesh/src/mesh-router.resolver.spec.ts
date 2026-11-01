@@ -62,13 +62,13 @@ function resolverOver(
 		isDependencyTreeStatic: () => singleton,
 		instance: instance === undefined ? new metatype() : instance,
 	}));
-	return new MeshRouterResolver(
-		{
+	return MeshRouterResolver.live({
+		discovery: {
 			getProviders: () => providers.map((metatype) => ({ metatype })),
 			getControllers: () => controllers,
 		} as never,
-		{ contract, serviceProcedures },
-	);
+		options: { contract, serviceProcedures },
+	});
 }
 
 describe("MeshRouterResolver", () => {

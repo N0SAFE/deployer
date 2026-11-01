@@ -1,32 +1,42 @@
 import { Module, type DynamicModule } from "@nestjs/common";
+import { DiscoveryModule, DiscoveryService } from "@nestjs/core";
 import { declareModule } from "@deployer/nest-effect";
-import { DiscoveryModule } from "@nestjs/core";
 
-import { MeshRouterResolver, MeshRoutersService } from "./mesh-router.resolver";
+import { MeshRouterResolver } from "./mesh-router.resolver";
 import { MESH_TRANSPORT_OPTIONS, type MeshTransportOptions } from "./mesh-transport.options";
 
 /**
- * Provides the resolver and the routers it builds: `MeshController` classes in, `{ peer, node, admin }` out.
+ * The routers the app declares, as a module.
  *
- * `forRoot` takes the contract every door is validated against; the host owns the transport itself (the websocket, the
- * sockets, the loops), because those are its own resources. Importing this module is mandatory for an app that declares
- * `MeshController` classes — without it there is no resolver, and therefore no door.
+ * **It is not a class.** A `@Module({})` class can be written into an `imports: [...]` array without `forRoot`, and that
+ * silently drops the contract validation (the options are what the doors are checked against). Here `forRoot` builds the
+ * module, and the bare export is a plain object — writing `imports: [MeshTransportModule]` does not type-check, so the
+ * mistake is a compile error instead of a runtime surprise.
+ *
+ * The dynamic module is created per call because the contract is per app; `declareModule` is the documented form for a
+ * `forRoot` result.
  */
-@Module({})
-export class MeshTransportModule {
-	static forRoot(options: MeshTransportOptions): DynamicModule {
+export const MeshTransportModule = {
+	forRoot(options: MeshTransportOptions): DynamicModule {
+		@Module({})
+		class MeshTransportDynamicModule {}
+
 		return declareModule(
 			{
-				module: MeshTransportModule,
+				module: MeshTransportDynamicModule,
 				imports: [DiscoveryModule],
 				providers: [
-					MeshRouterResolver,
 					{ provide: MESH_TRANSPORT_OPTIONS, useValue: options },
-					{ provide: MeshRoutersService, useFactory: (resolver: MeshRouterResolver) => resolver.resolve(), inject: [MeshRouterResolver] },
+					{
+						// The tag is the service; `live` is its implementation, built once from the two Nest providers.
+						provide: MeshRouterResolver,
+						useFactory: (discovery: DiscoveryService) => MeshRouterResolver.live({ discovery, options }),
+						inject: [DiscoveryService],
+					},
 				],
-				exports: [MeshRouterResolver, MeshRoutersService, MESH_TRANSPORT_OPTIONS],
+				exports: [MeshRouterResolver, MESH_TRANSPORT_OPTIONS],
 			},
 			{},
 		);
-	}
-}
+	},
+} as const;
