@@ -1,14 +1,10 @@
-import type { HealthIndicatorResult } from "@nestjs/terminus";
-
 /**
- * One indicator's contribution, in Terminus' own shape.
+ * One indicator's contribution: `{ <name>: { status, ...detail } }`.
  *
- * Kept as a type alias rather than a re-declaration: Terminus' result shape
- * (`{ <name>: { status, ...detail } }`) is what clients and the Terminus UI
- * already understand, and inventing a parallel shape here would mean writing a
- * translator back to it — which is how "the output is not useful" happens.
+ * The shape is the one Terminus popularised and every health client already understands, so the platform keeps the
+ * wire shape and drops the Terminus runtime: `indicatorFor(name).up(detail)` builds it in `indicators/indicator-result.ts`.
  */
-export type IndicatorResult = HealthIndicatorResult;
+export type IndicatorResult = Record<string, { status: "up" | "down"; [key: string]: unknown }>;
 
 /** The verdict for a single indicator, flattened for the stream. */
 export type IndicatorSnapshot = {

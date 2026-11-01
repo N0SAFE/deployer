@@ -1,17 +1,24 @@
 import { Controller, Inject, Module, Sse } from "@nestjs/common";
 import { declareModule } from "@deployer/nest-effect";
 import type { DynamicModule } from "@nestjs/common";
-import { TerminusModule } from "@nestjs/terminus";
+
+import type { Pool } from "pg";
 import type { Observable } from "rxjs";
 import { interval, map, startWith, switchMap } from "rxjs";
 
-import { HEALTH_INDICATORS, HealthRegistry, type HealthIndicatorEntry } from "./health-registry.service";
+import { GLOBAL_DATABASE_POOL } from "../../core/modules/database/database-connection";
+
+import { HealthRegistry, type HealthIndicatorEntry } from "./health-registry.service";
+import { HealthRegistryCadence } from "./health-registry-cadence.provider";
 import { DatabaseHealthIndicator } from "./indicators/database.indicator";
 import { DiskHealthIndicator } from "./indicators/disk.indicator";
 import { MemoryHealthIndicator } from "./indicators/memory.indicator";
 import { MigrationsHealthIndicator } from "./indicators/migrations.indicator";
 import { RedisHealthIndicator } from "./indicators/redis.indicator";
-import type { HealthSnapshot } from "./types";
+
+import type { Effect } from "effect";
+
+import type { HealthSnapshot, IndicatorResult } from "./types";
 
 /** The indicator sets a service can ask for by name. */
 export const INDICATORS = {
@@ -44,7 +51,7 @@ export type IndicatorSet = keyof typeof INDICATORS;
  */
 @Controller("health")
 export class HealthStreamController {
-	constructor(private readonly registry: HealthRegistry) {}
+	constructor(@Inject(HealthRegistry) private readonly registry: HealthRegistry["Service"]) {}
 
 	/**
 	 * The current full snapshot, on demand.
@@ -73,54 +80,63 @@ export class HealthStreamController {
  * Wires real health indicators and their stream for one app.
  *
  * `forRoot` takes the indicator set because it is a property of the APP: a
- * service that never touches Redis declaring the redis check would be reporting
- * a dependency it does not have, and would go red for it. Naming the set makes
+ * service that never touches Redis declaring the redis check would be reporting a
+ * dependency it does not have, and would go red for it. Naming the set makes
  * that a visible choice in the root module.
  */
 @Module({})
 export class HealthModule {
 	/**
-	 * The registry is bound HERE, after `HEALTH_INDICATORS` is provided, so
-	 * construction order is guaranteed: the registry's constructor reads the
-	 * entries, and a registry built before them would silently see none.
+	 * Each indicator is an Effect service; the registry is built in a factory, after them, because it reads their
+	 * entries once at construction.
+	 *
+	 * The database-backed checks take the raw pool rather than a connection, and the injection is OPTIONAL: a service
+	 * that does not import `DatabaseModule` still gets a registry, and the check reports "no pool bound" instead of
+	 * failing at boot.
 	 */
 	static forRoot(options: { indicators: IndicatorSet }): DynamicModule {
 		const names = INDICATORS[options.indicators];
+		const pool = { token: GLOBAL_DATABASE_POOL, optional: true as const };
 
 		return declareModule(
 			{
-			module: HealthModule,
-			imports: [TerminusModule.forRoot({ logger: false })],
-			providers: [
-				DatabaseHealthIndicator,
-				MigrationsHealthIndicator,
-				RedisHealthIndicator,
-				MemoryHealthIndicator,
-				DiskHealthIndicator,
-				{
-					provide: HEALTH_INDICATORS,
-					useFactory: (
-						database: DatabaseHealthIndicator,
-						migrations: MigrationsHealthIndicator,
-						redis: RedisHealthIndicator,
-						memory: MemoryHealthIndicator,
-						disk: DiskHealthIndicator,
-					): HealthIndicatorEntry[] => {
-						const available = { database, migrations, redis, memory, disk };
-						return names.map((name) => entryFor(name, available));
+				module: HealthModule,
+				providers: [
+					{ provide: MemoryHealthIndicator, useClass: MemoryHealthIndicator.live },
+					{ provide: DiskHealthIndicator, useClass: DiskHealthIndicator.live },
+					{ provide: RedisHealthIndicator, useClass: RedisHealthIndicator.live },
+					{
+						provide: DatabaseHealthIndicator,
+						useFactory: (databasePool: Pool | null | undefined) => new DatabaseHealthIndicator.live(databasePool),
+						inject: [pool],
 					},
-					inject: [
-						DatabaseHealthIndicator,
-						MigrationsHealthIndicator,
-						RedisHealthIndicator,
-						MemoryHealthIndicator,
-						DiskHealthIndicator,
-					],
-				},
-				HealthRegistry,
-			],
-			controllers: [HealthStreamController],
-			exports: [HealthRegistry, HEALTH_INDICATORS],
+					{
+						provide: MigrationsHealthIndicator,
+						useFactory: (databasePool: Pool | null | undefined) => new MigrationsHealthIndicator.live(databasePool),
+						inject: [pool],
+					},
+					{
+						provide: HealthRegistry,
+						useFactory: (
+							database: DatabaseHealthIndicator["Service"],
+							migrations: MigrationsHealthIndicator["Service"],
+							redis: RedisHealthIndicator["Service"],
+							memory: MemoryHealthIndicator["Service"],
+							disk: DiskHealthIndicator["Service"],
+						): HealthRegistry["Service"] =>
+							new HealthRegistry.live(entriesFor(names, { database, migrations, redis, memory, disk })),
+						inject: [
+							DatabaseHealthIndicator,
+							MigrationsHealthIndicator,
+							RedisHealthIndicator,
+							MemoryHealthIndicator,
+							DiskHealthIndicator,
+						],
+					},
+					HealthRegistryCadence,
+				],
+				controllers: [HealthStreamController],
+				exports: [HealthRegistry],
 			},
 			{},
 		);
@@ -128,34 +144,38 @@ export class HealthModule {
 }
 
 /** Map an indicator name to its entry. */
-function entryFor(
-	name: string,
+function entriesFor(
+	names: readonly string[],
 	indicators: {
-		database: DatabaseHealthIndicator;
-		migrations: MigrationsHealthIndicator;
-		redis: RedisHealthIndicator;
-		memory: MemoryHealthIndicator;
-		disk: DiskHealthIndicator;
+		database: DatabaseHealthIndicator["Service"];
+		migrations: MigrationsHealthIndicator["Service"];
+		redis: RedisHealthIndicator["Service"];
+		memory: MemoryHealthIndicator["Service"];
+		disk: DiskHealthIndicator["Service"];
 	},
-): HealthIndicatorEntry {
-	switch (name) {
-		case "database":
-			return { name, run: () => indicators.database.check(), description: "Postgres round-trip + server version" };
-		case "migrations":
-			return { name, run: () => indicators.migrations.check(), description: "drizzle migration journal has entries" };
-		case "redis":
-			return { name, run: () => indicators.redis.check(), description: "Redis PING/PONG over the wire" };
-		case "memory":
-			return { name, run: () => indicators.memory.check(), description: "heap ratio + cgroup ceiling" };
-		case "disk":
-			return { name, run: () => indicators.disk.check(), description: "free space on the data volume" };
-		default:
-			// Unreachable for a named set; throwing keeps a typo from becoming a
-			// silently missing check.
-			throw new Error(`unknown health indicator "${name}"`);
-	}
-}
+): HealthIndicatorEntry[] {
+	const entry = (name: string, description: string, run: () => Effect.Effect<IndicatorResult>): HealthIndicatorEntry => ({
+		name,
+		description,
+		run,
+	});
 
-export { HealthRegistry, type HealthIndicatorEntry } from "./health-registry.service";
-export { HEALTH_INDICATORS } from "./health-registry.service";
-export type { HealthSnapshot, IndicatorSnapshot, IndicatorResult } from "./types";
+	return names.map((name) => {
+		switch (name) {
+			case "database":
+				return entry("database", "Postgres round-trip + server version", () => indicators.database.check());
+			case "migrations":
+				return entry("migrations", "drizzle migration journal has entries", () => indicators.migrations.check());
+			case "redis":
+				return entry("redis", "Redis PING/PONG over the wire", () => indicators.redis.check());
+			case "memory":
+				return entry("memory", "heap ratio + cgroup ceiling", () => indicators.memory.check());
+			case "disk":
+				return entry("disk", "free space on the data volume", () => indicators.disk.check());
+			default:
+				// Unreachable for a named set; throwing keeps a typo from becoming a
+				// silently missing check.
+				throw new Error(`unknown health indicator "${name}"`);
+		}
+	});
+}

@@ -1,10 +1,10 @@
-import { Injectable } from "@nestjs/common";
-import { HealthIndicatorService } from "@nestjs/terminus";
-import { Pool } from "pg";
-import { Inject, Optional } from "@nestjs/common";
-import { GLOBAL_DATABASE_POOL } from "../../../core/modules/database/database-connection"
+import { Context, Effect } from "effect";
+
+import { indicatorFor, type HealthIndicatorShape } from "./indicator-result";
 
 import type { IndicatorResult } from "../types";
+
+import type { Pool } from "pg";
 
 /** The journal table drizzle writes when it applies a migration. */
 const MIGRATION_JOURNAL = "drizzle.__drizzle_migrations";
@@ -25,58 +25,67 @@ const MIGRATION_JOURNAL = "drizzle.__drizzle_migrations";
  * environments can see they are at different migration levels, which is a real
  * class of bug this platform has hit (a node migrated while another was not).
  */
-@Injectable()
-export class MigrationsHealthIndicator {
-	constructor(
-		private readonly indicator: HealthIndicatorService,
-		// The raw `pg.Pool`, NOT `GLOBAL_DATABASE_CONNECTION` (the drizzle handle).
-		// `check()` runs a bare SQL statement, which only the pool can execute —
-		// injecting the connection made it call `.query` on a query-builder object
-		// and fail with "this.pool.query is not a function" on every attempt.
-		@Optional() @Inject(GLOBAL_DATABASE_POOL) private readonly pool: Pool | null | undefined,
-	) {}
-
+export class MigrationsHealthIndicator extends Context.Service<MigrationsHealthIndicator, HealthIndicatorShape>()(
+	"shared/health/MigrationsHealthIndicator",
+) {
 	static readonly NAME = "migrations";
 
-	async check(): Promise<IndicatorResult> {
-		const check = this.indicator.check(MigrationsHealthIndicator.NAME);
+	static readonly live = class MigrationsHealthIndicatorImpl implements HealthIndicatorShape {
+		/** The raw `pg.Pool`, NOT `GLOBAL_DATABASE_CONNECTION` (the drizzle handle): `check()` runs a bare statement. */
+		constructor(private readonly pool: Pool | null | undefined = undefined) {}
 
-		if (this.pool === undefined || this.pool === null) {
-			return check.down({
-				message: "no database pool is bound to this service",
-				hint: "declare DatabaseModule in the service's root module",
+		check(): Effect.Effect<IndicatorResult> {
+			const name = MigrationsHealthIndicator.NAME;
+			const pool = this.pool;
+			return Effect.gen(function* () {
+				const check = indicatorFor(name);
+
+				if (pool === undefined || pool === null) {
+					return check.down({
+						message: "no database pool is bound to this service",
+						hint: "declare DatabaseModule in the service's root module",
+					});
+				}
+
+				const started = Date.now();
+				const outcome = yield* Effect.result(
+					Effect.tryPromise({
+						try: () =>
+							pool.query<{ applied: number; latest: string | null }>(
+								`SELECT count(*)::int AS applied, max(created_at)::text AS latest FROM ${MIGRATION_JOURNAL}`,
+							),
+						catch: (error) => error,
+					}),
+				);
+
+				if (outcome._tag === "Failure") {
+					const cause: unknown = outcome.failure;
+					const message = cause instanceof Error ? cause.message : String(cause);
+					// The most common cause by far is that the journal table does not
+					// exist yet, which reads as a cryptic Postgres error. Say it plainly.
+					const hint = /does not exist/i.test(message)
+						? `the migration journal (${MIGRATION_JOURNAL}) is absent — this database has never been migrated`
+						: undefined;
+					return check.down({ message, ...(hint === undefined ? {} : { hint }), latencyMs: Date.now() - started });
+				}
+
+				const row = outcome.success.rows[0];
+
+				// A driver may return the count as a string; coerce rather than assume,
+				// because "0" is truthy and would report an unmigrated database as fine.
+				const applied = typeof row?.applied === "number" ? row.applied : Number(row?.applied ?? 0);
+				const latencyMs = Date.now() - started;
+
+				if (!Number.isFinite(applied) || applied === 0) {
+					return check.down({
+						message: "no migrations have been applied to this database",
+						hint: "run `deployer start`, or the migrate command, before serving",
+						latencyMs,
+					});
+				}
+
+				return check.up({ applied, latest: row?.latest ?? null, latencyMs });
 			});
 		}
-
-		const started = Date.now();
-		try {
-			const result = await this.pool.query<{ applied: number; latest: string | null }>(
-				`SELECT count(*)::int AS applied, max(created_at)::text AS latest FROM ${MIGRATION_JOURNAL}`,
-			);
-			const row = result.rows[0];
-
-			// A driver may return the count as a string; coerce rather than assume,
-			// because "0" is truthy and would report an unmigrated database as fine.
-			const applied = typeof row?.applied === "number" ? row.applied : Number(row?.applied ?? 0);
-			const latencyMs = Date.now() - started;
-
-			if (!Number.isFinite(applied) || applied === 0) {
-				return check.down({
-					message: "no migrations have been applied to this database",
-					hint: "run `deployer start`, or the migrate command, before serving",
-					latencyMs,
-				});
-			}
-
-			return check.up({ applied, latest: row?.latest ?? null, latencyMs });
-		} catch (error: unknown) {
-			const message = error instanceof Error ? error.message : String(error);
-			// The most common cause by far is that the journal table does not
-			// exist yet, which reads as a cryptic Postgres error. Say it plainly.
-			const hint = /does not exist/i.test(message)
-				? `the migration journal (${MIGRATION_JOURNAL}) is absent — this database has never been migrated`
-				: undefined;
-			return check.down({ message, ...(hint === undefined ? {} : { hint }), latencyMs: Date.now() - started });
-		}
-	}
+	};
 }

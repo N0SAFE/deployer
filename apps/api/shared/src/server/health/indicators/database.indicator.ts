@@ -1,10 +1,10 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { HealthIndicatorService } from "@nestjs/terminus";
-import { Inject, Optional } from "@nestjs/common";
-import { Pool } from "pg";
-import { GLOBAL_DATABASE_POOL } from "../../../core/modules/database/database-connection"
+import { Context, Effect } from "effect";
+
+import { indicatorFor, type HealthIndicatorShape } from "./indicator-result";
 
 import type { IndicatorResult } from "../types";
+
+import type { Pool } from "pg";
 
 /**
  * The Postgres check — a REAL round trip, not a presence test.
@@ -19,79 +19,73 @@ import type { IndicatorResult } from "../types";
  *   3. reports latency, so a database that answers slowly is visible BEFORE it
  *      starts failing.
  *
- * ── WHY IT NEVER THROWS ─────────────────────────────────────────────────────
+ * ── WHY IT NEVER FAILS ──────────────────────────────────────────────────────
  * A health check that throws when a dependency is down has hidden the diagnosis
  * it exists to provide. Every failure becomes `indicator.down({ message })`,
- * which Terminus renders as `{ database: { status: "down", message } }` — the
- * shape a client and the Terminus UI already understand.
+ * which renders as `{ database: { status: "down", message } }` — the shape a
+ * client already understands.
+ *
+ * ── THE POOL, NOT THE CONNECTION ────────────────────────────────────────────
+ * `GLOBAL_DATABASE_CONNECTION` is the DRIZZLE handle (a query builder) and
+ * `GLOBAL_DATABASE_POOL` is the raw `pg.Pool`. This check issues a bare
+ * `SELECT version()`, which only the pool can do — so the module passes the
+ * pool into the constructor (it may be absent, which is reported, not thrown).
  */
-@Injectable()
-export class DatabaseHealthIndicator {
-	private readonly logger = new Logger(DatabaseHealthIndicator.name);
-
-	constructor(
-		private readonly indicator: HealthIndicatorService,
-		// ── THE POOL, NOT THE CONNECTION ────────────────────────────────────────
-		// `GLOBAL_DATABASE_CONNECTION` is the DRIZZLE handle (a query builder) and
-		// `GLOBAL_DATABASE_POOL` is the raw `pg.Pool`. This check issues a bare
-		// `SELECT version()`, which only the pool can do — so injecting the
-		// connection produced, on every boot:
-		//
-		//   this.pool.query is not a function
-		//   (In 'this.pool.query("SELECT version() AS version")',
-		//    'this.pool.query' is an instance of Object)
-		//
-		// That reads as "the pool is broken" when the truth was "the pool was
-		// never injected", and it held `/health/ready` at 503 forever: preflight
-		// retried `this.pool.query` a hundred times and never once touched
-		// Postgres. Every service was therefore permanently unhealthy and the BFF
-		// that depends on them never started. `preflight.service.ts` injects the
-		// pool for this exact reason; these indicators did not.
-		@Optional() @Inject(GLOBAL_DATABASE_POOL) private readonly pool: Pool | null | undefined,
-	) {}
-
+export class DatabaseHealthIndicator extends Context.Service<DatabaseHealthIndicator, HealthIndicatorShape>()(
+	"shared/health/DatabaseHealthIndicator",
+) {
 	/** The indicator's name in the payload. */
 	static readonly NAME = "database";
 
-	async check(): Promise<IndicatorResult> {
-		const check = this.indicator.check(DatabaseHealthIndicator.NAME);
+	static readonly live = class DatabaseHealthIndicatorImpl implements HealthIndicatorShape {
+		constructor(private readonly pool: Pool | null | undefined = undefined) {}
 
-		// `@Optional()` yields `undefined` (not `null`) when no pool is bound —
-		// both must be rejected, or the check would throw a TypeError instead of
-		// reporting the actionable cause.
-		if (this.pool === undefined || this.pool === null) {
-			return check.down({
-				message: "no database pool is bound to this service",
-				hint: "declare DatabaseModule in the service's root module",
+		check(): Effect.Effect<IndicatorResult> {
+			const name = DatabaseHealthIndicator.NAME;
+			const pool = this.pool;
+			return Effect.gen(function* () {
+				const check = indicatorFor(name);
+
+				// `@Optional()` used to yield `undefined` (not `null`) when no pool was bound — both must be
+				// rejected, or the check would report a TypeError instead of the actionable cause.
+				if (pool === undefined || pool === null) {
+					return check.down({
+						message: "no database pool is bound to this service",
+						hint: "declare DatabaseModule in the service's root module",
+					});
+				}
+
+				const started = Date.now();
+				const outcome = yield* Effect.result(
+					Effect.tryPromise({
+						try: () => pool.query<{ version: string } & Record<string, unknown>>("SELECT version() AS version"),
+						catch: (error) => error,
+					}),
+				);
+
+				if (outcome._tag === "Failure") {
+					const cause: unknown = outcome.failure;
+					const message = cause instanceof Error ? cause.message : String(cause);
+					return check.down({
+						message,
+						latencyMs: Date.now() - started,
+						// The classification the operator actually needs: "refused" and
+						// "wrong password" have different fixes.
+						cause: classifyDatabaseError(message),
+					});
+				}
+
+				const version = outcome.success.rows[0]?.version;
+
+				// The server banner is long ("PostgreSQL 16.4 (Debian …) on x86_64…");
+				// the product + version is the useful part.
+				const shortVersion =
+					typeof version === "string" ? (version.split(" ").slice(0, 2).join(" ") || version) : "unknown";
+
+				return check.up({ latencyMs: Date.now() - started, version: shortVersion });
 			});
 		}
-
-		const started = Date.now();
-		try {
-			const result = await this.pool.query<{ version: string } & Record<string, unknown>>(
-				"SELECT version() AS version",
-			);
-			const latencyMs = Date.now() - started;
-			const version = result.rows[0]?.version;
-
-			// The server banner is long ("PostgreSQL 16.4 (Debian …) on x86_64…");
-			// the product + version is the useful part.
-			const shortVersion =
-				typeof version === "string" ? (version.split(" ").slice(0, 2).join(" ") || version) : "unknown";
-
-			return check.up({ latencyMs, version: shortVersion });
-		} catch (error: unknown) {
-			const message = error instanceof Error ? error.message : String(error);
-			this.logger.debug(`database check failed: ${message}`);
-			return check.down({
-				message,
-				latencyMs: Date.now() - started,
-				// The classification the operator actually needs: "refused" and
-				// "wrong password" have different fixes.
-				cause: classifyDatabaseError(message),
-			});
-		}
-	}
+	};
 }
 
 /** A short, actionable classification of a Postgres connection failure. */

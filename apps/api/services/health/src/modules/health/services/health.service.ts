@@ -3,8 +3,13 @@ import { Context, Effect } from "effect";
 
 import { HealthCheckFailed } from "../health.errors";
 
+/**
+ * The shared registry, as this service sees it: one pass, no failure.
+ *
+ * A port, not the registry class: this service may only run a pass, and the requirement gate reads what it yields.
+ */
 export type HealthRegistryShape = {
-  readonly runOnce: () => Promise<HealthSnapshot>;
+  readonly runOnce: () => Effect.Effect<HealthSnapshot>;
 }
 
 export class HealthRegistryRepository extends Context.Service<
@@ -71,14 +76,16 @@ export class HealthService extends Context.Service<HealthService, HealthServiceS
         const registry = yield* HealthRegistryRepository;
         const uptime = yield* UptimeSource;
 
-        const snapshot = yield* Effect.tryPromise({
-          try: () => registry.runOnce(),
-          catch: (cause) =>
-            new HealthCheckFailed({
-              message: "Health registry failed to produce a snapshot",
-              cause,
-            }),
-        });
+        const snapshot = yield* registry.runOnce().pipe(
+          Effect.catchCause((cause) =>
+            Effect.fail(
+              new HealthCheckFailed({
+                message: "Health registry failed to produce a snapshot",
+                cause,
+              }),
+            ),
+          ),
+        );
 
         return {
           status: snapshot.status === "up" ? "ok" : "degraded",

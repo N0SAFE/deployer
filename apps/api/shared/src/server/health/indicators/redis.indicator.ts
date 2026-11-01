@@ -1,6 +1,8 @@
-import { Injectable } from "@nestjs/common";
-import { HealthIndicatorService } from "@nestjs/terminus";
 import { createConnection, type Socket } from "node:net";
+
+import { Context, Effect } from "effect";
+
+import { indicatorFor, type HealthIndicatorShape } from "./indicator-result";
 
 import type { IndicatorResult } from "../types";
 
@@ -23,48 +25,57 @@ const CONNECT_TIMEOUT_MS = 3_000;
  * `*1\r\n$4\r\nPING\r\n`, and the reply is `+PONG` or `-ERR …`; parsing that is
  * less code than wiring a client, and it keeps this indicator dependency-free.
  */
-@Injectable()
-export class RedisHealthIndicator {
-	constructor(private readonly indicator: HealthIndicatorService) {}
-
+export class RedisHealthIndicator extends Context.Service<RedisHealthIndicator, HealthIndicatorShape>()(
+	"shared/health/RedisHealthIndicator",
+) {
 	static readonly NAME = "redis";
 
-	async check(): Promise<IndicatorResult> {
-		const check = this.indicator.check(RedisHealthIndicator.NAME);
+	static readonly live = class RedisHealthIndicatorImpl implements HealthIndicatorShape {
+		check(): Effect.Effect<IndicatorResult> {
+			const name = RedisHealthIndicator.NAME;
+			return Effect.gen(function* () {
+				const check = indicatorFor(name);
 
-		const url = process.env.DEPLOYER_REDIS_URL;
-		if (url === undefined || url === "") {
-			// Not configured is not the same as broken. A service that does not use
-			// Redis should not declare this indicator at all; one that does and has
-			// no URL gets a message naming the variable.
-			return check.down({
-				message: "DEPLOYER_REDIS_URL is not set",
-				hint: "set it, or remove the redis indicator from this service",
+				const url = process.env.DEPLOYER_REDIS_URL;
+				if (url === undefined || url === "") {
+					// Not configured is not the same as broken. A service that does not use
+					// Redis should not declare this indicator at all; one that does and has
+					// no URL gets a message naming the variable.
+					return check.down({
+						message: "DEPLOYER_REDIS_URL is not set",
+						hint: "set it, or remove the redis indicator from this service",
+					});
+				}
+
+				const target = parseRedisUrl(url);
+				if (target === undefined) {
+					return check.down({ message: "DEPLOYER_REDIS_URL is not a usable URL", url });
+				}
+
+				const started = Date.now();
+				const outcome = yield* Effect.result(
+					Effect.tryPromise({
+						try: () => ping(target.host, target.port, target.password),
+						catch: (error) => error,
+					}),
+				);
+
+				if (outcome._tag === "Failure") {
+					const cause: unknown = outcome.failure;
+					const message = cause instanceof Error ? cause.message : String(cause);
+					return check.down({ message, latencyMs: Date.now() - started });
+				}
+
+				const reply = outcome.success;
+				const latencyMs = Date.now() - started;
+
+				if (reply !== "PONG") {
+					return check.down({ message: `unexpected reply from Redis: ${reply}`, latencyMs });
+				}
+				return check.up({ latencyMs, host: `${target.host}:${String(target.port)}` });
 			});
 		}
-
-		const target = parseRedisUrl(url);
-		if (target === undefined) {
-			return check.down({ message: `DEPLOYER_REDIS_URL is not a usable URL`, url });
-		}
-
-		const started = Date.now();
-		try {
-			const reply = await ping(target.host, target.port, target.password);
-			const latencyMs = Date.now() - started;
-
-			if (reply !== "PONG") {
-				return check.down({
-					message: `unexpected reply from Redis: ${reply}`,
-					latencyMs,
-				});
-			}
-			return check.up({ latencyMs, host: `${target.host}:${String(target.port)}` });
-		} catch (error: unknown) {
-			const message = error instanceof Error ? error.message : String(error);
-			return check.down({ message, latencyMs: Date.now() - started });
-		}
-	}
+	};
 }
 
 /** `redis://[:password@]host:port[/db]` → connection facts. */
@@ -98,8 +109,12 @@ function ping(host: string, port: number, password: string | undefined): Promise
 		};
 
 		socket.setTimeout(CONNECT_TIMEOUT_MS);
-		socket.once("timeout", () => { finish(new Error(`Redis at ${host}:${String(port)} timed out`)); });
-		socket.once("error", (error) => { finish(error); });
+		socket.once("timeout", () => {
+			finish(new Error(`Redis at ${host}:${String(port)} timed out`));
+		});
+		socket.once("error", (error) => {
+			finish(error);
+		});
 
 		socket.on("data", (chunk: Buffer) => {
 			buffer += chunk.toString("utf8");

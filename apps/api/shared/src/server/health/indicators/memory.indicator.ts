@@ -1,6 +1,8 @@
-import { Injectable } from "@nestjs/common";
-import { HealthIndicatorService } from "@nestjs/terminus";
 import { readFile } from "node:fs/promises";
+
+import { Context, Effect } from "effect";
+
+import { indicatorFor, type HealthIndicatorShape } from "./indicator-result";
 
 import type { IndicatorResult } from "../types";
 
@@ -24,43 +26,46 @@ const HEAP_DOWN_RATIO = 0.95;
  * `rss` is reported alongside, because RSS growing while the heap does not is a
  * real and different failure (off-heap buffers, native leaks).
  */
-@Injectable()
-export class MemoryHealthIndicator {
-	constructor(private readonly indicator: HealthIndicatorService) {}
-
+export class MemoryHealthIndicator extends Context.Service<MemoryHealthIndicator, HealthIndicatorShape>()(
+	"shared/health/MemoryHealthIndicator",
+) {
 	static readonly NAME = "memory";
 
-	async check(): Promise<IndicatorResult> {
-		const check = this.indicator.check(MemoryHealthIndicator.NAME);
+	static readonly live = class MemoryHealthIndicatorImpl implements HealthIndicatorShape {
+		check(): Effect.Effect<IndicatorResult> {
+			return Effect.gen(function* () {
+				const check = indicatorFor(MemoryHealthIndicator.NAME);
 
-		const usage = process.memoryUsage();
-		const ratio = usage.heapTotal === 0 ? 0 : usage.heapUsed / usage.heapTotal;
-		const containerLimit = await readCgroupLimitBytes();
+				const usage = process.memoryUsage();
+				const ratio = usage.heapTotal === 0 ? 0 : usage.heapUsed / usage.heapTotal;
+				const containerLimit = yield* Effect.promise(() => readCgroupLimitBytes());
 
-		const detail = {
-			heapUsedMb: bytesToMb(usage.heapUsed),
-			heapTotalMb: bytesToMb(usage.heapTotal),
-			rssMb: bytesToMb(usage.rss),
-			heapRatio: Number(ratio.toFixed(3)),
-			...(containerLimit === undefined
-				? {}
-				: {
-						containerLimitMb: bytesToMb(containerLimit),
-						containerRatio: Number((usage.rss / containerLimit).toFixed(3)),
-					}),
-		};
+				const detail = {
+					heapUsedMb: bytesToMb(usage.heapUsed),
+					heapTotalMb: bytesToMb(usage.heapTotal),
+					rssMb: bytesToMb(usage.rss),
+					heapRatio: Number(ratio.toFixed(3)),
+					...(containerLimit === undefined
+						? {}
+						: {
+								containerLimitMb: bytesToMb(containerLimit),
+								containerRatio: Number((usage.rss / containerLimit).toFixed(3)),
+							}),
+				};
 
-		// Down only when the process is genuinely about to fail. Everything else is
-		// detail: a probe that turns red at 80% heap produces alerts nobody can act
-		// on, and then gets ignored at the moment it matters.
-		if (ratio >= HEAP_DOWN_RATIO) {
-			return check.down({
-				message: `heap is at ${String(Math.round(ratio * 100))}% — out of memory imminent`,
-				...detail,
+				// Down only when the process is genuinely about to fail. Everything else is
+				// detail: a probe that turns red at 80% heap produces alerts nobody can act
+				// on, and then gets ignored at the moment it matters.
+				if (ratio >= HEAP_DOWN_RATIO) {
+					return check.down({
+						message: `heap is at ${String(Math.round(ratio * 100))}% — out of memory imminent`,
+						...detail,
+					});
+				}
+				return check.up(detail);
 			});
 		}
-		return check.up(detail);
-	}
+	};
 }
 
 /**

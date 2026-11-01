@@ -8,7 +8,7 @@ import { healthRegistryFake, healthSnapshot } from "../testing/health.fixtures";
 const service = new HealthService.live();
 
 function report(
-  runOnce: () => Promise<ReturnType<typeof healthSnapshot>>,
+  runOnce: () => Effect.Effect<ReturnType<typeof healthSnapshot>>,
   uptime = 0,
 ) {
   return Effect.runPromise(
@@ -23,7 +23,7 @@ describe("HealthService", () => {
   it("returns the registry snapshot", async () => {
     const snapshot = healthSnapshot();
 
-    await expect(report(() => Promise.resolve(snapshot))).resolves.toMatchObject({
+    await expect(report(() => Effect.succeed(snapshot))).resolves.toMatchObject({
       info: snapshot.info,
       error: snapshot.error,
       details: snapshot.details,
@@ -32,7 +32,7 @@ describe("HealthService", () => {
   });
 
   it("maps `up` to `ok` and carries the snapshot's timestamp", async () => {
-    const result = await report(() => Promise.resolve(healthSnapshot()));
+    const result = await report(() => Effect.succeed(healthSnapshot()));
 
     expect(result.status).toBe("ok");
     expect(result.timestamp).toEqual(new Date("2026-10-09T00:00:00.000Z"));
@@ -41,7 +41,7 @@ describe("HealthService", () => {
 
   it("maps `down` to `degraded`", async () => {
     const result = await report(() =>
-      Promise.resolve(healthSnapshot({ status: "down", info: {} })),
+      Effect.succeed(healthSnapshot({ status: "down", info: {} })),
     );
 
     expect(result.status).toBe("degraded");
@@ -50,13 +50,13 @@ describe("HealthService", () => {
   it("reports the clock's uptime verbatim: seconds, no milliseconds conversion", async () => {
     // `process.uptime()` is already seconds. The bug this catches divided by 1000,
     // so a stub of 42 would arrive as 0.042.
-    const result = await report(() => Promise.resolve(healthSnapshot()), 42);
+    const result = await report(() => Effect.succeed(healthSnapshot()), 42);
 
     expect(result.uptime).toBe(42);
   });
 
   it("maps a registry failure to the domain error", async () => {
-    const runOnce = vi.fn(() => Promise.reject(new Error("registry exploded")));
+    const runOnce = vi.fn(() => Effect.die(new Error("registry exploded")));
 
     const message = await Effect.runPromise(
       service.report().pipe(

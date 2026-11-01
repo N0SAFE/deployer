@@ -1,4 +1,5 @@
 import type { HealthSnapshot } from "@deployer/shared/server";
+import { Effect } from "effect";
 import type { z } from "zod";
 
 import type { healthCheckOutput, healthDetailedOutput } from "@deployer/health-contracts";
@@ -31,7 +32,7 @@ export function healthSnapshot(overrides: Partial<HealthSnapshot> = {}): HealthS
 
 /** Minimal registry double: the port only exposes `runOnce`. */
 export function healthRegistryFake(
-  runOnce: () => Promise<HealthSnapshot>,
+  runOnce: () => Effect.Effect<HealthSnapshot>,
 ): HealthRegistryShape {
   return { runOnce };
 }

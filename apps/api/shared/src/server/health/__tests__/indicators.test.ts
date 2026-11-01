@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { statfs } from "node:fs/promises";
-import type { HealthIndicatorService } from "@nestjs/terminus";
+import { Effect } from "effect";
 
 // `statfs` delegates to the real one unless a test overrides it, so the unreadable-path
 // case stays real while the free-space case does not depend on how full this machine is.
@@ -15,23 +15,6 @@ import { MemoryHealthIndicator } from "../indicators/memory.indicator";
 import { MigrationsHealthIndicator } from "../indicators/migrations.indicator";
 import { RedisHealthIndicator } from "../indicators/redis.indicator";
 
-/**
- * A minimal stand-in for Terminus' `HealthIndicatorService`.
- *
- * The indicators depend on nothing else, which is the point: the CHECKS are real
- * (a real pool query, a real `readFile`, a real socket), and only the result
- * builder is stubbed — so these tests exercise the domain logic without asserting
- * on Terminus internals.
- */
-function indicatorService(): HealthIndicatorService {
-	return {
-		check: (name: string) => ({
-			up: (data?: Record<string, unknown>) => ({ [name]: { status: "up", ...data } }),
-			down: (data?: Record<string, unknown>) => ({ [name]: { status: "down", ...data } }),
-		}),
-	} as unknown as HealthIndicatorService;
-}
-
 /** The status a result reports for its own key. */
 function statusOf(result: Record<string, { status: string }>): string {
 	return Object.values(result)[0]?.status ?? "missing";
@@ -44,12 +27,9 @@ describe("DatabaseHealthIndicator", () => {
 				rows: [{ version: "PostgreSQL 16.4 (Debian 16.4-1) on x86_64-pc-linux-gnu" }],
 			})),
 		};
-		const indicator = new DatabaseHealthIndicator(
-			indicatorService(),
-			pool as unknown as never,
-		);
+		const indicator = new DatabaseHealthIndicator.live(pool as unknown as never);
 
-		const result = await indicator.check();
+		const result = await Effect.runPromise(indicator.check());
 
 		expect(statusOf(result)).toBe("up");
 		// The version is the fact that tells an operator they are pointed at the
@@ -64,9 +44,9 @@ describe("DatabaseHealthIndicator", () => {
 				throw new Error("connect ECONNREFUSED 127.0.0.1:5432");
 			}),
 		};
-		const indicator = new DatabaseHealthIndicator(indicatorService(), pool as unknown as never);
+		const indicator = new DatabaseHealthIndicator.live(pool as unknown as never);
 
-		const result = await indicator.check();
+		const result = await Effect.runPromise(indicator.check());
 
 		expect(statusOf(result)).toBe("down");
 		expect(Object.values(result)[0]?.cause).toContain("refused");
@@ -78,18 +58,18 @@ describe("DatabaseHealthIndicator", () => {
 				throw new Error("boom");
 			}),
 		};
-		const indicator = new DatabaseHealthIndicator(indicatorService(), pool as unknown as never);
+		const indicator = new DatabaseHealthIndicator.live(pool as unknown as never);
 
-		await expect(indicator.check()).resolves.toBeDefined();
+		await expect(Effect.runPromise(indicator.check())).resolves.toBeDefined();
 	});
 
 	it("reports down with guidance when no pool is bound", async () => {
 		// `@Optional()` injects `undefined`, and a service that declared the
 		// database without wiring it must get an actionable message — not a
 		// TypeError from reading `query` off undefined.
-		const indicator = new DatabaseHealthIndicator(indicatorService(), undefined);
+		const indicator = new DatabaseHealthIndicator.live(undefined);
 
-		const result = await indicator.check();
+		const result = await Effect.runPromise(indicator.check());
 
 		expect(statusOf(result)).toBe("down");
 		expect(Object.values(result)[0]?.hint).toContain("DatabaseModule");
@@ -99,9 +79,9 @@ describe("DatabaseHealthIndicator", () => {
 describe("MigrationsHealthIndicator", () => {
 	it("reports up with the applied count", async () => {
 		const pool = { query: vi.fn(async () => ({ rows: [{ applied: 38, latest: "2026-10-01" }] })) };
-		const indicator = new MigrationsHealthIndicator(indicatorService(), pool as unknown as never);
+		const indicator = new MigrationsHealthIndicator.live(pool as unknown as never);
 
-		const result = await indicator.check();
+		const result = await Effect.runPromise(indicator.check());
 
 		expect(statusOf(result)).toBe("up");
 		expect(Object.values(result)[0]?.applied).toBe(38);
@@ -111,9 +91,9 @@ describe("MigrationsHealthIndicator", () => {
 		// The case reachability cannot catch: the database is up and every real
 		// query would fail with `relation ... does not exist`.
 		const pool = { query: vi.fn(async () => ({ rows: [{ applied: 0, latest: null }] })) };
-		const indicator = new MigrationsHealthIndicator(indicatorService(), pool as unknown as never);
+		const indicator = new MigrationsHealthIndicator.live(pool as unknown as never);
 
-		const result = await indicator.check();
+		const result = await Effect.runPromise(indicator.check());
 
 		expect(statusOf(result)).toBe("down");
 		expect(Object.values(result)[0]?.hint).toContain("migrate");
@@ -121,9 +101,9 @@ describe("MigrationsHealthIndicator", () => {
 
 	it("coerces a string count rather than trusting a truthy '0'", async () => {
 		const pool = { query: vi.fn(async () => ({ rows: [{ applied: "0", latest: null }] })) };
-		const indicator = new MigrationsHealthIndicator(indicatorService(), pool as unknown as never);
+		const indicator = new MigrationsHealthIndicator.live(pool as unknown as never);
 
-		const result = await indicator.check();
+		const result = await Effect.runPromise(indicator.check());
 
 		expect(statusOf(result)).toBe("down");
 	});
@@ -134,9 +114,9 @@ describe("MigrationsHealthIndicator", () => {
 				throw new Error('relation "drizzle.__drizzle_migrations" does not exist');
 			}),
 		};
-		const indicator = new MigrationsHealthIndicator(indicatorService(), pool as unknown as never);
+		const indicator = new MigrationsHealthIndicator.live(pool as unknown as never);
 
-		const result = await indicator.check();
+		const result = await Effect.runPromise(indicator.check());
 
 		expect(statusOf(result)).toBe("down");
 		expect(Object.values(result)[0]?.hint).toContain("never been migrated");
@@ -146,9 +126,9 @@ describe("MigrationsHealthIndicator", () => {
 describe("RedisHealthIndicator", () => {
 	it("reports down naming the variable when Redis is not configured", async () => {
 		delete process.env.DEPLOYER_REDIS_URL;
-		const indicator = new RedisHealthIndicator(indicatorService());
+		const indicator = new RedisHealthIndicator.live();
 
-		const result = await indicator.check();
+		const result = await Effect.runPromise(indicator.check());
 
 		expect(statusOf(result)).toBe("down");
 		expect(Object.values(result)[0]?.message).toContain("DEPLOYER_REDIS_URL");
@@ -156,9 +136,9 @@ describe("RedisHealthIndicator", () => {
 
 	it("reports down on an unparseable URL", async () => {
 		process.env.DEPLOYER_REDIS_URL = "not a url";
-		const indicator = new RedisHealthIndicator(indicatorService());
+		const indicator = new RedisHealthIndicator.live();
 
-		const result = await indicator.check();
+		const result = await Effect.runPromise(indicator.check());
 
 		expect(statusOf(result)).toBe("down");
 		delete process.env.DEPLOYER_REDIS_URL;
@@ -167,9 +147,9 @@ describe("RedisHealthIndicator", () => {
 	it("reports down (not a hang) when nothing is listening", async () => {
 		// Port 1 is reserved and never listening, so the connect fails fast.
 		process.env.DEPLOYER_REDIS_URL = "redis://127.0.0.1:1";
-		const indicator = new RedisHealthIndicator(indicatorService());
+		const indicator = new RedisHealthIndicator.live();
 
-		const result = await indicator.check();
+		const result = await Effect.runPromise(indicator.check());
 
 		expect(statusOf(result)).toBe("down");
 		delete process.env.DEPLOYER_REDIS_URL;
@@ -178,9 +158,9 @@ describe("RedisHealthIndicator", () => {
 
 describe("MemoryHealthIndicator", () => {
 	it("reports the heap ratio and RSS, and a status consistent with the ratio", async () => {
-		const indicator = new MemoryHealthIndicator(indicatorService());
+		const indicator = new MemoryHealthIndicator.live();
 
-		const result = await indicator.check();
+		const result = await Effect.runPromise(indicator.check());
 		const detail = Object.values(result)[0];
 
 		// ── WHY THIS DOES NOT ASSERT `up` ───────────────────────────────────────
@@ -210,7 +190,7 @@ describe("MemoryHealthIndicator", () => {
 
 describe("DiskHealthIndicator", () => {
 	it("reports up with free-space figures for a real path", async () => {
-		const indicator = new DiskHealthIndicator(indicatorService());
+		const indicator = new DiskHealthIndicator.live();
 		// 100 GB volume with 50 GB available, whatever the host's real disk looks like.
 		vi.mocked(statfs).mockResolvedValueOnce({
 			bsize: 4096,
@@ -218,7 +198,7 @@ describe("DiskHealthIndicator", () => {
 			bavail: 13_107_200,
 		} as Awaited<ReturnType<typeof statfs>>);
 
-		const result = await indicator.check("/");
+		const result = await Effect.runPromise(indicator.check("/"));
 
 		expect(statusOf(result)).toBe("up");
 		const detail = Object.values(result)[0];
@@ -227,9 +207,9 @@ describe("DiskHealthIndicator", () => {
 	});
 
 	it("reports down for a path that cannot be read", async () => {
-		const indicator = new DiskHealthIndicator(indicatorService());
+		const indicator = new DiskHealthIndicator.live();
 
-		const result = await indicator.check("/definitely/not/a/real/path");
+		const result = await Effect.runPromise(indicator.check("/definitely/not/a/real/path"));
 
 		expect(statusOf(result)).toBe("down");
 	});

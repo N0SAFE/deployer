@@ -1,325 +1,321 @@
-import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
-import { Inject } from "@nestjs/common";
-import type { HealthIndicatorResult, HealthIndicatorStatus } from "@nestjs/terminus";
+import { Context, Duration, Effect, Cause } from "effect";
 import {
 	BehaviorSubject,
 	Observable,
 	Subject,
 	distinctUntilChanged,
 	filter,
-	from,
-	lastValueFrom,
 	map,
-	mergeMap,
 	scan,
 	shareReplay,
 	startWith,
-	toArray,
 } from "rxjs";
 
-import type { IndicatorSnapshot, HealthSnapshot } from "./types";
+import { indicatorFor } from "./indicators/indicator-result";
 
-/**
- * Injection token for the indicator entries a module's `forRoot` built.
- *
- * A token rather than the registry reading a static list: the entries are
- * constructed from the app's named indicator set, so the registry cannot run a
- * check the app did not ask for.
- */
-export const HEALTH_INDICATORS = Symbol("api-server:health-indicators");
+import type { HealthSnapshot, IndicatorResult, IndicatorSnapshot } from "./types";
 
 /**
  * One named check the registry can run.
  *
- * `name` matches the key Terminus uses, so the stream and the HTTP payload agree
- * without translation.
+ * `name` matches the key the result uses, so the stream and the HTTP payload agree
+ * without translation. `run` is an Effect that never fails: a dependency that is down is a `down` result, which is the
+ * diagnosis the caller came for.
  */
 export type HealthIndicatorEntry = {
 	readonly name: string;
 	/**
 	 * Run the check.
 	 *
-	 * Returns a Terminus result — the shape a client and the Terminus UI already
-	 * understand — so nothing downstream needs a translator.
+	 * Returns a result the client already understands (`{ <name>: { status, …detail } }`) so nothing downstream needs a
+	 * translator.
 	 */
-	run(): Promise<HealthIndicatorResult>;
+	run(): Effect.Effect<IndicatorResult>;
 	/**
 	 * Told to the registry so a caller can render the check list before running it.
 	 * Purely informational — never used for control flow.
 	 */
 	readonly description?: string;
-}
+};
+
+export type HealthRegistryShape = {
+	/** One emission per completed pass, replayed to a late subscriber. */
+	readonly snapshots$: Observable<HealthSnapshot>;
+	/** Only the transitions, by a stable signature of `name:status` pairs. */
+	readonly changes$: Observable<HealthSnapshot>;
+	/** One indicator's verdicts across passes. */
+	readonly indicator$: (name: string) => Observable<IndicatorSnapshot>;
+	/** Registered names, in registration order. */
+	readonly indicatorNames: readonly string[];
+	/** Register a check at runtime. `forRoot` pre-registers; this is for tests. */
+	readonly register: (entry: HealthIndicatorEntry) => Effect.Effect<void, Error>;
+	/** The latest snapshot, or `null` before the first pass completes. */
+	readonly current: () => Effect.Effect<HealthSnapshot | null>;
+	/** The latest snapshot, running a pass first if none has completed. */
+	readonly currentOrRun: () => Effect.Effect<HealthSnapshot>;
+	/** Ask for a pass now (debounced through the refresh subject). */
+	readonly requestRefresh: () => Effect.Effect<void>;
+	/** Emit only when a full pass has been requested, collapsing bursts. */
+	readonly refreshStream: () => Observable<void>;
+	/** Run every indicator once and publish the result. */
+	readonly runOnce: () => Effect.Effect<HealthSnapshot>;
+	/** The drift-detection cadence. Never completes; the module forks it. */
+	readonly start: () => Effect.Effect<void>;
+	/** Close the streams, so subscribers are released. */
+	readonly stop: () => Effect.Effect<void>;
+};
 
 /**
  * Runs the platform's health indicators and streams their results.
  *
- * ── WHY rxjs AND NOT A POLLING FUNCTION ─────────────────────────────────────
+ * ── WHY A STREAM AND NOT A POLLING FUNCTION ─────────────────────────────────
  * A readiness endpoint answers one question at one instant. The questions an
  * OPERATOR has are about CHANGE: "is it still up?", "when did the database go
  * down?", "has it recovered?". Those are streams, and building them from a
  * polling function means every consumer re-derives the transitions themselves —
  * which is how two components end up disagreeing about whether a service is
- * healthy.
- *
- * So the registry OWNS the stream:
- *
- *   - `results$`   — one emission per completed full pass
- *   - `changes$`   — only when a snapshot differs from the previous one
- *     (`distinctUntilChanged` by a stable signature), so a subscriber is told
- *     about TRANSITIONS rather than being woken every interval
- *   - `indicator$` — just one indicator's results across passes
+ * healthy. RxJS stays the streaming surface; every command (`runOnce`, `current`,
+ * `requestRefresh`, `start`, `stop`) is an Effect.
  *
  * ── WHY CHECKS RUN IN PARALLEL, WITH A PER-CHECK TIMEOUT ────────────────────
  * Indicators are independent, so a slow disk check must not delay the database
- * verdict. `mergeMap` runs them concurrently, and each carries its own timeout
- * so one hung dependency cannot stall a pass — the hung check fails, the others
- * still report.
+ * verdict. They run concurrently, each under its own timeout, so one hung
+ * dependency cannot stall a pass — the hung check fails, the others still report.
  *
  * ── WHY THE LAST SNAPSHOT IS CACHED ─────────────────────────────────────────
  * `/health/ready` is polled forever (compose every 15s). Running the I/O per
- * request is the mistake the platform already made once and documented (see the
- * monolith's `ReadinessStateService`). The endpoint reads the cached snapshot;
- * a background cadence refreshes it. The cache is `BehaviorSubject`, so a late
- * subscriber gets the current value immediately instead of waiting for the next
- * pass.
+ * request is the mistake the platform already made once. The endpoint reads the
+ * cached snapshot; a background cadence refreshes it. The cache is a
+ * `BehaviorSubject`, so a late subscriber gets the current value immediately.
  */
-@Injectable()
-export class HealthRegistry implements OnModuleInit, OnModuleDestroy {
-	private readonly logger = new Logger(HealthRegistry.name);
-
+export class HealthRegistry extends Context.Service<HealthRegistry, HealthRegistryShape>()(
+	"shared/HealthRegistry",
+) {
 	/** Safety-net refresh cadence. Slow on purpose: this is drift detection. */
-	private static readonly REFRESH_INTERVAL_MS = 15_000;
+	static readonly REFRESH_INTERVAL_MS = 15_000;
 
 	/** Bounds one check, so a hung dependency cannot stall a pass. */
-	private static readonly INDICATOR_TIMEOUT_MS = 5_000;
+	static readonly INDICATOR_TIMEOUT_MS = 5_000;
 
-	/** The latest completed pass. `null` until the first one finishes. */
-	private readonly snapshot$ = new BehaviorSubject<HealthSnapshot | null>(null);
+	/**
+	 * The registry over the entries the app's indicator set produced.
+	 *
+	 * No constructor injection: the entries are the argument, so the module builds one registry per app and a spec
+	 * builds one over fake checks (`new HealthRegistry.live([...])`).
+	 */
+	static readonly live = class HealthRegistryImpl implements HealthRegistryShape {
+		/** The latest completed pass. `null` until the first one finishes. */
+		private readonly snapshot$ = new BehaviorSubject<HealthSnapshot | null>(null);
+		/** Explicit "check now" requests from callers or the cadence timer. */
+		private readonly refreshRequests = new Subject<void>();
+		/** Per-indicator result streams, so a consumer can watch ONE dependency. */
+		private readonly indicatorResults$ = new Subject<IndicatorSnapshot>();
+		/** Registered entries, by name, in declaration order. */
+		private readonly entryByName = new Map<string, HealthIndicatorEntry>();
+		private disposed = false;
 
-	/** Explicit "check now" requests from callers or the cadence timer. */
-	private readonly refreshRequests = new Subject<void>();
-
-	/** Per-indicator result streams, so a consumer can watch ONE dependency. */
-	private readonly indicatorResults$ = new Subject<IndicatorSnapshot>();
-
-	private timer: ReturnType<typeof setTimeout> | null = null;
-	private disposed = false;
-
-	/** Registered entries, by name, in declaration order. */
-	private readonly entryByName = new Map<string, HealthIndicatorEntry>();
-
-	constructor(@Inject(HEALTH_INDICATORS) entries: readonly HealthIndicatorEntry[]) {
-		for (const entry of entries) {
-			if (this.entryByName.has(entry.name)) {
-				throw new Error(`health indicator "${entry.name}" is registered twice`);
+		constructor(entries: readonly HealthIndicatorEntry[]) {
+			for (const entry of entries) {
+				if (this.entryByName.has(entry.name)) {
+					throw new Error(`health indicator "${entry.name}" is registered twice`);
+				}
+				this.entryByName.set(entry.name, entry);
 			}
-			this.entryByName.set(entry.name, entry);
 		}
-	}
 
-	/**
-	 * Snapshots, replayed.
-	 *
-	 * `shareReplay(1)` so the first subscriber triggers the work and every later
-	 * one receives the latest value instantly — without it, a second subscriber
-	 * would start a second cadence.
-	 */
-	readonly snapshots$: Observable<HealthSnapshot> = this.snapshot$.pipe(
-		filter((snapshot): snapshot is HealthSnapshot => snapshot !== null),
-		shareReplay({ bufferSize: 1, refCount: false }),
-	);
+		/**
+		 * Snapshots, replayed.
+		 *
+		 * `shareReplay(1)` so the first subscriber triggers the work and every later one receives the latest value
+		 * instantly — without it, a second subscriber would start a second cadence.
+		 */
+		readonly snapshots$ = this.snapshot$.pipe(
+			filter((snapshot): snapshot is HealthSnapshot => snapshot !== null),
+			shareReplay({ bufferSize: 1, refCount: false }),
+		);
 
-	/**
-	 * Only the TRANSITIONS.
-	 *
-	 * A subscriber that wants to log, alert, or invalidate a cache cares about
-	 * `up → down`, not about every 15-second confirmation. The signature is a
-	 * stable string of `name:status` pairs, so an unchanged health picture emits
-	 * nothing — and a change in ANY indicator emits once.
-	 */
-	readonly changes$: Observable<HealthSnapshot> = this.snapshots$.pipe(
-		distinctUntilChanged((previous, next) => signatureOf(previous) === signatureOf(next)),
-	);
+		/**
+		 * Only the TRANSITIONS.
+		 *
+		 * A subscriber that wants to log, alert, or invalidate a cache cares about `up → down`, not about every
+		 * 15-second confirmation. The signature is a stable string of `name:status` pairs, so an unchanged health
+		 * picture emits nothing — and a change in ANY indicator emits once.
+		 */
+		readonly changes$ = this.snapshots$.pipe(
+			distinctUntilChanged((previous, next) => signatureOf(previous) === signatureOf(next)),
+		);
 
-	/** One indicator's verdicts across passes. */
-	indicator$(name: string): Observable<IndicatorSnapshot> {
-		return this.indicatorResults$.pipe(filter((snapshot) => snapshot.name === name));
-	}
-
-	/** Register a check at runtime. `forRoot` pre-registers; this is for tests. */
-	register(entry: HealthIndicatorEntry): void {
-		if (this.entryByName.has(entry.name)) {
-			throw new Error(`health indicator "${entry.name}" is already registered`);
+		get indicatorNames(): readonly string[] {
+			return [...this.entryByName.keys()];
 		}
-		this.entryByName.set(entry.name, entry);
-	}
 
-	/** The registered indicator names, in registration order. */
-	get indicatorNames(): readonly string[] {
-		return [...this.entryByName.keys()];
-	}
+		indicator$(name: string): Observable<IndicatorSnapshot> {
+			return this.indicatorResults$.pipe(filter((snapshot) => snapshot.name === name));
+		}
 
-	/** The latest snapshot, or `null` before the first pass completes. */
-	current(): HealthSnapshot | null {
-		return this.snapshot$.value;
-	}
+		register(entry: HealthIndicatorEntry): Effect.Effect<void, Error> {
+			const entries = this.entryByName;
+			return Effect.try({
+				try: () => {
+					if (entries.has(entry.name)) {
+						throw new Error(`health indicator "${entry.name}" is already registered`);
+					}
+					entries.set(entry.name, entry);
+				},
+				catch: (error) => (error instanceof Error ? error : new Error(String(error))),
+			});
+		}
 
-	/**
-	 * The latest snapshot, running a pass first if none has completed.
-	 *
-	 * Awaited by `/health/ready` at boot so the endpoint never reports "not ready"
-	 * merely because the background cadence has not ticked yet.
-	 */
-	async currentOrRun(): Promise<HealthSnapshot> {
-		const existing = this.snapshot$.value;
-		if (existing !== null) return existing;
-		return this.runOnce();
-	}
+		current(): Effect.Effect<HealthSnapshot | null> {
+			return Effect.sync(() => this.snapshot$.value);
+		}
 
-	/** Ask for a pass now (debounced through the refresh subject). */
-	requestRefresh(): void {
-		if (!this.disposed) this.refreshRequests.next();
-	}
+		currentOrRun(): Effect.Effect<HealthSnapshot> {
+			const existing = this.snapshot$.value;
+			return existing !== null ? Effect.succeed(existing) : this.runOnce();
+		}
 
-	/** `OnModuleInit`: start the drift-detection cadence. */
-	onModuleInit(): void {
-		this.scheduleNext();
-	}
+		requestRefresh(): Effect.Effect<void> {
+			const requests = this.refreshRequests;
+			return Effect.sync(() => {
+				if (!this.disposed) requests.next();
+			});
+		}
 
-	/** `OnModuleDestroy`: stop the cadence and close the streams. */
-	onModuleDestroy(): void {
-		this.stop();
-	}
+		refreshStream(): Observable<void> {
+			return this.refreshRequests.pipe(
+				scan((count) => count + 1, 0),
+				map(() => undefined),
+			);
+		}
 
-	stop(): void {
-		this.disposed = true;
-		if (this.timer !== null) clearTimeout(this.timer);
-		this.timer = null;
-		this.snapshot$.complete();
-		this.indicatorResults$.complete();
-		this.refreshRequests.complete();
-	}
+		runOnce(): Effect.Effect<HealthSnapshot> {
+			const entries = [...this.entryByName.values()];
+			const indicatorResults$ = this.indicatorResults$;
+			const snapshot$ = this.snapshot$;
 
-	/**
-	 * Run every indicator once and publish the result.
-	 *
-	 * Public so a boot check and a test can drive it directly rather than waiting
-	 * for the cadence.
-	 */
-	async runOnce(): Promise<HealthSnapshot> {
-		const started = Date.now();
-		const entries = [...this.entryByName.values()];
-
-		// Parallel: indicators are independent, and a slow disk check must not delay
-		// the database verdict. `toArray` preserves DECLARATION order regardless of
-		// completion order, so the payload is stable between passes.
-		const results = await lastValueFrom(
-			from(entries).pipe(
-				mergeMap((entry) =>
-					from(
-						Promise.race([
-							// A check that THROWS is a failed check, not a failed pass: the
-							// registry exists to report, and a pass that dies reports nothing.
-							// `catch` here is what keeps one broken indicator from hiding every
-							// other dependency's verdict.
-							entry.run().catch((error: unknown) => ({
-								[entry.name]: {
-									status: "down" as const,
+			const runEntry = (
+				entry: HealthIndicatorEntry,
+			): Effect.Effect<{ entry: HealthIndicatorEntry; result: IndicatorResult; measuredLatencyMs: number }> =>
+				Effect.gen(function* () {
+					const checked: Effect.Effect<IndicatorResult> = entry.run().pipe(
+						Effect.timeoutOrElse({
+							duration: HealthRegistry.INDICATOR_TIMEOUT_MS,
+							orElse: () =>
+								Effect.fail(
+									new Error(`check did not finish within ${String(HealthRegistry.INDICATOR_TIMEOUT_MS)}ms`),
+								),
+						}),
+						Effect.catchCause((cause): Effect.Effect<IndicatorResult> => {
+							const error = Cause.squash(cause);
+							return Effect.succeed(
+								indicatorFor(entry.name).down({
 									message: error instanceof Error ? error.message : String(error),
-								},
-							})),
-							timeoutAfter(HealthRegistry.INDICATOR_TIMEOUT_MS, entry.name),
+								}),
+							);
+						}),
+					);
+					const [duration, result] = yield* Effect.timed(checked);
+					return { entry, result, measuredLatencyMs: Duration.toMillis(duration) };
+				});
+
+			return Effect.gen(function* () {
+				const started = Date.now();
+
+				// Parallel: indicators are independent, and a slow disk check must not delay the database verdict.
+				// `Effect.forEach` preserves DECLARATION order regardless of completion order, so the payload is stable
+				// between passes.
+				//
+				// A check that FAILS is a failed check, not a failed pass: the registry exists to report, and a pass that
+				// dies reports nothing. That `catchAllCause` is what keeps one broken indicator from hiding every other
+				// dependency's verdict.
+				const results = yield* Effect.forEach(entries, runEntry, { concurrency: "unbounded" });
+
+				const indicators: IndicatorSnapshot[] = [];
+				const info: HealthSnapshot["info"] = {};
+				const error: HealthSnapshot["error"] = {};
+
+				for (const { entry, result, measuredLatencyMs } of results) {
+					const value = result[entry.name] ?? { status: "down" as const };
+					const snapshot = toIndicatorSnapshot(entry.name, value, measuredLatencyMs);
+					indicators.push(snapshot);
+					indicatorResults$.next(snapshot);
+
+					if (value.status === "up") {
+						info[entry.name] = { ...value, status: "up" };
+					} else {
+						error[entry.name] = { ...value, status: "down" };
+					}
+				}
+
+				// `down` when ANY indicator is down. The caller decides which indicators are REQUIRED by declaring them at
+				// all — so this stays policy-free.
+				const snapshot: HealthSnapshot = {
+					status: indicators.every((indicator) => indicator.status === "up") ? "up" : "down",
+					info,
+					error,
+					details: Object.fromEntries(
+						indicators.map((indicator) => [
+							indicator.name,
+							{
+								status: indicator.status,
+								...(indicator.message === undefined ? {} : { message: indicator.message }),
+								...(indicator.detail ?? {}),
+							},
 						]),
-					).pipe(map((result) => ({ entry, result }))),
-				),
-				toArray(),
-			),
-			{ defaultValue: [] },
-		);
+					),
+					indicators,
+					checkedAt: new Date().toISOString(),
+					durationMs: Date.now() - started,
+				};
 
-		const indicators: IndicatorSnapshot[] = [];
-		const info: HealthSnapshot["info"] = {};
-		const error: HealthSnapshot["error"] = {};
-
-		for (const { entry, result } of results ?? []) {
-			const value = result[entry.name] ?? { status: "down" as const };
-			const snapshot = toIndicatorSnapshot(entry.name, value);
-			indicators.push(snapshot);
-			this.indicatorResults$.next(snapshot);
-
-			if (value.status === "up") {
-				info[entry.name] = { ...value, status: "up" };
-			} else {
-				error[entry.name] = { ...value, status: "down" };
-			}
+				snapshot$.next(snapshot);
+				yield* Effect.logDebug(
+					`health pass: ${snapshot.status} (${String(snapshot.durationMs)}ms, ${String(indicators.length)} indicators)`,
+				);
+				return snapshot;
+			});
 		}
 
-		// `down` when ANY indicator is down. The caller decides which indicators
-		// are REQUIRED by declaring them at all — so this stays policy-free.
-		const snapshot: HealthSnapshot = {
-			status: indicators.every((indicator) => indicator.status === "up") ? "up" : "down",
-			info,
-			error,
-			details: Object.fromEntries(
-				indicators.map((indicator) => [
-					indicator.name,
-					{
-						status: indicator.status,
-						...(indicator.message === undefined ? {} : { message: indicator.message }),
-						...(indicator.detail ?? {}),
-					},
-				]),
-			),
-			indicators,
-			checkedAt: new Date().toISOString(),
-			durationMs: Date.now() - started,
-		};
-
-		this.snapshot$.next(snapshot);
-		this.logger.debug(
-			`health pass: ${snapshot.status} (${String(snapshot.durationMs)}ms, ${String(indicators.length)} indicators)`,
-		);
-		return snapshot;
-	}
-
-	/**
-	 * The cadence, chained rather than `setInterval`.
-	 *
-	 * Chained so a slow pass can never stack on top of the next one — the same
-	 * correction the monolith's readiness service documents, and the reason a
-	 * container under load does not accumulate probes.
-	 */
-	private scheduleNext(): void {
-		if (this.disposed) return;
-		this.timer = setTimeout(() => {
-			void this.runOnce()
-				.catch((error: unknown) => {
-					// A failed PASS (not a failed indicator) must not kill the cadence;
-					// otherwise one bad refresh stops health reporting forever.
-					this.logger.warn(`health pass failed: ${error instanceof Error ? error.message : String(error)}`);
-				})
-				.finally(() => {
-					this.scheduleNext();
+		/**
+		 * The cadence, chained rather than a fixed interval.
+		 *
+		 * Chained so a slow pass can never stack on top of the next one — the same correction the monolith's readiness
+		 * service documented, and the reason a container under load does not accumulate probes.
+		 *
+		 * Never completes: the module forks it through `EffectHost` and interrupts it on shutdown.
+		 */
+		start(): Effect.Effect<void> {
+			const runOnce = (): Effect.Effect<HealthSnapshot> => this.runOnce();
+			/** One cadence tick: sleep, then a pass that cannot kill the loop. */
+			const tick = (): Effect.Effect<void> =>
+				Effect.gen(function* () {
+					yield* Effect.sleep(HealthRegistry.REFRESH_INTERVAL_MS);
+					// A failed PASS (not a failed indicator) must not kill the cadence; otherwise one bad refresh stops
+					// health reporting forever.
+					yield* runOnce().pipe(
+						Effect.catchCause((cause): Effect.Effect<void> =>
+							Effect.logWarning(`health pass failed: ${Cause.pretty(cause)}`),
+						),
+					);
 				});
-		}, HealthRegistry.REFRESH_INTERVAL_MS);
-	}
 
-	/**
-	 * Drive passes from a stream of requests.
-	 *
-	 * Exposed so a caller with a real trigger — a lifecycle transition, a
-	 * supervisor event — can push instead of waiting for the cadence.
-	 */
-	pushRefreshRequests(source: Observable<unknown>): void {
-		source.pipe(startWith(null)).subscribe(() => {
-			this.requestRefresh();
-		});
-	}
+			return Effect.gen(function* () {
+				while (true) {
+					yield* tick();
+				}
+			});
+		}
 
-	/** Emit only when a full pass has been requested, collapsing bursts. */
-	refreshStream(): Observable<void> {
-		return this.refreshRequests.pipe(scan((count) => count + 1, 0), map(() => undefined));
-	}
+		stop(): Effect.Effect<void> {
+			return Effect.sync(() => {
+				this.disposed = true;
+				this.snapshot$.complete();
+				this.indicatorResults$.complete();
+				this.refreshRequests.complete();
+			});
+		}
+	};
 }
 
 /** A stable identity for a snapshot, for change detection. */
@@ -327,13 +323,19 @@ function signatureOf(snapshot: HealthSnapshot): string {
 	return snapshot.indicators.map((indicator) => `${indicator.name}:${indicator.status}`).join("|");
 }
 
-/** Flatten one Terminus result into the stream's shape. */
+/**
+ * Flatten one result into the stream's shape.
+ *
+ * `latencyMs` is lifted from the check's own detail when it measured itself, and falls back to the registry's own
+ * measurement — a check that does not time itself still reports how long it took.
+ */
 function toIndicatorSnapshot(
 	name: string,
-	value: { status: HealthIndicatorStatus; [key: string]: unknown },
+	value: { status: "up" | "down"; [key: string]: unknown },
+	measuredLatencyMs: number,
 ): IndicatorSnapshot {
 	const { status, message, reason, latencyMs, ...rest } = value;
-	const numericLatency = typeof latencyMs === "number" ? latencyMs : 0;
+	const numericLatency = typeof latencyMs === "number" ? latencyMs : measuredLatencyMs;
 
 	// Everything that is not status/message/reason/latency is the check's own
 	// detail (version, counts, ratios). Passing it through is what makes the
@@ -342,9 +344,8 @@ function toIndicatorSnapshot(
 
 	return {
 		name,
-		// Terminus may also report `degraded`; the registry only distinguishes
-		// "serving" from "not", so anything that is not `up` is `down` here. The
-		// original status is preserved in `detail` for a consumer that cares.
+		// A check may report `degraded`; the registry only distinguishes "serving" from "not", so anything that is not
+		// `up` is `down` here. The original status is preserved in `detail` for a consumer that cares.
 		status: status === "up" ? "up" : "down",
 		latencyMs: numericLatency,
 		...(typeof message === "string" ? { message } : {}),
@@ -353,14 +354,5 @@ function toIndicatorSnapshot(
 	};
 }
 
-/** Resolve to a `down` result after `ms` instead of hanging the pass. */
-async function timeoutAfter(
-	ms: number,
-	name: string,
-): Promise<Record<string, { status: "down"; message: string }>> {
-	return new Promise((resolve) => {
-		setTimeout(() => {
-			resolve({ [name]: { status: "down", message: `check did not finish within ${String(ms)}ms` } });
-		}, ms);
-	});
-}
+/** Re-exported so an entry can be written without knowing where the builder lives. */
+export { indicatorFor };

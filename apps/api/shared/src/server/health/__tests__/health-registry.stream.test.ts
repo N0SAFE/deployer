@@ -1,5 +1,6 @@
 import { firstValueFrom, take, toArray } from "rxjs";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import { Effect } from "effect";
 
 import { HealthRegistry, type HealthIndicatorEntry } from "../health-registry.service";
 
@@ -20,30 +21,34 @@ function entry(
 	return {
 		name,
 		description: `test indicator ${name}`,
-		async run() {
-			const result = results[Math.min(call, results.length - 1)] ?? { status: "down" as const };
-			call += 1;
-			if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
-			return { [name]: result };
-		},
+		run: () =>
+			Effect.gen(function* () {
+				const result = results[Math.min(call, results.length - 1)] ?? { status: "down" as const };
+				call += 1;
+				if (delayMs > 0) yield* Effect.sleep(delayMs);
+				return { [name]: result };
+			}),
 	};
 }
 
 /** A registry with the given entries, with the background cadence never started. */
-function registryOf(...entries: HealthIndicatorEntry[]): HealthRegistry {
-	return new HealthRegistry(entries);
+function registryOf(...entries: HealthIndicatorEntry[]): HealthRegistry["Service"] {
+	return new HealthRegistry.live(entries);
 }
+
+/** Run one Effect and await it: the registry's commands are Effects, its streams stay Observables. */
+const run = <A, E>(effect: Effect.Effect<A, E>): Promise<A> => Effect.runPromise(effect);
 
 describe("HealthRegistry — snapshots", () => {
 	it("starts with no snapshot, then reports one after a pass", async () => {
 		const registry = registryOf(entry("database", [{ status: "up", version: "PostgreSQL 16.4" }]));
 
-		expect(registry.current()).toBeNull();
+		expect(await run(registry.current())).toBeNull();
 
-		const snapshot = await registry.runOnce();
+		const snapshot = await run(registry.runOnce());
 
 		expect(snapshot.status).toBe("up");
-		expect(registry.current()).toStrictEqual(snapshot);
+		expect(await run(registry.current())).toStrictEqual(snapshot);
 	});
 
 	it("derives up/down from every indicator, not from the first", async () => {
@@ -52,7 +57,7 @@ describe("HealthRegistry — snapshots", () => {
 			entry("redis", [{ status: "down", message: "connection refused" }]),
 		);
 
-		const snapshot = await registry.runOnce();
+		const snapshot = await run(registry.runOnce());
 
 		expect(snapshot.status).toBe("down");
 		expect(snapshot.info).toHaveProperty("database");
@@ -68,7 +73,7 @@ describe("HealthRegistry — snapshots", () => {
 			entry("disk", [{ status: "down", message: "only 2% free" }]),
 		);
 
-		const snapshot = await registry.runOnce();
+		const snapshot = await run(registry.runOnce());
 
 		// A Terminus client can consume these three without a translator, which is
 		// why they are passed through rather than re-shaped.
@@ -86,7 +91,7 @@ describe("HealthRegistry — snapshots", () => {
 			entry("disk", [{ status: "up" }], 40),
 		);
 
-		const snapshot = await registry.runOnce();
+		const snapshot = await run(registry.runOnce());
 
 		expect(snapshot.indicators.map((indicator) => indicator.name)).toEqual(["database", "disk"]);
 	});
@@ -94,7 +99,7 @@ describe("HealthRegistry — snapshots", () => {
 	it("keeps each indicator's own facts in `detail`", async () => {
 		const registry = registryOf(entry("database", [{ status: "up", version: "PostgreSQL 16.4", latencyMs: 7 }]));
 
-		const snapshot = await registry.runOnce();
+		const snapshot = await run(registry.runOnce());
 
 		// `latencyMs` is lifted onto the snapshot; the rest stays as the check's
 		// own detail, which is what lets a new indicator add fields without a
@@ -108,11 +113,11 @@ describe("HealthRegistry — snapshots", () => {
 			name: "hung",
 			// Never resolves — the case a real probe hits when a dependency
 			// black-holes a connection.
-			run: () => new Promise(() => undefined),
+			run: () => Effect.never,
 		};
 		const registry = registryOf(hung, entry("database", [{ status: "up" }]));
 
-		const snapshot = await registry.runOnce();
+		const snapshot = await run(registry.runOnce());
 
 		expect(snapshot.status).toBe("down");
 		expect(snapshot.error.hung?.message).toMatch(/did not finish/);
@@ -127,14 +132,14 @@ describe("HealthRegistry — the rxjs streams", () => {
 		const registry = registryOf(entry("database", [{ status: "up" }]));
 
 		const collected = firstValueFrom(registry.snapshots$.pipe(take(1)));
-		await registry.runOnce();
+		await run(registry.runOnce());
 
 		expect((await collected).status).toBe("up");
 	});
 
 	it("replays the latest snapshot to a late subscriber", async () => {
 		const registry = registryOf(entry("database", [{ status: "up" }]));
-		await registry.runOnce();
+		await run(registry.runOnce());
 
 		// `shareReplay(1)`: a UI that opens after the first pass must not sit blank
 		// until the next interval — this is the difference between a dashboard that
@@ -153,9 +158,9 @@ describe("HealthRegistry — the rxjs streams", () => {
 		const transitions: string[] = [];
 		registry.changes$.subscribe((snapshot) => transitions.push(snapshot.status));
 
-		await registry.runOnce(); // up    → emit
-		await registry.runOnce(); // up    → suppressed (identical signature)
-		await registry.runOnce(); // down  → emit
+		await run(registry.runOnce()); // up    → emit
+		await run(registry.runOnce()); // up    → suppressed (identical signature)
+		await run(registry.runOnce()); // down  → emit
 
 		expect(transitions).toEqual(["up", "down"]);
 	});
@@ -172,8 +177,8 @@ describe("HealthRegistry — the rxjs streams", () => {
 			seen.push(snapshot.indicators.map((i) => `${i.name}:${i.status}`).join(",")),
 		);
 
-		await registry.runOnce(); // database:down,redis:down  → emit
-		await registry.runOnce(); // database:up,redis:down    → emit (a flip)
+		await run(registry.runOnce()); // database:down,redis:down  → emit
+		await run(registry.runOnce()); // database:up,redis:down    → emit (a flip)
 
 		expect(seen).toEqual(["database:down,redis:down", "database:up,redis:down"]);
 	});
@@ -187,8 +192,8 @@ describe("HealthRegistry — the rxjs streams", () => {
 		const database: string[] = [];
 		registry.indicator$("database").subscribe((snapshot) => database.push(snapshot.status));
 
-		await registry.runOnce();
-		await registry.runOnce();
+		await run(registry.runOnce());
+		await run(registry.runOnce());
 
 		// Both passes of `database` only; `redis` never appears.
 		expect(database).toEqual(["up", "down"]);
@@ -198,20 +203,20 @@ describe("HealthRegistry — the rxjs streams", () => {
 		const registry = registryOf(entry("database", [{ status: "up" }, { status: "down" }]));
 
 		const collected = firstValueFrom(registry.snapshots$.pipe(take(2), toArray()));
-		await registry.runOnce();
-		await registry.runOnce();
+		await run(registry.runOnce());
+		await run(registry.runOnce());
 
 		expect((await collected).map((snapshot) => snapshot.status)).toEqual(["up", "down"]);
 	});
 
 	it("completes its streams on stop, so subscribers are released", async () => {
 		const registry = registryOf(entry("database", [{ status: "up" }]));
-		await registry.runOnce();
+		await run(registry.runOnce());
 
 		let completed = false;
 		registry.snapshots$.subscribe({ complete: () => (completed = true) });
 
-		registry.stop();
+		await run(registry.stop());
 
 		expect(completed).toBe(true);
 	});
@@ -228,13 +233,11 @@ describe("HealthRegistry — the rxjs streams", () => {
 		// other indicator is still reported.
 		const exploding: HealthIndicatorEntry = {
 			name: "exploding",
-			run: vi.fn(async () => {
-				throw new Error("indicator bug");
-			}),
+			run: () => Effect.die(new Error("indicator bug")),
 		};
 		const registry = registryOf(exploding, entry("database", [{ status: "up" }]));
 
-		const snapshot = await registry.runOnce();
+		const snapshot = await run(registry.runOnce());
 
 		expect(snapshot.error.exploding?.message).toBe("indicator bug");
 		expect(snapshot.info).toHaveProperty("database");

@@ -13350,8 +13350,8 @@
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/ROADMAP.md": {
-    "mtime": 1793564711.790549,
-    "ast_hash": "8338c7b42c5d62d220771e6990c509ea",
+    "mtime": 1793565711.9145532,
+    "ast_hash": "40bff4d7aa2bc36be13cae13697ff044",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/architecture.md": {
@@ -17490,8 +17490,8 @@
     "semantic_hash": ""
   },
   "apps/api/AGENTS.md": {
-    "mtime": 1793564711.7894409,
-    "ast_hash": "9ad15a5c7facd8379ce058e7fd398f3f",
+    "mtime": 1793565711.9122097,
+    "ast_hash": "53638df3ad4a4982e6b1495568b91d02",
     "semantic_hash": ""
   },
   "apps/api/ARCHITECTURE.md": {
@@ -20860,8 +20860,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/boot/multihop-relay.spec.ts": {
-    "mtime": 1793447673.537723,
-    "ast_hash": "45512d0e86cf613dfcf6011b8405defa",
+    "mtime": 1793565662.0816648,
+    "ast_hash": "c49a810dcd27416a476a84e89e4165a4",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/boot/node-door.spec.ts": {
@@ -20945,8 +20945,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/controllers/directory.controller.spec.ts": {
-    "mtime": 1793563504.8620856,
-    "ast_hash": "cd0f630bbd6f1975062125609325cfda",
+    "mtime": 1793565662.0816648,
+    "ast_hash": "465edc3412ca6b8fffb73aa6b8b3bfda",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/controllers/directory.controller.ts": {
@@ -20975,8 +20975,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/mesh.module.ts": {
-    "mtime": 1793563504.8531494,
-    "ast_hash": "c8c5ce78fef25a9ddb373643109beb61",
+    "mtime": 1793565662.0816648,
+    "ast_hash": "c09053b88a9ad7198a298e12d20cc1bb",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/repositories/directory.repository.spec.ts": {
@@ -20985,8 +20985,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/repositories/directory.repository.ts": {
-    "mtime": 1793441831.2605176,
-    "ast_hash": "9a8a62c28529001c00ae285bf86d1e86",
+    "mtime": 1793565671.9048502,
+    "ast_hash": "e74326b0f3ba4def2df94841e0b50b3f",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/rules/lease-policy.spec.ts": {
@@ -21030,13 +21030,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/agent-load.service.spec.ts": {
-    "mtime": 1793443521.2155852,
-    "ast_hash": "5d7f910151862dbeabc992aa83a1586b",
+    "mtime": 1793565662.0816648,
+    "ast_hash": "794dbe438c5df25843c8e3a3e4ab379f",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/agent-load.service.ts": {
-    "mtime": 1793443345.067061,
-    "ast_hash": "d74c65fa61a9ed834620b9f4acd6426b",
+    "mtime": 1793565676.9058077,
+    "ast_hash": "123e2ec62061f253c1084233cf24465a",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/broker.service.spec.ts": {
@@ -21060,13 +21060,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/key-hints.service.spec.ts": {
-    "mtime": 1793443528.9574697,
-    "ast_hash": "6908d162abca697749d1319f55f7e0e0",
+    "mtime": 1793565662.0816648,
+    "ast_hash": "9503d7a39599d148043742070d51ec77",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/key-hints.service.ts": {
-    "mtime": 1793443345.0674243,
-    "ast_hash": "7f9a8dfc6db350ecadfc079ec3468bc7",
+    "mtime": 1793565671.90567,
+    "ast_hash": "545472e949c41a68b31ef835e28ae745",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/lease-signer.service.ts": {
@@ -21080,13 +21080,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/node-agents.service.spec.ts": {
-    "mtime": 1793441831.2705765,
-    "ast_hash": "5e4d7cb43521999a6ec52b0f9003e164",
+    "mtime": 1793565662.0816648,
+    "ast_hash": "102aca901b8d33592893349687c68b18",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/node-agents.service.ts": {
-    "mtime": 1793441831.2707987,
-    "ast_hash": "d81051d3bcd09fa37467690aedb03fca",
+    "mtime": 1793565671.9062524,
+    "ast_hash": "2132094cc017d335714cd8a48e9b4b79",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/node-identity.service.ts": {
@@ -21095,13 +21095,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/pending-seeds.service.ts": {
-    "mtime": 1793441831.2711134,
-    "ast_hash": "0a67d1504ff9541364afebaf43781b51",
+    "mtime": 1793565671.905125,
+    "ast_hash": "860766622b58c398077ddebd97d73fed",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/relay-metrics.service.ts": {
-    "mtime": 1793441831.271256,
-    "ast_hash": "a0b287736337c4db76eadcd158ca948d",
+    "mtime": 1793565671.9053621,
+    "ast_hash": "601114c6e6480e09465bd5e937894590",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/relay-settings.service.ts": {
@@ -21130,13 +21130,13 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/services/roster-gossip.service.ts": {
-    "mtime": 1793564474.857665,
+    "mtime": 1793565168.3094394,
     "ast_hash": "e3793502a6e0e186814457edfc974213",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/testing/mesh.fixtures.ts": {
-    "mtime": 1793563504.8607464,
-    "ast_hash": "85144a8777daebbecd87f9bd29e23260",
+    "mtime": 1793565662.0826647,
+    "ast_hash": "aeaac32e8402848d3f995f3ec2655446",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/node/node-door.controller.ts": {
@@ -21175,8 +21175,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/node/services/node-status.service.spec.ts": {
-    "mtime": 1793563504.855487,
-    "ast_hash": "23a001d573f60dfba03b31b69b1e537c",
+    "mtime": 1793565662.0826647,
+    "ast_hash": "eab214e51279845c15a625b5e7ad733c",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/node/services/node-status.service.ts": {
@@ -21280,8 +21280,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/network/wireguard-tick.service.spec.ts": {
-    "mtime": 1793563504.8286679,
-    "ast_hash": "0d56ace138c9ff504ef9ede2ee6e4868",
+    "mtime": 1793565662.0826647,
+    "ast_hash": "bf754003c2e937caabf17a551ff549d3",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/network/wireguard-tick.service.ts": {

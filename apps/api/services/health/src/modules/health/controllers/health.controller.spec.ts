@@ -2,7 +2,7 @@ import "@orpc/effect/extensions/effect";
 
 import { effectContext } from "@deployer/nest-effect/testing";
 import { callProcedure } from "@deployer/orpc-utils/testing";
-import { Context } from "effect";
+import { Context, Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HealthController } from "./health.controller";
@@ -26,7 +26,7 @@ vi.mock("@deployer/shared/core/modules/auth/orpc/middlewares", async () => {
  * test helpers (`callProcedure`, `effectContext`) remove the per-file
  * `~orpc.handler` and Context plumbing.
  */
-const runOnce = vi.fn(() => Promise.resolve(healthSnapshot()));
+const runOnce = vi.fn(() => Effect.succeed(healthSnapshot()));
 
 /** The stubbed clock: the controller must forward this exactly, not `process.uptime()`. */
 const UPTIME_SECONDS = 42;
@@ -39,7 +39,7 @@ describe("HealthController", () => {
 
 	beforeEach(() => {
 		runOnce.mockReset();
-		runOnce.mockImplementation(() => Promise.resolve(healthSnapshot()));
+		runOnce.mockImplementation(() => Effect.succeed(healthSnapshot()));
 
 		context = effectContext(
 			Context.empty().pipe(
@@ -57,7 +57,7 @@ describe("HealthController", () => {
 
 	describe("check", () => {
 		it("surfaces a registry failure as the declared FAILED_DEPENDENCY error", async () => {
-			runOnce.mockRejectedValue(new Error("registry exploded"));
+			runOnce.mockImplementation(() => Effect.die(new Error("registry exploded")));
 
 			await expect(call(controller.check())).rejects.toMatchObject({ code: "FAILED_DEPENDENCY" });
 		});
@@ -83,13 +83,15 @@ describe("HealthController", () => {
 		});
 
 		it("reports degraded when any indicator is down", async () => {
-			runOnce.mockResolvedValue(
-				healthSnapshot({
-					status: "down",
-					indicators: [
-						{ name: "redis", status: "down", latencyMs: 2, message: "connection refused" },
-					],
-				}),
+			runOnce.mockImplementation(() =>
+				Effect.succeed(
+					healthSnapshot({
+						status: "down",
+						indicators: [
+							{ name: "redis", status: "down", latencyMs: 2, message: "connection refused" },
+						],
+					}),
+				),
 			);
 
 			const result = await call<{ status: string }>(controller.check());
