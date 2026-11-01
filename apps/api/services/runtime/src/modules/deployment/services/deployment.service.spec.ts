@@ -322,6 +322,7 @@ describe('DeploymentService', () => {
                             mockDomainRoutingService,
                             mockRuntimeConfigurationAccessor,
                             mockIngressRefresher,
+                            { runUnwrapped: (effect: any) => Effect.runPromise(effect) },
                         ),
                     inject: [
                         CodeProviderRegistryService,
@@ -535,8 +536,8 @@ describe('DeploymentService', () => {
             },
         });
         mockRepository.getServiceDependencies.mockResolvedValue([]);
-        mockProjectAccessService.findProjectById.mockResolvedValue({ id: 'proj-1', ownerId: 'user-1' });
-        mockProjectAccessService.findCollaboratorByUserAndProject.mockResolvedValue(null);
+        mockProjectAccessService.findProjectById.mockReturnValue(Effect.succeed({ id: 'proj-1', ownerId: 'user-1' }));
+        mockProjectAccessService.findCollaboratorByUserAndProject.mockReturnValue(Effect.succeed(null));
 
         mockRepository.updatePhase.mockResolvedValue(mockDeployment);
         mockRepository.persistBuildArtifacts.mockResolvedValue(mockDeployment);

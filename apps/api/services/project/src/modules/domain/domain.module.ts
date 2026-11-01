@@ -9,7 +9,6 @@ import { ProjectCoreModule } from "@deployer/shared/core/modules/project/project
 import { CoreReachabilityModule } from "@deployer/shared/core/modules/reachability/core-reachability.module";
 import { DomainConflict } from "@project/core/ports/domain-conflict.port";
 import { DomainVerification } from "@project/core/ports/domain-verification.port";
-import { ProjectAccess } from "@project/core/ports/project-access.port";
 import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
 import { ServiceDomainMappingRepo } from "@project/core/ports/service-domain-mapping-repository.port";
 import { createModuleContext } from "@deployer/nest-effect";
@@ -35,7 +34,6 @@ export class DomainModule extends createModuleContext({
 	],
 	controllers: [ProjectDomainController, ServiceDomainController],
 	providers: [
-		{ provide: ProjectAccess, useExisting: ProjectAccessService },
 		{ provide: DomainConflict, useExisting: DomainConflictService },
 		{ provide: DomainVerification, useExisting: DomainVerificationService },
 		{ provide: ProjectDomainRepo, useExisting: ProjectDomainRepository },

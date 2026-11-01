@@ -13350,8 +13350,8 @@
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/ROADMAP.md": {
-    "mtime": 1793565711.9145532,
-    "ast_hash": "40bff4d7aa2bc36be13cae13697ff044",
+    "mtime": 1793566739.3254082,
+    "ast_hash": "d7e53ba48463ef6366401790c155010c",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/architecture.md": {
@@ -22007,6 +22007,11 @@
   "apps/api/shared/src/server/health/indicators/indicator-result.ts": {
     "mtime": 1793566166.7777846,
     "ast_hash": "0eb78c3cb7492470a859b7441f585d57",
+    "semantic_hash": ""
+  },
+  "docs/audit-2026-10-25/nest-vs-effect-services.md": {
+    "mtime": 1793566731.3694894,
+    "ast_hash": "098220c90669462393dae397e3cc712a",
     "semantic_hash": ""
   }
 }

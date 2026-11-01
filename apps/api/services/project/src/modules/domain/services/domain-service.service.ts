@@ -10,7 +10,7 @@ import {
 } from "@deployer/shared/core/modules/domain/errors/index";
 import { attempt, toFailure } from "@/modules/project/project-effects";
 import { DomainConflict } from "@project/core/ports/domain-conflict.port";
-import { ProjectAccess } from "@project/core/ports/project-access.port";
+import { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
 import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
 import { ServiceDomainMappingRepo } from "@project/core/ports/service-domain-mapping-repository.port";
 import { Context, Effect } from "effect";
@@ -44,14 +44,12 @@ export type UpdateServiceDomainInput = {
 /** Shared access rule: only owner or maintainer may manage this project's domains. */
 function assertAccess(projectId: string, requesterId: string) {
 	return Effect.gen(function* () {
-		const access = yield* ProjectAccess;
-		yield* attempt(() =>
-			access.assertProjectAccess(
-				projectId,
-				requesterId,
-				["owner", "maintainer"],
-				"You do not have permission to manage domains for this project",
-			),
+		const access = yield* ProjectAccessService;
+		yield* access.assertProjectAccess(
+			projectId,
+			requesterId,
+			["owner", "maintainer"],
+			"You do not have permission to manage domains for this project",
 		);
 	});
 }

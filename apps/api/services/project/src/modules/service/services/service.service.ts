@@ -3,7 +3,7 @@ import { EMPTY, type Observable, concat, defer, from, map, mergeMap } from "rxjs
 import { filter as rxFilter } from "rxjs/operators";
 import { Context, Effect } from "effect";
 import { CoreEventSync } from "@project/core/ports/core-event-sync.port";
-import { ProjectAccess } from "@project/core/ports/project-access.port";
+import { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
 import { RuntimeConfigurationAccessor } from "@project/core/ports/runtime-configuration-accessor.port";
 import { DatabasePort } from "@project/core/database/database.port";
 import { attempt, rule } from "@/modules/project/project-effects";
@@ -71,8 +71,8 @@ function assertProjectAccess(
     allowedRoles: readonly ProjectRole[],
 ) {
     return Effect.gen(function* () {
-        const access = yield* ProjectAccess;
-        yield* attempt(() => access.assertProjectAccess(projectId, requesterId, allowedRoles));
+        const access = yield* ProjectAccessService;
+        return yield* access.assertProjectAccess(projectId, requesterId, allowedRoles);
     });
 }
 

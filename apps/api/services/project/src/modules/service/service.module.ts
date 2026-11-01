@@ -13,7 +13,6 @@ import { ProjectAccessService } from "@deployer/shared/core/modules/project/serv
 import { ProjectCoreModule } from "@deployer/shared/core/modules/project/project-core.module";
 import { DatabasePort } from "@project/core/database/database.port";
 import { CoreEventSync } from "@project/core/ports/core-event-sync.port";
-import { ProjectAccess } from "@project/core/ports/project-access.port";
 import { ProjectDomainRepo } from "@project/core/ports/project-domain-repository.port";
 import { RuntimeConfigurationAccessor } from "@project/core/ports/runtime-configuration-accessor.port";
 import { ServiceDomainMappingLookup } from "@project/core/ports/service-domain-mapping-lookup.port";
@@ -51,7 +50,6 @@ export class ServiceDomainModule extends createModuleContext({
 	controllers: [ServiceController],
 	providers: [
 		effectHostProvider(),
-		{ provide: ProjectAccess, useExisting: ProjectAccessService },
 		{ provide: ProjectDomainRepo, useExisting: ProjectDomainRepository },
 		{
 			provide: RuntimeConfigurationAccessor,

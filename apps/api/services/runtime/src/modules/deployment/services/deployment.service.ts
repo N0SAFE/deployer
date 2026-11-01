@@ -1,6 +1,7 @@
 import { RuntimeForbidden, RuntimeInvalid, RuntimeNotFound } from "../../../core/runtime.errors";
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import type { OnModuleInit } from "@nestjs/common";
+import { EffectHost, type EffectHostShape } from "@deployer/nest-effect";
 import { DeploymentRepository } from "../repositories/deployment.repository";
 import { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
 import { DeploymentEventService } from "../events/deployment-event.service";
@@ -194,13 +195,16 @@ export class DeploymentService implements OnModuleInit {
         private readonly deploymentQueueLifecycleService: DeploymentQueueLifecycleService,
         private readonly deploymentStateMachineService: DeploymentProviderBuilderRunnerStateMachineService,
         private readonly uploadBundleRegistryService: UploadBundleRegistryService,
-        private readonly projectAccessService: ProjectAccessService,
+        // `@Inject` is required: the parameter type is an indexed access, which emits no design metadata.
+        @Inject(ProjectAccessService) private readonly projectAccessService: ProjectAccessService["Service"],
         private readonly domainRoutingService: DomainRoutingService,
         private readonly runtimeConfigurationAccessor: RuntimeConfigurationAccessorService,
         /** Fires a re-converge of the platform ingress when the route table may
          *  have changed (a deployment/preview became live, a rollback moved
          *  the backend container). */
         private readonly ingressRefresher: TraefikConfigRefresher,
+        /** Boundary: the shared access checks are Effects, and this class still answers Promises. */
+        @Inject(EffectHost) private readonly host: Pick<EffectHostShape, "runUnwrapped">,
     ) {}
 
     onModuleInit(): void {
@@ -340,16 +344,15 @@ export class DeploymentService implements OnModuleInit {
         if (!projectId) {
             throw new RuntimeNotFound({ reason: `Service '${serviceId}' not found` });
         }
-        const project = await this.projectAccessService.findProjectById(projectId);
+        const project = await this.host.runUnwrapped(this.projectAccessService.findProjectById(projectId));
         if (!project) {
             throw new RuntimeNotFound({ reason: `Project '${projectId}' not found` });
         }
         if (project.ownerId === requesterId) {
             return;
         }
-        const collaborator = await this.projectAccessService.findCollaboratorByUserAndProject(
-            requesterId,
-            projectId,
+        const collaborator = await this.host.runUnwrapped(
+            this.projectAccessService.findCollaboratorByUserAndProject(requesterId, projectId),
         );
         if (!collaborator || !allowedRoles.includes(collaborator.role)) {
             throw new RuntimeForbidden({ reason: "You do not have permission to perform this action" });

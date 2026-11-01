@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Effect, Stream } from "effect";
 import type { Service } from "@deployer/contracts-entities";
 import { ProjectConflict, ProjectInvalid, ResourceNotFound } from "@/modules/project/domain/project.errors";
-import type { ProjectAccessShape } from "@project/core/ports/project-access.port";
-import { ProjectAccess } from "@project/core/ports/project-access.port";
+import type { ProjectAccessShape } from "@deployer/shared/core/modules/project/services/project-access.service";
+import { ProjectAccessService } from "@deployer/shared/core/modules/project/services/project-access.service";
+import { ProjectAccessRepository } from "@deployer/shared/core/modules/project/repositories/project-access.repository";
 import type { RuntimeConfigurationAccessorShape } from "@project/core/ports/runtime-configuration-accessor.port";
 import { RuntimeConfigurationAccessor } from "@project/core/ports/runtime-configuration-accessor.port";
 import type { ServiceEventServiceShape } from "@project/modules/service/services/service-event.service";
@@ -80,7 +81,8 @@ describe("ServiceService", () => {
 		| ProjectStore
 		| ServiceStore
 		| ServiceEventService
-		| ProjectAccess
+		| ProjectAccessService
+		| ProjectAccessRepository
 		| RuntimeConfigurationAccessor
 		| PreviewTopologyService
 		| DatabasePort;
@@ -91,7 +93,8 @@ describe("ServiceService", () => {
 			effect.pipe(
 				Effect.provideService(ServiceStore, store as unknown as ServiceStoreShape),
 				Effect.provideService(ServiceEventService, events as unknown as ServiceEventServiceShape),
-				Effect.provideService(ProjectAccess, access as unknown as ProjectAccessShape),
+				Effect.provideService(ProjectAccessService, access as unknown as ProjectAccessShape),
+				Effect.provideService(ProjectAccessRepository, {} as never),
 				Effect.provideService(
 					RuntimeConfigurationAccessor,
 					configuration as unknown as RuntimeConfigurationAccessorShape,
@@ -130,7 +133,11 @@ describe("ServiceService", () => {
 			subscribeEffect: vi.fn(() => Stream.empty),
 		};
 
-		access = { assertProjectAccess: vi.fn(() => Promise.resolve({ id: "proj-1", ownerId: "user-1" })) };
+		access = {
+			assertProjectAccess: vi.fn(() => Effect.succeed({ id: "proj-1", ownerId: "user-1" })),
+			findProjectById: vi.fn(() => Effect.succeed({ id: "proj-1", ownerId: "user-1" })),
+			findCollaboratorByUserAndProject: vi.fn(() => Effect.succeed(null)),
+		};
 
 		configuration = {
 			resolveStrict: vi.fn(() => ({
