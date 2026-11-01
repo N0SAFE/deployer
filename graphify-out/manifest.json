@@ -14585,8 +14585,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/health/src/modules/health/controllers/health.controller.spec.ts": {
-    "mtime": 1793563563.7617803,
-    "ast_hash": "7ff5f1d4daded91539652b705ed4387b",
+    "mtime": 1793566601.7904325,
+    "ast_hash": "e773e0da08a36c52e7c1e1c4dad5750a",
     "semantic_hash": ""
   },
   "apps/api/services/health/src/modules/health/controllers/health.controller.ts": {
@@ -14605,18 +14605,18 @@
     "semantic_hash": ""
   },
   "apps/api/services/health/src/modules/health/services/health.service.spec.ts": {
-    "mtime": 1793563724.0764966,
-    "ast_hash": "7b206386ccdaec525b9372e5265e5e96",
+    "mtime": 1793566613.4894655,
+    "ast_hash": "d4ca48f40166055c511881f7ee81757b",
     "semantic_hash": ""
   },
   "apps/api/services/health/src/modules/health/services/health.service.ts": {
-    "mtime": 1793564575.2112777,
-    "ast_hash": "aeeab47e5df9a23508820b01198f9a68",
+    "mtime": 1793566495.2335699,
+    "ast_hash": "3930e46d8be6f980f22beec1166aebfc",
     "semantic_hash": ""
   },
   "apps/api/services/health/src/modules/health/testing/health.fixtures.ts": {
-    "mtime": 1793107637.3716173,
-    "ast_hash": "ff98f52a0e12c0f43ef9992642e2eb68",
+    "mtime": 1793566316.4029894,
+    "ast_hash": "24fea8a425ef5b00e571f366b58368ff",
     "semantic_hash": ""
   },
   "apps/api/services/health/tsconfig.json": {
@@ -17365,58 +17365,58 @@
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/health/__tests__/health-registry.stream.test.ts": {
-    "mtime": 1793107637.4653382,
-    "ast_hash": "965311a767d66342613b08b81aaeea8e",
+    "mtime": 1793566505.2815442,
+    "ast_hash": "2c35d9f574ca45c3e2c0c837550ff25f",
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/health/__tests__/indicators.test.ts": {
-    "mtime": 1793107637.465436,
-    "ast_hash": "6931f12ac8aee6a19c074b392852fb1b",
+    "mtime": 1793566366.2322686,
+    "ast_hash": "0b887294e9df15b2b472855974065b9e",
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/health/health-registry.service.ts": {
-    "mtime": 1793107637.465436,
-    "ast_hash": "d590553116023cd9f2a39e9c85ab5d03",
+    "mtime": 1793566505.2813113,
+    "ast_hash": "1f52661bf20fba9de935e1ff80c106a2",
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/health/health.module.ts": {
-    "mtime": 1793561928.1457841,
-    "ast_hash": "41c355cb734cf21e2d560f544506ff7f",
+    "mtime": 1793566512.0801263,
+    "ast_hash": "b1ae74ec63a81cf541ddce4f259acbce",
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/health/index.ts": {
-    "mtime": 1793107637.465436,
-    "ast_hash": "a874ff4a8ac68e6f18496eb94156f1bc",
+    "mtime": 1793566298.6275096,
+    "ast_hash": "30a9c9a506e78c3a6071758264a4b116",
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/health/indicators/database.indicator.ts": {
-    "mtime": 1793201455.7610097,
-    "ast_hash": "ead2c01a54185f89497a4bd57f8f0587",
+    "mtime": 1793566495.2328632,
+    "ast_hash": "d66e2c7a425f2e326d5a8133d3f6e355",
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/health/indicators/disk.indicator.ts": {
-    "mtime": 1793107637.4658062,
-    "ast_hash": "22412eaa5f8e044f791aa1a28b1422a6",
+    "mtime": 1793566495.232659,
+    "ast_hash": "3cb168ca03cb3ff11cbac6ad7173b67c",
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/health/indicators/memory.indicator.ts": {
-    "mtime": 1793107637.4658062,
-    "ast_hash": "f66c27dd6e63c9610f6afab9ce5347e7",
+    "mtime": 1793566392.2879722,
+    "ast_hash": "641b9d760d15ee24e50d6c1db2af714f",
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/health/indicators/migrations.indicator.ts": {
-    "mtime": 1793201455.7612884,
-    "ast_hash": "03c0815c9c023c18411c5ea781c9152f",
+    "mtime": 1793566495.2330105,
+    "ast_hash": "35f8898c8fc993ec46d905f0b6fa37c4",
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/health/indicators/redis.indicator.ts": {
-    "mtime": 1793107637.4658062,
-    "ast_hash": "94fb05df98dd24690c1af9740f2f871f",
+    "mtime": 1793566512.0803633,
+    "ast_hash": "5c2fe2b48eed1c4c47bcdd1cf5c8d978",
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/health/types.ts": {
-    "mtime": 1793107637.4658062,
-    "ast_hash": "e90016cdbd5b4ac8e43ee2a110112790",
+    "mtime": 1793566160.9761555,
+    "ast_hash": "daf1e16b92bf1d53f3b808f5e6f1a80f",
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/index.ts": {
@@ -21997,6 +21997,16 @@
   "packages/nest/mesh/src/mesh-controller.ts": {
     "mtime": 1793559908.218147,
     "ast_hash": "14b243973129245696f9d698aebb33ae",
+    "semantic_hash": ""
+  },
+  "apps/api/shared/src/server/health/health-registry-cadence.provider.ts": {
+    "mtime": 1793566289.6465964,
+    "ast_hash": "5019828fcaf9ff6006801d2d4516717a",
+    "semantic_hash": ""
+  },
+  "apps/api/shared/src/server/health/indicators/indicator-result.ts": {
+    "mtime": 1793566166.7777846,
+    "ast_hash": "0eb78c3cb7492470a859b7441f585d57",
     "semantic_hash": ""
   }
 }
