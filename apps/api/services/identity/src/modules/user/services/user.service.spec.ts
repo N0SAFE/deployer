@@ -25,6 +25,7 @@ function makeRepository() {
 		insert: vi.fn(),
 		update: vi.fn(),
 		delete: vi.fn(),
+		revokeCredentials: vi.fn(),
 	};
 	for (const fn of Object.values(repo)) fn.mockImplementation(() => Effect.succeed(undefined));
 	return repo;
@@ -253,6 +254,22 @@ describe("UserService", () => {
 			await run(service.update(root, "user-2", { role: "superAdmin" }, {}));
 		});
 
+		it("ends the target's sessions after a role change, so the new role applies now", async () => {
+			repo.findById.mockReturnValue(Effect.succeed(userRow({ role: "viewer" })));
+
+			await run(service.update(admin, "user-1", { role: "operator" }, {}));
+
+			expect(repo.revokeCredentials).toHaveBeenCalledWith("user-1");
+		});
+
+		it("leaves the sessions alone when the patch changes no credential", async () => {
+			repo.findById.mockReturnValue(Effect.succeed(userRow({ role: "viewer" })));
+
+			await run(service.update(root, "user-1", { name: "Ada Lovelace" }, {}));
+
+			expect(repo.revokeCredentials).not.toHaveBeenCalled();
+		});
+
 		it("conflicts on an email another account holds, checking it excluding this user", async () => {
 			repo.emailExists.mockReturnValue(Effect.succeed(true));
 
@@ -286,6 +303,21 @@ describe("UserService", () => {
 			await run(service.setBanned(admin, "user-1", true));
 
 			expect(repo.update).not.toHaveBeenCalled();
+		});
+
+		it("ends the target's sessions and keys when banning, and leaves them alone when unbanning", async () => {
+			repo.findById.mockReturnValue(Effect.succeed(userRow()));
+			repo.update.mockReturnValue(Effect.succeed(userRow({ banned: true })));
+
+			await run(service.setBanned(admin, "user-1", true));
+			expect(repo.revokeCredentials).toHaveBeenCalledWith("user-1");
+
+			repo.revokeCredentials.mockClear();
+			repo.findById.mockReturnValue(Effect.succeed(userRow({ banned: true })));
+			repo.update.mockReturnValue(Effect.succeed(userRow({ banned: false })));
+
+			await run(service.setBanned(admin, "user-1", false));
+			expect(repo.revokeCredentials).not.toHaveBeenCalled();
 		});
 
 		it("forbids an admin banning themselves and a user banning anyone", async () => {

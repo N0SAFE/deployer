@@ -4,6 +4,7 @@ import { multiSession, openAPI } from "better-auth/plugins";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import {
     adminHierarchyPlugin,
+    adminSessionRevocationPlugin,
     masterTokenPlugin,
     loginAsPlugin,
     pushNotificationsPlugin,
@@ -133,6 +134,9 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
         baseURL: BASE_URL ?? process.env.NEXT_PUBLIC_API_URL,
         trustedOrigins: origins.length > 0 ? origins : undefined,
         advanced: {
+            // Traefik terminates TLS and forwards the client address; without this the rate limiter and the session's
+            // `ipAddress` would record the proxy and every client would share one bucket.
+            ipAddress: { ipAddressHeaders: ["x-forwarded-for", "x-real-ip"] },
             // In production with HTTPS, use secure cookies
             // CRITICAL: Must match the isSecure setting in middleware
             useSecureCookies: isHttps,
@@ -206,9 +210,36 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
             },
         } : {}),
         session: {
+            // ── SESSION POLICY (AUTH-012) ───────────────────────────────────
+            // Absolute 30 days, refreshed at most once a day of use: long enough that an operator is not asked to
+            // re-authenticate mid-incident, short enough that an abandoned session dies. `freshAge` is what BA's own
+            // sensitive endpoints (set-password, change-email, two-factor) demand before acting, which is the
+            // step-up the platform relies on instead of a second password prompt.
+            expiresIn: 60 * 60 * 24 * 30,
+            updateAge: 60 * 60 * 24,
+            freshAge: 60 * 60 * 24,
             cookieCache: {
                 enabled: true,
-                maxAge: 5 * 60, // Cache duration in seconds
+                // One minute, not five: the cache is a role/ban snapshot, so its lifetime is how long a demotion or a
+                // ban stays invisible to a request that trusts a cached session. Anything that must be exact (the
+                // admin hierarchy, the requirement gate) reads the session authoritatively instead.
+                maxAge: 60,
+            },
+        },
+        // ── RATE LIMITS (AUTH-012) ──────────────────────────────────────────
+        // Per-process memory storage: a multi-replica deployment needs the shared store from SEC-024, which is why the
+        // window is generous and the rules are per endpoint rather than global.
+        rateLimit: {
+            enabled: true,
+            window: 60,
+            max: 120,
+            customRules: {
+                "/sign-in/email": { window: 60, max: 10 },
+                "/sign-up/email": { window: 60, max: 5 },
+                "/forget-password": { window: 300, max: 5 },
+                "/invite/create": { window: 60, max: 20 },
+                "/invite/validate": { window: 60, max: 10 },
+                "/device/approve": { window: 60, max: 20 },
             },
         },
         plugins: [
@@ -219,6 +250,9 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
             // Without this hook an `admin` could mint `superAdmin`, ban the
             // superAdmin above it, or demote a peer.
             adminHierarchyPlugin(),
+            // A ban or a role change must end the target's credentials, not wait for the session to expire: the session
+            // carries the role, and an api key resolves to a session of its own.
+            adminSessionRevocationPlugin(),
             // API keys replace the hand-rolled ApiKeyService (which issued keys
             // nothing could verify) AND the browser-exposed DEV_AUTH_KEY path:
             // `enableSessionForAPIKeys` turns a key into a real session, so the

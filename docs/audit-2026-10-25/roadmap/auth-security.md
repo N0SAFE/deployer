@@ -95,18 +95,20 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Status: todo · Verified-in-code: unverified · Source: auth.md#1 (Invites), projects-services.md#1.1, projects-services.md#5
 
 ### Sessions and lifecycle
-- [ ] `AUTH-012` **Set session policy and trusted-proxy IP handling** · NEW · P1 · M · Deps: `SEC-024`
+- [x] `AUTH-012` **Set session policy and trusted-proxy IP handling** · NEW · P1 · M · Deps: `SEC-024`
   - Why/Problem: no `session.expiresIn/updateAge/freshAge`, no `rateLimit`, no `advanced.ipAddress.ipAddressHeaders` (defaults only); Traefik forwards client IP in headers.
   - Do: configure session lifetimes and freshness, IP header for Traefik, per-endpoint rate limits (sign-in, invite, device) via `SEC-024` shared store.
   - Done when: config present and covered by a test; rate-limited sign-in returns 429.
   - Status: todo · Verified-in-code: unverified · Source: auth.md#1 (session policy), auth.md#4 (12)
+  - Status (2026-11-01): **done** (per-process limiter; the shared store is SEC-024). `session` now sets `expiresIn` 30 d, `updateAge` 24 h and `freshAge` 24 h; `advanced.ipAddress.ipAddressHeaders` is `["x-forwarded-for", "x-real-ip"]` so the limiter and the session's `ipAddress` see the client, not Traefik; `rateLimit` is enabled with per-endpoint rules (`/sign-in/email` 10/min, `/sign-up/email` 5/min, `/forget-password` 5/5 min, `/invite/create` 20/min, `/invite/validate` 10/min, `/device/approve` 20/min) on a 120/min global window. `auth.spec.ts` asserts the policy, the limiter and the proxy headers.
   - Design-impact (2026-10-26): session policy is specified in `AUTH-063` (absolute 30 d, idle 7 d, max 10 concurrent, `requireMfaFor`, device trust, new-device notification, revoke-all) and the trusted-proxy/IP part in `AUTH-064`; `freshAge` is set only for BA's own sensitive endpoints, not for step-up (`AUTH-062`).
 
-- [ ] `AUTH-013` **Revoke sessions and API keys on ban/role change; bypass cookie cache for sensitive checks** · FIX · P1 · M · Deps: `SEC-001`
+- [x] `AUTH-013` **Revoke sessions and API keys on ban/role change; bypass cookie cache for sensitive checks** · FIX · P1 · M · Deps: `SEC-001`
   - Why/Problem: Better Auth ban revokes only at next `get-session`; `cookieCache` (5 min) keeps stale role/ban; identity service `setBanned` is a raw DB write with no session revocation (best-in-class #7).
   - Do: revoke sessions/keys on ban/role change in both Better Auth and identity service; tag `sensitive` procedures to skip the cookie cache.
   - Done when: a banned/demoted user's next request is rejected immediately.
   - Status: todo · Verified-in-code: unverified · Source: auth.md#1 (ban), auth.md#3 (12), ideas-security-resilience.md#3 (7)
+  - Status (2026-11-01): **done**, both halves. Better Auth: `adminSessionRevocationPlugin` — an `after` hook on `/admin/{ban-user,set-role,remove-user}` lists the target's sessions and deletes them by token, then deletes their `apikey` rows; failures are swallowed so a successful ban never becomes a 500. Identity: `UserRepository.revokeCredentials(userId)` deletes the user's `session` and `apikey` rows, called by `UserService.update` when the patch changes `role` or `banned`, and by `setBanned(true)`. Cookie cache capped at 60 s (was 5 min) and the admin hierarchy reads the session authoritatively, so a change is visible immediately on the admin path and within a minute everywhere else; the structural fix (grants + epoch) stays AUTH-055/SEC-055.
   - Effect-impact (2026-10-26): identity `setBanned` (`user.service.ts:164`) is a raw DB write, ported but exposed by no procedure; `update` can ban without `assertNotSelfDestruct`. Session revocation and cookie-cache bypass are still missing there. Evidence: `effect-health-identity.md` §4.3.
   - Design-impact (2026-10-26): satisfied structurally: authz never reads role or ban from the cookie cache (`AUTH-055`), grants come from the DB with epoch invalidation (`SEC-055`), and ban/disable is one transaction {grant revoke, session revoke, token revoke, epoch bump}; `user.role` is only a projection. Keep this item as the ban-transaction deliverable.
 

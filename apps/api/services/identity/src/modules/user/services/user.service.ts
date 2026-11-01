@@ -195,7 +195,20 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
 
             if (Object.keys(next).length === 0) return current
 
-            return yield* users.update(id, next)
+            const updated = yield* users.update(id, next)
+
+            // A role or a ban lives in the session as well as the row: end the credentials, or the change waits for
+            // them to expire (AUTH-013). A self-service edit never reaches here with either field.
+            const roleChanged =
+                next.role !== undefined && next.role !== current.role
+            const banChanged =
+                next.banned !== undefined &&
+                next.banned !== (current.banned ?? false)
+            if (roleChanged || banChanged) {
+                yield* users.revokeCredentials(id)
+            }
+
+            return updated
         }),
 
         setBanned: Effect.fn('UserService.setBanned')(function* (id, banned) {
@@ -218,7 +231,11 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
 
             if ((current.banned ?? false) === banned) return current
 
-            return yield* users.update(id, { banned })
+            const updated = yield* users.update(id, { banned })
+            // Banning ends the credentials; unbanning leaves none to end.
+            if (banned) yield* users.revokeCredentials(id)
+
+            return updated
         }),
 
         delete: Effect.fn('UserService.delete')(function* (id) {

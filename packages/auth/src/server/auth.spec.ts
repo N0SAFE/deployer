@@ -37,6 +37,7 @@ vi.mock('better-auth/plugins', () => ({
 vi.mock('./plugins', () => ({
   useAdmin: vi.fn(() => ({ id: 'admin' })),
   adminHierarchyPlugin: vi.fn(() => ({ id: 'adminHierarchy' })),
+  adminSessionRevocationPlugin: vi.fn(() => ({ id: 'adminSessionRevocation' })),
   useApiKey: vi.fn(() => ({ id: 'api-key' })),
   useInvite: vi.fn(() => ({ id: 'invite' })),
   usePasskey: vi.fn(() => ({ id: 'passkey' })),
@@ -279,10 +280,38 @@ describe('betterAuthFactory', () => {
       expect(result.auth.config.session.cookieCache.enabled).toBe(true);
     });
 
-    it('should set cookie cache maxAge to 5 minutes', () => {
+    it('caps the cookie cache at a minute, so a demotion or a ban is not invisible for five', () => {
       const result = betterAuthFactory(mockDb, mockEnv);
 
-      expect(result.auth.config.session.cookieCache.maxAge).toBe(300);
+      expect(result.auth.config.session.cookieCache.maxAge).toBe(60);
+    });
+
+    it('sets an absolute session lifetime, a rolling refresh and a freshness window', () => {
+      const result = betterAuthFactory(mockDb, mockEnv);
+
+      expect(result.auth.config.session.expiresIn).toBe(60 * 60 * 24 * 30);
+      expect(result.auth.config.session.updateAge).toBe(60 * 60 * 24);
+      expect(result.auth.config.session.freshAge).toBe(60 * 60 * 24);
+    });
+
+    it('rate-limits the credential endpoints separately from the global window', () => {
+      const result = betterAuthFactory(mockDb, mockEnv);
+
+      expect(result.auth.config.rateLimit).toMatchObject({
+        enabled: true,
+        customRules: {
+          '/sign-in/email': { window: 60, max: 10 },
+          '/invite/validate': { window: 60, max: 10 },
+        },
+      });
+    });
+
+    it('reads the client address from the proxy headers Traefik sets', () => {
+      const result = betterAuthFactory(mockDb, mockEnv);
+
+      expect(result.auth.config.advanced.ipAddress).toEqual({
+        ipAddressHeaders: ['x-forwarded-for', 'x-real-ip'],
+      });
     });
   });
 

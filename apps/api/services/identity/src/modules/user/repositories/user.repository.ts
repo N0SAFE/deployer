@@ -1,7 +1,7 @@
 import { serviceOver, type Over } from "@deployer/effect-core"
 import { Context, Effect } from 'effect'
 import { asc, count, desc, eq } from 'drizzle-orm'
-import { user } from '@deployer/nest-schema/global/identity/auth'
+import { apikey, session, user } from '@deployer/nest-schema/global/identity/auth'
 import {
     DatabasePort,
     type DatabaseShape,
@@ -44,6 +44,15 @@ export type UserRepositoryShape = {
         patch: UserPatch
     ) => Effect.Effect<User, UserRepositoryFailure, DatabasePort>
     readonly delete: (id: string) => Effect.Effect<void, UserRepositoryFailure, DatabasePort>
+    /**
+     * Ends every credential a user holds: their sessions and their API keys.
+     *
+     * A session carries the platform role, and an API key resolves to a session of its own, so neither can outlive a ban
+     * or a role change — otherwise the change waits for the credential to expire.
+     */
+    readonly revokeCredentials: (
+        id: string
+    ) => Effect.Effect<void, UserRepositoryFailure, DatabasePort>
 }
 
 /** Tag and implementation together: the tag is the contract, `Live` the Drizzle implementation. */
@@ -183,6 +192,12 @@ function makeUserRepository(
         delete: (id: string) =>
             attempt(async () => {
                 await db.delete(user).where(eq(user.id, id))
+            }),
+
+        revokeCredentials: (id: string) =>
+            attempt(async () => {
+                await db.delete(session).where(eq(session.userId, id))
+                await db.delete(apikey).where(eq(apikey.referenceId, id))
             }),
     }
 }

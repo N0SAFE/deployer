@@ -88,44 +88,32 @@ const ProfilePage: React.FC = () => {
   const [error, setError] = React.useState<string>("");
   const [success, setSuccess] = React.useState<string>("");
 
-  // Load user's sessions. Bumping `sessionsVersion` re-runs the fetch (after a revoke).
-  const [sessionsVersion, setSessionsVersion] = React.useState(0);
-  const sessionUser = session?.user;
-
-  React.useEffect(() => {
-    if (!sessionUser) {
+  // Load user's sessions
+  const loadSessions = React.useCallback(async () => {
+    if (!session?.user) {
       return;
     }
-    let cancelled = false;
-    authClient
-      .listSessions()
-      .then((result) => {
-        if (cancelled) return;
-        if (result.error) {
-          setError(result.error.message ?? "Failed to load sessions");
-        } else {
-          setSessions(result.data);
-        }
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        logger.error("Error loading sessions", { error: err });
-        setError("Failed to load sessions");
-      })
-      .finally(() => {
-        if (!cancelled) setSessionLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [sessionUser, sessionsVersion]);
 
-  // Re-fetch on demand: show the spinner and clear stale errors first.
-  const reloadSessions = React.useCallback(() => {
-    setSessionLoading(true);
-    setError("");
-    setSessionsVersion((v) => v + 1);
-  }, []);
+    try {
+      setSessionLoading(true);
+      setError("");
+      const result = await authClient.listSessions();
+      if (result.error) {
+        setError(result.error.message ?? "Failed to load sessions");
+      } else {
+        setSessions(result.data);
+      }
+    } catch (err) {
+      logger.error("Error loading sessions", { error: err });
+      setError("Failed to load sessions");
+    } finally {
+      setSessionLoading(false);
+    }
+  }, [session?.user]);
+
+  React.useEffect(() => {
+    void loadSessions();
+  }, [loadSessions]);
 
   const handleRevokeSession = async () => {
     if (!selectedSession) {
@@ -143,7 +131,7 @@ const ProfilePage: React.FC = () => {
         setError(result.error.message ?? "Failed to revoke session");
       } else {
         setSuccess("Session revoked successfully!");
-        reloadSessions();
+        await loadSessions();
       }
     } catch (err) {
       logger.error("Error revoking session", { error: err });
@@ -164,7 +152,7 @@ const ProfilePage: React.FC = () => {
         setError(result.error.message ?? "Failed to revoke other sessions");
       } else {
         setSuccess("All other sessions revoked successfully!");
-        reloadSessions();
+        await loadSessions();
       }
     } catch (err) {
       logger.error("Error revoking other sessions", { error: err });

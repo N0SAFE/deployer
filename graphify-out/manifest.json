@@ -7200,8 +7200,8 @@
     "semantic_hash": ""
   },
   "packages/auth/src/server/index.ts": {
-    "mtime": 1793538264.8896005,
-    "ast_hash": "e9027e57e60e8b7e5ab1d42531f0d088",
+    "mtime": 1793571925.3296087,
+    "ast_hash": "e6129cdd0190d17cc09bee48f5629f1c",
     "semantic_hash": ""
   },
   "packages/auth/src/server/plugins/agentAuth.ts": {
@@ -7220,13 +7220,13 @@
     "semantic_hash": ""
   },
   "packages/auth/src/server/plugins/invite.ts": {
-    "mtime": 1793571247.761804,
-    "ast_hash": "52cbce320cbd24c52b18be38d397af83",
+    "mtime": 1793572017.7811646,
+    "ast_hash": "4b0dfdb9a025fff0861bb179ea7f3c68",
     "semantic_hash": ""
   },
   "packages/auth/src/server/plugins/loginAs.ts": {
-    "mtime": 1791313469.9072878,
-    "ast_hash": "59b587f72052db78b5c10ce45a3297fb",
+    "mtime": 1793571906.5352492,
+    "ast_hash": "faea78d3231ca06bd033ac4b7e49d1bf",
     "semantic_hash": ""
   },
   "packages/auth/src/server/plugins/masterTokenAuth.spec.ts": {
@@ -7235,8 +7235,8 @@
     "semantic_hash": ""
   },
   "packages/auth/src/server/plugins/masterTokenAuth.ts": {
-    "mtime": 1793107637.671929,
-    "ast_hash": "df438737db4a0d1e6641e3614b1aaa49",
+    "mtime": 1793571899.8124845,
+    "ast_hash": "4bcbb506b34f59bb248794a58cd21dcd",
     "semantic_hash": ""
   },
   "packages/auth/src/server/plugins/pushNotifications.ts": {
@@ -13350,8 +13350,8 @@
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/ROADMAP.md": {
-    "mtime": 1793571786.929611,
-    "ast_hash": "2211b28f53aa32e3b503910c30e1e29a",
+    "mtime": 1793572256.4471705,
+    "ast_hash": "d089a7af0528060b0c541ef15591e987",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/architecture.md": {
@@ -13495,8 +13495,8 @@
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/roadmap/auth-security.md": {
-    "mtime": 1793571466.483828,
-    "ast_hash": "286fa9afefcbb10ace65bcb0f149d179",
+    "mtime": 1793572256.4206133,
+    "ast_hash": "705e1ed515231f43d197969e8fea445d",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/roadmap/cluster.md": {
@@ -16035,8 +16035,8 @@
     "semantic_hash": ""
   },
   "apps/api/shared/src/core/modules/auth/orpc/middlewares.ts": {
-    "mtime": 1793200512.2361414,
-    "ast_hash": "311c2a9e5fe591d361781ff223ea6880",
+    "mtime": 1793571925.3555863,
+    "ast_hash": "e97d90ccbf7711b30c32cbc650194ccd",
     "semantic_hash": ""
   },
   "apps/api/shared/src/core/modules/auth/orpc/orpc-context.ts": {
@@ -22047,6 +22047,11 @@
   "packages/nest/effect/src/effect-lifecycle.ts": {
     "mtime": 1793571648.5931134,
     "ast_hash": "cdcab6e98fa5c97a40705636c09a5c86",
+    "semantic_hash": ""
+  },
+  "packages/auth/src/server/plugins/invite.behaviour.spec.ts": {
+    "mtime": 1793572103.4349215,
+    "ast_hash": "ca3cc04358b7f35a4465932ca8071446",
     "semantic_hash": ""
   }
 }

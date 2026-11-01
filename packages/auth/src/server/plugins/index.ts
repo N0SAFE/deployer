@@ -19,6 +19,7 @@ import { invitePlugin, type InvitePluginOptions } from "./invite";
 // ============================================================================
 
 export * from './adminHierarchy'
+export * from './adminSessionRevocation'
 export * from './loginAs'
 export * from './masterTokenAuth'
 export * from './invite'
