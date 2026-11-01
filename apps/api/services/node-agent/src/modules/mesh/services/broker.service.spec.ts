@@ -19,7 +19,7 @@ const call = <A, E>(
   invoke: (replica: ReplicaRecord) => Effect.Effect<CallOutcome<A>, E>,
   overrides: { key?: string; maxHops?: number } = {},
 ) =>
-  MeshBroker.live.call({ service: "project", key: overrides.key, maxHops: overrides.maxHops ?? 3, hintTtlMs: 5_000, invoke });
+  new MeshBroker.live().call({ service: "project", key: overrides.key, maxHops: overrides.maxHops ?? 3, hintTtlMs: 5_000, invoke });
 
 const ok = <A>(value: A): CallOutcome<A> => ({ kind: "ok", value });
 const redirect = (replicaId: string): CallOutcome<never> => ({ kind: "redirect", replicaId, reason: "holds the deployment" });

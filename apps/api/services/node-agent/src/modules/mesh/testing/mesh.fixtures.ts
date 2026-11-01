@@ -164,7 +164,7 @@ export function meshFixture(
       Context.add(MeshClock, { now: () => clock.now }),
       Context.add(MeshDirectory, MeshDirectory.live),
       Context.add(KeyHints, hints),
-      Context.add(MeshBroker, MeshBroker.live),
+      Context.add(MeshBroker, new MeshBroker.live()),
       Context.add(MeshRelay, MeshRelay.live),
       Context.add(CredentialRotation, CredentialRotation.live),
       Context.add(NodeAgents, nodeAgents),

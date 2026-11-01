@@ -46,9 +46,17 @@ export type MeshBrokerShape = {
  * the next call for it skips the detour.
  */
 export class MeshBroker extends Context.Service<MeshBroker, MeshBrokerShape>()("node-agent/MeshBroker") {
-  static readonly live: MeshBrokerShape = {
-    call: <A, E, R>(input: BrokerInput<A, E, R>) =>
-      Effect.gen(function* () {
+  /**
+   * The implementation, as a class that implements the shape.
+   *
+   * Same capabilities, different form: a class can be `useClass`-provided (Nest instantiates it), it can be extended by a
+   * spec that wants to override one method, and `implements MeshBrokerShape` makes the compiler check the shape on the
+   * class itself rather than on an object literal. It has no constructor dependencies on purpose — everything is yielded
+   * from the Effect context when a call runs.
+   */
+  static readonly live = class MeshBrokerImpl implements MeshBrokerShape {
+    call<A, E, R>(input: BrokerInput<A, E, R>) {
+      return Effect.gen(function* () {
         const directory = yield* MeshDirectory;
         const hints = yield* KeyHints;
         const visited = new Set<string>();
@@ -100,6 +108,7 @@ export class MeshBroker extends Context.Service<MeshBroker, MeshBrokerShape>()("
           (yield* directory.resolve({ service: input.service, key: input.key, localOnly: input.localOnly })).replica;
 
         return yield* attempt(first, 0);
-      }),
+      });
+    }
   };
 }

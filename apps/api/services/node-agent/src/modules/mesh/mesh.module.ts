@@ -77,7 +77,7 @@ export class MeshDomainModule extends createModuleContext({
     { provide: MeshClock, useValue: MeshClock.live },
     { provide: KeyHints, useValue: KeyHints.live },
     { provide: MeshDirectory, useValue: MeshDirectory.live },
-    { provide: MeshBroker, useValue: MeshBroker.live },
+    { provide: MeshBroker, useClass: MeshBroker.live },
     { provide: MeshRelay, useValue: MeshRelay.live },
     { provide: RelayMetrics, useValue: RelayMetrics.live },
     {
