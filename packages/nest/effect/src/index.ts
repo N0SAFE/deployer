@@ -1,5 +1,12 @@
 export { collectEffectLayer } from "./collect-effect-layer";
 export { EffectRuntime } from "./effect-runtime";
+export { EffectHostModule } from "./effect-host.module";
+export {
+	EffectHost,
+	effectHostProvider,
+	makeEffectHost,
+	type EffectHostShape,
+} from "./effect-host";
 export { EffectRuntimeModule } from "./effect-runtime.module";
 export { effectContextFor, type EffectContext } from "./orpc-effect-context";
 export {

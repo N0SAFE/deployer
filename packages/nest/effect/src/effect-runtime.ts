@@ -111,6 +111,16 @@ export class EffectRuntime implements OnApplicationShutdown {
   }
 
   /**
+   * A fiber on the app runtime, for work that outlives a request: a loop, a reconciler, a subscriber.
+   *
+   * Prefer `EffectHost` (`@deployer/nest-effect`), which wraps this behind a service so an adapter never injects the
+   * Nest class itself and the whole process shares one place that starts and stops fibers.
+   */
+  runFork<A, E, R>(effect: Effect.Effect<A, E, R>) {
+    return this.runtimeFor().runFork(effect);
+  }
+
+  /**
    * `runPromise` for callers that match on the failure: it rejects with the ORIGINAL failure value
    * (a typed error, a Nest exception) instead of a fiber wrapper.
    */

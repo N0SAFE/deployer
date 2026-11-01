@@ -64,7 +64,7 @@ export const meshBootOverrides: {
 /**
  * The mesh domain: the directory, the broker, the relay, the roster and what they run on.
  *
- * Every provider is a constant registered under its Effect tag, so `EffectRuntime` discovers it and a handler yields
+ * Every provider is a constant registered under its Effect tag, so the Effect runtime discovers it and a handler yields
  * what it needs from `effect/context`. The node's own state (its store, identity and credential) comes from
  * `AgentLocalModule`, which this module imports. The providers built here are the ones that must read the credential
  * at the moment they connect, not at boot: a node that joins a swarm changes it.

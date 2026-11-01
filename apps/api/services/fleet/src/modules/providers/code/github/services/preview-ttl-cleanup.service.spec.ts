@@ -1,25 +1,53 @@
-import { Effect } from "effect";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { EffectRuntime } from "@deployer/nest-effect";
+import { Effect, Fiber } from "effect";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { provideTo } from "@deployer/effect-core";
+import type { EffectHostShape } from "@deployer/nest-effect";
 
 import { PreviewProvisioningService, type PreviewProvisioningServiceShape } from "./preview-provisioning.service";
-import { PreviewTtlCleanupService, startPreviewTtlCleanup } from "./preview-ttl-cleanup.service";
+import {
+    PreviewTtlCleanupService,
+    startPreviewTtlCleanup,
+    type PreviewTtlCleanupServiceShape,
+} from "./preview-ttl-cleanup.service";
 
 const expired = (id: string) => ({ id, serviceId: `svc-${id}`, previewName: `pr-${id}`, fullDomain: `pr-${id}.example.com` });
 
-describe("PreviewTtlCleanupService", () => {
-    const provisioning = {
-        findExpiredPreviews: vi.fn(() => Effect.succeed([expired("1"), expired("2")])),
-        expirePreview: vi.fn((_id: string, _serviceId: string, _previewName: string) => Effect.succeed({})),
-    };
-    // The fake needs nothing from the context beyond what is provided here.
-    const service = provideTo(PreviewTtlCleanupService.live, (effect) =>
-        effect.pipe(
-            Effect.provideService(PreviewProvisioningService, provisioning as unknown as PreviewProvisioningServiceShape),
-        ) as Effect.Effect<unknown>,
-    );
+const provisioning = {
+    findExpiredPreviews: vi.fn(() => Effect.succeed([expired("1"), expired("2")])),
+    expirePreview: vi.fn((_id: string, _serviceId: string, _previewName: string) => Effect.succeed({})),
+};
+// The fake needs nothing from the context beyond what is provided here.
+const service = provideTo(PreviewTtlCleanupService.live, (effect) =>
+    effect.pipe(
+        Effect.provideService(PreviewProvisioningService, provisioning as unknown as PreviewProvisioningServiceShape),
+    ) as Effect.Effect<unknown>,
+);
 
+/** A host that records the program instead of running it, so the loop can be started on demand. */
+function fakeHost() {
+    const forks: { label: string; effect: unknown }[] = [];
+    const stop = vi.fn(() => Promise.resolve());
+    const host = {
+        fork: vi.fn((label: string, effect: unknown) => {
+            forks.push({ label, effect });
+            return stop;
+        }),
+    } as unknown as EffectHostShape;
+    return { host, forks, stop };
+}
+
+/** Run a forked loop for a short real slice, then interrupt it as shutdown would. */
+async function runFor(effect: unknown, ms: number): Promise<void> {
+    const fiber = Effect.runFork(
+        (effect as Effect.Effect<void, never, PreviewTtlCleanupService>).pipe(
+            Effect.provideService(PreviewTtlCleanupService, service),
+        ),
+    );
+    await new Promise((resolve) => setTimeout(resolve, ms));
+    await Effect.runPromise(Fiber.interrupt(fiber));
+}
+
+describe("PreviewTtlCleanupService", () => {
     beforeEach(() => {
         vi.clearAllMocks();
         provisioning.findExpiredPreviews.mockReturnValue(Effect.succeed([expired("1"), expired("2")]));
@@ -60,31 +88,38 @@ describe("PreviewTtlCleanupService", () => {
 
 describe("startPreviewTtlCleanup", () => {
     beforeEach(() => {
-        vi.useFakeTimers();
-    });
-    afterEach(() => {
-        vi.useRealTimers();
-    });
-
-    it("runs the cleanup on every interval until the application stops", async () => {
-        const runPromise = vi.fn(() => Promise.resolve());
-        const handle = startPreviewTtlCleanup({ runPromise } as unknown as EffectRuntime, 1_000);
-
-        await vi.advanceTimersByTimeAsync(3_000);
-        expect(runPromise).toHaveBeenCalledTimes(3);
-
-        handle.onModuleDestroy();
-        await vi.advanceTimersByTimeAsync(3_000);
-        expect(runPromise).toHaveBeenCalledTimes(3);
+        vi.clearAllMocks();
+        provisioning.findExpiredPreviews.mockReturnValue(Effect.succeed([expired("1")]));
+        provisioning.expirePreview.mockImplementation(() => Effect.succeed({}));
     });
 
-    it("survives a run that rejects", async () => {
-        const runPromise = vi.fn(() => Promise.reject(new Error("runtime not ready")));
-        const handle = startPreviewTtlCleanup({ runPromise } as unknown as EffectRuntime, 1_000);
+    it("forks one labelled program on the host and stops it when the module is destroyed", async () => {
+        const { host, forks, stop } = fakeHost();
+        const handle = startPreviewTtlCleanup(host, 1_000);
 
-        await vi.advanceTimersByTimeAsync(2_000);
-        expect(runPromise).toHaveBeenCalledTimes(2);
+        expect(forks.map((fork) => fork.label)).toEqual(["fleet/preview-ttl-cleanup"]);
 
-        handle.onModuleDestroy();
+        await handle.onModuleDestroy();
+        expect(stop).toHaveBeenCalledTimes(1);
+    });
+
+    it("runs the cleanup on every tick until the fiber is interrupted", async () => {
+        const { host, forks } = fakeHost();
+        startPreviewTtlCleanup(host, 5);
+
+        await runFor(forks[0]?.effect, 40);
+
+        expect(provisioning.findExpiredPreviews.mock.calls.length).toBeGreaterThan(1);
+    });
+
+    it("survives a run that fails, and tries again on the next tick", async () => {
+        provisioning.findExpiredPreviews.mockReturnValue(Effect.fail(new Error("db down")) as never);
+        const { host, forks } = fakeHost();
+        startPreviewTtlCleanup(host, 5);
+
+        await runFor(forks[0]?.effect, 40);
+
+        // A loop that died on the first failure would have run exactly once.
+        expect(provisioning.findExpiredPreviews.mock.calls.length).toBeGreaterThan(1);
     });
 });

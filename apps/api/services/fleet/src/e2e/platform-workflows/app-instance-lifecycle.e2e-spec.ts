@@ -45,17 +45,20 @@ describe("Platform: app-instance lifecycle (BYO)", () => {
 		// Consumer account on THIS API — the anti-abuse boundary for registration.
 		// Fail LOUDLY with the provider's own error body — silent signup
 		// failures otherwise surface as confusing 401s in the register test.
+		// Public sign-up is disabled (AUTH-001), so the account is provisioned through Better Auth's internal adapter —
+		// the same path the admin bootstrap uses — and the spec keeps asserting the real provisioning rules.
 		let signUpResult: unknown;
 		try {
-			signUpResult = await context.betterAuth.api.signUpEmail({
-				body: { email: account.email, password: account.password, name: account.name },
+			const { provisionUserAccount } = await import("@deployer/auth/server");
+			const userId = await provisionUserAccount(context.betterAuth, {
+				email: account.email,
+				password: account.password,
+				name: account.name,
 			});
+			signUpResult = { user: { id: userId } };
 		} catch (error) {
-			const detail =
-				(error as { body?: unknown; message?: string }).body ??
-				(error as { message?: string }).message ??
-				String(error);
-			throw new Error(`signUpEmail failed: ${JSON.stringify(detail)}`);
+			const detail = (error as { message?: string }).message ?? String(error);
+			throw new Error(`provisioning the e2e account failed: ${JSON.stringify(detail)}`);
 		}
 		if (
 			signUpResult === null ||

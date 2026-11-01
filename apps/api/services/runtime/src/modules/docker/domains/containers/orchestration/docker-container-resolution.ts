@@ -1,6 +1,5 @@
 import { Logger } from "@nestjs/common";
 import { serviceOver, type Over } from "@deployer/effect-core";
-import type { EffectRuntime } from "@deployer/nest-effect";
 import { Context, Effect } from "effect";
 import { BadRequestError } from "@deployer/errors";
 import { createHash } from "node:crypto";
@@ -375,20 +374,5 @@ export class DockerContainerResolution extends Context.Service<
     static readonly live = serviceOver(
         Effect.all({ mesh: ContainersMeshPort, local: ContainersLocalPort }),
         resolutionOver,
-    );
-}
-
-/** Run a container-resolution call for a Nest class that is not on Effect yet; it rejects with the original failure. */
-export function withContainerResolution<A>(
-    runtime: Pick<EffectRuntime, "runPromiseUnwrapped">,
-    use: (
-        resolution: Context.Service.Shape<typeof DockerContainerResolution>,
-    ) => Effect.Effect<A, unknown, DockerContainerResolutionPorts>,
-): Promise<A> {
-    return runtime.runPromiseUnwrapped(
-        Effect.gen(function* () {
-            const resolution = yield* DockerContainerResolution;
-            return yield* use(resolution);
-        }),
     );
 }

@@ -3211,5 +3211,12 @@
   "3209": "32. Testing Utilities — `createMeshTestHarness()`",
   "3210": "3. Resource & Service Definitions",
   "3211": "7. Live Subscriptions — `.listen().execute()`",
-  "3212": "8. Reactive Subqueries — `.whereFrom()`"
+  "3212": "8. Reactive Subqueries — `.whereFrom()`",
+  "3213": "RESEARCH-dashboard.md",
+  "3214": "verify.ts",
+  "3215": "add.ts",
+  "3216": "library.ts",
+  "3217": "TraefikVariableResolverService",
+  "3218": "TraefikMiddlewareLibraryService",
+  "3219": "index.ts"
 }

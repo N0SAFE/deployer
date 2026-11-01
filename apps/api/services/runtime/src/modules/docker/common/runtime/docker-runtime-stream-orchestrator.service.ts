@@ -14,8 +14,9 @@ import {
     type DockerImageInspectDetail,
     type DockerRuntimeEvent,
 } from "@deployer/contracts-entities";
-import { EffectRuntime } from "@deployer/nest-effect";
-import { withContainerResolution } from "../../domains/containers/orchestration/docker-container-resolution";
+import { type EffectHostShape } from "@deployer/nest-effect";
+import { Effect } from "effect";
+import { DockerContainerResolution } from "../../domains/containers/orchestration/docker-container-resolution";
 import { DockerContainerMetricsStreamService } from "../../domains/containers/events/docker-container-metrics-stream.service";
 import { DockerRepository } from "../../repositories/facade/docker.repository";
 import { AppLogger } from "@deployer/logger";
@@ -76,7 +77,7 @@ export class DockerRuntimeStreamOrchestratorService {
 
     constructor(
         private readonly dockerRuntimeEventsStreamService: DockerRuntimeEventsStreamService,
-        private readonly effectRuntime: EffectRuntime,
+        private readonly host: EffectHostShape,
         private readonly dockerContainerMetricsStreamService: DockerContainerMetricsStreamService,
         private readonly dockerRepository: DockerRepository,
     ) {}
@@ -252,7 +253,10 @@ export class DockerRuntimeStreamOrchestratorService {
 
         return merge(...triggerStreams).pipe(
             filter((trigger) => !pausedAfterNotFound || trigger.origin === "runtime"),
-            switchMap((trigger) => from(withContainerResolution(this.effectRuntime, (resolution) => resolution.inspectContainer(trigger.containerId))).pipe(
+            switchMap((trigger) => from(this.host.runUnwrapped(Effect.gen(function* () {
+                const resolution = yield* DockerContainerResolution;
+                return yield* resolution.inspectContainer(trigger.containerId);
+            }))).pipe(
                 map((detail) => {
                     pausedAfterNotFound = false;
                     return detail;

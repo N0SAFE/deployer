@@ -17,7 +17,7 @@
  *       cloudflare-tunnel/  registers itself into the core EdgeProviderRegistry
  *                           (the account-free `direct` edge is built into core/modules/edge)
  */
-import { createModuleContext, EffectRuntime } from "@deployer/nest-effect";
+import { createModuleContext, EffectHost } from "@deployer/nest-effect";
 import { CorePlatformIngressModule } from "@deployer/shared/core/modules/platform-ingress/platform-ingress.module";
 import { IngressLanesService } from "@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service";
 import { EdgeProviderRegistry } from "@deployer/shared/core/modules/edge/edge-provider.registry";
@@ -154,7 +154,7 @@ export class ProvidersModule extends createModuleContext({
             inject: [CoreEventStreamPoolService],
         },
         // Schedules the expired-preview cleanup when the module is built; stopped with the application.
-        { provide: PREVIEW_TTL_CLEANUP, useFactory: startPreviewTtlCleanup, inject: [EffectRuntime] },
+        { provide: PREVIEW_TTL_CLEANUP, useFactory: startPreviewTtlCleanup, inject: [EffectHost] },
     ],
     exports: [
         CodeProviderRegistryService,

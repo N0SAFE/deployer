@@ -11,7 +11,7 @@
  * to the Effect side as ports with `useExisting`.
  */
 import { nodeDoorFromEnv } from "@deployer/mesh-client";
-import { createModuleContext, EffectRuntime } from "@deployer/nest-effect";
+import { createModuleContext, EffectHost } from "@deployer/nest-effect";
 import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
 import { EdgeProviderRegistry } from "@deployer/shared/core/modules/edge/edge-provider.registry";
 import { EgressService } from "@deployer/shared/core/modules/egress/egress.service";
@@ -62,7 +62,7 @@ export class ReachabilityModule extends createModuleContext(
             { provide: IngressEdgeService, useValue: IngressEdgeService.live },
             { provide: NodeReachabilityService, useValue: NodeReachabilityService.live },
             // Converges lane DNS on a cadence from when the module is built; stopped with the application.
-            { provide: INGRESS_DNS_RECONCILER, useFactory: startIngressDnsReconciler, inject: [EffectRuntime] },
+            { provide: INGRESS_DNS_RECONCILER, useFactory: startIngressDnsReconciler, inject: [EffectHost] },
         ],
     },
 ) {}

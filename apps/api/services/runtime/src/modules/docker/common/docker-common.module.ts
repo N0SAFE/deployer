@@ -1,4 +1,4 @@
-import { createModuleContext, EffectRuntime } from "@deployer/nest-effect";
+import { createModuleContext, effectHostProvider, EffectHost, type EffectHostShape } from "@deployer/nest-effect";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 import { DockerContainerMetricsStreamService } from "../domains/containers/events/docker-container-metrics-stream.service";
@@ -17,6 +17,7 @@ import { DockerRuntimeStreamOrchestratorService } from "./runtime/docker-runtime
 export class DockerCommonModule extends createModuleContext({
   imports: [CoreDockerModule, EventsModule, DockerRepositoriesModule, DockerContainersModule],
   providers: [
+    effectHostProvider(),
     {
       provide: DockerRuntimeEventsSourceService,
       useFactory: (engine: DockerEngineShape, pool: CoreEventStreamPoolService) => new DockerRuntimeEventsSourceService(engine, pool),
@@ -35,19 +36,19 @@ export class DockerCommonModule extends createModuleContext({
     },
     {
       provide: DockerRuntimeActivityPersistenceService,
-      useFactory: (events: DockerRuntimeEventsStreamService, runtime: EffectRuntime) =>
-        new DockerRuntimeActivityPersistenceService(events, runtime),
-      inject: [DockerRuntimeEventsStreamService, EffectRuntime],
+      useFactory: (events: DockerRuntimeEventsStreamService, host: EffectHostShape) =>
+        new DockerRuntimeActivityPersistenceService(events, host),
+      inject: [DockerRuntimeEventsStreamService, EffectHost],
     },
     {
       provide: DockerRuntimeStreamOrchestratorService,
       useFactory: (
         events: DockerRuntimeEventsStreamService,
-        runtime: EffectRuntime,
+        host: EffectHostShape,
         metrics: DockerContainerMetricsStreamService,
         repository: DockerRepository,
-      ) => new DockerRuntimeStreamOrchestratorService(events, runtime, metrics, repository),
-      inject: [DockerRuntimeEventsStreamService, EffectRuntime, DockerContainerMetricsStreamService, DockerRepository],
+      ) => new DockerRuntimeStreamOrchestratorService(events, host, metrics, repository),
+      inject: [DockerRuntimeEventsStreamService, EffectHost, DockerContainerMetricsStreamService, DockerRepository],
     },
   ],
   exports: [

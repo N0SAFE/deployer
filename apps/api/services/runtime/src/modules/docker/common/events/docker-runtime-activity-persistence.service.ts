@@ -2,10 +2,16 @@ import { type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import { type Subscription, concatMap, from, EMPTY, catchError } from "rxjs";
 import { AppLogger } from "@deployer/logger";
 import { DockerRuntimeEventsStreamService } from "./docker-runtime-events-stream.service";
-import { EffectRuntime } from "@deployer/nest-effect";
+import { type EffectHostShape } from "@deployer/nest-effect";
 import { Effect } from "effect";
 import { DockerRuntimeActivities } from "../../repositories/runtime/docker-runtime-activities";
 
+/**
+ * Adapter, not a domain service: the event source is still an Observable, so this class only turns
+ * "an event arrived" into "run this Effect". It stays on `EffectHost` for that reason; moving it to a
+ * `Context.Service` would first require the events stream to become an Effect Stream, which its
+ * `domains/**` consumers also read.
+ */
 export class DockerRuntimeActivityPersistenceService implements OnModuleInit, OnModuleDestroy {
   private readonly apiLogger = new AppLogger("api").scope(DockerRuntimeActivityPersistenceService.name);
   private readonly debugLogger = this.apiLogger.createContextFilterLogger({
@@ -18,7 +24,7 @@ export class DockerRuntimeActivityPersistenceService implements OnModuleInit, On
 
   constructor(
     private readonly dockerRuntimeEventsStreamService: DockerRuntimeEventsStreamService,
-    private readonly effectRuntime: EffectRuntime,
+    private readonly host: EffectHostShape,
   ) {}
 
   onModuleInit(): void {
@@ -36,7 +42,7 @@ export class DockerRuntimeActivityPersistenceService implements OnModuleInit, On
       .pipe(
         concatMap((event) =>
           from(
-            this.effectRuntime.runPromiseUnwrapped(
+            this.host.runUnwrapped(
               Effect.gen(function* () {
                 const activities = yield* DockerRuntimeActivities;
                 yield* activities.persist(event);

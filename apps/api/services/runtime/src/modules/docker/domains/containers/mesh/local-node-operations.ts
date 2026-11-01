@@ -70,9 +70,9 @@ export type LocalNodeOperations = {
 /** DI token for this node's local operations: the answers the node router serves. */
 export const LOCAL_NODE_OPERATIONS = Symbol("runtime:local-node-operations");
 
-/** Anything that runs an Effect for a Promise caller and rejects with the original failure (the app's Effect runtime). */
+/** Anything that runs an Effect for a Promise caller and rejects with the original failure (the app's `EffectHost`). */
 export type EffectPromiseRunner = {
-  runPromiseUnwrapped: <A, E, R>(effect: Effect.Effect<A, E, R>) => Promise<A>;
+  runUnwrapped: <A, E, R>(effect: Effect.Effect<A, E, R>) => Promise<A>;
 };
 
 /**
@@ -87,9 +87,9 @@ export function makeLocalNodeOperations(
   >,
 ): LocalNodeOperations {
   const ops = <A>(use: (ops: DockerContainerOps["Service"]) => Effect.Effect<A, unknown, DockerEngine>) =>
-    runtime.runPromiseUnwrapped(Effect.flatMap(DockerContainerOps, use));
+    runtime.runUnwrapped(Effect.flatMap(DockerContainerOps, use));
   const sessions = <A>(use: (sessions: DockerTerminalSessions["Service"]) => Effect.Effect<A, unknown, DockerEngine>) =>
-    runtime.runPromiseUnwrapped(Effect.flatMap(DockerTerminalSessions, use));
+    runtime.runUnwrapped(Effect.flatMap(DockerTerminalSessions, use));
 
   return {
     listContainers: (query) => repository.listContainers(query),
@@ -107,8 +107,8 @@ export function makeLocalNodeOperations(
     renamePath: (body) => ops((o) => o.renamePath(body)),
     createDirectory: (body) => ops((o) => o.createDirectory(body)),
     openTerminal: (body) => sessions((s) => s.open(body)),
-    terminalEvents: (query) => runtime.runPromiseUnwrapped(Effect.flatMap(DockerTerminalSessions, (s) => s.events(query))),
-    sendTerminalInput: (body) => runtime.runPromiseUnwrapped(Effect.flatMap(DockerTerminalSessions, (s) => s.sendInput(body))),
-    closeTerminal: (body) => runtime.runPromiseUnwrapped(Effect.flatMap(DockerTerminalSessions, (s) => s.close(body))),
+    terminalEvents: (query) => runtime.runUnwrapped(Effect.flatMap(DockerTerminalSessions, (s) => s.events(query))),
+    sendTerminalInput: (body) => runtime.runUnwrapped(Effect.flatMap(DockerTerminalSessions, (s) => s.sendInput(body))),
+    closeTerminal: (body) => runtime.runUnwrapped(Effect.flatMap(DockerTerminalSessions, (s) => s.close(body))),
   };
 }

@@ -1,9 +1,10 @@
-import { AppLifecycleModule } from '@deployer/shared/core/modules/lifecycle/lifecycle.module'
 import {
-    createModuleContext,
-    EffectRuntime,
-    EffectRuntimeModule,
-} from '@deployer/nest-effect'
+	createModuleContext,
+	EffectRuntimeModule,
+	EffectHost,
+	EffectHostModule,
+} from "@deployer/nest-effect";
+import { AppLifecycleModule } from '@deployer/shared/core/modules/lifecycle/lifecycle.module';
 import {
     DEPENDENCIES,
     HealthModule,
@@ -71,11 +72,12 @@ export class IdentityServiceModule extends createModuleContext({
         HealthModule.forRoot({ indicators: 'platform' }),
         // `.effect()` handlers resolve services from `effect/context`; the runtime
         // contributes that context per request without changing the shared policy.
+        EffectHostModule,
         createOrpcModule({
             extraContext: {
-                inject: [EffectRuntime],
-                resolve: async (executionContext, runtime) => ({
-                    'effect/context': runtime.contextFor(executionContext.getClass()),
+                inject: [EffectHost],
+                resolve: async (executionContext, host) => ({
+                    'effect/context': host.contextFor(executionContext.getClass()),
                 }),
             },
         }),

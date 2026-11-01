@@ -13350,8 +13350,8 @@
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/ROADMAP.md": {
-    "mtime": 1793552150.0795968,
-    "ast_hash": "974f7700fb8692575877ba9521bfac3b",
+    "mtime": 1793554741.4737244,
+    "ast_hash": "f9fe871b332d42623e92e78aebb35d14",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/architecture.md": {
@@ -13550,8 +13550,8 @@
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/roadmap/web.md": {
-    "mtime": 1793107637.5549264,
-    "ast_hash": "6cff0b03362769be02c8564c48840823",
+    "mtime": 1793554741.4743857,
+    "ast_hash": "9c24f8958c629bd51462cca06973183d",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/setup.md": {
@@ -21947,6 +21947,21 @@
   "packages/nest/effect/src/authz.ts": {
     "mtime": 1793553205.3919091,
     "ast_hash": "74e635d5513635b0a5c2565f8acb5db6",
+    "semantic_hash": ""
+  },
+  "docs/audit-2026-10-25/FRONTEND-ROADMAP.md": {
+    "mtime": 1793554724.7972467,
+    "ast_hash": "663e5c1338ec3e423431d9874e547af6",
+    "semantic_hash": ""
+  },
+  "docs/audit-2026-10-25/frontend/RESEARCH-dashboard.md": {
+    "mtime": 1793554660.2791548,
+    "ast_hash": "e6e442406141e8c3e02babd4427e3316",
+    "semantic_hash": ""
+  },
+  "docs/qa/web/frontend-purpose-2026-11-01.md": {
+    "mtime": 1793554753.3248222,
+    "ast_hash": "b43f80728b8072e2df9f9bc2665b151a",
     "semantic_hash": ""
   }
 }

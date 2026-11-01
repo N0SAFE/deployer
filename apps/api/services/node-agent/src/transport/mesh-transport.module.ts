@@ -1,4 +1,4 @@
-import { createModuleContext } from "@deployer/nest-effect";
+import { createModuleContext, effectHostProvider } from "@deployer/nest-effect";
 import { nodeAgentContract } from "@deployer/node-agent-contracts";
 import { MeshTransportModule } from "@deployer/nest-mesh";
 
@@ -12,6 +12,6 @@ import { SERVICE_DOOR_PROCEDURES } from "./service-door";
  */
 export class NodeAgentTransportModule extends createModuleContext({
   imports: [MeshTransportModule.forRoot({ contract: nodeAgentContract, serviceProcedures: SERVICE_DOOR_PROCEDURES })],
-  providers: [MeshTransportService],
+  providers: [effectHostProvider(), MeshTransportService],
   exports: [MeshTransportService],
 }) {}

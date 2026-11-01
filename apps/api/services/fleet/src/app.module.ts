@@ -1,4 +1,9 @@
-import { createModuleContext, EffectRuntime, EffectRuntimeModule } from "@deployer/nest-effect";
+import {
+	createModuleContext,
+	EffectHost,
+	EffectRuntimeModule,
+	EffectHostModule,
+} from "@deployer/nest-effect";
 import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
 import {
 	DEPENDENCIES,
@@ -79,6 +84,8 @@ export class FleetServiceModule extends createModuleContext({
 		// The `DatabasePort` Effect key, global: repositories yield it at call time, so every module's
 		// scoped request context must see it (a root `providers` entry is invisible to child modules).
 		DatabasePortModule,
+		// The `EffectHost` every module forks background work on and the request context is read from.
+		EffectHostModule,
 		// ── WHY EVERY SERVICE IMPORTS THE AUTH MODULE ────────────────────────────
 		// `createOrpcModule()` injects `AuthCoreService` to build the auth plugin that
 		// populates `context.auth`, so the service it injects has to be in this app's
@@ -98,12 +105,12 @@ export class FleetServiceModule extends createModuleContext({
 		PreflightModule.forRoot({ dependencies: DEPENDENCIES.database }),
 		ServiceHealthModule,
 		HealthModule.forRoot({ indicators: "database" }),
-		// `.effect()` handlers resolve services from `effect/context`; the runtime contributes that
+		// `.effect()` handlers resolve services from `effect/context`; the host contributes that
 		// context per request without changing the shared transport policy.
 		createOrpcModule({
 			extraContext: {
-				inject: [EffectRuntime],
-				resolve: async (executionContext, runtime) => ({ "effect/context": runtime.contextFor(executionContext.getClass()) }),
+				inject: [EffectHost],
+				resolve: async (_executionContext, host) => ({ "effect/context": await host.context() }),
 			},
 		}),
 		// The Effect services of the modules already migrated (see `app.layers.ts`).

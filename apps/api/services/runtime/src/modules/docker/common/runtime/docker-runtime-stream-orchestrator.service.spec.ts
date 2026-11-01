@@ -11,6 +11,12 @@ import {
 } from "@deployer/contracts-entities";
 import { DockerRuntimeStreamOrchestratorService } from "./docker-runtime-stream-orchestrator.service";
 
+/** The `EffectHost` face the orchestrator sees, with container resolution substituted by a Promise fake. */
+const hostOverResolution = (fake: { inspectContainer: (...args: never[]) => unknown }) => {
+    const { runPromiseUnwrapped } = runtimeOverResolution(fake as never);
+    return { runUnwrapped: runPromiseUnwrapped } as never;
+};
+
 describe("DockerRuntimeStreamOrchestratorService", () => {
     it("filters runtime events by selected scope/action and time bounds", async () => {
         const dockerRuntimeMeshRelayService = {
@@ -93,7 +99,7 @@ describe("DockerRuntimeStreamOrchestratorService", () => {
 
         const service = new DockerRuntimeStreamOrchestratorService(
             dockerRuntimeMeshRelayService as never,
-            runtimeOverResolution(dockerContainerResolutionService) as never,
+            hostOverResolution(dockerContainerResolutionService),
             dockerContainerMetricsStreamService as never,
             dockerRepository as never,
         );
@@ -204,7 +210,7 @@ describe("DockerRuntimeStreamOrchestratorService", () => {
 
         const service = new DockerRuntimeStreamOrchestratorService(
             dockerRuntimeMeshRelayService as never,
-            runtimeOverResolution(dockerContainerResolutionService) as never,
+            hostOverResolution(dockerContainerResolutionService),
             dockerContainerMetricsStreamService as never,
             dockerRepository as never,
         );
@@ -274,7 +280,7 @@ describe("DockerRuntimeStreamOrchestratorService", () => {
 
             const service = new DockerRuntimeStreamOrchestratorService(
                 dockerRuntimeMeshRelayService as never,
-                runtimeOverResolution(dockerContainerResolutionService) as never,
+                hostOverResolution(dockerContainerResolutionService),
                 dockerContainerMetricsStreamService as never,
                 dockerRepository as never,
             );
@@ -372,7 +378,7 @@ describe("DockerRuntimeStreamOrchestratorService", () => {
 
         const service = new DockerRuntimeStreamOrchestratorService(
             dockerRuntimeMeshRelayService as never,
-            runtimeOverResolution(dockerContainerResolutionService) as never,
+            hostOverResolution(dockerContainerResolutionService),
             dockerContainerMetricsStreamService as never,
             dockerRepository as never,
         );
@@ -450,7 +456,7 @@ describe("DockerRuntimeStreamOrchestratorService", () => {
 
         const service = new DockerRuntimeStreamOrchestratorService(
             dockerRuntimeMeshRelayService as never,
-            runtimeOverResolution(dockerContainerResolutionService) as never,
+            hostOverResolution(dockerContainerResolutionService),
             dockerContainerMetricsStreamService as never,
             dockerRepository as never,
         );
@@ -540,7 +546,7 @@ describe("DockerRuntimeStreamOrchestratorService", () => {
 
         const service = new DockerRuntimeStreamOrchestratorService(
             dockerRuntimeMeshRelayService as never,
-            runtimeOverResolution(dockerContainerResolutionService) as never,
+            hostOverResolution(dockerContainerResolutionService),
             dockerContainerMetricsStreamService as never,
             dockerRepository as never,
         );
@@ -629,7 +635,7 @@ describe("DockerRuntimeStreamOrchestratorService", () => {
 
         const service = new DockerRuntimeStreamOrchestratorService(
             dockerRuntimeMeshRelayService as never,
-            runtimeOverResolution(dockerContainerResolutionService) as never,
+            hostOverResolution(dockerContainerResolutionService),
             dockerContainerMetricsStreamService as never,
             dockerRepository as never,
         );
@@ -729,7 +735,7 @@ describe("DockerRuntimeStreamOrchestratorService", () => {
 
         const service = new DockerRuntimeStreamOrchestratorService(
             dockerRuntimeMeshRelayService as never,
-            runtimeOverResolution(dockerContainerResolutionService) as never,
+            hostOverResolution(dockerContainerResolutionService),
             dockerContainerMetricsStreamService as never,
             dockerRepository as never,
         );
@@ -792,7 +798,7 @@ describe("DockerRuntimeStreamOrchestratorService", () => {
 
         const service = new DockerRuntimeStreamOrchestratorService(
             dockerRuntimeMeshRelayService as never,
-            runtimeOverResolution(dockerContainerResolutionService) as never,
+            hostOverResolution(dockerContainerResolutionService),
             dockerContainerMetricsStreamService as never,
             dockerRepository as never,
         );
@@ -892,7 +898,7 @@ describe("DockerRuntimeStreamOrchestratorService", () => {
 
         const service = new DockerRuntimeStreamOrchestratorService(
             dockerRuntimeMeshRelayService as never,
-            runtimeOverResolution(dockerContainerResolutionService) as never,
+            hostOverResolution(dockerContainerResolutionService),
             dockerContainerMetricsStreamService as never,
             dockerRepository as never,
         );

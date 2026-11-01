@@ -1,4 +1,9 @@
-import { createModuleContext, EffectRuntime, EffectRuntimeModule } from "@deployer/nest-effect";
+import {
+	createModuleContext,
+	EffectRuntimeModule,
+	EffectHostModule,
+	EffectHost,
+} from "@deployer/nest-effect";
 import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
 import { PreflightModule, DEPENDENCIES, ServiceHealthModule, createMeshOrpcModule } from "@deployer/shared/server";
 
@@ -22,15 +27,17 @@ export class NodeAgentServiceModule extends createModuleContext({
     AppLifecycleModule.forRoot(),
     PreflightModule.forRoot({ dependencies: DEPENDENCIES.none }),
     ServiceHealthModule,
+    EffectHostModule,
     createMeshOrpcModule({
       extraContext: {
-        inject: [EffectRuntime],
-        resolve: async (executionContext, runtime) => ({
-          "effect/context": runtime.contextFor(executionContext.getClass()),
+        inject: [EffectHost],
+        resolve: async (executionContext, host) => ({
+          "effect/context": host.contextFor(executionContext.getClass()),
         }),
       },
     }),
     EffectRuntimeModule,
+    // The host is how a boundary (the oRPC transport here, a loop elsewhere) reaches the runtime as a service.
     MeshDomainModule,
     NodeAgentTransportModule,
   ],

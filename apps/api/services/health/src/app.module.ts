@@ -1,7 +1,8 @@
 import {
 	createModuleContext,
-	EffectRuntime,
 	EffectRuntimeModule,
+	EffectHostModule,
+	EffectHost,
 } from "@deployer/nest-effect";
 import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
 import {
@@ -79,13 +80,14 @@ export class HealthServiceModule extends createModuleContext({
 		HealthModule.forRoot({ indicators: "platform" }),
 		// `.effect()` handlers resolve services from `effect/context`; the runtime
 		// contributes that context per request without changing the shared policy.
+		EffectHostModule,
 		createOrpcModule({
 			extraContext: {
-				inject: [EffectRuntime],
+				inject: [EffectHost],
 				// The request context is the context of the module that owns the controller being called: this app's
 				// handlers can only reach what `HealthDomainModule` provides, exactly what the type audit checks.
-				resolve: async (executionContext, runtime) => ({
-					"effect/context": runtime.contextFor(executionContext.getClass()),
+				resolve: async (executionContext, host) => ({
+					"effect/context": host.contextFor(executionContext.getClass()),
 				}),
 			},
 		}),

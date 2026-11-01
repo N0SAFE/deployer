@@ -9,7 +9,7 @@ import { Effect } from "effect";
 
 import { MESH_WEBSOCKET_PATH } from "@deployer/node-agent-contracts";
 import { attachMeshWebSocket, type MeshWebSocket } from "@deployer/mesh-server";
-import { EffectRuntime } from "@deployer/nest-effect";
+import { EffectHost } from "@deployer/nest-effect";
 import { MESH_INTERVAL_DEFAULTS, MESH_TRANSPORT_OPTIONS, MeshRouterResolver, type MeshRouter, type MeshTransportOptions } from "@deployer/nest-mesh";
 import { MESH_CREDENTIAL_VERIFIER, type MeshCredentialVerifier } from "@deployer/shared/server";
 
@@ -46,7 +46,7 @@ type Loop = { readonly stop: () => void };
  *
  * The routers come from `MeshRouterResolver`, which reads the `@MeshProcedure` metadata of every `@MeshTransport()`
  * provider: a procedure is declared once, on its method, and both doors are assembled from that. The oRPC context is
- * read per call from the Effect runtime, so a call on a connection that lives for hours still sees the services of the
+ * read per call from the Effect host, so a call on a connection that lives for hours still sees the services of the
  * moment.
  *
  * Nest owns the lifecycle: bootstrap binds the sockets and starts the loops, destroy stops both. `main.ts` and the
@@ -66,7 +66,7 @@ export class MeshTransportService implements OnApplicationBootstrap, OnModuleDes
 
   constructor(
     private readonly config: ConfigService<NodeAgentEnv, true>,
-    private readonly runtime: EffectRuntime,
+    @Inject(EffectHost) private readonly host: EffectHost["Service"],
     private readonly resolver: MeshRouterResolver,
     private readonly adapterHost: HttpAdapterHost,
     @Inject(MESH_CREDENTIAL_VERIFIER) private readonly verify: MeshCredentialVerifier,
@@ -91,7 +91,7 @@ export class MeshTransportService implements OnApplicationBootstrap, OnModuleDes
   async onApplicationBootstrap(): Promise<void> {
     const { peer, node, admin } = this.resolver.resolve();
     // The lease policy's bytes-per-second input: counted on the socket, never by parsing a payload.
-    const load = await this.runtime.runPromiseUnwrapped(AgentLoad);
+    const load = await this.host.runUnwrapped(AgentLoad);
 
     // `nodeDoor` names the door a call came in on: it is the marker `roster.join` and `roster.setting` read to refuse
     // everything that is not this node's own socket.
@@ -103,7 +103,7 @@ export class MeshTransportService implements OnApplicationBootstrap, OnModuleDes
         verify: trusted,
         onBytes: (bytes) => load.bytesMoved(bytes),
         context: async (request: IncomingMessage) =>
-          ({ request: { headers: request.headers }, "effect/context": await this.runtime.context(), nodeDoor }),
+          ({ request: { headers: request.headers }, "effect/context": await this.host.context(), nodeDoor }),
       });
 
     // The mesh, for other agents: on the service's own port, behind the swarm's credential. Nest builds the HTTP server
@@ -163,9 +163,9 @@ export class MeshTransportService implements OnApplicationBootstrap, OnModuleDes
 
     // A node that joined a swarm rejoins by itself: the seeds it was given are kept in its store. The environment can
     // add more (dev only), and `roster.join` adds one at any time.
-    const remembered = await this.runtime.runPromiseUnwrapped(Effect.flatMap(AgentStore, (store) => store.seeds()));
+    const remembered = await this.host.runUnwrapped(Effect.flatMap(AgentStore, (store) => store.seeds()));
     for (const address of [...remembered, ...resolveSeeds({ MESH_SEEDS: this.env("MESH_SEEDS") })]) {
-      await this.runtime.runPromiseUnwrapped(Effect.flatMap(PendingSeeds, (seeds) => seeds.add(address)));
+      await this.host.runUnwrapped(Effect.flatMap(PendingSeeds, (seeds) => seeds.add(address)));
     }
 
     // The doors: read `node.doors` from the node's store and converge. No setting is a no-op, so a node that has never
@@ -174,7 +174,7 @@ export class MeshTransportService implements OnApplicationBootstrap, OnModuleDes
       startTickLoop({
         intervalMs: this.interval("doorsIntervalMs", this.env("MESH_DOORS_INTERVAL_MS")),
         onError: (error) => { logger.warn(`Doors pass failed: ${error instanceof Error ? error.message : String(error)}`); },
-        tick: () => this.runtime.runPromiseUnwrapped(Effect.flatMap(DoorsTick, (tick) => tick.convergeOnce())),
+        tick: () => this.host.runUnwrapped(Effect.flatMap(DoorsTick, (tick) => tick.convergeOnce())),
       }),
     );
 
@@ -185,15 +185,15 @@ export class MeshTransportService implements OnApplicationBootstrap, OnModuleDes
         startTickLoop({
           intervalMs: this.interval("wireguardIntervalMs", this.env("MESH_WIREGUARD_INTERVAL_MS")),
           onError: (error) => { logger.warn(`Wireguard pass failed: ${error instanceof Error ? error.message : String(error)}`); },
-          tick: () => this.runtime.runPromiseUnwrapped(Effect.flatMap(WireguardTick, (tick) => tick.convergeOnce())),
+          tick: () => this.host.runUnwrapped(Effect.flatMap(WireguardTick, (tick) => tick.convergeOnce())),
         }),
       );
     }
 
     // Idle links are closed on a pass of their own: gossip and the relay never close a connection nobody uses, and a mesh
     // that lost a node would otherwise keep its sockets (and the agent's memory) for the life of the process.
-    const replicaLinks = await this.runtime.runPromiseUnwrapped(ReplicaLinks);
-    const agentLinks = await this.runtime.runPromiseUnwrapped(AgentLinkFactory);
+    const replicaLinks = await this.host.runUnwrapped(ReplicaLinks);
+    const agentLinks = await this.host.runUnwrapped(AgentLinkFactory);
     this.loops.push(
       startTickLoop({
         intervalMs: this.interval("evictionIntervalMs", this.env("MESH_EVICTION_INTERVAL_MS")),
@@ -208,10 +208,10 @@ export class MeshTransportService implements OnApplicationBootstrap, OnModuleDes
     const gossip: GossipLoop = startGossipLoop({
       intervalMs: this.interval("gossipIntervalMs", this.env("MESH_GOSSIP_INTERVAL_MS")),
       onError: (error) => { logger.warn(`Gossip round failed: ${error instanceof Error ? error.message : String(error)}`); },
-      pending: () => this.runtime.runPromiseUnwrapped(Effect.flatMap(PendingSeeds, (seeds) => seeds.pending())),
-      seed: (address) => this.runtime.runPromiseUnwrapped(Effect.flatMap(RosterGossip, (g) => g.seed(address))),
-      reached: (address) => this.runtime.runPromiseUnwrapped(Effect.flatMap(PendingSeeds, (seeds) => seeds.reached(address))),
-      round: () => this.runtime.runPromiseUnwrapped(Effect.flatMap(RosterGossip, (g) => g.round())),
+      pending: () => this.host.runUnwrapped(Effect.flatMap(PendingSeeds, (seeds) => seeds.pending())),
+      seed: (address) => this.host.runUnwrapped(Effect.flatMap(RosterGossip, (g) => g.seed(address))),
+      reached: (address) => this.host.runUnwrapped(Effect.flatMap(PendingSeeds, (seeds) => seeds.reached(address))),
+      round: () => this.host.runUnwrapped(Effect.flatMap(RosterGossip, (g) => g.round())),
     });
     this.loops.push(gossip);
   }

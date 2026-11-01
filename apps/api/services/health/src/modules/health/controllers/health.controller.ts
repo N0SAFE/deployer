@@ -39,7 +39,7 @@ const HEALTH_OPERATOR_ROLES = ["superAdmin", "admin", "operator"];
  *
  * ── NO INJECTION, NO RUNTIME CALL ──────────────────────────────────────────
  * `.effect()` resolves `HealthService` from `effect/context`, which the shared
- * oRPC host fills from `EffectRuntime.contextFor()` — the context of THIS module.
+ * oRPC host fills from `EffectHost.contextFor()` — the context of THIS module.
  * This controller only maps the domain report to the shapes its contract declares.
  *
  * The requirements are not declared: `procedure(...).effect(...)` returns the `R`

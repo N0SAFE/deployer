@@ -1,5 +1,5 @@
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
-import { createModuleContext, EffectRuntime } from "@deployer/nest-effect";
+import { createModuleContext, EffectHost, effectHostProvider } from "@deployer/nest-effect";
 
 import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configuration/configuration-core.module";
 import { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
@@ -50,6 +50,7 @@ export class ServiceDomainModule extends createModuleContext({
 	],
 	controllers: [ServiceController],
 	providers: [
+		effectHostProvider(),
 		{ provide: ProjectAccess, useExisting: ProjectAccessService },
 		{ provide: ProjectDomainRepo, useExisting: ProjectDomainRepository },
 		{
@@ -62,7 +63,7 @@ export class ServiceDomainModule extends createModuleContext({
 			useExisting: ServiceDomainMappingRepository,
 		},
 		// Registers the service namespace on the core event bus when the module is built.
-		{ provide: SERVICE_EVENT_REGISTRATION, useFactory: registerServiceEventAdapter, inject: [CoreEventSyncService, EffectRuntime] },
+		{ provide: SERVICE_EVENT_REGISTRATION, useFactory: registerServiceEventAdapter, inject: [CoreEventSyncService, EffectHost] },
 		{
 			provide: ServiceEventService,
 			useFactory: (pool: CoreEventStreamPoolService) => new ServiceEventServiceImpl(pool),

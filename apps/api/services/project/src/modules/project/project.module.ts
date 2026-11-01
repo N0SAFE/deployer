@@ -1,5 +1,5 @@
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
-import { createModuleContext, EffectRuntime } from "@deployer/nest-effect";
+import { createModuleContext, EffectHost, effectHostProvider } from "@deployer/nest-effect";
 
 import { ProjectDb } from "@project/core/database/project-db";
 import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configuration/configuration-core.module";
@@ -40,6 +40,7 @@ export class ProjectDomainModule extends createModuleContext({
 	imports: [DatabaseModule, ConfigurationCoreModule, EventsModule, CoreDomainModule],
 	controllers: [ProjectController],
 	providers: [
+		effectHostProvider(),
 		{ provide: DnsProvider, useFactory: makeDnsProviderGateway, inject: [ServiceClient] },
 		{ provide: ProjectDomainRepo, useExisting: ProjectDomainRepository },
 		{
@@ -49,7 +50,7 @@ export class ProjectDomainModule extends createModuleContext({
 		{ provide: CoreEventSync, useExisting: CoreEventSyncService },
 		// Registers the project namespace on the core event bus when the module is built, so another service can subscribe
 		// before the first project request arrives.
-		{ provide: PROJECT_EVENT_REGISTRATION, useFactory: registerProjectEventAdapter, inject: [CoreEventSyncService, EffectRuntime] },
+		{ provide: PROJECT_EVENT_REGISTRATION, useFactory: registerProjectEventAdapter, inject: [CoreEventSyncService, EffectHost] },
 		{ provide: ProjectDb, useValue: ProjectDb.live },
 		{
 			provide: ProjectEventService,

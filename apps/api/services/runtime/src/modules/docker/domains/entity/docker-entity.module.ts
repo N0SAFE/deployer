@@ -1,18 +1,17 @@
-import { createModuleContext } from "@deployer/nest-effect";
-import { Module } from "@nestjs/common"
+import { createModuleContext, EffectHost, effectHostProvider, type EffectHostShape } from "@deployer/nest-effect";
 import { EventsModule as CoreEventsModule } from "@deployer/shared/core/modules/events/events.module"
+import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index"
 import { DockerCommonModule } from "../../common/docker-common.module"
 import { DockerContainersModule } from "../containers/docker-containers.module"
 import { DockerImagesModule } from "../images/docker-images.module"
 import { DockerCatalogModule } from "../../catalog/docker-catalog.module"
-import { EffectRuntime } from "@deployer/nest-effect"
-import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index"
-import { DockerImagesOrchestratorService } from "../images/orchestration/docker-images-orchestrator.service"
 import { DockerRuntimeEventsStreamService } from "../../common/events/docker-runtime-events-stream.service"
 import { DockerEntityCacheService } from "./orchestration/docker-entity-cache.service"
+import { DockerEntityCachePort } from "./orchestration/docker-entity-cache.port"
 import { DockerEntityDomainService } from "./orchestration/docker-entity-domain.service"
-import { DockerEntityOrchestratorService } from "./orchestration/docker-entity-orchestrator.service"
-import { DockerEntity, DockerEntityPort } from "./orchestration/docker-entity.service"
+import { DockerEntityOrchestratorService, entityChunkLog } from "./orchestration/docker-entity-orchestrator.service"
+import { entityStreamsOver } from "./orchestration/docker-entity-streams"
+import { DockerEntity } from "./orchestration/docker-entity.service"
 
 export class DockerEntityModule extends createModuleContext({
   imports: [
@@ -23,33 +22,29 @@ export class DockerEntityModule extends createModuleContext({
     DockerCatalogModule,
   ],
   providers: [
+    effectHostProvider(),
     // Built by factories rather than by decorator.
     { provide: DockerEntityCacheService, useFactory: () => new DockerEntityCacheService() },
-    {
-      provide: DockerEntityDomainService,
-      useFactory: (
-        images: DockerImagesOrchestratorService,
-        runtime: EffectRuntime,
-        events: DockerRuntimeEventsStreamService,
-        pool: CoreEventStreamPoolService,
-        cache: DockerEntityCacheService,
-      ) => new DockerEntityDomainService(images, runtime, events, pool, cache),
-      inject: [DockerImagesOrchestratorService, EffectRuntime, DockerRuntimeEventsStreamService, CoreEventStreamPoolService, DockerEntityCacheService],
-    },
+    { provide: DockerEntityCachePort, useExisting: DockerEntityCacheService },
+    // The entity reads and the unary facade are constant Effect services: they yield their collaborators on every call.
+    { provide: DockerEntityDomainService, useValue: DockerEntityDomainService.live },
     {
       provide: DockerEntityOrchestratorService,
-      useFactory: (domain: DockerEntityDomainService) => new DockerEntityOrchestratorService(domain),
-      inject: [DockerEntityDomainService],
+      useFactory: (host: EffectHostShape, events: DockerRuntimeEventsStreamService, pool: CoreEventStreamPoolService, cache: DockerEntityCacheService) =>
+        DockerEntityOrchestratorService.withStreams(
+          entityStreamsOver({ host, events, pool, cache, log: entityChunkLog }),
+        ),
+      inject: [EffectHost, DockerRuntimeEventsStreamService, CoreEventStreamPoolService, DockerEntityCacheService],
     },
-    // The Effect face of the entity facade: a port over the Promise orchestrator, so a handler's `R` names it.
-    { provide: DockerEntityPort, useExisting: DockerEntityOrchestratorService },
     { provide: DockerEntity, useValue: DockerEntity.live },
   ],
   exports: [
     DockerEntityCacheService,
+    // The ports the domain's methods read: a controller hands them back through `Effect.context` inside its own
+    // module scope, so the module that provides them must export them.
+    DockerEntityCachePort,
     DockerEntityDomainService,
     DockerEntityOrchestratorService,
     DockerEntity,
-    DockerEntityPort,
   ],
 }) {}

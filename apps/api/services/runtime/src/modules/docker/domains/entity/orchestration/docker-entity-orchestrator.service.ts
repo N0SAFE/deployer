@@ -1,27 +1,13 @@
-import { Observable } from "rxjs"
-import { map, filter } from "rxjs/operators"
 import type {
   DockerEntityListInput,
   DockerEntityInspectInput,
-  DockerEntityStreamInput,
 } from "@deployer/runtime-contracts/modules/docker/entity/shared"
-import {
-  type DockerEntityKind,
-  type DockerEntityStreamChunk,
-  dockerContainerSchema,
-  dockerImageSchema,
-  dockerNetworkSchema,
-  dockerVolumeSchema,
-  dockerEntityStreamChunkSchema,
-  buildDockerEntityEventChunk,
-  type DockerContainer,
-  type DockerImage,
-  type DockerNetwork,
-  type DockerVolume,
-} from "@deployer/contracts-entities"
+import type { DockerEntityKind, DockerEntityStreamChunk } from "@deployer/contracts-entities"
 import { AppLogger } from "@deployer/logger"
-import { buildInspectChunk, buildListChunks, coerceStreamChunk } from "./entity-chunks"
-import { DockerEntityDomainService } from "./docker-entity-domain.service"
+import { Context, Effect } from "effect"
+import { buildInspectChunk, buildListChunks, type EntityChunkLog } from "./entity-chunks"
+import { DockerEntityDomainService, type DockerEntityDomainPorts } from "./docker-entity-domain.service"
+import type { DockerEntityStreamsShape } from "./docker-entity-streams"
 
 export type DockerEntityListResult<TKind extends DockerEntityKind> = {
   kind: TKind
@@ -30,132 +16,95 @@ export type DockerEntityListResult<TKind extends DockerEntityKind> = {
   hit: boolean
 }
 
-/**
- * Per-kind facade for the unified `docker.entity` API. Every public method
- * is type-safe: the kind is encoded in the response and the return shape
- * is the same `DockerEntityStreamChunk` discriminated union regardless of
- * the underlying docker object.
- *
- * The orchestrator stays deliberately thin — all the heavy lifting
- * (cache, runtime enrichment, stream pooling) lives in
- * `DockerEntityDomainService`. This layer's only job is:
- *  1. dispatch by kind for the list/inspect handlers
- *  2. wrap per-kind domain results in the canonical stream-chunk envelope
- *     (so the client can hydrate its in-memory store from the response
- *     directly)
- *  3. expose a single `streamEntities()` entry-point that forwards the
- *     kinds/actions filter to the domain's pooled stream.
- */
-export class DockerEntityOrchestratorService {
-  private readonly apiLogger = new AppLogger("api").scope(DockerEntityOrchestratorService.name)
-  private readonly debugLogger = this.apiLogger.createContextFilterLogger({
-    defaultClassName: DockerEntityOrchestratorService.name,
-    filterEnvVar: "APP_DEBUG_CONTEXT_FILTER",
-    channel: "docker-entity-orchestrator",
-  })
+const apiLogger = new AppLogger("api").scope("DockerEntityOrchestratorService")
+const debugLogger = apiLogger.createContextFilterLogger({
+  defaultClassName: "DockerEntityOrchestratorService",
+  filterEnvVar: "APP_DEBUG_CONTEXT_FILTER",
+  channel: "docker-entity-orchestrator",
+})
 
-  private readonly scopedLogger = this.apiLogger.log
-  private readonly chunkLog = {
-    warn: (message: string, context?: Record<string, unknown>) => this.scopedLogger.warn(message, context ?? {}),
-    debug: (message: string, context?: Record<string, unknown>) => this.scopedLogger.debug(message, context ?? {}),
-  }
+const chunkLog: EntityChunkLog = {
+  warn: (message, context) => apiLogger.log.warn(message, context ?? {}),
+  debug: (message, context) => apiLogger.log.debug(message, context ?? {}),
+}
 
-  constructor(private readonly dockerEntityDomainService: DockerEntityDomainService) {}
+/** The chunk-sink the list/inspect builders and the stream coercer share. */
+export const entityChunkLog: EntityChunkLog = chunkLog
 
-  // ---------------------------------------------------------------------------
-  // list
-  // ---------------------------------------------------------------------------
+export const entityDebug = (source: string, context?: Record<string, unknown>): void => {
+  apiLogger.log.info(`[docker-entity-orchestrator] ${source}`, context ?? {})
+  debugLogger.debug(source, context)
+}
 
-  listContainers(input: DockerEntityListInput = {} as DockerEntityListInput): Promise<DockerEntityListResult<"container">> {
-    return this.runList("container", () => this.dockerEntityDomainService.listContainerEntity(input))
-  }
-
-  listImages(input: DockerEntityListInput): Promise<DockerEntityListResult<"image">> {
-    return this.runList("image", () => this.dockerEntityDomainService.listImageEntity(input))
-  }
-
-  listNetworks(input: DockerEntityListInput): Promise<DockerEntityListResult<"network">> {
-    return this.runList("network", () => this.dockerEntityDomainService.listNetworkEntity(input))
-  }
-
-  listVolumes(input: DockerEntityListInput): Promise<DockerEntityListResult<"volume">> {
-    return this.runList("volume", () => this.dockerEntityDomainService.listVolumeEntity(input))
-  }
-
-  // ---------------------------------------------------------------------------
-  // inspect
-  // ---------------------------------------------------------------------------
-
-  inspectContainer(input: DockerEntityInspectInput): Promise<DockerEntityStreamChunk | null> {
-    return this.runInspect("container", () => this.dockerEntityDomainService.inspectContainerEntity(input))
-  }
-
-  inspectImage(input: DockerEntityInspectInput): Promise<DockerEntityStreamChunk | null> {
-    return this.runInspect("image", () => this.dockerEntityDomainService.inspectImageEntity(input))
-  }
-
-  inspectNetwork(input: DockerEntityInspectInput): Promise<DockerEntityStreamChunk | null> {
-    return this.runInspect("network", () => this.dockerEntityDomainService.inspectNetworkEntity(input))
-  }
-
-  inspectVolume(input: DockerEntityInspectInput): Promise<DockerEntityStreamChunk | null> {
-    return this.runInspect("volume", () => this.dockerEntityDomainService.inspectVolumeEntity(input))
-  }
-
-  // ---------------------------------------------------------------------------
-  // stream
-  // ---------------------------------------------------------------------------
-
-  streamEntities(input: DockerEntityStreamInput): Observable<DockerEntityStreamChunk> {
-    this.debug("streamEntities", {
-      kinds: input.kinds,
-      actions: input.actions,
-    })
-    return this.dockerEntityDomainService
-      .streamEntities({
-        kinds: input.kinds,
-        actions: input.actions,
-      })
-      .pipe(
-        // ORPC's output validation only runs on synchronous returns, not
-        // on each emission of an observable. So we must validate + coerce
-        // every emitted chunk here, on the producer side. The `map`
-        // operator runs the full chunk schema (with defaults applied) and
-        // emits the *parsed* value, so the client never sees `undefined`
-        // for fields like `ports`, `serviceId`, etc. Invalid chunks are
-        // dropped via `filter`.
-        map((chunk) => coerceStreamChunk(chunk, this.chunkLog)),
-        filter((chunk): chunk is DockerEntityStreamChunk => chunk !== null),
-      )
-  }
-
-  // ---------------------------------------------------------------------------
-  // internals
-  // ---------------------------------------------------------------------------
-
-  private async runList<TKind extends DockerEntityKind>(
-    kind: TKind,
-    fetcher: () => Promise<{ entities: unknown[]; etag: string; hit: boolean }>,
-  ): Promise<DockerEntityListResult<TKind>> {
-    const result = await fetcher()
-    return {
+const listOf = <TKind extends DockerEntityKind, TEntity>(
+  kind: TKind,
+  fetch: (
+    domain: DockerEntityDomainService["Service"],
+  ) => Effect.Effect<{ entities: TEntity[]; etag: string; hit: boolean }, unknown, DockerEntityDomainPorts>,
+) =>
+  Effect.flatMap(DockerEntityDomainService, (domain) =>
+    Effect.map(fetch(domain), (result) => ({
       kind,
-      data: buildListChunks(kind, result.entities, new Date().toISOString(), this.chunkLog),
+      data: buildListChunks(kind, result.entities, new Date().toISOString(), chunkLog),
       etag: result.etag,
       hit: result.hit,
-    }
-  }
+    })),
+  )
 
-  private async runInspect<TKind extends DockerEntityKind>(
-    kind: TKind,
-    fetcher: () => Promise<{ entity: unknown | null; etag: string }>,
-  ): Promise<DockerEntityStreamChunk | null> {
-    const { entity } = await fetcher()
-    return buildInspectChunk(kind, entity, new Date().toISOString(), this.chunkLog)
-  }
+const inspectOf = <TKind extends DockerEntityKind>(
+  kind: TKind,
+  fetch: (
+    domain: DockerEntityDomainService["Service"],
+  ) => Effect.Effect<{ entity: unknown | null; etag: string }, unknown, DockerEntityDomainPorts>,
+) =>
+  Effect.flatMap(DockerEntityDomainService, (domain) =>
+    Effect.map(fetch(domain), (result) => buildInspectChunk(kind, result.entity, new Date().toISOString(), chunkLog)),
+  )
 
-  private debug(source: string, context?: Record<string, unknown>): void {
-    this.scopedLogger.info(`[docker-entity-orchestrator] ${source}`, context ?? {})
-    this.debugLogger.debug(source, context)
-  }
+const makeUnary = () => ({
+  listContainers: (input: DockerEntityListInput = {} as DockerEntityListInput) =>
+    listOf("container", (domain) => domain.listContainerEntity(input)),
+  listImages: (input: DockerEntityListInput) => listOf("image", (domain) => domain.listImageEntity(input)),
+  listNetworks: (input: DockerEntityListInput) => listOf("network", (domain) => domain.listNetworkEntity(input)),
+  listVolumes: (input: DockerEntityListInput) => listOf("volume", (domain) => domain.listVolumeEntity(input)),
+
+  inspectContainer: (input: DockerEntityInspectInput) =>
+    inspectOf("container", (domain) => domain.inspectContainerEntity(input)),
+  inspectImage: (input: DockerEntityInspectInput) => inspectOf("image", (domain) => domain.inspectImageEntity(input)),
+  inspectNetwork: (input: DockerEntityInspectInput) =>
+    inspectOf("network", (domain) => domain.inspectNetworkEntity(input)),
+  inspectVolume: (input: DockerEntityInspectInput) => inspectOf("volume", (domain) => domain.inspectVolumeEntity(input)),
+})
+
+export type DockerEntityOrchestratorUnaryShape = ReturnType<typeof makeUnary>
+
+/** The services a caller must be able to see for any unary call to run. */
+export type DockerEntityOrchestratorPorts = {
+  [K in keyof DockerEntityOrchestratorUnaryShape]: Effect.Services<
+    ReturnType<DockerEntityOrchestratorUnaryShape[K]>
+  >
+}[keyof DockerEntityOrchestratorUnaryShape]
+
+/** The whole entity facade: the unary calls as Effects, the event stream as RxJS. */
+export type DockerEntityOrchestratorShape = DockerEntityOrchestratorUnaryShape & DockerEntityStreamsShape
+
+/**
+ * Per-kind facade for the unified `docker.entity` API.
+ *
+ * The unary methods are constant Effects over `DockerEntityDomainService`; the stream keeps its RxJS shape and is
+ * attached by `withStreams`, which owns the `EffectHost` touchpoint.
+ */
+export class DockerEntityOrchestratorService extends Context.Service<
+  DockerEntityOrchestratorService,
+  DockerEntityOrchestratorShape
+>()("runtime/DockerEntityOrchestratorService") {
+  static readonly live: DockerEntityOrchestratorUnaryShape = makeUnary();
+
+  static readonly withStreams = (streams: DockerEntityStreamsShape): DockerEntityOrchestratorShape => ({
+    ...makeUnary(),
+    ...streams,
+  });
 }
+
+/** The Nest provider hands a value, not an instance: `DockerController` reads `streamEntities` off this token. */
+export interface DockerEntityOrchestratorService extends DockerEntityOrchestratorShape {}

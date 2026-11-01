@@ -7,13 +7,13 @@
  * inactive via PreviewProvisioningService.
  *
  * `runCleanup` is the Effect service; the cadence is a registration (`startPreviewTtlCleanup`) the
- * module calls once when it is built, with a plain setInterval (no external scheduler dep), matching
+ * module calls once when it is built: one fiber on the app's `EffectHost`, matching
  * `startIngressDnsReconciler`. Interval is fixed at 10 minutes.
  */
 import { serviceOver, type Over } from "@deployer/effect-core";
-import type { EffectRuntime } from "@deployer/nest-effect";
+import type { EffectHostShape } from "@deployer/nest-effect";
 import { Logger } from "@nestjs/common";
-import { Context, Effect } from "effect";
+import { Context, Effect, Schedule } from "effect";
 
 import { describeFailure, recover } from "@/core/effects";
 import { PreviewProvisioningService, type PreviewProvisioningServiceShape } from "./preview-provisioning.service";
@@ -59,28 +59,29 @@ export const PREVIEW_TTL_CLEANUP = Symbol("fleet:preview-ttl-cleanup");
 
 /**
  * Schedules the cleanup when the module is built and stops it with the application. The handle it
- * returns carries the shutdown hook, which Nest calls on a provider's instance whatever built it.
+ * returns carries the shutdown hook, which Nest calls on a provider's instance whatever built it;
+ * stopping interrupts the fiber and awaits it.
  */
-export function startPreviewTtlCleanup(runtime: EffectRuntime, intervalMs: number = TTL_CLEANUP_INTERVAL_MS) {
+export function startPreviewTtlCleanup(host: EffectHostShape, intervalMs: number = TTL_CLEANUP_INTERVAL_MS) {
     const logger = new Logger("PreviewTtlCleanup");
-    const timer = setInterval(() => {
-        runtime
-            .runPromise(
+    const stop = host.fork(
+        "fleet/preview-ttl-cleanup",
+        Effect.repeat(
+            recover(
                 Effect.gen(function* () {
                     const cleanup = yield* PreviewTtlCleanupService;
                     yield* cleanup.runCleanup();
                 }),
-            )
-            .catch((error: unknown) => {
-                logger.warn(`Preview TTL cleanup run failed: ${describeFailure(error)}`);
-            });
-    }, intervalMs);
-    timer.unref();
+                (error) => Effect.sync(() => logger.warn(`Preview TTL cleanup run failed: ${describeFailure(error)}`)),
+            ),
+            Schedule.spaced(intervalMs),
+        ),
+    );
     logger.log(`Preview TTL cleanup scheduled every ${String(intervalMs / 60000)} minutes`);
 
     return {
-        onModuleDestroy(): void {
-            clearInterval(timer);
+        async onModuleDestroy(): Promise<void> {
+            await stop();
         },
     };
 }

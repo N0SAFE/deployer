@@ -16,8 +16,8 @@ import { FleetInvalid } from "../../../../core/fleet.errors";
  * connector) and never reaches a client.
  */
 
-import { EffectRuntime } from "@deployer/nest-effect";
-import { Injectable, Logger } from "@nestjs/common";
+import { EffectHost, type EffectHostShape } from "@deployer/nest-effect";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { Effect } from "effect";
 import type {
 	EdgeProviderDescriptor,
@@ -90,7 +90,7 @@ export class CloudflareTunnelEdgeProvider implements EdgeProvider {
 
 	constructor(
 		registry: EdgeProviderRegistry,
-		private readonly runtime: EffectRuntime,
+		@Inject(EffectHost) private readonly host: EffectHostShape,
 		private readonly store: EdgeStateStore,
 		private readonly env: EnvService,
 	) {
@@ -103,7 +103,7 @@ export class CloudflareTunnelEdgeProvider implements EdgeProvider {
 	 * original error.
 	 */
 	private tunnels<A, E, R>(use: (tunnels: CloudflareTunnelServiceShape) => Effect.Effect<A, E, R>): Promise<A> {
-		return this.runtime.runPromiseUnwrapped(
+		return this.host.runUnwrapped(
 			Effect.gen(function* () {
 				return yield* use(yield* CloudflareTunnelService);
 			}),

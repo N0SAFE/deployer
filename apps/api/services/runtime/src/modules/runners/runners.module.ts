@@ -7,7 +7,7 @@
  * `RuntimeRunnerRegistryService` is its Promise face for callers not on Effect yet.
  */
 
-import { createModuleContext } from "@deployer/nest-effect";
+import { createModuleContext, effectHostProvider, EffectHost, type EffectHostShape } from "@deployer/nest-effect";
 import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configuration/configuration-core.module";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";
 import { SwarmCoreModule } from "@deployer/shared/core/modules/swarm/swarm.module";
@@ -29,6 +29,8 @@ export class RunnersDomainModule extends createModuleContext({
     // `app.graph.spec.ts`, which compiles this module graph).
     imports: [CoreDockerModule, TraefikCoreModule, ConfigurationCoreModule, SwarmCoreModule, EnvModule],
     providers: [
+        // The host is the one place this module starts Effect work off a request; it owns the runtime injection.
+        effectHostProvider(),
         // The runners are constant Effect services; the ports, the docker engine and the cluster are read from the context.
         { provide: RunnerTraefikPort, useExisting: TraefikService },
         { provide: RunnerEnvPort, useExisting: EnvService },
@@ -36,7 +38,11 @@ export class RunnersDomainModule extends createModuleContext({
         { provide: SwarmRuntimeRunner, useValue: SwarmRuntimeRunner.live },
         { provide: RuntimeRunnerRegistry, useValue: RuntimeRunnerRegistry.live },
         SwarmComposeRealizerService,
-        RuntimeRunnerRegistryService,
+        {
+            provide: RuntimeRunnerRegistryService,
+            useFactory: (host: Pick<EffectHostShape, "run">) => new RuntimeRunnerRegistryService(host),
+            inject: [EffectHost],
+        },
     ],
     exports: [RuntimeRunnerRegistryService],
 }) {}

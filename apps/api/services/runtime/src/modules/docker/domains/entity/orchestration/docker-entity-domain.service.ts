@@ -1,8 +1,6 @@
-import { Observable, type Subscriber } from "rxjs"
 import type { DockerEntityListInput } from "@deployer/runtime-contracts/modules/docker/entity/shared"
 import type { DockerEntityInspectInput } from "@deployer/runtime-contracts/modules/docker/entity/shared"
 import {
-  dockerEntityStreamChunkSchema,
   type DockerContainer,
   type DockerContainerEntity,
   type DockerEntityKind,
@@ -15,370 +13,281 @@ import {
   type DockerVolume,
   type DockerVolumeEntity,
 } from "@deployer/contracts-entities"
-import { AppLogger } from "@deployer/logger"
 import type { DockerContainerInspectDetail } from "@deployer/contracts-entities"
-import { withContainerResolution } from "../../containers/orchestration/docker-container-resolution"
-import { DockerImagesOrchestratorService } from "../../images/orchestration/docker-images-orchestrator.service"
-import type { DockerNetworkListInput } from "@deployer/runtime-contracts/modules/docker/networks/list"
-import type { DockerVolumeListInput } from "@deployer/runtime-contracts/modules/docker/volumes/list"
-import { EffectRuntime } from "@deployer/nest-effect"
-import { Effect } from "effect"
-import { DockerCatalog } from "../../../catalog/docker-catalog"
-import { DockerRuntimeEventsStreamService } from "../../../common/events/docker-runtime-events-stream.service"
-import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index"
+import {
+  ContainersLocalPort,
+  ContainersMeshPort,
+  DockerContainerResolution,
+} from "../../containers/orchestration/docker-container-resolution"
+import { DockerImages, DockerImageCatalogPort } from "../../images/orchestration/docker-images.service"
+import { CatalogLocalPort, CatalogMeshPort, DockerCatalog } from "../../../catalog/docker-catalog"
+import { Context, Effect } from "effect"
 import {
   buildEventChunk,
   buildRemovedChunk,
-  buildStreamFilter,
-  eventMatchesFilter,
   fingerprintEtag,
   isRemovalAction,
-  poolKeyFor,
   wrapAsEntity,
-  type EntityFilterInput,
 } from "./entity-stream-rules"
-import { DockerEntityCacheService } from "./docker-entity-cache.service"
-import { isRecord, isObjectLike } from "@deployer/type-guards"
-
-
+import { DockerEntityCachePort } from "./docker-entity-cache.port"
 
 /** How long a cached entity list is served before it is fetched again. */
 const LIST_TTL_MS = 2_000
 
-type ListKindResult<TFlat, TEntity> = {
+export type DockerEntityListResult<TFlat, TEntity> = {
   flat: TFlat[]
   entities: TEntity[]
   etag: string
   hit: boolean
 }
 
-type InspectKindResult<TEntity> = {
+export type DockerEntityInspectResult<TEntity> = {
   entity: TEntity | null
   etag: string
 }
 
-export class DockerEntityDomainService {
-  private readonly apiLogger = new AppLogger("api").scope(DockerEntityDomainService.name)
-  private readonly debugLogger = this.apiLogger.createContextFilterLogger({
-    defaultClassName: DockerEntityDomainService.name,
-    filterEnvVar: "APP_DEBUG_CONTEXT_FILTER",
-    channel: "docker-entity-domain",
+/** Everything a caller must be able to see for these reads to run. */
+export type DockerEntityDomainPorts =
+  | DockerContainerResolution
+  | ContainersMeshPort
+  | ContainersLocalPort
+  | DockerImages
+  | DockerImageCatalogPort
+  | DockerCatalog
+  | CatalogMeshPort
+  | CatalogLocalPort
+  | DockerEntityCachePort
+
+export type DockerEntityDomainShape = {
+  readonly listContainerEntity: (
+    input: DockerEntityListInput,
+  ) => Effect.Effect<DockerEntityListResult<DockerContainer, DockerContainerEntity>, unknown, DockerEntityDomainPorts>
+  readonly listImageEntity: (
+    input: DockerEntityListInput,
+  ) => Effect.Effect<DockerEntityListResult<DockerImage, DockerImageEntity>, unknown, DockerEntityDomainPorts>
+  readonly listNetworkEntity: (
+    input: DockerEntityListInput,
+  ) => Effect.Effect<DockerEntityListResult<DockerNetwork, DockerNetworkEntity>, unknown, DockerEntityDomainPorts>
+  readonly listVolumeEntity: (
+    input: DockerEntityListInput,
+  ) => Effect.Effect<DockerEntityListResult<DockerVolume, DockerVolumeEntity>, unknown, DockerEntityDomainPorts>
+  readonly inspectContainerEntity: (
+    input: DockerEntityInspectInput,
+  ) => Effect.Effect<DockerEntityInspectResult<DockerContainerEntity>, unknown, DockerEntityDomainPorts>
+  readonly inspectImageEntity: (
+    input: DockerEntityInspectInput,
+  ) => Effect.Effect<DockerEntityInspectResult<DockerImageEntity>, unknown, DockerEntityDomainPorts>
+  readonly inspectNetworkEntity: (
+    input: DockerEntityInspectInput,
+  ) => Effect.Effect<DockerEntityInspectResult<DockerNetworkEntity>, unknown, DockerEntityDomainPorts>
+  readonly inspectVolumeEntity: (
+    input: DockerEntityInspectInput,
+  ) => Effect.Effect<DockerEntityInspectResult<DockerVolumeEntity>, unknown, DockerEntityDomainPorts>
+  /** The chunk a runtime event stands for, or null when it is a kind this facade does not carry. */
+  readonly enrichEvent: (
+    event: DockerRuntimeEvent,
+  ) => Effect.Effect<DockerEntityStreamChunk | null, unknown, DockerEntityDomainPorts>
+}
+
+/**
+ * A cached list: the fetch runs only on a miss, then the flat rows are wrapped as entities. The cache is a port, so
+ * the fetch Effect is run against the context this method already has.
+ */
+const fetchList = <TFlat, TEntity>(
+  kind: DockerEntityKind,
+  fetch: Effect.Effect<TFlat[], unknown, DockerEntityDomainPorts>,
+): Effect.Effect<DockerEntityListResult<TFlat, TEntity>, unknown, DockerEntityDomainPorts> =>
+  Effect.gen(function* () {
+    const cache = yield* DockerEntityCachePort
+    const context = yield* Effect.context<DockerEntityDomainPorts>()
+    const { payload, etag, hit } = yield* Effect.tryPromise({
+      try: () =>
+        cache.getOrCompute(kind, async () => ({
+          payload: await Effect.runPromise(Effect.provideContext(fetch, context)),
+          ttlMs: LIST_TTL_MS,
+        })),
+      catch: (error) => error,
+    })
+    const entities = payload.map((flat) => wrapAsEntity<TEntity>(flat)) as TEntity[]
+    return { flat: payload, entities, etag, hit }
   })
 
-  constructor(
-    private readonly dockerImagesOrchestratorService: DockerImagesOrchestratorService,
-    private readonly effectRuntime: EffectRuntime,
-    private readonly dockerRuntimeEventsStreamService: DockerRuntimeEventsStreamService,
-    private readonly coreEventStreamPoolService: CoreEventStreamPoolService,
-    private readonly dockerEntityCacheService: DockerEntityCacheService,
-  ) {}
+/** An inspect read: a miss (or a failed lookup) is `entity: null` plus a stable missing etag. */
+const inspect = <TEntity>(
+  kind: DockerEntityKind,
+  input: DockerEntityInspectInput,
+  fetch: Effect.Effect<TEntity | null, unknown, DockerEntityDomainPorts>,
+): Effect.Effect<DockerEntityInspectResult<TEntity>, unknown, DockerEntityDomainPorts> =>
+  Effect.map(
+    fetch.pipe(Effect.catch(() => Effect.succeed(null))),
+    (entity) => ({
+      entity,
+      etag: entity ? fingerprintEtag(entity) : `"missing-${kind}-${input.id}"`,
+    }),
+  )
 
-  // ---------------------------------------------------------------------------
-  // list endpoints
-  // ---------------------------------------------------------------------------
+const toContainerEntity = (detail: DockerContainerInspectDetail): DockerContainerEntity => {
+  // detail has inspect shape, entity has list shape — different schemas.
+  // The downstream code uses the normalized entity; this conversion bridge is
+  // needed because both are valid representations of the same container.
+  return { ...(detail as unknown as DockerContainer), relations: undefined }
+}
 
-  async listContainerEntity(
-    input: DockerEntityListInput,
-  ): Promise<ListKindResult<DockerContainer, DockerContainerEntity>> {
-    return this.fetchList("container", input, async () => {
-      const result = await withContainerResolution(this.effectRuntime, (resolution) => resolution.listContainers({
-        limit: input.limit,
-        offset: input.offset,
-      }))
-      return result.data
-    })
+const toImageEntity = (detail: unknown): DockerImageEntity => ({ ...(detail as DockerImage), relations: undefined })
+
+/** The converted entity, or null when the conversion cannot be made. */
+const nullableEntity = <TEntity>(convert: () => TEntity): TEntity | null => {
+  try {
+    return convert()
+  } catch {
+    return null
   }
+}
 
-  /** The mesh-wide network list, run on the app's Effect runtime. */
-  private listNetworksOfCatalog(input: DockerNetworkListInput) {
-    return this.effectRuntime.runPromise(
-      Effect.gen(function* () {
-        const catalog = yield* DockerCatalog
-        return yield* catalog.listNetworks(input)
-      }),
-    )
-  }
+const listContainerEntity: DockerEntityDomainShape["listContainerEntity"] = (input) =>
+  fetchList<DockerContainer, DockerContainerEntity>(
+    "container",
+    Effect.flatMap(DockerContainerResolution, (resolution) =>
+      resolution
+        .listContainers({ limit: input.limit, offset: input.offset })
+        .pipe(Effect.map((result) => result.data)),
+    ),
+  )
 
-  /** The mesh-wide volume list, run on the app's Effect runtime. */
-  private listVolumesOfCatalog(input: DockerVolumeListInput) {
-    return this.effectRuntime.runPromise(
-      Effect.gen(function* () {
-        const catalog = yield* DockerCatalog
-        return yield* catalog.listVolumes(input)
-      }),
-    )
-  }
+const listImageEntity: DockerEntityDomainShape["listImageEntity"] = (input) =>
+  fetchList<DockerImage, DockerImageEntity>(
+    "image",
+    Effect.flatMap(DockerImages, (images) =>
+      images
+        .list({ limit: input.limit, offset: input.offset })
+        .pipe(Effect.map((result) => result.data)),
+    ),
+  )
 
-  async listImageEntity(
-    input: DockerEntityListInput,
-  ): Promise<ListKindResult<DockerImage, DockerImageEntity>> {
-    return this.fetchList("image", input, async () => {
-      const result = await this.dockerImagesOrchestratorService.listImages({
-        limit: input.limit,
-        offset: input.offset,
-      })
-      return result.data
-    })
-  }
+const listNetworkEntity: DockerEntityDomainShape["listNetworkEntity"] = (input) =>
+  fetchList<DockerNetwork, DockerNetworkEntity>(
+    "network",
+    Effect.flatMap(DockerCatalog, (catalog) =>
+      catalog
+        .listNetworks({ limit: input.limit, offset: input.offset })
+        .pipe(Effect.map((result) => result.data)),
+    ),
+  )
 
-  async listNetworkEntity(
-    input: DockerEntityListInput,
-  ): Promise<ListKindResult<DockerNetwork, DockerNetworkEntity>> {
-    return this.fetchList("network", input, async () => {
-      const result = await this.listNetworksOfCatalog({
-        limit: input.limit,
-        offset: input.offset,
-      })
-      return result.data
-    })
-  }
+const listVolumeEntity: DockerEntityDomainShape["listVolumeEntity"] = (input) =>
+  fetchList<DockerVolume, DockerVolumeEntity>(
+    "volume",
+    Effect.flatMap(DockerCatalog, (catalog) =>
+      catalog
+        .listVolumes({ limit: input.limit, offset: input.offset })
+        .pipe(Effect.map((result) => result.data)),
+    ),
+  )
 
-  async listVolumeEntity(
-    input: DockerEntityListInput,
-  ): Promise<ListKindResult<DockerVolume, DockerVolumeEntity>> {
-    return this.fetchList("volume", input, async () => {
-      const result = await this.listVolumesOfCatalog({
-        limit: input.limit,
-        offset: input.offset,
-      })
-      return result.data
-    })
-  }
+const inspectContainerEntity: DockerEntityDomainShape["inspectContainerEntity"] = (input) =>
+  inspect<DockerContainerEntity>(
+    "container",
+    input,
+    Effect.flatMap(DockerContainerResolution, (resolution) =>
+      resolution.inspectContainer(input.id).pipe(Effect.map((detail) => nullableEntity(() => toContainerEntity(detail)))),
+    ),
+  )
 
-  // ---------------------------------------------------------------------------
-  // inspect endpoints
-  // ---------------------------------------------------------------------------
+const inspectImageEntity: DockerEntityDomainShape["inspectImageEntity"] = (input) =>
+  inspect<DockerImageEntity>(
+    "image",
+    input,
+    Effect.flatMap(DockerImages, (images) =>
+      images.inspect({ imageId: input.id }).pipe(Effect.map((detail) => nullableEntity(() => toImageEntity(detail)))),
+    ),
+  )
 
-  async inspectContainerEntity(
-    input: DockerEntityInspectInput,
-  ): Promise<InspectKindResult<DockerContainerEntity>> {
-    return this.inspectEntity("container", input, async () => {
-      try {
-        const detail = await withContainerResolution(this.effectRuntime, (resolution) => resolution.inspectContainer(input.id))
-        return this.toContainerEntity(detail)
-      } catch {
-        return null
-      }
-    })
-  }
+const inspectNetworkEntity: DockerEntityDomainShape["inspectNetworkEntity"] = (input) =>
+  inspect<DockerNetworkEntity>(
+    "network",
+    input,
+    Effect.flatMap(DockerCatalog, (catalog) =>
+      catalog
+        .listNetworks({ limit: 500, offset: 0 })
+        .pipe(
+          Effect.map((list): DockerNetworkEntity | null => {
+            const found = list.data.find((network) => network.id === input.id)
+            return found ? { ...found, relations: undefined } : null
+          }),
+        ),
+    ),
+  )
 
-  async inspectImageEntity(
-    input: DockerEntityInspectInput,
-  ): Promise<InspectKindResult<DockerImageEntity>> {
-    return this.inspectEntity("image", input, async () => {
-      try {
-        const detail = await this.dockerImagesOrchestratorService.inspectImage({
-          imageId: input.id,
-        })
-        return this.toImageEntity(detail)
-      } catch {
-        return null
-      }
-    })
-  }
+const inspectVolumeEntity: DockerEntityDomainShape["inspectVolumeEntity"] = (input) =>
+  inspect<DockerVolumeEntity>(
+    "volume",
+    input,
+    Effect.flatMap(DockerCatalog, (catalog) =>
+      catalog
+        .listVolumes({ limit: 500, offset: 0 })
+        .pipe(
+          Effect.map((list): DockerVolumeEntity | null => {
+            const found = list.data.find((volume) => volume.name === input.id)
+            return found ? { ...found, relations: undefined } : null
+          }),
+        ),
+    ),
+  )
 
-  async inspectNetworkEntity(
-    input: DockerEntityInspectInput,
-  ): Promise<InspectKindResult<DockerNetworkEntity>> {
-    return this.inspectEntity("network", input, async () => {
-      const list = await this.listNetworksOfCatalog({
-        limit: 500,
-        offset: 0,
-      })
-      const found = list.data.find((network) => network.id === input.id)
-      if (!found) return null
-      return { ...found, relations: undefined }
-    })
-  }
-
-  async inspectVolumeEntity(
-    input: DockerEntityInspectInput,
-  ): Promise<InspectKindResult<DockerVolumeEntity>> {
-    return this.inspectEntity("volume", input, async () => {
-      const list = await this.listVolumesOfCatalog({
-        limit: 500,
-        offset: 0,
-      })
-      const found = list.data.find((volume) => volume.name === input.id)
-      if (!found) return null
-      return { ...found, relations: undefined }
-    })
-  }
-
-  // ---------------------------------------------------------------------------
-  // stream
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Stream of `DockerEntityStreamChunk` values:
-   *  - `DockerEntityEvent` (full entity, with relations) for create/update
-   *  - `DockerEntityRemovedEvent` (id-only) for destroy/die/delete
-   *
-   * Subscriptions are pooled per (kinds, actions) tuple so multiple pages
-   * share a single upstream connection to the docker daemon.
-   */
-  streamEntities(input: EntityFilterInput): Observable<DockerEntityStreamChunk> {
-    const filter = buildStreamFilter(input)
-    return this.coreEventStreamPoolService.observePooledStream<DockerEntityStreamChunk>(
-      poolKeyFor(input),
-      () => this.createEntityStream(filter),
-      { bufferSize: 1 },
-    )
-  }
-
-  // ---------------------------------------------------------------------------
-  // Internals
-  // ---------------------------------------------------------------------------
-
-  private createEntityStream(filter: unknown) {
-    return new Observable<DockerEntityStreamChunk>(
-      (subscriber: Subscriber<DockerEntityStreamChunk>) => {
-        const subscription = this.dockerRuntimeEventsStreamService
-          .observeEvents()
-          .subscribe({
-            next: (event) => {
-              // Invalidate the per-kind list cache on any docker event
-              // for that kind. The TTL is 2s, so this is a defensive
-              // optimization on top of the natural decay — but it
-              // matters when the same page holds a long-lived
-              // subscription and the list query fires at high frequency
-              // (e.g. a dashboard polling every 500ms).
-              if (
-                event.source === "container"
-                || event.source === "image"
-                || event.source === "network"
-                || event.source === "volume"
-              ) {
-                this.dockerEntityCacheService.invalidate(event.source)
-              }
-              if (!eventMatchesFilter(event, filter)) {
-                return
-              }
-              void this.enrichEvent(event)
-                .then((chunk) => {
-                  if (chunk) {
-                    subscriber.next(chunk)
-                  }
-                })
-                .catch((error) => {
-                  this.debugLogger.debug("enrichEvent", {
-                    phase: "enrich_failed",
-                    message: error instanceof Error ? error.message : String(error),
-                  })
-                })
-            },
-            error: (error) => { subscriber.error(error); },
-            complete: () => { subscriber.complete(); },
-          })
-        return () => { subscription.unsubscribe(); }
-      },
-    )
-  }
-
-  private async enrichEvent(event: DockerRuntimeEvent): Promise<DockerEntityStreamChunk | null> {
+const enrichEvent: DockerEntityDomainShape["enrichEvent"] = (event) =>
+  Effect.gen(function* () {
     const id = event.actorId
     if (!id) {
       return null
     }
 
-    const isRemoval = isRemovalAction(event.source, event.action)
+    if (isRemovalAction(event.source, event.action)) {
+      const kind = event.source
+      if (kind !== "container" && kind !== "image" && kind !== "network" && kind !== "volume") return null
+      return buildRemovedChunk(kind, event, id)
+    }
 
     if (event.source === "container") {
-      if (isRemoval) return buildRemovedChunk("container", event, id)
-      return this.wrapEventEntity("container", event, () =>
-        this.inspectContainerEntity({ kind: "container", id }),
-      )
+      const { entity } = yield* inspectContainerEntity({ kind: "container", id })
+      return entity ? buildEventChunk("container", entity, event) : null
     }
     if (event.source === "image") {
-      if (isRemoval) return buildRemovedChunk("image", event, id)
-      return this.wrapEventEntity("image", event, () =>
-        this.inspectImageEntity({ kind: "image", id }),
-      )
+      const { entity } = yield* inspectImageEntity({ kind: "image", id })
+      return entity ? buildEventChunk("image", entity, event) : null
     }
     if (event.source === "network") {
-      if (isRemoval) return buildRemovedChunk("network", event, id)
-      return this.wrapEventEntity("network", event, () =>
-        this.inspectNetworkEntity({ kind: "network", id }),
-      )
+      const { entity } = yield* inspectNetworkEntity({ kind: "network", id })
+      return entity ? buildEventChunk("network", entity, event) : null
     }
     if (event.source === "volume") {
-      if (isRemoval) return buildRemovedChunk("volume", event, id)
-      return this.wrapEventEntity("volume", event, () =>
-        this.inspectVolumeEntity({ kind: "volume", id }),
-      )
+      const { entity } = yield* inspectVolumeEntity({ kind: "volume", id })
+      return entity ? buildEventChunk("volume", entity, event) : null
     }
     return null
-  }
+  })
 
-  private async wrapEventEntity(
-    kind: DockerEntityKind,
-    event: DockerRuntimeEvent,
-    fetcher: () => Promise<InspectKindResult<unknown>>,
-  ): Promise<DockerEntityStreamChunk | null> {
-    const { entity } = await fetcher()
-    if (!entity) {
-      return null
-    }
-    return buildEventChunk(kind, entity, event)
+/**
+ * The entity reads behind `docker.entity`, as an Effect service.
+ *
+ * The collaborators (`DockerContainerResolution`, `DockerImages`, `DockerCatalog`, the cache port) are yielded when a
+ * method runs, so a handler's `R` names them and the requirement gate audits them. This used to reach the app-wide
+ * runtime directly, which made every one of them invisible.
+ *
+ * Streams are NOT here: `DockerEntityOrchestratorService.withStreams` is the RxJS boundary.
+ */
+export class DockerEntityDomainService extends Context.Service<
+  DockerEntityDomainService,
+  DockerEntityDomainShape
+>()("runtime/DockerEntityDomainService") {
+  static readonly live: DockerEntityDomainShape = {
+    listContainerEntity,
+    listImageEntity,
+    listNetworkEntity,
+    listVolumeEntity,
+    inspectContainerEntity,
+    inspectImageEntity,
+    inspectNetworkEntity,
+    inspectVolumeEntity,
+    enrichEvent,
   }
-
-  private async fetchList<TKind extends DockerEntityKind, TFlat, TEntity>(
-    kind: TKind,
-    input: DockerEntityListInput,
-    fetcher: () => Promise<TFlat[]>,
-  ): Promise<ListKindResult<TFlat, TEntity>> {
-    const { payload, etag, hit } = await this.dockerEntityCacheService.getOrCompute(
-      kind,
-      async () => {
-        const flat = await fetcher()
-        return { payload: flat, ttlMs: LIST_TTL_MS }
-      },
-    )
-    const flatList = payload
-    const entities = flatList.map((flat) => wrapAsEntity<TEntity>(flat)) as TEntity[]
-    return { flat: flatList, entities, etag, hit }
-  }
-
-  private async inspectEntity<TKind extends DockerEntityKind, TEntity>(
-    kind: TKind,
-    input: DockerEntityInspectInput,
-    fetcher: () => Promise<TEntity | null>,
-  ): Promise<InspectKindResult<TEntity>> {
-    try {
-      const entity = await fetcher()
-      return {
-        entity,
-        etag: entity
-          ? fingerprintEtag(entity)
-          : `"missing-${kind}-${input.id}"`,
-      }
-    } catch {
-      return { entity: null, etag: `"missing-${kind}-${input.id}"` }
-    }
-  }
-
-  private toContainerEntity(
-    detail: DockerContainerInspectDetail,
-  ): DockerContainerEntity {
-    // detail has inspect shape, entity has list shape — different schemas.
-    // The downstream code uses the normalized entity; this conversion bridge is
-    // needed because both are valid representations of the same container.
-    return {
-      ...(detail as unknown as DockerContainer),
-      relations: undefined,
-    }
-  }
-
-  private toImageEntity(
-    detail: Awaited<ReturnType<DockerImagesOrchestratorService["inspectImage"]>>,
-  ): DockerImageEntity {
-    return {
-      ...(detail as unknown as DockerImage),
-      relations: undefined,
-    }
-  }
-
-  // `dockerEntityStreamChunkSchema` is referenced here so the schema stays
-  // import-graph-clean even when no other module pulls it in directly.
-  private readonly _chunkSchema = dockerEntityStreamChunkSchema
 }

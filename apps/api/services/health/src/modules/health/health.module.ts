@@ -12,7 +12,7 @@ import { HealthService } from "./services/health.service";
  * `HealthRegistry`.
  *
  * Both providers are normal NestJS registrations whose tokens are Effect
- * service keys, so `EffectRuntime` discovers them:
+ * service keys, so `EffectHost` and the runtime discover them:
  * - `HealthRegistryRepository` aliases the SHARED registry instance (created
  *   and lifecycle-managed by `HealthModule`) into Effect DI;
  * - `UptimeSource` is the process clock (seconds), a plain constant;

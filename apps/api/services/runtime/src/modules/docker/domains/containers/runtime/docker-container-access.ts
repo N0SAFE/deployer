@@ -17,7 +17,7 @@ import type {
 import type { DockerContainerLogEntry, DockerContainerProcessEntry } from "@deployer/contracts-entities";
 import { DockerEngine } from "@deployer/docker";
 import { Context, Effect } from "effect";
-import { Observable, catchError, from, map, switchMap, throwError } from "rxjs";
+import { Observable, catchError, map, throwError } from "rxjs";
 
 import type { DockerNodeMesh } from "../mesh/docker-node-mesh";
 import type { DockerContainerTerminalOpenResult } from "../mesh/node-mesh-types";
@@ -301,25 +301,4 @@ export class DockerContainerAccess extends Context.Service<DockerContainerAccess
         ),
       ),
   };
-}
-
-/** Run a container-access call for a Nest class that is not on Effect yet; it rejects with the original failure. */
-export function withContainerAccess<A>(
-  runtime: { runPromiseUnwrapped: <T, Er, R>(effect: Effect.Effect<T, Er, R>) => Promise<T> },
-  use: (access: DockerContainerAccessShape) => E<A>,
-): Promise<A> {
-  return runtime.runPromiseUnwrapped(
-    Effect.gen(function* () {
-      const access = yield* DockerContainerAccess;
-      return yield* use(access);
-    }),
-  );
-}
-
-/** A stream from an access call: subscribes once the Effect has produced it. */
-export function accessStream<A>(
-  runtime: { runPromiseUnwrapped: <T, Er, R>(effect: Effect.Effect<T, Er, R>) => Promise<T> },
-  use: (access: DockerContainerAccessShape) => E<Observable<A>>,
-): Observable<A> {
-  return from(withContainerAccess(runtime, use)).pipe(switchMap((stream) => stream));
 }

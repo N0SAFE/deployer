@@ -101,6 +101,7 @@
       "name": "@deployer/svc-fleet",
       "version": "1.0.0",
       "dependencies": {
+        "@deployer/auth": "*",
         "@deployer/contracts-common": "*",
         "@deployer/contracts-entities": "*",
         "@deployer/docker": "*",

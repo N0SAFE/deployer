@@ -2,8 +2,7 @@ import { Context, Effect } from "effect";
 import { DockerEngine } from "@deployer/docker";
 import { SwarmCluster } from "@deployer/swarm";
 
-import { Injectable } from "@nestjs/common";
-import { EffectRuntime } from "@deployer/nest-effect";
+import { type EffectHostShape } from "@deployer/nest-effect";
 import { RunnerEnvPort, RunnerTraefikPort } from "./runners.ports";
 import { RuntimeInvalid } from "../../core/runtime.errors";
 import { makeDelegatedRunner } from "./base/delegated-runner";
@@ -70,14 +69,13 @@ export class RuntimeRunnerRegistry extends Context.Service<RuntimeRunnerRegistry
 
 /**
  * The Promise face of the registry, for the deployment workflow, which is not on Effect yet.
- * Each call runs the registry on the app-wide runtime; the failure comes back as thrown.
+ * Each call runs the registry through the app-wide `EffectHost`; the failure comes back as thrown.
  */
-@Injectable()
 export class RuntimeRunnerRegistryService {
-    constructor(private readonly runtime: EffectRuntime) {}
+    constructor(private readonly host: Pick<EffectHostShape, "run">) {}
 
     execute(runnerKind: string | null | undefined, input: RuntimeExecutionInput): Promise<RuntimeExecutionResult> {
-        return this.runtime.runPromise(
+        return this.host.run(
             Effect.gen(function* () {
                 const registry = yield* RuntimeRunnerRegistry;
                 return yield* registry.execute(runnerKind, input);

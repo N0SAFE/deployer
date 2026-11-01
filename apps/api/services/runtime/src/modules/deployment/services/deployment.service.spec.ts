@@ -467,7 +467,7 @@ describe('DeploymentService', () => {
                             env: { get: vi.fn(() => "") } as never,
                         };
                         return new RuntimeRunnerRegistryService({
-                            runPromise: (effect: Effect.Effect<unknown>) =>
+                            run: (effect: Effect.Effect<unknown>) =>
                                 runEffect(
                                     effect.pipe(
                                         Effect.provideService(RuntimeRunnerRegistry, RuntimeRunnerRegistry.live),
