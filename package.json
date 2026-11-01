@@ -312,6 +312,7 @@
         "knip:explain": "knip --include",
         " ": " ",
         "check:global-modules": "bun --bun scripts/check-global-modules.ts",
+        "check:module-claims": "bun --bun scripts/check-module-claims.ts",
         "check:di-graph": "bun --bun scripts/check-di-graph.ts",
         "check:di-imports": "bun --bun scripts/check-di-imports.ts",
         "check:di-graph:cycles": "DI_GATE=cycles bun --bun scripts/check-di-graph.ts",

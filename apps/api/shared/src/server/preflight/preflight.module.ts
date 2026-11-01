@@ -32,7 +32,7 @@ export class PreflightModule {
 		 * wants an immediate answer and will act on the report itself.
 		 */
 		readonly policy?: PreflightPolicy;
-	}): DynamicModule {
+	}) {
 		return declareModule(
 			{
 			module: PreflightModule,
@@ -74,9 +74,9 @@ export class PreflightModule {
 			],
 			exports: [PreflightService, SERVICE_READINESS],
 			},
-			// Dynamic by nature: the dependency set is the app's. No Effect tag to claim, and the readiness token is a
-			// symbol — `declareModule` is the documented form for a `forRoot` result.
-			{ global: true },
+			// Dynamic by nature: the dependency set is the app's. Nothing Effect-shaped crosses this boundary — the
+			// providers are plain classes and symbol tokens — so the empty claim is explicit on purpose.
+			{ provides: [], exports: [], global: true },
 		);
 	}
 }

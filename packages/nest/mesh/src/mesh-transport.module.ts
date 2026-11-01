@@ -17,7 +17,7 @@ import { MESH_TRANSPORT_OPTIONS, type MeshTransportOptions } from "./mesh-transp
  * `forRoot` result.
  */
 export const MeshTransportModule = {
-	forRoot(options: MeshTransportOptions): DynamicModule {
+	forRoot(options: MeshTransportOptions) {
 		@Module({})
 		class MeshTransportDynamicModule {}
 
@@ -36,7 +36,8 @@ export const MeshTransportModule = {
 				],
 				exports: [MeshRouterResolver, MESH_TRANSPORT_OPTIONS],
 			},
-			{},
+			// The resolver is the one tag this module hands up: the transport injects it, importers may yield it.
+			{ provides: [MeshRouterResolver], exports: [MeshRouterResolver] },
 		);
 	},
 } as const;

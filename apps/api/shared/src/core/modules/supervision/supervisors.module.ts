@@ -1,4 +1,4 @@
-import { Global, Inject, Injectable, Module, type DynamicModule, type OnApplicationBootstrap, type OnModuleDestroy } from "@nestjs/common";
+import { Global, Inject, Injectable, Module, type OnApplicationBootstrap, type OnModuleDestroy } from "@nestjs/common";
 import { declareModule } from "@deployer/nest-effect";
 import { makeSupervisorOrchestrator, SupervisorOrchestrator, type SupervisorOrchestratorShape } from "@deployer/supervision";
 import { Effect } from "effect";
@@ -35,7 +35,7 @@ class SupervisorDriftControl implements OnApplicationBootstrap, OnModuleDestroy 
 @Global()
 @Module({})
 class SupervisorsNestModule {
-	static forRoot(): DynamicModule {
+	static forRoot() {
 		return declareModule(
 			{
 				module: SupervisorsNestModule,
@@ -54,9 +54,13 @@ class SupervisorsNestModule {
 				],
 				exports: [SupervisorOrchestrator, SupervisorEventBus],
 			},
-			{ global: true },
+			// `SupervisorEventBus` is an ordinary Nest class, so only the orchestrator tag can be claimed.
+			{ provides: [SupervisorOrchestrator], exports: [SupervisorOrchestrator], global: true },
 		);
 	}
 }
 
-export const SupervisorsModule = declareModule(SupervisorsNestModule, { global: true });
+export const SupervisorsModule = declareModule(SupervisorsNestModule, {
+	exports: [SupervisorOrchestrator],
+	global: true,
+});

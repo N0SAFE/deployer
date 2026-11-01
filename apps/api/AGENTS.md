@@ -193,7 +193,10 @@ check() {
   `ImportedServices`/`ImportedUnmet` map an unannotated module to `never` instead of erroring. `provides` lists the
   module's `Context.Service` tags (plain classes and symbol tokens cannot be claimed), `exports` what its importers may
   yield, and the return type is left inferred (`declareModule` produces `DeclaredModule<…>`). `HealthModule.forRoot` is
-  the reference.
+  the reference. `bun run check:module-claims` enforces both halves (no `: DynamicModule` on a `declareModule` return, and
+  every call names `provides` and/or `exports`), plus a third: no plain `@Module` may list a `Context.Service` in its
+  providers or exports — `ConfigurableModuleClass` is the one exemption, because its `forRoot` builds a fresh dynamic
+  module per app and there is no class-level metadata to claim.
 - Something that needs real construction stays an ordinary Nest provider, still under its Effect tag:
   a pool-bound database handle (`{ provide: ProjectDb, useFactory: makeProjectDb, inject: [GlobalDatabaseService] }`),
   an event bus over the shared stream pool, or anything with a lifetime (a timer, a fiber: a registration the

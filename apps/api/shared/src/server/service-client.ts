@@ -98,7 +98,7 @@ export class ServiceClient {
  */
 @Module({})
 export class ServiceClientModule {
-	static forRoot(): DynamicModule {
+	static forRoot() {
 		return declareModule(
 			{
 				module: ServiceClientModule,
@@ -106,7 +106,8 @@ export class ServiceClientModule {
 				providers: [ServiceClient],
 				exports: [ServiceClient],
 			},
-			{ global: true },
+			// `ServiceClient` is an ordinary Nest class: nothing Effect-shaped crosses this boundary.
+			{ provides: [], exports: [], global: true },
 		);
 	}
 }

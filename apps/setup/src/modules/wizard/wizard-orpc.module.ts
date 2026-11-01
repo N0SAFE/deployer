@@ -157,7 +157,7 @@ function errorMappingInterceptors(): ModuleInterceptor[] {
 
 @Module({})
 export class WizardOrpcModule {
-  static forRoot(): DynamicModule {
+  static forRoot() {
     return declareModule(
       {
       module: WizardOrpcModule,
@@ -171,7 +171,8 @@ export class WizardOrpcModule {
         }),
       ],
       },
-      {},
+      // Only imports ORPC; it provides no Effect service of its own.
+      { provides: [], exports: [] },
     );
   }
 }
