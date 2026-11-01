@@ -1,6 +1,12 @@
 # WEB FRONTEND roadmap
 > Owner prefix: WEB · Sources: web.md, ideas-dx-ai.md (§4 + UI parts of §1), journeys.md (frontend UX details, W-items that are UI), ideas-deploy.md (§4 UI enhancements, §1 UI surfaces), parity.md (UI-only gaps), bench-coolify.md, bench-dokploy-dockhand.md, bench-market.md (UX patterns) · Last verified: 2026-10-26
 
+## Implementation plan
+
+The UX half of this backlog — states, IA, the deploy loop, permission-aware UI, the shell and the data layer — is
+sequenced in [../FRONTEND-ROADMAP.md](../FRONTEND-ROADMAP.md) (items `UI-*`, each naming the `WEB-*` it closes), with the
+evidence in [../frontend/RESEARCH-dashboard.md](../frontend/RESEARCH-dashboard.md). Tick both when one lands.
+
 ## Summary
 The dashboard (`apps/web`, ~450 tsx files, 75 `route.info.ts`) is not a mock: almost every page is wired to a typed ORPC procedure with loading/error/empty states. The problems are (a) a handful of fake, unsafe or dead surfaces (service Logs tab invents sentences, service status is phantom, cluster role changes have no confirmation while the guarded table is dead, rollback UI sends an invalid body, env "Config" link is broken), (b) no project-role-aware UI at all (viewers see Delete/Deploy/Rollback/exec), (c) no real-time on workload lists although stream procedures exist, (d) PWA/service worker not wired, (e) auth completeness pages missing (forgot/reset/verify/invite-accept/2FA), (f) no pagination and client-side joins over 100-item windows, (g) a long list of pages a deploy platform needs that do not exist (audit log, secrets, webhooks, templates, alerts/inbox, backups, cron, certificates, node add/remove, quotas).
 Spot-verified this session: `cluster/page.tsx:80-84` still mutates immediately; `ClusterNodesTable` is referenced only inside its own file; env Config link still passes env name (`environment/page.tsx:166`); `site.webmanifest` still "Next.js NestJS Turborepo Template"; `serwist` is a dependency but not integrated in `next.config`; `domains/bff` has no non-test importer.

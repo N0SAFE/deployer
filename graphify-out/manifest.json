@@ -35,22 +35,22 @@
     "semantic_hash": ""
   },
   "apps/doc/.source/browser.ts": {
-    "mtime": 1793536106.888532,
+    "mtime": 1793553246.0659437,
     "ast_hash": "e571e9d2e0583f13df9bd14712d8ab80",
     "semantic_hash": ""
   },
   "apps/doc/.source/dynamic.ts": {
-    "mtime": 1793536106.888532,
+    "mtime": 1793553246.0659437,
     "ast_hash": "c80a1fd790d855a435c74229f9a14811",
     "semantic_hash": ""
   },
   "apps/doc/.source/server.ts": {
-    "mtime": 1793536106.888532,
+    "mtime": 1793553246.0659437,
     "ast_hash": "e909cc5b3f8a64174f4ce8e79c5bd4ab",
     "semantic_hash": ""
   },
   "apps/doc/.source/source.config.mjs": {
-    "mtime": 1793536106.6045318,
+    "mtime": 1793553245.8079827,
     "ast_hash": "7593956476953d4f0a0f83a6784eba35",
     "semantic_hash": "7593956476953d4f0a0f83a6784eba35"
   },
@@ -6810,8 +6810,8 @@
     "semantic_hash": ""
   },
   "packages/auth/package.json": {
-    "mtime": 1793108306.6637921,
-    "ast_hash": "e49edb77961520d540debf771d8bcd7d",
+    "mtime": 1793552936.8989272,
+    "ast_hash": "42b8b2cd7da69d68ae64e0123c93cf81",
     "semantic_hash": ""
   },
   "packages/auth/src/client/auth-client.ts": {
@@ -9830,8 +9830,8 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/settings/_components/settings-nav.tsx": {
-    "mtime": 1793297806.1064901,
-    "ast_hash": "a54875421ddc40f338e71a5afc4c47be",
+    "mtime": 1793553393.6285179,
+    "ast_hash": "3fd68c4d9d01aeddba6cae917d3f578f",
     "semantic_hash": ""
   },
   "apps/web/src/app/dashboard/settings/_components/use-is-admin.ts": {
@@ -12980,8 +12980,8 @@
     "semantic_hash": ""
   },
   "packages/nest/effect/package.json": {
-    "mtime": 1793325037.777933,
-    "ast_hash": "3b7d85c2a47002a214cf2ad203492109",
+    "mtime": 1793553245.3299968,
+    "ast_hash": "b9b6efa128495b84bcd693127368ee89",
     "semantic_hash": ""
   },
   "packages/nest/effect/pkg-build.config.ts": {
@@ -17430,8 +17430,8 @@
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/orpc-host.ts": {
-    "mtime": 1793324814.130328,
-    "ast_hash": "b4f9766f00b67db3f30015b88a81bdb2",
+    "mtime": 1793553363.294604,
+    "ast_hash": "fd5ebcfd0fd17133d76940a01c0d7318",
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/preflight/__tests__/preflight.test.ts": {
@@ -20730,8 +20730,8 @@
     "semantic_hash": ""
   },
   "packages/nest/effect/src/requirements.ts": {
-    "mtime": 1793329112.296283,
-    "ast_hash": "21976d182f3d0680bab378920bdd55ae",
+    "mtime": 1793553046.8793755,
+    "ast_hash": "cfb6eee8fc2db025d3ed06e811015e45",
     "semantic_hash": ""
   },
   "samples/api-sample/requirements-demo/src/modules/audit/audit.module.ts": {
@@ -20935,8 +20935,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/controllers/access.controller.ts": {
-    "mtime": 1793467990.5066543,
-    "ast_hash": "89d0cc28d97d01a5c687b403a025a6b3",
+    "mtime": 1793553761.8699005,
+    "ast_hash": "3eb5dde54901194a870ae91de942197b",
     "semantic_hash": ""
   },
   "apps/api/services/node-agent/src/modules/mesh/controllers/directory.contract.spec.ts": {
@@ -21895,8 +21895,8 @@
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/PERMISSIONS-ROADMAP.md": {
-    "mtime": 1793552081.1540549,
-    "ast_hash": "0446d14f653293b0041fba0daa4c9574",
+    "mtime": 1793554129.460503,
+    "ast_hash": "90c926c4f32cdbd6fdcec88f15837b06",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/permissions/model-research.md": {
@@ -21907,6 +21907,46 @@
   "docs/qa/permissions/requirements-2026-11-01.md": {
     "mtime": 1793552098.7543094,
     "ast_hash": "5c3ee71d8bdacdfa1d8f9a00a9f3bf3d",
+    "semantic_hash": ""
+  },
+  "apps/web/src/lib/access/permissions.ts": {
+    "mtime": 1793553375.4829586,
+    "ast_hash": "13f13fcd5e6d6f7b0dae02a9cc5f65f4",
+    "semantic_hash": ""
+  },
+  "packages/auth/src/authz/authz.spec.ts": {
+    "mtime": 1793553490.4513671,
+    "ast_hash": "3b3451b9ed05bc76f4675cd41a26fb01",
+    "semantic_hash": ""
+  },
+  "packages/auth/src/authz/catalog.ts": {
+    "mtime": 1793553450.8075492,
+    "ast_hash": "8fdcb6aee43cb0312a137a6c9e735029",
+    "semantic_hash": ""
+  },
+  "packages/auth/src/authz/evaluate.ts": {
+    "mtime": 1793552743.8773348,
+    "ast_hash": "5893f9e8d93c758a5d2ccc73be14f9de",
+    "semantic_hash": ""
+  },
+  "packages/auth/src/authz/index.ts": {
+    "mtime": 1793553138.1261153,
+    "ast_hash": "26ab76a11cd6650ff406e7fffe76ebad",
+    "semantic_hash": ""
+  },
+  "packages/auth/src/authz/types.ts": {
+    "mtime": 1793552726.3637629,
+    "ast_hash": "8bc017f514b5148a2bca84457d0fac4a",
+    "semantic_hash": ""
+  },
+  "packages/nest/effect/src/authz.spec.ts": {
+    "mtime": 1793553339.6322963,
+    "ast_hash": "2a0ccf05d888ab5ffb7b478f999013ef",
+    "semantic_hash": ""
+  },
+  "packages/nest/effect/src/authz.ts": {
+    "mtime": 1793553205.3919091,
+    "ast_hash": "74e635d5513635b0a5c2565f8acb5db6",
     "semantic_hash": ""
   }
 }
