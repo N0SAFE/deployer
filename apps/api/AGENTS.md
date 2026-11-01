@@ -197,6 +197,13 @@ check() {
   every call names `provides` and/or `exports`), plus a third: no plain `@Module` may list a `Context.Service` in its
   providers or exports — `ConfigurableModuleClass` is the one exemption, because its `forRoot` builds a fresh dynamic
   module per app and there is no class-level metadata to claim.
+- **A service that owns something with a lifetime declares it in its shape.** The shape extends
+  `ServiceLifecycleShape` (`onStart`, `run`, `onStop`) and the module adds `serviceLifecycle(Tag)` from
+  `@deployer/nest-effect`; one runner calls `onStart`, forks `run`, and on shutdown interrupts the fiber *before*
+  `onStop`. No `OnModuleInit` / `OnModuleDestroy` on the service, no per-service adapter class, and a tag that declares
+  none of the three is a compile error at the provider. `HealthRegistry` is the reference. A class whose fields ARE the
+  resource (a constructor-built handle holding a `Scope`) stays a provider and owns its own hooks — but the Effect work
+  still lives in the package's shape, not in the hook body.
 - Something that needs real construction stays an ordinary Nest provider, still under its Effect tag:
   a pool-bound database handle (`{ provide: ProjectDb, useFactory: makeProjectDb, inject: [GlobalDatabaseService] }`),
   an event bus over the shared stream pool, or anything with a lifetime (a timer, a fiber: a registration the

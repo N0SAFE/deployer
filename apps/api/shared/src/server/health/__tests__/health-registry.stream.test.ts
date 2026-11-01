@@ -216,7 +216,7 @@ describe("HealthRegistry — the rxjs streams", () => {
 		let completed = false;
 		registry.snapshots$.subscribe({ complete: () => (completed = true) });
 
-		await run(registry.stop());
+		await run(registry.onStop());
 
 		expect(completed).toBe(true);
 	});

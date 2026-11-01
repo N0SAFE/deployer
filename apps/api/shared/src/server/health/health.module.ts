@@ -1,5 +1,5 @@
 import { Controller, Inject, Module, Sse } from "@nestjs/common";
-import { declareModule } from "@deployer/nest-effect";
+import { declareModule, serviceLifecycle } from "@deployer/nest-effect";
 import type { DynamicModule } from "@nestjs/common";
 
 import type { Pool } from "pg";
@@ -9,7 +9,7 @@ import { interval, map, startWith, switchMap } from "rxjs";
 import { GLOBAL_DATABASE_POOL } from "../../core/modules/database/database-connection";
 
 import { HealthRegistry, type HealthIndicatorEntry } from "./health-registry.service";
-import { HealthRegistryCadence } from "./health-registry-cadence.provider";
+
 import { DatabaseHealthIndicator } from "./indicators/database.indicator";
 import { DiskHealthIndicator } from "./indicators/disk.indicator";
 import { MemoryHealthIndicator } from "./indicators/memory.indicator";
@@ -133,7 +133,8 @@ export class HealthModule {
 							DiskHealthIndicator,
 						],
 					},
-					HealthRegistryCadence,
+					// The registry declares its own cadence in its shape (`run`/`onStop`); one generic runner binds it.
+					serviceLifecycle(HealthRegistry),
 				],
 				controllers: [HealthStreamController],
 				exports: [HealthRegistry],

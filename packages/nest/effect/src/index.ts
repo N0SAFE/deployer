@@ -45,3 +45,4 @@ export {
 	type ServicesOf,
 	type UnmetOf,
 } from "./requirements";
+export { ServiceLifecycleRunner, serviceLifecycle, type ServiceLifecycleShape } from "./effect-lifecycle";

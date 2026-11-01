@@ -7190,13 +7190,13 @@
     "semantic_hash": ""
   },
   "packages/auth/src/server/auth.spec.ts": {
-    "mtime": 1793538365.542207,
-    "ast_hash": "15915b8699704ff4e7fd15cd9f1ba066",
+    "mtime": 1793571218.6714962,
+    "ast_hash": "40dba6aa328b14d171e921c94ac37b7a",
     "semantic_hash": ""
   },
   "packages/auth/src/server/auth.ts": {
-    "mtime": 1793538254.894522,
-    "ast_hash": "cb01d282a17497583f8537da0b2881ef",
+    "mtime": 1793571085.9114263,
+    "ast_hash": "87c6ebcdd9c7177911c889a86ef614dd",
     "semantic_hash": ""
   },
   "packages/auth/src/server/index.ts": {
@@ -7210,8 +7210,8 @@
     "semantic_hash": ""
   },
   "packages/auth/src/server/plugins/index.ts": {
-    "mtime": 1793107637.6709287,
-    "ast_hash": "a2a2dc5d1646c0c105120f8fdec71faf",
+    "mtime": 1793571286.9244905,
+    "ast_hash": "44066bc8e0969469df5174a7603cea16",
     "semantic_hash": ""
   },
   "packages/auth/src/server/plugins/invite.spec.ts": {
@@ -7220,8 +7220,8 @@
     "semantic_hash": ""
   },
   "packages/auth/src/server/plugins/invite.ts": {
-    "mtime": 1793107637.671929,
-    "ast_hash": "361f77def517057bdc3e3b5e7c543ade",
+    "mtime": 1793571247.761804,
+    "ast_hash": "52cbce320cbd24c52b18be38d397af83",
     "semantic_hash": ""
   },
   "packages/auth/src/server/plugins/loginAs.ts": {
@@ -13350,8 +13350,8 @@
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/ROADMAP.md": {
-    "mtime": 1793569541.978266,
-    "ast_hash": "07c1c17f99febf12e4904ee8de203640",
+    "mtime": 1793571476.2939963,
+    "ast_hash": "db3a8ed12c5d39357f8b8ccb57ef92e7",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/architecture.md": {
@@ -13495,8 +13495,8 @@
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/roadmap/auth-security.md": {
-    "mtime": 1793552170.0338027,
-    "ast_hash": "f926e2632e29087026fbaa60b05e2e5a",
+    "mtime": 1793571466.483828,
+    "ast_hash": "286fa9afefcbb10ace65bcb0f149d179",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/roadmap/cluster.md": {
@@ -14835,8 +14835,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/identity/src/modules/user/domain/user.rules.ts": {
-    "mtime": 1793334717.2794938,
-    "ast_hash": "50a8f71bccb8bb0e444672cdb7c5e96d",
+    "mtime": 1793571119.3110414,
+    "ast_hash": "3967ae450877c8127f47f7b4eaf1a638",
     "semantic_hash": ""
   },
   "apps/api/services/identity/src/modules/user/domain/user.types.ts": {
@@ -14870,8 +14870,8 @@
     "semantic_hash": ""
   },
   "apps/api/services/identity/src/modules/user/services/user.service.spec.ts": {
-    "mtime": 1793334792.4551725,
-    "ast_hash": "41a62e3308971a2e01752f26dd68e2f9",
+    "mtime": 1793571174.9624789,
+    "ast_hash": "2ea6e431bb9dce5b48d80c0580a95b09",
     "semantic_hash": ""
   },
   "apps/api/services/identity/src/modules/user/services/user.service.ts": {
@@ -17375,7 +17375,7 @@
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/health/health.module.ts": {
-    "mtime": 1793568690.3529503,
+    "mtime": 1793570124.5178995,
     "ast_hash": "f9ce6852e21291570e8172a9e6c03cb7",
     "semantic_hash": ""
   },
@@ -21915,8 +21915,8 @@
     "semantic_hash": ""
   },
   "packages/auth/src/authz/index.ts": {
-    "mtime": 1793553138.1261153,
-    "ast_hash": "26ab76a11cd6650ff406e7fffe76ebad",
+    "mtime": 1793571028.7431507,
+    "ast_hash": "668ebbf6977e3db20b3042dc207f1449",
     "semantic_hash": ""
   },
   "packages/auth/src/authz/types.ts": {
@@ -22017,6 +22017,31 @@
   "scripts/check-module-claims.ts": {
     "mtime": 1793569523.8014195,
     "ast_hash": "9ef43c2d40e0afca7afd0443d92d5016",
+    "semantic_hash": ""
+  },
+  "packages/auth/src/authz/hierarchy.spec.ts": {
+    "mtime": 1793571044.3240345,
+    "ast_hash": "a2c0a97f9700e9edffb43dd0f78cbebe",
+    "semantic_hash": ""
+  },
+  "packages/auth/src/authz/hierarchy.ts": {
+    "mtime": 1793571022.1512,
+    "ast_hash": "dae4333535f43772036eb1a036b9d401",
+    "semantic_hash": ""
+  },
+  "packages/auth/src/server/plugins/adminHierarchy.spec.ts": {
+    "mtime": 1793571188.1959872,
+    "ast_hash": "73c1fc2489a88483b2ee2a5e83e10276",
+    "semantic_hash": ""
+  },
+  "packages/auth/src/server/plugins/adminHierarchy.ts": {
+    "mtime": 1793571108.3396235,
+    "ast_hash": "258965a4e7bd3e7b9a78335568c7197c",
+    "semantic_hash": ""
+  },
+  "packages/auth/src/server/plugins/may-invite.spec.ts": {
+    "mtime": 1793571300.0282004,
+    "ast_hash": "0d0f5dd05cb0a4b2aa6bca1033c110cb",
     "semantic_hash": ""
   }
 }

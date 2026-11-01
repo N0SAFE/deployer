@@ -59,10 +59,10 @@ export type HealthRegistryShape = {
 	readonly refreshStream: () => Observable<void>;
 	/** Run every indicator once and publish the result. */
 	readonly runOnce: () => Effect.Effect<HealthSnapshot>;
-	/** The drift-detection cadence. Never completes; the module forks it. */
-	readonly start: () => Effect.Effect<void>;
-	/** Close the streams, so subscribers are released. */
-	readonly stop: () => Effect.Effect<void>;
+	/** The drift-detection cadence. Never completes; `serviceLifecycle` forks it and interrupts it on stop. */
+	readonly run: () => Effect.Effect<void>;
+	/** Close the streams, so subscribers are released. Runs after `run` is interrupted. */
+	readonly onStop: () => Effect.Effect<void>;
 };
 
 /**
@@ -283,9 +283,9 @@ export class HealthRegistry extends Context.Service<HealthRegistry, HealthRegist
 		 * Chained so a slow pass can never stack on top of the next one — the same correction the monolith's readiness
 		 * service documented, and the reason a container under load does not accumulate probes.
 		 *
-		 * Never completes: the module forks it through `EffectHost` and interrupts it on shutdown.
+		 * Never completes: `serviceLifecycle(HealthRegistry)` forks it through `EffectHost` and interrupts it on shutdown.
 		 */
-		start(): Effect.Effect<void> {
+		run(): Effect.Effect<void> {
 			const runOnce = (): Effect.Effect<HealthSnapshot> => this.runOnce();
 			/** One cadence tick: sleep, then a pass that cannot kill the loop. */
 			const tick = (): Effect.Effect<void> =>
@@ -307,7 +307,7 @@ export class HealthRegistry extends Context.Service<HealthRegistry, HealthRegist
 			});
 		}
 
-		stop(): Effect.Effect<void> {
+		onStop(): Effect.Effect<void> {
 			return Effect.sync(() => {
 				this.disposed = true;
 				this.snapshot$.complete();

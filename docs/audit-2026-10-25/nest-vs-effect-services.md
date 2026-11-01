@@ -385,3 +385,35 @@ or timer through `EffectHost`.
 
 Each slice ends with `bun run type-check` at the root, the owning app's suite, and `check:di-graph` +
 `check:global-modules`.
+
+## Nest lifecycle hooks on services
+
+`serviceLifecycle(Tag)` (`@deployer/nest-effect`, `ServiceLifecycleShape`) binds a tag's own `onStart` / `run` / `onStop`
+to Nest's lifecycle: `onStart` runs once and must complete, `run` is forked and interrupted on shutdown, `onStop` runs
+after the interruption. A tag that declares none of the three cannot be bound — that is the compile error which forces
+the decision.
+
+Migrated: `HealthRegistry` (`48dcd0ff` cadence provider → `serviceLifecycle`, `run`/`onStop` in the shape).
+
+Remaining classes that still implement `OnModuleInit` / `OnModuleDestroy` / `OnApplication*`:
+
+| Class | Verdict |
+|---|---|
+| `GlobalDatabaseLifecycleService` | shape gains `onStop` (close the pool); class becomes a factory provider |
+| `ScannerPoolLifecycle` (docker.module) | same: `onStop` closes the pool |
+| `SwarmLifecycle` (swarm.module, setup cluster.module) | same: `onStart` joins, `onStop` leaves |
+| `SupervisorRegistrar` | same: `onStart` registers, `onStop` disposes |
+| `SupervisorDriftControl` (supervisors.module) | move `startDriftControl` into the orchestrator shape (`run`) |
+| `DeploymentQueueReconciliationService` | convert to a tag first, then `run` = the reconciliation loop |
+| `DockerRuntimeActivityPersistenceService` | convert to a tag, `run` = the persistence loop |
+| `DockerRuntimeEventsStreamService` | convert to a tag, `run` = subscribe + forward |
+| `DomainVerificationService` | convert to a tag, `run` = the verification scheduler |
+| `NodeAgentBootstrapService` | convert to a tag, `run` = the probe/retry loop |
+| `NodeInventoryService` | convert to a tag, `run` = the inventory loop |
+| `CodeProviderRegistryService` | registry: `onStart` populates, no loop |
+| `BuilderRegistryService` | registry: `onStart` populates, no loop |
+| `LocalDatabaseLifecycle` (`shared`, `apps/setup`) | stays a provider: it owns a `Scope` and the handle IS the value |
+| `AuthModule` | module, not a service |
+
+Order: the `same` rows first (a few lines each), then the `convert to a tag` rows, which are the same work as the
+`to convert` list above — do them there, and give them `run` at the same time.

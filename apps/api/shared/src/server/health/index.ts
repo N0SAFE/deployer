@@ -12,7 +12,6 @@ export {
 	type HealthIndicatorEntry,
 	type HealthRegistryShape,
 } from "./health-registry.service";
-export { HealthRegistryCadence } from "./health-registry-cadence.provider";
 export {
 	HealthModule,
 	HealthStreamController,
