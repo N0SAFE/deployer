@@ -40,7 +40,6 @@ const snapshot: ClusterSnapshot = {
     },
     master: null,
     membership: { nodeId: "n1", state: "active", joinedAt: "2026-09-04T00:00:00Z" },
-    joinTokens: null,
 };
 
 const inventoryRow = {

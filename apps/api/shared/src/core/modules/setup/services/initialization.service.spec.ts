@@ -92,4 +92,77 @@ describe('InitializationService', () => {
       expect(status.nodeId).toBe('n1');
     });
   });
+
+  /**
+   * SEC-012 / SETUP-002 — `/setup/*` is anonymous and must not stay a mutation
+   * surface once the node is configured.
+   */
+  describe('assertSetupMutable', () => {
+    const setConfig = (row: unknown) =>
+      vi.mocked(module.get<NodeConfigRepositoryShape>(NodeConfigRepository).find)
+        .mockReturnValue(Effect.succeed(row) as never);
+
+    const completed = {
+      nodeId: 'n1',
+      strategy: 'local',
+      setupState: 'setup_done',
+      databaseUrl: 'postgresql://deployer:pw@db.example.com:5432/deployer',
+      configuredAt: '2026-01-01T00:00:00.000Z',
+    };
+
+    it('refuses a mutation once setup is complete', async () => {
+      setConfig(completed);
+
+      await expect(service.assertSetupMutable()).rejects.toMatchObject({ code: 'CONFLICT' });
+    });
+
+    it('allows a mutation while setup is in progress', async () => {
+      setConfig({ ...completed, setupState: 'setup_in_progress', configuredAt: null, databaseUrl: null });
+
+      await expect(service.assertSetupMutable()).resolves.toBeUndefined();
+    });
+
+    it('allows a mutation on a fresh node', async () => {
+      setConfig(null);
+
+      await expect(service.assertSetupMutable()).resolves.toBeUndefined();
+    });
+  });
+
+  describe('assertDatabaseProbeAllowed', () => {
+    const setConfig = (row: unknown) =>
+      vi.mocked(module.get<NodeConfigRepositoryShape>(NodeConfigRepository).find)
+        .mockReturnValue(Effect.succeed(row) as never);
+
+    it.each([
+      ['loopback IPv4', 'postgresql://u:p@127.0.0.1:5432/db'],
+      ['private IPv4', 'postgresql://u:p@10.1.2.3:5432/db'],
+      ['cloud metadata', 'postgresql://u:p@169.254.169.254/db'],
+      ['loopback name', 'postgresql://u:p@localhost:5432/db'],
+    ])('refuses a %s target', async (_label, url) => {
+      setConfig(null);
+
+      await expect(service.assertDatabaseProbeAllowed(url)).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    });
+
+    it('allows a public address', async () => {
+      setConfig(null);
+
+      await expect(service.assertDatabaseProbeAllowed('postgresql://u:p@93.184.216.34:5432/db'))
+        .resolves.toBeUndefined();
+    });
+
+    it("allows the platform's own database, even on loopback", async () => {
+      const url = 'postgresql://u:p@127.0.0.1:5432/deployer';
+      setConfig({
+        nodeId: 'n1',
+        strategy: 'local',
+        setupState: 'setup_done',
+        databaseUrl: url,
+        configuredAt: '2026-01-01T00:00:00.000Z',
+      });
+
+      await expect(service.assertDatabaseProbeAllowed(url)).resolves.toBeUndefined();
+    });
+  });
 });

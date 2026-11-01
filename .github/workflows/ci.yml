@@ -14,6 +14,27 @@ env:
     TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
 jobs:
+    # Job 0a: Secret scan — every commit, on every push and PR.
+    #
+    # `fetch-depth: 0` is the point: a secret deleted from HEAD is still leaked in history, so a
+    # HEAD-only scan reports "clean" on exactly the repos that need it most. Fail-closed
+    # (`--exit-code=1`, the default) and `--redact` so the finding never lands in a public log.
+    # Image tag is pinned; bump it deliberately.
+    secret-scan:
+        name: 🔐 Secret Scan
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        steps:
+            - name: 📚 Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: 🔐 Scan full history with gitleaks
+              run: |
+                  docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.28.0 \
+                    detect --source=/repo --redact --verbose --exit-code=1
+
     # Job 0: Setup - Install dependencies and prepare environment
     setup:
         name: 🔧 Setup & Install Dependencies
@@ -483,7 +504,7 @@ jobs:
         name: 🚀 Deployment Ready
         runs-on: ubuntu-latest
         timeout-minutes: 3
-        needs: [setup, generate-declarative-routes, lint-and-typecheck, build, test]
+        needs: [secret-scan, setup, generate-declarative-routes, lint-and-typecheck, build, test]
         if: always()
 
         steps:
@@ -492,6 +513,7 @@ jobs:
                   echo "🔍 Checking CI/CD pipeline results..."
 
                   SETUP_STATUS="${{ needs.setup.result }}"
+                  SECRET_STATUS="${{ needs.secret-scan.result }}"
                   LINT_STATUS="${{ needs.lint-and-typecheck.result }}"
                   BUILD_STATUS="${{ needs.build.result }}"
                   TEST_STATUS="${{ needs.test.result }}"
@@ -500,6 +522,7 @@ jobs:
                   DR_CACHE_HIT="${{ needs.generate-declarative-routes.outputs.cache-hit }}"
 
                   echo "📋 Pipeline Results:"
+                  echo "  - Secret Scan: $SECRET_STATUS"
                   echo "  - Setup & Dependencies: $SETUP_STATUS"
                   echo "  - Lint & Type Check: $LINT_STATUS"
                   echo "  - Build: $BUILD_STATUS"
@@ -510,7 +533,7 @@ jobs:
                   echo "🎯 Cache Performance:"
                   echo "  - Declarative Routes: $([ "$DR_CACHE_HIT" = "true" ] && echo "✅ Cache HIT" || echo "❌ Cache MISS")"
 
-                  if [ "$SETUP_STATUS" = "success" ] && [ "$LINT_STATUS" = "success" ] && [ "$BUILD_STATUS" = "success" ] && [ "$TEST_STATUS" = "success" ] && [ "$DR_STATUS" = "success" ]; then
+                  if [ "$SETUP_STATUS" = "success" ] && [ "$SECRET_STATUS" = "success" ] && [ "$LINT_STATUS" = "success" ] && [ "$BUILD_STATUS" = "success" ] && [ "$TEST_STATUS" = "success" ] && [ "$DR_STATUS" = "success" ]; then
                     if [ "${{ github.ref }}" = "refs/heads/main" ]; then
                       echo "🚀 ✅ Ready for production deployment!"
                       echo "deployment_ready=true" >> $GITHUB_OUTPUT
@@ -532,6 +555,7 @@ jobs:
                   echo "" >> $GITHUB_STEP_SUMMARY
                   echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
                   echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+                  echo "| Secret Scan | ${{ needs.secret-scan.result == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
                   echo "| Setup & Dependencies | ${{ needs.setup.result == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
                   echo "| Lint & Type Check | ${{ needs.lint-and-typecheck.result == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
                   echo "| Build | ${{ needs.build.result == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY

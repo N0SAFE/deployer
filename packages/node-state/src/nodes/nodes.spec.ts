@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { makeLocalDatabase } from "../database/local-database";
 import { makeClusterNodeInventoryRepository } from "./cluster-node-inventory.repository";
+import { toEngineNodeRow } from "./engine-node-row";
 import { makeClusterNodeRepository } from "./cluster-node.repository";
 import { makeAgentFirstNodeConfigRepository, makeNodeConfigRepository, type NewNodeConfigRow, type NodeConfigRow } from "./node-config.repository";
 
@@ -35,7 +36,6 @@ const snapshot = (term: number): ClusterSnapshot => ({
 	},
 	master: { nodeId: "n1", term, electedAt: "2026-09-04T00:00:00Z", heartbeatAt: "2026-09-04T00:00:00Z", reason: "raft_leader" },
 	membership: { nodeId: "n1", state: "active", joinedAt: "2026-09-04T00:00:00Z" },
-	joinTokens: { worker: "worker-token-1", manager: "manager-token-1" },
 });
 
 let scope: Scope.Closeable;
@@ -169,12 +169,21 @@ describe("AgentFirstNodeConfigRepository", () => {
 });
 
 describe("ClusterNodeRepository", () => {
-	it("stores a snapshot, join tokens included", async () => {
+	it("stores a snapshot, with the join tokens passed explicitly", async () => {
+		const repository = makeClusterNodeRepository(database);
+
+		const row = await run(repository.upsertFromSnapshot(snapshot(4), { worker: "worker-token-1", manager: "manager-token-1" }));
+
+		expect(row).toEqual(expect.objectContaining({ clusterId: "cluster-abc", masterTerm: 4, joinTokenWorker: "worker-token-1" }));
+	});
+
+	it("leaves the tokens null when none are passed", async () => {
 		const repository = makeClusterNodeRepository(database);
 
 		const row = await run(repository.upsertFromSnapshot(snapshot(4)));
 
-		expect(row).toEqual(expect.objectContaining({ clusterId: "cluster-abc", masterTerm: 4, joinTokenWorker: "worker-token-1" }));
+		expect(row.joinTokenWorker).toBeNull();
+		expect(row.joinTokenManager).toBeNull();
 	});
 
 	it("lets exactly one claimant win a term, and refuses a stale one", async () => {
@@ -207,6 +216,7 @@ describe("ClusterNodeInventoryRepository", () => {
 		isLeader: false,
 		isIngress: false,
 		availability: "active" as const,
+		state: "ready" as const,
 		nanoCpus: null,
 		memoryBytes: null,
 		labels: {},
@@ -227,5 +237,40 @@ describe("ClusterNodeInventoryRepository", () => {
 		database.client.run("DROP TABLE cluster_nodes");
 
 		expect(await run(makeClusterNodeInventoryRepository(database).list())).toEqual([]);
+	});
+});
+
+describe("toEngineNodeRow", () => {
+	const node = (status: string, availability: string) => ({
+		ID: "node-1",
+		Spec: { Labels: {}, Availability: availability },
+		Description: { Hostname: "node-1" },
+		Status: { State: status },
+		ManagerStatus: null,
+	});
+
+	it("surfaces the engine's own ready state", () => {
+		expect(toEngineNodeRow(node("ready", "active") as never)).toMatchObject({ state: "ready", availability: "active" });
+	});
+
+	it("surfaces an engine-down node instead of assuming it is active", () => {
+		expect(toEngineNodeRow(node("down", "active") as never)).toMatchObject({ state: "down" });
+		expect(toEngineNodeRow(node("unknown", "active") as never).state).toBe("unknown");
+	});
+
+	it("keeps drain availability alongside the engine state", () => {
+		expect(toEngineNodeRow(node("ready", "drain") as never)).toMatchObject({ state: "ready", availability: "drain" });
+	});
+
+	it("persists a ready node as active and an engine-down node as down", async () => {
+		const repository = makeClusterNodeInventoryRepository(database);
+		const ready = toEngineNodeRow(node("ready", "active") as never);
+		const down = { ...ready, nodeId: "node-2", state: "down" as const };
+
+		await run(repository.upsertFromEngine(ready));
+		await run(repository.upsertFromEngine(down));
+
+		const states = Object.fromEntries((await run(repository.list())).map((row) => [row.nodeId, row.state]));
+		expect(states).toEqual({ "node-1": "active", "node-2": "down" });
 	});
 });

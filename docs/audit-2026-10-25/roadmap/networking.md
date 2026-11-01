@@ -730,3 +730,12 @@ Counts are in the Totals section at the end of this file (106 items). Every bug 
 
 ## Totals
 108 items. Priority: P0 = 14, P1 = 45, P2 = 32, P3 = 17. Type: FIX = 41, ENHANCE = 13, NEW = 54. Plus 13 decisions (DEC-NET-1..13).
+
+## Verification 2026-11-01 (code, not the audit)
+
+| Item | Verdict | Evidence |
+|---|---|---|
+| NET-004 | done | every reachability/domain/setup probe goes through `EgressService` → `SafeHttp` (pin, metadata denial, redirect re-validation) |
+| NET-002 | done | the tunnel token is masked (`****abcd`) on read; `getTunnelToken` is operator-gated |
+| NET-001 / NET-003 | partial | DNS/Cloudflare/reachability mutations gated; reads stay authenticated |
+| NET-006 / NET-011..014 | open | reserved platform hosts, one verification-instructions source, verified-domain enforcement, `customDomains` bypass |

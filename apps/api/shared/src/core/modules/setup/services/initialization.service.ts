@@ -1,5 +1,8 @@
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { Injectable, Logger, type OnModuleInit, Inject } from '@nestjs/common'
+import { classifyAddress, isIpLiteral, stripBrackets } from "@deployer/effect-infra"
+import { standardErrorActions } from "@deployer/orpc-utils"
+import { lookup } from "node:dns/promises"
 import { Pool } from 'pg'
 import { ReplaySubject, firstValueFrom, interval, map, merge, Observable } from 'rxjs'
 import type {
@@ -7,7 +10,7 @@ import type {
     SetupStreamEvent,
     SetupStateSnapshot,
 } from '@deployer/contracts-entities'
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+import { NodeConfigRepository, type NodeConfigRepositoryShape, type NodeConfigRow } from "@deployer/node-state"
 import { LocalInitializationService } from './local-initialization.service'
 import { RemoteInitializationService } from './remote-initialization.service'
 import { SetupEventService } from './setup-event.service'
@@ -22,6 +25,67 @@ export type SetupCompletionStatus = {
     databaseUrl: string | null
     strategy: 'local' | 'remote'
 }
+
+/**
+ * A node is COMPLETE once setup recorded a database URL AND a completion
+ * timestamp — the same test `getSetupState` answers. (`setup_done` alone is not
+ * enough: an interrupted write can leave the flag without a usable database,
+ * and that node must be allowed to run setup again.)
+ */
+const isSetupComplete = (
+    config: NodeConfigRow | null,
+): config is NodeConfigRow & { configuredAt: string } =>
+    Boolean(config?.configuredAt && config.databaseUrl?.trim())
+
+/** Hostnames that always mean "this machine" or the cloud metadata service, whatever they resolve to. */
+const LOCAL_HOSTNAMES = new Set(["localhost", "metadata", "metadata.google.internal"])
+
+/**
+ * Why a wizard-supplied PostgreSQL URL must not be dialled, or null when it may.
+ *
+ * The setup probe is PRE-AUTH, so it must not double as a port scanner
+ * (SEC-012): only public addresses are reachable, plus the platform's OWN
+ * database — which legitimately lives on a loopback/private address inside the
+ * cluster. The egress `operatorTarget` policy makes the same call for HTTP
+ * probes; PostgreSQL has no HTTP policy, so this is its equivalent.
+ */
+export const databaseProbeRefusal = (
+    databaseUrl: string,
+    platformDatabaseUrl: string | null,
+): string | null => {
+    let url: URL
+    try {
+        url = new URL(databaseUrl)
+    } catch {
+        return `"${databaseUrl}" is not a valid database URL.`
+    }
+    if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
+        return `The database URL must start with postgres:// or postgresql:// (got ${url.protocol}).`
+    }
+    if (platformDatabaseUrl !== null && sameDatabaseServer(url, platformDatabaseUrl)) return null
+
+    const host = stripBrackets(url.hostname).toLowerCase()
+    if (host === "") return "The database URL has no host."
+    if (LOCAL_HOSTNAMES.has(host) || host.endsWith(".localhost")) {
+        return `"${host}" is this machine or the cloud metadata service — the setup probe refuses those. Use the database's reachable address.`
+    }
+    if (!isIpLiteral(host)) return null
+    const klass = classifyAddress(host)
+    return klass === "public"
+        ? null
+        : `${host} is a ${klass} address — the setup probe only reaches public database addresses, or this platform's own database.`
+}
+
+const sameDatabaseServer = (url: URL, platformDatabaseUrl: string): boolean => {
+    try {
+        return serverKey(url) === serverKey(new URL(platformDatabaseUrl))
+    } catch {
+        return false
+    }
+}
+
+const serverKey = (url: URL): string =>
+    `${stripBrackets(url.hostname).toLowerCase()}:${url.port || "5432"}`
 
 @Injectable()
 export class InitializationService implements OnModuleInit {
@@ -144,7 +208,7 @@ export class InitializationService implements OnModuleInit {
             }
         }
 
-        if (config?.configuredAt && config.databaseUrl?.trim()) {
+        if (isSetupComplete(config)) {
             return {
                 state: 'completed',
                 needsSetup: false,
@@ -187,7 +251,7 @@ export class InitializationService implements OnModuleInit {
 
     async getNodeStatus() {
         const config = await runPromiseUnwrapped(this.nodeConfigRepository.find())
-        if (config?.configuredAt && config.databaseUrl?.trim()) {
+        if (isSetupComplete(config)) {
             return {
                 isConfigured: true,
                 nodeId: config.nodeId,
@@ -202,6 +266,55 @@ export class InitializationService implements OnModuleInit {
             strategy: null,
             meshUrlsSnapshot: config?.meshUrlsSnapshot ?? [],
             configuredAt: null,
+        }
+    }
+
+    // ─── Post-setup refusal (SEC-012 / SETUP-002) ─────────────────────────────
+
+    /**
+     * Refuse a setup MUTATION once this node is configured.
+     *
+     * `/setup/*` is anonymous by design because the wizard runs before any
+     * account exists, and it must stay reachable DURING onboarding. After
+     * completion nothing on it has a reason to run: a second trigger would
+     * provision another database, the probe would be an unauthenticated port
+     * scanner, and dismissing a hint writes operator state. Read-only
+     * procedures (state, node status, destination, verification) stay open —
+     * the wizard reads them on its last step.
+     *
+     * One implementation, called by every mutating handler: the rule lives here,
+     * not in the controllers.
+     */
+    async assertSetupMutable(): Promise<void> {
+        const config = await runPromiseUnwrapped(this.nodeConfigRepository.find())
+        if (isSetupComplete(config)) {
+            throw standardErrorActions.CONFLICT(
+                "Setup is already complete on this node, so setup procedures are closed. Use the dashboard, or reset the node from the host to run setup again.",
+            )
+        }
+    }
+
+    /**
+     * Refuse a database probe the SSRF policy forbids (SEC-012).
+     *
+     * A hostname is not an address but it becomes one, so the name the operator
+     * typed is resolved too: a public-looking name pointing at `127.0.0.1` is
+     * the same scanner as typing the loopback literal.
+     */
+    async assertDatabaseProbeAllowed(databaseUrl: string): Promise<void> {
+        const config = await runPromiseUnwrapped(this.nodeConfigRepository.find())
+        const refusal = databaseProbeRefusal(databaseUrl, config?.databaseUrl?.trim() || null)
+        if (refusal !== null) throw standardErrorActions.BAD_REQUEST(refusal)
+
+        const host = stripBrackets(new URL(databaseUrl).hostname)
+        if (isIpLiteral(host)) return
+        // A lookup failure is not a refusal: the pool will report the same
+        // name-resolution error with a message the operator can act on.
+        const answers = await lookup(host, { all: true, verbatim: true }).catch(() => [])
+        if (answers.some((answer) => classifyAddress(answer.address) !== "public")) {
+            throw standardErrorActions.BAD_REQUEST(
+                `"${host}" resolves to a private address, which the setup probe does not reach. Use the database's public address.`,
+            )
         }
     }
 

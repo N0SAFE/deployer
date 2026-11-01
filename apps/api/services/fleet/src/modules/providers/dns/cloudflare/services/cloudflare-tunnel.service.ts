@@ -47,6 +47,16 @@ type CloudflareIngressRule = {
  */
 const INGRESS_CATCH_ALL: CloudflareIngressRule = { service: "http_status:404" };
 
+/**
+ * A tunnel token is a credential, so the management surface may report that one
+ * EXISTS, never its value (NET-002). Only the last four characters survive —
+ * enough for an operator to tell two tokens apart, useless as a secret.
+ */
+const maskTunnelToken = (token: unknown): string | null => {
+    const value = typeof token === "string" ? token.trim() : "";
+    return value === "" ? null : `****${value.slice(-4)}`;
+};
+
 type Ports = {
     readonly apps: CloudflareAppServiceShape;
     readonly dns: CloudflareDnsProviderServiceShape;
@@ -349,7 +359,7 @@ function makeCloudflareTunnelService({ apps, dns }: Ports) {
         return yield* Effect.gen(function* () {
             const { client, accountId } = yield* clientFor(providerId);
             const token = yield* attempt(() => client.zeroTrust.tunnels.cloudflared.token.get(tunnelId, { account_id: accountId }));
-            return { token: token as string | null, error: null as string | null };
+            return { token: maskTunnelToken(token), error: null as string | null };
         }).pipe(
             Effect.catch((err) =>
                 Effect.logWarning(`cloudflareGetTunnelToken failed for provider ${providerId}: ${err instanceof Error ? err.message : String(err)}`).pipe(

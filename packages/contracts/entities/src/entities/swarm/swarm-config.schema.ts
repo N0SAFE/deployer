@@ -150,11 +150,6 @@ export const swarmConfigViewSchema = z.object({
     /** Cluster size when active, else 0. */
     nodeCount: z.number().int().min(0),
     managerCount: z.number().int().min(0),
-    /** Present only when engine is an active manager: share to onboard peers. */
-    joinTokens: z
-        .object({ worker: z.string(), manager: z.string() })
-        .nullable()
-        .default(null),
     /** Human-readable explanation of the current resolve (drives UX). */
     resolveNote: z.string(),
     /** Policy documents for the configuration UI. */

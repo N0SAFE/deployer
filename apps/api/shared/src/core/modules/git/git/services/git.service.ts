@@ -6,6 +6,7 @@ import { AppError } from "@deployer/errors";
 import { FileSystem, type FsError } from '@deployer/effect-infra';
 import { ArchiveExtractor, type ArchiveError } from '@deployer/effect-platform';
 import { Cause, Effect, Exit, Layer } from 'effect';
+import { assertGitRef, assertRepositoryUrl, repositoryUrlProblem } from './git-input';
 @Injectable()
 export class GitService {
     /**
@@ -27,7 +28,11 @@ export class GitService {
         commit?: string;
         deploymentId: string;
     }): Promise<string> {
-        const { url, branch = 'main', commit, deploymentId } = options;
+        const { deploymentId, commit } = options;
+        // Every value below reaches a `git` argv; validate before any filesystem work.
+        const url = assertRepositoryUrl(options.url);
+        const branch = assertGitRef(options.branch ?? 'main', 'branch');
+        const commitRef = commit === undefined ? undefined : assertGitRef(commit, 'commit');
         const repoPath = path.join(this.workspaceDir, `deployment-${deploymentId}`);
         this.logger.log(`Cloning repository ${url} to ${repoPath}`);
         // Clean up existing directory
@@ -36,12 +41,12 @@ export class GitService {
         }
         try {
             const git = simpleGit();
-            // Clone the repository
-            await git.clone(url, repoPath, ['--depth', '1', '--branch', branch]);
+            // `--` ends option parsing, so a hostile URL can never become a git flag.
+            await git.raw(['clone', '--depth', '1', '--branch', branch, '--', url, repoPath]);
             // If specific commit is requested, checkout that commit
-            if (commit) {
+            if (commitRef !== undefined) {
                 const repoGit = simpleGit(repoPath);
-                await repoGit.checkout(commit);
+                await repoGit.raw(['checkout', '--detach', commitRef, '--']);
             }
             this.logger.log(`Repository cloned successfully to ${repoPath}`);
             return repoPath;
@@ -115,9 +120,15 @@ export class GitService {
         }
     }
     async validateRepository(url: string): Promise<boolean> {
+        const problem = repositoryUrlProblem(url);
+        if (problem !== undefined) {
+            // Callers turn `false` into "repository not reachable"; the reason is the log line.
+            this.logger.warn(`Rejected repository URL (${problem})`);
+            return false;
+        }
         try {
             const git = simpleGit();
-            await git.listRemote([url]);
+            await git.raw(['ls-remote', '--', url]);
             return true;
         }
         catch (error) {

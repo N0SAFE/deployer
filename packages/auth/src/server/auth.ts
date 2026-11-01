@@ -92,11 +92,40 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
         DEV_AUTH_KEY,
         DEFAULT_ADMIN_EMAIL,
         ENABLE_MASTER_TOKEN,
+        NODE_ENV,
         BETTER_AUTH_SECRET,
         BASE_URL,
         GITHUB_CLIENT_ID,
         GITHUB_CLIENT_SECRET,
     } = env;
+
+    // ── DEV-ONLY AUTH DOORS ARE NOT EVEN REGISTERED IN PRODUCTION ───────────
+    // `masterTokenPlugin` authenticates ANY request as the master account from a
+    // static header value, and `loginAsPlugin` mints a session for any user id.
+    // Both used to switch on from `DEV_AUTH_KEY` alone (the master token also
+    // from `DEFAULT_ADMIN_EMAIL`), so a leaked or compose-defaulted key was a
+    // platform-wide auth bypass in production. Registration now requires an
+    // explicitly non-production `NODE_ENV` AND the key, plus (for the master
+    // token) an explicit `ENABLE_MASTER_TOKEN=true`.
+    //
+    // Absence, not `enabled: false`, is deliberate: a plugin that is not in the
+    // list has no endpoint and no middleware to misfire. `ENABLE_MASTER_TOKEN`
+    // is a strict boolean parsed in `@deployer/env` — `"false"` is false there,
+    // not truthy.
+    const devAuthKey = DEV_AUTH_KEY ?? "";
+    const devAuthEnabled = NODE_ENV !== "production" && devAuthKey.length > 0;
+    const masterTokenEnabled = devAuthEnabled && ENABLE_MASTER_TOKEN === true && !!DEFAULT_ADMIN_EMAIL;
+    const devPlugins = [
+        ...(masterTokenEnabled
+            ? [
+                  masterTokenPlugin({
+                      devAuthKey,
+                      masterEmail: DEFAULT_ADMIN_EMAIL ?? "",
+                  }),
+              ]
+            : []),
+        ...(devAuthEnabled ? [loginAsPlugin({ devAuthKey })] : []),
+    ];
 
     return {
         secret: BETTER_AUTH_SECRET ?? process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET,
@@ -115,7 +144,15 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
         },
         database: drizzleAdapter(database, { provider: "pg" }),
         emailAndPassword: {
+            // Sign-IN stays on; public sign-UP is closed. This platform has no
+            // self-service registration: an account exists only because the
+            // operator created one (setup wizard, admin bootstrap) or an admin
+            // invited it (the invite plugin provisions through the internal
+            // adapter, and invitation is what `disableSignUp` does not touch).
+            // Without this, `POST /sign-up/email` was an unauthenticated way to
+            // mint a user, and `role` below was writable by anyone.
             enabled: true,
+            disableSignUp: true,
         },
         // User model - `role` is the platform role. The admin plugin already
         // adds `banned` / `banReason` / `banExpires` / `impersonatedBy` to the
@@ -132,7 +169,13 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
                     type: "string",
                     required: true,
                     defaultValue: "user",
-                    input: true,
+                    // NOT client-writable. `input: true` let a sign-up (or any
+                    // create-user payload) name its own platform role, i.e. any
+                    // anonymous caller could register as `superAdmin`. Roles are
+                    // granted only server-side: the admin bootstrap writes the
+                    // column directly, and the admin plugin's `createUser` /
+                    // `setRole` pass through the authenticated grant path.
+                    input: false,
                 } as const,
                 banned: {
                     type: "boolean",
@@ -183,15 +226,8 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
             // (Better Auth's `maximumSessions` default): a 6th sign-in still
             // authenticates, it is just not retained in the device list.
             multiSession(),
-            masterTokenPlugin({
-                devAuthKey: DEV_AUTH_KEY ?? "",
-                enabled: ENABLE_MASTER_TOKEN ?? (!!DEV_AUTH_KEY && !!DEFAULT_ADMIN_EMAIL),
-                masterEmail: DEFAULT_ADMIN_EMAIL ?? "",
-            }),
-            loginAsPlugin({
-                enabled: !!DEV_AUTH_KEY,
-                devAuthKey: DEV_AUTH_KEY ?? "",
-            }),
+            // Present only outside production, and only with an explicit key.
+            ...devPlugins,
             openAPI(),
             useInvite({
                 inviteDurationDays: 7,

@@ -3,7 +3,7 @@ import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
 import { dockerContract } from "@deployer/runtime-contracts";
 import { standardErrorOptions } from "@deployer/orpc-utils";
-import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
+import { requireAuth, requirePlatformRole } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 import { DockerContainersOrchestratorService } from "../domains/containers/orchestration/docker-containers-orchestrator.service";
 import { DockerImagesOrchestratorService } from "../domains/images/orchestration/docker-images-orchestrator.service";
 import { DockerRuntimeOrchestratorService } from "../domains/runtime/orchestration/docker-runtime-orchestrator.service";
@@ -25,6 +25,10 @@ import { map } from "rxjs";
 
 /** The contracts carry dates as strings; the handlers answer with `Date`, as oRPC expects. */
 const timestampOf = (value: string | Date): Date => (value instanceof Date ? value : new Date(value));
+
+
+/** Container mutation is an operational act: a viewer keeps the reads, never the controls. */
+const DOCKER_OPERATOR_ROLES = ["superAdmin", "admin", "operator"];
 
 @Controller()
 export class DockerController {
@@ -93,6 +97,7 @@ export class DockerController {
   runContainerAction() {
     return procedure(dockerContract.containers.actions.run)
       .use(requireAuth())
+      .use(requirePlatformRole(DOCKER_OPERATOR_ROLES))
       .effect(function* ({ input, context }) {
         const containers = yield* DockerContainers;
         const ports = yield* Effect.context<DockerContainersPorts>();
@@ -216,6 +221,7 @@ export class DockerController {
   writeContainerFile() {
     return procedure(dockerContract.containers.filesystem.write)
       .use(requireAuth())
+      .use(requirePlatformRole(DOCKER_OPERATOR_ROLES))
         .effect(function* ({ input, context }) {
         const containers = yield* DockerContainers;
         const ports = yield* Effect.context<DockerContainersPorts>();
@@ -234,6 +240,7 @@ export class DockerController {
   deleteContainerPath() {
     return procedure(dockerContract.containers.filesystem.deletePath)
       .use(requireAuth())
+      .use(requirePlatformRole(DOCKER_OPERATOR_ROLES))
         .effect(function* ({ input, context }) {
         const containers = yield* DockerContainers;
         const ports = yield* Effect.context<DockerContainersPorts>();
@@ -252,6 +259,7 @@ export class DockerController {
   renameContainerPath() {
     return procedure(dockerContract.containers.filesystem.renamePath)
       .use(requireAuth())
+      .use(requirePlatformRole(DOCKER_OPERATOR_ROLES))
         .effect(function* ({ input, context }) {
         const containers = yield* DockerContainers;
         const ports = yield* Effect.context<DockerContainersPorts>();
@@ -270,6 +278,7 @@ export class DockerController {
   createContainerDirectory() {
     return procedure(dockerContract.containers.filesystem.createDirectory)
       .use(requireAuth())
+      .use(requirePlatformRole(DOCKER_OPERATOR_ROLES))
         .effect(function* ({ input, context }) {
         const containers = yield* DockerContainers;
         const ports = yield* Effect.context<DockerContainersPorts>();
@@ -288,6 +297,7 @@ export class DockerController {
   openContainerTerminalSession() {
     return procedure(dockerContract.containers.terminal.open)
       .use(requireAuth())
+      .use(requirePlatformRole(DOCKER_OPERATOR_ROLES))
         .effect(function* ({ input, context }) {
         const containers = yield* DockerContainers;
         const ports = yield* Effect.context<DockerContainersPorts>();
@@ -313,6 +323,7 @@ export class DockerController {
   sendContainerTerminalInput() {
     return procedure(dockerContract.containers.terminal.sendInput)
       .use(requireAuth())
+      .use(requirePlatformRole(DOCKER_OPERATOR_ROLES))
         .effect(function* ({ input, context }) {
         const containers = yield* DockerContainers;
         const ports = yield* Effect.context<DockerContainersPorts>();
@@ -331,6 +342,7 @@ export class DockerController {
   closeContainerTerminalSession() {
     return procedure(dockerContract.containers.terminal.close)
       .use(requireAuth())
+      .use(requirePlatformRole(DOCKER_OPERATOR_ROLES))
         .effect(function* ({ input, context }) {
         const containers = yield* DockerContainers;
         const ports = yield* Effect.context<DockerContainersPorts>();
@@ -356,6 +368,7 @@ export class DockerController {
   streamImageSecurityScan() {
     return implement(dockerContract.images.security.scanning.stream)
       .use(requireAuth())
+      .use(requirePlatformRole(DOCKER_OPERATOR_ROLES))
       .handler(({ input }) => this.dockerImagesOrchestratorService.streamImageSecurityScan(input.query));
   }
 

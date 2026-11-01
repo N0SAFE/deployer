@@ -2,7 +2,7 @@ import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { nodesContract } from "@deployer/fleet-contracts";
 import { procedure } from "@deployer/nest-effect";
-import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
+import { requireAuth, requirePlatformRole } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
 import { serve } from "../../../core/orpc/serve";
 import { FleetService } from "../services/fleet.service";
@@ -17,6 +17,10 @@ import { FleetService } from "../services/fleet.service";
  * NOTE: the contract must be referenced through `nodesContract.*`
  * so the `/nodes` router prefix is preserved in the mapped Nest routes.
  */
+
+/** Capacity, allocations and admission decisions are operational acts; self-service stays per-user. */
+const FLEET_OPERATOR_ROLES = ["superAdmin", "admin", "operator"];
+
 @Controller()
 export class FleetController {
     @Implement(nodesContract.listServers)
@@ -33,6 +37,7 @@ export class FleetController {
     setServerCapacity() {
         return procedure(nodesContract.setServerCapacity)
             .use(requireAuth())
+            .use(requirePlatformRole(FLEET_OPERATOR_ROLES))
             .effect(function* ({ input, context }) {
                 const fleet = yield* FleetService;
                 const result = yield* serve(context)(fleet.setServerCapacity(input));
@@ -96,6 +101,7 @@ export class FleetController {
     upsertAllocation() {
         return procedure(nodesContract.upsertAllocation)
             .use(requireAuth())
+            .use(requirePlatformRole(FLEET_OPERATOR_ROLES))
             .effect(function* ({ input, context }) {
                 const fleet = yield* FleetService;
                 const result = yield* serve(context)(fleet.upsertAllocation(input));
@@ -107,6 +113,7 @@ export class FleetController {
     deleteAllocation() {
         return procedure(nodesContract.deleteAllocation)
             .use(requireAuth())
+            .use(requirePlatformRole(FLEET_OPERATOR_ROLES))
             .effect(function* ({ input, context }) {
                 const fleet = yield* FleetService;
                 const result = yield* serve(context)(fleet.deleteAllocation(input));
@@ -128,6 +135,7 @@ export class FleetController {
     resolveAdmissionRequest() {
         return procedure(nodesContract.resolveAdmissionRequest)
             .use(requireAuth())
+            .use(requirePlatformRole(FLEET_OPERATOR_ROLES))
             .effect(function* ({ input, context }) {
                 const fleet = yield* FleetService;
                 const result = yield* serve(context)(fleet.resolveAdmissionRequest(input));

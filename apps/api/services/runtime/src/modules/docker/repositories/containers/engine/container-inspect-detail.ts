@@ -109,12 +109,12 @@ export function buildContainerInspectDetail(
   const environment = envEntries.map((entry) => {
     const [key, ...valueParts] = entry.split("=");
     const normalizedKey = (key ?? "").trim();
-    const value = valueParts.join("=");
     const isSecretKey = /(password|secret|token|key)/i.test(normalizedKey);
 
     return {
       key: normalizedKey,
-      value,
+      // Secrets never leave the server: the key and the `masked` flag stay, the value is a fixed mask.
+      value: isSecretKey ? "********" : valueParts.join("="),
       masked: isSecretKey,
       source: isSecretKey ? ("secret" as const) : ("runtime" as const),
     };

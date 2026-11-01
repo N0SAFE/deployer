@@ -8,6 +8,7 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import type { Logger as DrizzleLogger } from "drizzle-orm/logger";
 import { eq } from "drizzle-orm";
 import { Roles } from "@deployer/auth/permissions";
+import { provisionUserAccount } from "@deployer/auth/server";
 import type { SetupInitializeLocalInput } from "@deployer/contracts-entities";
 import * as globalSchema from "@deployer/nest-schema/global";
 import { user } from "@deployer/nest-schema/global/identity/auth";
@@ -761,10 +762,9 @@ export class LocalInitializationService {
                 .where(eq(user.email, input.email))
                 .limit(1);
             if (existing[0]) {
-                log(`  user ${input.email} already exists — promoting to super-admin instead of re-seeding`);
-                await db.update(user)
-                    .set({ emailVerified: true, role: Roles.superAdmin })
-                    .where(eq(user.id, existing[0].id));
+                // AUTH-005: an existing account is never promoted by matching an email. A wizard re-run that finds
+                // the admin it already created is done; any other user keeps the role it was given.
+                log(`  user ${input.email} already exists — leaving its role untouched`);
                 return { userId: existing[0].id };
             }
 
@@ -789,24 +789,23 @@ export class LocalInitializationService {
                 AUTH_BASE_DOMAIN: process.env.AUTH_BASE_DOMAIN,
             });
 
-            log("▸ Calling auth.api.signUpEmail …");
+            log("▸ Provisioning the super-admin through Better Auth's internal adapter …");
             let userId: string;
             try {
-                const signUpResult = await auth.api.signUpEmail({
-                    body: {
-                        name: input.name,
-                        email: input.email,
-                        password: input.password,
-                    },
+                // Public sign-up is disabled (AUTH-001), so the wizard provisions the first admin the same way the
+                // admin bootstrap does: verified, with its role written at creation and no follow-up UPDATE.
+                userId = await provisionUserAccount(auth, {
+                    email: input.email,
+                    name: input.name,
+                    password: input.password,
+                    role: Roles.superAdmin,
                 });
-                userId = signUpResult.user.id;
             } catch (seedError: unknown) {
-                // Another node created the same admin concurrently (unique
-                // email constraint) — recover by promoting the winner instead
-                // of failing the whole setup.
+                // Another node created the same admin concurrently (unique email constraint): the winner's row is the
+                // admin. Find it and leave it alone — never promote it.
                 const message = seedError instanceof Error ? seedError.message : String(seedError);
                 if (!/duplicate|already exists|unique/i.test(message)) throw seedError;
-                log(`  concurrent seed detected (${message}) — promoting the existing user instead`);
+                log(`  concurrent seed detected (${message}) — using the row that won`);
                 const raced = await db
                     .select({ id: user.id })
                     .from(user)
@@ -817,13 +816,7 @@ export class LocalInitializationService {
                 userId = racedId;
             }
             log(`  user.id  = ${userId}`);
-            log("  user + credential account written (issuer handled by Better Auth)");
-
-            log("▸ Promoting role to super-admin + marking email as verified …");
-            await db.update(user)
-                .set({ emailVerified: true, role: Roles.superAdmin })
-                .where(eq(user.id, userId));
-            log("  role = superAdmin, email_verified = true");
+            log("  user + credential account written, role superAdmin, email verified");
 
             return { userId };
         } finally {

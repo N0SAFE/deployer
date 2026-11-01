@@ -2,7 +2,7 @@ import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { clusterContract } from "@deployer/fleet-contracts";
 import { procedure } from "@deployer/nest-effect";
-import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
+import { requireAuth, requirePlatformRole } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 import { liveSnapshot } from "@deployer/shared/core/utils/live-snapshot.utils";
 import { Effect } from "effect";
 
@@ -22,6 +22,10 @@ const SWARM_CONFIG_STREAM_INTERVAL_MS = 15_000;
  * context; the `stream*` procedures hand back the RxJS observables of the event hub (reached through
  * `ClusterEventsPort`). Every use case runs through `serve`.
  */
+
+/** Swarm membership and node labels are operational acts: a viewer keeps the reads. */
+const CLUSTER_OPERATOR_ROLES = ["superAdmin", "admin", "operator"];
+
 @Controller()
 export class ClusterController {
     @Implement(clusterContract.getSnapshot)
@@ -102,6 +106,7 @@ export class ClusterController {
     setSwarmConfig() {
         return procedure(clusterContract.setSwarmConfig)
             .use(requireAuth())
+            .use(requirePlatformRole(CLUSTER_OPERATOR_ROLES))
             .effect(function* ({ input, context }) {
                 const cluster = yield* ClusterService;
                 return yield* serve(context)(cluster.setSwarmConfig(input));
@@ -122,6 +127,7 @@ export class ClusterController {
     updateNode() {
         return procedure(clusterContract.updateNode)
             .use(requireAuth())
+            .use(requirePlatformRole(CLUSTER_OPERATOR_ROLES))
             .effect(function* ({ input, context }) {
                 const cluster = yield* ClusterService;
                 return yield* serve(context)(cluster.updateNodeLabels(input.params.nodeId, {

@@ -2,7 +2,7 @@ import { ResourceNotFound } from "../domain/project.errors";
 import { Effect } from "effect";
 import { rule } from "../project-effects";
 import { ProjectStore } from "../repositories/project.repository";
-import { projectRules, type ProjectAccess } from "../domain/project.entity";
+import { projectRules, type ProjectAccess, type ProjectRole } from "../domain/project.entity";
 
 /**
  * Load a project and prove the caller may act on it at `access` level.
@@ -13,8 +13,16 @@ import { projectRules, type ProjectAccess } from "../domain/project.entity";
  * `maintainer` — so the list matched nobody but the owner. The policy now lives
  * once, in `projectRules`, and this function is the only place that has to load
  * the rows to apply it.
+ *
+ * Returns the role the caller did it AS, because a membership change has to
+ * compare the role being granted against the granter's own (see
+ * `projectRules.assertCanGrant`).
  */
-export function assertProjectAccess(projectId: string, userId: string, access: ProjectAccess) {
+export function assertProjectAccessWithRole(
+	projectId: string,
+	userId: string,
+	access: ProjectAccess,
+) {
 	return Effect.gen(function* () {
 		const projects = yield* ProjectStore;
 		const project = yield* projects.findById(projectId);
@@ -29,7 +37,16 @@ export function assertProjectAccess(projectId: string, userId: string, access: P
 				? null
 				: yield* projects.findCollaboratorByUserAndProject(userId, projectId);
 
-		yield* rule(() => projectRules.assertAccess(project, userId, collaborator, access));
-		return project;
+		const role: ProjectRole = yield* rule(() =>
+			projectRules.assertAccess(project, userId, collaborator, access),
+		);
+		return { project, role };
 	});
+}
+
+/** The project, when only its fields are needed. */
+export function assertProjectAccess(projectId: string, userId: string, access: ProjectAccess) {
+	return assertProjectAccessWithRole(projectId, userId, access).pipe(
+		Effect.map(({ project }) => project),
+	);
 }

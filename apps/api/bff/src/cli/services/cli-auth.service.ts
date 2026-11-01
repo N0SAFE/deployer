@@ -389,15 +389,11 @@ export class CliAuthService {
       const existing = existingUser[0];
 
       if (existing.role !== Roles.superAdmin) {
-        await this.databaseService.db
-          .update(schema.user)
-          .set({
-            role: Roles.superAdmin,
-            updatedAt: new Date(),
-          })
-          .where(eq(schema.user.id, existing.id));
-
-        this.logger.log(`✅ Upgraded default admin user role to superAdmin: ${defaultAdminEmail} (ID: ${existing.id})`);
+        // AUTH-005: an existing account is never promoted by matching DEFAULT_ADMIN_EMAIL. Promotion is an explicit
+        // grant, not a side effect of an environment variable. Say so and leave the row alone.
+        this.logger.warn(
+          `⚠️  ${defaultAdminEmail} exists with role "${existing.role ?? "user"}" — not promoting it to superAdmin. Grant the role explicitly.`,
+        );
       } else {
         this.logger.log(`✅ Default admin user already exists: ${defaultAdminEmail} (ID: ${existing.id})`);
       }

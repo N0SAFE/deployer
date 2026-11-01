@@ -164,6 +164,16 @@ describe("SwarmRuntimeRunner", () => {
         expect(swarmServices.update).not.toHaveBeenCalled();
     });
 
+    it("refuses executor labels in a platform-reserved namespace", async () => {
+        await expect(run(service.executeRuntime({
+            ...baseInput,
+            executorOptions: { labels: { "deployer.managed": "false", "traefik.enable": "true" } },
+        }))).rejects.toMatchObject({ _tag: "RuntimeInvalid" });
+
+        expect(swarmServices.create).not.toHaveBeenCalled();
+        expect(swarmServices.update).not.toHaveBeenCalled();
+    });
+
     it("updates the service in place when it already exists", async () => {
         swarmServices.inspect.mockReturnValue(Effect.succeed(serviceSummary));
 

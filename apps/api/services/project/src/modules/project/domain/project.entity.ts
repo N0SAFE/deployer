@@ -68,6 +68,36 @@ const ACCESS_GRANTS: Readonly<Record<ProjectAccess, ReadonlySet<ProjectRole>>> =
 const RESERVED_ROLE: ProjectRole = "owner";
 
 /**
+ * Authority, ascending. Used only to stop a member from granting a role at or
+ * above their own — the same list `PROJECT_ROLES` publishes, read as an order.
+ */
+const ROLE_RANK: Readonly<Record<ProjectRole, number>> = {
+	viewer: 1,
+	deployer: 2,
+	maintainer: 3,
+	owner: 4,
+};
+
+/**
+ * The assertion as a standalone function, because `assertCanGrant` below calls
+ * it: TypeScript refuses an assertion call through a property access whose
+ * object has no explicit annotation (TS2775), and the method form would
+ * duplicate the whole check.
+ */
+function assertKnownRole(role: string): asserts role is ProjectRole {
+	if (!(projectRules.roles as readonly string[]).includes(role)) {
+		throw new ValidationError(`${role} is not a project role`, [
+			{
+				path: "role",
+				code: "invalid_enum_value",
+				severity: "error",
+				message: `must be one of: ${projectRules.roles.join(", ")}`,
+			},
+		]);
+	}
+}
+
+/**
  * The rules about a PROJECT — as opposed to a row's shape.
  *
  * Kept pure: no database, no Nest container, no HTTP, and no `@nestjs/common`
@@ -115,16 +145,7 @@ export const projectRules = {
 	 * message that blames their permissions rather than their role name.
 	 */
 	assertRoleIsAssignable(role: string): asserts role is ProjectRole {
-		if (!projectRules.isRole(role)) {
-			throw new ValidationError(`${role} is not a project role`, [
-				{
-					path: "role",
-					code: "invalid_enum_value",
-					severity: "error",
-					message: `must be one of: ${projectRules.roles.join(", ")}`,
-				},
-			]);
-		}
+		assertKnownRole(role);
 	},
 
 	/**
@@ -217,5 +238,30 @@ export const projectRules = {
 				"collaborator",
 			);
 		}
+	},
+
+	/**
+	 * Can `actor` give somebody `next`?
+	 *
+	 * ── WHY A RANK, AND WHY AT-OR-ABOVE IS REFUSED ──────────────────────────
+	 * `admin` access (invite/update) is held by `owner` AND `maintainer`, so an
+	 * unchecked cast let a maintainer invite a second maintainer — or, before
+	 * the caller was checked, themselves as `owner`. Granting a role at or above
+	 * your own is a promotion you were not given: authority may only be handed
+	 * DOWN. Combined with {@link projectRules.assertNotOwnerGrant}, that means a
+	 * maintainer can invite deployers and viewers, and only the owner can invite
+	 * maintainers.
+	 */
+	assertCanGrant(actor: ProjectRole, next: string): ProjectRole {
+		assertKnownRole(next);
+		projectRules.assertNotOwnerGrant(next);
+		if (ROLE_RANK[next] >= ROLE_RANK[actor]) {
+			throw new ForbiddenError(
+				`A ${actor} cannot grant the ${next} role; it is at or above their own`,
+				"grant",
+				"collaborator",
+			);
+		}
+		return next;
 	},
 };

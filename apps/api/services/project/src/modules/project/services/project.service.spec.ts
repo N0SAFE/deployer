@@ -361,11 +361,74 @@ describe("ProjectService", () => {
 			const result = await run(
 				service.inviteCollaborator("proj-1", "user-1", {
 					email: "other@example.com",
-					role: "developer",
+					role: "deployer",
 				}),
 			);
 
 			expect(result.inviteId).toBe("collab-1");
+		});
+
+		/**
+		 * ── WHY THESE EXIST ─────────────────────────────────────────────────
+		 * `data.role` used to be cast (`as ProjectRole`) straight into the
+		 * insert, so the role a caller asked for was never checked against the
+		 * role they held. A maintainer — who has `admin` access, the same as the
+		 * owner — could invite a second maintainer or an owner and thereby
+		 * escalate.
+		 */
+		it("refuses to grant ownership, even from the owner", async () => {
+			repository.findById.mockReturnValue(Effect.succeed(mockProject));
+			repository.findUserByEmail.mockReturnValue(Effect.succeed(mockUser));
+
+			await expect(
+				run(
+					service.inviteCollaborator("proj-1", "user-1", {
+						email: "other@example.com",
+						role: "owner",
+					}),
+				),
+			).rejects.toThrow(ProjectForbidden);
+			expect(repository.createCollaborator).not.toHaveBeenCalled();
+		});
+
+		it("refuses a non-owner granting a role at or above their own", async () => {
+			repository.findById.mockReturnValue(Effect.succeed(mockProject));
+			repository.findCollaboratorByUserAndProject.mockImplementation((userId: string) =>
+				Effect.succeed(userId === "user-2" ? { ...mockCollaborator, role: "maintainer" } : null),
+			);
+
+			await expect(
+				run(
+					service.inviteCollaborator("proj-1", "user-2", {
+						email: "other@example.com",
+						role: "maintainer",
+					}),
+				),
+			).rejects.toThrow(ProjectForbidden);
+			expect(repository.createCollaborator).not.toHaveBeenCalled();
+		});
+
+		it("lets a maintainer grant a role below their own", async () => {
+			repository.findById.mockReturnValue(Effect.succeed(mockProject));
+			repository.findCollaboratorByUserAndProject.mockImplementation((userId: string) =>
+				Effect.succeed(userId === "user-2" ? { ...mockCollaborator, role: "maintainer" } : null),
+			);
+			// The invitee is a DIFFERENT user from the caller.
+			repository.findUserByEmail.mockReturnValue(
+				Effect.succeed({ ...mockUser, id: "user-3", email: "new@example.com" }),
+			);
+			repository.createCollaborator.mockReturnValue(Effect.succeed(mockCollaborator));
+
+			await run(
+				service.inviteCollaborator("proj-1", "user-2", {
+					email: "new@example.com",
+					role: "deployer",
+				}),
+			);
+
+			expect(repository.createCollaborator).toHaveBeenCalledWith(
+				expect.objectContaining({ role: "deployer" }),
+			);
 		});
 
 		it("should fail with ResourceNotFound when invited user does not exist", async () => {
@@ -376,7 +439,7 @@ describe("ProjectService", () => {
 				run(
 					service.inviteCollaborator("proj-1", "user-1", {
 						email: "nobody@example.com",
-						role: "developer",
+						role: "deployer",
 					}),
 				),
 			).rejects.toThrow(ResourceNotFound);
@@ -393,7 +456,7 @@ describe("ProjectService", () => {
 				run(
 					service.inviteCollaborator("proj-1", "user-1", {
 						email: "other@example.com",
-						role: "developer",
+						role: "deployer",
 					}),
 				),
 			).rejects.toThrow(ProjectConflict);
@@ -568,6 +631,91 @@ describe("ProjectService", () => {
 			await expect(
 				run(service.deleteVariableTemplate("proj-1", "user-1", "tmpl-1")),
 			).rejects.toThrow(ResourceNotFound);
+		});
+	});
+
+	describe("updateCollaborator", () => {
+		it("refuses a role patch at or above the caller's own", async () => {
+			repository.findById.mockReturnValue(Effect.succeed(mockProject));
+			repository.findCollaboratorByUserAndProject.mockImplementation((userId: string) =>
+				Effect.succeed(
+					userId === "user-2"
+						? { ...mockCollaborator, role: "maintainer" }
+						: { ...mockCollaborator, userId: "user-3", role: "viewer" },
+				),
+			);
+
+			await expect(
+				run(service.updateCollaborator("proj-1", "user-2", "user-3", { role: "owner" })),
+			).rejects.toThrow(ProjectForbidden);
+			expect(repository.updateCollaborator).not.toHaveBeenCalled();
+		});
+	});
+
+	// ========================================
+	// security config — the secret is write-only
+	// ========================================
+
+	describe("security config", () => {
+		const projectWithSecrets = {
+			...mockProject,
+			settings: {
+				webhookSecret: "whsec_live_do_not_echo",
+				basicAuthUsername: "staging",
+				basicAuthPassword: "hunter2",
+				enableBasicAuth: true,
+				allowedDomains: [],
+				ipWhitelist: [],
+			},
+		};
+
+		beforeEach(() => {
+			repository.findById.mockReturnValue(Effect.succeed(projectWithSecrets));
+			configuration.projectConfigFromSettings.mockReturnValue(undefined);
+			configuration.resolveStrict.mockReturnValue({
+				effective: { routing: { forceHttps: true } },
+			});
+		});
+
+		/**
+		 * The read used to return the stored values verbatim, so every role with
+		 * `read` — including `viewer` — could read the webhook HMAC key and the
+		 * basic-auth password.
+		 */
+		it("masks the stored secrets on read and says only whether they are set", async () => {
+			const result = await run(service.getSecurityConfig("proj-1", "user-1"));
+
+			expect(result.webhookSecret).toBeNull();
+			expect(result.basicAuthPassword).toBeNull();
+			expect(result.hasWebhookSecret).toBe(true);
+			expect(result.hasBasicAuthPassword).toBe(true);
+			// The non-secret half still reads normally.
+			expect(result.basicAuthUsername).toBe("staging");
+			expect(result.enableHttpsRedirect).toBe(true);
+			expect(JSON.stringify(result)).not.toContain("whsec_live_do_not_echo");
+			expect(JSON.stringify(result)).not.toContain("hunter2");
+		});
+
+		it("accepts a new secret on write and still never echoes it", async () => {
+			repository.update.mockReturnValue(
+				Effect.succeed({
+					...projectWithSecrets,
+					settings: { ...projectWithSecrets.settings, basicAuthPassword: "rotated" },
+				}),
+			);
+
+			const result = await run(
+				service.updateSecurityConfig("proj-1", "user-1", { basicAuthPassword: "rotated" }),
+			);
+
+			expect(repository.update).toHaveBeenCalledWith(
+				"proj-1",
+				expect.objectContaining({
+					settings: expect.objectContaining({ basicAuthPassword: "rotated" }),
+				}),
+			);
+			expect(result.basicAuthPassword).toBeNull();
+			expect(result.hasBasicAuthPassword).toBe(true);
 		});
 	});
 

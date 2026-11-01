@@ -183,7 +183,11 @@ export function makeSwarmParticipation(deps: {
 		}).pipe(Effect.catch((error) => Effect.logWarning(`Swarm policy application skipped: ${error.message}`)));
 
 	const persistSnapshot = (snapshot: ClusterSnapshot): Effect.Effect<void> =>
-		clusterNode.upsertFromSnapshot(snapshot).pipe(
+		Effect.gen(function* () {
+			// Tokens stay server-side: read from the engine, never from the response-shaped snapshot.
+			const joinTokens = yield* cluster.getJoinTokens().pipe(Effect.catch(() => Effect.succeed(null)));
+			return yield* clusterNode.upsertFromSnapshot(snapshot, joinTokens);
+		}).pipe(
 			Effect.flatMap((row) => Effect.logInfo(`Cluster node state persisted (swarmRole=${row.swarmRole ?? "n/a"})`)),
 			Effect.catch((error) => Effect.logWarning(`Cluster node state persistence skipped: ${error.message}`)),
 		);
@@ -254,24 +258,22 @@ export function makeSwarmParticipation(deps: {
 		let availability = "";
 		let nodeCount = 0;
 		let managerCount = 0;
-		let joinTokens: { worker: string; manager: string } | null = null;
 		if (active) {
 			const snapshot = yield* cluster.getLocalClusterSnapshot().pipe(Effect.catch(() => Effect.succeed(null)));
 			role = snapshot?.localNode.swarmRole ?? "none";
 			availability = snapshot?.localNode.availability ?? "active";
 			nodeCount = snapshot?.nodeCount ?? 0;
 			managerCount = snapshot?.managerCount ?? 0;
-			joinTokens = yield* cluster.getJoinTokens().pipe(Effect.catch(() => Effect.succeed(null)));
 		}
 		return swarmConfigViewSchema.parse({
-			participation: cfg,
+			// The persisted join token is a cluster-admin secret: never echoed, only applied server-side.
+			participation: { ...cfg, joinToken: null },
 			setupDone: done,
 			engineState: info?.LocalNodeState ?? "unknown",
 			role,
 			availability,
 			nodeCount,
 			managerCount,
-			joinTokens,
 			resolveNote: resolveNote(cfg, done, active, role),
 			policies: POLICY_DOCUMENTS,
 		});

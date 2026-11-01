@@ -11,10 +11,14 @@ export type ClusterNodeRepositoryShape = {
 	readonly find: () => Effect.Effect<ClusterNodeRow | null, LocalDatabaseError>;
 	/**
 	 * Persists an engine-derived `ClusterSnapshot` as this node's row and returns what was stored. The
-	 * snapshot is the only input: nothing is read from the environment. Join tokens are kept here so
-	 * onboarding tokens survive restarts without living in `.env`.
+	 * snapshot is the only input: nothing is read from the environment. Join tokens are passed
+	 * explicitly (read from the engine, never carried on the response-shaped snapshot) so onboarding
+	 * tokens survive restarts without living in `.env` or in a client payload.
 	 */
-	readonly upsertFromSnapshot: (snapshot: ClusterSnapshot) => Effect.Effect<ClusterNodeRow, LocalDatabaseError | NodeStateConflict>;
+	readonly upsertFromSnapshot: (
+		snapshot: ClusterSnapshot,
+		joinTokens?: { worker: string; manager: string } | null,
+	) => Effect.Effect<ClusterNodeRow, LocalDatabaseError | NodeStateConflict>;
 	/**
 	 * Compare-and-set claim of the controlling master: succeeds only when `expectedTerm` is the
 	 * persisted term, which is the single-winner guarantee for concurrent elections. On success the
@@ -55,7 +59,7 @@ export function makeClusterNodeRepository(database: LocalDatabaseShape): Cluster
 	return {
 		find,
 
-		upsertFromSnapshot: (snapshot) =>
+		upsertFromSnapshot: (snapshot, joinTokens = null) =>
 			Effect.gen(function* () {
 				const now = new Date().toISOString();
 				const node = snapshot.localNode;
@@ -71,8 +75,8 @@ export function makeClusterNodeRepository(database: LocalDatabaseShape): Cluster
 					managerCount: snapshot.managerCount,
 					masterNodeId: snapshot.master?.nodeId ?? null,
 					masterTerm: snapshot.master?.term ?? 0,
-					joinTokenWorker: snapshot.joinTokens?.worker ?? null,
-					joinTokenManager: snapshot.joinTokens?.manager ?? null,
+					joinTokenWorker: joinTokens?.worker ?? null,
+					joinTokenManager: joinTokens?.manager ?? null,
 					lastHeartbeatAt: node.lastHeartbeatAt ?? now,
 					updatedAt: now,
 				};

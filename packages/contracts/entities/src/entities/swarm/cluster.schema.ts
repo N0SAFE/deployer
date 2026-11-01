@@ -72,12 +72,5 @@ export const clusterSnapshotSchema = z.object({
   localNode: clusterNodeSchema,
   master: clusterMasterSchema.nullable().default(null),
   membership: clusterMembershipSchema,
-  joinTokens: z
-    .object({
-      worker: z.string(),
-      manager: z.string(),
-    })
-    .nullable()
-    .default(null),
 })
 export type ClusterSnapshot = z.infer<typeof clusterSnapshotSchema>

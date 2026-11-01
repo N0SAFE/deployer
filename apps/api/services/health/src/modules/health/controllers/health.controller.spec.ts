@@ -10,6 +10,14 @@ import { HealthRegistryRepository, UptimeSource } from "../services/health.servi
 import { HealthService, SERVICE_NAME } from "../services/health.service";
 import { healthRegistryFake, healthSnapshot } from "../testing/health.fixtures";
 
+// Authentication and role checks are the shared middlewares' concern; here they let the call
+// through so the rest of the chain runs for real.
+vi.mock("@deployer/shared/core/modules/auth/orpc/middlewares", async () => {
+	const { os } = await import("@orpc/server");
+	const passThrough = () => os.$context().middleware(({ next }) => next());
+	return { requireAuth: passThrough, requirePlatformRole: passThrough };
+});
+
 /**
  * The health service's contract surface.
  *

@@ -242,6 +242,14 @@ function makeClusterService(ports: Ports): ClusterServiceShape {
                 memoryBytes: node.Description?.Resources?.MemoryBytes ?? null,
             };
 
+            // CLUSTER-009: the engine's own node state, not just its availability (`down` from `disconnected`).
+            const state: "ready" | "down" | "unknown" =
+                node.Status?.State === undefined
+                    ? "unknown"
+                    : node.Status.State === "ready"
+                        ? "ready"
+                        : "down";
+
             // Persist the engine's actual role/ingress into the local inventory (cache).
             yield* attemptSync(() =>
                 runSyncUnwrapped(inventoryRepository.upsertFromEngine({
@@ -252,6 +260,7 @@ function makeClusterService(ports: Ports): ClusterServiceShape {
                     isLeader: isMaster,
                     isIngress,
                     availability,
+                    state,
                     nanoCpus: capacity.nanoCpus,
                     memoryBytes: capacity.memoryBytes,
                     labels,

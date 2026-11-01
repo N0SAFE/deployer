@@ -73,6 +73,8 @@ export class SetupController {
         return implement(setupContract.probeDatabase)
             .use(publicAccess())
             .handler(async ({ input }) => {
+                await this.initializationService.assertSetupMutable();
+                await this.initializationService.assertDatabaseProbeAllowed(input.databaseUrl.trim());
                 const start = Date.now();
                 const pool = new Pool({
                     connectionString: input.databaseUrl.trim(),
@@ -109,7 +111,8 @@ export class SetupController {
     triggerInitialize() {
         return implement(setupContract.triggerInitialize)
             .use(publicAccess())
-            .handler(({ input }) => {
+            .handler(async ({ input }) => {
+                await this.initializationService.assertSetupMutable();
                 // Credentials are stored inside initializationService.triggerInitialize()
                 const result = this.initializationService.triggerInitialize(input);
                 return { status: 201 as const, headers: {}, body: result };
@@ -153,6 +156,7 @@ export class SetupController {
         return implement(setupContract.dismissPostSetupHint)
             .use(publicAccess())
             .handler(async ({ input, errors }) => {
+                await this.initializationService.assertSetupMutable();
                 this.logger.log(`Hint dismissed: ${input.hintId}`);
                 const config = await runPromiseUnwrapped(this.nodeConfigRepository.find());
                 if (!config) {

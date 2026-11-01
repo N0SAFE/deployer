@@ -1856,3 +1856,12 @@ Counts: 306 items = P0 9 / P1 159 / P2 105 / P3 33; FIX 45 / ENHANCE 77 / NEW 18
 - [x] DEC-EFF-38 (D-A..D-Q, target 12.1) Confirm the decisions made by the target-architecture doc itself (Effect owns the process; `HttpEdge` end state; errors by kind; `CurrentActor` without default and `Ambient` in `R`; per-request context merged by middleware; tag + `Live` in one file; transaction design with `CurrentTx` and savepoints; services never migrate at boot and verify the journal head; EdDSA claims with 30 s TTL; services drop Better Auth; five `effect-*` packages; Vitest 5 first; hand-rolled `runMain`; probes/readiness replace `HealthRegistry`; resilience classes and in-house `CircuitBreaker`; mandatory `meta.authz`; polled outbox consumers) — recommendation: accept as written; the operator accepted the headline (full Effect) but not each sub-decision explicitly; recorded in `docs/qa/effect/architecture.md`. Resolved: 2026-10-26 accepted as written (batch); two items to skim later: in-house `CircuitBreaker` should be a simple `Schedule`-based one (`EFF-239`), and `runMain` stays hand-rolled (`EFF-180`). Recorded in `docs/qa/effect/target-architecture-and-catalog.md`.
 
 > Decisions pass: 2026-10-26 — 21 decisions resolved, 13 items unblocked
+
+## Verification 2026-11-01 (code, not the audit)
+
+| Item | Verdict | Evidence |
+|---|---|---|
+| EFF-212 | partial | `KeyRing`/`SecretBox`/`LegacyCodecReader` complete and wired through `schema-codecs`; no `Signer`, rotation is env-only, `rotate` table absent |
+| EFF-240 | built, unused | `CommandRunner` (allow-list, no shell, process-group kill, caps) has no production caller; node-agent, setup bootstrap and docker build still spawn directly |
+| EFF-242 | done | `ArchiveExtractor` wired into the git/upload path, with traversal/symlink/setuid limits |
+| EFF-244 | done | `SafeHttp`/`EgressPolicy` behind every reachability, domain and setup probe |

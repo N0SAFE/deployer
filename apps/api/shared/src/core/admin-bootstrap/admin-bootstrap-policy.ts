@@ -29,13 +29,14 @@
  *   2. Deprecated aliases, honoured only when `ADMIN_BOOTSTRAP` is unset:
  *        dev  → `ENABLE_DEV_BOOTSTRAP`
  *        prod → `ENABLE_SEEDING`
- *   3. Default: `always`.
+ *   3. Default: `never`.
  *
- * The default is `always` because of WHERE this runs. Every call site is the
- * restart path of a node whose setup already completed, and an install that must
- * be usable but has no credentials is orphaned. "Would prefer an admin exists"
- * is the wrong question there — the right one is "is it missing?", which the
- * bootstrap answers idempotently.
+ * The default is `never` because nothing here is opt-out any more. This boot
+ * path runs on a node whose setup already completed, so the account it would
+ * create is an account nobody chose — and it is created from
+ * `DEFAULT_ADMIN_*`, which now has no fallback value. An install that WANTS the
+ * restart path to ensure the admin says so: `ADMIN_BOOTSTRAP=true` (plus the
+ * credentials). Silence creates nothing.
  */
 
 export type AdminBootstrapDecision = "always" | "when_empty" | "never";
@@ -97,10 +98,12 @@ export function resolveAdminBootstrapDecision(env: {
     }
   }
 
-  // 3. The default for a node that is already set up.
+  // 3. The default for a node that is already set up: do nothing. Creating an
+  //    account is an explicit request, never a consequence of leaving a switch
+  //    unset.
   return {
-    decision: "always",
-    reason: "default — this boot path only runs on an already-configured node",
+    decision: "never",
+    reason: "default — no admin bootstrap requested (set ADMIN_BOOTSTRAP=true to enable)",
   };
 }
 

@@ -11,7 +11,7 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
 ## Items
 
 ### Critical access-control holes (auth)
-- [ ] `AUTH-001` **Disable public sign-up and block client-set `role`** · FIX · P0 · S · Deps: none
+- [x] `AUTH-001` **Disable public sign-up and block client-set `role`** · FIX · P0 · S · Deps: none
   - Why/Problem: `emailAndPassword: { enabled: true }` has no `disableSignUp` (`packages/auth/src/server/auth.ts:117`); `role` additional field has `input: true` (`auth.ts:135`); web only hides the link (`apps/web/src/app/auth/_utils/dev-only.ts:10`). `POST /api/auth/sign-up/email` works in prod, possibly with `role:"superAdmin"`. New users get role `user`, which passes `requireAuth()` everywhere.
   - Do: set `emailAndPassword.disableSignUp: true` (or a `before` hook allowing sign-up only when the user table is empty or with a valid invite); set `role` `input:false`; add a `before` hook stripping `role`; keep the dev-only UI. Apply in `packages/auth` (shared by both trees).
   - Done when: `POST /api/auth/sign-up/email` (with and without `role`) returns 403/ignored in a production-mode instance; test AUTH-041 passes.
@@ -25,21 +25,21 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Status: todo · Verified-in-code: partial (option drop confirmed) · Source: auth.md#0 (1)
   - Design-impact (2026-10-26): approach changes from "gate/cap the plugin" to "delete it" in the end state: the `platform_invite` plugin is replaced by the own `invitations` table + service (`AUTH-065`, `DEC-AUTH-17`) where `grant_template` is capped by `Grants.assertGrantable` and `superAdmin` is never inviteable. Interim (before P4): `admin.createUser` via our service, no email invites. The P0 quick fix (pass `canCreateInvite`, cap roles) may still land first.
 
-- [ ] `AUTH-003` **Gate master-token and login-as plugins out of production** · FIX · P0 · S · Deps: none
+- [x] `AUTH-003` **Gate master-token and login-as plugins out of production** · FIX · P0 · S · Deps: none
   - Why/Problem: `masterTokenPlugin` enabled when `DEV_AUTH_KEY && DEFAULT_ADMIN_EMAIL` with no `NODE_ENV` gate (`auth.ts:186-188`); `loginAsPlugin` enabled by `!!DEV_AUTH_KEY` alone (`auth.ts:191-192`). Compose defaults ship `DEV_AUTH_KEY=dev-fallback-key` + `admin@admin.com` (`infra/docker/compose/common/api/docker-compose.config.yml:17-25`, also web prod + services compose); `Authorization: Bearer dev-fallback-key` yields a superAdmin session on every endpoint (`masterTokenAuth.ts:~165`); `loginAs` mints a cookie for any userId (`loginAs.ts:35`). `.env.example:197` ships `dev-secret-key-change-me`; `.env.prod.example` suggests reusing AUTH_SECRET.
   - Do: require `NODE_ENV !== "production"` inside both plugins (not only at call site); make Zod forbid `DEV_AUTH_KEY` when `NODE_ENV=production`; delete `dev-fallback-key` defaults from every compose file; drop the `.env.prod.example` suggestion. Consider removing the plugins from production bundles.
   - Done when: in a prod-mode instance `Authorization: Bearer <DEV_AUTH_KEY>` yields 401 even if the env var is set (boot fails or plugin inert); AUTH-043 passes.
   - Status: todo · Verified-in-code: yes · Source: auth.md#0 (5), ops.md#R-05, architecture.md#4 (17)
   - Design-impact (2026-10-26): re-scoped from "gate out of production" to DELETE, not gate: `masterTokenAuth`, `loginAs`, `DEV_AUTH_KEY` and every `dev-fallback-key` default are removed ("a gate can be misconfigured; a deleted plugin cannot"). Replacements: device-code login (`AUTH-068`), service-account tokens (`AUTH-066`, dev seed), host recovery CLI (`SEC-081`). Impersonation replaces `loginAs` (`AUTH-067`).
 
-- [ ] `AUTH-004` **Make `ENABLE_MASTER_TOKEN` a strict boolean** · FIX · P0 · S · Deps: none
+- [x] `AUTH-004` **Make `ENABLE_MASTER_TOKEN` a strict boolean** · FIX · P0 · S · Deps: none
   - Why/Problem: `z.coerce.boolean()` (`packages/config/env/src/index.ts:200`) turns the string `"false"` into `true`, so `ENABLE_MASTER_TOKEN=false` still enables the backdoor.
   - Do: replace with a strict parser (`"true"|"false"` enum transform) and apply to other boolean flags that use coerce.
   - Done when: `ENABLE_MASTER_TOKEN=false` parses to `false`; unit test on the schema.
   - Status: todo · Verified-in-code: yes · Source: auth.md#0 (5)
   - Design-impact (2026-10-26): with the plugins deleted (`AUTH-003`) the strict-boolean fix remains useful for other flags but no longer guards the backdoor; mark this item done when `ENABLE_MASTER_TOKEN` is removed entirely.
 
-- [ ] `AUTH-005` **Remove hardcoded default-admin fallbacks and stop promoting pre-existing users** · FIX · P0 · M · Deps: `SEC-016`,`SEC-017`
+- [x] `AUTH-005` **Remove hardcoded default-admin fallbacks and stop promoting pre-existing users** · FIX · P0 · M · Deps: `SEC-016`,`SEC-017`
   - Why/Problem: `ensureDefaultAdmin` falls back to `admin@admin.com` / `adminadmin` (`core/admin-bootstrap/default-admin.bootstrap.ts:48-50`), re-runs every boot for compose-managed DBs and promotes any existing user with that email to superAdmin (squattable via open sign-up). Setup local flow also promotes an existing user by email (`local-initialization.service.ts:~170-185,860`).
   - Do: no default credential anywhere (code + compose); require explicit admin email + strong password (or setup claim token, AUTH-016) outside dev; seed only when the user table is empty; never promote an existing account.
   - Done when: boot with no admin env in prod mode fails fast or skips seeding; a pre-registered `admin@admin.com` is not promoted.
@@ -323,7 +323,7 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Status: todo · Verified-in-code: unverified · Source: docker-cluster.md#3 (1), docker-cluster.md#1.2 (fleet), docker-cluster.md#4 (1)
   - Design-impact (2026-10-26): gates become `node:update`/`node:label`/`node:drain` (high) and admission decisions record the reviewer from `CurrentActor`; `listMy*`/`checkMyAdmission` use `access.self()` scoping; `operator` keeps node ops (`node.operator` role, `SEC-078`) per `DEC-AUTH-24`.
 
-- [ ] `SEC-005` **Stop leaking swarm join tokens to every authenticated user** · FIX · P0 · M · Deps: `SEC-004`
+- [x] `SEC-005` **Stop leaking swarm join tokens to every authenticated user** · FIX · P0 · M · Deps: `SEC-004`
   - Why/Problem: `cluster.getSnapshot`/`streamSnapshot` return `joinTokens {worker, manager}` (`swarm-cluster.service.ts:176-178`); `cluster.getSwarmConfig` returns them (`swarm-participation.service.ts:434`). Manager token + reachable address = full cluster takeover. Tokens are stored plaintext in local SQLite (`cluster-node.repository.ts` `joinToken*`, `node_config.swarmConfig`).
   - Do: remove tokens from these responses; expose only through an explicit admin "issue join token/grant" procedure (join-grant flow exists); encrypt or avoid persisting at rest; rotate after use.
   - Done when: no snapshot/config response contains a token; tokens not present in SQLite plaintext.
@@ -373,7 +373,7 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Design-impact (2026-10-26): the global default-deny gate makes "anonymous by accident" impossible: every anonymous procedure must declare `access.public({reason})` and appears in the reviewed public-allowlist snapshot (`SEC-065`); `health.*`/`openapi` stances are explicit entries there.
 
 ### Setup surface, SSRF, injection
-- [ ] `SEC-012` **Lock down the anonymous `/setup/*` surface after setup** · FIX · P0 · M · Deps: none (coordinate with SETUP)
+- [x] `SEC-012` **Lock down the anonymous `/setup/*` surface after setup** · FIX · P0 · M · Deps: none (coordinate with SETUP)
   - Why/Problem: BFF `setup.controller.ts:27` is class-level `@AllowAnonymous()` + `publicAccess()` on every handler; monolith `setup.controller.ts:44-290` same. `triggerInitialize` has no `setup_done` guard and promotes an existing user by email to superAdmin (`local-initialization.service.ts:~170-185,860`); `existingDatabaseUrl` lets a caller repoint the node to another Postgres; `probeDatabase` opens a connection to a caller URL (internal port-scan/oracle, returns driver error); `probeMesh`/`remoteAuth` make server-side requests and `remoteAuth` posts credentials to caller-supplied `${meshOrigin}`. `SetupGateService` exists only in `apps/setup`; no post-setup lock on the BFF path; `listPostSetupHints` returns literals.
   - Do: reject every `setup.*` procedure when `setup_done` or when caller is not the setup app/has no setup token; do not promote existing users; seed only when user table empty; restrict probe targets (see SEC-013).
   - Done when: after setup, every `setup.*` call returns 403/404; SEC-042 passes.
@@ -399,7 +399,7 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Effect-impact (2026-10-26): Effect rule: undeclared failures are rethrown raw (`Cause.squash`) and become 500; sanitising belongs in the central `effect/wrap` mapper with a defect policy (500 body + correlation id + server-side log). Today `HealthCheckFailed.cause` is dropped with no log (N-4). Deps: `EFF-012`.
 
 ### Secrets and encryption
-- [ ] `SEC-016` **Fix the encryption key derivation (R-02)** · FIX · P0 · M · Deps: none
+- [x] `SEC-016` **Fix the encryption key derivation (R-02)** · FIX · P0 · M · Deps: none
   - Why/Problem: `schema-codecs.ts:37-46` does `Buffer.from(AUTH_SECRET, "hex")`; for the shipped non-hex `AUTH_SECRET` (`.env.example:174`, `.env.prod.example`) this is a 0-byte key, so ciphertexts (env vars, GitHub private keys, DNS credentials, cluster secret material, webhook secrets, GitLab token) depend only on the stored salt and are decryptable by anyone with the DB; non-production silently uses `scryptSync("temporary-fallback-key","salt",32)`; copy exists in `api-services/shared`.
   - Do: require a dedicated `ENCRYPTION_KEY` (32 bytes, Zod-validated hex/base64, production refinement); derive with HKDF; remove silent fallback outside tests; treat all currently stored secrets as exposed and rotate them; re-encrypt existing rows (coordinate with ARCH backfill).
   - Done when: boot fails in production without a valid key; unit test proves a non-hex secret is rejected; stored secrets re-encrypted under the new key.
@@ -444,7 +444,7 @@ Cross-references (not duplicated here): webhook signature/idempotency (DEPLOY), 
   - Done when: roster contains no plaintext tunnel token; revoke triggers rotation.
   - Status: todo · Verified-in-code: unverified · Source: networking.md#3 (4), networking.md#4 (10), ideas-security-resilience.md#I-05
 
-- [ ] `SEC-023` **Purge committed credentials and add secret scanning** · FIX · P0 · S · Deps: none
+- [x] `SEC-023` **Purge committed credentials and add secret scanning** · FIX · P0 · S · Deps: none
   - Why/Problem: tracked `200` (commit `f9522f7d9`) is a curl cookie jar with a live-format Better Auth `session_token`/`session_data` for `admin@admin.com` superAdmin (domain `.deployer.localhost`, expiry 2026-10-29); `.env.prod` tracked despite `.gitignore` (names a real domain, `ENABLE_SEEDING=true`); tracked `.tmp/local.db*` SQLite files and other junk (hygiene owned by OPS).
   - Do: rotate the session/secret, `git rm` `200`, `git rm --cached .env.prod` and `.tmp/local.db*`, add `.gitignore` entries, run gitleaks in CI and over history.
   - Done when: no secrets tracked; gitleaks job green in CI.
@@ -1109,3 +1109,19 @@ Counts: AUTH 73 (AUTH-001..040 + AUTH-041..049 tests + AUTH-050 + AUTH-051..073 
 > Effect-impact pass: 2026-10-26 — 17 items annotated
 
 > Decisions pass: 2026-10-26 — 18 decisions resolved, 0 items unblocked
+
+## Verification 2026-11-01 (code, not the audit)
+
+| Item | Verdict | Evidence |
+|---|---|---|
+| AUTH-001 | done | `packages/auth/src/server/auth.ts` — `disableSignUp: true`, `role.input: false` (better-auth 1.7.7) |
+| AUTH-003 / AUTH-004 | done | dev plugins registered only when `NODE_ENV !== "production"` **and** `DEV_AUTH_KEY`; `ENABLE_MASTER_TOKEN` is a strict boolean |
+| AUTH-005 | done | no `admin@admin.com`/`adminadmin` fallback, no promotion of an existing user, policy defaults to `never`; setup seeds through `provisionUserAccount` |
+| SEC-005 / CLUSTER-002 | done | `joinTokens` removed from `swarmConfigViewSchema` + `clusterSnapshotSchema` and from both mappers |
+| SEC-012 / SETUP-002 | done | `assertSetupMutable()` (409 after setup) + `assertDatabaseProbeAllowed()` (400 on loopback/metadata targets) |
+| SEC-016 | done | `KeyRing` (HKDF) + `SecretBox` + prod boot refusal; only the operator reseal run remains |
+| SEC-023 / OPS-001 | done (working tree) | `.env.prod` + `.tmp/*.db` untracked, `.tmp/` ignored, gitleaks job in `ci.yml`; **history still holds the old file — needs an approved rewrite** |
+| SEC-003 | partial | docker mutations now `requirePlatformRole(["superAdmin","admin","operator"])` + server-side env masking; reads stay authenticated |
+| SEC-038 | partial | negative matrices exist for the docker and cluster controllers; the rest is unstarted |
+| SEC-080 | partial | interim coarse gates on docker/cluster/fleet/DNS/reachability/analytics/deployment |
+| SEC-048..057, SEC-061..064 | open | no authz catalog, builder, gate or `Authz` service exists |

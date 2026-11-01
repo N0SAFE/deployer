@@ -12,24 +12,35 @@
  *   - compose_managed / explicit_url → admin ensured on every boot
  *   - managed / manual               → admin seeded by the wizard on an empty DB
  *
- * Idempotent: existing user → ensures superAdmin role, else no-op.
- *
  * NON-SILENT: the function NEVER swallows errors — every call returns a
- * discriminated outcome (created | promoted | existed | failed). Callers
- * decide the failure policy (the orchestrator fails the boot when an
- * admin-required path cannot create one).
+ * discriminated outcome (created | existed | failed). Callers decide the
+ * failure policy (the orchestrator fails the boot when an admin-required path
+ * cannot create one).
+ *
+ * NO INVENTED CREDENTIALS, NO PROMOTION BY EMAIL: a missing email or password
+ * used to fall back to `admin@admin.com` / `adminadmin`, and an existing user
+ * whose email matched was silently raised to superAdmin. Both are gone: the
+ * credentials must be configured, and an existing account keeps its role until
+ * an admin grants it explicitly.
  */
 
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq } from "drizzle-orm";
 import { Roles } from "@deployer/auth/permissions";
+import { provisionUserAccount } from "@deployer/auth/server";
 import { user } from "@deployer/nest-schema/global/identity/auth";
 import * as globalSchema from "@deployer/nest-schema/global";
 import { createBetterAuth } from "../../config/auth/auth";
 
 export type EnsureDefaultAdminResult =
   | { outcome: "created"; userId: string }
+  /**
+   * No longer emitted: an existing user is never granted a role by matching an
+   * email (see the body). Kept only because `BootstrapOrchestratorService`
+   * still branches on it, and that file is outside this change — delete both
+   * together.
+   */
   | { outcome: "promoted"; userId: string }
   | { outcome: "existed"; userId: string }
   | { outcome: "failed"; error: string };
@@ -44,36 +55,45 @@ export async function ensureDefaultAdmin(
   databaseUrl: string,
   options?: EnsureDefaultAdminOptions,
 ): Promise<EnsureDefaultAdminResult> {
-  const emailRaw = (options?.email ?? process.env.DEFAULT_ADMIN_EMAIL ?? "").trim();
-  const email = emailRaw.length > 0 ? emailRaw : "admin@admin.com";
-  const passwordRaw = options?.password ?? process.env.DEFAULT_ADMIN_PASSWORD ?? "";
-  const password = passwordRaw.length > 0 ? passwordRaw : "adminadmin";
+  const email = (options?.email ?? process.env.DEFAULT_ADMIN_EMAIL ?? "").trim();
+  const password = options?.password ?? process.env.DEFAULT_ADMIN_PASSWORD ?? "";
+
+  // No invented credentials. This used to fall back to `admin@admin.com` /
+  // `adminadmin`, which meant every install that merely FORGOT to configure the
+  // variables shipped with a known super-admin password. Both are now required;
+  // the caller gets one actionable line and nothing is written.
+  if (email.length === 0 || password.length === 0) {
+    return {
+      outcome: "failed",
+      error:
+        "DEFAULT_ADMIN_EMAIL and DEFAULT_ADMIN_PASSWORD must both be set to create the default admin — " +
+        "set them, or create the account through the setup wizard / `create-default-admin` CLI",
+    };
+  }
 
   const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   try {
     const db = drizzle(pool, { schema: globalSchema });
 
-    // Existing user → ensure superAdmin, never duplicate.
+    // Existing user → report it and stop. Never promote by email: a row whose
+    // address happens to match a configured variable is not evidence that the
+    // operator wants that account to become a super-admin. Elevation is an
+    // explicit grant (admin plugin `setRole`), never a side effect of a boot.
     const existing = await db
-      .select({ id: user.id, role: user.role })
+      .select({ id: user.id })
       .from(user)
       .where(eq(user.email, email))
       .limit(1);
 
     if (existing[0]) {
-      if (existing[0].role !== Roles.superAdmin) {
-        await db
-          .update(user)
-          .set({ role: Roles.superAdmin, emailVerified: true })
-          .where(eq(user.id, existing[0].id));
-        return { outcome: "promoted", userId: existing[0].id };
-      }
       return { outcome: "existed", userId: existing[0].id };
     }
 
-    // Create through Better Auth so the credential account + password hash
-    // match exactly what sign-in/email expects (issuer "local:credential",
-    // configured hash algorithm — hardcoding would break INVALID_EMAIL_OR_PASSWORD).
+    // Created through Better Auth's internal adapter (NOT `signUpEmail`: public
+    // sign-up is disabled, and that endpoint is the public door). The adapter is
+    // still the single source of truth for the credential account + password
+    // hash, and the role is written at creation, so the account never exists in
+    // an unprivileged state.
     const { auth } = createBetterAuth(db, {
       DEV_AUTH_KEY: process.env.DEV_AUTH_KEY,
       DEFAULT_ADMIN_EMAIL: email,
@@ -86,19 +106,12 @@ export async function ensureDefaultAdmin(
       AUTH_BASE_DOMAIN: process.env.AUTH_BASE_DOMAIN,
     });
 
-    const signUpResult = await auth.api.signUpEmail({
-      body: {
-        name: options?.name ?? "Default Admin",
-        email,
-        password,
-      },
+    const userId = await provisionUserAccount(auth, {
+      email,
+      name: options?.name ?? "Default Admin",
+      password,
+      role: Roles.superAdmin,
     });
-    const userId = signUpResult.user.id;
-
-    await db
-      .update(user)
-      .set({ emailVerified: true, role: Roles.superAdmin })
-      .where(eq(user.id, userId));
 
     return { outcome: "created", userId };
   } catch (error) {

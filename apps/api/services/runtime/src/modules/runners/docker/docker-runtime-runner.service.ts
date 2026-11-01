@@ -149,7 +149,10 @@ function buildDockerRuntimeRunner(ports: {
 
     const executeRuntime = Effect.fn("DockerRuntimeRunner.executeRuntime")(function* (input: RuntimeExecutionInput) {
         const { deployment, artifact, healthGateConfig, storageBinding, executorOptions, convergenceConfig } = input;
-        const sanitizedExecutorLabels = sanitizeExecutorLabels(executorOptions?.labels);
+        const sanitizedExecutorLabels = yield* Effect.try({
+            try: () => sanitizeExecutorLabels(executorOptions?.labels),
+            catch: (cause) => cause,
+        });
         const sanitizedStartupCommand = yield* Effect.try({
             try: () => sanitizeStartupCommand(executorOptions?.startupCommand),
             catch: (cause) => cause,

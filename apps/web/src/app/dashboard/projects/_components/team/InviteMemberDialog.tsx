@@ -3,7 +3,7 @@
 import { useForm } from '@tanstack/react-form'
 import { toast } from 'sonner'
 import z from 'zod/v4'
-import { projectRoleSchema } from '@deployer/contracts-entities'
+import { projectAssignableRoleSchema } from '@deployer/contracts-entities'
 import { Button } from '@deployer/ui/components/shadcn/button'
 import { Input } from '@deployer/ui/components/shadcn/input'
 import { Label } from '@deployer/ui/components/shadcn/label'
@@ -11,11 +11,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@deployer/ui/components/shadcn/dialog'
 import { ROLE_DESCRIPTIONS } from '../../[projectId]/_utils/team'
 
-export type ProjectRole = z.infer<typeof projectRoleSchema>
+/** What a member may be invited AS — `owner` is transferred, not invited. */
+export type ProjectRole = z.infer<typeof projectAssignableRoleSchema>
 
 const inviteSchema = z.object({
   email: z.string().trim().pipe(z.email('Enter a valid email address')),
-  role: projectRoleSchema,
+  role: projectAssignableRoleSchema,
 })
 
 /** Mount only while open so the form always starts empty. */
@@ -53,10 +54,10 @@ export function InviteMemberDialog({
             {(field) => (
               <div className="grid gap-2">
                 <Label htmlFor="invite-role">Role</Label>
-                <Select value={field.state.value} onValueChange={(v) => { field.handleChange(projectRoleSchema.parse(v)) }}>
+                <Select value={field.state.value} onValueChange={(v) => { field.handleChange(projectAssignableRoleSchema.parse(v)) }}>
                   <SelectTrigger id="invite-role"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {projectRoleSchema.options.map((r) => (<SelectItem key={r} value={r}>{r}</SelectItem>))}
+                    {projectAssignableRoleSchema.options.map((r) => (<SelectItem key={r} value={r}>{r}</SelectItem>))}
                   </SelectContent>
                 </Select>
                 <p className="text-sm text-muted-foreground">{ROLE_DESCRIPTIONS[field.state.value]}</p>

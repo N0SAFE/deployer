@@ -1,5 +1,6 @@
 import z from "zod/v4";
 import { standardDomainErrorContracts } from "@deployer/orpc-utils";
+import { projectAssignableRoleSchema } from "@deployer/contracts-entities";
 import { projectCollaboratorOps } from "./shared";
 
 export const projectUpdateCollaboratorContract = projectCollaboratorOps
@@ -9,7 +10,8 @@ export const projectUpdateCollaboratorContract = projectCollaboratorOps
             .params((p) => p`/${p("id", z.uuid())}/collaborators/${p("userId", z.string())}`)
             .body(
                 z.object({
-                    role: b.entitySchema.shape.role.optional(),
+                    // Ownership is not grantable through a role patch.
+                    role: projectAssignableRoleSchema.optional(),
                     permissions: b.entitySchema.shape.permissions.optional(),
                 }),
             ),

@@ -33,11 +33,12 @@ describe("buildContainerInspectDetail", () => {
     ]);
   });
 
-  it("masks secret-looking environment keys and keeps '=' inside values", () => {
+  it("masks secret-looking environment keys server-side and keeps '=' inside plain values", () => {
     expect(detail.environment).toEqual([
       { key: "PORT", value: "80", masked: false, source: "runtime" },
-      { key: "DB_PASSWORD", value: "s3=cret", masked: true, source: "secret" },
+      { key: "DB_PASSWORD", value: "********", masked: true, source: "secret" },
     ]);
+    expect(JSON.stringify(detail)).not.toContain("s3=cret");
   });
 
   it("reads the runtime config and the compose view from labels", () => {

@@ -19,12 +19,17 @@ import { NodeReachabilityService } from "../services/node-reachability.service";
 /** Changing how the stack is reached, or who is in the mesh, is a platform-admin act. */
 const EDGE_ADMIN_ROLES = ["superAdmin", "admin"];
 
+
+/** Probing a caller-named target, and the node config behind it, is an operational act. */
+const PROBE_OPERATOR_ROLES = ["superAdmin", "admin", "operator"];
+
 @Controller()
 export class ReachabilityController {
     @Implement(reachabilityContract.check)
     check() {
         return procedure(reachabilityContract.check)
             .use(requireAuth())
+            .use(requirePlatformRole(PROBE_OPERATOR_ROLES))
             .effect(function* ({ input, context }) {
                 const reachability = yield* NodeReachabilityService;
                 return yield* serve(context)(reachability.check(input.url));
@@ -45,6 +50,7 @@ export class ReachabilityController {
     updateConfig() {
         return procedure(reachabilityContract.updateConfig)
             .use(requireAuth())
+            .use(requirePlatformRole(PROBE_OPERATOR_ROLES))
             .effect(function* ({ context }) {
                 const reachability = yield* NodeReachabilityService;
                 return yield* serve(context)(reachability.probePublicUrl());
@@ -95,6 +101,7 @@ export class ReachabilityController {
     updateNodeNetworkConfig() {
         return procedure(reachabilityContract.updateNodeNetworkConfig)
             .use(requireAuth())
+            .use(requirePlatformRole(PROBE_OPERATOR_ROLES))
             .effect(function* ({ input, context }) {
                 const reachability = yield* NodeReachabilityService;
                 return yield* serve(context)(reachability.updateNodeNetworkConfig({ nodeId: input.nodeId, publicAddress: input.publicAddress }));

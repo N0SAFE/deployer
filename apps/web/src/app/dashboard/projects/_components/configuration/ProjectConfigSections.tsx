@@ -91,7 +91,12 @@ export function SecurityConfigCard({ projectId }: { projectId: string }) {
       description="HTTPS redirect, allowed domains and basic auth applied to this project's public routes."
       query={query}
       saving={update.isPending}
-      onSave={async (draft) => { await update.mutateAsync({ params: { id: projectId }, body: draft }) }}
+      onSave={async (c) => {
+        // The read shape carries the masked secret flags; only the writable
+        // half goes back on the wire.
+        const { hasWebhookSecret, hasBasicAuthPassword, webhookSecret, basicAuthPassword, ...writable } = c
+        await update.mutateAsync({ params: { id: projectId }, body: writable })
+      }}
       renderView={(c) => (
         <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2 md:grid-cols-4">
           <Stat label="HTTPS redirect">{c.enableHttpsRedirect ? 'Enabled' : 'Disabled'}</Stat>

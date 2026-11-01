@@ -10,12 +10,12 @@ Security-only items owned by SEC are referenced, not duplicated (encryption-key 
 ## Items
 
 ### SETUP: security and first-run safety
-- [ ] `SETUP-001` **Close the default super-admin backdoor on restart** · FIX · P0 · S · Deps: none
+- [x] `SETUP-001` **Close the default super-admin backdoor on restart** · FIX · P0 · S · Deps: none
   - Why/Problem: `resolveAdminBootstrapDecision` returns `always` by default even in prod (`apps/api/src/core/admin-bootstrap/admin-bootstrap-policy.ts:~101-104`); `ensureDefaultAdmin` falls back to `admin@admin.com`/`adminadmin` (`apps/api-services/shared/src/core/admin-bootstrap/default-admin.bootstrap.ts:48,50`); setup does not forward `DEFAULT_ADMIN_*`/`ADMIN_BOOTSTRAP` to the API task, so first restart adds a second super-admin with a public password. `.env.example:178-179`, `.env.prod.example:68-69` ship the values.
   - Do: default `ADMIN_BOOTSTRAP` to `never` (or `when_empty`); delete built-in credential fallbacks in BOTH trees (`apps/api/src/core/admin-bootstrap/`, `apps/api-services/shared/src/core/admin-bootstrap/`); fail boot rather than create a known-password admin in production; strip the example values.
   - Done when: after `docker restart` of every platform container the `user` table still has exactly one admin; unit test for policy default; boot refuses `adminadmin` in `NODE_ENV=production`.
   - Status: todo · Verified-in-code: yes · Source: setup.md#3.1, journeys.md#J1 W1.6 / quick win 4, README#P0-2
-- [ ] `SETUP-002` **Lock `/setup/*` after setup_done and add SSRF rules to probes** · FIX · P0 · M · Deps: none (coordinate with `SEC-012`)
+- [x] `SETUP-002` **Lock `/setup/*` after setup_done and add SSRF rules to probes** · FIX · P0 · M · Deps: none (coordinate with `SEC-012`)
   - Why/Problem: every `/setup/*` procedure is `@AllowAnonymous()` (`apps/api/src/modules/setup/controllers/setup.controller.ts:27-28`; BFF `apps/api-services/bff/src/domains/setup/controllers/setup.controller.ts`). `triggerInitialize` only guards concurrency (`initialization.service.ts:254-258`): a POST on a finished node regenerates `nodeId`/`meshSharedSecret`, can repoint `databaseUrl`, or join an attacker mesh (`local-initialization.service.ts:343-380`, `remote-initialization.service.ts:171-215`). `probeDatabase`/`probeMesh`/`remoteAuth` (`:61-277`) are an SSRF/port-scan primitive. `dismissPostSetupHint` writes anonymously (`:328-364`).
   - Do: return 404/409 for trigger, probes, remoteAuth and hint dismissal once `setupState==="setup_done"`; keep only `state`/`node-status`/`done` anonymous; block private ranges, loopback and the platform overlay in probe targets; require auth for hint dismiss.
   - Done when: `POST /setup/trigger` on a configured node returns 409/404; probe to `http://169.254.169.254` and to the overlay is refused; security spec exists (see SETUP-036).
@@ -178,7 +178,7 @@ Security-only items owned by SEC are referenced, not duplicated (encryption-key 
   - Status: todo · Verified-in-code: no · Source: setup.md (method)
 
 ### OPS: secrets in git and repo hygiene
-- [ ] `OPS-001` **Purge committed credentials and junk from git tracking; scan history** · FIX · P0 · S · Deps: none
+- [x] `OPS-001` **Purge committed credentials and junk from git tracking; scan history** · FIX · P0 · S · Deps: none
   - Why/Problem: `git ls-files` today still lists `200` (curl cookie jar with live-format Better Auth session for `admin@admin.com` superAdmin, expiry 2026-10-29), `.env.prod` (names a real domain, `ENABLE_SEEDING=true`), `PG`, `api.log`, `temp.txt`, `test.txt`, `ts-output.txt`, `300`, `800` (verified). Deletions exist in the working tree but are uncommitted.
   - Do: revoke the session token / rotate; `git rm` the files, `git rm --cached .env.prod`; add `.gitignore` entries; run gitleaks over history and in CI.
   - Done when: `git ls-files` lists none of them; gitleaks CI job green; session invalidated.
@@ -202,7 +202,7 @@ Security-only items owned by SEC are referenced, not duplicated (encryption-key 
   - Done when: tag push produces all images with digests recorded in a release manifest (`SUB-B` style for platform releases) and a fresh VPS pulls only (no source build).
   - Status: todo · Verified-in-code: yes · Source: ops.md#R-04, §4#5, journeys.md#J1 W1.1
   - Effect-impact (2026-10-26): image build path to verify: all six api-services apps build with `bun build --packages=external` (package.json:18), contradicting ARCHITECTURE.md:196-197 'never bun build an app'; confirm Nest metadata survives in the published images. Deps: `EFF-043`.
-- [ ] `OPS-005` **Rewrite the production compose for the BFF tier; drop `build-api`** · FIX · P0 · M · Deps: `OPS-004`, `DEC-OPS-1`
+- [x] `OPS-005` **Rewrite the production compose for the BFF tier; drop `build-api`** · FIX · P0 · M · Deps: `OPS-004`, `DEC-OPS-1`
   - Why/Problem: `infra/docker/compose/docker-compose.prod.yml:40` builds the monolith (`Dockerfile.api.prod:35-36` PRUNE_SCOPE `@deployer/api`) which cannot compile (`apps/api/src/app.module.ts:18` imports `@repo/nest-*`, packages are `@deployer/nest-*`); no `mesh-agent` image although setup defaults `MESH_AGENT_IMAGE=deployer-mesh-agent:latest`; `DEPLOYER_BFF_IMAGE` and five `DEPLOYER_SVC_*_IMAGE`, `MANAGED_WEB_APP_IMAGE` set nowhere in prod (`apps/setup/src/config/env/env.schema.ts:176-186`); no `.env` validation, no registry push; root `docker-compose.yml` includes dev only.
   - Do: image-only prod compose referencing published digests; set all image env vars; include mesh-agent; `.env` validation; nothing in prod path references the monolith.
   - Done when: `docker compose -f ... config` passes in CI and a clean VM boots to readiness.
@@ -217,7 +217,8 @@ Security-only items owned by SEC are referenced, not duplicated (encryption-key 
   - Do: bundle = mesh URL + grant + swarm hint; preflight; pull mesh-agent + setup; no wizard.
   - Done when: node 2 joins in <= 3 minutes from running the one-liner.
   - Status: todo · Verified-in-code: yes (absence) · Source: journeys.md#J5 W5.4
-- [ ] `OPS-008` **Delete `deploy.sh` and `docker-compose.deployer.yml`** · FIX · P0 · S · Deps: `OPS-006`
+- [x] `OPS-008` **Delete `deploy.sh` and `docker-compose.deployer.yml`** · FIX · P0 · S · Deps: `OPS-006`
+  - Status: done 2026-11-01 — root `deploy.sh` deleted (it was the 584-line "Gossip Club" nginx/certbot script; `docker-compose.deployer.yml` was already gone). Nothing referenced it.
   - Why/Problem: `deploy.sh` (584 lines) is for "The Gossip Club" (nginx, certbot, sed placeholders into `.env.prod`, `apt-get upgrade -y`, docker-compose curl without checksum) (verified header); `docker-compose.deployer.yml` references removed Phase-0 sub-app and "tgclub" names, hard-coded `CLOUDFLARE_TUNNEL_ID`, hostname `deployer.sebille.net`, `cloudflared:latest`, tunnel token heredoc into a container file.
   - Do: remove both; fix references (`deploy.sh:504`); no compat shims.
   - Done when: files gone and no doc/script references them.
@@ -309,7 +310,7 @@ Security-only items owned by SEC are referenced, not duplicated (encryption-key 
   - Done when: `bun check --no-script` green locally and in CI.
   - Status: todo · Verified-in-code: no (stale logs) · Source: ops.md#R-11, README#P0-12
   - Effect-impact (2026-10-26): baseline changes: new untracked packages (`@deployer/nest-effect`, `@deployer/health-contracts`, `@deployer/identity-contracts`) were type-check/lint green in `.turbo` logs (not re-run here); `samples/api-sample` is outside CI (Nest 12.2 / TS 5.9 vs repo Nest 11.1 / TS 7.0) and must be folded in, promoted or deleted (D10); `@effect/vitest` is blocked on Vitest 5. Do not count the sample in the zero-error target. Deps: `EFF-030`, `EFF-038`, `EFF-035`.
-- [ ] `OPS-025` **Make `lint:check` non-mutating** · FIX · P0 · S · Deps: none
+- [~] `OPS-025` **Make `lint:check` non-mutating** · FIX · P0 · S · Deps: none
   - Why/Problem: `bun lint` auto-fixes; `lint:check` rewrote 6 bff files (`export interface X extends FlatLeaves<..> {}` -> `type X = {} & ...`, conflicting with same-named `@Injectable() class X`); AGENTS.md claim that `lint:check` is read-only is false.
   - Do: define `lint:check` without `--fix`; CI fails on diff; fix AGENTS.md wording.
   - Done when: `bun run lint:check` leaves `git status` unchanged.
@@ -465,3 +466,17 @@ Security-only items owned by SEC are referenced, not duplicated (encryption-key 
   - Status: todo · Verified-in-code: no · Source: ops.md#R-17, §5
 
 > Effect-impact pass: 2026-10-26 — 7 items annotated
+
+## Verification 2026-11-01 (code, not the audit)
+
+| Item | Verdict | Evidence |
+|---|---|---|
+| SETUP-001 | done | default credentials removed; an existing account is never promoted; `ADMIN_BOOTSTRAP` defaults to `never` |
+| SETUP-002 | done | post-setup mutations refuse with 409, DB probe refuses private/metadata targets |
+| OPS-001 / SEC-023 | done (working tree) | untracked `.env.prod` + `.tmp/*.db`, gitleaks CI job; history rewrite still pending |
+| OPS-005 | done | prod compose is the BFF tier only, no `build-api` |
+| OPS-008 | done | `deploy.sh` deleted |
+| OPS-025 | obsolete | CI runs the non-mutating `turbo run lint`; `lint:check` no longer exists |
+| SETUP-003 | open | no claim token anywhere |
+| OPS-006 / OPS-013 | open | no installer, no backup/restore subsystem |
+| OPS-004 / OPS-023 | partial | images push to GHCR, single-arch; `deploy.yml` still not gated on CI success |

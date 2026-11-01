@@ -4,6 +4,7 @@ import * as path from "node:path";
 import { RuntimeInvalid } from "../../../core/runtime.errors";
 import type { RuntimeExecutionInput } from "../runtime-runner.interface";
 import type { DeploymentStorageBinding } from "@/modules/deployment/storage/base/storage-provider.interface";
+import { assertExecutorLabelAllowed } from "../base/reserved-labels";
 
 /**
  * The docker runner's pure decisions: what a label, a command, an env var or a storage binding
@@ -30,6 +31,7 @@ export function sanitizeExecutorLabels(labels: Record<string, string> | undefine
         if (!/^[a-zA-Z0-9._/-]+$/.test(key)) {
             continue;
         }
+        assertExecutorLabelAllowed(key);
         if (!value || value.length > 512) {
             continue;
         }

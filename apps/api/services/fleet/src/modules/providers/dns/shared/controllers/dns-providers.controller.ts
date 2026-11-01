@@ -12,10 +12,14 @@ import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { providersContract } from "@deployer/fleet-contracts";
 import { procedure } from "@deployer/nest-effect";
-import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
+import { requireAuth, requirePlatformRole } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
 import { serve } from "@/core/orpc/serve";
 import { CloudflareAppService } from "@/modules/providers/dns/cloudflare/services/cloudflare-app.service";
+
+
+/** A provider carries an API token: creating, patching or deleting one is an operational act. */
+const DNS_OPERATOR_ROLES = ["superAdmin", "admin", "operator"];
 
 @Controller()
 export class DnsProvidersController {
@@ -36,6 +40,7 @@ export class DnsProvidersController {
     create() {
         return procedure(providersContract.dns.create)
             .use(requireAuth())
+            .use(requirePlatformRole(DNS_OPERATOR_ROLES))
             .effect(function* ({ input, context }) {
                 const apps = yield* CloudflareAppService;
                 return yield* serve(context)(
@@ -54,6 +59,7 @@ export class DnsProvidersController {
     update() {
         return procedure(providersContract.dns.update)
             .use(requireAuth())
+            .use(requirePlatformRole(DNS_OPERATOR_ROLES))
             .effect(function* ({ input, context }) {
                 const apps = yield* CloudflareAppService;
                 return yield* serve(context)(apps.updateApp(input.params.id, input.body ?? {}));
@@ -64,6 +70,7 @@ export class DnsProvidersController {
     delete() {
         return procedure(providersContract.dns.delete)
             .use(requireAuth())
+            .use(requirePlatformRole(DNS_OPERATOR_ROLES))
             .effect(function* ({ input, context }) {
                 const apps = yield* CloudflareAppService;
                 const success = yield* serve(context)(apps.deleteApp(input.params.id));

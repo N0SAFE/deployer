@@ -184,6 +184,10 @@ function buildSwarmRunner(ports: {
         const networkMode = deployment.networkMode ?? null;
 
         const managedLabels: Record<string, string> = {
+            ...(yield* Effect.try({
+                try: () => sanitizeExecutorLabels(executorOptions?.labels),
+                catch: (cause) => cause,
+            })),
             "deployer.managed": "true",
             "deployer.managed_by": "deployment_service",
             "deployer.managed_reason": "deployment_execution",
@@ -192,7 +196,6 @@ function buildSwarmRunner(ports: {
             "deployer.runtime_runner": RUNNER_TYPE,
             "deployer.image_ref": containerImage,
             ...(deployment.projectId ? { "deployer.project_id": deployment.projectId } : {}),
-            ...sanitizeExecutorLabels(executorOptions?.labels),
         };
 
         const healthCheckUrl = deployment.healthCheckUrl ?? null;

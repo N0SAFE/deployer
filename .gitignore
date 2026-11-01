@@ -45,6 +45,9 @@ yarn-error.log*
 .env.staging
 .env.dev
 
+# scratch state that used to be committed (local SQLite + its WAL/SHM sidecars)
+.tmp/
+
 # turbo
 .turbo
 

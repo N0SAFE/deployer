@@ -40,7 +40,7 @@ Substrates: SUB-A (policy-gated authz) underpins PROJ-001..005, 008, 114; SUB-B 
   - Do: ignore request `projectId` for children (set to parent/root project), assert `parentId` belongs to the same project the caller can write.
   - Done when: creating a child with a foreign `projectId` or a foreign `parentId` fails; test.
   - Status: todo · Verified-in-code: yes (read `service.repository.ts:276-282`) · Source: projects-services#1.2,#3.1
-- [ ] `PROJ-006` **Fix collaborator privilege escalation and role hierarchy** · FIX · P0 · S · Deps: `SUB-A` · See also: `SEC-007`, `IDEA-010`
+- [x] `PROJ-006` **Fix collaborator privilege escalation and role hierarchy** · FIX · P0 · S · Deps: `SUB-A` · See also: `SEC-007`, `IDEA-010`
   - Why/Problem: `assertNotOwnerGrant` / `assertRoleIsAssignable` (`PS/project/domain/project.entity.ts:117,212`) are defined and never called (grep confirms no other references); `inviteCollaboratorSchema.role` includes `owner` (`packages/contracts/entities/.../collaborators.schema.ts:27-29`) so a maintainer can invite/promote anyone to owner; maintainers can demote/remove other maintainers (`project.service.ts:160-255`).
   - Do: call both asserts in invite/update; add rule "cannot grant or modify a role >= own role"; restrict owner changes to owner only (see PROJ-111 for transfer); drop `owner` from the invitable role enum.
   - Done when: maintainer inviting/promoting to `owner` -> 403; maintainer cannot modify/remove equal-or-higher; unit tests per matrix cell.
@@ -55,7 +55,7 @@ Substrates: SUB-A (policy-gated authz) underpins PROJ-001..005, 008, 114; SUB-B 
   - Do: add `project_id` (nullable for platform-global curated ones) with migration, filter on it, check template belongs to the project on mutate; consider applying template with generated defaults.
   - Done when: project A cannot see or edit project B's templates; migration backfills.
   - Status: todo · Verified-in-code: no · Source: projects-services#1.3; ideas-deploy#4.20
-- [ ] `PROJ-009` **Stop returning basic-auth password and webhook secret in clear from security config read** · FIX · P0 · S · Deps: `PROJ-022` · See also: `SEC-021`
+- [x] `PROJ-009` **Stop returning basic-auth password and webhook secret in clear from security config read** · FIX · P0 · S · Deps: `PROJ-022` · See also: `SEC-021`
   - Why/Problem: `project.service.ts:593-613` returns `webhookSecret` and `basicAuthPassword` to any reader (read access suffices); stored unencrypted in `projects.settings` JSONB.
   - Do: write-only semantics: return `hasSecret: true`/masked; require `admin` access to set; encrypt at rest (PROJ-022).
   - Done when: GET security config never contains the secret values; unit test asserts redaction.
@@ -530,3 +530,12 @@ Substrates: SUB-A (policy-gated authz) underpins PROJ-001..005, 008, 114; SUB-B 
   - Status: todo · Verified-in-code: yes (gap) · Source: projects-services#1.4; See also: `DEPLOY-128`
 
 > Effect-impact pass: 2026-10-26 — 3 items annotated
+
+## Verification 2026-11-01 (code, not the audit)
+
+| Item | Verdict | Evidence |
+|---|---|---|
+| PROJ-006 | done | `assertCanGrant` wired into invite/update; `owner` no longer invitable or assignable; role ≥ own refused |
+| PROJ-009 | done | security-config reads return `null` + `hasWebhookSecret`/`hasBasicAuthPassword`; writes still accept a secret |
+| PROJ-001 / PROJ-002 | open | list/findById/stream still unscoped by membership |
+| PROJ-020 / PROJ-021 | open | env values still plaintext JSONB; no `isSecret` semantics |

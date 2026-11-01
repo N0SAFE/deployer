@@ -62,6 +62,7 @@ export class DeploymentController {
     list() {
         return implement(deploymentContract.list)
             .use(requireAuth())
+            .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(async ({ input }) => {
                 return this.deploymentService.listDeployments(input.query);
             });
@@ -96,6 +97,7 @@ export class DeploymentController {
     findById() {
         return implement(deploymentContract.findById)
             .use(requireAuth())
+            .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(async ({ input }) => {
                 return this.deploymentService.getDeploymentById(input.params.id);
             });
@@ -180,6 +182,7 @@ export class DeploymentController {
     getLogs() {
         return implement(deploymentContract.getLogs)
             .use(requireAuth())
+            .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(async ({ input }) => {
                 return this.deploymentService.getDeploymentLogs(
                     input.params.id,
@@ -229,6 +232,7 @@ export class DeploymentController {
     stream() {
         return implement(deploymentContract.stream)
             .use(requireAuth())
+            .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
                 return this.deploymentStreamOrchestratorService.openDeploymentStream({
                     deploymentId: input.params.id,
@@ -260,6 +264,7 @@ export class DeploymentController {
 
         return implement(deploymentContract.streamService)
             .use(requireAuth())
+            .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
                 return deploymentService.streamServiceEvents({
                     serviceId: input.params.serviceId,
@@ -275,6 +280,7 @@ export class DeploymentController {
 
         return implement(deploymentContract.streamQuery)
             .use(requireAuth())
+            .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
             .handler(({ input }) => {
                 return deploymentService.streamQueryEvents({
                     deploymentId: input.query.deploymentId,

@@ -87,6 +87,17 @@ describe("projectRules — ownership is not transferable through the membership 
 		expect(() => { projectRules.assertNotOwnerGrant("maintainer"); }).not.toThrow();
 		expect(() => { projectRules.assertNotOwnerGrant(undefined); }).not.toThrow();
 	});
+
+	it("never lets a member grant a role at or above their own", () => {
+		// Authority only flows DOWN: owner → maintainer is fine…
+		expect(projectRules.assertCanGrant("owner", "maintainer")).toBe("maintainer");
+		expect(projectRules.assertCanGrant("maintainer", "deployer")).toBe("deployer");
+		// …but a maintainer cannot mint another maintainer, and nobody can mint
+		// an owner (assertNotOwnerGrant runs first).
+		expect(() => { projectRules.assertCanGrant("maintainer", "maintainer"); }).toThrow(ForbiddenError);
+		expect(() => { projectRules.assertCanGrant("deployer", "deployer"); }).toThrow(ForbiddenError);
+		expect(() => { projectRules.assertCanGrant("owner", "owner"); }).toThrow(ForbiddenError);
+	});
 });
 
 describe("projectRules.assertRoleIsAssignable", () => {

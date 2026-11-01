@@ -14,7 +14,7 @@ Counts: 130 items — P0 28 · P1 59 · P2 30 · P3 13; FIX 57 · ENHANCE 22 · 
 ## Items
 
 ### A. Honest deploy and release manifest (SUB-B)
-- [ ] `DEPLOY-001` **Remove the `nginx:alpine` fallback; fail the deploy when no image is produced** · FIX · P0 · S · Deps: none · See also: `JRN-017`
+- [x] `DEPLOY-001` **Remove the `nginx:alpine` fallback; fail the deploy when no image is produced** · FIX · P0 · S · Deps: none · See also: `JRN-017`
   - Why/Problem: github/upload deploy without `execution.builder` (the UI default) builds nothing, runs `nginx:alpine`, reports `success` (`RT/runners/docker/docker-runtime-runner.service.ts:38`, `RT/runners/swarm/swarm-runtime-runner.service.ts:99`, `artifact-builder.service.ts:65-70` returns null `fallbackContainerImage`).
   - Do: delete the `?? "nginx:alpine"` fallbacks in both runners; when `artifact.containerImage` and `deploymentContainerImage` are null, throw a typed permanent error ("no artifact produced: no Dockerfile / no builder resolved") that marks the deployment `failed` with reason.
   - Done when: a deploy of a service with no resolvable builder ends `failed` with an actionable message; unit test in both runners asserts no fallback image; no code path can mark `success` without an image reference.
@@ -85,7 +85,7 @@ Counts: 130 items — P0 28 · P1 59 · P2 30 · P3 13; FIX 57 · ENHANCE 22 · 
   - Effect-impact (2026-10-26): model the system actor as `Actor.system('<trigger>')` provided with `Effect.provideService` for background fibers (no hidden global); see ARCH-056. Deps: `EFF-014`.
 
 ### B. Queue, state machine, cancel
-- [ ] `DEPLOY-014` **Durable deployment queue (DB-backed jobs)** · FIX · P0 · L · Deps: `DEPLOY-003`
+- [x] `DEPLOY-014` **Durable deployment queue (DB-backed jobs)** · FIX · P0 · L · Deps: `DEPLOY-003`
   - Why/Problem: queue is an in-process `Map` + RxJS Subject (`RT/deployment/queue/deployment-queue-lifecycle.service.ts:44-45,79`); restart loses all jobs; no pruning; serial single worker.
   - Do: `deployment_jobs` table (claim with `FOR UPDATE SKIP LOCKED`, lease, heartbeat, attempts, availableAt), outbox-backed enqueue, DLQ in DB; keep the worker/lease API. Decision DEC-DEPLOY-7.
   - Done when: kill the process mid-queue and every queued job still runs after restart; restart e2e (DEPLOY-117).
@@ -174,7 +174,7 @@ Counts: 130 items — P0 28 · P1 59 · P2 30 · P3 13; FIX 57 · ENHANCE 22 · 
   - Do: fetch-by-sha (`git fetch --depth 1 origin <sha>`), PR refs via `fetch origin pull/N/head`.
   - Done when: deploying an older commit and a PR head works.
   - Status: todo · Verified-in-code: unverified · Source: deployments.md#1 (GitHub source), projects-services.md#1.5
-- [ ] `DEPLOY-030` **Validate branch/ref and repo URL (git option injection)** · FIX · P0 · S · Deps: `SEC-013` · See also: `SEC-013`, `SEC-040`
+- [x] `DEPLOY-030` **Validate branch/ref and repo URL (git option injection)** · FIX · P0 · S · Deps: `SEC-013` · See also: `SEC-013`, `SEC-040`
   - Why/Problem: `git clone --branch <user value>` unvalidated (`git.service.ts:33`).
   - Do: allow-list `^[A-Za-z0-9._/-]+$`, reject leading `-`, use `--` separator, validate URL scheme.
   - Done when: ref `--upload-pack=...` rejected; unit test.
@@ -727,3 +727,16 @@ Counts: 130 items — P0 28 · P1 59 · P2 30 · P3 13; FIX 57 · ENHANCE 22 · 
 Total items: 130 (DEPLOY-001..130): P0 28, P1 59, P2 30, P3 13; FIX 57, ENHANCE 22, NEW 51. Decisions: 12.
 
 > Effect-impact pass: 2026-10-26 — 15 items annotated
+
+## Verification 2026-11-01 (code, not the audit)
+
+| Item | Verdict | Evidence |
+|---|---|---|
+| DEPLOY-001 | done | `container-image.guard.ts`; no `nginx:alpine` fallback anywhere |
+| DEPLOY-014 | done | `deployment_queue_jobs` with leases/heartbeats, `skipLocked` claim, boot sweep |
+| DEPLOY-030 | done | `git-input.ts` validates URL/ref/commit and every git call passes `--` |
+| DEPLOY-089 | partial | read/stream/queue handlers gated at platform-role level; the project-membership filter still belongs in `DeploymentService` |
+| DEPLOY-002 / DEPLOY-003 | open | source/builder/runner still come from the request; no release manifest column |
+| DEPLOY-018 | partial | queue writes are guarded; deployment status writes are not |
+| DEPLOY-031 / DEPLOY-032 | open | extraction is safe, but the upload path is still client-supplied, uncapped, in-memory |
+| DEPLOY-091..093 | open | HMAC runs over re-serialized JSON, the secret is read from the plaintext global `app_config`, `claim()` is never called |

@@ -55,7 +55,7 @@ Counts: 104 items = P0 16 / P1 53 / P2 26 / P3 9; FIX 60 / ENHANCE 14 / NEW 30 (
   - Done when: `apps/api` boots and its e2e baseline result is recorded in the cutover doc.
   - Status: todo · Verified-in-code: yes · Source: architecture.md#4.1, monolith-cutover.md#1, #6 step 15
   - Effect-impact (2026-10-26): the monolith `apps/api/src/modules/health/*` is being edited in the working tree (it imports the new `@deployer/health-contracts`); the 'one last green baseline' must be taken after `ARCH-037` freeze or it will not stay green. Evidence: `effect-health-identity.md` N-10.
-- [ ] `ARCH-011` **Cutover step 1: topology decision recorded** · FIX · P0 · S · Deps: none
+- [x] `ARCH-011` **Cutover step 1: topology decision recorded** · FIX · P0 · S · Deps: none
   - Why/Problem: gate for every later step.
   - Do: satisfied by `ARCH-001`; tick together.
   - Done when: `ARCH-001` done.
@@ -170,7 +170,7 @@ Counts: 104 items = P0 16 / P1 53 / P2 26 / P3 9; FIX 60 / ENHANCE 14 / NEW 30 (
   - Done when: `apps/api` absent, `bun check --no-script` green, ownership spec passes without `"monolith"`.
   - Status: todo · Verified-in-code: partial · Source: monolith-cutover.md#6 step 14, #4
   - Effect-impact (2026-10-26): deleting `apps/api` is now also the cheapest way to stop monolith/service divergence while health/identity are rewritten (the monolith health module already imports `@deployer/health-contracts`, uncommitted). A stray duplicate `apps/api/services/identity/*` is already deleted in the working tree. Evidence: `effect-health-identity.md` N-10, §3 last row.
-- [ ] `ARCH-032` **Pre-delete safety: commit/branch/tag the working tree so the monolith is recoverable before any deletion** · NEW · P0 · S · Deps: none
+- [x] `ARCH-032` **Pre-delete safety: commit/branch/tag the working tree so the monolith is recoverable before any deletion** · NEW · P0 · S · Deps: none
   - Why/Problem: huge uncommitted restructure; `apps/api/src/core`, `config`, `auth.ts` untracked; deleting first loses the monolith irrecoverably. `monolith-cutover.md#8`
   - Do: commit the restructure (or tag `pre-monolith-delete`) and record the SHA in the cutover doc before step 14.
   - Done when: a tag/commit containing `apps/api` exists on a pushed branch.
@@ -224,13 +224,13 @@ Counts: 104 items = P0 16 / P1 53 / P2 26 / P3 9; FIX 60 / ENHANCE 14 / NEW 30 (
   - Do: generate/journal it properly via drizzle with correct `when`, or delete it and rely on the backfill; add a journal-vs-files consistency test (`ARCH-100`).
   - Done when: every `.sql` file in the migrations dir is in the journal (or removed) and CI asserts it.
   - Status: todo · Verified-in-code: yes · Source: architecture.md#2.5, #4.5
-- [ ] `ARCH-041` **Make boot-time migration failures fatal; stop substring error matching ("already"/"duplicate")** · FIX · P0 · M · Deps: none
+- [x] `ARCH-041` **Make boot-time migration failures fatal; stop substring error matching ("already"/"duplicate")** · FIX · P0 · M · Deps: none
   - Why/Problem: `apps/api-services/shared/src/core/modules/bootstrap/bootstrap-orchestrator.service.ts:351-358,229` logs migration errors "non-fatal" then `markReady()`; error classification by substring; `MigrateCommand` exits 2 but boot path swallows. Services pass readiness against a partially migrated schema.
   - Do: fail boot (exit non-zero) on migration error except typed idempotent cases (pg error codes `42P07`, `42710`...); remove substring matching.
   - Done when: a forced failing migration prevents `markReady()` and the container exits non-zero.
   - Status: todo · Verified-in-code: partial · Source: architecture.md#2.5, #4.4
   - Effect-impact (2026-10-26): no Effect change, but note the Effect `ManagedRuntime` is built lazily on first request (`effect-runtime.ts`); boot failures in the infra layer would surface late unless the runtime is built eagerly at `onApplicationBootstrap` (sample does). Deps: `EFF-028`.
-- [ ] `ARCH-042` **Take a `pg_advisory_lock` around migrations, default-admin creation and supervisor start** · FIX · P0 · M · Deps: `ARCH-041`
+- [x] `ARCH-042` **Take a `pg_advisory_lock` around migrations, default-admin creation and supervisor start** · FIX · P0 · M · Deps: `ARCH-041`
   - Why/Problem: no advisory lock; every BFF replica runs migration + supervisors + default-admin at boot (shape C provisions 2 replicas). Concurrent migrations race.
   - Do: wrap bootstrap migration in `pg_advisory_lock(<const>)`; election for the rest is `ARCH-064`.
   - Done when: two BFFs started simultaneously apply migrations once, no duplicate admin.
@@ -622,3 +622,12 @@ Counts: 104 items = P0 16 / P1 53 / P2 26 / P3 9; FIX 60 / ENHANCE 14 / NEW 30 (
 - [ ] DEC-ARCH-15 Dev default compose switch timing? — before or after e2e port (`ARCH-019`) — recommendation: after `ARCH-106` validation, before `ARCH-031`.
 
 > Effect-impact pass: 2026-10-26 — 42 items annotated
+
+## Verification 2026-11-01 (code, not the audit)
+
+| Item | Verdict | Evidence |
+|---|---|---|
+| ARCH-011 / ARCH-032 | done | topology recorded (`docs/qa/api/topology.md`); pre-deletion snapshot commit `e1c72c43` |
+| ARCH-041 | done | `applyGlobalMigrations()` returns typed outcomes, classifies by SQLSTATE, rethrows so boot exits non-zero |
+| ARCH-042 | done | `BootstrapAdvisoryLock` (`pg_try_advisory_lock`) on a dedicated session around migrations + default admin |
+| ARCH-001 | partial | the decision exists, but `apps/api/ARCHITECTURE.md` still names the retired monolith layout |

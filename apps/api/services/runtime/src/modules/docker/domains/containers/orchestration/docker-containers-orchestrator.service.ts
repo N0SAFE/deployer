@@ -44,6 +44,11 @@ type DockerTerminalStreamEvent = {
   data: string;
 }
 
+/** The label the supervisors stamp on the containers they own. */
+const PLATFORM_ROLE_LABEL = "deployer.platform.role";
+/** What a caller may not do to a platform container. */
+const PROTECTED_ACTIONS: ReadonlySet<string> = new Set(["stop", "restart", "pause", "kill", "remove"]);
+
 @Injectable()
 export class DockerContainersOrchestratorService {
   private readonly apiLogger = new AppLogger("api").scope(DockerContainersOrchestratorService.name);
@@ -91,6 +96,23 @@ export class DockerContainersOrchestratorService {
       containerId: input.containerId,
       action: input.action,
     });
+
+    // CLUSTER-004: a platform-managed container is owned by a supervisor. Stopping, killing or removing it from the
+    // dashboard takes the ingress, database or agent down without the platform noticing, so those actions are refused.
+    // Starting and unpausing stay allowed: they are recovery, not destruction.
+    if (PROTECTED_ACTIONS.has(input.action)) {
+      const info = await runPromiseUnwrapped(
+        this.dockerEngine.containers.inspect(input.containerId).pipe(Effect.catch(() => Effect.succeed(null))),
+      );
+      const managedBy = info?.Config?.Labels?.[PLATFORM_ROLE_LABEL];
+      if (managedBy !== undefined && managedBy !== "") {
+        throw new AppError(
+          `Container ${input.containerId} is managed by the platform (${managedBy}): ${input.action} is refused. ` +
+            "Use the platform's own controls; a copy started by hand is not supervised.",
+          "FORBIDDEN",
+        );
+      }
+    }
 
     switch (input.action) {
       case "start": {

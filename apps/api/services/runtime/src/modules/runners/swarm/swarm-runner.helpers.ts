@@ -2,6 +2,7 @@ import type { DockerodeTaskSummary, SwarmServiceSpecInput, SwarmTaskStateCheck }
 import { parsePlacementPolicyLabel, toSwarmPlacement } from "@deployer/swarm";
 import { RuntimeInvalid } from "../../../core/runtime.errors";
 import type { RuntimeExecutionInput } from "../runtime-runner.interface";
+import { assertExecutorLabelAllowed } from "../base/reserved-labels";
 
 /**
  * The swarm runner's pure decisions: what a task list means, where a workload may be scheduled,
@@ -63,6 +64,7 @@ export function sanitizeExecutorLabels(labels?: Record<string, string>): Record<
     const sanitized: Record<string, string> = {};
     for (const [key, value] of Object.entries(labels)) {
         if (key.length > 0 && value.length > 0) {
+            assertExecutorLabelAllowed(key);
             sanitized[key] = value;
         }
     }

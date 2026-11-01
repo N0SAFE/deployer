@@ -18,7 +18,7 @@ Counts: 89 items; P0 7 / P1 37 / P2 31 / P3 14; FIX 31 / ENHANCE 13 / NEW 45 (to
   - Done when: a Viewer gets 403 on every mutating/exec procedure; controls absent in UI; negative test per controller (see CLUSTER-081).
   - Status: todo · Verified-in-code: yes · Source: docker-cluster#3.1, #4.1; journeys#J5 step 13, W5.2, quick win 7
   - See also: `SEC-003`, `SEC-004`, `JRN-016`, `WEB-017`, `WEB-019`
-- [ ] `CLUSTER-002` **Remove swarm join tokens from snapshot/streamSnapshot/getSwarmConfig responses** · FIX · P0 · S · Deps: `CLUSTER-001`
+- [x] `CLUSTER-002` **Remove swarm join tokens from snapshot/streamSnapshot/getSwarmConfig responses** · FIX · P0 · S · Deps: `CLUSTER-001`
   - Why/Problem: `cluster.getSnapshot`/`streamSnapshot` return `joinTokens {worker, manager}` and `getSwarmConfig` returns them in the view; a manager token plus a mesh address is full cluster takeover. Verified: `swarm-cluster.service.ts:176,208`, `swarm-participation.service.ts:426-445`; web reads `view.joinTokens` at `swarm-config-panel.tsx:94`; schema `packages/contracts/entities/src/entities/swarm/cluster.schema.ts:75`.
   - Do: drop the field from the entity schema and all three responses and from the panel; expose tokens only through an explicit admin "issue join token / grant" procedure (the `mesh.issueJoinGrant` flow exists). Scrub tokens from logs.
   - Done when: JSON-schema assertion that no token field exists in any non-admin response or log line; panel still renders.
@@ -29,7 +29,7 @@ Counts: 89 items; P0 7 / P1 37 / P2 31 / P3 14; FIX 31 / ENHANCE 13 / NEW 45 (to
   - Do: do not persist (fetch from engine on demand) or encrypt with the existing `encryptedText` codec; rotate worker/manager tokens (`swarm update --rotate`) after each grant redemption.
   - Done when: no token columns/values at rest in plaintext; a used grant's token no longer joins.
   - Status: todo · Verified-in-code: unverified · Source: docker-cluster#1.2 (participation editor), #3.2
-- [ ] `CLUSTER-004` **Protect platform containers/services from kill/remove/exec** · FIX · P0 · M · Deps: `CLUSTER-001`
+- [x] `CLUSTER-004` **Protect platform containers/services from kill/remove/exec** · FIX · P0 · M · Deps: `CLUSTER-001`
   - Why/Problem: no protected set; a user can `remove`/`kill` the API, Postgres, Traefik, mesh containers (`docker-containers-orchestrator.service.ts:121-168`).
   - Do: mark platform containers via labels (`deployer.managed`, supervisor-owned); deny kill/remove/stop/exec/file-write on them unless superAdmin; same for swarm services.
   - Done when: admin gets a typed error removing the Postgres container; superAdmin can with confirmation.
@@ -41,13 +41,13 @@ Counts: 89 items; P0 7 / P1 37 / P2 31 / P3 14; FIX 31 / ENHANCE 13 / NEW 45 (to
   - Done when: a member of project A cannot list, exec into or read files of project B's containers.
   - Status: todo · Verified-in-code: no · Source: docker-cluster#4.1; journeys#F1
   - See also: `SEC-003`
-- [ ] `CLUSTER-006` **Redact secrets in container inspect output** · FIX · P0 · S · Deps: `CLUSTER-001`
+- [x] `CLUSTER-006` **Redact secrets in container inspect output** · FIX · P0 · S · Deps: `CLUSTER-001`
   - Why/Problem: `docker.repository.ts:1085` returns `Config.Env` unredacted; redaction at `:598-606` applies only to service entities.
   - Do: mask env values (and secret-looking labels/mounts) for non-admin and by default for all; reveal on explicit admin action (audited).
   - Done when: inspect for a container with `DB_PASSWORD` shows masked value for a Viewer/Developer.
   - Status: todo · Verified-in-code: unverified · Source: docker-cluster#3.1
   - See also: `SEC-003`, `SEC-021`
-- [ ] `CLUSTER-007` **Sanitize executor labels in swarm and docker runners** · FIX · P0 · S · Deps: none
+- [x] `CLUSTER-007` **Sanitize executor labels in swarm and docker runners** · FIX · P0 · S · Deps: none
   - Why/Problem: executor labels copied verbatim into service labels incl. `traefik.*` and `deployer.*`, spread LAST so a deployment owner can override `deployer.managed` or inject Traefik routers (`swarm-runtime-runner.service.ts:114,429-441`; same in docker runner `sanitizeExecutorLabels`).
   - Do: allow-list `deployer.placement`; put user labels under a reserved prefix (e.g. `user.`); never accept `traefik.*` or `deployer.managed*` from user input; spread platform labels last.
   - Done when: unit test shows a user label `traefik.http.routers.x.rule` is dropped and `deployer.managed` cannot be overridden, in both runners.
@@ -61,7 +61,7 @@ Counts: 89 items; P0 7 / P1 37 / P2 31 / P3 14; FIX 31 / ENHANCE 13 / NEW 45 (to
   - See also: `SEC-004`
 
 ### Truthful node health, election and streams
-- [ ] `CLUSTER-009` **Derive node status from the engine (`Status.State`, `Spec.Availability`)** · FIX · P0 · M · Deps: none
+- [x] `CLUSTER-009` **Derive node status from the engine (`Status.State`, `Spec.Availability`)** · FIX · P0 · M · Deps: none
   - Why/Problem: `upsertFromEngine` forces `state:"active"` every sweep; a node is marked down only if it vanishes from `docker node ls`; swarm keeps crashed nodes listed as `down`, so a dead node shows active. Verified: `packages/nest/nodes/src/cluster-node-inventory.repository.ts:70,86` (`state: "active"`). `cluster.listNodes` default `includeDown` hides down nodes, which depends on this being correct.
   - Do: map `Status.State` -> ready/down and `Spec.Availability` -> active/pause/drain in `toEngineNodeRow`; keep `markMissingNodeDown` for vanished nodes; reconsider the `includeDown` default.
   - Done when: stopping a node's engine shows Down within 60 s in UI and `docker node ls` parity test passes.
@@ -554,3 +554,15 @@ Counts: 89 items; P0 7 / P1 37 / P2 31 / P3 14; FIX 31 / ENHANCE 13 / NEW 45 (to
 Totals: 89 items. Priority: P0 7, P1 37, P2 31, P3 14. Type: FIX 31, ENHANCE 13, NEW 45.
 
 > Effect-impact pass: 2026-10-26 — 2 items annotated
+
+## Verification 2026-11-01 (code, not the audit)
+
+| Item | Verdict | Evidence |
+|---|---|---|
+| CLUSTER-002 / SEC-005 | done | join tokens removed from the snapshot and swarm-config responses |
+| CLUSTER-004 | done | `runContainerAction` refuses stop/restart/pause/kill/remove on a container labelled `deployer.platform.role` (start/unpause allowed) |
+| CLUSTER-006 | done | inspect masks secret env values server-side (`********`), UI unaffected |
+| CLUSTER-007 | done | `deployer.*` / `traefik.*` user labels refused in both runners; swarm runner spreads managed labels last |
+| CLUSTER-009 | done | `EngineNodeRow.state` from `Status.State`; inventory maps `ready → active`, else `down` |
+| CLUSTER-001 | partial | docker/cluster/fleet mutations gated; a few fleet self-service reads deliberately stay `requireAuth` |
+| CLUSTER-081 | partial | negative tests for docker + cluster only |

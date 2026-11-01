@@ -517,3 +517,10 @@ Counts (89 items incl. test-coverage): P0 4 · P1 45 · P2 31 · P3 9; FIX 18 ·
 | Items | 4 | 45 | 31 | 9 | 89 (OBS-001..OBS-089) |
 
 > Effect-impact pass: 2026-10-26 — 23 items annotated
+
+## Verification 2026-11-01 (code, not the audit)
+
+| Item | Verdict | Evidence |
+|---|---|---|
+| OBS-052 | partial | `health.detailed` and analytics writes are operator-gated; analytics reads are platform-wide because no organization/project axis exists in the contract |
+| OBS-006 / OBS-020 | open | the push delivery report is still fabricated |

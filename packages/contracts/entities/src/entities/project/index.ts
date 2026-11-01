@@ -46,6 +46,7 @@ export type {
 
 export {
   projectRoleSchema,
+  projectAssignableRoleSchema,
   collaboratorSchema,
   inviteCollaboratorSchema,
 } from './collaborators.schema'

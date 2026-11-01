@@ -91,7 +91,6 @@ export function SwarmConfigPanel() {
                 availability: view.availability,
                 nodeCount: view.nodeCount,
                 managerCount: view.managerCount,
-                joinTokens: view.joinTokens,
               }}
             />
             <p className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">

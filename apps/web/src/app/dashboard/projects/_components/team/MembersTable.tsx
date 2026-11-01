@@ -1,7 +1,8 @@
 'use client'
 
 import { MailWarning, Trash2, UserPlus, Users } from 'lucide-react'
-import { projectRoleSchema } from '@deployer/contracts-entities'
+import z from 'zod/v4'
+import { projectAssignableRoleSchema, projectRoleSchema } from '@deployer/contracts-entities'
 import { Avatar, AvatarFallback } from '@deployer/ui/components/shadcn/avatar'
 import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Button } from '@deployer/ui/components/shadcn/button'
@@ -16,7 +17,8 @@ import type { ProjectRole } from './InviteMemberDialog'
 export interface Member {
   id: string
   userId: string
-  role: ProjectRole
+  /** The STORED role — may be `owner`, which is not grantable. */
+  role: z.infer<typeof projectRoleSchema>
   invitedAt: string
   acceptedAt: string | null
 }
@@ -74,10 +76,10 @@ export function MembersTable({
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Select value={m.role} onValueChange={(v) => { onChangeRole(m, projectRoleSchema.parse(v)) }} disabled={sole || updatingUserId === m.userId}>
-                    <SelectTrigger className="h-8 w-32" aria-label={`Role of ${m.userId}`} title={sole ? 'The last owner cannot be demoted' : undefined}><SelectValue /></SelectTrigger>
+                  <Select value={m.role} onValueChange={(v) => { onChangeRole(m, projectAssignableRoleSchema.parse(v)) }} disabled={sole || m.role === 'owner' || updatingUserId === m.userId}>
+                    <SelectTrigger className="h-8 w-32" aria-label={`Role of ${m.userId}`} title={m.role === 'owner' ? 'Ownership is transferred, never reassigned as a role' : sole ? 'The last owner cannot be demoted' : undefined}><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {projectRoleSchema.options.map((r) => (<SelectItem key={r} value={r}>{r}</SelectItem>))}
+                      {projectAssignableRoleSchema.options.map((r) => (<SelectItem key={r} value={r}>{r}</SelectItem>))}
                     </SelectContent>
                   </Select>
                   {sole ? <p className="mt-1 text-sm text-muted-foreground">Last owner — cannot be demoted</p> : null}

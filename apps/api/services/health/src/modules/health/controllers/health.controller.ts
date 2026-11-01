@@ -3,6 +3,7 @@ import { Actor } from "@deployer/effect-core";
 import { handle, provideRequest, type RequestContextInput } from "@deployer/effect-orpc";
 import { Implement } from "@orpc/nest";
 import { procedure } from "@deployer/nest-effect";
+import { requireAuth, requirePlatformRole } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
 import { Cause, Effect } from "effect";
 
@@ -29,6 +30,9 @@ function report(context: RequestContextInput) {
     provideRequest(context, () => Effect.succeed(Actor.user("anonymous", "anonymous"))),
   );
 }
+
+/** The indicator detail names hosts and dependencies: operators and above, unlike the public liveness summary. */
+const HEALTH_OPERATOR_ROLES = ["superAdmin", "admin", "operator"];
 
 /**
  * The health service's oRPC surface.
@@ -67,8 +71,11 @@ export class HealthController {
    */
   @Implement(healthContract.detailed)
   detailed() {
-    return procedure(healthContract.detailed).effect(function* ({ context }) {
-      return { ...(yield* report(context)), supervisors: [] };
-    });
+    return procedure(healthContract.detailed)
+      .use(requireAuth())
+      .use(requirePlatformRole(HEALTH_OPERATOR_ROLES))
+      .effect(function* ({ context }) {
+        return { ...(yield* report(context)), supervisors: [] };
+      });
   }
 }

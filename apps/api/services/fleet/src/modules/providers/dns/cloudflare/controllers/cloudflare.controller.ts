@@ -9,7 +9,7 @@ import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { providersContract } from "@deployer/fleet-contracts";
 import { procedure } from "@deployer/nest-effect";
-import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
+import { requireAuth, requirePlatformRole } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 import { Effect } from "effect";
 
 import { attempt } from "@/core/effects";
@@ -29,6 +29,10 @@ function normalizeRecordContent(content: string): string {
 }
 
 const describe = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
+
+/** Writing DNS records or tunnels — and reading a tunnel token — is an operational act. */
+const DNS_OPERATOR_ROLES = ["superAdmin", "admin", "operator"];
 
 @Controller()
 export class CloudflareController {
@@ -161,6 +165,7 @@ export class CloudflareController {
     createRecord() {
         return procedure(providersContract.dns.cloudflare.createRecord)
             .use(requireAuth())
+            .use(requirePlatformRole(DNS_OPERATOR_ROLES))
             .effect(function* ({ input, context }) {
                 const dns = yield* CloudflareDnsProviderService;
                 const { params, body } = input;
@@ -192,6 +197,7 @@ export class CloudflareController {
     deleteRecord() {
         return procedure(providersContract.dns.cloudflare.deleteRecord)
             .use(requireAuth())
+            .use(requirePlatformRole(DNS_OPERATOR_ROLES))
             .effect(function* ({ input, context }) {
                 const dns = yield* CloudflareDnsProviderService;
                 yield* serve(context)(
@@ -231,6 +237,7 @@ export class CloudflareController {
     createTunnel() {
         return procedure(providersContract.dns.cloudflare.createTunnel)
             .use(requireAuth())
+            .use(requirePlatformRole(DNS_OPERATOR_ROLES))
             .effect(function* ({ input, context }) {
                 const tunnels = yield* CloudflareTunnelService;
                 return yield* serve(context)(tunnels.createTunnel(input.params.providerId, input.body));
@@ -241,6 +248,7 @@ export class CloudflareController {
     deleteTunnel() {
         return procedure(providersContract.dns.cloudflare.deleteTunnel)
             .use(requireAuth())
+            .use(requirePlatformRole(DNS_OPERATOR_ROLES))
             .effect(function* ({ input, context }) {
                 const tunnels = yield* CloudflareTunnelService;
                 const tunnelEdge = yield* TunnelEdge;
@@ -272,6 +280,7 @@ export class CloudflareController {
     getTunnelToken() {
         return procedure(providersContract.dns.cloudflare.getTunnelToken)
             .use(requireAuth())
+            .use(requirePlatformRole(DNS_OPERATOR_ROLES))
             .effect(function* ({ input, context }) {
                 const tunnels = yield* CloudflareTunnelService;
                 return yield* serve(context)(tunnels.getTunnelToken(input.params.providerId, input.params.id));

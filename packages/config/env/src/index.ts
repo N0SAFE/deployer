@@ -197,7 +197,12 @@ export const apiEnvSchema = zod
         APP_DOCKER_IMAGE_SCAN_PARALLELISM: zod.coerce.number().int().min(1).optional().default(5),
         APP_DOCKER_IMAGE_SCAN_IMAGE_PARALLELISM: zod.coerce.number().int().min(1).optional().default(3),
         TRUSTED_ORIGINS: zod.string().optional(),
-        ENABLE_MASTER_TOKEN: zod.coerce.boolean().optional(),
+        // Dev-only auth bypass doors (master token, login-as). STRICT: `"false"`
+        // must be false — `zod.coerce.boolean()` made every non-empty string true,
+        // so `ENABLE_MASTER_TOKEN=false` was the same as `=true`. Absent means
+        // absent; the auth factory also refuses to register these plugins in
+        // production regardless of this value.
+        ENABLE_MASTER_TOKEN: booleanEnv().optional(),
 
         // ─── API-centric platform deployment (api-centric-deployment-architecture) ───
         // DEPLOYER_PREFIX drives the Traefik hostname grammar:

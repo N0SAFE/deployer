@@ -93,7 +93,6 @@ const inactiveSnapshot = (info: { LocalNodeState: string; ControlAvailable: bool
 		},
 		master: null,
 		membership: { nodeId: info.NodeID.length > 0 ? info.NodeID : "unknown", state: "down", joinedAt: new Date().toISOString() },
-		joinTokens: null,
 	});
 
 /**
@@ -146,7 +145,6 @@ export function makeSwarmCluster(docker: DockerEngineShape): SwarmClusterShape {
 					reason: leader ? "raft_leader" : "single_node",
 				},
 				membership: { nodeId: localNode.nodeId, state: "active", joinedAt: now },
-				joinTokens: inspect.JoinTokens ? { worker: inspect.JoinTokens.Worker, manager: inspect.JoinTokens.Manager } : null,
 			});
 		},
 	);

@@ -14,14 +14,14 @@ import type { DatabasePort } from "@project/core/database/database.port";
 import type { CoreEventSync } from "@project/core/ports/core-event-sync.port";
 import { ProjectEventService } from "@project/modules/project/services/project-event.service";
 import { RuntimeConfigurationAccessor } from "@project/core/ports/runtime-configuration-accessor.port";
-import { projectRules, type ProjectRole } from "../domain/project.entity";
+import { projectRules } from "../domain/project.entity";
 import { ProjectStore } from "../repositories/project.repository";
 import type {
 	EnvironmentCreateInput,
 	TemplateCreateInput,
 	TemplateUpdateInput,
 } from "../repositories/project.repository.types";
-import { assertProjectAccess } from "./project-access";
+import { assertProjectAccess, assertProjectAccessWithRole } from "./project-access";
 import { streamProjectEvents } from "./project-stream";
 
 // ---------------------------------------------------------------------------
@@ -182,7 +182,11 @@ export class ProjectServiceImpl {
 		data: { email: string; role: string; permissions?: CollaboratorPermissions | null },
 	) {
 		return Effect.gen(function* () {
-			yield* assertProjectAccess(projectId, requesterId, "admin");
+			const { role: actorRole } = yield* assertProjectAccessWithRole(projectId, requesterId, "admin");
+
+			// Guard BEFORE the store call: an unknown role or one at/above the
+			// granter's own must never reach the database.
+			const role = yield* rule(() => projectRules.assertCanGrant(actorRole, data.role));
 
 			const projects = yield* ProjectStore;
 			const events = yield* ProjectEventService;
@@ -205,7 +209,7 @@ export class ProjectServiceImpl {
 			const collaborator = yield* projects.createCollaborator({
 				projectId,
 				userId: targetUser.id,
-				role: data.role as ProjectRole,
+				role,
 				permissions: data.permissions,
 				invitedBy: requesterId,
 			});
@@ -216,14 +220,14 @@ export class ProjectServiceImpl {
 				{
 					projectId,
 					userId: targetUser.id,
-					role: data.role as ProjectRole,
+					role,
 					timestamp: new Date().toISOString(),
 				},
 			);
 
 			return {
 				inviteId: collaborator.id,
-				message: `${targetUser.email} has been invited as ${data.role}`,
+				message: `${targetUser.email} has been invited as ${role}`,
 			};
 		});
 	}
@@ -235,7 +239,7 @@ export class ProjectServiceImpl {
 		data: { role?: string; permissions?: CollaboratorPermissions | null },
 	) {
 		return Effect.gen(function* () {
-			yield* assertProjectAccess(projectId, requesterId, "admin");
+			const { role: actorRole } = yield* assertProjectAccessWithRole(projectId, requesterId, "admin");
 
 			const projects = yield* ProjectStore;
 			const collaborator = yield* projects.findCollaboratorByUserAndProject(
@@ -248,8 +252,13 @@ export class ProjectServiceImpl {
 
 			yield* rule(() => { projectRules.assertNotOwnerMembership(collaborator, "modify"); });
 
+			// A role patch is a grant, so it obeys the same guards as an invite.
+			const role = data.role === undefined
+				? undefined
+				: yield* rule(() => projectRules.assertCanGrant(actorRole, data.role as string));
+
 			const updated = yield* projects.updateCollaborator(collaborator.id, {
-				role: data.role as ProjectRole | undefined,
+				role,
 				permissions: data.permissions,
 			});
 			if (!updated) {
@@ -744,13 +753,15 @@ export class ProjectServiceImpl {
 			);
 
 			return {
-				webhookSecret: s.webhookSecret,
+				webhookSecret: null,
 				enableHttpsRedirect: resolved.effective.routing.forceHttps,
 				allowedDomains: s.allowedDomains,
 				ipWhitelist: s.ipWhitelist,
 				enableBasicAuth: s.enableBasicAuth ?? false,
 				basicAuthUsername: s.basicAuthUsername,
-				basicAuthPassword: s.basicAuthPassword,
+				basicAuthPassword: null,
+				hasWebhookSecret: Boolean(s.webhookSecret),
+				hasBasicAuthPassword: Boolean(s.basicAuthPassword),
 			};
 		});
 	}
@@ -774,13 +785,15 @@ export class ProjectServiceImpl {
 			}
 			const s = (updated.settings ?? {}) as ProjectSettings;
 			return {
-				webhookSecret: s.webhookSecret,
+				webhookSecret: null,
 				enableHttpsRedirect: s.enableHttpsRedirect ?? true,
 				allowedDomains: s.allowedDomains,
 				ipWhitelist: s.ipWhitelist,
 				enableBasicAuth: s.enableBasicAuth ?? false,
 				basicAuthUsername: s.basicAuthUsername,
-				basicAuthPassword: s.basicAuthPassword,
+				basicAuthPassword: null,
+				hasWebhookSecret: Boolean(s.webhookSecret),
+				hasBasicAuthPassword: Boolean(s.basicAuthPassword),
 			};
 		});
 	}

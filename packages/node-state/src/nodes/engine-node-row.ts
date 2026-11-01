@@ -10,6 +10,8 @@ export type EngineNodeRow = {
 	readonly isLeader: boolean;
 	readonly isIngress: boolean;
 	readonly availability: "active" | "pause" | "drain";
+	/** The engine's own node status (`Status.State`): ready | down | unknown. */
+	readonly state: "ready" | "down" | "unknown";
 	readonly nanoCpus: number | null;
 	readonly memoryBytes: number | null;
 	readonly labels: Record<string, string>;
@@ -34,6 +36,12 @@ export function toEngineNodeRow(node: DockerodeNodeSummary): EngineNodeRow {
             node.Spec.Availability === "pause" || node.Spec.Availability === "drain"
                 ? node.Spec.Availability
                 : "active",
+        state:
+            node.Status.State === "ready"
+                ? "ready"
+                : node.Status.State === "down" || node.Status.State === "disconnected"
+                  ? "down"
+                  : "unknown",
         nanoCpus: node.Description.Resources?.NanoCPUs ?? null,
         memoryBytes: node.Description.Resources?.MemoryBytes ?? null,
         labels,

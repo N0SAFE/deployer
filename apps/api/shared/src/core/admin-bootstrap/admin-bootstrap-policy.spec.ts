@@ -60,14 +60,14 @@ describe("resolveAdminBootstrapDecision", () => {
       // the dev one enable seeding in production would be a real privilege bug.
       expect(
         resolveAdminBootstrapDecision({ nodeEnv: "production", enableDevBootstrap: "true" }),
-      ).toMatchObject({ decision: "always" });
+      ).toMatchObject({ decision: "never" });
       expect(
         resolveAdminBootstrapDecision({ nodeEnv: "production", enableDevBootstrap: "true" }).reason,
       ).toContain("default");
 
       expect(
         resolveAdminBootstrapDecision({ nodeEnv: "development", enableSeeding: "false" }),
-      ).toMatchObject({ decision: "always" });
+      ).toMatchObject({ decision: "never" });
     });
 
     it("lets `auto` fall through to the aliases and then the default", () => {
@@ -75,21 +75,24 @@ describe("resolveAdminBootstrapDecision", () => {
         resolveAdminBootstrapDecision({ adminBootstrap: "auto", enableDevBootstrap: "false" }),
       ).toMatchObject({ decision: "never" });
 
+      expect(
+        resolveAdminBootstrapDecision({ adminBootstrap: "auto", enableDevBootstrap: "true" }),
+      ).toMatchObject({ decision: "always" });
+
       expect(resolveAdminBootstrapDecision({ adminBootstrap: "auto" })).toMatchObject({
-        decision: "always",
+        decision: "never",
       });
     });
   });
 
   describe("the default", () => {
-    it("is `always`, because the boot path only runs on a configured node", () => {
-      // Every caller is the restart path of a node whose setup already completed
-      // (`setupState === "setup_done"`). On that node, an install with no
-      // credentials is orphaned, so ensuring one is the correct default.
+    it("is `never` — an unset switch must not create an account", () => {
+      // Creating a super-admin from `DEFAULT_ADMIN_*` is an explicit request.
+      // "Silence means yes" is the wrong direction for account creation.
       const resolved = resolveAdminBootstrapDecision({});
 
-      expect(resolved.decision).toBe("always");
-      expect(resolved.reason).toContain("already-configured");
+      expect(resolved.decision).toBe("never");
+      expect(resolved.reason).toContain("ADMIN_BOOTSTRAP=true");
     });
 
     it("explains WHY the decision was made, for the boot log", () => {

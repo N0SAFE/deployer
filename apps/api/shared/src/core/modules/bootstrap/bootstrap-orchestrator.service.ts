@@ -8,9 +8,9 @@ import { runPromiseUnwrapped } from "@deployer/effect-core";
  *
  *   1. ensure the swarm overlay is joined   (supervised services live there)
  *   2. verify the database is reachable
- *   3. apply pending global migrations      (idempotent)
- *   4. ensure the default admin             (policy-gated, idempotent)
- *   5. signal lifecycle readiness
+ *   3. under ONE advisory lock: apply pending global migrations (FATAL on
+ *      failure), then ensure the default admin (policy-gated, idempotent)
+ *   4. signal lifecycle readiness
  *
  * ── WHY IT LIVES HERE, AND WHY IT IS NOT THE DELETED ORCHESTRATOR ───────────
  * These steps used to live in `OrchestratorService`, which was 775 lines and
@@ -46,7 +46,6 @@ import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { Injectable, Logger, Inject } from "@nestjs/common";
 import type { OnApplicationBootstrap } from "@nestjs/common";
 import { existsSync } from "node:fs";
-import { migrate as migratePg } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
 import { AppLifecycle, AppLifecyclePhase, type AppLifecycleShape } from "@deployer/lifecycle";
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
@@ -62,6 +61,8 @@ import {
 } from "../database/database-connection"
 
 import { DatabaseStartupGuard } from "../database/services/database-startup-guard.service";
+import { BootstrapAdvisoryLockService } from "../database/services/bootstrap-advisory-lock.service";
+import { applyGlobalMigrations } from "../database/migrations/global-migrations";
 import type { GlobalDatabase } from "../database/global/global-database.service";
 import { SupervisorOrchestrator, type SupervisorOrchestratorShape } from "@deployer/supervision";
 import { SWARM_APP_WIRING_SUPERVISOR_ID } from "../supervisors/platform/swarm-app-wiring.supervisor";
@@ -88,6 +89,13 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
         @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
         @Inject(AppLifecycle) private readonly lifecycle: AppLifecycleShape,
         private readonly startupGuard: DatabaseStartupGuard,
+        /**
+         * Cross-replica guard around the boot-time side effects (migrations +
+         * default admin). The step before it (converging the DB supervisor)
+         * cannot be guarded: the lock IS a database session, so it can only be
+         * taken once the database that supervisor creates is reachable.
+         */
+        private readonly bootstrapLock: BootstrapAdvisoryLockService,
         /**
          * Converges the GLOBAL POSTGRES supervisor during boot.
          *
@@ -208,19 +216,30 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
             //    check would fail at random on a boot that is merely early.
             await this.startupGuard.ensureDatabaseAvailable(this.pool);
 
-            // 4. Migrations. Idempotent — drizzle tracks applied files in
-            //    `__drizzle_migrations` and skips them, so this is safe on every
-            //    boot. Non-fatal on failure: a stale schema degrades the affected
-            //    queries, whereas refusing to boot on a transient connection
-            //    error would take the platform down over a recoverable hiccup.
-            await this.runGlobalMigrations(databaseUrl);
-
-            // 5. The default admin. Policy-gated (compose/explicit modes ensure it
-            //    on every boot; managed/manual let the wizard seed it). FAILS the
-            //    boot when the policy requires an admin and one cannot be created,
-            //    because a node that must be usable but has no credentials is an
-            //    orphaned install (see `ensureDefaultAdmin`).
-            await this.bootstrapSeededAdmin(databaseUrl);
+            // 4. Migrations and the default admin, UNDER AN ADVISORY LOCK.
+            //    Both are convergent but not atomic: two replicas booting at once
+            //    run the same DDL and the same admin upsert, and the loser fails on
+            //    a duplicate object (or both create an admin). The lock makes one
+            //    replica the writer; a loser skips and proceeds — it booted against
+            //    the schema the winner is applying.
+            //
+            //    A migration failure is FATAL: booting against a schema nobody
+            //    verified fails later on an unrelated query, which is a much worse
+            //    place to discover it. See `applyGlobalMigrations`.
+            const lockAcquired = await this.bootstrapLock.acquire();
+            if (!lockAcquired) {
+                this.logger.warn(
+                    "⏭  Another replica holds the bootstrap lock — migrations and the " +
+                        "default admin are being applied there; continuing to readiness.",
+                );
+            } else {
+                try {
+                    await this.runGlobalMigrations(databaseUrl);
+                    await this.bootstrapSeededAdmin(databaseUrl);
+                } finally {
+                    await this.bootstrapLock.release();
+                }
+            }
 
             this.lifecycle.transitionNow(AppLifecyclePhase.READY, {
                 message: "Database reachable, migrations applied — the platform is ready",
@@ -329,15 +348,11 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
     /**
      * Apply pending global Postgres migrations.
      *
-     * Idempotent, and deliberately NON-FATAL on error: the platform can serve
-     * with a slightly stale schema (degrading only on the affected queries),
-     * whereas failing the boot on a transient migration error takes everything
-     * down. Duplicate/already-exists errors are treated as success because they
-     * mean the schema is already current.
-     *
-     * The one thing that IS fatal is being unable to find the migrations at all:
-     * that is a packaging error, not a transient condition, and continuing would
-     * mean booting against an unknown schema.
+     * FATAL on failure: a boot that continues against a schema nobody verified
+     * fails later, on an unrelated query, with an error that points at the
+     * symptom rather than at the migration. The only case treated as success is
+     * `already-applied`, decided by SQLSTATE inside `applyGlobalMigrations` —
+     * not by matching words in the driver's message.
      */
     private async runGlobalMigrations(databaseUrl: string): Promise<void> {
         const migrationsFolder = this.resolveMigrationsFolder();
@@ -347,16 +362,11 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
         );
         this.logger.log(`   migrations: ${migrationsFolder}`);
 
-        try {
-            await migratePg(this.db, { migrationsFolder });
+        const outcome = await applyGlobalMigrations(this.db, { migrationsFolder });
+        if (outcome === "already-applied") {
+            this.logger.log("✅ Global Postgres migrations: schema already current");
+        } else {
             this.logger.log("✅ Global Postgres migrations applied");
-        } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : String(error);
-            if (message.includes("already") || message.includes("duplicate")) {
-                this.logger.log("✅ Global Postgres migrations: schema already current");
-            } else {
-                this.logger.warn(`⚠️  Global Postgres migrations failed (non-fatal): ${message}`);
-            }
         }
     }
 

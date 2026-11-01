@@ -1,8 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 
-import { user } from "@deployer/nest-schema/global/identity/auth";
-import { GlobalDatabaseService } from "../core/modules/database/services/global-database.service";
+import { provisionUserAccount } from "@deployer/auth/server";
 import type { SharedApiRuntimeContext } from "./shared-api-runtime";
 
 /**
@@ -15,9 +14,8 @@ import type { SharedApiRuntimeContext } from "./shared-api-runtime";
  * could have caught it, because no spec ever made an authorised call and read the answer.
  * This is the missing half: a caller who is allowed in.
  *
- * The role is written straight to the `user` row rather than through the user service: arranging
- * a fixture must not depend on the rules of the domain under test (and `signUpEmail` cannot set
- * a role).
+ * The account is provisioned through Better Auth's internal adapter with the role written at creation: arranging
+ * a fixture must not depend on the rules (or the public sign-up endpoint) of the domain under test.
  */
 export type AuthenticatedSession = {
 	readonly userId: string;
@@ -33,16 +31,14 @@ export async function createAuthenticatedSession(
 	const email = `e2e-${randomUUID()}@e2e.deployer.test`;
 	const password = `e2e-${randomUUID()}`;
 
-	const created = (await context.betterAuth.api.signUpEmail({
-		body: { email, password, name: "E2E Caller" },
-	})) as { user: { id: string } };
-	const userId = created.user.id;
-
-	const db = context.serviceMapper.get(GlobalDatabaseService).db;
-	await db
-		.update(user)
-		.set({ role: options.role ?? "admin", emailVerified: true })
-		.where(eq(user.id, userId));
+	// Public sign-up is disabled (AUTH-001), so the fixture provisions the account directly, with the role written at
+	// creation: a spec must not depend on the flow it is testing, and an e2e caller is a real, signed-in user.
+	const userId = await provisionUserAccount(context.betterAuth, {
+		email,
+		name: "E2E Caller",
+		password,
+		role: options.role ?? "admin",
+	});
 
 	const response = await context.betterAuth.api.signInEmail({
 		body: { email, password },

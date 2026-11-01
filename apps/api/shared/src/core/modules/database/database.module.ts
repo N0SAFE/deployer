@@ -18,6 +18,7 @@ import { LocalDatabaseModule } from "./local/local-database.module";
 import { DatabaseProbeService } from './services/database-probe.service'
 import { DatabaseStartupGuard } from './services/database-startup-guard.service'
 import { DatabaseFailureTracker } from './services/database-failure-tracker.service'
+import { BootstrapAdvisoryLockService } from './services/bootstrap-advisory-lock.service'
 
 export const DatabaseModule = createGlobalModule({
     imports: [
@@ -38,6 +39,9 @@ export const DatabaseModule = createGlobalModule({
         DatabaseProbeService,
         DatabaseStartupGuard,
         DatabaseFailureTracker,
+        // Guards the boot sequence (migrations + admin) across replicas; see the
+        // class docs. Lives next to the pool it borrows a connection from.
+        BootstrapAdvisoryLockService,
     ],
     exports: [
         LocalDatabaseModule,
@@ -45,5 +49,6 @@ export const DatabaseModule = createGlobalModule({
         DatabaseProbeService,
         DatabaseStartupGuard,
         DatabaseFailureTracker,
+        BootstrapAdvisoryLockService,
     ],
 })

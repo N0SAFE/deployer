@@ -4,7 +4,7 @@ import { Effect } from "effect";
 
 import { analyticsContract } from "@deployer/identity-contracts";
 import { procedure } from "@deployer/nest-effect";
-import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
+import { requireAuth, requirePlatformRole } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 import { liveSnapshot } from "@deployer/shared/core/utils/live-snapshot.utils";
 
 import { serve } from "@identity/core/orpc/serve";
@@ -57,6 +57,10 @@ const STREAM_INTERVAL = {
  * (it reveals what is deployed, when, and how it fails), so the actor is resolved on
  * every call even where the handler does not branch on it.
  */
+
+/** `platformAnalytics:view` covers the reads; generating, storing or configuring a report is `configure`+`export`. */
+const ANALYTICS_OPERATOR_ROLES = ["superAdmin", "admin", "operator"];
+
 @Controller()
 export class AnalyticsController {
 	// ─── Metrics ────────────────────────────────────────────────────────────
@@ -304,6 +308,7 @@ export class AnalyticsController {
 	generateReport() {
 		return procedure(analyticsContract.generateReport)
 			.use(requireAuth())
+			.use(requirePlatformRole(ANALYTICS_OPERATOR_ROLES))
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				// The contract declares `{ reportId, status, message }`. Generation is synchronous here, but the
@@ -397,6 +402,7 @@ export class AnalyticsController {
 	deleteReport() {
 		return procedure(analyticsContract.deleteReport)
 			.use(requireAuth())
+			.use(requirePlatformRole(ANALYTICS_OPERATOR_ROLES))
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				yield* serve(context)(analytics.deleteReport(input.params.reportId));
@@ -444,6 +450,7 @@ export class AnalyticsController {
 	createReportConfig() {
 		return procedure(analyticsContract.createReportConfig)
 			.use(requireAuth())
+			.use(requirePlatformRole(ANALYTICS_OPERATOR_ROLES))
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				// The compact `create()` builder FLATTENS the body into the input, so the payload's fields sit on `input`.
@@ -488,6 +495,7 @@ export class AnalyticsController {
 	updateReportConfig() {
 		return procedure(analyticsContract.updateReportConfig)
 			.use(requireAuth())
+			.use(requirePlatformRole(ANALYTICS_OPERATOR_ROLES))
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				// The update contract declares its patch under `body`, alongside the path parameter.
@@ -509,6 +517,7 @@ export class AnalyticsController {
 	deleteReportConfig() {
 		return procedure(analyticsContract.deleteReportConfig)
 			.use(requireAuth())
+			.use(requirePlatformRole(ANALYTICS_OPERATOR_ROLES))
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				yield* serve(context)(analytics.deleteReportConfig(input.params.configId));

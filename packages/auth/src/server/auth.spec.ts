@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { multiSession } from 'better-auth/plugins';
 import { betterAuthFactory } from './auth';
+import { loginAsPlugin, masterTokenPlugin } from './plugins';
 
 // Mock better-auth
 vi.mock('better-auth', () => ({
@@ -52,6 +53,7 @@ describe('betterAuthFactory', () => {
     DEV_AUTH_KEY: string | undefined;
     DEFAULT_ADMIN_EMAIL: string | undefined;
     NODE_ENV: string;
+    ENABLE_MASTER_TOKEN?: boolean;
     BETTER_AUTH_SECRET?: string;
     BASE_URL?: string;
     APP_URL?: string;
@@ -178,10 +180,12 @@ describe('betterAuthFactory', () => {
       mockEnv.NODE_ENV = 'development';
       mockEnv.DEV_AUTH_KEY = 'test-dev-key';
       mockEnv.DEFAULT_ADMIN_EMAIL = 'test@example.com';
+      mockEnv.ENABLE_MASTER_TOKEN = true;
       
       const result = betterAuthFactory(mockDb, mockEnv);
 
       expect(result.auth.config.plugins).toBeDefined();
+      expect(vi.mocked(masterTokenPlugin)).toHaveBeenCalledTimes(1);
     });
 
     it('should enable loginAs plugin in development with DEV_AUTH_KEY', () => {
@@ -191,6 +195,37 @@ describe('betterAuthFactory', () => {
       const result = betterAuthFactory(mockDb, mockEnv);
 
       expect(result.auth.config.plugins).toBeDefined();
+      expect(vi.mocked(loginAsPlugin)).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not register either dev plugin in production, even with a key and the flag', () => {
+      // AUTH-003 / AUTH-004. Both plugins are a platform-wide auth bypass: the
+      // master token authenticates as the master account from a static header,
+      // login-as mints a session for ANY user id. Production must not have them
+      // at all — not merely with `enabled: false`.
+      mockEnv.NODE_ENV = 'production';
+      mockEnv.DEV_AUTH_KEY = 'test-dev-key';
+      mockEnv.DEFAULT_ADMIN_EMAIL = 'test@example.com';
+      mockEnv.ENABLE_MASTER_TOKEN = true;
+
+      const result = betterAuthFactory(mockDb, mockEnv);
+
+      expect(vi.mocked(masterTokenPlugin)).not.toHaveBeenCalled();
+      expect(vi.mocked(loginAsPlugin)).not.toHaveBeenCalled();
+      const ids = (result.auth.config.plugins as { id: string }[]).map((plugin) => plugin.id);
+      expect(ids).not.toContain('masterToken');
+      expect(ids).not.toContain('loginAs');
+    });
+
+    it('does not register the master token without the explicit flag', () => {
+      // AUTH-004. Presence of DEV_AUTH_KEY used to enable it on its own.
+      mockEnv.NODE_ENV = 'development';
+      mockEnv.DEV_AUTH_KEY = 'test-dev-key';
+      mockEnv.DEFAULT_ADMIN_EMAIL = 'test@example.com';
+
+      betterAuthFactory(mockDb, mockEnv);
+
+      expect(vi.mocked(masterTokenPlugin)).not.toHaveBeenCalled();
     });
   });
 
@@ -208,6 +243,24 @@ describe('betterAuthFactory', () => {
 
       expect(result.auth.config.emailAndPassword).toBeDefined();
       expect(result.auth.config.emailAndPassword.enabled).toBe(true);
+    });
+
+    it('refuses public sign-up while keeping sign-in enabled', () => {
+      // AUTH-001. Sign-IN must keep working; `POST /sign-up/email` must not be a
+      // way to mint an account. Better Auth 1.7.7 checks
+      // `emailAndPassword.disableSignUp` at the top of the sign-up endpoint.
+      const result = betterAuthFactory(mockDb, mockEnv);
+
+      expect(result.auth.config.emailAndPassword.disableSignUp).toBe(true);
+      expect(result.auth.config.emailAndPassword.enabled).toBe(true);
+    });
+
+    it('does not accept `role` from a sign-up payload', () => {
+      // AUTH-001. `input: true` let an anonymous caller name its own platform
+      // role. Roles are written server-side (admin bootstrap, invite, `setRole`).
+      const result = betterAuthFactory(mockDb, mockEnv);
+
+      expect(result.auth.config.user.additionalFields.role.input).toBe(false);
     });
   });
 

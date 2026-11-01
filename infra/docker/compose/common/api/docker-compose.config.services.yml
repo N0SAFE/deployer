@@ -195,7 +195,7 @@ x-api-service-common: &api-service-common
     BETTER_AUTH_SECRET: ${AUTH_SECRET:-fallback-auth-secret}
     AUTH_SECRET: ${AUTH_SECRET:-fallback-auth-secret}
     AUTH_BASE_DOMAIN: ${AUTH_BASE_DOMAIN:-.deployer.localhost}
-    DEV_AUTH_KEY: ${DEV_AUTH_KEY:-dev-fallback-key}
+    DEV_AUTH_KEY: ${DEV_AUTH_KEY:-}
     # ── WHICH CONTAINER SERVES `web.deployer.localhost` ────────────────────
     # Without this the web app is UNREACHABLE from a browser, even though the
     # container is healthy and serves 200 on its own port. Measured:
@@ -327,7 +327,7 @@ services:
       # else.
       AUTH_SECRET: ${AUTH_SECRET:-fallback-auth-secret}
       BETTER_AUTH_SECRET: ${AUTH_SECRET:-fallback-auth-secret}
-      DEV_AUTH_KEY: ${DEV_AUTH_KEY:-dev-fallback-key}
+      DEV_AUTH_KEY: ${DEV_AUTH_KEY:-}
       # ── THE PLATFORM'S PARENT DOMAIN ──────────────────────────────────
       # The browser sends `Origin: http://<service>.deployer.localhost`, but
       # `TRUSTED_ORIGINS` defaults to plain `http://localhost:3000`, so every
@@ -347,8 +347,8 @@ services:
       TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-http://localhost:3000}
       PASSKEY_RPID: ${PASSKEY_RPID:-localhost}
       PASSKEY_ORIGIN: ${PASSKEY_ORIGIN:-http://localhost:3000}
-      DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-admin@admin.com}
-      DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-adminadmin}
+      DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-}
+      DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-}
     volumes:
       # The shared internal-package output, written by `dependency-builder`.
       # READ-ONLY: a stray build here must not corrupt the tree for other apps.

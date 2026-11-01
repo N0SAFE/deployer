@@ -228,3 +228,43 @@ describe("CloudflareTunnelService.createTunnel idempotency", () => {
 		expect(result.token).toBe("token-abc");
 	});
 });
+
+/**
+ * NET-002 — the run token is a credential. The management surface may say that a
+ * tunnel HAS one; it must never hand the value to the browser.
+ */
+describe("CloudflareTunnelService.getTunnelToken", () => {
+	function buildAppService(token: string) {
+		const client = {
+			zeroTrust: { tunnels: { cloudflared: { token: { get: vi.fn().mockResolvedValue(token) } } } },
+		};
+		const appService = {
+			getAppView: vi.fn(() =>
+				Effect.succeed({
+					isActive: true,
+					name: "main",
+					features: { dnsManagement: true, tunnelManagement: true },
+				} satisfies Partial<DnsProviderAppView>),
+			),
+			buildClient: vi.fn(() => Effect.succeed(client)),
+			getOrResolveAccountId: vi.fn(() => Effect.succeed("account-1")),
+		};
+		return tunnelServiceOver(appService);
+	}
+
+	it("masks the token instead of returning the secret", async () => {
+		const service = buildAppService("super-secret-token-abcd");
+
+		const result = await run(service.getTunnelToken("p1", "tunnel-1"));
+
+		expect(result.error).toBeNull();
+		expect(result.token).toBe("****abcd");
+		expect(result.token).not.toContain("super-secret");
+	});
+
+	it("answers null when Cloudflare reports no token", async () => {
+		const service = buildAppService("");
+
+		await expect(run(service.getTunnelToken("p1", "tunnel-1"))).resolves.toEqual({ token: null, error: null });
+	});
+});

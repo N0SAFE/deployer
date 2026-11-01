@@ -59,7 +59,7 @@ export function makeClusterNodeInventoryRepository(database: LocalDatabaseShape)
 				nanoCpus: node.nanoCpus,
 				memoryBytes: node.memoryBytes,
 				labels: node.labels,
-				state: "active" as const,
+				state: node.state === "ready" ? ("active" as const) : ("down" as const),
 				lastSeenAt: now,
 				updatedAt: now,
 			};

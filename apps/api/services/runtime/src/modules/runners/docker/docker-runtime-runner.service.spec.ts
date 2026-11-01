@@ -272,7 +272,7 @@ describe("DockerRuntimeRunner", () => {
             },
             executorOptions: {
                 labels: {
-                    "deployer.runner.compose_profiles": "prod,canary",
+                    "example.runner.compose_profiles": "prod,canary",
                 },
                 startupCommand: "node server.js",
                 environmentVariables: {
@@ -286,7 +286,7 @@ describe("DockerRuntimeRunner", () => {
         expect(containers.create).toHaveBeenCalledWith(
             expect.objectContaining({
                 Labels: expect.objectContaining({
-                    "deployer.runner.compose_profiles": "prod,canary",
+                    "example.runner.compose_profiles": "prod,canary",
                 }),
                 Cmd: ["sh", "-lc", "node server.js"],
                 Env: expect.arrayContaining([
@@ -319,9 +319,9 @@ describe("DockerRuntimeRunner", () => {
             },
             executorOptions: {
                 labels: {
-                    "deployer.runner.valid": "value",
+                    "example.runner.valid": "value",
                     "bad key": "value",
-                    "deployer.runner.too_long": "x".repeat(513),
+                    "example.runner.too_long": "x".repeat(513),
                 },
                 startupCommand: "   node server.js --port 3000   ",
                 environmentVariables: {
@@ -335,7 +335,7 @@ describe("DockerRuntimeRunner", () => {
         expect(containers.create).toHaveBeenCalledWith(
             expect.objectContaining({
                 Labels: expect.objectContaining({
-                    "deployer.runner.valid": "value",
+                    "example.runner.valid": "value",
                 }),
                 Cmd: ["sh", "-lc", "node server.js --port 3000"],
                 Env: ["NODE_ENV=production"],
@@ -349,6 +349,35 @@ describe("DockerRuntimeRunner", () => {
                 }),
             }),
         );
+    });
+
+    it("refuses executor labels in a platform-reserved namespace", async () => {
+        await expect(run(service.executeRuntime({
+            deployment: {
+                deploymentId: "deployment-exec-3",
+                serviceId: "service-exec-3",
+                deploymentContainerName: null,
+                deploymentContainerImage: null,
+                healthCheckUrl: null,
+            },
+            artifact: {
+                containerImage: "nginx:alpine",
+                containerName: null,
+                artifactDigest: null,
+                artifactSizeBytes: null,
+                buildLogsUrl: null,
+            },
+            healthGateConfig: { maxRetries: 3, retryIntervalMs: 200 },
+            executorOptions: {
+                labels: {
+                    "deployer.service_id": "spoofed-service",
+                    "traefik.enable": "true",
+                },
+            },
+            storageBinding: null,
+        }))).rejects.toMatchObject({ _tag: "RuntimeInvalid" });
+
+        expect(containers.create).not.toHaveBeenCalled();
     });
 
     it("retries Traefik sync on transient failure and succeeds", async () => {

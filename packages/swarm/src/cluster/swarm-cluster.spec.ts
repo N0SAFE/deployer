@@ -41,6 +41,37 @@ describe("SwarmCluster", () => {
 		expect(snapshot).toEqual(expect.objectContaining({ localNodeState: "inactive", nodeCount: 0, clusterId: null }));
 	});
 
+	it("never exposes join tokens on a snapshot, but still reads them internally", async () => {
+		const info = Effect.succeed({ LocalNodeState: "active", ControlAvailable: true, NodeID: "n1", Nodes: 1, Managers: 1 });
+		const engine = {
+			swarmCluster: {
+				info: () => info,
+				inspect: () => Effect.succeed({ ID: "c1", Spec: { Name: "main" }, JoinTokens: { Worker: "SWMTKN-work", Manager: "SWMTKN-manage" } }),
+			},
+			swarmNodes: {
+				list: () =>
+					Effect.succeed([
+						{
+							ID: "n1",
+							Version: { Index: 1 },
+							Spec: { Labels: {}, Availability: "active", Role: "manager" },
+							Description: { Hostname: "host-1" },
+							Status: { State: "ready" },
+							ManagerStatus: { Leader: true },
+						},
+					]),
+			},
+			swarmServices: { list: () => Effect.succeed([]) },
+		} as never;
+
+		const cluster = makeSwarmCluster(engine);
+		const snapshot = await run(cluster.getLocalClusterSnapshot());
+
+		expect("joinTokens" in snapshot).toBe(false);
+		expect(JSON.stringify(snapshot)).not.toContain("SWMTKN");
+		expect(await run(cluster.getJoinTokens())).toEqual({ worker: "SWMTKN-work", manager: "SWMTKN-manage" });
+	});
+
 	it("refuses to re-anchor a cluster with more than one node", async () => {
 		const info = Effect.succeed({ LocalNodeState: "active", ControlAvailable: true, NodeID: "n1", Nodes: 2, Managers: 1 });
 		const engine = {

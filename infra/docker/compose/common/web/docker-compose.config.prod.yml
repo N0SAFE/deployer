@@ -39,7 +39,7 @@ services:
       AUTH_SECRET: ${AUTH_SECRET:-fallback-auth-secret}
       BETTER_AUTH_SECRET: ${AUTH_SECRET:-fallback-auth-secret}
       AUTH_BASE_DOMAIN: ${AUTH_BASE_DOMAIN:-.deployer.localhost}
-      DEV_AUTH_KEY: ${DEV_AUTH_KEY:-dev-fallback-key}
+      DEV_AUTH_KEY: ${DEV_AUTH_KEY:-}
     volumes:
       # Cache directories to speed rebuilds (only useful if containers are
       # recreated frequently on the same host)

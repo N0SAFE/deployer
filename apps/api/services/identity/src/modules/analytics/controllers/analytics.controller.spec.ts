@@ -31,6 +31,7 @@ vi.mock("@orpc/server", async (importOriginal) => ({
 }));
 vi.mock("@deployer/shared/core/modules/auth/orpc/middlewares", () => ({
 	requireAuth: vi.fn(() => ({})),
+	requirePlatformRole: vi.fn(() => ({})),
 }));
 vi.mock("@identity/core/orpc/serve", () => ({
 	serve: () => <A, E, R>(effect: Effect.Effect<A, E, R>) => effect,
