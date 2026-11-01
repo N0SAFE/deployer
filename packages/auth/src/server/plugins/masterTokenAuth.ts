@@ -1,6 +1,7 @@
 // plugins/master-token/index.ts
 import type { BetterAuthPlugin, HookEndpointContext } from "better-auth";
 import { createAuthMiddleware } from "better-auth/api";
+import { secretsMatch } from "../secrets";
 import { parseCookie } from 'cookie'
 import type { Session, User } from "@deployer/auth/types";
 
@@ -148,7 +149,8 @@ export const masterTokenPlugin = (options: MasterTokenOptions): BetterAuthPlugin
             return false;
         }
 
-        if (token !== devAuthKey) {
+        // Constant-time: a `!==` on a secret is a timing oracle over the prefix.
+        if (!secretsMatch(token, devAuthKey)) {
             return false;
         }
 

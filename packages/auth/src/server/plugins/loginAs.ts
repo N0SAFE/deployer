@@ -3,6 +3,8 @@ import { createAuthEndpoint } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
 import * as z from "zod/v4";
 
+import { bearerToken, secretsMatch } from "../secrets";
+
 interface LoginAsOptions {
     enabled?: boolean;
     devAuthKey: string;
@@ -32,7 +34,8 @@ export const loginAsPlugin = (options: LoginAsOptions) => {
                         return ctx.json({ error: "Invalid request context" }, { status: 400 });
                     }
 
-                    if (ctx.request.headers.get("authorization") !== `Bearer ${devAuthKey}`) {
+                    // Constant-time comparison: `!==` on the whole header would leak the expected prefix.
+                    if (!secretsMatch(bearerToken(ctx.request.headers.get("authorization")), devAuthKey)) {
                         return ctx.json({ error: "Unauthorized" }, { status: 401 });
                     }
 

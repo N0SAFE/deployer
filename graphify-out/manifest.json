@@ -13025,8 +13025,8 @@
     "semantic_hash": ""
   },
   "packages/nest/effect/src/index.ts": {
-    "mtime": 1793557437.9098713,
-    "ast_hash": "c07486190a53fc7969f9d9931f8a8cb9",
+    "mtime": 1793571615.9689384,
+    "ast_hash": "2792698fd16a30a1b9468cd57e16b4ad",
     "semantic_hash": ""
   },
   "packages/nest/effect/src/orpc-effect-context.ts": {
@@ -13350,8 +13350,8 @@
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/ROADMAP.md": {
-    "mtime": 1793571476.2939963,
-    "ast_hash": "db3a8ed12c5d39357f8b8ccb57ef92e7",
+    "mtime": 1793571786.929611,
+    "ast_hash": "2211b28f53aa32e3b503910c30e1e29a",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/architecture.md": {
@@ -17360,8 +17360,8 @@
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/health/__tests__/health-registry.stream.test.ts": {
-    "mtime": 1793566505.2815442,
-    "ast_hash": "2c35d9f574ca45c3e2c0c837550ff25f",
+    "mtime": 1793571671.6359515,
+    "ast_hash": "ee055142cb6936874320cce93bc1e996",
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/health/__tests__/indicators.test.ts": {
@@ -17370,18 +17370,18 @@
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/health/health-registry.service.ts": {
-    "mtime": 1793566505.2813113,
-    "ast_hash": "1f52661bf20fba9de935e1ff80c106a2",
+    "mtime": 1793571671.635747,
+    "ast_hash": "1ed80031424fab756e0b1d16b2e46c94",
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/health/health.module.ts": {
-    "mtime": 1793570124.5178995,
-    "ast_hash": "f9ce6852e21291570e8172a9e6c03cb7",
+    "mtime": 1793571671.636121,
+    "ast_hash": "b4695cbc82926415caadcf34d11437f8",
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/health/index.ts": {
-    "mtime": 1793566298.6275096,
-    "ast_hash": "30a9c9a506e78c3a6071758264a4b116",
+    "mtime": 1793571671.6364768,
+    "ast_hash": "6412316198daf91e9d61c947941b4fb1",
     "semantic_hash": ""
   },
   "apps/api/shared/src/server/health/indicators/database.indicator.ts": {
@@ -17485,8 +17485,8 @@
     "semantic_hash": ""
   },
   "apps/api/AGENTS.md": {
-    "mtime": 1793569541.9769838,
-    "ast_hash": "14844d1e3b124919691cf4f9c5ed79e0",
+    "mtime": 1793571771.8997996,
+    "ast_hash": "434ecb7c4d92c02bc71b14c38f8b03f8",
     "semantic_hash": ""
   },
   "apps/api/ARCHITECTURE.md": {
@@ -21994,19 +21994,14 @@
     "ast_hash": "14b243973129245696f9d698aebb33ae",
     "semantic_hash": ""
   },
-  "apps/api/shared/src/server/health/health-registry-cadence.provider.ts": {
-    "mtime": 1793566289.6465964,
-    "ast_hash": "5019828fcaf9ff6006801d2d4516717a",
-    "semantic_hash": ""
-  },
   "apps/api/shared/src/server/health/indicators/indicator-result.ts": {
     "mtime": 1793566166.7777846,
     "ast_hash": "0eb78c3cb7492470a859b7441f585d57",
     "semantic_hash": ""
   },
   "docs/audit-2026-10-25/nest-vs-effect-services.md": {
-    "mtime": 1793566731.3694894,
-    "ast_hash": "098220c90669462393dae397e3cc712a",
+    "mtime": 1793571786.9284525,
+    "ast_hash": "9ad29d919a9dea2b29136c4ea293895e",
     "semantic_hash": ""
   },
   "apps/api/shared/src/core/modules/project/services/project-access.service.spec.ts": {
@@ -22042,6 +22037,16 @@
   "packages/auth/src/server/plugins/may-invite.spec.ts": {
     "mtime": 1793571300.0282004,
     "ast_hash": "0d0f5dd05cb0a4b2aa6bca1033c110cb",
+    "semantic_hash": ""
+  },
+  "packages/nest/effect/src/effect-lifecycle.spec.ts": {
+    "mtime": 1793571633.414668,
+    "ast_hash": "dee9c46c5f81315cd2c1bae0ff5b49e4",
+    "semantic_hash": ""
+  },
+  "packages/nest/effect/src/effect-lifecycle.ts": {
+    "mtime": 1793571648.5931134,
+    "ast_hash": "cdcab6e98fa5c97a40705636c09a5c86",
     "semantic_hash": ""
   }
 }

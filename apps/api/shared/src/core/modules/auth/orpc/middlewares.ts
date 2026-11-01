@@ -20,6 +20,7 @@ import { makeLenientEnvironment } from "@deployer/environment"
 import { apiEnvSchema, type ApiEnv as Env } from '@deployer/env'
 import type { ORPCGlobalContext } from './orpc-context'
 import { SYSTEM_ACTOR_HEADER, verifySystemActorClaim } from '../system-actor'
+import { secretsMatch } from "@deployer/auth/server";
 
 /**
  * Read a value from the API's environment outside the DI container.
@@ -468,9 +469,11 @@ export function requireMesh() {
                     standardErrorOptions('forbidden', 'Mesh shared secret is not configured'),
                 )
             }
+            // The bare shared secret is compared in constant time (AUTH-008): `===` leaks the expected prefix, and
+            // an HMAC token already goes through `timingSafeEqual` inside `verifyMeshToken`.
             const ok = internalKey.startsWith('v1.')
                 ? verifyMeshToken(internalKey, sharedSecret)
-                : internalKey.trim() === sharedSecret
+                : secretsMatch(internalKey.trim(), sharedSecret)
             if (!ok) {
                 throw errors.FORBIDDEN(
                     standardErrorOptions('forbidden', 'Mesh endpoint requires internal credentials'),

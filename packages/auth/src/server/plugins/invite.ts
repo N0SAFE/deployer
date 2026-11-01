@@ -279,19 +279,17 @@ export const invitePlugin = <TRoles extends string>(
           let invitations = allInvitations;
           if (ctx.query.status) {
             const now = opts.getDate();
+            // `usedAt` comes back as `null` from the database, never `undefined`: comparing against
+            // `undefined` made "pending" return nothing and "used" return every row.
+            const unused = (invite: Invite): boolean => invite.usedAt === null || invite.usedAt === undefined;
+            const expired = (invite: Invite): boolean => new Date(invite.expiresAt).getTime() <= now.getTime();
+
             if (ctx.query.status === "pending") {
-              // Pending: not used and not expired
-              invitations = allInvitations.filter((inv) => 
-                inv.usedAt === undefined && new Date(inv.expiresAt) > now
-              );
+              invitations = allInvitations.filter((invite) => unused(invite) && !expired(invite));
             } else if (ctx.query.status === "used") {
-              // Used: usedAt is not null
-              invitations = allInvitations.filter((inv) => inv.usedAt !== undefined);
+              invitations = allInvitations.filter((invite) => !unused(invite));
             } else {
-              // Expired: expiresAt < now and not used
-              invitations = allInvitations.filter((inv) => 
-                inv.usedAt === undefined && new Date(inv.expiresAt) <= now
-              );
+              invitations = allInvitations.filter((invite) => unused(invite) && expired(invite));
             }
           }
 
@@ -327,8 +325,8 @@ export const invitePlugin = <TRoles extends string>(
             return ctx.json({ valid: false, message: "Invitation has already been used" });
           }
 
-          // Check if expired
-          if (opts.getDate() > invite.expiresAt) {
+          // Check if expired. The adapter may hand the timestamp back as a string.
+          if (opts.getDate().getTime() > new Date(invite.expiresAt).getTime()) {
             return ctx.json({ valid: false, message: "Invitation has expired" });
           }
 
@@ -369,10 +367,30 @@ export const invitePlugin = <TRoles extends string>(
             });
           }
 
-          // Check if expired
-          if (opts.getDate() > invite.expiresAt) {
+          // Check if expired. The adapter may hand the timestamp back as a string.
+          if (opts.getDate().getTime() > new Date(invite.expiresAt).getTime()) {
             throw ctx.error("BAD_REQUEST", {
               message: ERROR_CODES.INVALID_OR_EXPIRED_INVITE.message,
+            });
+          }
+
+          // ── CLAIM BEFORE ANY SIDE EFFECT ────────────────────────────────
+          // Setting `usedAt` after the account write left a race: two concurrent validates both passed the checks
+          // above and both set a password, so one invite could provision two sessions. The claim is one write that
+          // consumes the token, and a read-back proves this caller is the one whose write survived.
+          const spentToken = `${token}.spent.${generateRandomString(16, "a-z", "0-9")}`;
+          await ctx.context.adapter.update({
+            model: "platformInvite",
+            where: [{ field: "token", value: token }],
+            update: { token: spentToken, usedAt: opts.getDate() },
+          });
+          const claimed = await ctx.context.adapter.findOne<Invite>({
+            model: "platformInvite",
+            where: [{ field: "token", value: spentToken }],
+          });
+          if (claimed === null || claimed === undefined) {
+            throw ctx.error("BAD_REQUEST", {
+              message: "Invitation has already been used",
             });
           }
 
@@ -412,12 +430,6 @@ export const invitePlugin = <TRoles extends string>(
             },
           });
 
-          // Mark invitation as used
-          await ctx.context.adapter.update({
-            model: "platformInvite",
-            where: [{ field: "token", value: token }],
-            update: { usedAt: opts.getDate() },
-          });
 
           return ctx.json({ userId: invite.invitedUserId }, { status: 201 });
         }
@@ -443,3 +455,41 @@ export const invitePlugin = <TRoles extends string>(
     },
   } satisfies BetterAuthPlugin;
 };
+
+/**
+ * Consume an invitation exactly once.
+ *
+ * The adapter cannot express `WHERE used_at IS NULL`, so the claim rotates the unique `token` to an attempt-specific
+ * value instead: two racers both write, exactly one row keeps its marker, and the read-back names the winner. The loser
+ * is reported as "already used" — not as a 500, and never as a second provisioning.
+ *
+ * Rotation also makes the spent token unresolvable, so `/invite/check` reports "not found" afterwards instead of
+ * "already used": the same answer for a token that never existed.
+ */
+async function claimInvite(
+  ctx: {
+    context: {
+      adapter: {
+        update: (args: Record<string, unknown>) => Promise<unknown>;
+        findOne: (args: Record<string, unknown>) => Promise<unknown>;
+      };
+    };
+  },
+  token: string,
+  now: Date,
+): Promise<boolean> {
+  const spentToken = `${token}.spent.${generateRandomString(16, "a-z", "0-9")}`;
+
+  await ctx.context.adapter.update({
+    model: "platformInvite",
+    where: [{ field: "token", value: token }],
+    update: { token: spentToken, usedAt: now.toISOString() },
+  });
+
+  const claimed = (await ctx.context.adapter.findOne({
+    model: "platformInvite",
+    where: [{ field: "token", value: spentToken }],
+  })) as { id: string } | null | undefined;
+
+  return claimed !== null && claimed !== undefined;
+}
