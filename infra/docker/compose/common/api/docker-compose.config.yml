@@ -34,17 +34,12 @@ services:
       # The mesh agent image the API ensures on its own node. MUST match the tag
       # setup started the agent from: on a mismatch the API replaces the running
       # agent with this one.
-      MESH_AGENT_IMAGE: ${MESH_AGENT_IMAGE:-deployer-mesh-agent:latest}
-      # Whether the per-node agent brings up a REAL WireGuard interface.
-      #
-      #   observe  default in dev — plan, gossip and converge doors, but never
-      #            touch the kernel. The dev stack stops creating a host-level
-      #            `deployer-mesh` interface every time it starts.
-      #   kernel   what production runs, and what a real cluster needs: Swarm
-      #            advertises the mesh address the interface carries.
-      #
-      # Set `kernel` here (or in .env) to exercise the real dataplane locally.
-      MESH_AGENT_DATAPLANE: ${MESH_AGENT_DATAPLANE:-kernel}
+      NODE_AGENT_IMAGE: ${NODE_AGENT_IMAGE:-deployer-svc-node-agent:dev}
+      # The agent's socket, on the run volume mounted below: the node door and the services' relay link both dial it.
+      NODE_AGENT_SOCKET: ${NODE_AGENT_SOCKET:-/run/deployer-node/agent.sock}
+      # The ADMIN door (credential, join, token, configure). Its own volume: the API performs operator actions and mounts
+      # it; the tier services do not, so a compromised service container cannot rotate the swarm secret.
+      NODE_AGENT_ADMIN_SOCKET: ${NODE_AGENT_ADMIN_SOCKET:-/run/deployer-node-admin/admin.sock}
       TURBO_TOKEN: ${TURBO_TOKEN:-}
       TURBO_TEAM: ${TURBO_TEAM:-}
     volumes:
@@ -52,8 +47,10 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       # Platform config SHARING volume (API writes; Traefik mounts ro).
       - ${TRAEFIK_CONFIG_VOLUME:-deployer-traefik-config}:/app/traefik-configs
-      # The mesh agent's control socket (`/run/deployer-mesh/agent.sock`). Only
+      # The mesh agent's control socket (`/run/deployer-node/agent.sock`). Only
       # needed when the API runs as a COMPOSE container; the swarm service setup
       # schedules mounts it itself. The orchestrator MUST declare it as
-      # `deployer-mesh-run: { name: deployer-mesh-run }` (literal, unprefixed).
-      - deployer-mesh-run:/run/deployer-mesh
+      # `deployer-node-agent-run: { name: deployer-node-agent-run }` (literal, unprefixed).
+      - deployer-node-agent-run:/run/deployer-node
+      # The admin door, on its own volume. Mode 0600 inside; the mount is what scopes it.
+      - deployer-node-agent-admin:/run/deployer-node-admin

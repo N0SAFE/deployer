@@ -36,6 +36,7 @@
         "@types/node": "catalog:build",
         "eslint": "catalog:linting",
         "typescript": "catalog:build",
+        "vitest": "catalog:testing",
         "chokidar": "catalog:build",
         "rimraf": "catalog:build",
         "@deployer/pkg-build": "*"

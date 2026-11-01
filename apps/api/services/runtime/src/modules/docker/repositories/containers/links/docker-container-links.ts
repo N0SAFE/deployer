@@ -20,7 +20,11 @@ export type DockerContainerLinksShape = {
     containers: readonly DockerContainer[],
     includePaths: readonly DockerContainerLinkPath[],
     platformRole: string | null,
-  ) => Effect.Effect<DockerContainerWithLinks[], DbError, RuntimeDb | RuntimeDatabasePort>;
+  ) => Effect.Effect<
+    DockerContainerWithLinks[],
+    DbError,
+    RuntimeDb | RuntimeDatabasePort | DockerContainerLinksLookup
+  >;
 };
 
 const makeDockerContainerLinks = ({ lookup }: { lookup: DockerContainerLinksLookup["Service"] }): DockerContainerLinksShape => ({

@@ -143,7 +143,7 @@ export function MeshLifecycle() {
           <Frame x={370} y={50} width={280} height={250} />
           <Label x={370} y={40}>Node B (in the swarm)</Label>
           <Box x={386} y={66} width={248} height={118} radius={6}>
-            <Label x={400} y={84} size="title">mesh-agent B</Label>
+            <Label x={400} y={84} size="title">node-agent B</Label>
             {directory(phase.b, 400)}
           </Box>
           <Box x={386} y={214} width={110} height={40} radius={4} tone="blue">
@@ -151,7 +151,7 @@ export function MeshLifecycle() {
           </Box>
         </g>
         <Box x={46} y={66} width={278} height={118} radius={6}>
-          <Label x={60} y={84} size="title">mesh-agent A</Label>
+          <Label x={60} y={84} size="title">node-agent A</Label>
           {directory(phase.a, 60)}
         </Box>
         <Box x={46} y={214} width={84} height={40} radius={4} tone="blue">

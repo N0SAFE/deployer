@@ -160,8 +160,8 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
       mockNodeConfigRepo._clear();
     });
 
-    it('getSetupState returns not_started', () => {
-      const state = service.getSetupState();
+    it('getSetupState returns not_started', async () => {
+      const state = await service.getSetupState();
       expect(state.state).toBe('not_started');
       expect(state.needsSetup).toBe(true);
       expect(state.bootstrapStrategy).toBeNull();
@@ -169,16 +169,16 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
       expect(state.progressPercent).toBe(0);
     });
 
-    it('getNodeStatus shows unconfigured', () => {
-      const status = service.getNodeStatus();
+    it('getNodeStatus shows unconfigured', async () => {
+      const status = await service.getNodeStatus();
       expect(status.isConfigured).toBe(false);
       expect(status.nodeId).toBeNull();
       expect(status.configuredAt).toBeNull();
     });
 
-    it('checkConfigAndEmit does NOT emit when no config and no SETUP_AUTO', () => {
+    it('checkConfigAndEmit does NOT emit when no config and no SETUP_AUTO', async () => {
       // Should not throw errors
-      expect(() => { service.checkConfigAndEmit(); }).not.toThrow();
+      await expect(service.checkConfigAndEmit()).resolves.toBeUndefined();
       // Should not have upserted anything
       expect(mockNodeConfigRepo.upsert).not.toHaveBeenCalled();
     });
@@ -194,7 +194,7 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
         const timeout = new Promise<never>((_, reject) =>
           setTimeout(() => { reject(new Error('TIMEOUT')); }, 200)
         );
-        service.checkConfigAndEmit();
+        await service.checkConfigAndEmit();
         await expect(
           Promise.race([service.waitForSetup(), timeout])
         ).rejects.toThrow('TIMEOUT');
@@ -262,7 +262,7 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
       const setupPromise = service.waitForSetup();
       launchLocalSetup();
       await setupPromise;
-      const state = service.getSetupState();
+      const state = await service.getSetupState();
       expect(state.state).toBe('completed');
       expect(state.needsSetup).toBe(false);
     });
@@ -271,7 +271,7 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
       const setupPromise = service.waitForSetup();
       launchLocalSetup();
       await setupPromise;
-      const status = service.getNodeStatus();
+      const status = await service.getNodeStatus();
       expect(status.isConfigured).toBe(true);
       expect(status.nodeId).toBeTruthy();
       expect(status.configuredAt).not.toBeNull();
@@ -300,22 +300,22 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
 
     it('checkConfigAndEmit emits immediately from cache', async () => {
       const setupPromise = service.waitForSetup();
-      service.checkConfigAndEmit();
+      await service.checkConfigAndEmit();
       const result = await setupPromise;
       expect(result.nodeId).toBe(TEST_NODE_ID);
       expect(result.databaseUrl).toBe(TEST_DB_URL);
       expect(result.strategy).toBe('local');
     });
 
-    it('getSetupState returns completed from cached config', () => {
-      const state = service.getSetupState();
+    it('getSetupState returns completed from cached config', async () => {
+      const state = await service.getSetupState();
       expect(state.state).toBe('completed');
       expect(state.needsSetup).toBe(false);
       expect(state.bootstrapStrategy).toBe('local');
     });
 
-    it('getNodeStatus shows configured from cached config', () => {
-      const status = service.getNodeStatus();
+    it('getNodeStatus shows configured from cached config', async () => {
+      const status = await service.getNodeStatus();
       expect(status.isConfigured).toBe(true);
       expect(status.nodeId).toBe(TEST_NODE_ID);
       expect(status.strategy).toBe('local');
@@ -454,9 +454,9 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
   // ═════════════════════════════════════════════════════════════════════════
 
   describe('Scenario 6: State transitions', () => {
-    it('fresh → not_started (no config exists)', () => {
+    it('fresh → not_started (no config exists)', async () => {
       mockNodeConfigRepo._clear();
-      const state = service.getSetupState();
+      const state = await service.getSetupState();
       expect(state.state).toBe('not_started');
       expect(state.needsSetup).toBe(true);
     });
@@ -480,7 +480,7 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
       });
 
       // Before: not_started
-      expect(service.getSetupState().state).toBe('not_started');
+      expect((await service.getSetupState()).state).toBe('not_started');
 
       // Auto-setup (boot pipeline entry: triggerInitialize)
       const result = service.triggerInitialize({
@@ -494,8 +494,8 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
       await service.waitForSetup();
 
       // After: completed
-      expect(service.getSetupState().state).toBe('completed');
-      expect(service.getSetupState().needsSetup).toBe(false);
+      expect((await service.getSetupState()).state).toBe('completed');
+      expect((await service.getSetupState()).needsSetup).toBe(false);
     });
 
     it('not_started → completed (cached config)', async () => {
@@ -512,11 +512,11 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
 
       // Before checkConfigAndEmit: should already be completed from cache
       // (getSetupState reads directly from the repository)
-      expect(service.getSetupState().state).toBe('completed');
-      expect(service.getSetupState().needsSetup).toBe(false);
+      expect((await service.getSetupState()).state).toBe('completed');
+      expect((await service.getSetupState()).needsSetup).toBe(false);
 
       // waitForSetup should also resolve immediately
-      service.checkConfigAndEmit();
+      await service.checkConfigAndEmit();
       const result = await service.waitForSetup();
       expect(result.nodeId).toBe(TEST_NODE_ID);
       expect(result.databaseUrl).toBe(TEST_DB_URL);
@@ -528,21 +528,21 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
   // ═════════════════════════════════════════════════════════════════════════
 
   describe('Scenario 7: Error handling', () => {
-    it('checkConfigAndEmit handles repository errors gracefully', () => {
+    it('checkConfigAndEmit handles repository errors gracefully', async () => {
       mockNodeConfigRepo.find.mockImplementation(() => Effect.fail(new Error('SQLite read failure')) as never);
-      expect(() => { service.checkConfigAndEmit(); }).not.toThrow();
+      await expect(service.checkConfigAndEmit()).resolves.toBeUndefined();
     });
 
-    it('getSetupState handles missing repository gracefully', () => {
+    it('getSetupState handles missing repository gracefully', async () => {
       mockNodeConfigRepo.find.mockReturnValue(Effect.succeed(null));
-      const state = service.getSetupState();
+      const state = await service.getSetupState();
       expect(state.state).toBe('not_started');
       expect(state.needsSetup).toBe(true);
     });
 
-    it('getNodeStatus handles missing repository gracefully', () => {
+    it('getNodeStatus handles missing repository gracefully', async () => {
       mockNodeConfigRepo.find.mockReturnValue(Effect.succeed(null));
-      const status = service.getNodeStatus();
+      const status = await service.getNodeStatus();
       expect(status.isConfigured).toBe(false);
       expect(status.nodeId).toBeNull();
     });
@@ -553,19 +553,19 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
   // ═════════════════════════════════════════════════════════════════════════
 
   describe('Scenario 8: Idempotency and stability', () => {
-    it('repeated getSetupState returns consistent results', () => {
+    it('repeated getSetupState returns consistent results', async () => {
       mockNodeConfigRepo._clear();
-      const state1 = service.getSetupState();
-      const state2 = service.getSetupState();
-      const state3 = service.getSetupState();
+      const state1 = await service.getSetupState();
+      const state2 = await service.getSetupState();
+      const state3 = await service.getSetupState();
       expect(state1.state).toBe(state2.state);
       expect(state2.state).toBe(state3.state);
     });
 
-    it('repeated getNodeStatus returns consistent results', () => {
+    it('repeated getNodeStatus returns consistent results', async () => {
       mockNodeConfigRepo._clear();
-      const s1 = service.getNodeStatus();
-      const s2 = service.getNodeStatus();
+      const s1 = await service.getNodeStatus();
+      const s2 = await service.getNodeStatus();
       expect(s1.isConfigured).toBe(s2.isConfigured);
       expect(s1.nodeId).toBe(s2.nodeId);
     });
@@ -584,7 +584,7 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
 
       // First call should emit
       const promise1 = service.waitForSetup();
-      service.checkConfigAndEmit();
+      await service.checkConfigAndEmit();
       const result1 = await promise1;
       expect(result1.nodeId).toBe(TEST_NODE_ID);
 
@@ -613,7 +613,7 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
         updatedAt: '2024-01-01T00:00:00.000Z',
       });
 
-      service.checkConfigAndEmit();
+      await service.checkConfigAndEmit();
       await service.waitForSetup();
 
       expect(mockLifecycle.markDatabaseProbeNow).toHaveBeenCalledWith(TEST_DB_URL, true);

@@ -27,8 +27,6 @@ export const meshEnrollmentEnrollInputSchema = z.object({
   displayName: z.string().min(1).max(255).optional(),
   /** The role the joiner asked for; the fleet decides what it grants. */
   requestedSwarmPolicy: z.enum(["auto", "manager", "worker"]).optional(),
-  /** The joiner's signed WireGuard mesh entry. Opaque here: the admitting node's mesh agent verifies it. */
-  meshJoinRequest: z.json().optional(),
 });
 export type MeshEnrollmentEnrollInput = z.infer<typeof meshEnrollmentEnrollInputSchema>;
 
@@ -39,7 +37,10 @@ export const meshEnrollmentEnrollResultSchema = z.object({
   databaseUrl: z.url(),
   /** The fleet's swarm role decision, or null when the fleet has no swarm to hand over. */
   swarmGrant: meshSwarmJoinGrantSchema.nullable(),
-  /** The WireGuard roster that now admits the joiner, or null when no request was sent or the node has no mesh. */
-  meshAdmission: z.object({ roster: z.json() }).nullable(),
+  /**
+   * The agent join token this node was admitted with, echoed back so the joiner keeps it if it ever has to repeat the
+   * join.
+   */
+  meshJoinToken: z.string().min(1).nullable().default(null),
 });
 export type MeshEnrollmentEnrollResult = z.infer<typeof meshEnrollmentEnrollResultSchema>;

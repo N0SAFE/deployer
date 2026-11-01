@@ -339,14 +339,16 @@ export type DockerContainerResolutionShape = {
     readonly listContainers: (
         input: DockerContainerListInput,
         options?: DockerContainerResolutionOptions,
-    ) => Effect.Effect<DockerContainerListResult, unknown>;
+    ) => Effect.Effect<DockerContainerListResult, unknown, DockerContainerResolutionPorts>;
     /** The inventory grouped by runtime fingerprint, with shared-daemon diagnostics. */
     readonly listContainersGrouped: (
         input: DockerContainerGroupedListInput,
         options?: DockerContainerResolutionOptions,
-    ) => Effect.Effect<DockerContainerGroupedListResult, unknown>;
+    ) => Effect.Effect<DockerContainerGroupedListResult, unknown, DockerContainerResolutionPorts>;
     /** This node's inspect detail, else the best one a peer returns; fails with the local error when nobody has it. */
-    readonly inspectContainer: (containerId: string) => Effect.Effect<DockerContainerInspectDetail, unknown>;
+    readonly inspectContainer: (
+        containerId: string,
+    ) => Effect.Effect<DockerContainerInspectDetail, unknown, DockerContainerResolutionPorts>;
 };
 
 const resolutionOver = (ports: {

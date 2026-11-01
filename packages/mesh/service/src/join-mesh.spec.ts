@@ -7,7 +7,7 @@ import { os } from "@orpc/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as z from "zod";
 
-import { MESH_WEBSOCKET_PATH } from "@deployer/mesh-agent-contracts";
+import { MESH_WEBSOCKET_PATH } from "@deployer/node-agent-contracts";
 import { openWebSocketConnection, pooledLink } from "@deployer/mesh-client";
 import { attachMeshWebSocket } from "@deployer/mesh-server";
 

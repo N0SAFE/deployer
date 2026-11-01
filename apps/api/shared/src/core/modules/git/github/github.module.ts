@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { createModuleContext } from "@deployer/nest-effect";
 import { GitHubService } from "./services/github.service";
 
 /**
@@ -18,8 +18,7 @@ import { GitHubService } from "./services/github.service";
  * - Core modules are imported by CoreModule and made available to all feature modules
  * - Feature modules import CoreModule or specific core modules they need
  */
-@Module({
+export class GitHubModule extends createModuleContext({
   providers: [GitHubService],
   exports: [GitHubService],
-})
-export class GitHubModule {}
+}) {}

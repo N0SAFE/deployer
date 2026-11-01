@@ -1,13 +1,13 @@
 import { Observable } from "rxjs";
 import type { ClientContext, ClientLink } from "@orpc/client";
 import type {
-  MeshAgentJoinTokenInput,
-  MeshAgentJoinTokenResult,
-  MeshAgentLookupInput,
-  MeshAgentLookupResult,
-  MeshAgentNode,
-  MeshAgentNodesResult,
-  MeshAgentSnapshot,
+  NodeAgentJoinTokenInput,
+  NodeAgentJoinTokenResult,
+  NodeAgentLookupInput,
+  NodeAgentLookupResult,
+  NodeAgentNode,
+  NodeAgentNodesResult,
+  NodeAgentSnapshot,
 } from "@deployer/contracts-entities";
 
 const CALL = { context: {} } as const;
@@ -32,7 +32,7 @@ export class MeshViewService {
     private readonly pollMs = 3_000,
   ) {}
 
-  async localNode(): Promise<MeshAgentNode> {
+  async localNode(): Promise<NodeAgentNode> {
     const link = this.agent();
     if (link === undefined) {
       return { nodeId: (await this.standalone()).nodeId, address: "", local: true };
@@ -41,7 +41,7 @@ export class MeshViewService {
     return { ...self, local: true };
   }
 
-  async peers(): Promise<MeshAgentNodesResult> {
+  async peers(): Promise<NodeAgentNodesResult> {
     const link = this.agent();
     if (link === undefined) {
       return { items: [await this.localNode()] };
@@ -49,7 +49,7 @@ export class MeshViewService {
     return { items: await this.nodes(link) };
   }
 
-  async snapshot(): Promise<MeshAgentSnapshot> {
+  async snapshot(): Promise<NodeAgentSnapshot> {
     const link = this.agent();
     if (link === undefined) {
       return { generatedAt: new Date().toISOString(), nodes: [await this.localNode()], replicas: [] };
@@ -64,8 +64,8 @@ export class MeshViewService {
   }
 
   /** The swarm now, and again each time it differs from what was last sent. */
-  topology(): Observable<MeshAgentSnapshot> {
-    return new Observable<MeshAgentSnapshot>((subscriber) => {
+  topology(): Observable<NodeAgentSnapshot> {
+    return new Observable<NodeAgentSnapshot>((subscriber) => {
       let last = "";
       let closed = false;
       const look = async () => {
@@ -89,7 +89,7 @@ export class MeshViewService {
     });
   }
 
-  async lookup(input: MeshAgentLookupInput): Promise<MeshAgentLookupResult> {
+  async lookup(input: NodeAgentLookupInput): Promise<NodeAgentLookupResult> {
     const link = this.agent();
     if (link === undefined) {
       return { found: false, replica: null, reason: null };
@@ -97,7 +97,7 @@ export class MeshViewService {
     try {
       const { replica, reason } = (await link.call(["directory", "resolve"], input, CALL)) as {
         replica: AgentReplica;
-        reason: NonNullable<MeshAgentLookupResult["reason"]>;
+        reason: NonNullable<NodeAgentLookupResult["reason"]>;
       };
       const { service, replicaId, nodeId, load, keys } = replica;
       return { found: true, replica: { service, replicaId, nodeId, load, keys }, reason };
@@ -110,15 +110,15 @@ export class MeshViewService {
   }
 
   /** A token for a new node. A node with no agent cannot issue one: there is no swarm credential to hand over. */
-  async issueToken(input: MeshAgentJoinTokenInput): Promise<MeshAgentJoinTokenResult> {
+  async issueToken(input: NodeAgentJoinTokenInput): Promise<NodeAgentJoinTokenResult> {
     const link = this.agent();
     if (link === undefined) {
       throw new Error("This node has no mesh agent, so it cannot issue a join token");
     }
-    return (await link.call(["roster", "token"], input, CALL)) as MeshAgentJoinTokenResult;
+    return (await link.call(["roster", "token"], input, CALL)) as NodeAgentJoinTokenResult;
   }
 
-  private async nodes(link: ClientLink<ClientContext>): Promise<MeshAgentNode[]> {
+  private async nodes(link: ClientLink<ClientContext>): Promise<NodeAgentNode[]> {
     const { self, agents } = (await link.call(["roster", "view"], {}, CALL)) as AgentView;
     return [{ ...self, local: true }, ...agents.map((agent) => ({ ...agent, local: false }))];
   }

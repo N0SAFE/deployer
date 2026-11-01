@@ -39,6 +39,15 @@ const describe = (error: unknown, fallback: string) => (error instanceof Error ?
  * may a domain be used yet. A probe never fails: an unreachable URL is the answer, not an error.
  * The calls that read or write shared state fail with whatever the platform service refused with.
  */
+/**
+ * What the reachability service reads from the Effect context while it runs.
+ */
+export type NodeReachabilityPorts =
+	| ReachabilityCorePort
+	| PublicAccessPointPort
+	| EgressPort
+	| TraefikRefresherPort;
+
 export type NodeReachabilityServiceShape = {
 	/** Probe a URL through the operator egress policy; failures are reported as a category. */
 	readonly check: (url: string) => Effect.Effect<{
@@ -47,28 +56,29 @@ export type NodeReachabilityServiceShape = {
 		latencyMs: number;
 		statusCode?: number;
 		error?: string;
-	}>;
+	}, never, NodeReachabilityPorts>;
 	/**
 	 * The stack's public URL, live. The URL is derived and never stored, so `getConfig` and
 	 * `updateConfig` are the same question and must not drift apart.
 	 */
-	readonly probePublicUrl: () => Effect.Effect<PublicUrlProbe, unknown>;
-	readonly checkDomain: (domain: string, expectedIp?: string) => Effect.Effect<DomainCheck, unknown>;
-	readonly getPublicIp: () => Effect.Effect<{ ip: string | null }, unknown>;
+	readonly probePublicUrl: () => Effect.Effect<PublicUrlProbe, unknown, NodeReachabilityPorts>;
+	readonly checkDomain: (domain: string, expectedIp?: string) => Effect.Effect<DomainCheck, unknown, NodeReachabilityPorts>;
+	readonly getPublicIp: () => Effect.Effect<{ ip: string | null }, unknown, NodeReachabilityPorts>;
 	readonly getNodeNetworkConfig: (
 		nodeId: Parameters<ReachabilityService["getNodeNetworkConfig"]>[0],
-	) => Effect.Effect<NodeNetworkView, unknown>;
-	readonly listNodeNetworkConfigs: () => Effect.Effect<{ configs: NodeNetworkView[] }, unknown>;
+	) => Effect.Effect<NodeNetworkView, unknown, NodeReachabilityPorts>;
+	readonly listNodeNetworkConfigs: () => Effect.Effect<{ configs: NodeNetworkView[] }, unknown, NodeReachabilityPorts>;
 	/** Changing a node's address makes Traefik publish the new Host rule: re-converge now. */
-	readonly updateNodeNetworkConfig: (input: NodeConfigUpdate) => Effect.Effect<NodeNetworkView, unknown>;
+	readonly updateNodeNetworkConfig: (input: NodeConfigUpdate) => Effect.Effect<NodeNetworkView, unknown, NodeReachabilityPorts>;
 	readonly checkDomainGate: () => Effect.Effect<
 		Pick<DomainGate, "allowed" | "reason" | "publicAddress" | "addressKind">,
-		unknown
+		unknown,
+		NodeReachabilityPorts
 	>;
 	/** Request, live re-check, push onto the global relay, return the fresh state. */
-	readonly getPublicAccessPoint: () => Effect.Effect<AccessPointState, unknown>;
+	readonly getPublicAccessPoint: () => Effect.Effect<AccessPointState, unknown, NodeReachabilityPorts>;
 	/** Emits the current state and every subsequent push. */
-	readonly watchPublicAccessPoint: () => Effect.Effect<Observable<AccessPointState>, unknown>;
+	readonly watchPublicAccessPoint: () => Effect.Effect<Observable<AccessPointState>, unknown, NodeReachabilityPorts>;
 };
 
 type Ports = {
@@ -79,7 +89,7 @@ type Ports = {
 };
 
 /** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
-export class NodeReachabilityService extends Context.Service<NodeReachabilityService, Over<NodeReachabilityServiceShape, ReachabilityCorePort | PublicAccessPointPort | EgressPort | TraefikRefresherPort>>()(
+export class NodeReachabilityService extends Context.Service<NodeReachabilityService, Over<NodeReachabilityServiceShape, NodeReachabilityPorts>>()(
 	"fleet/NodeReachabilityService",
 ) {
 	/** The ports are yielded when a method runs, so this is a constant the module provides with `useValue`. */

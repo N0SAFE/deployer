@@ -1,11 +1,4 @@
 export {
-	API_SERVICES,
-	API_SERVICE_NAMES,
-	apiServicePort,
-	apiServiceUrl,
-	type ApiServiceName,
-} from "./service-address";
-export {
 	SERVICE_READINESS,
 	ServiceHealthModule,
 	type ServiceReadinessPort,

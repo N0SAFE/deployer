@@ -45,6 +45,15 @@ export function usePullScanFlow({ open, image, selectedImageEntity, prefilledIma
   const [liveScanSources, setLiveScanSources] = useState<Record<string, ScanSourceStreamRow>>({})
   const [scanTimelineEvents, setScanTimelineEvents] = useState<ScanTimelineEventRow[]>([])
   const [seenScanKeys, setSeenScanKeys] = useState<readonly string[]>([])
+  /**
+   * Has the scan stream been OPEN at least once since this run started?
+   *
+   * `fetchStatus` is `idle` on the render where the stream is enabled and on the
+   * render before the first fetch begins, so "idle + no events" was true one tick
+   * after every scan started — and the guard below aborted the run it was meant
+   * to protect. Only a stream that has actually fetched and then ended counts.
+   */
+  const [scanStreamOpened, setScanStreamOpened] = useState(false)
   const [pullRun, setPullRun] = useState(0)
 
   const showContainerStage = !pullScanOnly
@@ -88,6 +97,7 @@ export function usePullScanFlow({ open, image, selectedImageEntity, prefilledIma
     setLiveScanSources({})
     setScanTimelineEvents([])
     setSeenScanKeys([])
+    setScanStreamOpened(false)
   })
 
   const failPull = useCallback((message: string): void => {
@@ -114,6 +124,7 @@ export function usePullScanFlow({ open, image, selectedImageEntity, prefilledIma
     setLiveScanSources({})
     setScanTimelineEvents([])
     setSeenScanKeys([])
+    setScanStreamOpened(false)
     appendScanTimelineEvent({ timestamp: nowIso(), type: 'status', stage: 'queued', scanner: null, message: 'Scan queued and waiting for scanner initialization.', progress: 1 })
   }, [appendScanTimelineEvent, canOpenScan, imageId, scanStatus])
 
@@ -177,9 +188,21 @@ export function usePullScanFlow({ open, image, selectedImageEntity, prefilledIma
     { enabled: open && pullStatus === 'pulling' },
   )
   const liveScanQuery = useDockerImageSecurityScanStream(
-    { query: { imageId: imageId ?? '', refreshIntervalMs: 500 } },
+    // `forceScan` is what STARTS the scan at all. Without it the endpoint only
+    // observes an already-running scan or replays a cached result, and with no
+    // scan running it completes with ZERO events — which is exactly the "1 %,
+    // queued, nothing ever happens" the create-container screen showed. This
+    // stage is an explicit "scan this image before creating the container", so
+    // it requests a fresh scan.
+    { query: { imageId: imageId ?? '', forceScan: true } },
     { enabled: open && scanStatus === 'scanning' && Boolean(imageId) },
   )
+
+  // Only a stream that has actually fetched and then ended counts as "closed with
+  // no events" — see the guard below.
+  useEffect(() => {
+    if (liveScanQuery.fetchStatus === 'fetching') setScanStreamOpened(true)
+  }, [liveScanQuery.fetchStatus])
 
   useOnDepsChange([image, imageId, imageRuntimeEventsQuery.event, open, pullStatus, selectedImageEntity?.registry, selectedImageEntity?.repository], () => {
     const runtimeEvent = imageRuntimeEventsQuery.event
@@ -266,6 +289,23 @@ export function usePullScanFlow({ open, image, selectedImageEntity, prefilledIma
     const fallback = 'Security scan stream failed before completion.'
     setScanStatus('error')
     setScanErrorMessage(isDefinedORPCError(liveScanQuery.error) ? getErrorMessage(liveScanQuery.error, fallback) : fallback)
+  })
+
+  // ── A stream that ends WITHOUT events is a failed scan, not a pending one ──
+  // The endpoint can complete immediately and emit nothing (nothing was running
+  // and nothing was cached). The stage then sat at 1 % / "queued" forever with
+  // no explanation, which is the worst possible state: it looks alive. Say so
+  // instead, and point at where the reason lives.
+  useOnDepsChange([liveScanQuery.events.length, liveScanQuery.isError, liveScanQuery.fetchStatus, scanStatus, scanStreamOpened], () => {
+    if (scanStatus !== 'scanning' || !imageId) return
+    if (liveScanQuery.isError) return
+    if (!scanStreamOpened) return
+    if (liveScanQuery.fetchStatus !== 'idle') return
+    if (liveScanQuery.events.length > 0) return
+    setScanStatus('error')
+    setScanErrorMessage(
+      'The scan stream closed without sending any event, so nothing was scanned. Retry the scan, and check the runtime service log for scanner container failures.',
+    )
   })
 
   const pullLayers = useMemo(() => buildPullLayers(

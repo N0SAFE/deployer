@@ -11,7 +11,7 @@
 # ===================================
 # Stage 1: Base - Install global dependencies and set environment
 # ===================================
-FROM oven/bun:1.4.3-alpine AS base
+FROM oven/bun:1.4.4-alpine AS base
 ENV NODE_ENV=production
 
 # ── BUILDKIT CACHE MOUNTS BREAK `install.globalStore` — TURN IT OFF ──────────
@@ -93,9 +93,6 @@ WORKDIR /app
 RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \
     apk add --no-cache python3 make g++ gcc musl-dev
 
-# Install build tools needed for native dependencies
-RUN apk add --no-cache python3 make g++
-
 # Pruned package.json structure from pruner-json (includes a consistent
 # pruned bun.lock — use that one).
 COPY --from=pruner-json /app/out/json/ .
@@ -123,6 +120,13 @@ COPY --from=pruner-full /app/bun.lock ./bun.lock
 # one of its dependencies, so without this COPY the install dies with
 # `Module not found "scripts/link-workspace-self-references.ts"`.
 COPY scripts ./scripts
+
+# ── `pkg-build`'s LAUNCHER, BECAUSE BUN ONLY LINKS BINS THAT EXIST ──────────
+# `out/json/` is manifests only, so `tooling/bin-pkg-build/bin/pkg-build.mjs` is
+# absent here and bun never creates `node_modules/.bin/pkg-build`. Every
+# `@deployer/config-*` package builds with `bun --bun pkg-build`, so the bake
+# would die with `Script not found "pkg-build"`.
+COPY tooling/bin-pkg-build/bin ./tooling/bin-pkg-build/bin
 
 RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
   bun ci

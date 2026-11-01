@@ -16,9 +16,10 @@ import {
   DockerContainerResolution,
 } from "./orchestration/docker-container-resolution";
 import { DockerContainersOrchestratorService } from "./orchestration/docker-containers-orchestrator.service";
+import { DockerContainers, DockerContainersPort } from "./orchestration/docker-containers.service";
 import { LOCAL_NODE_OPERATIONS, makeLocalNodeOperations } from "./mesh/local-node-operations";
 import { runtimeReplicaId } from "../../../../core/mesh/runtime-replica-id";
-import { DOCKER_NODE_MESH, NODE_MESH_AGENT, dockerNodeMeshOver, type NodeMeshAgent } from "./mesh/docker-node-mesh";
+import { DOCKER_NODE_MESH, NODE_AGENT, dockerNodeMeshOver, type NodeAgent } from "./mesh/docker-node-mesh";
 
 export class DockerContainersModule extends createModuleContext({
   imports: [CoreDockerModule, EventsModule, DockerRepositoriesModule],
@@ -35,8 +36,8 @@ export class DockerContainersModule extends createModuleContext({
     },
     // The runtime asks the other nodes through the agent of its own node. The holder is empty until `joinRuntimeMesh` fills it,
     // and a runtime with no agent is simply alone on its node: every question to the mesh answers with nobody.
-    { provide: NODE_MESH_AGENT, useFactory: (): NodeMeshAgent => ({ link: undefined, selfReplicaId: runtimeReplicaId() }) },
-    { provide: DOCKER_NODE_MESH, useFactory: (holder: NodeMeshAgent) => dockerNodeMeshOver(holder), inject: [NODE_MESH_AGENT] },
+    { provide: NODE_AGENT, useFactory: (): NodeAgent => ({ link: undefined, selfReplicaId: runtimeReplicaId() }) },
+    { provide: DOCKER_NODE_MESH, useFactory: (holder: NodeAgent) => dockerNodeMeshOver(holder), inject: [NODE_AGENT] },
     // Container resolution is a constant Effect service; the Nest providers it reads come in as ports.
     { provide: ContainersMeshPort, useExisting: DOCKER_NODE_MESH },
     { provide: ContainersLocalPort, useExisting: DockerRepository },
@@ -47,13 +48,23 @@ export class DockerContainersModule extends createModuleContext({
       inject: [EffectRuntime, DockerRepository],
     },
     DockerContainersOrchestratorService,
+    // The Effect face of the container surface: a port over the Promise orchestrator, so a handler's `R` names it.
+    { provide: DockerContainersPort, useExisting: DockerContainersOrchestratorService },
+    { provide: DockerContainers, useValue: DockerContainers.live },
   ],
   exports: [
     LOCAL_NODE_OPERATIONS,
-    NODE_MESH_AGENT,
+    NODE_AGENT,
     DOCKER_NODE_MESH,
     DockerContainerMetricsStreamService,
     DockerContainerResolution,
     DockerContainersOrchestratorService,
+    DockerContainers,
+    // The port behind `DockerContainers`, so the module that declares the controller can see it.
+    DockerContainersPort,
+    // The ports `DockerContainerResolution`'s methods read: a controller hands them back through `Effect.context`
+    // inside its own module scope, so the module that provides them must export them.
+    ContainersMeshPort,
+    ContainersLocalPort,
   ],
 }) {}

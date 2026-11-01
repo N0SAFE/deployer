@@ -12,7 +12,7 @@ Source of the questions: `docs/audit-2026-10-25/roadmap/effect-migration.md` "De
 
 **Q**: Create `@deployer/effect-platform` (adapters) and `@deployer/effect-authz` as separate packages beside the four planned, or fold both into `effect-infra`?
 
-**A**: Accepted (a): both, as separate packages. Folding them into infra would break "mesh-agent depends on effect-core plus the Bun-only subset of infra" and drag Drizzle schema owners and Better Auth types into infra. (Decided 2026-10-26, in chat.)
+**A**: Accepted (a): both, as separate packages. Folding them into infra would break "node-agent depends on effect-core plus the Bun-only subset of infra" and drag Drizzle schema owners and Better Auth types into infra. (Decided 2026-10-26, in chat.)
 
 ---
 
@@ -136,7 +136,7 @@ Source of the questions: `docs/audit-2026-10-25/roadmap/effect-migration.md` "De
 
 ---
 
-## mesh-agent binary-size budget (DEC-EFF-34, D-9)
+## node-agent binary-size budget (DEC-EFF-34, D-9)
 
 **Q**: What is the S3 binary-size budget?
 

@@ -2,6 +2,11 @@
 
 import type {
 	SetupInitializeInput,
+	SetupMeshJoinInput,
+	SetupMeshJoinResult,
+	SetupMeshStatus,
+	SetupMeshTokenInput,
+	SetupMeshTokenResult,
 	SetupPostSetupDestination,
 	SetupPostSetupVerification,
 	SetupStreamEvent,
@@ -128,4 +133,23 @@ export interface SetupWizardApi {
 	 * Same-origin by construction, so it is always answerable.
 	 */
 	postSetupRedirectUrl: () => string;
+
+	/**
+	 * This node's mesh state, read from its mesh agent.
+	 *
+	 * Optional because only the setup app is guaranteed to sit next to an agent:
+	 * a host without the node door simply offers no mesh section. No polling —
+	 * the wizard reads it on render and when the operator refreshes.
+	 */
+	useMeshStatus?: (options?: { enabled?: boolean }) => {
+		data?: SetupMeshStatus | undefined;
+		error?: unknown;
+		refetch?: () => void;
+	};
+
+	/** Redeem an invite token. Resolves `joined: false` with a reason on refusal. */
+	joinMesh?: (input: SetupMeshJoinInput) => Promise<SetupMeshJoinResult>;
+
+	/** Issue a one-time invite; `token: null` when the agent is silent. */
+	issueMeshToken?: (input: SetupMeshTokenInput) => Promise<SetupMeshTokenResult>;
 }

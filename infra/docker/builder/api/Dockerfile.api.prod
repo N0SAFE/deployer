@@ -34,7 +34,7 @@ ARG APP_PORT
 # ===================================
 # Stage 1: Base - Install global dependencies and set environment
 # ===================================
-FROM oven/bun:1.4.3-alpine AS base
+FROM oven/bun:1.4.4-alpine AS base
 ARG PRUNE_SCOPE
 ARG APP_DIR
 ENV NODE_ENV=production
@@ -134,9 +134,6 @@ WORKDIR /app
 RUN --mount=type=cache,target=/var/cache/apk,sharing=locked \
     apk add --no-cache python3 make g++ gcc musl-dev
 
-# Install build tools needed for native dependencies
-RUN apk add --no-cache python3 make g++ gcc musl-dev
-
 # Copy ONLY the pruned package.json structure (not all workspaces).
 # out/json/ ALSO carries prune's rewritten bun.lock, which is replaced below.
 COPY --from=pruner-json /app/out/json/ .
@@ -170,6 +167,13 @@ COPY --from=pruner-full /app/bun.lock ./bun.lock
 # Measured while fixing the prune scope above — this is a real failure in every
 # prod installer, not a hypothetical.
 COPY scripts ./scripts
+
+# ── `pkg-build`'s LAUNCHER, BECAUSE BUN ONLY LINKS BINS THAT EXIST ──────────
+# `out/json/` is manifests only, so `tooling/bin-pkg-build/bin/pkg-build.mjs` is
+# absent here and bun never creates `node_modules/.bin/pkg-build`. Every
+# `@deployer/config-*` package builds with `bun --bun pkg-build`, so the bake
+# would die with `Script not found "pkg-build"`.
+COPY tooling/bin-pkg-build/bin ./tooling/bin-pkg-build/bin
 
 RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
   bun ci

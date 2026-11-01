@@ -1,6 +1,6 @@
-import { Module } from "@nestjs/common";
 import { Effect, Fiber } from "effect";
 import { Inject, Injectable, type InjectionToken, type OptionalFactoryDependency, type OnModuleDestroy, type OnModuleInit, type Provider } from "@nestjs/common";
+import { createModuleContext } from "@deployer/nest-effect";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { ClusterNodeRepository, NodeConfigRepository, type ClusterNodeRepositoryShape, type NodeConfigRepositoryShape } from "@deployer/node-state";
 import {
@@ -14,7 +14,7 @@ import {
   type SwarmServices,
   type SwarmServicesOptions,
 } from "@deployer/swarm";
-import { AGENT_SOCKET_PATH, MeshAgentHttpClient } from "@deployer/mesh-network";
+import { nodeDoorFromEnv } from "@deployer/mesh-client";
 
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { DockerModule } from "@/config/docker/docker.module";
@@ -23,7 +23,7 @@ import { EnvModule, EnvService } from "@/config/env/env.module";
 import { SetupHealthModule } from "@/modules/health/setup-health.module";
 import { SetupProgressModule } from "@/modules/progress/progress.module";
 import { ClusterOrchestratorService } from "./services/cluster-orchestrator.service";
-import { MeshAgentLauncherService } from "./services/mesh-agent-launcher.service";
+import { NodeAgentLauncherService } from "./services/node-agent-launcher.service";
 import { SwarmBootstrapService } from "./services/swarm-bootstrap.service";
 
 const SWARM_SERVICES = Symbol("SWARM_SERVICES");
@@ -75,9 +75,9 @@ const swarmProviders = (config: {
  * A plain function rather than an injected service: the package's options are
  * built in a factory, before this module's providers exist.
  */
-async function meshAgentAddress(env: EnvService): Promise<string | null> {
-  const status = await new MeshAgentHttpClient(env.get("MESH_AGENT_SOCKET") ?? AGENT_SOCKET_PATH).status().catch(() => null);
-  return status?.cluster?.interfaceUp === true ? status.cluster.address : null;
+async function nodeAgentAddress(env: EnvService): Promise<string | null> {
+  const status = await nodeDoorFromEnv(env).status();
+  return status?.interfaceUp === true ? status.meshAddress : null;
 }
 
 /**
@@ -98,7 +98,7 @@ async function meshAgentAddress(env: EnvService): Promise<string | null> {
  * imported first. The swarm config is resolved from `EnvService`, so this app's
  * variables never leak into the package.
  */
-@Module({
+export class SetupClusterModule extends createModuleContext({
   imports: [
     EnvModule,
     DockerModule,
@@ -134,7 +134,7 @@ async function meshAgentAddress(env: EnvService): Promise<string | null> {
         metricsProvider: null,
         eventSink: null,
         participation: {
-          meshAddress: Effect.promise(() => meshAgentAddress(env)),
+          meshAddress: Effect.promise(() => nodeAgentAddress(env)),
         },
         // ── THE ENGINE IS CONVERGED BY THE SETUP FLOW, NOT AT BOOT ────────────
         // Whoever starts an app also decides whether it may touch the engine on
@@ -157,12 +157,11 @@ async function meshAgentAddress(env: EnvService): Promise<string | null> {
     }),
     SwarmBootstrapService,
     ClusterOrchestratorService,
-    MeshAgentLauncherService,
+    NodeAgentLauncherService,
   ],
   // `ClusterOrchestratorService` is exported because the handover REACTS to the
   // cluster result: it subscribes to `stream$` rather than polling a phase,
   // which is what keeps this app event-driven and makes the dependency
   // direction explicit (handover imports cluster, never the reverse).
-  exports: [SwarmBootstrapService, ClusterOrchestratorService, MeshAgentLauncherService],
-})
-export class SetupClusterModule {}
+  exports: [SwarmBootstrapService, ClusterOrchestratorService, NodeAgentLauncherService],
+}) {}

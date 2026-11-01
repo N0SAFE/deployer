@@ -17,6 +17,9 @@ import {
 	useProbeDatabase,
 	useSetupState,
 	useTriggerInitialize,
+	useMeshStatus,
+	joinMesh,
+	issueMeshToken,
 } from "@/views/setup-adapters/hooks";
 import { signInWithEmail } from "@/views/lib/auth";
 import { getErrorMessage } from "@/views/lib/errors";
@@ -35,5 +38,10 @@ export const setupApi: SetupWizardApi = {
 	usePostSetupDestination,
 	usePostSetupVerification,
 	retryHandover,
+	// Mesh onboarding: setup sits next to the node's agent, so the wizard can
+	// show the mesh state and redeem/issue invites before the platform exists.
+	useMeshStatus,
+	joinMesh,
+	issueMeshToken,
 	postSetupRedirectUrl: () => resolvePostSetupRedirect(),
 };

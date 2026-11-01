@@ -16,8 +16,20 @@ function taskStatus(state: string): string {
 }
 
 /** Swarm services/tasks on this node plus engine artifacts. */
-export function NodeFleetTab({ nodeId, isLocal }: { nodeId: string; isLocal: boolean }) {
-  const { data: resources, isLoading, error, refetch } = useNodeResources(nodeId)
+export function NodeFleetTab({ swarmNodeId, isLocal }: { swarmNodeId: string | null; isLocal: boolean }) {
+  // The cluster endpoints speak Docker Swarm node ids; the platform id is a UUID that the engine rejects with a 404.
+  const { data: resources, isLoading, error, refetch } = useNodeResources(swarmNodeId ?? '', { enabled: swarmNodeId != null })
+
+  if (swarmNodeId == null) {
+    return (
+      <EmptyState
+        compact
+        icon={Server}
+        title="No Swarm id reported"
+        description="This node has not completed an inventory sweep yet, so the engine cannot be asked for its resources."
+      />
+    )
+  }
 
   if (isLoading) {
     return (

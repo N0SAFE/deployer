@@ -210,9 +210,18 @@ describe("UserService", () => {
 
 		it("narrows a self-update to name and email, ignoring fields a user may not change", async () => {
 			// `role` equal to the current one is not a change, so it is dropped rather than refused.
-			await run(service.update(member, "user-1", { name: " Ada L. ", role: "viewer", banned: true }, {}));
+			await run(service.update(member, "user-1", { name: " Ada L. ", role: "viewer" }, {}));
 
 			expect(repo.update).toHaveBeenCalledWith("user-1", { name: "Ada L." });
+		});
+
+		it("refuses a self-ban, through the update path or the dedicated one", async () => {
+			await expect(failureOf(service.update(admin, "admin-1", { banned: true }, {}))).resolves.toBeInstanceOf(
+				UserForbidden,
+			);
+			expect(repo.update).not.toHaveBeenCalled();
+
+			await expect(failureOf(service.setBanned(admin, "admin-1", true))).resolves.toBeInstanceOf(UserForbidden);
 		});
 
 		it("refuses a user who asks to change their own role", async () => {
@@ -298,6 +307,78 @@ describe("UserService", () => {
 
 		it("forbids a non-administrator", async () => {
 			await expect(failureOf(service.delete(member, "user-2"))).resolves.toBeInstanceOf(UserForbidden);
+		});
+	});
+
+	describe("target-role hierarchy", () => {
+		type Role = NonNullable<User["role"]>;
+
+		const actors = {
+			superAdmin: root,
+			admin,
+			operator: { userId: "operator-1", role: "operator" },
+			viewer: { userId: "viewer-1", role: "viewer" },
+		} as const;
+
+		/** Every action EFF-073 puts behind the hierarchy, plus the write it must make when allowed. */
+		const actions = [
+			{
+				name: "delete",
+				call: (actor: Acting, id: string) => service.delete(actor, id),
+				written: () => {
+					expect(repo.delete).toHaveBeenCalledWith("target-1");
+				},
+			},
+			{
+				name: "ban",
+				call: (actor: Acting, id: string) => service.setBanned(actor, id, true),
+				written: () => {
+					expect(repo.update).toHaveBeenCalledWith("target-1", { banned: true });
+				},
+			},
+			{
+				name: "email update",
+				call: (actor: Acting, id: string) => service.update(actor, id, { email: "next@example.com" }, {}),
+				written: () => {
+					expect(repo.update).toHaveBeenCalledWith("target-1", { email: "next@example.com" });
+				},
+			},
+		];
+
+		const hierarchy: ReadonlyArray<{ actor: keyof typeof actors; target: Role; allowed: boolean }> = [
+			{ actor: "superAdmin", target: "superAdmin", allowed: true },
+			{ actor: "superAdmin", target: "admin", allowed: true },
+			{ actor: "superAdmin", target: "viewer", allowed: true },
+			{ actor: "admin", target: "viewer", allowed: true },
+			{ actor: "admin", target: "operator", allowed: true },
+			{ actor: "admin", target: "admin", allowed: false },
+			{ actor: "admin", target: "superAdmin", allowed: false },
+			{ actor: "operator", target: "operator", allowed: false },
+			{ actor: "viewer", target: "viewer", allowed: false },
+		];
+
+		beforeEach(() => {
+			repo.emailExists.mockReturnValue(Effect.succeed(false));
+			repo.update.mockImplementation((id: string, patch: object) => Effect.succeed(userRow({ id, ...patch })));
+			repo.delete.mockReturnValue(Effect.void);
+		});
+
+		describe.each(actions)("$name", ({ call, written }) => {
+			it.each(hierarchy)("$actor -> $target (allowed: $allowed)", async ({ actor, target, allowed }) => {
+				repo.findById.mockReturnValue(Effect.succeed(userRow({ id: "target-1", role: target })));
+
+				const effect = call(actors[actor], "target-1");
+
+				if (allowed) {
+					await run(effect);
+					written();
+					return;
+				}
+
+				await expect(failureOf(effect)).resolves.toBeInstanceOf(UserForbidden);
+				expect(repo.update).not.toHaveBeenCalled();
+				expect(repo.delete).not.toHaveBeenCalled();
+			});
 		});
 	});
 

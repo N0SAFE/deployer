@@ -141,6 +141,12 @@ export const setupInitializeRemoteInputSchema = z.object({
      * credential that proves membership, so it is the only thing the operator brings.
      */
     token: z.string().min(1),
+    /**
+     * The AGENT's own join token (the encoded one its `roster.join` accepts), when the caller received it alongside the
+     * platform's grant token above. Preferred over `token` for the agent handshake; omitted when the two are the same
+     * token, which is the normal case for a node added from the fleet's UI.
+     */
+    meshJoinToken: z.string().min(1).nullable().optional(),
     serverUrl: z.url(),
     /**
      * Swarm role this JOINING node takes in the existing cluster. `mode` is
@@ -472,3 +478,73 @@ export const nodeConfigStatusSchema = z.object({
     configuredAt:       z.date().nullable(),
 });
 export type NodeConfigStatus = z.infer<typeof nodeConfigStatusSchema>;
+
+// ─── Mesh onboarding ──────────────────────────────────────────────────────────
+
+/**
+ * What this node's mesh agent says about itself, as the wizard shows it.
+ *
+ * ── WHY `available` AND NOT AN ERROR ────────────────────────────────────────
+ * A node with no agent (or one too old to serve its node door) is a NORMAL state
+ * during onboarding — the mesh may be deliberately absent on a plain Docker
+ * host. Reporting it as a failure would turn "standalone" into an error screen.
+ * Every field is nullable for the same reason: absence, not zero.
+ */
+export const setupMeshPeerSchema = z.object({
+    nodeId: z.string(),
+    meshAddress: z.string().nullable(),
+    /** False until WireGuard has completed a handshake with this peer. */
+    handshake: z.boolean(),
+});
+export type SetupMeshPeer = z.infer<typeof setupMeshPeerSchema>;
+
+export const setupMeshStatusSchema = z.object({
+    /** The node door answered. */
+    available: z.boolean(),
+    agentId: z.string().nullable(),
+    interfaceUp: z.boolean(),
+    meshAddress: z.string().nullable(),
+    /** The platform node id, when the API has labelled this agent's roster entry. */
+    nodeId: z.string().nullable(),
+    /** `null` means "not in a swarm". `nodes` counts this node plus its peers. */
+    swarm: z.object({
+        nodes: z.number().int().nonnegative(),
+        peers: z.array(setupMeshPeerSchema),
+    }).nullable(),
+});
+export type SetupMeshStatus = z.infer<typeof setupMeshStatusSchema>;
+
+export const setupMeshJoinInputSchema = z.object({
+    token: z.string().min(1),
+});
+export type SetupMeshJoinInput = z.infer<typeof setupMeshJoinInputSchema>;
+
+export const setupMeshJoinAgentSchema = z.object({
+    nodeId: z.string(),
+    address: z.string(),
+});
+export type SetupMeshJoinAgent = z.infer<typeof setupMeshJoinAgentSchema>;
+
+export const setupMeshJoinResultSchema = z.object({
+    joined: z.boolean(),
+    /**
+     * The swarm's identity when the agent reports one. The node door's join
+     * result does not carry it, so this is `null` for a successful join today.
+     */
+    swarmId: z.string().nullable(),
+    agents: z.array(setupMeshJoinAgentSchema),
+    /** Why a join did NOT happen (absent door, refused/expired/malformed token). */
+    reason: z.string().nullable(),
+});
+export type SetupMeshJoinResult = z.infer<typeof setupMeshJoinResultSchema>;
+
+export const setupMeshTokenInputSchema = z.object({
+    /** Agent default TTL when omitted. */
+    ttlMs: z.number().int().positive().optional(),
+});
+export type SetupMeshTokenInput = z.infer<typeof setupMeshTokenInputSchema>;
+
+export const setupMeshTokenResultSchema = z.object({
+    token: z.string().nullable(),
+});
+export type SetupMeshTokenResult = z.infer<typeof setupMeshTokenResultSchema>;

@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { createModuleContext } from "@deployer/nest-effect";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";
@@ -16,11 +16,15 @@ import { DockerRuntimeActivitiesStore } from "./runtime/docker-runtime-activitie
 import { DockerImageScansStore } from "./images/security/docker-image-scans.store";
 import { DockerImagesRepository } from "./images/engine/docker-images.repository";
 import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-normalizer.service";
+import { RuntimeDb } from "../../../core/database/runtime-db";
 
-@Module({
+export class DockerRepositoriesModule extends createModuleContext({
   imports: [DatabaseModule, CoreDockerModule],
   providers: [
     DockerRepository,
+    // The Effect repositories below `yield* RuntimeDb` when a method runs; the tag is a constant over the global
+    // `RuntimeDatabasePort`, so binding it here gives this module's request scope the database it reads.
+    { provide: RuntimeDb, useValue: RuntimeDb.live },
     { provide: ContainerDockerodeNormalizer, useFactory: () => new ContainerDockerodeNormalizer() },
     DockerImageCatalogRepository,
     DockerImageSecurityRepository,
@@ -51,6 +55,8 @@ import { ContainerDockerodeNormalizer } from "../shared/container-dockerode-norm
     DockerContainersRepository,
     DockerRuntimeActivitiesStore,
     DockerImageScansStore,
+    // The Effect repositories above `yield* RuntimeDb` when a method runs; a module that provides one of them (or a
+    // service whose shape reads it) must be able to see the database, exactly like a controller's handler.
+    RuntimeDb,
   ],
-})
-export class DockerRepositoriesModule {}
+}) {}

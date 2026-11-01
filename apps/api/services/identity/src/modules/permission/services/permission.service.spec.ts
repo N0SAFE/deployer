@@ -32,7 +32,7 @@ const row = {
 type RepoBound = {
     [K in keyof PermissionServiceShape]: PermissionServiceShape[K] extends (
         ...args: infer P
-    ) => Effect.Effect<infer A, infer E>
+    ) => Effect.Effect<infer A, infer E, any>
         ? (...args: P) => Effect.Effect<A, E, PermissionRepository>
         : never
 }

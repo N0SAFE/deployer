@@ -75,7 +75,8 @@
                 "@tanstack/react-query-devtools": "^5.81.5",
                 "@tanstack/eslint-plugin-query": "^5.81.5",
                 "@tanstack/react-table": "^8.21.3",
-                "@tanstack/react-virtual": "^3.14.3"
+                "@tanstack/react-virtual": "^3.14.3",
+                "@tanstack/redact": "^0.2.1"
             },
             "styling": {
                 "tailwindcss": "^4",
@@ -310,6 +311,7 @@
         "knip:watch": "knip --watch",
         "knip:explain": "knip --include",
         " ": " ",
+        "check:global-modules": "bun --bun scripts/check-global-modules.ts",
         "check:di-graph": "bun --bun scripts/check-di-graph.ts",
         "check:di-imports": "bun --bun scripts/check-di-imports.ts",
         "check:di-graph:cycles": "DI_GATE=cycles bun --bun scripts/check-di-graph.ts",

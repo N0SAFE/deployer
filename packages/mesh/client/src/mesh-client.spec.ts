@@ -5,7 +5,7 @@ import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import * as z from "zod";
 
-import { grantDirect } from "@deployer/mesh-agent-contracts";
+import { grantDirect } from "@deployer/node-agent-contracts";
 
 import { grantFollowingLink } from "./grant-link";
 import { createMeshClient } from "./mesh-client";

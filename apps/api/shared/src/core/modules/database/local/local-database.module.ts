@@ -11,7 +11,8 @@
  * The opened handle is also provided under the two connection tokens consumers query through
  * (`LOCAL_DATABASE_CONNECTION` for Drizzle, `LOCAL_DATABASE_CLIENT` for the raw driver).
  */
-import { Global, Inject, Injectable, Logger, Module, type OnApplicationShutdown, type OnModuleInit } from "@nestjs/common";
+import { Inject, Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } from "@nestjs/common";
+import { createGlobalModule } from "@deployer/nest-effect";
 import { Cause, Effect, Exit, Scope } from "effect";
 import {
 	LocalDatabase,
@@ -61,8 +62,7 @@ class LocalDatabaseLifecycle implements OnModuleInit, OnApplicationShutdown {
 	}
 }
 
-@Global()
-@Module({
+export const LocalDatabaseModule = createGlobalModule({
 	imports: [EnvModule],
 	providers: [
 		{
@@ -79,5 +79,4 @@ class LocalDatabaseLifecycle implements OnModuleInit, OnApplicationShutdown {
 		{ provide: LOCAL_DATABASE_CONNECTION, useFactory: (host: LocalDatabaseLifecycle) => host.database.db, inject: [LocalDatabaseLifecycle] },
 	],
 	exports: [LocalDatabase, LOCAL_DATABASE_CLIENT, LOCAL_DATABASE_CONNECTION],
-})
-export class LocalDatabaseModule {}
+});

@@ -1,5 +1,4 @@
-import { Module } from "@nestjs/common";
-
+import { createModuleContext } from "@deployer/nest-effect";
 import { CorePlatformIngressModule } from "@/core/modules/platform-ingress/platform-ingress.module";
 import { EnvModule } from "@/config/env/env.module";
 import { ManagedWebClient } from "./clients/managed-web.client";
@@ -22,9 +21,8 @@ import { SetupDoneController } from "./controllers/setup-done.controller";
  *
  * Importing them here is what makes the module self-contained.
  */
-@Module({
+export class PlatformConsoleModule extends createModuleContext({
 	imports: [EnvModule, CorePlatformIngressModule],
 	controllers: [PlatformConsoleController, SetupDoneController, ConsoleControlController],
 	providers: [ManagedWebClient],
-})
-export class PlatformConsoleModule {}
+}) {}

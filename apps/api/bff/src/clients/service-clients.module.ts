@@ -1,4 +1,4 @@
-import { Global, Module } from "@nestjs/common";
+import { createGlobalModule } from "@deployer/nest-effect";
 
 import { AnalyticsClient } from "./identity/analytics.client";
 import { IdentityClient } from "./identity/identity.client";
@@ -21,8 +21,7 @@ import { FleetClient } from "./fleet/fleet.client";
  * same service, and two instances of a client is two places a future change (a cache,
  * a retry policy) has to be applied. One declaration, injected everywhere.
  */
-@Global()
-@Module({
+export const ServiceClientsModule = createGlobalModule({
 	providers: [
 		IdentityClient,
 		AnalyticsClient,
@@ -37,5 +36,4 @@ import { FleetClient } from "./fleet/fleet.client";
 		RuntimeClient,
 		FleetClient,
 	],
-})
-export class ServiceClientsModule {}
+});

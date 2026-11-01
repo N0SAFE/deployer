@@ -6,8 +6,8 @@ import { Context } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HealthController } from "./health.controller";
-import { HealthRegistryRepository } from "../services/health.service";
-import { HealthService } from "../services/health.service";
+import { HealthRegistryRepository, UptimeSource } from "../services/health.service";
+import { HealthService, SERVICE_NAME } from "../services/health.service";
 import { healthRegistryFake, healthSnapshot } from "../testing/health.fixtures";
 
 /**
@@ -20,9 +20,14 @@ import { healthRegistryFake, healthSnapshot } from "../testing/health.fixtures";
  */
 const runOnce = vi.fn(() => Promise.resolve(healthSnapshot()));
 
+/** The stubbed clock: the controller must forward this exactly, not `process.uptime()`. */
+const UPTIME_SECONDS = 42;
+
 describe("HealthController", () => {
 	let controller: HealthController;
-	let context: { "effect/context": Context.Context<HealthService | HealthRegistryRepository> };
+	let context: {
+		"effect/context": Context.Context<HealthService | HealthRegistryRepository | UptimeSource>;
+	};
 
 	beforeEach(() => {
 		runOnce.mockReset();
@@ -32,6 +37,7 @@ describe("HealthController", () => {
 			Context.empty().pipe(
 				Context.add(HealthService, HealthService.live),
 				Context.add(HealthRegistryRepository, healthRegistryFake(runOnce)),
+				Context.add(UptimeSource, () => UPTIME_SECONDS),
 			),
 		);
 		controller = new HealthController();
@@ -103,10 +109,15 @@ describe("HealthController", () => {
 		it("reports uptime in seconds, as the contract declares", async () => {
 			const result = await call<{ uptime: number }>(controller.detailed());
 
-			// Seconds since the process started: a milliseconds-to-seconds mix-up would be ~1000x too small.
-			const sinceStart = process.uptime();
-			expect(result.uptime).toBeGreaterThan(sinceStart - 5);
-			expect(result.uptime).toBeLessThanOrEqual(sinceStart);
+			// Exact, from the stubbed clock: the old `process.uptime() / 1000` in this
+			// controller would report 0.042 here, and wall time could never equal 42.
+			expect(result.uptime).toBe(UPTIME_SECONDS);
+		});
+
+		it("sends the service name from the service, not a controller literal", async () => {
+			const result = await call<{ service: string }>(controller.detailed());
+
+			expect(result.service).toBe(SERVICE_NAME);
 		});
 
 		it("includes the flattened renderable list alongside the Terminus shape", async () => {

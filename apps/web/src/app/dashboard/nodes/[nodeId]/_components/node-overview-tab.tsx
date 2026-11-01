@@ -12,6 +12,8 @@ import type { NodePresence } from '../../_utils/node-presence'
 
 export interface NodeDetail {
   nodeId: string
+  /** The Docker Swarm node id this platform node registered as; null until its first inventory sweep. */
+  swarmNodeId: string | null
   serverUrl: string
   displayName: string | null
   status: string

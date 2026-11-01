@@ -1,4 +1,4 @@
-import { runSyncUnwrapped } from "@deployer/effect-core";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import type { PublicAccessPointState } from './public-access-point.state'
 import { BadRequestException, Injectable, Logger, Inject } from '@nestjs/common'
 import dns from 'node:dns/promises'
@@ -39,11 +39,11 @@ export class ReachabilityService {
   ) {}
 
   /**
-   * The current node's id (from the local SQLite node_config). The network
+   * The current node's id (from its agent's record, or the local SQLite file). The network
    * config is stored per node in the global DB, keyed by this id.
    */
-  getCurrentNodeId(): string {
-    const row = runSyncUnwrapped(this.nodeConfigRepository.find())
+  async getCurrentNodeId(): Promise<string> {
+    const row = await runPromiseUnwrapped(this.nodeConfigRepository.find())
     const nodeId = row?.nodeId
     if (!nodeId) {
       throw new BadRequestException(
@@ -62,7 +62,7 @@ export class ReachabilityService {
    * sensible default row for nodes never configured yet.
    */
   async getNodeNetworkConfig(nodeId?: string): Promise<NodeNetworkConfigData> {
-    const target = nodeId?.trim() ? nodeId : this.getCurrentNodeId()
+    const target = nodeId?.trim() ? nodeId : await this.getCurrentNodeId()
     return toNodeNetworkConfigData(target, await this.getConfigRow(target))
   }
 
@@ -174,7 +174,7 @@ export class ReachabilityService {
     nodeId?: string
     publicAddress?: string | null
   }): Promise<NodeNetworkConfigData> {
-    const target = input.nodeId?.trim() ? input.nodeId : this.getCurrentNodeId()
+    const target = input.nodeId?.trim() ? input.nodeId : await this.getCurrentNodeId()
     const current = await this.getNodeNetworkConfig(target)
 
     let publicAddress = current.publicAddress

@@ -1,4 +1,3 @@
-import { runSyncUnwrapped } from "@deployer/effect-core";
 import { Injectable, Logger, Inject } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
@@ -40,6 +39,7 @@ import { SupervisorOrchestrator, type SupervisorOrchestratorShape } from "@deplo
 import { SWARM_APP_WIRING_SUPERVISOR_ID } from "../../supervisors/platform/swarm-app-wiring.supervisor";
 import { generateMeshSharedSecret } from "@deployer/auth/mesh";
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+
 import {
     SetupStepTracker,
     listMigrationNames,
@@ -145,11 +145,13 @@ export class LocalInitializationService {
         //    supervised by GlobalDbSupervisorService).
         const explicitUrl = input.existingDatabaseUrl?.trim() ?? "";
 
+        const providedCfg = explicitUrl
+            ? null
+            : await runPromiseUnwrapped(this.nodeConfigRepository.find());
         const providedUrl = (() => {
             if (explicitUrl) return "";
-            const cfg = runSyncUnwrapped(this.nodeConfigRepository.find());
-            const alreadyDone =
-                cfg?.setupState === "setup_done" || Boolean(cfg?.configuredAt);
+            const cfg = providedCfg;
+            const alreadyDone = cfg?.setupState === "setup_done";
             if (
                 !alreadyDone &&
                 cfg?.databaseUrl?.trim() &&
@@ -217,9 +219,9 @@ export class LocalInitializationService {
                 // operator explicitly did not ask for. `register_node` writes the
                 // same values later; this earlier write is what makes the DECISION
                 // authoritative at the moment it is acted on.
-                const cfg = runSyncUnwrapped(this.nodeConfigRepository.find());
+                const cfg = await runPromiseUnwrapped(this.nodeConfigRepository.find());
                 const nowIso = new Date().toISOString();
-                runSyncUnwrapped(this.nodeConfigRepository.upsert({
+                await runPromiseUnwrapped(this.nodeConfigRepository.upsert({
                     ...(cfg ?? {}),
                     nodeId,
                     strategy: "local",
@@ -335,7 +337,7 @@ export class LocalInitializationService {
             this.logger.log("⏭️  Database already initialized — skipping migration and seed steps");
         }
 
-        await runStep(tracker, emit, "register_node", "Register this node", (stepLog) => {
+        await runStep(tracker, emit, "register_node", "Register this node", async (stepLog) => {
             stepLog(`▸ Assigning node ID ${nodeId}…`);
             stepLog("  strategy = local");
             stepLog("  mesh     = (none)");
@@ -349,7 +351,7 @@ export class LocalInitializationService {
             const meshSharedSecret = generateMeshSharedSecret();
             stepLog("▸ Persisting node config to global database…");
             const now = new Date().toISOString();
-            runSyncUnwrapped(this.nodeConfigRepository.upsert({
+            await runPromiseUnwrapped(this.nodeConfigRepository.upsert({
                 nodeId,
                 strategy: "local",
                 setupState: "setup_done",

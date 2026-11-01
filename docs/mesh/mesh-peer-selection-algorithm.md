@@ -1,5 +1,5 @@
 > **Superseded (2026-10-30).** This describes the old topic mesh, which has been removed. The mesh is now one agent per node:
-> see `docs/architecture/mesh-agent-service.md` and the doc-site page `architecture/mesh-agent`.
+> see `docs/architecture/node-agent-service.md` and the doc-site page `architecture/node-agent`.
 
 # Mesh Peer Selection & Adaptive Topology Algorithm
 

@@ -1,4 +1,4 @@
-import { runSyncUnwrapped } from "@deployer/effect-core";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { Injectable, Logger, type OnModuleInit, Inject } from '@nestjs/common'
 import { Pool } from 'pg'
 import { ReplaySubject, firstValueFrom, interval, map, merge, Observable } from 'rxjs'
@@ -69,7 +69,7 @@ export class InitializationService implements OnModuleInit {
         )
         // Perform the eager setup check that may have been skipped by
         // the pool factory (run during construction, before onModuleInit).
-        this.checkConfigAndEmit()
+        await this.checkConfigAndEmit()
     }
 
     /**
@@ -85,9 +85,9 @@ export class InitializationService implements OnModuleInit {
      * global database is mandatory. Such rows are treated as needing setup so
      * the wizard can re-provision from scratch.
      */
-    checkConfigAndEmit(): void {
+    async checkConfigAndEmit(): Promise<void> {
         try {
-            const config = runSyncUnwrapped(this.nodeConfigRepository.find())
+            const config = await runPromiseUnwrapped(this.nodeConfigRepository.find())
             const storedUrl = config?.databaseUrl?.trim() ?? ''
             if (config?.configuredAt && storedUrl.length > 0) {
                 this.logger.log(
@@ -116,8 +116,8 @@ export class InitializationService implements OnModuleInit {
 
     // ─── Public API ───────────────────────────────────────────────────────────
 
-    getSetupState(): SetupStateSnapshot {
-        const config = runSyncUnwrapped(this.nodeConfigRepository.find())
+    async getSetupState(): Promise<SetupStateSnapshot> {
+        const config = await runPromiseUnwrapped(this.nodeConfigRepository.find())
 
         if (!config) {
             return {
@@ -185,8 +185,8 @@ export class InitializationService implements OnModuleInit {
         }
     }
 
-    getNodeStatus() {
-        const config = runSyncUnwrapped(this.nodeConfigRepository.find())
+    async getNodeStatus() {
+        const config = await runPromiseUnwrapped(this.nodeConfigRepository.find())
         if (config?.configuredAt && config.databaseUrl?.trim()) {
             return {
                 isConfigured: true,
@@ -318,7 +318,7 @@ export class InitializationService implements OnModuleInit {
             databaseUrl: finish.databaseUrl,
         }))
 
-        const config = runSyncUnwrapped(this.nodeConfigRepository.find())
+        const config = await runPromiseUnwrapped(this.nodeConfigRepository.find())
         if (config) {
             this.emitCompleted({
                 nodeId: config.nodeId,

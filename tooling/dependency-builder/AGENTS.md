@@ -100,6 +100,40 @@ it is never the one consumer missing from the graph it computes.
     is the structural lever. Measured: 40 workspaces with 4 applications → 36 with
     0, and a real source edit produced 0 app build lines.
 
+- **The IMAGE applies the same strip before it bakes the cache.**
+  `src/strip-applications.ts` runs `stripApplications` (the body
+  `TurboRunner.excludeApplicationsFromGraph` also calls) before
+  `turbo run build` in `Dockerfile.dependency-builder.dev`. Turbo hashes the
+  resolved task graph, so a bake taken with `apps/**` still listed is a cache the
+  runtime can never hit. One implementation, two callers — do not inline a second
+  copy of the manifest edit.
+
+- **The sync must not include the repository ROOT.** Only `packages/`,
+  `tooling/` and `infra/` are synced — the workspace trees this tool builds. A
+  root sync re-adds `apps/**` to `/app/package.json` (the manifest
+  `excludeApplicationsFromGraph` just stripped), `turbo watch` re-reads the
+  workspace list mid-run and the applications build inside this container. The
+  ignore entry that was supposed to prevent it (`/package.json`) never matched,
+  and the rewrite is invisible: a synced file keeps its HOST mtime, so the
+  manifest looks untouched. Measured: `Packages in scope` listed 53 packages at
+  watch start, then `@deployer/setup:build` ran here and died on its compile
+  check.
+
+- **The sync must not bring `.env` in.** `turbo.json` lists `**/.env` and
+  `**/.env.*local` in `globalDependencies`, and `.dockerignore` keeps them out of
+  the image. The `develop.watch` rules therefore ignore `**/.env*`: syncing the
+  host's secret files in changes the GLOBAL hash and misses every baked entry.
+  This service reads its env from compose, never from dotenv.
+
+- **The sync ignore list must mirror `.dockerignore` for everything Turbo
+  hashes.** `$TURBO_DEFAULT$` hashes EVERY file in a workspace, so a path the
+  image excludes (`**/__tests__/`, `**/vitest.config.*`, `**/README.md`,
+  `**/docs/`, `**/*.tsbuildinfo`, …) but the sync brings in changes the hash of
+  every package holding one. Measured on the built image: a package with one
+  extra file missed, and each miss rebuilds that package into the shared volume
+  the applications are resolving through. `turbo-runner.service.spec.ts` asserts
+  the two lists agree for the expensive patterns.
+
 - **Published artifacts must be RESOLVABLE where they land.** A built `.mjs`
   contains bare imports; resolution walks UP from the importing file, so once
   `dist/` is published outside its package the walk starts in a directory

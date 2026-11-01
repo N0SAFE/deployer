@@ -10,13 +10,11 @@
  */
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
 import { providersContract } from "@deployer/fleet-contracts";
-import { EffectContextOf } from "@deployer/nest-effect";
+import { procedure } from "@deployer/nest-effect";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
 import { serve } from "@/core/orpc/serve";
-import { ProvidersModule } from "@/modules/providers/providers.module";
 import { CloudflareAppService } from "@/modules/providers/dns/cloudflare/services/cloudflare-app.service";
 
 @Controller()
@@ -25,9 +23,8 @@ export class DnsProvidersController {
 
     @Implement(providersContract.dns.list)
     list() {
-        return implement(providersContract.dns.list)
+        return procedure(providersContract.dns.list)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const apps = yield* CloudflareAppService;
                 const providers = yield* serve(context)(apps.listApps());
@@ -37,9 +34,8 @@ export class DnsProvidersController {
 
     @Implement(providersContract.dns.create)
     create() {
-        return implement(providersContract.dns.create)
+        return procedure(providersContract.dns.create)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const apps = yield* CloudflareAppService;
                 return yield* serve(context)(
@@ -56,9 +52,8 @@ export class DnsProvidersController {
 
     @Implement(providersContract.dns.update)
     update() {
-        return implement(providersContract.dns.update)
+        return procedure(providersContract.dns.update)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const apps = yield* CloudflareAppService;
                 return yield* serve(context)(apps.updateApp(input.params.id, input.body ?? {}));
@@ -67,9 +62,8 @@ export class DnsProvidersController {
 
     @Implement(providersContract.dns.delete)
     delete() {
-        return implement(providersContract.dns.delete)
+        return procedure(providersContract.dns.delete)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const apps = yield* CloudflareAppService;
                 const success = yield* serve(context)(apps.deleteApp(input.params.id));
@@ -79,9 +73,8 @@ export class DnsProvidersController {
 
     @Implement(providersContract.dns.checkState)
     checkState() {
-        return implement(providersContract.dns.checkState)
+        return procedure(providersContract.dns.checkState)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const apps = yield* CloudflareAppService;
                 return yield* serve(context)(apps.getLiveState(input.params.id, true));

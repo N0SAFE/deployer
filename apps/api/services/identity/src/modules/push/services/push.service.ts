@@ -3,6 +3,7 @@ import { Context, Effect } from 'effect'
 import { generateVAPIDKeys } from 'web-push'
 
 import { actorFromCurrent } from '@identity/core/utils/actor.utils'
+import { DatabasePort } from '@identity/core/database/database.port'
 
 import {
     PushSubscriptionNotFound,
@@ -38,20 +39,20 @@ export type PushFailure =
  * platform, not a user (`deliverableCount`, `recordDelivery`), need nothing from the request.
  */
 export type PushServiceShape = {
-    readonly publicKey: () => Effect.Effect<PublicKey, PushFailure, Ambient>
+    readonly publicKey: () => Effect.Effect<PublicKey, PushFailure, Ambient | PushRepository | DatabasePort>
     readonly subscribe: (
         request: SubscribeRequest
-    ) => Effect.Effect<SubscribeResult, PushFailure, Ambient>
+    ) => Effect.Effect<SubscribeResult, PushFailure, Ambient | PushRepository | DatabasePort>
     readonly unsubscribe: (
         endpoint: string
-    ) => Effect.Effect<{ readonly success: boolean }, PushFailure, Ambient>
-    readonly list: () => Effect.Effect<PushSubscription[], PushFailure, Ambient>
-    readonly stats: () => Effect.Effect<PushStats, PushFailure, Ambient>
-    readonly deliverableCount: () => Effect.Effect<number, PushFailure>
+    ) => Effect.Effect<{ readonly success: boolean }, PushFailure, Ambient | PushRepository | DatabasePort>
+    readonly list: () => Effect.Effect<PushSubscription[], PushFailure, Ambient | PushRepository | DatabasePort>
+    readonly stats: () => Effect.Effect<PushStats, PushFailure, Ambient | PushRepository | DatabasePort>
+    readonly deliverableCount: () => Effect.Effect<number, PushFailure, PushRepository | DatabasePort>
     readonly recordDelivery: (
         id: string,
         outcome: DeliveryOutcome
-    ) => Effect.Effect<void, PushFailure>
+    ) => Effect.Effect<void, PushFailure, PushRepository | DatabasePort>
 }
 
 /** Tag and implementation together: the tag is the contract, `Live` the one implementation. */

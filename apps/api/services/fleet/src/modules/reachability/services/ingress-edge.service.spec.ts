@@ -3,9 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
 
 import type { EnvService } from "@deployer/shared/config/env/env.module";
+import type { NodeDoorClient, NodeDoorStatus, NodeDoorView } from "@deployer/mesh-client";
 import type { EdgeContext } from "@deployer/shared/core/modules/edge/edge-provider";
 import { TEST_TUNNEL_ID, testEdgeRegistry } from "@deployer/shared/core/modules/edge/testing/edge-registry.fixture";
-import type { MeshAgentClient } from "@deployer/shared/core/modules/mesh-agent/mesh-agent.client";
 import { EnvHostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
 import type { IngressLanesService } from "@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service";
 import type { NodeNetworkConfigRepository } from "@deployer/shared/core/modules/reachability/repositories/node-network-config.repository";
@@ -18,7 +18,7 @@ import {
 	EdgeProvidersPort,
 	HostnamesPort,
 	IngressLanesPort,
-	MeshAgentPort,
+	NodeAgentPort,
 	PublicEdgePort,
 	TraefikRefresherPort,
 } from "../reachability.ports";
@@ -33,16 +33,37 @@ async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
 	throw Cause.squash(exit.cause);
 }
 
-const member = (memberId: string, name: string, address: string) => ({
-	memberId,
-	name,
-	kind: "node" as const,
-	address,
-	state: "active" as const,
-	endpoints: [{ kind: "lan" as const, host: "192.168.1.10", port: 51820 }],
-	labels: { "swarm.node": `sw-${name}` },
-	link: { path: memberId === "m1" ? ("self" as const) : ("direct" as const), endpoint: null, latestHandshakeAt: null },
-});
+/** The original failure, for asserting on its kind as well as its message. */
+async function failure<A, E>(effect: Effect.Effect<A, E>): Promise<E & { kind?: string; message?: string }> {
+	const exit = await Effect.runPromiseExit(effect);
+	if (Exit.isSuccess(exit)) throw new Error("expected the effect to fail");
+	return Cause.squash(exit.cause) as E & { kind?: string; message?: string };
+}
+
+const HANDSHAKE = 1_700_000_000_000;
+
+const overlay = (meshAddress: string, endpoint: string) => ({ wireguardKey: `wg-${meshAddress}`, meshAddress, endpoint, listenPort: 51_820 });
+
+/** The roster as the new agent's door answers it: node id, where its agent answers, its overlay when it has one. */
+const doorView: NodeDoorView = {
+	self: { nodeId: "m1", address: "10.0.0.1:4318", labels: {}, overlay: overlay("100.88.0.1", "198.51.100.1:51820") },
+	agents: [
+		{ nodeId: "m1", address: "10.0.0.1:4318", labels: {}, overlay: overlay("100.88.0.1", "198.51.100.1:51820") },
+		{ nodeId: "m2", address: "10.0.0.2:4318", labels: {}, overlay: overlay("100.88.0.2", "198.51.100.2:51820") },
+		// A node registered before it had an overlay: address yes, kernel peer and handshake no.
+		{ nodeId: "m3", address: "10.0.0.3:4318", labels: {}, overlay: null },
+	],
+};
+
+const doorStatus: NodeDoorStatus = {
+	agentId: "agent-1",
+	swarmId: "swarm-1",
+	load: { eventLoopLagMs: 0, bytesPerSecond: 0, openStreams: 0 },
+	interfaceUp: true,
+	meshAddress: "100.88.0.1",
+	listenPort: 51_820,
+	peers: [{ nodeId: "m2", meshAddress: "100.88.0.2", endpoint: "198.51.100.2:51820", latestHandshakeAt: HANDSHAKE }],
+};
 
 function setup(initial: IngressLanes = defaultIngressLanes()) {
 	let lanes = initial;
@@ -81,21 +102,10 @@ function setup(initial: IngressLanes = defaultIngressLanes()) {
 		removeRecords: vi.fn(() => Effect.void),
 	} as unknown as EdgeDnsServiceShape;
 	const mesh = {
-		status: vi.fn(() =>
-			Promise.resolve({
-				memberId: "m1",
-				signingKey: "k",
-				wireguardKey: "w",
-				cluster: { clusterId: "c1", cidr: "100.88.0.0/16", listenPort: 51820, address: "100.88.0.1", interfaceUp: true },
-				members: [member("m1", "node-a", "100.88.0.1"), member("m2", "node-b", "100.88.0.2")],
-				settingKeys: [],
-				doors: [],
-				lastGossipAt: null,
-				lastError: null,
-			}),
-		),
-		revoke: vi.fn(() => Promise.resolve()),
-	} as unknown as MeshAgentClient;
+		status: vi.fn((): Promise<NodeDoorStatus | null> => Promise.resolve(doorStatus)),
+		view: vi.fn((): Promise<NodeDoorView | null> => Promise.resolve(doorView)),
+		blockNode: vi.fn(async () => ["m2"] as readonly string[]),
+	} as unknown as NodeDoorClient;
 	const refresher = { refresh: vi.fn() } as unknown as TraefikConfigRefresher;
 	// The fakes need nothing from the context beyond what is provided here, so the DNS registry's
 	// adapter requirements are discharged.
@@ -107,7 +117,7 @@ function setup(initial: IngressLanes = defaultIngressLanes()) {
 			Effect.provideService(EdgeDnsService, dns as never),
 			// The fake DNS service reads no registry; the context only has to hold the tag.
 			Effect.provideService(DnsProviderRegistryService, {} as never),
-			Effect.provideService(MeshAgentPort, mesh as never),
+			Effect.provideService(NodeAgentPort, mesh as never),
 			Effect.provideService(HostnamesPort, new EnvHostnameService(env) as never),
 			Effect.provideService(TraefikRefresherPort, refresher as never),
 		) as Effect.Effect<unknown>),
@@ -131,11 +141,48 @@ describe("IngressEdgeService", () => {
 			expect(state.consoleUrls.public).toBeNull();
 		});
 
-		it("shows the mesh as seen by this node, marking itself and keeping member labels", async () => {
+		it("maps the door's roster to members: overlay address, declared endpoint, handshake", async () => {
 			const { mesh } = await run(setup().service.getState());
-			expect(mesh.members.find((m) => m.self)?.name).toBe("node-a");
-			expect(mesh.members.find((m) => m.memberId === "m2")).toMatchObject({ self: false, labels: { "swarm.node": "sw-node-b" } });
-			expect(mesh.members[0]?.endpoints).toEqual([{ kind: "lan", address: "192.168.1.10:51820" }]);
+			expect(mesh.available).toBe(true);
+			expect(mesh.members.find((m) => m.self)).toMatchObject({
+				memberId: "m1",
+				name: "m1",
+				kind: "node",
+				state: "active",
+				address: "100.88.0.1",
+				link: { path: "self", endpoint: "198.51.100.1:51820", latestHandshakeAt: null },
+			});
+			expect(mesh.members.find((m) => m.memberId === "m2")).toMatchObject({
+				self: false,
+				labels: {},
+				address: "100.88.0.2",
+				endpoints: [{ kind: "declared", address: "10.0.0.2:4318" }],
+				link: { path: "direct", endpoint: "198.51.100.2:51820", latestHandshakeAt: new Date(HANDSHAKE).toISOString() },
+			});
+			// A node with no overlay and no handshake is listed as waiting, with no invented endpoint.
+			expect(mesh.members.find((m) => m.memberId === "m3")?.link).toEqual({ path: "passive", endpoint: null, latestHandshakeAt: null });
+		});
+
+		it("leaves what the door cannot answer null or empty, never fabricated", async () => {
+			const { mesh } = await run(setup().service.getState());
+			expect(mesh.clusterId).toBeNull();
+			expect(mesh.cidr).toBeNull();
+			expect(mesh.doors).toEqual([]);
+			expect(mesh.lastGossipAt).toBeNull();
+			expect(mesh.lastError).toBeNull();
+			expect(mesh.address).toBe("100.88.0.1");
+			expect(mesh.listenPort).toBe(51_820);
+			expect(mesh.interfaceUp).toBe(true);
+		});
+
+		it("reports no mesh when the node has no new agent, instead of inventing one", async () => {
+			const { service, mesh } = setup();
+			vi.mocked(mesh.status).mockResolvedValue(null);
+			vi.mocked(mesh.view).mockResolvedValue(null);
+			const { mesh: view } = await run(service.getState());
+			expect(view.available).toBe(false);
+			expect(view.members).toEqual([]);
+			expect(view.lastError).toMatch(/did not answer/);
 		});
 
 		it("takes the public join path from the active provider", async () => {
@@ -204,6 +251,17 @@ describe("IngressEdgeService", () => {
 			expect(getLanes().private).toEqual({ enabled: true, domain: "deployer.internal", exposeOnLan: true });
 			expect(tunnel.provision).not.toHaveBeenCalled();
 		});
+
+		it("plans the private lane's A records from the nodes' overlay addresses only", async () => {
+			const { service, dns } = setup({
+				...defaultIngressLanes(),
+				private: { enabled: true, domain: "deployer.example.com", exposeOnLan: false },
+			});
+			await run(service.reconcileDns());
+			expect(dns.reconcile).toHaveBeenCalledWith([
+				expect.objectContaining({ lane: "private", type: "A", contents: ["100.88.0.1", "100.88.0.2"] }),
+			]);
+		});
 	});
 
 	describe("teardownPublicEdge", () => {
@@ -224,17 +282,34 @@ describe("IngressEdgeService", () => {
 	});
 
 	describe("revokeMeshMember", () => {
-		it("revokes another member through this node's agent", async () => {
+		it("blocks the member through the node door", async () => {
 			const { service, mesh } = setup();
+
 			await run(service.revokeMeshMember("m2", "decommissioned"));
-			expect(mesh.revoke).toHaveBeenCalledWith("m2", "decommissioned");
+
+			expect(mesh.blockNode).toHaveBeenCalledWith("m2");
+		});
+
+		it("reports an agent that stopped answering mid-revocation, instead of claiming it revoked", async () => {
+			const { service, mesh } = setup();
+			vi.mocked(mesh.blockNode).mockResolvedValueOnce(null);
+
+			const error = await failure(service.revokeMeshMember("m2", "decommissioned"));
+
+			expect(error.kind).toBe("dependency_missing");
+			expect(error.message).toMatch(/did not answer/);
 		});
 
 		it("refuses to revoke the node answering, and unknown members", async () => {
-			const { service, mesh } = setup();
+			const { service } = setup();
 			await expect(run(service.revokeMeshMember("m1", "x"))).rejects.toThrow(/cannot revoke itself/);
 			await expect(run(service.revokeMeshMember("m9", "x"))).rejects.toThrow(/No mesh member/);
-			expect(mesh.revoke).not.toHaveBeenCalled();
+		});
+
+		it("reports the missing agent rather than a revocation nobody performed", async () => {
+			const { service, mesh } = setup();
+			vi.mocked(mesh.view).mockResolvedValue(null);
+			await expect(run(service.revokeMeshMember("m2", "x"))).rejects.toThrow(/did not answer/);
 		});
 	});
 });

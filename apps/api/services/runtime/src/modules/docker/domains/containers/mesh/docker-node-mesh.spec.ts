@@ -1,7 +1,7 @@
 import { ORPCError, type ClientContext, type ClientLink } from "@orpc/client";
 import { describe, expect, it, vi } from "vitest";
 
-import { type NodeMeshAgent, dockerNodeMeshOver } from "./docker-node-mesh";
+import { type NodeAgent, dockerNodeMeshOver } from "./docker-node-mesh";
 
 type Handler = (path: string[], input: unknown) => unknown;
 
@@ -35,7 +35,7 @@ function agentWith(options: { replicas: { replicaId: string; nodeId: string }[];
       );
     },
   };
-  const holder: NodeMeshAgent = { link, selfReplicaId: "runtime-a" };
+  const holder: NodeAgent = { link, selfReplicaId: "runtime-a" };
   return { mesh: dockerNodeMeshOver(holder), relayed, holder };
 }
 

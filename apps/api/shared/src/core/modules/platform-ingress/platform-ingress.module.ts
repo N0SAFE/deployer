@@ -14,7 +14,7 @@
  * coupling the `AppModule` graph check surfaces.
  */
 
-import { Global, Module } from "@nestjs/common";
+import { createGlobalModule } from "@deployer/nest-effect";
 import { CoreDockerModule } from "../docker/docker.module";
 import { EnvModule } from "../../../config/env/env.module";
 import { EnvHostnameService, HostnameService } from "./services/hostname.service";
@@ -24,8 +24,7 @@ import { PlatformConfigService } from "./services/platform-config.service";
 import { PlatformWebTargetService } from "./services/platform-web-target.service";
 import { PlatformRoutesSource } from "./services/platform-routes-source.service";
 
-@Global()
-@Module({
+export const CorePlatformIngressModule = createGlobalModule({
 	imports: [CoreDockerModule, EnvModule],
 	providers: [
 		{ provide: HostnameService, useClass: EnvHostnameService },
@@ -43,5 +42,4 @@ import { PlatformRoutesSource } from "./services/platform-routes-source.service"
 		PlatformWebTargetService,
 		PlatformRoutesSource,
 	],
-})
-export class CorePlatformIngressModule {}
+});

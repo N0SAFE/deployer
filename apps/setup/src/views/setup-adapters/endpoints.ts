@@ -12,6 +12,9 @@ import { orpc } from "@/views/lib/orpc";
 export const setupEndpoints = {
 	getState: orpc.setup.getState,
 	getNodeStatus: orpc.setup.getNodeStatus,
+	getMeshStatus: orpc.setup.getMeshStatus,
+	joinMesh: orpc.setup.joinMesh,
+	issueMeshToken: orpc.setup.issueMeshToken,
 	probeDatabase: orpc.setup.probeDatabase,
 	triggerInitialize: orpc.setup.triggerInitialize,
 	getInitializeStream: orpc.setup.getInitializeStream,

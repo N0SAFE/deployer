@@ -1,12 +1,10 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
 import { providerSchemaContract } from "@deployer/fleet-contracts";
-import { EffectContextOf } from "@deployer/nest-effect";
+import { procedure } from "@deployer/nest-effect";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
 import { serve } from "../../../core/orpc/serve";
-import { ProviderSchemaModule } from "../provider-schema.module";
 import { ProviderSchemaService } from "../services/provider-schema.service";
 
 /**
@@ -20,9 +18,8 @@ import { ProviderSchemaService } from "../services/provider-schema.service";
 export class ProviderSchemaController {
     @Implement(providerSchemaContract.getAllProviders)
     getAllProviders() {
-        return implement(providerSchemaContract.getAllProviders)
+        return procedure(providerSchemaContract.getAllProviders)
             .use(requireAuth())
-            .use(ProviderSchemaModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const schemas = yield* ProviderSchemaService;
                 const providers = yield* serve(context)(schemas.getAllProviders());
@@ -32,9 +29,8 @@ export class ProviderSchemaController {
 
     @Implement(providerSchemaContract.getProviderSchema)
     getProviderSchema() {
-        return implement(providerSchemaContract.getProviderSchema)
+        return procedure(providerSchemaContract.getProviderSchema)
             .use(requireAuth())
-            .use(ProviderSchemaModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const schemas = yield* ProviderSchemaService;
                 return yield* serve(context)(schemas.getProviderSchema(input.params.id));
@@ -43,9 +39,8 @@ export class ProviderSchemaController {
 
     @Implement(providerSchemaContract.getCompatibleBuilders)
     getCompatibleBuilders() {
-        return implement(providerSchemaContract.getCompatibleBuilders)
+        return procedure(providerSchemaContract.getCompatibleBuilders)
             .use(requireAuth())
-            .use(ProviderSchemaModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const schemas = yield* ProviderSchemaService;
                 const builders = yield* serve(context)(schemas.getCompatibleBuilders(input.params.providerId));
@@ -55,9 +50,8 @@ export class ProviderSchemaController {
 
     @Implement(providerSchemaContract.getAllBuilders)
     getAllBuilders() {
-        return implement(providerSchemaContract.getAllBuilders)
+        return procedure(providerSchemaContract.getAllBuilders)
             .use(requireAuth())
-            .use(ProviderSchemaModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const schemas = yield* ProviderSchemaService;
                 const builders = yield* serve(context)(schemas.getAllBuilders());
@@ -67,9 +61,8 @@ export class ProviderSchemaController {
 
     @Implement(providerSchemaContract.getBuilderSchema)
     getBuilderSchema() {
-        return implement(providerSchemaContract.getBuilderSchema)
+        return procedure(providerSchemaContract.getBuilderSchema)
             .use(requireAuth())
-            .use(ProviderSchemaModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const schemas = yield* ProviderSchemaService;
                 return yield* serve(context)(schemas.getBuilderSchema(input.params.id));
@@ -78,9 +71,8 @@ export class ProviderSchemaController {
 
     @Implement(providerSchemaContract.getCompatibleProviders)
     getCompatibleProviders() {
-        return implement(providerSchemaContract.getCompatibleProviders)
+        return procedure(providerSchemaContract.getCompatibleProviders)
             .use(requireAuth())
-            .use(ProviderSchemaModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const schemas = yield* ProviderSchemaService;
                 const providers = yield* serve(context)(schemas.getCompatibleProviders(input.params.builderId));
@@ -90,9 +82,8 @@ export class ProviderSchemaController {
 
     @Implement(providerSchemaContract.validateProviderConfig)
     validateProviderConfig() {
-        return implement(providerSchemaContract.validateProviderConfig)
+        return procedure(providerSchemaContract.validateProviderConfig)
             .use(requireAuth())
-            .use(ProviderSchemaModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const schemas = yield* ProviderSchemaService;
                 return yield* serve(context)(
@@ -103,9 +94,8 @@ export class ProviderSchemaController {
 
     @Implement(providerSchemaContract.validateBuilderConfig)
     validateBuilderConfig() {
-        return implement(providerSchemaContract.validateBuilderConfig)
+        return procedure(providerSchemaContract.validateBuilderConfig)
             .use(requireAuth())
-            .use(ProviderSchemaModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const schemas = yield* ProviderSchemaService;
                 return yield* serve(context)(

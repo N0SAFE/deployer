@@ -18,8 +18,7 @@ import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
 import { AuthModule } from "@deployer/shared/core/modules/auth/auth.module";
 import { createBetterAuth } from "@deployer/shared/config/auth/auth";
-import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
-import { DatabasePort } from "@project/core/database/database.port";
+import { DatabasePortModule } from "@project/core/database/database.module";
 
 import { ProjectDomainModule } from "./modules/project/project.module";
 import { ServiceDomainModule } from "./modules/service/service.module";
@@ -86,8 +85,8 @@ export class ProjectServiceModule extends createModuleContext({
 		createOrpcModule({
 			extraContext: {
 				inject: [EffectRuntime],
-				resolve: async (runtime) => ({
-					"effect/context": await runtime.context(),
+				resolve: async (executionContext, runtime) => ({
+					"effect/context": runtime.contextFor(executionContext.getClass()),
 				}),
 			},
 		}),
@@ -96,6 +95,6 @@ export class ProjectServiceModule extends createModuleContext({
 		ProjectDomainModule,
 		ServiceDomainModule,
 		DomainModule,
+		DatabasePortModule,
 	],
-	providers: [{ provide: DatabasePort, useExisting: GlobalDatabaseService }],
 }) {}

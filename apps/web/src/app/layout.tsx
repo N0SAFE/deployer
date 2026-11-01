@@ -1,10 +1,5 @@
 // import { Monitoring } from 'react-scan/monitoring/next'
 import '@deployer/ui/styles/globals.css'
-import 'leaflet/dist/leaflet.css'
-import 'leaflet-draw/dist/leaflet.draw.css'
-import 'leaflet.fullscreen/dist/Control.FullScreen.css'
-import 'leaflet.markercluster/dist/MarkerCluster.css'
-import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 // Configure server auth for declarative routing SessionPage wrappers
 // This must be imported before any SessionPage is used
 import '@/routes/configure-auth'

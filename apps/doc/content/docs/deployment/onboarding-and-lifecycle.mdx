@@ -39,7 +39,7 @@ flowchart TB
         A2["/health (liveness) · /health/ready (readiness)"]
     end
     SUP["Supervisors (owner: the API)<br/>Traefik · Edge connector · Global DB · Local DB<br/>Redis · Managed web"]
-    AGT["deployer-mesh-agent (per node, NOT supervised)<br/>WireGuard mesh · node doors"]
+    AGT["deployer-node-agent (per node, NOT supervised)<br/>WireGuard mesh · node doors"]
     S1 -->|persists choices| A1
     S3 -->|prod: schedules · dev: compose gates| API
     API --> SUP
@@ -51,7 +51,7 @@ flowchart TB
 - **`GET /setup/health` means “the API may start”.** It is an INPUT to the API's existence, never a report about it — which is what keeps the dependency chain a straight line: `setup → api → web`.
 - **The wizard is served by SETUP, and the API executes.** Setup collects and persists; the API has the Drizzle schema, migrations and auth, so it does the provisioning. The setup contract (`/setup/*`) stays one implementation, in the API.
 - **Supervisors are owned by the API**, which is why readiness only turns green after they have converged.
-- **The mesh agent and its doors are not supervisors.** `deployer-mesh-agent` is a plain host-network container on every node (started by setup or the API, whichever reaches the node first); it runs the WireGuard mesh and the node's **doors** — the loopback/mesh listeners in front of Traefik — from the replicated `node.doors` setting the API publishes. See [Networking](/docs/deployment/networking).
+- **The mesh agent and its doors are not supervisors.** `deployer-node-agent` is a plain host-network container on every node (started by setup or the API, whichever reaches the node first); it runs the WireGuard mesh and the node's **doors** — the loopback/mesh listeners in front of Traefik — from the replicated `node.doors` setting the API publishes. See [Networking](/docs/deployment/networking).
 
 ### dev vs prod — the only difference
 
@@ -233,7 +233,7 @@ sequenceDiagram
 
 ## Ingress state matrix (Traefik × local door)
 
-The ingress is **Traefik behind the node's doors**. Traefik is a swarm `global` service with no host port of its own (its routes come from the API's HTTP provider); the node's `deployer-mesh-agent` runs the doors in front of it — `127.0.0.1:<entry port>` for the local lane, `<mesh address>:<entry port>` for the private lane. The **local door carries a rescue route**: when Traefik does not answer, it serves the platform's own hostnames (`api.*`, `web.*`) straight from the API and web containers. Nothing is ever published on another interface to compensate — see [Networking](/docs/deployment/networking).
+The ingress is **Traefik behind the node's doors**. Traefik is a swarm `global` service with no host port of its own (its routes come from the API's HTTP provider); the node's `deployer-node-agent` runs the doors in front of it — `127.0.0.1:<entry port>` for the local lane, `<mesh address>:<entry port>` for the private lane. The **local door carries a rescue route**: when Traefik does not answer, it serves the platform's own hostnames (`api.*`, `web.*`) straight from the API and web containers. Nothing is ever published on another interface to compensate — see [Networking](/docs/deployment/networking).
 
 | Traefik state | Local door | Host listeners | What `api.*` / `web.*` do | Operator sees |
 |---|---|---|---|---|

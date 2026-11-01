@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next'
 import { createMDX } from 'fumadocs-mdx/next'
+import { withRedact } from '@tanstack/redact/next'
 import path from 'node:path'
 
 // When this file is loaded as a CJS module by Next.js, `__dirname` is the
@@ -51,10 +52,9 @@ const config: NextConfig = {
     // Turbopack filesystem cache — persists compilation work under `.next`
     // between runs (dev: `.next/dev`, build: `.next/cache`).
     //
-    // Set explicitly because the resolved Next version is `^16.1.2`:
-    // dev caching became default-on in 16.1.0 but BUILD caching only in
-    // 16.3.0, so relying on the default would silently lose the build cache
-    // on any 16.1.x/16.2.x resolution.
+    // Set explicitly because the resolved Next version is `16.4.3`: both are
+    // default-on there, so this is belt-and-braces against a future re-pin that
+    // drops build caching (16.1.x/16.2.x did not have it).
     //
     // The cache only pays off if the directory survives the container:
     // compose mounts a named volume over `.next/dev` (dev) and
@@ -109,4 +109,14 @@ const config: NextConfig = {
   trailingSlash: true,
 }
 
-export default withMDX(config)
+// ── Redact runs in the BROWSER only ─────────────────────────────────────────
+// `withRedact` replaces React's browser runtime (bundled for the client) while
+// Next keeps React for SSR, Server Components and Flight. Imports stay
+// `react`/`react-dom`; the adapter rewrites the RESOLVED entry files per bundle
+// for both Turbopack and Webpack.
+//
+// It sits INSIDE `withMDX`: the MDX wrapper spreads `nextConfig.turbopack.rules`
+// and appends, so giving it the already-wrapped config keeps Redact's `*.js`
+// loader rules. Next 16.4 is one of the adapter's pinned versions; the `next`
+// catalog is an exact pin because the adapter throws outside 15.5 / 16.0–16.4.
+export default withMDX(withRedact(config))

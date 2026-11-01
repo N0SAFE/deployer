@@ -4,7 +4,7 @@
  */
 import { createHash } from "node:crypto";
 import { dockerContainerSchema, dockerImageSchema, type DockerContainer, type DockerImage } from "@deployer/contracts-entities";
-import { isRecord } from "@deployer/type-guards";
+import { isRecord, nonEmptyString } from "@deployer/type-guards";
 
 export const DEPLOYMENT_ENVIRONMENTS = new Set(["production", "staging", "preview", "development"] as const);
 
@@ -144,14 +144,6 @@ export function buildContainerHash(input: {
             }),
         )
         .digest("hex");
-}
-
-export function asNonEmptyString(value: unknown): string | null {
-    return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
-}
-
-export function asNullableString(value: unknown): string | null {
-    return asNonEmptyString(value);
 }
 
 export function asIsoString(value: unknown): string {
@@ -315,15 +307,15 @@ export function normalizeContainer(input: unknown, warn: (message: string) => vo
     }
 
     const source = isRecord(input) ? input : {};
-    const id = asNonEmptyString(source.id) ?? null;
+    const id = nonEmptyString(source.id) ?? null;
     if (!id) {
         return null;
     }
 
-    const name = asNonEmptyString(source.name) ?? `container-${id.slice(0, 8)}`;
-    const projectId = asNonEmptyString(source.projectId) ?? `project-${id.slice(0, 8)}`;
-    const serviceId = asNonEmptyString(source.serviceId) ?? `service-${id.slice(0, 8)}`;
-    const imageId = asNullableString(source.imageId);
+    const name = nonEmptyString(source.name) ?? `container-${id.slice(0, 8)}`;
+    const projectId = nonEmptyString(source.projectId) ?? `project-${id.slice(0, 8)}`;
+    const serviceId = nonEmptyString(source.serviceId) ?? `service-${id.slice(0, 8)}`;
+    const imageId = nonEmptyString(source.imageId);
     const environment = normalizeEnvironment(source.environment);
     const ports = normalizePorts(source.ports);
     const networkIds = normalizeStringArray(source.networkIds);
@@ -333,12 +325,12 @@ export function normalizeContainer(input: unknown, warn: (message: string) => vo
 
     const fallbackHash = buildContainerHash({
         managedBy:
-            asNonEmptyString(source.managedBy) === "deployment_service"
+            nonEmptyString(source.managedBy) === "deployment_service"
                 ? "deployment_service"
                 : "orphan",
-        managedDeploymentId: asNullableString(source.managedDeploymentId),
-        managedServiceId: asNullableString(source.managedServiceId),
-        managedProjectId: asNullableString(source.managedProjectId),
+        managedDeploymentId: nonEmptyString(source.managedDeploymentId),
+        managedServiceId: nonEmptyString(source.managedServiceId),
+        managedProjectId: nonEmptyString(source.managedProjectId),
         name,
         projectId,
         serviceId,
@@ -349,11 +341,11 @@ export function normalizeContainer(input: unknown, warn: (message: string) => vo
 
     const repaired = dockerContainerSchema.safeParse({
         id,
-        hash: asNonEmptyString(source.hash) ?? fallbackHash,
+        hash: nonEmptyString(source.hash) ?? fallbackHash,
         name,
         projectId,
         serviceId,
-        stackId: asNullableString(source.stackId),
+        stackId: nonEmptyString(source.stackId),
         imageId,
         status: normalizeStatus(source.status),
         health: normalizeHealth(source.health),
@@ -365,16 +357,16 @@ export function normalizeContainer(input: unknown, warn: (message: string) => vo
         networkIds,
         volumeIds,
         managedBy:
-            asNonEmptyString(source.managedBy) === "deployment_service"
+            nonEmptyString(source.managedBy) === "deployment_service"
                 ? "deployment_service"
                 : "orphan",
-        managedReason: asNullableString(source.managedReason),
-        managedDeploymentId: asNullableString(source.managedDeploymentId),
-        managedServiceId: asNullableString(source.managedServiceId),
-        managedProjectId: asNullableString(source.managedProjectId),
-        managedImageRef: asNullableString(source.managedImageRef),
-        managedNetworkMode: asNullableString(source.managedNetworkMode),
-        logsStreamId: asNullableString(source.logsStreamId),
+        managedReason: nonEmptyString(source.managedReason),
+        managedDeploymentId: nonEmptyString(source.managedDeploymentId),
+        managedServiceId: nonEmptyString(source.managedServiceId),
+        managedProjectId: nonEmptyString(source.managedProjectId),
+        managedImageRef: nonEmptyString(source.managedImageRef),
+        managedNetworkMode: nonEmptyString(source.managedNetworkMode),
+        logsStreamId: nonEmptyString(source.logsStreamId),
         startedAt: asNullableIsoString(source.startedAt),
         createdAt,
         updatedAt,
@@ -401,7 +393,7 @@ export function normalizeImage(input: unknown, warn: (message: string) => void =
         return null;
     }
 
-    const id = parsed.success ? parsed.data.id : asNonEmptyString(source.id);
+    const id = parsed.success ? parsed.data.id : nonEmptyString(source.id);
     if (!id) {
         return null;
     }

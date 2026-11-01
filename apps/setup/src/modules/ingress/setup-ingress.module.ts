@@ -1,5 +1,4 @@
-import { Module } from "@nestjs/common";
-
+import { createModuleContext } from "@deployer/nest-effect";
 import { EnvModule } from "@/config/env/env.module";
 import { BootstrapIngressService } from "./services/bootstrap-ingress.service";
 
@@ -26,11 +25,10 @@ import { BootstrapIngressService } from "./services/bootstrap-ingress.service";
  * during the handover that happens AFTER the gate opens. Depending on either
  * would put it on the wrong side of the boundary it exists to bridge.
  */
-@Module({
+export class SetupIngressModule extends createModuleContext({
   imports: [EnvModule],
   providers: [BootstrapIngressService],
   // The handover releases the entry port, so it needs this service. Exporting
   // rather than redeclaring keeps ONE owner of the ingress process.
   exports: [BootstrapIngressService],
-})
-export class SetupIngressModule {}
+}) {}

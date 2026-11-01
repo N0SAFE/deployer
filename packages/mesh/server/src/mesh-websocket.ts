@@ -1,5 +1,5 @@
 import { RPCHandler } from "@orpc/server/websocket";
-import { WebSocketServer } from "ws";
+import { WebSocketServer, type RawData } from "ws";
 
 import type { Context, Router } from "@orpc/server";
 import type { IncomingMessage, Server } from "node:http";
@@ -24,7 +24,21 @@ export type MeshWebSocketOptions<T extends Context> = {
   readonly context: (upgrade: IncomingMessage, call: MeshCall) => T | Promise<T>;
   /** How often a silent connection is pinged. A peer that misses one round is dropped. */
   readonly keepAliveMs?: number;
+  /**
+   * Bytes carried by the socket, both directions: the agent's lease policy is fed from here rather than by parsing
+   * payloads. Measured on this server's side only, which is what "how hard is this agent working" means.
+   */
+  readonly onBytes?: (bytes: number) => void;
+  /**
+   * Connections one peer at a time: a peer that opens a thousand costs one refused upgrade each, never a socket. The
+   * default is far above a swarm's size and far below a file-descriptor limit.
+   */
+  readonly maxConnections?: number;
 };
+
+/** 1 MiB: the largest legitimate frame is a relayed payload, and a peer must not make this process buffer more. */
+export const MAX_FRAME_BYTES = 1_048_576;
+const DEFAULT_MAX_CONNECTIONS = 512;
 
 /** What one call carries: the headers its caller attached, which is where the caller's credentials travel. */
 export type MeshCall = { readonly headers: Readonly<Record<string, string | string[] | undefined>> };
@@ -36,6 +50,14 @@ export type MeshWebSocket = {
 };
 
 const CREDENTIAL_PARAM = "credential";
+
+/** Size of a frame as it arrives or leaves, whatever buffer type `ws` hands over. */
+function byteLength(data: RawData): number {
+  if (typeof data === "string") return Buffer.byteLength(data);
+  if (data instanceof ArrayBuffer) return data.byteLength;
+  if (Array.isArray(data)) return data.reduce((total, chunk) => total + chunk.byteLength, 0);
+  return data.byteLength;
+}
 
 function refuse(socket: Duplex, status: string): void {
   socket.write(`HTTP/1.1 ${status}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
@@ -51,7 +73,8 @@ function refuse(socket: Duplex, status: string): void {
  */
 export function attachMeshWebSocket<T extends Context>(options: MeshWebSocketOptions<T>): MeshWebSocket {
   const handler = new RPCHandler<T>(options.router);
-  const wss = new WebSocketServer({ noServer: true });
+  const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_FRAME_BYTES });
+  const maxConnections = options.maxConnections ?? DEFAULT_MAX_CONNECTIONS;
   const alive = new WeakSet();
 
   const isTrusted = async (credential: string | undefined): Promise<boolean> => {
@@ -75,10 +98,24 @@ export function attachMeshWebSocket<T extends Context>(options: MeshWebSocketOpt
       refuse(socket, "401 Unauthorized");
       return;
     }
+    // Authenticated, but the peer already holds all it may: the credential is not a licence to exhaust this process.
+    if (wss.clients.size >= maxConnections) {
+      refuse(socket, "503 Service Unavailable");
+      return;
+    }
     wss.handleUpgrade(request, socket, head, (ws) => {
       ws.binaryType = "arraybuffer";
       alive.add(ws);
       ws.on("pong", () => alive.add(ws));
+      if (options.onBytes !== undefined) {
+        const count = options.onBytes;
+        ws.on("message", (data: RawData) => count(byteLength(data)));
+        const send = ws.send.bind(ws) as (...args: unknown[]) => unknown;
+        ws.send = ((data: RawData, ...rest: unknown[]) => {
+          count(byteLength(data));
+          return send(data, ...rest);
+        }) as typeof ws.send;
+      }
       handler.upgrade(ws, { context: (call) => options.context(request, call) });
       wss.emit("connection", ws, request);
     });

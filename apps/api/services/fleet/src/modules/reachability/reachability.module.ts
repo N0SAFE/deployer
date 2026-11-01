@@ -10,10 +10,11 @@
  * Effect runtime. The shared platform services they depend on stay Nest providers and are exposed
  * to the Effect side as ports with `useExisting`.
  */
+import { nodeDoorFromEnv } from "@deployer/mesh-client";
 import { createModuleContext, EffectRuntime } from "@deployer/nest-effect";
+import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
 import { EdgeProviderRegistry } from "@deployer/shared/core/modules/edge/edge-provider.registry";
 import { EgressService } from "@deployer/shared/core/modules/egress/egress.service";
-import { MeshAgentClient } from "@deployer/shared/core/modules/mesh-agent/mesh-agent.client";
 import { CorePlatformIngressModule } from "@deployer/shared/core/modules/platform-ingress/platform-ingress.module";
 import { HostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
 import { IngressLanesService } from "@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service";
@@ -30,7 +31,7 @@ import {
     EgressPort,
     HostnamesPort,
     IngressLanesPort,
-    MeshAgentPort,
+    NodeAgentPort,
     PublicAccessPointPort,
     PublicEdgePort,
     ReachabilityCorePort,
@@ -43,13 +44,15 @@ import { NodeReachabilityService } from "./services/node-reachability.service";
 
 export class ReachabilityModule extends createModuleContext(
     {
-        imports: [CoreReachabilityModule, CorePlatformIngressModule, ProvidersModule, TraefikCoreModule],
+        imports: [CoreReachabilityModule, CorePlatformIngressModule, ProvidersModule, TraefikCoreModule, EnvModule],
         controllers: [ReachabilityController],
         providers: [
             { provide: IngressLanesPort, useExisting: IngressLanesService },
             { provide: EdgeProvidersPort, useExisting: EdgeProviderRegistry },
             { provide: PublicEdgePort, useExisting: PublicEdgeService },
-            { provide: MeshAgentPort, useExisting: MeshAgentClient },
+            // The mesh view and member revocation ask this node's NEW agent over its node door; a node without one
+            // answers null on every call, which the service reports as "no agent" rather than inventing a mesh.
+            { provide: NodeAgentPort, useFactory: (env: EnvService) => nodeDoorFromEnv(env), inject: [EnvService] },
             { provide: HostnamesPort, useExisting: HostnameService },
             { provide: TraefikRefresherPort, useExisting: TraefikConfigRefresher },
             { provide: ReachabilityCorePort, useExisting: ReachabilityService },

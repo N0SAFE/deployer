@@ -2,6 +2,7 @@ import { Context } from "effect";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { createModuleContext, EffectContextOf } from "./create-module-context";
+
 import type { EffectContext } from "./orpc-effect-context";
 
 class Database extends Context.Service<
@@ -15,6 +16,12 @@ class Users extends Context.Service<
 >()("test/Users") {}
 
 const Leaf = createModuleContext({
+	providers: [{ provide: Users, useValue: { all: () => [] } }],
+	exports: [Users],
+});
+
+/** Exports nothing: the same providers, invisible to its importers. */
+const PrivateLeaf = createModuleContext({
 	providers: [{ provide: Users, useValue: { all: () => [] } }],
 });
 
@@ -45,5 +52,16 @@ describe("createModuleContext", () => {
 
 	it("types the context from the imported modules plus its own providers", () => {
 		expectTypeOf<RootServices>().toEqualTypeOf<Users | Database>();
+	});
+
+	it("does not grant a provider its import does not export", () => {
+		const PrivateRoot = createModuleContext({
+			imports: [PrivateLeaf],
+			providers: [{ provide: Database, useValue: { name: "db" } }],
+		});
+
+		type PrivateRootServices = ServicesOf<(typeof PrivateRoot)[typeof EffectContextOf]>;
+
+		expectTypeOf<PrivateRootServices>().toEqualTypeOf<Database>();
 	});
 });

@@ -1,5 +1,6 @@
 import { CurrentActor, type Ambient, serviceOver, type Over } from '@deployer/effect-core'
 import { Context, Effect } from 'effect'
+import { DatabasePort } from '@identity/core/database/database.port'
 
 import { actorFromCurrent } from '@identity/core/utils/actor.utils'
 import {
@@ -32,29 +33,29 @@ export type UserFailure = UserDomainFailure | UserRepositoryFailure
 export type UserServiceShape = {
     readonly list: (
         query: UserQuery
-    ) => Effect.Effect<UserPage, UserFailure, Ambient>
+    ) => Effect.Effect<UserPage, UserFailure, Ambient | UserRepository | DatabasePort>
     readonly count: (
         filter: UserFilter
-    ) => Effect.Effect<number, UserFailure, Ambient>
+    ) => Effect.Effect<number, UserFailure, Ambient | UserRepository | DatabasePort>
     readonly findById: (
         id: string
-    ) => Effect.Effect<User | null, UserFailure, Ambient>
+    ) => Effect.Effect<User | null, UserFailure, Ambient | UserRepository | DatabasePort>
     readonly checkEmail: (
         email: string
-    ) => Effect.Effect<boolean, UserFailure, Ambient>
+    ) => Effect.Effect<boolean, UserFailure, Ambient | UserRepository | DatabasePort>
     readonly create: (
         input: NewUser
-    ) => Effect.Effect<User, UserFailure, Ambient>
+    ) => Effect.Effect<User, UserFailure, Ambient | UserRepository | DatabasePort>
     readonly update: (
         id: string,
         patch: UserPatch,
         raw: Record<string, unknown>
-    ) => Effect.Effect<User, UserFailure, Ambient>
+    ) => Effect.Effect<User, UserFailure, Ambient | UserRepository | DatabasePort>
     readonly setBanned: (
         id: string,
         banned: boolean
-    ) => Effect.Effect<User, UserFailure, Ambient>
-    readonly delete: (id: string) => Effect.Effect<void, UserFailure, Ambient>
+    ) => Effect.Effect<User, UserFailure, Ambient | UserRepository | DatabasePort>
+    readonly delete: (id: string) => Effect.Effect<void, UserFailure, Ambient | UserRepository | DatabasePort>
 }
 
 /** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
@@ -150,6 +151,18 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             const isSelf = actor.userId === id
             yield* rule(() => {
                 userRules.assertSelfOrAdmin(actor, id)
+                if (!isSelf)
+                    userRules.assertOutranks(actor, current.role)
+                if (
+                    patch.banned !== undefined &&
+                    patch.banned !== (current.banned ?? false)
+                ) {
+                    userRules.assertNotSelfDestruct(
+                        actor,
+                        id,
+                        patch.banned ? 'ban' : 'unban'
+                    )
+                }
             })
 
             if (patch.role !== undefined && patch.role !== current.role) {
@@ -189,15 +202,20 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             const actor = yield* actingUser
             yield* rule(() => {
                 userRules.assertCanAdminister(actor)
+            })
+
+            const current = yield* users.findById(id)
+            if (current === null) return yield* new UserNotFound({ id })
+
+            yield* rule(() => {
                 userRules.assertNotSelfDestruct(
                     actor,
                     id,
                     banned ? 'ban' : 'unban'
                 )
+                userRules.assertOutranks(actor, current.role)
             })
 
-            const current = yield* users.findById(id)
-            if (current === null) return yield* new UserNotFound({ id })
             if ((current.banned ?? false) === banned) return current
 
             return yield* users.update(id, { banned })
@@ -207,11 +225,15 @@ function makeUserService(users: UserRepositoryShape): UserServiceShape {
             const actor = yield* actingUser
             yield* rule(() => {
                 userRules.assertCanAdminister(actor)
-                userRules.assertNotSelfDestruct(actor, id, 'delete')
             })
 
             const current = yield* users.findById(id)
             if (current === null) return yield* new UserNotFound({ id })
+
+            yield* rule(() => {
+                userRules.assertNotSelfDestruct(actor, id, 'delete')
+                userRules.assertOutranks(actor, current.role)
+            })
 
             yield* users.delete(id)
         }),

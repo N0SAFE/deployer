@@ -9,11 +9,13 @@ import "@deployer/shared/core/orpc/context";
 import {
 	DEPENDENCIES,
 	DependencyNotReadyError,
-	apiServicePort,
 	bootstrapApiServer,
 } from "@deployer/shared/server";
+import { apiServicePort } from "@deployer/env";
 
 import type { Server } from "node:http";
+
+import { assertRequirementsMet } from "@deployer/nest-effect";
 
 import { RuntimeServiceModule } from "./app.module";
 import { joinRuntimeMesh } from "./core/mesh/join-runtime-mesh";
@@ -30,11 +32,20 @@ const PORT = apiServicePort("runtime");
 const NAME = "svc-runtime";
 
 /**
+ * The strict check, before a single provider is built.
+ *
+ * `assertRequirementsMet` is a type gate: it accepts a module only when every `[controller, services]` pair its
+ * subtree forwarded is resolved. A missing provider is a compile error on this line, naming the controller and the
+ * services, instead of a 500 on the first request.
+ */
+const rootModule = assertRequirementsMet(RuntimeServiceModule);
+
+/**
  * Reads and writes the global Postgres. Redis is required: this service's
  * queues/coordination run through it.
  */
 void bootstrapApiServer({
-	rootModule: RuntimeServiceModule,
+	rootModule,
 	port: PORT,
 	name: NAME,
 	dependencies: DEPENDENCIES.platform,

@@ -1,4 +1,4 @@
-import { Global, Module } from "@nestjs/common";
+import { createGlobalModule } from "@deployer/nest-effect";
 
 import { ServiceClientsModule } from "./service-clients.module";
 import { ServiceClientRegistry } from "./service-registry";
@@ -20,13 +20,11 @@ import { ServiceClientRegistry } from "./service-registry";
  * it per screen would be a line that adds nothing. A global module still has to be
  * imported ONCE — `BffModule` does that.
  */
-@Global()
-@Module({
+export const ServiceClientModule = createGlobalModule({
 	// The registry (the transport) and the typed clients built on it are one unit:
 	// a client cannot exist without the registry, so a consumer that imports this
 	// module gets both and can inject whichever it needs.
 	imports: [ServiceClientsModule],
 	providers: [ServiceClientRegistry],
 	exports: [ServiceClientRegistry, ServiceClientsModule],
-})
-export class ServiceClientModule {}
+});

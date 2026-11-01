@@ -21,6 +21,8 @@ export type JoinServiceMeshOptions = {
   readonly keys?: () => readonly string[] | Promise<readonly string[]>;
   readonly load?: () => number;
   readonly heartbeatMs?: number;
+  /** Told once when the first registration with the agent fails. */
+  readonly onRegistrationFailure?: (error: unknown) => void;
 };
 
 /**
@@ -39,5 +41,6 @@ export function joinServiceMesh(options: JoinServiceMeshOptions): MeshMembership
     keys: options.keys,
     load: options.load,
     heartbeatMs: options.heartbeatMs,
+    onRegistrationFailure: options.onRegistrationFailure,
   });
 }

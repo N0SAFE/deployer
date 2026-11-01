@@ -1,5 +1,5 @@
-import { runSyncUnwrapped } from "@deployer/effect-core";
-import { Injectable, Inject } from "@nestjs/common";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { Injectable, Inject, Optional } from "@nestjs/common";
 import { createHash, randomUUID } from "node:crypto";
 import { and, eq, gt, inArray, isNull } from "drizzle-orm";
 import { clusterJoinGrants, clusterNodeMetrics, clusterNodes, clusterSigningKeys, resourceOwnershipIndex } from "@deployer/nest-schema/global";
@@ -8,20 +8,28 @@ import { GlobalDatabaseService } from "../../database/global/global-database.ser
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 
 import { AppError } from "@deployer/errors";
+import type { NodeDoorClient } from "@deployer/mesh-client";
+
+/** The node door, as a Nest token: `MeshCoreModule` hands out `nodeDoorFromEnv(env)`, a spec hands out a fake. */
+export const MESH_NODE_DOOR = Symbol("mesh-node-door");
+
 @Injectable()
 export class SystemMeshClusterRepository {
     constructor(
         private readonly databaseService: GlobalDatabaseService,
         @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
+        /** This node's agent, the only thing that can mint a token a joining node's `roster.join` accepts. */
+        @Optional()
+        @Inject(MESH_NODE_DOOR)
+        private readonly nodeDoor: Pick<NodeDoorClient, "issueJoinToken"> | null = null,
     ) {}
 
     /**
-     * Read the database URL from the local SQLite node_config table.
-     * This is populated by the Phase 0 setup sub-app and is the ONLY
-     * source of truth for the database URL at runtime.
+     * Read the database URL from the node's config (the agent's record first, the local file second).
+     * Setup's Phase 0 writes it and it is the ONLY source of truth for the URL at runtime.
      */
-    private getDatabaseUrlFromConfig(): string | null {
-        const config = runSyncUnwrapped(this.nodeConfigRepository.find());
+    private async getDatabaseUrlFromConfig(): Promise<string | null> {
+        const config = await runPromiseUnwrapped(this.nodeConfigRepository.find());
         return config?.databaseUrl?.trim() ?? null;
     }
 
@@ -219,7 +227,7 @@ export class SystemMeshClusterRepository {
         issuedByUserId: string;
         ttlSeconds: number;
         metadata?: Record<string, unknown> | null;
-    }): Promise<{ grantId: string; grantToken: string; expiresAt: string }> {
+    }): Promise<{ grantId: string; grantToken: string; expiresAt: string; meshJoinToken: string | null }> {
         const grantToken = randomUUID();
         const grantTokenHash = this.hashJoinGrantToken(grantToken);
         const expiresAt = new Date(Date.now() + input.ttlSeconds * 1_000);
@@ -243,10 +251,16 @@ export class SystemMeshClusterRepository {
             throw new AppError("Failed to create join grant record", "INTERNAL_ERROR");
         }
 
+        // The grant token above is the PLATFORM's record; only this node's agent can mint the token a joining node's
+        // `roster.join` accepts. A node with no agent (no door) yields none.
+        const meshJoinToken =
+            (await this.nodeDoor?.issueJoinToken(input.ttlSeconds * 1_000))?.token ?? null;
+
         return {
             grantId: created.id,
             grantToken,
             expiresAt: created.expiresAt.toISOString(),
+            meshJoinToken,
         };
     }
 
@@ -344,7 +358,7 @@ export class SystemMeshClusterRepository {
         // node_config table (populated by Phase 0 setup sub-app).
         // The contract requires `z.url()`, so we throw loudly if the
         // URL is missing.
-        const databaseUrl = this.getDatabaseUrlFromConfig();
+        const databaseUrl = await this.getDatabaseUrlFromConfig();
         if (!databaseUrl) {
             throw new AppError(
                 "No database URL in node_config — the receiving mesh node " +

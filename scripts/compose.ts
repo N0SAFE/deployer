@@ -251,21 +251,26 @@ function main(): void {
 
     const selected = profiles.join(',')
 
-    // ── NO COMMAND MEANS `up -d` ───────────────────────────────────────────
-    // Every `dev:*` script that names no compose command (`dev`, `dev:services`,
-    // `dev:supervised`, …) relies on this. Without it compose prints its usage
-    // text and exits 0 — a successful run that started nothing, which is the
-    // worst outcome a convenience script can have.
+    // ── NO COMMAND MEANS `up --watch` ──────────────────────────────────────
+    // The dev loop is the default: `up --watch` starts the stack, ATTACHES to
+    // every container's log stream, AND runs the `develop.watch` rules — which
+    // is what syncs each app's source into its container so its dev server can
+    // reload.
     //
-    // `-d` rather than a blocking `up`: these scripts are invoked from an editor
-    // task and `dev:*:logs` exists to follow them. A blocking `up` would hold the
-    // terminal and make the documented `dev` + `dev:logs` pair unusable.
+    // `watch` on its own is not enough: it drives the same rules but prints only
+    // the start/progress UI, never the application logs — a `bun run dev` that
+    // looks dead while the app is talking. `up -d` is the opposite trade: logs
+    // and a terminal back, but no watcher (and `-d` cannot be combined with
+    // `--watch`).
     //
-    // `--build` is NOT added. It is expensive and, for most profiles, unnecessary
-    // (the images are current); the profiles whose images MUST be rebuilt say so
-    // in their own docs and the operator passes `up --build` — which reaches
-    // compose verbatim because the args below are passed through untouched.
-    const command = rest.length > 0 ? rest : ['up', '-d']
+    // Startup is otherwise identical to `up`: missing images are built, services
+    // are created and started, and dependencies are honoured. Ctrl-C stops the
+    // stack; `dev:detached` starts it without the terminal.
+    //
+    // An explicit command still wins: `bun run dev down`, `... api up --build`
+    // and `... logs -f` reach compose verbatim because the args above are passed
+    // through untouched.
+    const command = rest.length > 0 ? rest : ['up', '--watch']
 
     console.log(
         `compose: ${file}  profiles=${selected}  args=${command.join(' ')}`

@@ -227,6 +227,29 @@ x-api-service-common: &api-service-common
     # Declaring them as `${API_SERVICE_URLS:-}` would set them to `""`, and the
     # readers (`readUrlOverride` / `readPortOverride`) treat an empty string as
     # absent — so it would be a key that exists only to be ignored.
+  # ── SOURCE SYNC ────────────────────────────────────────────────────────────
+  # The image carries a PRUNED copy of this app and nothing bind-mounts the
+  # source, so without a `develop.watch` rule an edit on the host never reaches
+  # the container and `bun --watch` has nothing to restart. Every app file shares
+  # this anchor, so one rule covers the BFF and all five services.
+  #
+  # A SYNC, not a bind mount: inotify does not deliver events across a bind mount
+  # for host-side writes, so `bun --watch` would never see the edit. A synced file
+  # is a real in-container write. (Same reasoning as the dependency-builder.)
+  #
+  # Only `apps/api` is synced: the internal packages come from the shared
+  # `dep-output` volume, which the dependency-builder owns and rebuilds.
+  develop:
+    watch:
+      - action: sync
+        initial_sync: true
+        path: ../../../../../apps/api
+        target: /app/apps/api
+        ignore:
+          - "**/node_modules/"
+          - "**/dist/"
+          - "**/.turbo/"
+          - "**/.env*"
   # NOTE: no `volumes: &anchor` here on purpose. An anchored LIST cannot be extended
   # by a service: `- *anchor` nests the list inside itself, and compose rejects it
   # with "volumes.N must be a string". YAML merge keys do not help — they merge
@@ -439,6 +462,16 @@ services:
     environment:
       <<: *api-service-env
       APP_PORT: "3105"
+      # ── A CEILING, NOT THE ANSWER ───────────────────────────────────────
+      # A scan runs trivy, grype and dive over the SAME image. How many may run at
+      # once is decided per scan from live pressure (memory, swap, load) and from
+      # the heavier work already in flight — a deployment build collapses a scan
+      # to serial, which is the pairing that drove a 14 GB dev host into 25 GB of
+      # swap until `docker ps` itself stopped answering.
+      #
+      # This value is the UPPER bound (1..3); see
+      # `apps/api/services/runtime/src/modules/docker/services/scan-concurrency.ts`.
+      APP_DOCKER_IMAGE_SCAN_PARALLELISM: ${APP_DOCKER_IMAGE_SCAN_PARALLELISM:-3}
       # Where `deployment.uploadBundle` stores uploaded bundles. It used to default to a path under
       # `/tmp` inside this container, so an uploaded bundle was lost on restart; the uploads
       # volume below is what makes it durable.

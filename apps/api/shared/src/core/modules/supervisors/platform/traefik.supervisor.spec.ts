@@ -18,7 +18,7 @@ import { TEST_TUNNEL_ID, testEdgeRegistry } from "../../edge/testing/edge-regist
 import type { DockerEngineShape } from "@deployer/docker";
 
 import type { EnvService } from "../../../../config/env/env.module";
-import type { MeshAgentClient } from "../../mesh-agent/mesh-agent.client";
+import type { ClusterSettings } from "../../mesh-node/cluster-settings";
 import { EnvHostnameService } from "../../platform-ingress/services/hostname.service";
 import type { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service";
 import { deriveIngressProviderToken } from "../../platform-ingress/services/ingress-provider-token";
@@ -170,7 +170,7 @@ function makeSupervisor(options: {
 	const env = makeEnv(options.env);
 	const lanes = { getLanes: vi.fn(() => Promise.resolve(options.lanes ?? defaultIngressLanes())) } as unknown as IngressLanesService;
 	const writeSetting = vi.fn(options.meshWrite ?? (() => Promise.resolve()));
-	const mesh = { writeSetting } as unknown as MeshAgentClient;
+	const settings = { write: writeSetting } as unknown as ClusterSettings;
 	const webTarget = { resolveWebTarget: vi.fn(() => Promise.resolve("deployer-managed-web")) } as unknown as PlatformWebTargetService;
 	const supervisor = harness(
 		makeTraefikRegistration({
@@ -178,7 +178,7 @@ function makeSupervisor(options: {
 			hostnameService: new EnvHostnameService(env),
 			env,
 			lanes,
-			mesh,
+			settings,
 			webTarget,
 			edges: testEdgeRegistry().registry,
 			bus: testBus(),
@@ -309,7 +309,7 @@ describe("traefik supervisor registration", () => {
 		expect(spec?.TaskTemplate.ContainerSpec.Mounts?.map((m) => m.Target)).toEqual(["/acme"]);
 	});
 
-	it("publishes the doors plan into the mesh: local always, private only when enabled", async () => {
+	it("publishes the doors plan into the cluster settings: local always, private only when enabled", async () => {
 		const { supervisor, writeSetting } = makeSupervisor({
 			lanes: { ...defaultIngressLanes(8080), private: { enabled: true, domain: "deployer.internal", exposeOnLan: false } },
 		});
@@ -330,8 +330,8 @@ describe("traefik supervisor registration", () => {
 		);
 	});
 
-	it("still converges when the mesh agent is unavailable — only the doors are missing", async () => {
-		const { supervisor } = makeSupervisor({ meshWrite: () => Promise.reject(new Error("mesh agent is not reachable")) });
+	it("still converges when no agent owns the door — only the doors are missing", async () => {
+		const { supervisor } = makeSupervisor({ meshWrite: () => Promise.reject(new Error("no mesh agent on this node")) });
 		expect(await supervisor.ensureDesiredState()).toBe("converged");
 	});
 

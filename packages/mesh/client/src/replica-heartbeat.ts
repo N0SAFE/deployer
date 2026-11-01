@@ -3,7 +3,7 @@ import { Effect, Schedule } from "effect";
 import type { ClientContext, ClientLink } from "@orpc/client";
 
 export type ReplicaHeartbeatOptions = {
-  /** The persistent link to the local mesh-agent. */
+  /** The persistent link to the local node-agent. */
   readonly agent: ClientLink<ClientContext>;
   readonly service: string;
   readonly replicaId: string;
@@ -16,6 +16,11 @@ export type ReplicaHeartbeatOptions = {
   readonly intervalMs: number;
   /** How long a registration lives without the next beat. Several intervals, so one missed beat is not a death. */
   readonly ttlMs: number;
+  /**
+   * Called at most once, with the first failed registration, and only on a failure. A service that found an agent socket
+   * and cannot reach it is not silent about it, and a beat that keeps failing is the same problem, not a new one.
+   */
+  readonly onRegistrationFailure?: (error: unknown) => void;
 };
 
 /**
@@ -26,6 +31,7 @@ export type ReplicaHeartbeatOptions = {
  * that dies simply stops beating and ages out of every directory.
  */
 export function replicaHeartbeat(options: ReplicaHeartbeatOptions): Effect.Effect<void> {
+  let reported = false;
   const beat = Effect.tryPromise({
     try: async () =>
       options.agent.call(
@@ -42,7 +48,15 @@ export function replicaHeartbeat(options: ReplicaHeartbeatOptions): Effect.Effec
         { context: {} },
       ),
     catch: (error) => error,
-  }).pipe(Effect.ignore);
+  }).pipe(
+    Effect.catch((error) =>
+      Effect.sync(() => {
+        if (reported) return;
+        reported = true;
+        options.onRegistrationFailure?.(error);
+      }),
+    ),
+  );
 
   return beat.pipe(Effect.repeat(Schedule.spaced(options.intervalMs)), Effect.asVoid);
 }

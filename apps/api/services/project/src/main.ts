@@ -8,11 +8,12 @@ import "@deployer/shared/core/orpc/context";
 import {
 	DEPENDENCIES,
 	DependencyNotReadyError,
-	apiServicePort,
 	bootstrapApiServer,
 } from "@deployer/shared/server";
+import { apiServicePort } from "@deployer/env";
 
 import { projectServiceContract } from "@deployer/project-contracts";
+import { assertRequirementsMet } from "@deployer/nest-effect";
 import { joinServiceMeshOnNode } from "@deployer/mesh-service";
 import type { Server } from "node:http";
 
@@ -33,8 +34,14 @@ const NAME = "svc-project";
  * Reads and writes the global Postgres.
  * No Redis: declaring it would make the service un-startable for a dependency it never uses.
  */
+/**
+ * The strict requirement gate: the root only compiles when every `[controller, services]` pair forwarded from
+ * `ProjectServiceModule` is resolved. A missing provider names both the controller and the service on this line.
+ */
+const rootModule = assertRequirementsMet(ProjectServiceModule);
+
 void bootstrapApiServer({
-	rootModule: ProjectServiceModule,
+	rootModule,
 	port: PORT,
 	name: NAME,
 	dependencies: DEPENDENCIES.database,

@@ -11,31 +11,30 @@
  * importing it alone never pull Docker/Env machinery.
  */
 
-import { Global, Module } from "@nestjs/common";
+import { createGlobalModule } from "@deployer/nest-effect";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
-import { NodeConfigRepository, type NodeConfigRepositoryShape, type LocalDb } from "@deployer/node-state";
+import type { LocalDb } from "@deployer/node-state";
 
 import { CoreDockerModule } from "../../docker/docker.module";
 import { LOCAL_DATABASE_CONNECTION } from "../../database/database-connection";
 import { supervisorProviders, SupervisorEventBus } from "../../supervision/index";
 import { EnvModule, EnvService } from "../../../../config/env/env.module";
+import { NodeConfigSnapshot } from "../../node-state/node-config.snapshot";
 import { makeDatabaseServiceRegistration } from "./database-service.supervisor";
 import { makeGlobalDbRegistration } from "./global-db.supervisor";
 import { makeLocalDbRegistration } from "./local-db.supervisor";
 
 const DATABASE_SUPERVISORS = Symbol("DATABASE_SUPERVISORS");
 
-@Global()
-@Module({
+export const SupervisorsDatabaseModule = createGlobalModule({
 	imports: [CoreDockerModule, EnvModule],
 	providers: supervisorProviders({
 		token: DATABASE_SUPERVISORS,
-		inject: [DockerEngine, NodeConfigRepository, EnvService, SupervisorEventBus, LOCAL_DATABASE_CONNECTION],
-		build: (engine: DockerEngineShape, nodeConfig: NodeConfigRepositoryShape, env: EnvService, bus: SupervisorEventBus, db: LocalDb) => [
-			makeGlobalDbRegistration({ engine, nodeConfig, env, bus }),
+		inject: [DockerEngine, NodeConfigSnapshot, EnvService, SupervisorEventBus, LOCAL_DATABASE_CONNECTION],
+		build: (engine: DockerEngineShape, snapshot: NodeConfigSnapshot, env: EnvService, bus: SupervisorEventBus, db: LocalDb) => [
+			makeGlobalDbRegistration({ engine, snapshot, env, bus }),
 			makeLocalDbRegistration({ db, env, bus }),
 			makeDatabaseServiceRegistration({ engine, env, bus }),
 		],
 	}),
-})
-export class SupervisorsDatabaseModule {}
+});

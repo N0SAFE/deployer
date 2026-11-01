@@ -32,7 +32,9 @@ bun install
 bun run dev
 ```
 
-By default this starts the full dev stack (web, api, db, redis) using Docker compose.
+By default this starts the full dev stack (web, api, db, redis) using Docker compose, attached:
+container logs stream in the terminal and `docker compose` watches the source, syncing edits into the
+containers. Ctrl-C stops the stack; `bun run dev:detached` starts it without attaching.
 
 ### 3) Validate the workspace
 
@@ -44,6 +46,7 @@ bun run check
 
 ```bash
 bun run dev
+bun run dev:detached
 bun run dev:api
 bun run dev:web
 bun run test

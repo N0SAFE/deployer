@@ -1,9 +1,6 @@
 import { Controller } from '@nestjs/common'
 import { Implement } from '@orpc/nest'
-import { implement } from '@orpc/server'
-import { EffectContextOf } from '@deployer/nest-effect'
-
-import { UserDomainModule } from '../user.module'
+import { procedure } from '@deployer/nest-effect'
 
 import { userContract } from '@deployer/identity-contracts'
 import { requireAuth } from '@deployer/shared/core/modules/auth/orpc/middlewares'
@@ -24,9 +21,8 @@ import { readFilter, readSortField } from './user.filters'
 export class UserController {
     @Implement(userContract.list)
     list() {
-        return implement(userContract.list)
+        return procedure(userContract.list)
             .use(requireAuth())
-            .use(UserDomainModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const users = yield* UserService
 
@@ -55,9 +51,8 @@ export class UserController {
 
     @Implement(userContract.findById)
     findById() {
-        return implement(userContract.findById)
+        return procedure(userContract.findById)
             .use(requireAuth())
-            .use(UserDomainModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const users = yield* UserService
                 return yield* serve(context)(users.findById(input.params.id))
@@ -66,9 +61,8 @@ export class UserController {
 
     @Implement(userContract.create)
     create() {
-        return implement(userContract.create)
+        return procedure(userContract.create)
             .use(requireAuth())
-            .use(UserDomainModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const users = yield* UserService
 
@@ -84,9 +78,8 @@ export class UserController {
 
     @Implement(userContract.update)
     update() {
-        return implement(userContract.update)
+        return procedure(userContract.update)
             .use(requireAuth())
-            .use(UserDomainModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const users = yield* UserService
                 const { id, ...rest } = input
@@ -109,9 +102,8 @@ export class UserController {
 
     @Implement(userContract.delete)
     delete() {
-        return implement(userContract.delete)
+        return procedure(userContract.delete)
             .use(requireAuth())
-            .use(UserDomainModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const users = yield* UserService
                 yield* serve(context)(users.delete(input.params.id))
@@ -123,8 +115,7 @@ export class UserController {
     /** Public by design: the signup form's "is this address taken" probe. */
     @Implement(userContract.checkEmail)
     checkEmail() {
-        return implement(userContract.checkEmail)
-            .use(UserDomainModule[EffectContextOf])
+        return procedure(userContract.checkEmail)
             .effect(function* ({ input, context }) {
                 const users = yield* UserService
                 const exists = yield* serveAnonymous(context)(users.checkEmail(input.email))
@@ -134,9 +125,8 @@ export class UserController {
 
     @Implement(userContract.count)
     count() {
-        return implement(userContract.count)
+        return procedure(userContract.count)
             .use(requireAuth())
-            .use(UserDomainModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const users = yield* UserService
 

@@ -84,13 +84,11 @@ services:
       # own WireGuard key (docs/edge-mesh-architecture.md).
       SWARM_QUORUM_MAX: ${SWARM_QUORUM_MAX:-3}
       # The image of the per-node mesh agent. Setup starts it (a plain
-      # host-network container, `deployer-mesh-agent`) BEFORE founding the
+      # host-network container, `deployer-node-agent`) BEFORE founding the
       # swarm, because the swarm binds the mesh address the agent brings up.
-      MESH_AGENT_IMAGE: ${MESH_AGENT_IMAGE:-deployer-mesh-agent:latest}
-      # Whether the agent setup starts brings up a REAL WireGuard interface.
-      # `observe` (dev default) plans and gossips without touching the kernel;
-      # `kernel` is what production runs. See common/api/docker-compose.config.yml.
-      MESH_AGENT_DATAPLANE: ${MESH_AGENT_DATAPLANE:-kernel}
+      NODE_AGENT_IMAGE: ${NODE_AGENT_IMAGE:-deployer-svc-node-agent:dev}
+      # The ADMIN door: setup issues join tokens and joins the swarm, so it mounts the admin volume below.
+      NODE_AGENT_ADMIN_SOCKET: ${NODE_AGENT_ADMIN_SOCKET:-/run/deployer-node-admin/admin.sock}
     volumes:
       # Docker daemon socket: swarm init/join, (prod) service creation, AND the
       # bootstrap ingress container this app creates.
@@ -100,12 +98,14 @@ services:
       # mounts this SAME volume read-only at /config, which is how a route
       # written here reaches Traefik without either process talking to the other.
       - ${TRAEFIK_CONFIG_VOLUME:-deployer-traefik-config}:/app/traefik-configs
-      # The mesh agent's control socket (`/run/deployer-mesh/agent.sock`), shared
+      # The mesh agent's control socket (`/run/deployer-node/agent.sock`), shared
       # with the agent container. The orchestrator MUST declare this volume as
-      # `deployer-mesh-run: { name: deployer-mesh-run }` — the literal name, not
+      # `deployer-node-agent-run: { name: deployer-node-agent-run }` — the literal name, not
       # a project-prefixed one — because the agent and the API mount it by that
       # exact name. An orchestrator that `!override`s this list must restate it.
-      - deployer-mesh-run:/run/deployer-mesh
+      - deployer-node-agent-run:/run/deployer-node
+      # The admin door (0600 inside): joining a swarm and issuing a token happen here, never through the services' socket.
+      - deployer-node-agent-admin:/run/deployer-node-admin
     # `host-gateway` is REQUIRED, not a convenience: the ingress publishes its
     # entry port on the HOST, so reachability has to be checked through the host
     # gateway. Without this mapping `host.docker.internal` does not resolve and

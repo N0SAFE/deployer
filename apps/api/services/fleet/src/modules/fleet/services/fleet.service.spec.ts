@@ -3,7 +3,7 @@ import { FleetInvalid, FleetNotFound } from "@/core/fleet.errors";
 import { Cause, Effect, Exit } from "effect";
 import { provideTo } from "@deployer/effect-core";
 import { FleetService } from "./fleet.service";
-import { FleetRepository, type FleetRepositoryShape } from "../repositories/fleet.repository";
+import { FleetRepository, FleetDatabasePort, type FleetRepositoryShape } from "../repositories/fleet.repository";
 
 /** Run an Effect and reject with the ORIGINAL failure, so `rejects.toBeInstanceOf(...)` reads the real error. */
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
@@ -106,7 +106,11 @@ describe("FleetService", () => {
             deleteAllocation: vi.fn().mockResolvedValue({ rowCount: 0 }),
         };
         service = provideTo(FleetService.live, (effect) =>
-            effect.pipe(Effect.provideService(FleetRepository, asEffects(repo))),
+            effect.pipe(
+                Effect.provideService(FleetRepository, asEffects(repo)),
+                // The fake repository never reaches the database; the port is discharged so the run stays `R = never`.
+                Effect.provideService(FleetDatabasePort, {} as never),
+            ),
         );
     });
 

@@ -6,6 +6,19 @@ import { LocalDatabase, type LocalDatabaseShape } from "../database/local-databa
 
 export type NodeConfigRow = typeof nodeConfig.$inferSelect;
 
+export type NewNodeConfigRow = typeof nodeConfig.$inferInsert;
+
+/**
+ * A second home for the node's record: the node's agent, once one answers.
+ *
+ * Both members are total — null means "no answer" (no agent, an agent that predates the record, or a
+ * timeout), which is the caller's cue to use the local file instead.
+ */
+export type NodeConfigRecordStore = {
+	readonly read: () => Effect.Effect<NodeConfigRow | null>;
+	readonly write: (row: NewNodeConfigRow) => Effect.Effect<NodeConfigRow | null>;
+};
+
 export type NodeConfigRepositoryShape = {
 	/** This node's own config, or null before it has one (including before the table exists). */
 	readonly find: () => Effect.Effect<NodeConfigRow | null, LocalDatabaseError>;
@@ -51,11 +64,32 @@ export function makeNodeConfigRepository(database: LocalDatabaseShape): NodeConf
 			return row;
 		});
 
+	return nodeConfigOperations({ find, upsert });
+}
+
+/**
+ * Agent first, local file second: the node's agent owns the record, so an answer it gives IS the row and
+ * the local copy is neither read nor written. A silent agent leaves the file as the source, unchanged.
+ */
+export function makeAgentFirstNodeConfigRepository(
+	database: LocalDatabaseShape,
+	records: NodeConfigRecordStore,
+): NodeConfigRepositoryShape {
+	const local = makeNodeConfigRepository(database);
+
+	return nodeConfigOperations({
+		find: () => records.read().pipe(Effect.flatMap((row) => (row === null ? local.find() : Effect.succeed(row)))),
+		upsert: (data) =>
+			records.write(data).pipe(Effect.flatMap((row) => (row === null ? local.upsert(data) : Effect.succeed(row)))),
+	});
+}
+
+/** The members both homes share: the ones derived from `find`/`upsert`, so they follow the same source. */
+function nodeConfigOperations(ops: Pick<NodeConfigRepositoryShape, "find" | "upsert">): NodeConfigRepositoryShape {
 	return {
-		find,
-		upsert,
+		...ops,
 		getMeshSharedSecret: () =>
-			find().pipe(
+			ops.find().pipe(
 				Effect.map((row) => {
 					if (row === null) return null;
 					const record = row as Record<string, unknown>;
@@ -64,10 +98,10 @@ export function makeNodeConfigRepository(database: LocalDatabaseShape): NodeConf
 			),
 		updateMeshPeers: (peerUrls) =>
 			Effect.gen(function* () {
-				const existing = yield* find();
+				const existing = yield* ops.find();
 				if (existing === null) return null;
 				const merged = [...new Set([...(existing.meshUrlsSnapshot ?? []), ...peerUrls])];
-				return yield* upsert({ ...existing, meshUrlsSnapshot: merged, updatedAt: new Date().toISOString() });
+				return yield* ops.upsert({ ...existing, meshUrlsSnapshot: merged, updatedAt: new Date().toISOString() });
 			}),
 	};
 }

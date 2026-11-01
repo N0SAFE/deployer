@@ -1,4 +1,5 @@
 import { Global, Module, type DynamicModule } from "@nestjs/common";
+import { declareModule } from "@deployer/nest-effect";
 import { AppLifecycle, makeAppLifecycle } from "@deployer/lifecycle";
 
 /**
@@ -9,12 +10,17 @@ import { AppLifecycle, makeAppLifecycle } from "@deployer/lifecycle";
  */
 @Global()
 @Module({})
-export class AppLifecycleModule {
+class AppLifecycleNestModule {
 	static forRoot(): DynamicModule {
-		return {
-			module: AppLifecycleModule,
-			providers: [{ provide: AppLifecycle, useFactory: makeAppLifecycle }],
-			exports: [AppLifecycle],
-		};
+		return declareModule(
+			{
+				module: AppLifecycleNestModule,
+				providers: [{ provide: AppLifecycle, useFactory: makeAppLifecycle }],
+				exports: [AppLifecycle],
+			},
+			{ global: true },
+		);
 	}
 }
+
+export const AppLifecycleModule = declareModule(AppLifecycleNestModule, { global: true });

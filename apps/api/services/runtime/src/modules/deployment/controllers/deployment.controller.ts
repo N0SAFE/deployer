@@ -6,9 +6,8 @@ import type { PlatformRole } from "@deployer/auth";
 import { AllowAnonymous } from "@deployer/shared/core/modules/auth/decorators/decorators";
 import { DeploymentService } from "../services/deployment.service";
 import { authMiddleware, requireAuth, requireMesh, requirePlatformRole, requireSystemActor } from "@deployer/shared/core/modules/auth/orpc/middlewares";
-import { EffectContextOf } from "@deployer/nest-effect";
+import { procedure } from "@deployer/nest-effect";
 import { serve } from "../../../core/orpc/serve";
-import { DeploymentDomainModule } from "../deployment.module";
 import { DeploymentEventTriggerService } from "../triggers/deployment-event-trigger.service";
 import { DeploymentStreamOrchestratorService } from "../mesh/services/deployment-stream-orchestrator.service";
 
@@ -51,9 +50,8 @@ export class DeploymentController {
     triggerFromEvent() {
         // Not `requireAuth()`: the caller is a peer service relaying a provider event, vouched
         // for by a signed system-actor claim. A user session cannot reach this procedure.
-        return implement(deploymentContract.triggerFromEvent)
+        return procedure(deploymentContract.triggerFromEvent)
             .use(requireSystemActor("runtime"))
-            .use(DeploymentDomainModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const trigger = yield* DeploymentEventTriggerService;
                 return yield* serve(context)(trigger.trigger(input, context.systemActor.deliveryId));

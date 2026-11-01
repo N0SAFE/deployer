@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeLocalDatabase } from "../database/local-database";
 import { makeClusterNodeInventoryRepository } from "./cluster-node-inventory.repository";
 import { makeClusterNodeRepository } from "./cluster-node.repository";
-import { makeNodeConfigRepository } from "./node-config.repository";
+import { makeAgentFirstNodeConfigRepository, makeNodeConfigRepository, type NewNodeConfigRow, type NodeConfigRow } from "./node-config.repository";
 
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
 	const exit = await Effect.runPromiseExit(effect);
@@ -91,6 +91,80 @@ describe("NodeConfigRepository", () => {
 		const merged = await run(repository.updateMeshPeers(["http://a", "http://b"]));
 
 		expect(merged?.meshUrlsSnapshot).toEqual(["http://a", "http://b"]);
+	});
+});
+
+const AGENT_ROW: NodeConfigRow = {
+	id: 1,
+	nodeId: "agent-node",
+	strategy: "local",
+	setupState: "setup_done",
+	deployerVersion: "1.2.3",
+	upgradedAtVersion: null,
+	meshUrlsSnapshot: ["http://agent"],
+	databaseUrl: "postgres://agent",
+	databaseProvisioning: "local",
+	configuredAt: "2026-10-30T10:00:00.000Z",
+	peerServiceToken: null,
+	peerServiceTokenExpiresAt: null,
+	updatedAt: "2026-10-30T10:00:00.000Z",
+	meshSharedSecret: "agent-secret",
+	meshSharedSecretUpdatedAt: null,
+	scanConfig: null,
+	postSetupFlags: null,
+	swarmConfig: null,
+};
+
+const localRows = () => database.client.query("SELECT * FROM node_config").all();
+
+describe("AgentFirstNodeConfigRepository", () => {
+	it("answers from the agent's record and never touches the local file", async () => {
+		const writes: NewNodeConfigRow[] = [];
+		const repository = makeAgentFirstNodeConfigRepository(database, {
+			read: () => Effect.succeed(AGENT_ROW),
+			write: (row) => {
+				writes.push(row);
+				return Effect.succeed({ ...AGENT_ROW, ...row, id: 1 });
+			},
+		});
+
+		expect(await run(repository.find())).toEqual(AGENT_ROW);
+		expect(await run(repository.getMeshSharedSecret())).toBe("agent-secret");
+
+		const written = await run(repository.upsert({ nodeId: "written", strategy: "local" } as never));
+
+		expect(written.nodeId).toBe("written");
+		expect(writes).toHaveLength(1);
+		expect(localRows()).toEqual([]);
+	});
+
+	it("falls back to the local file when the record store has no answer", async () => {
+		await run(makeNodeConfigRepository(database).upsert({ nodeId: "file-node", strategy: "local", updatedAt: "2026-10-30T10:00:00.000Z" }));
+		const repository = makeAgentFirstNodeConfigRepository(database, {
+			read: () => Effect.succeed(null),
+			write: () => Effect.succeed(null),
+		});
+
+		expect((await run(repository.find()))?.nodeId).toBe("file-node");
+		expect((await run(repository.upsert({ nodeId: "file-2", strategy: "local" } as never))).nodeId).toBe("file-2");
+		expect((await run(repository.find()))?.nodeId).toBe("file-2");
+	});
+
+	it("merges mesh peers through the record store, deduplicated", async () => {
+		const writes: NewNodeConfigRow[] = [];
+		const repository = makeAgentFirstNodeConfigRepository(database, {
+			read: () => Effect.succeed(AGENT_ROW),
+			write: (row) => {
+				writes.push(row);
+				return Effect.succeed({ ...AGENT_ROW, ...row, id: 1 });
+			},
+		});
+
+		const merged = await run(repository.updateMeshPeers(["http://agent", "http://new"]));
+
+		expect(merged?.meshUrlsSnapshot).toEqual(["http://agent", "http://new"]);
+		expect(writes[0]?.meshUrlsSnapshot).toEqual(["http://agent", "http://new"]);
+		expect(localRows()).toEqual([]);
 	});
 });
 

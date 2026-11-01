@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { createModuleContext } from "@deployer/nest-effect";
 import { ConfigurationCoreModule } from "@/core/modules/configuration/configuration-core.module";
 import { TestController } from "./controllers/test.controller";
 
@@ -18,8 +18,7 @@ import { TestController } from "./controllers/test.controller";
  *     .handler(async (input, ctx) => { ... })
  * ```
  */
-@Module({
+export class TestDomainModule extends createModuleContext({
 	imports: [ConfigurationCoreModule],
 	controllers: [TestController],
-})
-export class TestDomainModule {}
+}) {}

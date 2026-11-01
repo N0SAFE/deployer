@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { createModuleContext } from "@deployer/nest-effect";
 import { RenderModule } from "@nestjs-ssr/react";
 
 import { EnvModule } from "@/config/env/env.module";
@@ -8,6 +8,7 @@ import { NODE_CONFIG_READER, NODE_CONFIG_STORE } from "./node-config.port";
 import { SetupHealthModule } from "@/modules/health/setup-health.module";
 import { SetupClusterModule } from "@/modules/cluster/cluster.module";
 import { SetupGateService } from "./setup-gate.service";
+import { MeshOnboardingService } from "./mesh-onboarding.service";
 import { WizardController } from "./wizard.controller";
 import { WizardOrpcModule } from "./wizard-orpc.module";
 import { WizardPageController } from "./wizard-page.controller";
@@ -29,7 +30,7 @@ import { SetupProgressModule } from "@/modules/progress/progress.module";
  * Vite runs on **5174** (the API uses 5173) because in dev BOTH apps run at once
  * — setup drives the API — so they must not contend for the dev asset server.
  */
-@Module({
+export class WizardModule extends createModuleContext({
   imports: [
     EnvModule,
     SetupHealthModule,
@@ -85,15 +86,16 @@ import { SetupProgressModule } from "@/modules/progress/progress.module";
       useExisting: NodeConfigRepository,
     },
     SetupGateService,
+    MeshOnboardingService,
     WizardStateService,
     WizardUpstreamService,
     WizardStreamService,
   ],
   exports: [
     SetupGateService,
+    MeshOnboardingService,
     WizardStateService,
     WizardUpstreamService,
     WizardStreamService,
   ],
-})
-export class WizardModule {}
+}) {}

@@ -106,6 +106,37 @@ describe("userRules", () => {
 		});
 	});
 
+	describe("assertOutranks", () => {
+		it.each([
+			["superAdmin", "superAdmin", true],
+			["superAdmin", "admin", true],
+			["superAdmin", "viewer", true],
+			["admin", "viewer", true],
+			["admin", "operator", true],
+			["admin", "admin", false],
+			["admin", "superAdmin", false],
+			["operator", "operator", false],
+			["viewer", "viewer", false],
+			["viewer", "admin", false],
+			["user", "viewer", false],
+		] as const)("%s over %s (allowed: %s)", (actorRole, targetRole, allowed) => {
+			const assert = () => { userRules.assertOutranks({ userId: "actor-1", role: actorRole }, targetRole); };
+
+			if (allowed) expect(assert).not.toThrow();
+			else expect(assert).toThrow(ForbiddenError);
+		});
+
+		it("treats an unset target role as below every rank", () => {
+			expect(() => { userRules.assertOutranks(admin, undefined); }).not.toThrow();
+		});
+
+		it("refuses an actor whose role is unknown", () => {
+			expect(() => { userRules.assertOutranks({ userId: "ghost", role: "user" }, "viewer"); }).toThrow(
+				ForbiddenError,
+			);
+		});
+	});
+
 	describe("toSelfServicePatch", () => {
 		it("keeps only the fields a user may change on themselves", () => {
 			const patch = userRules.toSelfServicePatch(

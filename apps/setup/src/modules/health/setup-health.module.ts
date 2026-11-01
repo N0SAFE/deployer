@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { createModuleContext } from "@deployer/nest-effect";
 import { TerminusModule } from "@nestjs/terminus";
 
 import { SetupHealthController } from "./setup-health.controller";
@@ -26,10 +26,9 @@ import { SetupReadinessIndicator } from "./setup-readiness.indicator";
  * still emits ONE line per transition (see `SetupPhaseService.publish`), so the
  * phase changes remain visible without the per-probe repetition.
  */
-@Module({
+export class SetupHealthModule extends createModuleContext({
   imports: [TerminusModule.forRoot({ logger: false })],
   controllers: [SetupHealthController],
   providers: [SetupPhaseService, SetupReadinessIndicator],
   exports: [SetupPhaseService],
-})
-export class SetupHealthModule {}
+}) {}

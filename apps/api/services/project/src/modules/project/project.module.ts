@@ -64,7 +64,7 @@ export class ProjectDomainModule extends createModuleContext({
 		{ provide: WebhookService, useValue: WebhookService.live },
 		{ provide: ApiKeyService, useValue: ApiKeyService.live },
 	],
-	exports: [DnsProvider],
+	exports: [DnsProvider, ProjectStore, ProjectDb],
 }, DatabasePort) {}
 
 // ── `ProjectDomainModule`, NOT `ProjectModule` ─────────────────────────────────

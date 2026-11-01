@@ -19,7 +19,9 @@ import {
 import {
     PermissionDenied,
     type PermissionFailure,
+    type PermissionRepositoryFailure,
 } from '../permission.failures'
+import { DatabasePort } from '@identity/core/database/database.port'
 import type { RoleRuleRow } from '../permission.types'
 
 /**
@@ -41,14 +43,18 @@ export interface PermissionServiceShape {
         action: string,
         resourceId?: string,
         record?: Record<string, unknown>
-    ) => Effect.Effect<PermissionCheckResult, PermissionFailure>
+    ) => Effect.Effect<
+        PermissionCheckResult,
+        PermissionFailure,
+        PermissionRepository | DatabasePort
+    >
     readonly assert: (
         ctx: EngineContext,
         resource: ProjectResource,
         action: string,
         resourceId?: string,
         record?: Record<string, unknown>
-    ) => Effect.Effect<void, PermissionFailure>
+    ) => Effect.Effect<void, PermissionFailure, PermissionRepository | DatabasePort>
     readonly buildWhereClause: <
         TSchema extends object = Record<
             string,
@@ -60,17 +66,18 @@ export interface PermissionServiceShape {
         action: string,
         idColumn: SQL,
         resolver: ColumnResolver<TSchema>
-    ) => Effect.Effect<SQL | undefined, PermissionFailure>
+    ) => Effect.Effect<SQL | undefined, PermissionFailure, PermissionRepository | DatabasePort>
     readonly upsertRoleRules: (
         roleName: string,
         rules: ResourceRule[]
-    ) => Effect.Effect<void, PermissionFailure>
+    ) => Effect.Effect<void, PermissionFailure, PermissionRepository | DatabasePort>
     readonly deleteRoleRules: (
         roleName: string
-    ) => Effect.Effect<void, PermissionFailure>
+    ) => Effect.Effect<void, PermissionFailure, PermissionRepository | DatabasePort>
     readonly listRoleRules: () => Effect.Effect<
         RoleRuleRow[],
-        PermissionFailure
+        PermissionFailure,
+        PermissionRepository | DatabasePort
     >
 }
 
@@ -103,9 +110,15 @@ function makePermissionService(
             // No org layer — the mesh is the single tenant. Rules are keyed by the
             // user's platform role at eval time (see EngineContext).
             loadRoleRules: (role) =>
-                Effect.runPromise(roleRules.getRoleRules([role])).catch(
-                    () => []
-                ),
+                // The engine's loader is Promise-based, so the repository Effect is run outside the
+                // context it would need: the assertion states the requirement the engine cannot carry,
+                // and a failed load keeps yielding no rules rather than failing the check.
+                Effect.runPromise(
+                    roleRules.getRoleRules([role]) as Effect.Effect<
+                        ResourceRule[],
+                        PermissionRepositoryFailure
+                    >
+                ).catch(() => []),
         })
 
         // An engine denial is a refusal; any other throw is a bug in the engine, not a refusal.

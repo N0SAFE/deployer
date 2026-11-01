@@ -28,7 +28,7 @@ import { DatabasePort, type DatabaseShape } from "@identity/core/database/databa
 function runUsers<T>(
 	database: DatabaseShape,
 	actor: { userId: string; role: string },
-	use: (users: UserServiceShape) => Effect.Effect<T, UserFailure, Ambient>,
+	use: (users: UserServiceShape) => Effect.Effect<T, UserFailure, Ambient | UserRepository | DatabasePort>,
 ): Promise<T> {
 	return Effect.runPromise(
 		Effect.gen(function* () {
@@ -47,7 +47,7 @@ function runUsers<T>(
 /** Run an analytics use case against the real repository, outside the oRPC context. */
 function runAnalytics<A, E>(
 	database: DatabaseShape,
-	use: (analytics: AnalyticsServiceShape) => Effect.Effect<A, E>,
+	use: (analytics: AnalyticsServiceShape) => Effect.Effect<A, E, AnalyticsRepository | DatabasePort>,
 ): Promise<A> {
 	return Effect.runPromise(
 		Effect.gen(function* () {

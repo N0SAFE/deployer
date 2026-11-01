@@ -8,6 +8,14 @@ const ADMIN_ROLES: ReadonlySet<string> = new Set(["admin", "superAdmin"]);
 /** The one role that may grant itself. */
 const ROOT_ROLE = "superAdmin";
 
+/** Platform roles, lowest first. A role outside the list ranks below all of them. */
+const ROLE_RANK: Readonly<Record<string, number>> = {
+  viewer: 0,
+  operator: 1,
+  admin: 2,
+  superAdmin: 3,
+};
+
 /** The fields a user may change on THEMSELVES. */
 const SELF_SERVICE_FIELDS: ReadonlySet<keyof UserPatch> = new Set(["name", "email"]);
 
@@ -84,6 +92,21 @@ export const userRules = {
     if (role === ROOT_ROLE && actor.role !== ROOT_ROLE) {
       throw new ForbiddenError(`only a ${ROOT_ROLE} may grant the ${ROOT_ROLE} role`);
     }
+  },
+
+  /**
+   * An actor may only act on an account the hierarchy puts strictly below it; the root role is
+   * exempt. Peer and superior accounts are untouchable, so an admin cannot delete, ban or re-email
+   * another admin or a superAdmin. Pair with `assertCanAdminister` — this rule is about rank only.
+   */
+  assertOutranks(actor: Actor, targetRole: User["role"]): void {
+    if (actor.role === ROOT_ROLE) return;
+    const actorRank = ROLE_RANK[actor.role] ?? -1;
+    const targetRank = ROLE_RANK[targetRole ?? ""] ?? -1;
+    if (targetRank < actorRank) return;
+    throw new ForbiddenError(
+      `a ${actor.role} may not act on an account whose role is ${targetRole ?? "unset"}`
+    );
   },
 
   toSelfServicePatch(patch: UserPatch, current: User): UserPatch {

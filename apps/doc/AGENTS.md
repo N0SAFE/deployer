@@ -53,15 +53,29 @@ Content sources:
 
 - Do not invent documentation—derive from actual repo state and update the canonical files under `docs/`.
 
+## Browser Runtime — TanStack Redact
+
+`next.config.ts` exports `withMDX(withRedact(config))`: Redact replaces React's
+**browser** runtime; Next keeps React for SSR, Server Components and Flight, and
+the static export is unaffected (the adapter's matrix covers static export +
+trailing slashes). Keep importing from `react`/`react-dom`, and never set
+`jsxImportSource` to Redact.
+
+`withRedact` must sit **inside** `withMDX` (the MDX wrapper spreads
+`turbopack.rules` and appends; the other order would drop Redact's rules), and
+the adapter supports stable **Next 15.5 and 16.0–16.4 only** — which is why the
+`next` catalog is an exact `16.4.3` pin. Bump Next and `@tanstack/redact`
+together, and only to a listed version.
+
 ## Turbopack Filesystem Cache
 
-`experimental.turbopackFileSystemCacheForDev` / `...ForBuild` are set explicitly in `next.config.ts` (the resolved Next range is `^16.1.2`, where build caching is not yet default). The cache lives in `.next/dev/cache/turbopack` (dev) and `.next/cache/turbopack` (build).
+`experimental.turbopackFileSystemCacheForDev` / `...ForBuild` are set explicitly in `next.config.ts` (pinned to `16.4.3`, where both are default-on — set explicitly so a re-pin cannot silently drop the build cache). The cache lives in `.next/dev/cache/turbopack` (dev) and `.next/cache/turbopack` (build).
 
 Compose mounts a named volume (`doc_next_cache_dev` / `doc_next_cache_prod`) over the `cache/` directory only, so the dist-dir lock at `.next/dev/lock` stays on the container layer. See `.docs/guides/DOCKER-BUILD-STRATEGIES.md`.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
-# This is NOT the Next.js you know
+## This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 

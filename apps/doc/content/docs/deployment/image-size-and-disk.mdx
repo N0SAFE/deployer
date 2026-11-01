@@ -62,7 +62,7 @@ docker image prune -f       # ← DO NOT run this here
 
 `docker image prune -f` removes **dangling** images, and `deployer-svc-*:dev` is
 dangling by definition: nothing references it until a container starts. Measured
-on this repo — it left exactly one image (`deployer-mesh-agent:dev`) and the next
+on this repo — it left exactly one image (`deployer-node-agent:dev`) and the next
 `up` failed with:
 
 ```text

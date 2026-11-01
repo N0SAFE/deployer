@@ -4,10 +4,10 @@ import { Waypoints } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 import { EmptyState } from '@/components/dashboard'
-import type { MeshAgentReplica } from '@deployer/contracts-entities'
+import type { NodeAgentReplica } from '@deployer/contracts-entities'
 
 /** The replicas the directory holds: which service runs where, how loaded it is, and how many resources it announces. */
-export function ReplicasCard({ replicas, loading }: { replicas: readonly MeshAgentReplica[]; loading: boolean }) {
+export function ReplicasCard({ replicas, loading }: { replicas: readonly NodeAgentReplica[]; loading: boolean }) {
   return (
     <Card>
       <CardHeader>

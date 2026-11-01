@@ -77,11 +77,6 @@ export interface DockerLiveEntitiesOptions {
    */
   debounceMs?: number
   /**
-   * Periodically re-fetch the full list to heal any missed events.
-   * Default `60_000ms`. Set to `0` to disable.
-   */
-  reconcileIntervalMs?: number
-  /**
    * Custom reducer. Omit to use the built-in default.
    */
   applyEvents?: DockerLiveApplyFn<unknown>
@@ -300,7 +295,6 @@ export function useDockerLiveEntityKind<TKind extends DockerEntityKind, TEntity>
     kind: TKind
     on?: readonly string[]
     debounceMs?: number
-    reconcileIntervalMs?: number
     applyEvents?: DockerLiveApplyFn<TEntity>
     enabled?: boolean
   },
@@ -309,7 +303,6 @@ export function useDockerLiveEntityKind<TKind extends DockerEntityKind, TEntity>
     kind,
     on: actionsForKind,
     debounceMs = 200,
-    reconcileIntervalMs = 60_000,
     applyEvents: customReducer,
     enabled = true,
   } = options
@@ -324,7 +317,6 @@ export function useDockerLiveEntityKind<TKind extends DockerEntityKind, TEntity>
     on: onMap,
     config,
     debounceMs,
-    reconcileIntervalMs,
     customReducer,
     enabled,
   })
@@ -363,7 +355,6 @@ export function useDockerLiveEntities(on: DockerLiveEntitiesOptions): {
     on: { container: on.on.container },
     config: containerConfig,
     debounceMs: on.debounceMs,
-    reconcileIntervalMs: on.reconcileIntervalMs,
     customReducer: on.applyEvents as DockerLiveApplyFn<DockerContainer> | undefined,
     // Hooks cannot be conditional: a kind the caller did not ask for runs
     // disabled (idle, no stream, no reconcile) and is dropped from the result.
@@ -376,7 +367,6 @@ export function useDockerLiveEntities(on: DockerLiveEntitiesOptions): {
     on: { image: on.on.image },
     config: imageConfig,
     debounceMs: on.debounceMs,
-    reconcileIntervalMs: on.reconcileIntervalMs,
     customReducer: on.applyEvents as DockerLiveApplyFn<DockerImage> | undefined,
     // Hooks cannot be conditional: a kind the caller did not ask for runs
     // disabled (idle, no stream, no reconcile) and is dropped from the result.
@@ -389,7 +379,6 @@ export function useDockerLiveEntities(on: DockerLiveEntitiesOptions): {
     on: { network: on.on.network },
     config: networkConfig,
     debounceMs: on.debounceMs,
-    reconcileIntervalMs: on.reconcileIntervalMs,
     customReducer: on.applyEvents as DockerLiveApplyFn<DockerNetwork> | undefined,
     // Hooks cannot be conditional: a kind the caller did not ask for runs
     // disabled (idle, no stream, no reconcile) and is dropped from the result.
@@ -402,7 +391,6 @@ export function useDockerLiveEntities(on: DockerLiveEntitiesOptions): {
     on: { volume: on.on.volume },
     config: volumeConfig,
     debounceMs: on.debounceMs,
-    reconcileIntervalMs: on.reconcileIntervalMs,
     customReducer: on.applyEvents as DockerLiveApplyFn<DockerVolume> | undefined,
     // Hooks cannot be conditional: a kind the caller did not ask for runs
     // disabled (idle, no stream, no reconcile) and is dropped from the result.
@@ -434,7 +422,6 @@ function useDockerLiveEntitiesInner<TKind extends DockerEntityKind, TEntity>(
     on: DockerLiveOnMap
     config: KindConfig<TEntity>
     debounceMs?: number
-    reconcileIntervalMs?: number
     customReducer?: DockerLiveApplyFn<TEntity>
     enabled?: boolean
   },
@@ -444,7 +431,6 @@ function useDockerLiveEntitiesInner<TKind extends DockerEntityKind, TEntity>(
     on,
     config,
     debounceMs = 200,
-    reconcileIntervalMs = 60_000,
     customReducer,
     enabled = true,
   } = args
@@ -626,17 +612,24 @@ function useDockerLiveEntitiesInner<TKind extends DockerEntityKind, TEntity>(
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run only when `enabled` flips, not on every config/reconcile identity change
   }, [enabled])
 
+  // -------------------------------------------------------------------------
+  // Reconciliation after a stream failure — NOT a poll
+  // -------------------------------------------------------------------------
+  // The entity stream is the source of truth: the transport reconnects and
+  // REPLAYS the events the client missed (sequence numbers + dedupe), so a
+  // timer that re-fetches the whole list every N seconds is redundant traffic —
+  // and on a page streaming docker events it is what shows up in DevTools as
+  // constant `list?kind=…` requests. One reconcile is kept for the only case the
+  // stream cannot cover on its own: coming back after an error, where the
+  // replay window may have been missed entirely.
+  const wasStreamErrorRef = useRef(false)
   useEffect(() => {
-    if (!enabled || reconcileIntervalMs <= 0) {
-      return
-    }
-    const intervalId = setInterval(() => {
+    const isStreamError = streamQuery.isError
+    if (enabled && wasStreamErrorRef.current && !isStreamError) {
       void reconcile()
-    }, reconcileIntervalMs)
-    return () => {
-      clearInterval(intervalId)
     }
-  }, [reconcile, reconcileIntervalMs, enabled])
+    wasStreamErrorRef.current = isStreamError
+  }, [enabled, reconcile, streamQuery.isError])
 
   return {
     kind,
@@ -662,14 +655,12 @@ function useDockerLiveEntitiesInner<TKind extends DockerEntityKind, TEntity>(
  * @example
  *   const { data: containers, byId, status, refetch } = useDockerLiveContainers({
  *     on: ['create', 'update', 'destroy', 'die'],
- *     reconcileIntervalMs: 30_000,
  *   })
  */
 export function useDockerLiveContainers(
   options: {
     on?: readonly string[]
     debounceMs?: number
-    reconcileIntervalMs?: number
     applyEvents?: DockerLiveApplyFn<DockerContainer>
     enabled?: boolean
   } = {},
@@ -678,7 +669,6 @@ export function useDockerLiveContainers(
     kind: 'container',
     on: options.on,
     debounceMs: options.debounceMs,
-    reconcileIntervalMs: options.reconcileIntervalMs,
     applyEvents: options.applyEvents,
     enabled: options.enabled,
   })
@@ -691,7 +681,6 @@ export function useDockerLiveImages(
   options: {
     on?: readonly string[]
     debounceMs?: number
-    reconcileIntervalMs?: number
     applyEvents?: DockerLiveApplyFn<DockerImage>
     enabled?: boolean
   } = {},
@@ -700,7 +689,6 @@ export function useDockerLiveImages(
     kind: 'image',
     on: options.on,
     debounceMs: options.debounceMs,
-    reconcileIntervalMs: options.reconcileIntervalMs,
     applyEvents: options.applyEvents,
     enabled: options.enabled,
   })
@@ -710,7 +698,6 @@ export function useDockerLiveNetworks(
   options: {
     on?: readonly string[]
     debounceMs?: number
-    reconcileIntervalMs?: number
     applyEvents?: DockerLiveApplyFn<DockerNetwork>
     enabled?: boolean
   } = {},
@@ -719,7 +706,6 @@ export function useDockerLiveNetworks(
     kind: 'network',
     on: options.on,
     debounceMs: options.debounceMs,
-    reconcileIntervalMs: options.reconcileIntervalMs,
     applyEvents: options.applyEvents,
     enabled: options.enabled,
   })
@@ -729,7 +715,6 @@ export function useDockerLiveVolumes(
   options: {
     on?: readonly string[]
     debounceMs?: number
-    reconcileIntervalMs?: number
     applyEvents?: DockerLiveApplyFn<DockerVolume>
     enabled?: boolean
   } = {},
@@ -738,7 +723,6 @@ export function useDockerLiveVolumes(
     kind: 'volume',
     on: options.on,
     debounceMs: options.debounceMs,
-    reconcileIntervalMs: options.reconcileIntervalMs,
     applyEvents: options.applyEvents,
     enabled: options.enabled,
   })

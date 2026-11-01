@@ -12,6 +12,7 @@ import { serviceNetworkConfigSchema } from "@deployer/contracts-entities";
 import { serviceProviderConfigUnionSchema, serviceRunnerConfigUnionSchema, implementedContractSchema, previewSourceTemplateSchema } from "@deployer/contracts-entities";
 import * as crypto from "node:crypto";
 import { isRecord } from "@deployer/type-guards"
+import { resolveNodeId } from "@deployer/env";
 import { readTraefikConfig } from "@deployer/nest-schema/codecs/codec-registry";
 import { Context, Effect } from "effect";
 import { ProjectDb } from "@project/core/database/project-db";
@@ -19,8 +20,6 @@ import { DatabasePort } from "@project/core/database/database.port";
 import { attempt } from "@/modules/project/project-effects";
 
 
-
-const DEFAULT_NODE_ID = "00000000-0000-4000-8000-000000000000";
 
 type ServiceRow = typeof services.$inferSelect;
 
@@ -74,11 +73,6 @@ export function computeChildPath(parentPath: string | null | undefined, parentDe
 
 function buildChildPath(parentPath: string | null, parentId: string): string {
     return parentPath && parentPath.length > 0 ? `${parentPath}/${parentId}` : parentId;
-}
-
-function resolveNodeId(): string {
-    const configured = process.env.MESH_NODE_ID?.trim();
-    return configured && configured.length > 0 ? configured : DEFAULT_NODE_ID;
 }
 
 function buildDomainEventEnvelope(input: {

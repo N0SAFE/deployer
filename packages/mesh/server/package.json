@@ -45,7 +45,7 @@
         "@deployer/config-eslint": "*",
         "@deployer/config-prettier": "*",
         "@deployer/config-typescript": "*",
-        "@deployer/mesh-agent-contracts": "*",
+        "@deployer/node-agent-contracts": "*",
         "@deployer/mesh-client": "*",
         "@deployer/pkg-build": "*",
         "@orpc/client": "catalog:orpc",

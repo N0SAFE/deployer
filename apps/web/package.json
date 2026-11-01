@@ -72,6 +72,7 @@
     "@tanstack/react-query-devtools": "catalog:tanstack",
     "@tanstack/react-table": "catalog:tanstack",
     "@tanstack/react-virtual": "catalog:tanstack",
+    "@tanstack/redact": "catalog:tanstack",
     "@types/circular-json": "catalog:utils",
     "@xyflow/react": "^12.10.0",
     "better-auth": "catalog:auth",

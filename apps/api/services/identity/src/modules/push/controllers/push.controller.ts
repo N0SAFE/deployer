@@ -1,9 +1,6 @@
 import { Controller } from '@nestjs/common'
 import { Implement } from '@orpc/nest'
-import { implement } from '@orpc/server'
-import { EffectContextOf } from '@deployer/nest-effect'
-
-import { PushDomainModule } from '../push.module'
+import { procedure } from '@deployer/nest-effect'
 
 import { pushContract } from '@deployer/identity-contracts'
 import { requireAuth } from '@deployer/shared/core/modules/auth/orpc/middlewares'
@@ -34,9 +31,8 @@ export class PushController {
     /** The VAPID public key this caller's browser should subscribe with. */
     @Implement(pushContract.getPublicKey)
     getPublicKey() {
-        return implement(pushContract.getPublicKey)
+        return procedure(pushContract.getPublicKey)
             .use(requireAuth())
-            .use(PushDomainModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const push = yield* PushService
                 return yield* serve(context)(push.publicKey())
@@ -52,9 +48,8 @@ export class PushController {
      */
     @Implement(pushContract.subscribe)
     subscribe() {
-        return implement(pushContract.subscribe)
+        return procedure(pushContract.subscribe)
             .use(requireAuth())
-            .use(PushDomainModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const push = yield* PushService
                 return yield* serve(context)(push.subscribe(input))
@@ -64,9 +59,8 @@ export class PushController {
     /** Remove this caller's device, by endpoint. */
     @Implement(pushContract.unsubscribe)
     unsubscribe() {
-        return implement(pushContract.unsubscribe)
+        return procedure(pushContract.unsubscribe)
             .use(requireAuth())
-            .use(PushDomainModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const push = yield* PushService
                 return yield* serve(context)(push.unsubscribe(input.endpoint))
@@ -76,9 +70,8 @@ export class PushController {
     /** This caller's active devices. */
     @Implement(pushContract.getSubscriptions)
     getSubscriptions() {
-        return implement(pushContract.getSubscriptions)
+        return procedure(pushContract.getSubscriptions)
             .use(requireAuth())
-            .use(PushDomainModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const push = yield* PushService
                 const subscriptions = yield* serve(context)(push.list())
@@ -94,9 +87,8 @@ export class PushController {
      */
     @Implement(pushContract.getStats)
     getStats() {
-        return implement(pushContract.getStats)
+        return procedure(pushContract.getStats)
             .use(requireAuth())
-            .use(PushDomainModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const push = yield* PushService
                 return yield* serve(context)(push.stats())
@@ -115,9 +107,8 @@ export class PushController {
      */
     @Implement(pushContract.sendTestNotification)
     sendTestNotification() {
-        return implement(pushContract.sendTestNotification)
+        return procedure(pushContract.sendTestNotification)
             .use(requireAuth())
-            .use(PushDomainModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const push = yield* PushService
 

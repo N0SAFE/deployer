@@ -1,4 +1,4 @@
-import { runSyncUnwrapped } from "@deployer/effect-core";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { AppError } from "@deployer/errors";
 import { Injectable, Logger, Inject } from '@nestjs/common'
 import { Pool } from 'pg'
@@ -38,7 +38,7 @@ export class DatabaseStartupGuard {
   ) {}
 
   async ensureDatabaseAvailable(pool: Pool): Promise<void> {
-    const url = runSyncUnwrapped(this.nodeConfigRepository.find())?.databaseUrl?.trim()
+    const url = (await runPromiseUnwrapped(this.nodeConfigRepository.find()))?.databaseUrl?.trim()
     if (!url) {
       this.logger.log('⏭ No database URL configured — skipping startup guard')
       return
@@ -142,8 +142,9 @@ export class DatabaseStartupGuard {
       if (info.State.Running) return false
       this.logger.log('🔄 Restarting stopped Postgres container...')
       await container.start()
+      const storedUrl = (await runPromiseUnwrapped(this.nodeConfigRepository.find()))?.databaseUrl ?? ''
       for (let i = 0; i < 30; i++) {
-        const r = await this.probeService.probe(runSyncUnwrapped(this.nodeConfigRepository.find())?.databaseUrl ?? '', { timeout: 2_000 })
+        const r = await this.probeService.probe(storedUrl, { timeout: 2_000 })
         if (r.reachable) return true
         await new Promise((r) => setTimeout(r, 1_000))
       }

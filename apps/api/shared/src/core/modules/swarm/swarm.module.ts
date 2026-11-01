@@ -29,13 +29,14 @@
  *     MeshCoreModule → SetupModule → CoreInitializationModule → SwarmCoreModule
  *                                                              → MeshCoreModule
  *
- * `MeshAgentModule` is a different thing (the node's mesh AGENT, below Swarm): it
+ * `MeshNodeModule` is a different thing (the node's mesh AGENT, below Swarm): it
  * has no dependencies but env, so importing it here cannot create a cycle, and it
  * is what tells Swarm which address to bind (see `meshAddress` below).
  */
 
-import { Inject, Injectable, Module, type InjectionToken, type OptionalFactoryDependency, type OnModuleDestroy, type OnModuleInit, type Provider } from "@nestjs/common";
+import { Inject, Injectable, type InjectionToken, type OptionalFactoryDependency, type OnModuleDestroy, type OnModuleInit, type Provider } from "@nestjs/common";
 import { Effect, Fiber } from "effect";
+import { createModuleContext } from "@deployer/nest-effect";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import {
@@ -59,8 +60,8 @@ import {
 import { splitManagedEnv } from "@deployer/env";
 import { NodeStateModule } from "../node-state/node-state.module";
 import { EnvModule, EnvService } from "../../../config/env/env.module";
-import { MeshAgentModule } from "../mesh-agent/mesh-agent.module";
-import { MeshAgentClient } from "../mesh-agent/mesh-agent.client";
+import { MeshNodeModule } from "../mesh-node/mesh-node.module";
+import { nodeDoorFromEnv } from "@deployer/mesh-client";
 
 const SWARM_SERVICES = Symbol("SWARM_SERVICES");
 
@@ -124,18 +125,18 @@ function isFullyDeploymentManaged(env: EnvService): boolean {
     );
 }
 
-@Module({
+export class SwarmCoreModule extends createModuleContext({
     // NodeStateModule supplies NodeConfigRepository + ClusterNodeRepository
     // (pure LOCAL SQLite reads — available before setup and before any global
     // Postgres, which is why the swarm core is setup-safe).
     imports: [
         NodeStateModule,
         EnvModule,
-        MeshAgentModule,
+        MeshNodeModule,
     ],
     providers: swarmProviders({
-        inject: [EnvService, MeshAgentClient],
-        options: (env: EnvService, mesh: MeshAgentClient): SwarmServicesOptions => ({
+        inject: [EnvService],
+        options: (env: EnvService): SwarmServicesOptions => ({
             metricsProvider: null,
             eventSink: null,
                 election: {
@@ -156,8 +157,8 @@ function isFullyDeploymentManaged(env: EnvService): boolean {
                     // the host does not have. Until then the package binds loopback,
                     // and re-anchors onto the mesh the first time a joiner needs it.
                     meshAddress: Effect.promise(async () => {
-                        const status = await mesh.status().catch(() => null);
-                        return status?.cluster?.interfaceUp === true ? status.cluster.address : null;
+                        const status = await nodeDoorFromEnv(env).status();
+                        return status?.interfaceUp === true ? status.meshAddress : null;
                     }),
                     // ── DOES THIS DEPLOYMENT RUN A SWARM AT ALL? ───────────────
                     // The plain `dev` profile is entirely compose-managed: every
@@ -170,5 +171,4 @@ function isFullyDeploymentManaged(env: EnvService): boolean {
         }),
     }),
     exports: [SwarmCluster, SwarmFleet, SwarmParticipation, SwarmJoinGrant, SwarmBootstrap, SwarmLeadership],
-})
-export class SwarmCoreModule {}
+}) {}

@@ -1,0 +1,120 @@
+# syntax=docker/dockerfile:1-labs
+# The node-agent SERVICE (`@deployer/svc-node-agent`) — the per-node agent that will
+# replace `Dockerfile.mesh-agent`'s compiled binary.
+#
+# Stages and cache mounts mirror `Dockerfile.mesh-agent` (see
+# infra/docker/builder/AGENTS.md), so the cache strategy is reviewed the same way.
+#
+# ── WHY SOURCE AND NOT A COMPILED BINARY ─────────────────────────────────────
+# The old agent is one `bun build --compile` executable, so its runner is bare
+# Alpine. This one is a normal workspace service: it resolves `@deployer/*`
+# packages through `node_modules` and is started the same way `bun run start`
+# starts it on a host. `turbo prune --docker` keeps `src/` in `out/full/`
+# (verified for the sibling services by `Dockerfile.app.dev`), so the image runs
+# `apps/api/services/node-agent/src/main.ts` directly — no `dist` step for the
+# service itself, only for the workspace packages it imports.
+#
+# ── OPT-IN, NOT THE DEFAULT ─────────────────────────────────────────────────
+# Setup and the API still drive the OLD agent's HTTP control API. Nothing runs
+# this image until the launcher is repointed; compose only makes the tag exist
+# (`build-svc-node-agent`, tag `${NODE_AGENT_IMAGE:-deployer-svc-node-agent:dev}`).
+
+FROM oven/bun:1.4.4-alpine AS base
+# ── BUILDKIT CACHE MOUNTS BREAK `install.globalStore` — TURN IT OFF ──────────
+# `bunfig.toml` sets `globalStore = true`, so `node_modules/.bun/<pkg>` would
+# point at an absolute path UNDER the bun cache mount. A BuildKit cache mount is
+# not committed to the image layer, so those links ship without their targets.
+# The env var overrides bunfig.toml. See AGENTS.md → "One bun download cache".
+ENV BUN_INSTALL_GLOBAL_STORE=0
+RUN apk add --no-cache libc6-compat
+# The explicit `id` matters because the cache id DEFAULTS TO THE MOUNT TARGET:
+# without it this file gets its own download cache instead of the shared one.
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
+    bun install -g turbo@^2
+WORKDIR /app
+
+FROM base AS pruner-json
+COPY turbo.json package.json ./
+COPY bun.lock* ./
+COPY --parents **/package.json ./
+# `@deployer/svc-node-agent`, NOT `svc-node-agent`: the scope is a WORKSPACE
+# PACKAGE NAME. `turbo prune svc-node-agent` fails with "Invalid scope. Package
+# with name svc-node-agent in `package.json` not found."
+RUN --mount=type=cache,target=/root/.cache/turbo turbo prune @deployer/svc-node-agent --docker
+
+FROM base AS pruner-full
+COPY --from=pruner-json /app/out/json/ ./
+# `tooling` IS INCLUDED: the workspace globs reach it, and the prune needs the
+# shared config/pkg-build packages there to resolve the graph.
+RUN --mount=type=bind,target=/src \
+  --mount=type=cache,target=/root/.cache/turbo \
+  cp /src/turbo.json . && \
+  cp /src/bun.lock* . 2>/dev/null || true ; \
+  tar -C /src -cf - apps packages tooling 2>/dev/null | tar -xf - 2>/dev/null || true ; \
+  turbo prune @deployer/svc-node-agent --docker && \
+  # THE PRUNING TURBO IS NOT THE BUILDING TURBO — see AGENTS.md, "The pruning
+  # turbo write the turbo.json the build parses". `turbo prune` re-serialises
+  # turbo.json with a `futureFlags` snapshot taken from ITS OWN version, and this
+  # stage runs the `turbo@^2` global install while the build runs the
+  # LOCKFILE-PINNED turbo from node_modules.
+  cp /app/turbo.json /app/out/full/turbo.json
+
+FROM base AS builder
+COPY --from=pruner-full /app/out/full/ .
+# The ORIGINAL lockfile, not the pruned one — `turbo prune` corrupts nested
+# resolutions (see Dockerfile.app.dev's installer stage for the measured failure).
+COPY --from=pruner-full /app/bun.lock ./bun.lock
+# ── WHY THE ROOT `scripts/` DIRECTORY ───────────────────────────────────────
+# `bun ci` runs the root `postinstall`,
+# `scripts/link-workspace-self-references.ts`, which creates the
+# `node_modules/<own-name> -> ../..` self-link that `bun install` never makes.
+# `turbo prune` keeps only what the target needs and a root script is not one of
+# its dependencies, so without this COPY the install dies with
+# `Module not found "scripts/link-workspace-self-references.ts"`.
+COPY scripts ./scripts
+# ── FULL INSTALL, NOT `--production` ────────────────────────────────────────
+# The service imports `@deployer/mesh-service` and `@deployer/service-client`,
+# which its manifest lists under devDependencies today. A production install
+# would delete them and the agent would fail at startup. Drop the `bun ci` for
+# `bun ci --production` only after those move to `dependencies`.
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared bun ci
+# The workspace packages publish `dist/` and their `exports` point at it, so they
+# are built here; the agent itself is NOT built — it runs from `src/` (see the
+# header). Same filter shape as `Dockerfile.app.dev`'s `baked` mode.
+RUN --mount=type=cache,id=deployer-turbo-cache,target=/turbo-cache,sharing=shared \
+    --mount=type=secret,id=turbo_token,env=TURBO_TOKEN,required=false \
+    --mount=type=secret,id=turbo_team,env=TURBO_TEAM,required=false \
+    --mount=type=secret,id=turbo_api,env=TURBO_API,required=false \
+    --mount=type=cache,target=/root/.cache bunx turbo run build --cache-dir=/turbo-cache \
+    --filter=@deployer/svc-node-agent... --filter=!@deployer/svc-node-agent
+
+FROM base AS runner
+# `wireguard-tools` is `wg`, `iproute2` is `ip`: the agent drives both. There is
+# no `EXPOSE`: the agent joins the HOST network namespace (and holds NET_ADMIN),
+# so its port 3106 and the `/mesh/ws` websocket are host-level.
+RUN apk add --no-cache wireguard-tools iproute2 libc6-compat ca-certificates
+# Pruned workspace + the installed tree, in one COPY: the agent resolves its
+# `@deployer/*` imports through `node_modules` at runtime. COPY preserves
+# symlinks, which the isolated linker's `.bin` entries need.
+COPY --from=builder /app /app
+# State (SQLite identity/roster, `wireguard.conf`) lives here: `NODE_AGENT_DATA_DIR`
+# defaults to it, and the local socket defaults to `run/agent.sock` under it.
+VOLUME /var/lib/deployer/node-agent
+# ── `WORKDIR` IS THE PACKAGE, NOT `/app`, AND THAT IS LOAD-BEARING ──────────
+# Bun discovers `tsconfig.json` from the WORKING DIRECTORY, not from the entry
+# file. With CWD `/app` it read the ROOT tsconfig, which does not set
+# `experimentalDecorators`, so every Nest decorator was applied with the TC39
+# signature and the agent died at import with:
+#
+#   TypeError: undefined is not an object (evaluating 'descriptor.value')
+#     at @nestjs/common/decorators/http/request-mapping.decorator.js:15:65
+#
+# From the package directory bun reads THIS package's tsconfig (which extends
+# `@deployer/config-typescript/nestjs` and enables the legacy decorators), i.e.
+# exactly what `bun run start` does on a host. Verified: boot proceeds through
+# `NestFactory` and the module graph.
+WORKDIR /app/apps/api/services/node-agent
+# Relative, because the working directory is already the package (the same
+# command `package.json`'s `start` script runs).
+CMD ["bun", "--bun", "src/main.ts"]
+

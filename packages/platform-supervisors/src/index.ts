@@ -113,6 +113,16 @@ export type { LocalDbDeps, LocalDbSupervisor, LocalSqlite } from "./local-db/loc
 export { LOCAL_DB_SUPERVISOR_ID, localDbProcessInfoSchema, localDbSupervisorPayloadSchema } from "./local-db/schemas";
 export type { LocalDbProcessInfo, LocalDbSupervisorPayload } from "./local-db/schemas";
 export { EntryPortConflict } from "./errors";
+export { makeNodeAgentSwarmSupervisor } from "./node-agent/node-agent-supervisor";
+export type { NodeAgentSwarmConfig, NodeAgentSwarmDeps, NodeAgentSwarmSupervisor } from "./node-agent/node-agent-supervisor";
+export { NODE_AGENT_SWARM_SERVICE_NAME, nodeAgentSwarmServiceName, nodeAgentSwarmSpec } from "./node-agent/node-agent-swarm-spec";
+export type { NodeAgentSwarmSpecOptions } from "./node-agent/node-agent-swarm-spec";
+export {
+	NODE_AGENT_SWARM_SUPERVISOR_ID,
+	nodeAgentSwarmProcessInfoSchema,
+	nodeAgentSwarmSupervisorPayloadSchema,
+} from "./node-agent/schemas";
+export type { NodeAgentSwarmProcessInfo, NodeAgentSwarmSupervisorPayload } from "./node-agent/schemas";
 export {
 	HANDOVER_POLL_MS,
 	makeTraefikSupervisor,

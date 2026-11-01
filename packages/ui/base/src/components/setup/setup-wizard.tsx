@@ -12,6 +12,7 @@ import { LocalAccountStep } from "@deployer/ui/components/setup/steps/local-acco
 import { LocalDatabaseStep } from "@deployer/ui/components/setup/steps/local-database-step"
 import { ClusterStep } from "@deployer/ui/components/setup/steps/cluster-step"
 import { JoinClusterStep } from "@deployer/ui/components/setup/steps/join-cluster-step"
+import { MeshStep } from "@deployer/ui/components/setup/steps/mesh-step"
 import {
   foundingDraftToSelection,
   joinDraftToSelection,
@@ -164,6 +165,13 @@ function SetupWizardContent({ api }: SetupWizardProps) {
   const labels = state.mode === "remote" ? remoteLabels : state.mode === "local" ? localLabels : defaultLabels
   const { current, total } = useMemo(() => getStepIndex(state), [state])
 
+  // The mesh card is SETUP-ONLY: a host without the node door (the dashboard's
+  // wizard) has no agent to ask, so the section simply does not render there.
+  const meshApi =
+    api.useMeshStatus && api.joinMesh && api.issueMeshToken
+      ? { useMeshStatus: api.useMeshStatus, joinMesh: api.joinMesh, issueMeshToken: api.issueMeshToken }
+      : null
+
   const handleModeContinue = useCallback((mode: "local" | "remote") => {
     setState((s) => ({
       ...s,
@@ -307,7 +315,23 @@ function SetupWizardContent({ api }: SetupWizardProps) {
         )}
       >
         {state.step === "mode" ? (
-          <ModeStep initialMode={state.mode} onContinue={handleModeContinue} />
+          <>
+            <ModeStep initialMode={state.mode} onContinue={handleModeContinue} />
+            {/* An EXPANDABLE section rather than a step: joining a swarm is
+                optional — a standalone node is a legitimate install — and a
+                step would force every operator through it and shift the
+                indicator on both branches. */}
+            {meshApi ? (
+              <details className="mt-7 border-t border-border/60 pt-5">
+                <summary className="cursor-pointer text-sm text-muted-foreground transition-colors hover:text-foreground">
+                  Mesh network — view this node&apos;s mesh state or join a swarm
+                </summary>
+                <div className="mt-4">
+                  <MeshStep api={meshApi} />
+                </div>
+              </details>
+            ) : null}
+          </>
         ) : null}
 
         {state.step === "remote-token" ? (

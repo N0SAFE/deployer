@@ -31,6 +31,8 @@ export type DockerTerminalSessionsShape = {
     Awaited<ReturnType<TerminalSessionManager["closeContainerTerminalSession"]>>,
     unknown
   >;
+  /** The session ids this replica holds: announced as mesh keys so a call about a session reaches the node that owns it. */
+  readonly sessionIds: () => readonly string[];
   /** Close every open session and clear their timers (the application is shutting down). */
   readonly shutdown: Effect.Effect<void>;
 };
@@ -53,6 +55,7 @@ export class DockerTerminalSessions extends Context.Service<DockerTerminalSessio
       events: (input) => Effect.try({ try: () => manager.listContainerTerminalSessionEvents(input), catch: (error) => error }),
       sendInput: (input) => Effect.tryPromise({ try: () => manager.sendContainerTerminalInput(input), catch: (error) => error }),
       close: (input) => Effect.tryPromise({ try: () => manager.closeContainerTerminalSession(input), catch: (error) => error }),
+      sessionIds: () => manager.sessionIds(),
       shutdown: Effect.sync(() => {
         manager.shutdown();
       }),

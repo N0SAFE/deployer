@@ -5,6 +5,7 @@ import express from "express";
 import type { INestApplication, Type } from "@nestjs/common";
 
 import { buildAllowedOrigins, resolveCorsDecision, CORS_ALLOWED_HEADERS } from "../core/utils/cors.utils";
+import { type RequirementsMet } from "@deployer/nest-effect";
 import { logger } from "@deployer/logger";
 import { PreflightService } from "./preflight/preflight.service";
 import type { PreflightDependency, PreflightReport } from "./preflight/types";
@@ -137,9 +138,15 @@ export async function createCompileContext(rootModule: Type<unknown>) {
  * and reported as an unhandled boot failure — which reads like a code defect
  * rather than "the database is not up yet".
  */
-export async function bootstrapApiServer(options: {
-	rootModule: Type<unknown>;
+export async function bootstrapApiServer<M extends Type<unknown>>(options: {
+	/** The composition root, accepted only once its requirement set is empty. */
+	rootModule: M & RequirementsMet<M>;
 	port: number;
+	/**
+	 * The interface to bind. Defaults to every interface (`0.0.0.0`); an app whose peer door must stay off the public
+	 * one binds the node's own address instead.
+	 */
+	host?: string;
 	name: string;
 	/**
 	 * Dependency set to prove before serving. Omit for an app with none, in which
@@ -156,8 +163,8 @@ export async function bootstrapApiServer(options: {
 	const preflight = app.get<PreflightService | null>(PreflightService, { strict: false });
 
 	// Bind BEFORE the checks. See the ordering note above.
-	await app.listen(options.port, "0.0.0.0");
-	logger.scope(options.name).info(`🚀 ${options.name} listening on :${String(options.port)}`);
+	await app.listen(options.port, options.host ?? "0.0.0.0");
+	logger.scope(options.name).info(`🚀 ${options.name} listening on ${options.host ?? "0.0.0.0"}:${String(options.port)}`);
 
 	if (preflight !== null) {
 		const report = await preflight.run();

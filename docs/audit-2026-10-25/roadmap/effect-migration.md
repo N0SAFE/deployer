@@ -3,7 +3,7 @@
 
 ## Summary
 The operator is migrating the service tier to a hybrid Effect-TS architecture: Nest keeps construction/modules/lifecycle, Effect runs handler logic through `@orpc/effect` `.effect()` handlers and the `@deployer/nest-effect` bridge (6 source files, 3 root exports). `svc-health` is rewritten (but copied the `uptime / 1000` and `supervisors: []` bugs and has no explicit authz stance), `svc-identity` is mid-rewrite (user domain only, 7 of 34 procedures; analytics/push/permission untouched; error model collapsed into one opaque `UserServiceFailure`). What exists is a proof of concept, not yet a template: sample and package diverged (Nest 12 / TS 5.9 vs Nest 11 / TS 7), no central error mapping, no request-scoped actor/correlation context, service methods leak `R`, no transaction/cancellation/streaming/logging/OTel story, no docs, and the two version gates `@effect/vitest` (needs Vitest 5) and oRPC 2 beta are unresolved. Recommendation from the audits: finish a "Template v1" increment, then migrate `project` (first service with transactions), BFF orchestrators, fleet, runtime; mesh-agent in parallel on an Effect-native template. Effect also enables the roadmap substrates (SUB-A authz middleware, SUB-B interruption-based worker, SUB-C Stream consumers, Schedule/Cron probes, `Config.redacted`) but every module beyond core (workflow, cluster, persistence, process, sql, http-api, rpc) is `@stability unstable`, so those are prototypes first.
-Counts: 297 items = P0 9 / P1 154 / P2 101 / P3 33; FIX 43 / ENHANCE 71 / NEW 183 (plus 38 decisions, all 38 resolved 2026-10-26 (17 earlier, 21 in the decisions pass); 13 items are `[~]`: 5 avoid-list wontfix-unless and 8 obsolete under the full-Effect decision: EFF-005, 006, 007, 010, 021, 046, 068, 100). Operator decision 2026-10-26: FULL Effect Layer architecture (services as Layers, Effect owns the process, Nest = transitional shell then shrinking island, oRPC stays); see `effect-target-architecture.md`, `effect-layers-catalog.md`, `docs/qa/effect/architecture.md`.
+Counts: 306 items = P0 9 / P1 159 / P2 105 / P3 33; FIX 45 / ENHANCE 77 / NEW 184 (plus 39 decisions, all 38 resolved 2026-10-26 (17 earlier, 21 in the decisions pass); 13 items are `[~]`: 5 avoid-list wontfix-unless and 8 obsolete under the full-Effect decision: EFF-005, 006, 007, 010, 021, 046, 068, 100). Operator decision 2026-10-26: FULL Effect Layer architecture (services as Layers, Effect owns the process, Nest = transitional shell then shrinking island, oRPC stays); see `effect-target-architecture.md`, `effect-layers-catalog.md`, `docs/qa/effect/architecture.md`.
 > Full-Effect pass: 2026-10-26 — 138 items added (EFF-159..EFF-296), 144 re-scoped (Design-impact; 3 of them also Priority-review), 8 obsolete; 21 decisions added (DEC-EFF-18..38); EFF-001/012/014 promoted to P0 (Priority-review: P0 SEC/AUTH items depend on them).
 > Coverage pass: 2026-10-26 — created from the three Effect reports; every finding, risk, recommendation, checklist point, outline point, version problem, open decision (D1-D13), prototype step and new-finding (N-1..N-11, D-1..D-3) is an item or is listed in the `Do` of the item that owns it. Spot-verified in code: `collectEffectLayer` first-wins duplicate skip and `instance === undefined` skip; `EffectRuntime` lazy `build()`; `effect` is a dependency (not peer) in `packages/nest/effect/package.json`; `health.controller.ts:72` `uptime: process.uptime() / 1000`, `:77` `supervisors: []`, no `requireAuth`/`AllowAnonymous` in that file; `PushService` has no `@Injectable()` and `import type { PushRepository }` (`push.service.ts:4`); `health.module.ts:58` `heartbeats` defined; `orpc-host.ts:144` injects `REQUEST`; sample `auth.ts:19` hard-coded default secret; health `build` uses `--packages=external`; root workspaces globs exclude `samples/`; catalog `vitest ^4.1.9`, `@orpc/openapi-client 1.14.6` beside `2.0.0-beta.46`, `@nestjs/core ^11.1.27` vs sample `^12.2.0`, `better-auth 1.7.7` vs `^1.7.13`; `docs/architecture/13-readiness-and-preflight.md` already exists so the conventions doc must be `14-effect-services.md`. Identity files drift (the error mapper moved to `controllers/user.error-mapper.ts`, `user.failures.ts` exists): re-check before acting on identity items.
 
@@ -77,18 +77,20 @@ Counts: 297 items = P0 9 / P1 154 / P2 101 / P3 33; FIX 43 / ENHANCE 71 / NEW 18
   - Done when: `bun why effect` shows one copy; manifest has no dependency+peer duplicates.
   - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#4.6, #7.2
   - Design-impact (2026-10-26): also applies to all `@deployer/effect-*` packages and to `@orpc/*` (exact peers); the single-copy CI check is `EFF-169`.
-- [ ] `EFF-012` **Central error mapping: install `effect/wrap` and one `_tag -> ORPCError` table (`toOrpcError`) in `@deployer/nest-effect`, targeting `standardErrorActions`** · NEW · P0 · M · Deps: `EFF-014`, `DEC-EFF-2` · See also: `EFF-080`, `EFF-155`
+- [x] `EFF-012` **Central error mapping: install `effect/wrap` and one `_tag -> ORPCError` table (`toOrpcError`) in `@deployer/nest-effect`, targeting `standardErrorActions`** · NEW · P0 · M · Deps: `EFF-014`, `DEC-EFF-2` · See also: `EFF-080`, `EFF-155`
   - Why/Problem: `@orpc/effect` exposes `effect/wrap` (zero usages repo-wide); three styles today: sample per-error `catchTag` to `errors.X`, health `FAILED_DEPENDENCY(error.message)` helper, identity opaque failure + `instanceof` ladder (new error types fall into `INTERNAL_SERVER_ERROR`). Widened code types lose the compile-time contract alignment the sample proves.
   - Do: shared mapper keyed by `_tag` (`NotFound -> NOT_FOUND`, `Conflict -> CONFLICT`, `Forbidden -> FORBIDDEN`, ...) applied once through `effect/wrap` (or `.pipe(toOrpc(errors))`); keep domain errors transport-free; do NOT use `Effect.provide` inside the wrap hook (rebuilds layers per call); exhaustive test.
   - Done when: health and identity controllers contain no hand-written mapping; an unmapped tag is a compile or test error.
-  - Status: todo · Verified-in-code: yes · Source: effect-architecture.md#5.3, #7.2, effect-ecosystem-research.md#2.13
+  - Status: done (2026-10-30) · Verified-in-code: yes
+  - Evidence: one mapper by kind (`ACTION_BY_KIND: Record<ErrorKind, ErrorAction>`) in `@deployer/effect-orpc/map-domain-error.ts`, applied once in `handle`; a seventh kind is a compile error; no `catchTag`/`catchAll` remains in any controller (grep); `map-domain-error.spec.ts` + `handle.spec.ts`.
   - Priority-review (2026-10-26): promoted P1 to P0: P0 item `SEC-057` lists `EFF-012` in Deps (verified in auth-security.md).
   - Design-impact (2026-10-26): re-scoped. Mapping is BY KIND (six kinds from `standard-errors.ts`, exhaustive switch) with `domainError(tag, kind)` in `@deployer/effect-core` (`EFF-182`), applied once in the `handle` wrapper (`EFF-181`); no per-tag table and no per-controller `effect/wrap` installs.
-- [ ] `EFF-013` **Defect policy: what a non-declared failure returns (500 body), how it is logged, correlation id, cause preserved; configure `RethrowHandlerPlugin` accordingly** · NEW · P1 · S · Deps: `EFF-012`, `EFF-014`, `EFF-024` · See also: `EFF-062`
+- [x] `EFF-013` **Defect policy: what a non-declared failure returns (500 body), how it is logged, correlation id, cause preserved; configure `RethrowHandlerPlugin` accordingly** · NEW · P1 · S · Deps: `EFF-012`, `EFF-014`, `EFF-024` · See also: `EFF-062`
   - Why/Problem: anything that is not an `ORPCError` is rethrown raw (`Cause.squash`); the sample surfaces it as 500 plus a console line; identity returns a bare `INTERNAL_SERVER_ERROR` with a `cause`; no policy for logging or ids. Infrastructure errors (DB down) should be `Effect.orDie` with a logged cause.
   - Do: define 500 body shape with correlation id, log the full `Cause`, never leak `cause`, document `orDie` use for infra errors; test.
   - Done when: a forced defect returns the documented body and one structured log line with the id.
-  - Status: todo · Verified-in-code: partial · Source: effect-architecture.md#3.3, #5.3, #7.1.6
+  - Status: done (2026-10-30) · Verified-in-code: yes
+  - Evidence: `handle` answers a defect with `INTERNAL_SERVER_ERROR({ data: { correlationId } })`, logs the full `Cause` through `onDefect`, never leaks it, and leaves interruption to oRPC; `handle.spec.ts` covers the body and the log. `RethrowHandlerPlugin` was not needed: the host's `transformNestJSErrorToOrpcError` interceptor plays that role.
   - Design-impact (2026-10-26): re-scoped. The defect policy lives in `handle` (`EFF-181`): 500 with `data.correlationId`, full `Cause` logged, never the cause to the client, infra errors `orDie`.
 - [ ] `EFF-014` **Request-scoped Effect context: `CurrentActor`, `CorrelationId`, request `Logger` as Effect services provided per request via `effect/wrap`; ban passing raw oRPC `context` into services** · NEW · P0 · M · Deps: `EFF-004` · See also: `EFF-119`, `SEC-001`, `OBS-005`, `IDEA-067`
   - Why/Problem: `EffectRuntime.context()` is process-global; the actor is threaded by hand (`actorFromContext(context)` in every identity handler, first argument of each service method), not enforced by types, no correlation id, no per-request logger or tracer (N-8; blocker 1 for identity).
@@ -333,17 +335,19 @@ Counts: 297 items = P0 9 / P1 154 / P2 101 / P3 33; FIX 43 / ENHANCE 71 / NEW 18
   - Design-impact (2026-10-26): risk R5 mitigation: generator (`EFF-170`) plus one Effect reviewer per PR for the first three services (health, identity, project).
 
 ### Health rewrite follow-ups
-- [ ] `EFF-054` **Fix `svc-health` `uptime` in the service (not the controller) and add a test that fails on the bug** · FIX · P1 · S · Deps: none · See also: `OBS-028`, `OBS-086`, `EFF-055`
+- [x] `EFF-054` **Fix `svc-health` `uptime` in the service (not the controller) and add a test that fails on the bug** · FIX · P1 · S · Deps: none · See also: `OBS-028`, `OBS-086`, `EFF-055`
   - Why/Problem: `health.controller.ts:72` `uptime: process.uptime() / 1000` is carried over into the Effect handler (reports 1000x too small, contract says seconds); the new spec "reports uptime in seconds" asserts only `> 0`, which the bug satisfies (N-1). The line moved from `:64` to `:72`.
   - Do: add `HealthService.report()` returning a domain object with uptime seconds, stub the clock in the test with an exact expectation; delete the `/1000`.
   - Done when: the new test fails on the old code and passes now; `OBS-028`/`OBS-086` ticked.
-  - Status: todo · Verified-in-code: yes · Source: effect-health-identity.md#1 row 15, #5, #6 N-1, #7.1
+  - Status: done (2026-10-30) · Verified-in-code: yes · Source: effect-health-identity.md#1 row 15, #5, #6 N-1, #7.1
+  - Evidence: `HealthService.report()` returns `uptime` in seconds from an injected `UptimeSource` tag; the failing-first test asserts exactly 42 and failed on the old code (`expected 0.042 to be 42`); health 5 files / 17 tests; contract untouched.
   - Design-impact (2026-10-26): done inside step 1 (`EFF-198`): `HealthService.report()` domain object on Layers; keep the failing-first test.
-- [ ] `EFF-055` **Move business-ish logic out of the health controller into `HealthService`: `status === "up" ? "ok" : "degraded"` (twice), `service: "svc-health"` literal (twice, plus fixtures), uptime computation** · FIX · P1 · S · Deps: none · See also: `EFF-054`
+- [x] `EFF-055` **Move business-ish logic out of the health controller into `HealthService`: `status === "up" ? "ok" : "degraded"` (twice), `service: "svc-health"` literal (twice, plus fixtures), uptime computation** · FIX · P1 · S · Deps: none · See also: `EFF-054`
   - Why/Problem: breaks "no logic in controllers"; hard-coded values in controllers are a listed anti-pattern; the uptime bug lives there.
   - Do: service returns a domain report; controller only maps; service name from config/env.
   - Done when: controller contains no mapping logic; one source for service name.
-  - Status: todo · Verified-in-code: partial · Source: effect-health-identity.md#2, effect-architecture.md#6
+  - Status: done (2026-10-30) · Verified-in-code: yes · Source: effect-health-identity.md#2, effect-architecture.md#6
+  - Evidence: the `up/degraded` mapping, the `svc-health` name and the uptime computation moved into `HealthService.report()`; the controller only maps to the contract shapes; `supervisors` stays a controller field until `EFF-056`.
   - Design-impact (2026-10-26): done inside step 1 (`EFF-198`); the service name comes from `AppConfig` (`EFF-211`).
 - [ ] `EFF-056` **Decide `supervisors` in `svc-health.detailed`: BFF-side roll-up, service token call to the BFF, or drop the field (supervisors run in the BFF process)** · FIX · P2 · S · Deps: `ARCH-056`, `DEC-EFF-14` · See also: `OBS-029`, `ARCH-065`
   - Why/Problem: `health.controller.ts:77` `supervisors: []` is a stub; svc-health cannot reach `SupervisorOrchestratorService` (N-3); decide before anyone "fixes the stub".
@@ -381,11 +385,12 @@ Counts: 297 items = P0 9 / P1 154 / P2 101 / P3 33; FIX 43 / ENHANCE 71 / NEW 18
   - Done when: specs green in the e2e harness; a missing alias provider fails them.
   - Status: todo · Verified-in-code: partial · Source: effect-health-identity.md#1 row 22, #2, #7.3
   - Design-impact (2026-10-26): re-scoped. HTTP-level tests via `TestApp` (`EFF-261`) and the wiring spec (`EFF-186`).
-- [ ] `EFF-062` **Log the dropped `HealthCheckFailed.cause` at the controller boundary (server-side log with cause, not only `FAILED_DEPENDENCY(error.message)`)** · FIX · P1 · S · Deps: `EFF-013`, `EFF-024` · See also: `EFF-012`
+- [x] `EFF-062` **Log the dropped `HealthCheckFailed.cause` at the controller boundary (server-side log with cause, not only `FAILED_DEPENDENCY(error.message)`)** · FIX · P1 · S · Deps: `EFF-013`, `EFF-024` · See also: `EFF-012`
   - Why/Problem: N-4: the one domain error loses its cause; no log or trace of why the registry failed.
   - Do: covered by the defect/error policy; add a spec that the cause is logged.
   - Done when: failing registry produces a log line with the cause.
-  - Status: todo · Verified-in-code: partial · Source: effect-health-identity.md#1 row 18, #6 N-4
+  - Status: done (2026-10-30) · Verified-in-code: yes
+  - Evidence: `handle` now reports a domain error's `cause` server-side (`onDomainCause`, default one `console.error` line with tag + correlation id) and keeps it off the wire; new `handle.spec.ts` cases cover with and without a cause; `effect-orpc` 28/28 tests.
   - Design-impact (2026-10-26): re-scoped. Covered by the defect policy in `handle` (`EFF-181`) and the `dependency_missing` kind mapping (`EFF-182`).
 - [ ] `EFF-063` **Indicator parity: redis via `EnvService` (not raw `process.env.DEPLOYER_REDIS_URL`), env knobs for the 15 s refresh / 5 s per-check timeout / memory 0.95 / disk 0.05 thresholds, migrations indicator detecting pending journal entries** · ENHANCE · P2 · M · Deps: `EFF-028`, `ARCH-101` · See also: `ARCH-041`
   - Why/Problem: rows 8, 9, 11, 17, 7: constants only; the migrations check is "journal count > 0" (does not detect pending entries, ARCH-101).
@@ -448,17 +453,19 @@ Counts: 297 items = P0 9 / P1 154 / P2 101 / P3 33; FIX 43 / ENHANCE 71 / NEW 18
   - Status: todo · Verified-in-code: n/a · Source: effect-health-identity.md#5
 
 ### Identity rewrite follow-ups
-- [ ] `EFF-073` **SECURITY: role-hierarchy rule in `userRules` — an actor may not delete/ban/update-email on a target whose role >= theirs unless `superAdmin`; matrix tests** · FIX · P0 · S · Deps: none · See also: `AUTH-006`, `AUTH-045`, `SEC-001`
+- [x] `EFF-073` **SECURITY: role-hierarchy rule in `userRules` — an actor may not delete/ban/update-email on a target whose role >= theirs unless `superAdmin`; matrix tests** · FIX · P0 · S · Deps: none · See also: `AUTH-006`, `AUTH-045`, `SEC-001`
   - Why/Problem: N-7: `assertCanAdminister` is the only check for `delete`, `update` (non-role fields, email) and `setBanned` (`user.rules.ts:64`; `user.service.ts:46,63,93,173,194`); `assertRoleIsAssignable` guards only the NEW role, so an `admin` can delete/ban/change the email of a `superAdmin` (email change + password reset is an account-takeover path once a mail transport exists). Same gap `AUTH-006` fixes in Better Auth (AUTH-NEW-C).
   - Do: add the target-role comparison (needs a target lookup before authorize), keep error ordering consistent, add allow/deny matrix specs.
   - Done when: matrix spec shows admin cannot act on superAdmin or equal.
-  - Status: todo · Verified-in-code: yes · Source: effect-health-identity.md#4.3, #6 N-7, #5 AUTH-NEW-C
+  - Status: done (2026-10-30) · Verified-in-code: yes · Source: effect-health-identity.md#4.3, #6 N-7, #5 AUTH-NEW-C
+  - Evidence: `userRules.assertOutranks` (viewer < operator < admin < superAdmin, `superAdmin` bypass) applied after the target lookup in `update`, `setBanned` and `delete`; 27-case actor×target×action matrix plus rule specs; failing-first proved (7 red with the guard removed); identity 13 files / 247 tests.
   - Design-impact (2026-10-26): stays P0 and first: implement the hierarchy rule now as a pure rule with matrix tests on the current code; it becomes `UserPolicy` (`outranksOrIsSuper`, authz-authn-design.md 5.5) in step 3 (`EFF-200`).
-- [ ] `EFF-074` **`user.update` lacks `assertNotSelfDestruct` for `banned` (admin can ban themselves); the guarded `setBanned` is exposed by no controller** · FIX · P1 · S · Deps: none · See also: `EFF-073`
+- [x] `EFF-074` **`user.update` lacks `assertNotSelfDestruct` for `banned` (admin can ban themselves); the guarded `setBanned` is exposed by no controller** · FIX · P1 · S · Deps: none · See also: `EFF-073`
   - Why/Problem: `user.service.ts:138` only `assertRoleIsAssignable`; `setBanned` (line 164-174, applies the guard) is dead code.
   - Do: apply the self-destruct guard in `update` or expose `setBanned` as a procedure (contract change) and remove the field from `update`.
   - Done when: self-ban through any path is refused (spec).
-  - Status: todo · Verified-in-code: yes · Source: effect-health-identity.md#3, #4.3, #7.6
+  - Status: done (2026-10-30) · Verified-in-code: yes · Source: effect-health-identity.md#3, #4.3, #7.6
+  - Evidence: `update` refuses a `banned` change on self through `assertNotSelfDestruct` (matrix case included); `setBanned` keeps the guard and stays unexposed, so the contract is unchanged.
   - Design-impact (2026-10-26): moves to `UserPolicy`/`UserService` in step 3 (`EFF-200`); do not wait if a quick guard is cheaper.
 - [ ] `EFF-075` **Role at create is unreachable: contract has no `role` field and the controller does not pass `input.role`, but the service supports it — decide and align** · FIX · P2 · S · Deps: `DEC-EFF-15` · See also: `AUTH-024`
   - Why/Problem: `contracts/identity/modules/user/create.ts` omits role; service `assertRoleIsAssignable(actor, input.role)` is dead.
@@ -1554,6 +1561,74 @@ Counts: 297 items = P0 9 / P1 154 / P2 101 / P3 33; FIX 43 / ENHANCE 71 / NEW 18
   - Done when: each layer item carries its wave and a PR cannot land a layer without Test + first consumer (review rule).
   - Status: todo · Verified-in-code: n/a · Source: effect-layers-catalog.md#3, #8.2
 
+### Endpoint requirements (module-scoped Effect contexts, added 2026-10-30)
+> `procedure(contract).effect(body)` returns the `R` every handler yields; `createModuleContext` reads it off the
+> controller. Visibility is Nest's (own providers + imports' exports + globals); `bootstrapApiServer` accepts only a root
+> with an empty requirement set. Reference: [requirement-modules.md](../requirement-modules.md); runnable sample
+> `samples/api-sample/requirements-demo`.
+
+- [x] `EFF-298` **Endpoint requirements: package primitives, host plumbing and the health reference** · NEW · P1 · L · Deps: `EFF-001` · See also: `EFF-197`, `EFF-014`, `EFF-183`
+  - Why/Problem: `.use(Module[EffectContextOf])` was type-only and drifted; nothing compared what handlers used with what modules provided; `EffectRuntime.context()` gave every request every provider.
+  - Do: `procedure()` facade (`RequirementImplementer`, same generics as `implement`), module facts `[ExportsOf]`/`[AllServicesOf]`/`[GlobalServicesOf]`/`[UnmetRequirementsOf]`, `createGlobalModule`, `declareModule` with Nest-metadata claim validation, `assertRequirementsMet`, `EffectRuntime.contextFor`/`scopeReport`, `extraContext.resolve(executionContext, ...)`, `bootstrapApiServer` root gate; `svc-health` migrated (`procedure()`, `exports`, `contextFor`, explicit assert).
+  - Done when: health type-checks clean (131 files) and 13/13 tests pass; removing a provider fails `main.ts` with `Missing<[HealthController, HealthService]>`; `@deployer/nest-effect` 9/9 tests, types build, lint clean.
+  - Status: done · Verified-in-code: yes · Source: requirement-modules.md#3-#7
+
+- [x] `EFF-299` **Migrate `mesh-agent` to endpoint requirements** · ENHANCE · P2 · S · Deps: `EFF-298` · See also: `EFF-070`
+  - Why/Problem: smallest service and no database: proves `contextFor` before the heavy graphs.
+  - Do: `implement(` → `procedure(`, delete `.use(MeshDomainModule[EffectContextOf])`, flip its oRPC host to `contextFor`, `assertRequirementsMet` in `main.ts`.
+  - Done when: type-check clean, boot e2e passes, `[EffectContextOf]` has no consumer in the service.
+  - Status: done (2026-10-30) · Verified-in-code: yes · Source: requirement-modules.md#9
+  - Evidence: 4 controllers migrated (`directory`, `relay`, `access`, `roster`); `bun run type-check` clean (119 files); `bun --bun x vitest run src` 21 files / 143 tests pass; `grep EffectContextOf src` empty.
+
+- [x] `EFF-300` **Migrate `identity` to endpoint requirements** · ENHANCE · P1 · M · Deps: `EFF-298` · See also: `EFF-070`
+  - Why/Problem: five domain modules with no cross-domain imports: the first multi-module adoption and the first place `exports` matter.
+  - Do: codemod controllers, add `exports` where another module consumes a service, annotate anything `@Global()`, flip the host to `contextFor`, assert the root.
+  - Done when: every `Missing<[Controller, Service]>` is resolved by an import/export (not a widened annotation); e2e boot passes on the scoped context.
+  - Status: done (2026-10-30) · Verified-in-code: yes · Source: requirement-modules.md#9
+  - Evidence: 41 sites across 3 controllers (`user` 7, `push` 6, `analytics` 28); 183 files type-clean; 13 files / 206 tests (unit + e2e); `DatabasePort` moved to a global `DatabasePortModule` because root providers are invisible to child modules.
+
+- [x] `EFF-301` **Migrate `project` to endpoint requirements and measure the type-check** · ENHANCE · P1 · L · Deps: `EFF-298`, `EFF-300` · See also: `EFF-070`
+  - Why/Problem: ~40 endpoints in one controller: the worst case for `ControllerNeeds` and the `procedure()` facade.
+  - Do: same four steps; record `tsc --extendedDiagnostics --incremental false` before/after (the base config sets `incremental: true`, so a second run reads 0 instantiations and looks like a regression).
+  - Done when: type-check clean, e2e green, instantiations within +10% of the pre-migration baseline.
+  - Status: done (2026-10-30) · Verified-in-code: yes · Source: requirement-modules.md#8.9
+  - Evidence: 69 sites across 4 controllers; 281 files type-clean; 14 files / 181 tests; `ProjectDomainModule` exports `DnsProvider`/`ProjectStore`/`ProjectDb` for `ServiceController`; `DatabasePortModule` added; full-check diagnostics 7,284,840 instantiations (+0.47% vs un-migrated, +4.1% vs HEAD), 13.8 s.
+
+- [x] `EFF-302` **Migrate `runtime` and `fleet` to endpoint requirements** · ENHANCE · P2 · L · Deps: `EFF-298`, `EFF-301` · See also: `EFF-070`
+  - Why/Problem: the heaviest module graphs (dynamic `forRoot()` modules, cross-service imports); the scoped context is strictest here.
+  - Do: same four steps; run `EFFECT_SCOPE_REPORT=1` before each flip and compare with the `Missing` pairs.
+  - Done when: the scope report shows no out-of-scope service a handler actually uses; e2e green.
+  - Status: done (2026-10-30) · Verified-in-code: yes · Source: requirement-modules.md#9
+  - Evidence: fleet: 89 sites / 10 controllers, 376 files type-clean, 35 files / 287 tests, 6,789,870 instantiations (lower than before), `ProvidersModule` exports the six collaborators the two controllers reach, `DatabasePortModule` added, root converted to `createModuleContext` so the gate is live. runtime: 6 sites, 481 files type-clean, 527/530 tests (3 pre-existing environmental failures: `Bun is not defined` in `job-runner.spec.ts`, two e2e that fail on HEAD), `RuntimeDatabaseModule` added, root converted to `createModuleContext`.
+
+- [x] `EFF-303` **Migrate the BFF's `.effect()` endpoints** · ENHANCE · P2 · M · Deps: `EFF-298` · See also: `EFF-109`
+  - Why/Problem: the BFF composes screens; its 132 `.handler()` endpoints have no Effect requirements, so only its `.effect()` handlers count.
+  - Do: codemod those controllers, flip the host, assert the root.
+  - Done when: BFF e2e green on the scoped context.
+  - Status: done (2026-10-30) · Verified-in-code: yes · Source: requirement-modules.md#9
+  - Evidence: the BFF has no `.effect()` controllers (`grep -c '\.effect(' apps/api/bff/src --include='*.controller.ts'` = 0): its 132 `.handler()` endpoints never had Effect requirements, so nothing to migrate and its host keeps `context()`.
+
+- [x] `EFF-304` **Delete the legacy `[EffectContextOf]` union and every `.use(Module[EffectContextOf])` call site** · ENHANCE · P2 · S · Deps: `EFF-299`, `EFF-300`, `EFF-301`, `EFF-302`, `EFF-303`
+  - Why/Problem: `[EffectContextOf]` deliberately keeps the pre-migration view (own providers + every import's context) so un-migrated services compile; keeping it forever means two visibility models.
+  - Do: remove the legacy alias from `create-module-context.ts`, delete the call sites, keep `procedure()` as the only endpoint API.
+  - Done when: no `.use(Module[EffectContextOf])` remains and the audit is the only path.
+  - Status: done (2026-10-30) · Verified-in-code: yes · Source: requirement-modules.md#4
+  - Evidence: the legacy alias and `ImportedContext` are deleted; `[EffectContextOf]` is now `VisibleServices` (own providers + imports' exports); no `EffectContextOf` remains under `apps/`; the package spec adds the `“does not grant a provider its import does not export”` case (10/10 tests).
+
+- [x] `EFF-305` **Annotate every existing `@Global()` module and add a drift guard** · FIX · P1 · S · Deps: `EFF-298`
+  - Why/Problem: the type side cannot see a decorator, so a `@Global()` class with no annotation reports false `Missing` in every audit. The audit's first count (six) undercounted: `bun run check:global-modules` found **23**.
+  - Do: `declareModule(..., { global: true })` on each class (rename to `<Name>NestModule`, export the annotated const); for the two with `static forRoot()` (`AppLifecycleModule`, `SupervisorsModule`) annotate the returned `DynamicModule` too; add a guard that fails when a `@Global()` class has no annotation.
+  - Done when: the guard is clean and no module reports a false `Missing` for a global service.
+  - Status: done (2026-10-30) · Verified-in-code: yes · Source: requirement-modules.md#8.3
+  - Evidence: all 23 annotated; `bun --bun run check:global-modules` prints OK; CI step added after `check:di-imports`; type-check clean in shared (372), setup (74), bff (311) and all six services.
+
+- [x] `EFF-306` **Align every `serviceOver` shape's `R` with its real requirements** · FIX · P1 · M · Deps: `EFF-298` · See also: `EFF-299`, `EFF-302`
+  - Why/Problem: `serviceOver(Collaborator, make)` resolved the collaborator at call time while the `*Shape` declared `R = Ambient`/`never`, so `RequiredBy` could not see ports and the audit passed where the runtime failed (`Service not found: <svc>/DatabasePort`).
+  - Do: declare the collaborator and its transitive `R` on every Effect-returning method (third type argument — never `E`); keep the shape a supertype of `make`'s implementation; widen spec helper callbacks instead of casting.
+  - Done when: the gate sees a port — un-globalising the port module and dropping the module's extra key yields `Missing<[UserController, DatabasePort]>` (identity), `Missing<[FleetController, FleetDatabasePort]>` and `Missing<[PlatformManagedWebController, FleetDb]>` (fleet).
+  - Status: done (2026-10-30) · Verified-in-code: yes · Source: requirement-modules.md#11
+  - Evidence: identity 8 shapes (206 tests), fleet 21 (287 tests, 7,005,506 instantiations, +3.2%), runtime 4 (527/530, the same 3 pre-existing failures, 10,925,099 instantiations); every app type-checks clean.
+
 ## Transformers T1-T22 (added 2026-10-26)
 > Small composable helpers that move a value or computation across a boundary; each boundary crossed in one named place, tested once, lint-enforced as the only allowed way. Source: `effect-layers-catalog.md` section 6.
 
@@ -1777,6 +1852,7 @@ Counts: 297 items = P0 9 / P1 154 / P2 101 / P3 33; FIX 43 / ENHANCE 71 / NEW 18
 - [x] DEC-EFF-35 (D-10, target) BFF HTTP edge: keep Nest for Better Auth routes and setup SSE until step 8, or move them earlier? — recommendation/default: step 8; affects `EFF-205`, `EFF-282`. Resolved: 2026-10-26 accepted: step 8.
 - [x] DEC-EFF-36 (D-11, target) Idempotency-key contract for write procedures called by workers (header name, storage, TTL) — recommendation/default: `Idempotency-Key` header, 24 h, table `idempotency_keys` per owner; affects `EFF-222`, `EFF-239`. Resolved: 2026-10-26 accepted as recommended.
 - [x] DEC-EFF-37 (D-12, target) Naming: confirm the `@deployer/effect-*` package scope (repo rename to `@deployer` is done per `scripts/migrate-repo-scope.ts` but some code still imports `@repo/*`, cutover section 1) — recommendation/default: `@deployer/effect-*`; needed by step 0; affects `EFF-160`..`EFF-165`. Resolved: 2026-10-26 accepted: `@deployer/effect-*`, but first verify no code still imports `@repo/*` (check item added: `EFF-297`).
+- [x] DEC-EFF-39 (requirements) Endpoint requirements inferred from `.effect()` and Nest visibility (own providers + imports' exports + globals), with the request context scoped per controller — vs the app-wide `EffectRuntime.context()` and the per-endpoint `.use(Module[EffectContextOf])` declaration? — recommendation: infer + scope; affects `EFF-298`..`EFF-305`. Resolved: 2026-10-30 accepted: infer from the handler, audit with `[controller, services]` pairs at the root, `contextFor(controller)` at request time, `context()` kept for seeds and boot.
 - [x] DEC-EFF-38 (D-A..D-Q, target 12.1) Confirm the decisions made by the target-architecture doc itself (Effect owns the process; `HttpEdge` end state; errors by kind; `CurrentActor` without default and `Ambient` in `R`; per-request context merged by middleware; tag + `Live` in one file; transaction design with `CurrentTx` and savepoints; services never migrate at boot and verify the journal head; EdDSA claims with 30 s TTL; services drop Better Auth; five `effect-*` packages; Vitest 5 first; hand-rolled `runMain`; probes/readiness replace `HealthRegistry`; resilience classes and in-house `CircuitBreaker`; mandatory `meta.authz`; polled outbox consumers) — recommendation: accept as written; the operator accepted the headline (full Effect) but not each sub-decision explicitly; recorded in `docs/qa/effect/architecture.md`. Resolved: 2026-10-26 accepted as written (batch); two items to skim later: in-house `CircuitBreaker` should be a simple `Schedule`-based one (`EFF-239`), and `runMain` stays hand-rolled (`EFF-180`). Recorded in `docs/qa/effect/target-architecture-and-catalog.md`.
 
 > Decisions pass: 2026-10-26 — 21 decisions resolved, 13 items unblocked

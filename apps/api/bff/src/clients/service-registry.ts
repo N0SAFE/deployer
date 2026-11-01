@@ -8,7 +8,7 @@ import {
 } from "@deployer/service-client";
 import type { RouterContract } from "@orpc/contract";
 
-import { API_SERVICES, apiServiceUrl, type ApiServiceName } from "@deployer/shared/server";
+import { API_SERVICES, apiServiceUrl, type ApiServiceName } from "@deployer/env";
 import { serviceAuthHeaders } from "./service-auth-context";
 
 /**
@@ -16,10 +16,10 @@ import { serviceAuthHeaders } from "./service-auth-context";
  *
  * A node with no agent (a dev run, or a node that was not given one yet) reaches its services directly, which is how a node
  * works alone before it is part of anything; with one, every call to a service goes through the agent, which picks the
- * replica, answers redirects and carries the answer back. `MESH_AGENT_SOCKET` is where the deployment mounted the socket,
+ * replica, answers redirects and carries the answer back. `NODE_AGENT_SOCKET` is where the deployment mounted the socket,
  * not a node setting.
  */
-const meshAgent = nodeAgentLink();
+const nodeAgent = nodeAgentLink();
 
 /**
  * How the BFF reaches a service.
@@ -39,9 +39,9 @@ export const bffServiceClientOptions: ServiceClientOptions = {
 	// Through the agent when there is one: the caller's credentials ride on each call, so the service authenticates the
 	// caller exactly as it did when the BFF called it directly.
 	link:
-		meshAgent === undefined
+		nodeAgent === undefined
 			? undefined
-			: (service, contract) => serviceLink({ agent: meshAgent, service, contract, headers: () => serviceAuthHeaders() }),
+			: (service, contract) => serviceLink({ agent: nodeAgent, service, contract, headers: () => serviceAuthHeaders() }),
 };
 
 /**

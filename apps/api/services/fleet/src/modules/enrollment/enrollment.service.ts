@@ -1,25 +1,20 @@
-import { ORPCError, type ClientContext, type ClientLink } from "@orpc/client";
+import { ORPCError } from "@orpc/client";
 import type {
   MeshEnrollmentDescribeResult,
   MeshEnrollmentEnrollInput,
   MeshEnrollmentEnrollResult,
-  MeshNetworkCluster,
   MeshSwarmJoinGrant,
 } from "@deployer/contracts-entities";
-
-const CALL = { context: {} } as const;
 
 /** What enrolling a node touches, as plain functions so the rules can be tested without the platform. */
 export type EnrollmentPorts = {
   readonly version: string;
-  /** The WireGuard mesh a joiner's entry must name, or null when this node has none. */
-  readonly cluster: () => Promise<MeshNetworkCluster | null>;
   /** The fleet's swarm role decision for a joiner, or null when it has no swarm to hand over. */
   readonly swarmGrant: (policy: MeshEnrollmentEnrollInput["requestedSwarmPolicy"]) => Promise<MeshSwarmJoinGrant | null>;
-  /** Admits a joiner's signed WireGuard entry; null when it cannot be admitted. */
-  readonly admit: (request: unknown) => Promise<{ roster: unknown } | null>;
+  /** Whether this node's agent vouches for a join token; null when it has no agent to ask. */
+  readonly checkToken: (token: string) => Promise<boolean | null>;
   /** The shared database URL a joiner points at, or null when this node was never set up. */
-  readonly databaseUrl: () => string | null;
+  readonly databaseUrl: () => string | null | Promise<string | null>;
   /** Records the joiner in the fleet's registry. */
   readonly register: (input: { nodeId: string; serverUrl: string; displayName: string | null }) => Promise<{ nodeId: string; enrolledAt: string }>;
 };
@@ -31,39 +26,38 @@ export type EnrollmentPorts = {
  * the token is the swarm's and still good. A node with no agent cannot vouch for anyone, so it enrolls no one.
  */
 export class EnrollmentService {
-  constructor(
-    private readonly agent: () => ClientLink<ClientContext> | undefined,
-    private readonly ports: EnrollmentPorts,
-  ) {}
+  constructor(private readonly ports: EnrollmentPorts) {}
 
   async describe(token: string): Promise<MeshEnrollmentDescribeResult> {
     await this.authorize(token);
-    return { version: this.ports.version, meshNetwork: await this.ports.cluster() };
+    // No cluster id or CIDR to hand over: the token names the swarm, and the joiner's agent joins it directly.
+    return { version: this.ports.version, meshNetwork: null };
   }
 
   async enroll(input: MeshEnrollmentEnrollInput): Promise<MeshEnrollmentEnrollResult> {
     await this.authorize(input.token);
 
-    const databaseUrl = this.ports.databaseUrl();
+    const databaseUrl = await this.ports.databaseUrl();
     if (databaseUrl === null || databaseUrl.length === 0) {
       throw new ORPCError("PRECONDITION_FAILED", { message: "This node has no database URL to hand over: run its setup first" });
     }
 
     const registered = await this.ports.register({ nodeId: input.nodeId, serverUrl: input.serverUrl, displayName: input.displayName ?? null });
-    // The fleet, not the joiner, decides the swarm role; a joiner can neither promote itself nor found a rival swarm.
     const swarmGrant = await this.ports.swarmGrant(input.requestedSwarmPolicy);
-    const meshAdmission = input.meshJoinRequest === undefined ? null : await this.ports.admit(input.meshJoinRequest);
 
-    return { nodeId: registered.nodeId, enrolledAt: registered.enrolledAt, databaseUrl, swarmGrant, meshAdmission: meshAdmission as MeshEnrollmentEnrollResult["meshAdmission"] };
+    return {
+      nodeId: registered.nodeId,
+      enrolledAt: registered.enrolledAt,
+      databaseUrl,
+      swarmGrant,
+      // The agent token this fleet's own agent vouched for: the joiner keeps it if it ever has to repeat the join.
+      meshJoinToken: input.token,
+    };
   }
 
+  /** Whether this agent vouches for the token. Absent agent, absent voucher. */
   private async authorize(token: string): Promise<void> {
-    const link = this.agent();
-    if (link === undefined) {
-      throw new ORPCError("UNAUTHORIZED", { message: "This node has no mesh agent, so it cannot vouch for a join token" });
-    }
-    const { valid } = (await link.call(["roster", "check"], { token }, CALL)) as { valid: boolean };
-    if (!valid) {
+    if ((await this.ports.checkToken(token)) !== true) {
       throw new ORPCError("UNAUTHORIZED", { message: "The join token is not valid" });
     }
   }

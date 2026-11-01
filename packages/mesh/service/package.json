@@ -36,7 +36,7 @@
     },
     "dependencies": {
         "@deployer/effect-core": "*",
-        "@deployer/mesh-agent-contracts": "*",
+        "@deployer/node-agent-contracts": "*",
         "@deployer/mesh-client": "*",
         "@deployer/mesh-server": "*",
         "@deployer/service-client": "*",
@@ -44,7 +44,8 @@
         "@orpc/contract": "catalog:orpc",
         "@orpc/openapi": "catalog:orpc",
         "@orpc/server": "catalog:orpc",
-        "effect": "catalog:effect"
+        "effect": "catalog:effect",
+        "zod": "catalog:utils"
     },
     "peerDependencies": {
         "@orpc/server": "catalog:orpc"
@@ -59,7 +60,6 @@
         "eslint": "catalog:linting",
         "rimraf": "catalog:build",
         "typescript": "catalog:build",
-        "ws": "^8.21.0",
-        "zod": "catalog:utils"
+        "ws": "^8.21.0"
     }
 }

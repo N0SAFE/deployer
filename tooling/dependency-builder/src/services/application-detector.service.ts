@@ -64,9 +64,10 @@ export class ApplicationDetector {
      * ── WHY THIS MAP EXISTS AT ALL ──────────────────────────────────────────
      * A compose profile is named after the SERVICE GROUP a user thinks in
      * (`api`, `web`), while the union is computed over WORKSPACE names
-     * (`@deployer/bff`). The two are not derivable from each other — `mesh-agent`
-     * is a service but not a profile, and `doc` is both — so the correspondence
-     * is stated once, here, and validated against the discovered workspaces.
+     * (`@deployer/bff`). The two are not derivable from each other — `svc-node-agent`
+     * is a workspace the `api` profile builds but is not a profile itself, and
+     * `doc` is both — so the correspondence is stated once, here, and validated
+     * against the discovered workspaces.
      *
      * A profile in this map that names a workspace the repository does not
      * contain is reported rather than ignored: it means the compose file and the

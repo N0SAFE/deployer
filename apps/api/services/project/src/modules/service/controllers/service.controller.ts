@@ -1,13 +1,11 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
 import { serviceContract, servicePreviewTopologyContract } from "@deployer/project-contracts";
-import { EffectContextOf } from "@deployer/nest-effect";
+import { procedure } from "@deployer/nest-effect";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 import { serve } from "@project/core/orpc/serve";
 import { actorFromContext } from "@project/core/utils/actor.utils";
 
-import { ServiceDomainModule } from "../service.module";
 import { ServiceNetworkService } from "../services/service-network.service";
 import { ServiceService } from "../services/service.service";
 
@@ -26,9 +24,8 @@ export class ServiceController {
 
 	@Implement(serviceContract.crud.list)
 	list() {
-		return implement(serviceContract.crud.list)
+		return procedure(serviceContract.crud.list)
 			.use(requireAuth())
-			.use(ServiceDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const services = yield* ServiceService;
 				return yield* services.listServices(input.query).pipe(serve(context));
@@ -37,9 +34,8 @@ export class ServiceController {
 
 	@Implement(serviceContract.crud.findById)
 	findById() {
-		return implement(serviceContract.crud.findById)
+		return procedure(serviceContract.crud.findById)
 			.use(requireAuth())
-			.use(ServiceDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const services = yield* ServiceService;
 				return yield* services.getServiceById(input.params.id).pipe(serve(context));
@@ -48,9 +44,8 @@ export class ServiceController {
 
 	@Implement(serviceContract.crud.create)
 	create() {
-		return implement(serviceContract.crud.create)
+		return procedure(serviceContract.crud.create)
 			.use(requireAuth())
-			.use(ServiceDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const services = yield* ServiceService;
 				const service = yield* services
@@ -62,9 +57,8 @@ export class ServiceController {
 
 	@Implement(serviceContract.crud.update)
 	update() {
-		return implement(serviceContract.crud.update)
+		return procedure(serviceContract.crud.update)
 			.use(requireAuth())
-			.use(ServiceDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const services = yield* ServiceService;
 				const { id, ...data } = input;
@@ -76,9 +70,8 @@ export class ServiceController {
 
 	@Implement(serviceContract.crud.delete)
 	delete() {
-		return implement(serviceContract.crud.delete)
+		return procedure(serviceContract.crud.delete)
 			.use(requireAuth())
-			.use(ServiceDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const services = yield* ServiceService;
 				yield* services
@@ -90,9 +83,8 @@ export class ServiceController {
 
 	@Implement(serviceContract.crud.children)
 	children() {
-		return implement(serviceContract.crud.children)
+		return procedure(serviceContract.crud.children)
 			.use(requireAuth())
-			.use(ServiceDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const services = yield* ServiceService;
 				return yield* services
@@ -103,9 +95,8 @@ export class ServiceController {
 
 	@Implement(serviceContract.crud.subtree)
 	subtree() {
-		return implement(serviceContract.crud.subtree)
+		return procedure(serviceContract.crud.subtree)
 			.use(requireAuth())
-			.use(ServiceDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const services = yield* ServiceService;
 				return yield* services
@@ -120,9 +111,8 @@ export class ServiceController {
 
 	@Implement(serviceContract.lifecycle.toggleActive)
 	toggleActive() {
-		return implement(serviceContract.lifecycle.toggleActive)
+		return procedure(serviceContract.lifecycle.toggleActive)
 			.use(requireAuth())
-			.use(ServiceDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const services = yield* ServiceService;
 				return yield* services
@@ -137,9 +127,8 @@ export class ServiceController {
 
 	@Implement(serviceContract.dependencies.list)
 	getDependencies() {
-		return implement(serviceContract.dependencies.list)
+		return procedure(serviceContract.dependencies.list)
 			.use(requireAuth())
-			.use(ServiceDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const services = yield* ServiceService;
 				return yield* services.getDependencies(input.params.id).pipe(serve(context));
@@ -148,9 +137,8 @@ export class ServiceController {
 
 	@Implement(serviceContract.dependencies.add)
 	addDependency() {
-		return implement(serviceContract.dependencies.add)
+		return procedure(serviceContract.dependencies.add)
 			.use(requireAuth())
-			.use(ServiceDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const services = yield* ServiceService;
 				return yield* services
@@ -166,9 +154,8 @@ export class ServiceController {
 
 	@Implement(serviceContract.dependencies.remove)
 	removeDependency() {
-		return implement(serviceContract.dependencies.remove)
+		return procedure(serviceContract.dependencies.remove)
 			.use(requireAuth())
-			.use(ServiceDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const services = yield* ServiceService;
 				yield* services
@@ -188,9 +175,8 @@ export class ServiceController {
 
 	@Implement(serviceContract.streams.query)
 	streamQuery() {
-		return implement(serviceContract.streams.query)
+		return procedure(serviceContract.streams.query)
 			.use(requireAuth())
-			.use(ServiceDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const services = yield* ServiceService;
 				return yield* services.streamQueryEvents(input.query).pipe(serve(context));
@@ -203,9 +189,8 @@ export class ServiceController {
 
 	@Implement(servicePreviewTopologyContract.resolve)
 	previewTopologyResolve() {
-		return implement(servicePreviewTopologyContract.resolve)
+		return procedure(servicePreviewTopologyContract.resolve)
 			.use(requireAuth())
-			.use(ServiceDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const services = yield* ServiceService;
 				return yield* services
@@ -224,9 +209,8 @@ export class ServiceController {
 
 	@Implement(serviceContract.network.get)
 	networkGet() {
-		return implement(serviceContract.network.get)
+		return procedure(serviceContract.network.get)
 			.use(requireAuth())
-			.use(ServiceDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const network = yield* ServiceNetworkService;
 				return yield* network.getNetwork(input.params.id).pipe(serve(context));
@@ -235,9 +219,8 @@ export class ServiceController {
 
 	@Implement(serviceContract.network.update)
 	networkUpdate() {
-		return implement(serviceContract.network.update)
+		return procedure(serviceContract.network.update)
 			.use(requireAuth())
-			.use(ServiceDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const network = yield* ServiceNetworkService;
 				// Optional update body — coalesce to {}.
@@ -249,9 +232,8 @@ export class ServiceController {
 
 	@Implement(serviceContract.network.provisionRecord)
 	networkProvisionRecord() {
-		return implement(serviceContract.network.provisionRecord)
+		return procedure(serviceContract.network.provisionRecord)
 			.use(requireAuth())
-			.use(ServiceDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const network = yield* ServiceNetworkService;
 				return yield* network

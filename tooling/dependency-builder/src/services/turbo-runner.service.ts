@@ -9,7 +9,6 @@ import {
     symlinkSync,
     lstatSync,
     readFileSync,
-    writeFileSync,
 } from 'node:fs'
 import { dirname, join, relative, sep } from 'node:path'
 
@@ -18,6 +17,8 @@ import { Injectable } from '@nestjs/common'
 import type { UnionMember } from '../schemas'
 import { BuildFailedError } from '../errors'
 import { scopedLogger } from '../logger'
+
+import { stripApplications } from './graph-scope'
 
 /**
  * Where built artifacts are published for the application containers.
@@ -91,9 +92,11 @@ export const BUILD_MARKER = '.initial-build-complete'
  * sync may remove. `/opt` is outside the synced tree, so the baked cache is
  * untouched for the life of the container.
  *
- * Verified that a cache seeded WITHOUT `.env` is still reused WITH `.env`
- * loaded (`FULL TURBO`), so the image-build and runtime environments do not
- * invalidate each other's entries.
+ * ── WHAT MUST NOT REACH IT ──────────────────────────────────────────────
+ * `turbo.json` lists the `.env` files in `globalDependencies`, so a synced host
+ * `.env` changes the GLOBAL hash and misses every baked entry at once. The
+ * compose `develop.watch` rules therefore ignore every `.env` file; this cache
+ * assumes the image's (empty) `.env` state, which is what the container keeps.
  */
 export const BAKED_CACHE_DIR = '/opt/turbo-cache'
 
@@ -413,50 +416,19 @@ export class TurboRunner {
      * redoing the build, and nothing rewrites the tree under a compiling app.
      */
     excludeApplicationsFromGraph(root: string): void {
-        const manifestPath = join(root, 'package.json')
+        // The body lives in `stripApplications` because the IMAGE runs the same
+        // function before baking its cache (`src/strip-applications.ts`). One
+        // implementation is what keeps the bake's graph and this one's identical
+        // — a second copy is how the cache became unreachable before.
+        const result = stripApplications(root)
 
-        let raw: {
-            workspaces?: { packages?: string[] } | string[]
-        }
-        try {
-            raw = JSON.parse(readFileSync(manifestPath, 'utf8')) as typeof raw
-        } catch {
-            this.logger.warn(
-                `unreadable ${manifestPath}; the graph keeps its apps`
+        if (result.status === 'stripped') {
+            this.logger.info(
+                `excluded applications from the build graph: ${result.removed.join(', ')}`
             )
-            return
+        } else if (result.status === 'failed') {
+            this.logger.warn(`${result.reason}; the graph keeps its apps`)
         }
-
-        const workspaces = raw.workspaces
-        const list =
-            workspaces === undefined
-                ? undefined
-                : Array.isArray(workspaces)
-                  ? workspaces
-                  : workspaces.packages
-
-        if (list === undefined) {
-            this.logger.warn(`no workspaces list in ${manifestPath}`)
-            return
-        }
-
-        // Only `apps/**`-style entries: `packages/**` and `tooling/**` must
-        // stay, because the union is built from them.
-        const kept = list.filter((entry) => !entry.startsWith('apps'))
-        if (kept.length === list.length) return // already excluded
-
-        if (Array.isArray(workspaces)) {
-            raw.workspaces = kept
-        } else if (workspaces !== undefined) {
-            workspaces.packages = kept
-        }
-
-        writeFileSync(manifestPath, `${JSON.stringify(raw, null, 4)}\n`)
-        this.logger.info(
-            `excluded applications from the build graph: ${list
-                .filter((entry) => entry.startsWith('apps'))
-                .join(', ')}`
-        )
     }
 
     /**

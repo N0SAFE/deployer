@@ -1,13 +1,26 @@
 import type { SwarmServiceSpecInput } from "@deployer/contracts-entities";
-import { AGENT_RUN_VOLUME, AGENT_SOCKET_DIR } from "@deployer/mesh-network";
-import { Injectable, Logger, Inject } from "@nestjs/common";
+import {
+	NODE_AGENT_ADMIN_RUN_DIR,
+	NODE_AGENT_ADMIN_VOLUME,
+	NODE_AGENT_RUN_DIR,
+	NODE_AGENT_RUN_VOLUME,
+} from "@deployer/node-agent-container";
+
+/**
+ * The tier apps that perform operator actions on their node's agent over the admin door: `fleet` cuts a member out of
+ * the roster for the ingress and issues the enrollment token. Every other service keeps the service door only.
+ */
+const ADMIN_DOOR_APPS: ReadonlySet<string> = new Set(["fleet"]);
+import { Injectable, Logger, Inject, type OnModuleInit } from "@nestjs/common";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
+import { nodeDoorFromEnv, type NodeDoorClient } from "@deployer/mesh-client";
 
 import { EnvService } from "@/config/env/env.module";
 import { SetupGateService } from "@/modules/wizard/setup-gate.service";
 import type { SetupEnv } from "@/config/env/env.schema";
 import { platformOverlayForPrefix } from "@deployer/docker";
+import { apiServiceName, apiServicePort, type ApiServiceName } from "@deployer/env";
 
 /** A configuration key this provisioner reads. */
 type EnvKey = keyof SetupEnv;
@@ -16,17 +29,16 @@ type EnvKey = keyof SetupEnv;
  * The microservices tier, as settings rather than as compose containers.
  *
  * ── WHY THIS FILE EXISTS ────────────────────────────────────────────────────
- * `API_SERVICES` in `@deployer/shared` already declares the five service names,
- * their default ports, and — through `apiServiceUrl()` — that a service's NAME is
- * its ADDRESS (`http://svc-<name>:<port>`). That is the whole routing contract, so
- * this file must not restate it. It only holds what a SERVICE cannot know about
- * itself: which workspace package to image, and which port to bind.
+ * `API_SERVICES` in `@deployer/env` declares the service names, their default
+ * ports, and — through `apiServiceUrl()` — that a service's NAME is its ADDRESS
+ * (`http://svc-<name>:<port>`). That is the whole routing contract, so this file
+ * must not restate it. It only holds what a SERVICE cannot know about itself:
+ * which workspace package to image, and which port to bind.
  *
- * ── WHY DUPLICATING THE PORT HERE IS SAFE ──────────────────────────────────
- * It is not duplicated data, it is an IMPORT: the ports come from
- * `API_SERVICES`, so a port change lands in one place. The array below is the
- * ORDER they are scheduled in (the BFF first, so `/health/ready` answers as soon
- * as possible), and an `as const` tuple is what makes the order visible.
+ * ── WHY THE NAMES ARE TYPED ────────────────────────────────────────────────
+ * `name` is `ApiServiceName`, so a name that is not in the catalog does not
+ * compile. A service scheduled under a name the BFF does not dial is a tier that
+ * reports healthy while nothing routes to it.
  */
 	const SERVICE_TIER = [
 	{ name: "health", pkg: "@deployer/svc-health", src: "api/services/health", imageVar: "DEPLOYER_SVC_HEALTH_IMAGE" },
@@ -34,7 +46,7 @@ type EnvKey = keyof SetupEnv;
 	{ name: "project", pkg: "@deployer/svc-project", src: "api/services/project", imageVar: "DEPLOYER_SVC_PROJECT_IMAGE" },
 	{ name: "fleet", pkg: "@deployer/svc-fleet", src: "api/services/fleet", imageVar: "DEPLOYER_SVC_FLEET_IMAGE" },
 	{ name: "runtime", pkg: "@deployer/svc-runtime", src: "api/services/runtime", imageVar: "DEPLOYER_SVC_RUNTIME_IMAGE" },
-] as const satisfies readonly { name: string; pkg: string; src: string; imageVar: EnvKey }[];
+] as const satisfies readonly { name: ApiServiceName; pkg: string; src: string; imageVar: EnvKey }[];
 
 /** One scheduled app, as setup needs to describe it. */
 export interface ScheduledApp {
@@ -76,14 +88,43 @@ export interface ScheduledApp {
  * `docker-compose.config.services.yml`.
  */
 @Injectable()
-export class ServicesTierProvisioner {
+export class ServicesTierProvisioner implements OnModuleInit {
 	private readonly logger = new Logger(ServicesTierProvisioner.name);
+	/**
+	 * The host this node's agent advertises, resolved ONCE at boot.
+	 *
+	 * A replica of a tier service is addressed by the services' mesh, and `MESH_ADVERTISE_URL` is what a replica
+	 * advertises so a local caller resolves it. The address the agent advertises is the only one peers can dial (the
+	 * container's own name is not), so the host comes from the agent — never from this process's own hostname.
+	 */
+	private advertiseHost: string | null = null;
 
 	constructor(
 		private readonly env: EnvService,
 		@Inject(DockerEngine) private readonly docker: DockerEngineShape,
 		private readonly gate: SetupGateService,
 	) {}
+
+	/** The agent's node door. Overridden by tests, which run without an agent socket. */
+	protected door(): NodeDoorClient {
+		return nodeDoorFromEnv(this.env);
+	}
+
+	/**
+	 * Ask the node's agent where it is reachable, once.
+	 *
+	 * A silent door is an answer, not a failure: provisioning continues without the variable and the services join
+	 * the mesh under their swarm name instead — worse routing, still a working tier.
+	 */
+	async onModuleInit(): Promise<void> {
+		const status = await this.door().status();
+		this.advertiseHost = hostOf(status?.advertiseAddress);
+		if (this.advertiseHost === null) {
+			this.logger.warn(
+				"The node's agent advertises no address: the tier joins the mesh under its swarm name, not the node's",
+			);
+		}
+	}
 
 	/**
 	 * Schedule the tier, idempotently, and return what was scheduled.
@@ -143,50 +184,27 @@ export class ServicesTierProvisioner {
 		};
 	}
 	/**
-	 * Prefix + name, matching `apiServiceUrl()` in `@deployer/shared`.
+	 * Prefix + name, from the catalog's one naming rule.
 	 *
 	 * The BFF reaches a service as `http://svc-<name>:<port>`, so the SWARM
-	 * SERVICE NAME must be `svc-<name>` — not `<name>`, and not
-	 * `deployer-svc-<name>`. A prefix is only applied when the operator set one,
-	 * and it must then ALSO reach the app's own resolution (see the env builder),
-	 * or the two sides disagree and every call is `ENOTFOUND`.
+	 * SERVICE NAME must be `svc-<name>` — never `<name>` and never
+	 * `deployer-svc-<name>`. A prefix, when the operator set one, must ALSO reach
+	 * the app's own resolution (see the env builder), or the two sides disagree
+	 * and every call is `ENOTFOUND`.
 	 */
 	private serviceName(name: string): string {
-		const prefix = this.env.get("DEPLOYER_PREFIX");
-		return prefix === "" ? `svc-${name}` : `svc-${name}-${prefix}`;
+		return apiServiceName(name, this.env.get("DEPLOYER_PREFIX"));
 	}
 
 	/**
-	 * The port a service binds.
+	 * The port a service binds, from the catalog — the same value the BFF dials.
 	 *
-	 * Mirrors `apiServicePort()` in `@deployer/shared`: the same defaults, and the
-	 * same `API_SERVICE_PORTS` override — passed as the app's own env below, so
-	 * the value the service BINDS and the value the BFF DIALS come from one
-	 * source. Hardcoding the defaults here would let a service bind 3102 while
-	 * the BFF dialled whatever the override said.
+	 * It is passed as the app's own env below, so bind and dial cannot disagree.
+	 * A name outside `API_SERVICES` does not compile (`SERVICE_TIER` is typed), so
+	 * there is no default to fall back to.
 	 */
-	private servicePort(name: string): number {
-		const override = this.env.get("API_SERVICE_PORTS");
-		if (override !== undefined && override !== "") {
-			try {
-				const parsed: unknown = JSON.parse(override);
-				if (typeof parsed === "object" && parsed !== null) {
-					const value = (parsed as Record<string, unknown>)[name];
-					if (typeof value === "number" && Number.isInteger(value)) return value;
-				}
-			} catch {
-				// A malformed override must not crash onboarding; the defaults below
-				// are the same ones `apiServicePort()` falls back to.
-			}
-		}
-		const defaults: Record<string, number> = {
-			health: 3101,
-			identity: 3102,
-			project: 3103,
-			fleet: 3104,
-			runtime: 3105,
-		};
-		return defaults[name] ?? 3101;
+	private servicePort(name: ApiServiceName): number {
+		return apiServicePort(name);
 	}
 
 	/**
@@ -218,7 +236,7 @@ export class ServicesTierProvisioner {
 			args: [],
 			labels: { "deployer.platform.role": "microservice" },
 			containerLabels: {},
-			mounts: this.appMounts(),
+			mounts: this.appMounts(app.name),
 			networks: [{ target: overlay, aliases: [app.name] }],
 			healthcheck: null,
 			updateConfig: { parallelism: 1, delayMs: 0, order: "start-first", failureAction: "rollback" },
@@ -278,7 +296,22 @@ export class ServicesTierProvisioner {
 		// ── THE MESH AGENT'S SOCKET ──────────────────────────────────────────
 		// The node's agent is a plain host-network container setup starts. Its socket
 		// volume is mounted below; the PATH is what the clients dial.
-		env.push(`MESH_AGENT_SOCKET=${AGENT_SOCKET_DIR}/agent.sock`);
+		env.push(`NODE_AGENT_SOCKET=${NODE_AGENT_RUN_DIR}/agent.sock`);
+		// Only the apps that perform operator actions mount the admin volume below; the path is what those clients dial.
+		// A service without the mount has no admin socket, which is the split: a compromised service cannot rotate the
+		// swarm secret, issue a token, cut a member off or reconfigure the node.
+		if (ADMIN_DOOR_APPS.has(app.name)) {
+			env.push(`NODE_AGENT_ADMIN_SOCKET=${NODE_AGENT_ADMIN_RUN_DIR}/admin.sock`);
+		}
+
+		// ── WHERE THE SERVICES' REPLICAS ARE REACHABLE ──────────────────────
+		// A service joins the mesh with `joinServiceMeshOnNode`, which advertises `MESH_ADVERTISE_URL`. Without it the
+		// replica advertises its own hostname — a container id inside a swarm task, which no peer can dial, so the
+		// replica is listed and never reached. The host is the agent's, because that is the address peers dial; the port
+		// is each app's own, because that is where its websocket is served.
+		if (this.advertiseHost !== null) {
+			env.push(`MESH_ADVERTISE_URL=ws://${this.advertiseHost}:${String(app.port)}/mesh/ws`);
+		}
 
 		// ── WHERE THE INGRESS FINDS ITS ROUTES ──────────────────────────────
 		// Traefik runs with its HTTP provider pointed at
@@ -301,8 +334,8 @@ export class ServicesTierProvisioner {
 		// ── WHERE THE BFF FINDS ITS SERVICES ─────────────────────────────────
 		// `apiServiceUrl()` derives `http://svc-<name>:<port>` by default, which is
 		// exactly the alias registered above, so no override is needed — with or
-		// without a prefix, because `serviceName()` is the single place that applies
-		// one and both sides read it.
+		// without a prefix, because `apiServiceName()` is the single place that
+		// applies one and both sides read it.
 		const prefix = this.env.get("DEPLOYER_PREFIX");
 		if (prefix !== "") env.push(`DEPLOYER_PREFIX=${prefix}`);
 
@@ -323,12 +356,6 @@ export class ServicesTierProvisioner {
 		// Belt and braces next to the `AUTH_BASE_DOMAIN` wildcard: naming the setup origin keeps the
 		// wizard's own sign-in valid even when a deployment narrows `AUTH_BASE_DOMAIN`.
 		env.push(`TRUSTED_ORIGINS=${this.publicOrigin("setup", prefix)}`);
-
-		// ── WHETHER THIS NODE BRINGS UP A WIREGUARD INTERFACE ────────────────
-		// A swarm task inherits nothing, so without this the BFF falls back to its schema default
-		// (`observe`) and the operator's `kernel` is discarded: the mesh silently stays down on a
-		// deployment that asked for it. Never empty (the schema enum resolves unset to `observe`).
-		env.push(`MESH_AGENT_DATAPLANE=${this.env.get("MESH_AGENT_DATAPLANE")}`);
 
 		// ── THE ADMIN SEED ───────────────────────────────────────────────────
 		// The BFF's boot pipeline ensures a default admin when the policy allows it.
@@ -363,7 +390,7 @@ export class ServicesTierProvisioner {
 			"DEPLOYER_TRAEFIK_IMAGE",
 			"DEPLOYER_REDIS_IMAGE",
 			"DEPLOYER_DIRECT_PROXY_IMAGE",
-			"MESH_AGENT_IMAGE",
+			"NODE_AGENT_IMAGE",
 		] as const satisfies readonly EnvKey[];
 		for (const name of imageKeys) {
 			const value = this.env.get(name);
@@ -418,7 +445,7 @@ export class ServicesTierProvisioner {
 	 * decision, the mesh identity). A per-app copy would be a different database
 	 * per app — the split-brain that made `svc-identity` unable to find `session`.
 	 */
-	private appMounts(): {
+	private appMounts(appName: string): {
 		type: "volume" | "bind";
 		source: string;
 		target: string;
@@ -439,10 +466,15 @@ export class ServicesTierProvisioner {
 			},
 			{
 				type: "volume",
-				source: AGENT_RUN_VOLUME,
-				target: AGENT_SOCKET_DIR,
+				source: NODE_AGENT_RUN_VOLUME,
+				target: NODE_AGENT_RUN_DIR,
 				readOnly: false,
 			},
+			// The admin door, on its own volume: only the apps in `ADMIN_DOOR_APPS` get it. The socket inside is 0600,
+			// so the two agree about who may open it.
+			...(ADMIN_DOOR_APPS.has(appName)
+				? [{ type: "volume" as const, source: NODE_AGENT_ADMIN_VOLUME, target: NODE_AGENT_ADMIN_RUN_DIR, readOnly: false }]
+				: []),
 			// ── THE ENGINE SOCKET ────────────────────────────────────────────
 			// `svc-runtime` owns containers, images and deployments; the BFF runs the
 			// supervisors. A swarm task does NOT inherit the socket from the node it
@@ -497,5 +529,18 @@ export class ServicesTierProvisioner {
 		// Schema default guarantees a non-empty value, so no fallback branch is
 		// reachable — composing one would be dead code pretending to be defensive.
 		return this.env.get("TRAEFIK_CONFIG_VOLUME");
+	}
+}
+
+/**
+ * The host in an address, or null when there is none to read: a URL the platform cannot parse is the same as no
+ * address, never a reason to fail onboarding.
+ */
+function hostOf(address: string | undefined): string | null {
+	if (address === undefined || address === "") return null;
+	try {
+		return new URL(address).hostname;
+	} catch {
+		return null;
 	}
 }

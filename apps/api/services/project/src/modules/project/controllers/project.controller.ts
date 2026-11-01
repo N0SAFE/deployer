@@ -1,15 +1,14 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { ORPCError, implement } from "@orpc/server";
+import { ORPCError } from "@orpc/server";
 import { projectContract } from "@deployer/project-contracts";
-import { EffectContextOf } from "@deployer/nest-effect";
+import { procedure } from "@deployer/nest-effect";
 import { Effect } from "effect";
 
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 import { serve } from "@project/core/orpc/serve";
 import { actorFromContext } from "@project/core/utils/actor.utils";
 
-import { ProjectDomainModule } from "../project.module";
 import { ProjectStore } from "../repositories/project.repository";
 import { ProjectNetworkService } from "../services/project-network.service";
 import { ProjectService } from "../services/project.service";
@@ -29,9 +28,8 @@ export class ProjectController {
 
 	@Implement(projectContract.list)
 	list() {
-		return implement(projectContract.list)
+		return procedure(projectContract.list)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects.listProjects(input.query).pipe(serve(context));
@@ -40,9 +38,8 @@ export class ProjectController {
 
 	@Implement(projectContract.findById)
 	findById() {
-		return implement(projectContract.findById)
+		return procedure(projectContract.findById)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects.getProjectById(input.params.id).pipe(serve(context));
@@ -51,9 +48,8 @@ export class ProjectController {
 
 	@Implement(projectContract.create)
 	create() {
-		return implement(projectContract.create)
+		return procedure(projectContract.create)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				// The create contract is COMPACT input (body-only schema) — `input`
@@ -67,9 +63,8 @@ export class ProjectController {
 
 	@Implement(projectContract.update)
 	update() {
-		return implement(projectContract.update)
+		return procedure(projectContract.update)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				const { id, ...data } = input;
@@ -81,9 +76,8 @@ export class ProjectController {
 
 	@Implement(projectContract.delete)
 	delete() {
-		return implement(projectContract.delete)
+		return procedure(projectContract.delete)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				yield* projects
@@ -99,9 +93,8 @@ export class ProjectController {
 
 	@Implement(projectContract.getCollaborators)
 	getCollaborators() {
-		return implement(projectContract.getCollaborators)
+		return procedure(projectContract.getCollaborators)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				const collaborators = yield* projects
@@ -113,9 +106,8 @@ export class ProjectController {
 
 	@Implement(projectContract.inviteCollaborator)
 	inviteCollaborator() {
-		return implement(projectContract.inviteCollaborator)
+		return procedure(projectContract.inviteCollaborator)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects
@@ -130,9 +122,8 @@ export class ProjectController {
 
 	@Implement(projectContract.updateCollaborator)
 	updateCollaborator() {
-		return implement(projectContract.updateCollaborator)
+		return procedure(projectContract.updateCollaborator)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				// body is optional (all fields optional) — coalesce to {}.
@@ -149,9 +140,8 @@ export class ProjectController {
 
 	@Implement(projectContract.removeCollaborator)
 	removeCollaborator() {
-		return implement(projectContract.removeCollaborator)
+		return procedure(projectContract.removeCollaborator)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				yield* projects
@@ -171,9 +161,8 @@ export class ProjectController {
 
 	@Implement(projectContract.listEnvironments)
 	listEnvironments() {
-		return implement(projectContract.listEnvironments)
+		return procedure(projectContract.listEnvironments)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				const envs = yield* projects
@@ -189,9 +178,8 @@ export class ProjectController {
 
 	@Implement(projectContract.getEnvironment)
 	getEnvironment() {
-		return implement(projectContract.getEnvironment)
+		return procedure(projectContract.getEnvironment)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects
@@ -206,9 +194,8 @@ export class ProjectController {
 
 	@Implement(projectContract.createEnvironment)
 	createEnvironment() {
-		return implement(projectContract.createEnvironment)
+		return procedure(projectContract.createEnvironment)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects
@@ -223,9 +210,8 @@ export class ProjectController {
 
 	@Implement(projectContract.updateEnvironment)
 	updateEnvironment() {
-		return implement(projectContract.updateEnvironment)
+		return procedure(projectContract.updateEnvironment)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects
@@ -241,9 +227,8 @@ export class ProjectController {
 
 	@Implement(projectContract.deleteEnvironment)
 	deleteEnvironment() {
-		return implement(projectContract.deleteEnvironment)
+		return procedure(projectContract.deleteEnvironment)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				yield* projects
@@ -259,9 +244,8 @@ export class ProjectController {
 
 	@Implement(projectContract.cloneEnvironment)
 	cloneEnvironment() {
-		return implement(projectContract.cloneEnvironment)
+		return procedure(projectContract.cloneEnvironment)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects
@@ -281,9 +265,8 @@ export class ProjectController {
 
 	@Implement(projectContract.listServiceEnvironmentLinks)
 	listServiceEnvironmentLinks() {
-		return implement(projectContract.listServiceEnvironmentLinks)
+		return procedure(projectContract.listServiceEnvironmentLinks)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				const links = yield* projects
@@ -298,9 +281,8 @@ export class ProjectController {
 
 	@Implement(projectContract.upsertServiceEnvironmentLink)
 	upsertServiceEnvironmentLink() {
-		return implement(projectContract.upsertServiceEnvironmentLink)
+		return procedure(projectContract.upsertServiceEnvironmentLink)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects
@@ -319,9 +301,8 @@ export class ProjectController {
 
 	@Implement(projectContract.getNetwork)
 	getNetwork() {
-		return implement(projectContract.getNetwork)
+		return procedure(projectContract.getNetwork)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const network = yield* ProjectNetworkService;
 				return yield* network.getNetwork(input.params.id).pipe(serve(context));
@@ -330,9 +311,8 @@ export class ProjectController {
 
 	@Implement(projectContract.updateNetwork)
 	updateNetwork() {
-		return implement(projectContract.updateNetwork)
+		return procedure(projectContract.updateNetwork)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const network = yield* ProjectNetworkService;
 				return yield* network
@@ -347,9 +327,8 @@ export class ProjectController {
 
 	@Implement(projectContract.listVariableTemplates)
 	listVariableTemplates() {
-		return implement(projectContract.listVariableTemplates)
+		return procedure(projectContract.listVariableTemplates)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				const templates = yield* projects
@@ -361,9 +340,8 @@ export class ProjectController {
 
 	@Implement(projectContract.getVariableTemplate)
 	getVariableTemplate() {
-		return implement(projectContract.getVariableTemplate)
+		return procedure(projectContract.getVariableTemplate)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects
@@ -378,9 +356,8 @@ export class ProjectController {
 
 	@Implement(projectContract.createVariableTemplate)
 	createVariableTemplate() {
-		return implement(projectContract.createVariableTemplate)
+		return procedure(projectContract.createVariableTemplate)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects
@@ -395,9 +372,8 @@ export class ProjectController {
 
 	@Implement(projectContract.updateVariableTemplate)
 	updateVariableTemplate() {
-		return implement(projectContract.updateVariableTemplate)
+		return procedure(projectContract.updateVariableTemplate)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects
@@ -413,9 +389,8 @@ export class ProjectController {
 
 	@Implement(projectContract.deleteVariableTemplate)
 	deleteVariableTemplate() {
-		return implement(projectContract.deleteVariableTemplate)
+		return procedure(projectContract.deleteVariableTemplate)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				yield* projects
@@ -435,9 +410,8 @@ export class ProjectController {
 
 	@Implement(projectContract.getGeneralConfig)
 	getGeneralConfig() {
-		return implement(projectContract.getGeneralConfig)
+		return procedure(projectContract.getGeneralConfig)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects
@@ -448,9 +422,8 @@ export class ProjectController {
 
 	@Implement(projectContract.updateGeneralConfig)
 	updateGeneralConfig() {
-		return implement(projectContract.updateGeneralConfig)
+		return procedure(projectContract.updateGeneralConfig)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects
@@ -465,9 +438,8 @@ export class ProjectController {
 
 	@Implement(projectContract.getEnvironmentConfig)
 	getEnvironmentConfig() {
-		return implement(projectContract.getEnvironmentConfig)
+		return procedure(projectContract.getEnvironmentConfig)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects
@@ -478,9 +450,8 @@ export class ProjectController {
 
 	@Implement(projectContract.updateEnvironmentConfig)
 	updateEnvironmentConfig() {
-		return implement(projectContract.updateEnvironmentConfig)
+		return procedure(projectContract.updateEnvironmentConfig)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects
@@ -495,9 +466,8 @@ export class ProjectController {
 
 	@Implement(projectContract.getDeploymentConfig)
 	getDeploymentConfig() {
-		return implement(projectContract.getDeploymentConfig)
+		return procedure(projectContract.getDeploymentConfig)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects
@@ -508,9 +478,8 @@ export class ProjectController {
 
 	@Implement(projectContract.updateDeploymentConfig)
 	updateDeploymentConfig() {
-		return implement(projectContract.updateDeploymentConfig)
+		return procedure(projectContract.updateDeploymentConfig)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects
@@ -525,9 +494,8 @@ export class ProjectController {
 
 	@Implement(projectContract.getSecurityConfig)
 	getSecurityConfig() {
-		return implement(projectContract.getSecurityConfig)
+		return procedure(projectContract.getSecurityConfig)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects
@@ -538,9 +506,8 @@ export class ProjectController {
 
 	@Implement(projectContract.updateSecurityConfig)
 	updateSecurityConfig() {
-		return implement(projectContract.updateSecurityConfig)
+		return procedure(projectContract.updateSecurityConfig)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects
@@ -555,9 +522,8 @@ export class ProjectController {
 
 	@Implement(projectContract.getResourceConfig)
 	getResourceConfig() {
-		return implement(projectContract.getResourceConfig)
+		return procedure(projectContract.getResourceConfig)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects
@@ -568,9 +534,8 @@ export class ProjectController {
 
 	@Implement(projectContract.updateResourceConfig)
 	updateResourceConfig() {
-		return implement(projectContract.updateResourceConfig)
+		return procedure(projectContract.updateResourceConfig)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects
@@ -585,9 +550,8 @@ export class ProjectController {
 
 	@Implement(projectContract.getNotificationConfig)
 	getNotificationConfig() {
-		return implement(projectContract.getNotificationConfig)
+		return procedure(projectContract.getNotificationConfig)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects
@@ -598,9 +562,8 @@ export class ProjectController {
 
 	@Implement(projectContract.updateNotificationConfig)
 	updateNotificationConfig() {
-		return implement(projectContract.updateNotificationConfig)
+		return procedure(projectContract.updateNotificationConfig)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects
@@ -619,9 +582,8 @@ export class ProjectController {
 
 	@Implement(projectContract.getEnvironmentStatus)
 	getEnvironmentStatus() {
-		return implement(projectContract.getEnvironmentStatus)
+		return procedure(projectContract.getEnvironmentStatus)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				const store = yield* ProjectStore;
@@ -649,9 +611,8 @@ export class ProjectController {
 
 	@Implement(projectContract.getAllEnvironmentStatuses)
 	getAllEnvironmentStatuses() {
-		return implement(projectContract.getAllEnvironmentStatuses)
+		return procedure(projectContract.getAllEnvironmentStatuses)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				const store = yield* ProjectStore;
@@ -686,9 +647,8 @@ export class ProjectController {
 
 	@Implement(projectContract.refreshEnvironmentStatus)
 	refreshEnvironmentStatus() {
-		return implement(projectContract.refreshEnvironmentStatus)
+		return procedure(projectContract.refreshEnvironmentStatus)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* () {
 				return yield* Effect.fail(
 					new ORPCError("NOT_IMPLEMENTED", {
@@ -701,9 +661,8 @@ export class ProjectController {
 
 	@Implement(projectContract.streamQuery)
 	streamQuery() {
-		return implement(projectContract.streamQuery)
+		return procedure(projectContract.streamQuery)
 			.use(requireAuth())
-			.use(ProjectDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const projects = yield* ProjectService;
 				return yield* projects.streamQueryEvents(input.query).pipe(serve(context));

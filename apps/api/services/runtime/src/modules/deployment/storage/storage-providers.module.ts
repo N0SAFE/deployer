@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { createModuleContext } from "@deployer/nest-effect";
 import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configuration/configuration-core.module";
 import { DEPLOYMENT_STORAGE_PROVIDERS } from "./base/storage-provider.token";
 import type { DeploymentStorageProvider } from "./base/storage-provider.interface";
@@ -14,7 +14,7 @@ import { S3StorageProviderService } from "./s3/s3-storage-provider.service";
 import { StorageProviderRegistryService } from "./storage-provider-registry.service";
 import { VolumeStorageProviderService } from "./volume/volume-storage-provider.service";
 
-@Module({
+export class DeploymentStorageProvidersModule extends createModuleContext({
     imports: [ConfigurationCoreModule],
     providers: [
         LocalStorageProviderService,
@@ -75,5 +75,4 @@ import { VolumeStorageProviderService } from "./volume/volume-storage-provider.s
         },
     ],
     exports: [StorageProviderRegistryService, StoragePolicyResolverRegistryService],
-})
-export class DeploymentStorageProvidersModule {}
+}) {}

@@ -1,7 +1,5 @@
-import { runSyncUnwrapped } from "@deployer/effect-core";
 import { Logger } from "@nestjs/common";
 import type { DockerEngineShape } from "@deployer/docker";
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
 import { MANAGED_POSTGRES_IMAGE } from "@deployer/docker";
 import { Effect } from "effect";
@@ -15,12 +13,14 @@ import {
 } from "@deployer/platform-supervisors";
 
 import { EnvService } from "../../../../config/env/env.module";
+import { NodeConfigSnapshot } from "../../node-state/node-config.snapshot";
 
 export { GLOBAL_DB_SUPERVISOR_ID };
 
 export type GlobalDbSupervisorDeps = {
 	readonly engine: DockerEngineShape;
-	readonly nodeConfig: NodeConfigRepositoryShape;
+	/** Synchronous cache of `node_config`: the spec's config callbacks cannot await a repository. */
+	readonly snapshot: NodeConfigSnapshot;
 	readonly env: EnvService;
 	readonly bus: SupervisorEventBus;
 };
@@ -31,19 +31,12 @@ export type GlobalDbSupervisorDeps = {
  * the environment and the node config, and decides WHETHER to register.
  *
  * Registration is made once at module init: only when the database is not compose-managed, a database
- * URL exists in the local node config, and it is locally managed (`databaseProvisioning: "local"`).
+ * URL exists in the node config, and it is locally managed (`databaseProvisioning: "local"`).
  * External databases keep the startup guard / probe path and are never supervised, so they never appear
  * in health reports.
  */
-export function makeGlobalDbRegistration({ engine, nodeConfig, env, bus }: GlobalDbSupervisorDeps): SupervisorRegistration {
+export function makeGlobalDbRegistration({ engine, snapshot, env, bus }: GlobalDbSupervisorDeps): SupervisorRegistration {
 	const logger = new Logger("GlobalDbSupervisor");
-	const stored = () => {
-		try {
-			return runSyncUnwrapped(nodeConfig.find());
-		} catch {
-			return null;
-		}
-	};
 	/** True when the deployment owns the global Postgres (dev compose stack): the API never spawns or supervises it. */
 	const isComposeManaged = () => splitManagedEnv(env).globalDb.enabled;
 
@@ -60,29 +53,31 @@ export function makeGlobalDbRegistration({ engine, nodeConfig, env, bus }: Globa
 			}),
 			composeManaged: isComposeManaged,
 			runtimeOverride: () => process.env.SUPERVISOR_RUNTIME,
-			provisioning: () => stored()?.databaseProvisioning,
+			provisioning: () => snapshot.current()?.databaseProvisioning,
 			// The persisted DSN; empty when nothing was written yet, which consumers gate on.
-			databaseUrl: () => stored()?.databaseUrl ?? "",
+			databaseUrl: () => snapshot.current()?.databaseUrl ?? "",
 		},
 	});
 	return {
 		supervisor: buildSupervisor(globalDb.spec, bus, "GlobalDbSupervisor"),
-		activate: Effect.sync(() => {
-			if (isComposeManaged()) {
-				logger.log("Compose-managed global DB detected (MANAGED_GLOBAL_DB_ENABLED=true) — supervisor skipped (not registered)");
+		activate: Effect.promise(() => snapshot.refresh()).pipe(
+			Effect.map((row) => {
+				if (isComposeManaged()) {
+					logger.log("Compose-managed global DB detected (MANAGED_GLOBAL_DB_ENABLED=true) — supervisor skipped (not registered)");
+					return null;
+				}
+				// A real DATABASE URL has been written to the node config (setup wizard or dev bootstrap completed).
+				if (!Boolean(row?.databaseUrl?.trim())) {
+					logger.log("Global-db dependencies not ready (no database URL) — skipping registration (retry from dev console after setup)");
+					return null;
+				}
+				if (row?.databaseProvisioning === "local") {
+					logger.log("Locally-managed database detected — Postgres supervisor active");
+					return {};
+				}
+				logger.log("Externally-managed database — Postgres supervisor disabled (not registered)");
 				return null;
-			}
-			// A real DATABASE URL has been written to the local node config (setup wizard or dev bootstrap completed).
-			if (!Boolean(stored()?.databaseUrl?.trim())) {
-				logger.log("Global-db dependencies not ready (no database URL) — skipping registration (retry from dev console after setup)");
-				return null;
-			}
-			if (stored()?.databaseProvisioning === "local") {
-				logger.log("Locally-managed database detected — Postgres supervisor active");
-				return {};
-			}
-			logger.log("Externally-managed database — Postgres supervisor disabled (not registered)");
-			return null;
-		}),
+			}),
+		),
 	};
 }

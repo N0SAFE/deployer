@@ -44,6 +44,7 @@ export default function DashboardNodeDetailPage() {
     if (!item) return null
     return {
       nodeId: item.nodeId,
+      swarmNodeId: item.swarmNodeId ?? null,
       serverUrl: item.serverUrl,
       displayName: item.displayName,
       status: item.status,
@@ -159,7 +160,7 @@ export default function DashboardNodeDetailPage() {
           <NodeDeploymentsTab deployments={deployments} />
         </TabsContent>
         <TabsContent value="fleet">
-          <NodeFleetTab nodeId={node.nodeId} isLocal={isLocal} />
+          <NodeFleetTab swarmNodeId={node.swarmNodeId} isLocal={isLocal} />
         </TabsContent>
         <TabsContent value="configuration">
           <NodeConfigTab isLocal={isLocal} config={localNodeConfig} />

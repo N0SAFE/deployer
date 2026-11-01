@@ -9,6 +9,7 @@ import type {
 } from "@deployer/contracts-entities";
 
 import { SetupGateService } from "./setup-gate.service";
+import { MeshOnboardingService } from "./mesh-onboarding.service";
 import { WizardStateService } from "./wizard-state.service";
 import { WizardStreamService } from "./wizard-stream.service";
 import { WizardUpstreamService } from "./wizard-upstream.service";
@@ -63,6 +64,7 @@ export class WizardController {
     private readonly state: WizardStateService,
     private readonly orchestration: OrchestrationStreamService,
     private readonly phase: SetupPhaseService,
+    private readonly mesh: MeshOnboardingService,
   ) {}
 
   // ─── State (answered LOCALLY — the API does not exist yet) ──────────────
@@ -75,6 +77,34 @@ export class WizardController {
   @Implement(setupAppContract.getNodeStatus)
   getNodeStatus() {
     return implement(setupAppContract.getNodeStatus).handler(() => this.state.getNodeStatus());
+  }
+
+  // ─── Mesh onboarding (answered LOCALLY, through the node door) ──────────
+
+  /** This node's mesh state. The agent's socket is local, so the API is not involved. */
+  @Implement(setupAppContract.getMeshStatus)
+  getMeshStatus() {
+    return implement(setupAppContract.getMeshStatus).handler(() => this.mesh.getStatus());
+  }
+
+  /** Redeem an invite token. A refusal is an answer, not an error. */
+  @Implement(setupAppContract.joinMesh)
+  joinMesh() {
+    return implement(setupAppContract.joinMesh).handler(async ({ input }) => ({
+      status: 201 as const,
+      headers: {},
+      body: await this.mesh.join(input),
+    }));
+  }
+
+  /** Issue a one-time invite for another node. */
+  @Implement(setupAppContract.issueMeshToken)
+  issueMeshToken() {
+    return implement(setupAppContract.issueMeshToken).handler(async ({ input }) => ({
+      status: 201 as const,
+      headers: {},
+      body: await this.mesh.issueToken(input),
+    }));
   }
 
   // ─── Probes (forwarded — they need the API) ─────────────────────────────

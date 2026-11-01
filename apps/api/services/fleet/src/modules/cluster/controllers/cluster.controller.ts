@@ -1,15 +1,13 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
 import { clusterContract } from "@deployer/fleet-contracts";
-import { EffectContextOf } from "@deployer/nest-effect";
+import { procedure } from "@deployer/nest-effect";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 import { liveSnapshot } from "@deployer/shared/core/utils/live-snapshot.utils";
 import { Effect } from "effect";
 
 import { attemptSync } from "../../../core/effects";
 import { serve } from "../../../core/orpc/serve";
-import { ClusterModule } from "../cluster.module";
 import { ClusterEventsPort } from "../cluster.ports";
 import { ClusterService, type ClusterServicePorts } from "../services/cluster.service";
 
@@ -28,9 +26,8 @@ const SWARM_CONFIG_STREAM_INTERVAL_MS = 15_000;
 export class ClusterController {
     @Implement(clusterContract.getSnapshot)
     getSnapshot() {
-        return implement(clusterContract.getSnapshot)
+        return procedure(clusterContract.getSnapshot)
             .use(requireAuth())
-            .use(ClusterModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const cluster = yield* ClusterService;
                 return yield* serve(context)(cluster.getSnapshot());
@@ -39,9 +36,8 @@ export class ClusterController {
 
     @Implement(clusterContract.streamSnapshot)
     streamSnapshot() {
-        return implement(clusterContract.streamSnapshot)
+        return procedure(clusterContract.streamSnapshot)
             .use(requireAuth())
-            .use(ClusterModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const events = yield* ClusterEventsPort;
                 return yield* serve(context)(attemptSync(() => events.observeSnapshot()));
@@ -50,9 +46,8 @@ export class ClusterController {
 
     @Implement(clusterContract.listNodes)
     listNodes() {
-        return implement(clusterContract.listNodes)
+        return procedure(clusterContract.listNodes)
             .use(requireAuth())
-            .use(ClusterModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const cluster = yield* ClusterService;
                 return yield* serve(context)(cluster.listNodes(input.includeDown ?? false));
@@ -61,9 +56,8 @@ export class ClusterController {
 
     @Implement(clusterContract.streamNodes)
     streamNodes() {
-        return implement(clusterContract.streamNodes)
+        return procedure(clusterContract.streamNodes)
             .use(requireAuth())
-            .use(ClusterModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const events = yield* ClusterEventsPort;
                 return yield* serve(context)(attemptSync(() => events.observeNodes(input.includeDown ?? false)));
@@ -72,9 +66,8 @@ export class ClusterController {
 
     @Implement(clusterContract.getMaster)
     getMaster() {
-        return implement(clusterContract.getMaster)
+        return procedure(clusterContract.getMaster)
             .use(requireAuth())
-            .use(ClusterModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const cluster = yield* ClusterService;
                 return yield* serve(context)(cluster.getMaster());
@@ -83,9 +76,8 @@ export class ClusterController {
 
     @Implement(clusterContract.getSwarmConfig)
     getSwarmConfig() {
-        return implement(clusterContract.getSwarmConfig)
+        return procedure(clusterContract.getSwarmConfig)
             .use(requireAuth())
-            .use(ClusterModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const cluster = yield* ClusterService;
                 return yield* serve(context)(cluster.getSwarmConfig());
@@ -94,9 +86,8 @@ export class ClusterController {
 
     @Implement(clusterContract.streamSwarmConfig)
     streamSwarmConfig() {
-        return implement(clusterContract.streamSwarmConfig)
+        return procedure(clusterContract.streamSwarmConfig)
             .use(requireAuth())
-            .use(ClusterModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const cluster = yield* ClusterService;
                 const ports = yield* Effect.context<ClusterServicePorts>();
@@ -109,9 +100,8 @@ export class ClusterController {
 
     @Implement(clusterContract.setSwarmConfig)
     setSwarmConfig() {
-        return implement(clusterContract.setSwarmConfig)
+        return procedure(clusterContract.setSwarmConfig)
             .use(requireAuth())
-            .use(ClusterModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const cluster = yield* ClusterService;
                 return yield* serve(context)(cluster.setSwarmConfig(input));
@@ -120,9 +110,8 @@ export class ClusterController {
 
     @Implement(clusterContract.streamMaster)
     streamMaster() {
-        return implement(clusterContract.streamMaster)
+        return procedure(clusterContract.streamMaster)
             .use(requireAuth())
-            .use(ClusterModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const events = yield* ClusterEventsPort;
                 return yield* serve(context)(attemptSync(() => events.observeMaster()));
@@ -131,9 +120,8 @@ export class ClusterController {
 
     @Implement(clusterContract.updateNode)
     updateNode() {
-        return implement(clusterContract.updateNode)
+        return procedure(clusterContract.updateNode)
             .use(requireAuth())
-            .use(ClusterModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const cluster = yield* ClusterService;
                 return yield* serve(context)(cluster.updateNodeLabels(input.params.nodeId, {
@@ -145,9 +133,8 @@ export class ClusterController {
 
     @Implement(clusterContract.listServices)
     listServices() {
-        return implement(clusterContract.listServices)
+        return procedure(clusterContract.listServices)
             .use(requireAuth())
-            .use(ClusterModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const cluster = yield* ClusterService;
                 return yield* serve(context)(cluster.listServices());
@@ -156,9 +143,8 @@ export class ClusterController {
 
     @Implement(clusterContract.streamServices)
     streamServices() {
-        return implement(clusterContract.streamServices)
+        return procedure(clusterContract.streamServices)
             .use(requireAuth())
-            .use(ClusterModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const events = yield* ClusterEventsPort;
                 return yield* serve(context)(attemptSync(() => events.observeServices()));
@@ -167,9 +153,8 @@ export class ClusterController {
 
     @Implement(clusterContract.listTasks)
     listTasks() {
-        return implement(clusterContract.listTasks)
+        return procedure(clusterContract.listTasks)
             .use(requireAuth())
-            .use(ClusterModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const cluster = yield* ClusterService;
                 return yield* serve(context)(cluster.listTasks({
@@ -181,9 +166,8 @@ export class ClusterController {
 
     @Implement(clusterContract.streamTasks)
     streamTasks() {
-        return implement(clusterContract.streamTasks)
+        return procedure(clusterContract.streamTasks)
             .use(requireAuth())
-            .use(ClusterModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const events = yield* ClusterEventsPort;
                 return yield* serve(context)(attemptSync(() => events.observeTasks(input.query?.serviceId, input.query?.nodeId)));
@@ -192,9 +176,8 @@ export class ClusterController {
 
     @Implement(clusterContract.getNodeResources)
     getNodeResources() {
-        return implement(clusterContract.getNodeResources)
+        return procedure(clusterContract.getNodeResources)
             .use(requireAuth())
-            .use(ClusterModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const cluster = yield* ClusterService;
                 return yield* serve(context)(cluster.getNodeResources(input.query.nodeId));
@@ -203,9 +186,8 @@ export class ClusterController {
 
     @Implement(clusterContract.streamNodeResources)
     streamNodeResources() {
-        return implement(clusterContract.streamNodeResources)
+        return procedure(clusterContract.streamNodeResources)
             .use(requireAuth())
-            .use(ClusterModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const cluster = yield* ClusterService;
                 return yield* serve(context)(cluster.nodeResourcesStream(input.query.nodeId));

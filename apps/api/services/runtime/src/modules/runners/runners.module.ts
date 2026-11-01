@@ -6,7 +6,8 @@
  * provided below, dispatched by `RuntimeRunnerRegistry.execute(runnerKind, …)`;
  * `RuntimeRunnerRegistryService` is its Promise face for callers not on Effect yet.
  */
-import { Module } from "@nestjs/common";
+
+import { createModuleContext } from "@deployer/nest-effect";
 import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configuration/configuration-core.module";
 import { CoreDockerModule } from "@deployer/shared/core/modules/docker/docker.module";
 import { SwarmCoreModule } from "@deployer/shared/core/modules/swarm/swarm.module";
@@ -19,7 +20,7 @@ import { DockerRuntimeRunner } from "./docker/docker-runtime-runner.service";
 import { SwarmRuntimeRunner } from "./swarm/swarm-runtime-runner.service";
 import { SwarmComposeRealizerService } from "./swarm/swarm-compose-realizer.service";
 
-@Module({
+export class RunnersDomainModule extends createModuleContext({
     // `EnvModule` is imported EXPLICITLY: `SwarmRuntimeRunnerService` injects
     // `EnvService` to resolve the PLATFORM OVERLAY name it attaches every
     // workload to — the attachment that makes a deployment reachable through
@@ -38,5 +39,4 @@ import { SwarmComposeRealizerService } from "./swarm/swarm-compose-realizer.serv
         RuntimeRunnerRegistryService,
     ],
     exports: [RuntimeRunnerRegistryService],
-})
-export class RunnersDomainModule {}
+}) {}

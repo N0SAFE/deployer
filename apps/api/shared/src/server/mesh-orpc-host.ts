@@ -7,7 +7,7 @@ import { RequestCompressionHandlerPlugin } from "@orpc/server/plugins";
 import { SmartCoercionHandlerPlugin } from "@orpc/json-schema";
 import { ZodToJsonSchemaConverter } from "@orpc/zod";
 import { domainErrorInterceptor } from "@deployer/effect-orpc";
-import type { DynamicModule } from "@nestjs/common";
+import type { DynamicModule, ExecutionContext } from "@nestjs/common";
 
 import { InternalErrorInsightService } from "../core/middlewares/internal-error/internal-error-insight.service";
 import { logOrpcErrors, transformNestJSErrorToOrpcError } from "../core/modules/auth/orpc/index";
@@ -18,7 +18,7 @@ import type { ORPCAuthContext } from "../core/modules/auth/orpc/types";
 export const MESH_CREDENTIAL_HEADER = "x-mesh-credential";
 
 /** DI token for the function that decides whether a request comes from a mesh peer. */
-export const MESH_CREDENTIAL_VERIFIER = Symbol("mesh-agent:credential-verifier");
+export const MESH_CREDENTIAL_VERIFIER = Symbol("node-agent:credential-verifier");
 
 /** `true` when the credential proves the caller is a mesh peer. Never throws: a bad credential is an answer. */
 export type MeshCredentialVerifier = (credential: string | undefined) => boolean;
@@ -67,12 +67,15 @@ export type CreateMeshOrpcModuleOptions<ExtraD extends ExtraTokens = []> = {
 	/** Extra initial-context fields resolved from DI per request (the Effect context, as for every service). */
 	extraContext?: {
 		readonly inject: ExtraD;
-		readonly resolve: (...deps: ExtraInstances<ExtraD>) => Promise<Record<string, unknown>> | Record<string, unknown>;
+		readonly resolve: (
+			executionContext: ExecutionContext,
+			...deps: ExtraInstances<ExtraD>
+		) => Promise<Record<string, unknown>> | Record<string, unknown>;
 	};
 };
 
 /**
- * The oRPC host of the mesh-agent: the shared transport policy of `createOrpcModule`, with the mesh credential in
+ * The oRPC host of the node-agent: the shared transport policy of `createOrpcModule`, with the mesh credential in
  * place of Better Auth.
  *
  * ── WHAT AN IMPORTING APP MUST PROVIDE ──────────────────────────────────────
@@ -88,11 +91,11 @@ export function createMeshOrpcModule<ExtraD extends ExtraTokens = []>(
 		useFactory: (request: Request, verify: MeshCredentialVerifier, ...deps: ExtraInstances<ExtraD>) => {
 			const insight = new InternalErrorInsightService();
 
-			const context = async (): Promise<DefaultInitialContext> =>
+			const context = async (executionContext: ExecutionContext): Promise<DefaultInitialContext> =>
 				({
 					request,
 					auth: meshAuthContext,
-					...(extra ? await extra.resolve(...deps) : {}),
+					...(extra ? await extra.resolve(executionContext, ...deps) : {}),
 				}) as unknown as DefaultInitialContext;
 
 			return {

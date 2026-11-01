@@ -157,10 +157,11 @@ Continue button in front of a platform that did not answer.
   will fill in; `prod` creates the service as a swarm task. Everything
   downstream — gate, retarget, exit — is identical, so the local path is a
   faithful rehearsal of a real deployment.
-- Setup deliberately does **not** reimplement the mesh handshake or WireGuard
-  (plan §5.5.1): the API's `RemoteInitializationService` executes that over HTTP,
-  and WireGuard is a compose-provided sidecar. Writing either again here would
-  duplicate code that already runs and is free to drift.
+- The mesh agent is the only mesh owner on this node. Setup may ASK it through
+  the local node door (`MeshOnboardingService`: status, view, issue/redeem a
+  join token) so a node with no platform yet can join a swarm — but it still
+  does **not** implement the handshake, gossip or WireGuard (plan §5.5.1).
+  Writing those again here would duplicate the agent and be free to drift.
 
 ## References
 

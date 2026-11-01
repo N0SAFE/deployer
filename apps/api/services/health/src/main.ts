@@ -9,10 +9,11 @@ import "@deployer/shared/core/orpc/context";
 import {
 	DEPENDENCIES,
 	DependencyNotReadyError,
-	apiServicePort,
 	bootstrapApiServer,
 } from "@deployer/shared/server";
+import { apiServicePort } from "@deployer/env";
 
+import { assertRequirementsMet, EffectRuntime } from "@deployer/nest-effect";
 import { healthContract } from "@deployer/health-contracts";
 import { joinServiceMeshOnNode } from "@deployer/mesh-service";
 import type { Server } from "node:http";
@@ -37,13 +38,29 @@ const NAME = "svc-health";
  * and the first service to fall over would be the one reporting everyone else's
  * health.
  */
+/**
+ * The strict check, before a single provider is built.
+ *
+ * `assertRequirementsMet` is a type gate: it accepts a module only when every `[controller, services]` pair its subtree
+ * forwarded is resolved. Here it is empty — `HealthDomainModule` provides `HealthService` and
+ * `HealthRegistryRepository` — and a missing provider is a compile error on this line, naming both.
+ */
+const rootModule = assertRequirementsMet(HealthServiceModule);
+
 void bootstrapApiServer({
-	rootModule: HealthServiceModule,
+	rootModule,
 	port: PORT,
 	name: NAME,
 	dependencies: DEPENDENCIES.database,
 })
 	.then((app) => {
+		// Which services a controller reaches today that its module does not allow once the scope is enforced.
+		if (process.env.EFFECT_SCOPE_REPORT === "1") {
+			for (const row of app.get(EffectRuntime).scopeReport()) {
+				console.log(`[scope] ${row.controller} → out of scope: ${row.outOfScope.join(", ")}`);
+			}
+		}
+
 		// The port is bound and the dependencies are proven: take the service onto the mesh of its node, if it has an agent.
 		const membership = joinServiceMeshOnNode({ service: "health", port: PORT, server: app.getHttpServer() as Server, contracts: [healthContract] as never });
 		(app.getHttpServer() as Server).once("close", () => void membership?.stop());

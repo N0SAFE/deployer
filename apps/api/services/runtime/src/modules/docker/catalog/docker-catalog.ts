@@ -26,9 +26,13 @@ export type DockerCatalogPorts = CatalogMeshPort | CatalogLocalPort;
 
 export type DockerCatalogShape = {
   /** The runtime catalog of the whole mesh, or this node's own when no peer answers or the fan-out fails. */
-  readonly resolve: () => Effect.Effect<DockerRuntimeCatalog, unknown>;
-  readonly listNetworks: (input: DockerNetworkListInput) => Effect.Effect<ReturnType<typeof listNetworksOf>, unknown>;
-  readonly listVolumes: (input: DockerVolumeListInput) => Effect.Effect<ReturnType<typeof listVolumesOf>, unknown>;
+  readonly resolve: () => Effect.Effect<DockerRuntimeCatalog, unknown, DockerCatalogPorts>;
+  readonly listNetworks: (
+    input: DockerNetworkListInput,
+  ) => Effect.Effect<ReturnType<typeof listNetworksOf>, unknown, DockerCatalogPorts>;
+  readonly listVolumes: (
+    input: DockerVolumeListInput,
+  ) => Effect.Effect<ReturnType<typeof listVolumesOf>, unknown, DockerCatalogPorts>;
 };
 
 const MESH_CATALOG_TIMEOUT_MS = 2_000;

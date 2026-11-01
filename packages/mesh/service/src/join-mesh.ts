@@ -1,6 +1,6 @@
 import { Effect, Fiber } from "effect";
 
-import { MESH_WEBSOCKET_PATH } from "@deployer/mesh-agent-contracts";
+import { MESH_WEBSOCKET_PATH } from "@deployer/node-agent-contracts";
 import { type ReplicaHeartbeatOptions, openWebSocketConnection, pooledLink, replicaHeartbeat } from "@deployer/mesh-client";
 import { type MeshCall, attachMeshWebSocket } from "@deployer/mesh-server";
 
@@ -34,6 +34,8 @@ export type JoinMeshOptions<T extends Context> = {
   readonly load?: ReplicaHeartbeatOptions["load"];
   readonly heartbeatMs?: number;
   readonly ttlMs?: number;
+  /** Told once when the first registration with the agent fails: the service keeps running, but not silently. */
+  readonly onRegistrationFailure?: (error: unknown) => void;
 };
 
 export type MeshMembership = {
@@ -116,6 +118,7 @@ export function joinMesh<T extends Context>(options: JoinMeshOptions<T>): MeshMe
       intervalMs: heartbeatMs,
       // Several beats, so one missed beat is not a death.
       ttlMs: options.ttlMs ?? heartbeatMs * 4,
+      onRegistrationFailure: options.onRegistrationFailure,
     }),
   );
 

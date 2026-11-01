@@ -1,3 +1,4 @@
+import { createModuleContext } from "@deployer/nest-effect";
 import { Module } from "@nestjs/common"
 import { EventsModule as CoreEventsModule } from "@deployer/shared/core/modules/events/events.module"
 import { DockerCommonModule } from "../../common/docker-common.module"
@@ -11,8 +12,9 @@ import { DockerRuntimeEventsStreamService } from "../../common/events/docker-run
 import { DockerEntityCacheService } from "./orchestration/docker-entity-cache.service"
 import { DockerEntityDomainService } from "./orchestration/docker-entity-domain.service"
 import { DockerEntityOrchestratorService } from "./orchestration/docker-entity-orchestrator.service"
+import { DockerEntity, DockerEntityPort } from "./orchestration/docker-entity.service"
 
-@Module({
+export class DockerEntityModule extends createModuleContext({
   imports: [
     CoreEventsModule,
     DockerCommonModule,
@@ -39,11 +41,15 @@ import { DockerEntityOrchestratorService } from "./orchestration/docker-entity-o
       useFactory: (domain: DockerEntityDomainService) => new DockerEntityOrchestratorService(domain),
       inject: [DockerEntityDomainService],
     },
+    // The Effect face of the entity facade: a port over the Promise orchestrator, so a handler's `R` names it.
+    { provide: DockerEntityPort, useExisting: DockerEntityOrchestratorService },
+    { provide: DockerEntity, useValue: DockerEntity.live },
   ],
   exports: [
     DockerEntityCacheService,
     DockerEntityDomainService,
     DockerEntityOrchestratorService,
+    DockerEntity,
+    DockerEntityPort,
   ],
-})
-export class DockerEntityModule {}
+}) {}

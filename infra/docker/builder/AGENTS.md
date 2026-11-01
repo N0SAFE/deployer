@@ -148,6 +148,35 @@ which applications are enabled by reading `COMPOSE_PROFILES` from its own
 environment — the same value compose used to select the application containers —
 and the applications' prune volumes are not mounted into it at all.
 
+### The builder image's layers are ordered for its own rebuilds
+
+Four rules, each measured on the real image:
+
+1. **Manifests before sources, in two COPYs.** `bun install` reads manifests and
+   the lockfile and nothing else, so the source trees come AFTER it. With one
+   combined COPY, every edit under `packages/` paid a full reinstall — 41 s
+   measured for `bun install --frozen-lockfile` in this image.
+2. **`bunfig.toml` is copied with the manifests.** It is install policy
+   (`linker`, `globalStore`, `prefere`), and leaving it out installed the image
+   with bun's defaults while the host used the repository's.
+3. **The `apps/**` strip runs between install and sources.** It reads the root
+   manifest only, so below the source COPYs it re-ran on every source edit for
+   nothing. It must still precede the bake (see the graph note in the tool's
+   AGENTS), and it must FOLLOW the install, which needs the full workspace list.
+4. **The bake writes into a BuildKit cache mount, then copies the entries into
+   the layer at `/opt/turbo-cache`.** A source edit invalidates the bake layer,
+   and its parent holds no cache, so the bake used to be cold every time (71 s
+   for 42 packages). With the mount it is `FULL TURBO` on a rebuild, and the copy
+   keeps the runtime's `cacheDirFor()` path populated. This is safe because
+   `--cache-dir` is not part of a task's hash — measured: identical
+   `tasks[].hash` for two different cache directories.
+
+The runtime side of the same guarantee — which files the `develop.watch` sync
+must NOT bring into `/app` — is documented in
+[`tooling/dependency-builder/AGENTS.md`](../../../tooling/dependency-builder/AGENTS.md):
+`$TURBO_DEFAULT$` hashes every file in a workspace, so the sync ignore list has
+to mirror `.dockerignore`.
+
 ## Stage Details
 
 ### Stage 1: BASE
@@ -155,7 +184,7 @@ and the applications' prune volumes are not mounted into it at all.
 Common system dependencies for all subsequent stages.
 
 ```dockerfile
-FROM oven/bun:1.4.3-alpine AS base
+FROM oven/bun:1.4.4-alpine AS base
 RUN apk add --no-cache libc6-compat curl bash python3 make g++ gcc musl-dev tar
 RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
     bun install -g turbo@^2
@@ -292,6 +321,34 @@ name hardcoded and had drifted.
 
 `turbo prune` accepts several scopes in one invocation, which is what the
 unified `Dockerfile.prod` relies on.
+
+### The node-agent image
+
+| Image | File | Runs |
+|---|---|---|
+| `node-agent/Dockerfile.svc-node-agent` | `@deployer/svc-node-agent` from the pruned workspace (`src/main.ts`), with `wireguard-tools` + `iproute2` |
+
+`build-svc-node-agent` (dev-supervised compose) tags it
+`${NODE_AGENT_IMAGE:-deployer-svc-node-agent:dev}` and declares no running container: it is an image producer only
+(the launcher creates the container at runtime).
+
+**Why it runs source, not `dist`:** it is a normal workspace service, so it
+resolves `@deployer/*` through `node_modules`; only the workspace packages it
+imports are built (`turbo run build --filter=@deployer/svc-node-agent... --filter=!@deployer/svc-node-agent`).
+Its installer uses a FULL `bun ci` — `@deployer/mesh-service` and
+`@deployer/service-client` are devDependencies today, so `--production` would
+delete packages the agent imports at startup.
+
+Setup and the API launch `NODE_AGENT_IMAGE` and read its node door; it is the only agent (see
+`docs/architecture/node-agent-service.md`).
+
+**The image can also be run as a swarm service, not only as a container.** `NODE_AGENT_SWARM_MODE=true`
+(default false) registers a GLOBAL swarm service (one task per node) from the same image, with host
+networking, `NET_ADMIN` and the same volumes; setup's launcher and the API's bootstrap then create no
+container and only read the door. The container stays the default because the agent must exist BEFORE Swarm,
+and the two shapes are mutually exclusive — never set the flag on a node that still runs the host container
+(the supervisor removes a platform-managed one; going back to the container needs
+`docker service rm deployer-node-agent-swarm` first).
 
 ### The root `scripts/` directory must be copied into every installer
 

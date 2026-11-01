@@ -32,6 +32,12 @@ export const meshJoinGrantIssueResultSchema = z.object({
     expiresAt: z.string(),
     status: z.enum(["issued"]),
     meshNetwork: meshNetworkClusterSchema.nullable().default(null),
+    /**
+     * The token the joining node's own agent accepts on `roster.join`, minted by the ISSUING node's agent. It is what
+     * a normal join hands to setup; `grantToken` above is only the platform's record of the grant. Null when the issuing
+     * node runs an agent that cannot mint one, in which case the old signed-entry admission is still the path.
+     */
+    meshJoinToken: z.string().min(1).nullable().default(null),
 });
 export type MeshJoinGrantIssueResult = z.infer<typeof meshJoinGrantIssueResultSchema>;
 
@@ -139,11 +145,10 @@ export const meshJoinGrantConsumeResultSchema = z.object({
      */
     swarmGrant: meshSwarmJoinGrantSchema.nullable().default(null),
     /**
-     * The mesh roster that now admits the joiner (opaque; the joiner's agent
-     * verifies it admits THIS identity before adopting it). Null when no join
-     * request was sent or the admitting node has no mesh.
+     * The agent join token this node was admitted with, echoed back when the admitting agent vouched for it. Null when
+     * no token was involved (signed-entry admission on an old agent).
      */
-    meshAdmission: z.object({ roster: z.json() }).nullable().default(null),
+    meshJoinToken: z.string().min(1).nullable().default(null),
 });
 export type MeshJoinGrantConsumeResult = z.infer<typeof meshJoinGrantConsumeResultSchema>;
 

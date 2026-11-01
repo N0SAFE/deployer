@@ -45,8 +45,9 @@ else
 fi
 
 # The mesh agent is a PLAIN container on the host (not a swarm task), started by
-# setup before the swarm exists. It holds `deployer-mesh-run`, so it must go too.
-docker rm -f deployer-mesh-agent >/dev/null 2>&1 && echo "── removed the mesh agent container ──"
+# setup before the swarm exists. It holds `deployer-node-agent-run`, so it must go too.
+docker rm -f deployer-node-agent >/dev/null 2>&1 && echo "── removed the mesh agent container ──"
+docker volume rm deployer-node-agent-data >/dev/null 2>&1 && echo "── removed the mesh agent data volume ──"
 
 echo "── compose down -v (removes the container and the node volume) ──"
 docker compose -f "$COMPOSE" --profile all --project-name "$PROJ" down -v --remove-orphans
@@ -59,7 +60,7 @@ docker network rm deployer-platform-overlay >/dev/null 2>&1 && echo "   removed"
 # and the wizard is skipped again — the exact failure this script exists for.
 echo "── verifying ──"
 LEFTOVER=0
-for v in "${PROJ}_supervised_local_db" deployer-mesh-run; do
+for v in "${PROJ}_supervised_local_db" deployer-node-agent-run; do
   if docker volume inspect "$v" >/dev/null 2>&1; then
     docker volume rm "$v" >/dev/null 2>&1 && continue
     echo "   ⚠️  $v survived — something still mounts it:" >&2

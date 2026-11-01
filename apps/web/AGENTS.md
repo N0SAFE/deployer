@@ -41,9 +41,31 @@ Testing and checks:
 - Use shared UI from `@repo/ui` where possible.
 - Client API access should use generated ORPC hooks.
 
+## Browser Runtime — TanStack Redact
+
+`next.config.ts` wraps the config with `withRedact` from `@tanstack/redact/next`.
+Redact replaces **React's browser runtime** with a smaller synchronous one; Next
+keeps React for SSR, Server Components, Flight and actions. Application code is
+unchanged: keep importing from `react`, `react-dom` and Next, and **never** set
+`jsxImportSource` to Redact in a Next app (the server still needs React's JSX
+runtime).
+
+Rules that break silently if ignored:
+
+- `withRedact` must be the **innermost** wrapper — it spreads the config it is
+  given (`turbopack.rules`, `webpack`) and appends its own rules, so wrapping it
+  outside `withBundleAnalyzer`/`withMDX` would drop them.
+- The adapter supports stable **Next 15.5 and 16.0 through 16.4 only** and throws
+  at config load outside that. The `next` catalog in the root `package.json` is
+  therefore an **exact pin** (`16.4.3`), not a caret. Bump Next only to a version
+  the adapter lists, and bump `@tanstack/redact` with it.
+- Custom Turbopack/Webpack transforms of React's *own* entry files conflict with
+  the integration; its loader rules target the resolved `react`/`react-dom`
+  entries.
+
 ## Turbopack Filesystem Cache
 
-`experimental.turbopackFileSystemCacheForDev` / `...ForBuild` are set explicitly in `next.config.ts` (the resolved Next range is `^16.1.2`, where build caching is not yet default). The cache lives in `.next/dev/cache/turbopack` (dev) and `.next/cache/turbopack` (build).
+`experimental.turbopackFileSystemCacheForDev` / `...ForBuild` are set explicitly in `next.config.ts` (pinned to `16.4.3`, where both are default-on — set explicitly so a re-pin cannot silently drop the build cache). The cache lives in `.next/dev/cache/turbopack` (dev) and `.next/cache/turbopack` (build).
 
 Compose mounts a named volume (`web_next_cache_dev` / `web_next_cache_prod`) over the `cache/` directory only, so the dist-dir lock at `.next/dev/lock` stays on the container layer. See `.docs/guides/DOCKER-BUILD-STRATEGIES.md`.
 

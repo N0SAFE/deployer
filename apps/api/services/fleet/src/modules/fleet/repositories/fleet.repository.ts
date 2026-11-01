@@ -219,7 +219,8 @@ function makeFleetRepository(database: GlobalDatabaseService) {
     };
 }
 
-export type FleetRepositoryShape = ReturnType<typeof makeFleetRepository>;
+/** Every method yields the port when it runs, so that requirement is in its `R`, not discharged. */
+export type FleetRepositoryShape = Over<ReturnType<typeof makeFleetRepository>, FleetDatabasePort>;
 
 /** The database the fleet module reads and writes: the shared global one (a Nest provider). */
 export class FleetDatabasePort extends Context.Service<FleetDatabasePort, GlobalDatabaseService>()(

@@ -4,12 +4,10 @@
  * Provides runtime application configuration from the `app_config` table.
  * Replaces env-var-based configuration for settings like GitHub OAuth.
  */
-import { Module, Global } from "@nestjs/common";
+import { createGlobalModule } from "@deployer/nest-effect";
 import { AppConfigService } from "./app-config.service";
 
-@Global()
-@Module({
+export const AppConfigModule = createGlobalModule({
   providers: [AppConfigService],
   exports: [AppConfigService],
-})
-export class AppConfigModule {}
+});

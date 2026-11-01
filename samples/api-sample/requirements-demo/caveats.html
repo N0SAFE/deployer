@@ -1,0 +1,1023 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Requirement modules — the caveats, interactively</title>
+<style>
+  :root {
+    --paper: #f7f5f0;
+    --panel: #fffdf8;
+    --ink: #191917;
+    --muted: #6b6862;
+    --line: #d9d5cc;
+    --line-strong: #b9b4a8;
+    --rust: #b3421b;
+    --rust-soft: #f3e3dc;
+    --teal: #0e6b62;
+    --teal-soft: #dcebe8;
+    --amber: #8a6112;
+    --amber-soft: #f4e9d2;
+    --code-bg: #efece4;
+    --radius: 10px;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: var(--teal); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+  code, pre, .mono { font-family: var(--mono); font-size: 0.86em; }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 268px minmax(0, 1fr);
+    max-width: 1220px;
+    margin: 0 auto;
+    min-height: 100vh;
+  }
+
+  /* ---------- sidebar ---------- */
+
+  .side {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 28px 20px 40px 24px;
+    border-right: 1px solid var(--line);
+    background: linear-gradient(180deg, #f2efe8, var(--paper) 240px);
+  }
+
+  .side h1 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 21px;
+    line-height: 1.2;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+
+  .side .kicker {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    margin: 0 0 18px;
+  }
+
+  .nav { list-style: none; margin: 0; padding: 0; }
+  .nav li { margin: 0 0 2px; }
+  .nav a {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    padding: 6px 8px;
+    border-radius: 6px;
+    color: var(--ink);
+    text-decoration: none;
+    font-size: 13.5px;
+    border-left: 2px solid transparent;
+  }
+  .nav a .n {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--muted);
+    min-width: 18px;
+  }
+  .nav a:hover { background: #efece4; }
+  .nav a.active { background: var(--panel); border-left-color: var(--rust); }
+  .nav a.active .n { color: var(--rust); }
+
+  .side .stat {
+    margin-top: 22px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .side .stat b { color: var(--ink); font-weight: 600; }
+
+  /* ---------- main ---------- */
+
+  main { padding: 40px 44px 100px; min-width: 0; }
+
+  .hero { padding-bottom: 28px; border-bottom: 1px solid var(--line-strong); margin-bottom: 8px; }
+  .hero .eyebrow {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--rust);
+    margin: 0 0 10px;
+  }
+  .hero h2 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: clamp(26px, 3.6vw, 38px);
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+    margin: 0 0 14px;
+    max-width: 22ch;
+  }
+  .hero p { max-width: 62ch; color: #3d3b37; margin: 0 0 10px; }
+  .hero .verdict {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 11.5px;
+    background: var(--teal-soft); color: #0a4a44;
+    border: 1px solid #bcd8d3; border-radius: 999px;
+    padding: 4px 12px; margin-top: 6px;
+  }
+
+  section { padding: 34px 0 6px; border-bottom: 1px solid var(--line); }
+  section:last-of-type { border-bottom: 0; }
+
+  .sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+  .sec-head .num {
+    font-family: var(--mono); font-size: 11px; color: var(--rust);
+    border: 1px solid var(--line-strong); border-radius: 4px; padding: 1px 6px;
+  }
+  h3 {
+    font-family: var(--serif); font-size: 23px; font-weight: 600;
+    letter-spacing: -0.01em; margin: 0;
+  }
+
+  .lede { max-width: 68ch; color: #3d3b37; margin: 8px 0 18px; }
+  .lede b { font-weight: 600; }
+
+  /* ---------- widget shell ---------- */
+
+  .lab {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px 18px 16px;
+    margin: 0 0 18px;
+    box-shadow: 0 1px 0 #fff inset, 0 8px 24px -22px rgba(25,25,23,0.5);
+  }
+  .lab .lab-title {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--muted); margin: 0 0 14px;
+    display: flex; justify-content: space-between; gap: 12px; align-items: center;
+  }
+  .lab .lab-title span:last-child { text-transform: none; letter-spacing: 0; color: #8b877e; }
+
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .row + .row { margin-top: 12px; }
+  .spread { display: flex; justify-content: space-between; gap: 16px; align-items: center; flex-wrap: wrap; }
+
+  button {
+    font: inherit; font-size: 13px; color: var(--ink);
+    background: #fbf9f4; border: 1px solid var(--line-strong);
+    border-radius: 7px; padding: 6px 11px; cursor: pointer;
+    transition: background .12s ease, border-color .12s ease, transform .06s ease;
+  }
+  button:hover { background: #f1ede4; }
+  button:active { transform: translateY(1px); }
+  button:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+  button[aria-pressed="true"] {
+    background: var(--ink); color: #fbf9f4; border-color: var(--ink);
+  }
+  button.ghost { border-style: dashed; background: transparent; }
+  button.primary { background: var(--teal); border-color: #0a5750; color: #fff; }
+  button.primary:hover { background: #0b5c55; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 11px; line-height: 1;
+    padding: 4px 8px; border-radius: 999px; border: 1px solid var(--line-strong);
+    background: #f3f0e9; color: var(--muted); white-space: nowrap;
+  }
+  .pill.ok { background: var(--teal-soft); border-color: #bcd8d3; color: #0a4a44; }
+  .pill.bad { background: var(--rust-soft); border-color: #e4c2b5; color: #7d2d12; }
+  .pill.warn { background: var(--amber-soft); border-color: #e3cfa5; color: var(--amber); }
+  .pill.plain { background: #f3f0e9; }
+
+  pre {
+    margin: 0; padding: 12px 14px; overflow-x: auto;
+    background: var(--code-bg); border: 1px solid var(--line);
+    border-left: 3px solid var(--line-strong); border-radius: 8px;
+    line-height: 1.6; color: #26241f;
+  }
+  pre .k { color: var(--rust); }
+  pre .s { color: var(--teal); }
+  pre .c { color: #8b877e; font-style: italic; }
+  pre .bad { background: #f3d9cf; color: #7d2d12; border-radius: 3px; padding: 0 2px; }
+  pre .good { background: #d5e8e4; color: #0a4a44; border-radius: 3px; padding: 0 2px; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+
+  .card {
+    border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
+    background: #fcfaf5;
+  }
+  .card h4 {
+    margin: 0 0 8px; font-family: var(--mono); font-size: 10.5px;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-weight: 500;
+  }
+
+  .nodes { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .node {
+    border: 1px solid var(--line-strong); border-radius: 8px;
+    padding: 8px 12px; background: #fbf9f4; font-family: var(--mono); font-size: 11.5px;
+    min-width: 104px; text-align: center;
+  }
+  .node b { display: block; font-family: var(--sans); font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+  .node.on { border-color: var(--teal); background: var(--teal-soft); }
+  .node.off { border-style: dashed; color: var(--muted); background: transparent; }
+  .node.bad { border-color: var(--rust); background: var(--rust-soft); }
+
+  .arrow { font-family: var(--mono); color: var(--line-strong); font-size: 18px; }
+  .arrow.on { color: var(--teal); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    font-family: var(--mono); font-size: 11px; padding: 3px 8px;
+    border-radius: 5px; border: 1px solid var(--line-strong); background: #fbf9f4;
+  }
+  .chip.ok { border-color: #bcd8d3; background: var(--teal-soft); color: #0a4a44; }
+  .chip.bad { border-color: #e4c2b5; background: var(--rust-soft); color: #7d2d12; }
+
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 13px; }
+  .kv dt { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); padding-top: 3px; }
+  .kv dd { margin: 0; }
+
+  .takeaway {
+    margin: 0 0 30px; padding: 12px 14px;
+    border-left: 3px solid var(--rust); background: #fbf6f2;
+    border-radius: 0 8px 8px 0; max-width: 70ch; font-size: 14px;
+  }
+  .takeaway b { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--rust); display: block; margin-bottom: 3px; }
+
+  input[type="range"] { width: 100%; accent-color: var(--teal); }
+  input[type="checkbox"] { accent-color: var(--teal); width: 15px; height: 15px; }
+  label.check { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; cursor: pointer; }
+
+  .bar { height: 10px; border-radius: 5px; background: #eae6dc; overflow: hidden; border: 1px solid var(--line); }
+  .bar > i { display: block; height: 100%; background: var(--teal); width: 0; transition: width .2s ease; }
+  .bar.rust > i { background: var(--rust); }
+  .bar.amber > i { background: var(--amber); }
+
+  .steps { list-style: none; margin: 0; padding: 0; }
+  .steps li { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; border-bottom: 1px dashed var(--line); font-size: 13.5px; }
+  .steps li:last-child { border-bottom: 0; }
+  .steps input { margin-top: 4px; }
+  .steps .why { display: block; color: var(--muted); font-size: 12.5px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 10px 7px 0; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); font-weight: 500; }
+  td.num, th.num { text-align: right; padding-right: 0; }
+  tr:last-child td { border-bottom: 0; }
+
+  footer { padding: 34px 0 0; color: var(--muted); font-size: 12.5px; }
+
+  @media (max-width: 880px) {
+    .shell { grid-template-columns: 1fr; }
+    .side {
+      position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line);
+      padding: 20px 18px;
+    }
+    .nav { display: flex; flex-wrap: wrap; gap: 4px; }
+    .nav a { border-left: 0; border-bottom: 2px solid transparent; }
+    .nav a.active { border-bottom-color: var(--rust); }
+    .side .stat { display: none; }
+    main { padding: 26px 18px 70px; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <h1>Requirement modules</h1>
+    <p class="kicker">Caveats, interactively</p>
+    <ul class="nav" id="nav"></ul>
+    <div class="stat">
+      <div><b>5</b> services · <b>24</b> modules</div>
+      <div><b>52</b> controllers · <b>220</b> <code>.effect()</code></div>
+      <div><b>187</b> <code>.use(Module[EffectContextOf])</code></div>
+      <div><b>6</b> <code>@Global()</code> modules</div>
+    </div>
+  </aside>
+
+  <main>
+    <header class="hero">
+      <p class="eyebrow">Rollout review</p>
+      <h2>Ten ways this bites a real monorepo</h2>
+      <p>
+        The requirement model compiles today, but the repo is not the sample. This walks each caveat with a widget you
+        can flip: what the types say, what the runtime does, and where the work actually is.
+      </p>
+      <span class="verdict">Verdict: applicable to <b>apps/api</b> — additive, 6 phases, exports are the cost</span>
+    </header>
+
+    <section id="c1">
+      <div class="sec-head"><span class="num">01</span><h3>Exports become load-bearing</h3></div>
+      <p class="lede">
+        The flat Effect context hid every missing import: a controller could <code>yield*</code> any provider in the
+        process. Under Nest visibility, a service is visible to an import only if the providing module <b>exports</b>
+        it. Nothing today depends on that, so the first audit run will light up. The sample now carries a real
+        <code>ConsumerModule</code>: export <code>ReplicaStore</code> too or the root fails with
+        <code>Missing&lt;[DirectoryReaderController, ReplicaStore]&gt;</code>.
+      </p>
+      <div class="lab" id="w-exports"></div>
+      <div class="takeaway"><b>Budget</b>Every <code>Missing&lt;[Controller, Service]&gt;</code> is a real dependency. Expect one
+        per controller × service pair the module forgot to export — not a false positive to silence.</div>
+    </section>
+
+    <section id="c2">
+      <div class="sec-head"><span class="num">02</span><h3>The transitive closure inflates requirements</h3></div>
+      <p class="lede">
+        <code>RequiredBy</code> is the handler's <code>R</code>, and a service's methods carry their own collaborators.
+        Yielding one domain service drags in its repository, clock and ports. Either the module exports them, or each
+        controller lists the whole chain.
+      </p>
+      <div class="lab" id="w-closure"></div>
+      <div class="takeaway"><b>Rule of thumb</b>Infra modules (<code>Database</code>, <code>Events</code>, <code>Edge</code>,
+        <code>NodeState</code>) go global; domain modules export the services other domains actually use.</div>
+    </section>
+
+    <section id="c3">
+      <div class="sec-head"><span class="num">03</span><h3>Existing <code>@Global()</code> modules are invisible to the types</h3></div>
+      <p class="lede">
+        Six modules are global by decorator only. The type side cannot see a decorator, so they look non-global and the
+        audit reports false <code>Missing</code>. Annotating is not optional, and annotating also applies
+        <code>@Global()</code> — a type-only global compiles and then fails at runtime.
+      </p>
+      <div class="lab" id="w-global"></div>
+      <div class="takeaway"><b>Hazard</b>This is the most likely bad first run: a clean type model reporting failures that
+        are really missing annotations.</div>
+    </section>
+
+    <section id="c4">
+      <div class="sec-head"><span class="num">04</span><h3>24 call sites pass extra keys positionally</h3></div>
+      <p class="lede">
+        <code>createModuleContext(metadata, DatabasePort)</code> predates the options argument. Adding
+        <code>{ global: true }</code> as the second parameter means either touching those 24 lines or adding a helper
+        that keeps the old shape.
+      </p>
+      <div class="lab" id="w-callsites"></div>
+      <div class="takeaway"><b>Cheap either way</b>24 lines is a codemod; a separate <code>createGlobalModule</code> is
+        zero lines. Prefer the helper if you want the migration to stay additive.</div>
+    </section>
+
+    <section id="c5">
+      <div class="sec-head"><span class="num">05</span><h3>Dynamic modules and re-exports</h3></div>
+      <p class="lede">
+        The runtime resolves visibility from <code>ModulesContainer</code>, including <code>exports: [SomeModule]</code>
+        chains. <code>forRoot()</code> modules and <code>forwardRef</code> cycles rely on a <code>seen</code> set, not a
+        guarantee — smoke-test with the real graph.
+      </p>
+      <div class="lab" id="w-reexport"></div>
+      <div class="takeaway"><b>Test</b>One integration test per service that boots the real module graph and asserts the
+        controller contexts contain what the types promised.</div>
+    </section>
+
+    <section id="c6">
+      <div class="sec-head"><span class="num">06</span><h3>The runtime becomes stricter than today</h3></div>
+      <p class="lede">
+        Today every provider is in one context, so a handler works even when its module never imported the provider. After
+        the switch, the request context is the controller's module context. Anything the types missed — a lie in
+        <code>declareModule</code>, an <code>as any</code> — moves from "works" to 500.
+      </p>
+      <div class="lab" id="w-runtime"></div>
+      <div class="takeaway"><b>Order</b>Flip the runtime per service <em>after</em> its types are green, so the first
+        failure is a compile error, never a 500.</div>
+    </section>
+
+    <section id="c7">
+      <div class="sec-head"><span class="num">07</span><h3><code>context()</code> has to survive</h3></div>
+      <p class="lede">
+        Only the HTTP path becomes per-controller. Seeds, boot code and <code>runPromise</code> callers still need the
+        whole-container context. Deleting it while adding <code>contextFor</code> breaks everything that is not a request.
+      </p>
+      <div class="lab" id="w-context"></div>
+      <div class="takeaway"><b>Two methods, two jobs</b><code>contextFor(controller)</code> for requests,
+        <code>context()</code> for everything else. Never merge them back.</div>
+    </section>
+
+    <section id="c8">
+      <div class="sec-head"><span class="num">08</span><h3>Specs assert a shape that no longer exists</h3></div>
+      <p class="lede">
+        Controller specs mock <code>EffectContextOf</code> and assert the <code>.use()</code> call; the ORPC host spec
+        calls <code>context()</code> with no argument. They keep compiling, then test the wrong thing.
+      </p>
+      <div class="lab" id="w-specs"></div>
+      <div class="takeaway"><b>Delete, don't patch</b>Once a controller uses <code>procedure()</code>, the
+        <code>EffectContextOf</code> mock in its spec is dead weight — remove it and assert the procedure type instead.</div>
+    </section>
+
+    <section id="c9">
+      <div class="sec-head"><span class="num">09</span><h3>Type-check cost moves</h3></div>
+      <p class="lede">
+        <code>procedure()</code> is a heavier facade than <code>implement()</code>, and <code>ControllerNeeds</code> walks
+        every controller method. The largest controller in the repo has ~40 endpoints — that is where it shows.
+      </p>
+      <div class="lab" id="w-cost"></div>
+      <div class="takeaway"><b>Measure, don't guess</b><code>tsc --extendedDiagnostics</code> before and after, on
+        <code>svc-project</code>. The numbers below are a model, labelled as such.</div>
+    </section>
+
+    <section id="c10">
+      <div class="sec-head"><span class="num">10</span><h3><code>declareModule</code> stays a trust boundary</h3></div>
+      <p class="lede">
+        A plain module's type does not expose its providers, so <code>provides</code> and <code>exports</code> are
+        claims. Only the collaborators of the claimed services are cross-checked. A lie compiles.
+      </p>
+      <div class="lab" id="w-trust"></div>
+      <div class="takeaway"><b>Mitigation</b>Runtime scoping is the backstop: a lie becomes a 500 on first use, not a
+        silent success. Keep the annotations next to the module they describe.</div>
+    </section>
+
+    <section id="plan">
+      <div class="sec-head"><span class="num">→</span><h3>Rollout plan</h3></div>
+      <p class="lede">Additive at every step. Modules keep <code>[EffectContextOf]</code> and the flat runtime until their
+        service migrates, so a revert is a file-level change.</p>
+      <div class="lab" id="w-plan"></div>
+    </section>
+
+    <footer>
+      Companion to <code>samples/api-sample/requirements-demo</code>. Every number here comes from the repo
+      (<code>grep</code>-counted, not estimated); the type-check widget is explicitly a model.
+    </footer>
+  </main>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ------------------------------------------------------------------ helpers
+  const $ = (sel, root) => (root || document).querySelector(sel);
+
+  function pill(text, kind) {
+    return '<span class="pill ' + (kind || "plain") + '">' + text + "</span>";
+  }
+
+  function chip(text, kind) {
+    return '<span class="chip ' + (kind || "") + '">' + text + "</span>";
+  }
+
+  function chips(items, kindOf) {
+    return items.length === 0
+      ? '<span class="chip ok">none</span>'
+      : items.map((x) => chip(x, kindOf ? kindOf(x) : "")).join("");
+  }
+
+  // A tiny state machine per widget: one render function, delegated clicks.
+  function mount(root, state, view, actions) {
+    const draw = () => {
+      root.innerHTML = view(state);
+    };
+    root.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-a]");
+      if (!button) return;
+      const handler = actions[button.dataset.a];
+      if (!handler) return;
+      handler(state, button.dataset.v);
+      draw();
+    });
+    // `change`, not `input`: re-rendering mid-drag would replace the range under the pointer.
+    root.addEventListener("change", (event) => {
+      const input = event.target.closest("[data-a]");
+      if (!input) return;
+      const handler = actions[input.dataset.a];
+      if (!handler) return;
+      handler(state, input.type === "checkbox" ? input.checked : input.value);
+      draw();
+    });
+    draw();
+  }
+
+  // ------------------------------------------------------------------ nav
+  const sections = [
+    ["c1", "Exports"],
+    ["c2", "Closure"],
+    ["c3", "@Global()"],
+    ["c4", "Call sites"],
+    ["c5", "Re-exports"],
+    ["c6", "Runtime"],
+    ["c7", "context()"],
+    ["c8", "Specs"],
+    ["c9", "Type cost"],
+    ["c10", "Trust"],
+    ["plan", "Rollout"],
+  ];
+
+  const nav = $("#nav");
+  nav.innerHTML = sections
+    .map(([id, label], i) => '<li><a href="#' + id + '" data-target="' + id + '"><span class="n">' +
+      String(i + 1).padStart(2, "0") + "</span>" + label + "</a></li>")
+    .join("");
+
+  const links = Array.from(nav.querySelectorAll("a"));
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        links.forEach((link) => link.classList.toggle("active", link.dataset.target === entry.target.id));
+      }
+    },
+    { rootMargin: "-20% 0px -70% 0px" },
+  );
+  document.querySelectorAll("section[id]").forEach((section) => observer.observe(section));
+
+  // ------------------------------------------------------------------ 01 exports
+  mount(
+    $("#w-exports"),
+    { exported: { MeshDirectory: true, MeshRelay: false, ReplicaStore: true } },
+    (s) => {
+      const services = ["MeshDirectory", "MeshRelay", "ReplicaStore"];
+      const consumerUses = ["MeshRelay"];
+      const missing = consumerUses.filter((name) => !s.exported[name]);
+      return (
+        '<p class="lab-title"><span>MeshModule · exports</span><span>consumer imports it</span></p>' +
+        '<div class="row">' +
+        services
+          .map((name) =>
+            '<button data-a="toggle" data-v="' + name + '" aria-pressed="' + String(s.exported[name]) + '">' +
+            (s.exported[name] ? "exports " : "hides ") + name + "</button>",
+          )
+          .join("") +
+        "</div>" +
+        '<div class="row" style="margin-top:14px">' +
+        '<div class="kv"><dt>consumer yields</dt><dd>' + chips(consumerUses) + "</dd>" +
+        "<dt>visible</dt><dd>" + chips(consumerUses.filter((n) => s.exported[n]), () => "ok") + "</dd></div>" +
+        "</div>" +
+        '<div class="row" style="margin-top:12px">' +
+        (missing.length === 0
+          ? pill("compiles · every use is exported", "ok")
+          : pill("Missing&lt;[RelayController, MeshRelay]&gt;", "bad")) +
+        "</div>"
+      );
+    },
+    {
+      toggle: (s, name) => {
+        s.exported[name] = !s.exported[name];
+      },
+    },
+  );
+
+  // ------------------------------------------------------------------ 02 closure
+  const closures = {
+    MeshDirectory: ["MeshDirectory", "ReplicaStore", "MeshClock", "LeaseSigner"],
+    MeshRelay: ["MeshRelay", "ReplicaStore", "LeaseSigner"],
+  };
+
+  mount(
+    $("#w-closure"),
+    { yielded: ["MeshDirectory"], platformGlobal: false, storeExported: false },
+    (s) => {
+      const required = Array.from(new Set(s.yielded.flatMap((name) => closures[name] || []))).sort();
+      const visible = new Set(["MeshDirectory", "MeshRelay"]);
+      if (s.platformGlobal) {
+        visible.add("MeshClock");
+        visible.add("LeaseSigner");
+      }
+      if (s.storeExported) visible.add("ReplicaStore");
+      const missing = required.filter((name) => !visible.has(name));
+
+      return (
+        '<p class="lab-title"><span>RequiredBy(controller)</span><span>click what the handler yields</span></p>' +
+        '<div class="row">' +
+        Object.keys(closures)
+          .map((name) =>
+            '<button data-a="yield" data-v="' + name + '" aria-pressed="' + String(s.yielded.includes(name)) + '">' +
+            "yield* " + name + "</button>",
+          )
+          .join("") +
+        "</div>" +
+        '<div class="grid2" style="margin-top:14px">' +
+        '<div class="card"><h4>required</h4><div class="chips">' +
+        chips(required, (n) => (missing.includes(n) ? "bad" : "ok")) +
+        "</div></div>" +
+        '<div class="card"><h4>visible to the module</h4><div class="chips">' +
+        chips(Array.from(visible), () => "ok") +
+        "</div></div>" +
+        "</div>" +
+        '<div class="row" style="margin-top:14px">' +
+        '<label class="check"><input type="checkbox" data-a="global" ' + (s.platformGlobal ? "checked" : "") +
+        "> PlatformModule is global</label>" +
+        '<label class="check"><input type="checkbox" data-a="store" ' + (s.storeExported ? "checked" : "") +
+        "> MeshModule exports ReplicaStore</label>" +
+        "</div>" +
+        '<div class="row" style="margin-top:12px">' +
+        (missing.length === 0
+          ? pill("resolved · " + required.length + " services", "ok")
+          : pill("unresolved: " + missing.join(", "), "bad")) +
+        "</div>"
+      );
+    },
+    {
+      yield: (s, name) => {
+        s.yielded = s.yielded.includes(name)
+          ? s.yielded.filter((n) => n !== name)
+          : s.yielded.concat(name);
+      },
+      global: (s, on) => {
+        s.platformGlobal = on;
+      },
+      store: (s, on) => {
+        s.storeExported = on;
+      },
+    },
+  );
+
+  // ------------------------------------------------------------------ 03 global annotation
+  const globalRows = ["edge", "events", "node-state", "database", "docker", "handover"];
+
+  mount(
+    $("#w-global"),
+    { decorator: globalRows.reduce((a, n) => ((a[n] = true), a), {}), annotated: globalRows.reduce((a, n) => ((a[n] = false), a), {}) },
+    (s) => {
+      const rows = globalRows
+        .map((name) => {
+          const deco = s.decorator[name];
+          const ann = s.annotated[name];
+          let outcome;
+          if (deco && ann) outcome = pill("ok", "ok");
+          else if (deco && !ann) outcome = pill("false Missing (type audit)", "bad");
+          else if (!deco && ann) outcome = pill("500 at runtime", "warn");
+          else outcome = pill("not global at all", "bad");
+          return (
+            "<tr><td><code>" + name + "</code></td>" +
+            '<td><button data-a="deco" data-v="' + name + '" aria-pressed="' + String(deco) + '">@Global()</button></td>' +
+            '<td><button data-a="ann" data-v="' + name + '" aria-pressed="' + String(ann) + '">{ global: true }</button></td>' +
+            "<td>" + outcome + "</td></tr>"
+          );
+        })
+        .join("");
+
+      return (
+        '<p class="lab-title"><span>six modules, two truths</span><span>both switches must agree</span></p>' +
+        "<table><thead><tr><th>module</th><th>runtime</th><th>types</th><th>result</th></tr></thead><tbody>" +
+        rows +
+        "</tbody></table>" +
+        '<p style="margin:12px 0 0;color:var(--muted);font-size:12.5px">' +
+        "The type side only sees <code>{ global: true }</code>; Nest only reads <code>@Global()</code>. " +
+        "The annotation applies the decorator, so one switch sets both — but an existing decorator still needs the annotation." +
+        "</p>"
+      );
+    },
+    {
+      deco: (s, name) => {
+        s.decorator[name] = !s.decorator[name];
+      },
+      ann: (s, name) => {
+        s.annotated[name] = !s.annotated[name];
+      },
+    },
+  );
+
+  // ------------------------------------------------------------------ 04 call sites
+  const callSiteCode = {
+    slot:
+      '<pre><code><span class="c">// 24 files, one extra argument</span>\n' +
+      "export class UserDomainModule extends createModuleContext(\n" +
+      "  {\n" +
+      "    controllers: [UserController],\n" +
+      "    providers: [{ provide: UserService, useValue: UserService.live }],\n" +
+      "  },\n" +
+      "  <span class=\"good\">{},</span>\n" +
+      "  DatabasePort,\n" +
+      ") {}</code></pre>",
+    helper:
+      '<pre><code><span class="c">// 0 call sites touched</span>\n' +
+      "export const UserDomainModule = createModuleContext(\n" +
+      "  {\n" +
+      "    controllers: [UserController],\n" +
+      "    providers: [{ provide: UserService, useValue: UserService.live }],\n" +
+      "  },\n" +
+      "  DatabasePort,\n" +
+      ");\n\n" +
+      '<span class="c">// the opt-in helper, for modules that are global</span>\n' +
+      "export const InfraModule = <span class=\"good\">createGlobalModule</span>({ ... }, DatabasePort);</code></pre>",
+  };
+
+  mount(
+    $("#w-callsites"),
+    { mode: "slot" },
+    (s) => {
+      return (
+        '<p class="lab-title"><span>signature growth</span><span>pick the migration</span></p>' +
+        '<div class="row">' +
+        '<button data-a="mode" data-v="slot" aria-pressed="' + String(s.mode === "slot") + '">options slot</button>' +
+        '<button data-a="mode" data-v="helper" aria-pressed="' + String(s.mode === "helper") + '">createGlobalModule</button>' +
+        "</div>" +
+        '<div style="margin-top:14px">' + callSiteCode[s.mode] + "</div>" +
+        '<div class="row" style="margin-top:12px">' +
+        (s.mode === "slot" ? pill("24 files touched · mechanical", "warn") : pill("0 files touched · additive", "ok")) +
+        "</div>"
+      );
+    },
+    {
+      mode: (s, value) => {
+        s.mode = value;
+      },
+    },
+  );
+
+  // ------------------------------------------------------------------ 05 re-export
+  mount(
+    $("#w-reexport"),
+    { bExportsC: true, cExportsService: true },
+    (s) => {
+      const visible = s.bExportsC && s.cExportsService;
+      return (
+        '<p class="lab-title"><span>A imports B · B imports C</span><span>toggle what is re-exported</span></p>' +
+        '<div class="nodes">' +
+        '<div class="node on"><b>A</b>controller</div>' +
+        '<div class="arrow on">→</div>' +
+        '<div class="node ' + (s.bExportsC ? "on" : "off") + '"><b>B</b>exports [C]</div>' +
+        '<div class="arrow ' + (s.bExportsC ? "on" : "") + '">→</div>' +
+        '<div class="node ' + (s.cExportsService ? "on" : "off") + '"><b>C</b>exports service</div>' +
+        "</div>" +
+        '<div class="row" style="margin-top:16px">' +
+        '<label class="check"><input type="checkbox" data-a="b" ' + (s.bExportsC ? "checked" : "") + "> B re-exports C</label>" +
+        '<label class="check"><input type="checkbox" data-a="c" ' + (s.cExportsService ? "checked" : "") + "> C exports the service</label>" +
+        "</div>" +
+        '<div class="row" style="margin-top:12px">' +
+        (visible
+          ? pill("A sees the service", "ok")
+          : pill("A cannot see it · Missing<[AController, Service]>", "bad")) +
+        "</div>" +
+        '<p style="margin:12px 0 0;color:var(--muted);font-size:12.5px">' +
+        "Both hops are required. A re-export is not a shortcut around an export — it forwards one." +
+        "</p>"
+      );
+    },
+    {
+      b: (s, on) => {
+        s.bExportsC = on;
+      },
+      c: (s, on) => {
+        s.cExportsService = on;
+      },
+    },
+  );
+
+  // ------------------------------------------------------------------ 06 runtime
+  const runtimeState = { scoped: true, sent: false };
+
+  mount(
+    $("#w-runtime"),
+    runtimeState,
+    (s) => {
+      const status = !s.sent
+        ? pill("no request yet", "plain")
+        : s.scoped
+          ? pill("500 · Service not found: LeaseSigner", "bad")
+          : pill("200 · the flat context had it", "ok");
+
+      return (
+        '<p class="lab-title"><span>a handler that reaches a service its module never imported</span><span>declareModule lied</span></p>' +
+        '<div class="row">' +
+        '<button data-a="mode" data-v="flat" aria-pressed="' + String(!s.scoped) + '">flat context (today)</button>' +
+        '<button data-a="mode" data-v="scoped" aria-pressed="' + String(s.scoped) + '">scoped context (new)</button>' +
+        "</div>" +
+        '<div class="row" style="margin-top:14px">' +
+        '<button class="primary" data-a="send">POST /directory/replicas</button>' +
+        status +
+        "</div>" +
+        '<div class="row" style="margin-top:12px">' +
+        pill("type audit: passes — the claim hid it", "warn") +
+        "</div>" +
+        '<p style="margin:12px 0 0;color:var(--muted);font-size:12.5px">' +
+        "That is the direction of the change: the new runtime is stricter than the old one, so the 500 is the " +
+        "same fact the types would have caught — just later. Stage types before runtime, per service, and run with " +
+        "<code>EFFECT_SCOPE_REPORT=1</code> to list what each controller will lose." +
+        "</p>"
+      );
+    },
+    {
+      mode: (s, value) => {
+        s.scoped = value === "scoped";
+        s.sent = false;
+      },
+      send: (s) => {
+        s.sent = true;
+      },
+    },
+  );
+
+  // ------------------------------------------------------------------ 07 context()
+  mount(
+    $("#w-context"),
+    { keepGlobal: true, ran: false },
+    (s) => {
+      const seedOk = s.keepGlobal;
+      return (
+        '<p class="lab-title"><span>two entry points</span><span>remove context() and see what breaks</span></p>' +
+        '<div class="grid2">' +
+        '<div class="card"><h4>HTTP request</h4>' +
+        pill("contextFor(controller)", "ok") +
+        '<p style="margin:8px 0 0;font-size:12.5px;color:var(--muted)">scoped to the controller\'s module</p></div>' +
+        '<div class="card"><h4>seed · boot · runPromise</h4>' +
+        (seedOk ? pill("context()", "ok") : pill("context() removed", "bad")) +
+        '<p style="margin:8px 0 0;font-size:12.5px;color:var(--muted)">the whole container, no request</p></div>' +
+        "</div>" +
+        '<div class="row" style="margin-top:14px">' +
+        '<label class="check"><input type="checkbox" data-a="keep" ' + (seedOk ? "checked" : "") + "> keep EffectRuntime.context()</label>" +
+        '<button data-a="run">run db:seed</button>' +
+        (!s.ran ? pill("not run", "plain") : seedOk ? pill("seeded", "ok") : pill("TypeError: context is not a function", "bad")) +
+        "</div>"
+      );
+    },
+    {
+      keep: (s, on) => {
+        s.keepGlobal = on;
+        s.ran = false;
+      },
+      run: (s) => {
+        s.ran = true;
+      },
+    },
+  );
+
+  // ------------------------------------------------------------------ 08 specs
+  const specFiles = [
+    ["apps/api/shared/src/server/orpc-host.spec.ts", "calls context() with no argument — pass the ExecutionContext"],
+    ["apps/api/services/project/src/modules/project/controllers/project.controller.spec.ts", "mocks EffectContextOf and asserts .use()"],
+    ["apps/api/services/project/src/modules/domain/controllers/project-domain.controller.spec.ts", "same mock, same dead assertion"],
+    ["apps/api/services/project/src/modules/domain/controllers/service-domain.controller.spec.ts", "same mock, same dead assertion"],
+    ["apps/api/services/project/src/modules/service/controllers/service.controller.spec.ts", "same mock, same dead assertion"],
+  ];
+
+  mount(
+    $("#w-specs"),
+    { fixed: {} },
+    (s) => {
+      const done = specFiles.filter(([file]) => s.fixed[file]).length;
+      const pct = Math.round((done / specFiles.length) * 100);
+      return (
+        '<p class="lab-title"><span>known spec debt</span><span>' + done + " / " + specFiles.length + " cleared</span></p>" +
+        '<div class="bar" style="margin-bottom:14px"><i style="width:' + pct + '%"></i></div>' +
+        '<ul class="steps">' +
+        specFiles
+          .map(
+            ([file, why]) =>
+              "<li><input type=\"checkbox\" data-a=\"fix\" data-v=\"" + file + "\" " +
+              (s.fixed[file] ? "checked" : "") +
+              "><span><code>" + file.split("/").pop() + "</code><span class=\"why\">" + why + "</span></span></li>",
+          )
+          .join("") +
+        "</ul>"
+      );
+    },
+    {
+      fix: (s, file) => {
+        s.fixed[file] = !s.fixed[file];
+      },
+    },
+  );
+
+  // ------------------------------------------------------------------ 09 cost
+  mount(
+    $("#w-cost"),
+    { endpoints: 20 },
+    (s) => {
+      const base = 250; // ms, model
+      const implement = base + s.endpoints * 0.6;
+      const procedure = base + s.endpoints * 0.9;
+      const max = 250 + 60 * 0.9;
+      return (
+        '<p class="lab-title"><span>model, not a measurement</span><span>' + s.endpoints + " .effect() endpoints</span></p>" +
+        '<input type="range" min="2" max="60" step="1" value="' + s.endpoints + '" data-a="endpoints">' +
+        '<div class="grid2" style="margin-top:12px">' +
+        '<div class="card"><h4>implement()</h4>' +
+        '<div class="bar"><i style="width:' + Math.round((implement / max) * 100) + '%"></i></div>' +
+        '<p style="margin:8px 0 0;font-family:var(--mono);font-size:12px">' + Math.round(implement) + " ms</p></div>" +
+        '<div class="card"><h4>procedure()</h4>' +
+        '<div class="bar amber"><i style="width:' + Math.round((procedure / max) * 100) + '%"></i></div>' +
+        '<p style="margin:8px 0 0;font-family:var(--mono);font-size:12px">' + Math.round(procedure) + " ms</p></div>" +
+        "</div>" +
+        '<pre style="margin-top:14px"><code><span class="c"># the only number that counts</span>\n' +
+        "cd apps/api/services/project &amp;&amp; bun x tsc --noEmit --extendedDiagnostics</code></pre>" +
+        '<p style="margin:12px 0 0;color:var(--muted);font-size:12.5px">' +
+        "The model only shows the shape: linear in endpoints, with a constant offset. Measure the real graph." +
+        "</p>"
+      );
+    },
+    {
+      endpoints: (s, value) => {
+        s.endpoints = Number(value);
+      },
+    },
+  );
+
+  // ------------------------------------------------------------------ 10 trust
+  const claims = ["MeshDirectory", "MeshRelay"];
+
+  mount(
+    $("#w-trust"),
+    { claimed: { MeshDirectory: true, MeshRelay: true }, provided: { MeshDirectory: true, MeshRelay: false } },
+    (s) => {
+      const lies = claims.filter((name) => s.claimed[name] && !s.provided[name]);
+      return (
+        '<p class="lab-title"><span>declareModule(Platform, { provides })</span><span>a claim is not a provider</span></p>' +
+        "<table><thead><tr><th>service</th><th>claimed</th><th>actually provided</th></tr></thead><tbody>" +
+        claims
+          .map(
+            (name) =>
+              "<tr><td><code>" + name + "</code></td>" +
+              '<td><button data-a="claim" data-v="' + name + '" aria-pressed="' + String(s.claimed[name]) + '">' +
+              (s.claimed[name] ? "claimed" : "—") + "</button></td>" +
+              '<td><button data-a="provide" data-v="' + name + '" aria-pressed="' + String(s.provided[name]) + '">' +
+              (s.provided[name] ? "provided" : "missing") + "</button></td></tr>",
+          )
+          .join("") +
+        "</tbody></table>" +
+        '<div class="row" style="margin-top:14px">' +
+        pill("types: pass (trusted)", "warn") +
+        (lies.length === 0 ? pill("runtime: ok", "ok") : pill("runtime: 500 on first use — " + lies.join(", "), "bad")) +
+        "</div>" +
+        '<p style="margin:12px 0 0;color:var(--muted);font-size:12.5px">' +
+        "Only the collaborators of a claimed service are cross-checked, so the sample also validates the claims against " +
+        "Nest's metadata at module definition: a lie throws when the file is imported. The scoped runtime is the second " +
+        "backstop — a broken promise fails instead of succeeding silently." +
+        "</p>"
+      );
+    },
+    {
+      claim: (s, name) => {
+        s.claimed[name] = !s.claimed[name];
+      },
+      provide: (s, name) => {
+        s.provided[name] = !s.provided[name];
+      },
+    },
+  );
+
+  // ------------------------------------------------------------------ rollout
+  const plan = [
+    ["node-agent", ["add the package pieces", "swap implement() → procedure()", "switch the ORPC host", "assert the root"]],
+    ["health", ["codemod controllers", "fix Missing pairs", "scope the runtime", "assert the root"]],
+    ["identity", ["codemod controllers", "fix Missing pairs", "scope the runtime", "assert the root"]],
+    ["project", ["codemod controllers", "fix Missing pairs", "measure type-check", "scope the runtime", "assert the root"]],
+    ["runtime", ["codemod controllers", "fix Missing pairs", "scope the runtime", "assert the root"]],
+    ["fleet", ["codemod controllers", "fix Missing pairs", "scope the runtime", "assert the root"]],
+    ["bff", ["only its .effect() endpoints", "scope the runtime", "assert the root"]],
+  ];
+
+  mount(
+    $("#w-plan"),
+    { done: {} },
+    (s) => {
+      const all = plan.flatMap(([service, steps]) => steps.map((step) => service + ":" + step));
+      const doneCount = all.filter((key) => s.done[key]).length;
+      const pct = Math.round((doneCount / all.length) * 100);
+      return (
+        '<p class="lab-title"><span>7 targets · additive</span><span>' + doneCount + " / " + all.length + " steps</span></p>" +
+        '<div class="bar" style="margin-bottom:16px"><i style="width:' + pct + '%"></i></div>' +
+        plan
+          .map(
+            ([service, steps]) =>
+              '<div class="card" style="margin-bottom:10px"><h4>' + service + "</h4><ul class=\"steps\">" +
+              steps
+                .map((step) => {
+                  const key = service + ":" + step;
+                  return (
+                    "<li><input type=\"checkbox\" data-a=\"step\" data-v=\"" + key + "\" " +
+                    (s.done[key] ? "checked" : "") + "><span>" + step + "</span></li>"
+                  );
+                })
+                .join("") +
+              "</ul></div>",
+          )
+          .join("") +
+        '<p style="margin:8px 0 0;color:var(--muted);font-size:12.5px">' +
+        "Order justifies itself: the smallest service proves the package, then every other service pays the same " +
+        "two costs — codemod, and exports." +
+        "</p>"
+      );
+    },
+    {
+      step: (s, key) => {
+        s.done[key] = !s.done[key];
+      },
+    },
+  );
+})();
+</script>
+</body>
+</html>

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   asIsoString,
-  asNonEmptyString,
   normalizeEnvironment,
   normalizeHealth,
   normalizeImageDigest,
@@ -39,8 +38,6 @@ describe("mesh entity normalization", () => {
   });
 
   it("keeps only usable strings, labels and digests", () => {
-    expect(asNonEmptyString("  a ")).toBe("a");
-    expect(asNonEmptyString("  ")).toBeNull();
     expect(normalizeStringArray(["a", 1, "b"])).toEqual(["a", "b"]);
     expect(normalizeImageLabels({ a: "b", c: 1 })).toEqual({ a: "b" });
     expect(normalizeImageDigest("sha256:abc")).toBe("sha256:abc");

@@ -5,21 +5,24 @@ import z from "zod/v4";
  * replicas each one runs. Nothing here is measured or configured by the platform; it is what the agents report.
  */
 
-/** One node of the swarm: its id, where its agent answers on the overlay network, and whether it is the node asked. */
-export const meshAgentNodeSchema = z.object({
+/**
+ * One node of the swarm: its id, where its agent answers on the overlay network, and whether it is the node asked.
+ * `address` is empty for a node without an agent: a swarm of one has no overlay address to report.
+ */
+export const nodeAgentNodeSchema = z.object({
   nodeId: z.string().min(1),
-  address: z.string().min(1),
+  address: z.string(),
   local: z.boolean(),
 });
-export type MeshAgentNode = z.infer<typeof meshAgentNodeSchema>;
+export type NodeAgentNode = z.infer<typeof nodeAgentNodeSchema>;
 
-export const meshAgentNodesResultSchema = z.object({
-  items: z.array(meshAgentNodeSchema),
+export const nodeAgentNodesResultSchema = z.object({
+  items: z.array(nodeAgentNodeSchema),
 });
-export type MeshAgentNodesResult = z.infer<typeof meshAgentNodesResultSchema>;
+export type NodeAgentNodesResult = z.infer<typeof nodeAgentNodesResultSchema>;
 
 /** A replica a node runs, as its agent's directory lists it. */
-export const meshAgentReplicaSchema = z.object({
+export const nodeAgentReplicaSchema = z.object({
   service: z.string(),
   replicaId: z.string(),
   nodeId: z.string(),
@@ -28,32 +31,32 @@ export const meshAgentReplicaSchema = z.object({
   /** The resources the replica holds in memory (a deployment, a terminal session, a stream). */
   keys: z.array(z.string()),
 });
-export type MeshAgentReplica = z.infer<typeof meshAgentReplicaSchema>;
+export type NodeAgentReplica = z.infer<typeof nodeAgentReplicaSchema>;
 
 /** The swarm at one moment: every node, and every replica the directory holds. */
-export const meshAgentSnapshotSchema = z.object({
+export const nodeAgentSnapshotSchema = z.object({
   generatedAt: z.string(),
-  nodes: z.array(meshAgentNodeSchema),
-  replicas: z.array(meshAgentReplicaSchema),
+  nodes: z.array(nodeAgentNodeSchema),
+  replicas: z.array(nodeAgentReplicaSchema),
 });
-export type MeshAgentSnapshot = z.infer<typeof meshAgentSnapshotSchema>;
+export type NodeAgentSnapshot = z.infer<typeof nodeAgentSnapshotSchema>;
 
 /** Which replica a call about `key` would reach, and why. */
-export const meshAgentLookupInputSchema = z.object({
+export const nodeAgentLookupInputSchema = z.object({
   service: z.string().min(1),
   key: z.string().min(1).optional(),
 });
-export type MeshAgentLookupInput = z.infer<typeof meshAgentLookupInputSchema>;
+export type NodeAgentLookupInput = z.infer<typeof nodeAgentLookupInputSchema>;
 
-export const meshAgentLookupResultSchema = z.object({
+export const nodeAgentLookupResultSchema = z.object({
   found: z.boolean(),
-  replica: meshAgentReplicaSchema.nullable(),
+  replica: nodeAgentReplicaSchema.nullable(),
   reason: z.enum(["key-holder", "local-node", "affinity", "least-loaded"]).nullable(),
 });
-export type MeshAgentLookupResult = z.infer<typeof meshAgentLookupResultSchema>;
+export type NodeAgentLookupResult = z.infer<typeof nodeAgentLookupResultSchema>;
 
 /** A token a new node redeems to join the swarm. Shown once: it carries the swarm's credential. */
-export const meshAgentJoinTokenInputSchema = z.object({
+export const nodeAgentJoinTokenInputSchema = z.object({
   ttlMs: z
     .number()
     .int()
@@ -61,10 +64,10 @@ export const meshAgentJoinTokenInputSchema = z.object({
     .max(24 * 60 * 60 * 1000)
     .default(60 * 60 * 1000),
 });
-export type MeshAgentJoinTokenInput = z.infer<typeof meshAgentJoinTokenInputSchema>;
+export type NodeAgentJoinTokenInput = z.infer<typeof nodeAgentJoinTokenInputSchema>;
 
-export const meshAgentJoinTokenResultSchema = z.object({
+export const nodeAgentJoinTokenResultSchema = z.object({
   token: z.string(),
   expiresAt: z.number(),
 });
-export type MeshAgentJoinTokenResult = z.infer<typeof meshAgentJoinTokenResultSchema>;
+export type NodeAgentJoinTokenResult = z.infer<typeof nodeAgentJoinTokenResultSchema>;

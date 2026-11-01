@@ -1,4 +1,4 @@
-import { runSyncUnwrapped } from "@deployer/effect-core";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 /**
  * Setup Database CLI Command
  *
@@ -61,10 +61,10 @@ export class SetupDbCommand extends CommandRunner {
     }
 
     // 2. Read existing config (if any) to preserve fields
-    const existing = runSyncUnwrapped(this.nodeConfigRepository.find());
+    const existing = await runPromiseUnwrapped(this.nodeConfigRepository.find());
 
     // 3. Upsert with the new database URL
-    const updated = runSyncUnwrapped(this.nodeConfigRepository.upsert({
+    const updated = await runPromiseUnwrapped(this.nodeConfigRepository.upsert({
       nodeId: existing?.nodeId ?? randomUUID(),
       strategy: existing?.strategy ?? "local",
       setupState: (existing?.setupState ?? "not_started"),

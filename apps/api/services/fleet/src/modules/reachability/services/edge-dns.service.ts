@@ -40,11 +40,11 @@ const describe = (error: unknown) => (error instanceof Error ? error.message : S
  */
 export type EdgeDnsServiceShape = {
 	/** Results of the last reconcile: what the Network pages show. */
-	readonly results: () => Effect.Effect<LaneDnsResult[]>;
+	readonly results: () => Effect.Effect<LaneDnsResult[], never, DnsProviderRegistryServices>;
 	/** Converge every planned record set. */
-	readonly reconcile: (plans: readonly LaneDnsRecordPlan[]) => Effect.Effect<LaneDnsResult[]>;
+	readonly reconcile: (plans: readonly LaneDnsRecordPlan[]) => Effect.Effect<LaneDnsResult[], never, DnsProviderRegistryServices>;
 	/** Remove the lane-owned records at `name` (e.g. after the edge moved to another domain). */
-	readonly removeRecords: (name: string, preferredProviderId: string | null) => Effect.Effect<void>;
+	readonly removeRecords: (name: string, preferredProviderId: string | null) => Effect.Effect<void, never, DnsProviderRegistryServices>;
 };
 
 /** Tag and implementation together: the tag is the contract, `Live` the one implementation. */

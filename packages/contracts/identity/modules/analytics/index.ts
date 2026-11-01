@@ -7,6 +7,10 @@ import {
     analyticsGetDeploymentMetricsContract,
     analyticsGetServiceHealthContract,
     analyticsGetRealTimeMetricsContract,
+    analyticsStreamResourceMetricsContract,
+    analyticsStreamDeploymentMetricsContract,
+    analyticsStreamServiceHealthContract,
+    analyticsStreamRealTimeMetricsContract,
 } from "./metrics";
 import {
     analyticsGetResourceUsageContract,
@@ -15,6 +19,8 @@ import {
     analyticsGetApiUsageContract,
     analyticsGetDeploymentUsageContract,
     analyticsGetStorageUsageContract,
+    analyticsStreamResourceUsageContract,
+    analyticsStreamDeploymentUsageContract,
 } from "./usage";
 import {
     analyticsGenerateReportContract,
@@ -37,12 +43,21 @@ export const analyticsContract = oc.meta(openapi({ tags: ["Analytics"], prefix: 
     getServiceHealth: analyticsGetServiceHealthContract,
     getRealTimeMetrics: analyticsGetRealTimeMetricsContract,
 
+    // SSE siblings of the polled reads above: same input, pushed on change.
+    getResourceMetricsStream: analyticsStreamResourceMetricsContract,
+    getDeploymentMetricsStream: analyticsStreamDeploymentMetricsContract,
+    getServiceHealthStream: analyticsStreamServiceHealthContract,
+    getRealTimeMetricsStream: analyticsStreamRealTimeMetricsContract,
+
     getResourceUsage: analyticsGetResourceUsageContract,
     getUserActivity: analyticsGetUserActivityContract,
     getActivitySummary: analyticsGetActivitySummaryContract,
     getApiUsage: analyticsGetApiUsageContract,
     getDeploymentUsage: analyticsGetDeploymentUsageContract,
     getStorageUsage: analyticsGetStorageUsageContract,
+
+    getResourceUsageStream: analyticsStreamResourceUsageContract,
+    getDeploymentUsageStream: analyticsStreamDeploymentUsageContract,
 
     generateReport: analyticsGenerateReportContract,
     getReport: analyticsGetReportContract,

@@ -6,10 +6,9 @@
  */
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
 import { providersContract } from "@deployer/fleet-contracts";
 import { type RunnerDetectionHints } from "@deployer/fleet-contracts";
-import { EffectContextOf } from "@deployer/nest-effect";
+import { procedure } from "@deployer/nest-effect";
 import { Effect } from "effect";
 import z from "zod/v4";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
@@ -20,7 +19,6 @@ import { FleetInvalid, FleetNotFound } from "@/core/fleet.errors";
 import { serve } from "@/core/orpc/serve";
 import { GitHub } from "@/core/ports/github.port";
 import { PublicAccessPoint } from "@/core/ports/public-access-point.port";
-import { ProvidersModule } from "@/modules/providers/providers.module";
 import { GithubAppsStore } from "../repositories/github-apps.repository";
 
 /**
@@ -124,9 +122,8 @@ const toAppView = (row: {
 export class GitHubAppsController {
     @Implement(providersContract.code.github.list)
     list() {
-        return implement(providersContract.code.github.list)
+        return procedure(providersContract.code.github.list)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const apps = yield* GithubAppsStore;
                 const rows = yield* serve(context)(apps.list());
@@ -140,9 +137,8 @@ export class GitHubAppsController {
 
     @Implement(providersContract.code.github.create)
     create() {
-        return implement(providersContract.code.github.create)
+        return procedure(providersContract.code.github.create)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const apps = yield* GithubAppsStore;
                 const row = yield* serve(context)(
@@ -170,9 +166,8 @@ export class GitHubAppsController {
 
     @Implement(providersContract.code.github.update)
     update() {
-        return implement(providersContract.code.github.update)
+        return procedure(providersContract.code.github.update)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const apps = yield* GithubAppsStore;
                 const body = input.body;
@@ -199,9 +194,8 @@ export class GitHubAppsController {
 
     @Implement(providersContract.code.github.delete)
     delete() {
-        return implement(providersContract.code.github.delete)
+        return procedure(providersContract.code.github.delete)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const apps = yield* GithubAppsStore;
                 yield* serve(context)(apps.deleteById(input.params.id));
@@ -213,9 +207,8 @@ export class GitHubAppsController {
 
     @Implement(providersContract.code.github.selfCheck)
     selfCheck() {
-        return implement(providersContract.code.github.selfCheck)
+        return procedure(providersContract.code.github.selfCheck)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const accessPoint = yield* PublicAccessPoint;
                 // The public access point comes from the CORE service (global
@@ -244,9 +237,8 @@ export class GitHubAppsController {
 
     @Implement(providersContract.code.github.manifestInit)
     manifestInit() {
-        return implement(providersContract.code.github.manifestInit)
+        return procedure(providersContract.code.github.manifestInit)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const accessPoint = yield* PublicAccessPoint;
                 // The GitHub App manifest flow registers a callback URL on this
@@ -328,9 +320,8 @@ export class GitHubAppsController {
 
     @Implement(providersContract.code.github.manifestCallback)
     manifestCallback() {
-        return implement(providersContract.code.github.manifestCallback)
+        return procedure(providersContract.code.github.manifestCallback)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const gitHub = yield* GitHub;
                 const apps = yield* GithubAppsStore;
@@ -365,9 +356,8 @@ export class GitHubAppsController {
 
     @Implement(providersContract.code.github.installCallback)
     installCallback() {
-        return implement(providersContract.code.github.installCallback)
+        return procedure(providersContract.code.github.installCallback)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const apps = yield* GithubAppsStore;
                 return yield* serve(context)(
@@ -393,9 +383,8 @@ export class GitHubAppsController {
 
     @Implement(providersContract.code.github.createFromPat)
     createFromPat() {
-        return implement(providersContract.code.github.createFromPat)
+        return procedure(providersContract.code.github.createFromPat)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const apps = yield* GithubAppsStore;
                 const row = yield* serve(context)(
@@ -424,9 +413,8 @@ export class GitHubAppsController {
 
     @Implement(providersContract.code.github.oauthInit)
     oauthInit() {
-        return implement(providersContract.code.github.oauthInit)
+        return procedure(providersContract.code.github.oauthInit)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const apps = yield* GithubAppsStore;
                 const accessPoint = yield* PublicAccessPoint;
@@ -461,9 +449,8 @@ export class GitHubAppsController {
 
     @Implement(providersContract.code.github.oauthCallback)
     oauthCallback() {
-        return implement(providersContract.code.github.oauthCallback)
+        return procedure(providersContract.code.github.oauthCallback)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const apps = yield* GithubAppsStore;
                 const gitHub = yield* GitHub;
@@ -493,9 +480,8 @@ export class GitHubAppsController {
 
     @Implement(providersContract.code.github.listRepos)
     listRepos() {
-        return implement(providersContract.code.github.listRepos)
+        return procedure(providersContract.code.github.listRepos)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const gitHub = yield* GitHub;
                 return yield* serve(context)(
@@ -539,9 +525,8 @@ export class GitHubAppsController {
 
     @Implement(providersContract.code.github.listBranches)
     listBranches() {
-        return implement(providersContract.code.github.listBranches)
+        return procedure(providersContract.code.github.listBranches)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const gitHub = yield* GitHub;
                 return yield* serve(context)(
@@ -571,9 +556,8 @@ export class GitHubAppsController {
 
     @Implement(providersContract.code.github.detectRunner)
     detectRunner() {
-        return implement(providersContract.code.github.detectRunner)
+        return procedure(providersContract.code.github.detectRunner)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const gitHub = yield* GitHub;
                 return yield* serve(context)(

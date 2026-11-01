@@ -1,6 +1,7 @@
-import type { DiscoveryService } from "@nestjs/core";
 import { STATIC_CONTEXT } from "@nestjs/core/injector/constants";
 import { Context, Layer } from "effect";
+
+import type { DiscoveryService } from "@nestjs/core";
 
 type AnyEffectKey = Context.Key<unknown, unknown>;
 

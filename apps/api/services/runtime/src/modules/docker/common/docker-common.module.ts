@@ -1,6 +1,5 @@
-import { Module } from "@nestjs/common";
+import { createModuleContext, EffectRuntime } from "@deployer/nest-effect";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
-import { EffectRuntime } from "@deployer/nest-effect";
 import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
 import { DockerContainerMetricsStreamService } from "../domains/containers/events/docker-container-metrics-stream.service";
 import { DockerRepository } from "../repositories/facade/docker.repository";
@@ -15,7 +14,7 @@ import { DOCKER_NODE_MESH, type DockerNodeMesh } from "../domains/containers/mes
 import { DockerRuntimeMeshRelayService } from "./mesh/docker-runtime-mesh-relay.service";
 import { DockerRuntimeStreamOrchestratorService } from "./runtime/docker-runtime-stream-orchestrator.service";
 
-@Module({
+export class DockerCommonModule extends createModuleContext({
   imports: [CoreDockerModule, EventsModule, DockerRepositoriesModule, DockerContainersModule],
   providers: [
     {
@@ -58,5 +57,4 @@ import { DockerRuntimeStreamOrchestratorService } from "./runtime/docker-runtime
     DockerRuntimeActivityPersistenceService,
     DockerRuntimeStreamOrchestratorService,
   ],
-})
-export class DockerCommonModule {}
+}) {}

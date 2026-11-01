@@ -15,8 +15,9 @@
  * failure rather than a silent one.
  */
 
-import { Module } from "@nestjs/common";
 
+
+import { createModuleContext } from "@deployer/nest-effect";
 import { AnalyticsDelegationController } from "./generated/analytics.delegation";
 import { ClusterDelegationController } from "./generated/cluster.delegation";
 import { DeploymentDelegationController } from "./generated/deployment.delegation";
@@ -35,7 +36,7 @@ import { ServiceDelegationController } from "./generated/service.delegation";
 import { ServicePreviewTopologyDelegationController } from "./generated/servicePreviewTopology.delegation";
 import { UserDelegationController } from "./generated/user.delegation";
 
-@Module({
+export class DelegationModule extends createModuleContext({
 	controllers: [
 		AnalyticsDelegationController,
 		ClusterDelegationController,
@@ -55,5 +56,4 @@ import { UserDelegationController } from "./generated/user.delegation";
 		ServicePreviewTopologyDelegationController,
 		UserDelegationController,
 	],
-})
-export class DelegationModule {}
+}) {}

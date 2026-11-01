@@ -1,5 +1,4 @@
-import { Module } from "@nestjs/common";
-
+import { createModuleContext } from "@deployer/nest-effect";
 import { EnvModule } from "@/config/env/env.module";
 import { SetupHealthModule } from "@/modules/health/setup-health.module";
 import { SetupIngressModule } from "@/modules/ingress/setup-ingress.module";
@@ -58,7 +57,7 @@ import { SetupExitService } from "./services/setup-exit.service";
  * ingress process, so it is imported rather than reimplemented here — one owner,
  * one place where the port changes hands.
  */
-@Module({
+export class HandoverModule extends createModuleContext({
   imports: [
     EnvModule,
     SetupHealthModule,
@@ -78,5 +77,4 @@ import { SetupExitService } from "./services/setup-exit.service";
     SetupExitService,
   ],
   exports: [HandoverOrchestratorService, IngressHandoverService, SetupExitService],
-})
-export class HandoverModule {}
+}) {}

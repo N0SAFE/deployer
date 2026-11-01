@@ -7,6 +7,7 @@ import { harness, testBus } from "../supervisor-test-harness";
 import type { DockerEngineShape } from "@deployer/docker";
 import type { NodeConfigRepositoryShape } from "@deployer/node-state";
 import type { EnvService } from "../../../../config/env/env.module";
+import { NodeConfigSnapshot } from "../../node-state/node-config.snapshot";
 
 type Service = { ID: string; CreatedAt: string; UpdatedAt: string; Spec: { Name: string } };
 
@@ -75,15 +76,18 @@ function makeMocks(provisioning: "local" | "external" | null = "local") {
 	};
 }
 
-function makeSupervisor(mocks: ReturnType<typeof makeMocks>) {
+async function makeSupervisor(mocks: ReturnType<typeof makeMocks>) {
 	const env = { get: vi.fn((key: string) => ({ MANAGED_GLOBAL_DB_ENABLED: false })[key as "MANAGED_GLOBAL_DB_ENABLED"]) } as unknown as EnvService;
-	return harness(makeGlobalDbRegistration({ engine: mocks.dockerService, nodeConfig: mocks.nodeConfigRepository, env, bus: testBus() }));
+	const snapshot = new NodeConfigSnapshot(mocks.nodeConfigRepository);
+	// The app primes the cache in `onModuleInit`, before any registration activates.
+	await snapshot.refresh();
+	return harness(makeGlobalDbRegistration({ engine: mocks.dockerService, snapshot, env, bus: testBus() }));
 }
 
 describe("global-db supervisor — conditional registration", () => {
 	it("registers into the orchestrator when the database is LOCALLY managed", async () => {
 		const mocks = makeMocks("local");
-		const supervisor = makeSupervisor(mocks);
+		const supervisor = await makeSupervisor(mocks);
 		const orchestrator = makeSupervisorOrchestrator();
 
 		await supervisor.register(orchestrator);
@@ -94,7 +98,7 @@ describe("global-db supervisor — conditional registration", () => {
 
 	it("does NOT register when the database is externally managed", async () => {
 		const mocks = makeMocks("external");
-		const supervisor = makeSupervisor(mocks);
+		const supervisor = await makeSupervisor(mocks);
 		const orchestrator = makeSupervisorOrchestrator();
 
 		await supervisor.register(orchestrator);
@@ -104,7 +108,7 @@ describe("global-db supervisor — conditional registration", () => {
 
 	it("does NOT register when provisioning is unknown (legacy config)", async () => {
 		const mocks = makeMocks(null);
-		const supervisor = makeSupervisor(mocks);
+		const supervisor = await makeSupervisor(mocks);
 		const orchestrator = makeSupervisorOrchestrator();
 
 		await supervisor.register(orchestrator);
@@ -116,7 +120,7 @@ describe("global-db supervisor — conditional registration", () => {
 describe("global-db supervisor — reconcile", () => {
 	it("ensures the swarm service runs for a locally-managed database", async () => {
 		const mocks = makeMocks("local");
-		const supervisor = makeSupervisor(mocks);
+		const supervisor = await makeSupervisor(mocks);
 
 		const state = await supervisor.ensureDesiredState();
 
@@ -126,7 +130,7 @@ describe("global-db supervisor — reconcile", () => {
 
 	it("does NOT touch the container for an external database", async () => {
 		const mocks = makeMocks("external");
-		const supervisor = makeSupervisor(mocks);
+		const supervisor = await makeSupervisor(mocks);
 
 		const state = await supervisor.ensureDesiredState();
 
@@ -138,7 +142,7 @@ describe("global-db supervisor — reconcile", () => {
 describe("global-db supervisor — probe / health", () => {
 	it("reports healthy with rich measurements for a managed (local) database", async () => {
 		const mocks = makeMocks("local");
-		const supervisor = makeSupervisor(mocks);
+		const supervisor = await makeSupervisor(mocks);
 		await supervisor.ensureDesiredState();
 
 		const health = await supervisor.getHealth();
@@ -158,7 +162,7 @@ describe("global-db supervisor — probe / health", () => {
 
 	it("reports unhealthy when the managed swarm service is missing (local DB)", async () => {
 		const mocks = makeMocks("local");
-		const supervisor = makeSupervisor(mocks);
+		const supervisor = await makeSupervisor(mocks);
 		await supervisor.ensureDesiredState();
 		mocks.removeService();
 
@@ -174,7 +178,7 @@ describe("global-db supervisor — probe / health", () => {
 
 	it("reports unhealthy when the managed swarm service has no running task (local DB)", async () => {
 		const mocks = makeMocks("local");
-		const supervisor = makeSupervisor(mocks);
+		const supervisor = await makeSupervisor(mocks);
 		await supervisor.ensureDesiredState();
 		mocks.setTasks([{ Status: { State: "pending" } }]);
 
@@ -190,7 +194,7 @@ describe("global-db supervisor — probe / health", () => {
 
 	it("runs a real SELECT 1 + table listing for an external database (unreachable URL → unhealthy with I/O failure in the payload)", async () => {
 		const mocks = makeMocks("external");
-		const supervisor = makeSupervisor(mocks);
+		const supervisor = await makeSupervisor(mocks);
 		await supervisor.ensureDesiredState();
 
 		const health = await supervisor.getHealth();
@@ -211,7 +215,7 @@ describe("global-db supervisor — process info", () => {
 	it("reports the managed postgres process + connection DSN via getProcessInfo", async () => {
 		const mocks = makeMocks("local");
 		mocks.seedService();
-		const supervisor = makeSupervisor(mocks);
+		const supervisor = await makeSupervisor(mocks);
 
 		const info = await supervisor.getProcessInfo();
 
@@ -231,7 +235,7 @@ describe("global-db supervisor — process info", () => {
 
 	it("reports missing service state when the managed swarm service is gone", async () => {
 		const mocks = makeMocks("local");
-		const supervisor = makeSupervisor(mocks);
+		const supervisor = await makeSupervisor(mocks);
 
 		const info = await supervisor.getProcessInfo();
 

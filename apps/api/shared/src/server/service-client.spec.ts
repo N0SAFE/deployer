@@ -16,8 +16,8 @@ type PingClient = { ping: () => Promise<unknown> };
 /** The module reads where the agent's socket is when it loads, so each case loads a fresh copy under its own environment. */
 async function load(socket: string | undefined) {
 	vi.resetModules();
-	if (socket === undefined) delete process.env.MESH_AGENT_SOCKET;
-	else process.env.MESH_AGENT_SOCKET = socket;
+	if (socket === undefined) delete process.env.NODE_AGENT_SOCKET;
+	else process.env.NODE_AGENT_SOCKET = socket;
 	return (await import("./service-client")).ServiceClient;
 }
 
@@ -33,7 +33,7 @@ describe("ServiceClient", () => {
 
 	afterEach(() => {
 		vi.unstubAllGlobals();
-		delete process.env.MESH_AGENT_SOCKET;
+		delete process.env.NODE_AGENT_SOCKET;
 		rmSync(directory, { recursive: true, force: true });
 	});
 

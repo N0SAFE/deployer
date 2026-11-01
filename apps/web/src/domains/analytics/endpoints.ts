@@ -13,6 +13,13 @@ export const analyticsEndpoints = {
   getApiUsage: orpc.analytics.getApiUsage,
   getDeploymentUsage: orpc.analytics.getDeploymentUsage,
   getStorageUsage: orpc.analytics.getStorageUsage,
+  // SSE siblings — same input, pushed on change (no client polling).
+  getResourceMetricsStream: orpc.analytics.getResourceMetricsStream,
+  getDeploymentMetricsStream: orpc.analytics.getDeploymentMetricsStream,
+  getServiceHealthStream: orpc.analytics.getServiceHealthStream,
+  getRealTimeMetricsStream: orpc.analytics.getRealTimeMetricsStream,
+  getResourceUsageStream: orpc.analytics.getResourceUsageStream,
+  getDeploymentUsageStream: orpc.analytics.getDeploymentUsageStream,
   generateReport: orpc.analytics.generateReport,
   getReport: orpc.analytics.getReport,
   listReports: orpc.analytics.listReports,

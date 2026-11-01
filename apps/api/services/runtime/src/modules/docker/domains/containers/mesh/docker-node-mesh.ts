@@ -76,7 +76,7 @@ export type NodeMeshResult<TResponse> = {
 };
 
 /** The link to this node's agent, filled in when the runtime joins the mesh. Without it the runtime is alone on its node. */
-export type NodeMeshAgent = {
+export type NodeAgent = {
   link: ClientLink<ClientContext> | undefined;
   /** This node's id, learned from the directory the first time the agent is asked. */
   selfNodeId?: string | undefined;
@@ -85,7 +85,7 @@ export type NodeMeshAgent = {
 };
 
 /** DI token for the holder of the agent link. */
-export const NODE_MESH_AGENT = Symbol("runtime:node-mesh-agent");
+export const NODE_AGENT = Symbol("runtime:node-agent");
 
 /** DI token for the node mesh the docker callers ask through. */
 export const DOCKER_NODE_MESH = Symbol("runtime:docker-node-mesh");
@@ -102,7 +102,7 @@ type Replica = { readonly service: string; readonly replicaId: string; readonly 
  * if that fails; a question with no owner (a list, a catalog) goes to every other node. Without an agent, or when nobody
  * answers, a method resolves with no responses, which is what a lone node always meant.
  */
-export function dockerNodeMeshOver(holder: NodeMeshAgent) {
+export function dockerNodeMeshOver(holder: NodeAgent) {
   const agent = () => holder.link;
 
   const replicas = async (link: ClientLink<ClientContext>): Promise<readonly Replica[]> => {
@@ -419,19 +419,23 @@ export function dockerNodeMeshOver(holder: NodeMeshAgent) {
       (request) => request.body,
       (output, node) => ({ session: output, responderNodeId: node }) as DockerContainerTerminalOpenResponsePayload,
     ),
-    // A terminal session lives on the node that opened it, and sessions are not announced as keys: ask every other node.
-    listContainerTerminalSessionEventsAcrossInstances: everywhere<DockerContainerTerminalEventsRequestPayload, unknown, DockerContainerTerminalEventsResponsePayload>(
+    // A terminal session lives on the node that opened it and its id is announced as a key, so the call reaches that
+    // node first and only fans out when no replica claims it (a caller from before the key was announced).
+    listContainerTerminalSessionEventsAcrossInstances: ofContainer<DockerContainerTerminalEventsRequestPayload, unknown, DockerContainerTerminalEventsResponsePayload>(
       ["runtime", "terminalEvents"],
+      (request) => request.query.sessionId,
       (request) => request.query,
       (output, node) => ({ snapshot: output, responderNodeId: node }) as DockerContainerTerminalEventsResponsePayload,
     ),
-    sendContainerTerminalInputAcrossInstances: everywhere<DockerContainerTerminalInputRequestPayload, unknown, DockerContainerTerminalInputResponsePayload>(
+    sendContainerTerminalInputAcrossInstances: ofContainer<DockerContainerTerminalInputRequestPayload, unknown, DockerContainerTerminalInputResponsePayload>(
       ["runtime", "terminalInput"],
+      (request) => request.body.sessionId,
       (request) => request.body,
       (output, node) => ({ ack: output, responderNodeId: node }) as DockerContainerTerminalInputResponsePayload,
     ),
-    closeContainerTerminalSessionAcrossInstances: everywhere<DockerContainerTerminalCloseRequestPayload, unknown, DockerContainerTerminalCloseResponsePayload>(
+    closeContainerTerminalSessionAcrossInstances: ofContainer<DockerContainerTerminalCloseRequestPayload, unknown, DockerContainerTerminalCloseResponsePayload>(
       ["runtime", "terminalClose"],
+      (request) => request.body.sessionId,
       (request) => request.body,
       (output, node) => ({ ack: output, responderNodeId: node }) as DockerContainerTerminalCloseResponsePayload,
     ),

@@ -13,20 +13,17 @@
 
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
 import { platformContract } from "@deployer/fleet-contracts";
-import { EffectContextOf } from "@deployer/nest-effect";
+import { procedure } from "@deployer/nest-effect";
 
 import { serveAnonymous } from "../../../core/orpc/serve";
-import { PlatformModule } from "../platform.module";
 import { PlatformManagedWebService } from "../services/platform-managed-web.service";
 
 @Controller()
 export class PlatformManagedWebController {
 	@Implement(platformContract.getManagedWebState)
 	state() {
-		return implement(platformContract.getManagedWebState)
-			.use(PlatformModule[EffectContextOf])
+		return procedure(platformContract.getManagedWebState)
 			.effect(function* ({ context }) {
 				const managedWeb = yield* PlatformManagedWebService;
 				return yield* serveAnonymous(context)(managedWeb.state());
@@ -35,8 +32,7 @@ export class PlatformManagedWebController {
 
 	@Implement(platformContract.toggleManagedWeb)
 	toggle() {
-		return implement(platformContract.toggleManagedWeb)
-			.use(PlatformModule[EffectContextOf])
+		return procedure(platformContract.toggleManagedWeb)
 			.effect(function* ({ context }) {
 				const managedWeb = yield* PlatformManagedWebService;
 				const state = yield* serveAnonymous(context)(managedWeb.toggle());
@@ -46,8 +42,7 @@ export class PlatformManagedWebController {
 
 	@Implement(platformContract.restartManagedWeb)
 	restart() {
-		return implement(platformContract.restartManagedWeb)
-			.use(PlatformModule[EffectContextOf])
+		return procedure(platformContract.restartManagedWeb)
 			.effect(function* ({ context }) {
 				const managedWeb = yield* PlatformManagedWebService;
 				const state = yield* serveAnonymous(context)(managedWeb.restart());
@@ -57,8 +52,7 @@ export class PlatformManagedWebController {
 
 	@Implement(platformContract.setManagedWebOrigin)
 	setOrigin() {
-		return implement(platformContract.setManagedWebOrigin)
-			.use(PlatformModule[EffectContextOf])
+		return procedure(platformContract.setManagedWebOrigin)
 			.effect(function* ({ input, context }) {
 				const managedWeb = yield* PlatformManagedWebService;
 				const state = yield* serveAnonymous(context)(managedWeb.setOrigin(input.origin));
@@ -68,8 +62,7 @@ export class PlatformManagedWebController {
 
 	@Implement(platformContract.enableManagedWebTunnel)
 	enableTunnel() {
-		return implement(platformContract.enableManagedWebTunnel)
-			.use(PlatformModule[EffectContextOf])
+		return procedure(platformContract.enableManagedWebTunnel)
 			.effect(function* ({ input, context }) {
 				const managedWeb = yield* PlatformManagedWebService;
 				const state = yield* serveAnonymous(context)(managedWeb.enableTunnel(input.hostname));
@@ -79,8 +72,7 @@ export class PlatformManagedWebController {
 
 	@Implement(platformContract.disableManagedWebTunnel)
 	disableTunnel() {
-		return implement(platformContract.disableManagedWebTunnel)
-			.use(PlatformModule[EffectContextOf])
+		return procedure(platformContract.disableManagedWebTunnel)
 			.effect(function* ({ context }) {
 				const managedWeb = yield* PlatformManagedWebService;
 				const state = yield* serveAnonymous(context)(managedWeb.disableTunnel());

@@ -11,17 +11,15 @@
  * reachability core and the Edge API alike.
  */
 
-import { Global, Module } from "@nestjs/common";
+import { createGlobalModule } from "@deployer/nest-effect";
 
-import { MeshAgentModule } from "../mesh-agent/mesh-agent.module";
+import { MeshNodeModule } from "../mesh-node/mesh-node.module";
 import { EdgeProviderRegistry } from "./edge-provider.registry";
 import { EdgeStateStore } from "./edge-state.store";
 import { DirectEdgeProvider } from "./providers/direct.edge-provider";
 
-@Global()
-@Module({
-	imports: [MeshAgentModule],
+export const CoreEdgeModule = createGlobalModule({
+	imports: [MeshNodeModule],
 	providers: [EdgeProviderRegistry, EdgeStateStore, DirectEdgeProvider],
 	exports: [EdgeProviderRegistry, EdgeStateStore],
-})
-export class CoreEdgeModule {}
+});

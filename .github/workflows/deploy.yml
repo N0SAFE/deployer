@@ -33,7 +33,7 @@ env:
   # GitHub Container Registry settings
   REGISTRY: ghcr.io
   # Bun version must match the Dockerfile base image
-  BUN_VERSION: "1.4.3"
+  BUN_VERSION: "1.4.4"
 
 jobs:
   # ── Job 1: Extract version from package.json ──────────────────────────────

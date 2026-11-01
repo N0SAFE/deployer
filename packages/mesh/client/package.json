@@ -36,11 +36,12 @@
     },
     "dependencies": {
         "@deployer/effect-core": "*",
-        "@deployer/mesh-agent-contracts": "*",
+        "@deployer/node-agent-contracts": "*",
         "@orpc/client": "catalog:orpc",
         "@orpc/effect": "catalog:orpc",
         "effect": "catalog:effect",
-        "ws": "^8.21.0"
+        "ws": "^8.21.0",
+        "zod": "catalog:utils"
     },
     "peerDependencies": {
         "@orpc/client": "catalog:orpc"

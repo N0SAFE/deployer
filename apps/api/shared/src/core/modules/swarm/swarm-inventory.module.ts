@@ -21,18 +21,18 @@
  * `SetupModule` (it takes `NodeStateModule` instead), so there is no path back.
  */
 
-import { Module } from "@nestjs/common";
 
+
+import { createModuleContext } from "@deployer/nest-effect";
 import { MeshCoreModule } from "../mesh/mesh-core.module";
 import { SwarmCoreModule } from "./swarm.module";
 import { GlobalClusterNodesRepository } from "./repositories/global-cluster-nodes.repository";
 import { NodeInventoryService } from "./services/node-inventory.service";
 
-@Module({
+export class SwarmInventoryModule extends createModuleContext({
     // SwarmCoreModule supplies SwarmClusterService (the `docker node ls` read
     // path). This direction is acyclic: SwarmCoreModule never imports this one.
     imports: [SwarmCoreModule, MeshCoreModule],
     providers: [GlobalClusterNodesRepository, NodeInventoryService],
     exports: [GlobalClusterNodesRepository, NodeInventoryService],
-})
-export class SwarmInventoryModule {}
+}) {}

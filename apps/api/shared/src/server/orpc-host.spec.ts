@@ -30,9 +30,9 @@ describe("createOrpcModule extraContext", () => {
 		// container is unfinished, and what it answered would have been kept for every request.
 		expect(resolve).not.toHaveBeenCalled();
 
-		const context = config.context as () => Promise<Record<string, unknown>>;
-		expect((await context())["effect/context"]).toBe("snapshot-1");
-		expect((await context())["effect/context"]).toBe("snapshot-2");
+		const context = config.context as (ctx: unknown) => Promise<Record<string, unknown>>;
+		expect((await context({}))["effect/context"]).toBe("snapshot-1");
+		expect((await context({}))["effect/context"]).toBe("snapshot-2");
 	});
 
 	it("still carries the request and the auth utilities", async () => {
@@ -41,7 +41,7 @@ describe("createOrpcModule extraContext", () => {
 		const factory = configFactory(undefined);
 
 		const config = await factory(request, { createEmptyAuthUtils: () => auth });
-		const context = await (config.context as () => Promise<Record<string, unknown>>)();
+		const context = await (config.context as (ctx: unknown) => Promise<Record<string, unknown>>)({});
 
 		expect(context.request).toBe(request);
 		expect(context.auth).toBe(auth);

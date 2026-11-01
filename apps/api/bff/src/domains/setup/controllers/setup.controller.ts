@@ -1,4 +1,4 @@
-import { runSyncUnwrapped } from "@deployer/effect-core";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { Controller, Logger, Inject } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
@@ -52,14 +52,14 @@ export class SetupController {
     getState() {
         return implement(setupContract.getState)
             .use(publicAccess())
-            .handler(() => this.initializationService.getSetupState());
+            .handler(async () => this.initializationService.getSetupState());
     }
 
     @Implement(setupContract.getNodeStatus)
     getNodeStatus() {
         return implement(setupContract.getNodeStatus)
             .use(publicAccess())
-            .handler(() => this.initializationService.getNodeStatus());
+            .handler(async () => this.initializationService.getNodeStatus());
     }
 
     // ─── Pre-flight probes ────────────────────────────────────────────────────
@@ -152,9 +152,9 @@ export class SetupController {
     setupDismissPostSetupHint() {
         return implement(setupContract.dismissPostSetupHint)
             .use(publicAccess())
-            .handler(({ input, errors }) => {
+            .handler(async ({ input, errors }) => {
                 this.logger.log(`Hint dismissed: ${input.hintId}`);
-                const config = runSyncUnwrapped(this.nodeConfigRepository.find());
+                const config = await runPromiseUnwrapped(this.nodeConfigRepository.find());
                 if (!config) {
                     throw errors.INTERNAL_SERVER_ERROR(
                         domainErrorOptions(
@@ -165,7 +165,7 @@ export class SetupController {
                     );
                 }
                 const flags = config.postSetupFlags ?? {};
-                runSyncUnwrapped(this.nodeConfigRepository.upsert({
+                await runPromiseUnwrapped(this.nodeConfigRepository.upsert({
                     nodeId: config.nodeId,
                     strategy: config.strategy,
                     setupState: config.setupState,

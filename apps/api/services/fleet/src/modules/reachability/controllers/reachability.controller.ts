@@ -8,13 +8,11 @@
  */
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
 import { reachabilityContract } from "@deployer/fleet-contracts";
-import { EffectContextOf } from "@deployer/nest-effect";
+import { procedure } from "@deployer/nest-effect";
 import { requireAuth, requirePlatformRole } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
 import { serve } from "../../../core/orpc/serve";
-import { ReachabilityModule } from "../reachability.module";
 import { IngressEdgeService } from "../services/ingress-edge.service";
 import { NodeReachabilityService } from "../services/node-reachability.service";
 
@@ -25,9 +23,8 @@ const EDGE_ADMIN_ROLES = ["superAdmin", "admin"];
 export class ReachabilityController {
     @Implement(reachabilityContract.check)
     check() {
-        return implement(reachabilityContract.check)
+        return procedure(reachabilityContract.check)
             .use(requireAuth())
-            .use(ReachabilityModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const reachability = yield* NodeReachabilityService;
                 return yield* serve(context)(reachability.check(input.url));
@@ -36,9 +33,8 @@ export class ReachabilityController {
 
     @Implement(reachabilityContract.getConfig)
     getConfig() {
-        return implement(reachabilityContract.getConfig)
+        return procedure(reachabilityContract.getConfig)
             .use(requireAuth())
-            .use(ReachabilityModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const reachability = yield* NodeReachabilityService;
                 return yield* serve(context)(reachability.probePublicUrl());
@@ -47,9 +43,8 @@ export class ReachabilityController {
 
     @Implement(reachabilityContract.updateConfig)
     updateConfig() {
-        return implement(reachabilityContract.updateConfig)
+        return procedure(reachabilityContract.updateConfig)
             .use(requireAuth())
-            .use(ReachabilityModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const reachability = yield* NodeReachabilityService;
                 return yield* serve(context)(reachability.probePublicUrl());
@@ -58,9 +53,8 @@ export class ReachabilityController {
 
     @Implement(reachabilityContract.checkDomain)
     checkDomain() {
-        return implement(reachabilityContract.checkDomain)
+        return procedure(reachabilityContract.checkDomain)
             .use(requireAuth())
-            .use(ReachabilityModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const reachability = yield* NodeReachabilityService;
                 return yield* serve(context)(reachability.checkDomain(input.domain, input.expectedIp));
@@ -69,9 +63,8 @@ export class ReachabilityController {
 
     @Implement(reachabilityContract.getPublicIp)
     getPublicIp() {
-        return implement(reachabilityContract.getPublicIp)
+        return procedure(reachabilityContract.getPublicIp)
             .use(requireAuth())
-            .use(ReachabilityModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const reachability = yield* NodeReachabilityService;
                 return yield* serve(context)(reachability.getPublicIp());
@@ -80,9 +73,8 @@ export class ReachabilityController {
 
     @Implement(reachabilityContract.getNodeNetworkConfig)
     getNodeNetworkConfig() {
-        return implement(reachabilityContract.getNodeNetworkConfig)
+        return procedure(reachabilityContract.getNodeNetworkConfig)
             .use(requireAuth())
-            .use(ReachabilityModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const reachability = yield* NodeReachabilityService;
                 return yield* serve(context)(reachability.getNodeNetworkConfig(input.nodeId));
@@ -91,9 +83,8 @@ export class ReachabilityController {
 
     @Implement(reachabilityContract.listNodeNetworkConfigs)
     listNodeNetworkConfigs() {
-        return implement(reachabilityContract.listNodeNetworkConfigs)
+        return procedure(reachabilityContract.listNodeNetworkConfigs)
             .use(requireAuth())
-            .use(ReachabilityModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const reachability = yield* NodeReachabilityService;
                 return yield* serve(context)(reachability.listNodeNetworkConfigs());
@@ -102,9 +93,8 @@ export class ReachabilityController {
 
     @Implement(reachabilityContract.updateNodeNetworkConfig)
     updateNodeNetworkConfig() {
-        return implement(reachabilityContract.updateNodeNetworkConfig)
+        return procedure(reachabilityContract.updateNodeNetworkConfig)
             .use(requireAuth())
-            .use(ReachabilityModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const reachability = yield* NodeReachabilityService;
                 return yield* serve(context)(reachability.updateNodeNetworkConfig({ nodeId: input.nodeId, publicAddress: input.publicAddress }));
@@ -113,9 +103,8 @@ export class ReachabilityController {
 
     @Implement(reachabilityContract.checkDomainGate)
     checkDomainGate() {
-        return implement(reachabilityContract.checkDomainGate)
+        return procedure(reachabilityContract.checkDomainGate)
             .use(requireAuth())
-            .use(ReachabilityModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const reachability = yield* NodeReachabilityService;
                 return yield* serve(context)(reachability.checkDomainGate());
@@ -124,9 +113,8 @@ export class ReachabilityController {
 
     @Implement(reachabilityContract.getIngress)
     getIngress() {
-        return implement(reachabilityContract.getIngress)
+        return procedure(reachabilityContract.getIngress)
             .use(requireAuth())
-            .use(ReachabilityModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const ingress = yield* IngressEdgeService;
                 return yield* serve(context)(ingress.getState());
@@ -135,9 +123,8 @@ export class ReachabilityController {
 
     @Implement(reachabilityContract.updateIngress)
     updateIngress() {
-        return implement(reachabilityContract.updateIngress)
+        return procedure(reachabilityContract.updateIngress)
             .use(requireAuth())
-            .use(ReachabilityModule[EffectContextOf])
             .use(requirePlatformRole(EDGE_ADMIN_ROLES))
             .effect(function* ({ input, context }) {
                 const ingress = yield* IngressEdgeService;
@@ -147,9 +134,8 @@ export class ReachabilityController {
 
     @Implement(reachabilityContract.teardownPublicEdge)
     teardownPublicEdge() {
-        return implement(reachabilityContract.teardownPublicEdge)
+        return procedure(reachabilityContract.teardownPublicEdge)
             .use(requireAuth())
-            .use(ReachabilityModule[EffectContextOf])
             .use(requirePlatformRole(EDGE_ADMIN_ROLES))
             .effect(function* ({ context }) {
                 const ingress = yield* IngressEdgeService;
@@ -159,9 +145,8 @@ export class ReachabilityController {
 
     @Implement(reachabilityContract.revokeMeshMember)
     revokeMeshMember() {
-        return implement(reachabilityContract.revokeMeshMember)
+        return procedure(reachabilityContract.revokeMeshMember)
             .use(requireAuth())
-            .use(ReachabilityModule[EffectContextOf])
             .use(requirePlatformRole(EDGE_ADMIN_ROLES))
             .effect(function* ({ input, context }) {
                 const ingress = yield* IngressEdgeService;
@@ -171,9 +156,8 @@ export class ReachabilityController {
 
     @Implement(reachabilityContract.getPublicAccessPoint)
     getPublicAccessPoint() {
-        return implement(reachabilityContract.getPublicAccessPoint)
+        return procedure(reachabilityContract.getPublicAccessPoint)
             .use(requireAuth())
-            .use(ReachabilityModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const reachability = yield* NodeReachabilityService;
                 return yield* serve(context)(reachability.getPublicAccessPoint());
@@ -182,9 +166,8 @@ export class ReachabilityController {
 
     @Implement(reachabilityContract.watchPublicAccessPoint)
     watchPublicAccessPoint() {
-        return implement(reachabilityContract.watchPublicAccessPoint)
+        return procedure(reachabilityContract.watchPublicAccessPoint)
             .use(requireAuth())
-            .use(ReachabilityModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const reachability = yield* NodeReachabilityService;
                 return yield* serve(context)(reachability.watchPublicAccessPoint());

@@ -162,5 +162,17 @@ export class ProvidersModule extends createModuleContext({
         GithubWebhookDispatchService,
         PreviewProvisioningService,
         PreviewLifecycleEventService,
+        // Consumed by `ReachabilityModule`'s `IngressEdgeService` and `PlatformModule`'s
+        // `PlatformManagedWebService`; a module's scoped request context sees only what its
+        // imports export.
+        DnsProviderRegistryService,
+        CloudflareTunnelService,
+        CloudflareAppService,
+        CloudflareDnsProviderService,
+        DnsProvidersStore,
+        FleetDb,
+        // The registries themselves: `ReachabilityController` and `PlatformManagedWebController` read them back.
+        IngressLanes,
+        EdgeProviders,
     ],
 }, DatabasePort) {}

@@ -1,5 +1,6 @@
-import { Logger, Module } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { EnvModule } from "@/config/env/env.module";
+import { createModuleContext } from "@deployer/nest-effect";
 import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
 import { LocalDatabaseModule } from "@/core/modules/database/local/local-database.module"
 import { DatabaseModule } from "@/core/modules/database/database.module";
@@ -18,7 +19,7 @@ import { MigrationJournalService } from '@/core/utils/migration-journal.service'
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 import { NodeStateModule } from '@/core/modules/node-state/node-state.module';
 
-@Module({
+export class CLIModule extends createModuleContext({
   imports: [
     EnvModule,
     // ── WHY THE SHARED MODULE, AND NOT A HAND-ROLLED POOL ────────────────
@@ -62,5 +63,4 @@ import { NodeStateModule } from '@/core/modules/node-state/node-state.module';
     ResealSecretsCommand,
     MigrationJournalService,
   ],
-})
-export class CLIModule {}
+}) {}

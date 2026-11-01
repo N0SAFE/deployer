@@ -1,4 +1,4 @@
-import { runSyncUnwrapped } from "@deployer/effect-core";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 /**
  * Node Startup Check CLI Command
  *
@@ -78,7 +78,7 @@ export class NodeStartupCheckCommand extends CommandRunner {
   }
 
   async run(): Promise<void> {
-    const output = this.performCheck();
+    const output = await this.performCheck();
     // Write JSON to stdout so the entrypoint can parse it
     console.log(JSON.stringify(output, null, 2));
     process.exit(output.exitCode);
@@ -86,9 +86,9 @@ export class NodeStartupCheckCommand extends CommandRunner {
 
   // ─── Internal check ─────────────────────────────────────────────────────────
 
-  private performCheck(): StartupCheckOutput {
+  private async performCheck(): Promise<StartupCheckOutput> {
     try {
-      const config = runSyncUnwrapped(this.nodeConfigRepository.find());
+      const config = await runPromiseUnwrapped(this.nodeConfigRepository.find());
 
       if (!config) {
         // No config at all — setup has never been started

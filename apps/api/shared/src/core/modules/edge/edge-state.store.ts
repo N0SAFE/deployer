@@ -15,7 +15,7 @@
 import { Injectable } from "@nestjs/common";
 import z from "zod/v4";
 
-import { ClusterSettingsService } from "../mesh-agent/cluster-settings.service";
+import { ClusterSettings } from "../mesh-node/cluster-settings";
 
 export function edgeStateKey(providerId: string): string {
 	return `edge.${providerId}`;
@@ -23,19 +23,19 @@ export function edgeStateKey(providerId: string): string {
 
 @Injectable()
 export class EdgeStateStore {
-	constructor(private readonly settings: ClusterSettingsService) {}
+	constructor(private readonly settings: ClusterSettings) {}
 
 	/** The provider's state, or null when it has none (never provisioned, torn down, malformed). */
 	async read<T extends z.ZodType>(providerId: string, schema: T): Promise<z.output<T> | null> {
-		return (await this.settings.read(edgeStateKey(providerId), schema.nullable())) ?? null;
+		return await this.settings.read(edgeStateKey(providerId), schema.nullable(), null);
 	}
 
-	async write<T extends z.ZodType>(providerId: string, schema: T, value: z.input<T>): Promise<z.output<T>> {
-		return await this.settings.write(edgeStateKey(providerId), schema, value);
+	async write<T extends z.ZodType>(providerId: string, schema: T, value: z.input<T>): Promise<void> {
+		await this.settings.write(edgeStateKey(providerId), schema.parse(value));
 	}
 
 	/** Forget the provider's state. Written as `null` so the removal replicates like any write. */
 	async clear(providerId: string): Promise<void> {
-		await this.settings.write(edgeStateKey(providerId), z.null(), null);
+		await this.settings.write(edgeStateKey(providerId), null);
 	}
 }

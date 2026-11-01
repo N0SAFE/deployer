@@ -3,7 +3,7 @@ import { Injectable, Logger, Inject } from "@nestjs/common";
 import { SwarmCluster, type SwarmClusterShape, SwarmParticipation, type SwarmParticipationShape } from "@deployer/swarm"
 
 import type { ClusterBootstrapResult, ClusterEntryMode } from "../cluster.types";
-import { MeshAgentLauncherService } from "./mesh-agent-launcher.service";
+import { NodeAgentLauncherService } from "./node-agent-launcher.service";
 
 /**
  * Founds or joins the swarm, then publishes the outcome.
@@ -26,7 +26,7 @@ export class SwarmBootstrapService {
   constructor(
     @Inject(SwarmCluster) private readonly cluster: SwarmClusterShape,
     @Inject(SwarmParticipation) private readonly participation: SwarmParticipationShape,
-    private readonly meshAgent: MeshAgentLauncherService,
+    private readonly nodeAgent: NodeAgentLauncherService,
   ) {}
 
   /**
@@ -43,17 +43,17 @@ export class SwarmBootstrapService {
         // A wizard-supplied token joins over whatever network reaches the
         // managers; the mesh-first path is the API's remote join, which admits
         // this node into the mesh BEFORE Swarm dials a manager's mesh address.
-        await this.meshAgent.ensureRunning();
+        await this.nodeAgent.ensureRunning();
         this.logger.log(`Joining an existing cluster (${String(mode.remoteAddrs.length)} addr(s))`);
         await runPromiseUnwrapped(this.cluster.joinCluster({
           joinToken: mode.joinToken,
           remoteAddrs: mode.remoteAddrs,
-          meshAddress: await this.meshAgent.meshAddress(),
+          meshAddress: await this.nodeAgent.meshAddress(),
         }));
       } else {
         // THE MESH FIRST: the swarm binds this node's mesh address, which only
         // exists once the agent has founded the mesh and brought the interface up.
-        const mesh = await this.meshAgent.foundAndResolveAddress();
+        const mesh = await this.nodeAgent.foundAndResolveAddress();
         // `ensureCluster` returns the existing snapshot when the engine is
         // already active, so this is safe on every retry.
         const nodeAddress = await resolveSwarmNodeAddress();

@@ -10,12 +10,19 @@ type StorageBreakdown = 'project' | 'service' | 'type' | 'user'
 
 // ─── Real-time Metrics ───────────────────────────────────────────────
 
+/**
+ * Live metrics — SSE, not polling.
+ *
+ * The `…Stream` sibling takes the same input and pushes only when the payload
+ * changes, so the tab holds one connection instead of refetching every 10 s
+ * whether or not anything moved. No `refetchInterval`: the transport reconnects
+ * and replays on its own.
+ */
 export function useRealTimeMetrics(services?: string[]) {
   return useQuery({
-    ...analyticsEndpoints.getRealTimeMetrics.queryOptions({
+    ...analyticsEndpoints.getRealTimeMetricsStream.experimental_liveObservableOptions({
       input: { query: services ? { services } : undefined },
     }),
-    refetchInterval: 10_000,
   })
 }
 
@@ -23,19 +30,17 @@ export function useRealTimeMetrics(services?: string[]) {
 
 export function useResourceMetrics(timeRange: TimeRange, granularity: Granularity) {
   return useQuery({
-    ...analyticsEndpoints.getResourceMetrics.queryOptions({
+    ...analyticsEndpoints.getResourceMetricsStream.experimental_liveObservableOptions({
       input: { query: { timeRange, granularity } },
     }),
-    refetchInterval: 30_000,
   })
 }
 
 export function useResourceUsage(timeRange: TimeRange, resource: ResourceKind, aggregation: AggregationKind) {
   return useQuery({
-    ...analyticsEndpoints.getResourceUsage.queryOptions({
+    ...analyticsEndpoints.getResourceUsageStream.experimental_liveObservableOptions({
       input: { query: { timeRange, resource, aggregation } },
     }),
-    refetchInterval: 30_000,
   })
 }
 
@@ -43,19 +48,17 @@ export function useResourceUsage(timeRange: TimeRange, resource: ResourceKind, a
 
 export function useDeploymentMetrics(timeRange: TimeRange, granularity: Granularity, services?: string[]) {
   return useQuery({
-    ...analyticsEndpoints.getDeploymentMetrics.queryOptions({
+    ...analyticsEndpoints.getDeploymentMetricsStream.experimental_liveObservableOptions({
       input: { query: { timeRange, granularity, services } },
     }),
-    refetchInterval: 60_000,
   })
 }
 
 export function useDeploymentUsage(timeRange: DeploymentTimeRange, projectId?: string) {
   return useQuery({
-    ...analyticsEndpoints.getDeploymentUsage.queryOptions({
+    ...analyticsEndpoints.getDeploymentUsageStream.experimental_liveObservableOptions({
       input: { query: { timeRange, projectId } },
     }),
-    refetchInterval: 60_000,
   })
 }
 
@@ -63,10 +66,9 @@ export function useDeploymentUsage(timeRange: DeploymentTimeRange, projectId?: s
 
 export function useServiceHealth(services?: string[]) {
   return useQuery({
-    ...analyticsEndpoints.getServiceHealth.queryOptions({
+    ...analyticsEndpoints.getServiceHealthStream.experimental_liveObservableOptions({
       input: { query: { services } },
     }),
-    refetchInterval: 15_000,
   })
 }
 

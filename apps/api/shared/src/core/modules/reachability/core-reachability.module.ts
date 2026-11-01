@@ -1,4 +1,4 @@
-import { Global, Module } from '@nestjs/common';
+import { createGlobalModule } from '@deployer/nest-effect';
 import { GlobalDatabaseModule } from '../database/global/global-database.module';
 import { EventsModule } from '../events/events.module';
 import { NodeStateModule } from '../node-state/node-state.module';
@@ -20,8 +20,7 @@ import { NodeNetworkConfigRepository } from './repositories/node-network-config.
  * hostname / DNS-provider tunnel) + a live probe, and broadcast over the core
  * event system as a Zod discriminated-union state.
  */
-@Global()
-@Module({
+export const CoreReachabilityModule = createGlobalModule({
   imports: [GlobalDatabaseModule, EventsModule, NodeStateModule, CoreEdgeModule, EnvModule, CoreEgressModule],
   providers: [
     // NodeConfigRepository comes from NodeStateModule (the single owner of the
@@ -39,5 +38,4 @@ import { NodeNetworkConfigRepository } from './repositories/node-network-config.
     PublicAccessPointEventService,
     PublicAccessPointService,
   ],
-})
-export class CoreReachabilityModule {}
+});

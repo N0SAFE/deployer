@@ -14,5 +14,5 @@ export class DockerCatalogModule extends createModuleContext({
     { provide: CatalogLocalPort, useExisting: DockerRepository },
     { provide: DockerCatalog, useValue: DockerCatalog.live },
   ],
-  exports: [DockerCatalog],
+  exports: [DockerCatalog, CatalogMeshPort, CatalogLocalPort],
 }) {}

@@ -7,15 +7,24 @@ import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares
 import { DockerContainersOrchestratorService } from "../domains/containers/orchestration/docker-containers-orchestrator.service";
 import { DockerImagesOrchestratorService } from "../domains/images/orchestration/docker-images-orchestrator.service";
 import { DockerRuntimeOrchestratorService } from "../domains/runtime/orchestration/docker-runtime-orchestrator.service";
-import { EffectContextOf } from "@deployer/nest-effect";
+import { procedure } from "@deployer/nest-effect";
 import { Effect } from "effect";
 import { serve } from "../../../core/orpc/serve";
 import { DockerCatalog } from "../catalog/docker-catalog";
 import { DockerContainerResolution, type DockerContainerResolutionPorts } from "../domains/containers/orchestration/docker-container-resolution";
 import type { DockerCatalogPorts } from "../catalog/docker-catalog";
-import { DockerDomainModule } from "../docker.module";
+import { DockerContainers, type DockerContainersPorts } from "../domains/containers/orchestration/docker-containers.service";
+import { DockerEntity, type DockerEntityPorts } from "../domains/entity/orchestration/docker-entity.service";
+import { DockerImages, type DockerImagesPorts } from "../domains/images/orchestration/docker-images.service";
+import {
+  DockerRuntimeActivity,
+  type DockerRuntimeActivityPorts,
+} from "../domains/runtime/orchestration/docker-runtime-activity.service";
 import { DockerEntityOrchestratorService } from "../domains/entity/orchestration/docker-entity-orchestrator.service";
 import { map } from "rxjs";
+
+/** The contracts carry dates as strings; the handlers answer with `Date`, as oRPC expects. */
+const timestampOf = (value: string | Date): Date => (value instanceof Date ? value : new Date(value));
 
 @Controller()
 export class DockerController {
@@ -28,9 +37,8 @@ export class DockerController {
 
   @Implement(dockerContract.containers.list)
   listContainers() {
-    return implement(dockerContract.containers.list)
+    return procedure(dockerContract.containers.list)
       .use(requireAuth())
-      .use(DockerDomainModule[EffectContextOf])
       .effect(function* ({ input, context }) {
         const resolution = yield* DockerContainerResolution;
         const ports = yield* Effect.context<DockerContainerResolutionPorts>();
@@ -44,9 +52,8 @@ export class DockerController {
 
   @Implement(dockerContract.containers.grouped)
   listContainersGrouped() {
-    return implement(dockerContract.containers.grouped)
+    return procedure(dockerContract.containers.grouped)
       .use(requireAuth())
-      .use(DockerDomainModule[EffectContextOf])
       .effect(function* ({ input, context }) {
         const resolution = yield* DockerContainerResolution;
         const ports = yield* Effect.context<DockerContainerResolutionPorts>();
@@ -60,18 +67,21 @@ export class DockerController {
 
   @Implement(dockerContract.containers.linked)
   listContainersLinked() {
-    return implement(dockerContract.containers.linked)
+    return procedure(dockerContract.containers.linked)
       .use(requireAuth())
-      .handler(async ({ input, context }) =>
-        this.dockerContainersOrchestratorService.listContainersLinked(input.query, context.auth.user.role ?? null),
-      );
+      .effect(function* ({ input, context }) {
+        const containers = yield* DockerContainers;
+        const ports = yield* Effect.context<DockerContainersPorts>();
+        return yield* serve(context)(
+          containers.listLinked(input.query, context.auth.user.role ?? null).pipe(Effect.provideContext(ports)),
+        );
+      });
   }
 
   @Implement(dockerContract.containers.inspect)
   inspectContainer() {
-    return implement(dockerContract.containers.inspect)
+    return procedure(dockerContract.containers.inspect)
       .use(requireAuth())
-      .use(DockerDomainModule[EffectContextOf])
       .effect(function* ({ input, context }) {
         const resolution = yield* DockerContainerResolution;
         const ports = yield* Effect.context<DockerContainerResolutionPorts>();
@@ -81,15 +91,17 @@ export class DockerController {
 
   @Implement(dockerContract.containers.actions.run)
   runContainerAction() {
-    return implement(dockerContract.containers.actions.run)
+    return procedure(dockerContract.containers.actions.run)
       .use(requireAuth())
-      .handler(async ({ input }) => {
-        const ack = await this.dockerContainersOrchestratorService.runContainerAction(input);
+      .effect(function* ({ input, context }) {
+        const containers = yield* DockerContainers;
+        const ports = yield* Effect.context<DockerContainersPorts>();
+        const ack = yield* serve(context)(containers.runAction(input).pipe(Effect.provideContext(ports)));
         return {
           status: 201,
           body: {
             ...ack,
-            timestamp: this.toDate(ack.timestamp),
+            timestamp: timestampOf(ack.timestamp),
           },
         };
       });
@@ -97,9 +109,13 @@ export class DockerController {
 
   @Implement(dockerContract.images.inspect)
   inspectImage() {
-    return implement(dockerContract.images.inspect)
+    return procedure(dockerContract.images.inspect)
       .use(requireAuth())
-      .handler(async ({ input }) => this.dockerImagesOrchestratorService.inspectImage(input.query));
+      .effect(function* ({ input, context }) {
+        const images = yield* DockerImages;
+        const ports = yield* Effect.context<DockerImagesPorts>();
+        return yield* serve(context)(images.inspect(input.query).pipe(Effect.provideContext(ports)));
+      });
   }
 
   @Implement(dockerContract.containers.streams.inspect)
@@ -118,26 +134,30 @@ export class DockerController {
 
   @Implement(dockerContract.containers.logs.list)
   listContainerLogs() {
-    return implement(dockerContract.containers.logs.list)
+    return procedure(dockerContract.containers.logs.list)
       .use(requireAuth())
-      .handler(async ({ input }) => {
-        const snapshot = await this.dockerContainersOrchestratorService.listContainerLogs(input.query);
+        .effect(function* ({ input, context }) {
+        const containers = yield* DockerContainers;
+        const ports = yield* Effect.context<DockerContainersPorts>();
+        const snapshot = yield* serve(context)(containers.listLogs(input.query).pipe(Effect.provideContext(ports)));
         return {
           ...snapshot,
-          generatedAt: this.toDate(snapshot.generatedAt),
+          generatedAt: timestampOf(snapshot.generatedAt),
         };
       });
   }
 
   @Implement(dockerContract.containers.processes.list)
   listContainerProcesses() {
-    return implement(dockerContract.containers.processes.list)
+    return procedure(dockerContract.containers.processes.list)
       .use(requireAuth())
-      .handler(async ({ input }) => {
-        const snapshot = await this.dockerContainersOrchestratorService.listContainerProcesses(input.query);
+        .effect(function* ({ input, context }) {
+        const containers = yield* DockerContainers;
+        const ports = yield* Effect.context<DockerContainersPorts>();
+        const snapshot = yield* serve(context)(containers.listProcesses(input.query).pipe(Effect.provideContext(ports)));
         return {
           ...snapshot,
-          generatedAt: this.toDate(snapshot.generatedAt),
+          generatedAt: timestampOf(snapshot.generatedAt),
         };
       });
   }
@@ -150,7 +170,7 @@ export class DockerController {
         this.dockerContainersOrchestratorService.streamContainerProcesses(input.query).pipe(
           map((snapshot) => ({
             ...snapshot,
-            generatedAt: this.toDate(snapshot.generatedAt),
+            generatedAt: timestampOf(snapshot.generatedAt),
           })),
         ));
   }
@@ -164,41 +184,47 @@ export class DockerController {
 
   @Implement(dockerContract.containers.filesystem.list)
   listContainerFiles() {
-    return implement(dockerContract.containers.filesystem.list)
+    return procedure(dockerContract.containers.filesystem.list)
       .use(requireAuth())
-      .handler(async ({ input }) => {
-        const listing = await this.dockerContainersOrchestratorService.listContainerFiles(input.query);
+        .effect(function* ({ input, context }) {
+        const containers = yield* DockerContainers;
+        const ports = yield* Effect.context<DockerContainersPorts>();
+        const listing = yield* serve(context)(containers.listFiles(input.query).pipe(Effect.provideContext(ports)));
         return {
           ...listing,
-          generatedAt: this.toDate(listing.generatedAt),
+          generatedAt: timestampOf(listing.generatedAt),
         };
       });
   }
 
   @Implement(dockerContract.containers.filesystem.read)
   readContainerFile() {
-    return implement(dockerContract.containers.filesystem.read)
+    return procedure(dockerContract.containers.filesystem.read)
       .use(requireAuth())
-      .handler(async ({ input }) => {
-        const file = await this.dockerContainersOrchestratorService.readContainerFile(input.query);
+        .effect(function* ({ input, context }) {
+        const containers = yield* DockerContainers;
+        const ports = yield* Effect.context<DockerContainersPorts>();
+        const file = yield* serve(context)(containers.readFile(input.query).pipe(Effect.provideContext(ports)));
         return {
           ...file,
-          generatedAt: this.toDate(file.generatedAt),
+          generatedAt: timestampOf(file.generatedAt),
         };
       });
   }
 
   @Implement(dockerContract.containers.filesystem.write)
   writeContainerFile() {
-    return implement(dockerContract.containers.filesystem.write)
+    return procedure(dockerContract.containers.filesystem.write)
       .use(requireAuth())
-      .handler(async ({ input }) => {
-        const ack = await this.dockerContainersOrchestratorService.writeContainerFile(input);
+        .effect(function* ({ input, context }) {
+        const containers = yield* DockerContainers;
+        const ports = yield* Effect.context<DockerContainersPorts>();
+        const ack = yield* serve(context)(containers.writeFile(input).pipe(Effect.provideContext(ports)));
         return {
           status: 201,
           body: {
             ...ack,
-            timestamp: this.toDate(ack.timestamp),
+            timestamp: timestampOf(ack.timestamp),
           },
         };
       });
@@ -206,15 +232,17 @@ export class DockerController {
 
   @Implement(dockerContract.containers.filesystem.deletePath)
   deleteContainerPath() {
-    return implement(dockerContract.containers.filesystem.deletePath)
+    return procedure(dockerContract.containers.filesystem.deletePath)
       .use(requireAuth())
-      .handler(async ({ input }) => {
-        const ack = await this.dockerContainersOrchestratorService.deleteContainerPath(input);
+        .effect(function* ({ input, context }) {
+        const containers = yield* DockerContainers;
+        const ports = yield* Effect.context<DockerContainersPorts>();
+        const ack = yield* serve(context)(containers.deletePath(input).pipe(Effect.provideContext(ports)));
         return {
           status: 201,
           body: {
             ...ack,
-            timestamp: this.toDate(ack.timestamp),
+            timestamp: timestampOf(ack.timestamp),
           },
         };
       });
@@ -222,15 +250,17 @@ export class DockerController {
 
   @Implement(dockerContract.containers.filesystem.renamePath)
   renameContainerPath() {
-    return implement(dockerContract.containers.filesystem.renamePath)
+    return procedure(dockerContract.containers.filesystem.renamePath)
       .use(requireAuth())
-      .handler(async ({ input }) => {
-        const ack = await this.dockerContainersOrchestratorService.renameContainerPath(input);
+        .effect(function* ({ input, context }) {
+        const containers = yield* DockerContainers;
+        const ports = yield* Effect.context<DockerContainersPorts>();
+        const ack = yield* serve(context)(containers.renamePath(input).pipe(Effect.provideContext(ports)));
         return {
           status: 201,
           body: {
             ...ack,
-            timestamp: this.toDate(ack.timestamp),
+            timestamp: timestampOf(ack.timestamp),
           },
         };
       });
@@ -238,15 +268,17 @@ export class DockerController {
 
   @Implement(dockerContract.containers.filesystem.createDirectory)
   createContainerDirectory() {
-    return implement(dockerContract.containers.filesystem.createDirectory)
+    return procedure(dockerContract.containers.filesystem.createDirectory)
       .use(requireAuth())
-      .handler(async ({ input }) => {
-        const ack = await this.dockerContainersOrchestratorService.createContainerDirectory(input);
+        .effect(function* ({ input, context }) {
+        const containers = yield* DockerContainers;
+        const ports = yield* Effect.context<DockerContainersPorts>();
+        const ack = yield* serve(context)(containers.createDirectory(input).pipe(Effect.provideContext(ports)));
         return {
           status: 201,
           body: {
             ...ack,
-            timestamp: this.toDate(ack.timestamp),
+            timestamp: timestampOf(ack.timestamp),
           },
         };
       });
@@ -254,15 +286,17 @@ export class DockerController {
 
   @Implement(dockerContract.containers.terminal.open)
   openContainerTerminalSession() {
-    return implement(dockerContract.containers.terminal.open)
+    return procedure(dockerContract.containers.terminal.open)
       .use(requireAuth())
-      .handler(async ({ input }) => {
-        const session = await this.dockerContainersOrchestratorService.openContainerTerminalSession(input);
+        .effect(function* ({ input, context }) {
+        const containers = yield* DockerContainers;
+        const ports = yield* Effect.context<DockerContainersPorts>();
+        const session = yield* serve(context)(containers.openTerminal(input).pipe(Effect.provideContext(ports)));
         return {
           status: 201,
           body: {
             ...session,
-            openedAt: this.toDate(session.openedAt),
+            openedAt: timestampOf(session.openedAt),
           },
         };
       });
@@ -277,15 +311,17 @@ export class DockerController {
 
   @Implement(dockerContract.containers.terminal.sendInput)
   sendContainerTerminalInput() {
-    return implement(dockerContract.containers.terminal.sendInput)
+    return procedure(dockerContract.containers.terminal.sendInput)
       .use(requireAuth())
-      .handler(async ({ input }) => {
-        const ack = await this.dockerContainersOrchestratorService.sendContainerTerminalInput(input);
+        .effect(function* ({ input, context }) {
+        const containers = yield* DockerContainers;
+        const ports = yield* Effect.context<DockerContainersPorts>();
+        const ack = yield* serve(context)(containers.sendTerminalInput(input).pipe(Effect.provideContext(ports)));
         return {
           status: 201,
           body: {
             ...ack,
-            timestamp: this.toDate(ack.timestamp),
+            timestamp: timestampOf(ack.timestamp),
           },
         };
       });
@@ -293,15 +329,17 @@ export class DockerController {
 
   @Implement(dockerContract.containers.terminal.close)
   closeContainerTerminalSession() {
-    return implement(dockerContract.containers.terminal.close)
+    return procedure(dockerContract.containers.terminal.close)
       .use(requireAuth())
-      .handler(async ({ input }) => {
-        const ack = await this.dockerContainersOrchestratorService.closeContainerTerminalSession(input);
+        .effect(function* ({ input, context }) {
+        const containers = yield* DockerContainers;
+        const ports = yield* Effect.context<DockerContainersPorts>();
+        const ack = yield* serve(context)(containers.closeTerminal(input).pipe(Effect.provideContext(ports)));
         return {
           status: 201,
           body: {
             ...ack,
-            timestamp: this.toDate(ack.timestamp),
+            timestamp: timestampOf(ack.timestamp),
           },
         };
       });
@@ -323,16 +361,19 @@ export class DockerController {
 
   @Implement(dockerContract.images.list)
   listImages() {
-    return implement(dockerContract.images.list)
+    return procedure(dockerContract.images.list)
       .use(requireAuth())
-      .handler(async ({ input }) => this.dockerImagesOrchestratorService.listImages(input.query));
+      .effect(function* ({ input, context }) {
+        const images = yield* DockerImages;
+        const ports = yield* Effect.context<DockerImagesPorts>();
+        return yield* serve(context)(images.list(input.query).pipe(Effect.provideContext(ports)));
+      });
   }
 
   @Implement(dockerContract.networks.list)
   listNetworks() {
-    return implement(dockerContract.networks.list)
+    return procedure(dockerContract.networks.list)
       .use(requireAuth())
-      .use(DockerDomainModule[EffectContextOf])
       .effect(function* ({ input, context }) {
         const catalog = yield* DockerCatalog;
         const ports = yield* Effect.context<DockerCatalogPorts>();
@@ -342,9 +383,8 @@ export class DockerController {
 
   @Implement(dockerContract.volumes.list)
   listVolumes() {
-    return implement(dockerContract.volumes.list)
+    return procedure(dockerContract.volumes.list)
       .use(requireAuth())
-      .use(DockerDomainModule[EffectContextOf])
       .effect(function* ({ input, context }) {
         const catalog = yield* DockerCatalog;
         const ports = yield* Effect.context<DockerCatalogPorts>();
@@ -354,9 +394,13 @@ export class DockerController {
 
   @Implement(dockerContract.runtime.snapshot)
   runtimeSnapshot() {
-    return implement(dockerContract.runtime.snapshot)
+    return procedure(dockerContract.runtime.snapshot)
       .use(requireAuth())
-      .handler(() => this.dockerRuntimeOrchestratorService.getRuntimeSnapshot());
+      .effect(function* ({ context }) {
+        const activity = yield* DockerRuntimeActivity;
+        const ports = yield* Effect.context<DockerRuntimeActivityPorts>();
+        return yield* serve(context)(activity.snapshot().pipe(Effect.provideContext(ports)));
+      });
   }
 
   @Implement(dockerContract.runtime.stream)
@@ -368,16 +412,24 @@ export class DockerController {
 
   @Implement(dockerContract.runtime.activity.list)
   runtimeActivityList() {
-    return implement(dockerContract.runtime.activity.list)
+    return procedure(dockerContract.runtime.activity.list)
       .use(requireAuth())
-      .handler(({ input }) => this.dockerRuntimeOrchestratorService.listRuntimeActivities(input.query));
+      .effect(function* ({ input, context }) {
+        const activity = yield* DockerRuntimeActivity;
+        const ports = yield* Effect.context<DockerRuntimeActivityPorts>();
+        return yield* serve(context)(activity.list(input.query).pipe(Effect.provideContext(ports)));
+      });
   }
 
   @Implement(dockerContract.runtime.activity.detail)
   runtimeActivityDetail() {
-    return implement(dockerContract.runtime.activity.detail)
+    return procedure(dockerContract.runtime.activity.detail)
       .use(requireAuth())
-      .handler(({ input }) => this.dockerRuntimeOrchestratorService.getRuntimeActivityById(input.query));
+      .effect(function* ({ input, context }) {
+        const activity = yield* DockerRuntimeActivity;
+        const ports = yield* Effect.context<DockerRuntimeActivityPorts>();
+        return yield* serve(context)(activity.getById(input.query).pipe(Effect.provideContext(ports)));
+      });
   }
 
   @Implement(dockerContract.runtime.activityStream)
@@ -393,46 +445,50 @@ export class DockerController {
 
   @Implement(dockerContract.entity.list)
   entityList() {
-    return implement(dockerContract.entity.list)
+    return procedure(dockerContract.entity.list)
       .use(requireAuth())
-      .handler(async ({ input, errors }) => {
+      .effect(function* ({ input, errors, context }) {
+        const entities = yield* DockerEntity;
+        const ports = yield* Effect.context<DockerEntityPorts>();
         switch (input.kind) {
           case "container":
-            return this.dockerEntityOrchestratorService.listContainers(input)
+            return yield* serve(context)(entities.listContainers(input).pipe(Effect.provideContext(ports)));
           case "image":
-            return this.dockerEntityOrchestratorService.listImages(input)
+            return yield* serve(context)(entities.listImages(input).pipe(Effect.provideContext(ports)));
           case "network":
-            return this.dockerEntityOrchestratorService.listNetworks(input)
+            return yield* serve(context)(entities.listNetworks(input).pipe(Effect.provideContext(ports)));
           case "volume":
-            return this.dockerEntityOrchestratorService.listVolumes(input)
+            return yield* serve(context)(entities.listVolumes(input).pipe(Effect.provideContext(ports)));
           default:
-            throw errors.BAD_REQUEST(
-              standardErrorOptions("validation", `Unsupported entity kind: ${String(input.kind)}`),
-            )
+            return yield* Effect.fail(
+              errors.BAD_REQUEST(standardErrorOptions("validation", `Unsupported entity kind: ${String(input.kind)}`)),
+            );
         }
-      })
+      });
   }
 
   @Implement(dockerContract.entity.inspect)
   entityInspect() {
-    return implement(dockerContract.entity.inspect)
+    return procedure(dockerContract.entity.inspect)
       .use(requireAuth())
-      .handler(async ({ input, errors }) => {
+      .effect(function* ({ input, errors, context }) {
+        const entities = yield* DockerEntity;
+        const ports = yield* Effect.context<DockerEntityPorts>();
         switch (input.kind) {
           case "container":
-            return this.dockerEntityOrchestratorService.inspectContainer(input)
+            return yield* serve(context)(entities.inspectContainer(input).pipe(Effect.provideContext(ports)));
           case "image":
-            return this.dockerEntityOrchestratorService.inspectImage(input)
+            return yield* serve(context)(entities.inspectImage(input).pipe(Effect.provideContext(ports)));
           case "network":
-            return this.dockerEntityOrchestratorService.inspectNetwork(input)
+            return yield* serve(context)(entities.inspectNetwork(input).pipe(Effect.provideContext(ports)));
           case "volume":
-            return this.dockerEntityOrchestratorService.inspectVolume(input)
+            return yield* serve(context)(entities.inspectVolume(input).pipe(Effect.provideContext(ports)));
           default:
-            throw errors.BAD_REQUEST(
-              standardErrorOptions("validation", `Unsupported entity kind: ${String(input.kind)}`),
-            )
+            return yield* Effect.fail(
+              errors.BAD_REQUEST(standardErrorOptions("validation", `Unsupported entity kind: ${String(input.kind)}`)),
+            );
         }
-      })
+      });
   }
 
   @Implement(dockerContract.entity.stream)
@@ -443,7 +499,5 @@ export class DockerController {
   }
 
 
-  private toDate(value: string | Date): Date {
-    return value instanceof Date ? value : new Date(value);
-  }
+
 }

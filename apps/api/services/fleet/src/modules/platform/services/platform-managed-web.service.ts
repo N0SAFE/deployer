@@ -50,27 +50,38 @@ const CONSOLE_SUPERVISOR_ID = PLATFORM_MANAGED_WEB_SUPERVISOR_ID;
  */
 export type PlatformManagedWebServiceShape = {
 	/** Full console state — the shared data model of both visuals. */
-	readonly state: () => Effect.Effect<ManagedWebState, unknown>;
+	readonly state: () => Effect.Effect<ManagedWebState, unknown, PlatformManagedWebRequirements>;
 	/** Flip the flag and converge — Traefik re-writes the console route so the single URL switches visual. */
-	readonly toggle: () => Effect.Effect<ManagedWebState, unknown>;
+	readonly toggle: () => Effect.Effect<ManagedWebState, unknown, PlatformManagedWebRequirements>;
 	/** Force a restart (also records enabled). */
-	readonly restart: () => Effect.Effect<ManagedWebState, unknown>;
+	readonly restart: () => Effect.Effect<ManagedWebState, unknown, PlatformManagedWebRequirements>;
 	/** Set (or clear with null) the custom public origin. */
-	readonly setOrigin: (origin: string | null) => Effect.Effect<ManagedWebState, unknown>;
+	readonly setOrigin: (origin: string | null) => Effect.Effect<ManagedWebState, unknown, PlatformManagedWebRequirements>;
 	/**
 	 * Provision the web app's OWN Cloudflare tunnel: create tunnel + CNAME on the provider, point its
 	 * ingress at the platform TRAEFIK (web:80) — Traefik routes `Host(hostname) → web` — persist the
 	 * identity and restart the app so its public origin becomes the tunnel hostname.
 	 */
-	readonly enableTunnel: (hostname: string) => Effect.Effect<ManagedWebState, unknown>;
+	readonly enableTunnel: (hostname: string) => Effect.Effect<ManagedWebState, unknown, PlatformManagedWebRequirements>;
 	/** Remove the web tunnel: delete tunnel + CNAME and restart the app. */
-	readonly disableTunnel: () => Effect.Effect<ManagedWebState, unknown>;
+	readonly disableTunnel: () => Effect.Effect<ManagedWebState, unknown, PlatformManagedWebRequirements>;
 };
 
 /** What the Cloudflare services leave open in the Effect context; settled once, when they are handed over. */
 type CloudflareRequirements = RequirementsOf<CloudflareTunnelServiceShape> | RequirementsOf<CloudflareAppServiceShape>;
 type SettledTunnels = Bound<CloudflareTunnelServiceShape, CloudflareRequirements>;
 type SettledApps = Bound<CloudflareAppServiceShape, CloudflareRequirements>;
+
+/** Everything a use case reads from the Effect context while it runs. */
+type PlatformManagedWebRequirements =
+	| PlatformEnvPort
+	| PlatformHostnamesPort
+	| PlatformConfigPort
+	| SupervisorsPort
+	| CloudflareTunnelService
+	| CloudflareAppService
+	| CloudflareRequirements
+	| PlatformRefresherPort;
 
 type Ports = {
 	readonly env: EnvService;
@@ -83,7 +94,7 @@ type Ports = {
 };
 
 /** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
-export class PlatformManagedWebService extends Context.Service<PlatformManagedWebService, Over<PlatformManagedWebServiceShape, PlatformEnvPort | PlatformHostnamesPort | PlatformConfigPort | SupervisorsPort | CloudflareTunnelService | CloudflareAppService | CloudflareRequirements | PlatformRefresherPort>>()(
+export class PlatformManagedWebService extends Context.Service<PlatformManagedWebService, Over<PlatformManagedWebServiceShape, PlatformManagedWebRequirements>>()(
 	"fleet/PlatformManagedWebService",
 ) {
 	/** The ports are yielded when a method runs, so this is a constant the module provides with `useValue`. */

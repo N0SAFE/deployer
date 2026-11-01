@@ -6,6 +6,7 @@
 		"@deployer/type-guards": "*",
 		"@nestjs/common": "catalog:api:nest",
 		"@nestjs/core": "catalog:api:nest",
+		"@orpc/contract": "catalog:orpc",
 		"@orpc/server": "catalog:orpc",
 		"effect": "catalog:effect",
 		"rxjs": "catalog:api:nest",

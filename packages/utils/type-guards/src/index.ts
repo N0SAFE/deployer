@@ -124,6 +124,20 @@ export function isNonEmptyString(value: unknown): value is string {
 }
 
 /**
+ * Coerce `unknown` to a trimmed non-empty string, or `null` when the value is
+ * not a string or holds only whitespace. The coercing counterpart of
+ * `isNonEmptyString`, for values read out of untrusted payloads.
+ */
+export function nonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null
+  }
+
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+/**
  * Narrow `unknown` to `number`. Excludes `NaN` — use `isFiniteNumber` if
  * you need to reject `NaN` and `Infinity`.
  */

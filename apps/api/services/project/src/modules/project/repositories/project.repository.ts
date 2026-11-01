@@ -5,6 +5,7 @@ import { environments, variableTemplates, serviceEnvironments } from "@deployer/
 import { user } from "@deployer/nest-schema/global/identity/auth";
 import { localEventOutbox } from "@deployer/nest-schema/global/runtime/runtime";
 import { and, asc, count, desc, eq, ilike, inArray } from "drizzle-orm";
+import { resolveNodeId } from "@deployer/env";
 import { listBuilder } from "@deployer/shared/core/utils/drizzle-filter.utils";
 import { randomUUID } from "crypto";
 import { Context, Effect } from "effect";
@@ -29,14 +30,6 @@ import type {
 	TemplateCreateInput,
 	TemplateUpdateInput,
 } from "./project.repository.types";
-
-const DEFAULT_NODE_ID = "00000000-0000-4000-8000-000000000000";
-
-/** The node identity stamped on outbox rows; an unset mesh id falls back to the nil UUID. */
-function resolveNodeId(): string {
-	const configured = process.env.MESH_NODE_ID?.trim();
-	return configured && configured.length > 0 ? configured : DEFAULT_NODE_ID;
-}
 
 function buildDomainEventEnvelope(input: {
 	aggregateType: string;

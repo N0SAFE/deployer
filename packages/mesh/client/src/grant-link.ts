@@ -1,9 +1,9 @@
-import { type MeshDirectGrant, readDirectGrant } from "@deployer/mesh-agent-contracts";
+import { type MeshDirectGrant, readDirectGrant } from "@deployer/node-agent-contracts";
 
 import type { ClientContext, ClientLink, ClientOptions } from "@orpc/client";
 
 export type GrantLinkOptions<C extends ClientContext> = {
-  /** The link to the local mesh-agent: every call goes here first. */
+  /** The link to the local node-agent: every call goes here first. */
   readonly agent: ClientLink<C>;
   /** Builds the pooled link to the replica a grant names. Called once per grant, and again when that grant expires. */
   readonly direct: (grant: MeshDirectGrant) => ClientLink<C>;

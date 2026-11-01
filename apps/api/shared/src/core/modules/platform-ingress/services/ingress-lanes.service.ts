@@ -21,7 +21,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { defaultIngressLanes, ingressLanesSchema, type IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
 
 import { EnvService } from "../../../../config/env/env.module";
-import { ClusterSettingsService } from "../../mesh-agent/cluster-settings.service";
+import { ClusterSettings } from "../../mesh-node/cluster-settings";
 
 export const INGRESS_LANES_SETTING = "ingress.lanes";
 
@@ -30,25 +30,27 @@ export class IngressLanesService {
 	private readonly logger = new Logger(IngressLanesService.name);
 
 	constructor(
-		private readonly settings: ClusterSettingsService,
+		private readonly settings: ClusterSettings,
 		private readonly env: EnvService,
 	) {}
 
 	/** The lanes in effect: the replicated setting, else local-only. */
 	async getLanes(): Promise<IngressLanes> {
-		return (
-			(await this.settings.read(INGRESS_LANES_SETTING, ingressLanesSchema)) ??
-			defaultIngressLanes(this.env.get("DEPLOYER_TRAEFIK_HTTP_PORT"))
+		return await this.settings.read(
+			INGRESS_LANES_SETTING,
+			ingressLanesSchema,
+			defaultIngressLanes(this.env.get("DEPLOYER_TRAEFIK_HTTP_PORT")),
 		);
 	}
 
+
 	async setLanes(next: IngressLanes): Promise<IngressLanes> {
-		const lanes = await this.settings.write(INGRESS_LANES_SETTING, ingressLanesSchema, next);
+		await this.settings.write(INGRESS_LANES_SETTING, next);
 		this.logger.log(
-			`Ingress lanes set — local${lanes.private.enabled ? ` + private (${lanes.private.domain})` : ""}${
-				lanes.public === null ? "" : ` + public via ${lanes.public.provider} (${lanes.public.domain})`
+			`Ingress lanes set — local${next.private.enabled ? ` + private (${next.private.domain})` : ""}${
+				next.public === null ? "" : ` + public via ${next.public.provider} (${next.public.domain})`
 			}`,
 		);
-		return lanes;
+		return next;
 	}
 }

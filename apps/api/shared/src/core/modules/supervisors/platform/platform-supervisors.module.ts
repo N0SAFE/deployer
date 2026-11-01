@@ -8,6 +8,8 @@
  *   - platform/managed-web.supervisor.ts      → managed web app
  *   - platform/redis.supervisor.ts            → Redis (API-supervised)
  *   - platform/swarm-app-wiring.supervisor.ts → keeps this container on the swarm overlay
+ *   - node-agent/node-agent.supervisor.ts     → the node's mesh agent as a swarm GLOBAL service (opt-in,
+ *                                               `NODE_AGENT_SWARM_MODE=true`; default is the host container)
  *
  * There is no failover proxy and no WireGuard sidecar any more: the node's mesh agent owns the loopback
  * door (which falls back to the API/web when Traefik does not answer) and the WireGuard interface — see
@@ -18,7 +20,7 @@
  * dependency: platform helps → supervisors use).
  */
 
-import { Global, Module } from "@nestjs/common";
+import { createGlobalModule } from "@deployer/nest-effect";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 
 import { CoreDockerModule } from "../../docker/docker.module";
@@ -26,7 +28,7 @@ import { CorePlatformIngressModule } from "../../platform-ingress/platform-ingre
 import { CoreEdgeModule } from "../../edge/edge.module";
 import { CoreReachabilityModule } from "../../reachability/core-reachability.module";
 import { EdgeProviderRegistry } from "../../edge/edge-provider.registry";
-import { MeshAgentClient } from "../../mesh-agent/mesh-agent.client";
+import { ClusterSettings } from "../../mesh-node/cluster-settings";
 import { AppInstanceService } from "../../platform-ingress/services/app-instance.service";
 import { HostnameService } from "../../platform-ingress/services/hostname.service";
 import { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service";
@@ -35,6 +37,7 @@ import { PlatformWebTargetService } from "../../platform-ingress/services/platfo
 import { PublicEdgeService } from "../../reachability/services/public-edge.service";
 import { supervisorProviders, SupervisorEventBus } from "../../supervision/index";
 import { EnvModule, EnvService } from "../../../../config/env/env.module";
+import { makeNodeAgentSwarmRegistration } from "../node-agent/node-agent.supervisor";
 import { makeEdgeConnectorRegistration } from "./edge-connector.supervisor";
 import { makeManagedWebRegistration } from "./managed-web.supervisor";
 import { makeRedisRegistration } from "./redis.supervisor";
@@ -43,8 +46,7 @@ import { makeTraefikRegistration } from "./traefik.supervisor";
 
 const PLATFORM_SUPERVISORS = Symbol("PLATFORM_SUPERVISORS");
 
-@Global()
-@Module({
+export const SupervisorsPlatformModule = createGlobalModule({
 	imports: [CoreDockerModule, CorePlatformIngressModule, CoreEdgeModule, CoreReachabilityModule, EnvModule],
 	providers: supervisorProviders({
 		token: PLATFORM_SUPERVISORS,
@@ -54,7 +56,7 @@ const PLATFORM_SUPERVISORS = Symbol("PLATFORM_SUPERVISORS");
 			SupervisorEventBus,
 			HostnameService,
 			IngressLanesService,
-			MeshAgentClient,
+			ClusterSettings,
 			PlatformWebTargetService,
 			EdgeProviderRegistry,
 			PlatformConfigService,
@@ -67,19 +69,19 @@ const PLATFORM_SUPERVISORS = Symbol("PLATFORM_SUPERVISORS");
 			bus: SupervisorEventBus,
 			hostnameService: HostnameService,
 			lanes: IngressLanesService,
-			mesh: MeshAgentClient,
+			settings: ClusterSettings,
 			webTarget: PlatformWebTargetService,
 			edges: EdgeProviderRegistry,
 			platformConfig: PlatformConfigService,
 			appInstances: AppInstanceService,
 			edge: PublicEdgeService,
 		) => [
-			makeTraefikRegistration({ engine, hostnameService, env, lanes, mesh, webTarget, edges, bus }).registration,
+			makeTraefikRegistration({ engine, hostnameService, env, lanes, settings, webTarget, edges, bus }).registration,
 			makeManagedWebRegistration({ engine, env, hostnameService, platformConfig, appInstances, bus }),
 			makeRedisRegistration({ engine, env, bus }).registration,
 			makeSwarmAppWiringRegistration({ engine, env, bus }),
 			makeEdgeConnectorRegistration({ engine, env, lanes, edge, bus }),
+			makeNodeAgentSwarmRegistration({ engine, env, bus }).registration,
 		],
 	}),
-})
-export class SupervisorsPlatformModule {}
+});

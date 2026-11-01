@@ -1,5 +1,4 @@
-import { Module } from "@nestjs/common";
-
+import { createModuleContext } from "@deployer/nest-effect";
 import { EnvModule } from "@/config/env/env.module";
 import { OrchestrationStreamService } from "./services/orchestration-stream.service";
 
@@ -22,9 +21,8 @@ import { OrchestrationStreamService } from "./services/orchestration-stream.serv
  * `@Global()` is deliberately NOT used: three explicit imports are clearer than
  * an ambient provider, and the DI gate (`check-di-graph.ts`) reads the imports.
  */
-@Module({
+export class SetupProgressModule extends createModuleContext({
   imports: [EnvModule],
   providers: [OrchestrationStreamService],
   exports: [OrchestrationStreamService],
-})
-export class SetupProgressModule {}
+}) {}

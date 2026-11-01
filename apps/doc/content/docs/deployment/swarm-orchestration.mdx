@@ -49,7 +49,7 @@ runs its supervised workloads on Swarm. Only *how* a node enters the cluster is 
   Redis, the scaled database-service instances, the public edge connector, the managed web
   console). Each supervisor declares a `scope`: `node-local → swarm-global` (one task per
   node) or `mesh-wide → swarm-replicated` (one shared service). The one exception is the
-  per-node **`deployer-mesh-agent`** and the doors it runs: a plain host-network container,
+  per-node **`deployer-node-agent`** and the doors it runs: a plain host-network container,
   because Swarm binds the mesh address it creates and so cannot schedule it. `ensureOverlayNetwork` still refuses to
   reuse a non-overlay (compose bridge) same-name network for a workload.
 - `check:swarm:cli-lock` guards the SDK-first rule in CI.

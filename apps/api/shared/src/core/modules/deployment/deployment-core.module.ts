@@ -1,9 +1,9 @@
-import { Module } from "@nestjs/common";
+import { createModuleContext } from "@deployer/nest-effect";
 import { PreviewCleanupPolicyService } from "./services/preview-cleanup-policy.service";
 import { PreviewNamingService } from "./services/preview-naming.service";
 import { DeploymentProviderBuilderRunnerStateMachineService } from "./services/deployment-provider-builder-runner-state-machine.service";
 
-@Module({
+export class DeploymentCoreModule extends createModuleContext({
     providers: [
         PreviewNamingService,
         PreviewCleanupPolicyService,
@@ -14,5 +14,4 @@ import { DeploymentProviderBuilderRunnerStateMachineService } from "./services/d
         PreviewCleanupPolicyService,
         DeploymentProviderBuilderRunnerStateMachineService,
     ],
-})
-export class DeploymentCoreModule {}
+}) {}

@@ -1,11 +1,11 @@
 import { ORPCError } from "@orpc/client";
 
-import type { MeshRelayEvent, MeshTarget } from "@deployer/mesh-agent-contracts";
+import type { MeshRelayEvent, MeshTarget } from "@deployer/node-agent-contracts";
 
 import type { ClientContext, ClientLink, ClientOptions } from "@orpc/client";
 
 export type RelayLinkOptions<C extends ClientContext> = {
-  /** The persistent RPC link to the local mesh-agent. */
+  /** The persistent RPC link to the local node-agent. */
   readonly agent: ClientLink<C>;
   readonly target: MeshTarget;
   /** The caller's credentials, read at every call: a link is shared by every caller, the credentials are not. */
@@ -45,7 +45,7 @@ export function relayLink<C extends ClientContext>(options: RelayLinkOptions<C>)
 
       const first = await events.next();
       if (first.done) {
-        throw new ORPCError("BAD_GATEWAY", { message: "The mesh-agent closed the relay without answering" });
+        throw new ORPCError("BAD_GATEWAY", { message: "The node-agent closed the relay without answering" });
       }
       if (first.value.kind === "value") {
         await events.return?.();
@@ -54,7 +54,7 @@ export function relayLink<C extends ClientContext>(options: RelayLinkOptions<C>)
       if (first.value.kind === "stream") {
         return itemsOf(events);
       }
-      throw new ORPCError("BAD_GATEWAY", { message: "The mesh-agent answered a relay with an item before announcing a stream" });
+      throw new ORPCError("BAD_GATEWAY", { message: "The node-agent answered a relay with an item before announcing a stream" });
     },
   };
 }

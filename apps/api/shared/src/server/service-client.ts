@@ -4,11 +4,11 @@ import { nodeAgentLink, serviceLink } from "@deployer/mesh-client";
 import { OpenAPILink } from "@orpc/openapi/fetch";
 import type { ContractRouterClient, RouterContract } from "@orpc/contract";
 
-import { apiServiceUrl, type ApiServiceName } from "./service-address";
+import { apiServiceUrl, type ApiServiceName } from "@deployer/env";
 import { SYSTEM_ACTOR_HEADER } from "../core/modules/auth/system-actor/system-actor";
 
 /** The link to this node's agent, when it has one. Lazy: nothing connects until the first call. */
-const meshAgent = nodeAgentLink();
+const nodeAgent = nodeAgentLink();
 
 /**
  * Reaching another SERVICE over its contract.
@@ -59,9 +59,9 @@ export class ServiceClient {
 		}
 
 		const client = createORPCClient<ContractRouterClient<TContract>>(
-			meshAgent === undefined
+			nodeAgent === undefined
 				? new OpenAPILink(contract, { origin: apiServiceUrl(name) })
-				: serviceLink({ agent: meshAgent, service: name, contract }),
+				: serviceLink({ agent: nodeAgent, service: name, contract }),
 		);
 		perContract.set(name, client);
 		return client;
@@ -81,9 +81,9 @@ export class ServiceClient {
 	): ContractRouterClient<TContract> {
 		const headers = { [SYSTEM_ACTOR_HEADER]: token };
 		return createORPCClient<ContractRouterClient<TContract>>(
-			meshAgent === undefined
+			nodeAgent === undefined
 				? new OpenAPILink(contract, { origin: apiServiceUrl(name), headers })
-				: serviceLink({ agent: meshAgent, service: name, contract, headers: () => headers }),
+				: serviceLink({ agent: nodeAgent, service: name, contract, headers: () => headers }),
 		);
 	}
 }

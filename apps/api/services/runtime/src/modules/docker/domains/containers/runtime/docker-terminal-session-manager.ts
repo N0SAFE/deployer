@@ -36,6 +36,11 @@ export class TerminalSessionManager {
   private readonly terminalSessions = new Map<string, TerminalSession>();
   private readonly terminalSessionCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
+  /** The sessions this replica holds, open or retained for replay: the keys it announces on the mesh. */
+  sessionIds(): string[] {
+    return [...this.terminalSessions.keys()];
+  }
+
   shutdown(): void {
     // 1. Destroy active streams + complete ReplaySubjects for all open sessions
     for (const session of this.terminalSessions.values()) {

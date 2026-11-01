@@ -22,8 +22,8 @@ export function useContainersData(): {
   isRefreshing: boolean
   refetch: () => Promise<void>
 } {
-  const live = useDockerLiveContainers({ debounceMs: 200, reconcileIntervalMs: 60_000 })
-  const images = useDockerLiveImages({ debounceMs: 500, reconcileIntervalMs: 60_000 })
+  const live = useDockerLiveContainers({ debounceMs: 200 })
+  const images = useDockerLiveImages({ debounceMs: 500 })
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   const deferredContainers = useDeferredValue(live.data)

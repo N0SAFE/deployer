@@ -147,6 +147,28 @@ export function useImageScanSession({ id, open, securityTabActive, inspectDetail
     setSessionStartedAtMs(null)
   }, false)
 
+  /**
+   * Terminal events are IDEMPOTENT.
+   *
+   * The stream re-emits its buffered events on every chunk (and replays the whole
+   * buffer when it reconnects), so the same completion arrived over and over and
+   * `setTerminalEvent({...})` stored a NEW object each time. The effect below
+   * keys on that object, so it refetched the image inspect once per emission —
+   * measured on the running stack: 2 756 `images.inspect` calls in one second
+   * while a scan finished. Keeping the previous object when kind and message are
+   * unchanged makes the effect run exactly once per distinct terminal event.
+   */
+  const setTerminalEventOnce = useCallback(
+    (next: { kind: 'complete' | 'error'; message: string }): void => {
+      setTerminalEvent((previous) =>
+        previous !== null && previous.kind === next.kind && previous.message === next.message
+          ? previous
+          : next,
+      )
+    },
+    [],
+  )
+
   // Fold stream events into the session and note its terminal event; the side
   // effects of a terminal event (notice, refetch) run in the effect below.
   useOnDepsChange([streamEventsForActiveSession], () => {
@@ -162,14 +184,14 @@ export function useImageScanSession({ id, open, securityTabActive, inspectDetail
       setForceStream(false)
       setForceScan(false)
       setSessionStartedAtMs(null)
-      setTerminalEvent({ kind: 'complete', message: 'Security scan completed with latest findings loaded.' })
+      setTerminalEventOnce({ kind: 'complete', message: 'Security scan completed with latest findings loaded.' })
     }
 
     if (latestEvent.type === 'error' || latestEvent.stage === 'error') {
       setForceStream(false)
       setForceScan(false)
       setSessionStartedAtMs(null)
-      setTerminalEvent({ kind: 'error', message: latestEvent.message })
+      setTerminalEventOnce({ kind: 'error', message: latestEvent.message })
     }
   })
 

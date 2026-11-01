@@ -1,4 +1,5 @@
-import { Module, type MiddlewareConsumer, type NestModule } from "@nestjs/common";
+import { type MiddlewareConsumer, type NestModule } from "@nestjs/common";
+import { createModuleContext } from "@deployer/nest-effect";
 import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
 import {
 	createOrpcModule,
@@ -54,7 +55,6 @@ import { TraefikCoreModule } from "@/core/modules/traefik/traefik.module";
 // the supervisors cannot converge overlay networks the engine has not joined.
 import { SwarmCoreModule } from "@/core/modules/swarm/swarm.module";
 import { CorePlatformIngressModule } from "@/core/modules/platform-ingress/platform-ingress.module";
-import { MeshAgentModule } from "@/core/modules/mesh-agent/mesh-agent.module";
 
 // Registered at MODULE LOAD, not in a lifecycle hook: the column codecs run at
 // QUERY time and the first query can happen during bootstrap — before any
@@ -82,7 +82,7 @@ registerSchemaCodecs();
  * Redis up. Without it the BFF would bind its port, report itself healthy, and
  * forward traffic into services that are about to fail it.
  */
-@Module({
+export class BffModule extends createModuleContext({
 	imports: [
 		EnvModule,
 		// `forRoot()` IS REQUIRED: the class is `@Module({})`, so importing it bare
@@ -119,7 +119,6 @@ registerSchemaCodecs();
 		//   SwarmCoreModule            the engine the supervisors schedule ONTO
 		//   TraefikCoreModule          the routes Traefik POLLS from this app
 		//   CorePlatformIngressModule  hostname/lane helpers the supervisors read
-		//   MeshAgentModule            the node's mesh identity + control socket
 		//
 		// The BFF is the only app in this tier with a public role, so it is the only
 		// one that both SERVES the ingress config and RUNS the supervisors. A service
@@ -131,7 +130,6 @@ registerSchemaCodecs();
 		SwarmCoreModule,
 		TraefikCoreModule,
 		CorePlatformIngressModule,
-		MeshAgentModule,
 
 		// ── THE SERVICE CLIENT REGISTRY ──────────────────────────────────────
 		// Imported (not declared as a provider below) because the modules that
@@ -192,8 +190,7 @@ registerSchemaCodecs();
 		BootstrapModule,
 	],
 	providers: [ServiceAuthContextMiddleware],
-})
-export class BffModule implements NestModule {
+}) implements NestModule {
 	/**
 	 * Bind the CALLER's credentials to the request, for every fan-out to come.
 	 *

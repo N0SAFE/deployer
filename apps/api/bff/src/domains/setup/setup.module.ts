@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { createModuleContext } from "@deployer/nest-effect";
 import { CoreInitializationModule } from "@/core/modules/setup/initialization.module";
 import { CoreReachabilityModule } from "@/core/modules/reachability/core-reachability.module";
 import { EnvModule } from "@/config/env/env.module";
@@ -25,7 +25,7 @@ import { PostSetupVerificationService } from "./services/post-setup-verification
  * upfront so the web UI can configure the database before AuthModule
  * and ORPCModule ever load.
  */
-@Module({
+export class SetupDomainModule extends createModuleContext({
     // `EnvModule` IS IMPORTED EXPLICITLY: `PostSetupDestinationService` injects
     // `EnvService`, and `EnvModule` is NOT global — relying on it being
     // registered elsewhere threw `UnknownDependenciesException` at boot:
@@ -40,5 +40,4 @@ import { PostSetupVerificationService } from "./services/post-setup-verification
     controllers: [SetupController],
     providers: [PostSetupDestinationService, PostSetupVerificationService],
     exports: [CoreInitializationModule, PostSetupDestinationService, PostSetupVerificationService],
-})
-export class SetupDomainModule {}
+}) {}

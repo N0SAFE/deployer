@@ -1,7 +1,7 @@
 import { ORPCError, type ClientContext, type ClientLink } from "@orpc/client";
 import { describe, expect, it, vi } from "vitest";
 
-import { grantDirect, redirectTo } from "@deployer/mesh-agent-contracts";
+import { grantDirect, redirectTo } from "@deployer/node-agent-contracts";
 
 import { grantFollowingLink } from "./grant-link";
 

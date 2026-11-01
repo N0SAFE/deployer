@@ -24,6 +24,62 @@
 # package and N copies that could drift. Here the build happens once and is
 # published to one volume that every application reads.
 # =====================================================================
+# ── WHAT A SYNC MAY BRING IN ───────────────────────────────────────────────
+# Shared by the three sync rules below, so the roots cannot drift apart.
+#
+# `$TURBO_DEFAULT$` hashes EVERY file in a workspace, so a file the IMAGE
+# excludes and a sync brings in changes that package's hash: every package
+# holding a test dir, a vitest config, a README or a tsbuildinfo then misses the
+# cache the image baked. Keep this a mirror of `.dockerignore`'s "not needed in an
+# image" section — the two describe the same intent, and a path dropped in one
+# place becomes a permanent cache miss in the other.
+x-watch-ignore: &watch-ignore
+  - node_modules/
+  - "**/node_modules/"
+  - bun.lock*
+  - package-lock.json
+  - yarn.lock
+  - pnpm-lock.yaml
+  # `turbo.json` lists `**/.env` and `**/.env.*local` in `globalDependencies`, and
+  # `.dockerignore` keeps both out of the image, so syncing the host's secret
+  # files changes the GLOBAL hash and misses every baked entry. This service reads
+  # its env from compose `environment:`, never from dotenv.
+  - "**/.env*"
+  - "**/__tests__/"
+  - "**/vitest.config.*"
+  - "**/*.tsbuildinfo"
+  - "**/*.eslintcache"
+  - "**/README.md"
+  - "**/CHANGELOG.md"
+  - "**/docs/"
+  - "**/.parcel-cache/"
+  - "**/.tmp/"
+  - "**/analyze/"
+  - .github/
+  - "**/dist/"
+  - "**/build/"
+  - "**/.next/"
+  - "**/out/"
+  - "**/.output/"
+  - "**/.turbo/"
+  - "**/.cache/"
+  - "**/.vite/"
+  - "**/*.log"
+  - .git/
+  - .gitignore
+  - docker/
+  - Dockerfile*
+  - docker-compose*.yml
+  - .dockerignore
+  - "**/.vscode/"
+  - "**/.idea/"
+  - "**/*.swp"
+  - "**/*.swo"
+  - "**/coverage/"
+  - "**/.nyc_output/"
+  - "**/.DS_Store"
+  - "**/Thumbs.db"
+
 services:
   dependency-builder:
     build:
@@ -84,9 +140,25 @@ services:
       - dep_output_dev:/app/dep-output
     develop:
       watch:
-        # ── Sources ──────────────────────────────────────────────────────────
-        # One rule for the whole repository, not a list of packages. Adding a
-        # package therefore needs no edit here.
+        # ── Sources: THE WORKSPACE TREES, NEVER THE REPOSITORY ROOT ───────────
+        # One rule per tree the builder actually builds — every non-app workspace
+        # glob in the root manifest (`packages/**`, `tooling/**`, `infra/**`).
+        # Adding a package therefore needs no edit here.
+        #
+        # ── WHY NOT `path: <root>` / `target: /app` ──────────────────────────
+        # A root sync brings the ROOT MANIFEST back: `stripApplications` removes
+        # `apps/**` from `/app/package.json` so `turbo watch` never builds the
+        # applications, and the host copy re-added it mid-run. The ignore entry
+        # meant to stop that (`/package.json`) does not match, and the rewrite is
+        # invisible — a synced file keeps its HOST mtime, so the manifest looks
+        # untouched. Measured on the running stack: `Packages in scope` listed 53
+        # packages at watch start, then `@deployer/setup:build` ran inside this
+        # container and failed (`compile check exited with code 1`), which is the
+        # `apps` re-entering the graph. Not syncing the root makes that
+        # impossible instead of depending on a pattern matching.
+        #
+        # A manifest or `turbo.json` change still takes effect: both are in the
+        # `rebuild` rule below, which recreates this container from a fresh image.
         #
         # A SYNC, not a bind mount: inotify does not deliver events across a
         # bind mount for writes made on the host side, so Turbo's watcher would
@@ -96,38 +168,19 @@ services:
         # `initial_sync` populates the container from the host on startup.
         - action: sync
           initial_sync: true
-          path: ../../../../..
-          target: /app
-          ignore:
-            - node_modules/
-            - "**/node_modules/"
-            - bun.lock*
-            - package-lock.json
-            - yarn.lock
-            - pnpm-lock.yaml
-            - "**/dist/"
-            - "**/build/"
-            - "**/.next/"
-            - "**/out/"
-            - "**/.output/"
-            - "**/.turbo/"
-            - "**/.cache/"
-            - "**/.vite/"
-            - "**/*.log"
-            - .git/
-            - .gitignore
-            - docker/
-            - Dockerfile*
-            - docker-compose*.yml
-            - .dockerignore
-            - "**/.vscode/"
-            - "**/.idea/"
-            - "**/*.swp"
-            - "**/*.swo"
-            - "**/coverage/"
-            - "**/.nyc_output/"
-            - "**/.DS_Store"
-            - "**/Thumbs.db"
+          path: ../../../../../packages
+          target: /app/packages
+          ignore: *watch-ignore
+        - action: sync
+          initial_sync: true
+          path: ../../../../../tooling
+          target: /app/tooling
+          ignore: *watch-ignore
+        - action: sync
+          initial_sync: true
+          path: ../../../../../infra
+          target: /app/infra
+          ignore: *watch-ignore
         # ── Recreate when a build input changes ─────────────────────────────
         # A lockfile or manifest change means the installed dependency tree is
         # stale, which a file sync cannot fix — the container has to be

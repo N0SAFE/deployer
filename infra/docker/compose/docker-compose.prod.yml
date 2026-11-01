@@ -158,11 +158,13 @@ services:
       # The SAME SQLite file the API reads: setup writes the swarm participation
       # decision and the database URL, and the API is their reader.
       - api_local_db_data_prod:/app/data
-      # The mesh agent's control socket (`/run/deployer-mesh/agent.sock`). Setup
+      # The mesh agent's control socket (`/run/deployer-node/agent.sock`). Setup
       # starts the agent before founding the swarm and drives it over this
       # socket. Restated here because the prod setup variant does not extend
       # the setup base, which is where the other profiles inherit it from.
-      - deployer-mesh-run:/run/deployer-mesh
+      - deployer-node-agent-run:/run/deployer-node
+      # The admin door: setup joins the swarm and issues tokens over it, never over the services' socket.
+      - deployer-node-agent-admin:/run/deployer-node-admin
     environment:
       # ── THE SHARED NODE-STATE VOLUME, NAMED EXACTLY AS COMPOSE CREATED IT ──
       # Setup schedules the API and mounts this volume into that task, so it must
@@ -252,8 +254,12 @@ volumes:
   # The mesh agent's control-socket volume. NAMED LITERALLY, never
   # project-prefixed: the agent container and the API swarm service setup
   # schedules mount it by this exact name.
-  deployer-mesh-run:
-    name: deployer-mesh-run
+  deployer-node-agent-run:
+    name: deployer-node-agent-run
+  # The admin door's own volume, named literally like the run volume: the agent, setup and the few operator-facing apps
+  # mount it by this exact name.
+  deployer-node-agent-admin:
+    name: deployer-node-agent-admin
 
 # Turbo remote-cache credentials, read from the project environment (`.env`).
 # Consumed by `RUN --mount=type=secret` in the Dockerfiles, so they never land

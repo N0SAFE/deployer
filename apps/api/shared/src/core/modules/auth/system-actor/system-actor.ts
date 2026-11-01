@@ -1,5 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
+import z from "zod/v4";
+
 /**
  * The SYSTEM ACTOR: who a deployment belongs to when no person started it.
  *
@@ -25,17 +27,23 @@ export const SYSTEM_ACTOR_HEADER = "x-deployer-system-actor";
 /** A claim must be used within this window; the call it rides on takes milliseconds. */
 export const SYSTEM_ACTOR_TTL_SECONDS = 60;
 
-export type SystemActorClaim = {
-	readonly kind: "system";
+/**
+ * The claim's wire shape, in one schema: the payload arrives from another service over HTTP, so every field is checked
+ * once here instead of in a chain of `typeof` comparisons that can drift from the type.
+ */
+export const systemActorClaimSchema = z.object({
+	kind: z.literal("system"),
 	/** What started it: "github-push", "schedule", … */
-	readonly source: string;
+	source: z.string().min(1),
 	/** The provider's delivery id, when there is one. */
-	readonly deliveryId: string | null;
+	deliveryId: z.string().nullable(),
 	/** The service this claim is addressed to. */
-	readonly aud: string;
+	aud: z.string(),
 	/** Expiry, seconds since the epoch. */
-	readonly exp: number;
-}
+	exp: z.number(),
+});
+
+export type SystemActorClaim = z.infer<typeof systemActorClaimSchema>;
 
 const deriveKey = (secret: string): Buffer =>
 	createHmac("sha256", secret).update("deployer:system-actor:v1").digest();
@@ -80,11 +88,10 @@ export function verifySystemActorClaim(
 	} catch {
 		return null;
 	}
-	if (claim === null || typeof claim !== "object") return null;
-	const c = claim as Partial<SystemActorClaim>;
-	if (c.kind !== "system" || typeof c.source !== "string" || c.source.length === 0) return null;
-	if (typeof c.aud !== "string" || c.aud !== aud) return null;
-	if (typeof c.exp !== "number" || c.exp * 1000 < now.getTime()) return null;
-	if (c.deliveryId !== null && typeof c.deliveryId !== "string") return null;
-	return c as SystemActorClaim;
+	const parsed = systemActorClaimSchema.safeParse(claim);
+	if (!parsed.success) return null;
+	// `aud` is part of the claim's meaning, not its shape: a claim captured on one hop must not replay against another.
+	if (parsed.data.aud !== aud) return null;
+	if (parsed.data.exp * 1000 < now.getTime()) return null;
+	return parsed.data;
 }

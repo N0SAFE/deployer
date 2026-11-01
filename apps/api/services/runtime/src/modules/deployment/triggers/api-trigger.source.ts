@@ -1,6 +1,13 @@
 import { Injectable } from "@nestjs/common";
+import z from "zod/v4";
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 import type { DeploymentTriggerEvent, DeploymentTriggerSource } from "./base/deployment-trigger-source.interface";
+
+/** What the seam itself depends on: a service to deploy and a source that names its type. */
+const apiTriggerSeamSchema = z.object({
+    serviceId: z.string().min(1),
+    source: z.object({ sourceType: z.string() }),
+});
 
 /**
  * The API-triggered source: an operator (or a script) POSTs a deployment.
@@ -40,13 +47,9 @@ export class ApiTriggerSource implements DeploymentTriggerSource {
      * return null otherwise so `matches()` stays a cheap predicate.
      */
     private cast(payload: unknown): DeploymentTriggerInput | null {
-        if (payload === null || typeof payload !== "object") return null;
-        const candidate = payload as { serviceId?: unknown; source?: { sourceType?: unknown } | null };
-        if (typeof candidate.serviceId !== "string" || candidate.serviceId.length === 0) return null;
-        if (candidate.source === null || typeof candidate.source !== "object") return null;
-        if (typeof candidate.source.sourceType !== "string") return null;
-        // The contract's Zod schema validates the full shape at the oRPC boundary, so this
-        // cast is narrowing to the already-validated object rather than inventing one.
-        return payload as DeploymentTriggerInput;
+        // The contract's schema validates the full shape at the oRPC boundary; this one names only what `matches()`
+        // reads, so the predicate cannot claim an event whose payload lacks a service or a source type.
+        const parsed = apiTriggerSeamSchema.safeParse(payload);
+        return parsed.success ? (payload as DeploymentTriggerInput) : null;
     }
 }

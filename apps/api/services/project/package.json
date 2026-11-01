@@ -23,6 +23,7 @@
         "@deployer/auth": "*",
         "@deployer/contracts-common": "*",
         "@deployer/contracts-entities": "*",
+        "@deployer/env": "*",
         "@deployer/effect-core": "*",
         "@deployer/effect-infra": "*",
         "@deployer/effect-orpc": "*",

@@ -1,5 +1,4 @@
-import { EffectRuntime, EffectRuntimeModule } from "@deployer/nest-effect";
-import { Module } from "@nestjs/common";
+import { createModuleContext, EffectRuntime, EffectRuntimeModule } from "@deployer/nest-effect";
 import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
 import {
 	DEPENDENCIES,
@@ -18,6 +17,7 @@ import { createBetterAuth } from "@deployer/shared/config/auth/auth";
 
 import { DeploymentDomainModule } from "./modules/deployment/deployment.module";
 import { DockerDomainModule } from "./modules/docker/docker.module";
+import { RuntimeDatabaseModule } from "./core/database/database.module";
 
 // Module-load, not a lifecycle hook: the column codecs run at QUERY time and the
 // first query can happen during bootstrap — before any `onModuleInit`.
@@ -40,7 +40,7 @@ registerSchemaCodecs();
  *   HealthModule                the REAL indicators + their live stream
  *   createOrpcModule()          the transport policy, identical in every app
  */
-@Module({
+export class RuntimeServiceModule extends createModuleContext({
 	imports: [
 		EnvModule,
 		AppLifecycleModule.forRoot(),
@@ -77,14 +77,21 @@ registerSchemaCodecs();
 		createOrpcModule({
 			extraContext: {
 				inject: [EffectRuntime],
-				resolve: async (runtime) => ({ "effect/context": await runtime.context() }),
+				// The request context is the context of the module that owns the controller being called: the
+				// handler can only reach what its module provides or exports, exactly what the type audit checks.
+				resolve: async (executionContext, runtime) => ({
+					"effect/context": runtime.contextFor(executionContext.getClass()),
+				}),
 			},
 		}),
 		// Effect services are provided by the modules that own them; the runtime discovers them.
 		EffectRuntimeModule,
 
+		// The database port every repository yields when a call runs: a root provider is invisible to a child
+		// module, so it is declared global instead.
+		RuntimeDatabaseModule,
+
 		DeploymentDomainModule,
 		DockerDomainModule,
 	],
-})
-export class RuntimeServiceModule {}
+}) {}

@@ -8,13 +8,13 @@ import {
     type ComputeInputSchema,
 } from "@deployer/orpc-utils";
 import {
-    meshAgentNodeSchema,
-    meshAgentNodesResultSchema,
-    meshAgentSnapshotSchema,
-    meshAgentLookupInputSchema,
-    meshAgentLookupResultSchema,
-    meshAgentJoinTokenInputSchema,
-    meshAgentJoinTokenResultSchema,
+    nodeAgentNodeSchema,
+    nodeAgentNodesResultSchema,
+    nodeAgentSnapshotSchema,
+    nodeAgentLookupInputSchema,
+    nodeAgentLookupResultSchema,
+    nodeAgentJoinTokenInputSchema,
+    nodeAgentJoinTokenResultSchema,
     coreEventStreamDefinitionSchema,
     coreSyncedEventEnvelopeSchema,
     meshPingResultSchema,
@@ -39,11 +39,11 @@ import { coreEventStreamListConfigSchemas as meshEventStreamListConfigSchemas } 
 
 export type MeshEventStreamListInput = ComputeInputSchema<typeof meshEventStreamListConfigSchemas>;
 
-const meshAgentNodeOps = standard.zod(meshAgentNodeSchema, "meshAgentNode");
-const meshAgentNodesOps = standard.zod(meshAgentNodesResultSchema, "meshAgentNodes");
-const meshAgentSnapshotOps = standard.zod(meshAgentSnapshotSchema, "meshAgentSnapshot");
-const meshAgentLookupOps = standard.zod(meshAgentLookupResultSchema, "meshAgentLookup");
-const meshAgentJoinTokenOps = standard.zod(meshAgentJoinTokenResultSchema, "meshAgentJoinToken");
+const nodeAgentNodeOps = standard.zod(nodeAgentNodeSchema, "nodeAgentNode");
+const nodeAgentNodesOps = standard.zod(nodeAgentNodesResultSchema, "nodeAgentNodes");
+const nodeAgentSnapshotOps = standard.zod(nodeAgentSnapshotSchema, "nodeAgentSnapshot");
+const nodeAgentLookupOps = standard.zod(nodeAgentLookupResultSchema, "nodeAgentLookup");
+const nodeAgentJoinTokenOps = standard.zod(nodeAgentJoinTokenResultSchema, "nodeAgentJoinToken");
 const meshSystemMetricsOps = standard.zod(systemMetricsSnapshotSchema, "meshSystemMetrics");
 const meshPingOps = standard.zod(meshPingResultSchema, "meshPing");
 const meshEventStreamByIdOps = standard.zod(coreEventStreamDefinitionSchema, "meshEventStreamById");
@@ -60,11 +60,11 @@ const meshNodeConfigRegenerateSecretOps = standard.zod(
 );
 const meshNodeConfigTestDbOps = standard.zod(meshNodeConfigTestDbResultSchema, "meshNodeConfigTestDb");
 
-export const meshGetLocalNodeContract = meshAgentNodeOps
+export const meshGetLocalNodeContract = nodeAgentNodeOps
     .list()
     .path("/node/local")
     .input(z.object({}))
-    .output(() => meshAgentNodeSchema)
+    .output(() => nodeAgentNodeSchema)
     .build();
 
 /**
@@ -91,11 +91,11 @@ export const meshGetNodeMetricsContract = meshSystemMetricsOps
     .output(systemMetricsSnapshotSchema)
     .build();
 
-export const meshListPeersContract = meshAgentNodesOps
+export const meshListPeersContract = nodeAgentNodesOps
     .list()
     .path("/peers")
     .input(z.object({}))
-    .output(meshAgentNodesResultSchema)
+    .output(nodeAgentNodesResultSchema)
     .build();
 
 export const meshListEventStreamsContract = meshEventStreamOps.list(meshEventStreamListConfigSchemas).build();
@@ -116,37 +116,37 @@ export const meshStreamSubscribeContract = meshStreamSubscribeOps
     .output((b) => b.observable(coreSyncedEventEnvelopeSchema))
     .build();
 
-export const meshMembershipSnapshotContract = meshAgentSnapshotOps
+export const meshMembershipSnapshotContract = nodeAgentSnapshotOps
     .list()
     .path("/membership/snapshot")
     .input(z.object({}))
-    .output(meshAgentSnapshotSchema)
+    .output(nodeAgentSnapshotSchema)
     .build();
 
 /** The swarm as the agents report it, sent again whenever it changes. */
-export const meshTopologyStreamContract = meshAgentSnapshotOps
+export const meshTopologyStreamContract = nodeAgentSnapshotOps
     .list()
     .path("/topology/stream")
     .input(z.object({}))
-    .output((b) => b.observable(meshAgentSnapshotSchema))
+    .output((b) => b.observable(nodeAgentSnapshotSchema))
     .build();
 
-export const meshLookupResourceContract = meshAgentLookupOps
+export const meshLookupResourceContract = nodeAgentLookupOps
     .create()
     .path("/lookup")
-    .input((b) => b.body(meshAgentLookupInputSchema))
-    .output(meshAgentLookupResultSchema)
+    .input((b) => b.body(nodeAgentLookupInputSchema))
+    .output(nodeAgentLookupResultSchema)
     .build();
 
 /**
  * Issues the token a new node redeems with its own agent (`roster.join`) to join the swarm. The grant above is the
  * enrollment of the setup flow, which this replaces when onboarding moves onto the agent.
  */
-export const meshIssueJoinTokenContract = meshAgentJoinTokenOps
+export const meshIssueJoinTokenContract = nodeAgentJoinTokenOps
     .create()
     .path("/enrollment/tokens/issue")
-    .input((b) => b.body(meshAgentJoinTokenInputSchema))
-    .output(meshAgentJoinTokenResultSchema)
+    .input((b) => b.body(nodeAgentJoinTokenInputSchema))
+    .output(nodeAgentJoinTokenResultSchema)
     .build();
 
 export const meshGetNodeConfigContract = meshNodeConfigOps

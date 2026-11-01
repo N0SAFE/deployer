@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { grantDirect, type MeshRelayEvent } from "@deployer/mesh-agent-contracts";
+import { grantDirect, type MeshRelayEvent } from "@deployer/node-agent-contracts";
 
 import { contractId } from "./contract-id";
 import { serviceLink } from "./service-link";

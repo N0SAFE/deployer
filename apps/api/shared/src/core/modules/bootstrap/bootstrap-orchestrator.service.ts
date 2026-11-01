@@ -1,5 +1,4 @@
 import { runPromiseUnwrapped } from "@deployer/effect-core";
-import { runSyncUnwrapped } from "@deployer/effect-core";
 /**
  * BootstrapOrchestratorService — the API's post-start provisioning sequence.
  *
@@ -104,7 +103,7 @@ export class BootstrapOrchestratorService implements OnApplicationBootstrap {
         this.logger.log("🚀 Bootstrap starting…");
 
         try {
-            const config = runSyncUnwrapped(this.nodeConfigRepository.find());
+            const config = await runPromiseUnwrapped(this.nodeConfigRepository.find());
             const databaseUrl = this.resolveDatabaseUrl(config?.databaseUrl?.trim() ?? null);
 
             if (databaseUrl === null || databaseUrl.length === 0) {

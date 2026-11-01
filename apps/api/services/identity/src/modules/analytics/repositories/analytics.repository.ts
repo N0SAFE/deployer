@@ -412,7 +412,7 @@ class AnalyticsQueries {
 /** Every query method, as an Effect that fails with `AnalyticsRepositoryFailure` (driver errors are wrapped, not leaked). */
 type Effectful<T> = {
 	readonly [K in keyof T]: T[K] extends (...args: infer A) => Promise<infer R>
-		? (...args: A) => Effect.Effect<R, AnalyticsRepositoryFailure>
+		? (...args: A) => Effect.Effect<R, AnalyticsRepositoryFailure, DatabasePort>
 		: never;
 };
 

@@ -35,6 +35,7 @@
         "@deployer/contracts-entities": "*",
         "@deployer/docker": "*",
         "@deployer/effect-core": "*",
+        "@deployer/node-agent-container": "*",
         "@deployer/supervision": "*",
         "effect": "catalog:effect",
         "pg": "catalog:api:nest",

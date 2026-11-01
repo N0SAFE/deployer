@@ -17,8 +17,13 @@ export {
 export type { LocalDatabaseShape, LocalDb } from "./database/local-database";
 export type { LocalDatabaseOptions } from "./database/options";
 
-export { makeNodeConfigRepository, NodeConfigRepository } from "./nodes/node-config.repository";
-export type { NodeConfigRepositoryShape, NodeConfigRow } from "./nodes/node-config.repository";
+export { makeAgentFirstNodeConfigRepository, makeNodeConfigRepository, NodeConfigRepository } from "./nodes/node-config.repository";
+export type {
+	NodeConfigRecordStore,
+	NodeConfigRepositoryShape,
+	NodeConfigRow,
+	NewNodeConfigRow,
+} from "./nodes/node-config.repository";
 export { ClusterNodeRepository, makeClusterNodeRepository } from "./nodes/cluster-node.repository";
 export type { ClusterNodeRepositoryShape } from "./nodes/cluster-node.repository";
 export { ClusterNodeInventoryRepository, makeClusterNodeInventoryRepository } from "./nodes/cluster-node-inventory.repository";

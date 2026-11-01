@@ -10,15 +10,13 @@
  */
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
 import { Effect } from "effect";
-import { EffectContextOf } from "@deployer/nest-effect";
+import { procedure } from "@deployer/nest-effect";
 import { isPullRequestWebhook, isInstallationWebhook, providersContract } from "@deployer/fleet-contracts";
 import { type PullRequestEvent, type InstallationEvent, type InstallationRepositoriesEvent } from "@deployer/fleet-contracts";
 import { FleetInvalid } from "@/core/fleet.errors";
 import { serveAnonymous } from "@/core/orpc/serve";
 import { guardGithubWebhook } from "@/modules/providers/middleware/github-webhook-auth.middleware";
-import { ProvidersModule } from "@/modules/providers/providers.module";
 import { GithubWebhookDispatchService } from "../services/github-webhook-dispatch.service";
 import { GithubAppsStore } from "../repositories/github-apps.repository";
 import { DeploymentTriggerGateway } from "../services/deployment-trigger.gateway";
@@ -115,8 +113,7 @@ const handlePullRequest = Effect.fn("GithubWebhooksController.handlePullRequest"
 export class GithubWebhooksController {
     @Implement(providersContract.code.github.webhook)
     receive() {
-        return implement(providersContract.code.github.webhook)
-            .use(ProvidersModule[EffectContextOf])
+        return procedure(providersContract.code.github.webhook)
             .effect(function* ({ context, input }) {
                 return yield* serveAnonymous(context)(
                     Effect.gen(function* () {

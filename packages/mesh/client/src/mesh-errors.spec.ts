@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { MESH_DIRECT, MESH_REDIRECT, grantDirect, readDirectGrant, readRedirect, redirectTo } from "@deployer/mesh-agent-contracts";
+import { MESH_DIRECT, MESH_REDIRECT, grantDirect, readDirectGrant, readRedirect, redirectTo } from "@deployer/node-agent-contracts";
 
 const grant = { replicaId: "runtime-2", address: "ws://10.0.0.2:3105", token: "signed", expiresAt: 9_000 };
 

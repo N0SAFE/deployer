@@ -5,7 +5,8 @@
  * SC2: executable acyclicity gate - exits non-zero on any violation.
  *
  * NODES = every *.module.ts under the API tier (apps/api: bff, services/*, shared) and packages/.
- * EDGES = DI nesting. A -> B when a class referenced in A's top-level @Module({ imports: [...] })
+ * EDGES = DI nesting. A -> B when a class referenced in A's top-level module metadata
+ * (`@Module(...)`, `createModuleContext(...)` or `createGlobalModule(...)`) has `imports: [...]`
  *         is imported via a specifier that RESOLVES to B.module.ts.
  *         Dynamic modules are NOT inlined: an inner `imports:` array belongs to the dynamic
  *         module's own context, not to the host module's.
@@ -292,7 +293,12 @@ function decoratorRegions(masked: string): { open: number; close: number }[] {
 	const out: { open: number; close: number }[] = []
 	let from = 0
 	for (;;) {
-		const at = masked.indexOf("@Module(", from)
+		// The migration replaced most `@Module()` classes with `createModuleContext`/`createGlobalModule`; all three
+		// carry the same metadata object, so all three are module regions.
+		const at = ["@Module(", "createModuleContext(", "createGlobalModule("].reduce<number>((best, marker) => {
+			const found = masked.indexOf(marker, from)
+			return found !== -1 && (best === -1 || found < best) ? found : best
+		}, -1)
 		if (at === -1) break
 		const open = masked.indexOf("(", at)
 		const close = matchBracket(masked, open)

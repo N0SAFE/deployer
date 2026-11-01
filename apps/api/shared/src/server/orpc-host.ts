@@ -17,7 +17,7 @@ import {
 } from "@orpc/server/plugins";
 import { SmartCoercionHandlerPlugin } from "@orpc/json-schema";
 import { ZodToJsonSchemaConverter } from "@orpc/zod";
-import type { DynamicModule } from "@nestjs/common";
+import type { DynamicModule, ExecutionContext } from "@nestjs/common";
 
 /**
  * The ONE oRPC configuration shared by the BFF and every service.
@@ -59,6 +59,7 @@ type ExtraInstances<D extends ExtraTokens> = {
 type ExtraContext<D extends ExtraTokens> = {
 	readonly inject: D;
 	readonly resolve: (
+		executionContext: ExecutionContext,
 		...deps: ExtraInstances<D>
 	) => Promise<Record<string, unknown>> | Record<string, unknown>;
 };
@@ -103,11 +104,11 @@ export function createOrpcModule<ExtraD extends ExtraTokens = []>(
 			 * (this factory runs once, while routes are being registered) it was a snapshot taken before
 			 * every provider existed.
 			 */
-			const context = async (): Promise<DefaultInitialContext> =>
+			const context = async (executionContext: ExecutionContext): Promise<DefaultInitialContext> =>
 				({
 					request,
 					auth: emptyAuthUtils,
-					...(extra ? await extra.resolve(...deps) : {}),
+					...(extra ? await extra.resolve(executionContext, ...deps) : {}),
 				}) as unknown as DefaultInitialContext;
 
 			return {

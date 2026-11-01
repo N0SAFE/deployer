@@ -17,15 +17,18 @@ const RECENT_ACTIVITY_WINDOW = 5000;
 
 type DbRequirements = RuntimeDb | RuntimeDatabasePort;
 
+/** The database, and the store those reads and writes go through. */
+export type DockerRuntimeActivitiesRequirements = DbRequirements | DockerRuntimeActivitiesStore;
+
 export type DockerRuntimeActivitiesShape = {
   /** Store the activity an event describes; one already stored with the same fingerprint is left alone. */
-  readonly persist: (event: DockerRuntimeEvent) => Effect.Effect<void, DbError, DbRequirements>;
+  readonly persist: (event: DockerRuntimeEvent) => Effect.Effect<void, DbError, DockerRuntimeActivitiesRequirements>;
   readonly list: (
     input: DockerRuntimeActivityListInput,
-  ) => Effect.Effect<ReturnType<typeof listRuntimeActivityEntities>, DbError, DbRequirements>;
+  ) => Effect.Effect<ReturnType<typeof listRuntimeActivityEntities>, DbError, DockerRuntimeActivitiesRequirements>;
   readonly getById: (
     input: DockerRuntimeActivityDetailQueryInput,
-  ) => Effect.Effect<DockerRuntimeActivityEntity | null, DbError, DbRequirements>;
+  ) => Effect.Effect<DockerRuntimeActivityEntity | null, DbError, DockerRuntimeActivitiesRequirements>;
 };
 
 const makeDockerRuntimeActivities = ({ store }: { store: DockerRuntimeActivitiesStore["Service"] }): DockerRuntimeActivitiesShape => ({

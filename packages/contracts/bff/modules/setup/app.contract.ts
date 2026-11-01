@@ -13,6 +13,11 @@ import {
     setupPostSetupDestinationSchema,
     setupPostSetupVerificationSchema,
     dismissHintInputSchema,
+    setupMeshStatusSchema,
+    setupMeshJoinInputSchema,
+    setupMeshJoinResultSchema,
+    setupMeshTokenInputSchema,
+    setupMeshTokenResultSchema,
 } from "@deployer/contracts-entities";
 import {
     standard,
@@ -63,6 +68,9 @@ const setupAppHintsOps = standard.zod(listHintsResultSchema, "setupAppHints");
 const setupAppDestinationOps = standard.zod(setupPostSetupDestinationSchema, "setupAppDestination");
 const setupAppVerificationOps = standard.zod(setupPostSetupVerificationSchema, "setupAppVerification");
 const setupAppRetryOps = standard.zod(z.object({ accepted: z.boolean() }), "setupAppHandoverRetry");
+const setupAppMeshStatusOps = standard.zod(setupMeshStatusSchema, "setupAppMeshStatus");
+const setupAppMeshJoinOps = standard.zod(setupMeshJoinResultSchema, "setupAppMeshJoin");
+const setupAppMeshTokenOps = standard.zod(setupMeshTokenResultSchema, "setupAppMeshToken");
 
 /**
  * The trigger and its stream share one builder, exactly as the API's own
@@ -136,6 +144,45 @@ export const setupAppContract = oc
             .path("/node-status")
             .input((b) => b.body(z.object({}).optional()))
             .output((b) => b.body(nodeConfigStatusSchema))
+            .errors((e) => setupAppErrorContracts(e))
+            .build(),
+
+        // ─── Mesh onboarding (answered LOCALLY, through the node door) ───────
+        //
+        // The mesh agent is the only mesh owner on this node, so the wizard asks
+        // it through its local socket (the node door) rather than waiting for
+        // the API: a node with no platform yet can still join a swarm, which is
+        // exactly the case these exist for.
+
+        /** This node's mesh state — standalone or a member of a swarm. */
+        getMeshStatus: setupAppMeshStatusOps
+            .list()
+            .path("/mesh/status")
+            .input((b) => b.body(z.object({}).optional()))
+            .output((b) => b.body(setupMeshStatusSchema))
+            .errors((e) => setupAppErrorContracts(e))
+            .build(),
+
+        /**
+         * Redeem an invite token and join a swarm.
+         *
+         * A refused/expired/malformed token is an ANSWER (`joined: false` with a
+         * `reason`), not a transport error: the operator typed something wrong.
+         */
+        joinMesh: setupAppMeshJoinOps
+            .create()
+            .path("/mesh/join")
+            .input((b) => b.body(setupMeshJoinInputSchema))
+            .output((b) => b.body(setupMeshJoinResultSchema))
+            .errors((e) => setupAppErrorContracts(e))
+            .build(),
+
+        /** Issue a one-time invite another node can redeem. */
+        issueMeshToken: setupAppMeshTokenOps
+            .create()
+            .path("/mesh/token")
+            .input((b) => b.body(setupMeshTokenInputSchema))
+            .output((b) => b.body(setupMeshTokenResultSchema))
             .errors((e) => setupAppErrorContracts(e))
             .build(),
 

@@ -194,7 +194,7 @@ core/modules/supervisors/
 
 The framework module stays import-free so unit harnesses never pull Docker/Env
 machinery; the `database/` and `platform/` folders register their supervisors.
-The node's **mesh agent** (`deployer-mesh-agent`) and its **doors** are deliberately
+The node's **mesh agent** (`deployer-node-agent`) and its **doors** are deliberately
 NOT supervisors: the agent is a plain host-network container that must exist
 before Swarm (which binds its mesh address), and it runs the doors itself.
 The **database service primitive** (`database-service-supervisor.service.ts`)
@@ -230,7 +230,7 @@ Mechanics:
   true — the managed Traefik polls the same routes from the API's HTTP provider
   endpoint (`GET /internal/ingress/traefik-config`).
 - The mesh is never compose-managed: there is no WireGuard flag. Compose only
-  mounts the agent's control-socket volume (`deployer-mesh-run`) into setup and
+  mounts the agent's control-socket volume (`deployer-node-agent-run`) into setup and
   the API.
 - **The env wiring lives in the ORCHESTRATOR compose file** per profile
   (`docker-compose.dev.yml` sets all `MANAGED_*_ENABLED=true`;
@@ -285,14 +285,14 @@ dev service gets hot-reload watching automatically.
 ### Mesh: the network under Swarm
 
 Nodes reach each other over a **peer-equal WireGuard mesh** with no controller:
-each node runs one `deployer-mesh-agent` (host network, `NET_ADMIN`), which
+each node runs one `deployer-node-agent` (host network, `NET_ADMIN`), which
 owns the node's keys, derives its mesh address from its WireGuard key (default
 CIDR `100.88.0.0/16`), gossips a signed, replicated roster, and plans its
 WireGuard links (LAN → declared address → hole punch). Swarm advertises,
 listens and carries VXLAN on that mesh address (loopback when the node has no
 mesh interface), so cluster traffic between nodes is encrypted by WireGuard.
 The roster also carries the cluster-wide settings — `ingress.lanes`,
-`edge.<provider id>`, `node.doors` — read through `ClusterSettingsService`.
+`edge.<provider id>`, `node.doors` — read through `ClusterSettings`.
 
 The full operator-facing explanation (lanes, doors, edge providers, DNS,
 joining and revoking nodes, current limits) is
@@ -369,7 +369,7 @@ removed, instead of silently running headless.
 
 **Doors (owned by the mesh agent, not the API)** — Swarm's port spec cannot bind
 a single host address, so the address-scoped listeners are plain nginx
-containers the node's `deployer-mesh-agent` converges from the replicated
+containers the node's `deployer-node-agent` converges from the replicated
 `node.doors` setting the Traefik supervisor publishes:
 `deployer[-<prefix>]-door-local` on `127.0.0.1:<entry port>`, `…-door-private` on
 `<mesh address>:<entry port>` (private lane), and `…-door-lan` on the LAN
@@ -831,7 +831,7 @@ export const registerAppInstanceContract = standard
 | `DEPLOYER_TRAEFIK_IMAGE` | no | pinned `traefik:v3.6.10` | Image for the platform Traefik service. |
 | `DEPLOYER_TRAEFIK_HTTP_PORT` | no | `80` | Seeds the doors' entry port the first time `ingress.lanes` is written; afterwards the cluster setting is the only source. |
 | `DEPLOYER_DOOR_IMAGE` | no | `nginx:alpine` | Image the mesh agent runs the node doors with. |
-| `MESH_AGENT_IMAGE` | no | `deployer-mesh-agent:latest` | Image of the per-node mesh agent setup / the API start. |
+| `NODE_AGENT_IMAGE` | no | `deployer-svc-node-agent:dev` | Image of the per-node node agent setup / the API start. |
 | `DEPLOYER_CLOUDFLARED_IMAGE` / `DEPLOYER_CLOUDFLARED_REPLICAS` | no | pinned / `1` | Connector image and replicas for the `cloudflare-tunnel` edge provider. |
 
 There is deliberately **no env key for how the stack is reached**: the lanes and the public edge provider are an operator decision stored in the `ingress.lanes` mesh-roster setting (see [Networking](/docs/deployment/networking)).

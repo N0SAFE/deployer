@@ -3,6 +3,7 @@ import { ORPCError } from "@orpc/client";
 import { Cause, Effect } from "effect";
 
 import { catchDomainErrors } from "./map-domain-error";
+import type { DomainError } from "@deployer/effect-core";
 
 /** Observer for the full cause of a defect; the wire only ever sees the correlation id. */
 export type DefectLogger = (cause: Cause.Cause<unknown>, correlationId: string) => void;
@@ -20,6 +21,25 @@ export type HandleOptions = {
 	 * those. Defects are still hidden behind the correlation id.
 	 */
 	readonly passThroughFailures?: boolean;
+	/**
+	 * Where a domain error's server-side `cause` is reported. The wire never carries it; without this
+	 * a failing dependency (`HealthCheckFailed` with a registry error) leaves no trace at all.
+	 * Defaults to one `console.error` line with the tag and the correlation id.
+	 */
+	readonly onDomainCause?: (cause: unknown, tag: string, correlationId: string) => void;
+};
+
+const reportDomainCause = (error: DomainError, correlationId: string, options: HandleOptions): void => {
+	const cause = (error as { readonly cause?: unknown }).cause;
+	if (cause === undefined) return;
+
+	const report =
+		options.onDomainCause ??
+		((value: unknown, tag: string, id: string) => {
+			console.error(`[domain] ${tag} failed (correlation ${id})`, value);
+		});
+
+	report(cause, error._tag, correlationId);
 };
 
 export const handle =
@@ -27,7 +47,10 @@ export const handle =
 	<A, E, R>(
 		effect: Effect.Effect<A, E, R>,
 	): Effect.Effect<A, ORPCError<string, unknown>, Exclude<R, Correlation> | Correlation> =>
-		catchDomainErrors(effect).pipe(
+		Effect.gen(function* () {
+			const { id } = yield* Correlation;
+			return yield* catchDomainErrors(effect, (error) => reportDomainCause(error, id, options));
+		}).pipe(
 			Effect.catchCause((cause) =>
 				Cause.hasInterrupts(cause) && !Cause.hasFails(cause)
 					? Effect.failCause(cause as Cause.Cause<never>)

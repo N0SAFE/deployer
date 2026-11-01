@@ -30,11 +30,17 @@ export function mapDomainError(error: DomainError) {
  */
 export const catchDomainErrors = <A, E, R>(
 	effect: Effect.Effect<A, E, R>,
+	/** Runs once per domain error, before it is mapped: where a server-side `cause` gets reported. */
+	onError?: (error: DomainError) => void,
 ): Effect.Effect<A, Exclude<E, DomainError> | ReturnType<typeof mapDomainError>, R> =>
 	Effect.catch(
 		effect,
-		(error: E): Effect.Effect<never, Exclude<E, DomainError> | ReturnType<typeof mapDomainError>> =>
-			isDomainError(error)
-				? Effect.fail(mapDomainError(error))
-				: Effect.fail(error as Exclude<E, DomainError>),
+		(error: E): Effect.Effect<never, Exclude<E, DomainError> | ReturnType<typeof mapDomainError>> => {
+			if (!isDomainError(error)) {
+				return Effect.fail(error as Exclude<E, DomainError>);
+			}
+
+			onError?.(error);
+			return Effect.fail(mapDomainError(error));
+		},
 	);

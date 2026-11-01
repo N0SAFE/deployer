@@ -1,36 +1,18 @@
 import { Injectable } from "@nestjs/common";
 import { filter, from, map, mergeMap } from "rxjs";
-import type {
-  DockerRuntimeActivityDetailQueryInput,
-  DockerRuntimeActivityListInput,
-} from "@deployer/runtime-contracts/modules/docker/runtime/activity";
 import type { DockerRuntimeActivityStreamInput } from "@deployer/runtime-contracts/modules/docker/runtime/activity-stream";
 import type { DockerRuntimeEventsStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/runtime/shared";
 import { dockerRuntimeEventSourceSchema, type DockerRuntimeActivityEntity } from "@deployer/contracts-entities";
-import { EffectRuntime } from "@deployer/nest-effect";
-import { Effect } from "effect";
-import { DockerCatalog } from "../../../catalog/docker-catalog";
 import { DockerRuntimeStreamOrchestratorService } from "../../../common/runtime/docker-runtime-stream-orchestrator.service";
 import { projectRuntimeEvent } from "../../../common/events/runtime-activity-projection";
 import { SwarmActivityEnricherService } from "../../../common/events/swarm-activity-enricher.service";
-import { DockerRuntimeActivities } from "../../../repositories/runtime/docker-runtime-activities";
 
 @Injectable()
 export class DockerRuntimeActivityDomainService {
   constructor(
-    private readonly effectRuntime: EffectRuntime,
     private readonly dockerRuntimeStreamOrchestratorService: DockerRuntimeStreamOrchestratorService,
     private readonly swarmActivityEnricherService: SwarmActivityEnricherService,
   ) {}
-
-  getRuntimeSnapshot() {
-    return this.effectRuntime.runPromise(
-      Effect.gen(function* () {
-        const catalog = yield* DockerCatalog;
-        return yield* catalog.resolve();
-      }),
-    );
-  }
 
   stream(input: DockerRuntimeEventsStreamQueryInput) {
     return this.dockerRuntimeStreamOrchestratorService.stream(input);
@@ -83,21 +65,4 @@ export class DockerRuntimeActivityDomainService {
       );
   }
 
-  listRuntimeActivities(input: DockerRuntimeActivityListInput) {
-    return this.effectRuntime.runPromiseUnwrapped(
-      Effect.gen(function* () {
-        const activities = yield* DockerRuntimeActivities;
-        return yield* activities.list(input);
-      }),
-    );
-  }
-
-  getRuntimeActivityById(input: DockerRuntimeActivityDetailQueryInput) {
-    return this.effectRuntime.runPromiseUnwrapped(
-      Effect.gen(function* () {
-        const activities = yield* DockerRuntimeActivities;
-        return yield* activities.getById(input);
-      }),
-    );
-  }
 }

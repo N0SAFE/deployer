@@ -4,7 +4,7 @@
  * discriminated-union event, so any feature can watch the exact same state.
  */
 import * as z from "zod/v4";
-import { contractBuilder } from "@deployer/nest-events";
+import { contractBuilder } from "@deployer/events";
 
 /** Base fields shared by every access-point state (kind is the discriminator). */
 const accessPointBaseSchema = z.object({

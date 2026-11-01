@@ -1,9 +1,26 @@
-import { runSyncUnwrapped } from "@deployer/effect-core";
 import { Injectable, type OnModuleInit, Logger, Inject } from '@nestjs/common'
+import { runPromiseUnwrapped } from "@deployer/effect-core"
 import { EnvService } from "../../../../config/env/env.module"
 import { NodeMeshConfigRepository, type NodeMeshConfigRow } from '../repositories/node-mesh-config.repository'
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
-import { randomUUID } from 'node:crypto'
+import { readNodeRecord, writeNodeRecord, type NodeRecord, type NodeRecordConfig } from "./node-record.client"
+
+/** What the agent's record says about this node's mesh: the section `node.configure` writes. */
+type AgentMeshConfig = NonNullable<NonNullable<NodeRecord["config"]>["mesh"]>
+
+/** The mesh row as a patch of the agent's record: only the mesh section, nothing of the node config itself. */
+const meshConfigPatch = (row: NodeMeshConfigRow): Partial<NodeRecordConfig> => ({
+    mesh: {
+        nodeServerUrl: row.nodeServerUrl ?? null,
+        bootstrapPeers: row.bootstrapPeersEncrypted ?? null,
+        syncIntervalMs: row.syncIntervalMs,
+        trustStrictMinAckRatio: row.trustStrictMinAckRatio,
+        trustStrictMaxAckAgeSeconds: row.trustStrictMaxAckAgeSeconds,
+        trustStrictRolloutWaveSize: row.trustStrictRolloutWaveSize,
+        trustStrictAutoRollback: row.trustStrictAutoRollback,
+        controlEnvelopeTrustRequired: row.controlEnvelopeTrustRequired,
+    },
+})
 
 export type MeshConfigTrustKeys = {
     keyId: string
@@ -24,6 +41,10 @@ export class SystemMeshConfigService implements OnModuleInit {
     private static readonly DEFAULT_CONTROL_ENVELOPE_TRUST_REQUIRED = false
 
     private cachedNodeId: string | null = null
+    /** The mesh config resolved at boot, so a getter never awaits (or queries) on a request path. */
+    private meshConfig: NodeMeshConfigRow | null = null
+    /** What this node's own agent says about the node, or null when its agent is absent or predates the record. */
+    private agentRecord: NodeRecord | null = null
 
     constructor(
         private readonly envService: EnvService,
@@ -31,10 +52,11 @@ export class SystemMeshConfigService implements OnModuleInit {
         private readonly nodeMeshConfigRepo: NodeMeshConfigRepository
     ) {}
 
-    onModuleInit() {
+    async onModuleInit() {
         try {
-            this.ensureNodeConfig()
-            this.ensureMeshConfig()
+            // The agent owns the node's local database, so it is the first source of the node's identity. Absent (or
+            // too old to know the record), the local row below stays the source — never the environment.
+            await this.applyAgentRecord(await readNodeRecord())
         } catch (err: unknown) {
             this.logger.error(
                 `Failed to initialize mesh defaults: ${err instanceof Error ? err.message : String(err)}`
@@ -42,15 +64,25 @@ export class SystemMeshConfigService implements OnModuleInit {
         }
     }
 
+    /**
+     * Takes the record this node's agent serves and resolves what depends on it. Public so a test can supply a record
+     * without a socket; `onModuleInit` is its only production caller.
+     */
+    async applyAgentRecord(record: NodeRecord | null): Promise<void> {
+        this.agentRecord = record
+        this.cachedNodeId = (await runPromiseUnwrapped(this.nodeConfigRepo.find()))?.nodeId ?? null
+        this.meshConfig = await this.loadMeshConfig()
+    }
+
     // ─── Public getters ───────────────────────────────────────────────────────
 
+    /**
+     * This node's platform id, or `""` when the node is not configured yet.
+     *
+     * Nothing invents one: an unconfigured node has no id, and no environment variable is read here.
+     */
     getNodeId(): string {
-        if (this.cachedNodeId) {
-            return this.cachedNodeId
-        }
-        const config = this.ensureNodeConfig()
-        this.cachedNodeId = config.nodeId
-        return config.nodeId
+        return this.agentRecord?.config?.nodeId ?? this.cachedNodeId ?? ''
     }
 
     getStreamSharedSecret(): string | null {
@@ -58,7 +90,7 @@ export class SystemMeshConfigService implements OnModuleInit {
     }
 
     getNodeServerUrl(): string | null {
-        return this.ensureMeshConfig().nodeServerUrl ?? null
+        return this.config().nodeServerUrl ?? null
     }
 
     getControlEnvelopeTrustKeys(): Map<string, MeshConfigTrustKeys> {
@@ -66,102 +98,73 @@ export class SystemMeshConfigService implements OnModuleInit {
     }
 
     getBootstrapPeers(): string | null {
-        return this.ensureMeshConfig().bootstrapPeersEncrypted ?? null
+        return this.config().bootstrapPeersEncrypted ?? null
     }
 
     getSyncIntervalMs(): number {
-        return this.ensureMeshConfig().syncIntervalMs
+        return this.config().syncIntervalMs
     }
 
     getTrustStrictMinAckRatio(): number {
-        const ratio = Number(this.ensureMeshConfig().trustStrictMinAckRatio)
+        const ratio = Number(this.config().trustStrictMinAckRatio)
         return Number.isFinite(ratio) ? ratio : 1
     }
 
     getTrustStrictMaxAckAgeSeconds(): number {
-        return this.ensureMeshConfig().trustStrictMaxAckAgeSeconds
+        return this.config().trustStrictMaxAckAgeSeconds
     }
 
     getTrustStrictRolloutWaveSize(): number {
-        return this.ensureMeshConfig().trustStrictRolloutWaveSize
+        return this.config().trustStrictRolloutWaveSize
     }
 
     getTrustStrictAutoRollback(): boolean {
-        return this.ensureMeshConfig().trustStrictAutoRollback
+        return this.config().trustStrictAutoRollback
     }
 
     getControlEnvelopeTrustRequired(): boolean {
-        return this.ensureMeshConfig().controlEnvelopeTrustRequired
+        return this.config().controlEnvelopeTrustRequired
     }
 
     // ─── Private initializers ─────────────────────────────────────────────────
 
-    /**
-     * Ensures a node config row exists in SQLite.
-     *
-     * Source of truth priority:
-     *   1. Existing row in NodeConfigRepository (written by setup wizard)
-     *   2. MESH_NODE_ID env var (dev/CI override)
-     *   3. Random UUID (first-boot fallback — will be overwritten by setup)
-     *
-     * NOTE: if the setup wizard has already run, this is a no-op (row exists).
-     * We never overwrite a nodeId that was assigned by the setup.
-     */
-    private ensureNodeConfig() {
-        const existing = runSyncUnwrapped(this.nodeConfigRepo.find())
-        if (existing?.nodeId) {
-            return existing
-        }
-
-        // No setup has run yet — bootstrap a minimal placeholder so the mesh
-        // can start in degraded mode. Setup wizard will overwrite this.
-        const now = new Date().toISOString()
-
-        // Prefer env var for dev/CI, fall back to random UUID
-        const envNodeId = this.envService.get('MESH_NODE_ID')?.trim()
-        const nodeId = envNodeId?.length ? envNodeId : randomUUID()
-
-        this.logger.warn(
-            '⚠️  No setup config found — creating placeholder node config. ' +
-                'Run the setup wizard to finalize this node.'
-        )
-
-        return runSyncUnwrapped(this.nodeConfigRepo.upsert({
-            nodeId,
-            strategy: 'local',
-            meshUrlsSnapshot: [],
-            configuredAt: null,
-            updatedAt: now,
-        }))
+    /** The config loaded at boot; the defaults, unpersisted, for a getter that somehow runs before it. */
+    private config(): NodeMeshConfigRow {
+        return this.meshConfig ?? this.defaults()
     }
 
     /**
-     * Ensures a mesh config row exists in NodeMeshConfigRepository.
+     * Resolves the mesh config once, at boot: the stored row when there is one, otherwise the defaults, persisted.
      *
      * Source of truth priority for nodeServerUrl:
-     *   1. Existing row in NodeMeshConfigRepository (written by setup or admin)
-     *   2. APP_URL env var (canonical public URL of this node)
-     *   3. null (node will be unreachable from peers until configured)
+     *   1. The mesh section of the node's agent record, when the agent serves one
+     *   2. Existing row in NodeMeshConfigRepository (written by setup or admin)
+     *   3. APP_URL env var (canonical public URL of this node)
+     *   4. null (node will be unreachable from peers until configured)
      *
      * Source of truth priority for bootstrapPeers:
-     *   1. Existing row in NodeMeshConfigRepository
-     *   2. meshUrlsSnapshot from NodeConfigRepository ← set by setup wizard
-     *   3. MESH_BOOTSTRAP_PEERS env var (dev/CI override)
-     *   4. null
+     *   1. The mesh section of the node's agent record
+     *   2. Existing row in NodeMeshConfigRepository
+     *   3. meshUrlsSnapshot from the node config (setup's snapshot, from the agent's record or the local row)
+     *   4. MESH_BOOTSTRAP_PEERS env var (dev/CI override)
+     *   5. null
      *
-     * If the local `node_mesh_config` table hasn't been migrated yet
-     * (the `upsert` returns `null`), we fall back to an in-memory
-     * config so the rest of the app can still start. The setup wizard
-     * is the canonical fix for this — but refusing to boot the API
-     * would prevent the wizard from running.
+     * If the local `node_mesh_config` table hasn't been migrated yet (the `upsert` returns `null`), the defaults are
+     * kept in memory so the rest of the app can still start. The setup wizard is the canonical fix — but refusing to
+     * boot the API would prevent the wizard from running.
      */
-    private ensureMeshConfig() {
+    private async loadMeshConfig(): Promise<NodeMeshConfigRow> {
+        // The agent owns the node: a mesh config it serves is the node's, not a suggestion the local row may override.
+        const agentMesh = this.agentRecord?.config?.mesh
+        if (agentMesh) {
+            this.logger.log('Mesh configuration resolved from the node agent')
+            return this.rowFromAgentMesh(agentMesh)
+        }
+
         const existing = this.nodeMeshConfigRepo.find()
         if (existing) {
             return existing
         }
-
-        const now = new Date().toISOString()
 
         // ── nodeServerUrl ────────────────────────────────────────────────────
         // APP_URL is the canonical public URL of this node.
@@ -169,14 +172,11 @@ export class SystemMeshConfigService implements OnModuleInit {
         const nodeServerUrl = appUrl?.length ? appUrl : null
 
         // ── bootstrapPeers ───────────────────────────────────────────────────
-        // Prefer meshUrlsSnapshot from NodeConfigRepository (set by setup wizard),
-        // then fall back to MESH_BOOTSTRAP_PEERS env var
-        const nodeConfig = runSyncUnwrapped(this.nodeConfigRepo.find())
-        const snapshotPeers = nodeConfig?.meshUrlsSnapshot ?? []
+        // Prefer the setup snapshot on the node config, then fall back to MESH_BOOTSTRAP_PEERS.
+        const nodeConfig = await runPromiseUnwrapped(this.nodeConfigRepo.find())
+        const snapshotPeers = this.agentRecord?.config?.meshUrlsSnapshot ?? nodeConfig?.meshUrlsSnapshot ?? []
 
-        const envBootstrapPeers = this.envService
-            .get('MESH_BOOTSTRAP_PEERS')
-            ?.trim()
+        const envBootstrapPeers = this.envService.get('MESH_BOOTSTRAP_PEERS')?.trim()
         const bootstrapPeersEncrypted =
             snapshotPeers.length > 0
                 ? snapshotPeers.join(',')
@@ -200,45 +200,74 @@ export class SystemMeshConfigService implements OnModuleInit {
 
         this.logger.log('Initializing local mesh configuration defaults…')
 
-        // Build the in-memory defaults *first* so we can return them
-        // even if the persist attempt fails (e.g. table missing).
-        const fallbackRow: NodeMeshConfigRow = {
-            id: 1,
-            nodeServerUrl,
-            bootstrapPeersEncrypted,
-            syncIntervalMs: SystemMeshConfigService.DEFAULT_SYNC_INTERVAL_MS,
-            trustStrictMinAckRatio:
-                SystemMeshConfigService.DEFAULT_TRUST_STRICT_MIN_ACK_RATIO,
-            trustStrictMaxAckAgeSeconds:
-                SystemMeshConfigService.DEFAULT_TRUST_STRICT_MAX_ACK_AGE_SECONDS,
-            trustStrictRolloutWaveSize:
-                SystemMeshConfigService.DEFAULT_TRUST_STRICT_ROLLOUT_WAVE_SIZE,
-            trustStrictAutoRollback:
-                SystemMeshConfigService.DEFAULT_TRUST_STRICT_AUTO_ROLLBACK,
-            controlEnvelopeTrustRequired:
-                SystemMeshConfigService.DEFAULT_CONTROL_ENVELOPE_TRUST_REQUIRED,
-            createdAt: now,
-            updatedAt: now,
-        }
-
         const persisted = this.nodeMeshConfigRepo.upsert({
             nodeServerUrl,
             bootstrapPeersEncrypted,
             syncIntervalMs: SystemMeshConfigService.DEFAULT_SYNC_INTERVAL_MS,
-            trustStrictMinAckRatio:
-                SystemMeshConfigService.DEFAULT_TRUST_STRICT_MIN_ACK_RATIO,
-            trustStrictMaxAckAgeSeconds:
-                SystemMeshConfigService.DEFAULT_TRUST_STRICT_MAX_ACK_AGE_SECONDS,
-            trustStrictRolloutWaveSize:
-                SystemMeshConfigService.DEFAULT_TRUST_STRICT_ROLLOUT_WAVE_SIZE,
-            trustStrictAutoRollback:
-                SystemMeshConfigService.DEFAULT_TRUST_STRICT_AUTO_ROLLBACK,
-            controlEnvelopeTrustRequired:
-                SystemMeshConfigService.DEFAULT_CONTROL_ENVELOPE_TRUST_REQUIRED,
-            createdAt: now,
-            updatedAt: now,
+            trustStrictMinAckRatio: SystemMeshConfigService.DEFAULT_TRUST_STRICT_MIN_ACK_RATIO,
+            trustStrictMaxAckAgeSeconds: SystemMeshConfigService.DEFAULT_TRUST_STRICT_MAX_ACK_AGE_SECONDS,
+            trustStrictRolloutWaveSize: SystemMeshConfigService.DEFAULT_TRUST_STRICT_ROLLOUT_WAVE_SIZE,
+            trustStrictAutoRollback: SystemMeshConfigService.DEFAULT_TRUST_STRICT_AUTO_ROLLBACK,
+            controlEnvelopeTrustRequired: SystemMeshConfigService.DEFAULT_CONTROL_ENVELOPE_TRUST_REQUIRED,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
         });
 
-        return persisted ?? fallbackRow;
+        if (persisted !== null) {
+            await this.mirrorToAgent(persisted)
+            return persisted
+        }
+
+        return this.defaults({ nodeServerUrl, bootstrapPeersEncrypted })
+    }
+
+    /** Best-effort: an absent agent leaves the local row as the only copy, which is where today's readers look. */
+    private async mirrorToAgent(row: NodeMeshConfigRow): Promise<void> {
+        try {
+            const taken = await writeNodeRecord(meshConfigPatch(row))
+            if (taken === null) {
+                this.logger.debug('The node agent did not take the mesh configuration — the local row stays the source')
+            }
+        } catch (err: unknown) {
+            this.logger.warn(
+                `Failed to mirror the mesh configuration to the node agent: ${err instanceof Error ? err.message : String(err)}`
+            )
+        }
+    }
+
+    /** The agent's mesh section as the row the rest of the service reads, so no getter has two shapes to handle. */
+    private rowFromAgentMesh(mesh: AgentMeshConfig): NodeMeshConfigRow {
+        const now = new Date().toISOString()
+        return {
+            id: 1,
+            nodeServerUrl: mesh.nodeServerUrl,
+            bootstrapPeersEncrypted: mesh.bootstrapPeers,
+            syncIntervalMs: mesh.syncIntervalMs,
+            trustStrictMinAckRatio: mesh.trustStrictMinAckRatio,
+            trustStrictMaxAckAgeSeconds: mesh.trustStrictMaxAckAgeSeconds,
+            trustStrictRolloutWaveSize: mesh.trustStrictRolloutWaveSize,
+            trustStrictAutoRollback: mesh.trustStrictAutoRollback,
+            controlEnvelopeTrustRequired: mesh.controlEnvelopeTrustRequired,
+            createdAt: now,
+            updatedAt: now,
+        }
+    }
+
+    private defaults(overrides: Partial<NodeMeshConfigRow> = {}): NodeMeshConfigRow {
+        const now = new Date().toISOString()
+        return {
+            id: 1,
+            nodeServerUrl: null,
+            bootstrapPeersEncrypted: null,
+            syncIntervalMs: SystemMeshConfigService.DEFAULT_SYNC_INTERVAL_MS,
+            trustStrictMinAckRatio: SystemMeshConfigService.DEFAULT_TRUST_STRICT_MIN_ACK_RATIO,
+            trustStrictMaxAckAgeSeconds: SystemMeshConfigService.DEFAULT_TRUST_STRICT_MAX_ACK_AGE_SECONDS,
+            trustStrictRolloutWaveSize: SystemMeshConfigService.DEFAULT_TRUST_STRICT_ROLLOUT_WAVE_SIZE,
+            trustStrictAutoRollback: SystemMeshConfigService.DEFAULT_TRUST_STRICT_AUTO_ROLLBACK,
+            controlEnvelopeTrustRequired: SystemMeshConfigService.DEFAULT_CONTROL_ENVELOPE_TRUST_REQUIRED,
+            createdAt: now,
+            updatedAt: now,
+            ...overrides,
+        }
     }
 }

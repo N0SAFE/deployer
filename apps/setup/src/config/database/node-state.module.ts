@@ -2,7 +2,7 @@
  * The setup app's registration of the node-state repositories: the `@deployer/node-state` Effect
  * repositories over the local database, provided under the package's own tags.
  */
-import { Global, Module } from "@nestjs/common";
+import { createGlobalModule } from "@deployer/nest-effect";
 import {
 	ClusterNodeInventoryRepository,
 	ClusterNodeRepository,
@@ -26,10 +26,8 @@ const repositories = [
 	},
 ];
 
-@Global()
-@Module({
+export const NodeStateModule = createGlobalModule({
 	imports: [LocalDatabaseModule],
 	providers: repositories,
 	exports: [NodeConfigRepository, ClusterNodeRepository, ClusterNodeInventoryRepository],
-})
-export class NodeStateModule {}
+});

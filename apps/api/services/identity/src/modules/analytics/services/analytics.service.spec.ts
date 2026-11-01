@@ -5,6 +5,7 @@ import { AnalyticsReportNotFound } from "../domain/analytics.errors";
 
 
 import { provideTo } from "@deployer/effect-core";
+import { DatabasePort } from "@identity/core/database/database.port";
 import { AnalyticsRepository } from "../repositories/analytics.repository";
 import { AnalyticsService } from "./analytics.service";
 
@@ -55,7 +56,10 @@ describe("AnalyticsService", () => {
 		vi.setSystemTime(NOW);
 		repo = makeRepository();
 		service = provideTo(AnalyticsService.live, (effect) =>
-			effect.pipe(Effect.provideService(AnalyticsRepository, repo as never)),
+			effect.pipe(
+				Effect.provideService(AnalyticsRepository, repo as never),
+				Effect.provideService(DatabasePort, {} as never),
+			),
 		);
 	});
 

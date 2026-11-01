@@ -30,6 +30,21 @@ exposes the `Observable`.
    host and no Promise face: those were a migration layer and are gone.
 4. **Delete the old `nest-*` package** once its consumers are repointed; no compatibility shims.
 
+## Endpoint requirements belong to the handler
+
+A controller declares nothing: `procedure(contract).effect(body)` returns the `R` of everything the handler yields, and
+`createModuleContext` reads it off the controller class. `[UnmetRequirementsOf]` is a union of `[controller, services]`
+pairs, and `bootstrapApiServer` accepts only a root whose set is empty. Visibility is Nest's: own `providers` + the
+**`exports`** of imports + global modules — a parent cannot resolve a child, and a sibling is invisible.
+
+- `@deployer/nest-effect`: `procedure()`, `createGlobalModule()`, `declareModule()` (claims validated against Nest's
+  metadata at import time), `assertRequirementsMet`, `RequirementsMet`.
+- The request context is `EffectRuntime.contextFor(executionContext.getClass())`; `context()` stays for seeds, boot code
+  and `runPromise`. `EFFECT_SCOPE_REPORT=1` lists, per controller, the services a module flip would take away.
+- Legacy: `.use(Module[EffectContextOf])` still compiles and keeps the flat (pre-Nest-strict) view. It is deleted after
+  the last service migrates; the strict audit is the only path then.
+- Design, caveats and measurements: `docs/audit-2026-10-25/requirement-modules.md`.
+
 ## Done
 
 | Package | Replaces |
@@ -52,6 +67,12 @@ exposes the `Observable`.
 | `SessionResolver` | session lookup is an Effect service; Better Auth still does the check inside the oRPC auth plugin |
 | every API service wired by module (`useValue: X.live`) | `EffectRuntimeModule.forRoot({ layers })` and the `*.layers.ts` / `app.layers.ts` assemblies in health, identity, project, fleet and runtime; `layerOfClass` |
 | runtime deployment queue (EFF-202) | durable `deployment_queue_jobs` + `DeploymentQueueRepository` (SKIP LOCKED, guarded leases); `makeJobRunner` runs one fiber per job with heartbeat, cancel-as-interrupt and a single terminal write; the build abort signal reaches the docker build |
+| `@deployer/nest-effect` requirement layer (`procedure`, module facts, `createGlobalModule`, `declareModule`, `contextFor`, `scopeReport`) | the per-endpoint `.use(Module[EffectContextOf])` declaration and the app-wide request context |
+| `svc-health` endpoint requirements | the last controller wiring line; health is the reference migration (`procedure()`, `exports`, `contextFor`, `assertRequirementsMet`) |
+| `svc-node-agent` endpoint requirements | same wiring, 4 controllers, no database: `contextFor` proven on a second service |
+| 23 `@Global()` modules | decorator-only globals, now annotated (`declareModule(..., { global: true })`), with `check:global-modules` in CI |
+| `svc-identity`, `svc-project`, `svc-fleet`, `svc-runtime` endpoint requirements | `procedure()`, `contextFor`, `assertRequirementsMet`; each app's root-provided DB port moved into a global port module (root providers are invisible to child modules) |
+| every `serviceOver` shape | declares its real `R` (collaborator + ports), so the audit walks repository → port → adapter → store instead of trusting `R = never` |
 
 ## Remaining, in dependency order
 
@@ -61,6 +82,17 @@ exposes the `Observable`.
 | 1 | `apps/api/shared` modules | large | everything | traefik, mesh, platform-ingress, setup, supervisors' bodies (Promise inside the Effect framework today), global database |
 | 2 | `apps/setup`, `apps/api/bff` wiring | | | after the shared modules |
 | n/a | `nest-schema` | 5.9k | all | Drizzle table definitions and migrations are data, not Nest logic; it only needs renaming |
+
+### Requirement-module rollout (endpoint requirements)
+
+| Order | Target | Work | Notes |
+|---|---|---|---|
+| 1 | `node-agent` | **DONE** — 4 controllers, `contextFor`, explicit assert | 119 files type-clean, 143 tests |
+| 2 | `identity` | **DONE** — 41 sites, global `DatabasePortModule` | 206 tests |
+| 3 | `project` | **DONE** — 69 sites, `ProjectDomainModule` exports | 181 tests, 7.28M instantiations |
+| 4 | `runtime`, `fleet` | **DONE** — 6 and 89 sites, roots converted, port modules | 527/530 and 287 tests |
+| 5 | `bff` | **DONE (no-op)** — 0 `.effect()` controllers | 132 `.handler()` endpoints were never in scope |
+| 6 | `@deployer/nest-effect` | **DONE** — legacy union deleted, `procedure()` is the only path | package 10/10 tests |
 
 Check a package's dependents (`package.json` grep plus imports) before migrating it: absorb it only
 when every consumer can move in the same change, otherwise keep a Promise face in the host.

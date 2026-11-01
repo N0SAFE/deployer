@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { createModuleContext } from "@deployer/nest-effect";
 import { ConfigModule } from "@nestjs/config";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -18,7 +18,7 @@ export { EnvService };
  * contract, `setupEnvSchema`, so a malformed environment fails at boot with the schema's message.
  * The Effect environment is then provided under the `EnvService` token.
  */
-@Module({
+export class EnvModule extends createModuleContext({
   imports: [
     ConfigModule.forRoot({
       validate: (env) => setupEnvSchema.parse(env) as Record<string, unknown>,
@@ -33,5 +33,4 @@ export { EnvService };
   ],
   providers: [setupEnvironmentProvider],
   exports: [EnvService, ConfigModule],
-})
-export class EnvModule {}
+}) {}

@@ -1,11 +1,10 @@
-import { Module } from "@nestjs/common";
+import { createModuleContext } from "@deployer/nest-effect";
 import { DatabaseModule } from "../database/database.module";
 import { ProjectAccessService } from "./services/project-access.service";
 import { ProjectAccessRepository } from "./repositories/project-access.repository";
 
-@Module({
+export class ProjectCoreModule extends createModuleContext({
     imports: [DatabaseModule],
     providers: [ProjectAccessService, ProjectAccessRepository],
     exports: [ProjectAccessService],
-})
-export class ProjectCoreModule {}
+}) {}

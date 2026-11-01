@@ -1,5 +1,4 @@
-import { Module } from "@nestjs/common";
-
+import { createModuleContext } from "@deployer/nest-effect";
 import { OpenApiDocsController } from "./openapi-docs.controller";
 
 /**
@@ -11,7 +10,6 @@ import { OpenApiDocsController } from "./openapi-docs.controller";
  * that also declares controllers becomes a second place to look for what this
  * app serves — see the note in `bff.module.ts`.
  */
-@Module({
+export class DocsModule extends createModuleContext({
 	controllers: [OpenApiDocsController],
-})
-export class DocsModule {}
+}) {}

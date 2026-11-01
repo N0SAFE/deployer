@@ -1,4 +1,4 @@
-import { Module, Global } from '@nestjs/common';
+import { createGlobalModule } from '@deployer/nest-effect';
 import { DatabaseModule } from '../database/database.module';
 import { TraefikCoreModule } from '../traefik/traefik.module';
 
@@ -31,8 +31,7 @@ import { ServiceDomainMappingRepository } from './repositories/service-domain-ma
  * 
  * Controllers have been moved to DomainControllerModule (feature module).
  */
-@Global()
-@Module({
+export const CoreDomainModule = createGlobalModule({
   imports: [
     DatabaseModule,
     TraefikCoreModule,
@@ -60,5 +59,4 @@ import { ServiceDomainMappingRepository } from './repositories/service-domain-ma
     ProjectDomainRepository,
     ServiceDomainMappingRepository,
   ],
-})
-export class CoreDomainModule {}
+});

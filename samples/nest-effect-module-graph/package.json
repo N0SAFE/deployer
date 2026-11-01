@@ -1,0 +1,22 @@
+{
+	"name": "effect-module-graph-poc",
+	"private": true,
+	"type": "module",
+	"description": "PoC: a Nest module tree that knows which Effect services exist at which point, and fails to compile when a layer requirement is unprovidable.",
+	"scripts": {
+		"demo": "bun src/main.ts",
+		"test": "bun test",
+		"type-check": "tsc --noEmit",
+		"check": "bun run type-check && bun test"
+	},
+	"dependencies": {
+		"@nestjs/common": "^12.2.0",
+		"effect": "4.0.6",
+		"reflect-metadata": "^0.2.2"
+	},
+	"devDependencies": {
+		"@types/bun": "^1.2.0",
+		"@types/node": "^24.0.0",
+		"typescript": "^5.9.3"
+	}
+}

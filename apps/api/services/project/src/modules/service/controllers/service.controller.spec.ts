@@ -1,20 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@orpc/nest", () => ({ Implement: () => () => undefined }));
-vi.mock("@orpc/server", () => {
+vi.mock("@deployer/nest-effect", () => {
 	const builder = {
 		use: () => builder,
 		effect: (handler: unknown) => ({ handler }),
 	};
-	return { implement: () => builder };
+	return { procedure: () => builder };
 });
-vi.mock("@deployer/nest-effect", () => ({
-	EffectContextOf: Symbol("effect/context"),
-}));
 vi.mock("@deployer/shared/core/modules/auth/orpc/middlewares", () => ({
 	requireAuth: () => ({}),
 }));
-vi.mock("../service.module", () => ({ ServiceDomainModule: {} }));
 
 import { ServiceController } from "./service.controller";
 

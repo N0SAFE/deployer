@@ -3,6 +3,7 @@ import { Injectable, Logger, Inject } from "@nestjs/common";
 import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
 import { DockerConflict, platformOverlayForPrefix } from "@deployer/docker";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
+import { apiServiceName } from "@deployer/env";
 
 import { EnvService } from "@/config/env/env.module";
 import { DEFAULT_API_INTERNAL_PORT, type ApiBackend } from "../handover.types";
@@ -69,15 +70,16 @@ export class ApiServiceProvisioner {
   ) {}
 
   /**
-   * The BFF's swarm service name, matching `ServicesTierProvisioner`.
+   * The BFF's swarm service name, from the catalog's naming rule.
    *
-   * Derived the same way (`svc-<name>[-<prefix>]`) so the backend this hands over
-   * to and the service the tier created cannot drift — a mismatch points
-   * `api.<host>` at a name nothing answers on.
+   * Derived the same way (`svc-<name>[-<prefix>]`) as the tier's own services, so
+   * the backend this hands over to and the service the tier created cannot drift
+   * — a mismatch points `api.<host>` at a name nothing answers on. `bff` is not an
+   * `ApiServiceName` (it is the surface, not a contract namespace), which is why
+   * `apiServiceName` takes a plain string.
    */
   private tierBffName(): string {
-    const prefix = this.env.get("DEPLOYER_PREFIX");
-    return prefix === "" ? "svc-bff" : `svc-bff-${prefix}`;
+    return apiServiceName("bff", this.env.get("DEPLOYER_PREFIX"));
   }
 
   /** The BFF's port inside the platform network. */

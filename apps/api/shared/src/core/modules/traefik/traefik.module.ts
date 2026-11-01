@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { createModuleContext } from "@deployer/nest-effect";
 import { TraefikTemplateService } from './services/traefik-template.service';
 import { TraefikVariableResolverService } from './services/traefik-variable-resolver.service';
 import { TraefikService } from './services/traefik.service';
@@ -37,7 +37,7 @@ import { EnvModule, EnvService } from "../../../config/env/env.module";
  *
  * Services exported: ...
  */
-@Module({
+export class TraefikCoreModule extends createModuleContext({
   imports: [
     DatabaseModule,
     EventsModule,
@@ -100,5 +100,4 @@ import { EnvModule, EnvService } from "../../../config/env/env.module";
     TraefikRepository,
     TraefikTemplateRepository,
   ],
-})
-export class TraefikCoreModule {}
+}) {}

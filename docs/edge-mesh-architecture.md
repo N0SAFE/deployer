@@ -39,7 +39,7 @@ facts make that possible, and both are physical rather than design choices:
                  │                                            │  MESH address
                  └────────────────────────────────────────────┘
                  ┌────────────────────────────────────────────┐
-  Mesh plane     │ peer-equal WireGuard mesh                  │  deployer-mesh-agent
+  Mesh plane     │ peer-equal WireGuard mesh                  │  deployer-node-agent
                  │ identity · roster · links · node doors     │  (one per node)
                  └────────────────────────────────────────────┘
 ```
@@ -61,15 +61,16 @@ coordinator — every member can do everything another member can.
 
 ### The agent
 
-`apps/mesh-agent` runs on **every** node as a plain container (not a swarm
-service — it must exist before Swarm does):
+The mesh agent (`apps/api/services/node-agent`, image `NODE_AGENT_IMAGE`) runs on **every** node as a plain
+container (not a swarm service — it must exist before Swarm does). The old `apps/mesh-agent` and
+`@deployer/mesh-network` were deleted on 2026-10-30; see `docs/architecture/node-agent-service.md`:
 
 | Property | Value | Why |
 |---|---|---|
 | network | `host` | the mesh interface must be a HOST interface, so Swarm can advertise it and Docker can bind a door to it |
 | caps | `NET_ADMIN` | creating and configuring a WireGuard interface |
 | restart | `unless-stopped` | the Docker daemon is its supervisor; it does not depend on the API |
-| volumes | `deployer-mesh-state` (identity + roster, 0600), `deployer-mesh-run` (control socket) | |
+| volumes | `deployer-mesh-state` (identity + roster, 0600), `deployer-node-agent-run` (control socket) | |
 | docker socket | yes | it owns the node's **doors** (see §3) |
 
 It is started by whichever of setup or the API reaches the node first, and the
@@ -85,7 +86,7 @@ API supervises the one on its own node. Its job, per node:
 3. **Roster** — a signed, replicated CRDT (see below), merged on every gossip.
 4. **Links** — plans and applies WireGuard peers (`wg syncconf`).
 5. **Doors** — converges the node-local listeners in front of Traefik (§3).
-6. **Control socket** — `/run/deployer-mesh/agent.sock` (HTTP over a unix
+6. **Control socket** — `/run/deployer-node/agent.sock` (HTTP over a unix
    socket) for the API and setup on the same node. Filesystem permission is the
    authority: only a process that can mount the volume can talk to it.
 
@@ -365,7 +366,7 @@ Changing lanes, the edge, or mesh membership requires a platform admin
 ## Upgrading an existing cluster
 
 A single-node install upgrades by itself: the API starts the mesh agent at boot
-and founds a one-member mesh (`MeshAgentBootstrapService`). A node that already
+and founds a one-member mesh (`NodeAgentBootstrapService`). A node that already
 shares a swarm with others is NOT given a mesh of its own — that would split the
 cluster. Admitting already-joined nodes is not automated yet: re-run the join
 flow on each of them (setup → join an existing cluster) so a member admits it,
@@ -378,7 +379,7 @@ is a host-network container, one per daemon. `mesh-6` shares one agent.
 ## Next steps
 
 1. **Relay-over-session** — UDP↔session bridge so two members behind symmetric
-   NATs connect through a third (`planRelay` stub in `@deployer/mesh-network`).
+   NATs connect through a third (no equivalent landed with the new agent yet).
 2. **`deployer mesh connect`** — operator laptop as a mesh member (CLI stub).
 3. **Replicated platform state** (§5).
 4. **Agent upgrades** pushed through the mesh (today: re-created by setup/API on

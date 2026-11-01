@@ -1,4 +1,5 @@
-import { Global, Inject, Injectable, Logger, Module, type OnModuleDestroy } from "@nestjs/common";
+import { Inject, Injectable, Logger, type OnModuleDestroy } from "@nestjs/common";
+import { createGlobalModule } from "@deployer/nest-effect";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import {
   DockerEngine,
@@ -41,8 +42,7 @@ class ScannerPoolLifecycle implements OnModuleDestroy {
   }
 }
 
-@Global()
-@Module({
+export const CoreDockerModule = createGlobalModule({
   imports: [EnvModule],
   providers: [
     {
@@ -80,5 +80,4 @@ class ScannerPoolLifecycle implements OnModuleDestroy {
     },
   ],
   exports: [DockerHost, DockerEngine, ScannerPool, PostgresProvisioner],
-})
-export class CoreDockerModule {}
+});

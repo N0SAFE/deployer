@@ -8,7 +8,8 @@
  * package, and the app booted against an UNMIGRATED schema. The migrations create the tables
  * `@deployer/nest-schema/local` defines, so they ship with that package and this app imports the path.
  */
-import { Global, Inject, Injectable, Logger, Module, type OnApplicationShutdown, type OnModuleInit } from "@nestjs/common";
+import { Inject, Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } from "@nestjs/common";
+import { createGlobalModule } from "@deployer/nest-effect";
 import { Cause, Effect, Exit, Scope } from "effect";
 import {
 	LocalDatabase,
@@ -57,8 +58,7 @@ class LocalDatabaseLifecycle implements OnModuleInit, OnApplicationShutdown {
 	}
 }
 
-@Global()
-@Module({
+export const LocalDatabaseModule = createGlobalModule({
 	imports: [EnvModule],
 	providers: [
 		{
@@ -73,5 +73,4 @@ class LocalDatabaseLifecycle implements OnModuleInit, OnApplicationShutdown {
 		{ provide: LocalDatabase, useFactory: (host: LocalDatabaseLifecycle) => host.database, inject: [LocalDatabaseLifecycle] },
 	],
 	exports: [LocalDatabase],
-})
-export class LocalDatabaseModule {}
+});

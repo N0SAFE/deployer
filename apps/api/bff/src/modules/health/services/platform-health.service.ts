@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 
-import { API_SERVICE_NAMES, apiServiceUrl, type ApiServiceName } from "@deployer/shared/server";
+import { API_SERVICE_NAMES, apiServiceUrl, type ApiServiceName } from "@deployer/env";
 import type { PlatformHealth, ServiceHealth } from "../platform-health.schema";
 
 /**

@@ -35,6 +35,25 @@ describe("handle", () => {
 		expect(error.code).toBe("INTERNAL_SERVER_ERROR");
 	});
 
+	it("reports a domain error's cause server-side, never on the wire", async () => {
+		class Failed extends domainError("Failed", "dependency_missing")() {}
+		const onDomainCause = vi.fn();
+
+		const error = await run(
+			handle(vi.fn(), { onDomainCause })(Effect.fail(new Failed({ cause: new Error("db down") }))),
+		);
+
+		expect(error.code).toBe("FAILED_DEPENDENCY");
+		expect(JSON.stringify(error)).not.toContain("db down");
+		expect(onDomainCause).toHaveBeenCalledWith(expect.any(Error), "Failed", "cid-1");
+	});
+
+	it("does not report a domain error without a cause", async () => {
+		const onDomainCause = vi.fn();
+		await run(handle(vi.fn(), { onDomainCause })(Effect.fail(new Missing({}))));
+		expect(onDomainCause).not.toHaveBeenCalled();
+	});
+
 	it("passes an existing ORPCError through", async () => {
 		const original = new ORPCError("FORBIDDEN");
 		expect(await run(handle(vi.fn())(Effect.fail(original)))).toBe(original);

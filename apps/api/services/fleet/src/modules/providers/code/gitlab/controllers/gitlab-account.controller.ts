@@ -7,16 +7,14 @@
  */
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
 import { providersContract } from "@deployer/fleet-contracts";
-import { EffectContextOf } from "@deployer/nest-effect";
+import { procedure } from "@deployer/nest-effect";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 import { Effect } from "effect";
 import z from "zod/v4";
 
 import { FleetConflict, FleetInvalid, FleetNotFound } from "@/core/fleet.errors";
 import { serve } from "@/core/orpc/serve";
-import { ProvidersModule } from "@/modules/providers/providers.module";
 import { GitlabAppsStore } from "../repositories/gitlab-apps.repository";
 
 /** GitLab instance URL must be an http(s) URL. */
@@ -26,9 +24,8 @@ const URL_SCHEMA = z.string().url();
 export class GitlabAppsController {
     @Implement(providersContract.code.gitlab.list)
     list() {
-        return implement(providersContract.code.gitlab.list)
+        return procedure(providersContract.code.gitlab.list)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const apps = yield* GitlabAppsStore;
                 const rows = yield* serve(context)(apps.list());
@@ -49,9 +46,8 @@ export class GitlabAppsController {
 
     @Implement(providersContract.code.gitlab.create)
     create() {
-        return implement(providersContract.code.gitlab.create)
+        return procedure(providersContract.code.gitlab.create)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const apps = yield* GitlabAppsStore;
                 const row = yield* serve(context)(
@@ -92,9 +88,8 @@ export class GitlabAppsController {
 
     @Implement(providersContract.code.gitlab.delete)
     delete() {
-        return implement(providersContract.code.gitlab.delete)
+        return procedure(providersContract.code.gitlab.delete)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const apps = yield* GitlabAppsStore;
                 const id = input.params.id;

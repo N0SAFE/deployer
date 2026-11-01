@@ -1,18 +1,29 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
 import { Effect } from "effect";
 
 import { analyticsContract } from "@deployer/identity-contracts";
-import { EffectContextOf } from "@deployer/nest-effect";
+import { procedure } from "@deployer/nest-effect";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 import { liveSnapshot } from "@deployer/shared/core/utils/live-snapshot.utils";
 
 import { serve } from "@identity/core/orpc/serve";
+import { DatabasePort } from "@identity/core/database/database.port";
 
-import { AnalyticsDomainModule } from "../analytics.module";
 import { AnalyticsFieldRequired } from "../domain/analytics.errors";
+import { AnalyticsRepository } from "../repositories/analytics.repository";
 import { AnalyticsService, type MetricsQuery } from "../services/analytics.service";
+
+/**
+ * One live-stream tick.
+ *
+ * A snapshot re-evaluates on a timer, outside the request's Effect context, so the requirement its
+ * Effect carries (the repository and the database behind it) is not available there. The assertion
+ * states that; `liveSnapshot` drops an evaluation that fails.
+ */
+const runSnapshot = <A, E>(
+	effect: Effect.Effect<A, E, AnalyticsRepository | DatabasePort>,
+): Promise<A> => Effect.runPromise(effect as Effect.Effect<A, E>);
 
 /**
  * Re-evaluation cadence for the streaming (`…/stream`) siblings.
@@ -52,9 +63,8 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.getResourceMetrics)
 	getResourceMetrics() {
-		return implement(analyticsContract.getResourceMetrics)
+		return procedure(analyticsContract.getResourceMetrics)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				return yield* serve(context)(analytics.resourceMetrics(readMetricsQuery(input)));
@@ -63,13 +73,12 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.getResourceMetricsStream)
 	getResourceMetricsStream() {
-		return implement(analyticsContract.getResourceMetricsStream)
+		return procedure(analyticsContract.getResourceMetricsStream)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				// Each poll runs through `serve`, so it provides the actor like any request.
-				return liveSnapshot(() => Effect.runPromise(serve(context)(analytics.resourceMetrics(readMetricsQuery(input)))), {
+				return liveSnapshot(() => runSnapshot(serve(context)(analytics.resourceMetrics(readMetricsQuery(input)))), {
 					intervalMs: STREAM_INTERVAL.resourceMetrics,
 				});
 			});
@@ -77,9 +86,8 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.getApplicationMetrics)
 	getApplicationMetrics() {
-		return implement(analyticsContract.getApplicationMetrics)
+		return procedure(analyticsContract.getApplicationMetrics)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				return yield* serve(context)(analytics.applicationMetrics(readMetricsQuery(input)));
@@ -88,9 +96,8 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.getDatabaseMetrics)
 	getDatabaseMetrics() {
-		return implement(analyticsContract.getDatabaseMetrics)
+		return procedure(analyticsContract.getDatabaseMetrics)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				return yield* serve(context)(analytics.databaseMetrics(readMetricsQuery(input)));
@@ -99,9 +106,8 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.getDeploymentMetrics)
 	getDeploymentMetrics() {
-		return implement(analyticsContract.getDeploymentMetrics)
+		return procedure(analyticsContract.getDeploymentMetrics)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				return yield* serve(context)(analytics.deploymentMetrics(readMetricsQuery(input)));
@@ -110,13 +116,12 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.getDeploymentMetricsStream)
 	getDeploymentMetricsStream() {
-		return implement(analyticsContract.getDeploymentMetricsStream)
+		return procedure(analyticsContract.getDeploymentMetricsStream)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				// Each poll runs through `serve`, so it provides the actor like any request.
-				return liveSnapshot(() => Effect.runPromise(serve(context)(analytics.deploymentMetrics(readMetricsQuery(input)))), {
+				return liveSnapshot(() => runSnapshot(serve(context)(analytics.deploymentMetrics(readMetricsQuery(input)))), {
 					intervalMs: STREAM_INTERVAL.deploymentMetrics,
 				});
 			});
@@ -124,9 +129,8 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.getServiceHealth)
 	getServiceHealth() {
-		return implement(analyticsContract.getServiceHealth)
+		return procedure(analyticsContract.getServiceHealth)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				return yield* serve(context)(analytics.serviceHealth(readServices(input)));
@@ -135,13 +139,12 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.getServiceHealthStream)
 	getServiceHealthStream() {
-		return implement(analyticsContract.getServiceHealthStream)
+		return procedure(analyticsContract.getServiceHealthStream)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				// Each poll runs through `serve`, so it provides the actor like any request.
-				return liveSnapshot(() => Effect.runPromise(serve(context)(analytics.serviceHealth(readServices(input)))), {
+				return liveSnapshot(() => runSnapshot(serve(context)(analytics.serviceHealth(readServices(input)))), {
 					intervalMs: STREAM_INTERVAL.serviceHealth,
 				});
 			});
@@ -149,9 +152,8 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.getRealTimeMetrics)
 	getRealTimeMetrics() {
-		return implement(analyticsContract.getRealTimeMetrics)
+		return procedure(analyticsContract.getRealTimeMetrics)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				return yield* serve(context)(analytics.realtimeMetrics(readServices(input)));
@@ -160,13 +162,12 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.getRealTimeMetricsStream)
 	getRealTimeMetricsStream() {
-		return implement(analyticsContract.getRealTimeMetricsStream)
+		return procedure(analyticsContract.getRealTimeMetricsStream)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				// Each poll runs through `serve`, so it provides the actor like any request.
-				return liveSnapshot(() => Effect.runPromise(serve(context)(analytics.realtimeMetrics(readServices(input)))), {
+				return liveSnapshot(() => runSnapshot(serve(context)(analytics.realtimeMetrics(readServices(input)))), {
 					intervalMs: STREAM_INTERVAL.realTime,
 				});
 			});
@@ -176,9 +177,8 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.getResourceUsage)
 	getResourceUsage() {
-		return implement(analyticsContract.getResourceUsage)
+		return procedure(analyticsContract.getResourceUsage)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				return yield* serve(context)(analytics.resourceUsage({
@@ -191,13 +191,12 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.getResourceUsageStream)
 	getResourceUsageStream() {
-		return implement(analyticsContract.getResourceUsageStream)
+		return procedure(analyticsContract.getResourceUsageStream)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				// Each poll runs through `serve`, so it provides the actor like any request.
-				return liveSnapshot(() => Effect.runPromise(serve(context)(analytics.resourceUsage({
+				return liveSnapshot(() => runSnapshot(serve(context)(analytics.resourceUsage({
 					timeRange: readString(input, "timeRange", "1d"),
 					resource: readString(input, "resource", "all"),
 					aggregation: readString(input, "aggregation", "average"),
@@ -209,9 +208,8 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.getUserActivity)
 	getUserActivity() {
-		return implement(analyticsContract.getUserActivity)
+		return procedure(analyticsContract.getUserActivity)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				return yield* serve(context)(analytics.userActivity({
@@ -227,9 +225,8 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.getActivitySummary)
 	getActivitySummary() {
-		return implement(analyticsContract.getActivitySummary)
+		return procedure(analyticsContract.getActivitySummary)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				const query = readQuery(input);
@@ -245,9 +242,8 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.getApiUsage)
 	getApiUsage() {
-		return implement(analyticsContract.getApiUsage)
+		return procedure(analyticsContract.getApiUsage)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				return yield* serve(context)(analytics.apiUsage({
@@ -260,9 +256,8 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.getDeploymentUsage)
 	getDeploymentUsage() {
-		return implement(analyticsContract.getDeploymentUsage)
+		return procedure(analyticsContract.getDeploymentUsage)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				return yield* serve(context)(analytics.deploymentUsage({
@@ -275,13 +270,12 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.getDeploymentUsageStream)
 	getDeploymentUsageStream() {
-		return implement(analyticsContract.getDeploymentUsageStream)
+		return procedure(analyticsContract.getDeploymentUsageStream)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				// Each poll runs through `serve`, so it provides the actor like any request.
-				return liveSnapshot(() => Effect.runPromise(serve(context)(analytics.deploymentUsage({
+				return liveSnapshot(() => runSnapshot(serve(context)(analytics.deploymentUsage({
 					timeRange: readString(input, "timeRange", "1d"),
 					...readOptionalString(input, "projectId"),
 					...readOptionalString(input, "userId"),
@@ -293,9 +287,8 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.getStorageUsage)
 	getStorageUsage() {
-		return implement(analyticsContract.getStorageUsage)
+		return procedure(analyticsContract.getStorageUsage)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				return yield* serve(context)(analytics.storageUsage({
@@ -309,9 +302,8 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.generateReport)
 	generateReport() {
-		return implement(analyticsContract.generateReport)
+		return procedure(analyticsContract.generateReport)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				// The contract declares `{ reportId, status, message }`. Generation is synchronous here, but the
@@ -343,9 +335,8 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.getReport)
 	getReport() {
-		return implement(analyticsContract.getReport)
+		return procedure(analyticsContract.getReport)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				const report = yield* serve(context)(analytics.findReport(input.params.reportId));
@@ -377,9 +368,8 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.listReports)
 	listReports() {
-		return implement(analyticsContract.listReports)
+		return procedure(analyticsContract.listReports)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				const limit = input.query?.limit ?? 20;
@@ -405,9 +395,8 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.deleteReport)
 	deleteReport() {
-		return implement(analyticsContract.deleteReport)
+		return procedure(analyticsContract.deleteReport)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				yield* serve(context)(analytics.deleteReport(input.params.reportId));
@@ -417,9 +406,8 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.downloadReport)
 	downloadReport() {
-		return implement(analyticsContract.downloadReport)
+		return procedure(analyticsContract.downloadReport)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				const report = yield* serve(context)(analytics.downloadReport(input.params.reportId));
@@ -436,9 +424,8 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.getReportContent)
 	getReportContent() {
-		return implement(analyticsContract.getReportContent)
+		return procedure(analyticsContract.getReportContent)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				// The service refuses a report that did not complete, so the file a caller saves is never an empty
@@ -455,9 +442,8 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.createReportConfig)
 	createReportConfig() {
-		return implement(analyticsContract.createReportConfig)
+		return procedure(analyticsContract.createReportConfig)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				// The compact `create()` builder FLATTENS the body into the input, so the payload's fields sit on `input`.
@@ -482,9 +468,8 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.listReportConfigs)
 	listReportConfigs() {
-		return implement(analyticsContract.listReportConfigs)
+		return procedure(analyticsContract.listReportConfigs)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				const limit = input.query?.limit ?? 20;
@@ -501,9 +486,8 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.updateReportConfig)
 	updateReportConfig() {
-		return implement(analyticsContract.updateReportConfig)
+		return procedure(analyticsContract.updateReportConfig)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				// The update contract declares its patch under `body`, alongside the path parameter.
@@ -523,9 +507,8 @@ export class AnalyticsController {
 
 	@Implement(analyticsContract.deleteReportConfig)
 	deleteReportConfig() {
-		return implement(analyticsContract.deleteReportConfig)
+		return procedure(analyticsContract.deleteReportConfig)
 			.use(requireAuth())
-			.use(AnalyticsDomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const analytics = yield* AnalyticsService;
 				yield* serve(context)(analytics.deleteReportConfig(input.params.configId));

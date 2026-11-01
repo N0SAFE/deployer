@@ -1,5 +1,4 @@
-import { Module } from "@nestjs/common";
-
+import { createModuleContext } from "@deployer/nest-effect";
 import { GitModule } from "@deployer/shared/core/modules/git/index";
 import { CodeProvider } from "./code/shared/code-provider.interface";
 import { CodeProviderRegistryService } from "./code/shared/code-provider-registry.service";
@@ -29,7 +28,7 @@ import { UploadBundleRegistryService } from "./code/upload/services/upload-bundl
  * COLLECTION. Binding them under `CodeProvider` with `multi: true` is what lets a fifth
  * provider be added by listing it here, with no change to the registry or its callers.
  */
-@Module({
+export class ProviderDomainsModule extends createModuleContext({
 	imports: [GitModule],
 	providers: [
 		GithubSourceProviderService,
@@ -59,5 +58,4 @@ import { UploadBundleRegistryService } from "./code/upload/services/upload-bundl
 		UploadBundleRegistryService,
 	],
 	exports: [CodeProviderRegistryService, UploadBundleRegistryService],
-})
-export class ProviderDomainsModule {}
+}) {}

@@ -1,5 +1,4 @@
-import { Module } from "@nestjs/common";
-
+import { createModuleContext } from "@deployer/nest-effect";
 import { OverviewComposerService } from "../shared/services/overview-composer.service";
 import { ScreenReadService } from "../shared/services/screen-read.service";
 import { AnalyticsReadService } from "./services/analytics-read.service";
@@ -17,9 +16,8 @@ import { OrchestrationController } from "./controllers/orchestration.controller"
  * `ServiceClientRegistry` is NOT declared here: it is `@Global()` (see
  * `ServiceClientModule`), and the reason is documented there.
  */
-@Module({
+export class OrchestrationModule extends createModuleContext({
 	controllers: [OrchestrationController],
 	providers: [ScreenReadService, OverviewComposerService, AnalyticsReadService],
 	exports: [OverviewComposerService],
-})
-export class OrchestrationModule {}
+}) {}

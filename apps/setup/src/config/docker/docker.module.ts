@@ -1,4 +1,5 @@
-import { Global, Logger, Module } from "@nestjs/common";
+import { Logger } from "@nestjs/common";
+import { createGlobalModule } from "@deployer/nest-effect";
 import { DockerEngine, DockerHost, makeDockerHost, type DockerHostShape } from "@deployer/docker";
 
 import { EnvModule, EnvService } from "@/config/env/env.module";
@@ -8,10 +9,9 @@ import { EnvModule, EnvService } from "@/config/env/env.module";
  * own tags from this app's environment.
  *
  * Setup drives the engine (swarm init/join, service creation) but never scans images, so it provides
- * no scanner pool. `@Global` because the engine is process-wide infrastructure that every phase reads.
+ * no scanner pool. Global because the engine is process-wide infrastructure that every phase reads.
  */
-@Global()
-@Module({
+export const DockerModule = createGlobalModule({
   imports: [EnvModule],
   providers: [
     {
@@ -28,5 +28,4 @@ import { EnvModule, EnvService } from "@/config/env/env.module";
     { provide: DockerEngine, useFactory: (host: DockerHostShape) => host.engine, inject: [DockerHost] },
   ],
   exports: [DockerHost, DockerEngine],
-})
-export class DockerModule {}
+});

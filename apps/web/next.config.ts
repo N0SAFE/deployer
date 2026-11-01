@@ -1,4 +1,5 @@
 import withBundleAnalyzer from "@next/bundle-analyzer";
+import { withRedact } from "@tanstack/redact/next";
 import type { NextConfig } from "next";
 import { envSchema } from "./env";
 import { readFileSync } from "fs";
@@ -111,10 +112,9 @@ const nextConfig: NextConfig = {
     // Turbopack filesystem cache — persists compilation work under `.next`
     // between runs (dev: `.next/dev`, build: `.next/cache`).
     //
-    // Set explicitly because the resolved Next version is `^16.1.2`:
-    // dev caching became default-on in 16.1.0 but BUILD caching only in
-    // 16.3.0, so relying on the default would silently lose the build cache
-    // on any 16.1.x/16.2.x resolution.
+    // Set explicitly because the resolved Next version is `16.4.3`: both are
+    // default-on there, so this is belt-and-braces against a future re-pin that
+    // drops build caching (16.1.x/16.2.x did not have it).
     //
     // The cache only pays off if the directory survives the container:
     // compose mounts a named volume over `.next/dev` (dev) and
@@ -394,7 +394,21 @@ const nextConfig: NextConfig = {
 };
 
 // Enable MDX and Fumadocs source generation
-let exp: NextConfig = nextConfig;
+//
+// `withRedact` swaps React's BROWSER runtime for TanStack Redact's synchronous
+// one. Next keeps React on the server: it owns SSR, Server Components, Flight
+// and actions; Redact only renders and hydrates in the browser. Keep importing
+// from `react`/`react-dom` everywhere — the adapter rewrites the resolved React
+// entry files per bundle, so no application code changes.
+//
+// It must stay the INNERMOST wrapper: it spreads the config it is given
+// (`turbopack.rules`, `webpack`) and then appends its own rules, so wrapping it
+// the other way would drop those.
+//
+// Version gate: the adapter only accepts stable Next 15.5 and 16.0–16.4 and
+// throws on anything else. That is why the `next` catalog is an EXACT pin — a
+// caret would let `bun install` resolve 16.5 and break config loading.
+let exp: NextConfig = withRedact(nextConfig);
 
 if (process.env.ANALYZE === "true") {
   exp = withBundleAnalyzer()(exp);

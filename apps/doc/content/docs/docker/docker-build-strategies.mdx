@@ -21,7 +21,7 @@ order: 11
 
 ## Turbopack filesystem cache
 
-Next.js can persist Turbopack's compilation work to disk and reuse it across runs (`experimental.turbopackFileSystemCacheForDev` / `turbopackFileSystemCacheForBuild`). Both are enabled explicitly in `apps/web/next.config.ts` and `apps/doc/next.config.ts` — explicitly because the resolved Next range is `^16.1.2`, where dev caching is default-on but **build** caching is not (it became default in 16.3.0).
+Next.js can persist Turbopack's compilation work to disk and reuse it across runs (`experimental.turbopackFileSystemCacheForDev` / `turbopackFileSystemCacheForBuild`). Both are enabled explicitly in `apps/web/next.config.ts` and `apps/doc/next.config.ts` — explicitly even though `16.4.3` defaults both on, so a re-pin cannot silently drop the **build** cache (16.1.x/16.2.x did not have it).
 
 The cache only pays off if the directory survives the process — a container that starts from a clean layer gains nothing.
 

@@ -28,6 +28,7 @@ export const clusterEndpoints = {
   },
   swarmConfig: {
     get: orpc.cluster.getSwarmConfig,
+    stream: orpc.cluster.streamSwarmConfig,
     set: orpc.cluster.setSwarmConfig,
   },
 } as const;

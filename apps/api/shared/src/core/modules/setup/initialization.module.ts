@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { createModuleContext } from "@deployer/nest-effect";
 import { InitializationService } from "./services/initialization.service";
 import { NodeStateModule } from "../node-state/node-state.module";
 import { RemoteInitializationService } from "./services/remote-initialization.service";
@@ -26,7 +26,7 @@ import { EnvModule, EnvService } from "../../../config/env/env.module";
  * The InitializationService holds a Subject that other modules wait for
  * when the database is not yet configured.
  */
-@Module({
+export class CoreInitializationModule extends createModuleContext({
     // SwarmCoreModule is SETUP-SAFE (no post-setup resources, no mesh import),
     // so the wizard can create/join the cluster as part of its own flow.
     // Previously this import closed a cycle via MeshCoreModule → SetupModule.
@@ -51,5 +51,4 @@ import { EnvModule, EnvService } from "../../../config/env/env.module";
         MeshVersionService,
     ],
     exports: [InitializationService, LocalInitializationService, RemoteInitializationService, SetupEventService, MeshVersionService],
-})
-export class CoreInitializationModule {}
+}) {}

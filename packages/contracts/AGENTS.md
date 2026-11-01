@@ -14,7 +14,7 @@ boundary between a producer (a service, or the BFF) and its consumers.
 | `@deployer/runtime-contracts` | `svc-runtime` | `deployment`, `docker` |
 | `@deployer/fleet-contracts` | `svc-fleet` | `cluster`, `nodes`, `providers`, `provider-schema`, `reachability`, `mesh`, `platform`, `events` |
 | `@deployer/health-contracts` | `svc-health` | `health` |
-| `@deployer/mesh-agent-contracts` | `svc-mesh-agent` | `mesh/directory` (internal: never composed into the BFF router) |
+| `@deployer/node-agent-contracts` | `svc-node-agent` | `mesh/directory` (internal: never composed into the BFF router) |
 | `@deployer/bff-contracts` | `svc-bff` | `setup`, `test`, `template` — the procedures the BFF owns outright |
 
 ## Dependency direction (no cycles)

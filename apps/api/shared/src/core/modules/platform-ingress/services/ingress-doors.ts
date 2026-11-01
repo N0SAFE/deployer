@@ -8,7 +8,7 @@
  */
 
 import type { IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
-import type { DoorRescueRoute, NodeDoorsSetting } from "@deployer/mesh-network";
+import type { DoorRescueRoute, NodeDoorsSetting } from "@deployer/mesh-client";
 
 import { LANE_ENTRYPOINTS } from "./lane-traefik-config";
 

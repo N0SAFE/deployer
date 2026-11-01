@@ -28,6 +28,27 @@ encodes.
 
 ## Rules
 - Keep configs minimal and sharable. Avoid project-specific rules here.
+
+### Import order
+
+`src/base.ts` enables `import/order` (registered through `eslint-plugin-import`,
+which `bun lint` runs natively after the plugin is present in the config).
+
+Groups, in this order: `builtin` → `external` → **`@deployer/*`** → internal
+(`@/`, `@<service>/`) → `parent` → `sibling` → `index` → `object` → `type`, with
+one blank line between groups and alphabetical order inside a group.
+
+- `@deployer/*` is a `pathGroup` on the `internal` group with
+  `position: "before"`, not a custom group name: `bun lint` validates `groups`
+  against a fixed enum, so a custom name (`deployer`) is rejected. The
+  `pathGroups` entry still gives the workspace packages their own contiguous,
+  blank-line-separated block ahead of app-internal aliases.
+- Every tsconfig alias has to be listed in `pathGroups`. `import/order` does not
+  resolve `paths`, so without an entry `@/foo` is classified as an npm package
+  (anything starting with `@`). A new app alias means a new line there.
+- Severity is `warn` on purpose: turning it to `error` fails every workspace
+  until a `bun run lint:fix` pass has been committed. Promote it once that pass
+  lands.
 - When updating rules, run lint across repo and document notable changes.
  - Prefer using MCP `run-script` to run lint tasks across targets or consult `repo://commit/plan` for sequencing.
 

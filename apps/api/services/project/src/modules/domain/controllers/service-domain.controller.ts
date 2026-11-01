@@ -1,14 +1,12 @@
 import { Controller } from "@nestjs/common";
 import { domainContract } from "@deployer/project-contracts";
-import { EffectContextOf } from "@deployer/nest-effect";
+import { procedure } from "@deployer/nest-effect";
 import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
 
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 import { serve } from "@project/core/orpc/serve";
 import { actorFromContext } from "@project/core/utils/actor.utils";
 
-import { DomainModule } from "../domain.module";
 import { DomainServiceService } from "../services/domain-service.service";
 
 /** Service-domain mapping procedures. Rules live in the service. */
@@ -16,9 +14,8 @@ import { DomainServiceService } from "../services/domain-service.service";
 export class ServiceDomainController {
 	@Implement(domainContract.checkSubdomainAvailability)
 	checkSubdomainAvailability() {
-		return implement(domainContract.checkSubdomainAvailability)
+		return procedure(domainContract.checkSubdomainAvailability)
 			.use(requireAuth())
-			.use(DomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const domains = yield* DomainServiceService;
 				return yield* domains
@@ -29,9 +26,8 @@ export class ServiceDomainController {
 
 	@Implement(domainContract.listServiceDomains)
 	listServiceDomains() {
-		return implement(domainContract.listServiceDomains)
+		return procedure(domainContract.listServiceDomains)
 			.use(requireAuth())
-			.use(DomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const domains = yield* DomainServiceService;
 				return yield* domains
@@ -42,9 +38,8 @@ export class ServiceDomainController {
 
 	@Implement(domainContract.addServiceDomain)
 	addServiceDomain() {
-		return implement(domainContract.addServiceDomain)
+		return procedure(domainContract.addServiceDomain)
 			.use(requireAuth())
-			.use(DomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const domains = yield* DomainServiceService;
 				return yield* domains
@@ -58,9 +53,8 @@ export class ServiceDomainController {
 
 	@Implement(domainContract.updateServiceDomain)
 	updateServiceDomain() {
-		return implement(domainContract.updateServiceDomain)
+		return procedure(domainContract.updateServiceDomain)
 			.use(requireAuth())
-			.use(DomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const domains = yield* DomainServiceService;
 				return yield* domains
@@ -74,9 +68,8 @@ export class ServiceDomainController {
 
 	@Implement(domainContract.setPrimaryServiceDomain)
 	setPrimaryServiceDomain() {
-		return implement(domainContract.setPrimaryServiceDomain)
+		return procedure(domainContract.setPrimaryServiceDomain)
 			.use(requireAuth())
-			.use(DomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const domains = yield* DomainServiceService;
 				return yield* domains
@@ -90,9 +83,8 @@ export class ServiceDomainController {
 
 	@Implement(domainContract.removeServiceDomain)
 	removeServiceDomain() {
-		return implement(domainContract.removeServiceDomain)
+		return procedure(domainContract.removeServiceDomain)
 			.use(requireAuth())
-			.use(DomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const domains = yield* DomainServiceService;
 				return yield* domains

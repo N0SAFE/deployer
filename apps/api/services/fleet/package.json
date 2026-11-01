@@ -22,6 +22,7 @@
     "dependencies": {
         "@deployer/contracts-common": "*",
         "@deployer/contracts-entities": "*",
+        "@deployer/env": "*",
         "@deployer/effect-core": "*",
         "@deployer/effect-infra": "*",
         "@deployer/effect-orpc": "*",
@@ -51,6 +52,7 @@
         "@orpc/client": "catalog:orpc",
         "@orpc/effect": "catalog:orpc",
         "@orpc/nest": "catalog:orpc",
+        "@deployer/rate-limit": "*",
         "@orpc/server": "catalog:orpc",
         "cloudflare": "^7",
         "drizzle-orm": "catalog:database",

@@ -45,18 +45,18 @@ type NodeInventoryRow = ReturnType<typeof clusterNodeInventoryRowSchema.parse>;
  */
 export type ClusterServiceShape = {
     /** Swarm participation read-model (mode/policy/engine state). */
-    readonly getSwarmConfig: () => Effect.Effect<SwarmConfigView, unknown>;
+    readonly getSwarmConfig: () => Effect.Effect<SwarmConfigView, unknown, ClusterServicePorts>;
     /** Persist + converge the participation config; returns the fresh view. */
-    readonly setSwarmConfig: (input: SwarmParticipationInput) => Effect.Effect<SwarmConfigView, unknown>;
+    readonly setSwarmConfig: (input: SwarmParticipationInput) => Effect.Effect<SwarmConfigView, unknown, ClusterServicePorts>;
     /** Local engine's current Swarm snapshot (typed). */
-    readonly getSnapshot: () => Effect.Effect<ClusterSnapshot, unknown>;
+    readonly getSnapshot: () => Effect.Effect<ClusterSnapshot, unknown, ClusterServicePorts>;
     /** Observable stream of node resources at 10s intervals. */
-    readonly nodeResourcesStream: (nodeId: string) => Effect.Effect<Observable<SwarmNodeResources>>;
+    readonly nodeResourcesStream: (nodeId: string) => Effect.Effect<Observable<SwarmNodeResources>, never, ClusterServicePorts>;
     /**
      * Fleet inventory from the persisted `cluster_nodes` table (fast, no live engine call). Falls
      * back to a live sweep when the table is empty.
      */
-    readonly listNodes: (includeDown: boolean) => Effect.Effect<NodeInventoryRow[], unknown>;
+    readonly listNodes: (includeDown: boolean) => Effect.Effect<NodeInventoryRow[], unknown, ClusterServicePorts>;
     /**
      * Current controlling-master view (elected node + term + heartbeat state).
      *
@@ -64,7 +64,7 @@ export type ClusterServiceShape = {
      * not the Raft leader reported in the engine snapshot. The staleness window uses the SAME env
      * knobs as the election watchdog, so the view can never disagree with the elector.
      */
-    readonly getMaster: () => Effect.Effect<ClusterMasterView, unknown>;
+    readonly getMaster: () => Effect.Effect<ClusterMasterView, unknown, ClusterServicePorts>;
     /**
      * Update a node's platform role / ingress labels via the SDK (node.update Spec.Labels — SW-031)
      * and persist to the local inventory. The LABELS are the durable record: the local inventory is
@@ -74,13 +74,13 @@ export type ClusterServiceShape = {
     readonly updateNodeLabels: (
         nodeId: string,
         input: { platformRole?: ClusterPlatformRole; ingress?: boolean },
-    ) => Effect.Effect<ClusterNode, unknown>;
+    ) => Effect.Effect<ClusterNode, unknown, ClusterServicePorts>;
     /** Mesh-wide swarm services with mode + desired/running task counts. */
-    readonly listServices: () => Effect.Effect<SwarmServiceRuntime[], unknown>;
+    readonly listServices: () => Effect.Effect<SwarmServiceRuntime[], unknown, ClusterServicePorts>;
     /** Swarm tasks filtered by service and/or node. */
-    readonly listTasks: (filter: { serviceId?: string; nodeId?: string }) => Effect.Effect<SwarmTaskRuntime[], unknown>;
+    readonly listTasks: (filter: { serviceId?: string; nodeId?: string }) => Effect.Effect<SwarmTaskRuntime[], unknown, ClusterServicePorts>;
     /** Per-node aggregation (swarm services/tasks + local engine artifacts). */
-    readonly getNodeResources: (nodeId: string) => Effect.Effect<SwarmNodeResources, unknown>;
+    readonly getNodeResources: (nodeId: string) => Effect.Effect<SwarmNodeResources, unknown, ClusterServicePorts>;
 };
 
 /** What the cluster service reads from the Effect context while it runs. */

@@ -36,38 +36,39 @@ import type {
 export type PushRepositoryShape = {
     readonly findByEndpoint: (
         endpoint: string
-    ) => Effect.Effect<StoredSubscription | null, PushRepositoryFailure>
+    ) => Effect.Effect<StoredSubscription | null, PushRepositoryFailure, DatabasePort>
     readonly listByUser: (
         userId: string,
         onlyActive: boolean
-    ) => Effect.Effect<StoredSubscription[], PushRepositoryFailure>
+    ) => Effect.Effect<StoredSubscription[], PushRepositoryFailure, DatabasePort>
     readonly countByUser: (
         userId: string,
         onlyActive: boolean
-    ) => Effect.Effect<number, PushRepositoryFailure>
+    ) => Effect.Effect<number, PushRepositoryFailure, DatabasePort>
     readonly countDeliverable: () => Effect.Effect<
         number,
-        PushRepositoryFailure
+        PushRepositoryFailure,
+        DatabasePort
     >
     readonly upsert: (
         input: NewSubscription
-    ) => Effect.Effect<StoredSubscription, PushRepositoryFailure>
+    ) => Effect.Effect<StoredSubscription, PushRepositoryFailure, DatabasePort>
     readonly deleteByEndpointForUser: (
         userId: string,
         endpoint: string
-    ) => Effect.Effect<boolean, PushRepositoryFailure>
+    ) => Effect.Effect<boolean, PushRepositoryFailure, DatabasePort>
     readonly markUsed: (
         id: string
-    ) => Effect.Effect<void, PushRepositoryFailure>
+    ) => Effect.Effect<void, PushRepositoryFailure, DatabasePort>
     readonly deactivate: (
         id: string
-    ) => Effect.Effect<void, PushRepositoryFailure>
+    ) => Effect.Effect<void, PushRepositoryFailure, DatabasePort>
     readonly findVapidKeys: (
         userId: string
-    ) => Effect.Effect<VapidKeys | null, PushRepositoryFailure>
+    ) => Effect.Effect<VapidKeys | null, PushRepositoryFailure, DatabasePort>
     readonly insertVapidKeys: (
         keys: VapidKeys
-    ) => Effect.Effect<VapidKeys, PushRepositoryFailure>
+    ) => Effect.Effect<VapidKeys, PushRepositoryFailure, DatabasePort>
 }
 
 /** Tag and implementation together: the tag is the contract, `Live` the Drizzle implementation. */

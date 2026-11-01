@@ -263,33 +263,24 @@ export const apiEnvSchema = zod
         // rescheduled and is readable on every node. The tunnel credential lives
         // beside it (`ingress.tunnel`). See `docs/edge-mesh-architecture.md`.
         //
+        // ONE SOCKET, ONE AGENT: `NODE_AGENT_SOCKET` is what the mesh services dial for their relay link and what the
+        // API dials for the node door (status, settings, labels, tokens). It is the deployment's mount point.
+        //
         // Control socket of THIS node's mesh agent, as mounted into the API task
         // (the agent's run volume). Defaults to the agent's own path.
-        MESH_AGENT_SOCKET: zod.string().optional(),
-        // Image of the per-node mesh agent (setup starts it before Swarm exists).
-        MESH_AGENT_IMAGE: zod.string().min(1).default("deployer-mesh-agent:latest"),
+        NODE_AGENT_SOCKET: zod.string().optional(),
         //
-        // Whether the mesh agent touches the KERNEL at all.
+        // The mesh agent (`@deployer/svc-node-agent`) — the only agent there is. The API and setup run this container;
+        // it answers on its node door, reached through `NODE_AGENT_SOCKET` above.
+        NODE_AGENT_IMAGE: zod.string().default("deployer-svc-node-agent:dev"),
+        // Opt-in (default false): the swarm runs the agent as a GLOBAL service (one task per node) instead of the host
+        // container setup/the API create. MUTUALLY EXCLUSIVE — both would own the run volume's socket and the host's
+        // `deployer-mesh` interface. The default is the container: the agent must exist BEFORE Swarm, which advertises
+        // the address it creates. See `docs/architecture/node-agent-service.md`.
+        NODE_AGENT_SWARM_MODE: booleanEnv().default(false),
+        // The agent's NODE DOOR, as mounted into the deployment. Its container binds `/run/deployer-node/agent.sock` by
+        // default, which is also this default — so a deployment that mounts the run volume names nothing.
         //
-        //   kernel   drives a real WireGuard interface — a cluster needs this, and
-        //            it needs NET_ADMIN plus a WireGuard-capable kernel
-        //   observe  plans and gossips, never creates or configures an interface.
-        //            The stack still runs, the roster still replicates and the
-        //            doors still converge; only the tunnel is absent, so every
-        //            link reads `trying`/`passive` and the node runs alone.
-        //
-        // Defaults to `observe` so that merely STARTING a stack never creates a
-        // host network interface: bringing one up is an operator decision (the
-        // dev and dev-supervised profiles leave it off; prod sets `kernel`).
-        //
-        // This value is forwarded verbatim into the agent container, and the
-        // agent container is REPLACED when it differs (`ensureMeshAgentContainer`
-        // compares env, not just the image) — so flipping it here takes effect on
-        // the next start instead of silently doing nothing.
-        MESH_AGENT_DATAPLANE: zod
-            .enum(["kernel", "observe"])
-            .optional()
-            .transform((value) => value ?? "observe"),
         // Image of the per-node doors (nginx) the mesh agent runs in front of
         // Traefik's local and private entrypoints.
         DEPLOYER_DOOR_IMAGE: zod.string().min(1).default("nginx:alpine"),
@@ -877,4 +868,6 @@ export type AllEnv = zod.infer<typeof allEnvSchema>;
 
 export { trimTrailingSlash, guardedUrl, parseDebugScopes } from "@deployer/env/utils";
 export * from "@deployer/env/constants";
+export * from "@deployer/env/services";
 export * from "@deployer/env/validate";
+export * from "./node-id";

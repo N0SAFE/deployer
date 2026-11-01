@@ -2,10 +2,6 @@ import { Injectable } from "@nestjs/common";
 import type {
   DockerContainerInspectStreamQueryInput,
 } from "@deployer/runtime-contracts/modules/docker/containers/shared";
-import type {
-  DockerRuntimeActivityDetailQueryInput,
-  DockerRuntimeActivityListInput,
-} from "@deployer/runtime-contracts/modules/docker/runtime/activity";
 import type { DockerImageInspectStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/images/stream-inspect";
 import type { DockerRuntimeActivityStreamInput } from "@deployer/runtime-contracts/modules/docker/runtime/activity-stream";
 import type { DockerRuntimeEventsStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/runtime/shared";
@@ -29,11 +25,6 @@ export class DockerRuntimeOrchestratorService {
     private readonly dockerRuntimeStreamOrchestratorService: DockerRuntimeStreamOrchestratorService,
   ) {}
 
-  getRuntimeSnapshot() {
-    this.debug("DockerRuntimeOrchestratorService.getRuntimeSnapshot");
-    return this.dockerRuntimeActivityDomainService.getRuntimeSnapshot();
-  }
-
   stream(input: DockerRuntimeEventsStreamQueryInput) {
     this.debug("DockerRuntimeOrchestratorService.stream", {
       since: input.since,
@@ -42,24 +33,6 @@ export class DockerRuntimeOrchestratorService {
     });
 
     return this.dockerRuntimeActivityDomainService.stream(input);
-  }
-
-  listRuntimeActivities(input: DockerRuntimeActivityListInput = {} as DockerRuntimeActivityListInput) {
-    this.debug("DockerRuntimeOrchestratorService.listRuntimeActivities", {
-      limit: input.limit,
-      offset: input.offset,
-      hasFilter: Boolean(input.filter),
-    });
-
-    return this.dockerRuntimeActivityDomainService.listRuntimeActivities(input);
-  }
-
-  getRuntimeActivityById(input: DockerRuntimeActivityDetailQueryInput) {
-    this.debug("DockerRuntimeOrchestratorService.getRuntimeActivityById", {
-      id: input.id,
-    });
-
-    return this.dockerRuntimeActivityDomainService.getRuntimeActivityById(input);
   }
 
   streamRuntimeActivities(input: DockerRuntimeActivityStreamInput = {}) {

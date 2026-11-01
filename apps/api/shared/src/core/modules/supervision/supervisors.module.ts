@@ -1,4 +1,5 @@
 import { Global, Inject, Injectable, Module, type DynamicModule, type OnApplicationBootstrap, type OnModuleDestroy } from "@nestjs/common";
+import { declareModule } from "@deployer/nest-effect";
 import { makeSupervisorOrchestrator, SupervisorOrchestrator, type SupervisorOrchestratorShape } from "@deployer/supervision";
 import { Effect } from "effect";
 
@@ -33,24 +34,29 @@ class SupervisorDriftControl implements OnApplicationBootstrap, OnModuleDestroy 
  */
 @Global()
 @Module({})
-export class SupervisorsModule {
+class SupervisorsNestModule {
 	static forRoot(): DynamicModule {
-		return {
-			module: SupervisorsModule,
-			providers: [
-				SupervisorEventBus,
-				{
-					provide: SupervisorOrchestrator,
-					useFactory: (bus: SupervisorEventBus) => makeSupervisorOrchestrator(bus.core),
-					inject: [SupervisorEventBus],
-				},
-				{
-					provide: SupervisorDriftControl,
-					useFactory: (orchestrator: SupervisorOrchestratorShape) => new SupervisorDriftControl(orchestrator),
-					inject: [SupervisorOrchestrator],
-				},
-			],
-			exports: [SupervisorOrchestrator, SupervisorEventBus],
-		};
+		return declareModule(
+			{
+				module: SupervisorsNestModule,
+				providers: [
+					SupervisorEventBus,
+					{
+						provide: SupervisorOrchestrator,
+						useFactory: (bus: SupervisorEventBus) => makeSupervisorOrchestrator(bus.core),
+						inject: [SupervisorEventBus],
+					},
+					{
+						provide: SupervisorDriftControl,
+						useFactory: (orchestrator: SupervisorOrchestratorShape) => new SupervisorDriftControl(orchestrator),
+						inject: [SupervisorOrchestrator],
+					},
+				],
+				exports: [SupervisorOrchestrator, SupervisorEventBus],
+			},
+			{ global: true },
+		);
 	}
 }
+
+export const SupervisorsModule = declareModule(SupervisorsNestModule, { global: true });

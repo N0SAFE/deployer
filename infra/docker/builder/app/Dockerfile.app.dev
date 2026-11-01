@@ -67,7 +67,7 @@
 # package is scoped.
 
 ARG APP
-ARG BUN_VERSION=1.4.3
+ARG BUN_VERSION=1.4.4
 
 # ===================================
 # Stage 1: Base — shared by every application
@@ -253,6 +253,15 @@ COPY --from=pruner-json /app/out/json/ .
 # `Module not found "scripts/link-workspace-self-references.ts"` — an error that names
 # the script but not the pruning decision behind it.
 COPY scripts ./scripts
+
+# ── `pkg-build`'s LAUNCHER, BECAUSE BUN ONLY LINKS BINS THAT EXIST ──────────
+# `out/json/` is manifests only, so `tooling/bin-pkg-build/bin/pkg-build.mjs` is
+# absent here and bun never creates `node_modules/.bin/pkg-build`. The `baked`
+# mode build then dies with `Script not found "pkg-build"`, because every
+# `@deployer/config-*` package's `build` script is `bun --bun pkg-build`.
+# The committed launcher is all the link needs; the package itself is built from
+# `out/full/` in the runner stage.
+COPY tooling/bin-pkg-build/bin ./tooling/bin-pkg-build/bin
 
 # ── USE THE ORIGINAL LOCKFILE, NOT THE PRUNED ONE ───────────────────────────
 # `turbo prune` rewrites bun.lock and HOISTS packages that were nested, losing

@@ -412,7 +412,6 @@ services:
       # config volume.
       MANAGED_TRAEFIK_ENABLED: "true"
       DEPLOYER_PREFIX: ${DEPLOYER_PREFIX:-}
-      MESH_AGENT_DATAPLANE: ${MESH_AGENT_DATAPLANE:-observe}
     volumes:
       # The SAME SQLite file the BFF and the services read: setup WRITES the node
       # config, and they read it. A different file means they never see the row.
@@ -587,8 +586,10 @@ volumes:
     name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_web_instance_token_dev
   # The mesh agent's control socket. NAMED LITERALLY, never project-prefixed: the
   # agent container and the API service mount it by this exact name.
-  deployer-mesh-run:
-    name: deployer-mesh-run
+  deployer-node-agent-run:
+    name: deployer-node-agent-run
+  deployer-node-agent-admin:
+    name: deployer-node-agent-admin
   # The operator's database gateway state.
   drizzle-gateway:
     name: drizzle-gateway

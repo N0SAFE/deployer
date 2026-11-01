@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { createModuleContext } from "@deployer/nest-effect";
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { nodeAgentLink } from "@deployer/mesh-client";
@@ -16,7 +16,7 @@ const sharedAgentLink = (() => {
   return () => (link ??= nodeAgentLink());
 })();
 
-@Module({
+export class MeshViewModule extends createModuleContext({
   controllers: [MeshViewController],
   providers: [
     {
@@ -29,5 +29,4 @@ const sharedAgentLink = (() => {
       inject: [NodeConfigRepository],
     },
   ],
-})
-export class MeshViewModule {}
+}) {}

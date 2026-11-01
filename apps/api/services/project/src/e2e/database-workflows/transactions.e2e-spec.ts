@@ -9,7 +9,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { getSharedApiRuntimeContext } from '@/e2e/runtime'
 import { createAuthenticatedSession } from '@deployer/shared/e2e-harness/authenticated-session'
-import { ProjectDb, makeProjectDb } from '@project/core/database/project-db'
+import { DatabasePort } from '@project/core/database/database.port'
+import { ProjectDb } from '@project/core/database/project-db'
 import { ProjectStore } from '@/modules/project/repositories/project.repository'
 
 /**
@@ -33,12 +34,13 @@ describe('ProjectDb e2e: transactions and cancellation', () => {
     const probe = `tx_probe_${randomUUID().replaceAll('-', '')}`
 
     const withDb = <A, E>(
-        effect: Effect.Effect<A, E, ProjectDb | ProjectStore>
+        effect: Effect.Effect<A, E, DatabasePort | ProjectDb | ProjectStore>
     ) =>
         Effect.runPromise(
             effect.pipe(
                 Effect.provideService(ProjectStore, ProjectStore.live),
-                Effect.provideService(ProjectDb, makeProjectDb({ db }))
+                Effect.provideService(ProjectDb, ProjectDb.live),
+                Effect.provideService(DatabasePort, { db })
             )
         )
 

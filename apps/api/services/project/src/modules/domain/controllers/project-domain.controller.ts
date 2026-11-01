@@ -1,14 +1,12 @@
 import { Controller } from "@nestjs/common";
 import { domainContract } from "@deployer/project-contracts";
-import { EffectContextOf } from "@deployer/nest-effect";
+import { procedure } from "@deployer/nest-effect";
 import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
 
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 import { serve } from "@project/core/orpc/serve";
 import { actorFromContext } from "@project/core/utils/actor.utils";
 
-import { DomainModule } from "../domain.module";
 import { DomainProjectService } from "../services/domain-project.service";
 
 /**
@@ -22,9 +20,8 @@ import { DomainProjectService } from "../services/domain-project.service";
 export class ProjectDomainController {
 	@Implement(domainContract.listProjectDomains)
 	listProjectDomains() {
-		return implement(domainContract.listProjectDomains)
+		return procedure(domainContract.listProjectDomains)
 			.use(requireAuth())
-			.use(DomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const domains = yield* DomainProjectService;
 				return yield* domains
@@ -35,9 +32,8 @@ export class ProjectDomainController {
 
 	@Implement(domainContract.getAvailableDomains)
 	getAvailableDomains() {
-		return implement(domainContract.getAvailableDomains)
+		return procedure(domainContract.getAvailableDomains)
 			.use(requireAuth())
-			.use(DomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const domains = yield* DomainProjectService;
 				return yield* domains
@@ -48,9 +44,8 @@ export class ProjectDomainController {
 
 	@Implement(domainContract.getAvailableDomainsForService)
 	getAvailableDomainsForService() {
-		return implement(domainContract.getAvailableDomainsForService)
+		return procedure(domainContract.getAvailableDomainsForService)
 			.use(requireAuth())
-			.use(DomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const domains = yield* DomainProjectService;
 				return yield* domains
@@ -64,9 +59,8 @@ export class ProjectDomainController {
 
 	@Implement(domainContract.addProjectDomain)
 	addProjectDomain() {
-		return implement(domainContract.addProjectDomain)
+		return procedure(domainContract.addProjectDomain)
 			.use(requireAuth())
-			.use(DomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const domains = yield* DomainProjectService;
 				return yield* domains
@@ -80,9 +74,8 @@ export class ProjectDomainController {
 
 	@Implement(domainContract.updateProjectDomain)
 	updateProjectDomain() {
-		return implement(domainContract.updateProjectDomain)
+		return procedure(domainContract.updateProjectDomain)
 			.use(requireAuth())
-			.use(DomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const domains = yield* DomainProjectService;
 				return yield* domains
@@ -96,9 +89,8 @@ export class ProjectDomainController {
 
 	@Implement(domainContract.removeProjectDomain)
 	removeProjectDomain() {
-		return implement(domainContract.removeProjectDomain)
+		return procedure(domainContract.removeProjectDomain)
 			.use(requireAuth())
-			.use(DomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const domains = yield* DomainProjectService;
 				return yield* domains
@@ -112,9 +104,8 @@ export class ProjectDomainController {
 
 	@Implement(domainContract.verifyProjectDomain)
 	verifyProjectDomain() {
-		return implement(domainContract.verifyProjectDomain)
+		return procedure(domainContract.verifyProjectDomain)
 			.use(requireAuth())
-			.use(DomainModule[EffectContextOf])
 			.effect(function* ({ input, context }) {
 				const domains = yield* DomainProjectService;
 				return yield* domains

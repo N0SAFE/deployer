@@ -1,4 +1,4 @@
-import { MESH_LOCAL_SOCKET_NAME, MESH_WEBSOCKET_PATH } from "@deployer/mesh-agent-contracts";
+import { MESH_ADMIN_SOCKET_NAME, MESH_LOCAL_SOCKET_NAME, MESH_WEBSOCKET_PATH } from "@deployer/node-agent-contracts";
 
 import { contractId } from "./contract-id";
 import { grantFollowingLink } from "./grant-link";
@@ -14,7 +14,10 @@ import type { ClientContext, ClientLink } from "@orpc/client";
  * Where the agent of a node keeps its socket: its data directory is a mount point of the deployment, and the socket is a
  * fixed name inside it. Not node configuration: nothing here says what the node is or which swarm it is in.
  */
-export const DEFAULT_AGENT_SOCKET = `/var/lib/deployer/mesh-agent/run/${MESH_LOCAL_SOCKET_NAME}`;
+export const DEFAULT_AGENT_SOCKET = `/var/lib/deployer/node-agent/run/${MESH_LOCAL_SOCKET_NAME}`;
+
+/** Where the admin door is mounted in the processes allowed to use it (its own volume, mode 0600). */
+export const DEFAULT_AGENT_ADMIN_SOCKET = `/var/lib/deployer/node-agent/run/${MESH_ADMIN_SOCKET_NAME}`;
 
 /** The persistent, pooled link to this node's agent over its unix socket. Lazy: nothing connects until the first call. */
 export function agentLink(socketPath: string): PooledLink<ClientContext> {
@@ -30,11 +33,22 @@ export function agentLink(socketPath: string): PooledLink<ClientContext> {
 /**
  * The link to the agent of the node this process runs on, or `undefined` when the node has none.
  *
- * `MESH_AGENT_SOCKET` is where the deployment mounted the agent's socket, not a node setting. Without an agent a process
+ * `NODE_AGENT_SOCKET` is where the deployment mounted the agent's socket, not a node setting. Without an agent a process
  * reaches its peers directly, which is how a node works alone before it is part of anything.
  */
 export function nodeAgentLink(env: Readonly<Record<string, string | undefined>> = process.env): PooledLink<ClientContext> | undefined {
-  const socketPath = env.MESH_AGENT_SOCKET ?? DEFAULT_AGENT_SOCKET;
+  const socketPath = env.NODE_AGENT_SOCKET ?? DEFAULT_AGENT_SOCKET;
+  return existsSync(socketPath) ? agentLink(socketPath) : undefined;
+}
+
+/**
+ * The link to this node's agent ADMIN door, or `undefined` when this process cannot reach it.
+ *
+ * `NODE_AGENT_ADMIN_SOCKET` is a deployment mount, not a node setting: a process that does not mount the admin volume
+ * has no admin door, and the operator actions that need one report it as absent instead of widening the service door.
+ */
+export function nodeAgentAdminLink(env: Readonly<Record<string, string | undefined>> = process.env): PooledLink<ClientContext> | undefined {
+  const socketPath = env.NODE_AGENT_ADMIN_SOCKET ?? DEFAULT_AGENT_ADMIN_SOCKET;
   return existsSync(socketPath) ? agentLink(socketPath) : undefined;
 }
 

@@ -10,7 +10,14 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { SetupInitializeInput, SetupStreamEvent } from "@deployer/contracts-entities";
+import type {
+	SetupInitializeInput,
+	SetupMeshJoinInput,
+	SetupMeshJoinResult,
+	SetupMeshTokenInput,
+	SetupMeshTokenResult,
+	SetupStreamEvent,
+} from "@deployer/contracts-entities";
 import { isSetupRunFinished } from "@deployer/ui/components/setup/progress-tasks";
 import { setupEndpoints } from "@/views/setup-adapters/endpoints";
 import { getErrorMessage } from "@/views/lib/errors";
@@ -19,6 +26,7 @@ const setupKeys = {
 	all: ["setup"] as const,
 	state: () => [...setupKeys.all, "state"] as const,
 	nodeStatus: () => [...setupKeys.all, "nodeStatus"] as const,
+	mesh: () => [...setupKeys.all, "mesh"] as const,
 	destination: () => [...setupKeys.all, "destination"] as const,
 };
 
@@ -42,6 +50,35 @@ export function useNodeStatus(options?: { enabled?: boolean }) {
 		staleTime: 30_000,
 		gcTime: 120_000,
 	});
+}
+
+/**
+ * This node's mesh state, read from its agent over the node door.
+ *
+ * ON DEMAND ONLY (the result exposes `refetch`), never polled: the mesh changes
+ * when an operator joins or starts an agent, not continuously.
+ */
+export function useMeshStatus(options?: { enabled?: boolean }) {
+	return useQuery({
+		queryKey: setupKeys.mesh(),
+		queryFn: () => setupEndpoints.getMeshStatus.call({}),
+		enabled: options?.enabled ?? true,
+		staleTime: 0,
+		gcTime: 30_000,
+		retry: false,
+	});
+}
+
+/** Redeem an invite token. A refusal comes back as `joined: false` with a reason. */
+export async function joinMesh(input: SetupMeshJoinInput): Promise<SetupMeshJoinResult> {
+	const response = await setupEndpoints.joinMesh.call(input);
+	return response.body;
+}
+
+/** Issue a one-time invite for another node. */
+export async function issueMeshToken(input: SetupMeshTokenInput): Promise<SetupMeshTokenResult> {
+	const response = await setupEndpoints.issueMeshToken.call(input);
+	return response.body;
 }
 
 /** Test a PostgreSQL URL — instant feedback, no side effects. */

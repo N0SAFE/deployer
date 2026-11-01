@@ -1,4 +1,3 @@
-import { runSyncUnwrapped } from "@deployer/effect-core";
 import { Controller, Inject } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
 import { implement } from "@orpc/server";
@@ -11,6 +10,7 @@ import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { SystemMetrics, type SystemMetricsShape } from "@deployer/system-metrics";
 import { EnvService } from "../../../../config/env/env.module";
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
+
 import * as crypto from "node:crypto";
 import { Client } from "pg";
 
@@ -151,8 +151,8 @@ export class MeshController {
     getNodeConfig() {
         return implement(meshContract.getNodeConfig)
             .use(requireAuth())
-            .handler(() => {
-                const row = runSyncUnwrapped(this.nodeConfigRepository.find());
+            .handler(async () => {
+                const row = await runPromiseUnwrapped(this.nodeConfigRepository.find());
                 const localNode = this.localNodeInfo();
 
                 return {
@@ -180,10 +180,10 @@ export class MeshController {
     updateNodeConfig() {
         return implement(meshContract.updateNodeConfig)
             .use(requireAuth())
-            .handler(({ input }) => {
+            .handler(async ({ input }) => {
                 const now = new Date().toISOString();
-                const existing = runSyncUnwrapped(this.nodeConfigRepository.find());
-                const updated = runSyncUnwrapped(this.nodeConfigRepository.upsert({
+                const existing = await runPromiseUnwrapped(this.nodeConfigRepository.find());
+                const updated = await runPromiseUnwrapped(this.nodeConfigRepository.upsert({
                     nodeId: input.nodeId ?? existing?.nodeId ?? crypto.randomUUID(),
                     strategy: input.strategy ?? existing?.strategy ?? "local",
                     meshUrlsSnapshot: input.meshUrlsSnapshot ?? existing?.meshUrlsSnapshot ?? [],
@@ -227,12 +227,12 @@ export class MeshController {
     regenerateNodeConfigSecret() {
         return implement(meshContract.regenerateNodeConfigSecret)
             .use(requireAuth())
-            .handler(() => {
+            .handler(async () => {
                 const newSecret = crypto.randomBytes(32).toString("hex");
                 const now = new Date().toISOString();
-                const existing = runSyncUnwrapped(this.nodeConfigRepository.find());
+                const existing = await runPromiseUnwrapped(this.nodeConfigRepository.find());
 
-                runSyncUnwrapped(this.nodeConfigRepository.upsert({
+                await runPromiseUnwrapped(this.nodeConfigRepository.upsert({
                     nodeId: existing?.nodeId ?? crypto.randomUUID(),
                     strategy: existing?.strategy ?? "local",
                     meshUrlsSnapshot: existing?.meshUrlsSnapshot ?? [],

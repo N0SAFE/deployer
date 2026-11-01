@@ -33,9 +33,12 @@ The `SwarmBootstrap` Effect service (`@deployer/swarm`, provided by `SwarmCoreMo
 available; a supervisor that still finds none reports `unavailable` with an actionable message
 instead of spawning a second, container-based copy of its process.
 
-The node's **mesh agent** and its **doors** are not supervised services: the agent is a plain
+The node's **mesh agent** and its **doors** are not supervised services by default: the agent is a plain
 host-network container (it must exist before Swarm, which binds its mesh address), started by setup
-or by `MeshAgentBootstrapService`, and it runs the doors itself. See `docs/edge-mesh-architecture.md`.
+or by `NodeAgentBootstrapService`, and it runs the doors itself. Opt-in (`NODE_AGENT_SWARM_MODE=true`)
+it IS supervised — `node-agent/node-agent.supervisor.ts` runs it as a `node-local` GLOBAL service and the
+two launchers skip their container, so one node never has two owners of the socket/interface. See
+`docs/edge-mesh-architecture.md` and `docs/architecture/node-agent-service.md`.
 
 Swarm service specs need three things beyond the obvious fields; getting them wrong breaks
 node-local services:
@@ -97,7 +100,7 @@ The public lane is served by ONE edge provider, chosen by the operator. Provider
 the edge-connector supervisor, the DNS plane, the domain gate) only ever talks to the registry or
 `PublicEdgeService`: never name a provider in core. Built in: `direct` (`core/modules/edge/providers`)
 and `cloudflare-tunnel` (`services/fleet/src/modules/providers/edge/cloudflare-tunnel`).
-Cluster-wide state goes through `ClusterSettingsService` (replicated by the mesh), never a
+Cluster-wide state goes through `ClusterSettings` (replicated by the mesh), never a
 node-local store.
 
 ## Boot model: apps start behind setup, and onboarding belongs to `apps/setup`

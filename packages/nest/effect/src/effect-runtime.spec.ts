@@ -1,6 +1,7 @@
 import { Test } from "@nestjs/testing";
 import { Context, Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
+
 import { EffectRuntime } from "./effect-runtime";
 import { EffectRuntimeModule } from "./effect-runtime.module";
 
@@ -46,7 +47,7 @@ describe("EffectRuntime", () => {
       "test/Pool",
     ) {}
 
-    class Bus extends Context.Service<Bus, { readonly pool: Pool }>()("test/Bus") {}
+    class Bus extends Context.Service<Bus, { readonly pool: { readonly size: number } }>()("test/Bus") {}
 
     const busLayer = Layer.effect(
       Bus,

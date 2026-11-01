@@ -20,6 +20,7 @@
   "dependencies": {
     "@deployer/type-guards": "*",
     "@tanstack/charts": "catalog:doc",
+    "@tanstack/redact": "catalog:tanstack",
     "fumadocs-core": "catalog:doc",
     "fumadocs-mdx": "catalog:doc",
     "fumadocs-ui": "catalog:doc",

@@ -1,12 +1,10 @@
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
 import { nodesContract } from "@deployer/fleet-contracts";
-import { EffectContextOf } from "@deployer/nest-effect";
+import { procedure } from "@deployer/nest-effect";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
 import { serve } from "../../../core/orpc/serve";
-import { FleetModule } from "../fleet.module";
 import { FleetService } from "../services/fleet.service";
 
 /**
@@ -23,9 +21,8 @@ import { FleetService } from "../services/fleet.service";
 export class FleetController {
     @Implement(nodesContract.listServers)
     listServers() {
-        return implement(nodesContract.listServers)
+        return procedure(nodesContract.listServers)
             .use(requireAuth())
-            .use(FleetModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const fleet = yield* FleetService;
                 return yield* serve(context)(fleet.listServers());
@@ -34,9 +31,8 @@ export class FleetController {
 
     @Implement(nodesContract.setServerCapacity)
     setServerCapacity() {
-        return implement(nodesContract.setServerCapacity)
+        return procedure(nodesContract.setServerCapacity)
             .use(requireAuth())
-            .use(FleetModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const fleet = yield* FleetService;
                 const result = yield* serve(context)(fleet.setServerCapacity(input));
@@ -46,9 +42,8 @@ export class FleetController {
 
     @Implement(nodesContract.listAllocations)
     listAllocations() {
-        return implement(nodesContract.listAllocations)
+        return procedure(nodesContract.listAllocations)
             .use(requireAuth())
-            .use(FleetModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const fleet = yield* FleetService;
                 return yield* serve(context)(fleet.listAllocations(input.query ?? {}));
@@ -57,9 +52,8 @@ export class FleetController {
 
     @Implement(nodesContract.listMyAllocations)
     listMyAllocations() {
-        return implement(nodesContract.listMyAllocations)
+        return procedure(nodesContract.listMyAllocations)
             .use(requireAuth())
-            .use(FleetModule[EffectContextOf])
             .effect(function* ({ context }) {
                 const fleet = yield* FleetService;
                 return yield* serve(context)(fleet.listMyAllocations());
@@ -68,9 +62,8 @@ export class FleetController {
 
     @Implement(nodesContract.checkMyAdmission)
     checkMyAdmission() {
-        return implement(nodesContract.checkMyAdmission)
+        return procedure(nodesContract.checkMyAdmission)
             .use(requireAuth())
-            .use(FleetModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const fleet = yield* FleetService;
                 const result = yield* serve(context)(fleet.checkMyAdmission(context.auth.user.id, input));
@@ -80,9 +73,8 @@ export class FleetController {
 
     @Implement(nodesContract.createMyAdmissionRequest)
     createMyAdmissionRequest() {
-        return implement(nodesContract.createMyAdmissionRequest)
+        return procedure(nodesContract.createMyAdmissionRequest)
             .use(requireAuth())
-            .use(FleetModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const fleet = yield* FleetService;
                 const result = yield* serve(context)(fleet.createMyAdmissionRequest(context.auth.user.id, input));
@@ -92,9 +84,8 @@ export class FleetController {
 
     @Implement(nodesContract.listMyAdmissionRequests)
     listMyAdmissionRequests() {
-        return implement(nodesContract.listMyAdmissionRequests)
+        return procedure(nodesContract.listMyAdmissionRequests)
             .use(requireAuth())
-            .use(FleetModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const fleet = yield* FleetService;
                 return yield* serve(context)(fleet.listMyAdmissionRequests(context.auth.user.id, input.query ?? {}));
@@ -103,9 +94,8 @@ export class FleetController {
 
     @Implement(nodesContract.upsertAllocation)
     upsertAllocation() {
-        return implement(nodesContract.upsertAllocation)
+        return procedure(nodesContract.upsertAllocation)
             .use(requireAuth())
-            .use(FleetModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const fleet = yield* FleetService;
                 const result = yield* serve(context)(fleet.upsertAllocation(input));
@@ -115,9 +105,8 @@ export class FleetController {
 
     @Implement(nodesContract.deleteAllocation)
     deleteAllocation() {
-        return implement(nodesContract.deleteAllocation)
+        return procedure(nodesContract.deleteAllocation)
             .use(requireAuth())
-            .use(FleetModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const fleet = yield* FleetService;
                 const result = yield* serve(context)(fleet.deleteAllocation(input));
@@ -127,9 +116,8 @@ export class FleetController {
 
     @Implement(nodesContract.listAdmissionRequests)
     listAdmissionRequests() {
-        return implement(nodesContract.listAdmissionRequests)
+        return procedure(nodesContract.listAdmissionRequests)
             .use(requireAuth())
-            .use(FleetModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const fleet = yield* FleetService;
                 return yield* serve(context)(fleet.listAdmissionRequests(input.query ?? {}));
@@ -138,9 +126,8 @@ export class FleetController {
 
     @Implement(nodesContract.resolveAdmissionRequest)
     resolveAdmissionRequest() {
-        return implement(nodesContract.resolveAdmissionRequest)
+        return procedure(nodesContract.resolveAdmissionRequest)
             .use(requireAuth())
-            .use(FleetModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const fleet = yield* FleetService;
                 const result = yield* serve(context)(fleet.resolveAdmissionRequest(input));

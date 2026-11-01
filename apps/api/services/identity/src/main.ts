@@ -9,11 +9,12 @@ import "@deployer/shared/core/orpc/context";
 import {
 	DEPENDENCIES,
 	DependencyNotReadyError,
-	apiServicePort,
 	bootstrapApiServer,
 } from "@deployer/shared/server";
+import { apiServicePort } from "@deployer/env";
 
 import { analyticsContract, identityContract } from "@deployer/identity-contracts";
+import { assertRequirementsMet } from "@deployer/nest-effect";
 import { joinServiceMeshOnNode } from "@deployer/mesh-service";
 import type { Server } from "node:http";
 
@@ -31,11 +32,17 @@ const PORT = apiServicePort("identity");
 const NAME = "svc-identity";
 
 /**
+ * The strict requirement gate: the root only compiles when every `[controller, services]` pair forwarded from its
+ * domain modules is resolved. A missing provider names both the controller and the service on this line.
+ */
+const rootModule = assertRequirementsMet(IdentityServiceModule);
+
+/**
  * Reads and writes the global Postgres. Redis is required: this service's
  * queues/coordination run through it.
  */
 void bootstrapApiServer({
-	rootModule: IdentityServiceModule,
+	rootModule,
 	port: PORT,
 	name: NAME,
 	dependencies: DEPENDENCIES.platform,

@@ -3,7 +3,7 @@ import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { readFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { Socket } from "node:net";
-import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
+import { DEFAULT_DOCKER_SOCKET_PATH, DockerEngine, resolveDockerClient, type DockerEngineShape } from "@deployer/docker";
 import { DockerNotFound, platformNetworkName } from "@deployer/docker";
 
 import { EnvService } from "@/config/env/env.module";
@@ -632,9 +632,18 @@ export class BootstrapIngressService implements OnApplicationBootstrap {
     return this.env.get("TRAEFIK_CONFIG_VOLUME");
   }
 
-  /** Host socket path for the docker provider (container discovery). */
+  /**
+   * Host socket path for the docker provider (container discovery).
+   *
+   * Read through `resolveDockerClient`, the same resolver the engine itself uses, so a `tcp://` or bare-path
+   * `DOCKER_HOST` is understood instead of being mangled by a string replace, and an unset host still finds the
+   * mounted socket.
+   */
   private socketPath(): string {
-    return this.env.get("DOCKER_HOST").replace("unix://", "");
+    return (
+      resolveDockerClient({ host: this.env.get("DOCKER_HOST"), port: undefined }).socketPath ??
+      DEFAULT_DOCKER_SOCKET_PATH
+    );
   }
 
   /**

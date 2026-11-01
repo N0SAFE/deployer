@@ -22,8 +22,7 @@ import type {
 } from "@deployer/runtime-contracts/modules/deployment/stream";
 import { deploymentStreamSchema, type DeploymentStream } from "@deployer/contracts-entities";
 import { isRecord, isObjectLike } from "@deployer/type-guards"
-
-const DEFAULT_NODE_ID = "00000000-0000-4000-8000-000000000000";
+import { resolveNodeId } from "@deployer/env";
 
 // ─── Local types ─────────────────────────────────────────────────────────────
 
@@ -460,7 +459,7 @@ export class DeploymentRepository {
 
             await tx.insert(localEventOutbox).values({
                 id: randomUUID(),
-                nodeId: this.resolveNodeId(),
+                nodeId: resolveNodeId(),
                 topic: "deployment.created",
                 payload: this.buildDomainEventEnvelope({
                     aggregateType: "deployment",
@@ -506,7 +505,7 @@ export class DeploymentRepository {
 
             await tx.insert(localEventOutbox).values({
                 id: randomUUID(),
-                nodeId: this.resolveNodeId(),
+                nodeId: resolveNodeId(),
                 topic: "deployment.status.updated",
                 payload: this.buildDomainEventEnvelope({
                     aggregateType: "deployment",
@@ -639,7 +638,7 @@ export class DeploymentRepository {
 
             await tx.insert(localEventOutbox).values({
                 id: randomUUID(),
-                nodeId: this.resolveNodeId(),
+                nodeId: resolveNodeId(),
                 topic: "deployment.deleted",
                 payload: this.buildDomainEventEnvelope({
                     aggregateType: "deployment",
@@ -657,11 +656,6 @@ export class DeploymentRepository {
                 updatedAt: new Date(),
             });
         });
-    }
-
-    private resolveNodeId(): string {
-        const configured = process.env.MESH_NODE_ID?.trim();
-        return configured && configured.length > 0 ? configured : DEFAULT_NODE_ID;
     }
 
     private buildDomainEventEnvelope(input: {
@@ -805,7 +799,7 @@ export class DeploymentRepository {
 
             await tx.insert(localEventOutbox).values({
                 id: randomUUID(),
-                nodeId: this.resolveNodeId(),
+                nodeId: resolveNodeId(),
                 topic: "deployment.lifecycle",
                 payload: this.buildDomainEventEnvelope({
                     aggregateType: "deployment",

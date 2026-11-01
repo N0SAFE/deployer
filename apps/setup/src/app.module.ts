@@ -1,5 +1,4 @@
-import { Module } from "@nestjs/common";
-
+import { createModuleContext } from "@deployer/nest-effect";
 import { EnvModule } from "./config/env/env.module";
 import { SetupClusterModule } from "./modules/cluster/cluster.module";
 import { HandoverModule } from "./modules/handover/handover.module";
@@ -29,7 +28,7 @@ import { WizardModule } from "./modules/wizard/wizard.module";
  * `SetupClusterModule` next because it derives its configuration from the
  * validated env and starts work on `onApplicationBootstrap`.
  */
-@Module({
+export class SetupAppModule extends createModuleContext({
   imports: [
     EnvModule,
     SetupIngressModule,
@@ -39,5 +38,4 @@ import { WizardModule } from "./modules/wizard/wizard.module";
     WizardModule,
     HandoverModule,
   ],
-})
-export class SetupAppModule {}
+}) {}

@@ -17,8 +17,7 @@ import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/databa
 import { DatabaseModule } from '@deployer/shared/core/modules/database/database.module'
 import { AuthModule } from '@deployer/shared/core/modules/auth/auth.module'
 import { createBetterAuth } from '@deployer/shared/config/auth/auth'
-import { GlobalDatabaseService } from '@deployer/shared/core/modules/database/services/global-database.service'
-import { DatabasePort } from '@identity/core/database/database.port'
+import { DatabasePortModule } from '@identity/core/database/database.module'
 
 import { UserDomainModule } from './modules/user/user.module'
 import { PushDomainModule } from './modules/push/push.module'
@@ -75,18 +74,18 @@ export class IdentityServiceModule extends createModuleContext({
         createOrpcModule({
             extraContext: {
                 inject: [EffectRuntime],
-                resolve: async (runtime) => ({
-                    'effect/context': await runtime.context(),
+                resolve: async (executionContext, runtime) => ({
+                    'effect/context': runtime.contextFor(executionContext.getClass()),
                 }),
             },
         }),
 
         EffectRuntimeModule,
 
+        DatabasePortModule,
         UserDomainModule,
         PushDomainModule,
         AnalyticsDomainModule,
         PermissionDomainModule,
     ],
-    providers: [{ provide: DatabasePort, useExisting: GlobalDatabaseService }],
 }) {}

@@ -132,3 +132,43 @@ export const analyticsGetRealTimeMetricsContract = analyticsRealtimeMetricsOps
     .output(analyticsRealtimeMetricsOutputSchema)
     .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
+
+/**
+ * SSE siblings of the polled metric reads.
+ *
+ * Same input, same payload — the difference is that the server re-evaluates and
+ * pushes ONLY when the JSON changes, once for every subscriber, instead of each
+ * open tab refetching on a timer. See `liveSnapshot()` in `@deployer/shared`.
+ */
+export const analyticsStreamResourceMetricsContract = analyticsResourceMetricsOps
+    .list()
+    .path("/metrics/resources/stream")
+    .input((input) => input.query(getMetricsInputSchema.optional()))
+    .output((output) => output.observable(analyticsResourceMetricsOutputSchema))
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .build();
+
+export const analyticsStreamDeploymentMetricsContract = analyticsDeploymentMetricsOps
+    .list()
+    .path("/metrics/deployments/stream")
+    .input((input) => input.query(getMetricsInputSchema.optional()))
+    .output((output) => output.observable(analyticsDeploymentMetricsOutputSchema))
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .build();
+
+export const analyticsStreamServiceHealthContract = analyticsServiceHealthOps
+    .list()
+    .path("/metrics/health/stream")
+    .input((input) => input.query(analyticsServiceHealthQuerySchema))
+    .output((output) => output.observable(analyticsServiceHealthOutputSchema))
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .build();
+
+export const analyticsStreamRealTimeMetricsContract = analyticsRealtimeMetricsOps
+    .list()
+    .path("/metrics/realtime/stream")
+    .input((input) => input.query(analyticsServiceHealthQuerySchema))
+    .output((output) => output.observable(analyticsRealtimeMetricsOutputSchema))
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .build();
+

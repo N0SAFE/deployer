@@ -141,6 +141,32 @@ export class UserDomainModule extends createModuleContext({
   Apply it **after** `requireAuth()` — the auth middleware merges the context and
   otherwise erases the Effect services.
 - Root modules extend it too, so their context is the union of what they import.
+
+### Endpoint requirements (`procedure()`) — `health` is the reference
+
+New controllers declare nothing: `procedure(contract).effect(...)` returns the `R` of the body in the procedure's type,
+and `createModuleContext` reads it off the controller class.
+
+```ts
+import { procedure } from "@deployer/nest-effect";
+
+@Implement(healthContract.check)
+check() {
+  return procedure(healthContract.check).effect(function* ({ context }) { ... });
+}
+```
+
+- Visibility follows Nest: own `providers` + the **`exports`** of imported modules + global modules. A module that
+  needs a service imports the one that exports it; a parent cannot resolve a child.
+- `[UnmetRequirementsOf]` is a union of `[controller, services]` pairs, so the root error names both:
+  `Missing<[HealthController, HealthService]>`.
+- `bootstrapApiServer({ rootModule })` only accepts a root whose requirement set is empty.
+- `EffectRuntime.contextFor(executionContext.getClass())` gives a request the context of the module that owns the
+  controller. `EFFECT_SCOPE_REPORT=1` prints what each controller would lose if a service flipped today.
+- Globals: `createGlobalModule(metadata, ...services)` / `declareModule(Module, { ..., global: true })`. Foreign modules
+  use `declareModule(Module, { provides, exports })`; claims are validated against Nest's metadata at import time.
+- Not migrated yet: `fleet`, `project`, `runtime`, `identity`, `bff` still use `.use(Module[EffectContextOf])`, which
+  keeps the old flat typing (own providers + every import's context) until they move.
 - A service that needs a shared Nest service yields a **port**: `src/core/ports/<kebab>.port.ts`
   holds `Pick<RealClass, "method">` + a `Context.Service` tag, and the module provides
   `{ provide: Tag, useExisting: NestClass }`. The port names only the methods the

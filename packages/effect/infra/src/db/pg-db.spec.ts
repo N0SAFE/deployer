@@ -1,7 +1,7 @@
-import { Effect, Exit, Fiber } from "effect";
+import { Context, Effect, Exit, Fiber } from "effect";
 import { describe, expect, it } from "vitest";
 
-import { DbError, makePgDb, type PgClientLike, type PgPoolLike } from "./pg-db";
+import { DbError, lazyPgDb, makePgDb, type PgClientLike, type PgPoolLike } from "./pg-db";
 
 type Log = string[];
 
@@ -149,5 +149,29 @@ describe("makePgDb.transaction", () => {
 		const connectionOf = (name: string) => log.find((l) => l.endsWith(`:${name}`))?.split(":")[0];
 		expect(connectionOf("x")).toBeDefined();
 		expect(connectionOf("x")).not.toBe(connectionOf("y"));
+	});
+});
+
+describe("lazyPgDb", () => {
+	it("builds one handle per pool, so calls share a transaction context", async () => {
+		const queries: string[] = [];
+		const client = {
+			query: (sql: string) => {
+				queries.push(sql);
+				return Promise.resolve({ rows: [] });
+			},
+			release: () => undefined,
+			processID: 1,
+		};
+		const pool = { connect: () => Promise.resolve(client), query: () => Promise.resolve({ rows: [] }) };
+		class Source extends Context.Service<Source, { readonly pool: typeof pool }>()("test/Source") {}
+		const db = lazyPgDb(Source, { name: "lazy", pool: (s) => s.pool, makeDb: () => () => "db" });
+
+		const program = db.transaction(db.use(async (handle) => handle)).pipe(Effect.provideService(Source, { pool }));
+		await expect(Effect.runPromise(program)).resolves.toBe("db");
+		expect(queries[0]).toMatch(/begin/i);
+		expect(queries.some((sql) => /commit/i.test(sql))).toBe(true);
+		// Nested use joined the transaction: a single connection ran begin..commit, no second begin.
+		expect(queries.filter((sql) => /begin/i.test(sql))).toHaveLength(1);
 	});
 });

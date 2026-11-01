@@ -9,7 +9,7 @@
  *   the edge itself             the EdgeProvider        (provision / teardown / status)
  *   the DNS records             EdgeDnsService          (separate plane from ingress)
  *   the ingress processes       TraefikConfigRefresher  (re-converge now, not next sweep)
- *   the mesh view               MeshAgentClient
+ *   the mesh view               this node's agent, over its node door
  *
  * ── SWITCHING THE PUBLIC EDGE ───────────────────────────────────────────────
  * New edge first, lanes second, old edge last:
@@ -31,8 +31,8 @@ import {
 	type IngressLanes,
 	type PublicLane,
 } from "@deployer/contracts-entities/entities/ingress/index";
+import type { NodeDoorClient, NodeDoorStatus, NodeDoorView } from "@deployer/mesh-client";
 import type { EdgeProviderRegistry } from "@deployer/shared/core/modules/edge/edge-provider.registry";
-import type { MeshAgentClient } from "@deployer/shared/core/modules/mesh-agent/mesh-agent.client";
 import type { HostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
 import type { IngressLanesService } from "@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service";
 import type { PublicEdgeService } from "@deployer/shared/core/modules/reachability/services/public-edge.service";
@@ -42,11 +42,12 @@ import { Context, Effect } from "effect";
 
 import { attempt, attemptSync } from "../../../core/effects";
 import { FleetInvalid } from "../../../core/fleet.errors";
+import { NodeAgentUnsupported } from "../reachability.errors";
 import {
 	EdgeProvidersPort,
 	HostnamesPort,
 	IngressLanesPort,
-	MeshAgentPort,
+	NodeAgentPort,
 	PublicEdgePort,
 	TraefikRefresherPort,
 } from "../reachability.ports";
@@ -71,23 +72,36 @@ const describe = (error: unknown) => (error instanceof Error ? error.message : S
  * A use case fails with a `FleetInvalid` refusal of its own, or with what a platform collaborator
  * refused with (left as thrown; `serve` lets it through for the host to translate).
  */
+/**
+ * What the ingress edge reads from the Effect context while it runs.
+ */
+export type IngressEdgePorts =
+	| IngressLanesPort
+	| EdgeProvidersPort
+	| PublicEdgePort
+	| NodeAgentPort
+	| HostnamesPort
+	| TraefikRefresherPort
+	| EdgeDnsService
+	| DnsProviderRegistryServices;
+
 export type IngressEdgeServiceShape = {
-	readonly getState: () => Effect.Effect<IngressState, unknown>;
+	readonly getState: () => Effect.Effect<IngressState, unknown, IngressEdgePorts>;
 	/** Apply a partial lanes change; only the fields sent change. */
-	readonly update: (input: UpdateIngressInput) => Effect.Effect<IngressState, unknown>;
+	readonly update: (input: UpdateIngressInput) => Effect.Effect<IngressState, unknown, IngressEdgePorts>;
 	/** Delete everything the public edge created, then turn the public lane off. */
-	readonly teardownPublicEdge: () => Effect.Effect<IngressState, unknown>;
+	readonly teardownPublicEdge: () => Effect.Effect<IngressState, unknown, IngressEdgePorts>;
 	/** Revoke a mesh member from this node's agent; every member drops it on the next gossip round. */
-	readonly revokeMeshMember: (memberId: string, reason: string) => Effect.Effect<IngressState, unknown>;
+	readonly revokeMeshMember: (memberId: string, reason: string) => Effect.Effect<IngressState, unknown, IngressEdgePorts>;
 	/** Converge the DNS records the lanes need. Never fails. */
-	readonly reconcileDns: (retired?: readonly RetiredDnsName[]) => Effect.Effect<void>;
+	readonly reconcileDns: (retired?: readonly RetiredDnsName[]) => Effect.Effect<void, never, IngressEdgePorts>;
 };
 
 type Ports = {
 	readonly lanes: IngressLanesService;
 	readonly edges: EdgeProviderRegistry;
 	readonly publicEdge: PublicEdgeService;
-	readonly mesh: MeshAgentClient;
+	readonly mesh: NodeDoorClient;
 	readonly hostnames: HostnameService;
 	readonly refresher: TraefikConfigRefresher;
 	readonly dns: EdgeDnsServiceShape;
@@ -96,10 +110,7 @@ type Ports = {
 /** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
 export class IngressEdgeService extends Context.Service<
 	IngressEdgeService,
-	Over<
-		IngressEdgeServiceShape,
-		IngressLanesPort | EdgeProvidersPort | PublicEdgePort | MeshAgentPort | HostnamesPort | TraefikRefresherPort | EdgeDnsService | DnsProviderRegistryServices
-	>
+	Over<IngressEdgeServiceShape, IngressEdgePorts>
 >()(
 	"fleet/IngressEdgeService",
 ) {
@@ -112,7 +123,7 @@ export class IngressEdgeService extends Context.Service<
 			const lanes = yield* IngressLanesPort;
 			const edges = yield* EdgeProvidersPort;
 			const publicEdge = yield* PublicEdgePort;
-			const mesh = yield* MeshAgentPort;
+			const mesh = yield* NodeAgentPort;
 			const hostnames = yield* HostnamesPort;
 			const refresher = yield* TraefikRefresherPort;
 			// The DNS service reads its own registry from the context; hand it over with that settled.
@@ -122,6 +133,51 @@ export class IngressEdgeService extends Context.Service<
 		makeIngressEdgeService,
 	);
 
+}
+
+/**
+ * The fleet contract's mesh view, built from what the node door actually knows.
+ *
+ * The door knows nodes (id, address, overlay identity), the kernel's peer handshakes, and nothing else: there is no
+ * cluster id, no advertised CIDR, no door inventory, no gossip clock and no per-member signing key on this agent. Those
+ * fields stay `null`/empty — a fabricated cluster id would be worse than an absent one.
+ *
+ * `link.path` has no "unknown" member: a peer the kernel holds with no handshake yet is `passive` ("it must dial us"),
+ * which is exactly what a missing handshake means.
+ */
+function toMeshView(status: NodeDoorStatus | null, view: NodeDoorView | null): MeshView {
+	const peers = status?.peers ?? [];
+	return {
+		available: view !== null,
+		clusterId: null,
+		cidr: null,
+		address: status?.meshAddress ?? view?.self.overlay?.meshAddress ?? null,
+		listenPort: status?.listenPort ?? view?.self.overlay?.listenPort ?? null,
+		interfaceUp: status?.interfaceUp ?? false,
+		members: (view?.agents ?? []).map((agent) => {
+			const peer = peers.find((candidate) => candidate.nodeId === agent.nodeId) ?? null;
+			const self = agent.nodeId === view?.self.nodeId;
+			return {
+				memberId: agent.nodeId,
+				name: agent.nodeId,
+				kind: "node" as const,
+				// Its overlay address is what other nodes reach it on; the roster address is where its agent answers.
+				address: agent.overlay?.meshAddress ?? agent.address,
+				state: "active" as const,
+				self,
+				labels: { ...agent.labels },
+				endpoints: [{ kind: "declared", address: agent.address }],
+				link: {
+					path: self ? ("self" as const) : peer?.latestHandshakeAt != null ? ("direct" as const) : ("passive" as const),
+					endpoint: peer?.endpoint ?? agent.overlay?.endpoint ?? null,
+					latestHandshakeAt: peer?.latestHandshakeAt == null ? null : new Date(peer.latestHandshakeAt).toISOString(),
+				},
+			};
+		}),
+		doors: [],
+		lastGossipAt: null,
+		lastError: view === null ? "This node's mesh agent did not answer." : null,
+	};
 }
 
 function makeIngressEdgeService(ports: Ports): IngressEdgeServiceShape {
@@ -138,32 +194,16 @@ function makeIngressEdgeService(ports: Ports): IngressEdgeServiceShape {
 		};
 	};
 
+	/**
+	 * What this node's agent answers on its door: the kernel's view of the interface (`status`) and the roster it
+	 * knows (`view`). Both are null when the node runs no new agent — that is "no agent", not an error.
+	 */
+	const readDoor = (): Effect.Effect<readonly [NodeDoorStatus | null, NodeDoorView | null], unknown> =>
+		Effect.all([attempt(() => mesh.status()), attempt(() => mesh.view())], { concurrency: "unbounded" });
+
 	/** The mesh as this node sees it; an unreachable agent is reported, not raised. */
-	const meshView: Effect.Effect<MeshView> = attempt(() => mesh.status()).pipe(
-		Effect.map(
-			(status): MeshView => ({
-				available: true,
-				clusterId: status.cluster?.clusterId ?? null,
-				cidr: status.cluster?.cidr ?? null,
-				address: status.cluster?.address ?? null,
-				listenPort: status.cluster?.listenPort ?? null,
-				interfaceUp: status.cluster?.interfaceUp ?? false,
-				members: status.members.map((member) => ({
-					memberId: member.memberId,
-					name: member.name,
-					kind: member.kind,
-					address: member.address,
-					state: member.state,
-					self: member.memberId === status.memberId,
-					labels: member.labels,
-					endpoints: member.endpoints.map((endpoint) => ({ kind: endpoint.kind, address: `${endpoint.host}:${String(endpoint.port)}` })),
-					link: member.link,
-				})),
-				doors: status.doors,
-				lastGossipAt: status.lastGossipAt,
-				lastError: status.lastError,
-			}),
-		),
+	const meshView: Effect.Effect<MeshView> = readDoor().pipe(
+		Effect.map(([status, view]) => toMeshView(status, view)),
 		Effect.catch((error) =>
 			Effect.succeed<MeshView>({
 				available: false,
@@ -253,8 +293,13 @@ function makeIngressEdgeService(ports: Ports): IngressEdgeServiceShape {
 	const reconcileDns = Effect.fn("IngressEdgeService.reconcileDns")(function* (retired: readonly RetiredDnsName[] = []) {
 		yield* Effect.gen(function* () {
 			const lanes = yield* attempt(() => lanesPort.getLanes());
-			const status = yield* attempt(() => mesh.status()).pipe(Effect.orElseSucceed(() => null));
-			const meshAddresses = (status?.members ?? []).filter((m) => m.kind === "node" && m.state === "active").map((m) => m.address);
+			const [, view] = yield* readDoor().pipe(
+				Effect.orElseSucceed((): readonly [NodeDoorStatus | null, NodeDoorView | null] => [null, null]),
+			);
+			// A private-lane A record needs an IP, so only nodes with an overlay contribute one.
+			const meshAddresses = (view?.agents ?? []).flatMap((agent) =>
+				agent.overlay === null ? [] : [agent.overlay.meshAddress],
+			);
 			const publicEdgeRecords = yield* attempt(() => publicEdge.dnsRecords(lanes));
 			const plans = planLaneDnsRecords(lanes, { publicEdgeRecords, meshAddresses });
 			const planned = new Set(plans.map((plan) => plan.name.toLowerCase()));
@@ -323,17 +368,28 @@ function makeIngressEdgeService(ports: Ports): IngressEdgeServiceShape {
 		}),
 
 		revokeMeshMember: Effect.fn("IngressEdgeService.revokeMeshMember")(function* (memberId, reason) {
-			const status = yield* attempt(() => mesh.status());
-			if (status.memberId === memberId) {
+			const [, view] = yield* readDoor();
+			if (view === null) {
+				return yield* new NodeAgentUnsupported({
+					reason: "This node's mesh agent did not answer, so it cannot revoke a member.",
+				});
+			}
+			if (view.self.nodeId === memberId) {
 				return yield* new FleetInvalid({
 					reason: "A node cannot revoke itself. Revoke it from another member's console.",
 				});
 			}
-			if (!status.members.some((member) => member.memberId === memberId)) {
+			if (!view.agents.some((agent) => agent.nodeId === memberId)) {
 				return yield* new FleetInvalid({ reason: `No mesh member ${memberId}` });
 			}
-			yield* attempt(() => mesh.revoke(memberId, reason));
-			yield* Effect.logInfo(`Revoked mesh member ${memberId}: ${reason}`);
+			// The agent stops trusting the node: its agents and replicas are dropped from the roster and cannot be learned
+			// again until unblocked. `reason` stays in the caller's audit trail, not in the agent's store.
+			const blocked = yield* attempt(() => mesh.blockNode(memberId));
+			if (blocked === null) {
+				return yield* new NodeAgentUnsupported({
+					reason: `Cannot revoke ${memberId} (${reason}): the node door did not answer.`,
+				});
+			}
 			return yield* getState();
 		}),
 	};

@@ -2,12 +2,14 @@ import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import {
 	makeSafeHttpClient,
 	publicEgressMessage,
-	type EgressPolicy as Policy,
-	type HttpReq,
-	type HttpRes,
-	type SafeHttpClient,
+        SafeHttp,
+        type EgressPolicy as Policy,
+        type HttpReq,
+        type HttpRes,
+        type SafeHttpClient,
 } from "@deployer/effect-infra";
-import { Duration } from "effect";
+import { probeAddress, probePeer, type AddressProbeResult, type PeerProbeResult } from "@deployer/effect-reachability";
+import { Duration, Effect } from "effect";
 
 import { resolveEgressPolicies, type EgressEnv, type EgressPolicies } from "./egress-policy";
 
@@ -36,15 +38,6 @@ export class EgressRequestError extends Error {
 		this.failure = tag === "EgressDenied" ? "denied" : tag === "HttpTimeout" ? "timeout" : "failed";
 	}
 }
-
-/** The slice of a response a probe needs. Matches `ProbeHttp` in `@deployer/nest-reachability`. */
-export type ProbeResponse = {
-	readonly ok: boolean;
-	readonly status: number;
-	json(): Promise<unknown>;
-};
-
-export type ProbeHttp = (url: string, init: { timeoutMs: number }) => Promise<ProbeResponse>;
 
 /**
  * Every outbound request whose target a user or operator influences goes through here
@@ -83,18 +76,48 @@ export class EgressService {
 		return this.send("fixedExternal", req, this.policies.fixedExternal(hosts));
 	}
 
-	/** A `GET` function for `probeAddress` / `probePeer` (`@deployer/nest-reachability`). */
-	probeHttp(kind: "external" | "operator"): ProbeHttp {
-		return async (url, init) => {
-			const base = kind === "external" ? this.policies.external : this.policies.operator;
-			const res = await this.send(kind, { url }, { ...base, timeout: Duration.millis(init.timeoutMs) });
-			return {
-				ok: res.status >= 200 && res.status < 300,
-				status: res.status,
-				json: () => Promise.resolve(JSON.parse(new TextDecoder().decode(res.body)) as unknown),
-			};
-		};
-	}
+        /**
+         * Run an Effect probe against this service's egress policy.
+         *
+         * The probe itself is Effect-native (`@deployer/effect-reachability`); running it here keeps
+         * the Promise↔Effect edge in ONE place, so a Nest caller does not rebuild the layer or the
+         * error mapping every time. It becomes a `yield* SafeHttp` in the caller once these classes
+         * are Effect services.
+         */
+        probe<A>(effect: Effect.Effect<A, never, SafeHttp>): Promise<A> {
+                return Effect.runPromise(effect.pipe(Effect.provide(SafeHttp.layer)));
+        }
+
+        /** Probe a user-chosen address until one of `paths` answers 2xx. */
+        probeUserAddress(
+                address: string,
+                paths: readonly string[],
+                failureReason?: (value: string) => string,
+        ): Promise<AddressProbeResult> {
+                return this.probe(
+                        probeAddress(address, {
+                                policy: this.policies.external,
+                                paths,
+                                tryBothSchemes: true,
+                                ...(failureReason === undefined ? {} : { failureReason }),
+                        }),
+                );
+        }
+
+        /** Probe an operator-typed peer's identity endpoint, with a liveness fallback. */
+        probeOperatorPeer(
+                url: string,
+                primaryPath: string,
+                fallbackPath?: string,
+        ): Promise<PeerProbeResult> {
+                return this.probe(
+                        probePeer(url, {
+                                policy: this.policies.operator,
+                                primaryPath,
+                                ...(fallbackPath === undefined ? {} : { fallbackPath }),
+                        }),
+                );
+        }
 
 	private async send(kind: EgressRequestError["kind"], req: HttpReq, policy: Policy): Promise<HttpRes> {
 		try {

@@ -21,7 +21,7 @@
 # Sources are synced in by `develop.watch` rather than bind-mounted; see the
 # compose service for why a bind mount cannot work.
 
-ARG BUN_VERSION=1.4.3
+ARG BUN_VERSION=1.4.4
 
 FROM oven/bun:${BUN_VERSION}-alpine AS base
 
@@ -89,16 +89,70 @@ WORKDIR /app
 # `NODE_ENV=development` is also the CORRECT build mode for a dev stack, and
 # `pkg-build` reads it to choose the JSX variant, so this is not merely a
 # cache-key coincidence.
-ENV NODE_ENV=development
-ENV LOG_LEVEL=debug
+ENV NODE_ENV=development \
+    LOG_LEVEL=debug
 
-# ── The workspace ────────────────────────────────────────────────────────────
+# ── The workspace, in TWO layers: manifests, then sources ────────────────────
 #
-# Manifests AND sources: `turbo run build` reads both, and the union planner
-# walks the manifests to discover the graph.
+# ── WHY THE SPLIT ───────────────────────────────────────────────────────────
+# `bun install` reads manifests and the lockfile and nothing else. With the
+# sources copied first, ANY edit under `packages/` invalidated the COPY that
+# preceded the install, so every source edit paid a full reinstall — measured
+# `bun install --frozen-lockfile` at 41 s in this image.
 #
-# `dist/` is excluded by .dockerignore, so this COPY never drags in stale build
-# output from the host.
+# Manifests first means the install layer survives every source edit; only the
+# small source COPYs and the bake below re-run. `COPY --parents` is what keeps
+# the directory structure that `bun install` needs (a workspace is a path).
+#
+# `bunfig.toml` is part of the install layer because it IS install policy:
+# `linker`, `globalStore` and `prefere = "offline"`. Leaving it out installed the
+# image with bun's defaults while the host used the repository's.
+COPY package.json bun.lock* turbo.json bunfig.toml ./
+COPY --parents apps/**/package.json packages/**/package.json tooling/**/package.json ./
+# The root `postinstall` (`scripts/link-workspace-self-references.ts`) runs during
+# `bun install` below. It is not a dependency of anything, so nothing else brings it
+# in, and without it the install dies with
+# `Module not found "scripts/link-workspace-self-references.ts"`.
+COPY scripts ./scripts
+# `apps/doc`'s OWN postinstall is `fumadocs-mdx`, which reads this file. It is the
+# one workspace whose install needs a source file; `bun install` runs workspace
+# postinstalls, so it must be here and not in the source COPY below.
+COPY apps/doc/source.config.ts ./apps/doc/source.config.ts
+# ── `pkg-build`'s LAUNCHER, BECAUSE BUN ONLY LINKS BINS THAT EXIST ──────────
+# Every `@deployer/config-*` package's `build` script is `bun --bun pkg-build`.
+# Bun creates `node_modules/.bin/<bin>` only when the target file is on disk, and
+# in a manifest-only tree `tooling/bin-pkg-build/bin/pkg-build.mjs` is absent —
+# so the link was never created and the bake died with:
+#
+#   @deployer/config-vitest:build: error: Script not found "pkg-build"
+#
+# This copies the COMMITTED launcher (not `dist/`) and nothing else; the package
+# is still built by the bake, in dependency order, from the source COPY below.
+COPY tooling/bin-pkg-build/bin ./tooling/bin-pkg-build/bin
+
+RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
+    --mount=type=cache,target=/root/.cache,sharing=shared \
+    bun install --frozen-lockfile
+
+# ── Scope the workspace graph BEFORE anything else, exactly as the runtime does ─
+# `TurboRunner.excludeApplicationsFromGraph` strips `apps/**` at container start;
+# this runs the same function, so the cache baked below is keyed to the graph the
+# runtime resolves. Without it the bake is unreachable and every boot recompiles.
+#
+# It reads the root manifest ONLY, so it sits above the source COPYs: below them
+# it would re-run on every source edit for no reason. The install above still
+# sees the full workspace list, which is what it needs.
+#
+# Its own two files are copied here because the tool itself arrives with
+# `COPY tooling` further down; the copy below replaces them with the same bytes.
+COPY --parents tooling/dependency-builder/src/strip-applications.ts tooling/dependency-builder/src/services/graph-scope.ts ./
+
+RUN bun --bun tooling/dependency-builder/src/strip-applications.ts /app
+
+# ── Sources ────────────────────────────────────────────────────────────────
+# `turbo run build` reads them, and the runtime needs a real tree for a plain
+# `up -d` (no `--watch`, so no sync). `dist/` is excluded by .dockerignore, so
+# this never drags in stale build output from the host.
 #
 # `apps/` IS needed here for TWO reasons: the image-wide build below would
 # otherwise have nothing to filter OUT (its `--filter=!./apps/**` names them),
@@ -106,47 +160,51 @@ ENV LOG_LEVEL=debug
 # compute its dependency closure — so without the app trees it cannot answer
 # "what does `web` need".
 #
-# The applications are kept OUT of this image's build by that filter, which
-# scopes the TASKS without touching the manifest. Editing
-# `workspaces.packages` instead is the trap: it is also what
-# `WorkspaceScanner` reads to decide WHERE workspaces live, so stripping
-# `apps/**` from it leaves the runtime unable to discover them at all. See the
-# note on the build below.
-COPY package.json bun.lock* turbo.json ./
+# The applications are kept OUT of this image's build by BOTH the manifest strip
+# above and the filter below. The strip is the structural lever (Turbo hashes the
+# resolved graph); the filter is what keeps an unfiltered `turbo run build` from
+# building `build` in the four applications, which fails here:
+
+#   web:build: error: Unexpected while resolving package 'handlebars'
+#   web#build:  ERROR  command (/app/apps/web) ... exited (1)
+
 COPY apps ./apps
 COPY packages ./packages
 # `tooling/` holds this tool AND the shared config packages (`@deployer/pkg-build`,
 # `@deployer/eslint`, ...) its build depends on. Copying it wholesale is what makes
 # the tool's own imports resolvable.
 COPY tooling ./tooling
-# The root `postinstall` (`scripts/link-workspace-self-references.ts`) runs during
-# `bun install` below. It is not a dependency of anything, so nothing else brings it
-# in, and without it the install dies with
-# `Module not found "scripts/link-workspace-self-references.ts"`.
-COPY scripts ./scripts
-
-RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
-    --mount=type=cache,target=/root/.cache,sharing=shared \
-    bun install --frozen-lockfile
 
 # ── Build EVERY internal package, and keep the cache ─────────────────────────
 #
 # Every internal package is built HERE, into the image, and Turbo's cache is
-# written to `/app/.turbo-cache` — the path `cacheDirFor()` prefers.
+# written to `/opt/turbo-cache` — the path `cacheDirFor()` prefers at runtime.
 #
-# ── THE APPLICATIONS ARE EXCLUDED BY FILTER, NOT BY EDITING THE MANIFEST ────
-# An unfiltered `turbo run build` builds `build` in every workspace, including
-# the four applications, whose builds fail here:
+# ── THE MANIFEST IS STRIPPED FIRST, SO THE BAKE AND THE WATCH AGREE ─────────
+# At runtime `TurboRunner.excludeApplicationsFromGraph` removes `apps/**` from
+# `workspaces.packages` before the first Turbo process. Turbo hashes the
+# resolved task graph, so a bake taken with a DIFFERENT workspace list is a
+# cache the runtime can never hit — the stack pays for a full build at every
+# boot and the cache in this image is dead weight.
+#
+# `strip-applications.ts` runs the SAME function here, before the bake:
+#
+#     image bake : packages + tooling   (no applications)
+#     watch      : packages + tooling   (no applications)
+#
+# Discovery is unaffected: `WorkspaceScanner` treats the conventional trees as
+# always-scanned, so the applications stay discoverable from `COMPOSE_PROFILES`
+# even though this manifest no longer lists them.
+#
+# The applications are ALSO kept out of the task selection below, because an
+# unfiltered `turbo run build` builds `build` in every workspace, including the
+# four applications, whose builds fail here:
 #
 #   web:build: error: Unexpected while resolving package 'handlebars'
 #   web#build:  ERROR  command (/app/apps/web) ... exited (1)
 #
-# `--filter=!./apps/**` removes them. The manifest is deliberately NOT edited:
-# `workspaces.packages` is also what `WorkspaceScanner` reads to decide WHERE
-# workspaces live, so stripping `apps/**` from it leaves the runtime unable to
-# DISCOVER the applications — it resolves `COMPOSE_PROFILES=all` to nothing and
-# dies with `Workspace "(none)" is not part of the repository`. Measured.
-# A filter scopes which TASKS run and leaves discovery intact.
+# `--filter='!./apps/**'` scopes the tasks; the manifest strip is the structural
+# lever, and the two now cannot drift apart.
 #
 # ── WHY THE ARTIFACTS MATTER MORE THAN THE CACHE ────────────────────────────
 # The runtime container does not need to rebuild anything: it ADOPTS these
@@ -157,9 +215,13 @@ RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache
 # package added after the image was built, a host run. In those cases the runtime
 # build hits these entries instead of recompiling from scratch.
 #
-# Verified that a cache seeded WITHOUT `.env` is still reused WITH `.env` loaded
-# (`FULL TURBO`), so the image-build and runtime environments do not invalidate
-# each other's entries.
+# ── THE SYNCED TREE MAY NOT BE THE BAKED ONE ────────────────────────────────
+# `develop.watch` replaces `/app` with the HOST tree on `up --watch`, so the
+# inputs a runtime build sees are whatever the host holds. They match this image
+# unless a source file changed since it was built, and only the packages holding
+# such a file recompile. The one input that would miss EVERY entry at once is
+# `.env`, because `turbo.json` hashes it globally — which is why the sync rules
+# ignore `**/.env*` and this image stays `.env`-free.
 #
 # ── WHY THERE IS NO POSITIVE PACKAGE FILTER ─────────────────────────────────
 # The union of enabled applications is not known at image-build time (compose
@@ -205,8 +267,27 @@ RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache
 # With the root at `/app/dep-output` the outputs stay inside the tree Turbo is
 # allowed to read, so the entries below are writable AND reusable — verified by
 # a second run reporting `FULL TURBO`.
-RUN --mount=type=cache,id=deployer-bun-downloads,target=/root/.bun/install/cache,sharing=shared \
-    PKG_BUILD_KEEP_DIST=1 bun x turbo run build --cache-dir=/opt/turbo-cache --filter='!./apps/**'
+#
+# ── `--cache-dir` IS NOT PART OF THE TASK HASH, SO THE MOUNT CAN MOVE ───────
+# Measured: the same filter with `--cache-dir=/tmp/cacheA` and `/tmp/cacheB`
+# produces identical `tasks[].hash` for all 46 tasks, and `globalCacheInputs`
+# lists files and env but no cache directory. That is what lets the bake WRITE
+# into a BuildKit cache mount (warm across image builds) and then COPY the same
+# entries into the layer at the path the runtime reads.
+#
+# Without this, the bake is cold on every source edit: the source COPY below is
+# invalidated, which invalidates every layer after it, and the previous bake's
+# `/opt/turbo-cache` lives in the layer being replaced. Measured: 71 s to
+# recompile 42 packages instead of replaying them.
+RUN --mount=type=cache,id=deployer-turbo-bake,target=/root/.turbo-bake,sharing=locked \
+    PKG_BUILD_KEEP_DIST=1 bun x turbo run build --cache-dir=/root/.turbo-bake --filter='!./apps/**' && \
+    mkdir -p /opt/turbo-cache && \
+    cp -a /root/.turbo-bake/. /opt/turbo-cache/
+
+# The runtime reads `/opt/turbo-cache` (`cacheDirFor()`), so the artifacts the
+# bake just replayed and the cache that describes them sit at the same path a
+# container start looks at.
+
 
 # ── Start the builder ────────────────────────────────────────────────────────
 #

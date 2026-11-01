@@ -10,7 +10,7 @@ the way, and the **platform** schedules and supervises everything else.
 
 | Compose does | Compose does NOT do |
 |---|---|
-| Build the seven app images (`build-svc-*`, `build-mesh-agent`) | Run the BFF |
+| Build the seven app images (`build-svc-*`) | Run the BFF |
 | Run `setup-dev` — the only long-lived service | Run any `svc-*` |
 | Exit each producer with `restart: "no"` | Run the global database, Redis or Traefik |
 
@@ -331,7 +331,7 @@ image only — setup and web keep their toolchain, see above):
 deployer-svc-bff       3.13 GB     deployer-svc-runtime   2.80 GB
 deployer-svc-fleet     2.89 GB     deployer-svc-health    2.80 GB
 deployer-svc-project   2.80 GB     deployer-svc-identity  2.80 GB
-deployer-mesh-agent    145 MB
+deployer-node-agent    145 MB
 ```
 
 Seven images is roughly **20 GB** on disk, with the build layer cache on top of

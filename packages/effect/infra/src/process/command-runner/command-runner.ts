@@ -13,7 +13,7 @@ import { failCause, lineSplitter, pump, tail } from "./output";
  *
  * Built on `Bun.spawn`. Replaces `execSync("unzip ... \"<file>\"")`-style code
  * (SEC-014 / DEPLOY-031) and the three ad-hoc spawn wrappers (docker service, swarm
- * bootstrap, mesh-agent).
+ * bootstrap, node-agent).
  */
 export class CommandRunner extends Context.Service<CommandRunner, CommandRunnerShape>()(
   "infra/CommandRunner",

@@ -11,7 +11,7 @@
  * - DatabaseFailureTracker: Observer that counts failures and transitions lifecycle to degraded
  */
 
-import { Global, Module } from '@nestjs/common'
+import { createGlobalModule } from "@deployer/nest-effect"
 import { AppLifecycleModule } from '../lifecycle'
 import { GlobalDatabaseModule } from './global/global-database.module'
 import { LocalDatabaseModule } from "./local/local-database.module";
@@ -19,8 +19,7 @@ import { DatabaseProbeService } from './services/database-probe.service'
 import { DatabaseStartupGuard } from './services/database-startup-guard.service'
 import { DatabaseFailureTracker } from './services/database-failure-tracker.service'
 
-@Global()
-@Module({
+export const DatabaseModule = createGlobalModule({
     imports: [
         // The SHARED wrapper, not `@deployer/nest-database-local`'s class: that one is
         // a bare `@Module({})` and registers nothing, so importing it left the local
@@ -48,4 +47,3 @@ import { DatabaseFailureTracker } from './services/database-failure-tracker.serv
         DatabaseFailureTracker,
     ],
 })
-export class DatabaseModule {}

@@ -7,16 +7,14 @@
  */
 import { Controller } from "@nestjs/common";
 import { Implement } from "@orpc/nest";
-import { implement } from "@orpc/server";
 import { providersContract } from "@deployer/fleet-contracts";
-import { EffectContextOf } from "@deployer/nest-effect";
+import { procedure } from "@deployer/nest-effect";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 import { Effect } from "effect";
 
 import { attempt } from "@/core/effects";
 import { serve } from "@/core/orpc/serve";
 import { TunnelEdge } from "@/core/ports/tunnel-edge.port";
-import { ProvidersModule } from "@/modules/providers/providers.module";
 import { CloudflareAppService } from "../services/cloudflare-app.service";
 import { CloudflareDnsProviderService } from "../services/cloudflare-dns-provider.service";
 import { CloudflareTunnelService } from "../services/cloudflare-tunnel.service";
@@ -38,9 +36,8 @@ export class CloudflareController {
 
     @Implement(providersContract.dns.cloudflare.listZones)
     listZones() {
-        return implement(providersContract.dns.cloudflare.listZones)
+        return procedure(providersContract.dns.cloudflare.listZones)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const dns = yield* CloudflareDnsProviderService;
                 return yield* serve(context)(
@@ -58,9 +55,8 @@ export class CloudflareController {
 
     @Implement(providersContract.dns.cloudflare.listRecords)
     listRecords() {
-        return implement(providersContract.dns.cloudflare.listRecords)
+        return procedure(providersContract.dns.cloudflare.listRecords)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const dns = yield* CloudflareDnsProviderService;
                 const { params } = input;
@@ -106,9 +102,8 @@ export class CloudflareController {
 
     @Implement(providersContract.dns.cloudflare.checkRecord)
     checkRecord() {
-        return implement(providersContract.dns.cloudflare.checkRecord)
+        return procedure(providersContract.dns.cloudflare.checkRecord)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const apps = yield* CloudflareAppService;
                 const { params } = input;
@@ -164,9 +159,8 @@ export class CloudflareController {
 
     @Implement(providersContract.dns.cloudflare.createRecord)
     createRecord() {
-        return implement(providersContract.dns.cloudflare.createRecord)
+        return procedure(providersContract.dns.cloudflare.createRecord)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const dns = yield* CloudflareDnsProviderService;
                 const { params, body } = input;
@@ -196,9 +190,8 @@ export class CloudflareController {
 
     @Implement(providersContract.dns.cloudflare.deleteRecord)
     deleteRecord() {
-        return implement(providersContract.dns.cloudflare.deleteRecord)
+        return procedure(providersContract.dns.cloudflare.deleteRecord)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const dns = yield* CloudflareDnsProviderService;
                 yield* serve(context)(
@@ -216,9 +209,8 @@ export class CloudflareController {
 
     @Implement(providersContract.dns.cloudflare.listTunnels)
     listTunnels() {
-        return implement(providersContract.dns.cloudflare.listTunnels)
+        return procedure(providersContract.dns.cloudflare.listTunnels)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const tunnels = yield* CloudflareTunnelService;
                 return yield* serve(context)(tunnels.listTunnels(input.params.providerId));
@@ -227,9 +219,8 @@ export class CloudflareController {
 
     @Implement(providersContract.dns.cloudflare.getTunnel)
     getTunnel() {
-        return implement(providersContract.dns.cloudflare.getTunnel)
+        return procedure(providersContract.dns.cloudflare.getTunnel)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const tunnels = yield* CloudflareTunnelService;
                 return yield* serve(context)(tunnels.getTunnel(input.params.providerId, input.params.id));
@@ -238,9 +229,8 @@ export class CloudflareController {
 
     @Implement(providersContract.dns.cloudflare.createTunnel)
     createTunnel() {
-        return implement(providersContract.dns.cloudflare.createTunnel)
+        return procedure(providersContract.dns.cloudflare.createTunnel)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const tunnels = yield* CloudflareTunnelService;
                 return yield* serve(context)(tunnels.createTunnel(input.params.providerId, input.body));
@@ -249,9 +239,8 @@ export class CloudflareController {
 
     @Implement(providersContract.dns.cloudflare.deleteTunnel)
     deleteTunnel() {
-        return implement(providersContract.dns.cloudflare.deleteTunnel)
+        return procedure(providersContract.dns.cloudflare.deleteTunnel)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const tunnels = yield* CloudflareTunnelService;
                 const tunnelEdge = yield* TunnelEdge;
@@ -281,9 +270,8 @@ export class CloudflareController {
 
     @Implement(providersContract.dns.cloudflare.getTunnelToken)
     getTunnelToken() {
-        return implement(providersContract.dns.cloudflare.getTunnelToken)
+        return procedure(providersContract.dns.cloudflare.getTunnelToken)
             .use(requireAuth())
-            .use(ProvidersModule[EffectContextOf])
             .effect(function* ({ input, context }) {
                 const tunnels = yield* CloudflareTunnelService;
                 return yield* serve(context)(tunnels.getTunnelToken(input.params.providerId, input.params.id));

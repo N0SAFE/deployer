@@ -2,7 +2,7 @@
 
 import { isDefinedORPCError, UNKNOWN_ORPC_ERROR_MESSAGE, getErrorMessage } from "@/lib/orpc/typed-errors";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { meshAgentSnapshotSchema, type MeshAgentSnapshot } from "@deployer/contracts-entities";
+import { nodeAgentSnapshotSchema, type NodeAgentSnapshot } from "@deployer/contracts-entities";
 import { meshEndpoints } from "./endpoints";
 import { meshInvalidations } from "./invalidations";
 import { wrapWithInvalidations } from "@/domains/shared/helpers";
@@ -13,7 +13,7 @@ type MeshStreamStatus = "connecting" | "connected" | "disconnected" | "error";
 export interface MeshSseState {
   status: MeshStreamStatus;
   lastError: string | null;
-  state: MeshAgentSnapshot | null;
+  state: NodeAgentSnapshot | null;
 }
 
 export function useMeshLocalNode(options?: { enabled?: boolean }) {
@@ -120,7 +120,7 @@ export function useMeshSseState(): MeshSseState {
     }),
   );
 
-  const parsedState = meshAgentSnapshotSchema.safeParse(streamQuery.data);
+  const parsedState = nodeAgentSnapshotSchema.safeParse(streamQuery.data);
   const state = parsedState.success ? parsedState.data : null;
 
   const status: MeshStreamStatus = streamQuery.isError

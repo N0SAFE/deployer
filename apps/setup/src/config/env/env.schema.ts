@@ -346,29 +346,30 @@ export const setupEnvSchema = z.object({
   // data path on this node's MESH address, which the node's mesh agent derives
   // from its own WireGuard key (docs/edge-mesh-architecture.md).
 
-  /** Image of the per-node mesh agent this app starts before founding the swarm. */
-  MESH_AGENT_IMAGE: z.string().min(1).default("deployer-mesh-agent:latest"),
-  /** Where the agent's control socket is mounted in this container. */
-  MESH_AGENT_SOCKET: z.string().optional(),
-
   /**
-   * Whether the agent this app starts touches the KERNEL at all.
+   * The NEW mesh agent — the agent this app starts.
    *
-   * Setup is the FIRST process on a fresh node, so it is the one that starts the
-   * agent — which makes this the variable that decides whether onboarding a
-   * machine silently creates a host WireGuard interface on it.
-   *
-   *   kernel   founds a real mesh; needs NET_ADMIN and a WireGuard-capable kernel
-   *   observe  no interface is created; the stack still comes up, alone
-   *
-   * Defaults to `observe`, matching the API's schema, so the safe behaviour is
-   * what an unset variable gets. The dev-supervised profile overrides it the same
-   * way; a real deployment sets `kernel` explicitly.
+   * Compose produces `deployer-svc-node-agent:dev`. It answers on its node door
+   * instead of an HTTP control API.
    */
-  MESH_AGENT_DATAPLANE: z
-    .enum(["kernel", "observe"])
-    .optional()
-    .transform((value) => value ?? "observe"),
+  NODE_AGENT_IMAGE: z.string().default("deployer-svc-node-agent:dev"),
+  /**
+   * Opt-in: the swarm runs the agent as a GLOBAL service instead of the host
+   * container this app starts. With it on, this launcher creates nothing — the
+   * two shapes are mutually exclusive (one owner of the socket and of the
+   * `deployer-mesh` interface). It stays off by default because this app starts
+   * the agent BEFORE the swarm exists.
+   */
+  NODE_AGENT_SWARM_MODE: booleanEnv().default(false),
+  /**
+   * The agent's NODE DOOR, as mounted in this container.
+   *
+   * Defaults to `/run/deployer-node/agent.sock`, the path the container binds,
+   * so a deployment that mounts its run volume needs to set nothing. Distinct
+   * from `NODE_AGENT_SOCKET` (what the mesh services dial): the agent serves both
+   * at the same path today, but the keys are not merged here.
+   */
+  NODE_AGENT_SOCKET: z.string().default("/run/deployer-node/agent.sock"),
 
   /**
    * Cap on the number of managers (the election quorum target).

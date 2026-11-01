@@ -1,4 +1,4 @@
-import { Global, Module } from '@nestjs/common'
+import { createGlobalModule } from "@deployer/nest-effect"
 import { BootstrapOrchestratorService } from './bootstrap-orchestrator.service'
 import { EnvModule } from "../../../config/env/env.module"
 import { GlobalDatabaseModule } from '../database/global/global-database.module'
@@ -28,8 +28,7 @@ import { SupervisorsModule } from "../supervision/index";
  * Being explicit is the point: the dependencies are visible at the module that
  * needs them instead of arriving through an ambient registration elsewhere.
  */
-@Global()
-@Module({
+export const BootstrapModule = createGlobalModule({
   imports: [
     EnvModule,
     GlobalDatabaseModule,
@@ -47,5 +46,4 @@ import { SupervisorsModule } from "../supervision/index";
   ],
   providers: [BootstrapOrchestratorService],
   exports: [BootstrapOrchestratorService],
-})
-export class BootstrapModule {}
+});

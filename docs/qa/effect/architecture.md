@@ -106,11 +106,11 @@ Operator headline decision (2026-10-26): go for the FULL Effect layer architectu
 
 ---
 
-## mesh-agent (DEC-EFF-13, D13)
+## node-agent (DEC-EFF-13, D13)
 
-**Q**: mesh-agent (D13): own Effect-native template or leave non-Effect?
+**Q**: node-agent (D13): own Effect-native template or leave non-Effect?
 
-**A**: Accepted WITH ADJUSTMENT: Effect-native template, but DEFER the mesh-agent Effect migration until after Phase 2 (ROADMAP.md); low priority. The binary-size check stays a precondition. (Decided 2026-10-26, in chat.)
+**A**: Accepted WITH ADJUSTMENT: Effect-native template, but DEFER the node-agent Effect migration until after Phase 2 (ROADMAP.md); low priority. The binary-size check stays a precondition. (Decided 2026-10-26, in chat.)
 
 ---
 
@@ -168,7 +168,7 @@ These are roadmap lines `DEC-EFF-18..38` (from `effect-layers-catalog.md` 8.1 an
 | DEC-EFF-31 | D-6 | Outbox/job store: Postgres vs `LocalDb` sqlite | Postgres for outbox and job queue; sqlite only for build cache and process table | pending |
 | DEC-EFF-32 | D-7 | OTel (traces) enablement date | after step 3 (identity) | pending |
 | DEC-EFF-33 | D-8 | Vitest 5 compatibility of the SWC toolchain; keep SWC during shell phase? | keep SWC config for shell-phase services | pending |
-| DEC-EFF-34 | D-9 | mesh-agent binary-size budget | +8 MB | pending |
+| DEC-EFF-34 | D-9 | node-agent binary-size budget | +8 MB | pending |
 | DEC-EFF-35 | D-10 | BFF HTTP edge: keep Nest for Better Auth routes and setup SSE until step 8? | step 8 | pending |
 | DEC-EFF-36 | D-11 | Idempotency-key contract for write procedures called by workers | `Idempotency-Key` header, 24 h, table `idempotency_keys` per owner | pending |
 | DEC-EFF-37 | D-12 | Package scope naming | `@deployer/effect-*` | pending |

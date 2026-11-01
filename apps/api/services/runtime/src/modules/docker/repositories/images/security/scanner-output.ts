@@ -2,6 +2,7 @@
  * Reading what the image scanners print: Trivy and Grype vulnerability reports, Dive layer efficiency, and the
  * progress events built from them. Pure functions over scanner output, so the parsing is tested without a scanner.
  */
+import { nonEmptyString } from "@deployer/type-guards";
 import type {
   DockerImageLayerEfficiency,
   DockerImageSecurityScanEvent,
@@ -106,12 +107,12 @@ export function normalizeScannerVulnerability(
   }
 
   if (scanner === "trivy") {
-    const vulnerabilityId = toNonEmptyString((raw as { VulnerabilityID?: unknown }).VulnerabilityID);
-    const packageName = toNonEmptyString((raw as { PkgName?: unknown }).PkgName);
-    const installedVersion = toNonEmptyString((raw as { InstalledVersion?: unknown }).InstalledVersion);
-    const fixedVersion = toOptionalNonEmptyString((raw as { FixedVersion?: unknown }).FixedVersion);
-    const description = toNonEmptyString((raw as { Description?: unknown }).Description)
-      ?? toNonEmptyString((raw as { Title?: unknown }).Title)
+    const vulnerabilityId = nonEmptyString((raw as { VulnerabilityID?: unknown }).VulnerabilityID);
+    const packageName = nonEmptyString((raw as { PkgName?: unknown }).PkgName);
+    const installedVersion = nonEmptyString((raw as { InstalledVersion?: unknown }).InstalledVersion);
+    const fixedVersion = nonEmptyString((raw as { FixedVersion?: unknown }).FixedVersion);
+    const description = nonEmptyString((raw as { Description?: unknown }).Description)
+      ?? nonEmptyString((raw as { Title?: unknown }).Title)
       ?? `${packageName ?? "package"} vulnerability`;
     const layerDigest = extractTrivyLayerDigest(raw);
 
@@ -139,15 +140,15 @@ export function normalizeScannerVulnerability(
     return null;
   }
 
-  const vulnerabilityId = toNonEmptyString((vulnerability as { id?: unknown }).id);
+  const vulnerabilityId = nonEmptyString((vulnerability as { id?: unknown }).id);
   const packageName =
     (typeof artifact === "object" && artifact !== null
-      ? toNonEmptyString((artifact as { name?: unknown }).name)
+      ? nonEmptyString((artifact as { name?: unknown }).name)
       : null)
     ?? "unknown-package";
   const installedVersion =
     (typeof artifact === "object" && artifact !== null
-      ? toNonEmptyString((artifact as { version?: unknown }).version)
+      ? nonEmptyString((artifact as { version?: unknown }).version)
       : null)
     ?? "unknown";
 
@@ -158,11 +159,11 @@ export function normalizeScannerVulnerability(
   const fix = (vulnerability as { fix?: unknown }).fix;
   const fixedVersion =
     typeof fix === "object" && fix !== null && Array.isArray((fix as { versions?: unknown }).versions)
-      ? toOptionalNonEmptyString(((fix as { versions: unknown[] }).versions[0]))
+      ? nonEmptyString((fix as { versions: unknown[] }).versions[0])
       : null;
 
-  const description = toNonEmptyString((vulnerability as { description?: unknown }).description)
-    ?? toNonEmptyString((vulnerability as { dataSource?: unknown }).dataSource)
+  const description = nonEmptyString((vulnerability as { description?: unknown }).description)
+    ?? nonEmptyString((vulnerability as { dataSource?: unknown }).dataSource)
     ?? `${packageName} vulnerability`;
   const layerDigest = extractGrypeLayerDigest(raw);
 
@@ -243,21 +244,8 @@ export function normalizeSeverity(value: unknown): DockerVulnerabilityEntry["sev
   return null;
 }
 
-export function toNonEmptyString(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : null;
-}
-
-export function toOptionalNonEmptyString(value: unknown): string | null {
-  return toNonEmptyString(value);
-}
-
 export function normalizeLayerDigest(value: unknown): string | null {
-  const normalized = toNonEmptyString(value);
+  const normalized = nonEmptyString(value);
   if (!normalized) {
     return null;
   }

@@ -3,12 +3,58 @@ import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 import turboConfig from 'eslint-config-turbo/flat';
 import progress from '@deployer/config-eslint-plugins-progress';
+import importPlugin from 'eslint-plugin-import';
+import type { ESLint, Linter } from 'eslint';
 
 const tsconfigRootDir = process.cwd();
 
 export interface BaseConfigOptions {
     disableTseslint?: boolean;
 }
+
+/**
+ * One import order for the whole repo.
+ *
+ * Groups, in order: Node builtins, npm packages, workspace packages
+ * (`@deployer/*` — its own group, so a review sees the dependency direction
+ * instead of hunting them among npm packages), app-internal aliases (`@/`,
+ * `@<service>/`), then relative imports.
+ *
+ * `import/order` cannot resolve tsconfig aliases, so every alias that is not
+ * scoped like a package must be listed in `pathGroups`; without it, `@/foo`
+ * is classified as an npm package (anything starting with `@`).
+ *
+ * Fixable: `bun run lint:fix` rewrites the order, `bun run lint` only reports.
+ */
+const importOrderRules: Linter.RulesRecord = {
+    "import/order": [
+        "warn",
+        {
+            groups: [
+                "builtin",
+                "external",
+                "internal",
+                "parent",
+                "sibling",
+                "index",
+                "object",
+                "type",
+            ],
+            pathGroups: [
+                { pattern: "@deployer/**", group: "internal", position: "before" },
+                { pattern: "@/**", group: "internal", position: "after" },
+                { pattern: "@identity/**", group: "internal", position: "after" },
+                { pattern: "@project/**", group: "internal", position: "after" },
+                { pattern: "@runtime/**", group: "internal", position: "after" },
+                { pattern: "@fleet/**", group: "internal", position: "after" },
+                { pattern: "@health/**", group: "internal", position: "after" },
+            ],
+            pathGroupsExcludedImportTypes: ["builtin"],
+            "newlines-between": "always",
+            alphabetize: { order: "asc", caseInsensitive: true },
+        },
+    ],
+};
 
 export const ignoresConfig = defineConfig([
     {
@@ -37,7 +83,9 @@ export const baseConfig = (options: BaseConfigOptions = {}) => {
             },
         },
         {
+            plugins: { import: importPlugin as unknown as ESLint.Plugin },
             rules: {
+                ...importOrderRules,
                 "@typescript-eslint/no-extraneous-class": "off",
                 "@typescript-eslint/unified-signatures": "off",
                 "@typescript-eslint/no-unnecessary-type-parameters": "off",
@@ -81,7 +129,9 @@ export const testConfig = (options: BaseConfigOptions = {}) => {
             },
         },
         {
+            plugins: { import: importPlugin as unknown as ESLint.Plugin },
             rules: {
+                ...importOrderRules,
                 "@typescript-eslint/no-extraneous-class": "off",
                 "@typescript-eslint/no-unused-vars": ["warn"],
                 "@typescript-eslint/no-explicit-any": "off",

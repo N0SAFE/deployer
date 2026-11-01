@@ -88,27 +88,3 @@ describe("EgressService", () => {
 	});
 });
 
-describe("EgressService.probeHttp (the function handed to probeAddress / probePeer)", () => {
-	it("adapts a response to ok / status / json", async () => {
-		const res = await dev().probeHttp("operator")(`${base}/mesh/ping`, { timeoutMs: 2000 });
-		expect(res.ok).toBe(true);
-		expect(res.status).toBe(200);
-		expect(await res.json()).toEqual({ ok: true, version: "1.0.0", advertisedHost: "peer.lan" });
-	});
-
-	it("reports a non-2xx as not ok without throwing", async () => {
-		const res = await dev().probeHttp("external")(`${base}/bad`, { timeoutMs: 2000 });
-		expect(res.ok).toBe(false);
-		expect(res.status).toBe(500);
-	});
-
-	it("honours the caller's timeout", async () => {
-		const error = await rejection(dev().probeHttp("operator")(`${base}/slow`, { timeoutMs: 200 }));
-		expect(error.message).toBe("Timed out");
-	});
-
-	it("applies the same policy as the direct methods", async () => {
-		const error = await rejection(prod().probeHttp("external")(`${base}/ok`, { timeoutMs: 1000 }));
-		expect(error.message).toBe("Target not allowed by the network policy");
-	});
-});

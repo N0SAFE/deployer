@@ -1,6 +1,7 @@
 import { toDockerServiceSpec } from "@deployer/docker";
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
+import type { NodeDoorClient, NodeDoorStatus } from "@deployer/mesh-client";
 
 import { makeEnvService } from "@/test-support/env";
 import type { DockerEngineShape } from "@deployer/docker";
@@ -18,7 +19,27 @@ const IMAGES = {
 
 type CreatedSpec = { Name: string; TaskTemplate: { ContainerSpec: { Env: string[]; Image: string } } };
 
-async function schedule(env: Record<string, string>, managedWeb: boolean | null = null) {
+/** A door that answers once with `status`, or not at all (null) — the two states the provisioner must handle. */
+const doorWith = (status: NodeDoorStatus | null): NodeDoorClient =>
+  ({ status: async () => status }) as unknown as NodeDoorClient;
+
+/** The provisioner with its door replaced: a test has no agent socket to dial. */
+class TestTier extends ServicesTierProvisioner {
+  constructor(
+    env: ConstructorParameters<typeof ServicesTierProvisioner>[0],
+    docker: DockerEngineShape,
+    gate: ConstructorParameters<typeof ServicesTierProvisioner>[2],
+    private readonly door_: NodeDoorClient,
+  ) {
+    super(env, docker, gate);
+  }
+
+  protected override door(): NodeDoorClient {
+    return this.door_;
+  }
+}
+
+async function schedule(env: Record<string, string>, managedWeb: boolean | null = null, status: NodeDoorStatus | null = null) {
   const created: CreatedSpec[] = [];
   // The engine's `reconcile` takes the platform's spec; the Docker spec it becomes is what the
   // assertions read, so the mapper runs for real.
@@ -32,11 +53,14 @@ async function schedule(env: Record<string, string>, managedWeb: boolean | null 
       },
     });
   const gate = { managedWebEnabled: vi.fn(() => managedWeb) };
-  const tier = new ServicesTierProvisioner(
+  const tier = new TestTier(
     makeEnvService({ SETUP_MODE: "prod", AUTH_SECRET: "s3cret-s3cret-s3cret-s3cret-s3cret", ...IMAGES, ...env }),
     docker as unknown as DockerEngineShape,
     gate as unknown as ConstructorParameters<typeof ServicesTierProvisioner>[2],
+    doorWith(status),
   );
+  // Nest calls this before the app runs; the address is resolved once, there.
+  await tier.onModuleInit();
   const apps = await tier.ensureTier();
   const envOf = (name: string): string[] => {
     const spec = created.find((s) => s.Name === name);
@@ -59,19 +83,13 @@ describe("ServicesTierProvisioner", () => {
   });
 
   describe("environment every app inherits (a swarm task inherits nothing)", () => {
-    it("forwards the mesh dataplane choice and the setup origin as a trusted origin", async () => {
-      const { envOf } = await schedule({ MESH_AGENT_DATAPLANE: "kernel" });
+    it("forwards the setup origin as a trusted origin", async () => {
+      const { envOf } = await schedule({});
       const env = envOf("svc-bff");
 
-      expect(env).toContain("MESH_AGENT_DATAPLANE=kernel");
       expect(env).toContain("TRUSTED_ORIGINS=http://setup.deployer.localhost");
       expect(env).toContain("APP_URL=http://deployer-managed-web:3000");
       expect(env).toContain("DEPLOYER_API_TARGET=svc-bff");
-    });
-
-    it("defaults the dataplane to `observe` rather than dropping the variable", async () => {
-      const { envOf } = await schedule({});
-      expect(envOf("svc-bff")).toContain("MESH_AGENT_DATAPLANE=observe");
     });
 
     it("forwards the tenant prefix and derives every origin from it", async () => {
@@ -91,8 +109,29 @@ describe("ServicesTierProvisioner", () => {
     });
 
     it("forwards the direct-proxy image tag with the other supervised images", async () => {
-      const { envOf } = await schedule({ DEPLOYER_DIRECT_PROXY_IMAGE: "proxy:t", MESH_AGENT_IMAGE: "agent:t" });
-      expect(envOf("svc-bff")).toEqual(expect.arrayContaining(["DEPLOYER_DIRECT_PROXY_IMAGE=proxy:t", "MESH_AGENT_IMAGE=agent:t"]));
+      const { envOf } = await schedule({ DEPLOYER_DIRECT_PROXY_IMAGE: "proxy:t", NODE_AGENT_IMAGE: "agent:t" });
+      expect(envOf("svc-bff")).toEqual(expect.arrayContaining(["DEPLOYER_DIRECT_PROXY_IMAGE=proxy:t", "NODE_AGENT_IMAGE=agent:t"]));
+    });
+  });
+
+  describe("the node's mesh address (what a replica advertises)", () => {
+    const advertised = (env: string[]) => env.find((entry) => entry.startsWith("MESH_ADVERTISE_URL="));
+
+    it("gives every app the agent's host on its own port", async () => {
+      const { apps, envOf } = await schedule({}, null, {
+        advertiseAddress: "ws://10.0.0.7:3106/mesh/ws",
+      } as unknown as NodeDoorStatus);
+
+      for (const app of apps) {
+        expect(advertised(envOf(app.name))).toBe(`MESH_ADVERTISE_URL=ws://10.0.0.7:${String(app.port)}/mesh/ws`);
+      }
+    });
+
+    it("omits the variable when the agent is silent, and still schedules the tier", async () => {
+      const { apps, envOf } = await schedule({});
+
+      expect(apps).toHaveLength(6);
+      expect(advertised(envOf("svc-bff"))).toBeUndefined();
     });
   });
 

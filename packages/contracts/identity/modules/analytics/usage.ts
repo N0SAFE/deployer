@@ -192,6 +192,25 @@ export const analyticsGetDeploymentUsageContract = analyticsDeploymentUsageOps
     .errors((e) => [...standardDomainErrorContracts(e)])
     .build();
 
+/** SSE sibling of the polled usage read — same input, pushed on change. */
+export const analyticsStreamResourceUsageContract = analyticsResourceUsageOps
+    .list()
+    .path("/usage/resources/stream")
+    .input((input) => input.query(getUsageInputSchema.optional()))
+    .output((output) => output.observable(analyticsResourceUsageOutputSchema))
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .build();
+
+/** SSE sibling of the polled usage read — same input, pushed on change. */
+export const analyticsStreamDeploymentUsageContract = analyticsDeploymentUsageOps
+    .list()
+    .path("/usage/deployments/stream")
+    .input((input) => input.query(analyticsDeploymentUsageQuerySchema))
+    .output((output) => output.observable(analyticsDeploymentUsageOutputSchema))
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .build();
+
+
 export const analyticsGetStorageUsageContract = analyticsStorageUsageOps
     .list()
     .path("/usage/storage")

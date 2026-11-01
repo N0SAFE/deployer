@@ -1,7 +1,7 @@
 import { ORPCError, type ClientContext, type ClientLink } from "@orpc/client";
 import { describe, expect, it, vi } from "vitest";
 
-import { grantDirect, type MeshRelayEvent } from "@deployer/mesh-agent-contracts";
+import { grantDirect, type MeshRelayEvent } from "@deployer/node-agent-contracts";
 
 import { grantFollowingLink } from "./grant-link";
 import { relayLink } from "./relay-link";

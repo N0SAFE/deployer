@@ -33,6 +33,7 @@
         "@deployer/health-contracts": "*",
         "@deployer/mesh-service": "*",
         "@deployer/logger": "*",
+        "@deployer/env": "*",
         "@deployer/effect-core": "*",
         "@deployer/effect-orpc": "*",
         "@deployer/nest-effect": "*",

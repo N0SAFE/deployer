@@ -39,7 +39,7 @@ export default function NetworkMeshPage() {
               <AlertTitle>This node’s mesh agent is not reachable</AlertTitle>
               <AlertDescription>
                 {ingress.mesh.lastError ?? 'The agent does not answer on its socket.'} Setup starts the agent on a fresh node;
-                on an upgraded node the API starts it at boot. Check the <Mono>deployer-mesh-agent</Mono> container.
+                on an upgraded node the API starts it at boot. Check the <Mono>deployer-node-agent</Mono> container.
               </AlertDescription>
               <Button size="sm" variant="outline" className="mt-3" onClick={refetch}>Retry</Button>
             </Alert>

@@ -117,14 +117,18 @@ export function useUpdateClusterNode() {
 
 // ─── Swarm participation (mode + policy + join) ────────────────────────────
 
-/** Current swarm participation view (mode/policy/engine state/join tokens). */
+/**
+ * Current swarm participation view (mode/policy/engine state/join tokens).
+ *
+ * Live over SSE: the server re-evaluates and pushes only when the participation
+ * view changes, replacing the 15 s refetch this used to run in every tab.
+ */
 export function useSwarmConfig(options?: { enabled?: boolean }) {
   const enabled = options?.enabled ?? true
   return useQuery(
-    clusterEndpoints.swarmConfig.get.queryOptions({
+    clusterEndpoints.swarmConfig.stream.experimental_liveObservableOptions({
       input: {},
       enabled,
-      refetchInterval: 15_000,
     }),
   )
 }

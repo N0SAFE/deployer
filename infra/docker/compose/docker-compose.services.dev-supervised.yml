@@ -150,9 +150,9 @@ services:
         condition: service_completed_successfully
       build-svc-runtime:
         condition: service_completed_successfully
-      # Setup starts the node's mesh agent from this tag BEFORE it founds the
-      # swarm (the swarm binds the mesh address), so it must exist first too.
-      build-mesh-agent:
+      # Setup starts the node's mesh agent BEFORE it founds the swarm (the swarm
+      # binds the mesh address), so the image it runs must exist first.
+      build-svc-node-agent:
         condition: service_completed_successfully
     environment:
       # ── PROD'S FLOW, RUNNING DEV IMAGES ────────────────────────────────
@@ -177,13 +177,10 @@ services:
       DEPLOYER_SVC_FLEET_IMAGE: ${DEPLOYER_SVC_FLEET_IMAGE:-deployer-svc-fleet:dev}
       DEPLOYER_SVC_RUNTIME_IMAGE: ${DEPLOYER_SVC_RUNTIME_IMAGE:-deployer-svc-runtime:dev}
       DEPLOYER_SVC_REPLICAS: ${DEPLOYER_SVC_REPLICAS:-1}
-      # The tag setup RUNS the node's mesh agent from (a plain host-network
-      # container, not a swarm service). The setup default is `:latest`, which no
-      # dev producer tags.
-      MESH_AGENT_IMAGE: ${MESH_AGENT_IMAGE:-deployer-mesh-agent:dev}
-      # Workstations do not bring up a host WireGuard interface on every start.
-      # Set `kernel` to exercise the real dataplane.
-      MESH_AGENT_DATAPLANE: ${MESH_AGENT_DATAPLANE:-observe}
+      # The agent (`@deployer/svc-node-agent`) setup and the API run the node's
+      # agent from. Built by `build-svc-node-agent` below, so the tag has to be
+      # the same in both places.
+      NODE_AGENT_IMAGE: ${NODE_AGENT_IMAGE:-deployer-svc-node-agent:dev}
       # Tags setup FORWARDS to the tier it schedules. The apps' own fallbacks are
       # `:latest`, which no dev producer tags.
       MANAGED_WEB_APP_IMAGE: ${MANAGED_WEB_APP_IMAGE:-deployer-web:dev}
@@ -263,8 +260,10 @@ services:
       # same named volume. Omitting it makes every hostname a Traefik 404.
       - deployer-traefik-config:/app/traefik-configs
       # Setup starts the mesh agent and then talks to it over
-      # `/run/deployer-mesh/agent.sock`, which lives in this volume.
-      - deployer-mesh-run:/run/deployer-mesh
+      # `/run/deployer-node/agent.sock`, which lives in this volume.
+      - deployer-node-agent-run:/run/deployer-node
+      # The admin door (0600 inside): setup joins the swarm and issues join tokens here.
+      - deployer-node-agent-admin:/run/deployer-node-admin
       # The clusters it creates live on the host engine, so it drives the socket.
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
@@ -417,30 +416,27 @@ services:
     command: ["echo", "runtime image built: ${DEPLOYER_SVC_RUNTIME_IMAGE:-deployer-svc-runtime:dev}"]
     restart: "no"
 
-  # The per-node mesh agent. NOT a compose service at RUNTIME: setup starts it as a
-  # plain host-network container (`deployer-mesh-agent`), because it must exist
-  # before the swarm does. Compose only makes the TAG exist.
+  # The per-node mesh agent (`@deployer/svc-node-agent`). An IMAGE PRODUCER only:
+  # the launcher creates the container at runtime (`deployer-node-agent`), so no
+  # running service is declared here.
   #
-  # Its own Dockerfile (a compiled binary on Alpine), not `Dockerfile.app.dev`: it
-  # holds the node's private keys with NET_ADMIN, so it ships no toolchain.
-  #
-  # `entrypoint`, not `command`, is overridden: the image's ENTRYPOINT is the agent
-  # binary, so a `command:` would only become its ARGUMENTS and this producer would
-  # start an agent (with no NET_ADMIN) that never exits.
-  build-mesh-agent:
+  # It runs the service from the pruned workspace (source + installed tree) rather
+  # than a compiled binary, and needs `wireguard-tools`/`iproute2` for the
+  # dataplane.
+  build-svc-node-agent:
     profiles: ["all", "services", "web"]
     build:
       context: ../../..
-      dockerfile: ./infra/docker/builder/mesh-agent/Dockerfile.mesh-agent
+      dockerfile: ./infra/docker/builder/node-agent/Dockerfile.svc-node-agent
       secrets:
         - turbo_token
         - turbo_team
         - turbo_api
       args:
         - BUILDKIT_INLINE_CACHE=1
-    image: ${MESH_AGENT_IMAGE:-deployer-mesh-agent:dev}
+    image: ${NODE_AGENT_IMAGE:-deployer-svc-node-agent:dev}
     <<: *no-pull
-    entrypoint: ["echo", "mesh agent image built: ${MESH_AGENT_IMAGE:-deployer-mesh-agent:dev}"]
+    entrypoint: ["echo", "mesh agent v2 image built: ${NODE_AGENT_IMAGE:-deployer-svc-node-agent:dev}"]
     restart: "no"
 
   # The web app's IMAGE. Compose also RUNS it here (unlike the API tier), because
@@ -500,11 +496,13 @@ volumes:
     name: ${COMPOSE_PROJECT_NAME:-nextjs-nestjs}_supervised_local_db
   deployer-traefik-config:
     name: ${TRAEFIK_CONFIG_VOLUME:-deployer-traefik-config}
-  # The mesh agent's control-socket volume (`/run/deployer-mesh/agent.sock`).
+  # The mesh agent's control-socket volume (`/run/deployer-node/agent.sock`).
   # NAMED LITERALLY, never project-prefixed: the agent container and every tier
   # service setup schedules mount it by this exact name.
-  deployer-mesh-run:
-    name: deployer-mesh-run
+  deployer-node-agent-run:
+    name: deployer-node-agent-run
+  deployer-node-agent-admin:
+    name: deployer-node-agent-admin
 
 # Turbo remote-cache credentials, read from the project environment (`.env`).
 # Consumed by `RUN --mount=type=secret` in the Dockerfiles, so they never land

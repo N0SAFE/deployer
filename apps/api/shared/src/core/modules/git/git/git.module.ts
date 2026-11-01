@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { createModuleContext } from "@deployer/nest-effect";
 import { GitService } from './services/git.service';
 
 /**
@@ -15,8 +15,7 @@ import { GitService } from './services/git.service';
  * - Provider-specific modules (github/, gitlab/, gitea/) are siblings
  * - Import this module when you need basic git operations
  */
-@Module({
+export class GitModule extends createModuleContext({
   providers: [GitService],
   exports: [GitService],
-})
-export class GitModule {}
+}) {}

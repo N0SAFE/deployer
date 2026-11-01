@@ -22,28 +22,28 @@ import { buildWhere, toUser, USER_SORT_COLUMNS } from './user.repository.sql'
 export type UserRepositoryShape = {
     readonly findById: (
         id: string
-    ) => Effect.Effect<User | null, UserRepositoryFailure>
+    ) => Effect.Effect<User | null, UserRepositoryFailure, DatabasePort>
     readonly findByEmail: (
         email: string
-    ) => Effect.Effect<User | null, UserRepositoryFailure>
+    ) => Effect.Effect<User | null, UserRepositoryFailure, DatabasePort>
     readonly emailExists: (
         email: string,
         excludingId?: string
-    ) => Effect.Effect<boolean, UserRepositoryFailure>
+    ) => Effect.Effect<boolean, UserRepositoryFailure, DatabasePort>
     readonly list: (
         filter: UserListFilter
-    ) => Effect.Effect<UserPage, UserRepositoryFailure>
+    ) => Effect.Effect<UserPage, UserRepositoryFailure, DatabasePort>
     readonly count: (
         filter: UserFilter
-    ) => Effect.Effect<number, UserRepositoryFailure>
+    ) => Effect.Effect<number, UserRepositoryFailure, DatabasePort>
     readonly insert: (
         input: NewUser & { email: string }
-    ) => Effect.Effect<User, UserRepositoryFailure>
+    ) => Effect.Effect<User, UserRepositoryFailure, DatabasePort>
     readonly update: (
         id: string,
         patch: UserPatch
-    ) => Effect.Effect<User, UserRepositoryFailure>
-    readonly delete: (id: string) => Effect.Effect<void, UserRepositoryFailure>
+    ) => Effect.Effect<User, UserRepositoryFailure, DatabasePort>
+    readonly delete: (id: string) => Effect.Effect<void, UserRepositoryFailure, DatabasePort>
 }
 
 /** Tag and implementation together: the tag is the contract, `Live` the Drizzle implementation. */

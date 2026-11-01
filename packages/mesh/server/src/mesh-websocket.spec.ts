@@ -5,12 +5,12 @@ import { join } from "node:path";
 
 import { os, type RouterClient } from "@orpc/server";
 import { Effect } from "effect";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as z from "zod";
 
 import { createMeshClient, openWebSocketConnection, pooledLink } from "@deployer/mesh-client";
 
-import { type MeshWebSocket, attachMeshWebSocket } from "./mesh-websocket";
+import { MAX_FRAME_BYTES, type MeshWebSocket, attachMeshWebSocket } from "./mesh-websocket";
 
 import type { ClientContext } from "@orpc/client";
 import type { AddressInfo } from "node:net";
@@ -188,6 +188,69 @@ describe("attachMeshWebSocket", () => {
       await localGateway.close();
       await new Promise<void>((resolve) => local.close(() => { resolve(); }));
       rmSync(directory, { recursive: true, force: true });
+    });
+  });
+
+  describe("byte accounting", () => {
+    it("counts the bytes both directions, which is what the agent's lease policy reads", async () => {
+      await gateway.close();
+      const seen: number[] = [];
+      gateway = attachMeshWebSocket<ClientContext>({
+        server,
+        path: "/mesh/ws",
+        router: router as never,
+        verify: (credential) => credential === SECRET,
+        context: () => ({}),
+        onBytes: (bytes) => seen.push(bytes),
+      });
+      const { link, client } = clientTo(SECRET);
+
+      await expect(Effect.runPromise(client.echo({ text: "a payload long enough to matter" }))).resolves.toEqual({
+        text: "a payload long enough to matter",
+      });
+      await link.closeAll();
+
+      expect(seen.length).toBeGreaterThanOrEqual(2);
+      expect(seen.every((bytes) => bytes > 0)).toBe(true);
+      expect(seen.reduce((total, bytes) => total + bytes, 0)).toBeGreaterThan(40);
+    });
+  });
+
+  describe("caps", () => {
+    it("stops accepting connections at maxConnections, and frees a slot when one leaves", async () => {
+      await gateway.close();
+      gateway = attachMeshWebSocket<ClientContext>({
+        server,
+        path: "/mesh/ws",
+        router: router as never,
+        verify: (credential) => credential === SECRET,
+        context: () => ({}),
+        maxConnections: 1,
+      });
+      const first = clientTo(SECRET);
+      const second = clientTo(SECRET);
+
+      await expect(Effect.runPromise(first.client.echo({ text: "in" }))).resolves.toEqual({ text: "in" });
+      // Same credential, and still refused: the cap is about this process's sockets, not about who the peer is.
+      await expect(Effect.runPromise(second.client.echo({ text: "in" }))).rejects.toBeDefined();
+      expect(gateway.size()).toBe(1);
+
+      await first.link.closeAll();
+      await vi.waitFor(() => {
+        expect(gateway.size()).toBe(0);
+      });
+      await expect(Effect.runPromise(second.client.echo({ text: "in again" }))).resolves.toEqual({ text: "in again" });
+      await second.link.closeAll();
+    });
+
+    it("caps a frame at 1 MiB, so one payload cannot make this process buffer more", async () => {
+      // The option is what `ws` enforces; asserted here because a real oversized frame is a socket teardown rather than a
+      // call, and the teardown itself is the behaviour under test below.
+      expect(MAX_FRAME_BYTES).toBe(1_048_576);
+
+      const { link, client } = clientTo(SECRET);
+      await expect(Effect.runPromise(client.echo({ text: "x".repeat(1_048_576) }))).rejects.toBeDefined();
+      await link.closeAll();
     });
   });
 

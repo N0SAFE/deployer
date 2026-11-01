@@ -123,7 +123,7 @@ export class GitHubService {
   private readonly apps = new Map<string, App>() // Cache apps by organization login
   private readonly octokit: Octokit
 
-  constructor() {
+  constructor() { 
     // Credentials (appId, privateKey, webhookSecret, etc.) are stored per-organization
     // in the database (githubApps table). Use registerInstallation() with DB-loaded config.
     this.octokit = new Octokit()

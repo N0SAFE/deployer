@@ -8,9 +8,13 @@
     "demo": "bun src/demo.ts",
     "test": "vitest run",
     "type-check": "tsc --noEmit",
+    "type-check:requirements": "tsc -p requirements-demo/tsconfig.json",
+    "test:requirements": "cd requirements-demo && vitest run",
+    "test:requirements:types": "cd requirements-demo && vitest run --typecheck.only",
+    "start:requirements": "bun requirements-demo/src/main.ts",
     "lint": "eslint src test",
     "lint:fix": "eslint src test --fix",
-    "lint:fix+": "eslint src test --fix",
+    "lint:fix+": "eslint src test --fix"
   },
   "dependencies": {
     "@nestjs/common": "^12.2.0",

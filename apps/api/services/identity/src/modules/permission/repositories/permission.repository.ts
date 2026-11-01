@@ -22,17 +22,18 @@ import type { RoleRuleRow } from '../permission.types'
 export type PermissionRepositoryShape = {
     readonly getRoleRules: (
         roleNames: string[]
-    ) => Effect.Effect<ResourceRule[], PermissionRepositoryFailure>
+    ) => Effect.Effect<ResourceRule[], PermissionRepositoryFailure, DatabasePort>
     readonly upsertRoleRules: (
         roleName: string,
         rules: ResourceRule[]
-    ) => Effect.Effect<void, PermissionRepositoryFailure>
+    ) => Effect.Effect<void, PermissionRepositoryFailure, DatabasePort>
     readonly deleteRoleRules: (
         roleName: string
-    ) => Effect.Effect<void, PermissionRepositoryFailure>
+    ) => Effect.Effect<void, PermissionRepositoryFailure, DatabasePort>
     readonly listRoleRules: () => Effect.Effect<
         RoleRuleRow[],
-        PermissionRepositoryFailure
+        PermissionRepositoryFailure,
+        DatabasePort
     >
 }
 

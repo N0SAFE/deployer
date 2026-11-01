@@ -84,7 +84,7 @@ describe('InitializationService', () => {
         updatedAt: '2026-01-01T00:00:00.000Z',
       }) as never);
 
-      service.checkConfigAndEmit();
+      await service.checkConfigAndEmit();
 
       const status = await service.waitForSetup();
       expect(status.strategy).toBe('local');

@@ -136,8 +136,8 @@ describe("SetupController", () => {
         };
         mockInitializationService.getSetupState.mockReturnValue(mockState);
         controller.getState();
-        const handler = implementChainable.handler.mock.calls.at(-1)?.[0] as () => unknown;
-        expect(handler()).toBe(mockState);
+        const handler = implementChainable.handler.mock.calls.at(-1)?.[0] as () => Promise<unknown>;
+        expect(await handler()).toBe(mockState);
     });
 
 });

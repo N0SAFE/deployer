@@ -4,6 +4,8 @@ import { ExpressAdapter } from "@nestjs/platform-express";
 import express from "express";
 import { createViteAssetsMiddleware } from "@deployer/vite-assets";
 
+import { assertRequirementsMet } from "@deployer/nest-effect";
+
 import { SetupAppModule } from "./app.module";
 import { setupEnvSchema } from "./config/env/env.schema";
 import { resolveApiBaseUrl } from "./config/api-address";
@@ -36,6 +38,16 @@ import { createSetupAuthProxy } from "./middleware/setup-auth-proxy";
  * drift from it.
  */
 export const setupEnv = setupEnvSchema.parse(process.env);
+
+/**
+ * The root, accepted only once every module's requirement set is empty.
+ *
+ * Every root in the platform goes through this gate (`bootstrapApiServer` does it for the tier); setup booted with a
+ * plain `NestFactory.create`, so its modules were type-checked as context modules but nothing ever asserted the result.
+ * Wrapping it here means both entry points (`main.ts`, `compile.ts`) get the same guarantee, and a controller that
+ * yields a service its module does not export is a compile error instead of a runtime surprise.
+ */
+const SetupRootModule = assertRequirementsMet(SetupAppModule);
 
 /** The port the setup app binds. Exported so `main.ts` can log it. */
 export const SETUP_PORT = setupEnv.SETUP_APP_PORT;
@@ -93,7 +105,7 @@ export async function createSetupApp() {
     server.use(createSetupAuthProxy(apiBaseUrl));
   }
 
-  const app = await NestFactory.create(SetupAppModule, new ExpressAdapter(server), setupAppOptions());
+  const app = await NestFactory.create(SetupRootModule, new ExpressAdapter(server), setupAppOptions());
   app.enableShutdownHooks();
   return app;
 }
@@ -112,7 +124,7 @@ export async function createSetupApp() {
  * depend on cannot drift between them.
  */
 export async function createCompileContext() {
-  return NestFactory.createApplicationContext(SetupAppModule, setupAppOptions());
+  return NestFactory.createApplicationContext(SetupRootModule, setupAppOptions());
 }
 
 /** Where an operator should point a browser — the public host, not the port. */

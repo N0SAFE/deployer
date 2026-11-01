@@ -53,12 +53,15 @@ protocol, different transport ([03](./03-configurator-protocol.md) §3.1).
 ```text
 edit a file
    ↓
-compose --watch rebuilds THAT app only
+compose watch syncs it into the container (bff, svc-*, web, doc, setup)
    ↓
-hot reload (nestjs watch for the api apps, next dev for web)
+hot reload (bun --watch for the api apps, next dev for web)
    ↓
 refresh / re-run the request
 ```
+
+`bun run dev` is `up --watch`: it starts the stack, attaches to every container's logs, and syncs
+edits. `bun run dev:detached` starts the same stack with no watcher and no attached logs.
 
 Per-app scripts when you want to narrow it:
 
@@ -110,7 +113,7 @@ $ docker compose -f infra/docker/compose/docker-compose.dev-supervised.yml up --
 ```console
 → build-api          image built  deployer-api:dev
 → build-web          image built  deployer-web:dev
-→ build-mesh-agent   image built  deployer-mesh-agent:dev
+→ build-svc-node-agent   image built  deployer-svc-node-agent:dev
 → build-doc          image built  deployer-doc:dev
 
 → platform           running the production start flow (SETUP_MODE=prod)

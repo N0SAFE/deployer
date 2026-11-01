@@ -3,12 +3,11 @@ import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { GlobalDatabaseService } from "../../database/services/global-database.service";
 import { AppLifecycle, AppLifecyclePhase, type AppLifecycleShape } from "@deployer/lifecycle";
 import { coreDomainEventEnvelopeSchema } from "@deployer/contracts-entities";
+import { resolveNodeId } from "@deployer/env";
 import {
     LocalEventOutboxRepository,
     type OutboxRow,
 } from "./local-event-outbox.repository";
-
-const DEFAULT_NODE_ID = "00000000-0000-4000-8000-000000000000";
 
 @Injectable()
 export class LocalEventOutboxDispatcherService implements OnModuleInit, OnModuleDestroy {
@@ -173,11 +172,6 @@ export class LocalEventOutboxDispatcherService implements OnModuleInit, OnModule
             return nodeId;
         }
 
-        const envNodeId = process.env.MESH_NODE_ID?.trim();
-        if (envNodeId && envNodeId.length > 0) {
-            return envNodeId;
-        }
-
-        return DEFAULT_NODE_ID;
+        return resolveNodeId();
     }
 }

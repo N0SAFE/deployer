@@ -1,7 +1,7 @@
 import { Logger } from "@nestjs/common";
 import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { platformOverlayForPrefix } from "@deployer/docker";
-import { NODE_DOORS_SETTING_KEY, type DoorRescueRoute } from "@deployer/mesh-network";
+import { NODE_DOORS_SETTING_KEY, type DoorRescueRoute } from "@deployer/mesh-client";
 import type { DockerEngineShape } from "@deployer/docker";
 import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
 import { splitManagedEnv } from "@deployer/env";
@@ -16,7 +16,7 @@ import { Effect } from "effect";
 
 import { EnvService } from "../../../../config/env/env.module";
 import { EdgeProviderRegistry } from "../../edge/edge-provider.registry";
-import { MeshAgentClient } from "../../mesh-agent/mesh-agent.client";
+import { ClusterSettings } from "../../mesh-node/cluster-settings";
 import { HostnameService } from "../../platform-ingress/services/hostname.service";
 import { buildNodeDoors } from "../../platform-ingress/services/ingress-doors";
 import { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service";
@@ -41,7 +41,7 @@ export type TraefikSupervisorDeps = {
 	readonly hostnameService: HostnameService;
 	readonly env: EnvService;
 	readonly lanes: IngressLanesService;
-	readonly mesh: MeshAgentClient;
+	readonly settings: ClusterSettings;
 	readonly webTarget: PlatformWebTargetService;
 	readonly edges: EdgeProviderRegistry;
 	readonly bus: SupervisorEventBus;
@@ -50,14 +50,14 @@ export type TraefikSupervisorDeps = {
 /**
  * The ingress supervisor. What it does (the global swarm service, its routes polled from the API, the
  * lanes, the inbound-edge plan, the node doors) is `@deployer/platform-supervisors`; this supplies the
- * engine, the environment, the hostnames, the lanes, the mesh agent and the edge registry, and decides
+ * engine, the environment, the hostnames, the lanes, the cluster settings and the edge registry, and decides
  * WHETHER to register: not when compose/operator owns the ingress (`MANAGED_TRAEFIK_ENABLED=true`).
  */
 export function makeTraefikRegistration(deps: TraefikSupervisorDeps): {
 	readonly registration: SupervisorRegistration;
 	readonly traefik: TraefikSupervisor;
 } {
-	const { engine, hostnameService, env, lanes: lanesService, mesh, webTarget, edges, bus } = deps;
+	const { engine, hostnameService, env, lanes: lanesService, settings, webTarget, edges, bus } = deps;
 	const logger = new Logger("TraefikSupervisor");
 	const prefix = () => env.get("DEPLOYER_PREFIX");
 	const apiTarget = () => {
@@ -111,7 +111,7 @@ export function makeTraefikRegistration(deps: TraefikSupervisorDeps): {
 						traefikService,
 						rescue: await rescueRoutes(apiTarget()),
 					});
-					await mesh.writeSetting(NODE_DOORS_SETTING_KEY, doors);
+					await settings.write(NODE_DOORS_SETTING_KEY, doors);
 				}),
 		},
 	});

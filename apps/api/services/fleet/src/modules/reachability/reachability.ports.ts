@@ -1,6 +1,6 @@
+import type { NodeDoorClient } from '@deployer/mesh-client'
 import type { EdgeProviderRegistry } from '@deployer/shared/core/modules/edge/edge-provider.registry'
 import type { EgressService } from '@deployer/shared/core/modules/egress/egress.service'
-import type { MeshAgentClient } from '@deployer/shared/core/modules/mesh-agent/mesh-agent.client'
 import type { HostnameService } from '@deployer/shared/core/modules/platform-ingress/services/hostname.service'
 import type { IngressLanesService } from '@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service'
 import type { PublicAccessPointService } from '@deployer/shared/core/modules/reachability/services/public-access-point.service'
@@ -28,10 +28,11 @@ export class PublicEdgePort extends Context.Service<
     PublicEdgePort,
     PublicEdgeService
 >()('fleet/PublicEdgePort') {}
-export class MeshAgentPort extends Context.Service<
-    MeshAgentPort,
-    MeshAgentClient
->()('fleet/MeshAgentPort') {}
+/** This node's NEW mesh agent, asked over its node door (local socket only). Null answer = no agent. */
+export class NodeAgentPort extends Context.Service<
+    NodeAgentPort,
+    NodeDoorClient
+>()('fleet/NodeAgentPort') {}
 export class HostnamesPort extends Context.Service<
     HostnamesPort,
     HostnameService

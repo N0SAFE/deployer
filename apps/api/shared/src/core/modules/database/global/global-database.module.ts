@@ -1,4 +1,3 @@
-import { runSyncUnwrapped } from "@deployer/effect-core";
 /**
  * GlobalDatabaseModule — Provides GLOBAL_DATABASE_POOL, GLOBAL_DATABASE_CONNECTION, and GlobalDatabaseService.
  *
@@ -6,16 +5,18 @@ import { runSyncUnwrapped } from "@deployer/effect-core";
  *
  * DATABASE_URL is NEVER read from the environment at runtime. The database URL
  * is resolved by the Phase 0 dev bootstrap injector (SetupDevService), which
- * persists the URL to the local SQLite node_config table.
+ * persists the URL to the node config (the node's agent, or the local SQLite
+ * `node_config` table when no agent answers).
  *
  * SINGLE SHARED POOL: Unlike the previous version that created 3 separate
  * pg.Pool instances, this module creates ONE pool and shares it across all
  * providers. The pool is created with explicit configuration (max, min,
  * timeouts) for production readiness.
  *
- * The factories below inject NodeConfigRepository (provided directly within this
- * module) to read the URL from SQLite. LocalDatabaseModule is imported so that
- * NodeConfigRepository's dependency on LocalDatabaseService is available.
+ * The pool factory injects `NodeConfigSnapshot` (owned by NodeStateModule) for
+ * the URL: the repository read is async now, while the pool's per-connect
+ * resolver is synchronous. LocalDatabaseModule is imported so the repositories'
+ * dependency on LocalDatabaseService is available.
  *
  * If no URL is set, the module THROWS — the app must not start without a database.
  * The setup wizard runs in a separate sub-app (SetupSubAppModule) that does NOT
@@ -25,16 +26,17 @@ import { runSyncUnwrapped } from "@deployer/effect-core";
  * forRoot(). This ensures structured diagnostic messages, not generic DI errors.
  */
 
-import { Global, Logger, Module } from '@nestjs/common'
+import { Logger } from '@nestjs/common'
+import { createGlobalModule } from "@deployer/nest-effect"
 import { Client, Pool } from 'pg'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import * as globalSchema from '@deployer/nest-schema/global'
 import { GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL } from "../database-connection"
 import { GlobalDatabaseService } from './global-database.service'
 import { GlobalDatabaseLifecycleService } from './global-database-lifecycle.service'
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
 import { LocalDatabaseModule } from "../local/local-database.module"
 import { NodeStateModule } from '../../node-state/node-state.module'
+import { NodeConfigSnapshot } from '../../node-state/node-config.snapshot'
 import { EnvModule } from "../../../../config/env/env.module"
 import { EnvService } from "../../../../config/env/env.module"
 import { resolveManagedGlobalDbUrl, splitManagedEnv } from "@deployer/env"
@@ -136,13 +138,15 @@ function readPoolSizing(env: EnvService): PoolSizing {
  *
  * 1. COMPOSE-MANAGED DB (`MANAGED_GLOBAL_DB_ENABLED=true`): the URL is
  *    deterministic from `MANAGED_GLOBAL_DB_*` env.
- * 2. Otherwise read the URL from SQLite node_config (managed/local or
- *    operator-configured URL persisted by an earlier boot).
+ * 2. Otherwise read the URL from the node config SNAPSHOT (`NodeConfigSnapshot`), which mirrors
+ *    `node_config` (managed/local or operator-configured URL persisted by an earlier boot). The
+ *    snapshot is read synchronously because `pg` resolves the connection string inside its own
+ *    synchronous `Client` constructor; the cache is refreshed on a timer elsewhere.
  *
  * Both are read through the SAME resolver, on every connect, so the pool follows
  * the platform through onboarding instead of freezing whatever was true at boot.
  */
-function buildSharedPool(nodeConfig: NodeConfigRepositoryShape, env: EnvService): Pool {
+function buildSharedPool(snapshot: NodeConfigSnapshot, env: EnvService): Pool {
     let announced = false
 
     const resolveUrl = (): string => {
@@ -150,7 +154,7 @@ function buildSharedPool(nodeConfig: NodeConfigRepositoryShape, env: EnvService)
         const url =
             managed.enabled
                 ? resolveManagedGlobalDbUrl(managed)
-                : (runSyncUnwrapped(nodeConfig.find())?.databaseUrl?.trim() ?? '')
+                : (snapshot.current()?.databaseUrl?.trim() ?? '')
 
         if (!announced) {
             announced = true
@@ -179,8 +183,7 @@ function buildSharedPool(nodeConfig: NodeConfigRepositoryShape, env: EnvService)
     return pool
 }
 
-@Global()
-@Module({
+export const GlobalDatabaseModule = createGlobalModule({
     imports: [LocalDatabaseModule, EnvModule, NodeStateModule],
     providers: [
         // NodeConfigRepository is imported from NodeStateModule (its single
@@ -195,7 +198,7 @@ function buildSharedPool(nodeConfig: NodeConfigRepositoryShape, env: EnvService)
         {
             provide: GLOBAL_DATABASE_POOL,
             useFactory: buildSharedPool,
-            inject: [NodeConfigRepository, EnvService],
+            inject: [NodeConfigSnapshot, EnvService],
         },
         {
             provide: GLOBAL_DATABASE_CONNECTION,
@@ -214,6 +217,5 @@ function buildSharedPool(nodeConfig: NodeConfigRepositoryShape, env: EnvService)
     // arrives through an imported @Global() module is not exportable from here
     // (UnknownExportException). Consumers inject it directly from NodeStateModule.
     exports: [GlobalDatabaseService, GLOBAL_DATABASE_CONNECTION, GLOBAL_DATABASE_POOL],
-})
-export class GlobalDatabaseModule {}
+});
 

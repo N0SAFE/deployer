@@ -5,10 +5,10 @@ import { Badge } from '@deployer/ui/components/shadcn/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@deployer/ui/components/shadcn/card'
 import { Skeleton } from '@deployer/ui/components/shadcn/skeleton'
 import { EmptyState } from '@/components/dashboard'
-import type { MeshAgentNode } from '@deployer/contracts-entities'
+import type { NodeAgentNode } from '@deployer/contracts-entities'
 
 /** The nodes of the swarm, as the agent of this node knows them. */
-export function NodesCard({ nodes, loading }: { nodes: readonly MeshAgentNode[]; loading: boolean }) {
+export function NodesCard({ nodes, loading }: { nodes: readonly NodeAgentNode[]; loading: boolean }) {
   return (
     <Card>
       <CardHeader>

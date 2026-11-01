@@ -1,4 +1,3 @@
-import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
 import { createModuleContext } from "@deployer/nest-effect";
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
 import { ConfigurationCoreModule } from "@deployer/shared/core/modules/configuration/configuration-core.module";
@@ -15,7 +14,7 @@ import {
     DEPLOYMENT_TRIGGER_SOURCES,
     DeploymentTriggerRegistryService,
 } from "./triggers/deployment-trigger-registry.service";
-import { RuntimeDatabasePort, RuntimeDb } from "../../core/database/runtime-db";
+import { RuntimeDb } from "../../core/database/runtime-db";
 import { DeploymentEventTriggerService } from "./triggers/deployment-event-trigger.service";
 import { SystemDeploymentsPort, TriggerRegistryPort } from "./triggers/deployment-trigger.ports";
 import type { DeploymentTriggerSource } from "./triggers/base/deployment-trigger-source.interface";
@@ -129,7 +128,6 @@ export class DeploymentDomainModule extends createModuleContext({
         DeploymentTriggerRegistryService,
         // Event-triggered deployments: a constant Effect service over these ports.
         { provide: TriggerRegistryPort, useExisting: DeploymentTriggerRegistryService },
-        { provide: RuntimeDatabasePort, useExisting: GlobalDatabaseService },
         { provide: RuntimeDb, useValue: RuntimeDb.live },
         { provide: SystemDeploymentsPort, useExisting: DeploymentService },
         { provide: DeploymentEventTriggerService, useValue: DeploymentEventTriggerService.live },

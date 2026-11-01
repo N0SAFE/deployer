@@ -139,3 +139,39 @@ export function makePgDb<D>(options: PgDbOptions<D>): DbShape<D> {
 
 	return { use, transaction };
 }
+
+/** A `DbShape` that reads its pool from the Effect context (`R`) when a call runs. */
+export type LazyDbShape<D, R> = {
+	readonly use: <A>(fn: (db: D, signal: AbortSignal) => Promise<A>) => Effect.Effect<A, DbError, R>;
+	readonly transaction: <A, E, R2>(effect: Effect.Effect<A, E, R2>) => Effect.Effect<A, E | DbError, R2 | R>;
+};
+
+/**
+ * A Postgres database that is a constant: the source of the pool (a port tag) is yielded when a call
+ * runs, and one `makePgDb` handle is built per pool and reused, so every call over the same pool shares
+ * its transaction context. Nothing is built at the root and no factory is injected.
+ */
+export function lazyPgDb<D, S, R>(
+	source: Effect.Effect<S, never, R>,
+	options: {
+		readonly name: string;
+		readonly pool: (source: S) => PgPoolLike;
+		readonly makeDb: (source: S) => (client: PgClientLike) => D;
+	},
+): LazyDbShape<D, R> {
+	const handles = new WeakMap<object, DbShape<D>>();
+	const handleFor = (resolved: S): DbShape<D> => {
+		const pool = options.pool(resolved);
+		let handle = handles.get(pool);
+		if (handle === undefined) {
+			handle = makePgDb<D>({ name: options.name, pool, makeDb: options.makeDb(resolved) });
+			handles.set(pool, handle);
+		}
+		return handle;
+	};
+
+	return {
+		use: (fn) => Effect.flatMap(source, (resolved) => handleFor(resolved).use(fn)),
+		transaction: (effect) => Effect.flatMap(source, (resolved) => handleFor(resolved).transaction(effect)),
+	};
+}

@@ -75,6 +75,87 @@ describe('cache-key environment', () => {
     })
 })
 
+/**
+ * The bake must be keyed to the graph the runtime resolves, and to the same
+ * global inputs — otherwise the cache in the image is unreachable and the first
+ * `turbo watch` pass after `initial_sync` recompiles every package.
+ *
+ * Both failures are silent: the build succeeds, just without the cache it was
+ * built to provide. Hence assertions on the files, in the same spirit as the
+ * `cache-key environment` block above.
+ */
+describe('bake graph parity', () => {
+    const DOCKERFILE =
+        'infra/docker/builder/dependency-builder/Dockerfile.dependency-builder.dev'
+    const SERVICE =
+        'infra/docker/compose/common/dependency-builder/docker-compose.config.dev.yml'
+
+    it('strips the applications before the image bake', () => {
+        const lines = readFileSync(join(REPO_ROOT, DOCKERFILE), 'utf8').split(
+            '\n'
+        )
+        const strip = lines.findIndex((line) =>
+            line.includes('src/strip-applications.ts /app')
+        )
+        const bake = lines.findIndex((line) =>
+            line.includes('bun x turbo run build')
+        )
+
+        expect(
+            strip,
+            'the image no longer strips apps/** before baking, so its cache is keyed to a different graph than `turbo watch`'
+        ).toBeGreaterThan(-1)
+        expect(
+            bake,
+            'no bake found; this assertion is meaningless without it'
+        ).toBeGreaterThan(strip)
+    })
+
+    it('does not sync the host .env into the builder, which would change the global hash', () => {
+        const text = readFileSync(join(REPO_ROOT, SERVICE), 'utf8')
+
+        expect(
+            text,
+            '`turbo.json` hashes `**/.env`, so syncing the host secret files in misses every baked entry'
+        ).toMatch(/^\s*- "?\*\*\/\.env\*"?\s*$/m)
+
+        expect(
+            text,
+            'the host root manifest must not sync back over the stripped one, or `turbo watch` re-adds the applications and misses every baked entry'
+        ).toMatch(/^\s*- \/package\.json\s*$/m)
+    })
+
+    it('mirrors the .dockerignore exclusions Turbo hashes, or every package misses', () => {
+        const compose = readFileSync(join(REPO_ROOT, SERVICE), 'utf8')
+        const dockerignore = readFileSync(
+            join(REPO_ROOT, '.dockerignore'),
+            'utf8'
+        )
+
+        // `$TURBO_DEFAULT$` hashes every file in a workspace. A path the image
+        // EXCLUDES but the sync BRINGS IN is a path that changes the hash of
+        // every package containing one — measured as a cache miss per package
+        // on the first run.
+        const pairs = [
+            ['**/__tests__', '**/__tests__/'],
+            ['vitest.config.*', '**/vitest.config.*'],
+            ['README.md', '**/README.md'],
+            ['docs', '**/docs/'],
+        ] as const
+
+        for (const [imagePattern, syncPattern] of pairs) {
+            expect(
+                dockerignore,
+                `${imagePattern} is no longer excluded from the image; the sync ignore list is now wrong`
+            ).toContain(imagePattern)
+            expect(
+                compose,
+                `${syncPattern} must be ignored by the sync, or packages holding one miss the baked cache`
+            ).toContain(`- "${syncPattern}"`)
+        }
+    })
+})
+
 
 import { TurboRunner } from './turbo-runner.service'
 import type { UnionMember } from '../schemas'

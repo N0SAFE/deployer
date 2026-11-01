@@ -2,16 +2,16 @@ import { describe, expect, it, vi } from "vitest";
 import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
 
 import type { EnvService } from "../../../../config/env/env.module";
-import type { ClusterSettingsService } from "../../mesh-agent/cluster-settings.service";
+import type { ClusterSettings } from "../../mesh-node/cluster-settings";
 import { INGRESS_LANES_SETTING, IngressLanesService } from "./ingress-lanes.service";
 
 const env = { get: vi.fn((key: string) => (key === "DEPLOYER_TRAEFIK_HTTP_PORT" ? 8080 : undefined)) } as unknown as EnvService;
 
 function settings(stored: IngressLanes | undefined) {
 	return {
-		read: vi.fn(() => Promise.resolve(stored)),
-		write: vi.fn((_key: string, schema: { parse: (v: unknown) => unknown }, value: unknown) => Promise.resolve(schema.parse(value))),
-	} as unknown as ClusterSettingsService;
+		read: vi.fn((_key: string, _schema: unknown, fallback: IngressLanes) => Promise.resolve(stored ?? fallback)),
+		write: vi.fn(() => Promise.resolve()),
+	} as unknown as ClusterSettings;
 }
 
 describe("IngressLanesService", () => {
@@ -24,10 +24,10 @@ describe("IngressLanesService", () => {
 		expect(await new IngressLanesService(settings(stored), env).getLanes()).toEqual(stored);
 	});
 
-	it("writes the lanes under the replicated key, validated", async () => {
+	it("writes the lanes under the replicated key", async () => {
 		const store = settings(undefined);
 		const lanes = defaultIngressLanes(80);
 		await new IngressLanesService(store, env).setLanes(lanes);
-		expect(store.write).toHaveBeenCalledWith(INGRESS_LANES_SETTING, expect.anything(), lanes);
+		expect(store.write).toHaveBeenCalledWith(INGRESS_LANES_SETTING, lanes);
 	});
 });

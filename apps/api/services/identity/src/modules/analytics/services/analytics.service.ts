@@ -898,8 +898,11 @@ function rangeFor(period: { start: Date; end: Date }): string {
 // Re-exported so the controller has one import for the domain's vocabulary.
 export type { AnalyticsDataSource };
 
-/** Every analytics use case; each leaves nothing open but its own failures. */
-export type AnalyticsServiceShape = ReturnType<typeof makeAnalyticsService>;
+/** Every analytics use case; each leaves only its own failures and its collaborators open. */
+export type AnalyticsServiceShape = Over<
+	ReturnType<typeof makeAnalyticsService>,
+	AnalyticsRepository
+>;
 
 /** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
 export class AnalyticsService extends Context.Service<AnalyticsService, AnalyticsServiceShape>()(

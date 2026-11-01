@@ -1,5 +1,4 @@
-import { Module } from "@nestjs/common";
-import { EffectRuntime, EffectRuntimeModule } from "@deployer/nest-effect";
+import { createModuleContext, EffectRuntime, EffectRuntimeModule } from "@deployer/nest-effect";
 import { AppLifecycleModule } from "@deployer/shared/core/modules/lifecycle/lifecycle.module";
 import {
 	DEPENDENCIES,
@@ -13,8 +12,7 @@ import { registerSchemaCodecs } from "@deployer/shared/config/drizzle/schema-cod
 import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
 import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
 import { DatabaseModule } from "@deployer/shared/core/modules/database/database.module";
-import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
-import { DatabasePort } from "./core/database/database.port";
+import { DatabasePortModule } from "./core/database/database.module";
 import { AuthModule } from "@deployer/shared/core/modules/auth/auth.module";
 import { createBetterAuth } from "@deployer/shared/config/auth/auth";
 
@@ -73,11 +71,14 @@ registerSchemaCodecs();
  *   HealthModule                the REAL indicators + their live stream
  *   createOrpcModule()          the transport policy, identical in every app
  */
-@Module({
+export class FleetServiceModule extends createModuleContext({
 	imports: [
 		EnvModule,
 		AppLifecycleModule.forRoot(),
 		DatabaseModule,
+		// The `DatabasePort` Effect key, global: repositories yield it at call time, so every module's
+		// scoped request context must see it (a root `providers` entry is invisible to child modules).
+		DatabasePortModule,
 		// ── WHY EVERY SERVICE IMPORTS THE AUTH MODULE ────────────────────────────
 		// `createOrpcModule()` injects `AuthCoreService` to build the auth plugin that
 		// populates `context.auth`, so the service it injects has to be in this app's
@@ -102,7 +103,7 @@ registerSchemaCodecs();
 		createOrpcModule({
 			extraContext: {
 				inject: [EffectRuntime],
-				resolve: async (runtime) => ({ "effect/context": await runtime.context() }),
+				resolve: async (executionContext, runtime) => ({ "effect/context": runtime.contextFor(executionContext.getClass()) }),
 			},
 		}),
 		// The Effect services of the modules already migrated (see `app.layers.ts`).
@@ -136,7 +137,4 @@ registerSchemaCodecs();
 		ProviderSchemaModule,
 		ReachabilityModule,
 	],
-	// The Effect key of the shared database, read by `FleetDb` (`core/database/fleet-db.ts`).
-	providers: [{ provide: DatabasePort, useExisting: GlobalDatabaseService }],
-})
-export class FleetServiceModule {}
+}) {}

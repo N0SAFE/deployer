@@ -8,7 +8,7 @@ on:
         branches: ["**"]
 
 env:
-    BUN_VERSION: "1.4.3"
+    BUN_VERSION: "1.4.4"
     NODE_VERSION: "22"
     TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
     TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
@@ -209,6 +209,11 @@ jobs:
               # `import type` of a class a Nest constructor injects erases it at runtime and the app
               # dies at boot under bun (the SWC-based e2e does not see it). Static, no Docker.
               run: bun --bun run check:di-imports
+
+            - name: 🌐 @Global() modules are type-level globals
+              # A decorator without `declareModule(..., { global: true })` is global at runtime and
+              # invisible to the requirement audit (false Missing<[...]>). Static, no Docker.
+              run: bun --bun run check:global-modules
 
     # Job 3: Build
     build:

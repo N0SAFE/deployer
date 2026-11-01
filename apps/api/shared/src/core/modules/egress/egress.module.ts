@@ -1,4 +1,4 @@
-import { Global, Module } from "@nestjs/common";
+import { createGlobalModule } from "@deployer/nest-effect";
 
 import { EgressService } from "./egress.service";
 
@@ -8,9 +8,7 @@ import { EgressService } from "./egress.service";
  * @Global() like the other core reachability pieces: any module can inject it once this
  * module is imported anywhere in the app graph (`CoreReachabilityModule` imports it).
  */
-@Global()
-@Module({
+export const CoreEgressModule = createGlobalModule({
 	providers: [EgressService],
 	exports: [EgressService],
-})
-export class CoreEgressModule {}
+});

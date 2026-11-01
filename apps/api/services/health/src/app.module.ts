@@ -82,8 +82,10 @@ export class HealthServiceModule extends createModuleContext({
 		createOrpcModule({
 			extraContext: {
 				inject: [EffectRuntime],
-				resolve: async (runtime) => ({
-					"effect/context": await runtime.context(),
+				// The request context is the context of the module that owns the controller being called: this app's
+				// handlers can only reach what `HealthDomainModule` provides, exactly what the type audit checks.
+				resolve: async (executionContext, runtime) => ({
+					"effect/context": runtime.contextFor(executionContext.getClass()),
 				}),
 			},
 		}),
